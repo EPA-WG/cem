@@ -18,7 +18,7 @@
         "dist",
         "!**/*.tsbuildinfo"
     ],
-    "devDependencies": {
+    "dependencies": {
         "@epa-wg/cem-theme": "workspace:*"
     },
     "publishConfig": {
