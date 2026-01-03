@@ -43,6 +43,21 @@
         }
     ],
     "release": {
+        "groups": {
+            "cem": {
+                "projects": ["cem-theme", "cem-components"],
+                "projectsRelationship": "fixed",
+                "releaseTag": {
+                    "pattern": "{version}",
+                    "requireSemver": true
+                },
+                "version": {
+                    "conventionalCommits": true,
+                    "updateDependents": "auto",
+                    "versionPrefix": "^"
+                }
+            }
+        },
         "version": {
             "preVersionCommand": "yarn dlx nx run-many -t build"
         }
