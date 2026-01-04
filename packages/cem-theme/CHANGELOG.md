@@ -1,3 +1,13 @@
+## 0.0.6 (2026-01-04)
+
+### 🩹 Fixes
+
+- bump version 0.0.6 ([1c34012](https://github.com/EPA-WG/cem/commit/1c34012))
+
+### ❤️ Thank You
+
+- Sasha Firsov @sashafirsov
+
 ## 0.0.5 (2026-01-04)
 
 This was a version bump only for @epa-wg/cem-theme to align it with other projects, there were no code changes.
