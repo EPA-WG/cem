@@ -2,6 +2,11 @@
     "name": "@epa-wg/cem-theme",
     "version": "0.0.1",
     "type": "module",
+    "repository": {
+        "type": "git",
+        "url": "https://github.com/EPA-WG/cem.git",
+        "directory": "packages/cem-theme"
+    },
     "main": "./dist/index.js",
     "module": "./dist/index.js",
     "types": "./dist/index.d.ts",

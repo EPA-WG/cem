@@ -4,6 +4,10 @@
     "version": "0.0.0",
     "license": "MIT",
     "private": true,
+    "repository": {
+        "type": "git",
+        "url": "https://github.com/EPA-WG/cem.git"
+    },
     "devDependencies": {
         "@eslint/js": "^9.8.0",
         "@nx/eslint": "22.3.1",
