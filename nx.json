@@ -53,10 +53,10 @@
                 },
                 "version": {
                     "conventionalCommits": true,
-                    "updateDependents": "auto",
+                    "updateDependents": "never",
                     "versionPrefix": "^",
                     "generatorOptions": {
-                        "updateDependents": "auto"
+                        "updateDependents": "never"
                     }
                 },
                 "changelog": {
