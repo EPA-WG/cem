@@ -1,6 +1,6 @@
 {
     "name": "@epa-wg/cem-components",
-    "version": "0.0.2",
+    "version": "0.0.3",
     "type": "module",
     "repository": {
         "type": "git",
@@ -24,7 +24,7 @@
         "!**/*.tsbuildinfo"
     ],
     "dependencies": {
-        "@epa-wg/cem-theme": "workspace:*"
+        "@epa-wg/cem-theme": "^0.0.3"
     },
     "publishConfig": {
         "access": "public"

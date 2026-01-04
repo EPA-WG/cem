@@ -1,3 +1,7 @@
+## 0.0.3 (2026-01-04)
+
+This was a version bump only for @epa-wg/cem-components to align it with other projects, there were no code changes.
+
 ## 0.0.2 (2026-01-04)
 
 ### 🩹 Fixes

@@ -1,3 +1,13 @@
+## 0.0.3 (2026-01-04)
+
+### 🩹 Fixes
+
+- Cannot publish package "@epa-wg/cem-components" because it contains a local dependency protocol in its "dependencies", and your package manager is yarn. ([4c217d7](https://github.com/EPA-WG/cem/commit/4c217d7))
+
+### ❤️ Thank You
+
+- Sasha Firsov @sashafirsov
+
 ## 0.0.2 (2026-01-04)
 
 ### 🩹 Fixes
