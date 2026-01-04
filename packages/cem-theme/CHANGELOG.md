@@ -1,3 +1,15 @@
+## 0.0.4 (2026-01-04)
+
+### 🩹 Fixes
+
+- bump version test 4a ([851daa4](https://github.com/EPA-WG/cem/commit/851daa4))
+- bump version test ([3346347](https://github.com/EPA-WG/cem/commit/3346347))
+- yarn publish:prepare fix if interrupted ([17a045e](https://github.com/EPA-WG/cem/commit/17a045e))
+
+### ❤️ Thank You
+
+- Sasha Firsov @sashafirsov
+
 ## 0.0.3 (2026-01-04)
 
 ### 🩹 Fixes
