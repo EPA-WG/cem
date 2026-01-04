@@ -8,6 +8,9 @@
         "type": "git",
         "url": "https://github.com/EPA-WG/cem.git"
     },
+    "scripts": {
+        "publish:prepare": "yarn nx release --skip-publish && git push && git push --tags"
+    },
     "devDependencies": {
         "@eslint/js": "^9.8.0",
         "@nx/eslint": "22.3.1",

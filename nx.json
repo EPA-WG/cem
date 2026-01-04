@@ -45,7 +45,7 @@
     "release": {
         "groups": {
             "cem": {
-                "projects": ["cem-theme", "cem-components"],
+                "projects": ["@epa-wg/cem", "@epa-wg/cem-theme", "@epa-wg/cem-components"],
                 "projectsRelationship": "fixed",
                 "releaseTag": {
                     "pattern": "{version}",
@@ -59,7 +59,7 @@
             }
         },
         "version": {
-            "preVersionCommand": "yarn dlx nx run-many -t build"
+            "preVersionCommand": "node tools/scripts/sync-release-version.cjs && yarn dlx nx run-many -t build"
         }
     },
     "targetDefaults": {
