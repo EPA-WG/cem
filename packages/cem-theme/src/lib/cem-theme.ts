@@ -1,3 +1,3 @@
-export function cemTheme(): string {
-  return 'cem-theme';
+export function cemTheme(): Record<string, string> {
+  return {"@epa-wg/cem-theme": "0.0.0"};
 }

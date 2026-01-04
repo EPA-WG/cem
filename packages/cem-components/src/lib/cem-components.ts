@@ -5,5 +5,5 @@ export function cemComponents(): string {
 }
 
 export function getTheme(): string {
-  return cemTheme();
+  return cemTheme()['@epa-wg/cem-theme'];
 }

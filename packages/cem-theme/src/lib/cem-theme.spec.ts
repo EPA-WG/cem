@@ -2,6 +2,6 @@ import { cemTheme } from './cem-theme.js';
 
 describe('cemTheme', () => {
   it('should work', () => {
-    expect(cemTheme()).toEqual('cem-theme');
+    expect(cemTheme()['@epa-wg/cem-theme']).toEqual('0.0.0');
   });
 });
