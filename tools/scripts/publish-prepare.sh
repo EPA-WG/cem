@@ -31,18 +31,27 @@ node tools/scripts/replace-workspace-protocol.cjs
 echo "🔒 Updating yarn.lock..."
 yarn install
 
-# Step 4: Stage changes
+# Step 4: Get the version for tag recreation
+NEW_VERSION=$(node -p "require('./package.json').version")
+echo "📌 Version: $NEW_VERSION"
+
+# Step 5: Stage changes
 echo "📝 Staging changes..."
 git add packages/*/package.json yarn.lock
 
-# Step 5: Amend the release commit
+# Step 6: Amend the release commit
 echo "✏️  Amending release commit..."
 git commit --amend --no-edit
 
-# Step 6: Push commits and tags
+# Step 7: Recreate the tag at the amended commit
+echo "🏷️  Recreating tag $NEW_VERSION at amended commit..."
+git tag -d "$NEW_VERSION" 2>/dev/null || true
+git tag "$NEW_VERSION"
+
+# Step 8: Push commits and tags
 echo "⬆️  Pushing to remote..."
 git push --force-with-lease
-git push --tags
+git push --tags --force
 
 echo "✅ Release preparation complete!"
 echo "🎉 Ready to publish via CI/CD"
