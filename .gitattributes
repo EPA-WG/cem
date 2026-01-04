@@ -1,0 +1,32 @@
+# Auto detect text files and normalize line endings to LF
+* text=auto eol=lf
+
+# Explicitly mark text files as UTF-8
+*.md text working-tree-encoding=UTF-8
+*.js text working-tree-encoding=UTF-8
+*.mjs text working-tree-encoding=UTF-8
+*.cjs text working-tree-encoding=UTF-8
+*.ts text working-tree-encoding=UTF-8
+*.mts text working-tree-encoding=UTF-8
+*.cts text working-tree-encoding=UTF-8
+*.json text working-tree-encoding=UTF-8
+*.yml text working-tree-encoding=UTF-8
+*.yaml text working-tree-encoding=UTF-8
+*.html text working-tree-encoding=UTF-8
+*.xhtml text working-tree-encoding=UTF-8
+*.xml text working-tree-encoding=UTF-8
+*.css text working-tree-encoding=UTF-8
+*.scss text working-tree-encoding=UTF-8
+*.svg text working-tree-encoding=UTF-8
+
+# Binary files
+*.png binary
+*.jpg binary
+*.jpeg binary
+*.gif binary
+*.ico binary
+*.woff binary
+*.woff2 binary
+*.ttf binary
+*.eot binary
+*.pdf binary

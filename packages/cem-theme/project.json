@@ -1,0 +1,42 @@
+{
+    "name": "@epa-wg/cem-theme",
+    "$schema": "../../node_modules/nx/schemas/project-schema.json",
+    "sourceRoot": "packages/cem-theme/src",
+    "projectType": "library",
+    "targets": {
+        "build": {
+            "dependsOn": ["^build"],
+            "executor": "nx:run-commands",
+            "options": {
+                "commands": [
+                    "tsc --build tsconfig.lib.json",
+                    "node ../../tools/scripts/compile-markdown.mjs"
+                ],
+                "parallel": true,
+                "cwd": "packages/cem-theme"
+            },
+            "cache": true,
+            "inputs": [
+                "production",
+                "{projectRoot}/src/**/*.md"
+            ],
+            "outputs": [
+                "{projectRoot}/dist"
+            ]
+        },
+        "build:docs": {
+            "executor": "nx:run-commands",
+            "options": {
+                "command": "node ../../tools/scripts/compile-markdown.mjs",
+                "cwd": "packages/cem-theme"
+            },
+            "cache": true,
+            "inputs": [
+                "{projectRoot}/src/**/*.md"
+            ],
+            "outputs": [
+                "{projectRoot}/dist/**/*.xhtml"
+            ]
+        }
+    }
+}
