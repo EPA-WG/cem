@@ -27,14 +27,25 @@ jobs:
       # Cache node_modules
       - uses: actions/setup-node@v4
         with:
-          node-version: 20
-          cache: 'npm'
+          node-version: 24
 
-      - run: npm ci
+      - name: Enable Corepack
+        run: corepack enable
+
+      - name: Install dependencies
+        run: yarn install --immutable
+
+      - name: Nx report
+        run: yarn nx report
 
       # Prepend any command with "nx-cloud record --" to record its logs to Nx Cloud
       - run: npx nx-cloud record -- npx nx format:check  --base="remotes/origin/main"
-      - run: npx nx run-many -t lint test build typecheck e2e-ci
+#      - run: npx nx run-many -t lint test build typecheck e2e-ci
+
+      - name: Lint + Test + Build (affected)
+        run: |
+          yarn nx affected -t lint,test,build,typecheck,e2e-ci --parallel=3
+
       # Nx Cloud recommends fixes for failures to help you get CI green faster. Learn more: https://nx.dev/ci/features/self-healing-ci
       - run: npx nx fix-ci
         if: always()
