@@ -2,6 +2,11 @@
 
 echo "🚀 Starting release preparation..."
 
+# Step 0: Restore workspace:* protocol before release
+echo "🔙 Restoring workspace protocol for release..."
+node tools/scripts/restore-workspace-protocol.cjs
+yarn install
+
 # Step 1: Run Nx release (bump versions, create changelog)
 echo "📦 Running Nx release..."
 set +e  # Temporarily disable exit on error
