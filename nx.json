@@ -55,11 +55,20 @@
                     "conventionalCommits": true,
                     "updateDependents": "auto",
                     "versionPrefix": "^"
+                },
+                "changelog": {
+                    "workspaceChangelog": {
+                        "createRelease": "github"
+                    },
+                    "projectChangelogs": false
                 }
             }
         },
         "version": {
             "preVersionCommand": "node tools/scripts/sync-release-version.cjs && yarn dlx nx run-many -t build"
+        },
+        "changelog": {
+            "automaticFromRef": true
         }
     },
     "targetDefaults": {
