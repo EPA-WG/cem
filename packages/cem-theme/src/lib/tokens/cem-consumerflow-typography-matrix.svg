@@ -1,0 +1,198 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<svg xmlns="http://www.w3.org/2000/svg" width="1400" height="860" viewBox="0 0 1400 860" role="img" aria-label="Consumer-flow mapping matrix: purpose by semantic typography roles with default voice levels">
+  <defs>
+    <style>
+      :root {
+        --cem-ink: #111;
+        --cem-surface: #fff;
+        --cem-outline: #c7c7c7;
+        --cem-muted: #666;
+        --cem-accent: #005a9c;
+        --cem-soft: #f6f7f9;
+      }
+      .frame { fill: var(--cem-surface); stroke: var(--cem-outline); stroke-width: 2; rx: 18; }
+      .cell  { fill: var(--cem-surface); stroke: var(--cem-outline); stroke-width: 1.5; rx: 12; }
+      .cell-soft { fill: var(--cem-soft); stroke: var(--cem-outline); stroke-width: 1.5; rx: 12; }
+      .cell-accent { fill: var(--cem-surface); stroke: var(--cem-accent); stroke-width: 2.2; rx: 12; }
+      .title { font: 700 32px system-ui, -apple-system, "Segoe UI", Arial, sans-serif; fill: var(--cem-ink); }
+      .muted { font: 400 16px system-ui, -apple-system, "Segoe UI", Arial, sans-serif; fill: var(--cem-muted); }
+      .h     { font: 650 18px system-ui, -apple-system, "Segoe UI", Arial, sans-serif; fill: var(--cem-ink); }
+      .t     { font: 400 16px system-ui, -apple-system, "Segoe UI", Arial, sans-serif; fill: var(--cem-ink); }
+      .tag   { font: 600 14px ui-monospace, SFMono-Regular, Menlo, Consolas, "Liberation Mono", monospace; fill: var(--cem-accent); }
+    </style>
+  </defs>
+
+  <rect x="30" y="30" width="1340" height="800" class="frame"/>
+
+  <text x="70" y="92" class="title">Consumer flow → semantic typography roles → default voice</text>
+  <text x="70" y="125" class="muted">Roles are “what the content is”; flow is “what the user is doing”.</text>
+
+  <rect x="70" y="170" width="260" height="60" class="cell-soft"/>
+  <text x="90" y="208" class="h">Consumer flow purpose</text>
+
+  <g>
+    <rect x="340" y="170" width="170" height="60" class="cell-soft"/>
+    <text x="360" y="198" class="h">Reading</text>
+    <text x="360" y="220" class="tag">voice: regular</text>
+
+    <rect x="520" y="170" width="170" height="60" class="cell-soft"/>
+    <text x="540" y="198" class="h">UI</text>
+    <text x="540" y="220" class="tag">voice: gentle</text>
+
+    <rect x="700" y="170" width="170" height="60" class="cell-soft"/>
+    <text x="720" y="198" class="h">Data</text>
+    <text x="720" y="220" class="tag">voice: regular</text>
+
+    <rect x="880" y="170" width="170" height="60" class="cell-soft"/>
+    <text x="900" y="198" class="h">Tag</text>
+    <text x="900" y="220" class="tag">voice: firm</text>
+
+    <rect x="1060" y="170" width="170" height="60" class="cell-soft"/>
+    <text x="1080" y="198" class="h">Script</text>
+    <text x="1080" y="220" class="tag">voice: gentle</text>
+
+    <rect x="1240" y="170" width="120" height="60" class="cell-soft"/>
+    <text x="1255" y="198" class="h">Init.</text>
+    <text x="1255" y="220" class="tag">voice: firm</text>
+  </g>
+
+  <!-- Row 1 -->
+  <g>
+    <rect x="70" y="245" width="260" height="80" class="cell-soft"/>
+    <text x="90" y="285" class="h">Orient / Navigate</text>
+    <text x="90" y="310" class="muted">Where am I? Where do I go?</text>
+
+    <rect x="340" y="245" width="170" height="80" class="cell"/>
+    <text x="360" y="292" class="t">Sometimes</text>
+
+    <rect x="520" y="245" width="170" height="80" class="cell-accent"/>
+    <text x="540" y="280" class="t">Primary</text>
+    <text x="540" y="305" class="tag">voice: gentle</text>
+
+    <rect x="700" y="245" width="170" height="80" class="cell"/>
+    <text x="720" y="292" class="t">Rare</text>
+
+    <rect x="880" y="245" width="170" height="80" class="cell-accent"/>
+    <text x="900" y="280" class="t">Often</text>
+    <text x="900" y="305" class="tag">voice: firm</text>
+
+    <rect x="1060" y="245" width="170" height="80" class="cell"/>
+    <text x="1080" y="292" class="t">Sometimes</text>
+
+    <rect x="1240" y="245" width="120" height="80" class="cell-accent"/>
+    <text x="1255" y="280" class="t">Often</text>
+    <text x="1255" y="305" class="tag">voice: firm</text>
+  </g>
+
+  <!-- Row 2 -->
+  <g>
+    <rect x="70" y="345" width="260" height="80" class="cell-soft"/>
+    <text x="90" y="385" class="h">Scan / Compare</text>
+    <text x="90" y="410" class="muted">What differs? Which option wins?</text>
+
+    <rect x="340" y="345" width="170" height="80" class="cell"/>
+    <text x="360" y="392" class="t">Sometimes</text>
+
+    <rect x="520" y="345" width="170" height="80" class="cell-accent"/>
+    <text x="540" y="380" class="t">Often</text>
+    <text x="540" y="405" class="tag">voice: gentle</text>
+
+    <rect x="700" y="345" width="170" height="80" class="cell-accent"/>
+    <text x="720" y="380" class="t">Primary</text>
+    <text x="720" y="405" class="tag">voice: regular</text>
+
+    <rect x="880" y="345" width="170" height="80" class="cell-accent"/>
+    <text x="900" y="380" class="t">Often</text>
+    <text x="900" y="405" class="tag">voice: firm</text>
+
+    <rect x="1060" y="345" width="170" height="80" class="cell"/>
+    <text x="1080" y="392" class="t">Rare</text>
+
+    <rect x="1240" y="345" width="120" height="80" class="cell"/>
+    <text x="1255" y="392" class="t">Sometimes</text>
+  </g>
+
+  <!-- Row 3 -->
+  <g>
+    <rect x="70" y="445" width="260" height="80" class="cell-soft"/>
+    <text x="90" y="485" class="h">Read / Learn</text>
+    <text x="90" y="510" class="muted">Understand and retain</text>
+
+    <rect x="340" y="445" width="170" height="80" class="cell-accent"/>
+    <text x="360" y="480" class="t">Primary</text>
+    <text x="360" y="505" class="tag">voice: regular</text>
+
+    <rect x="520" y="445" width="170" height="80" class="cell"/>
+    <text x="540" y="492" class="t">Sometimes</text>
+
+    <rect x="700" y="445" width="170" height="80" class="cell"/>
+    <text x="720" y="492" class="t">Sometimes</text>
+
+    <rect x="880" y="445" width="170" height="80" class="cell"/>
+    <text x="900" y="492" class="t">Sometimes</text>
+
+    <rect x="1060" y="445" width="170" height="80" class="cell"/>
+    <text x="1080" y="492" class="t">Sometimes</text>
+
+    <rect x="1240" y="445" width="120" height="80" class="cell"/>
+    <text x="1255" y="492" class="t">Rare</text>
+  </g>
+
+  <!-- Row 4 -->
+  <g>
+    <rect x="70" y="545" width="260" height="80" class="cell-soft"/>
+    <text x="90" y="585" class="h">Act</text>
+    <text x="90" y="610" class="muted">Commit: click, submit, approve</text>
+
+    <rect x="340" y="545" width="170" height="80" class="cell"/>
+    <text x="360" y="592" class="t">Rare</text>
+
+    <rect x="520" y="545" width="170" height="80" class="cell-accent"/>
+    <text x="540" y="580" class="t">Primary</text>
+    <text x="540" y="605" class="tag">voice: firm</text>
+
+    <rect x="700" y="545" width="170" height="80" class="cell"/>
+    <text x="720" y="592" class="t">Sometimes</text>
+
+    <rect x="880" y="545" width="170" height="80" class="cell-accent"/>
+    <text x="900" y="580" class="t">Often</text>
+    <text x="900" y="605" class="tag">voice: firm</text>
+
+    <rect x="1060" y="545" width="170" height="80" class="cell"/>
+    <text x="1080" y="592" class="t">Rare</text>
+
+    <rect x="1240" y="545" width="120" height="80" class="cell"/>
+    <text x="1255" y="592" class="t">Rare</text>
+  </g>
+
+  <!-- Row 5 -->
+  <g>
+    <rect x="70" y="645" width="260" height="80" class="cell-soft"/>
+    <text x="90" y="685" class="h">Confirm / Reflect</text>
+    <text x="90" y="710" class="muted">Understand outcomes and status</text>
+
+    <rect x="340" y="645" width="170" height="80" class="cell-accent"/>
+    <text x="360" y="680" class="t">Often</text>
+    <text x="360" y="705" class="tag">voice: regular</text>
+
+    <rect x="520" y="645" width="170" height="80" class="cell-accent"/>
+    <text x="540" y="680" class="t">Often</text>
+    <text x="540" y="705" class="tag">voice: gentle</text>
+
+    <rect x="700" y="645" width="170" height="80" class="cell-accent"/>
+    <text x="720" y="680" class="t">Often</text>
+    <text x="720" y="705" class="tag">voice: regular</text>
+
+    <rect x="880" y="645" width="170" height="80" class="cell-accent"/>
+    <text x="900" y="680" class="t">Often</text>
+    <text x="900" y="705" class="tag">voice: firm</text>
+
+    <rect x="1060" y="645" width="170" height="80" class="cell"/>
+    <text x="1080" y="692" class="t">Rare</text>
+
+    <rect x="1240" y="645" width="120" height="80" class="cell"/>
+    <text x="1255" y="692" class="t">Sometimes</text>
+  </g>
+
+  <text x="70" y="792" class="muted">Tip: Treat alerts and safety-critical announcements as separate semantics (not just typography). Use ARIA live regions appropriately.</text>
+</svg>

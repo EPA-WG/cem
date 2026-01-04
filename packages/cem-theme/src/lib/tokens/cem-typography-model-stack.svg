@@ -1,0 +1,64 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<svg xmlns="http://www.w3.org/2000/svg" width="1200" height="700" viewBox="0 0 1200 700" role="img" aria-label="CEM typography model: Fontography, Typography, and Voice with Ink and Speech projections">
+  <defs>
+    <style>
+      :root {
+        --cem-ink: #111;
+        --cem-surface: #fff;
+        --cem-outline: #c7c7c7;
+        --cem-muted: #666;
+        --cem-accent: #005a9c;
+      }
+      .frame { fill: var(--cem-surface); stroke: var(--cem-outline); stroke-width: 2; rx: 18; }
+      .card  { fill: var(--cem-surface); stroke: var(--cem-outline); stroke-width: 2; rx: 22; }
+      .card-accent { fill: var(--cem-surface); stroke: var(--cem-accent); stroke-width: 2.5; rx: 22; }
+      .title { font: 700 34px system-ui, -apple-system, "Segoe UI", Arial, sans-serif; fill: var(--cem-ink); }
+      .h2    { font: 650 26px system-ui, -apple-system, "Segoe UI", Arial, sans-serif; fill: var(--cem-ink); }
+      .text  { font: 400 18px system-ui, -apple-system, "Segoe UI", Arial, sans-serif; fill: var(--cem-ink); }
+      .muted { font: 400 16px system-ui, -apple-system, "Segoe UI", Arial, sans-serif; fill: var(--cem-muted); }
+      .mono  { font: 500 16px ui-monospace, SFMono-Regular, Menlo, Consolas, "Liberation Mono", monospace; fill: var(--cem-muted); }
+      .arrow-strong { stroke: var(--cem-accent); stroke-width: 3; fill: none; marker-end: url(#arrowheadAccent); }
+    </style>
+    <marker id="arrowheadAccent" markerWidth="10" markerHeight="8" refX="8" refY="4" orient="auto">
+      <path d="M0,0 L10,4 L0,8 Z" fill="var(--cem-accent)"/>
+    </marker>
+  </defs>
+
+  <rect x="30" y="30" width="1140" height="640" class="frame"/>
+  <text x="70" y="95" class="title">CEM Typography Model: Fontography, Typography, Voice</text>
+  <text x="70" y="128" class="muted">Voice is modality-independent prominence. It projects into Ink (visual) and Speech (read-aloud prosody).</text>
+
+  <rect x="90" y="170" width="520" height="135" class="card"/>
+  <text x="125" y="218" class="h2">Fontography</text>
+  <text x="125" y="248" class="text">Fonts as assets + feature policy</text>
+  <text x="125" y="276" class="mono">--cem-fontography-&lt;role&gt;-family</text>
+
+  <rect x="90" y="325" width="520" height="155" class="card"/>
+  <text x="125" y="372" class="h2">Typography</text>
+  <text x="125" y="402" class="text">Layout perception: size, rhythm, spacing</text>
+  <text x="125" y="430" class="mono">--cem-typography-&lt;role&gt;-font-size</text>
+  <text x="125" y="455" class="mono">--cem-typography-&lt;role&gt;-line-height</text>
+
+  <rect x="90" y="505" width="520" height="140" class="card-accent"/>
+  <text x="125" y="552" class="h2">Voice</text>
+  <text x="125" y="582" class="text">Prominence semantics (cross‑modal)</text>
+  <text x="125" y="610" class="mono">--cem-voice-&lt;level&gt;-…</text>
+
+  <path d="M610,575 C700,575 710,345 800,345" class="arrow-strong"/>
+  <path d="M610,595 C700,595 710,515 800,515" class="arrow-strong"/>
+
+  <rect x="800" y="255" width="330" height="170" class="card"/>
+  <text x="835" y="302" class="h2">Ink projection</text>
+  <text x="835" y="332" class="text">Visual strength for text + icons</text>
+  <text x="835" y="362" class="mono">--cem-voice-*-ink-thickness</text>
+  <text x="835" y="388" class="mono">--cem-voice-*-icon-stroke-multiplier</text>
+
+  <rect x="800" y="445" width="330" height="190" class="card"/>
+  <text x="835" y="492" class="h2">Speech projection</text>
+  <text x="835" y="522" class="text">Product read‑aloud prosody</text>
+  <text x="835" y="552" class="mono">--cem-voice-*-speech-rate</text>
+  <text x="835" y="578" class="mono">--cem-voice-*-speech-pitch</text>
+  <text x="835" y="604" class="mono">--cem-voice-*-speech-volume</text>
+
+  <text x="70" y="665" class="muted">Note: Screen readers primarily follow HTML/ARIA semantics; voice tokens are intended for product read‑aloud features.</text>
+</svg>

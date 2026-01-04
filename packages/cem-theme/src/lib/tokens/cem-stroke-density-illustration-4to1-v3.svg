@@ -1,0 +1,102 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<svg xmlns="http://www.w3.org/2000/svg" width="3200" height="800" viewBox="0 0 3200 800">
+
+  <defs>
+    <filter id="shadow" x="-20%" y="-20%" width="140%" height="160%">
+      <feOffset dx="0" dy="10" result="off"/>
+      <feGaussianBlur in="off" stdDeviation="10" result="blur"/>
+      <feColorMatrix in="blur" type="matrix"
+        values="0 0 0 0 0
+                0 0 0 0 0
+                0 0 0 0 0
+                0 0 0 0.22 0" result="shadow"/>
+      <feBlend in="shadow" in2="SourceGraphic" mode="normal"/>
+    </filter>
+    <style>
+      .title { font: 700 54px system-ui, -apple-system, Segoe UI, Arial, sans-serif; fill: black; }
+      .banner { font: 400 30px system-ui, -apple-system, Segoe UI, Arial, sans-serif; fill: #13539b; }
+      .label { font: 700 30px system-ui, -apple-system, Segoe UI, Arial, sans-serif; fill: #141416; }
+      .sub { font: 400 24px system-ui, -apple-system, Segoe UI, Arial, sans-serif; fill: #4b4b52; }
+      .ui { font: 400 30px system-ui, -apple-system, Segoe UI, Arial, sans-serif; fill: #141416; }
+      .ui-bold { font: 700 30px system-ui, -apple-system, Segoe UI, Arial, sans-serif; fill: #141416; }
+      .small { font: 400 24px system-ui, -apple-system, Segoe UI, Arial, sans-serif; fill: #4b4b52; }
+    </style>
+  </defs>
+
+<rect x="0" y="0" width="3200" height="800" fill="#ffffff"/>
+<rect x="60" y="28" width="3080" height="78" rx="24" fill="#e8f1fc"/>
+<text x="95" y="80" class="banner">Dense UI may need stronger strokes; Comfort UI can rely on whitespace for separation.</text>
+<text x="1600.0" y="164" text-anchor="middle" class="title">Stroke thickness varies by density mode (semantics unchanged)</text>
+<g filter="url(#shadow)"><rect x="90" y="216" width="1475" height="494" rx="32" fill="#ffffff"/></g>
+<g filter="url(#shadow)"><rect x="1635" y="216" width="1475" height="494" rx="32" fill="#ffffff"/></g>
+<text x="130" y="278" class="label">DENSE</text>
+<text x="160" y="316" class="sub">Ink carries more of the separation load</text>
+<text x="1675" y="278" class="label">COMFORT</text>
+<text x="1698" y="316" class="sub">Space carries more of the separation load</text>
+<rect x="130" y="336" width="1395" height="360" rx="28" fill="#f5f6f8" stroke="#37373c" stroke-width="5"/>
+<rect x="135" y="341" width="1385" height="86" rx="22" fill="#ffffff"/>
+<circle cx="173" cy="384.0" r="16" fill="#d2d4da" stroke="#5f5f66" stroke-width="1"/>
+<text x="203" y="385" class="ui-bold">Settings</text>
+<rect x="1388" y="366.0" width="110" height="36" rx="18" fill="#ebecf0" stroke="#8c8e94" stroke-width="1"/>
+<circle cx="1480.0" cy="384.0" r="18.0" fill="#ffffff" stroke="#8c8e94" stroke-width="1"/>
+<rect x="135" y="443" width="1385" height="78" fill="#ffffff"/>
+<rect x="157" y="464.0" width="36" height="36" rx="6" fill="#ffffff" stroke="#787a80" stroke-width="2"/>
+<text x="211" y="481" class="ui-bold">Option 1</text>
+<text x="211" y="515" class="small">Supporting detail</text>
+<line x1="1470" y1="474.0" x2="1478" y2="482.0" stroke="#787a80" stroke-width="3" stroke-linecap="round"/>
+<line x1="1470" y1="490.0" x2="1478" y2="482.0" stroke="#787a80" stroke-width="3" stroke-linecap="round"/>
+<line x1="135" y1="521" x2="1520" y2="521" stroke="#46484e" stroke-width="4" stroke-linecap="round"/>
+<rect x="135" y="521" width="1385" height="78" fill="#fafbfd"/>
+<rect x="157" y="542.0" width="36" height="36" rx="6" fill="#ffffff" stroke="#787a80" stroke-width="2"/>
+<line x1="165" y1="560.0" x2="173" y2="570.0" stroke="#46484e" stroke-width="3" stroke-linecap="round"/>
+<line x1="173" y1="570.0" x2="187" y2="550.0" stroke="#46484e" stroke-width="3" stroke-linecap="round"/>
+<text x="211" y="559" class="ui">Option 2</text>
+<text x="211" y="593" class="small">Supporting detail</text>
+<line x1="1470" y1="552.0" x2="1478" y2="560.0" stroke="#787a80" stroke-width="3" stroke-linecap="round"/>
+<line x1="1470" y1="568.0" x2="1478" y2="560.0" stroke="#787a80" stroke-width="3" stroke-linecap="round"/>
+<line x1="135" y1="599" x2="1520" y2="599" stroke="#46484e" stroke-width="4" stroke-linecap="round"/>
+<rect x="135" y="599" width="1385" height="78" fill="#ffffff"/>
+<rect x="157" y="620.0" width="36" height="36" rx="6" fill="#ffffff" stroke="#787a80" stroke-width="2"/>
+<text x="211" y="637" class="ui">Option 3</text>
+<text x="211" y="671" class="small">Supporting detail</text>
+<line x1="1470" y1="630.0" x2="1478" y2="638.0" stroke="#787a80" stroke-width="3" stroke-linecap="round"/>
+<line x1="1470" y1="646.0" x2="1478" y2="638.0" stroke="#787a80" stroke-width="3" stroke-linecap="round"/>
+<line x1="135" y1="677" x2="1520" y2="677" stroke="#46484e" stroke-width="2" stroke-linecap="round"/>
+
+<line x1="152" y1="596" x2="392" y2="596" stroke="#28282d" stroke-width="4" stroke-linecap="round"/>
+<text x="412" y="596" class="small" style="fill:#141416;">4px separator</text>
+<rect x="1675" y="336" width="1395" height="360" rx="28" fill="#f5f6f8" stroke="#37373c" stroke-width="2"/>
+<rect x="1677" y="338" width="1391" height="104" rx="22" fill="#ffffff"/>
+<circle cx="1725" cy="390.0" r="18" fill="#d2d4da" stroke="#5f5f66" stroke-width="1"/>
+<text x="1757" y="392" class="ui-bold">Settings</text>
+<rect x="2928" y="372.0" width="110" height="36" rx="18" fill="#ebecf0" stroke="#8c8e94" stroke-width="1"/>
+<circle cx="3020.0" cy="390.0" r="18.0" fill="#ffffff" stroke="#8c8e94" stroke-width="1"/>
+<rect x="1677" y="464" width="1391" height="105" fill="#ffffff"/>
+<rect x="1707" y="496.5" width="40" height="40" rx="6" fill="#ffffff" stroke="#787a80" stroke-width="1"/>
+<text x="1765" y="512" class="ui-bold">Option 1</text>
+<text x="1765" y="546" class="small">Supporting detail</text>
+<line x1="3010" y1="508.5" x2="3018" y2="516.5" stroke="#787a80" stroke-width="2" stroke-linecap="round"/>
+<line x1="3010" y1="524.5" x2="3018" y2="516.5" stroke="#787a80" stroke-width="2" stroke-linecap="round"/>
+<line x1="1677" y1="569" x2="3068" y2="569" stroke="#96989e" stroke-width="1" stroke-linecap="round"/>
+<rect x="1677" y="569" width="1391" height="105" fill="#fafbfd"/>
+<rect x="1707" y="601.5" width="40" height="40" rx="6" fill="#ffffff" stroke="#787a80" stroke-width="1"/>
+<line x1="1715" y1="621.5" x2="1725" y2="633.5" stroke="#46484e" stroke-width="2" stroke-linecap="round"/>
+<line x1="1725" y1="633.5" x2="1741" y2="609.5" stroke="#46484e" stroke-width="2" stroke-linecap="round"/>
+<text x="1765" y="617" class="ui">Option 2</text>
+<text x="1765" y="651" class="small">Supporting detail</text>
+<line x1="3010" y1="613.5" x2="3018" y2="621.5" stroke="#787a80" stroke-width="2" stroke-linecap="round"/>
+<line x1="3010" y1="629.5" x2="3018" y2="621.5" stroke="#787a80" stroke-width="2" stroke-linecap="round"/>
+<line x1="1677" y1="674" x2="3068" y2="674" stroke="#96989e" stroke-width="1" stroke-linecap="round"/>
+<rect x="1707" y="811.5" width="40" height="40" rx="6" fill="#ffffff" stroke="#787a80" stroke-width="1"/>
+<line x1="1705" y1="570" x2="1945" y2="570" stroke="#28282d" stroke-width="1" stroke-linecap="round"/>
+<text x="1965" y="572" class="small" style="fill:#141416;">1px separator</text>
+<text  x="760.0" y="240" class="small" >Density mode</text>
+<line x1="680.0" y1="278" x2="920.0" y2="278" stroke="#a0a2a8" stroke-width="6" stroke-linecap="round"/>
+<line x1="680.0" y1="266" x2="680.0" y2="290" stroke="#a0a2a8" stroke-width="4" stroke-linecap="round"/>
+<line x1="800.0" y1="266" x2="800.0" y2="290" stroke="#a0a2a8" stroke-width="4" stroke-linecap="round"/>
+<line x1="920.0" y1="266" x2="920.0" y2="290" stroke="#a0a2a8" stroke-width="4" stroke-linecap="round"/>
+<circle cx="730.0" cy="278" r="20" fill="#ffffff" stroke="#46484e" stroke-width="4"/>
+<text x="674.0" y="328" class="small">Dense</text>
+<text x="834.0" y="328" class="small">Comfort</text>
+<text x="1600.0" y="770" text-anchor="middle" class="small">Non-breaking adjustment: tune stroke thickness per density mode; preserve semantic meaning of boundaries.</text>
+</svg>

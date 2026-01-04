@@ -1,0 +1,164 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<svg xmlns="http://www.w3.org/2000/svg" width="1200" height="840" viewBox="0 0 1200 840" role="img" aria-label="Data vs Reading: why tabular numerals matter for scanning and comparison">
+  <defs>
+    <style>
+      :root {
+        --cem-ink: #111;
+        --cem-surface: #fff;
+        --cem-outline: #c7c7c7;
+        --cem-muted: #666;
+        --cem-accent: #005a9c;
+        --cem-soft: #f6f7f9;
+        --cem-warn: #b00020;
+      }
+
+      .frame { fill: var(--cem-surface); stroke: var(--cem-outline); stroke-width: 2; rx: 18; }
+      .panel { fill: var(--cem-surface); stroke: var(--cem-outline); stroke-width: 2; rx: 18; }
+      .panel-accent { fill: var(--cem-surface); stroke: var(--cem-accent); stroke-width: 2.4; rx: 18; }
+      .soft { fill: var(--cem-soft); stroke: var(--cem-outline); stroke-width: 1.2; rx: 14; }
+
+      .title { font: 700 32px system-ui, -apple-system, "Segoe UI", Arial, sans-serif; fill: var(--cem-ink); }
+      .subtitle { font: 400 16px system-ui, -apple-system, "Segoe UI", Arial, sans-serif; fill: var(--cem-muted); }
+      .h { font: 650 20px system-ui, -apple-system, "Segoe UI", Arial, sans-serif; fill: var(--cem-ink); }
+      .t { font: 400 16px system-ui, -apple-system, "Segoe UI", Arial, sans-serif; fill: var(--cem-ink); }
+      .muted { font: 400 14px system-ui, -apple-system, "Segoe UI", Arial, sans-serif; fill: var(--cem-muted); }
+      .mono { font: 600 14px ui-monospace, SFMono-Regular, Menlo, Consolas, "Liberation Mono", monospace; fill: var(--cem-muted); }
+      .num-reading {
+          font-family: system-ui, -apple-system, "Segoe UI", Arial, sans-serif;
+          font-size: 20px;
+          font-weight: 650;
+          fill: var(--cem-ink);
+
+          /* force proportional numerals */
+          font-variant-numeric: proportional-nums;
+          font-feature-settings: "pnum" 1, "tnum" 0;
+      }
+
+      .num-data {
+          font-family: ui-monospace, "SFMono-Regular", Menlo, Monaco, Consolas,
+                   "Liberation Mono", "Courier New", monospace;
+          font-size: 20px;
+          font-weight: 650;
+          fill: var(--cem-ink);
+
+          /* force tabular numerals */
+          font-variant-numeric: tabular-nums lining-nums;
+          font-feature-settings: "tnum" 1, "lnum" 1;
+      }
+
+      .guide { stroke: var(--cem-warn); stroke-width: 2; stroke-dasharray: 6 6; }
+      .guide2 { stroke: var(--cem-accent); stroke-width: 2; stroke-dasharray: 6 6; }
+      .callout { font: 600 13px system-ui, -apple-system, "Segoe UI", Arial, sans-serif; fill: var(--cem-warn); }
+      .callout2 { font: 600 13px system-ui, -apple-system, "Segoe UI", Arial, sans-serif; fill: var(--cem-accent); }
+    </style>
+  </defs>
+
+  <!-- Outer frame -->
+  <rect x="30" y="30" width="1140" height="780" class="frame"/>
+
+  <!-- Title -->
+  <text x="70" y="92" class="title">Data vs Reading: why tabular numerals matter</text>
+  <text x="70" y="125" class="subtitle">Same content, different semantic intent. Data typography optimizes scanning and comparison using tabular numerals.</text>
+
+  <!-- Panels -->
+  <rect x="70" y="165" width="520" height="600" class="panel"/>
+  <rect x="610" y="165" width="520" height="600" class="panel-accent"/>
+
+  <!-- Panel headings -->
+  <text x="95" y="210" class="h">Reading (proportional numerals)</text>
+  <text x="95" y="236" class="mono">--cem-typography-reading-…</text>
+
+  <text x="635" y="210" class="h">Data (tabular numerals)</text>
+  <text x="635" y="236" class="mono">--cem-typography-data-font-variant-numeric: tabular-nums</text>
+
+  <!-- Table headers -->
+  <rect x="95" y="265" width="470" height="44" class="soft"/>
+  <text x="115" y="293" class="t">Metric</text>
+  <text x="360" y="293" class="t">Value</text>
+
+  <rect x="635" y="265" width="470" height="44" class="soft"/>
+  <text x="655" y="293" class="t">Metric</text>
+  <text x="900" y="293" class="t">Value</text>
+
+  <!-- Rows geometry -->
+  <!-- Each row: height 62, start y=320 -->
+  <!-- Draw value cell boxes with fixed width, left-aligned numbers -->
+  <!-- Left value box x=330 w=235; Right value box x=870 w=235 -->
+  <!-- Vertical guide at right edge to show ragged ends vs alignment -->
+  <!-- Row 1 -->
+  <rect x="95" y="320" width="470" height="62" class="soft"/>
+  <text x="115" y="357" class="t">Flow rate (L/s)</text>
+  <rect x="330" y="333" width="235" height="36" class="frame"/>
+  <text x="345" y="357" class="num-reading">111.11</text>
+
+  <rect x="635" y="320" width="470" height="62" class="soft"/>
+  <text x="655" y="357" class="t">Flow rate (L/s)</text>
+  <rect x="870" y="333" width="235" height="36" class="frame"/>
+  <text x="885" y="357" class="num-data">111.11</text>
+
+  <!-- Row 2 -->
+  <rect x="95" y="390" width="470" height="62" class="soft"/>
+  <text x="115" y="427" class="t">Flow rate (L/s)</text>
+  <rect x="330" y="403" width="235" height="36" class="frame"/>
+  <text x="345" y="427" class="num-reading">888.88</text>
+
+  <rect x="635" y="390" width="470" height="62" class="soft"/>
+  <text x="655" y="427" class="t">Flow rate (L/s)</text>
+  <rect x="870" y="403" width="235" height="36" class="frame"/>
+  <text x="885" y="427" class="num-data">888.88</text>
+
+  <!-- Row 3 -->
+  <rect x="95" y="460" width="470" height="62" class="soft"/>
+  <text x="115" y="497" class="t">Meter reading</text>
+  <rect x="330" y="473" width="235" height="36" class="frame"/>
+  <text x="345" y="497" class="num-reading">100000</text>
+
+  <rect x="635" y="460" width="470" height="62" class="soft"/>
+  <text x="655" y="497" class="t">Meter reading</text>
+  <rect x="870" y="473" width="235" height="36" class="frame"/>
+  <text x="885" y="497" class="num-data">100000</text>
+
+  <!-- Row 4 -->
+  <rect x="95" y="530" width="470" height="62" class="soft"/>
+  <text x="115" y="567" class="t">Meter reading</text>
+  <rect x="330" y="543" width="235" height="36" class="frame"/>
+  <text x="345" y="567" class="num-reading">888888</text>
+
+  <rect x="635" y="530" width="470" height="62" class="soft"/>
+  <text x="655" y="567" class="t">Meter reading</text>
+  <rect x="870" y="543" width="235" height="36" class="frame"/>
+  <text x="885" y="567" class="num-data">888888</text>
+
+  <!-- Row 5 -->
+  <rect x="95" y="600" width="470" height="62" class="soft"/>
+  <text x="115" y="637" class="t">Time (hh:mm:ss)</text>
+  <rect x="330" y="613" width="235" height="36" class="frame"/>
+  <text x="345" y="637" class="num-reading">11:11:11</text>
+
+  <rect x="635" y="600" width="470" height="62" class="soft"/>
+  <text x="655" y="637" class="t">Time (hh:mm:ss)</text>
+  <rect x="870" y="613" width="235" height="36" class="frame"/>
+  <text x="885" y="637" class="num-data">11:11:11</text>
+
+  <!-- Row 6 -->
+  <rect x="95" y="670" width="470" height="62" class="soft"/>
+  <text x="115" y="707" class="t">Time (hh:mm:ss)</text>
+  <rect x="330" y="683" width="235" height="36" class="frame"/>
+  <text x="345" y="707" class="num-reading">08:58:08</text>
+
+  <rect x="635" y="670" width="470" height="62" class="soft"/>
+  <text x="655" y="707" class="t">Time (hh:mm:ss)</text>
+  <rect x="870" y="683" width="235" height="36" class="frame"/>
+  <text x="885" y="707" class="num-data">08:58:08</text>
+  <!-- Left guide -->
+  <line x1="370" y1="340" x2="370" y2="720" class="guide"/>
+  <text x="330" y="746" class="callout">ragged digit edges → slower scanning</text>
+
+  <!-- Right guide -->
+  <line x1="920" y1="340" x2="920" y2="720" class="guide2"/>
+  <text x="840" y="746" class="callout2">consistent digit widths → faster comparison</text>
+
+
+  <!-- Bottom explanation -->
+  <text x="95" y="790" class="muted">Reading typography optimizes prose comfort. Data typography optimizes stable glyph widths (tabular numerals) for rapid comparison.</text>
+</svg>

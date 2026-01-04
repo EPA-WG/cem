@@ -1,0 +1,91 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<svg xmlns="http://www.w3.org/2000/svg" width="1200" height="860" viewBox="0 0 1200 860" role="img" aria-label="Voice ladder: seven levels with ink thickness and speech prosody mappings">
+  <defs>
+    <style>
+      :root {
+        --cem-ink: #111;
+        --cem-surface: #fff;
+        --cem-outline: #c7c7c7;
+        --cem-muted: #666;
+        --cem-accent: #005a9c;
+        --cem-soft: #f6f7f9;
+      }
+      .frame { fill: var(--cem-surface); stroke: var(--cem-outline); stroke-width: 2; rx: 18; }
+      .step  { fill: var(--cem-surface); stroke: var(--cem-outline); stroke-width: 1.8; rx: 18; }
+      .step-accent { fill: var(--cem-surface); stroke: var(--cem-accent); stroke-width: 2.4; rx: 18; }
+      .title { font: 700 32px system-ui, -apple-system, "Segoe UI", Arial, sans-serif; fill: var(--cem-ink); }
+      .muted { font: 400 16px system-ui, -apple-system, "Segoe UI", Arial, sans-serif; fill: var(--cem-muted); }
+      .h     { font: 650 20px system-ui, -apple-system, "Segoe UI", Arial, sans-serif; fill: var(--cem-ink); }
+      .t     { font: 400 16px system-ui, -apple-system, "Segoe UI", Arial, sans-serif; fill: var(--cem-ink); }
+      .mono  { font: 550 15px ui-monospace, SFMono-Regular, Menlo, Consolas, "Liberation Mono", monospace; fill: var(--cem-muted); }
+      .pill  { fill: var(--cem-soft); stroke: var(--cem-outline); stroke-width: 1.2; rx: 999; }
+      .pilltext { font: 650 13px ui-monospace, SFMono-Regular, Menlo, Consolas, "Liberation Mono", monospace; fill: var(--cem-accent); }
+      .colh { font: 650 16px system-ui, -apple-system, "Segoe UI", Arial, sans-serif; fill: var(--cem-muted); }
+    </style>
+  </defs>
+
+  <rect x="30" y="30" width="1140" height="800" class="frame"/>
+
+  <text x="70" y="92" class="title">Voice ladder (7 levels) with ink and speech projections</text>
+  <text x="70" y="125" class="muted">Use the same voice semantics across modalities. Map voice → ink thickness and voice → read‑aloud prosody.</text>
+
+  <text x="90" y="170" class="colh">Voice level</text>
+  <text x="340" y="170" class="colh">Ink projection</text>
+  <text x="690" y="170" class="colh">Speech projection (TTS)</text>
+
+  <rect x="70" y="195" width="1060" height="78" class="step"/>
+  <text x="90" y="225" class="h">whisper</text>
+  <rect x="90" y="238" width="150" height="24" class="pill"/><text x="102" y="255" class="pilltext">de-emphasize</text>
+  <text x="340" y="225" class="t">ink thickness:</text>
+  <text x="455" y="225" class="mono">var(--cem-thickness-x-light)</text>
+  <text x="690" y="225" class="t">rate / pitch / volume:</text>
+  <text x="865" y="225" class="mono">1.00 / 0.95 / 0.65</text>
+
+  <rect x="70" y="285" width="1060" height="78" class="step"/>
+  <text x="90" y="315" class="h">soft</text>
+  <rect x="90" y="328" width="120" height="24" class="pill"/><text x="102" y="345" class="pilltext">secondary</text>
+  <text x="340" y="315" class="t">ink thickness:</text>
+  <text x="455" y="315" class="mono">var(--cem-thickness-light)</text>
+  <text x="690" y="315" class="t">rate / pitch / volume:</text>
+  <text x="865" y="315" class="mono">1.00 / 0.98 / 0.75</text>
+
+  <rect x="70" y="375" width="1060" height="78" class="step"/>
+  <text x="90" y="405" class="h">gentle</text>
+  <rect x="90" y="418" width="130" height="24" class="pill"/><text x="102" y="435" class="pilltext">navigation</text>
+  <text x="340" y="405" class="t">ink thickness:</text>
+  <text x="455" y="405" class="mono">var(--cem-thickness-normal)</text>
+  <text x="690" y="405" class="t">rate / pitch / volume:</text>
+  <text x="865" y="405" class="mono">1.00 / 1.00 / 0.85</text>
+
+  <rect x="70" y="465" width="1060" height="78" class="step-accent"/>
+  <text x="90" y="495" class="h">regular</text>
+  <rect x="90" y="508" width="140" height="24" class="pill"/><text x="102" y="525" class="pilltext">default</text>
+  <text x="340" y="495" class="t">ink thickness:</text>
+  <text x="455" y="495" class="mono">var(--cem-thickness-normal)</text>
+  <text x="690" y="495" class="t">rate / pitch / volume:</text>
+  <text x="865" y="495" class="mono">1.00 / 1.00 / 1.00</text>
+
+  <rect x="70" y="555" width="1060" height="78" class="step"/>
+  <text x="90" y="585" class="h">firm</text>
+  <rect x="90" y="598" width="140" height="24" class="pill"/><text x="102" y="615" class="pilltext">actions</text>
+  <text x="340" y="585" class="t">ink thickness:</text>
+  <text x="455" y="585" class="mono">var(--cem-thickness-bold)</text>
+  <text x="690" y="585" class="t">rate / pitch / volume:</text>
+  <text x="865" y="585" class="mono">0.98 / 1.03 / 1.00</text>
+
+  <rect x="70" y="645" width="1060" height="78" class="step"/>
+  <text x="90" y="675" class="h">strong</text>
+  <rect x="90" y="688" width="160" height="24" class="pill"/><text x="102" y="705" class="pilltext">section focus</text>
+  <text x="340" y="675" class="t">ink thickness:</text>
+  <text x="455" y="675" class="mono">var(--cem-thickness-x-bold)</text>
+  <text x="690" y="675" class="t">rate / pitch / volume:</text>
+  <text x="865" y="675" class="mono">0.96 / 1.06 / 1.00</text>
+
+  <rect x="70" y="735" width="1060" height="78" class="step"/>
+  <text x="90" y="765" class="h">loud</text>
+  <rect x="90" y="778" width="180" height="24" class="pill"/><text x="102" y="795" class="pilltext">use sparingly</text>
+  <text x="340" y="765" class="t">ink thickness:</text>
+  <text x="455" y="765" class="mono">var(--cem-thickness-xx-bold)</text>
+  <text x="690" y="765" class="t">rate / pitch / volume:</text>
+  <text x="865" y="765" class="mono">0.94 / 1.10 / 1.00</text>
+</svg>
