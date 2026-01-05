@@ -9,9 +9,9 @@
         "url": "https://github.com/EPA-WG/cem.git"
     },
     "scripts": {
+        "rebuild": "yarn build:clean; yarn build",
         "build": "nx run-many -t build",
         "build:clean": "nx reset; rm -rf packages/cem-theme/dist; rm -rf packages/cem-components/dist",
-        "rebuild": "yarn build:clean; yarn build",
         "build:theme": "nx run @epa-wg/cem-theme:build",
         "publish:prepare": "./tools/scripts/publish-prepare.sh",
         "validate:utf8": "node tools/scripts/validate-utf8.mjs"

@@ -125,7 +125,7 @@ When forced-colors is active, **system colors win**. CEM must preserve semantics
 ### 3.1 Consumer color vocabulary (informative)
 
 **Emotional terms** (what the interface wants the user to feel):
-
+###### cem-palette-emotion
 | Term         | Primary palette token        | Typical usage                             |
 |--------------|------------------------------|-------------------------------------------|
 | comfort      | `--cem-palette-comfort`      | canvas/surfaces, low-salience backgrounds |
@@ -137,7 +137,7 @@ When forced-colors is active, **system colors win**. CEM must preserve semantics
 | conservative | `--cem-palette-conservative` | neutral/disabled, “quiet UI”              |
 
 **Action terms** (what an action will do):
-
+###### cem-action-kind
 | Term        | Intent token prefix          | Typical usage                 |
 |-------------|------------------------------|-------------------------------|
 | primary     | `--cem-action-primary-*`     | default “go forward” action   |
@@ -257,6 +257,7 @@ The emotional palette is the **primary semantic contract** for color.
 
 Reference mappings (from `theme-data.xhtml`) use `light-dark()` so a single token resolves appropriately for light vs dark schemes.
 
+###### cem-palette-emotion-shift
 | Token                               | Role                         | Light / Dark mapping (reference)          | Usage                                            |
 |-------------------------------------|------------------------------|-------------------------------------------|--------------------------------------------------|
 | `--cem-palette-comfort`             | Base comfort color           | cyan-xl (#f1fefe) / cyan-xd (#001010)     | Main canvas/background                           |
@@ -287,6 +288,7 @@ Reference mappings (from `theme-data.xhtml`) use `light-dark()` so a single toke
 | `--cem-palette-conservative-x`      | Conservative extreme variant | grey-d (#1a1c18) / grey-l (#f1f1eb)       | Darker/lighter conservative variation            |
 | `--cem-palette-conservative-text`   | Conservative text color      | Uses comfort-text                         | Text on conservative backgrounds                 |
 | `--cem-palette-conservative-text-x` | Conservative extreme text    | Uses comfort-text-x                       | Text on extreme conservative backgrounds         |
+
 
 ### 5.1 Semantics of the core emotions
 
