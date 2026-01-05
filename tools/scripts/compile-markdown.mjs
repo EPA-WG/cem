@@ -1,6 +1,7 @@
 #!/usr/bin/env node
 
 import MarkdownIt from 'markdown-it';
+import anchor from 'markdown-it-anchor';
 import { glob } from 'glob';
 import { readFile, writeFile, mkdir, copyFile } from 'fs/promises';
 import { dirname, relative, join, parse } from 'path';
@@ -19,6 +20,9 @@ const md = new MarkdownIt({
   breaks: false,        // Convert '\n' in paragraphs into <br>
   linkify: true,        // Autoconvert URL-like text to links
   typographer: true     // Enable smartquotes and other typographic replacements
+}).use(anchor, {
+  permalink: false,     // No permalink symbols
+  slugify: (s) => s.toLowerCase().replace(/[^\w]+/g, '-').replace(/^-|-$/g, '')
 });
 
 async function compileMarkdown(srcPath, distPath) {
