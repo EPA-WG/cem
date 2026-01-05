@@ -7,7 +7,7 @@ import { dirname, relative, join, parse } from 'path';
 import { fileURLToPath } from 'url';
 
 // Image extensions to copy alongside markdown files
-const IMAGE_EXTENSIONS = ['png', 'jpg', 'jpeg', 'gif', 'svg', 'webp', 'ico'];
+const IMAGE_EXTENSIONS = ['png', 'jpg', 'jpeg', 'gif', 'svg', 'webp', 'ico','css'];
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
 const projectRoot = join(__dirname, '../../packages/cem-theme');
@@ -23,7 +23,7 @@ const md = new MarkdownIt({
 
 async function compileMarkdown(srcPath, distPath) {
   const content = await readFile(srcPath, 'utf-8');
-  const html = md.render(content);
+  const html = md.render(content).replace(/\.md(["'\s#)])/g, '.xhtml$1').replace(/\.md/g, '');
   const h1Match = html.match(/<h1[^>]*>(.*?)<\/h1>/i);
   const title = h1Match ? h1Match[1].replace(/<[^>]+>/g, '') : 'Documentation';
   // Wrap in XHTML document structure
@@ -34,6 +34,13 @@ async function compileMarkdown(srcPath, distPath) {
 <head>
   <meta http-equiv="Content-Type" content="text/html; charset=UTF-8" />
   <title>${title}</title>
+  <style type="text/css">@import url("./index.css");</style>
+  <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/prismjs/themes/prism.css"/>
+  <script src="https://cdn.jsdelivr.net/npm/prismjs/prism.js" type="application/javascript"></script>
+  <script src="https://cdn.jsdelivr.net/npm/prismjs/components/prism-css.min.js" type="application/javascript"></script>
+  <script type="application/javascript" defer="defer">
+    Prism.highlightAll();
+  </script>
 </head>
 <body>
 ${html}
