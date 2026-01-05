@@ -18,7 +18,12 @@
             "cache": true,
             "inputs": [
                 "production",
-                "{projectRoot}/src/**/*.md"
+                "{projectRoot}/src/**/*.md",
+                "{projectRoot}/src/**/*.png",
+                "{projectRoot}/src/**/*.jpg",
+                "{projectRoot}/src/**/*.svg",
+                "{projectRoot}/src/**/*.gif",
+                "{projectRoot}/src/**/*.webp"
             ],
             "outputs": [
                 "{projectRoot}/dist"
@@ -32,10 +37,20 @@
             },
             "cache": true,
             "inputs": [
-                "{projectRoot}/src/**/*.md"
+                "{projectRoot}/src/**/*.md",
+                "{projectRoot}/src/**/*.png",
+                "{projectRoot}/src/**/*.jpg",
+                "{projectRoot}/src/**/*.svg",
+                "{projectRoot}/src/**/*.gif",
+                "{projectRoot}/src/**/*.webp"
             ],
             "outputs": [
-                "{projectRoot}/dist/**/*.xhtml"
+                "{projectRoot}/dist/**/*.xhtml",
+                "{projectRoot}/dist/**/*.png",
+                "{projectRoot}/dist/**/*.jpg",
+                "{projectRoot}/dist/**/*.svg",
+                "{projectRoot}/dist/**/*.gif",
+                "{projectRoot}/dist/**/*.webp"
             ]
         }
     }
