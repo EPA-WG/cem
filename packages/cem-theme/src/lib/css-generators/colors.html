@@ -1,0 +1,43 @@
+<!DOCTYPE html>
+<html lang="en" xmlns:xslt="http://www.w3.org/1999/xhtml">
+<head>
+  <meta charset="UTF-8">
+  <title>CEM colors CSS generator</title>
+</head>
+<body>
+<custom-element>
+  <template>
+    <http-request method="GET" slice="cem-colors" url="../../../dist/lib/tokens/cem-colors.xhtml"></http-request>
+    <variable name="colorsData" select="//cem-colors"></variable>
+    <variable name="cem-color-hue-variant"
+              select="$colorsData//*[@id='cem-color-hue-variant']/following-sibling::xhtml:table[1]/xhtml:tbody"></variable>
+    /* branded colors: cem-color-[hue]-[variant] */
+    <for-each select="$cem-color-hue-variant/xhtml:tr">
+      <div>{./*[1]} : {./*[4]} ; /* {./*[5]} ; {./*[6]} */</div>
+    </for-each>
+    <hr />
+
+    /* emotion palette: cem-palette-[emotion]-[shift] */
+    <variable name="cem-palette-emotion-heading" select="$colorsData//*[@id='cem-palette-emotion-shift']"></variable>
+    <variable name="cem-palette-emotion"
+              select="$cem-palette-emotion-heading/following-sibling::xhtml:table[1]/xhtml:tbody"></variable>
+    /* {$cem-palette-emotion-heading} */
+    <hr />
+    <for-each select="$cem-palette-emotion/xhtml:tr">
+      <variable name="emotion" select="xhtml:td[1]"></variable>
+      {$emotion}<br/>
+
+    </for-each>
+    <style>
+        :host {
+            display: block;
+            white-space: pre;
+            font-family: monospace;
+        }
+    </style>
+  </template>
+</custom-element>
+<script src="../../../../../node_modules/@epa-wg/custom-element/custom-element.js" type="module"></script>
+<script src="../../../../../node_modules/@epa-wg/custom-element/http-request.js" type="module"></script>
+</body>
+</html>
