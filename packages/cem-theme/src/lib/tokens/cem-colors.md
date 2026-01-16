@@ -253,6 +253,7 @@ The base family is a small set of named hues with a few variants. These are **re
 | `--cem-color-canvastext-30-lightpink` | nat    | l       | color-mix(in srgb, CanvasText 30%, lightpink)    | dark creativity-x  | Native palette Creativity extreme variant  |
 | `--cem-color-red-30-black`            | nat    | d       | color-mix(in srgb, red 30%, black)               | light danger-x     | Native palette Danger extreme variant      |
 | `--cem-color-red-30-white`            | nat    | l       | color-mix(in srgb, red 30%, white)               | dark danger-x      | Native palette Danger extreme variant      |
+| `--cem-color-white`                   | nat    | l       | white                                            | dark trust text    | Trust and Extreme palette dark mode text   |
 
 Variant semantics:
 
