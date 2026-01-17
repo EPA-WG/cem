@@ -5,7 +5,7 @@
     "projectType": "library",
     "targets": {
         "build": {
-            "dependsOn": ["^build"],
+            "dependsOn": ["^build", "build:css"],
             "executor": "nx:run-commands",
             "options": {
                 "commands": [
@@ -27,6 +27,22 @@
             ],
             "outputs": [
                 "{projectRoot}/dist"
+            ]
+        },
+        "build:css": {
+            "dependsOn": ["build:docs"],
+            "executor": "nx:run-commands",
+            "options": {
+                "command": "node ../../tools/scripts/capture-xpath-text.mjs \"src/lib/css-generators/*.html\" \"//code[@data-generated-css]\" \"dist/lib/css/*.css\"",
+                "cwd": "packages/cem-theme"
+            },
+            "cache": true,
+            "inputs": [
+                "{projectRoot}/src/lib/css-generators/*.html",
+                "{projectRoot}/dist/lib/tokens/*.xhtml"
+            ],
+            "outputs": [
+                "{projectRoot}/dist/lib/css/*.css"
             ]
         },
         "build:docs": {

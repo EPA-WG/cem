@@ -23,6 +23,9 @@
         "dist",
         "!**/*.tsbuildinfo"
     ],
+    "scripts": {
+        "build:css": "node ../../tools/scripts/capture-xpath-text.mjs \"src/lib/css-generators/*.html\" \"//code[@data-generated-css]\" \"dist/lib/css/*.css\""
+    },
     "devDependencies": {
         "chokidar": "^4.0.0",
         "glob": "^11.0.0",
