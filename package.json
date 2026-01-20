@@ -13,6 +13,7 @@
         "build": "nx run-many -t build",
         "build:clean": "nx reset; rm -rf packages/cem-theme/dist; rm -rf packages/cem-components/dist",
         "build:theme": "nx run @epa-wg/cem-theme:build",
+        "build:css": "nx run @epa-wg/cem-theme:build:css",
         "publish:prepare": "./tools/scripts/publish-prepare.sh",
         "validate:utf8": "node tools/scripts/validate-utf8.mjs",
         "css-generate": "node tools/scripts/capture-xpath-text.mjs file://./packages/cem-theme/src/lib/css-generators/colors.html //*[@code='language-css'] /tmp/colors.css"
