@@ -87,8 +87,32 @@
                     <variable name="state"              select="xhtml:td[1]"></variable>
                     <variable name="background-color"   select="xhtml:td[2]"></variable>
                     <variable name="text-color"         select="xhtml:td[3]"></variable>
-                    --cem-action-{$intent}-{$state}-background: { concat(substring-before($background-color, '[emotion]'), $emotion, substring-after($background-color, '[emotion]')) };
-                    --cem-action-{$intent}-{$state}-text:       { concat(substring-before($text-color,       '[emotion]'), $emotion, substring-after($text-color,       '[emotion]')) };
+                    <variable name="bg-pass1">
+                        <choose>
+                            <when test="contains($background-color, '[emotion]')">{concat(substring-before($background-color, '[emotion]'), $emotion, substring-after($background-color, '[emotion]'))}</when>
+                            <otherwise>{$background-color}</otherwise>
+                        </choose>
+                    </variable>
+                    <variable name="bg-final">
+                        <choose>
+                            <when test="contains($bg-pass1, '[emotion]')">{concat(substring-before($bg-pass1, '[emotion]'), $emotion, substring-after($bg-pass1, '[emotion]'))}</when>
+                            <otherwise>{$bg-pass1}</otherwise>
+                        </choose>
+                    </variable>
+                    <variable name="txt-pass1">
+                        <choose>
+                            <when test="contains($text-color, '[emotion]')">{concat(substring-before($text-color, '[emotion]'), $emotion, substring-after($text-color, '[emotion]'))}</when>
+                            <otherwise>{$text-color}</otherwise>
+                        </choose>
+                    </variable>
+                    <variable name="txt-final">
+                        <choose>
+                            <when test="contains($txt-pass1, '[emotion]')">{concat(substring-before($txt-pass1, '[emotion]'), $emotion, substring-after($txt-pass1, '[emotion]'))}</when>
+                            <otherwise>{$txt-pass1}</otherwise>
+                        </choose>
+                    </variable>
+                    --cem-action-{$intent}-{$state}-background: {$bg-final};/* {$background-color} ~ {$bg-pass1} ~ {$bg-final} */
+                    --cem-action-{$intent}-{$state}-text:       {$txt-final};
                 </for-each>
                 /* endregion */
             </for-each>

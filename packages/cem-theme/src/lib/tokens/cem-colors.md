@@ -390,16 +390,16 @@ disabled → readonly → editable → default → indeterminate → hover → a
 
 #### 7.2.2 State formulas (normative)
 ###### cem-action-state-color
-| State         | Background formula (palette-level)                                                        | Text token                          |
-|---------------|-------------------------------------------------------------------------------------------|-------------------------------------|
-| disabled      | `color-mix(in srgb, var(--cem-palette-[emotion]) 30%, var(--cem-palette-conservative-x))` | `--cem-palette-conservative-text-x` |
-| readonly      | `color-mix(in srgb, var(--cem-palette-[emotion]) 80%, var(--cem-palette-[emotion]-x))`    | `--cem-palette-[emotion]-text`      |
-| editable      | `color-mix(in srgb, var(--cem-palette-[emotion]) 90%, var(--cem-palette-[emotion]-x))`    | `--cem-palette-[emotion]-text`      |
-| default       | `var(--cem-palette-[emotion])`                                                            | `--cem-palette-[emotion]-text`      |
-| indeterminate | `color-mix(in srgb, var(--cem-palette-[emotion]) 90%, var(--cem-palette-[emotion]-x))`    | `--cem-palette-[emotion]-text`      |
-| hover         | `color-mix(in srgb, var(--cem-palette-[emotion]) 60%, var(--cem-palette-[emotion]-x))`    | `--cem-palette-[emotion]-text`      |
-| active        | `color-mix(in srgb, var(--cem-palette-[emotion]) 25%, var(--cem-palette-[emotion]-x))`    | `--cem-palette-[emotion]-text-x`    |
-| pending       | `color-mix(in srgb, var(--cem-palette-[emotion])  5%, var(--cem-palette-[emotion]-x))`    | `--cem-palette-[emotion]-text-x`    |
+| State         | Background formula (palette-level)                                                        | Text token                               |
+|---------------|-------------------------------------------------------------------------------------------|------------------------------------------|
+| disabled      | `color-mix(in srgb, var(--cem-palette-[emotion]) 30%, var(--cem-palette-conservative-x))` | `var(--cem-palette-conservative-text-x)` |
+| readonly      | `color-mix(in srgb, var(--cem-palette-[emotion]) 80%, var(--cem-palette-[emotion]-x))`    | `var(--cem-palette-[emotion]-text)`      |
+| editable      | `color-mix(in srgb, var(--cem-palette-[emotion]) 90%, var(--cem-palette-[emotion]-x))`    | `var(--cem-palette-[emotion]-text)`      |
+| default       | `var(--cem-palette-[emotion])`                                                            | `var(--cem-palette-[emotion]-text)`      |
+| indeterminate | `color-mix(in srgb, var(--cem-palette-[emotion]) 90%, var(--cem-palette-[emotion]-x))`    | `var(--cem-palette-[emotion]-text)`      |
+| hover         | `color-mix(in srgb, var(--cem-palette-[emotion]) 60%, var(--cem-palette-[emotion]-x))`    | `var(--cem-palette-[emotion]-text)`      |
+| active        | `color-mix(in srgb, var(--cem-palette-[emotion]) 25%, var(--cem-palette-[emotion]-x))`    | `var(--cem-palette-[emotion]-text-x)`    |
+| pending       | `color-mix(in srgb, var(--cem-palette-[emotion])  5%, var(--cem-palette-[emotion]-x))`    | `var(--cem-palette-[emotion]-text-x)`    |
 
 **Applying this to action intents:** substitute `{emotion}` with the emotional palette mapped by the intent (see §7.1).
 The resulting values populate `--cem-action-{intent}-{state}-background` and `--cem-action-{intent}-{state}-text`.
