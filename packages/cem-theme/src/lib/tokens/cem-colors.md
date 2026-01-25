@@ -279,7 +279,7 @@ Reference mappings (from `theme-data.xhtml`) use `light-dark()` so a single toke
 | `--cem-palette-calm-x`              | Calm extreme variant         | cyan-d          | cyan-l         | rgb(0, 120, 120)                   |                                       | Inverted calm color ( darked darkcyan )          | calm         | x      | 
 | `--cem-palette-calm-text`           | Calm text color              | comfort-text    | comfort-text   | black                              |                                       | Text on calm backgrounds                         | calm         | text   | 
 | `--cem-palette-calm-text-x`         | Calm extreme text            | comfort-text-x  | comfort-text-x | white                              |                                       | Text on extreme calm backgrounds                 | calm         | text-x | 
-| `--cem-palette-trust`               | Base trust color             | blue-l          | blue-d         | Highlight                          |                                       | Primary actions, highlights                      | trust        |        | 
+| `--cem-palette-trust`               | Base trust color             | blue-l          | blue-d         | color-mix(in srgb, Highlight 70%, black) |                                 | Primary actions, highlights                      | trust        |        | 
 | `--cem-palette-trust-x`             | Trust extreme variant        | blue-d          | blue-l         | `--cem-color-visitedtext-30-black` | `--cem-color-visitedtext-30-white`    | Darker/lighter trust variation                   | trust        | x      | 
 | `--cem-palette-trust-text`          | Trust text color             | comfort-text    | white          | HighlightText                      |                                       | Text on trust backgrounds                        | trust        | text   | 
 | `--cem-palette-trust-text-x`        | Trust extreme text           | comfort-text-x  | comfort-text-x | Canvas                             | CanvasText                            | Text on extreme trust backgrounds                | trust        | text-x | 
@@ -518,10 +518,11 @@ In `native` mode, palette endpoints SHOULD map to system colors:
 
 - `--cem-palette-comfort`: `Canvas`
 - `--cem-palette-comfort-text`: `CanvasText`
-- `--cem-palette-trust`: `Highlight`
+- `--cem-palette-trust`: `color-mix(in srgb, Highlight 70%, black)`
 - `--cem-palette-trust-text`: `HighlightText`
 - `--cem-zebra-color-2`: `SelectedItem` (or fallback to trust)
 
+* Disclaimer. `Highlight` color in Chromium and Firefox do not pass contrast compliance against `HighlightText`, have to be darkened.
 ### 9.2 Forced colors
 
 When `@media (forced-colors: active)` is true:
@@ -635,7 +636,7 @@ Implementations SHOULD preserve the three-layer model:
   :root {
     --cem-palette-comfort: Canvas;
     --cem-palette-comfort-text: CanvasText;
-    --cem-palette-trust: Highlight;
+    --cem-palette-trust: color-mix(in srgb, Highlight 70%, black);
     --cem-palette-trust-text: HighlightText;
   }
 }
