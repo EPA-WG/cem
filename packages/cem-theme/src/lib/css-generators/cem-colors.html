@@ -1,0 +1,278 @@
+<!DOCTYPE html>
+<html lang="en" xmlns:xhtml="http://www.w3.org/1999/xhtml" xmlns:xslt="http://www.w3.org/1999/xhtml">
+<head>
+    <meta charset="UTF-8">
+    <title>CEM colors CSS generator</title>
+    <style>
+        td{ padding: 0.5rem; letter-spacing: 0.05em; }
+        caption{
+            font-size: 1.5rem;
+            padding-bottom: 0.5rem;
+            text-align: start;
+        }
+        tr>th:first-child{ text-align: start }
+        code{ color: green; font-weight: bold; }
+        section table{ margin-top: 1rem; }
+    </style>
+</head>
+<body>
+<custom-element>
+    <template>
+        <http-request method="GET" slice="cem-colors" url="../../../dist/lib/tokens/cem-colors.xhtml"></http-request>
+        <variable name="colorsData" select="//cem-colors"></variable>
+        <variable name="cem-color-hue-variant"
+                  select="$colorsData//*[@id='cem-color-hue-variant']/following-sibling::xhtml:table[1]/xhtml:tbody"></variable>
+        <variable name="cem-palette-emotion-shift-heading"
+                  select="$colorsData//*[@id='cem-palette-emotion-shift']"></variable>
+        <variable name="cem-palette-emotion-shift"
+                  select="$cem-palette-emotion-shift-heading/following-sibling::xhtml:table[1]/xhtml:tbody"></variable>
+        <variable name="cem-action-intent-emotion"
+                  select="$colorsData//*[@id='cem-action-intent-emotion']/following-sibling::xhtml:table[1]/xhtml:tbody"></variable>
+        <variable name="cem-action-state-color"
+                  select="$colorsData//*[@id='cem-action-state-color']/following-sibling::xhtml:table[1]/xhtml:tbody"></variable>
+        <variable name="cem-theme-mode"
+                  select="$colorsData//*[@id='cem-theme-mode']/following-sibling::xhtml:table[1]/xhtml:tbody"></variable>
+        <variable name="css-body">
+
+            :root{
+            /* region branded colors: cem-color-[hue]-[variant] */
+
+            <for-each select="$cem-color-hue-variant/xhtml:tr">
+                {./*[1]} : {./*[4]} ; /* {./*[5]} ; {./*[6]} */
+            </for-each>
+            /* endregion */
+
+            /* emotion palette: cem-palette-[emotion]-[shift] */
+            /* region light/dark */
+            <for-each select="$cem-palette-emotion-shift/xhtml:tr">
+                <variable name="emotion" select="xhtml:td[1]"></variable>
+                <variable name="light-str" select="xhtml:td[3]"></variable>
+                <variable name="dark-str" select="xhtml:td[4]"></variable>
+                <variable name="light-as-color" select="concat('--cem-color-',$light-str)"></variable>
+                <variable name="dark-as-color" >--cem-color-{$dark-str}</variable>
+                <variable name="is-light-color"
+                          select="$cem-color-hue-variant/xhtml:tr[normalize-space(xhtml:td[1]) = $light-as-color]"></variable>
+                <variable name="is-dark-color"
+                          select="$cem-color-hue-variant/xhtml:tr[normalize-space(xhtml:td[1]) = $dark-as-color]"></variable>
+                <variable name="light-val">
+                    <choose>
+                        <when test="$is-light-color">{$light-as-color}</when>
+                        <otherwise>--cem-palette-{$light-str}</otherwise>
+                    </choose>
+                </variable>
+                <variable name="dark-val">
+                    <choose>
+                        <when test="$is-dark-color">{$dark-as-color}</when>
+                        <otherwise>--cem-palette-{$dark-str}</otherwise>
+                    </choose>
+                </variable>
+
+                <choose>
+                    <when test="$dark-str">
+                        {$emotion}: light-dark(var( {$light-val} ), var( {$dark-val} ) );
+                    </when>
+                    <otherwise>
+                        {$emotion}: var( {$light-val} );
+                    </otherwise>
+                </choose>
+            </for-each>
+            /* endregion */
+
+
+            /* action intent tokens: cem-action-[intent]-[state]-[background|text] */
+            <for-each select="$cem-action-intent-emotion/xhtml:tr">
+                <variable name="intent"     select="normalize-space(xhtml:td[1])"></variable>
+                <variable name="emotion"    select="normalize-space(xhtml:td[2])"></variable>
+
+                /*  region {$intent} ({$emotion}) */
+
+                <for-each select="$cem-action-state-color/xhtml:tr">
+                    <variable name="state"              select="xhtml:td[1]"></variable>
+                    <variable name="background-color"   select="xhtml:td[2]"></variable>
+                    <variable name="text-color"         select="xhtml:td[3]"></variable>
+                    <variable name="bg-pass1">
+                        <choose>
+                            <when test="contains($background-color, '[emotion]')">{concat(substring-before($background-color, '[emotion]'), $emotion, substring-after($background-color, '[emotion]'))}</when>
+                            <otherwise>{$background-color}</otherwise>
+                        </choose>
+                    </variable>
+                    <variable name="bg-final">
+                        <choose>
+                            <when test="contains($bg-pass1, '[emotion]')">{concat(substring-before($bg-pass1, '[emotion]'), $emotion, substring-after($bg-pass1, '[emotion]'))}</when>
+                            <otherwise>{$bg-pass1}</otherwise>
+                        </choose>
+                    </variable>
+                    <variable name="txt-pass1">
+                        <choose>
+                            <when test="contains($text-color, '[emotion]')">{concat(substring-before($text-color, '[emotion]'), $emotion, substring-after($text-color, '[emotion]'))}</when>
+                            <otherwise>{$text-color}</otherwise>
+                        </choose>
+                    </variable>
+                    <variable name="txt-final">
+                        <choose>
+                            <when test="contains($txt-pass1, '[emotion]')">{concat(substring-before($txt-pass1, '[emotion]'), $emotion, substring-after($txt-pass1, '[emotion]'))}</when>
+                            <otherwise>{$txt-pass1}</otherwise>
+                        </choose>
+                    </variable>
+                    --cem-action-{$intent}-{$state}-background: {$bg-final};/* {$background-color} ~ {$bg-pass1} ~ {$bg-final} */
+                    --cem-action-{$intent}-{$state}-text:       {$txt-final};
+                </for-each>
+                /* endregion */
+            </for-each>
+
+            /* override for native */
+            .cem-theme-native,[data-theme="cem-theme-native"]{
+            <for-each select="$cem-palette-emotion-shift/xhtml:tr">
+                <variable name="emotion" select="xhtml:td[1]"></variable>
+                <variable name="light-val" select="xhtml:td[5]"></variable>
+                <variable name="dark-val" select="xhtml:td[6]"></variable>
+                <choose>
+                    <when test="$dark-val=''">
+                        {$emotion}:  {$light-val};
+                    </when>
+                    <otherwise>
+                        {$emotion}: light-dark(var({$light-val}), var({$dark-val}) );
+                    </otherwise>
+                </choose>
+            </for-each>
+            }
+            }
+        </variable>
+        <style>
+            :host {
+                display: block;
+                white-space: pre;
+                font-family: monospace;
+
+            }
+        </style>
+
+
+        <xhtml:table id="cem-color-hue-variant">
+            <xhtml:caption><a href="../../../dist/lib/tokens/cem-colors.xhtml#4-base-branded-color-family">cem-color-hue-variant</a> Branded colors</xhtml:caption>
+            <xhtml:thead>
+                <xhtml:tr>
+                    <xhtml:th>Token</xhtml:th>
+                    <xhtml:th>Hue</xhtml:th>
+<!--                    <xhtml:th>Variant</xhtml:th>-->
+                    <xhtml:th>Swatch</xhtml:th>
+                    <xhtml:th>Label</xhtml:th>
+                    <xhtml:th>Value</xhtml:th>
+                </xhtml:tr>
+            </xhtml:thead>
+            <xhtml:tbody>
+                <for-each select="$cem-color-hue-variant/xhtml:tr">
+                    <variable name="token"   select="xhtml:td[1]"></variable>
+                    <variable name="hue"     select="xhtml:td[2]"></variable>
+<!--                    <variable name="variant" select="xhtml:td[3]"></variable>-->
+                    <variable name="label"   select="xhtml:td[5]"></variable>
+                    <variable name="usage"   select="xhtml:td[6]"></variable>
+                    <variable name="value"   select="xhtml:td[4]"></variable>
+                    <xhtml:tr>
+                        <xhtml:th>{$token}</xhtml:th>
+                        <xhtml:td>{$hue}</xhtml:td>
+<!--                        <xhtml:td>{$variant}</xhtml:td>-->
+                        <xhtml:td style="background-color: var({$token}); min-width: 3rem;" title="{$usage}"></xhtml:td>
+                        <xhtml:td>{$label}</xhtml:td>
+                        <xhtml:td><code>{$value}</code></xhtml:td>
+                    </xhtml:tr>
+                </for-each>
+            </xhtml:tbody>
+        </xhtml:table>
+        <hr/>
+        <xhtml:table id="cem-palette-emotion-shift">
+            <xhtml:caption> <a href="../../../dist/lib/tokens/cem-colors.xhtml#5-emotional-palette">cem-palette-emotion-shift</a> Emotional palette</xhtml:caption>
+            <xhtml:thead>
+                <xhtml:tr>
+                    <xhtml:th>emotion token</xhtml:th>
+                    <xhtml:th> light</xhtml:th>
+                    <xhtml:th> dark</xhtml:th>
+                    <xhtml:th> native light</xhtml:th>
+                    <xhtml:th> native dark</xhtml:th>
+                </xhtml:tr>
+            </xhtml:thead>
+            <xhtml:tbody>
+                <for-each select="$cem-palette-emotion-shift/xhtml:tr">
+                    <variable name="token" select="xhtml:td[1]"></variable>
+                    <variable name="emotion" select="xhtml:td[8]"></variable>
+                    <if test="not( contains($token, '-text') or contains($token, '-x') )">
+                        <variable name="light-css"  >background-color: var({ $token   }); color: var({ $token }-text  ); color-scheme: light </variable>
+                        <variable name="dark-css"   >background-color: var({ $token   }); color: var({ $token }-text  ); color-scheme: dark  </variable>
+                        <variable name="light-css-x">background-color: var({ $token }-x); color: var({ $token }-text-x); color-scheme: light </variable>
+                        <variable name="dark-css-x" >background-color: var({ $token }-x); color: var({ $token }-text-x); color-scheme: dark  </variable>
+                        <xhtml:tr>
+                            <xhtml:th>{$token}</xhtml:th>
+                            <xhtml:td style="{$light-css}" title="{$light-css}"> light ⬤ {$emotion}</xhtml:td>
+                            <xhtml:td style="{$dark-css }" title="{$dark-css }"> dark  ⬤ {$emotion}</xhtml:td>
+                            <xhtml:td class="cem-theme-native" style="{$light-css}" title="{$light-css}"> native light ⬤ {$emotion}</xhtml:td>
+                            <xhtml:td class="cem-theme-native" style="{$dark-css }" title="{$dark-css }"> native dark  ⬤ {$emotion}</xhtml:td>
+                        </xhtml:tr>
+                        <xhtml:tr>
+                            <xhtml:th>{$token}-x</xhtml:th>
+                            <xhtml:td style="{$light-css-x}" title="{$light-css-x}"> light ⬤ {$emotion}-x</xhtml:td>
+                            <xhtml:td style="{$dark-css-x }" title="{$dark-css-x }"> dark  ⬤ {$emotion}-x</xhtml:td>
+                            <xhtml:td class="cem-theme-native" style="{$light-css-x}" title="{$light-css-x}"> native light ⬤ {$emotion}-x</xhtml:td>
+                            <xhtml:td class="cem-theme-native" style="{$dark-css-x }" title="{$dark-css-x }"> native dark  ⬤ {$emotion}-x</xhtml:td>
+                        </xhtml:tr>
+                    </if>
+                </for-each>
+            </xhtml:tbody>
+        </xhtml:table>
+
+        <hr/>
+        <h1>Action colors <a href="../../../dist/lib/tokens/cem-colors.xhtml#cem-action-state-color">cem-action-state-color</a> intent × state</h1>
+        <section>
+            <for-each select="$cem-theme-mode/xhtml:tr">
+                <variable name="mode" select="xhtml:td[1]"></variable>
+                <variable name="theme-name" select="xhtml:td[1]"></variable>
+                <variable name="color-scheme" select="xhtml:td[2]"></variable>
+                <variable name="theme-description" select="xhtml:td[3]"></variable>
+                <xhtml:table id="cem-action-state-color">
+                    <xhtml:caption>
+                        <b title="{$theme-description}">{$theme-name}</b> &nbsp;
+                        <sub>{$theme-description}</sub>
+                    </xhtml:caption>
+                    <xhtml:thead>
+                        <xhtml:tr>
+                            <xhtml:th><sub>State</sub> \ <sup>intent:</sup></xhtml:th>
+                            <for-each select="$cem-action-intent-emotion/xhtml:tr">
+                                <variable name="intent" select="normalize-space(xhtml:td[1])"></variable>
+                                <xhtml:th>{$intent}</xhtml:th>
+                            </for-each>
+                        </xhtml:tr>
+                    </xhtml:thead>
+                    <xhtml:tbody>
+                        <for-each select="$cem-action-state-color/xhtml:tr">
+                            <variable name="state" select="normalize-space(xhtml:td[1])"></variable>
+                            <xhtml:tr>
+                                <xhtml:th>{$state}</xhtml:th>
+                                <for-each select="$cem-action-intent-emotion/xhtml:tr">
+                                    <variable name="intent" select="normalize-space(xhtml:td[1])"></variable>
+                                    <variable name="bg-var">--cem-action-{$intent}-{$state}-background</variable>
+                                    <variable name="txt-var">--cem-action-{$intent}-{$state}-text</variable>
+                                    <variable name="cell-style">background-color: var({$bg-var}); color: var({$txt-var}); min-width: 4rem;</variable>
+                                    <xhtml:td style="{$cell-style}" title="{$bg-var}">Aa</xhtml:td>
+                                </for-each>
+                            </xhtml:tr>
+                        </for-each>
+                    </xhtml:tbody>
+                </xhtml:table>
+            </for-each>
+        </section>
+        <hr/>
+
+        <pre class="language-css">
+            <code class="language-css" data-generated-css>
+{$css-body}
+            </code>
+        </pre>
+        <cem-css-loader value="{$css-body}"></cem-css-loader>
+
+    </template>
+</custom-element>
+<main></main>
+<script src="../../../../../node_modules/@epa-wg/custom-element/custom-element.js" type="module"></script>
+<script src="../../../../../node_modules/@epa-wg/custom-element/http-request.js" type="module"></script>
+<script src="./cem-css-loader.js" type="module"></script>
+</body>
+</html>

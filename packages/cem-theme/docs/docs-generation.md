@@ -40,3 +40,54 @@ packages/cem-theme/
     └── docs-generation.md        (this file)
 ```
 
+## CSS Generation Flow
+
+Design tokens defined in Markdown files are transformed into CSS through a multi-stage pipeline.
+
+### Source and Output Structure
+
+```
+packages/cem-theme/
+├── src/lib/
+│   ├── tokens/                     → Source: metadata in XML format
+│   │   ├── cem-colors.md
+│   │   ├── cem-breakpoints.md
+│   │   ├── cem-dimension.md
+│   │   └── ...
+│   └── css-generators/             → Generators: XHTML with CSS generation logic
+│       ├── cem-colors.html
+│       ├── cem-breakpoints.html
+│       └── ...
+├── dist/lib/
+│   ├── tokens/                     → Transpiled XHTML from Markdown
+│   │   ├── cem-colors.xhtml
+│   │   └── ...
+│   └── css/                        → Generated CSS output
+│       ├── cem-colors.css
+│       └── ...
+└── tools/scripts/
+    └── capture-xpath-text.mjs      → Script that executes generators
+```
+
+### Pipeline Stages
+
+1. **Markdown to XHTML** - Token definitions in `src/lib/tokens/*.md` contain metadata in XML format and are transpiled
+   to XHTML files in `dist/lib/tokens/`
+
+2. **CSS Generation** - Each token file has a matching HTML generator in `src/lib/css-generators/`. For example:
+    - `cem-colors.md` → `cem-colors.html` generator
+    - `cem-breakpoints.md` → `cem-breakpoints.html` generator
+
+3. **CSS Extraction** - The `capture-xpath-text.mjs` script executes each HTML generator and saves the CSS content to
+   the target path within `dist/lib/css/`
+
+### Example Flow
+
+```
+cem-colors.md  →  cem-colors.html  →  cem-colors.css
+   (source)        (generator)         (output)
+```
+
+The generator HTML files load the transpiled XHTML token definitions and use XPath/XSLT transformations to produce the
+final CSS output.
+

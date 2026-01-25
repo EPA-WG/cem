@@ -1,2 +1,4 @@
 img{ max-width:100%; }
 h6 {margin: 0;}
+table{border-collapse:collapse; border-spacing:1rem;}
+tr:hover{ box-shadow: inset 0 -1px 0 0 grey, inset 0 -2px 0 0 silver;}
