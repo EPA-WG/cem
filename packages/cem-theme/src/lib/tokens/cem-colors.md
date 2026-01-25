@@ -269,36 +269,36 @@ The emotional palette is the **primary semantic contract** for color.
 Reference mappings (from `theme-data.xhtml`) use `light-dark()` so a single token resolves appropriately for light vs dark schemes.
 
 ###### cem-palette-emotion-shift
-| Token                               | Role                         | Light           | dark           | Native Light                       | Native Dark                           | Usage                                            |
-|-------------------------------------|------------------------------|-----------------|----------------|------------------------------------|---------------------------------------|--------------------------------------------------|
-| `--cem-palette-comfort`             | Base comfort color           | cyan-xl         | cyan-xd        | Canvas                             |                                       | Main canvas/background                           |
-| `--cem-palette-comfort-x`           | Comfort extreme variant      | cyan-xd         | cyan-xl        | CanvasText                         |                                       | Used in color-mix for state variations           |
-| `--cem-palette-comfort-text`        | Comfort text color           | cyan-xd         | cyan-xl        | CanvasText                         |                                       | Primary text on comfort backgrounds              |
-| `--cem-palette-comfort-text-x`      | Comfort extreme text         | cyan-xl         | cyan-xd        | Canvas                             |                                       | Text on extreme variant backgrounds              |
-| `--cem-palette-calm`                | Base calm color              | cyan-l          | cyan-d         | cyan                               |                                       | Foreground elements                              |
-| `--cem-palette-calm-x`              | Calm extreme variant         | cyan-d          | cyan-l         | darkcyan                           |                                       | Inverted calm color                              |
-| `--cem-palette-calm-text`           | Calm text color              | comfort-text    | comfort-text   | black                              |                                       | Text on calm backgrounds                         |
-| `--cem-palette-calm-text-x`         | Calm extreme text            | comfort-text-x  | comfort-text-x | white                              |                                       | Text on extreme calm backgrounds                 |
-| `--cem-palette-trust`               | Base trust color             | blue-l          | blue-d         | Highlight                          |                                       | Primary actions, highlights                      |
-| `--cem-palette-trust-x`             | Trust extreme variant        | blue-d          | blue-l         | `--cem-color-visitedtext-30-black` | `--cem-color-visitedtext-30-white`    | Darker/lighter trust variation                   |
-| `--cem-palette-trust-text`          | Trust text color             | comfort-text    | white          | HighlightText                      |                                       | Text on trust backgrounds                        |
-| `--cem-palette-trust-text-x`        | Trust extreme text           | comfort-text-x  | comfort-text-x | Canvas                             | CanvasText                            | Text on extreme trust backgrounds                |
-| `--cem-palette-enthusiasm`          | Base enthusiasm color        | orange-l        | orange-d       | Mark                               |                                       | Brand-2, alternate actions                       |
-| `--cem-palette-enthusiasm-x`        | Enthusiasm extreme variant   | orange-xd       | orange-xl      | `--cem-color-mark-30-black`        | `--cem-color-mark-30-white`           | Darker/lighter enthusiasm variation              |
-| `--cem-palette-enthusiasm-text`     | Enthusiasm text color        | comfort-text    | white          | MarkText                           |                                       | Text on enthusiasm backgrounds                   |
-| `--cem-palette-enthusiasm-text-x`   | Enthusiasm extreme text      | comfort-text-x  | comfort-text-x | Canvas                             |                                       | Text on extreme enthusiasm backgrounds           |
-| `--cem-palette-creativity`          | Base creativity color        | purple-l        | purple-d       | ButtonFace                         |                                       | Brand-1, explicit actions                        |
-| `--cem-palette-creativity-x`        | Creativity extreme variant   | purple-d        | purple-l       | `--cem-color-canvastext-30-purple` | `--cem-color-canvastext-30-lightpink` | Darker/lighter creativity variation              |
-| `--cem-palette-creativity-text`     | Creativity text color        | comfort-text    | comfort-text   | CanvasText                         |                                       | Text on creativity backgrounds                   |
-| `--cem-palette-creativity-text-x`   | Creativity extreme text      | comfort-text-x  | comfort-text-x | Canvas                             |                                       | Text on extreme creativity backgrounds           |
-| `--cem-palette-danger`              | Base danger color            | red-l           | red-d          | red                                |                                       | Error messages, destructive actions              |
-| `--cem-palette-danger-x`            | Danger extreme variant       | red-d           | red-l          | `--cem-color-red-30-black`         | `--cem-color-red-30-white`            | Darker/lighter danger variation                  |
-| `--cem-palette-danger-text`         | Danger text color            | comfort-text-x  | comfort-text   | Canvas                             |                                       | Text on danger backgrounds                       |
-| `--cem-palette-danger-text-x`       | Danger extreme text          | orange-xl       | orange-xl      | Canvas                             |                                       | High contrast text on extreme danger backgrounds |
-| `--cem-palette-conservative`        | Base conservative color      | grey-l          | grey-d         | ButtonFace                         |                                       | Brand-3, disabled states                         |
-| `--cem-palette-conservative-x`      | Conservative extreme variant | grey-d          | grey-l         | CanvasText                         |                                       | Darker/lighter conservative variation            |
-| `--cem-palette-conservative-text`   | Conservative text color      | comfort-text    | comfort-text   | CanvasText                         |                                       | Text on conservative backgrounds                 |
-| `--cem-palette-conservative-text-x` | Conservative extreme text    | comfort-text-x  | comfort-text-x | Canvas                             |                                       | Text on extreme conservative backgrounds         |
+| Token                               | Role                         | Light           | dark           | Native Light                       | Native Dark                           | Usage                                            | Emotion      | Shift  | 
+|-------------------------------------|------------------------------|-----------------|----------------|------------------------------------|---------------------------------------|--------------------------------------------------|--------------|--------|
+| `--cem-palette-comfort`             | Base comfort color           | cyan-xl         | cyan-xd        | Canvas                             |                                       | Main canvas/background                           | comfort      |        | 
+| `--cem-palette-comfort-x`           | Comfort extreme variant      | cyan-xd         | cyan-xl        | CanvasText                         |                                       | Used in color-mix for state variations           | comfort      | x      | 
+| `--cem-palette-comfort-text`        | Comfort text color           | cyan-xd         | cyan-xl        | CanvasText                         |                                       | Primary text on comfort backgrounds              | comfort      | text   | 
+| `--cem-palette-comfort-text-x`      | Comfort extreme text         | cyan-xl         | cyan-xd        | Canvas                             |                                       | Text on extreme variant backgrounds              | comfort      | text-x | 
+| `--cem-palette-calm`                | Base calm color              | cyan-l          | cyan-d         | cyan                               |                                       | Foreground elements                              | calm         |        | 
+| `--cem-palette-calm-x`              | Calm extreme variant         | cyan-d          | cyan-l         | rgb(0, 120, 120)                   |                                       | Inverted calm color ( darked darkcyan )          | calm         | x      | 
+| `--cem-palette-calm-text`           | Calm text color              | comfort-text    | comfort-text   | black                              |                                       | Text on calm backgrounds                         | calm         | text   | 
+| `--cem-palette-calm-text-x`         | Calm extreme text            | comfort-text-x  | comfort-text-x | white                              |                                       | Text on extreme calm backgrounds                 | calm         | text-x | 
+| `--cem-palette-trust`               | Base trust color             | blue-l          | blue-d         | Highlight                          |                                       | Primary actions, highlights                      | trust        |        | 
+| `--cem-palette-trust-x`             | Trust extreme variant        | blue-d          | blue-l         | `--cem-color-visitedtext-30-black` | `--cem-color-visitedtext-30-white`    | Darker/lighter trust variation                   | trust        | x      | 
+| `--cem-palette-trust-text`          | Trust text color             | comfort-text    | white          | HighlightText                      |                                       | Text on trust backgrounds                        | trust        | text   | 
+| `--cem-palette-trust-text-x`        | Trust extreme text           | comfort-text-x  | comfort-text-x | Canvas                             | CanvasText                            | Text on extreme trust backgrounds                | trust        | text-x | 
+| `--cem-palette-enthusiasm`          | Base enthusiasm color        | orange-l        | orange-d       | Mark                               |                                       | Brand-2, alternate actions                       | enthusiasm   |        | 
+| `--cem-palette-enthusiasm-x`        | Enthusiasm extreme variant   | orange-xd       | orange-xl      | `--cem-color-mark-30-black`        | `--cem-color-mark-30-white`           | Darker/lighter enthusiasm variation              | enthusiasm   | x      | 
+| `--cem-palette-enthusiasm-text`     | Enthusiasm text color        | comfort-text    | white          | MarkText                           |                                       | Text on enthusiasm backgrounds                   | enthusiasm   | text   | 
+| `--cem-palette-enthusiasm-text-x`   | Enthusiasm extreme text      | comfort-text-x  | comfort-text-x | Canvas                             |                                       | Text on extreme enthusiasm backgrounds           | enthusiasm   | text-x | 
+| `--cem-palette-creativity`          | Base creativity color        | purple-l        | purple-d       | ButtonFace                         |                                       | Brand-1, explicit actions                        | creativity   |        | 
+| `--cem-palette-creativity-x`        | Creativity extreme variant   | purple-d        | purple-l       | `--cem-color-canvastext-30-purple` | `--cem-color-canvastext-30-lightpink` | Darker/lighter creativity variation              | creativity   | x      | 
+| `--cem-palette-creativity-text`     | Creativity text color        | comfort-text    | comfort-text   | CanvasText                         |                                       | Text on creativity backgrounds                   | creativity   | text   | 
+| `--cem-palette-creativity-text-x`   | Creativity extreme text      | comfort-text-x  | comfort-text-x | Canvas                             |                                       | Text on extreme creativity backgrounds           | creativity   | text-x | 
+| `--cem-palette-danger`              | Base danger color            | red-l           | red-d          | red-l                              | red-d                                 | Error messages, destructive actions              | danger       |        | 
+| `--cem-palette-danger-x`            | Danger extreme variant       | red-d           | red-l          | `--cem-color-red-30-black`         | `--cem-color-red-30-white`            | Darker/lighter danger variation                  | danger       | x      | 
+| `--cem-palette-danger-text`         | Danger text color            | comfort-text-x  | comfort-text   | Canvas                             | CanvasText                            | Text on danger backgrounds                       | danger       | text   | 
+| `--cem-palette-danger-text-x`       | Danger extreme text          | orange-xl       | orange-xl      | Canvas                             |                                       | High contrast text on extreme danger backgrounds | danger       | text-x | 
+| `--cem-palette-conservative`        | Base conservative color      | grey-l          | grey-d         | ButtonFace                         |                                       | Brand-3, disabled states                         | conservative |        | 
+| `--cem-palette-conservative-x`      | Conservative extreme variant | grey-d          | grey-l         | CanvasText                         |                                       | Darker/lighter conservative variation            | conservative | x      | 
+| `--cem-palette-conservative-text`   | Conservative text color      | comfort-text    | comfort-text   | CanvasText                         |                                       | Text on conservative backgrounds                 | conservative | text   | 
+| `--cem-palette-conservative-text-x` | Conservative extreme text    | comfort-text-x  | comfort-text-x | Canvas                             |                                       | Text on extreme conservative backgrounds         | conservative | text-x | 
 
 
 ### 5.1 Semantics of the core emotions
@@ -317,11 +317,14 @@ Reference mappings (from `theme-data.xhtml`) use `light-dark()` so a single toke
 
 CEM defines 5 operational modes for color behavior:
 
-- `native`: rely on system colors (`Canvas`, `CanvasText`, etc.)
-- `light`: branded palette in light scheme
-- `dark`: branded palette in dark scheme
-- `contrast-light`: minimize fill differences; emphasize outlines/markers
-- `contrast-dark`: same, in dark scheme
+###### cem-theme-mode
+| Mode             | Color scheme | Description                                           |
+|------------------|--------------|-------------------------------------------------------|
+| `native`         | system       | Rely on system colors (`Canvas`, `CanvasText`, etc.)  |
+| `light`          | light        | Branded palette in light scheme                       |
+| `dark`           | dark         | Branded palette in dark scheme                        |
+| `contrast-light` | light        | Minimize fill differences; emphasize outlines/markers |
+| `contrast-dark`  | dark         | Same, in dark scheme                                  |
 
 **Normative expectations:**
 
