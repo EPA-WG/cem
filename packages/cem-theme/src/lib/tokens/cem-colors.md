@@ -404,7 +404,7 @@ disabled → readonly → editable → default → indeterminate → hover → a
 | active        | `color-mix(in srgb, var(--cem-palette-[emotion]) 25%, var(--cem-palette-[emotion]-x))`    | `var(--cem-palette-[emotion]-text-x)`    |
 | pending       | `color-mix(in srgb, var(--cem-palette-[emotion])  5%, var(--cem-palette-[emotion]-x))`    | `var(--cem-palette-[emotion]-text-x)`    |
 
-**Applying this to action intents:** substitute `{emotion}` with the emotional palette mapped by the intent (see §7.1).
+**Applying this to action intents:** substitute `[emotion]` with the emotional palette mapped by the intent (see §7.1).
 The resulting values populate `--cem-action-{intent}-{state}-background` and `--cem-action-{intent}-{state}-text`.
 
 #### 7.2.3 Outline-driven states
@@ -434,8 +434,6 @@ To render functional UIs, the following endpoints are REQUIRED per action intent
 - `--cem-action-{intent}-active-text`
 - `--cem-action-{intent}-disabled-background`
 - `--cem-action-{intent}-disabled-text`
-- `--cem-action-{intent}-selected-background`
-- `--cem-action-{intent}-selected-text`
 
 Other states (`focus`, `target`, `pending`, `required`, `indeterminate`, `readonly`, `editable`) are RECOMMENDED, and
 may be implemented through zebra/markers rather than fill.
