@@ -71,7 +71,7 @@ async function main(urlMask, xpath, outputMask) {
     let browser;
     try {
         browser = await chromium.launch({
-            headless: false,
+            headless: true,
             args: ["--allow-file-access-from-files", "--disable-web-security"],
         });
         const context = await browser.newContext({
