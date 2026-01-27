@@ -1,6 +1,8 @@
 # CEM Design Tokens
 
-**Consumer-Experience Model (CEM)** is a semantic design token framework that prioritizes user experience over implementation details.
+**CEM** (Consumer-Experience Model or custom-element material) 
+is a semantic design token framework that prioritizes 
+user experience over implementation details.
 
 ## Table of Contents — Token Specifications
 
