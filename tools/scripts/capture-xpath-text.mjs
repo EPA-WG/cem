@@ -15,7 +15,7 @@ Output mask rules:
 import fs from "node:fs/promises";
 import { existsSync } from "node:fs";
 import path from "node:path";
-import { pathToFileURL } from "node:url";
+import http from "node:http";
 
 function hasGlobMagic(mask) {
     return /[*?[\]{}()!]/.test(mask);
@@ -47,6 +47,46 @@ function resolveOutputPath(mask, inputPath) {
     return path.resolve(mask.split("*").join(name));
 }
 
+const MIME_TYPES = {
+    '.html': 'text/html',
+    '.xhtml': 'application/xhtml+xml',
+    '.js': 'application/javascript',
+    '.mjs': 'application/javascript',
+    '.css': 'text/css',
+    '.json': 'application/json',
+    '.xml': 'application/xml',
+    '.svg': 'image/svg+xml',
+    '.png': 'image/png',
+    '.jpg': 'image/jpeg',
+    '.gif': 'image/gif',
+};
+
+/** Start a static file server rooted at `docRoot`, returns { url, close } */
+function startStaticServer(docRoot) {
+    return new Promise((resolve, reject) => {
+        const server = http.createServer(async (req, res) => {
+            const filePath = path.join(docRoot, decodeURIComponent(req.url.split('?')[0]));
+            try {
+                const data = await fs.readFile(filePath);
+                const ext = path.extname(filePath).toLowerCase();
+                res.writeHead(200, { 'Content-Type': MIME_TYPES[ext] || 'application/octet-stream' });
+                res.end(data);
+            } catch {
+                res.writeHead(404);
+                res.end('Not found');
+            }
+        });
+        server.listen(0, '127.0.0.1', () => {
+            const { port } = server.address();
+            resolve({
+                url: `http://127.0.0.1:${port}`,
+                close: () => new Promise(r => server.close(r)),
+            });
+        });
+        server.on('error', reject);
+    });
+}
+
 async function main(urlMask, xpath, outputMask) {
     if (!urlMask || !xpath || !outputMask) {
         console.error('Usage: node tools/scripts/capture-xpath-text.mjs <path-mask> <xpath> <output-mask>', helpString);
@@ -68,11 +108,15 @@ async function main(urlMask, xpath, outputMask) {
         throw error;
     }
 
+    // Serve files over HTTP so fetch() works (file:// protocol blocks Fetch API).
+    // Serve from filesystem root so all relative paths in HTML resolve correctly.
+    const docRoot = path.parse(process.cwd()).root;
+    const server = await startStaticServer(docRoot);
+
     let browser;
     try {
         browser = await chromium.launch({
             headless: true,
-            args: ["--allow-file-access-from-files", "--disable-web-security"],
         });
         const context = await browser.newContext({
             javaScriptEnabled: true,
@@ -81,12 +125,13 @@ async function main(urlMask, xpath, outputMask) {
         const page = await context.newPage();
 
         for (const inputFile of inputFiles) {
-            const targetUrl = pathToFileURL(inputFile).toString();
-            await page.goto(targetUrl, { waitUntil: "domcontentloaded" });
+            const relativePath = path.relative(docRoot, inputFile);
+            const targetUrl = `${server.url}/${relativePath}`;
+            await page.goto(targetUrl, { waitUntil: "networkidle" });
             const locator = page.locator(`xpath=${xpath}`);
             await locator
                 .first()
-                .waitFor({ state: "attached", timeout: 5000 })
+                .waitFor({ state: "attached", timeout: 10000 })
                 .catch(() => {});
             const count = await locator.count();
             if (count === 0) {
@@ -104,6 +149,7 @@ async function main(urlMask, xpath, outputMask) {
         if (browser) {
             await browser.close();
         }
+        await server.close();
     }
 }
 
