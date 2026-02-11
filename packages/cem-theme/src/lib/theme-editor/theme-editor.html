@@ -9,7 +9,8 @@
         td {
             min-width: 4em;
         }
-        :root{
+
+        :root {
             --base-color: CanvasText;
             --contrast-color: oklch(from var(--base-color) calc((l - 0.6) * -100) 0 h); /* invert brightness */
         }
@@ -35,14 +36,16 @@
 
                 & > * {
                     flex: 1;
-                }
-
-                label {
                     display: flex;
 
                     & > * {
                         min-width: 4.5rem;
                     }
+                }
+
+                label {
+                    display: flex;
+                    flex: 1;
 
                     & > input {
                         flex: 1;
@@ -96,10 +99,13 @@
                     Value
                     <input name="selected-color" slice="selected-color" type="text" />
                 </label>
-                <label title="pick from color palette">
-                    🎨
-                    <input name="selected-color-picker" type="color" value="#FFF" />
-                </label>
+                <div>
+                    <button name="picker-to-value" title="copy picker to value">🎨 ↗️</button>
+                    <label title="pick from color palette">
+
+                        <input name="selected-color-picker" type="color" value="#FFF" />
+                    </label>
+                </div>
             </form>
             <table class="token-matrix"></table>
             <i>⯐ select tokens on the page by click on token preview</i>
@@ -454,6 +460,15 @@
     const varName = tokenInput?.value;
     if( !varName?.startsWith( '--' ) ) return;
     document.documentElement.style.setProperty( varName, e.target.value );
+  } );
+
+  // Copy picker value to selected-color input
+  document.querySelector( 'button[name="picker-to-value"]' )?.addEventListener( 'click', ( e ) =>
+  {
+    e.preventDefault();
+    const pickerValue = document.querySelector( 'input[name="selected-color-picker"]' )?.value;
+    if( !pickerValue ) return;
+    document.querySelector( 'input[name="selected-color"]' ).value = pickerValue;
   } );
 </script>
 </body>
