@@ -9,6 +9,10 @@
         td {
             min-width: 4em;
         }
+        :root{
+            --base-color: CanvasText;
+            --contrast-color: oklch(from var(--base-color) calc((l - 0.6) * -100) 0 h); /* invert brightness */
+        }
     </style>
 </head>
 <body>
@@ -98,7 +102,7 @@
                 </label>
             </form>
             <table class="token-matrix"></table>
-            ⯐ pick tokens on the page by click on element
+            <i>⯐ select tokens on the page by click on token preview</i>
         </aside>
         <slot></slot>
     </template>
@@ -436,7 +440,7 @@
         `<td>${ prop }</td>`
         + `<td><code>${ varName }</code></td>`
         + `<td><code>${ value }</code></td>`
-        + `<td style="background:${ computed }" title="${ computed }">${ computed }</td>`;
+        + `<td style="--base-color:${ computed };background-color:var(--base-color); color:oklch(from var(--base-color) calc((l - 0.6) * -100) 0 h);" title="${ computed }">${ computed }</td>`;
       tr.addEventListener( 'click', () => selectRow( tokenInput, colorInput, tr, varName, value ) );
       matrix.appendChild( tr );
     }
