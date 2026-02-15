@@ -3,21 +3,22 @@
 <head>
     <meta charset="UTF-8">
     <title>CEM colors CSS generator</title>
-    <style>
-        td{ padding: 0.5rem; letter-spacing: 0.05em; }
-        caption{
-            font-size: 1.5rem;
-            padding-bottom: 0.5rem;
-            text-align: start;
-        }
-        tr>th:first-child{ text-align: start }
-        code{ color: green; font-weight: bold; }
-        section table{ margin-top: 1rem; }
-    </style>
+
 </head>
 <body>
 <custom-element>
-    <template>
+    <template id="cem-colors-template">
+        <style>
+            td{ padding: 0.5rem; letter-spacing: 0.05em; }
+            caption{
+                font-size: 1.5rem;
+                padding-bottom: 0.5rem;
+                text-align: start;
+            }
+            tr>th:first-child{ text-align: start }
+            code{ color: green; font-weight: bold; }
+            section table{ margin-top: 1rem; }
+        </style>
         <http-request method="GET" slice="cem-colors" url="../../../dist/lib/tokens/cem-colors.xhtml"></http-request>
         <variable name="colorsData" select="//cem-colors"></variable>
         <variable name="cem-color-hue-variant"
@@ -227,7 +228,7 @@
                 <variable name="theme-name" select="xhtml:td[1]"></variable>
                 <variable name="color-scheme" select="xhtml:td[2]"></variable>
                 <variable name="theme-description" select="xhtml:td[3]"></variable>
-                <xhtml:table id="cem-action-state-color">
+                <xhtml:table id="cem-action-state-color" class="cem-theme-{$theme-name}">
                     <xhtml:caption>
                         <b title="{$theme-description}">{$theme-name}</b> &nbsp;
                         <sub>{$theme-description}</sub>
