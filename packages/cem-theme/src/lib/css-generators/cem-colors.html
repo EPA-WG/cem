@@ -198,7 +198,7 @@
                         <xhtml:th>{$token}</xhtml:th>
                         <xhtml:td>{$hue}</xhtml:td>
 <!--                        <xhtml:td>{$variant}</xhtml:td>-->
-                        <xhtml:td style="background-color: var({$token}); min-width: 3rem;" title="{$usage}"></xhtml:td>
+                        <xhtml:td style="background-color: var({$token}); min-width: 3rem;" title="{$token} &#10; {$usage}"></xhtml:td>
                         <xhtml:td>{$label}</xhtml:td>
                         <xhtml:td><code>{$value}</code></xhtml:td>
                     </xhtml:tr>
@@ -207,7 +207,9 @@
         </xhtml:table>
         <hr/>
         <xhtml:table id="cem-palette-emotion-shift" data-selected-token="">
-            <xhtml:caption> <a href="../../../dist/lib/tokens/cem-colors.xhtml#5-emotional-palette">cem-palette-emotion-shift</a> Emotional palette</xhtml:caption>
+            <xhtml:caption> <a href="../../../dist/lib/tokens/cem-colors.xhtml#5-emotional-palette">cem-palette-emotion-shift</a>
+                Emotional palette
+            </xhtml:caption>
             <xhtml:thead>
                 <xhtml:tr>
                     <xhtml:th>emotion token</xhtml:th>
@@ -228,17 +230,17 @@
                         <variable name="dark-css-x" >background-color: var({ $token }-x); color: var({ $token }-text-x); color-scheme: dark  </variable>
                         <xhtml:tr>
                             <xhtml:th>{$token}</xhtml:th>
-                            <xhtml:td style="{$light-css}" title="{$light-css}"> light ⬤ {$emotion}</xhtml:td>
-                            <xhtml:td style="{$dark-css }" title="{$dark-css }"> dark  ⬤ {$emotion}</xhtml:td>
-                            <xhtml:td class="cem-theme-native" style="{$light-css}" title="{$light-css}" data-selected-token="{$selector-native-theme}{{}}"> native light ⬤ {$emotion}</xhtml:td>
-                            <xhtml:td class="cem-theme-native" style="{$dark-css }" title="{$dark-css }" data-selected-token="{$selector-native-theme}{{}}"> native dark  ⬤ {$emotion}</xhtml:td>
+                            <xhtml:td style="{$light-css}" title="{ $token } &#10; {$light-css}"> light ⬤ {$emotion}</xhtml:td>
+                            <xhtml:td style="{$dark-css }" title="{ $token } &#10; {$dark-css }"> dark  ⬤ {$emotion}</xhtml:td>
+                            <xhtml:td class="cem-theme-native" style="{$light-css}" title="{ $token } &#10; {$light-css}" data-selected-token="{$selector-native-theme}{{}}"> native light ⬤ {$emotion}</xhtml:td>
+                            <xhtml:td class="cem-theme-native" style="{$dark-css }" title="{ $token } &#10; {$dark-css }" data-selected-token="{$selector-native-theme}{{}}"> native dark  ⬤ {$emotion}</xhtml:td>
                         </xhtml:tr>
                         <xhtml:tr>
                             <xhtml:th>{$token}-x</xhtml:th>
-                            <xhtml:td style="{$light-css-x}" title="{$light-css-x}"> light ⬤ {$emotion}-x</xhtml:td>
-                            <xhtml:td style="{$dark-css-x }" title="{$dark-css-x }"> dark  ⬤ {$emotion}-x</xhtml:td>
-                            <xhtml:td class="cem-theme-native" style="{$light-css-x}" title="{$light-css-x}"> native light ⬤ {$emotion}-x</xhtml:td>
-                            <xhtml:td class="cem-theme-native" style="{$dark-css-x }" title="{$dark-css-x }"> native dark  ⬤ {$emotion}-x</xhtml:td>
+                            <xhtml:td style="{$light-css-x}" title="{ $token } &#10; {$light-css-x}"> light ⬤ {$emotion}-x</xhtml:td>
+                            <xhtml:td style="{$dark-css-x }" title="{ $token } &#10; {$dark-css-x }"> dark  ⬤ {$emotion}-x</xhtml:td>
+                            <xhtml:td class="cem-theme-native" style="{$light-css-x}" title="{ $token } &#10; {$light-css-x}"> native light ⬤ {$emotion}-x</xhtml:td>
+                            <xhtml:td class="cem-theme-native" style="{$dark-css-x }" title="{ $token } &#10; {$dark-css-x }"> native dark  ⬤ {$emotion}-x</xhtml:td>
                         </xhtml:tr>
                     </if>
                 </for-each>
