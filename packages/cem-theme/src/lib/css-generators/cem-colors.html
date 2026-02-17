@@ -35,109 +35,129 @@
                   select="$colorsData//*[@id='cem-theme-mode']/following-sibling::xhtml:table[1]/xhtml:tbody"></variable>
         <variable name="css-body">
 
-            :root{
-            /* region branded colors: cem-color-[hue]-[variant] */
+:root{
+    /* region branded colors: cem-color-[hue]-[variant] */
 
-            <for-each select="$cem-color-hue-variant/xhtml:tr">
-                {./*[1]} : {./*[4]} ; /* {./*[5]} ; {./*[6]} */
-            </for-each>
-            /* endregion */
+    <for-each select="$cem-color-hue-variant/xhtml:tr">
+       {./*[1]} : {./*[4]} ;        /* {./*[5]} ; {./*[6]} */
+    </for-each>
+    /* endregion branded colors */
 
-            /* emotion palette: cem-palette-[emotion]-[shift] */
-            /* region light/dark */
-            <for-each select="$cem-palette-emotion-shift/xhtml:tr">
-                <variable name="emotion" select="xhtml:td[1]"></variable>
-                <variable name="light-str" select="xhtml:td[3]"></variable>
-                <variable name="dark-str" select="xhtml:td[4]"></variable>
-                <variable name="light-as-color" select="concat('--cem-color-',$light-str)"></variable>
-                <variable name="dark-as-color" >--cem-color-{$dark-str}</variable>
-                <variable name="is-light-color"
-                          select="$cem-color-hue-variant/xhtml:tr[normalize-space(xhtml:td[1]) = $light-as-color]"></variable>
-                <variable name="is-dark-color"
-                          select="$cem-color-hue-variant/xhtml:tr[normalize-space(xhtml:td[1]) = $dark-as-color]"></variable>
-                <variable name="light-val">
+    /* emotion palette: cem-palette-[emotion]-[shift] */
+    /* region light/dark */
+    <for-each select="$cem-palette-emotion-shift/xhtml:tr">
+        <variable name="emotion" select="xhtml:td[1]"></variable>
+        <variable name="light-str" select="xhtml:td[3]"></variable>
+        <variable name="dark-str" select="xhtml:td[4]"></variable>
+        <variable name="light-as-color" select="concat('--cem-color-',$light-str)"></variable>
+        <variable name="dark-as-color" >--cem-color-{$dark-str}</variable>
+        <variable name="is-light-color"
+                  select="$cem-color-hue-variant/xhtml:tr[normalize-space(xhtml:td[1]) = $light-as-color]"></variable>
+        <variable name="is-dark-color"
+                  select="$cem-color-hue-variant/xhtml:tr[normalize-space(xhtml:td[1]) = $dark-as-color]"></variable>
+        <variable name="light-val">
+            <choose>
+                <when test="$is-light-color">{$light-as-color}</when>
+                <otherwise>--cem-palette-{$light-str}</otherwise>
+            </choose>
+        </variable>
+        <variable name="dark-val">
+            <choose>
+                <when test="$is-dark-color">{$dark-as-color}</when>
+                <otherwise>--cem-palette-{$dark-str}</otherwise>
+            </choose>
+        </variable>
+
+        <choose>
+            <when test="$dark-str">
+                {$emotion}: light-dark(var( {$light-val} ), var( {$dark-val} ) );
+            </when>
+            <otherwise>
+                {$emotion}: var( {$light-val} );
+            </otherwise>
+        </choose>
+    </for-each>
+    /* endregion light/dark */
+
+    /*  region common for cem themes */
+    [data-theme*="cem-theme-"],
+    .cem-theme-native,
+    .cem-theme-contrast-light,
+    .cem-theme-contrast-dark,
+    .cem-theme-light,
+    .cem-theme-dark {
+
+        /* action intent tokens: cem-action-[intent]-[state]-[background|text] */
+        <for-each select="$cem-action-intent-emotion/xhtml:tr">
+            <variable name="intent"     select="normalize-space(xhtml:td[1])"></variable>
+            <variable name="emotion"    select="normalize-space(xhtml:td[2])"></variable>
+
+            /*  region {$intent} ({$emotion}) */
+
+            <for-each select="$cem-action-state-color/xhtml:tr">
+                <variable name="state"              select="xhtml:td[1]"></variable>
+                <variable name="background-color"   select="xhtml:td[2]"></variable>
+                <variable name="text-color"         select="xhtml:td[3]"></variable>
+                <variable name="bg-pass1">
                     <choose>
-                        <when test="$is-light-color">{$light-as-color}</when>
-                        <otherwise>--cem-palette-{$light-str}</otherwise>
+                        <when test="contains($background-color, '[emotion]')">{concat(substring-before($background-color, '[emotion]'), $emotion, substring-after($background-color, '[emotion]'))}</when>
+                        <otherwise>{$background-color}</otherwise>
                     </choose>
                 </variable>
-                <variable name="dark-val">
+                <variable name="bg-final">
                     <choose>
-                        <when test="$is-dark-color">{$dark-as-color}</when>
-                        <otherwise>--cem-palette-{$dark-str}</otherwise>
+                        <when test="contains($bg-pass1, '[emotion]')">{concat(substring-before($bg-pass1, '[emotion]'), $emotion, substring-after($bg-pass1, '[emotion]'))}</when>
+                        <otherwise>{$bg-pass1}</otherwise>
                     </choose>
                 </variable>
-
-                <choose>
-                    <when test="$dark-str">
-                        {$emotion}: light-dark(var( {$light-val} ), var( {$dark-val} ) );
-                    </when>
-                    <otherwise>
-                        {$emotion}: var( {$light-val} );
-                    </otherwise>
-                </choose>
+                <variable name="txt-pass1">
+                    <choose>
+                        <when test="contains($text-color, '[emotion]')">{concat(substring-before($text-color, '[emotion]'), $emotion, substring-after($text-color, '[emotion]'))}</when>
+                        <otherwise>{$text-color}</otherwise>
+                    </choose>
+                </variable>
+                <variable name="txt-final">
+                    <choose>
+                        <when test="contains($txt-pass1, '[emotion]')">{concat(substring-before($txt-pass1, '[emotion]'), $emotion, substring-after($txt-pass1, '[emotion]'))}</when>
+                        <otherwise>{$txt-pass1}</otherwise>
+                    </choose>
+                </variable>
+                --cem-action-{$intent}-{$state}-background: {$bg-final};/* {$background-color} ~ {$bg-pass1} ~ {$bg-final} */
+                --cem-action-{$intent}-{$state}-text:       {$txt-final};
             </for-each>
-            /* endregion */
+            /* endregion {$intent} ({$emotion}) */
+        </for-each>
+    }/* endregion common for cem themes */
 
+    .cem-theme-light, [data-theme="cem-theme-light"],
+    .cem-theme-contrast-light, [data-theme="cem-theme-contrast-light"]
+    {
+        <text>color-scheme: light;</text>
+    }
 
-            /* action intent tokens: cem-action-[intent]-[state]-[background|text] */
-            <for-each select="$cem-action-intent-emotion/xhtml:tr">
-                <variable name="intent"     select="normalize-space(xhtml:td[1])"></variable>
-                <variable name="emotion"    select="normalize-space(xhtml:td[2])"></variable>
+    .cem-theme-dark, [data-theme="cem-theme-dark"],
+    .cem-theme-contrast-dark, [data-theme="cem-theme-contrast-dark"]
+    {
+       <text> color-scheme: dark; </text>
+    }
 
-                /*  region {$intent} ({$emotion}) */
-
-                <for-each select="$cem-action-state-color/xhtml:tr">
-                    <variable name="state"              select="xhtml:td[1]"></variable>
-                    <variable name="background-color"   select="xhtml:td[2]"></variable>
-                    <variable name="text-color"         select="xhtml:td[3]"></variable>
-                    <variable name="bg-pass1">
-                        <choose>
-                            <when test="contains($background-color, '[emotion]')">{concat(substring-before($background-color, '[emotion]'), $emotion, substring-after($background-color, '[emotion]'))}</when>
-                            <otherwise>{$background-color}</otherwise>
-                        </choose>
-                    </variable>
-                    <variable name="bg-final">
-                        <choose>
-                            <when test="contains($bg-pass1, '[emotion]')">{concat(substring-before($bg-pass1, '[emotion]'), $emotion, substring-after($bg-pass1, '[emotion]'))}</when>
-                            <otherwise>{$bg-pass1}</otherwise>
-                        </choose>
-                    </variable>
-                    <variable name="txt-pass1">
-                        <choose>
-                            <when test="contains($text-color, '[emotion]')">{concat(substring-before($text-color, '[emotion]'), $emotion, substring-after($text-color, '[emotion]'))}</when>
-                            <otherwise>{$text-color}</otherwise>
-                        </choose>
-                    </variable>
-                    <variable name="txt-final">
-                        <choose>
-                            <when test="contains($txt-pass1, '[emotion]')">{concat(substring-before($txt-pass1, '[emotion]'), $emotion, substring-after($txt-pass1, '[emotion]'))}</when>
-                            <otherwise>{$txt-pass1}</otherwise>
-                        </choose>
-                    </variable>
-                    --cem-action-{$intent}-{$state}-background: {$bg-final};/* {$background-color} ~ {$bg-pass1} ~ {$bg-final} */
-                    --cem-action-{$intent}-{$state}-text:       {$txt-final};
+    /* override for native */
+    .cem-theme-native,[data-theme="cem-theme-native"]{
+        <for-each select="$cem-palette-emotion-shift/xhtml:tr">
+                    <variable name="emotion" select="xhtml:td[1]"></variable>
+                    <variable name="light-val" select="xhtml:td[5]"></variable>
+                    <variable name="dark-val" select="xhtml:td[6]"></variable>
+                    <choose>
+                        <when test="$dark-val=''">
+                            {$emotion}:  {$light-val};
+                        </when>
+                        <otherwise>
+                            {$emotion}: light-dark(var({$light-val}), var({$dark-val}) );
+                        </otherwise>
+                    </choose>
                 </for-each>
-                /* endregion */
-            </for-each>
-
-            /* override for native */
-            .cem-theme-native,[data-theme="cem-theme-native"]{
-            <for-each select="$cem-palette-emotion-shift/xhtml:tr">
-                <variable name="emotion" select="xhtml:td[1]"></variable>
-                <variable name="light-val" select="xhtml:td[5]"></variable>
-                <variable name="dark-val" select="xhtml:td[6]"></variable>
-                <choose>
-                    <when test="$dark-val=''">
-                        {$emotion}:  {$light-val};
-                    </when>
-                    <otherwise>
-                        {$emotion}: light-dark(var({$light-val}), var({$dark-val}) );
-                    </otherwise>
-                </choose>
-            </for-each>
-            }
-            }
+    }/* native */
+}/* root */
         </variable>
         <style>
             :host {
