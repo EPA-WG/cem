@@ -279,7 +279,7 @@
                                     <variable name="bg-var">--cem-action-{$intent}-{$state}-background</variable>
                                     <variable name="txt-var">--cem-action-{$intent}-{$state}-text</variable>
                                     <variable name="cell-style">background-color: var({$bg-var}); color: var({$txt-var}); min-width: 4rem;</variable>
-                                    <xhtml:td style="{$cell-style}" title="{$bg-var}">Aa</xhtml:td>
+                                    <xhtml:td style="{$cell-style}" title="{$bg-var} &#10; {$txt-var}">Aa</xhtml:td>
                                 </for-each>
                             </xhtml:tr>
                         </for-each>
