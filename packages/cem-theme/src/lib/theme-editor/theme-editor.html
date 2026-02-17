@@ -266,14 +266,33 @@
     document.querySelector( 'input[name="selected-color-picker"]' ).value = hex;
   }
 
+  /** Parse data-selected-token attribute into a path array, prepending :root.
+   *  ".cem-theme-native,[data-theme='cem-theme-native']{}" → [":root", ".cem-theme-native,..."]
+   *  "" → [":root"] */
+  function parseSelectedToken( str )
+  {
+    const parts = [ ':root' ];
+    if( !str ) return parts;
+    const re = /([^{}]+)\{/g;
+    let m;
+    while( ( m = re.exec( str ) ) !== null )
+    {
+      const trimmed = m[1].trim();
+      if( trimmed ) parts.push( trimmed );
+    }
+    return parts;
+  }
+
   document.addEventListener( 'click', ( e ) =>
   {
-    const el = e.target.closest( '[title^="--"]' );
+    const el = e.target.closest( '[data-selected-token]' );
     if( !el ) return;
     if( e.target.closest( '.token-matrix' ) ) return;
 
-    const entries = extractVarEntries( el );
+    const entries = extractVarEntries( e.target );
     if( !entries.length ) return;
+
+    const tokenPath = parseSelectedToken( el.dataset.selectedToken );
 
     const tokenInput = document.querySelector( 'input[name="selected-token"]' );
     const colorInput = document.querySelector( 'input[name="selected-color"]' );
@@ -282,13 +301,17 @@
 
     for( const { prop, varName, value, path, computed } of entries )
     {
+      const effectivePath = tokenPath.length ? tokenPath : path;
       const tr = document.createElement( 'tr' );
       tr.innerHTML =
         `<td>${ prop }</td>`
         + `<td><code>${ varName }</code></td>`
         + `<td><code>${ value }</code></td>`
         + `<td style="--base-color:${ computed };background-color:var(--base-color); color:oklch(from var(--base-color) calc((l - 0.6) * -100) 0 h);" title="${ computed }">${ computed }</td>`;
-      tr.addEventListener( 'click', () => selectRow( tokenInput, colorInput, tr, varName, value, path ) );
+      tr.addEventListener( 'click', (ev) => {
+        const computedStyle = window.getComputedStyle(el);
+        const val = computedStyle.getPropertyValue(varName)
+        selectRow( tokenInput, colorInput, tr, varName, val, effectivePath ) });
       matrix.appendChild( tr );
     }
     matrix.querySelector( 'tr' )?.click();

@@ -33,6 +33,18 @@
                   select="$colorsData//*[@id='cem-action-state-color']/following-sibling::xhtml:table[1]/xhtml:tbody"></variable>
         <variable name="cem-theme-mode"
                   select="$colorsData//*[@id='cem-theme-mode']/following-sibling::xhtml:table[1]/xhtml:tbody"></variable>
+        <variable name="selector-common-for-cem-themes">[data-theme*="cem-theme-"],
+    .cem-theme-native,
+    .cem-theme-contrast-light,
+    .cem-theme-contrast-dark,
+    .cem-theme-light,
+    .cem-theme-dark</variable>
+        <variable name="selector-native-theme">.cem-theme-native,[data-theme="cem-theme-native"]</variable>
+        <variable name="selector-light-theme">.cem-theme-light, [data-theme="cem-theme-light"],
+    .cem-theme-contrast-light, [data-theme="cem-theme-contrast-light"]</variable>
+        <variable name="selector-dark-theme">.cem-theme-dark, [data-theme="cem-theme-dark"],
+    .cem-theme-contrast-dark, [data-theme="cem-theme-contrast-dark"]</variable>
+
         <variable name="css-body">
 
 :root{
@@ -80,12 +92,7 @@
     /* endregion light/dark */
 
     /*  region common for cem themes */
-    [data-theme*="cem-theme-"],
-    .cem-theme-native,
-    .cem-theme-contrast-light,
-    .cem-theme-contrast-dark,
-    .cem-theme-light,
-    .cem-theme-dark {
+    {$selector-common-for-cem-themes} {
 
         /* action intent tokens: cem-action-[intent]-[state]-[background|text] */
         <for-each select="$cem-action-intent-emotion/xhtml:tr">
@@ -129,20 +136,18 @@
         </for-each>
     }/* endregion common for cem themes */
 
-    .cem-theme-light, [data-theme="cem-theme-light"],
-    .cem-theme-contrast-light, [data-theme="cem-theme-contrast-light"]
+    {$selector-light-theme}
     {
         <text>color-scheme: light;</text>
     }
 
-    .cem-theme-dark, [data-theme="cem-theme-dark"],
-    .cem-theme-contrast-dark, [data-theme="cem-theme-contrast-dark"]
+    {$selector-dark-theme}
     {
        <text> color-scheme: dark; </text>
     }
 
     /* override for native */
-    .cem-theme-native,[data-theme="cem-theme-native"]{
+    {$selector-native-theme}{
         <for-each select="$cem-palette-emotion-shift/xhtml:tr">
                     <variable name="emotion" select="xhtml:td[1]"></variable>
                     <variable name="light-val" select="xhtml:td[5]"></variable>
@@ -169,7 +174,7 @@
         </style>
 
 
-        <xhtml:table id="cem-color-hue-variant">
+        <xhtml:table id="cem-color-hue-variant" data-selected-token="">
             <xhtml:caption><a href="../../../dist/lib/tokens/cem-colors.xhtml#4-base-branded-color-family">cem-color-hue-variant</a> Branded colors</xhtml:caption>
             <xhtml:thead>
                 <xhtml:tr>
@@ -201,7 +206,7 @@
             </xhtml:tbody>
         </xhtml:table>
         <hr/>
-        <xhtml:table id="cem-palette-emotion-shift">
+        <xhtml:table id="cem-palette-emotion-shift" data-selected-token="">
             <xhtml:caption> <a href="../../../dist/lib/tokens/cem-colors.xhtml#5-emotional-palette">cem-palette-emotion-shift</a> Emotional palette</xhtml:caption>
             <xhtml:thead>
                 <xhtml:tr>
@@ -225,8 +230,8 @@
                             <xhtml:th>{$token}</xhtml:th>
                             <xhtml:td style="{$light-css}" title="{$light-css}"> light ⬤ {$emotion}</xhtml:td>
                             <xhtml:td style="{$dark-css }" title="{$dark-css }"> dark  ⬤ {$emotion}</xhtml:td>
-                            <xhtml:td class="cem-theme-native" style="{$light-css}" title="{$light-css}"> native light ⬤ {$emotion}</xhtml:td>
-                            <xhtml:td class="cem-theme-native" style="{$dark-css }" title="{$dark-css }"> native dark  ⬤ {$emotion}</xhtml:td>
+                            <xhtml:td class="cem-theme-native" style="{$light-css}" title="{$light-css}" data-selected-token="{$selector-native-theme}{{}}"> native light ⬤ {$emotion}</xhtml:td>
+                            <xhtml:td class="cem-theme-native" style="{$dark-css }" title="{$dark-css }" data-selected-token="{$selector-native-theme}{{}}"> native dark  ⬤ {$emotion}</xhtml:td>
                         </xhtml:tr>
                         <xhtml:tr>
                             <xhtml:th>{$token}-x</xhtml:th>
@@ -248,7 +253,7 @@
                 <variable name="theme-name" select="xhtml:td[1]"></variable>
                 <variable name="color-scheme" select="xhtml:td[2]"></variable>
                 <variable name="theme-description" select="xhtml:td[3]"></variable>
-                <xhtml:table id="cem-action-state-color" class="cem-theme-{$theme-name}">
+                <xhtml:table id="cem-action-state-color" class="cem-theme-{$theme-name}" data-selected-token="{$selector-common-for-cem-themes} {{}}">
                     <xhtml:caption>
                         <b title="{$theme-description}">{$theme-name}</b> &nbsp;
                         <sub>{$theme-description}</sub>
