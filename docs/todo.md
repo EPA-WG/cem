@@ -95,12 +95,12 @@ Optional state endpoints for complete coverage:
 
 ### Phase 2: Zebra Outline Tokens
 
-1. [ ] Add zebra color definitions to `cem-colors.md` metadata
-2. [ ] Update `cem-colors.html` generator for zebra tokens
-3. [ ] Generate `--cem-zebra-color-{0-3}` tokens
-4. [ ] Generate `--cem-zebra-strip-size` token
-5. [ ] Add native/forced-colors zebra mappings
-
+1. [x] ~~Add zebra color definitions to `cem-colors.md` metadata~~ (hardcoded in generator - fixed token set)
+2. [x] Update `cem-colors.html` generator for zebra tokens
+3. [x] Generate `--cem-zebra-color-{0-3}` tokens
+4. [x] Generate `--cem-zebra-strip-size` token
+5. [x] Add native/forced-colors zebra mappings (focus→CanvasText, selected/target→SelectedItem)
+6. [ ] add zebra tokens matrix to `cem-colors.html`
 ### Phase 3: Extended State Coverage
 
 1. [ ] Add remaining state formulas (readonly, editable, indeterminate, pending)
@@ -114,8 +114,8 @@ Optional state endpoints for complete coverage:
 | Branded colors    | 29      | 29        | 0   |
 | Emotional palette | 28      | 28        | 0   |
 | Action tokens     | 50      | 50        | 0   |
-| Zebra tokens      | 5       | 0         | 5   |
-| **Total**         | 112     | 107       | 5   |
+| Zebra tokens      | 5       | 5         | 0   |
+| **Total**         | 112     | 112       | 0   |
 
 **Action tokens generated (Phase 1 complete):**
 - 5 intents × 5 states × 2 attributes = 50 tokens

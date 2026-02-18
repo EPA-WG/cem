@@ -91,6 +91,14 @@
     </for-each>
     /* endregion light/dark */
 
+    /* region zebra outline colors for focus/selected/target (§8) */
+    --cem-zebra-color-0: Canvas;
+    --cem-zebra-color-1: Canvas;
+    --cem-zebra-color-2: Canvas;
+    --cem-zebra-color-3: Canvas;
+    --cem-zebra-strip-size: 2px;
+    /* endregion zebra */
+
     /*  region common for cem themes */
     {$selector-common-for-cem-themes} {
 
@@ -161,6 +169,18 @@
                         </otherwise>
                     </choose>
                 </for-each>
+        /* region zebra native overrides */
+        &[focus],&:focus, &:focus-visible, &:focus-within, &.focus {
+            <text>--cem-zebra-color-1: CanvasText;</text>
+        }
+        &[selected],&.selected {
+            <text>--cem-zebra-color-2: SelectedItem;</text>
+
+        }
+        &[target], &:target, &.target {
+            <text>--cem-zebra-color-3: SelectedItem;</text>
+        }
+        /* endregion zebra native */
     }/* native */
 }/* root */
         </variable>
