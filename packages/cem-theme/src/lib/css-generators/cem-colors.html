@@ -95,11 +95,22 @@
     /* endregion light/dark */
 
     /* region zebra outline colors for focus/selected/target (§8) */
-    --cem-zebra-color-0: Canvas;
-    --cem-zebra-color-1: Canvas;
-    --cem-zebra-color-2: Canvas;
-    --cem-zebra-color-3: Canvas;
+    --cem-zebra-color-0: var(--cem-palette-comfort);
+    --cem-zebra-color-1: var(--cem-palette-comfort);
+    --cem-zebra-color-2: var(--cem-palette-comfort);
+    --cem-zebra-color-3: var(--cem-palette-comfort);
     --cem-zebra-strip-size: 2px;
+
+    /* :root state defaults match native theme so zebra is functional without an explicit theme class */
+    [focus], :focus, :focus-visible, :focus-within, .focus {
+        <text>--cem-zebra-color-1: CanvasText;</text>
+    }
+    [target], :target, .target {
+        <text>--cem-zebra-color-2: Mark;</text>
+    }
+    [selected], .selected {
+        <text>--cem-zebra-color-3: SelectedItem;</text>
+    }
     /* endregion zebra */
 
     /*  region common for cem themes */
@@ -145,6 +156,13 @@
             </for-each>
             /* endregion {$intent} ({$emotion}) */
         </for-each>
+
+        /* region zebra base: anchor all stripes to surface (§8.2) */
+        --cem-zebra-color-0: var(--cem-palette-comfort);
+        --cem-zebra-color-1: var(--cem-palette-comfort);
+        --cem-zebra-color-2: var(--cem-palette-comfort);
+        --cem-zebra-color-3: var(--cem-palette-comfort);
+        /* endregion zebra base */
     }/* endregion common for cem themes */
 
     {$selector-light-theme}
@@ -156,6 +174,36 @@
     {
        <text> color-scheme: dark; </text>
     }
+
+    /* region zebra state: light/dark (§8.2 cem-zebra-mode-mapping) */
+    .cem-theme-light, [data-theme="cem-theme-light"],
+    .cem-theme-dark, [data-theme="cem-theme-dark"] {
+        &[focus],&:focus, &:focus-visible, &:focus-within, &.focus {
+            <text>--cem-zebra-color-1: var(--cem-palette-trust-x);</text>
+        }
+        &[target], &:target, &.target {
+            <text>--cem-zebra-color-2: var(--cem-palette-creativity-x);</text>
+        }
+        &[selected],&.selected {
+            <text>--cem-zebra-color-3: var(--cem-palette-enthusiasm-x);</text>
+        }
+    }
+    /* endregion zebra state: light/dark */
+
+    /* region zebra state: contrast (§8.2 cem-zebra-mode-mapping) */
+    .cem-theme-contrast-light, [data-theme="cem-theme-contrast-light"],
+    .cem-theme-contrast-dark, [data-theme="cem-theme-contrast-dark"] {
+        &[focus],&:focus, &:focus-visible, &:focus-within, &.focus {
+            <text>--cem-zebra-color-1: var(--cem-palette-comfort-text-x);</text>
+        }
+        &[target], &:target, &.target {
+            <text>--cem-zebra-color-2: var(--cem-palette-danger-x);</text>
+        }
+        &[selected],&.selected {
+            <text>--cem-zebra-color-3: var(--cem-palette-trust-x);</text>
+        }
+    }
+    /* endregion zebra state: contrast */
 
     /* override for native */
     {$selector-native-theme}{
@@ -176,10 +224,10 @@
         &[focus],&:focus, &:focus-visible, &:focus-within, &.focus {
             <text>--cem-zebra-color-1: CanvasText;</text>
         }
-        &[selected],&.selected {
-            <text>--cem-zebra-color-2: SelectedItem;</text>
-        }
         &[target], &:target, &.target {
+            <text>--cem-zebra-color-2: Mark;</text>
+        }
+        &[selected],&.selected {
             <text>--cem-zebra-color-3: SelectedItem;</text>
         }
         /* endregion zebra native */
@@ -320,12 +368,12 @@
                 <variable name="theme-description" select="xhtml:td[3]"></variable>
                 <variable name="zebra-state-token">
                     <choose>
-                    <when test="$theme-name = 'native'">{$selector-native-theme}{<text>{</text><text>}</text>}</when>
-                    <when test="$theme-name = 'light'">{$selector-light-theme}{<text>{</text><text>}</text>}</when>
-                    <when test="$theme-name = 'dark'">{$selector-dark-theme}{<text>{</text><text>}</text>}</when>
+                    <when test="$theme-name = 'native'" >{$selector-native-theme }{<text>{</text><text>}</text>}</when>
+                    <when test="$theme-name = 'light'"  >{$selector-light-theme  }{<text>{</text><text>}</text>}</when>
+                    <when test="$theme-name = 'dark'"   >{$selector-dark-theme   }{<text>{</text><text>}</text>}</when>
                     <otherwise></otherwise>
                 </choose></variable>
-                <xhtml:table class="cem-theme-{$theme-name}" data-selected-token="{$zebra-state-token}">
+                <xhtml:table class="cem-theme-{$theme-name}" data-selected-token="{$zebra-state-token}" style="background-color: var(--cem-palette-comfort); color: var(--cem-palette-comfort-text  )">
                     <xhtml:caption>
                         <b title="{$theme-description}">{$theme-name}</b> &nbsp;
                         <sub>{$theme-description}</sub>
@@ -343,51 +391,51 @@
                     <xhtml:tbody>
                         <xhtml:tr>
                             <xhtml:th>none</xhtml:th>
-                            <xhtml:td class="cem-theme-{$theme-name}" style="background-color:var(--cem-zebra-color-0);min-width:2rem" title="--cem-zebra-color-0"></xhtml:td>
-                            <xhtml:td class="cem-theme-{$theme-name}" style="background-color:var(--cem-zebra-color-1);min-width:2rem" title="--cem-zebra-color-1"></xhtml:td>
-                            <xhtml:td class="cem-theme-{$theme-name}" style="background-color:var(--cem-zebra-color-2);min-width:2rem" title="--cem-zebra-color-2"></xhtml:td>
-                            <xhtml:td class="cem-theme-{$theme-name}" style="background-color:var(--cem-zebra-color-3);min-width:2rem" title="--cem-zebra-color-3"></xhtml:td>
-                            <xhtml:td class="cem-theme-{$theme-name}"><xhtml:div style="{$zebra-ring-style}"></xhtml:div></xhtml:td>
+                            <xhtml:td  style="background-color:var(--cem-zebra-color-0);min-width:2rem" title="--cem-zebra-color-0"></xhtml:td>
+                            <xhtml:td  style="background-color:var(--cem-zebra-color-1);min-width:2rem" title="--cem-zebra-color-1"></xhtml:td>
+                            <xhtml:td  style="background-color:var(--cem-zebra-color-2);min-width:2rem" title="--cem-zebra-color-2"></xhtml:td>
+                            <xhtml:td  style="background-color:var(--cem-zebra-color-3);min-width:2rem" title="--cem-zebra-color-3"></xhtml:td>
+                            <xhtml:td ><xhtml:div style="{$zebra-ring-style}"></xhtml:div></xhtml:td>
                         </xhtml:tr>
                         <xhtml:tr data-selected-token="{$zebra-state-token}{$selector-focus}{$braces}">
                             <xhtml:th>focus</xhtml:th>
-                            <xhtml:td class="cem-theme-{$theme-name} focus" style="background-color:var(--cem-zebra-color-0);min-width:2rem" title="--cem-zebra-color-0"></xhtml:td>
-                            <xhtml:td class="cem-theme-{$theme-name} focus" style="background-color:var(--cem-zebra-color-1);min-width:2rem" title="--cem-zebra-color-1 (focus)"></xhtml:td>
-                            <xhtml:td class="cem-theme-{$theme-name} focus" style="background-color:var(--cem-zebra-color-2);min-width:2rem" title="--cem-zebra-color-2"></xhtml:td>
-                            <xhtml:td class="cem-theme-{$theme-name} focus" style="background-color:var(--cem-zebra-color-3);min-width:2rem" title="--cem-zebra-color-3"></xhtml:td>
-                            <xhtml:td class="cem-theme-{$theme-name} focus"><xhtml:div style="{$zebra-ring-style}"></xhtml:div></xhtml:td>
+                            <xhtml:td class="focus" style="background-color:var(--cem-zebra-color-0);min-width:2rem" title="--cem-zebra-color-0"></xhtml:td>
+                            <xhtml:td class="focus" style="background-color:var(--cem-zebra-color-1);min-width:2rem" title="--cem-zebra-color-1 (focus)"></xhtml:td>
+                            <xhtml:td class="focus" style="background-color:var(--cem-zebra-color-2);min-width:2rem" title="--cem-zebra-color-2"></xhtml:td>
+                            <xhtml:td class="focus" style="background-color:var(--cem-zebra-color-3);min-width:2rem" title="--cem-zebra-color-3"></xhtml:td>
+                            <xhtml:td class="focus"><xhtml:div style="{$zebra-ring-style}"></xhtml:div></xhtml:td>
                         </xhtml:tr>
                         <xhtml:tr data-selected-token="{$zebra-state-token}{$selector-selected}{$braces}">
                             <xhtml:th>selected</xhtml:th>
-                            <xhtml:td class="cem-theme-{$theme-name} selected" style="background-color:var(--cem-zebra-color-0);min-width:2rem" title="--cem-zebra-color-0"></xhtml:td>
-                            <xhtml:td class="cem-theme-{$theme-name} selected" style="background-color:var(--cem-zebra-color-1);min-width:2rem" title="--cem-zebra-color-1"></xhtml:td>
-                            <xhtml:td class="cem-theme-{$theme-name} selected" style="background-color:var(--cem-zebra-color-2);min-width:2rem" title="--cem-zebra-color-2 (selected)"></xhtml:td>
-                            <xhtml:td class="cem-theme-{$theme-name} selected" style="background-color:var(--cem-zebra-color-3);min-width:2rem" title="--cem-zebra-color-3"></xhtml:td>
-                            <xhtml:td class="cem-theme-{$theme-name} selected"><xhtml:div style="{$zebra-ring-style}"></xhtml:div></xhtml:td>
+                            <xhtml:td class="selected" style="background-color:var(--cem-zebra-color-0);min-width:2rem" title="--cem-zebra-color-0"></xhtml:td>
+                            <xhtml:td class="selected" style="background-color:var(--cem-zebra-color-1);min-width:2rem" title="--cem-zebra-color-1"></xhtml:td>
+                            <xhtml:td class="selected" style="background-color:var(--cem-zebra-color-2);min-width:2rem" title="--cem-zebra-color-2"></xhtml:td>
+                            <xhtml:td class="selected" style="background-color:var(--cem-zebra-color-3);min-width:2rem" title="--cem-zebra-color-3 (selected)"></xhtml:td>
+                            <xhtml:td class="selected"><xhtml:div style="{$zebra-ring-style}"></xhtml:div></xhtml:td>
                         </xhtml:tr>
                         <xhtml:tr data-selected-token="{$zebra-state-token}{$selector-target}{$braces}">
                             <xhtml:th>target</xhtml:th>
-                            <xhtml:td class="cem-theme-{$theme-name} target" style="background-color:var(--cem-zebra-color-0);min-width:2rem" title="--cem-zebra-color-0"></xhtml:td>
-                            <xhtml:td class="cem-theme-{$theme-name} target" style="background-color:var(--cem-zebra-color-1);min-width:2rem" title="--cem-zebra-color-1"></xhtml:td>
-                            <xhtml:td class="cem-theme-{$theme-name} target" style="background-color:var(--cem-zebra-color-2);min-width:2rem" title="--cem-zebra-color-2"></xhtml:td>
-                            <xhtml:td class="cem-theme-{$theme-name} target" style="background-color:var(--cem-zebra-color-3);min-width:2rem" title="--cem-zebra-color-3 (target)"></xhtml:td>
-                            <xhtml:td class="cem-theme-{$theme-name} target"><xhtml:div style="{$zebra-ring-style}"></xhtml:div></xhtml:td>
+                            <xhtml:td class="target" style="background-color:var(--cem-zebra-color-0);min-width:2rem" title="--cem-zebra-color-0"></xhtml:td>
+                            <xhtml:td class="target" style="background-color:var(--cem-zebra-color-1);min-width:2rem" title="--cem-zebra-color-1"></xhtml:td>
+                            <xhtml:td class="target" style="background-color:var(--cem-zebra-color-2);min-width:2rem" title="--cem-zebra-color-2 (target)"></xhtml:td>
+                            <xhtml:td class="target" style="background-color:var(--cem-zebra-color-3);min-width:2rem" title="--cem-zebra-color-3"></xhtml:td>
+                            <xhtml:td class="target"><xhtml:div style="{$zebra-ring-style}"></xhtml:div></xhtml:td>
                         </xhtml:tr>
                         <xhtml:tr data-selected-token="{$zebra-state-token}{$selector-focus}{$braces}{$selector-selected}{$braces}">
                             <xhtml:th>focus+selected</xhtml:th>
-                            <xhtml:td class="cem-theme-{$theme-name} focus selected" style="background-color:var(--cem-zebra-color-0);min-width:2rem" title="--cem-zebra-color-0"></xhtml:td>
-                            <xhtml:td class="cem-theme-{$theme-name} focus selected" style="background-color:var(--cem-zebra-color-1);min-width:2rem" title="--cem-zebra-color-1 (focus)"></xhtml:td>
-                            <xhtml:td class="cem-theme-{$theme-name} focus selected" style="background-color:var(--cem-zebra-color-2);min-width:2rem" title="--cem-zebra-color-2 (selected)"></xhtml:td>
-                            <xhtml:td class="cem-theme-{$theme-name} focus selected" style="background-color:var(--cem-zebra-color-3);min-width:2rem" title="--cem-zebra-color-3"></xhtml:td>
-                            <xhtml:td class="cem-theme-{$theme-name} focus selected"><xhtml:div style="{$zebra-ring-style}"></xhtml:div></xhtml:td>
+                            <xhtml:td class="focus selected" style="background-color:var(--cem-zebra-color-0);min-width:2rem" title="--cem-zebra-color-0"></xhtml:td>
+                            <xhtml:td class="focus selected" style="background-color:var(--cem-zebra-color-1);min-width:2rem" title="--cem-zebra-color-1 (focus)"></xhtml:td>
+                            <xhtml:td class="focus selected" style="background-color:var(--cem-zebra-color-2);min-width:2rem" title="--cem-zebra-color-2"></xhtml:td>
+                            <xhtml:td class="focus selected" style="background-color:var(--cem-zebra-color-3);min-width:2rem" title="--cem-zebra-color-3 (selected)"></xhtml:td>
+                            <xhtml:td class="focus selected"><xhtml:div style="{$zebra-ring-style}"></xhtml:div></xhtml:td>
                         </xhtml:tr>
                         <xhtml:tr data-selected-token="{$zebra-state-token}{$selector-focus}{$braces}{$selector-selected}{$braces}{$selector-target}{$braces}">
                             <xhtml:th>focus+selected+target</xhtml:th>
-                            <xhtml:td class="cem-theme-{$theme-name} focus selected target" style="background-color:var(--cem-zebra-color-0);min-width:2rem" title="--cem-zebra-color-0"></xhtml:td>
-                            <xhtml:td class="cem-theme-{$theme-name} focus selected target" style="background-color:var(--cem-zebra-color-1);min-width:2rem" title="--cem-zebra-color-1 (focus)"></xhtml:td>
-                            <xhtml:td class="cem-theme-{$theme-name} focus selected target" style="background-color:var(--cem-zebra-color-2);min-width:2rem" title="--cem-zebra-color-2 (selected)"></xhtml:td>
-                            <xhtml:td class="cem-theme-{$theme-name} focus selected target" style="background-color:var(--cem-zebra-color-3);min-width:2rem" title="--cem-zebra-color-3 (target)"></xhtml:td>
-                            <xhtml:td class="cem-theme-{$theme-name} focus selected target"><xhtml:div style="{$zebra-ring-style}"></xhtml:div></xhtml:td>
+                            <xhtml:td class="focus selected target" style="background-color:var(--cem-zebra-color-0);min-width:2rem" title="--cem-zebra-color-0"></xhtml:td>
+                            <xhtml:td class="focus selected target" style="background-color:var(--cem-zebra-color-1);min-width:2rem" title="--cem-zebra-color-1 (focus)"></xhtml:td>
+                            <xhtml:td class="focus selected target" style="background-color:var(--cem-zebra-color-2);min-width:2rem" title="--cem-zebra-color-2 (target)"></xhtml:td>
+                            <xhtml:td class="focus selected target" style="background-color:var(--cem-zebra-color-3);min-width:2rem" title="--cem-zebra-color-3 (selected)"></xhtml:td>
+                            <xhtml:td class="focus selected target"><xhtml:div style="{$zebra-ring-style}"></xhtml:div></xhtml:td>
                         </xhtml:tr>
                     </xhtml:tbody>
                 </xhtml:table>

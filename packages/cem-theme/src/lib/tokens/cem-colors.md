@@ -486,8 +486,8 @@ In `contrast-light` and `contrast-dark`, background tokens SHOULD converge on th
 | State    | Zebra stripe          | Recommended meaning                  |
 |----------|-----------------------|--------------------------------------|
 | focus    | `--cem-zebra-color-1` | keyboard focus visibility            |
-| selected | `--cem-zebra-color-2` | selection / checked / chosen         |
-| target   | `--cem-zebra-color-3` | navigation target / guided attention |
+| target   | `--cem-zebra-color-2` | navigation target / guided attention |
+| selected | `--cem-zebra-color-3` | selection / checked / chosen         |
 
 See D5 Stroke for zebra geometry (stripe order, offsets, and ring widths).
 
@@ -497,12 +497,50 @@ Color endpoints:
 
 - `--cem-zebra-color-0`: innermost stripe (base surface)
 - `--cem-zebra-color-1`: focus stripe
-- `--cem-zebra-color-2`: selection stripe
-- `--cem-zebra-color-3`: target stripe
+- `--cem-zebra-color-2`: target stripe
+- `--cem-zebra-color-3`: selection stripe
 - `--cem-zebra-strip-size`: stripe thickness basis (pairs with D5 stroke widths)
 
-Rules:
+> **Why target sits between focus and selected (color-2):**
+> Target is the least-used state. When inactive it stays transparent
+> (matching `--cem-palette-comfort`), so the middle ring provides extra
+> contrast separation between the focus ring (color-1) and the selected
+> ring (color-3), making the two most common states easier to distinguish.
 
+### 8.2 Theme-mode mapping
+
+Focus, selected, and target MUST always resolve to different hues so that combined states
+(e.g., a focused-and-selected item) remain distinguishable. `--cem-zebra-color-0` anchors
+the ring to the base surface; the remaining stripes are state indicators.
+
+###### cem-zebra-mode-mapping
+| Theme mode       | `--cem-zebra-color-0` (base)         | `--cem-zebra-color-1` (focus)     | `--cem-zebra-color-2` (target)        | `--cem-zebra-color-3` (selected)       |
+|------------------|--------------------------------------|-----------------------------------|---------------------------------------|----------------------------------------|
+| `native`         | `Canvas`                             | `CanvasText`                      | `Mark`                                | `SelectedItem`                         |
+| `light`          | `--cem-palette-comfort`              | `--cem-palette-trust-x`           | `--cem-palette-creativity`          | `--cem-palette-enthusiasm-x`           |
+| `dark`           | `--cem-palette-comfort`              | `--cem-palette-trust-x`           | `--cem-palette-creativity`          | `--cem-palette-enthusiasm-x`           |
+| `contrast-light` | `--cem-palette-comfort`              | `--cem-palette-comfort-text-x`    | `--cem-palette-danger-x`              | `--cem-palette-trust-x`               |
+| `contrast-dark`  | `--cem-palette-comfort`              | `--cem-palette-comfort-text-x`    | `--cem-palette-danger-x`              | `--cem-palette-trust-x`               |
+
+**Rationale:**
+
+- **`native`** — `Canvas` anchors the base stripe to the system surface. `CanvasText` gives high-contrast
+  focus without colliding with button borders. `SelectedItem` is the OS semantic for selection.
+  `Mark` stands out from `SelectedItem` for target without reusing selection or button border colors.
+  If `Mark` is unavailable on a target platform, fall back to `Highlight` before reusing `SelectedItem`.
+- **`light` / `dark`** — `comfort` aligns the innermost stripe with the surface. `trust` is reserved for
+  focus visibility. `creativity` is the most distinct accent, well-suited for guided attention/target.
+  `enthusiasm` reads as "chosen" without looking like focus or error.
+- **`contrast-light` / `contrast-dark`** — `comfort-text` keeps the focus stripe legible when fills are
+  minimized. `danger` for target is intentionally high-salience. `trust` for selected preserves
+  "affirmative choice" semantics. Using text/strong palette endpoints avoids overlap with box-shadow
+  borders that are already collapsed into zebra in contrast themes.
+
+Zebra colors MUST NOT reuse the same tone as action border/box-shadow indicators in the same theme variation.
+
+### 8.3 Rules
+
+- `:root` defaults for focus/target/selected MUST use native system colors (`CanvasText`, `Mark`, `SelectedItem`) so that zebra is functional without an explicit theme class.
 - Zebra colors MUST remain distinguishable from the adjacent surface in all modes.
 - Zebra MUST remain meaningful in forced-colors; in `native` this is achieved by mapping to system colors.
 
@@ -518,7 +556,10 @@ In `native` mode, palette endpoints SHOULD map to system colors:
 - `--cem-palette-comfort-text`: `CanvasText`
 - `--cem-palette-trust`: `color-mix(in srgb, Highlight 70%, black)`
 - `--cem-palette-trust-text`: `HighlightText`
-- `--cem-zebra-color-2`: `SelectedItem` (or fallback to trust)
+- `--cem-zebra-color-0`: `Canvas`
+- `--cem-zebra-color-1`: `CanvasText`
+- `--cem-zebra-color-2`: `Mark` (fallback: `Highlight`)
+- `--cem-zebra-color-3`: `SelectedItem`
 
 * Disclaimer. `Highlight` color in Chromium and Firefox do not pass contrast compliance against `HighlightText`, have to be darkened.
 ### 9.2 Forced colors
