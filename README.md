@@ -14,6 +14,11 @@ based on Consumer view. It is implemented as a set of
 [![Downloads](https://img.shields.io/npm/dm/@epa-wg/cem-theme.svg)](https://www.npmjs.com/package/@epa-wg/cem-theme)
 [![License](https://img.shields.io/npm/l/@epa-wg/cem-theme.svg)](./LICENSE)
 
+# Run locally
+```bash
+yarn start
+```
+
 # New Nx Repository
 
 <a alt="Nx logo" href="https://nx.dev" target="_blank" rel="noreferrer"><img src="https://raw.githubusercontent.com/nrwl/nx/master/images/nx-logo.png" width="45"></a>
