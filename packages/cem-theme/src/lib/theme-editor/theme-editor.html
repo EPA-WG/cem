@@ -190,11 +190,24 @@
     return { value: '', path: [] };
   }
 
+  /** Parse data-cem-value attribute: "--var: value; --var2: value2" → { '--var': 'value', ... } */
+  function parseCemValue( attr )
+  {
+    const map = {};
+    if( !attr ) return map;
+    const re = /(--[\w-]+)\s*:\s*([^;]+)/g;
+    let m;
+    while( ( m = re.exec( attr ) ) !== null )
+      map[ m[1].trim() ] = m[2].trim();
+    return map;
+  }
+
   /** Parse style attribute to extract CSS property → CSS variable name pairs,
-   *  resolving each variable to its declared rule value (not fully computed). */
+   *  preferring data-cem-value when present, falling back to CSS rule lookup. */
   function extractVarEntries( el )
   {
     const style = el.getAttribute( 'style' ) || '';
+    const cemValues = parseCemValue( el.getAttribute( 'data-cem-value' ) );
     const entries = [];
     for( const decl of style.split( ';' ) )
     {
@@ -202,8 +215,16 @@
       if( !match ) continue;
       const [ , prop, varName ] = match;
       const computed = getComputedStyle( el ).getPropertyValue( prop ).trim();
-      const { value, path } = getCssRuleValue( el, varName );
-      entries.push( { prop, varName, value, path, computed } );
+      const cemValue = cemValues[ varName ];
+      if( cemValue )
+      {
+        entries.push( { prop, varName, value: cemValue, path: [], computed } );
+      }
+      else
+      {
+        const { value, path } = getCssRuleValue( el, varName );
+        entries.push( { prop, varName, value, path, computed } );
+      }
     }
     return entries;
   }
@@ -308,10 +329,8 @@
         + `<td><code>${ varName }</code></td>`
         + `<td><code>${ value }</code></td>`
         + `<td style="--base-color:${ computed };background-color:var(--base-color); color:oklch(from var(--base-color) calc((l - 0.6) * -100) 0 h);" title="${ computed }">${ computed }</td>`;
-      tr.addEventListener( 'click', (ev) => {
-        const computedStyle = window.getComputedStyle( e.target );
-        const val = computedStyle.getPropertyValue( varName );
-        selectRow( tokenInput, colorInput, tr, varName, val, effectivePath ) });
+      tr.addEventListener( 'click', () =>
+        selectRow( tokenInput, colorInput, tr, varName, value, effectivePath ) );
       matrix.appendChild( tr );
     }
     matrix.querySelector( 'tr' )?.click();
