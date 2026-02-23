@@ -214,12 +214,22 @@
                     <variable name="emotion" select="xhtml:td[1]"></variable>
                     <variable name="light-val" select="xhtml:td[5]"></variable>
                     <variable name="dark-val" select="xhtml:td[6]"></variable>
+                    <variable name="light-css"><choose>
+                        <when test="starts-with($light-val, '--')">var({$light-val})</when>
+                        <when test="contains($light-val, '-') and not(contains($light-val, '('))">var(--cem-color-{$light-val})</when>
+                        <otherwise>{$light-val}</otherwise>
+                    </choose></variable>
+                    <variable name="dark-css"><choose>
+                        <when test="starts-with($dark-val, '--')">var({$dark-val})</when>
+                        <when test="contains($dark-val, '-') and not(contains($dark-val, '('))">var(--cem-color-{$dark-val})</when>
+                        <otherwise>{$dark-val}</otherwise>
+                    </choose></variable>
                     <choose>
                         <when test="$dark-val=''">
                             {$emotion}:  {$light-val};
                         </when>
                         <otherwise>
-                            {$emotion}: light-dark(var({$light-val}), var({$dark-val}) );
+                            {$emotion}: light-dark({$light-css}, {$dark-css} );
                         </otherwise>
                     </choose>
                 </for-each>

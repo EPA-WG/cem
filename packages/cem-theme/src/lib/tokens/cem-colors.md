@@ -222,7 +222,7 @@ The base family is a small set of named hues with a few variants. These are **re
 | `--cem-color-blue-xl`                 | blue   | xl      | #ecf0ff                                       | Lightest blue      | Trust palette (light scene surface)        |
 | `--cem-color-blue-l`                  | blue   | l       | #d7e3ff                                       | Light blue         | Trust palette, attention semantic          |
 | `--cem-color-blue-d`                  | blue   | d       | #002f65                                       | Dark blue          | Trust palette (dark theme)                 |
-| `--cem-color-blue-xd`                 | blue   | xd      | #1a1b1f                                       | Darkest blue       | Comfort/trust emotion (dark scene)         |
+| `--cem-color-blue-xd`                 | blue   | xd      | #001b3f                                       | Darkest blue       | Trust palette (dark scene surface)         |
 | `--cem-color-brown-xl`                | brown  | xl      | #d7ccc8                                       | Extra light brown  | Conservative palette (light theme)         |
 | `--cem-color-brown-l`                 | brown  | l       | #a1887f                                       | Light brown        | Conservative emotion, brand-3              |
 | `--cem-color-brown-d`                 | brown  | d       | #4e342e                                       | Dark brown         | Conservative palette (dark theme)          |
@@ -517,8 +517,8 @@ the ring to the base surface; the remaining stripes are state indicators.
 | Theme mode       | `--cem-zebra-color-0` (base)         | `--cem-zebra-color-1` (focus)     | `--cem-zebra-color-2` (target)        | `--cem-zebra-color-3` (selected)       |
 |------------------|--------------------------------------|-----------------------------------|---------------------------------------|----------------------------------------|
 | `native`         | `Canvas`                             | `CanvasText`                      | `Mark`                                | `SelectedItem`                         |
-| `light`          | `--cem-palette-comfort`              | `--cem-palette-trust-x`           | `--cem-palette-creativity`          | `--cem-palette-enthusiasm-x`           |
-| `dark`           | `--cem-palette-comfort`              | `--cem-palette-trust-x`           | `--cem-palette-creativity`          | `--cem-palette-enthusiasm-x`           |
+| `light`          | `--cem-palette-comfort`              | `--cem-palette-trust-x`           | `--cem-palette-creativity-x`          | `--cem-palette-enthusiasm-x`           |
+| `dark`           | `--cem-palette-comfort`              | `--cem-palette-trust-x`           | `--cem-palette-creativity-x`          | `--cem-palette-enthusiasm-x`           |
 | `contrast-light` | `--cem-palette-comfort`              | `--cem-palette-comfort-text-x`    | `--cem-palette-danger-x`              | `--cem-palette-trust-x`               |
 | `contrast-dark`  | `--cem-palette-comfort`              | `--cem-palette-comfort-text-x`    | `--cem-palette-danger-x`              | `--cem-palette-trust-x`               |
 
