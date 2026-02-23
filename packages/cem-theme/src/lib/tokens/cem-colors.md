@@ -219,7 +219,7 @@ The base family is a small set of named hues with a few variants. These are **re
 ###### cem-color-hue-variant
 | Token                                 | Hue    | Variant | Value                                         | Label              | Intended use                               |
 |---------------------------------------|--------|---------|-----------------------------------------------|--------------------|--------------------------------------------|
-| `--cem-color-blue-xl`                 | blue   | xl      | #faf9fd                                       | Lightest blue      | Comfort/trust emotion (light scene)        |
+| `--cem-color-blue-xl`                 | blue   | xl      | #ecf0ff                                       | Lightest blue      | Trust palette (light scene surface)        |
 | `--cem-color-blue-l`                  | blue   | l       | #d7e3ff                                       | Light blue         | Trust palette, attention semantic          |
 | `--cem-color-blue-d`                  | blue   | d       | #002f65                                       | Dark blue          | Trust palette (dark theme)                 |
 | `--cem-color-blue-xd`                 | blue   | xd      | #1a1b1f                                       | Darkest blue       | Comfort/trust emotion (dark scene)         |
