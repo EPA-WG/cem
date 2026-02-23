@@ -309,8 +309,8 @@
         + `<td><code>${ value }</code></td>`
         + `<td style="--base-color:${ computed };background-color:var(--base-color); color:oklch(from var(--base-color) calc((l - 0.6) * -100) 0 h);" title="${ computed }">${ computed }</td>`;
       tr.addEventListener( 'click', (ev) => {
-        const computedStyle = window.getComputedStyle(el);
-        const val = computedStyle.getPropertyValue(varName)
+        const computedStyle = window.getComputedStyle( e.target );
+        const val = computedStyle.getPropertyValue( varName );
         selectRow( tokenInput, colorInput, tr, varName, val, effectivePath ) });
       matrix.appendChild( tr );
     }
