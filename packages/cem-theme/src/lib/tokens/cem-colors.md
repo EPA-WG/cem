@@ -260,6 +260,34 @@ Variant semantics:
 - `xl` / `l`: light-scene support (surfaces, containers, accents)
 - `d` / `xd`: dark-scene support (surfaces, ink-safe accents)
 
+### 4.5 Native browser colors
+###### cem-color-native
+
+[CSS system colors](https://developer.mozilla.org/en-US/docs/Web/CSS/system-color) adapt automatically to the user's
+OS color scheme. In `native` mode, CEM maps palette endpoints directly to these values (see §9).
+
+| Color              | Text pair           | Description                                          |
+|--------------------|---------------------|------------------------------------------------------|
+| `AccentColor`      | `AccentColorText`   | Background of accented user interface controls       |
+| `AccentColorText`  | `AccentColor`       | Text of accented user interface controls             |
+| `ActiveText`       | `Canvas`            | Text of active links                                 |
+| `ButtonBorder`     | `Canvas`            | Base border color of controls                        |
+| `ButtonFace`       | `CanvasText`        | Background color of controls                         |
+| `ButtonText`       | `Canvas`            | Text color of controls                               |
+| `Canvas`           | `CanvasText`        | Background of application content or documents       |
+| `CanvasText`       | `Canvas`            | Text color in application content or documents       |
+| `Field`            | `CanvasText`        | Background of input fields                           |
+| `FieldText`        | `Canvas`            | Text in input fields                                 |
+| `GrayText`         | `ButtonFace`        | Text color for disabled items                        |
+| `Highlight`        | `HighlightText`     | Background of selected items                         |
+| `HighlightText`    | `Highlight`         | Text color of selected items                         |
+| `LinkText`         | `Canvas`            | Text of non-active, non-visited links                |
+| `Mark`             | `MarkText`          | Background of specially marked text (e.g. `<mark>`)  |
+| `MarkText`         | `Mark`              | Text of specially marked text                        |
+| `SelectedItem`     | `SelectedItemText`  | Background of selected items (e.g. checkbox)         |
+| `SelectedItemText` | `SelectedItem`      | Text of selected items                               |
+| `VisitedText`      | `Canvas`            | Text of visited links                                |
+
 ---
 
 ## 5. Emotional palette
@@ -279,10 +307,10 @@ Reference mappings (from `theme-data.xhtml`) use `light-dark()` so a single toke
 | `--cem-palette-calm-x`              | Calm extreme variant         | cyan-d          | cyan-l         | rgb(0, 120, 120)                   |                                       | Inverted calm color ( darked darkcyan )          | calm         | x      | 
 | `--cem-palette-calm-text`           | Calm text color              | comfort-text    | comfort-text   | black                              |                                       | Text on calm backgrounds                         | calm         | text   | 
 | `--cem-palette-calm-text-x`         | Calm extreme text            | comfort-text-x  | comfort-text-x | white                              |                                       | Text on extreme calm backgrounds                 | calm         | text-x | 
-| `--cem-palette-trust`               | Base trust color             | blue-l          | blue-d         | color-mix(in srgb, Highlight 70%, black) |                                 | Primary actions, highlights                      | trust        |        | 
+| `--cem-palette-trust`               | Base trust color             | blue-l          | blue-d         | color-mix(in srgb, Highlight 70%, black) |                                       | Primary actions, highlights                      | trust        |        | 
 | `--cem-palette-trust-x`             | Trust extreme variant        | blue-d          | blue-l         | `--cem-color-visitedtext-30-black` | `--cem-color-visitedtext-30-white`    | Darker/lighter trust variation                   | trust        | x      | 
 | `--cem-palette-trust-text`          | Trust text color             | comfort-text    | white          | HighlightText                      |                                       | Text on trust backgrounds                        | trust        | text   | 
-| `--cem-palette-trust-text-x`        | Trust extreme text           | comfort-text-x  | comfort-text-x | Canvas                             | CanvasText                            | Text on extreme trust backgrounds                | trust        | text-x | 
+| `--cem-palette-trust-text-x`        | Trust extreme text           | comfort-text-x  | comfort-text-x | Canvas                             | Canvas                                | Text on extreme trust backgrounds                | trust        | text-x | 
 | `--cem-palette-enthusiasm`          | Base enthusiasm color        | orange-l        | orange-d       | Mark                               |                                       | Brand-2, alternate actions                       | enthusiasm   |        | 
 | `--cem-palette-enthusiasm-x`        | Enthusiasm extreme variant   | orange-xd       | orange-xl      | `--cem-color-mark-30-black`        | `--cem-color-mark-30-white`           | Darker/lighter enthusiasm variation              | enthusiasm   | x      | 
 | `--cem-palette-enthusiasm-text`     | Enthusiasm text color        | comfort-text    | white          | MarkText                           |                                       | Text on enthusiasm backgrounds                   | enthusiasm   | text   | 

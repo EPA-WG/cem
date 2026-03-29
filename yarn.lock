@@ -1286,7 +1286,7 @@ __metadata:
   version: 0.0.0-use.local
   resolution: "@epa-wg/cem@workspace:."
   dependencies:
-    "@epa-wg/custom-element": "npm:0.0.36"
+    "@epa-wg/custom-element": "npm:0.0.37"
     "@eslint/js": "npm:9.8.0"
     "@nx/eslint": "npm:22.3.1"
     "@nx/eslint-plugin": "npm:22.3.1"
@@ -1312,10 +1312,10 @@ __metadata:
   languageName: unknown
   linkType: soft
 
-"@epa-wg/custom-element@npm:0.0.36":
-  version: 0.0.36
-  resolution: "@epa-wg/custom-element@npm:0.0.36"
-  checksum: 10c0/31a9e7305b8000699b7e9207554b552d208a2d85cf06b6e3edc3786ae2a7e6f6a47dd915c1c25072e04f5b38c997d2fbfbe0b37423525ed0f5996fec085c2cc6
+"@epa-wg/custom-element@npm:0.0.37":
+  version: 0.0.37
+  resolution: "@epa-wg/custom-element@npm:0.0.37"
+  checksum: 10c0/af4759e8a5e832917edbedbf26b61b888fcb7e8071e902ab5b12c84fb2f78b2f8441a4e2c4bd174692cc34bc8a19c8771603807a94c330148af55f220d4e29e6
   languageName: node
   linkType: hard
 

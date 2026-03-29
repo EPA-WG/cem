@@ -27,7 +27,7 @@
                 display: block;
             }
             /* selector for highlighting the tokens demo element */
-            [title^="--"] {
+            [title^="--"], [data-cem-value] {
                 cursor: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='24' height='24' viewBox='0 0 24 24' fill='none' stroke-linecap='round' stroke-linejoin='round'%3E%3Cg stroke='white' stroke-width='3.5'%3E%3Cpath d='M2 22l1-3.5L14.5 7 17 9.5 5.5 21z'/%3E%3Cpath d='M14.5 7l1-1a2 2 0 012.8 0l1.7 1.7a2 2 0 010 2.8l-1 1'/%3E%3Cpath d='M3 19l2.5 2.5'/%3E%3Ccircle cx='2.5' cy='21.5' r='1.2'/%3E%3C/g%3E%3Cg stroke='%23333' stroke-width='1.5'%3E%3Cpath d='M2 22l1-3.5L14.5 7 17 9.5 5.5 21z'/%3E%3Cpath d='M14.5 7l1-1a2 2 0 012.8 0l1.7 1.7a2 2 0 010 2.8l-1 1'/%3E%3Cpath d='M3 19l2.5 2.5' stroke-width='1'/%3E%3Ccircle cx='2.5' cy='21.5' r='1.2' fill='%23333'/%3E%3C/g%3E%3C/svg%3E") 2 22, crosshair;
 
                 &:hover {
@@ -281,10 +281,10 @@
     tokenInput.value = varName;
     colorInput.value = value;
     selectedTokenPath = path;
-    document.querySelector( 'code[name="rule-path"]' ).textContent = formatRulePath( path );
+    $( 'code[name="rule-path"]' ).textContent = formatRulePath( path );
     const swatch = row.querySelector( 'td:last-child' );
     const hex = universalColorToHex( getComputedStyle( swatch ).backgroundColor );
-    document.querySelector( 'input[name="selected-color-picker"]' ).value = hex;
+    $( 'input[name="selected-color-picker"]' ).value = hex;
   }
 
   /** Parse data-selected-token attribute into a path array, prepending :root.
@@ -304,20 +304,25 @@
     return parts;
   }
 
+  const $ = css => document.querySelector(css);
   document.addEventListener( 'click', ( e ) =>
   {
     const el = e.target.closest( '[data-selected-token]' );
     if( !el ) return;
     if( e.target.closest( '.token-matrix' ) ) return;
-
+    const dataValue = e.target.getAttribute('data-cem-value');
+    if( dataValue ){
+        $('input[name="selected-color"]').value = dataValue;
+        $('input[name="selected-color-picker"]').value =  universalColorToHex( getComputedStyle( e.target ).backgroundColor );
+    }
     const entries = extractVarEntries( e.target );
     if( !entries.length ) return;
 
     const tokenPath = parseSelectedToken( el.dataset.selectedToken );
 
-    const tokenInput = document.querySelector( 'input[name="selected-token"]' );
-    const colorInput = document.querySelector( 'input[name="selected-color"]' );
-    const matrix = document.querySelector( '.token-matrix' );
+    const tokenInput = $( 'input[name="selected-token"]' );
+    const colorInput = $( 'input[name="selected-color"]' );
+    const matrix = $( '.token-matrix' );
     matrix.innerHTML = '';
 
     for( const { prop, varName, value, path, computed } of entries )
@@ -337,9 +342,9 @@
   } );
 
   // Propagate color picker value to the selected token via scoped <style> override
-  document.querySelector( 'input[type="color"]' )?.addEventListener( 'input', ( e ) =>
+  $( 'input[type="color"]' )?.addEventListener( 'input', ( e ) =>
   {
-    const tokenInput = document.querySelector( 'input[name="selected-token"]' );
+    const tokenInput = $( 'input[name="selected-token"]' );
     const varName = tokenInput?.value;
     if( !varName?.startsWith( '--' ) ) return;
     customizedTokens.set( varName, { path: selectedTokenPath, value: e.target.value } );
@@ -347,13 +352,13 @@
   } );
 
   // Copy picker value to selected-color input and apply via scoped override
-  document.querySelector( 'button[name="picker-to-value"]' )?.addEventListener( 'click', ( e ) =>
+  $( 'button[name="picker-to-value"]' )?.addEventListener( 'click', ( e ) =>
   {
     e.preventDefault();
-    const pickerValue = document.querySelector( 'input[name="selected-color-picker"]' )?.value;
+    const pickerValue = $( 'input[name="selected-color-picker"]' )?.value;
     if( !pickerValue ) return;
-    document.querySelector( 'input[name="selected-color"]' ).value = pickerValue;
-    const tokenInput = document.querySelector( 'input[name="selected-token"]' );
+    $( 'input[name="selected-color"]' ).value = pickerValue;
+    const tokenInput = $( 'input[name="selected-token"]' );
     const varName = tokenInput?.value;
     if( !varName?.startsWith( '--' ) ) return;
     customizedTokens.set( varName, { path: selectedTokenPath, value: pickerValue } );
