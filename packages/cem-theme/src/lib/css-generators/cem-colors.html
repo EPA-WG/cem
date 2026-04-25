@@ -456,24 +456,15 @@
                     <when test="$theme-name = 'dark'"   >{$selector-dark-theme   }{<text>{</text><text>}</text>}</when>
                     <otherwise></otherwise>
                 </choose></variable>
-                <variable name="zb">var(--cem-palette-comfort)</variable>
-                <variable name="zf"><choose>
-                    <when test="$theme-name='native'">CanvasText</when>
-                    <when test="$theme-name='light' or $theme-name='dark'">var(--cem-palette-trust-x)</when>
-                    <otherwise>var(--cem-palette-comfort-text-x)</otherwise>
-                </choose></variable>
-                <variable name="zt"><choose>
-                    <when test="$theme-name='native'">Mark</when>
-                    <when test="$theme-name='light'">var(--cem-color-orange-l)</when>
-                    <when test="$theme-name='dark'">var(--cem-color-orange-xl)</when>
-                    <otherwise>var(--cem-palette-danger-x)</otherwise>
-                </choose></variable>
-                <variable name="zs"><choose>
-                    <when test="$theme-name='native'">SelectedItem</when>
-                    <when test="$theme-name='light'">var(--cem-palette-creativity-x)</when>
-                    <when test="$theme-name='dark'">var(--cem-palette-enthusiasm-x)</when>
-                    <otherwise>var(--cem-palette-trust-x)</otherwise>
-                </choose></variable>
+                <variable name="zrow" select="$cem-zebra-mode-mapping/xhtml:tr[normalize-space(xhtml:td[1])=normalize-space($theme-name)]"></variable>
+                <variable name="zb-raw" select="normalize-space($zrow/xhtml:td[2])"></variable>
+                <variable name="zf-raw" select="normalize-space($zrow/xhtml:td[3])"></variable>
+                <variable name="zt-raw" select="normalize-space($zrow/xhtml:td[4])"></variable>
+                <variable name="zs-raw" select="normalize-space($zrow/xhtml:td[5])"></variable>
+                <variable name="zb"><choose><when test="starts-with($zb-raw,'--')">var({$zb-raw})</when><otherwise>{$zb-raw}</otherwise></choose></variable>
+                <variable name="zf"><choose><when test="starts-with($zf-raw,'--')">var({$zf-raw})</when><otherwise>{$zf-raw}</otherwise></choose></variable>
+                <variable name="zt"><choose><when test="starts-with($zt-raw,'--')">var({$zt-raw})</when><otherwise>{$zt-raw}</otherwise></choose></variable>
+                <variable name="zs"><choose><when test="starts-with($zs-raw,'--')">var({$zs-raw})</when><otherwise>{$zs-raw}</otherwise></choose></variable>
                 <section class="cem-theme-{$theme-name}" >
                     <xhtml:table data-selected-token="{$zebra-state-token}" style="background-color: var(--cem-palette-comfort); color: var(--cem-palette-comfort-text  )">
                         <xhtml:caption>

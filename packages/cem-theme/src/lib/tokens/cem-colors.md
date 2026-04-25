@@ -544,13 +544,13 @@ Focus, selected, and target MUST always resolve to different hues so that combin
 the ring to the base surface; the remaining stripes are state indicators.
 
 ###### cem-zebra-mode-mapping
-| Theme mode       | `--cem-zebra-color-0` (base)         | `--cem-zebra-color-1` (focus)     | `--cem-zebra-color-2` (target)    | `--cem-zebra-color-3` (selected) |
-|------------------|--------------------------------------|-----------------------------------|-----------------------------------|----------------------------------|
-| `native`         | `Canvas`                             | `CanvasText`                      | `Mark`                            | `SelectedItem`                   |
-| `light`          | `--cem-palette-comfort`              | `--cem-palette-trust-x`           | `--cem-color-orange-l`            | `--cem-palette-creativity-x`     |
-| `dark`           | `--cem-palette-comfort`              | `--cem-palette-trust-x`           | `--cem-color-orange-xl`           | `--cem-palette-enthusiasm-x`     |
-| `contrast-light` | `--cem-palette-comfort`              | `--cem-palette-comfort-text-x`    | `--cem-palette-danger-x`          | `--cem-palette-trust-x`          |
-| `contrast-dark`  | `--cem-palette-comfort`              | `--cem-palette-comfort-text-x`    | `--cem-palette-danger-x`          | `--cem-palette-trust-x`          |
+| Theme mode       | `--cem-zebra-color-0` (base)         | `--cem-zebra-color-1` (focus)  | `--cem-zebra-color-2` (target) | `--cem-zebra-color-3` (selected) |
+|------------------|--------------------------------------|--------------------------------|--------------------------------|----------------------------------|
+| `native`         | `Canvas`                             | `CanvasText`                   | `Mark`                         | `SelectedItem`                   |
+| `light`          | `--cem-palette-comfort`              | `--cem-palette-trust-x`        | `--cem-color-orange-l`         | `--cem-palette-creativity-x`     |
+| `dark`           | `--cem-palette-comfort`              | `--cem-palette-comfort-x`      | `--cem-palette-creativity`     | `--cem-palette-calm-x`           |
+| `contrast-light` | `--cem-palette-comfort`              | `--cem-palette-comfort-text-x` | `--cem-palette-danger-x`       | `--cem-palette-trust-x`          |
+| `contrast-dark`  | `--cem-palette-comfort`              | `--cem-palette-comfort-text-x` | `--cem-palette-danger-x`       | `--cem-palette-trust-x`          |
 
 **Rationale:**
 
@@ -560,7 +560,7 @@ the ring to the base surface; the remaining stripes are state indicators.
   If `Mark` is unavailable on a target platform, fall back to `Highlight`.
 - **`light` / `dark`** — `comfort` aligns the innermost stripe with the surface. `trust` is reserved for
   focus visibility. `orange-l` / `orange-xl` (color-2) is a warm accent hue distinct from both `trust`
-  (cool) and the selection ring, making target immediately recognisable as a separate state while its
+  (cool) and the selection ring, making target immediately recognizable as a separate state while its
   brightness keeps it visually lighter than selected. In light mode `creativity-x` (color-3) gives
   selection a distinct cool-vivid hue; in dark mode `enthusiasm-x` serves the same role.
 - **`contrast-light` / `contrast-dark`** — `comfort-text` keeps the focus stripe legible when fills are
