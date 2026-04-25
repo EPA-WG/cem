@@ -549,7 +549,7 @@ the ring to the base surface; the remaining stripes are state indicators.
 | `native`         | `Canvas`                             | `CanvasText`                   | `Mark`                         | `SelectedItem`                   |
 | `light`          | `--cem-palette-comfort`              | `--cem-palette-trust-x`        | `--cem-color-orange-l`         | `--cem-palette-creativity-x`     |
 | `dark`           | `--cem-palette-comfort`              | `--cem-palette-comfort-x`      | `--cem-palette-creativity`     | `--cem-palette-calm-x`           |
-| `contrast-light` | `--cem-palette-comfort`              | `--cem-palette-comfort-text-x` | `--cem-palette-danger-x`       | `--cem-palette-trust-x`          |
+| `contrast-light` | `--cem-palette-comfort`              | `--cem-palette-trust-x`        | `--cem-color-orange-l`         | `--cem-palette-creativity-x`     |
 | `contrast-dark`  | `--cem-palette-comfort`              | `--cem-palette-comfort-text-x` | `--cem-palette-danger-x`       | `--cem-palette-trust-x`          |
 
 **Rationale:**

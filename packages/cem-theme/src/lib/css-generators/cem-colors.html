@@ -210,16 +210,28 @@
     /* endregion zebra state: light/dark */
 
     /* region zebra state: contrast (§8.2 cem-zebra-mode-mapping) */
-    .cem-theme-contrast-light, [data-theme="cem-theme-contrast-light"],
-    .cem-theme-contrast-dark, [data-theme="cem-theme-contrast-dark"] {
+    <variable name="zebra-contrast-light" select="$cem-zebra-mode-mapping/xhtml:tr[normalize-space(xhtml:td[1])='contrast-light']"></variable>
+    <variable name="zebra-contrast-dark"  select="$cem-zebra-mode-mapping/xhtml:tr[normalize-space(xhtml:td[1])='contrast-dark']"></variable>
+    .cem-theme-contrast-light, [data-theme="cem-theme-contrast-light"] {
         [focus], :focus, :focus-visible, :focus-within, .focus {
-            <text>--cem-zebra-color-1: var(--cem-palette-comfort-text-x);</text>
+            <text>--cem-zebra-color-1: var(</text>{normalize-space($zebra-contrast-light/xhtml:td[3])}<text>);</text>
         }
         [target], :target, .target {
-            <text>--cem-zebra-color-2: var(--cem-palette-danger-x);</text>
+            <text>--cem-zebra-color-2: var(</text>{normalize-space($zebra-contrast-light/xhtml:td[4])}<text>);</text>
         }
         [selected], .selected {
-            <text>--cem-zebra-color-3: var(--cem-palette-trust-x);</text>
+            <text>--cem-zebra-color-3: var(</text>{normalize-space($zebra-contrast-light/xhtml:td[5])}<text>);</text>
+        }
+    }
+    .cem-theme-contrast-dark, [data-theme="cem-theme-contrast-dark"] {
+        [focus], :focus, :focus-visible, :focus-within, .focus {
+            <text>--cem-zebra-color-1: var(</text>{normalize-space($zebra-contrast-dark/xhtml:td[3])}<text>);</text>
+        }
+        [target], :target, .target {
+            <text>--cem-zebra-color-2: var(</text>{normalize-space($zebra-contrast-dark/xhtml:td[4])}<text>);</text>
+        }
+        [selected], .selected {
+            <text>--cem-zebra-color-3: var(</text>{normalize-space($zebra-contrast-dark/xhtml:td[5])}<text>);</text>
         }
     }
     /* endregion zebra state: contrast */
