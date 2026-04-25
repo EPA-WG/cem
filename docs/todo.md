@@ -8,70 +8,72 @@ The `cem-colors.html` generator currently produces:
 
 - [x] Branded color tokens (`--cem-color-{hue}-{variant}`) - 29 tokens
 - [x] Emotional palette (`--cem-palette-{emotion}`, `-x`, `-text`, `-text-x`) - 28 tokens
+- [x] Action intent tokens (`--cem-action-{intent}-{state}-{background|text}`) - 80 tokens
+- [x] Zebra outline tokens (`--cem-zebra-color-{0-3}`, `--cem-zebra-strip-size`) - 5 tokens
 - [x] Native theme overrides (`.cem-theme-native`)
 
-## Missing Token Categories
+## Token Categories
 
 ### 1. Action Intent Tokens (Section 7)
 
-**Priority:** High
+**Status:** Complete
 
 Action tokens encode user-flow intent and interaction state. Required per intent:
 
-| Intent        | Emotion Mapping | Status  |
-|---------------|-----------------|---------|
-| `explicit`    | creativity      | Pending |
-| `primary`     | trust           | Pending |
-| `contextual`  | comfort         | Pending |
-| `alternate`   | enthusiasm      | Pending |
-| `destructive` | danger          | Pending |
+| Intent        | Emotion Mapping | Status   |
+|---------------|-----------------|----------|
+| `explicit`    | creativity      | Complete |
+| `primary`     | trust           | Complete |
+| `contextual`  | comfort         | Complete |
+| `alternate`   | enthusiasm      | Complete |
+| `destructive` | danger          | Complete |
 
-**Required state endpoints per intent:**
+**Generated background-driven state endpoints per intent:**
 
-- `--cem-action-{intent}-default-background`
-- `--cem-action-{intent}-default-text`
-- `--cem-action-{intent}-hover-background`
-- `--cem-action-{intent}-hover-text`
-- `--cem-action-{intent}-active-background`
-- `--cem-action-{intent}-active-text`
-- `--cem-action-{intent}-disabled-background`
-- `--cem-action-{intent}-disabled-text`
-- `--cem-action-{intent}-selected-background`
-- `--cem-action-{intent}-selected-text`
+- `--cem-action-{intent}-{state}-background`
+- `--cem-action-{intent}-{state}-text`
+
+Generated states: `disabled`, `readonly`, `editable`, `default`, `indeterminate`, `hover`, `active`, `pending`.
+
+Zebra-driven states (`focus`, `target`, `selected`) are handled through zebra outline tokens rather than counted as
+background-driven action endpoints.
 
 **State formulas (from Section 7.2.2):**
 
-| State    | Background Formula                                                                     |
-|----------|----------------------------------------------------------------------------------------|
-| disabled | `color-mix(in srgb, var(--cem-palette-{emotion}) 30%, var(--cem-palette-conservative-x))` |
-| default  | `var(--cem-palette-{emotion})`                                                         |
-| hover    | `color-mix(in srgb, var(--cem-palette-{emotion}) 60%, var(--cem-palette-{emotion}-x))` |
-| active   | `color-mix(in srgb, var(--cem-palette-{emotion}) 25%, var(--cem-palette-{emotion}-x))` |
-| selected | `var(--cem-palette-{emotion})` + zebra outline                                         |
+| State         | Background Formula                                                                        |
+|---------------|-------------------------------------------------------------------------------------------|
+| disabled      | `color-mix(in srgb, var(--cem-palette-{emotion}) 30%, var(--cem-palette-conservative-x))` |
+| readonly      | `color-mix(in srgb, var(--cem-palette-{emotion}) 80%, var(--cem-palette-{emotion}-x))`    |
+| editable      | `color-mix(in srgb, var(--cem-palette-{emotion}) 90%, var(--cem-palette-{emotion}-x))`    |
+| default       | `var(--cem-palette-{emotion})`                                                            |
+| indeterminate | `color-mix(in srgb, var(--cem-palette-{emotion}) 90%, var(--cem-palette-{emotion}-x))`    |
+| hover         | `color-mix(in srgb, var(--cem-palette-{emotion}) 70%, var(--cem-palette-{emotion}-x))`    |
+| active        | `color-mix(in srgb, var(--cem-palette-{emotion}) 25%, var(--cem-palette-{emotion}-x))`    |
+| pending       | `color-mix(in srgb, var(--cem-palette-{emotion}) 5%, var(--cem-palette-{emotion}-x))`     |
 
-**Estimated tokens:** 5 intents × 10 endpoints = 50 tokens
+**Generated tokens:** 5 intents × 8 states × 2 attributes = 80 tokens
 
 ### 2. Zebra Outline Colors (Section 8)
 
-**Priority:** High
+**Status:** Complete
 
 Zebra is a striped outline for focus/selection/target states.
 
-| Token                   | Purpose                    | Status  |
-|-------------------------|----------------------------|---------|
-| `--cem-zebra-color-0`   | Innermost stripe (surface) | Pending |
-| `--cem-zebra-color-1`   | Focus stripe               | Pending |
-| `--cem-zebra-color-2`   | Selection stripe           | Pending |
-| `--cem-zebra-color-3`   | Target stripe              | Pending |
-| `--cem-zebra-strip-size`| Stripe thickness basis     | Pending |
+| Token                    | Purpose                    | Status   |
+|--------------------------|----------------------------|----------|
+| `--cem-zebra-color-0`    | Innermost stripe (surface) | Complete |
+| `--cem-zebra-color-1`    | Focus stripe               | Complete |
+| `--cem-zebra-color-2`    | Target stripe              | Complete |
+| `--cem-zebra-color-3`    | Selected stripe            | Complete |
+| `--cem-zebra-strip-size` | Stripe thickness basis     | Complete |
 
-**Estimated tokens:** 5 tokens
+**Generated tokens:** 5 tokens
 
 ### 3. Additional Recommended States (Section 7.2)
 
-**Priority:** Medium
+**Status:** Complete
 
-Optional state endpoints for complete coverage:
+Extended state coverage includes:
 
 - `readonly` (80% mix)
 - `editable` (90% mix)
@@ -81,7 +83,7 @@ Optional state endpoints for complete coverage:
 - `target` (zebra-driven)
 - `required` (marker-driven)
 
-**Estimated tokens:** 5 intents × 14 additional endpoints = 70 tokens
+**Generated background-driven tokens:** 5 intents × 4 extended states × 2 attributes = 40 additional tokens
 
 ## Implementation Tasks
 
@@ -93,35 +95,41 @@ Optional state endpoints for complete coverage:
 4. [x] Generate `--cem-action-{intent}-{state}-text` tokens
 5. [x] Native theme action overrides inherited via `var(--cem-palette-*)` references
 
-### Phase 2: Zebra Outline Tokens
+### Phase 2: Zebra Outline Tokens ✓ COMPLETE
 
 1. [x] ~~Add zebra color definitions to `cem-colors.md` metadata~~ (hardcoded in generator - fixed token set)
 2. [x] Update `cem-colors.html` generator for zebra tokens
 3. [x] Generate `--cem-zebra-color-{0-3}` tokens
 4. [x] Generate `--cem-zebra-strip-size` token
 5. [x] Add native/forced-colors zebra mappings (focus→CanvasText, selected/target→SelectedItem)
-6. [ ] add zebra tokens matrix to `cem-colors.html`
-### Phase 3: Extended State Coverage
+6. [x] Zebra tokens matrix in `cem-colors.html` visualization (all modes table-driven from XHTML)
 
-1. [ ] Add remaining state formulas (readonly, editable, indeterminate, pending)
-2. [ ] Generate extended state tokens
-3. [ ] Validate contrast ratios meet WCAG requirements (Section 11.1)
+### Phase 3: Extended State Coverage ✓ COMPLETE
+
+1. [x] Add remaining state formulas (`readonly`, `editable`, `indeterminate`, `pending`)
+2. [x] Generate extended state tokens
+3. [x] Validate contrast ratios meet WCAG requirements (Section 11.1)
+
+**Validation note:** Lighthouse contrast checks pass for `cem-colors.html`. The remaining `Highlight` /
+`HighlightText` contrast issue is a browser/system-color design flaw, not a CEM theme bug.
 
 ## Token Summary
 
-| Category          | Defined | Generated | Gap |
-|-------------------|---------|-----------|-----|
-| Branded colors    | 29      | 29        | 0   |
-| Emotional palette | 28      | 28        | 0   |
-| Action tokens     | 50      | 50        | 0   |
-| Zebra tokens      | 5       | 5         | 0   |
-| **Total**         | 112     | 112       | 0   |
+| Category          | Defined | Generated | Gap | Status |
+|-------------------|---------|-----------|-----|--------|
+| Branded colors    | 29      | 29        | 0   | ✓      |
+| Emotional palette | 28      | 28        | 0   | ✓      |
+| Action tokens     | 80      | 80        | 0   | ✓      |
+| Zebra tokens      | 5       | 5         | 0   | ✓      |
+| **Total**         | 142     | 142       | 0   | ✓      |
 
-**Action tokens generated (Phase 1 complete):**
-- 5 intents × 5 states × 2 attributes = 50 tokens
+**Action tokens generated (Phase 3 complete):**
+- 5 intents × 8 background-driven states × 2 attributes = 80 tokens
 - Intents: explicit, primary, contextual, alternate, destructive
-- States: disabled, default, hover, active, selected
+- States: disabled, readonly, editable, default, indeterminate, hover, active, pending
 - Attributes: background, text
+- Zebra-driven states (`focus`, `target`, `selected`) are represented by zebra outline tokens rather than counted as
+  background-driven action tokens.
 
 ## References
 
