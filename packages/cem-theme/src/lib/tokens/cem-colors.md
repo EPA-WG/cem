@@ -544,13 +544,13 @@ Focus, selected, and target MUST always resolve to different hues so that combin
 the ring to the base surface; the remaining stripes are state indicators.
 
 ###### cem-zebra-mode-mapping
-| Theme mode       | `--cem-zebra-color-0` (base)         | `--cem-zebra-color-1` (focus)  | `--cem-zebra-color-2` (target) | `--cem-zebra-color-3` (selected) |
-|------------------|--------------------------------------|--------------------------------|--------------------------------|----------------------------------|
-| `native`         | `Canvas`                             | `CanvasText`                   | `Mark`                         | `SelectedItem`                   |
-| `light`          | `--cem-palette-comfort`              | `--cem-palette-trust-x`        | `--cem-color-orange-l`         | `--cem-palette-creativity-x`     |
-| `dark`           | `--cem-palette-comfort`              | `--cem-palette-comfort-x`      | `--cem-palette-creativity`     | `--cem-palette-calm-x`           |
-| `contrast-light` | `--cem-palette-comfort`              | `--cem-palette-trust-x`        | `--cem-color-orange-l`         | `--cem-palette-creativity-x`     |
-| `contrast-dark`  | `--cem-palette-comfort`              | `--cem-palette-comfort-text-x` | `--cem-palette-danger-x`       | `--cem-palette-trust-x`          |
+| Theme mode       | `--cem-zebra-color-0` (base)         | `--cem-zebra-color-1` (focus) | `--cem-zebra-color-2` (target) | `--cem-zebra-color-3` (selected) |
+|------------------|--------------------------------------|-------------------------------|--------------------------------|----------------------------------|
+| `native`         | `Canvas`                             | `CanvasText`                  | `Mark`                         | `SelectedItem`                   |
+| `light`          | `--cem-palette-comfort`              | `--cem-palette-trust-x`       | `--cem-color-orange-l`         | `--cem-palette-creativity-x`     |
+| `dark`           | `--cem-palette-comfort`              | `--cem-palette-comfort-x`     | `--cem-palette-creativity`     | `--cem-palette-calm-x`           |
+| `contrast-light` | `--cem-palette-comfort`              | `--cem-palette-trust-x`       | `--cem-color-orange-l`         | `--cem-palette-creativity-x`     |
+| `contrast-dark`  | `--cem-palette-comfort`              | `--cem-palette-comfort-x`     | `--cem-palette-enthusiasm-x`   | `--cem-palette-trust`          |
 
 **Rationale:**
 
