@@ -35,6 +35,8 @@
                   select="$colorsData//*[@id='cem-action-state-color']/following-sibling::xhtml:table[1]/xhtml:tbody"></variable>
         <variable name="cem-theme-mode"
                   select="$colorsData//*[@id='cem-theme-mode']/following-sibling::xhtml:table[1]/xhtml:tbody"></variable>
+        <variable name="cem-zebra-mode-mapping"
+                  select="$colorsData//*[@id='cem-zebra-mode-mapping']/following-sibling::xhtml:table[1]/xhtml:tbody"></variable>
         <variable name="selector-common-for-cem-themes">[data-theme*="cem-theme-"],
     .cem-theme-native,
     .cem-theme-contrast-light,
@@ -181,16 +183,28 @@
     }
 
     /* region zebra state: light/dark (§8.2 cem-zebra-mode-mapping) */
-    .cem-theme-light, [data-theme="cem-theme-light"],
-    .cem-theme-dark, [data-theme="cem-theme-dark"] {
+    <variable name="zebra-light" select="$cem-zebra-mode-mapping/xhtml:tr[normalize-space(xhtml:td[1])='light']"></variable>
+    <variable name="zebra-dark"  select="$cem-zebra-mode-mapping/xhtml:tr[normalize-space(xhtml:td[1])='dark']"></variable>
+    .cem-theme-light, [data-theme="cem-theme-light"] {
         [focus], :focus, :focus-visible, :focus-within, .focus {
-            <text>--cem-zebra-color-1: var(--cem-palette-trust-x);</text>
+            <text>--cem-zebra-color-1: var(</text>{normalize-space($zebra-light/xhtml:td[3])}<text>);</text>
         }
         [target], :target, .target {
-            <text>--cem-zebra-color-2: var(--cem-palette-creativity-x);</text>
+            <text>--cem-zebra-color-2: var(</text>{normalize-space($zebra-light/xhtml:td[4])}<text>);</text>
         }
         [selected], .selected {
-            <text>--cem-zebra-color-3: var(--cem-palette-enthusiasm-x);</text>
+            <text>--cem-zebra-color-3: var(</text>{normalize-space($zebra-light/xhtml:td[5])}<text>);</text>
+        }
+    }
+    .cem-theme-dark, [data-theme="cem-theme-dark"] {
+        [focus], :focus, :focus-visible, :focus-within, .focus {
+            <text>--cem-zebra-color-1: var(</text>{normalize-space($zebra-dark/xhtml:td[3])}<text>);</text>
+        }
+        [target], :target, .target {
+            <text>--cem-zebra-color-2: var(</text>{normalize-space($zebra-dark/xhtml:td[4])}<text>);</text>
+        }
+        [selected], .selected {
+            <text>--cem-zebra-color-3: var(</text>{normalize-space($zebra-dark/xhtml:td[5])}<text>);</text>
         }
     }
     /* endregion zebra state: light/dark */
@@ -450,12 +464,14 @@
                 </choose></variable>
                 <variable name="zt"><choose>
                     <when test="$theme-name='native'">Mark</when>
-                    <when test="$theme-name='light' or $theme-name='dark'">var(--cem-palette-creativity-x)</when>
+                    <when test="$theme-name='light'">var(--cem-color-orange-l)</when>
+                    <when test="$theme-name='dark'">var(--cem-color-orange-xl)</when>
                     <otherwise>var(--cem-palette-danger-x)</otherwise>
                 </choose></variable>
                 <variable name="zs"><choose>
                     <when test="$theme-name='native'">SelectedItem</when>
-                    <when test="$theme-name='light' or $theme-name='dark'">var(--cem-palette-enthusiasm-x)</when>
+                    <when test="$theme-name='light'">var(--cem-palette-creativity-x)</when>
+                    <when test="$theme-name='dark'">var(--cem-palette-enthusiasm-x)</when>
                     <otherwise>var(--cem-palette-trust-x)</otherwise>
                 </choose></variable>
                 <section class="cem-theme-{$theme-name}" >

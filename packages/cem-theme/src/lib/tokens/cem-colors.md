@@ -525,15 +525,17 @@ Color endpoints:
 
 - `--cem-zebra-color-0`: innermost stripe (base surface)
 - `--cem-zebra-color-1`: focus stripe
-- `--cem-zebra-color-2`: target stripe
+- `--cem-zebra-color-2`: target stripe (warm separator)
 - `--cem-zebra-color-3`: selection stripe
 - `--cem-zebra-strip-size`: stripe thickness basis (pairs with D5 stroke widths)
 
-> **Why target sits between focus and selected (color-2):**
-> Target is the least-used state. When inactive it stays transparent
-> (matching `--cem-palette-comfort`), so the middle ring provides extra
-> contrast separation between the focus ring (color-1) and the selected
-> ring (color-3), making the two most common states easier to distinguish.
+> **Why target occupies the middle ring (color-2):**
+> Target is the least-used state — typically once per page. When inactive it
+> collapses to `--cem-palette-comfort`, so its ring acts as a neutral visual gap.
+> When active it uses a warm accent (orange / `Mark`) that is hue-distinct from
+> both focus (cool, `trust`) and selected (expressive, `enthusiasm`), providing
+> clear three-way separability without competing for attention alongside the two
+> more common states.
 
 ### 8.2 Theme-mode mapping
 
@@ -542,27 +544,29 @@ Focus, selected, and target MUST always resolve to different hues so that combin
 the ring to the base surface; the remaining stripes are state indicators.
 
 ###### cem-zebra-mode-mapping
-| Theme mode       | `--cem-zebra-color-0` (base)         | `--cem-zebra-color-1` (focus)     | `--cem-zebra-color-2` (target)        | `--cem-zebra-color-3` (selected)       |
-|------------------|--------------------------------------|-----------------------------------|---------------------------------------|----------------------------------------|
-| `native`         | `Canvas`                             | `CanvasText`                      | `Mark`                                | `SelectedItem`                         |
-| `light`          | `--cem-palette-comfort`              | `--cem-palette-trust-x`           | `--cem-palette-creativity-x`          | `--cem-palette-enthusiasm-x`           |
-| `dark`           | `--cem-palette-comfort`              | `--cem-palette-trust-x`           | `--cem-palette-creativity-x`          | `--cem-palette-enthusiasm-x`           |
-| `contrast-light` | `--cem-palette-comfort`              | `--cem-palette-comfort-text-x`    | `--cem-palette-danger-x`              | `--cem-palette-trust-x`               |
-| `contrast-dark`  | `--cem-palette-comfort`              | `--cem-palette-comfort-text-x`    | `--cem-palette-danger-x`              | `--cem-palette-trust-x`               |
+| Theme mode       | `--cem-zebra-color-0` (base)         | `--cem-zebra-color-1` (focus)     | `--cem-zebra-color-2` (target)    | `--cem-zebra-color-3` (selected) |
+|------------------|--------------------------------------|-----------------------------------|-----------------------------------|----------------------------------|
+| `native`         | `Canvas`                             | `CanvasText`                      | `Mark`                            | `SelectedItem`                   |
+| `light`          | `--cem-palette-comfort`              | `--cem-palette-trust-x`           | `--cem-color-orange-l`            | `--cem-palette-creativity-x`     |
+| `dark`           | `--cem-palette-comfort`              | `--cem-palette-trust-x`           | `--cem-color-orange-xl`           | `--cem-palette-enthusiasm-x`     |
+| `contrast-light` | `--cem-palette-comfort`              | `--cem-palette-comfort-text-x`    | `--cem-palette-danger-x`          | `--cem-palette-trust-x`          |
+| `contrast-dark`  | `--cem-palette-comfort`              | `--cem-palette-comfort-text-x`    | `--cem-palette-danger-x`          | `--cem-palette-trust-x`          |
 
 **Rationale:**
 
 - **`native`** — `Canvas` anchors the base stripe to the system surface. `CanvasText` gives high-contrast
-  focus without colliding with button borders. `SelectedItem` is the OS semantic for selection.
-  `Mark` stands out from `SelectedItem` for target without reusing selection or button border colors.
-  If `Mark` is unavailable on a target platform, fall back to `Highlight` before reusing `SelectedItem`.
+  focus without colliding with button borders. `Mark` (yellow) is the OS semantic for highlighted/pointed-at
+  content and maps naturally to the target role. `SelectedItem` is the OS semantic for selection (color-3).
+  If `Mark` is unavailable on a target platform, fall back to `Highlight`.
 - **`light` / `dark`** — `comfort` aligns the innermost stripe with the surface. `trust` is reserved for
-  focus visibility. `creativity` is the most distinct accent, well-suited for guided attention/target.
-  `enthusiasm` reads as "chosen" without looking like focus or error.
+  focus visibility. `orange-l` / `orange-xl` (color-2) is a warm accent hue distinct from both `trust`
+  (cool) and the selection ring, making target immediately recognisable as a separate state while its
+  brightness keeps it visually lighter than selected. In light mode `creativity-x` (color-3) gives
+  selection a distinct cool-vivid hue; in dark mode `enthusiasm-x` serves the same role.
 - **`contrast-light` / `contrast-dark`** — `comfort-text` keeps the focus stripe legible when fills are
-  minimized. `danger` for target is intentionally high-salience. `trust` for selected preserves
-  "affirmative choice" semantics. Using text/strong palette endpoints avoids overlap with box-shadow
-  borders that are already collapsed into zebra in contrast themes.
+  minimized. `danger` for target (color-2) is intentionally high-salience. `trust` for selected (color-3)
+  preserves "affirmative choice" semantics. Using text/strong palette endpoints avoids overlap with
+  box-shadow borders that are already collapsed into zebra in contrast themes.
 
 Zebra colors MUST NOT reuse the same tone as action border/box-shadow indicators in the same theme variation.
 
