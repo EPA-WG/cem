@@ -266,27 +266,27 @@ Variant semantics:
 [CSS system colors](https://developer.mozilla.org/en-US/docs/Web/CSS/system-color) adapt automatically to the user's
 OS color scheme. In `native` mode, CEM maps palette endpoints directly to these values (see §9).
 
-| Color              | Text pair           | Description                                          |
-|--------------------|---------------------|------------------------------------------------------|
-| `AccentColor`      | `AccentColorText`   | Background of accented user interface controls       |
-| `AccentColorText`  | `AccentColor`       | Text of accented user interface controls             |
-| `ActiveText`       | `Canvas`            | Text of active links                                 |
-| `ButtonBorder`     | `Canvas`            | Base border color of controls                        |
-| `ButtonFace`       | `CanvasText`        | Background color of controls                         |
-| `ButtonText`       | `Canvas`            | Text color of controls                               |
-| `Canvas`           | `CanvasText`        | Background of application content or documents       |
-| `CanvasText`       | `Canvas`            | Text color in application content or documents       |
-| `Field`            | `CanvasText`        | Background of input fields                           |
-| `FieldText`        | `Canvas`            | Text in input fields                                 |
-| `GrayText`         | `ButtonFace`        | Text color for disabled items                        |
-| `Highlight`        | `HighlightText`     | Background of selected items                         |
-| `HighlightText`    | `Highlight`         | Text color of selected items                         |
-| `LinkText`         | `Canvas`            | Text of non-active, non-visited links                |
-| `Mark`             | `MarkText`          | Background of specially marked text (e.g. `<mark>`)  |
-| `MarkText`         | `Mark`              | Text of specially marked text                        |
-| `SelectedItem`     | `SelectedItemText`  | Background of selected items (e.g. checkbox)         |
-| `SelectedItemText` | `SelectedItem`      | Text of selected items                               |
-| `VisitedText`      | `Canvas`            | Text of visited links                                |
+| Color              | Text pair          | Description                                          |
+|--------------------|--------------------|------------------------------------------------------|
+| `AccentColor`      | `AccentColorText`  | Background of accented user interface controls       |
+| `AccentColorText`  | `AccentColor`      | Text of accented user interface controls             |
+| `ActiveText`       | `Canvas`           | Text of active links                                 |
+| `ButtonBorder`     | `Canvas`           | Base border color of controls                        |
+| `ButtonFace`       | `CanvasText`       | Background color of controls                         |
+| `ButtonText`       | `Canvas`           | Text color of controls                               |
+| `Canvas`           | `CanvasText`       | Background of application content or documents       |
+| `CanvasText`       | `Canvas`           | Text color in application content or documents       |
+| `Field`            | `CanvasText`       | Background of input fields                           |
+| `FieldText`        | `Canvas`           | Text in input fields                                 |
+| `GrayText`         | `Canvas`           | Text color for disabled items                        |
+| `Highlight`        | `HighlightText`    | Background of selected items                         |
+| `HighlightText`    | `Highlight`        | Text color of selected items                         |
+| `LinkText`         | `Canvas`           | Text of non-active, non-visited links                |
+| `Mark`             | `MarkText`         | Background of specially marked text (e.g. `<mark>`)  |
+| `MarkText`         | `Mark`             | Text of specially marked text                        |
+| `SelectedItem`     | `SelectedItemText` | Background of selected items (e.g. checkbox)         |
+| `SelectedItemText` | `SelectedItem`     | Text of selected items                               |
+| `VisitedText`      | `Canvas`           | Text of visited links                                |
 
 ---
 
@@ -428,7 +428,7 @@ disabled → readonly → editable → default → indeterminate → hover → a
 | editable      | `color-mix(in srgb, var(--cem-palette-[emotion]) 90%, var(--cem-palette-[emotion]-x))`    | `var(--cem-palette-[emotion]-text)`      |
 | default       | `var(--cem-palette-[emotion])`                                                            | `var(--cem-palette-[emotion]-text)`      |
 | indeterminate | `color-mix(in srgb, var(--cem-palette-[emotion]) 90%, var(--cem-palette-[emotion]-x))`    | `var(--cem-palette-[emotion]-text)`      |
-| hover         | `color-mix(in srgb, var(--cem-palette-[emotion]) 60%, var(--cem-palette-[emotion]-x))`    | `var(--cem-palette-[emotion]-text)`      |
+| hover         | `color-mix(in srgb, var(--cem-palette-[emotion]) 70%, var(--cem-palette-[emotion]-x))`    | `var(--cem-palette-[emotion]-text)`      |
 | active        | `color-mix(in srgb, var(--cem-palette-[emotion]) 25%, var(--cem-palette-[emotion]-x))`    | `var(--cem-palette-[emotion]-text-x)`    |
 | pending       | `color-mix(in srgb, var(--cem-palette-[emotion])  5%, var(--cem-palette-[emotion]-x))`    | `var(--cem-palette-[emotion]-text-x)`    |
 
