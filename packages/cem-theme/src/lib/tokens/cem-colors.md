@@ -532,10 +532,12 @@ Color endpoints:
 > **Why target occupies the middle ring (color-2):**
 > Target is the least-used state — typically once per page. When inactive it
 > collapses to `--cem-palette-comfort`, so its ring acts as a neutral visual gap.
-> When active it uses a warm accent (orange / `Mark`) that is hue-distinct from
-> both focus (cool, `trust`) and selected (expressive, `enthusiasm`), providing
-> clear three-way separability without competing for attention alongside the two
-> more common states.
+> When active the target color is always hue-distinct from both the focus ring
+> (color-1) and the selection ring (color-3), providing clear three-way
+> separability without competing for attention alongside the two more common
+> states. In light and contrast-light modes a warm orange (`orange-l`) serves
+> this role; in dark mode a mid-tone purple (`creativity`) does; in native mode
+> the OS `Mark` color (typically yellow) is used.
 
 ### 8.2 Theme-mode mapping
 
@@ -558,15 +560,19 @@ the ring to the base surface; the remaining stripes are state indicators.
   focus without colliding with button borders. `Mark` (yellow) is the OS semantic for highlighted/pointed-at
   content and maps naturally to the target role. `SelectedItem` is the OS semantic for selection (color-3).
   If `Mark` is unavailable on a target platform, fall back to `Highlight`.
-- **`light` / `dark`** — `comfort` aligns the innermost stripe with the surface. `trust` is reserved for
-  focus visibility. `orange-l` / `orange-xl` (color-2) is a warm accent hue distinct from both `trust`
-  (cool) and the selection ring, making target immediately recognizable as a separate state while its
-  brightness keeps it visually lighter than selected. In light mode `creativity-x` (color-3) gives
-  selection a distinct cool-vivid hue; in dark mode `enthusiasm-x` serves the same role.
-- **`contrast-light` / `contrast-dark`** — `comfort-text` keeps the focus stripe legible when fills are
-  minimized. `danger` for target (color-2) is intentionally high-salience. `trust` for selected (color-3)
-  preserves "affirmative choice" semantics. Using text/strong palette endpoints avoids overlap with
-  box-shadow borders that are already collapsed into zebra in contrast themes.
+- **`light`** — `trust-x` (cool blue) for focus. `orange-l` (warm) for target: hue-distinct from both the
+  focus ring and the selection ring, and bright enough to read as a light visual separator. `creativity-x`
+  (vivid purple) for selected: high salience without colliding with either focus or target hues.
+- **`dark`** — `comfort-x` (inverted surface) for focus: sufficient contrast against the dark surface without
+  an additional branded color. `creativity` (purple, mid-tone) for target: warm-to-cool shift from
+  `comfort-x` keeps the two states distinct. `calm-x` (inverted cyan) for selected: a cooler, distinct hue
+  that reads as "chosen" without competing with focus or target.
+- **`contrast-light`** — identical mapping to `light`. In contrast mode, fills collapse to the surface, so the
+  zebra rings carry all state meaning; using the same high-contrast hues as light mode preserves legibility
+  without requiring a separate token set.
+- **`contrast-dark`** — `comfort-x` for focus (same as dark). `enthusiasm-x` (deep orange/mark-derived) for
+  target: high salience in a dark scheme. `trust` (mid-tone blue) for selected: affirming but clearly
+  distinct from the target stripe.
 
 Zebra colors MUST NOT reuse the same tone as action border/box-shadow indicators in the same theme variation.
 
