@@ -1,20 +1,25 @@
 # CEM - Consumer Semantic Material Theme and custom-element components library
 
-for NO-JS declarative web applications development.
+A theme system and custom-element component library for building declarative, no-JavaScript web applications.
 
-The UX design inherits the [Material Design Guidelines](https://material.io/design) by Google but instead of
-designer-centric,
-based on Consumer view. It is implemented as a set of
+CEM reinterprets Google’s [Material Design Guidelines](https://material.io/design) through a consumer-first
+lens—focusing on how users perceive and interact with interfaces, rather than how designers construct them.
 
-* [AI instructions](packages/cem-theme/src/lib/tokens) for Theme creation
-* CSS stylesheets
-* Web Components to be used in declarative web applications without JavaScript.
+It is implemented as a combination of:
+
+* [AI instructions](packages/cem-theme/src/lib/tokens) AI instructions for generating and adapting themes
+* CSS design tokens and stylesheets
+* Web Components for use in fully declarative applications (no JS required)
+
+The result is a system where consumer semantics drive UI behavior and appearance, enabling consistent, accessible, and
+maintainable interfaces.
 
 [![npm version](https://badge.fury.io/js/%40epa-wg%2Fcem-theme.svg)](https://badge.fury.io/js/%40epa-wg%2Fcem-theme)
 [![Downloads](https://img.shields.io/npm/dm/@epa-wg/cem-theme.svg)](https://www.npmjs.com/package/@epa-wg/cem-theme)
 [![License](https://img.shields.io/npm/l/@epa-wg/cem-theme.svg)](./LICENSE)
 
 # Run locally
+
 ```bash
 yarn start
 ```
