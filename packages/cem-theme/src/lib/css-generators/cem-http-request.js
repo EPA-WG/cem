@@ -38,7 +38,7 @@ export class HttpRequestElement extends HTMLElement {
         setTimeout(() => this.fetch(), 0);
     }
     #inProgressUrl = '';
-    #destroy = () => {};
+    #destroy = null;
 
     async fetch() {
         if (!this.closest('body')) return;
@@ -78,20 +78,20 @@ export class HttpRequestElement extends HTMLElement {
             try {
                 slice.data = await response.json();
                 update();
-            } catch (_e) {}
+            } catch { /* empty */ }
         if (r.headers['content-type']?.includes('xml'))
             try {
                 const s = await response.text();
                 const parser = new DOMParser();
                 slice.data = parser.parseFromString(s, 'application/xml')?.documentElement;
                 update();
-            } catch (_e) {}
+            } catch { /* empty */ }
     }
 
     attributeChangedCallback(name, oldValue, newValue) {
         if (name === 'url') {
             if (oldValue !== newValue) {
-                oldValue && this.#destroy?.();
+                if (oldValue) this.#destroy?.();
                 if (newValue) setTimeout(() => this.fetch(), 10);
                 else {
                     this.value = {};
