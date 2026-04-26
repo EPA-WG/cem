@@ -1,0 +1,146 @@
+# Critique of `docs/todo.md` Phases 4-7
+
+This critique is based on `docs/todo.md`, the token specs in `packages/cem-theme/src/lib/tokens/*.md`, the current CSS generation pipeline, and current external documentation for CSS queries, Material window classes, MUI breakpoints, and WCAG requirements.
+
+## Overall Findings
+
+- The plan has the right broad goal, but it treats "generate every token" as the main measure of success. The larger risk is contract drift. The specs distinguish required, recommended, optional, adapter-only, and deprecated tokens, while the todo list often flattens them into one implementation checklist.
+- Reorder the implementation so D2 coupling lands before D3 shape and D5 stroke. Shape uses `--cem-control-height` for `--cem-bend-round`, and stroke has D2 guard/indicator-outset compatibility rules.
+- Add a metadata schema task before adding more generators. `cem-colors.html` depends on h6-generated IDs followed by tables, not a general `<dl data-...>` convention. Pick one schema and require stable IDs, columns, required/optional flags, and expected CSS names.
+- Add manifest-based verification. Grepping the spec is too loose. Each spec should expose a machine-readable token manifest, and generated CSS should be checked for exactly those tokens, no placeholders, no unresolved template syntax, and valid CSS.
+- Breakpoint tokens need special handling. CSS custom properties cannot be used inside media query or container query conditions, so `--cem-bp-*` values are useful for JS/build/runtime reference but not directly for `@media`.
+- `@custom-media` should be optional/build-time only. MDN currently marks it limited availability and experimental, so generated production CSS should not depend on native `@custom-media` unless a build step expands it.
+- Verification should include browser-level checks through the existing Playwright capture path, not just token presence.
+
+## Phase 4 - Foundation Primitives
+
+### D1 Dimension
+
+- Generate spacing modes too. The plan covers the base scale, gaps, insets, and rhythm, but misses `data-cem-spacing="dense|sparse"` overrides from `cem-dimension.md`.
+- Do not generate D2 coupling tokens from D1. D1 lists `--cem-coupling-*` only as normative constraints and says not to set or tune them in D1.
+- Fix exact token names:
+  - Spec uses `--cem-layout-stack-gap`, not `--cem-layout-stack`.
+  - Spec uses `--cem-layout-cluster-gap`, not `--cem-layout-cluster`.
+  - Spec uses `--cem-layout-gutter`, `--cem-layout-gutter-wide`, and `--cem-layout-gutter-max`.
+  - `--cem-layout-inline-*` are deprecated aliases, not core targets.
+- Add acceptance criteria for interactive adjacency: any component using D1 gaps between interactive affordances must resolve `gap = max(D1 gap, D2 guard)`.
+- Validate reading rhythm with typography, not in isolation. D1 reading rhythm depends on D6 line-height and measure rules.
+
+### D7 Timing
+
+- D7 is a reasonable early generator, but add reduced-motion acceptance. The spec says reduced-motion modes may shorten durations while preserving ordering.
+- `highlighted` easing currently aliases `smooth` in the spec. If generated as-is, the token exists but does not satisfy the "visibly more pronounced" rule without adapter overrides.
+- Treat springs as optional reserved names. Do not generate a full spring matrix unless metadata defines a real value encoding.
+
+### D1x Breakpoints
+
+- Split output into:
+  - CSS custom properties for reference and JS/build systems.
+  - Literal media/container query helpers for stylesheet use.
+  - Optional `@custom-media` helpers only if the build pipeline expands them or the target explicitly supports them.
+- Current Material/Android window class thresholds still align with the spec: width 600, 840, 1200, 1600; height 480, 900.
+- Preserve the "not device type" rule. The generator and docs should not encourage `isTablet` logic.
+- Keep epsilon adapter-specific:
+  - Generic CSS examples may use `0.01px`.
+  - MUI default `theme.breakpoints.step = 5` produces `0.05px` exclusive upper bounds.
+- Container queries are appropriate for portable components, but require `container-type` or `container` on an ancestor. Tokens alone are not enough.
+
+## Phase 5 - Geometry and Structure
+
+### D3 Shape
+
+- Move after D2, or provide a robust fallback for `--cem-bend-round`. `calc(var(--cem-shape-height, var(--cem-control-height)) / 2)` becomes invalid if `--cem-control-height` is unavailable.
+- Generate `--cem-bend` and likely `--cem-action-border-radius`, not just basis and endpoint tokens.
+- Treat `data-cem-shape="sharp|smooth|round"` as optional brand policy, not a required selector for every product.
+- Keep adapter-only aliases like `--cem-bend-xs` out of product-facing requirements.
+- Add validation for focus ring clipping, forced colors, high zoom, round-end behavior across D2 density modes, and RTL logical corners.
+
+### D5 Stroke
+
+- Clarify ownership with D0. `--cem-zebra-strip-size` is currently generated by `cem-colors.html`, while D5 treats zebra geometry as its own concern. Decide whether D5 owns stripe size/ring composition and D0 owns only colors, or document the split.
+- Generate ring recipes `--cem-ring-zebra-3` and `--cem-ring-zebra-4`, but ensure they are backed by forced-colors outline fallbacks.
+- Add WCAG focus checks. External `box-shadow` or glow is not always counted as component visual presentation for focus appearance, so outline fallback matters.
+- Preserve the no-layout-shift rule: focus and selection indicators should not mutate border-box dimensions.
+- D5 depends on D2 guard math. The default guard must cover the worst-case indicator outset: `max(4 * --cem-zebra-strip-size, --cem-stroke-indicator-offset + --cem-stroke-focus)`.
+
+### D4 Layering
+
+- D4 is semantically clear but underspecified as CSS output. The rung tokens have names, but no concrete appearance-channel values.
+- Avoid generating rung tokens as z-index values. The spec explicitly forbids using `--cem-elevation-*` as z-index.
+- Decide whether the generator emits:
+  - semantic aliases only, such as `--cem-layer-work: var(--cem-elevation-1)`, or
+  - adapter hooks for tone, shadow, contour, material, space, and motion.
+- Add acceptance criteria that every rung has at least one perceivable channel change, and ideally two in dense UIs.
+- Include forced-colors validation where contour/spacing carry tier meaning without subtle shadows or tonal deltas.
+
+## Phase 6 - Density and Coupling
+
+- Move this before shape and stroke.
+- Preserve D2 invariants:
+  - `--cem-coupling-zone-min` is mode-invariant.
+  - `--cem-coupling-guard-min` is mode-invariant.
+  - modes may adjust visual geometry and halo only.
+- Note the accessibility baseline:
+  - WCAG 2.2 AA target size minimum is 24 x 24 CSS px with spacing exceptions.
+  - Android/Material guidance recommends 48dp targets separated by 8dp.
+  - CEM's `3rem` zone and `0.5rem` guard defaults align with the stricter Android-style touch guidance.
+- Token generation does not enforce coupling by itself. Components still need `min-block-size`, halo wrappers/pseudo-elements, and gap formulas.
+- Add proof surfaces from the D2 spec:
+  - forms with text field, primary button, and icon button cluster
+  - navigation list with trailing actions
+  - data table with row actions and selection
+
+## Phase 7 - Typography and Voice
+
+- D6 is not truly standalone. It depends on D1 reading rhythm, D2 compact label safety, D5 decoration/underlines, and accessibility validation.
+- The plan misses several token groups:
+  - `--cem-typography-feature-numeric-data`
+  - `--cem-typography-feature-ligatures-script`
+  - `--cem-typography-feature-optical-sizing`
+  - `--cem-typography-reading-measure-max`
+  - `--cem-typography-reading-paragraph-gap`
+  - `text-transform` role tokens
+  - dark and contrast theme ink projections
+- Semantic role output is incomplete if it only emits `font-family`, `font-size`, `line-height`, `letter-spacing`, and `font-weight`.
+  - Data needs `font-variant-numeric`.
+  - Script needs ligature policy.
+  - Initialism and iconized need `text-transform`.
+  - Reading needs measure and paragraph gap hooks.
+- Voice tokens should be documented as CSS-exported data, not behavior. Screen readers follow HTML semantics and ARIA, not CSS typography. These tokens only help a product TTS adapter.
+- Metadata extraction must preserve quoted font-family stacks and comma-separated values. This is a high-risk parsing area for table-driven generators.
+- Add internationalization acceptance: font stacks must retain broad Unicode fallback and representative language coverage.
+
+## Build and Generator Notes
+
+- Current `build:css` captures `//code[@data-generated-css]` from every `src/lib/css-generators/*.html`, so each new generator must populate exactly one intended CSS block.
+- `cem-breakpoints.html` is currently a stub that outputs `.myClass{}`. Replace it before relying on token coverage numbers.
+- The current colors generator uses XPath against compiled XHTML tables identified by h6 IDs. New specs should either follow that exact convention or the generator layer needs a shared metadata parser.
+- Add CSS validity checks after capture. The custom-element template syntax can leave malformed output if XPath selectors miss data.
+- Add a check for duplicate generated files. The current dist contains both `cem-colors.css` and `cem-colors-1.css`; the plan should define whether duplicates are expected or cleanup is needed.
+
+## External Details Checked
+
+- MDN Custom Properties: `var()` cannot be used in media query or container query conditions.
+- MDN `@custom-media`: limited availability and experimental.
+- MDN `@container`: widely available since February 2023, but needs a containment context.
+- Android Developers Window Size Classes: compact, medium, expanded, large, and extra-large thresholds match the CEM spec.
+- MUI Breakpoints: defaults are `xs 0`, `sm 600`, `md 900`, `lg 1200`, `xl 1536`; `step=5` means exclusive bounds subtract `0.05px`.
+- MUI Container Queries: `theme.containerQueries` mirrors breakpoint helpers, and `sx` unitless shorthand renders as px.
+- W3C WCAG 2.4.11: focused components must not be entirely hidden by author-created content.
+- W3C WCAG Focus Appearance: external shadow/glow is not counted as part of component visual presentation.
+- W3C WCAG 2.5.8: AA target size minimum is 24 x 24 CSS px with exceptions.
+- Android Accessibility touch target guidance: 48dp targets with 8dp separation are recommended.
+
+## Recommended Revised Phase Order
+
+1. Metadata schema and token manifest format.
+2. D1 dimension base plus spacing modes.
+3. D7 timing.
+4. D1x breakpoints with split CSS variable/query output.
+5. D2 coupling.
+6. D3 shape.
+7. D5 stroke.
+8. D4 layering.
+9. D6 typography and voice.
+10. Cross-phase manifest, CSS validity, browser, forced-colors, and accessibility verification.
+

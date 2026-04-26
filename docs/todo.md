@@ -31,6 +31,77 @@ The remaining token-spec files have no working generator. `cem-breakpoints.html`
 
 `cem-responsive.md`, `cem-m3-parity.md`, `cem-zebra.md`, and `index.md` define no token values and are out of scope.
 
+## Token-to-CSS Transformation Principles
+
+These principles govern every generator (existing and new). They take precedence over any per-phase task list.
+
+### P1. Manifest-driven contract
+
+Every token spec MUST publish a machine-readable **token manifest** — a list of every CSS custom property the spec
+defines, with required/recommended/optional/adapter-only/deprecated status, expected value type, and source rule
+(formula or constant). The manifest is the single source of truth for "is this category fully generated?". Grepping the
+markdown is too loose and is no longer an accepted verification.
+
+The manifest lives inside the same `*.md` source as the prose, embedded in a stable, XPath-extractable form (see P2).
+
+### P2. Stable extraction contract (h6 + table convention)
+
+The current generator (`cem-colors.html`) extracts data via XPath of the form
+`$xhtml//*[@id='<token-id>']/following-sibling::xhtml:table[1]/xhtml:tbody`. Every new spec MUST follow this same
+convention so the generator layer stays uniform:
+
+- A `<h6>` heading with a stable, unique `id` (e.g. `###### cem-color-hue-variant` produces `id="cem-color-hue-variant"`).
+- The very next sibling element is a `<table>` whose `<tbody>` rows encode the data (one row per token / mapping).
+- Required columns are documented in the manifest; column order is stable across edits.
+
+Free-form `<dl data-…>` blocks are NOT a substitute. Generators do not parse arbitrary metadata shapes.
+
+### P3. Required vs recommended vs optional vs adapter-only vs deprecated
+
+Specs distinguish these tiers. Generators MUST honor them:
+
+- **Required** tokens: generator emits unconditionally; missing one is a build failure.
+- **Recommended** tokens: emit by default; manifest flags them so adapters can opt out.
+- **Optional** tokens: emit only when the spec's metadata supplies a real value (no placeholder constants).
+- **Adapter-only** aliases (e.g. `--cem-bend-xs`): emit behind an opt-in flag, not in product-facing default output.
+- **Deprecated** aliases (e.g. `--cem-layout-inline-*`): emit only when an explicit "legacy" toggle is set; manifest
+  flags them as deprecated.
+
+### P4. Verification beyond presence
+
+For each generator the build pipeline MUST check:
+
+1. **Manifest coverage** — generated CSS contains exactly the manifest's token set (no extras, no missing).
+2. **No placeholders** — no `.myClass{}` stubs, no unresolved template tokens (e.g. `{...}` AVT remnants), no empty
+   declarations.
+3. **CSS validity** — output parses cleanly (zero parser errors, balanced braces).
+4. **Browser-level smoke** — the generator HTML opened headless via Playwright (per `CLAUDE.md` workflow) yields
+   a populated `<code data-generated-css>` and the `:root` block resolves under at least light/dark/native modes.
+5. **Forced-colors / accessibility checks** where the dimension affects perception (color, stroke, layering, focus).
+
+### P5. CSS custom properties cannot drive `@media` / `@container` conditions
+
+`var(--cem-bp-*)` is NOT usable inside `@media (min-width: …)` or `@container (…)`. Breakpoint generators MUST split
+output into:
+
+1. CSS custom properties for runtime / JS / build-tool reference.
+2. Literal media-query and container-query helper rulesets for stylesheet consumption.
+3. (Optional, build-time only) `@custom-media` aliases — never as production output unless a build step expands them
+   first. MDN currently marks `@custom-media` as limited availability / experimental.
+
+### P6. Generators reuse infrastructure, not duplicate it
+
+`cem-css-loader.js` (style injection) and `cem-http-request.js` (XHTML loading) are shared utilities. New generators
+MUST reuse them. Capture is performed by `capture-xpath-text.mjs` against `//code[@data-generated-css]`; each generator
+MUST contain exactly one such block to avoid the current duplicate-output pathology
+(`dist/lib/css/cem-colors.css` + `cem-colors-1.css`).
+
+### P7. Canonical design ownership
+
+When the critique surfaces missing tokens or undefined behavior, the **canonical design doc** (`packages/cem-theme/src/lib/tokens/<spec>.md`)
+is the place to fix it. Generators do NOT invent tokens. If a needed token has no canonical definition, an R&D / decision
+task lands in [R&D / Open Design Decisions](#rd--open-design-decisions) and BLOCKS the corresponding phase.
+
 ## Token Categories
 
 ### 1. Action Intent Tokens (Section 7)
@@ -132,106 +203,186 @@ Extended state coverage includes:
 **Validation note:** Lighthouse contrast checks pass for `cem-colors.html`. The remaining `Highlight` /
 `HighlightText` contrast issue is a browser/system-color design flaw, not a CEM theme bug.
 
-### Phase 4: Foundation Primitives
+### Phase 4: Metadata Schema, Token Manifest, and Pipeline Cleanup
 
-Independent numeric/scale tokens with no cross-category dependencies. Tackling first unlocks D2/D3/D5.
+Foundation phase — blocks all later phases. Establishes the contract that Principles P1–P6 require.
 
-#### 4.1 cem-dimension (D1) — `cem-dimension.html`
+1. [ ] Define the **token-manifest schema** (column set: `name`, `tier` ∈ {required, recommended, optional, adapter, deprecated}, `value-type`, `default-formula`, `notes`). Document in `packages/cem-theme/src/lib/tokens/index.md` so every spec inherits.
+2. [ ] Add a **canonical h6+table convention** section to `index.md` (Principle P2). Specs that already deviate (most non-color specs use prose with embedded code-fences) get a follow-up retrofit task in their own phase.
+3. [ ] Backfill the `cem-colors.md` manifest as the worked example (one `<h6 id="cem-colors-manifest">` followed by a table listing every emitted token from Phase 1–3).
+4. [ ] Build a **manifest-vs-CSS validator** script under `packages/cem-theme/scripts/` (or extend `capture-xpath-text.mjs`) that, after capture, parses the generated CSS and asserts: every manifest token present, no extras, no `{` AVT remnants, no `.myClass{}` placeholders, balanced braces, parses via PostCSS or `csstree`.
+5. [ ] Wire the validator into the `build:css` target so a manifest mismatch fails the build.
+6. [ ] **Investigate and fix duplicate output**: `dist/lib/css/cem-colors.css` and `cem-colors-1.css` are emitted from a single generator. Fix `capture-xpath-text.mjs` (or the generator template that produces two matched nodes) so each generator yields exactly one `<name>.css`.
+7. [ ] Document the new contract in `CLAUDE.md` so future generator work follows it without re-reading this file.
 
-1. [ ] Add explicit metadata blocks to `cem-dimension.md` (tables / `<dl data-…>`) for the dimension scale, gaps, insets, and rhythms — mirroring the metadata pattern in `cem-colors.md`
-2. [ ] Create `cem-dimension.html` generator following the `cem-colors.html` template (`<cem-http-request>` loads `dist/lib/tokens/cem-dimension.xhtml`, XSLT builds `:root{}` into `<code data-generated-css>`)
-3. [ ] Generate 8-step scale: `--cem-dim-{xx-small|x-small|small|medium|large|x-large|xx-large|xxx-large}`
-4. [ ] Generate semantic gaps: `--cem-gap-{related|group|block|section|page}`
-5. [ ] Generate insets: `--cem-inset-{control|container|surface}`
-6. [ ] Generate layout rhythm: `--cem-layout-{stack|cluster|gutter}` plus `_tight|_loose|_wide|_max` variants
-7. [ ] Generate reading/data rhythm: `--cem-rhythm-{reading-paragraph|reading-section|data-row|data-group}`
+### Phase 5: D1 Dimension + Spacing Modes — `cem-dimension.html`
 
-#### 4.2 cem-timing (D7) — `cem-timing.html`
+Confirmed token names from `cem-dimension.md`: `--cem-layout-stack-gap`, `--cem-layout-cluster-gap`, `--cem-layout-gutter`/`-wide`/`-max`. `--cem-layout-inline-*` are deprecated aliases.
 
-1. [ ] Add metadata blocks to `cem-timing.md` for durations, easings, and (optional) springs
-2. [ ] Create `cem-timing.html` generator
-3. [ ] Generate durations: `--cem-duration-{instant|noticeable|lingering}` (+ optional `-action`, `-overlay` aliases)
-4. [ ] Generate easings: `--cem-easing-{smooth|highlighted|uniform|classic}` plus `-start`/`-end` variants
-5. [ ] Generate spring presets if metadata defines them: `--cem-spring-{reposition|highlight}-{functional|delight}-{instant|noticeable|lingering}`
+1. [ ] Add `cem-dimension-manifest` h6+table per Phase 4 schema, marking each token's tier (deprecated for `--cem-layout-inline-*`).
+2. [ ] Add explicit h6+table metadata blocks for: dimension scale, gaps, insets, layout rhythm (correct names!), reading rhythm, data rhythm, **spacing modes** (`data-cem-spacing="dense|normal|sparse"`).
+3. [ ] Create `cem-dimension.html` generator — emit base + spacing-mode overrides (`:root[data-cem-spacing="dense"]`, `…="sparse"`).
+4. [ ] **Do NOT emit any `--cem-coupling-*` tokens here.** D1 only references coupling as normative constraints; D2 owns those tokens.
+5. [ ] Add acceptance criterion in spec prose: any consumer using D1 gaps between interactive affordances must resolve `gap = max(D1 gap, var(--cem-coupling-guard-min))`. Generator does NOT enforce this — it is component-author responsibility documented in the manifest's `notes` column.
+6. [ ] Reading-rhythm validation deferred to D6 cross-check (Phase 12) — D1 cannot validate rhythm in isolation.
 
-#### 4.3 cem-breakpoints (D1x) — replace stub in `cem-breakpoints.html`
+### Phase 6: D7 Timing — `cem-timing.html`
 
-1. [ ] Add metadata blocks to `cem-breakpoints.md` for width ranges (and optional height / container query bounds)
-2. [ ] Replace stub `<code data-generated-css>` in `cem-breakpoints.html` with real generator logic
-3. [ ] Generate width basis: `--cem-bp-width-{range}-{min|max}` and `--cem-bp-epsilon`
-4. [ ] Generate optional height: `--cem-bp-height-{range}-{min|max}`
-5. [ ] Generate optional container queries: `--cem-cq-width-{range}-{min|max}`
+1. [ ] Add `cem-timing-manifest` h6+table.
+2. [ ] Add metadata blocks for durations, easings (with explicit per-easing declarations — see open R&D for `highlighted`).
+3. [ ] Create `cem-timing.html`. Emit `--cem-duration-{instant|noticeable|lingering}` and `--cem-easing-{smooth|highlighted|uniform|classic}` (+ `-start`/`-end` where defined).
+4. [ ] Emit `prefers-reduced-motion: reduce` overrides that **shorten durations while preserving relative ordering** (per spec). Manifest documents the reduced-motion target durations.
+5. [ ] Springs: emit ONLY if metadata supplies a real value encoding. Reserved names without values are NOT emitted (Principle P3 — optional tier).
+6. [ ] Open R&D R-D7-1 (highlighted vs smooth alias) MUST be resolved before Phase 6 closes.
 
-### Phase 5: Geometry & Structure
+### Phase 7: D1x Breakpoints — replace stub in `cem-breakpoints.html`
 
-Layered on Phase 4 primitives. Stroke depends on zebra tokens already produced by `cem-colors.html`.
+Per Principle P5, output is split.
 
-#### 5.1 cem-shape (D3) — `cem-shape.html`
+1. [ ] Add `cem-breakpoints-manifest` h6+table.
+2. [ ] Confirm width thresholds in `cem-breakpoints.md` align with current Material window classes (600 / 840 / 1200 / 1600 px) and heights (480 / 900 px). Add R&D entry if spec drifts.
+3. [ ] Replace stub `.myClass{}` with three output blocks inside `<code data-generated-css>`:
+   - **Block A — CSS custom properties (reference only)**: `--cem-bp-width-{compact|medium|expanded|large|xlarge}-{min|max}`, `--cem-bp-epsilon`, optional `--cem-bp-height-{range}-{min|max}`.
+   - **Block B — literal `@media` helpers** for stylesheet use (e.g. `@media (min-width: 600px) { :root { --cem-bp-active-width: medium; } }`).
+   - **Block C — literal `@container` helpers** for portable components, gated on consumer providing `container-type` / `container` ancestor (documented, not enforced).
+4. [ ] **Do NOT emit `@custom-media`** in production output. If desired as a build-time alias source, add a separate `*.custom-media.css` artifact behind a build flag.
+5. [ ] Epsilon: emit two adapter variants — `--cem-bp-epsilon-css: 0.01px` (default) and `--cem-bp-epsilon-mui: 0.05px` (for MUI `theme.breakpoints.step = 5` parity). Manifest documents both.
+6. [ ] Spec prose MUST preserve the "not device type" rule (no `isTablet` semantics). Add to manifest notes column.
 
-1. [ ] Add metadata blocks to `cem-shape.md` for bend basis, semantic endpoints, and shape modes
-2. [ ] Create `cem-shape.html` generator
-3. [ ] Generate bend basis: `--cem-bend-{sharp|smooth|round|circle}`
-4. [ ] Generate semantic endpoints: `--cem-bend-{control|surface|overlay|field|modal|media|avatar}`
-5. [ ] Generate pattern tokens: `--cem-bend-{attached-edge|free-edge}` and optional `--cem-bend-control-round-ends`
-6. [ ] Generate `data-cem-shape="{sharp|smooth|round}"` mode-selector overrides
+### Phase 8: D2 Coupling — `cem-coupling.html`
 
-#### 5.2 cem-stroke (D5) — `cem-stroke.html`
+**Reordered before D3 / D5** because shape uses `--cem-control-height` for `--cem-bend-round`, and stroke depends on D2 guard math.
 
-1. [ ] Add metadata blocks to `cem-stroke.md` for basis, semantic endpoints, and zebra ring composition
-2. [ ] Create `cem-stroke.html` generator (references `--cem-zebra-*` from cem-colors)
-3. [ ] Generate basis: `--cem-stroke-{none|hair|standard|strong}`
-4. [ ] Generate semantic endpoints: `--cem-stroke-{boundary|divider|focus|selected|target}` plus `-strong`, `-grid`
-5. [ ] Generate `--cem-stroke-indicator-offset` and `--cem-ring-zebra-{3|4}` composition recipes
+1. [ ] Add `cem-coupling-manifest` h6+table marking `--cem-coupling-zone-min` and `--cem-coupling-guard-min` as **mode-invariant** (do not change across forgiving/balanced/compact).
+2. [ ] Add metadata blocks for minimums, control geometry, density modes (`data-cem-coupling="forgiving|balanced|compact"`).
+3. [ ] Create `cem-coupling.html`. Emit:
+   - `--cem-coupling-zone-min`, `--cem-coupling-guard-min`, `--cem-coupling-halo`
+   - `--cem-control-{height|padding-x|padding-y}`, `--cem-icon-button-{size|icon-size}`, `--cem-{list|menu|table}-row-height`
+   - `:root[data-cem-coupling="forgiving|balanced|compact"]` overrides for **visual geometry and halo only** (zone/guard stay invariant).
+4. [ ] Manifest documents accessibility baseline: WCAG 2.2 AA target size 24×24 CSS px (with spacing exceptions); CEM defaults (3rem zone, 0.5rem guard) align with Android/Material 48dp+8dp guidance.
+5. [ ] Manifest notes that token generation is necessary but not sufficient — components still need `min-block-size`, halo wrappers/pseudo-elements, and `gap = max(layout-gap, guard-min)` formulas.
+6. [ ] Add proof surfaces (component examples) referenced from D2 spec: form trio (input + primary + icon), nav-list trailing actions, data-table row actions + selection. These are spec prose, not generator output.
 
-#### 5.3 cem-layering (D4) — `cem-layering.html`
+### Phase 9: D3 Shape — `cem-shape.html`
 
-1. [ ] Add metadata blocks to `cem-layering.md` for the elevation ladder and semantic layer endpoints
-2. [ ] Create `cem-layering.html` generator
-3. [ ] Generate signed elevation ladder: `--cem-recess-{1|2}` and `--cem-elevation-{0|1|2|3|4}`
-4. [ ] Generate semantic layers: `--cem-layer-{back|base|work|overlay|command}` plus optional `-back-deep`, `-work-floating`
+Now safe because D2 coupling has shipped.
 
-### Phase 6: Density & Coupling
+1. [ ] Add `cem-shape-manifest` h6+table; mark `--cem-bend-xs` and similar as adapter-only tier.
+2. [ ] Add metadata blocks for bend basis, semantic endpoints, brand mode.
+3. [ ] Create `cem-shape.html`. Emit:
+   - Basis: `--cem-bend-{sharp|smooth|round|circle}`. `--cem-bend-round` resolves via `calc(var(--cem-shape-height, var(--cem-control-height)) / 2)` — D2 dependency now satisfied. Manifest provides a sane fallback constant in case D2 is absent.
+   - Semantic endpoints: `--cem-bend-{control|surface|overlay|field|modal|media|avatar}`.
+   - Pattern tokens: `--cem-bend-{attached-edge|free-edge}`.
+   - **Optional** general `--cem-bend` token if R&D R-D3-1 confirms its place.
+   - **Optional** `--cem-action-border-radius` if R&D R-D3-2 confirms ownership (cross-cut with D0 actions).
+   - Brand mode: `data-cem-shape="sharp|smooth|round"` overrides — marked as **optional brand policy** in manifest, NOT a required selector for every product.
+4. [ ] Adapter-only `--cem-bend-xs`, `--cem-bend-control-round-ends` emitted only behind opt-in flag.
+5. [ ] Add validation tasks (browser-level, deferred to Phase 13): focus-ring clipping with rounded corners, `forced-colors: active` outline behavior, 200%/400% zoom, round-end behavior under each `data-cem-coupling` mode, RTL logical-corner mapping.
 
-#### 6.1 cem-coupling (D2) — `cem-coupling.html`
+### Phase 10: D5 Stroke — `cem-stroke.html`
 
-1. [ ] Add metadata blocks to `cem-coupling.md` for minimums, control geometry, and density-mode formulas (references D1 dimension tokens)
-2. [ ] Create `cem-coupling.html` generator
-3. [ ] Generate minimums: `--cem-coupling-{zone-min|guard-min|halo}`
-4. [ ] Generate control geometry: `--cem-control-{height|padding-x|padding-y}`, `--cem-icon-button-{size|icon-size}`, `--cem-{list|menu|table}-row-height`
-5. [ ] Generate density-mode overrides via `data-cem-coupling="forgiving|balanced|compact"`
+Depends on D2 (guard math) and D0 (zebra colors).
 
-### Phase 7: Typography & Voice
+1. [ ] Resolve R&D R-D5-1 (zebra geometry ownership) BEFORE creating the generator. Outcome decides whether `--cem-zebra-strip-size` moves out of `cem-colors.html` into `cem-stroke.html`, or whether D0 keeps colors-only and D5 references them.
+2. [ ] Add `cem-stroke-manifest` h6+table reflecting the R&D outcome.
+3. [ ] Add metadata blocks for stroke basis, semantic endpoints, indicator-offset, ring composition recipes.
+4. [ ] Create `cem-stroke.html`. Emit:
+   - Basis: `--cem-stroke-{none|hair|standard|strong}`.
+   - Semantic: `--cem-stroke-{boundary|divider|focus|selected|target}` (+ `-strong`, `-grid`).
+   - `--cem-stroke-indicator-offset`.
+   - Ring recipes: `--cem-ring-zebra-3`, `--cem-ring-zebra-4`, **each accompanied by a `forced-colors: active` outline fallback** (Principle P4).
+5. [ ] Spec prose adds D2 guard formula: default guard MUST cover worst-case indicator outset, i.e. `max(4 * --cem-zebra-strip-size, --cem-stroke-indicator-offset + --cem-stroke-focus)`. This becomes a manifest note for D2.
+6. [ ] Spec prose preserves **no-layout-shift rule**: focus/selection indicators MUST NOT mutate border-box dimensions (use `outline` / `box-shadow` / pseudo-elements, never `border`).
+7. [ ] Spec prose notes WCAG focus-appearance caveat: external `box-shadow`/glow alone is not always counted as component visual presentation — `outline` fallback matters.
 
-Largest category and standalone — no dependencies on prior phases.
+### Phase 11: D4 Layering — `cem-layering.html`
 
-#### 7.1 cem-voice-fonts-typography (D6) — `cem-voice-fonts-typography.html`
+1. [ ] **Resolve R&D R-D4-1 (semantic-aliases-only vs adapter-hooks per channel) before generator work** — currently D4 names rungs but doesn't specify per-channel CSS values.
+2. [ ] Add `cem-layering-manifest` h6+table.
+3. [ ] Add metadata blocks for elevation ladder and semantic layer endpoints; per R&D outcome, possibly per-channel (tone/shadow/contour/material/space/motion) tables too.
+4. [ ] Create `cem-layering.html`. Emit per the R&D-decided shape:
+   - Either semantic aliases only: `--cem-layer-work: var(--cem-elevation-1)`, etc.
+   - Or adapter hooks per channel under a `--cem-layer-{rung}-{tone|shadow|contour|material|space|motion}` naming.
+5. [ ] **NEVER emit `--cem-elevation-*` as `z-index` values** — explicitly forbidden by spec. Manifest enforces this with a generator unit test.
+6. [ ] Acceptance criterion: every rung has at least one perceivable channel change vs its neighbors; ideally two in dense UIs. Manifest notes the channels each rung modifies.
+7. [ ] Forced-colors validation (Phase 13): rung distinction MUST survive when contour/spacing carry the tier signal (subtle shadows / tonal deltas vanish).
 
-1. [ ] Add metadata blocks to `cem-voice-fonts-typography.md` for fontography families, scales, voice, and semantic role endpoints
-2. [ ] Create `cem-voice-fonts-typography.html` generator
-3. [ ] Generate fontography families: `--cem-fontography-{reading|ui|script|initialism|brand}-family`
-4. [ ] Generate thickness scale (7): `--cem-thickness-{xx-light|x-light|light|normal|bold|x-bold|xx-bold}`
-5. [ ] Generate size scale (7): `--cem-typography-size-{xxs|xs|s|m|l|xl|xxl}`
-6. [ ] Generate line-height + letter-spacing primitives: `--cem-typography-line-height-{reading|ui|script|badge}`, `--cem-typography-letter-spacing-{reading|ui|caps}`
-7. [ ] Generate voice tokens: `--cem-voice-{whisper|soft|gentle|regular|firm|strong|loud}-{ink-thickness|icon-stroke-multiplier|speech-volume|speech-rate|speech-pitch|ssml-emphasis}`
-8. [ ] Generate semantic typography roles: `--cem-typography-{reading|ui|tag|script|data|initialism|iconized|brand}-{font-family|font-size|line-height|letter-spacing|font-weight}`
+### Phase 12: D6 Typography & Voice — `cem-voice-fonts-typography.html`
+
+Largest category. **NOT standalone** — depends on D1 (reading rhythm), D2 (compact label safety), D5 (decoration / underlines), and accessibility validation.
+
+1. [ ] Add `cem-voice-fonts-typography-manifest` h6+table covering ALL groups below.
+2. [ ] Add metadata blocks for fontography families, thickness scale, size scale, line-height, letter-spacing, **feature policies**, **reading ergonomics**, **text-transform**, voice, semantic role endpoints, dark/contrast ink projections.
+3. [ ] Create `cem-voice-fonts-typography.html`. Emit:
+   - Fontography families: `--cem-fontography-{reading|ui|script|initialism|brand}-family`. **Quoted family stacks and comma-separated values MUST round-trip** (high-risk parsing — add fixture test).
+   - Thickness scale (7), size scale (7).
+   - Line-height + letter-spacing primitives.
+   - **Feature tokens** previously missed: `--cem-typography-feature-numeric-data`, `--cem-typography-feature-ligatures-script`, `--cem-typography-feature-optical-sizing`.
+   - **Reading-ergonomics tokens** previously missed: `--cem-typography-reading-measure-max`, `--cem-typography-reading-paragraph-gap`.
+   - **`text-transform` role tokens** for initialism / iconized roles.
+   - **Dark and contrast theme ink projections** (cross-mode, mirrors `cem-colors.html` mode pattern).
+   - Voice: `--cem-voice-{whisper|soft|gentle|regular|firm|strong|loud}-{ink-thickness|icon-stroke-multiplier|speech-volume|speech-rate|speech-pitch|ssml-emphasis}`.
+   - Semantic typography roles — output MUST include role-specific properties: data → `font-variant-numeric`, script → ligature policy, initialism / iconized → `text-transform`, reading → `--cem-typography-reading-measure-max` + `-paragraph-gap`.
+4. [ ] Manifest documents: voice tokens are **CSS-exported data, not behavior**. Screen readers honor HTML/ARIA, not CSS. Voice tokens only feed product TTS adapters.
+5. [ ] Accessibility / i18n acceptance: family stacks retain broad Unicode fallback and representative language coverage. Add fixture spec.
+6. [ ] Cross-checks (deferred to Phase 13): D1 reading-rhythm-vs-D6-line-height, D2 compact-label legibility, D5 underline/decoration colors.
+
+### Phase 13: Cross-Phase Verification
+
+Runs after every preceding phase or as periodic CI.
+
+1. [ ] **Manifest coverage** check (Principle P4.1) green for every spec.
+2. [ ] **CSS validity** check (P4.3) green; PostCSS / csstree parse with zero errors.
+3. [ ] **Browser-level capture** (P4.4) via Playwright per `CLAUDE.md` workflow — every generator HTML produces a populated `<code data-generated-css>` block; `:root` resolves under `cem-theme-{native,light,dark,contrast-light,contrast-dark}`.
+4. [ ] **Forced-colors / `prefers-contrast`** smoke for all dimensions that affect perception (D0, D3, D4, D5, D6).
+5. [ ] **Accessibility regression suite**: Lighthouse contrast, WCAG 2.4.11 (focus not hidden), 2.5.8 (target size).
+6. [ ] **Reduced-motion** check (D7): durations shorten, ordering preserved.
+7. [ ] **Cross-spec semantic checks**:
+   - D1 reading rhythm + D6 line-height + measure produce a usable paragraph at default size.
+   - D2 guard ≥ D5 worst-case indicator outset.
+   - D3 round-end + D2 dense mode does not break clip behavior.
+   - D5 zebra ring fallback present under forced-colors.
+8. [ ] **Adapter-only / deprecated tokens absent** from default output (assert opt-in flag default = false).
+
+## R&D / Open Design Decisions
+
+Each item BLOCKS the indicated phase until canonical design (`packages/cem-theme/src/lib/tokens/<spec>.md`) records the
+decision. No generator may invent or guess.
+
+| ID         | Decision needed                                                                                                                                                                                                                       | Blocks    |
+|------------|---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|-----------|
+| R-Schema-1 | Final manifest column set + h6 ID naming convention. Does spec prose ALSO carry the manifest, or only the table?                                                                                                                      | Phase 4   |
+| R-D7-1     | `highlighted` easing currently aliases `smooth`. Either give it a distinct, "visibly more pronounced" curve, or document it as adapter-only. As-is it does not satisfy spec intent.                                                   | Phase 6   |
+| R-D7-2     | Spring presets — define real value encoding (stiffness/damping/mass tuple) or remove from spec. Reserved names without values must not appear in the manifest.                                                                        | Phase 6   |
+| R-D1x-1    | Confirm width thresholds (600/840/1200/1600) and heights (480/900) are the canonical CEM bounds. Document whether deviation from Material is allowed and where.                                                                       | Phase 7   |
+| R-D1x-2    | Container-query helpers — does the spec require consumers to provide containment, or does CEM ship a wrapper component that sets `container-type`?                                                                                    | Phase 7   |
+| R-D3-1     | Is `--cem-bend` (general bend token) a real D3 output, or just shorthand? Spec currently silent.                                                                                                                                      | Phase 9   |
+| R-D3-2     | Ownership of `--cem-action-border-radius` — D0 actions, D3 shape, or composition recipe?                                                                                                                                              | Phase 9   |
+| R-D5-1     | Ownership of `--cem-zebra-strip-size` and ring composition. Currently emitted by `cem-colors.html` (D0). Either move to D5 (D0 = colors only) or document the split explicitly.                                                       | Phase 10  |
+| R-D4-1     | D4 generator output shape — semantic aliases only (`--cem-layer-work: var(--cem-elevation-1)`) vs adapter hooks per channel (`--cem-layer-work-tone`, `-shadow`, `-contour`, …). Spec must define which appearance channels are emitted at the rung level. | Phase 11 |
+| R-D4-2     | Per-rung minimum perceivable channel changes — formal rule (≥1 channel; ≥2 in dense UIs) and how the generator (or a unit test) verifies it.                                                                                          | Phase 11  |
+| R-D6-1     | Confirm canonical names for the missing token groups: `--cem-typography-feature-numeric-data`, `-feature-ligatures-script`, `-feature-optical-sizing`, `-reading-measure-max`, `-reading-paragraph-gap`, `text-transform` role tokens.    | Phase 12  |
+| R-D6-2     | Dark / contrast ink projections — define the cross-mode formula (mirrors D0 light/dark tables) for typography ink.                                                                                                                    | Phase 12  |
 
 ## Per-generator implementation pattern
 
-Each new generator HTML mirrors `cem-colors.html`:
+Each new generator HTML mirrors `cem-colors.html` AND honors the Token-to-CSS Transformation Principles above:
 
 1. Source data is the compiled XHTML at `dist/lib/tokens/<name>.xhtml` (built by `build:docs`).
 2. Load via `<cem-http-request url="../../../dist/lib/tokens/<name>.xhtml">`.
-3. XSLT/template logic builds `:root { … }` from metadata blocks (tables / `<dl data-…>` / `<table data-…>`) embedded in the markdown spec.
-4. Final CSS lives inside `<code data-generated-css>` — captured by `capture-xpath-text.mjs` per the `build:css` target in `packages/cem-theme/project.json`.
+3. XSLT/template logic extracts data via `$xhtml//*[@id='<token-id>']/following-sibling::xhtml:table[1]/xhtml:tbody` (Principle P2). NO ad-hoc parsing of `<dl data-…>` or other shapes.
+4. Final CSS lives inside **exactly one** `<code data-generated-css>` block (Principle P6) — captured by `capture-xpath-text.mjs` per the `build:css` target in `packages/cem-theme/project.json`.
 5. Reuse existing `cem-css-loader.js` and `cem-http-request.js` utilities — no new infrastructure needed.
+6. The generator emits ONLY tokens declared in the spec's manifest (Principle P1). Required tokens always; recommended tokens by default; optional/adapter/deprecated tokens behind explicit flags.
 
 ## Verification (per phase)
 
-1. `yarn build` produces `packages/cem-theme/dist/lib/css/cem-<name>.css`.
-2. Generated CSS contains every documented custom property for that category (grep against the spec).
-3. Open `packages/cem-theme/src/lib/css-generators/cem-<name>.html` via `yarn start` — captured `<code data-generated-css>` is populated.
+1. `yarn build` produces `packages/cem-theme/dist/lib/css/cem-<name>.css` (and ONLY that file — no `-1.css` duplicate).
+2. Manifest validator (Phase 4 deliverable) reports green: every manifest token present, no extras, no placeholders, no AVT remnants, balanced braces, parses via PostCSS / csstree.
+3. Open `packages/cem-theme/src/lib/css-generators/cem-<name>.html` via `yarn start` — captured `<code data-generated-css>` is populated and `:root` resolves under all theme modes.
 4. `yarn lint` and `yarn nx affected -t lint test build typecheck` are green.
-5. Update the Token Summary table below as each phase lands.
+5. Phase 13 cross-phase verification suite is green.
+6. Update the Token Summary table below as each phase lands.
 
 ## Token Summary
 
@@ -241,15 +392,18 @@ Each new generator HTML mirrors `cem-colors.html`:
 | Emotional palette (D0)          | 28      | 28        | 0       | ✓             |
 | Action tokens (D0)              | 80      | 80        | 0       | ✓             |
 | Zebra tokens (D0)               | 5       | 5         | 0       | ✓             |
-| Dimension & rhythm (D1)         | ~28     | 0         | ~28     | ✗ Phase 4.1   |
-| Breakpoints (D1x)               | ~10–18  | 0         | ~10–18  | ✗ Phase 4.3   |
-| Coupling & density (D2)         | ~11+    | 0         | ~11+    | ✗ Phase 6.1   |
-| Shape & bend (D3)               | ~16+    | 0         | ~16+    | ✗ Phase 5.1   |
-| Layering & elevation (D4)       | ~14     | 0         | ~14     | ✗ Phase 5.3   |
-| Stroke & separation (D5)        | ~16     | 0         | ~16     | ✗ Phase 5.2   |
-| Typography & voice (D6)         | ~80+    | 0         | ~80+    | ✗ Phase 7.1   |
-| Timing & motion (D7)            | ~14–26  | 0         | ~14–26  | ✗ Phase 4.2   |
-| **Total**                       | ~330+   | 142       | ~190+   | In progress   |
+| Dimension & rhythm (D1)         | ~28+sp  | 0         | ~28+sp  | ✗ Phase 5     |
+| Breakpoints (D1x)               | ~10–18  | 0         | ~10–18  | ✗ Phase 7     |
+| Coupling & density (D2)         | ~11+    | 0         | ~11+    | ✗ Phase 8     |
+| Shape & bend (D3)               | ~16+    | 0         | ~16+    | ✗ Phase 9     |
+| Layering & elevation (D4)       | ~14     | 0         | ~14     | ✗ Phase 11    |
+| Stroke & separation (D5)        | ~16     | 0         | ~16     | ✗ Phase 10    |
+| Typography & voice (D6)         | ~95+    | 0         | ~95+    | ✗ Phase 12    |
+| Timing & motion (D7)            | ~12+    | 0         | ~12+    | ✗ Phase 6     |
+| **Total**                       | ~340+   | 142       | ~200+   | In progress   |
+
+(D6 estimate raised from ~80+ to ~95+ to include feature-policy, reading-ergonomics, and text-transform tokens that
+the original plan missed; D1 +sp = spacing-mode overrides; D7 dropped from ~14–26 to ~12+ pending R-D7-2 spring decision.)
 
 **Action tokens generated (Phase 3 complete):**
 - 5 intents × 8 background-driven states × 2 attributes = 80 tokens
