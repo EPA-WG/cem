@@ -500,3 +500,33 @@ decision.)
 - Generator: `packages/cem-theme/src/lib/css-generators/cem-colors.html`
 - Output: `packages/cem-theme/dist/lib/css/cem-colors.css`
 - Build: `nx run @epa-wg/cem-theme:build:css`
+
+# immediate steps
+
+* Resolve R-Schema-1 — define the manifest column set + h6 ID naming convention. Everything in Phase 4 (and therefore
+  every later phase)
+  is gated on it. The concrete first action is to backfill cem-colors.md with a <h6 id="cem-colors-manifest"> followed
+  by the manifest   
+  table — doing it for the only completed dimension forces the schema decision and produces the worked example every
+  later spec will     
+  copy. Once that table exists and round-trips through the existing XPath capture, Phase 4 tasks 1–3 are effectively
+  done in one stroke  
+  and the validator (task 4) has a real fixture to test against.
+
+* duplicate-output cleanup (Phase 4 task 6) because it's small and contained — is a quick win but    
+  unblocks nothing else; the schema work is higher-leverage and is the actual gating step.
+
+* Tighten the implementation start order before Phase 5 work begins:
+    1. Lock the Phase 4 schema first: `name`, `tier`, `value-type`, `default-formula`, `notes`, plus the stable manifest
+       ID convention.
+    2. Document that schema in `packages/cem-theme/src/lib/tokens/index.md`, then mirror the operational rule in
+       `CLAUDE.md`.
+    3. Backfill `cem-colors.md` only for tokens already emitted by the completed color work; do not pull future D5/D3
+       ownership questions into the color manifest.
+    4. Confirm the built `cem-colors.xhtml` exposes `#cem-colors-manifest` followed immediately by a table readable with
+       the existing XPath pattern.
+    5. Build the manifest validator against manifest-bearing specs first. Make it report missing/extraneous tokens
+       before making `build:css` fail globally.
+    6. Fix the duplicate `cem-colors-1.css` output before turning validator failures into a hard `build:css` gate.
+    7. Keep known placeholder generators such as `cem-breakpoints.html` out of the Phase 4 hard-fail scope until their
+       phase replaces the stub output.
