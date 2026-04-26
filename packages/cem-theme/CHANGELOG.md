@@ -1,3 +1,17 @@
+## 0.0.7 (2026-04-26)
+
+### 🩹 Fixes
+
+- theme xhtml * internal links recovered ([a85fa2a](https://github.com/EPA-WG/cem/commit/a85fa2a))
+- theme xhtml * copy css files * .md link points to .xhtml * prismjs colored CSS ([1559a17](https://github.com/EPA-WG/cem/commit/1559a17))
+- theme xhtml * title from MD * images copied ([9ef6a92](https://github.com/EPA-WG/cem/commit/9ef6a92))
+- cem-theme tokens/*.md compilation and utf8 validation ([80248bb](https://github.com/EPA-WG/cem/commit/80248bb))
+- cem-theme tokens/*.md added ([4de02de](https://github.com/EPA-WG/cem/commit/4de02de))
+
+### ❤️ Thank You
+
+- Sasha Firsov @sashafirsov
+
 ## 0.0.6 (2026-01-04)
 
 ### 🩹 Fixes
