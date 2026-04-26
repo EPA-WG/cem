@@ -412,7 +412,7 @@ State progression is defined as a **formulaic** movement from “least emphasize
 
 ```
 disabled → readonly → editable → default → indeterminate → hover → active → pending
- (30%)      (80%)      (90%)      (base)   (90%)          (60%)   (25%)   (5%)
+ (30%)      (80%)      (90%)      (base)   (90%)          (70%)   (25%)   (5%)
 ```
 
 - Percentages are **weights of the base emotion** mixed toward an “extreme” anchor.
@@ -487,7 +487,7 @@ In `contrast-light` and `contrast-dark`, background tokens SHOULD converge on th
   --cem-action-primary-default-background: var(--cem-palette-trust);
   --cem-action-primary-default-text:       var(--cem-palette-trust-text);
 
-  --cem-action-primary-hover-background:   color-mix(in srgb, var(--cem-palette-trust) 60%, var(--cem-palette-trust-x));
+  --cem-action-primary-hover-background:   color-mix(in srgb, var(--cem-palette-trust) 70%, var(--cem-palette-trust-x));
   --cem-action-primary-hover-text:         var(--cem-palette-trust-text);
 
   --cem-action-primary-active-background:  color-mix(in srgb, var(--cem-palette-trust) 25%, var(--cem-palette-trust-x));
@@ -702,7 +702,7 @@ Implementations SHOULD preserve the three-layer model:
   --cem-action-primary-default-background: var(--cem-palette-trust);
   --cem-action-primary-default-text:       var(--cem-palette-trust-text);
 
-  --cem-action-primary-hover-background: color-mix(in srgb, var(--cem-palette-trust) 60%, var(--cem-palette-trust-x));
+  --cem-action-primary-hover-background: color-mix(in srgb, var(--cem-palette-trust) 70%, var(--cem-palette-trust-x));
   --cem-action-primary-hover-text:       var(--cem-palette-trust-text);
 
   --cem-action-primary-active-background: color-mix(in srgb, var(--cem-palette-trust) 25%, var(--cem-palette-trust-x));
