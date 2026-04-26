@@ -1,0 +1,369 @@
+<!DOCTYPE html >
+<html lang="en">
+<head>
+    <meta charset="UTF-8" />
+    <title>Theme Editor</title>
+    <style>
+        @import "../../../dist/lib/css/cem-colors.css";
+
+        td {
+            min-width: 4em;
+        }
+
+        :root {
+            --base-color: CanvasText;
+            --contrast-color: oklch(from var(--base-color) calc((l - 0.6) * -100) 0 h); /* invert brightness */
+        }
+    </style>
+</head>
+<body>
+
+<custom-element tag="cem-editable-tokens">
+    <template id="cem-editable-tokens">
+        <style>
+            &>*>*>*>dce-root{
+                height: calc(100cqh - 9.51rem);
+                overflow: auto;
+                display: block;
+            }
+            /* selector for highlighting the tokens demo element */
+            [title^="--"], [data-cem-value] {
+                cursor: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='24' height='24' viewBox='0 0 24 24' fill='none' stroke-linecap='round' stroke-linejoin='round'%3E%3Cg stroke='white' stroke-width='3.5'%3E%3Cpath d='M2 22l1-3.5L14.5 7 17 9.5 5.5 21z'/%3E%3Cpath d='M14.5 7l1-1a2 2 0 012.8 0l1.7 1.7a2 2 0 010 2.8l-1 1'/%3E%3Cpath d='M3 19l2.5 2.5'/%3E%3Ccircle cx='2.5' cy='21.5' r='1.2'/%3E%3C/g%3E%3Cg stroke='%23333' stroke-width='1.5'%3E%3Cpath d='M2 22l1-3.5L14.5 7 17 9.5 5.5 21z'/%3E%3Cpath d='M14.5 7l1-1a2 2 0 012.8 0l1.7 1.7a2 2 0 010 2.8l-1 1'/%3E%3Cpath d='M3 19l2.5 2.5' stroke-width='1'/%3E%3Ccircle cx='2.5' cy='21.5' r='1.2' fill='%23333'/%3E%3C/g%3E%3C/svg%3E") 2 22, crosshair;
+
+                &:hover {
+                    box-shadow: 0 0 0 3px blue inset, 0 0 0 2px greenyellow;
+                }
+            }
+
+            form {
+                display: flex;
+                flex-direction: column;
+
+                & > * {
+                    flex: 1;
+                    display: flex;
+
+                    & > * {
+                        min-width: 4.5rem;
+                    }
+                }
+
+                label {
+                    display: flex;
+                    flex: 1;
+
+                    & > input {
+                        flex: 1;
+                    }
+                }
+            }
+
+            .token-matrix {
+                width: 100%;
+                border-collapse: collapse;
+                margin-top: 0.5rem;
+
+                td, th {
+                    padding: 0.25rem 0.5rem;
+                    text-align: start;
+                    font-size: 0.85rem;
+                }
+
+                tr {
+                    cursor: pointer;
+
+                    &:hover {
+                        background: #e0e0e0;
+                    }
+                }
+
+                tr.selected {
+                    background: #cce5ff;
+                }
+
+                .swatch {
+                    width: 1.5rem;
+                    height: 1rem;
+                    display: inline-block;
+                    border: 1px solid #999;
+                    vertical-align: middle;
+                }
+            }
+        </style>
+        <nav>
+            token category
+            <a href="../css-generators/cem-colors.html">colors</a>
+        </nav>
+        <aside>
+            <form>
+                <label>
+                    Token
+                    <input name="selected-token" slice="selected-token" type="text" />
+                </label>
+                <label>
+                    Value
+                    <input name="selected-color" slice="selected-color" type="text" />
+                </label>
+                <label>
+                    Rule
+                    <code name="rule-path" style="flex:1; user-select:all; opacity:0.7;"></code>
+                </label>
+                <div>
+                    <button name="picker-to-value" title="copy picker to value">🎨 ↗️</button>
+                    <label title="pick from color palette">
+
+                        <input name="selected-color-picker" type="color" value="#FFF" />
+                    </label>
+                </div>
+            </form>
+            <table class="token-matrix"></table>
+            <i>⯐ select tokens on the page by click on token preview</i>
+        </aside>
+        <slot></slot>
+    </template>
+</custom-element>
+
+<custom-element tag="cem-css-loader">
+    <template>
+
+    </template>
+</custom-element>
+
+<cem-editable-tokens>
+    <template>
+        <custom-element src="../css-generators/cem-colors.html#cem-colors-template"></custom-element>
+
+    </template>
+</cem-editable-tokens>
+<script src="../../../../../node_modules/@epa-wg/custom-element/custom-element.js" type="module"></script>
+<script src="../../../../../node_modules/@epa-wg/custom-element/http-request.js" type="module"></script>
+<script type="module">
+  let selectedTokenPath = [];
+  const customizedTokens = new Map(); // varName → { path, value }
+
+  /** Find the declared CSS rule value for a custom property, walking up ancestors
+   *  to respect inheritance and cascade (e.g. .cem-theme-native overrides :root).
+   *  Returns { value, path } where path is an array of selectorText from outer to inner. */
+  function findInRules( rules, node, varName, path = [] )
+  {
+    let result = { value: '', path: [] };
+    for( const rule of rules )
+    {
+      if( rule instanceof CSSImportRule && rule.styleSheet )
+      {
+        const r = findInRules( rule.styleSheet.cssRules, node, varName, path );
+        if( r.value ) result = r;
+      }else if( rule instanceof CSSStyleRule )
+      {
+        const currentPath = [ ...path, rule.selectorText ];
+        if( node.matches( rule.selectorText ) )
+        {
+          const v = rule.style.getPropertyValue( varName );
+          if( v ) result = { value: v.trim(), path: currentPath };
+        }
+        if( rule.cssRules )
+        {
+          const r = findInRules( rule.cssRules, node, varName, currentPath );
+          if( r.value ) result = r;
+        }
+      }
+    }
+    return result;
+  }
+
+  function getCssRuleValue( el, varName )
+  {
+    for( let node = el; node; node = node.parentElement )
+    {
+      let result = { value: '', path: [] };
+      for( const sheet of document.styleSheets )
+      {
+        try
+        {
+          const r = findInRules( sheet.cssRules, node, varName );
+          if( r.value ) result = r;
+        }catch
+        { /* cross-origin sheets */ }
+      }
+      if( result.value ) return result;
+    }
+    return { value: '', path: [] };
+  }
+
+  /** Parse data-cem-value attribute: "--var: value; --var2: value2" → { '--var': 'value', ... } */
+  function parseCemValue( attr )
+  {
+    const map = {};
+    if( !attr ) return map;
+    const re = /(--[\w-]+)\s*:\s*([^;]+)/g;
+    let m;
+    while( ( m = re.exec( attr ) ) !== null )
+      map[ m[1].trim() ] = m[2].trim();
+    return map;
+  }
+
+  /** Parse style attribute to extract CSS property → CSS variable name pairs,
+   *  preferring data-cem-value when present, falling back to CSS rule lookup. */
+  function extractVarEntries( el )
+  {
+    const style = el.getAttribute( 'style' ) || '';
+    const cemValues = parseCemValue( el.getAttribute( 'data-cem-value' ) );
+    const entries = [];
+    for( const decl of style.split( ';' ) )
+    {
+      const match = decl.match( /^\s*([\w-]+)\s*:\s*var\(\s*(--[\w-]+)\s*\)/ );
+      if( !match ) continue;
+      const [ , prop, varName ] = match;
+      const computed = getComputedStyle( el ).getPropertyValue( prop ).trim();
+      const cemValue = cemValues[ varName ];
+      if( cemValue )
+      {
+        entries.push( { prop, varName, value: cemValue, path: [], computed } );
+      }
+      else
+      {
+        const { value, path } = getCssRuleValue( el, varName );
+        entries.push( { prop, varName, value, path, computed } );
+      }
+    }
+    return entries;
+  }
+
+  /** Format path array as nested CSS rule display: [":root",".x"] → ":root{.x{}}" */
+  function formatRulePath( path )
+  {
+    if( !path.length ) return '';
+    return path.reduce( ( acc, sel ) => acc + sel + '{', '' ) + '}' + '}'.repeat( path.length - 1 );
+  }
+
+  /** Build CSS string with proper nesting: [":root",".x"], "--var", "red" → ":root{.x{--var:red}}" */
+  function buildCustomizedCss( path, varName, value )
+  {
+    if( !path.length ) return `${ varName }:${ value };`;
+    const open = path.map( sel => sel + '{' ).join( '' );
+    const close = '}'.repeat( path.length );
+    return `${ open }${ varName }:${ value }${ close }`;
+  }
+
+  /** Rebuild <style id="customized-rules"> from the customizedTokens Map */
+  function updateCustomizedRules()
+  {
+    let styleEl = document.getElementById( 'customized-rules' );
+    if( !styleEl )
+    {
+      styleEl = document.createElement( 'style' );
+      styleEl.id = 'customized-rules';
+      document.head.appendChild( styleEl );
+    }
+    const css = [ ...customizedTokens.entries() ]
+      .map( ( [ varName, { path, value } ] ) => buildCustomizedCss( path, varName, value ) )
+      .join( '\n' );
+    styleEl.textContent = css;
+  }
+
+  function universalColorToHex( cssColor )
+  {
+    const canvas = document.createElement( 'canvas' );
+    canvas.width = 1;
+    canvas.height = 1;
+    const ctx = canvas.getContext( '2d' );
+    ctx.fillStyle = cssColor;
+    ctx.fillRect( 0, 0, 1, 1 );
+    const [ r, g, b ] = ctx.getImageData( 0, 0, 1, 1 ).data;
+    const toHex = ( n ) => n.toString( 16 ).padStart( 2, '0' );
+    return `#${ toHex( r ) }${ toHex( g ) }${ toHex( b ) }`;
+  }
+
+  function selectRow( tokenInput, colorInput, row, varName, value, path )
+  {
+    row.closest( 'table' ).querySelectorAll( 'tr.selected' ).forEach( r => r.classList.remove( 'selected' ) );
+    row.classList.add( 'selected' );
+    tokenInput.value = varName;
+    colorInput.value = value;
+    selectedTokenPath = path;
+    $( 'code[name="rule-path"]' ).textContent = formatRulePath( path );
+    const swatch = row.querySelector( 'td:last-child' );
+    const hex = universalColorToHex( getComputedStyle( swatch ).backgroundColor );
+    $( 'input[name="selected-color-picker"]' ).value = hex;
+  }
+
+  /** Parse data-selected-token attribute into a path array, prepending :root.
+   *  ".cem-theme-native,[data-theme='cem-theme-native']{}" → [":root", ".cem-theme-native,..."]
+   *  "" → [":root"] */
+  function parseSelectedToken( str )
+  {
+    const parts = [ ':root' ];
+    if( !str ) return parts;
+    const re = /([^{}]+)\{/g;
+    let m;
+    while( ( m = re.exec( str ) ) !== null )
+    {
+      const trimmed = m[1].trim();
+      if( trimmed ) parts.push( trimmed );
+    }
+    return parts;
+  }
+
+  const $ = css => document.querySelector(css);
+  document.addEventListener( 'click', ( e ) =>
+  {
+    const el = e.target.closest( '[data-selected-token]' );
+    if( !el ) return;
+    if( e.target.closest( '.token-matrix' ) ) return;
+    const dataValue = e.target.getAttribute('data-cem-value');
+    if( dataValue ){
+        $('input[name="selected-color"]').value = dataValue;
+        $('input[name="selected-color-picker"]').value =  universalColorToHex( getComputedStyle( e.target ).backgroundColor );
+    }
+    const entries = extractVarEntries( e.target );
+    if( !entries.length ) return;
+
+    const tokenPath = parseSelectedToken( el.dataset.selectedToken );
+
+    const tokenInput = $( 'input[name="selected-token"]' );
+    const colorInput = $( 'input[name="selected-color"]' );
+    const matrix = $( '.token-matrix' );
+    matrix.innerHTML = '';
+
+    for( const { prop, varName, value, path, computed } of entries )
+    {
+      const effectivePath = tokenPath.length ? tokenPath : path;
+      const tr = document.createElement( 'tr' );
+      tr.innerHTML =
+        `<td>${ prop }</td>`
+        + `<td><code>${ varName }</code></td>`
+        + `<td><code>${ value }</code></td>`
+        + `<td style="--base-color:${ computed };background-color:var(--base-color); color:oklch(from var(--base-color) calc((l - 0.6) * -100) 0 h);" title="${ computed }">${ computed }</td>`;
+      tr.addEventListener( 'click', () =>
+        selectRow( tokenInput, colorInput, tr, varName, value, effectivePath ) );
+      matrix.appendChild( tr );
+    }
+    matrix.querySelector( 'tr' )?.click();
+  } );
+
+  // Propagate color picker value to the selected token via scoped <style> override
+  $( 'input[type="color"]' )?.addEventListener( 'input', ( e ) =>
+  {
+    const tokenInput = $( 'input[name="selected-token"]' );
+    const varName = tokenInput?.value;
+    if( !varName?.startsWith( '--' ) ) return;
+    customizedTokens.set( varName, { path: selectedTokenPath, value: e.target.value } );
+    updateCustomizedRules();
+  } );
+
+  // Copy picker value to selected-color input and apply via scoped override
+  $( 'button[name="picker-to-value"]' )?.addEventListener( 'click', ( e ) =>
+  {
+    e.preventDefault();
+    const pickerValue = $( 'input[name="selected-color-picker"]' )?.value;
+    if( !pickerValue ) return;
+    $( 'input[name="selected-color"]' ).value = pickerValue;
+    const tokenInput = $( 'input[name="selected-token"]' );
+    const varName = tokenInput?.value;
+    if( !varName?.startsWith( '--' ) ) return;
+    customizedTokens.set( varName, { path: selectedTokenPath, value: pickerValue } );
+    updateCustomizedRules();
+  } );
+</script>
+</body>
+</html>

@@ -219,10 +219,10 @@ The base family is a small set of named hues with a few variants. These are **re
 ###### cem-color-hue-variant
 | Token                                 | Hue    | Variant | Value                                         | Label              | Intended use                               |
 |---------------------------------------|--------|---------|-----------------------------------------------|--------------------|--------------------------------------------|
-| `--cem-color-blue-xl`                 | blue   | xl      | #faf9fd                                       | Lightest blue      | Comfort/trust emotion (light scene)        |
+| `--cem-color-blue-xl`                 | blue   | xl      | #ecf0ff                                       | Lightest blue      | Trust palette (light scene surface)        |
 | `--cem-color-blue-l`                  | blue   | l       | #d7e3ff                                       | Light blue         | Trust palette, attention semantic          |
 | `--cem-color-blue-d`                  | blue   | d       | #002f65                                       | Dark blue          | Trust palette (dark theme)                 |
-| `--cem-color-blue-xd`                 | blue   | xd      | #1a1b1f                                       | Darkest blue       | Comfort/trust emotion (dark scene)         |
+| `--cem-color-blue-xd`                 | blue   | xd      | #001b3f                                       | Darkest blue       | Trust palette (dark scene surface)         |
 | `--cem-color-brown-xl`                | brown  | xl      | #d7ccc8                                       | Extra light brown  | Conservative palette (light theme)         |
 | `--cem-color-brown-l`                 | brown  | l       | #a1887f                                       | Light brown        | Conservative emotion, brand-3              |
 | `--cem-color-brown-d`                 | brown  | d       | #4e342e                                       | Dark brown         | Conservative palette (dark theme)          |
@@ -260,6 +260,34 @@ Variant semantics:
 - `xl` / `l`: light-scene support (surfaces, containers, accents)
 - `d` / `xd`: dark-scene support (surfaces, ink-safe accents)
 
+### 4.5 Native browser colors
+###### cem-color-native
+
+[CSS system colors](https://developer.mozilla.org/en-US/docs/Web/CSS/system-color) adapt automatically to the user's
+OS color scheme. In `native` mode, CEM maps palette endpoints directly to these values (see §9).
+
+| Color              | Text pair          | Description                                          |
+|--------------------|--------------------|------------------------------------------------------|
+| `AccentColor`      | `AccentColorText`  | Background of accented user interface controls       |
+| `AccentColorText`  | `AccentColor`      | Text of accented user interface controls             |
+| `ActiveText`       | `Canvas`           | Text of active links                                 |
+| `ButtonBorder`     | `Canvas`           | Base border color of controls                        |
+| `ButtonFace`       | `CanvasText`       | Background color of controls                         |
+| `ButtonText`       | `Canvas`           | Text color of controls                               |
+| `Canvas`           | `CanvasText`       | Background of application content or documents       |
+| `CanvasText`       | `Canvas`           | Text color in application content or documents       |
+| `Field`            | `CanvasText`       | Background of input fields                           |
+| `FieldText`        | `Canvas`           | Text in input fields                                 |
+| `GrayText`         | `Canvas`           | Text color for disabled items                        |
+| `Highlight`        | `HighlightText`    | Background of selected items                         |
+| `HighlightText`    | `Highlight`        | Text color of selected items                         |
+| `LinkText`         | `Canvas`           | Text of non-active, non-visited links                |
+| `Mark`             | `MarkText`         | Background of specially marked text (e.g. `<mark>`)  |
+| `MarkText`         | `Mark`             | Text of specially marked text                        |
+| `SelectedItem`     | `SelectedItemText` | Background of selected items (e.g. checkbox)         |
+| `SelectedItemText` | `SelectedItem`     | Text of selected items                               |
+| `VisitedText`      | `Canvas`           | Text of visited links                                |
+
 ---
 
 ## 5. Emotional palette
@@ -279,10 +307,10 @@ Reference mappings (from `theme-data.xhtml`) use `light-dark()` so a single toke
 | `--cem-palette-calm-x`              | Calm extreme variant         | cyan-d          | cyan-l         | rgb(0, 120, 120)                   |                                       | Inverted calm color ( darked darkcyan )          | calm         | x      | 
 | `--cem-palette-calm-text`           | Calm text color              | comfort-text    | comfort-text   | black                              |                                       | Text on calm backgrounds                         | calm         | text   | 
 | `--cem-palette-calm-text-x`         | Calm extreme text            | comfort-text-x  | comfort-text-x | white                              |                                       | Text on extreme calm backgrounds                 | calm         | text-x | 
-| `--cem-palette-trust`               | Base trust color             | blue-l          | blue-d         | color-mix(in srgb, Highlight 70%, black) |                                 | Primary actions, highlights                      | trust        |        | 
+| `--cem-palette-trust`               | Base trust color             | blue-l          | blue-d         | color-mix(in srgb, Highlight 70%, black) |                                       | Primary actions, highlights                      | trust        |        | 
 | `--cem-palette-trust-x`             | Trust extreme variant        | blue-d          | blue-l         | `--cem-color-visitedtext-30-black` | `--cem-color-visitedtext-30-white`    | Darker/lighter trust variation                   | trust        | x      | 
 | `--cem-palette-trust-text`          | Trust text color             | comfort-text    | white          | HighlightText                      |                                       | Text on trust backgrounds                        | trust        | text   | 
-| `--cem-palette-trust-text-x`        | Trust extreme text           | comfort-text-x  | comfort-text-x | Canvas                             | CanvasText                            | Text on extreme trust backgrounds                | trust        | text-x | 
+| `--cem-palette-trust-text-x`        | Trust extreme text           | comfort-text-x  | comfort-text-x | Canvas                             | Canvas                                | Text on extreme trust backgrounds                | trust        | text-x | 
 | `--cem-palette-enthusiasm`          | Base enthusiasm color        | orange-l        | orange-d       | Mark                               |                                       | Brand-2, alternate actions                       | enthusiasm   |        | 
 | `--cem-palette-enthusiasm-x`        | Enthusiasm extreme variant   | orange-xd       | orange-xl      | `--cem-color-mark-30-black`        | `--cem-color-mark-30-white`           | Darker/lighter enthusiasm variation              | enthusiasm   | x      | 
 | `--cem-palette-enthusiasm-text`     | Enthusiasm text color        | comfort-text    | white          | MarkText                           |                                       | Text on enthusiasm backgrounds                   | enthusiasm   | text   | 
@@ -384,7 +412,7 @@ State progression is defined as a **formulaic** movement from “least emphasize
 
 ```
 disabled → readonly → editable → default → indeterminate → hover → active → pending
- (30%)      (80%)      (90%)      (base)   (90%)          (60%)   (25%)   (5%)
+ (30%)      (80%)      (90%)      (base)   (90%)          (70%)   (25%)   (5%)
 ```
 
 - Percentages are **weights of the base emotion** mixed toward an “extreme” anchor.
@@ -400,7 +428,7 @@ disabled → readonly → editable → default → indeterminate → hover → a
 | editable      | `color-mix(in srgb, var(--cem-palette-[emotion]) 90%, var(--cem-palette-[emotion]-x))`    | `var(--cem-palette-[emotion]-text)`      |
 | default       | `var(--cem-palette-[emotion])`                                                            | `var(--cem-palette-[emotion]-text)`      |
 | indeterminate | `color-mix(in srgb, var(--cem-palette-[emotion]) 90%, var(--cem-palette-[emotion]-x))`    | `var(--cem-palette-[emotion]-text)`      |
-| hover         | `color-mix(in srgb, var(--cem-palette-[emotion]) 60%, var(--cem-palette-[emotion]-x))`    | `var(--cem-palette-[emotion]-text)`      |
+| hover         | `color-mix(in srgb, var(--cem-palette-[emotion]) 70%, var(--cem-palette-[emotion]-x))`    | `var(--cem-palette-[emotion]-text)`      |
 | active        | `color-mix(in srgb, var(--cem-palette-[emotion]) 25%, var(--cem-palette-[emotion]-x))`    | `var(--cem-palette-[emotion]-text-x)`    |
 | pending       | `color-mix(in srgb, var(--cem-palette-[emotion])  5%, var(--cem-palette-[emotion]-x))`    | `var(--cem-palette-[emotion]-text-x)`    |
 
@@ -459,7 +487,7 @@ In `contrast-light` and `contrast-dark`, background tokens SHOULD converge on th
   --cem-action-primary-default-background: var(--cem-palette-trust);
   --cem-action-primary-default-text:       var(--cem-palette-trust-text);
 
-  --cem-action-primary-hover-background:   color-mix(in srgb, var(--cem-palette-trust) 60%, var(--cem-palette-trust-x));
+  --cem-action-primary-hover-background:   color-mix(in srgb, var(--cem-palette-trust) 70%, var(--cem-palette-trust-x));
   --cem-action-primary-hover-text:         var(--cem-palette-trust-text);
 
   --cem-action-primary-active-background:  color-mix(in srgb, var(--cem-palette-trust) 25%, var(--cem-palette-trust-x));
@@ -486,8 +514,8 @@ In `contrast-light` and `contrast-dark`, background tokens SHOULD converge on th
 | State    | Zebra stripe          | Recommended meaning                  |
 |----------|-----------------------|--------------------------------------|
 | focus    | `--cem-zebra-color-1` | keyboard focus visibility            |
-| selected | `--cem-zebra-color-2` | selection / checked / chosen         |
-| target   | `--cem-zebra-color-3` | navigation target / guided attention |
+| target   | `--cem-zebra-color-2` | navigation target / guided attention |
+| selected | `--cem-zebra-color-3` | selection / checked / chosen         |
 
 See D5 Stroke for zebra geometry (stripe order, offsets, and ring widths).
 
@@ -497,12 +525,60 @@ Color endpoints:
 
 - `--cem-zebra-color-0`: innermost stripe (base surface)
 - `--cem-zebra-color-1`: focus stripe
-- `--cem-zebra-color-2`: selection stripe
-- `--cem-zebra-color-3`: target stripe
+- `--cem-zebra-color-2`: target stripe (warm separator)
+- `--cem-zebra-color-3`: selection stripe
 - `--cem-zebra-strip-size`: stripe thickness basis (pairs with D5 stroke widths)
 
-Rules:
+> **Why target occupies the middle ring (color-2):**
+> Target is the least-used state — typically once per page. When inactive it
+> collapses to `--cem-palette-comfort`, so its ring acts as a neutral visual gap.
+> When active the target color is always hue-distinct from both the focus ring
+> (color-1) and the selection ring (color-3), providing clear three-way
+> separability without competing for attention alongside the two more common
+> states. In light and contrast-light modes a warm orange (`orange-l`) serves
+> this role; in dark mode a mid-tone purple (`creativity`) does; in native mode
+> the OS `Mark` color (typically yellow) is used.
 
+### 8.2 Theme-mode mapping
+
+Focus, selected, and target MUST always resolve to different hues so that combined states
+(e.g., a focused-and-selected item) remain distinguishable. `--cem-zebra-color-0` anchors
+the ring to the base surface; the remaining stripes are state indicators.
+
+###### cem-zebra-mode-mapping
+| Theme mode       | `--cem-zebra-color-0` (base)         | `--cem-zebra-color-1` (focus) | `--cem-zebra-color-2` (target) | `--cem-zebra-color-3` (selected) |
+|------------------|--------------------------------------|-------------------------------|--------------------------------|----------------------------------|
+| `native`         | `Canvas`                             | `CanvasText`                  | `Mark`                         | `SelectedItem`                   |
+| `light`          | `--cem-palette-comfort`              | `--cem-palette-trust-x`       | `--cem-color-orange-l`         | `--cem-palette-creativity-x`     |
+| `dark`           | `--cem-palette-comfort`              | `--cem-palette-comfort-x`     | `--cem-palette-creativity`     | `--cem-palette-calm-x`           |
+| `contrast-light` | `--cem-palette-comfort`              | `--cem-palette-trust-x`       | `--cem-color-orange-l`         | `--cem-palette-creativity-x`     |
+| `contrast-dark`  | `--cem-palette-comfort`              | `--cem-palette-comfort-x`     | `--cem-palette-enthusiasm-x`   | `--cem-palette-trust`          |
+
+**Rationale:**
+
+- **`native`** — `Canvas` anchors the base stripe to the system surface. `CanvasText` gives high-contrast
+  focus without colliding with button borders. `Mark` (yellow) is the OS semantic for highlighted/pointed-at
+  content and maps naturally to the target role. `SelectedItem` is the OS semantic for selection (color-3).
+  If `Mark` is unavailable on a target platform, fall back to `Highlight`.
+- **`light`** — `trust-x` (cool blue) for focus. `orange-l` (warm) for target: hue-distinct from both the
+  focus ring and the selection ring, and bright enough to read as a light visual separator. `creativity-x`
+  (vivid purple) for selected: high salience without colliding with either focus or target hues.
+- **`dark`** — `comfort-x` (inverted surface) for focus: sufficient contrast against the dark surface without
+  an additional branded color. `creativity` (purple, mid-tone) for target: warm-to-cool shift from
+  `comfort-x` keeps the two states distinct. `calm-x` (inverted cyan) for selected: a cooler, distinct hue
+  that reads as "chosen" without competing with focus or target.
+- **`contrast-light`** — identical mapping to `light`. In contrast mode, fills collapse to the surface, so the
+  zebra rings carry all state meaning; using the same high-contrast hues as light mode preserves legibility
+  without requiring a separate token set.
+- **`contrast-dark`** — `comfort-x` for focus (same as dark). `enthusiasm-x` (deep orange/mark-derived) for
+  target: high salience in a dark scheme. `trust` (mid-tone blue) for selected: affirming but clearly
+  distinct from the target stripe.
+
+Zebra colors MUST NOT reuse the same tone as action border/box-shadow indicators in the same theme variation.
+
+### 8.3 Rules
+
+- `:root` defaults for focus/target/selected MUST use native system colors (`CanvasText`, `Mark`, `SelectedItem`) so that zebra is functional without an explicit theme class.
 - Zebra colors MUST remain distinguishable from the adjacent surface in all modes.
 - Zebra MUST remain meaningful in forced-colors; in `native` this is achieved by mapping to system colors.
 
@@ -518,7 +594,10 @@ In `native` mode, palette endpoints SHOULD map to system colors:
 - `--cem-palette-comfort-text`: `CanvasText`
 - `--cem-palette-trust`: `color-mix(in srgb, Highlight 70%, black)`
 - `--cem-palette-trust-text`: `HighlightText`
-- `--cem-zebra-color-2`: `SelectedItem` (or fallback to trust)
+- `--cem-zebra-color-0`: `Canvas`
+- `--cem-zebra-color-1`: `CanvasText`
+- `--cem-zebra-color-2`: `Mark` (fallback: `Highlight`)
+- `--cem-zebra-color-3`: `SelectedItem`
 
 * Disclaimer. `Highlight` color in Chromium and Firefox do not pass contrast compliance against `HighlightText`, have to be darkened.
 ### 9.2 Forced colors
@@ -623,7 +702,7 @@ Implementations SHOULD preserve the three-layer model:
   --cem-action-primary-default-background: var(--cem-palette-trust);
   --cem-action-primary-default-text:       var(--cem-palette-trust-text);
 
-  --cem-action-primary-hover-background: color-mix(in srgb, var(--cem-palette-trust) 60%, var(--cem-palette-trust-x));
+  --cem-action-primary-hover-background: color-mix(in srgb, var(--cem-palette-trust) 70%, var(--cem-palette-trust-x));
   --cem-action-primary-hover-text:       var(--cem-palette-trust-text);
 
   --cem-action-primary-active-background: color-mix(in srgb, var(--cem-palette-trust) 25%, var(--cem-palette-trust-x));

@@ -16,10 +16,11 @@
         "build:css": "nx run @epa-wg/cem-theme:build:css",
         "publish:prepare": "./tools/scripts/publish-prepare.sh",
         "validate:utf8": "node tools/scripts/validate-utf8.mjs",
-        "css-generate": "node tools/scripts/capture-xpath-text.mjs file://./packages/cem-theme/src/lib/css-generators/colors.html //*[@code='language-css'] /tmp/colors.css"
+        "css-generate": "node tools/scripts/capture-xpath-text.mjs file://./packages/cem-theme/src/lib/css-generators/colors.html //*[@code='language-css'] /tmp/colors.css",
+        "start": "node tools/scripts/dev-server.mjs"
     },
     "dependencies": {
-        "@epa-wg/custom-element": "0.0.36"
+        "@epa-wg/custom-element": "0.0.37"
     },
     "devDependencies": {
         "@eslint/js": "9.8.0",
