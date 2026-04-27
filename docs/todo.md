@@ -20,7 +20,7 @@ The remaining token-spec files have no working generator. `cem-breakpoints.html`
 
 | Markdown spec                   | Dimension                 | Generator                     | Approx tokens |
 |---------------------------------|---------------------------|-------------------------------|---------------|
-| `cem-dimension.md`              | Space & rhythm (D1)       | —                             | ~28           |
+| `cem-dimension.md`              | Space & rhythm (D1)       | `cem-dimension.html` ✓        | 27            |
 | `cem-breakpoints.md`            | Breakpoints (D1x)         | `cem-breakpoints.html` (stub) | ~10–18        |
 | `cem-coupling.md`               | Coupling & density (D2)   | —                             | ~11 + modes   |
 | `cem-shape.md`                  | Shape & bend (D3)         | —                             | ~16 + mode    |
@@ -182,7 +182,7 @@ Extended state coverage includes:
 
 ## Implementation Tasks
 
-### Phase 1: Core Action Tokens
+### Phase 1: Core Action Tokens ✓ COMPLETE
 
 1. [x] ~~Add action intent mapping table to `cem-colors.md` as XML metadata~~ (hardcoded in generator - stable semantic
    contract)
@@ -229,23 +229,23 @@ Foundation phase — blocks all later phases. Establishes the contract that Prin
 7. [x] Document the new contract in `CLAUDE.md` (`## Token manifest contract` section updated; debug script moved
    to `tools/scripts/debug-cem.mjs` and referenced).
 
-### Phase 5: D1 Dimension + Spacing Modes — `cem-dimension.html`
+### Phase 5: D1 Dimension + Spacing Modes — `cem-dimension.html` ✓ COMPLETE
 
 Confirmed token names from `cem-dimension.md`: `--cem-layout-stack-gap`, `--cem-layout-cluster-gap`,
 `--cem-layout-gutter`/`-wide`/`-max`. `--cem-layout-inline-*` are deprecated aliases.
 
-1. [ ] Add `cem-dimension-manifest` h6+table per Phase 4 schema, marking each token's tier (deprecated for
+1. [x] Add `cem-dimension-manifest` h6+table per Phase 4 schema, marking each token's tier (deprecated for
    `--cem-layout-inline-*`).
-2. [ ] Add explicit h6+table metadata blocks for: dimension scale, gaps, insets, layout rhythm (correct names!), reading
+2. [x] Add explicit h6+table metadata blocks for: dimension scale, gaps, insets, layout rhythm (correct names!), reading
    rhythm, data rhythm, **spacing modes** (`data-cem-spacing="dense|normal|sparse"`).
-3. [ ] Create `cem-dimension.html` generator — emit base + spacing-mode overrides (`:root[data-cem-spacing="dense"]`,
+3. [x] Create `cem-dimension.html` generator — emit base + spacing-mode overrides (`:root[data-cem-spacing="dense"]`,
    `…="sparse"`).
-4. [ ] **Do NOT emit any `--cem-coupling-*` tokens here.** D1 only references coupling as normative constraints; D2 owns
+4. [x] **Do NOT emit any `--cem-coupling-*` tokens here.** D1 only references coupling as normative constraints; D2 owns
    those tokens.
-5. [ ] Add acceptance criterion in spec prose: any consumer using D1 gaps between interactive affordances must resolve
+5. [x] Add acceptance criterion in spec prose: any consumer using D1 gaps between interactive affordances must resolve
    `gap = max(D1 gap, var(--cem-coupling-guard-min))`. Generator does NOT enforce this — it is component-author
    responsibility documented in the manifest's `notes` column.
-6. [ ] Reading-rhythm validation deferred to D6 cross-check (Phase 12) — D1 cannot validate rhythm in isolation.
+6. [x] Reading-rhythm validation deferred to D6 cross-check (Phase 12) — D1 cannot validate rhythm in isolation.
 
 ### Phase 6: D7 Timing — `cem-timing.html`
 

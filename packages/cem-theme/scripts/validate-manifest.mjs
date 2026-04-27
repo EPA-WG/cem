@@ -125,6 +125,44 @@ function deriveColorManifest(xhtml) {
     return { tokens, warnings };
 }
 
+/**
+ * Build the expected token list for cem-dimension from the compiled XHTML.
+ * Returns { tokens: [{name, tier}], warnings: string[] }
+ */
+function deriveDimensionManifest(xhtml) {
+    const warnings = [];
+    const tokens = [];
+
+    for (const tableId of [
+        "cem-dim-scale",
+        "cem-dim-gaps",
+        "cem-dim-insets",
+        "cem-dim-rhythm-reading",
+        "cem-dim-rhythm-data",
+    ]) {
+        const rows = extractTable(xhtml, tableId);
+        if (!rows) {
+            warnings.push(`Table not found: #${tableId}`);
+            continue;
+        }
+        const extracted = tokensFromTable(rows);
+        if (extracted.length === 0) warnings.push(`No token rows found in table #${tableId}`);
+        tokens.push(...extracted);
+    }
+
+    // Layout table: exclude deprecated tier
+    const layoutRows = extractTable(xhtml, "cem-dim-layout");
+    if (!layoutRows) {
+        warnings.push("Table not found: #cem-dim-layout");
+    } else {
+        tokens.push(
+            ...tokensFromTable(layoutRows).filter((t) => t.tier !== "deprecated")
+        );
+    }
+
+    return { tokens, warnings };
+}
+
 // ── CSS analysis ─────────────────────────────────────────────────────────────
 
 /**
@@ -232,8 +270,11 @@ async function main(argv) {
         process.exit(2);
     }
 
-    // Derive manifest
-    const { tokens: manifest, warnings: manifestWarnings } = deriveColorManifest(xhtml);
+    // Derive manifest — dispatch by spec filename
+    const specName = path.basename(xhtmlPath, ".xhtml");
+    const deriveManifest =
+        specName === "cem-dimension" ? deriveDimensionManifest : deriveColorManifest;
+    const { tokens: manifest, warnings: manifestWarnings } = deriveManifest(xhtml);
     if (manifestWarnings.length) {
         for (const w of manifestWarnings) console.warn(`[manifest] ${w}`);
     }

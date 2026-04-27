@@ -9,6 +9,7 @@
 **Taxonomy placement:** D1. Space & Rhythm (part of the 7-dimensional CEM token framework)
 
 **Companion specs:**
+
 - **D0. Color (Emotional Palette)** ([`cem-colors.md`](./cem-colors.md)) — color weight pairs with spacing rhythm
 - **D2. Coupling & Compactness** ([`cem-coupling.md`](./cem-coupling.md)) — normative for interactive operability
 - **D3. Shape & Bend** ([`cem-shape.md`](./cem-shape.md)) — bend/inset harmony rules
@@ -23,35 +24,36 @@
 
 1. [Scope](#1-scope)
 2. [CEM alignment principles applied to spacing](#2-cem-alignment-principles-applied-to-spacing)
-   - [2.1 Semantic intent first](#21-semantic-intent-first)
-   - [2.2 Bounded variation](#22-bounded-variation)
-   - [2.3 Accessibility and operability by construction](#23-accessibility-and-operability-by-construction)
+    - [2.1 Semantic intent first](#21-semantic-intent-first)
+    - [2.2 Bounded variation](#22-bounded-variation)
+    - [2.3 Accessibility and operability by construction](#23-accessibility-and-operability-by-construction)
 3. [Token model](#3-token-model)
 4. [Relation to Dimensional Tokens](#4-relation-to-dimensional-tokens)
-   - [4.1 Dimensional Tokens: where spacing lives](#41-dimensional-tokens-where-spacing-lives)
-   - [4.2 Governance rules (cross-category contracts)](#42-governance-rules-cross-category-contracts)
+    - [4.1 Dimensional Tokens: where spacing lives](#41-dimensional-tokens-where-spacing-lives)
+    - [4.2 Governance rules (cross-category contracts)](#42-governance-rules-cross-category-contracts)
 5. [Reference spacing scale (semantic)](#5-reference-spacing-scale-semantic)
-   - [5.1 Primary dimension scale](#51-primary-dimension-scale-semanticcss)
-   - [5.2 Mapping to M3 rhythm](#52-mapping-to-m3-rhythm)
+    - [5.1 Primary dimension scale](#51-primary-dimension-scale-semanticcss)
+    - [5.2 Mapping to M3 rhythm](#52-mapping-to-m3-rhythm)
 6. [Consumer-semantic spacing taxonomy](#6-consumer-semantic-spacing-taxonomy)
-   - [6.1 Relationship gaps (between items)](#61-relationship-gaps-between-items)
-   - [6.2 Insets (inside a surface)](#62-insets-inside-a-surface)
-   - [6.3 Coupling and interaction safety (D2 cross-reference)](#63-coupling-and-interaction-safety-d2-cross-reference)
-   - [6.4 Reading rhythm (vertical cadence for prose)](#64-reading-rhythm-vertical-cadence-for-prose)
-   - [6.5 Data/scan rhythm (dense but legible)](#65-datascan-rhythm-dense-but-legible)
+    - [6.1 Relationship gaps (between items)](#61-relationship-gaps-between-items)
+    - [6.2 Insets (inside a surface)](#62-insets-inside-a-surface)
+    - [6.3 Coupling and interaction safety (D2 cross-reference)](#63-coupling-and-interaction-safety-d2-cross-reference)
+    - [6.4 Reading rhythm (vertical cadence for prose)](#64-reading-rhythm-vertical-cadence-for-prose)
+    - [6.5 Data/scan rhythm (dense but legible)](#65-datascan-rhythm-dense-but-legible)
 7. [Layout rhythm tokens (compositional semantics)](#7-layout-rhythm-tokens-compositional-semantics)
-   - [7.1 Stack rhythm (vertical composition)](#71-stack-rhythm-vertical-composition)
-   - [7.2 Cluster rhythm (horizontal groups)](#72-cluster-rhythm-horizontal-groups)
-   - [7.3 Page gutters (responsive breathing room)](#73-page-gutters-responsive-breathing-room)
+    - [7.1 Stack rhythm (vertical composition)](#71-stack-rhythm-vertical-composition)
+    - [7.2 Cluster rhythm (horizontal groups)](#72-cluster-rhythm-horizontal-groups)
+    - [7.3 Page gutters (responsive breathing room)](#73-page-gutters-responsive-breathing-room)
 8. [Spacing modes knob (dense / normal / sparse)](#8-spacing-modes-knob-dense--normal--sparse)
-   - [8.1 Adjustment policy](#81-adjustment-policy)
-   - [8.2 Concrete overrides](#82-concrete-overrides-recommended-default-mapping)
-   - [8.3 Notes on component mapping](#83-notes-on-component-mapping)
-   - [8.4 Layout mapping checklist](#84-layout-mapping-checklist-how-to-apply)
+    - [8.1 Adjustment policy](#81-adjustment-policy)
+    - [8.2 Concrete overrides](#82-concrete-overrides-recommended-default-mapping)
+    - [8.3 Notes on component mapping](#83-notes-on-component-mapping)
+    - [8.4 Layout mapping checklist](#84-layout-mapping-checklist-how-to-apply)
 9. [Mapping notes: M3 ↔ CEM](#9-mapping-notes-m3--cem)
 10. [Quick adoption checklist](#10-quick-adoption-checklist)
 
 **Appendices**
+
 - [Appendix A. D2 Coupling Mode Matrix (excerpt)](#appendix-a-d2-coupling-mode-matrix-excerpt)
 - [Appendix B. Governance and versioning](#appendix-b-governance-and-versioning)
 
@@ -196,20 +198,21 @@ increments).
 
 Eight steps covering common UI needs:
 
-```css
-:root {
-    --cem-dim-xx-small  : 0.25rem;  /*  4px — micro gaps, icon padding          */
-    --cem-dim-x-small   : 0.5rem;   /*  8px — related item gaps, control insets */
-    --cem-dim-small     : 0.75rem;  /* 12px — group gaps, inline rhythm         */
-    --cem-dim-medium    : 1rem;     /* 16px — block gaps, container insets      */
-    --cem-dim-large     : 1.5rem;   /* 24px — section gaps, surface insets      */
-    --cem-dim-x-large   : 2rem;     /* 32px — page gaps, wide gutters           */
-    --cem-dim-xx-large  : 4rem;     /* 64px — extended layout, hero spacing     */
-    --cem-dim-xxx-large : 8rem;     /* 128px — maximum breathing room           */
-}
-```
+###### cem-dim-scale
+
+| Token                 | Value   | Description                             | tier     |
+|-----------------------|---------|-----------------------------------------|----------|
+| `--cem-dim-xx-small`  | 0.25rem | 4px — micro gaps, icon padding          | required |
+| `--cem-dim-x-small`   | 0.5rem  | 8px — related item gaps, control insets | required |
+| `--cem-dim-small`     | 0.75rem | 12px — group gaps, inline rhythm        | required |
+| `--cem-dim-medium`    | 1rem    | 16px — block gaps, container insets     | required |
+| `--cem-dim-large`     | 1.5rem  | 24px — section gaps, surface insets     | required |
+| `--cem-dim-x-large`   | 2rem    | 32px — page gaps, wide gutters          | required |
+| `--cem-dim-xx-large`  | 4rem    | 64px — extended layout, hero spacing    | required |
+| `--cem-dim-xxx-large` | 8rem    | 128px — maximum breathing room          | required |
 
 **Cross-reference:** These tokens are consumed by D3 Shape ([`cem-shape.md`](./cem-shape.md)) for bend values:
+
 - `--cem-bend-smooth` uses `--cem-dim-x-small` (8px)
 - `--cem-bend-surface` uses `--cem-dim-small` (12px)
 - `--cem-bend-modal` uses `--cem-dim-large` + `--cem-dim-xx-small` (~28px)
@@ -237,24 +240,15 @@ The taxonomy is organized by what the space *means to the user*.
 
 Use when arranging siblings.
 
-```css
-:root {
-    /* Siblings that are clearly part of the same unit */
-    --cem-gap-related: var(--cem-dim-x-small); /*  8px */
+###### cem-dim-gaps
 
-    /* Items in the same group, but distinct */
-    --cem-gap-group: var(--cem-dim-small); /* 12px */
-
-    /* Between groups/blocks inside one surface */
-    --cem-gap-block: var(--cem-dim-medium); /* 16px */
-
-    /* Between major sections (cards, panels, page regions) */
-    --cem-gap-section: var(--cem-dim-large); /* 24px */
-
-    /* Between page-level regions */
-    --cem-gap-page: var(--cem-dim-x-large); /* 32px */
-}
-```
+| Token               | Value                    | Description                                     | tier        |
+|---------------------|--------------------------|-------------------------------------------------|-------------|
+| `--cem-gap-related` | `var(--cem-dim-x-small)` | Siblings in the same unit (8px)                 | recommended |
+| `--cem-gap-group`   | `var(--cem-dim-small)`   | Items in the same group, distinct (12px)        | recommended |
+| `--cem-gap-block`   | `var(--cem-dim-medium)`  | Between groups/blocks inside one surface (16px) | recommended |
+| `--cem-gap-section` | `var(--cem-dim-large)`   | Between major sections (24px)                   | recommended |
+| `--cem-gap-page`    | `var(--cem-dim-x-large)` | Between page-level regions (32px)               | recommended |
 
 **Guideline:** if users perceive two things as "one unit," use `gap-related`. If they perceive "these are separate
 things," move up to `gap-group` or `gap-block`.
@@ -265,25 +259,21 @@ things," move up to `gap-group` or `gap-block`.
 
 Use when padding content within a container.
 
-```css
-:root {
-    /* Smallest safe inset for tight controls */
-    --cem-inset-control: var(--cem-dim-x-small); /*  8px */
+###### cem-dim-insets
 
-    /* Default inset for common containers */
-    --cem-inset-container: var(--cem-dim-medium); /* 16px */
-
-    /* Comfortable inset for reading surfaces and prominent cards */
-    --cem-inset-surface: var(--cem-dim-large); /* 24px */
-}
-```
+| Token                   | Value                    | Description                                                       | tier        |
+|-------------------------|--------------------------|-------------------------------------------------------------------|-------------|
+| `--cem-inset-control`   | `var(--cem-dim-x-small)` | Smallest safe inset for tight controls (8px)                      | recommended |
+| `--cem-inset-container` | `var(--cem-dim-medium)`  | Default inset for common containers (16px)                        | recommended |
+| `--cem-inset-surface`   | `var(--cem-dim-large)`   | Comfortable inset for reading surfaces and prominent cards (24px) | recommended |
 
 **Cross-reference:** When combining insets with bend (D3), ensure inset is large enough to prevent content crowding in
 rounded corners. See [`cem-shape.md`](./cem-shape.md) §8.5 for guidance.
 
 ### 6.3 Coupling and interaction safety (D2 cross-reference)
 
-These tokens are **defined and governed in D2** ([`cem-coupling.md`](./cem-coupling.md)). They are listed here as a **normative constraint**
+These tokens are **defined and governed in D2** ([`cem-coupling.md`](./cem-coupling.md)). They are listed here as a *
+*normative constraint**
 because they bound how far D1 spacing modes can compress interactive adjacency. **Do not set or tune these in D1**;
 treat them as sourced from the D2 theme.
 
@@ -298,9 +288,9 @@ treat them as sourced from the D2 theme.
     /* Invisible expansion beyond visuals (halo). */
     --cem-coupling-halo: 0.25rem; /* nominally 4px */
 
-  /* Legacy aliases (deprecated): keep only while migrating older code */
-  --cem-touch-separation-min: var(--cem-coupling-guard-min);
-  --cem-touch-target-min: var(--cem-coupling-zone-min);
+    /* Legacy aliases (deprecated): keep only while migrating older code */
+    --cem-touch-separation-min: var(--cem-coupling-guard-min);
+    --cem-touch-target-min: var(--cem-coupling-zone-min);
 }
 ```
 
@@ -314,31 +304,26 @@ Interpretation (summary):
 
 This is distinct from UI rhythm.
 
-```css
-:root {
-    /* Default paragraph spacing for prose (pairs with typography) */
-    --cem-rhythm-reading-paragraph: 0.75em;
+###### cem-dim-rhythm-reading
 
-    /* Space between reading sections within one surface */
-    --cem-rhythm-reading-section: var(--cem-dim-large); /* 24px */
-}
-```
+| Token                            | Value                  | Description                                              | tier        |
+|----------------------------------|------------------------|----------------------------------------------------------|-------------|
+| `--cem-rhythm-reading-paragraph` | 0.75em                 | Default paragraph spacing for prose                      | recommended |
+| `--cem-rhythm-reading-section`   | `var(--cem-dim-large)` | Space between reading sections within one surface (24px) | recommended |
 
-**Cross-reference:** Reading rhythm must be validated against typography tokens. See [`cem-voice-fonts-typography.md`](./cem-voice-fonts-typography.md).
+**Cross-reference:** Reading rhythm must be validated against typography tokens. See [
+`cem-voice-fonts-typography.md`](./cem-voice-fonts-typography.md).
 
 ### 6.5 Data/scan rhythm (dense but legible)
 
 Optimized for scan/compare flows (tables, metrics).
 
-```css
-:root {
-    /* Table-like, scan-first row padding */
-    --cem-rhythm-data-row: var(--cem-dim-x-small); /*  8px */
+###### cem-dim-rhythm-data
 
-    /* Scan grouping (subtotals, row groups, metric clusters) */
-    --cem-rhythm-data-group: var(--cem-dim-medium); /* 16px */
-}
-```
+| Token                     | Value                    | Description                                                   | tier        |
+|---------------------------|--------------------------|---------------------------------------------------------------|-------------|
+| `--cem-rhythm-data-row`   | `var(--cem-dim-x-small)` | Table-like, scan-first row padding (8px)                      | recommended |
+| `--cem-rhythm-data-group` | `var(--cem-dim-medium)`  | Scan grouping — subtotals, row groups, metric clusters (16px) | recommended |
 
 ---
 
@@ -348,47 +333,33 @@ These describe **layout structures** without baking in specific components.
 
 ### 7.1 Stack rhythm (vertical composition)
 
-```css
-:root {
-    /* Default vertical stack gap for general UI stacks */
-    --cem-layout-stack-gap: var(--cem-gap-block);
-
-  /* Optional derived endpoints (rare): keep if your system needs tight/loose variants */
-  --cem-layout-stack-tight: var(--cem-gap-related);
-  --cem-layout-stack-loose: var(--cem-gap-section);
-}
-```
+Default vertical stack gap for general UI stacks. Optional tight/loose variants for systems that need explicit range.
 
 ### 7.2 Cluster rhythm (horizontal groups)
 
-```css
-:root {
-    /* Default cluster gap for inline groups (icons + text, toolbars, button clusters) */
-    --cem-layout-cluster-gap: var(--cem-gap-related);
-
-  /* Optional legacy aliases (deprecated): */
-  --cem-layout-inline-tight: var(--cem-dim-x-small);  /*  8px */
-  --cem-layout-inline:       var(--cem-dim-small);    /* 12px */
-  --cem-layout-inline-loose: var(--cem-dim-medium);   /* 16px */
-}
-```
+Default cluster gap for inline groups (icons + text, toolbars, button clusters). The legacy `--cem-layout-inline-*`
+aliases are deprecated — use `--cem-gap-*` instead.
 
 ### 7.3 Page gutters (responsive breathing room)
 
 These are *responsive* and should be treated as semantics, not fixed numbers.
 
-```css
-:root {
-    /* Default content gutter */
-    --cem-layout-gutter: var(--cem-dim-medium); /* 16px */
+### 7.4 Layout token table
 
-    /* Wide screens */
-    --cem-layout-gutter-wide: var(--cem-dim-x-large); /* 32px */
+###### cem-dim-layout
 
-    /* Maximum breathing room */
-    --cem-layout-gutter-max: var(--cem-dim-xx-large); /* 64px */
-}
-```
+| Token                       | Value                     | Description                                                               | tier        |
+|-----------------------------|---------------------------|---------------------------------------------------------------------------|-------------|
+| `--cem-layout-stack-gap`    | `var(--cem-gap-block)`    | Default vertical stack gap for general UI stacks                          | required    |
+| `--cem-layout-cluster-gap`  | `var(--cem-gap-related)`  | Default cluster gap for inline groups                                     | required    |
+| `--cem-layout-gutter`       | `var(--cem-dim-medium)`   | Default content gutter (16px)                                             | required    |
+| `--cem-layout-gutter-wide`  | `var(--cem-dim-x-large)`  | Wide-screen gutter (32px)                                                 | recommended |
+| `--cem-layout-gutter-max`   | `var(--cem-dim-xx-large)` | Maximum gutter (64px)                                                     | recommended |
+| `--cem-layout-stack-tight`  | `var(--cem-gap-related)`  | Tight stack variant — rare, use only when explicitly tighter than default | optional    |
+| `--cem-layout-stack-loose`  | `var(--cem-gap-section)`  | Loose stack variant — rare, use only when explicitly looser than default  | optional    |
+| `--cem-layout-inline-tight` | `var(--cem-dim-x-small)`  | Deprecated — use `--cem-gap-related`                                      | deprecated  |
+| `--cem-layout-inline`       | `var(--cem-dim-small)`    | Deprecated — use `--cem-gap-group`                                        | deprecated  |
+| `--cem-layout-inline-loose` | `var(--cem-dim-medium)`   | Deprecated — use `--cem-gap-block`                                        | deprecated  |
 
 ---
 
@@ -426,66 +397,35 @@ Hard constraints (never override):
 
 ### 8.2 Concrete overrides (recommended default mapping)
 
-```css
-/* NORMAL is the baseline already defined above */
+`normal` mode uses the baseline values defined in §6–7. `dense` steps gaps down ~1 scale step; `sparse` steps them up ~1
+step. Tokens not in this table are unaffected by spacing mode.
 
-:root[data-cem-spacing="dense"] {
-    /* Relationship gaps — step down by one level */
-    --cem-gap-related: var(--cem-dim-x-small); /*  8px */
-    --cem-gap-group: var(--cem-dim-x-small); /*  8px */
-    --cem-gap-block: var(--cem-dim-small); /* 12px */
-    --cem-gap-section: var(--cem-dim-medium); /* 16px */
-    --cem-gap-page: var(--cem-dim-large); /* 24px */
+###### cem-dim-spacing-overrides
 
-    /* Insets */
-    --cem-inset-control: var(--cem-dim-x-small); /*  8px */
-    --cem-inset-container: var(--cem-dim-small); /* 12px */
-    --cem-inset-surface: var(--cem-dim-medium); /* 16px */
-
-    /* Layout gutters */
-    --cem-layout-gutter: var(--cem-dim-small); /* 12px */
-    --cem-layout-gutter-wide: var(--cem-dim-large); /* 24px */
-    --cem-layout-gutter-max: var(--cem-dim-x-large); /* 32px */
-
-    /* Content cadence */
-    --cem-rhythm-reading-paragraph: 0.6em;
-    --cem-rhythm-reading-section: var(--cem-dim-medium); /* 16px */
-    --cem-rhythm-data-row: var(--cem-dim-xx-small); /*  4px */
-    --cem-rhythm-data-group: var(--cem-dim-small); /* 12px */
-}
-
-:root[data-cem-spacing="sparse"] {
-    /* Relationship gaps — step up by one level */
-    --cem-gap-related: var(--cem-dim-small); /* 12px */
-    --cem-gap-group: var(--cem-dim-medium); /* 16px */
-    --cem-gap-block: var(--cem-dim-large); /* 24px */
-    --cem-gap-section: var(--cem-dim-x-large); /* 32px */
-    --cem-gap-page: var(--cem-dim-xx-large); /* 64px */
-
-    /* Insets */
-    --cem-inset-control: var(--cem-dim-small); /* 12px */
-    --cem-inset-container: var(--cem-dim-large); /* 24px */
-    --cem-inset-surface: var(--cem-dim-x-large); /* 32px */
-
-    /* Layout gutters */
-    --cem-layout-gutter: var(--cem-dim-large); /* 24px */
-    --cem-layout-gutter-wide: var(--cem-dim-xx-large); /* 64px */
-    --cem-layout-gutter-max: var(--cem-dim-xxx-large); /* 128px */
-
-    /* Content cadence */
-    --cem-rhythm-reading-paragraph: 1em;
-    --cem-rhythm-reading-section: var(--cem-dim-x-large); /* 32px */
-    --cem-rhythm-data-row: var(--cem-dim-small); /* 12px */
-    --cem-rhythm-data-group: var(--cem-dim-large); /* 24px */
-}
-```
+| Token                            | dense                     | sparse                     |
+|----------------------------------|---------------------------|----------------------------|
+| `--cem-gap-related`              | `var(--cem-dim-x-small)`  | `var(--cem-dim-small)`     |
+| `--cem-gap-group`                | `var(--cem-dim-x-small)`  | `var(--cem-dim-medium)`    |
+| `--cem-gap-block`                | `var(--cem-dim-small)`    | `var(--cem-dim-large)`     |
+| `--cem-gap-section`              | `var(--cem-dim-medium)`   | `var(--cem-dim-x-large)`   |
+| `--cem-gap-page`                 | `var(--cem-dim-large)`    | `var(--cem-dim-xx-large)`  |
+| `--cem-inset-control`            | `var(--cem-dim-x-small)`  | `var(--cem-dim-small)`     |
+| `--cem-inset-container`          | `var(--cem-dim-small)`    | `var(--cem-dim-large)`     |
+| `--cem-inset-surface`            | `var(--cem-dim-medium)`   | `var(--cem-dim-x-large)`   |
+| `--cem-layout-gutter`            | `var(--cem-dim-small)`    | `var(--cem-dim-large)`     |
+| `--cem-layout-gutter-wide`       | `var(--cem-dim-large)`    | `var(--cem-dim-xx-large)`  |
+| `--cem-layout-gutter-max`        | `var(--cem-dim-x-large)`  | `var(--cem-dim-xxx-large)` |
+| `--cem-rhythm-reading-paragraph` | 0.6em                     | 1em                        |
+| `--cem-rhythm-reading-section`   | `var(--cem-dim-medium)`   | `var(--cem-dim-x-large)`   |
+| `--cem-rhythm-data-row`          | `var(--cem-dim-xx-small)` | `var(--cem-dim-small)`     |
+| `--cem-rhythm-data-group`        | `var(--cem-dim-small)`    | `var(--cem-dim-large)`     |
 
 ### 8.3 Notes on component mapping
 
 * Components should bind to semantic endpoints (`gap-*`, `inset-*`, `rhythm-*`) and inherit spacing mode automatically.
 
 * If a component is interactive and uses layout gaps between peer affordances, resolve its gap as:
-`gap = max(D1 semantic gap, D2 coupling guard)`.
+  `gap = max(D1 semantic gap, D2 coupling guard)`.
 * If a component must remain stable across spacing modes (rare), bind it to reference steps explicitly and document why.
 
 ### 8.4 Layout mapping checklist (how to apply)
@@ -548,14 +488,15 @@ Use these patterns so teams can implement screens without inventing spacing sema
 
 1. Use the dimension scale (`--cem-dim-*`) as the foundation.
 2. Map semantic endpoints (`gap-*`, `inset-*`, `rhythm-*`) to dimension tokens.
-3. Treat D2 coupling (`zone/guard/halo`) as **hard constraints** for interactive adjacency — see [`cem-coupling.md`](./cem-coupling.md).
+3. Treat D2 coupling (`zone/guard/halo`) as **hard constraints** for interactive adjacency — see [
+   `cem-coupling.md`](./cem-coupling.md).
 4. Update component tokens to use semantic endpoints.
 5. Add optional `data-cem-spacing="dense|normal|sparse"` only if product needs spacing modes.
 6. Validate on representative surfaces:
-   - interactive clusters: guard is respected and no halo overlap occurs
-   - reading rhythm (articles/help)
-   - scan rhythm (tables/metric panels)
-   - responsive gutters
+    - interactive clusters: guard is respected and no halo overlap occurs
+    - reading rhythm (articles/help)
+    - scan rhythm (tables/metric panels)
+    - responsive gutters
 7. Validate bend-inset harmony on rounded surfaces — see [`cem-shape.md`](./cem-shape.md) §8.5.
 
 ---
@@ -615,9 +556,59 @@ D1 is subordinate to D2 for operability. The following must hold in every releas
 
 ---
 
+## 11. Acceptance criteria
+
+**Interactive-adjacency contract (non-normative for generator):** any consumer using D1 gaps between interactive
+affordances must resolve the effective gap as:
+
+```css
+gap:
+
+max
+(
+var
+(
+--cem-gap-related
+
+)
+,
+var
+(
+--cem-coupling-guard-min
+
+)
+)
+;
+```
+
+The generator does not enforce this — it is component-author responsibility, documented in the manifest notes above.
+
+**Reading-rhythm validation** is deferred to D6 cross-check (Phase 12 in the implementation plan). D1 cannot validate
+rhythm in isolation.
+
+## 12. Token manifest index
+
+Token tier is encoded in the `tier` column of each source table. The manifest validator derives expected token names
+from these tables using the same XPath pattern as `cem-dimension.html`.
+
+| Source table h6 id       | Tokens covered                                                            | Validator derivation |
+|--------------------------|---------------------------------------------------------------------------|----------------------|
+| `cem-dim-scale`          | `--cem-dim-*` (8 tokens)                                                  | one token per row    |
+| `cem-dim-gaps`           | `--cem-gap-*` (5 tokens)                                                  | one token per row    |
+| `cem-dim-insets`         | `--cem-inset-*` (3 tokens)                                                | one token per row    |
+| `cem-dim-rhythm-reading` | `--cem-rhythm-reading-*` (2 tokens)                                       | one token per row    |
+| `cem-dim-rhythm-data`    | `--cem-rhythm-data-*` (2 tokens)                                          | one token per row    |
+| `cem-dim-layout`         | `--cem-layout-*` (10 tokens; deprecated tier omitted from default output) | one token per row    |
+
+Spacing mode overrides (`cem-dim-spacing-overrides`) produce no new token names — they override existing tokens within
+`:root[data-cem-spacing="dense"]` and `:root[data-cem-spacing="sparse"]` selectors.
+
+---
+
 ## References
 
 **Local CEM documentation**
+
 - [D2. Coupling & Compactness](./cem-coupling.md) — interactive operability constraints
 - [D3. Shape & Bend](./cem-shape.md) — bend tokens, bend-inset harmony
 - [D5. Stroke & Separation](./cem-stroke.md) — boundaries, dividers, focus/selection/target indicators
