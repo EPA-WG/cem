@@ -220,10 +220,10 @@ Foundation phase — blocks all later phases. Establishes the contract that Prin
    non-color specs use prose with embedded code-fences) get a follow-up retrofit task in their own phase.
 3. [ ] Backfill the `cem-colors.md` manifest as the worked example (one `<h6 id="cem-colors-manifest">` followed by a
    table listing every emitted token from Phase 1–3).
-4. [ ] Build a **manifest-vs-CSS validator** script under `packages/cem-theme/scripts/` (or extend
+4. [x] Build a **manifest-vs-CSS validator** script under `packages/cem-theme/scripts/` (or extend
    `capture-xpath-text.mjs`) that, after capture, parses the generated CSS and asserts: every manifest token present, no
    extras, no `{` AVT remnants, no `.myClass{}` placeholders, balanced braces, parses via PostCSS or `csstree`.
-5. [ ] Wire the validator into the `build:css` target so a manifest mismatch fails the build.
+5. [x] Wire the validator into the `build:css` target so a manifest mismatch fails the build.
 6. [ ] **Investigate and fix duplicate output**: `dist/lib/css/cem-colors.css` and `cem-colors-1.css` are emitted from a
    single generator. Fix `capture-xpath-text.mjs` (or the generator template that produces two matched nodes) so each
    generator yields exactly one `<name>.css`.

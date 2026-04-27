@@ -35,7 +35,8 @@
             "options": {
                 "commands": [
                     "rm -f dist/lib/css/*.css",
-                    "node ../../tools/scripts/capture-xpath-text.mjs \"src/lib/css-generators/*.html\" \"//code[@data-generated-css]\" \"dist/lib/css/*.css\""
+                    "node ../../tools/scripts/capture-xpath-text.mjs \"src/lib/css-generators/*.html\" \"//code[@data-generated-css]\" \"dist/lib/css/*.css\"",
+                    "node scripts/validate-manifest.mjs dist/lib/tokens/cem-colors.xhtml dist/lib/css/cem-colors.css"
                 ],
                 "parallel": false,
                 "cwd": "packages/cem-theme"
