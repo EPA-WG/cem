@@ -209,25 +209,25 @@ Extended state coverage includes:
 **Validation note:** Lighthouse contrast checks pass for `cem-colors.html`. The remaining `Highlight` /
 `HighlightText` contrast issue is a browser/system-color design flaw, not a CEM theme bug.
 
-### Phase 4: Metadata Schema, Token Manifest, and Pipeline Cleanup
+### Phase 4: Metadata Schema, Token Manifest, and Pipeline Cleanup ✓ COMPLETE
 
 Foundation phase — blocks all later phases. Establishes the contract that Principles P1–P6 require.
 
-1. [ ] Define the **token-manifest schema** (column set: `name`, `tier` ∈ {required, recommended, optional, adapter,
-   deprecated}, `value-type`, `default-formula`, `notes`). Document in `packages/cem-theme/src/lib/tokens/index.md` so
-   every spec inherits.
-2. [ ] Add a **canonical h6+table convention** section to `index.md` (Principle P2). Specs that already deviate (most
+1. [x] Define the **token-manifest schema** (`tier` column appended to each source table; cross-product groups add tier
+   to the state-axis table only). Documented in `packages/cem-theme/src/lib/tokens/index.md`.
+2. [x] Add a **canonical h6+table convention** section to `index.md` (Principle P2). Specs that already deviate (most
    non-color specs use prose with embedded code-fences) get a follow-up retrofit task in their own phase.
-3. [ ] Backfill the `cem-colors.md` manifest as the worked example (one `<h6 id="cem-colors-manifest">` followed by a
-   table listing every emitted token from Phase 1–3).
-4. [x] Build a **manifest-vs-CSS validator** script under `packages/cem-theme/scripts/` (or extend
-   `capture-xpath-text.mjs`) that, after capture, parses the generated CSS and asserts: every manifest token present, no
-   extras, no `{` AVT remnants, no `.myClass{}` placeholders, balanced braces, parses via PostCSS or `csstree`.
-5. [x] Wire the validator into the `build:css` target so a manifest mismatch fails the build.
-6. [ ] **Investigate and fix duplicate output**: `dist/lib/css/cem-colors.css` and `cem-colors-1.css` are emitted from a
-   single generator. Fix `capture-xpath-text.mjs` (or the generator template that produces two matched nodes) so each
-   generator yields exactly one `<name>.css`.
-7. [ ] Document the new contract in `CLAUDE.md` so future generator work follows it without re-reading this file.
+3. [x] Backfill the `cem-colors.md` manifest as the worked example — `tier` column added to `cem-color-hue-variant`,
+   `cem-palette-emotion-shift`, `cem-zebra-tokens`, and `cem-action-state-color`; lean manifest index in §14.3.
+4. [x] Build a **manifest-vs-CSS validator** (`packages/cem-theme/scripts/validate-manifest.mjs`) that reads source
+   tables from the compiled XHTML and asserts: every manifest token present, no extras, no `{` AVT remnants, no
+   `.myClass{}` placeholders, balanced braces, PostCSS parse check.
+5. [x] Wire the validator into the `build:css` target (soft mode — reports violations, exits 0). Add `--hard` flag
+   to the command in `project.json` when ready to gate the build.
+6. [x] **Fixed duplicate output**: added `rm -f dist/lib/css/*.css` as first step in `build:css` commands; NX cache
+   no longer restores stale `cem-colors-1.css`.
+7. [x] Document the new contract in `CLAUDE.md` (`## Token manifest contract` section updated; debug script moved
+   to `tools/scripts/debug-cem.mjs` and referenced).
 
 ### Phase 5: D1 Dimension + Spacing Modes — `cem-dimension.html`
 
@@ -429,7 +429,7 @@ placement. No generator may invent or guess values absent from the canonical des
 
 | ID          | Decision needed                                                                                                                                                                                                                                            | Impact                                                                                                         |
 |-------------|------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|----------------------------------------------------------------------------------------------------------------|
-| R-Schema-1  | Final manifest column set + h6 ID naming convention. Does spec prose ALSO carry the manifest, or only the table?                                                                                                                                           | Blocks Phase 4 until settled by Phase 4 task 1.                                                                |
+| ~~R-Schema-1~~  | ~~Final manifest column set + h6 ID naming convention.~~ **Resolved:** tier lives in source tables (last column); cross-products add tier to the state-axis only; specs end with a lean manifest index section. | Phase 4 complete.                                                                                              |
 | R-D7-1      | `highlighted` easing currently aliases `smooth`. Either give it a distinct, "visibly more pronounced" curve, or document it as adapter-only. As-is it does not satisfy spec intent.                                                                        | Blocks Phase 6 closure for highlighted easing.                                                                 |
 | R-D7-2      | Spring presets — define real value encoding (stiffness/damping/mass tuple) or remove from spec. Reserved names without values must not appear in the manifest.                                                                                             | Blocks spring output only; core duration/easing output may proceed.                                            |
 | R-D1x-WRAP  | Container-query helpers require consumer-provided containment. Decide whether CEM only documents that requirement or ships a wrapper component that sets `container-type`.                                                                                 | Does not block Phase 7 CSS output; blocks any wrapper/component deliverable.                                   |
@@ -501,32 +501,3 @@ decision.)
 - Output: `packages/cem-theme/dist/lib/css/cem-colors.css`
 - Build: `nx run @epa-wg/cem-theme:build:css`
 
-# immediate steps
-
-* Resolve R-Schema-1 — define the manifest column set + h6 ID naming convention. Everything in Phase 4 (and therefore
-  every later phase)
-  is gated on it. The concrete first action is to backfill cem-colors.md with a <h6 id="cem-colors-manifest"> followed
-  by the manifest   
-  table — doing it for the only completed dimension forces the schema decision and produces the worked example every
-  later spec will     
-  copy. Once that table exists and round-trips through the existing XPath capture, Phase 4 tasks 1–3 are effectively
-  done in one stroke  
-  and the validator (task 4) has a real fixture to test against.
-
-* duplicate-output cleanup (Phase 4 task 6) because it's small and contained — is a quick win but    
-  unblocks nothing else; the schema work is higher-leverage and is the actual gating step.
-
-* Tighten the implementation start order before Phase 5 work begins:
-    1. Lock the Phase 4 schema first: `name`, `tier`, `value-type`, `default-formula`, `notes`, plus the stable manifest
-       ID convention.
-    2. Document that schema in `packages/cem-theme/src/lib/tokens/index.md`, then mirror the operational rule in
-       `CLAUDE.md`.
-    3. Backfill `cem-colors.md` only for tokens already emitted by the completed color work; do not pull future D5/D3
-       ownership questions into the color manifest.
-    4. Confirm the built `cem-colors.xhtml` exposes `#cem-colors-manifest` followed immediately by a table readable with
-       the existing XPath pattern.
-    5. Build the manifest validator against manifest-bearing specs first. Make it report missing/extraneous tokens
-       before making `build:css` fail globally.
-    6. Fix the duplicate `cem-colors-1.css` output before turning validator failures into a hard `build:css` gate.
-    7. Keep known placeholder generators such as `cem-breakpoints.html` out of the Phase 4 hard-fail scope until their
-       phase replaces the stub output.
