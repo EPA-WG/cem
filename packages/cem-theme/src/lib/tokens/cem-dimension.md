@@ -127,7 +127,12 @@ Use this **legend-level** dimensional taxonomy to keep token categories coherent
     - operable zone minimums
     - interference/isolation minimums
     - halo/expansion policy (visual size vs operable size)
-    - control geometry endpoints that affect operability (heights/paddings/row sizes)
+
+- **D2c. Controls** (adjacent; visual geometry constrained by D2) — see [`cem-controls.md`](./cem-controls.md)
+    - generic control geometry (height, padding)
+    - icon-button size
+    - list/menu/table row heights
+    - per-coupling-mode visual geometry overrides
 
 - **D3. Shape & Bend** — see [`cem-shape.md`](./cem-shape.md)
     - bend / corner radius roles
@@ -503,14 +508,15 @@ Use these patterns so teams can implement screens without inventing spacing sema
 
 ## Appendix A. D2 Coupling Mode Matrix (excerpt)
 
-This excerpt is provided for convenience when working in D1. The canonical definitions and governance live in **D2.
-Coupling & Compactness** ([`cem-coupling.md`](./cem-coupling.md)).
+This excerpt is provided for convenience when working in D1. The canonical safety definitions and governance live in
+**D2. Coupling & Compactness** ([`cem-coupling.md`](./cem-coupling.md)); visual geometry values live in **D2c.
+Controls** ([`cem-controls.md`](./cem-controls.md)).
 
-| D2 coupling mode | Product intent                                            | Visual geometry trend                       | Halo (`--cem-coupling-halo`) trend  | Typical surfaces                                      |
-|------------------|-----------------------------------------------------------|---------------------------------------------|-------------------------------------|-------------------------------------------------------|
-| `forgiving`      | Minimize mis-coupling for imprecise input                 | Larger controls/rows; more internal padding | Smaller (visuals already meet zone) | mobile-first, kiosks, accessibility-first, gaze/dwell |
-| `balanced`       | Default across modalities                                 | Baseline control heights/rows               | Baseline                            | mixed pointer + touch, general app UI                 |
-| `compact`        | Increase information density without breaking operability | Smaller visuals; reduced chrome             | Larger (use halo to preserve zone)  | data grids, admin tools, scan-heavy panels            |
+| Coupling mode | Product intent                                            | D2c Controls visual geometry trend          | D2 halo (`--cem-coupling-halo`) trend | Typical surfaces                                      |
+|---------------|-----------------------------------------------------------|---------------------------------------------|--------------------------------------|-------------------------------------------------------|
+| `forgiving`   | Minimize mis-coupling for imprecise input                 | Larger controls/rows; more internal padding | Smaller (visuals already meet zone)  | mobile-first, kiosks, accessibility-first, gaze/dwell |
+| `balanced`    | Default across modalities                                 | Baseline control heights/rows               | Baseline                             | mixed pointer + touch, general app UI                 |
+| `compact`     | Increase information density without breaking operability | Smaller visuals; reduced chrome             | Larger (use halo to preserve zone)   | data grids, admin tools, scan-heavy panels            |
 
 Normative invariants (do not override in D1):
 

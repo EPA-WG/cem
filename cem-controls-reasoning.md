@@ -9,13 +9,15 @@ tokens by itself.
 ## Current State
 
 - `--cem-control-height`, `--cem-control-padding-x`, and `--cem-control-padding-y` are defined in
-  `packages/cem-theme/src/lib/tokens/cem-coupling.md`.
+  `packages/cem-theme/src/lib/tokens/cem-controls.md`.
 - `--cem-control-height` is consumed by `cem-shape.md` as the default height basis for `--cem-bend-round`.
-- D1, D2, and D3 already cross-reference coupling/control geometry:
+- D1, D2, D2c, and D3 cross-reference the split contracts:
   - D1 treats D2 coupling as a hard constraint for interactive adjacency.
-  - D2 defines zone, guard, halo, and visual control geometry.
+  - D2 defines zone, guard, halo, and operability policy.
+  - D2c Controls defines visual control geometry and per-mode visual overrides.
   - D3 uses control height so round-end geometry remains tied to actual control sizing.
-- `cem-coupling.html` and manifest validation currently source control geometry from `cem-coupling.md`.
+- `cem-controls.html` and manifest validation source visual control geometry from `cem-controls.md`.
+- `cem-coupling.html` and manifest validation source only coupling safety tokens from `cem-coupling.md`.
 
 ## Pros
 
@@ -36,12 +38,12 @@ tokens by itself.
 - Makes namespace boundaries less clear for related tokens such as `--cem-icon-button-*`, `--cem-list-row-height`,
   `--cem-menu-row-height`, and `--cem-table-row-height`.
 
-## Recommendation
+## Implemented Split
 
-Since `cem-controls.md` is canonical, move visual control geometry into that doc and keep D2 coupling focused on
+Since `cem-controls.md` is canonical, visual control geometry belongs there and D2 coupling remains focused on
 operability safety.
 
-`cem-controls.md` should own:
+`cem-controls.md` owns:
 
 - `--cem-control-height`
 - `--cem-control-padding-x`
@@ -51,7 +53,7 @@ operability safety.
 - `--cem-list-row-height`, `--cem-menu-row-height`, and `--cem-table-row-height` if the controls doc owns component
   affordance sizing
 
-`cem-coupling.md` should continue to own:
+`cem-coupling.md` owns:
 
 - `--cem-coupling-zone-min`
 - `--cem-coupling-guard-min`
@@ -68,13 +70,13 @@ The clean split would be:
 This split should be explicit and generator-backed: the controls doc owns visual control geometry, while
 `cem-coupling.md` continues to own mode-invariant operability rules such as zone, guard, and halo.
 
-## Follow-up Work
+## Completed Work
 
-- Create canonical `packages/cem-theme/src/lib/tokens/cem-controls.md`.
-- Move the visual control geometry source tables from `cem-coupling.md` to `cem-controls.md`.
-- Add or update the controls CSS generator and manifest validation.
-- Update cross-references in Shape, Coupling, Dimension, the token index, and parity docs.
-- Keep coupling mode invariants in D2; only move visual/component geometry.
+- Created canonical `packages/cem-theme/src/lib/tokens/cem-controls.md`.
+- Moved visual control geometry source tables from `cem-coupling.md` to `cem-controls.md`.
+- Added `cem-controls.html` generator and separate manifest validation.
+- Updated cross-references in Shape, Coupling, Dimension, the token index, and parity docs.
+- Kept coupling mode invariants and safety policy in D2 Coupling.
 
 ## Expansion Triggers
 

@@ -2,17 +2,6 @@
 
 **Goal:** Generate CSS for all tokens defined in `packages/cem-theme/src/lib/tokens/*.md`
 
-## Immediate Work
-
-1. [x] **Canonical Controls split** — `cem-controls.md` added as its own canonical token spec; visual control
-   geometry moved out of D2 Coupling per [`cem-controls-reasoning.md`](../cem-controls-reasoning.md). Done in
-   Phase 8.5 below.
-   - D2 Coupling keeps operability safety: `--cem-coupling-zone-min`, `--cem-coupling-guard-min`,
-     `--cem-coupling-halo`, and coupling mode invariants (halo policy only).
-   - Controls owns visual/component geometry: `--cem-control-*`, `--cem-icon-button-*`, and list/menu/table
-     row-height geometry tokens, plus per-coupling-mode visual overrides.
-   - D3 Shape generator (Phase 9) is now unblocked — it can consume `--cem-control-height` from Controls.
-
 ## Current State
 
 ### Color (D0) — `cem-colors.html` ✓
@@ -27,14 +16,14 @@ The `cem-colors.html` generator currently produces:
 
 ### Other dimensions
 
-Generator coverage by token spec. `cem-controls.md` is the immediate canonical split from D2 Coupling.
+Generator coverage by token spec.
 
 | Markdown spec                   | Dimension                 | Generator                     | Approx tokens |
 |---------------------------------|---------------------------|-------------------------------|---------------|
 | `cem-dimension.md`              | Space & rhythm (D1)       | `cem-dimension.html` ✓        | 27            |
 | `cem-breakpoints.md`            | Breakpoints (D1x)         | `cem-breakpoints.html` ✓      | 25            |
-| `cem-coupling.md`               | Coupling & density (D2)   | `cem-coupling.html` ✓         | safety tokens + modes |
-| `cem-controls.md`               | Controls geometry (D2c)   | —                             | ~8 + modes    |
+| `cem-coupling.md`               | Coupling safety (D2)      | `cem-coupling.html` ✓         | 3 + halo modes |
+| `cem-controls.md`               | Controls geometry (D2c)   | `cem-controls.html` ✓         | 8 + modes     |
 | `cem-shape.md`                  | Shape & bend (D3)         | —                             | ~16 + mode    |
 | `cem-layering.md`               | Layering & elevation (D4) | —                             | ~14           |
 | `cem-stroke.md`                 | Stroke & separation (D5)  | —                             | ~16           |

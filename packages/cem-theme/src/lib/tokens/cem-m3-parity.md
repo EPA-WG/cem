@@ -231,7 +231,8 @@ const theme = createTheme({
 | Motion (easing + duration) | D7 Timing | ✓ Full |
 | Spacing / Rhythm | D1 Space | ✓ Full |
 | Breakpoints / Responsive | D1x Breakpoints | ✓ Full |
-| Density / Compactness | D2 Coupling | ✓ Full |
+| Density / Compactness safety | D2 Coupling | ✓ Full |
+| Controls geometry | D2c Controls | ✓ Full |
 | Focus/Selection indicators | D5 Stroke | ✓ Full |
 
 ### 5.2 CEM extensions (beyond M3/MUI)

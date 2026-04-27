@@ -53,10 +53,14 @@ packages/cem-theme/
 │   │   ├── cem-colors.md
 │   │   ├── cem-breakpoints.md
 │   │   ├── cem-dimension.md
+│   │   ├── cem-coupling.md
+│   │   ├── cem-controls.md
 │   │   └── ...
 │   └── css-generators/             → Generators: XHTML with CSS generation logic
 │       ├── cem-colors.html
 │       ├── cem-breakpoints.html
+│       ├── cem-coupling.html
+│       ├── cem-controls.html
 │       └── ...
 ├── dist/lib/
 │   ├── tokens/                     → Transpiled XHTML from Markdown
@@ -83,6 +87,8 @@ packages/cem-theme/
 3. **CSS Generation** - Each token file has a matching HTML generator in `dist/lib/css-generators/`. For example:
     - `cem-colors.md` → `cem-colors.html` generator
     - `cem-breakpoints.md` → `cem-breakpoints.html` generator
+    - `cem-coupling.md` → `cem-coupling.html` generator
+    - `cem-controls.md` → `cem-controls.html` generator
 
 4. **CSS Extraction** - The `capture-xpath-text.mjs` script executes each dist HTML generator and saves the CSS content to
    the target path within `dist/lib/css/`
@@ -92,6 +98,8 @@ packages/cem-theme/
 ```
 cem-colors.md  →  dist/lib/tokens/cem-colors.xhtml
 cem-colors.html → dist/lib/css-generators/cem-colors.html → dist/lib/css/cem-colors.css
+cem-controls.md → dist/lib/tokens/cem-controls.xhtml
+cem-controls.html → dist/lib/css-generators/cem-controls.html → dist/lib/css/cem-controls.css
 ```
 
 The dist generator HTML files load the transpiled XHTML token definitions using dist-relative URLs and use XPath/XSLT
