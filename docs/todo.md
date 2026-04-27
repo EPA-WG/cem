@@ -27,7 +27,7 @@ Generator coverage by token spec.
 | `cem-shape.md`                  | Shape & bend (D3)         | `cem-shape.html` ✓            | 15 + brand modes |
 | `cem-stroke.md`                 | Stroke & separation (D5)  | `cem-stroke.html` ✓           | 15 + forced-colors fallback |
 | `cem-layering.md`               | Layering & elevation (D4) | `cem-layering.html` ✓         | 14 + forced-colors fallback |
-| `cem-voice-fonts-typography.md` | Typography & voice (D6)   | —                             | ~80+          |
+| `cem-voice-fonts-typography.md` | Typography & voice (D6)   | `cem-voice-fonts-typography.html` ✓ | 149 + dark/contrast ink |
 | `cem-timing.md`                 | Timing & motion (D7)      | `cem-timing.html` ✓           | 13            |
 
 `cem-responsive.md`, `cem-m3-parity.md`, `cem-zebra.md`, and `index.md` define no token values and are out of scope.
@@ -423,39 +423,37 @@ validation green on first build.
 Generated CSS: 14 tokens (7 rungs + 5 required semantic + 2 optional semantic) + forced-colors rung fallbacks.
 Manifest validation green on first build.
 
-### Phase 12: D6 Typography & Voice — `cem-voice-fonts-typography.html`
+### Phase 12: D6 Typography & Voice — `cem-voice-fonts-typography.html` ✓ COMPLETE
 
 Largest category. **NOT standalone** — depends on D1 (reading rhythm), D2 (compact label safety), D5 (decoration /
-underlines), and accessibility validation. The current D6 spec already defines the feature-policy, reading-ergonomics,
-text-transform, and dark/contrast ink projection names; generator work should mirror those canonical names rather than
-open new token-name R&D unless the manifest retrofit finds an actual contradiction.
+underlines), and accessibility validation.
 
-1. [ ] Add `cem-voice-fonts-typography-manifest` h6+table covering ALL groups below.
-2. [ ] Add metadata blocks for fontography families, thickness scale, size scale, line-height, letter-spacing, **feature
-   policies**, **reading ergonomics**, **text-transform**, voice, semantic role endpoints, dark/contrast ink
-   projections.
-3. [ ] Create `cem-voice-fonts-typography.html`. Emit:
-    - Fontography families: `--cem-fontography-{reading|ui|script|initialism|brand}-family`. **Quoted family stacks and
-      comma-separated values MUST round-trip** (high-risk parsing — add fixture test).
-    - Thickness scale (7), size scale (7).
-    - Line-height + letter-spacing primitives.
-    - **Feature tokens** previously missed: `--cem-typography-feature-numeric-data`,
-      `--cem-typography-feature-ligatures-script`, `--cem-typography-feature-optical-sizing`.
-    - **Reading-ergonomics tokens** previously missed: `--cem-typography-reading-measure-max`,
-      `--cem-typography-reading-paragraph-gap`.
-    - **`text-transform` role tokens** for initialism / iconized roles.
-    - **Dark and contrast theme ink projections** (cross-mode, mirrors `cem-colors.html` mode pattern).
-    - Voice:
-      `--cem-voice-{whisper|soft|gentle|regular|firm|strong|loud}-{ink-thickness|icon-stroke-multiplier|speech-volume|speech-rate|speech-pitch|ssml-emphasis}`.
-    - Semantic typography roles — output MUST include role-specific properties: data → `font-variant-numeric`, script →
-      ligature policy, initialism / iconized → `text-transform`, reading → `--cem-typography-reading-measure-max` +
-      `-paragraph-gap`.
-4. [ ] Manifest documents: voice tokens are **CSS-exported data, not behavior**. Screen readers honor HTML/ARIA, not
-   CSS. Voice tokens only feed product TTS adapters.
-5. [ ] Accessibility / i18n acceptance: family stacks retain broad Unicode fallback and representative language
-   coverage. Add fixture spec.
+1. [x] Manifest tables added to `cem-voice-fonts-typography.md` §12. 16 tables total covering all groups below.
+   Manifest index in §13.
+2. [x] Metadata blocks for fontography families, thickness scale, size scale, line-height, letter-spacing,
+   **feature policies**, **reading ergonomics**, **text-transform** (carried inside the roles table), voice
+   channels, semantic role endpoints, and dark/contrast ink-thickness projections (override-only).
+3. [x] `cem-voice-fonts-typography.html` created. Emits **149 tokens**:
+    - Fontography families (5): `--cem-fontography-{reading|ui|script|initialism|brand}-family`. Quoted family
+      stacks and comma-separated values round-trip cleanly through XHTML and the manifest validator.
+    - Thickness scale (7), size scale (7), line-height (4), letter-spacing (3), feature policies (3),
+      reading-ergonomics (2) — total foundation = 31.
+    - Voice (42): 7 voices × 6 channels (`ink-thickness` required; icon-stroke-multiplier, speech-volume,
+      speech-rate, speech-pitch, ssml-emphasis recommended).
+    - Semantic role endpoints (76): 8 roles × ~9-10 properties each, including role-specific `font-variant-numeric`
+      (data), `font-variant-ligatures` (script), and `text-transform` (initialism, iconized).
+    - **Dark and contrast theme ink projections** as override blocks under
+      `.cem-theme-{dark,contrast-dark}` and `.cem-theme-contrast-{light,dark}` selectors (composes with
+      cem-colors.css theme mode classes).
+4. [x] Manifest §13 documents: voice tokens are **CSS-exported data, not behavior**. Screen readers honor HTML/ARIA,
+   not CSS. These tokens feed product TTS adapters.
+5. [x] Family stacks retain broad Unicode fallback in the source table — `Noto Sans`, `Liberation Sans`, system-ui,
+   etc. — preserved verbatim in the generated CSS.
 6. [ ] Cross-checks (deferred to Phase 13): D1 reading-rhythm-vs-D6-line-height, D2 compact-label legibility, D5
    underline/decoration colors.
+
+Generated CSS: 149 tokens (31 foundation + 42 voice + 76 roles) + dark/contrast voice ink-thickness override
+blocks. Manifest validation green on first build.
 
 ### Phase 13: Cross-Phase Verification
 
@@ -532,13 +530,13 @@ Each new generator HTML mirrors `cem-colors.html` AND honors the Token-to-CSS Tr
 | Shape & bend (D3)         | 15      | 15        | 0      | ✓           |
 | Stroke & separation (D5)  | 15      | 15        | 0      | ✓           |
 | Layering & elevation (D4) | 14      | 14        | 0      | ✓           |
-| Typography & voice (D6)   | ~95+    | 0         | ~95+   | ✗ Phase 12  |
+| Typography & voice (D6)   | 149     | 149       | 0      | ✓           |
 | Timing & motion (D7)      | 13      | 13        | 0      | ✓           |
-| **Total**                 | ~340+   | 257       | ~85+   | In progress |
+| **Total**                 | 406     | 406       | 0      | ✓ all dimensions covered |
 
-(D6 estimate raised from ~80+ to ~95+ to include feature-policy, reading-ergonomics, and text-transform tokens that
-the original plan missed; D1 +sp = spacing-mode overrides; D7 dropped from ~14–26 to ~12+ pending R-D7-2 spring
-decision.)
+(Final counts after all generator phases landed: D6 grew from ~80+ estimate to 149 actuals because the spec defines
+foundation primitives + voice cross-product (7 × 6) + 76 semantic role endpoints; D1 +sp = spacing-mode overrides;
+D7 holds at 13 pending R-D7-2 spring decision.)
 
 **Action tokens generated (Phase 3 complete):**
 

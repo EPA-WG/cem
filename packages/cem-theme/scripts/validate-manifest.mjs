@@ -215,6 +215,51 @@ function deriveCouplingManifest(xhtml) {
 }
 
 /**
+ * Build the expected token list for cem-voice-fonts-typography from the compiled XHTML.
+ * Returns { tokens: [{name, tier}], warnings: string[] }
+ *
+ * D6 has the largest token surface: foundation primitives (fontography, thickness,
+ * size, line-height, letter-spacing, feature, reading-ergonomics), 6 voice channel
+ * groups (7 voices each = 42 tokens), and 76 semantic role endpoints. The two
+ * theme ink-thickness override tables (-dark, -contrast) are generator-only.
+ */
+function deriveTypographyManifest(xhtml) {
+    const warnings = [];
+    const tokens = [];
+
+    for (const tableId of [
+        // Foundation
+        "cem-typography-fontography",
+        "cem-typography-thickness",
+        "cem-typography-size",
+        "cem-typography-line-height",
+        "cem-typography-letter-spacing",
+        "cem-typography-feature",
+        "cem-typography-reading-ergonomics",
+        // Voice channels
+        "cem-typography-voice-ink-thickness",
+        "cem-typography-voice-icon-stroke-multiplier",
+        "cem-typography-voice-speech-volume",
+        "cem-typography-voice-speech-rate",
+        "cem-typography-voice-speech-pitch",
+        "cem-typography-voice-ssml-emphasis",
+        // Semantic roles
+        "cem-typography-roles",
+    ]) {
+        const rows = extractTable(xhtml, tableId);
+        if (!rows) {
+            warnings.push(`Table not found: #${tableId}`);
+            continue;
+        }
+        const extracted = tokensFromTable(rows);
+        if (extracted.length === 0) warnings.push(`No token rows found in table #${tableId}`);
+        tokens.push(...extracted);
+    }
+
+    return { tokens, warnings };
+}
+
+/**
  * Build the expected token list for cem-layering from the compiled XHTML.
  * Returns { tokens: [{name, tier}], warnings: string[] }
  *
@@ -467,6 +512,7 @@ async function main(argv) {
         specName === "cem-shape"       ? deriveShapeManifest :
         specName === "cem-stroke"      ? deriveStrokeManifest :
         specName === "cem-layering"    ? deriveLayeringManifest :
+        specName === "cem-voice-fonts-typography" ? deriveTypographyManifest :
         deriveColorManifest;
     const { tokens: manifest, warnings: manifestWarnings } = deriveManifest(xhtml);
     if (manifestWarnings.length) {
