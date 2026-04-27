@@ -25,8 +25,8 @@ Generator coverage by token spec.
 | `cem-coupling.md`               | Coupling safety (D2)      | `cem-coupling.html` ✓         | 3 + halo modes |
 | `cem-controls.md`               | Controls geometry (D2c)   | `cem-controls.html` ✓         | 8 + modes     |
 | `cem-shape.md`                  | Shape & bend (D3)         | `cem-shape.html` ✓            | 15 + brand modes |
+| `cem-stroke.md`                 | Stroke & separation (D5)  | `cem-stroke.html` ✓           | 15 + forced-colors fallback |
 | `cem-layering.md`               | Layering & elevation (D4) | —                             | ~14           |
-| `cem-stroke.md`                 | Stroke & separation (D5)  | —                             | ~16           |
 | `cem-voice-fonts-typography.md` | Typography & voice (D6)   | —                             | ~80+          |
 | `cem-timing.md`                 | Timing & motion (D7)      | `cem-timing.html` ✓           | 13            |
 
@@ -363,28 +363,35 @@ Depends on Phase 8.5 Controls because `--cem-bend-round` consumes `--cem-control
 Generated CSS: 15 tokens (5 basis + 8 semantic + 2 pattern) + sharp/round brand-mode overrides. Manifest validation
 green on first build.
 
-### Phase 10: D5 Stroke — `cem-stroke.html`
+### Phase 10: D5 Stroke — `cem-stroke.html` ✓ COMPLETE
 
 Depends on D2 (guard math) and D0 (zebra colors).
 
-1. [ ] Resolve R&D R-D5-1 (zebra geometry ownership) BEFORE creating the generator. Outcome decides whether
-   `--cem-zebra-strip-size` moves out of `cem-colors.html` into `cem-stroke.html`, or whether D0 keeps colors-only and
-   D5 references them.
-2. [ ] Add `cem-stroke-manifest` h6+table reflecting the R&D outcome.
-3. [ ] Add metadata blocks for stroke basis, semantic endpoints, indicator-offset, ring composition recipes.
-4. [ ] Create `cem-stroke.html`. Emit:
+1. [x] **R-D5-1 resolved (document the split):** D0 (`cem-colors.html`) keeps `--cem-zebra-strip-size` and
+   `--cem-zebra-color-{0..3}` because they ship with full theme-mode coverage
+   (`.cem-theme-{light,dark,contrast-light,contrast-dark,native}`). D5 owns stroke basis, semantic endpoints,
+   `--cem-stroke-indicator-offset`, ring recipes, and `--cem-zebra-angle`. D5 ring values reference D0-owned
+   tokens via `var()`. Resolution noted in `cem-stroke.md` §5.1 and §13.
+2. [x] Manifest tables added: `cem-stroke-basis`, `cem-stroke-semantic`, `cem-stroke-zebra-pattern`,
+   `cem-stroke-rings`, `cem-stroke-rings-forced` (override-only).
+3. [x] Metadata blocks for basis (4), semantic endpoints (8 incl. indicator-offset), zebra-angle, and ring recipes.
+4. [x] `cem-stroke.html` created. Emits:
     - Basis: `--cem-stroke-{none|hair|standard|strong}`.
-    - Semantic: `--cem-stroke-{boundary|divider|focus|selected|target}` (+ `-strong`, `-grid`).
-    - `--cem-stroke-indicator-offset`.
-    - Ring recipes: `--cem-ring-zebra-3`, `--cem-ring-zebra-4`, **each accompanied by a `forced-colors: active` outline
-      fallback** (Principle P4).
-5. [ ] Spec prose adds D2 guard formula: default guard MUST cover worst-case indicator outset, i.e.
-   `max(4 * --cem-zebra-strip-size, --cem-stroke-indicator-offset + --cem-stroke-focus)`. This becomes a manifest note
-   for D2.
-6. [ ] Spec prose preserves **no-layout-shift rule**: focus/selection indicators MUST NOT mutate border-box dimensions (
-   use `outline` / `box-shadow` / pseudo-elements, never `border`).
-7. [ ] Spec prose notes WCAG focus-appearance caveat: external `box-shadow`/glow alone is not always counted as
-   component visual presentation — `outline` fallback matters.
+    - Semantic: `--cem-stroke-{boundary|boundary-strong|divider|grid|focus|selected|target}` plus
+      `--cem-stroke-indicator-offset`.
+    - Pattern: `--cem-zebra-angle`.
+    - Ring recipes: `--cem-ring-zebra-3`, `--cem-ring-zebra-4` (referencing D0 zebra tokens).
+    - **Forced-colors fallback** inside `@media (forced-colors: active) :root { … }` collapsing both rings to a
+      single `Highlight` outline (Principle P4).
+5. [x] Spec prose preserves the D2 guard formula in `cem-coupling.md` §4.1.1 (already present from earlier work):
+   `--cem-coupling-guard-min ≥ max(4 * --cem-zebra-strip-size, --cem-stroke-indicator-offset + --cem-stroke-focus)`.
+6. [x] No-layout-shift rule preserved in `cem-stroke.md` §2.3 and §9.1 (avoid `border-width` mutation; prefer
+   `outline` / `box-shadow` / pseudo-elements).
+7. [x] WCAG focus-appearance caveat preserved in `cem-stroke.md` §8.1, §8.2 (forced-colors prefers `outline` over
+   subtle shadows).
+
+Generated CSS: 15 tokens (4 basis + 8 semantic + 1 zebra-angle + 2 rings) + forced-colors ring fallbacks. Manifest
+validation green on first build.
 
 ### Phase 11: D4 Layering — `cem-layering.html`
 
@@ -468,7 +475,7 @@ placement. No generator may invent or guess values absent from the canonical des
 | R-D7-2         | Spring presets — define real value encoding (stiffness/damping/mass tuple) or remove from spec. Reserved names without values must not appear in the manifest.                                                                                                 | Blocks spring output only; core duration/easing output may proceed.                                            |
 | R-D1x-WRAP     | Container-query helpers require consumer-provided containment. Decide whether CEM only documents that requirement or ships a wrapper component that sets `container-type`.                                                                                     | Does not block Phase 7 CSS output; blocks any wrapper/component deliverable.                                   |
 | R-D3-ACTION    | Ownership of `--cem-action-border-radius` emission — D0 actions, D3 shape, or composition recipe. The token is already canonical as an existing component-binding contract.                                                                                    | Does not block required D3 bend tokens; blocks only direct emission of the action binding by `cem-shape.html`. |
-| R-D5-1         | Ownership of `--cem-zebra-strip-size` and ring composition. Currently emitted by `cem-colors.html` (D0). Either move to D5 (D0 = colors only) or document the split explicitly.                                                                                | Blocks Phase 10 generator ownership decision.                                                                  |
+| ~~R-D5-1~~     | ~~Ownership of `--cem-zebra-strip-size` and ring composition.~~ **Resolved (split documented):** D0 keeps `--cem-zebra-strip-size` and `--cem-zebra-color-{0..3}` (already shipped with full theme-mode coverage). D5 owns stroke basis/semantic/indicator-offset, ring recipes (`--cem-ring-zebra-3`, `--cem-ring-zebra-4`), and `--cem-zebra-angle`. Rings reference D0 tokens via `var()`. | Phase 10 complete.                                                                                              |
 | R-D4-1         | D4 generator output shape — semantic aliases only (`--cem-layer-work: var(--cem-elevation-1)`) vs adapter hooks per channel (`--cem-layer-work-tone`, `-shadow`, `-contour`, …). Spec must define which appearance channels are emitted at the rung level.     | Blocks Phase 11.                                                                                               |
 | R-D4-2         | Per-rung minimum perceivable channel changes — formal rule (≥1 channel; ≥2 in dense UIs) and how the generator (or a unit test) verifies it.                                                                                                                   | Blocks Phase 11 verification closure.                                                                          |
 
@@ -510,11 +517,11 @@ Each new generator HTML mirrors `cem-colors.html` AND honors the Token-to-CSS Tr
 | Coupling safety (D2)      | 3       | 3         | 0      | ✓           |
 | Controls geometry (D2c)   | 8       | 8         | 0      | ✓           |
 | Shape & bend (D3)         | 15      | 15        | 0      | ✓           |
+| Stroke & separation (D5)  | 15      | 15        | 0      | ✓           |
 | Layering & elevation (D4) | ~14     | 0         | ~14    | ✗ Phase 11  |
-| Stroke & separation (D5)  | ~16     | 0         | ~16    | ✗ Phase 10  |
 | Typography & voice (D6)   | ~95+    | 0         | ~95+   | ✗ Phase 12  |
 | Timing & motion (D7)      | 13      | 13        | 0      | ✓           |
-| **Total**                 | ~340+   | 228       | ~115+  | In progress |
+| **Total**                 | ~340+   | 243       | ~100+  | In progress |
 
 (D6 estimate raised from ~80+ to ~95+ to include feature-policy, reading-ergonomics, and text-transform tokens that
 the original plan missed; D1 +sp = spacing-mode overrides; D7 dropped from ~14–26 to ~12+ pending R-D7-2 spring

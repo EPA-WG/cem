@@ -102,6 +102,14 @@ CEM D5 uses a **4-step stroke basis** that covers almost all UI needs without a 
 
 - Material Design component specs frequently use 1–2dp stroke thickness for outlines and focus indicators; in web CEM this maps cleanly onto `1px` hairlines and `2px` indicators (see References for representative component spec links and issue discussions).
 
+###### cem-stroke-basis
+| Token                   | Value | Description                                       | tier     |
+|-------------------------|-------|---------------------------------------------------|----------|
+| `--cem-stroke-none`     | `0px` | No stroke                                         | required |
+| `--cem-stroke-hair`     | `1px` | Hairline separators / subtle boundaries           | required |
+| `--cem-stroke-standard` | `2px` | Focus / selection / target indicator thickness    | required |
+| `--cem-stroke-strong`   | `3px` | High-emphasis boundaries / contrast themes        | required |
+
 
 ### 3.2 Density coupling (D2 interaction)
 
@@ -139,6 +147,18 @@ These are the **canonical semantic endpoints** that components consume.
   --cem-stroke-boundary-strong:   var(--cem-stroke-standard);       /* dialogs / sheets when needed */
 }
 ```
+
+###### cem-stroke-semantic
+| Token                           | Value                       | Description                                                     | tier        |
+|---------------------------------|-----------------------------|-----------------------------------------------------------------|-------------|
+| `--cem-stroke-boundary`         | `var(--cem-stroke-hair)`    | Default control container edge (text fields, chips, cards)      | required    |
+| `--cem-stroke-boundary-strong`  | `var(--cem-stroke-standard)`| Strong boundary when elevation/shadow cannot carry separation   | recommended |
+| `--cem-stroke-divider`          | `var(--cem-stroke-hair)`    | Sibling separators (list rows, table rows, sections)            | required    |
+| `--cem-stroke-grid`             | `var(--cem-stroke-divider)` | Tables / data-grid divider alias                                | recommended |
+| `--cem-stroke-focus`            | `var(--cem-stroke-standard)`| Keyboard focus indicator thickness                              | required    |
+| `--cem-stroke-selected`         | `var(--cem-stroke-standard)`| Selection indicator thickness                                   | required    |
+| `--cem-stroke-target`           | `var(--cem-stroke-standard)`| Deep-link target indicator thickness                            | required    |
+| `--cem-stroke-indicator-offset` | `2px`                       | External ring/outline offset (distance, not thickness)          | required    |
 
 ### 4.2 Semantics (normative)
 
@@ -201,6 +221,17 @@ The current theme implementation uses a **zebra ring** composed of stacked outsi
 
 In normal themes, a 3-stripe ring is used; in contrast themes, a 4-stripe ring is used (intent + focus + selected + target).
 
+**Ownership split (R-D5-1 resolved):** `--cem-zebra-strip-size` and `--cem-zebra-color-{0..3}` are owned by D0
+([`cem-colors.md`](./cem-colors.md)) and emitted by `cem-colors.html` because they ship with full theme-mode coverage
+(`.cem-theme-{light,dark,contrast-light,contrast-dark,native}`). D5 owns:
+
+- the stroke basis (`--cem-stroke-{none,hair,standard,strong}`)
+- the stroke semantic endpoints (`--cem-stroke-{boundary,divider,focus,selected,target,…}` and `--cem-stroke-indicator-offset`)
+- the ring composition recipes (`--cem-ring-zebra-3`, `--cem-ring-zebra-4`)
+- `--cem-zebra-angle` (gradient-mode geometry only)
+
+D5 ring recipes reference D0-owned zebra tokens via `var()`; D5 does NOT redeclare them.
+
 ### 5.2 Canonical zebra tokens (D5 contract)
 
 D5 treats these as canonical *indicator-pattern tokens*:
@@ -215,6 +246,14 @@ D5 treats these as canonical *indicator-pattern tokens*:
   --cem-zebra-color-3:    SelectedItem; /* target stripe (or themed alternative) */
 }
 ```
+
+`--cem-zebra-strip-size` and `--cem-zebra-color-{0..3}` are owned by D0 (`cem-colors.md`) and emitted by
+`cem-colors.html`. D5 only declares `--cem-zebra-angle` and the ring composition recipes below.
+
+###### cem-stroke-zebra-pattern
+| Token               | Value   | Description                            | tier        |
+|---------------------|---------|----------------------------------------|-------------|
+| `--cem-zebra-angle` | `45deg` | Stripe angle for gradient-mode zebra   | recommended |
 
 ### 5.3 Recommended indicator composition (box-shadow ring)
 
@@ -237,6 +276,21 @@ D5 treats these as canonical *indicator-pattern tokens*:
 - Avoids layout shift (unlike border-width changes).
 - Works with rounded corners (D3) and can visually sit outside the component.
 - Can be swapped to `outline` in forced-colors contexts (§8.2).
+
+###### cem-stroke-rings
+| Token                | Value                                                                                                                                                                                                                                                  | Description                                  | tier        |
+|----------------------|--------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|----------------------------------------------|-------------|
+| `--cem-ring-zebra-3` | `0 0 0 calc(1 * var(--cem-zebra-strip-size)) var(--cem-zebra-color-1), 0 0 0 calc(2 * var(--cem-zebra-strip-size)) var(--cem-zebra-color-2), 0 0 0 calc(3 * var(--cem-zebra-strip-size)) var(--cem-zebra-color-3)`                                     | 3-stripe focus/selected/target ring          | recommended |
+| `--cem-ring-zebra-4` | `0 0 0 calc(1 * var(--cem-zebra-strip-size)) var(--cem-zebra-color-0), 0 0 0 calc(2 * var(--cem-zebra-strip-size)) var(--cem-zebra-color-1), 0 0 0 calc(3 * var(--cem-zebra-strip-size)) var(--cem-zebra-color-2), 0 0 0 calc(4 * var(--cem-zebra-strip-size)) var(--cem-zebra-color-3)` | 4-stripe ring (contrast themes)              | recommended |
+
+###### cem-stroke-rings-forced
+| Token                | Value                                            |
+|----------------------|--------------------------------------------------|
+| `--cem-ring-zebra-3` | `0 0 0 var(--cem-stroke-focus) Highlight`        |
+| `--cem-ring-zebra-4` | `0 0 0 var(--cem-stroke-focus) Highlight`        |
+
+`cem-stroke-rings-forced` carries forced-colors fallback values for the rings (Principle P4). Generator-only — no
+new tokens. The same ring names are redeclared inside `@media (forced-colors: active) :root { … }`.
 
 ### 5.4 Focus heuristics
 
@@ -461,7 +515,29 @@ Treat as **minor/patch** if you:
 
 ---
 
-## 13. References
+## 13. Token manifest index
+
+| Source table               | Section | Description                                                                                                       |
+|----------------------------|---------|-------------------------------------------------------------------------------------------------------------------|
+| `cem-stroke-basis`         | §3.1    | Stroke basis: `--cem-stroke-{none,hair,standard,strong}`                                                          |
+| `cem-stroke-semantic`      | §4.1    | Semantic endpoints: `--cem-stroke-{boundary,boundary-strong,divider,grid,focus,selected,target,indicator-offset}` |
+| `cem-stroke-zebra-pattern` | §5.2    | `--cem-zebra-angle` (gradient-mode geometry)                                                                      |
+| `cem-stroke-rings`         | §5.3    | Ring composition recipes: `--cem-ring-zebra-3`, `--cem-ring-zebra-4`                                              |
+| `cem-stroke-rings-forced`  | §5.3    | Forced-colors fallback values for the rings (generator-only; no new tokens)                                       |
+
+Generator derivation rules:
+- `cem-stroke-basis`, `cem-stroke-semantic`, `cem-stroke-zebra-pattern`, `cem-stroke-rings` → token list (tier in
+  last column).
+- `cem-stroke-rings-forced` → override data emitted inside `@media (forced-colors: active) :root { … }`; no new
+  tokens.
+- `--cem-zebra-strip-size` and `--cem-zebra-color-{0..3}` are owned by D0 (`cem-colors.md`) and NOT emitted here;
+  the ring recipes reference them via `var()` (R-D5-1 resolution).
+- `--cem-action-box-shadow` is an existing implementation detail of the action stylesheet, not part of the D5
+  manifest contract; this generator does not emit it.
+
+---
+
+## 14. References
 
 - W3C WCAG 2.2 Understanding: Focus Appearance (Minimum) — https://www.w3.org/WAI/WCAG22/Understanding/focus-appearance.html
 - MDN: `:focus-visible` — https://developer.mozilla.org/en-US/docs/Web/CSS/:focus-visible

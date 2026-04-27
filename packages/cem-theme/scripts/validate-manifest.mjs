@@ -215,6 +215,38 @@ function deriveCouplingManifest(xhtml) {
 }
 
 /**
+ * Build the expected token list for cem-stroke from the compiled XHTML.
+ * Returns { tokens: [{name, tier}], warnings: string[] }
+ *
+ * D5 owns stroke basis, semantic endpoints, indicator-offset, ring recipes, and
+ * zebra-angle. --cem-zebra-strip-size and zebra colors are owned by D0 and NOT
+ * declared here (R-D5-1 resolution). The rings-forced table is generator-only
+ * (override values inside @media (forced-colors: active)).
+ */
+function deriveStrokeManifest(xhtml) {
+    const warnings = [];
+    const tokens = [];
+
+    for (const tableId of [
+        "cem-stroke-basis",
+        "cem-stroke-semantic",
+        "cem-stroke-zebra-pattern",
+        "cem-stroke-rings",
+    ]) {
+        const rows = extractTable(xhtml, tableId);
+        if (!rows) {
+            warnings.push(`Table not found: #${tableId}`);
+            continue;
+        }
+        const extracted = tokensFromTable(rows);
+        if (extracted.length === 0) warnings.push(`No token rows found in table #${tableId}`);
+        tokens.push(...extracted);
+    }
+
+    return { tokens, warnings };
+}
+
+/**
  * Build the expected token list for cem-shape from the compiled XHTML.
  * Returns { tokens: [{name, tier}], warnings: string[] }
  *
@@ -403,6 +435,7 @@ async function main(argv) {
         specName === "cem-coupling"    ? deriveCouplingManifest :
         specName === "cem-controls"    ? deriveControlsManifest :
         specName === "cem-shape"       ? deriveShapeManifest :
+        specName === "cem-stroke"      ? deriveStrokeManifest :
         deriveColorManifest;
     const { tokens: manifest, warnings: manifestWarnings } = deriveManifest(xhtml);
     if (manifestWarnings.length) {

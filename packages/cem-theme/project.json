@@ -42,7 +42,8 @@
                     "node scripts/validate-manifest.mjs dist/lib/tokens/cem-breakpoints.xhtml dist/lib/css/cem-breakpoints.css",
                     "node scripts/validate-manifest.mjs dist/lib/tokens/cem-coupling.xhtml dist/lib/css/cem-coupling.css",
                     "node scripts/validate-manifest.mjs dist/lib/tokens/cem-controls.xhtml dist/lib/css/cem-controls.css",
-                    "node scripts/validate-manifest.mjs dist/lib/tokens/cem-shape.xhtml dist/lib/css/cem-shape.css"
+                    "node scripts/validate-manifest.mjs dist/lib/tokens/cem-shape.xhtml dist/lib/css/cem-shape.css",
+                    "node scripts/validate-manifest.mjs dist/lib/tokens/cem-stroke.xhtml dist/lib/css/cem-stroke.css"
                 ],
                 "parallel": false,
                 "cwd": "packages/cem-theme"
