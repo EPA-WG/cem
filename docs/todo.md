@@ -27,7 +27,7 @@ The remaining token-spec files have no working generator. `cem-breakpoints.html`
 | `cem-layering.md`               | Layering & elevation (D4) | —                             | ~14           |
 | `cem-stroke.md`                 | Stroke & separation (D5)  | —                             | ~16           |
 | `cem-voice-fonts-typography.md` | Typography & voice (D6)   | —                             | ~80+          |
-| `cem-timing.md`                 | Timing & motion (D7)      | —                             | ~14–26        |
+| `cem-timing.md`                 | Timing & motion (D7)      | `cem-timing.html` ✓           | 13            |
 
 `cem-responsive.md`, `cem-m3-parity.md`, `cem-zebra.md`, and `index.md` define no token values and are out of scope.
 
@@ -247,18 +247,17 @@ Confirmed token names from `cem-dimension.md`: `--cem-layout-stack-gap`, `--cem-
    responsibility documented in the manifest's `notes` column.
 6. [x] Reading-rhythm validation deferred to D6 cross-check (Phase 12) — D1 cannot validate rhythm in isolation.
 
-### Phase 6: D7 Timing — `cem-timing.html`
+### Phase 6: D7 Timing — `cem-timing.html` ✓ COMPLETE
 
-1. [ ] Add `cem-timing-manifest` h6+table.
-2. [ ] Add metadata blocks for durations, easings (with explicit per-easing declarations — see open R&D for
-   `highlighted`).
-3. [ ] Create `cem-timing.html`. Emit `--cem-duration-{instant|noticeable|lingering}` and
-   `--cem-easing-{smooth|highlighted|uniform|classic}` (+ `-start`/`-end` where defined).
-4. [ ] Emit `prefers-reduced-motion: reduce` overrides that **shorten durations while preserving relative ordering** (
-   per spec). Manifest documents the reduced-motion target durations.
-5. [ ] Springs: emit ONLY if metadata supplies a real value encoding. Reserved names without values are NOT emitted (
-   Principle P3 — optional tier).
-6. [ ] Open R&D R-D7-1 (highlighted vs smooth alias) MUST be resolved before Phase 6 closes.
+1. [x] Add `cem-timing-manifest` h6+table.
+2. [x] Add metadata blocks for durations, easings (with explicit per-easing declarations — R-D7-1 resolved: `highlighted`
+   now uses M3 Emphasized cubic-bezier curves, visibly distinct from `smooth`).
+3. [x] Create `cem-timing.html`. Emit `--cem-duration-{instant|noticeable|lingering|action|overlay}` and all 8 easing
+   tokens.
+4. [x] Emit `@media (prefers-reduced-motion: reduce)` overrides for the 3 core durations (0ms / 50ms / 100ms),
+   preserving ordering. Alias tokens inherit automatically via `var()`.
+5. [x] Springs: not emitted — R-D7-2 (value encoding) still open; reserved names have no concrete values.
+6. [x] R-D7-1 resolved: `highlighted` uses `cubic-bezier(0.2, 0, 0, 1)` (M3 Emphasized); adapters SHOULD override.
 
 ### Phase 7: D1x Breakpoints — replace stub in `cem-breakpoints.html`
 
@@ -430,7 +429,7 @@ placement. No generator may invent or guess values absent from the canonical des
 | ID          | Decision needed                                                                                                                                                                                                                                            | Impact                                                                                                         |
 |-------------|------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|----------------------------------------------------------------------------------------------------------------|
 | ~~R-Schema-1~~  | ~~Final manifest column set + h6 ID naming convention.~~ **Resolved:** tier lives in source tables (last column); cross-products add tier to the state-axis only; specs end with a lean manifest index section. | Phase 4 complete.                                                                                              |
-| R-D7-1      | `highlighted` easing currently aliases `smooth`. Either give it a distinct, "visibly more pronounced" curve, or document it as adapter-only. As-is it does not satisfy spec intent.                                                                        | Blocks Phase 6 closure for highlighted easing.                                                                 |
+| ~~R-D7-1~~  | ~~`highlighted` easing currently aliases `smooth`.~~ **Resolved:** uses `cubic-bezier(0.2, 0, 0, 1)` (M3 Emphasized) for `-highlighted`, `cubic-bezier(0.3, 0, 0.8, 0.15)` for `-highlighted-start`, `cubic-bezier(0.05, 0.7, 0.1, 1)` for `-highlighted-end`. | Phase 6 complete.                                                                                              |
 | R-D7-2      | Spring presets — define real value encoding (stiffness/damping/mass tuple) or remove from spec. Reserved names without values must not appear in the manifest.                                                                                             | Blocks spring output only; core duration/easing output may proceed.                                            |
 | R-D1x-WRAP  | Container-query helpers require consumer-provided containment. Decide whether CEM only documents that requirement or ships a wrapper component that sets `container-type`.                                                                                 | Does not block Phase 7 CSS output; blocks any wrapper/component deliverable.                                   |
 | R-D3-ACTION | Ownership of `--cem-action-border-radius` emission — D0 actions, D3 shape, or composition recipe. The token is already canonical as an existing component-binding contract.                                                                                | Does not block required D3 bend tokens; blocks only direct emission of the action binding by `cem-shape.html`. |
@@ -471,14 +470,14 @@ Each new generator HTML mirrors `cem-colors.html` AND honors the Token-to-CSS Tr
 | Emotional palette (D0)    | 28      | 28        | 0      | ✓           |
 | Action tokens (D0)        | 80      | 80        | 0      | ✓           |
 | Zebra tokens (D0)         | 5       | 5         | 0      | ✓           |
-| Dimension & rhythm (D1)   | ~28+sp  | 0         | ~28+sp | ✗ Phase 5   |
+| Dimension & rhythm (D1)   | 27      | 27        | 0      | ✓           |
 | Breakpoints (D1x)         | ~10–18  | 0         | ~10–18 | ✗ Phase 7   |
 | Coupling & density (D2)   | ~11+    | 0         | ~11+   | ✗ Phase 8   |
 | Shape & bend (D3)         | ~16+    | 0         | ~16+   | ✗ Phase 9   |
 | Layering & elevation (D4) | ~14     | 0         | ~14    | ✗ Phase 11  |
 | Stroke & separation (D5)  | ~16     | 0         | ~16    | ✗ Phase 10  |
 | Typography & voice (D6)   | ~95+    | 0         | ~95+   | ✗ Phase 12  |
-| Timing & motion (D7)      | ~12+    | 0         | ~12+   | ✗ Phase 6   |
+| Timing & motion (D7)      | 13      | 13        | 0      | ✓           |
 | **Total**                 | ~340+   | 142       | ~200+  | In progress |
 
 (D6 estimate raised from ~80+ to ~95+ to include feature-policy, reading-ergonomics, and text-transform tokens that

@@ -67,18 +67,14 @@ Easing names reflect intent:
 
 ### 4.1 Duration tokens (required)
 
-```css
-:root {
-  /* Core buckets (contract-level) */
-  --cem-duration-instant:    50ms;
-  --cem-duration-noticeable: 250ms;
-  --cem-duration-lingering:  300ms;
-
-  /* Optional semantic aliases (adapter may override) */
-  --cem-duration-action: var(--cem-duration-noticeable);
-  --cem-duration-overlay: var(--cem-duration-lingering);
-}
-```
+###### cem-timing-durations
+| Token | Value | Description | tier |
+|---|---|---|---|
+| `--cem-duration-instant` | `50ms` | Blink; do not interrupt flow | required |
+| `--cem-duration-noticeable` | `250ms` | Registerable but not slow | required |
+| `--cem-duration-lingering` | `300ms` | Large change; allow user to track | required |
+| `--cem-duration-action` | `var(--cem-duration-noticeable)` | Default for interactive state changes | recommended |
+| `--cem-duration-overlay` | `var(--cem-duration-lingering)` | Default for overlay entry/exit | recommended |
 
 Normative rules:
 
@@ -87,31 +83,27 @@ Normative rules:
 
 ### 4.2 Easing tokens (required)
 
-Easing tokens are expressed as CSS timing functions.
+Easing tokens are expressed as CSS timing functions. **R-D7-1 resolved:** `highlighted` curves now use
+Material 3 "Emphasized" cubic-beziers — visibly more deliberate than `smooth`. Adapters SHOULD replace these with
+platform-appropriate emphasized curves.
 
-```css
-:root {
-  /* Everyday motion */
-  --cem-easing-smooth:        ease-in-out;
-  --cem-easing-start-smooth:  ease-in;
-  --cem-easing-end-smooth:    ease-out;
-
-  /* Attention-drawing motion (adapter SHOULD provide a more pronounced curve) */
-  --cem-easing-highlighted:        var(--cem-easing-smooth);
-  --cem-easing-highlighted-start:  var(--cem-easing-start-smooth);
-  --cem-easing-highlighted-end:    var(--cem-easing-end-smooth);
-
-  /* Neutral/legacy */
-  --cem-easing-uniform: linear;
-  --cem-easing-classic: ease;
-}
-```
+###### cem-timing-easings
+| Token | Value | Description | tier |
+|---|---|---|---|
+| `--cem-easing-smooth` | `ease-in-out` | Default; everyday unobtrusive motion | required |
+| `--cem-easing-start-smooth` | `ease-in` | Entrance motion | required |
+| `--cem-easing-end-smooth` | `ease-out` | Dismissal motion | required |
+| `--cem-easing-highlighted` | `cubic-bezier(0.2, 0, 0, 1)` | Attention-drawing motion (M3 Emphasized) | required |
+| `--cem-easing-highlighted-start` | `cubic-bezier(0.3, 0, 0.8, 0.15)` | Highlighted entrance (M3 Emphasized Accelerate) | required |
+| `--cem-easing-highlighted-end` | `cubic-bezier(0.05, 0.7, 0.1, 1)` | Highlighted dismissal (M3 Emphasized Decelerate) | required |
+| `--cem-easing-uniform` | `linear` | Neutral/mechanical (e.g. indeterminate progress) | required |
+| `--cem-easing-classic` | `ease` | Legacy compatibility | required |
 
 Normative rules:
 
 - `smooth` MUST be suitable as the default.
 - `highlighted*` MUST be *visibly more pronounced* than the corresponding `smooth*` curves **in the same implementation**.
-  (The above defaults provide placeholders; adapters are expected to supply real emphasized curves.)
+  The defaults use M3 Emphasized curves; adapters SHOULD provide platform-appropriate equivalents.
 
 ### 4.3 Spring tokens (optional extension)
 
@@ -141,6 +133,19 @@ Normative rules (if springs are implemented):
 
 - `instant | noticeable | lingering` MUST preserve perceived ordering from fastest to slowest.
 - `delight` MAY overshoot/bounce; `functional` SHOULD minimize overshoot.
+
+### 4.4 Reduced-motion overrides
+
+When `prefers-reduced-motion: reduce` is active, duration tokens are overridden to dramatically shorter values
+while preserving their relative ordering (`instant < noticeable < lingering`). Alias tokens (`--cem-duration-action`,
+`--cem-duration-overlay`) inherit automatically via `var()` and need no explicit override. Easing tokens are unaffected.
+
+###### cem-timing-reduced-motion
+| Token | reduced-motion value | Description |
+|---|---|---|
+| `--cem-duration-instant` | `0ms` | Off entirely — motion is imperceptible |
+| `--cem-duration-noticeable` | `50ms` | Dramatically shortened; signals "something happened" |
+| `--cem-duration-lingering` | `100ms` | Dramatically shortened; ordering preserved |
 
 ---
 
@@ -178,21 +183,16 @@ Non-breaking (MINOR/PATCH):
 
 ---
 
-## 7. Canonical token summary (contract surface)
+## 7. Token manifest index
 
-| Token | Category | Required |
+Token tier is encoded in the `tier` column of each source table. The manifest validator derives expected token names
+from these tables using the same XPath pattern as `cem-timing.html`.
+
+| Source table h6 id | Tokens covered | Validator derivation |
 |---|---|---|
-| `--cem-duration-instant` | Duration | Yes |
-| `--cem-duration-noticeable` | Duration | Yes |
-| `--cem-duration-lingering` | Duration | Yes |
-| `--cem-easing-smooth` | Easing | Yes |
-| `--cem-easing-start-smooth` | Easing | Yes |
-| `--cem-easing-end-smooth` | Easing | Yes |
-| `--cem-easing-highlighted` | Easing | Yes |
-| `--cem-easing-highlighted-start` | Easing | Yes |
-| `--cem-easing-highlighted-end` | Easing | Yes |
-| `--cem-easing-uniform` | Easing | Yes |
-| `--cem-easing-classic` | Easing | Yes |
-| `--cem-duration-action` | Duration alias | No |
-| `--cem-duration-overlay` | Duration alias | No |
-| `--cem-spring-*` | Spring presets | No |
+| `cem-timing-durations` | `--cem-duration-*` (5 tokens: 3 required + 2 recommended aliases) | one token per row |
+| `cem-timing-easings` | `--cem-easing-*` (8 tokens: all required) | one token per row |
+
+Reduced-motion overrides (`cem-timing-reduced-motion`) produce no new token names — they override core duration
+tokens within `@media (prefers-reduced-motion: reduce)`. Spring tokens (`--cem-spring-*`) are not emitted by default
+pending R-D7-2 value encoding decision.

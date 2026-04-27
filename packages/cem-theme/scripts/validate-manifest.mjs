@@ -163,6 +163,28 @@ function deriveDimensionManifest(xhtml) {
     return { tokens, warnings };
 }
 
+/**
+ * Build the expected token list for cem-timing from the compiled XHTML.
+ * Returns { tokens: [{name, tier}], warnings: string[] }
+ */
+function deriveTimingManifest(xhtml) {
+    const warnings = [];
+    const tokens = [];
+
+    for (const tableId of ["cem-timing-durations", "cem-timing-easings"]) {
+        const rows = extractTable(xhtml, tableId);
+        if (!rows) {
+            warnings.push(`Table not found: #${tableId}`);
+            continue;
+        }
+        const extracted = tokensFromTable(rows);
+        if (extracted.length === 0) warnings.push(`No token rows found in table #${tableId}`);
+        tokens.push(...extracted);
+    }
+
+    return { tokens, warnings };
+}
+
 // ── CSS analysis ─────────────────────────────────────────────────────────────
 
 /**
@@ -273,7 +295,9 @@ async function main(argv) {
     // Derive manifest — dispatch by spec filename
     const specName = path.basename(xhtmlPath, ".xhtml");
     const deriveManifest =
-        specName === "cem-dimension" ? deriveDimensionManifest : deriveColorManifest;
+        specName === "cem-dimension" ? deriveDimensionManifest :
+        specName === "cem-timing"    ? deriveTimingManifest :
+        deriveColorManifest;
     const { tokens: manifest, warnings: manifestWarnings } = deriveManifest(xhtml);
     if (manifestWarnings.length) {
         for (const w of manifestWarnings) console.warn(`[manifest] ${w}`);

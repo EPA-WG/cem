@@ -1,0 +1,164 @@
+<!DOCTYPE html>
+<html lang="en" xmlns:xhtml="http://www.w3.org/1999/xhtml">
+<head>
+    <meta charset="UTF-8">
+    <title>CEM timing CSS generator</title>
+    <script src="./cem-http-request.js" type="module"></script>
+</head>
+<body>
+<custom-element>
+    <template id="cem-timing-template">
+        <style>
+            td { padding: 0.5rem; letter-spacing: 0.05em; }
+            caption { font-size: 1.5rem; padding-bottom: 0.5rem; text-align: start; }
+            tr>th:first-child { text-align: start; }
+            code { color: green; font-weight: bold; }
+        </style>
+
+        <http-request method="GET" slice="cem-timing" url="../../../dist/lib/tokens/cem-timing.xhtml"></http-request>
+        <variable name="timingData" select="//cem-timing"></variable>
+
+        <variable name="cem-timing-durations"
+                  select="$timingData//*[@id='cem-timing-durations']/following-sibling::xhtml:table[1]/xhtml:tbody"></variable>
+        <variable name="cem-timing-easings"
+                  select="$timingData//*[@id='cem-timing-easings']/following-sibling::xhtml:table[1]/xhtml:tbody"></variable>
+        <variable name="cem-timing-reduced-motion"
+                  select="$timingData//*[@id='cem-timing-reduced-motion']/following-sibling::xhtml:table[1]/xhtml:tbody"></variable>
+
+        <variable name="css-body">
+:root {
+    /* region durations: cem-duration-[bucket] */
+    <for-each select="$cem-timing-durations/xhtml:tr">
+        {normalize-space(xhtml:td[1])}: {normalize-space(xhtml:td[2])};
+    </for-each>
+    /* endregion durations */
+
+    /* region easings: cem-easing-[intent] */
+    <for-each select="$cem-timing-easings/xhtml:tr">
+        {normalize-space(xhtml:td[1])}: {normalize-space(xhtml:td[2])};
+    </for-each>
+    /* endregion easings */
+}
+
+/* region prefers-reduced-motion: shorten durations, preserve ordering */
+@media (prefers-reduced-motion: reduce) {
+:root {
+    <for-each select="$cem-timing-reduced-motion/xhtml:tr">
+        {normalize-space(xhtml:td[1])}: {normalize-space(xhtml:td[2])};
+    </for-each>
+}
+}
+/* endregion prefers-reduced-motion */
+        </variable>
+
+        <style>
+            :host {
+                display: block;
+                white-space: pre;
+                font-family: monospace;
+            }
+        </style>
+
+        <xhtml:table>
+            <xhtml:caption><a href="../../../dist/lib/tokens/cem-timing.xhtml#4-1-duration-tokens-required">cem-timing-durations</a> — duration scale</xhtml:caption>
+            <xhtml:thead>
+                <xhtml:tr>
+                    <xhtml:th>Token</xhtml:th>
+                    <xhtml:th>Value</xhtml:th>
+                    <xhtml:th>Tier</xhtml:th>
+                    <xhtml:th>Demo</xhtml:th>
+                    <xhtml:th>Description</xhtml:th>
+                </xhtml:tr>
+            </xhtml:thead>
+            <xhtml:tbody>
+                <for-each select="$cem-timing-durations/xhtml:tr">
+                    <variable name="token" select="normalize-space(xhtml:td[1])"></variable>
+                    <variable name="value" select="normalize-space(xhtml:td[2])"></variable>
+                    <variable name="desc"  select="normalize-space(xhtml:td[3])"></variable>
+                    <variable name="tier"  select="normalize-space(xhtml:td[4])"></variable>
+                    <xhtml:tr>
+                        <xhtml:th><code>{$token}</code></xhtml:th>
+                        <xhtml:td><code>{$value}</code></xhtml:td>
+                        <xhtml:td>{$tier}</xhtml:td>
+                        <xhtml:td>
+                            <xhtml:div style="width:2rem; height:2rem; background:currentColor; transition: transform var({$token}) var(--cem-easing-smooth,ease-in-out);"
+                                       onmouseenter="this.style.transform='scale(1.5)'" onmouseleave="this.style.transform=''"></xhtml:div>
+                        </xhtml:td>
+                        <xhtml:td>{$desc}</xhtml:td>
+                    </xhtml:tr>
+                </for-each>
+            </xhtml:tbody>
+        </xhtml:table>
+
+        <hr/>
+        <xhtml:table>
+            <xhtml:caption><a href="../../../dist/lib/tokens/cem-timing.xhtml#4-2-easing-tokens-required">cem-timing-easings</a> — easing curves</xhtml:caption>
+            <xhtml:thead>
+                <xhtml:tr>
+                    <xhtml:th>Token</xhtml:th>
+                    <xhtml:th>Value</xhtml:th>
+                    <xhtml:th>Tier</xhtml:th>
+                    <xhtml:th>Demo</xhtml:th>
+                    <xhtml:th>Description</xhtml:th>
+                </xhtml:tr>
+            </xhtml:thead>
+            <xhtml:tbody>
+                <for-each select="$cem-timing-easings/xhtml:tr">
+                    <variable name="token" select="normalize-space(xhtml:td[1])"></variable>
+                    <variable name="value" select="normalize-space(xhtml:td[2])"></variable>
+                    <variable name="desc"  select="normalize-space(xhtml:td[3])"></variable>
+                    <variable name="tier"  select="normalize-space(xhtml:td[4])"></variable>
+                    <xhtml:tr>
+                        <xhtml:th><code>{$token}</code></xhtml:th>
+                        <xhtml:td><code>{$value}</code></xhtml:td>
+                        <xhtml:td>{$tier}</xhtml:td>
+                        <xhtml:td>
+                            <xhtml:div style="width:2rem; height:2rem; background:currentColor; transition: transform var(--cem-duration-noticeable,250ms) var({$token});"
+                                       onmouseenter="this.style.transform='scale(1.5)'" onmouseleave="this.style.transform=''"></xhtml:div>
+                        </xhtml:td>
+                        <xhtml:td>{$desc}</xhtml:td>
+                    </xhtml:tr>
+                </for-each>
+            </xhtml:tbody>
+        </xhtml:table>
+
+        <hr/>
+        <xhtml:table>
+            <xhtml:caption><a href="../../../dist/lib/tokens/cem-timing.xhtml#4-4-reduced-motion-overrides">cem-timing-reduced-motion</a> — prefers-reduced-motion overrides</xhtml:caption>
+            <xhtml:thead>
+                <xhtml:tr>
+                    <xhtml:th>Token</xhtml:th>
+                    <xhtml:th>Reduced value</xhtml:th>
+                    <xhtml:th>Description</xhtml:th>
+                </xhtml:tr>
+            </xhtml:thead>
+            <xhtml:tbody>
+                <for-each select="$cem-timing-reduced-motion/xhtml:tr">
+                    <variable name="token"  select="normalize-space(xhtml:td[1])"></variable>
+                    <variable name="value"  select="normalize-space(xhtml:td[2])"></variable>
+                    <variable name="desc"   select="normalize-space(xhtml:td[3])"></variable>
+                    <xhtml:tr>
+                        <xhtml:th><code>{$token}</code></xhtml:th>
+                        <xhtml:td><code>{$value}</code></xhtml:td>
+                        <xhtml:td>{$desc}</xhtml:td>
+                    </xhtml:tr>
+                </for-each>
+            </xhtml:tbody>
+        </xhtml:table>
+
+        <hr/>
+        <pre class="language-css">
+            <code class="language-css" data-generated-css>
+{$css-body}
+            </code>
+        </pre>
+        <cem-css-loader value="{$css-body}"></cem-css-loader>
+
+    </template>
+</custom-element>
+<main></main>
+<script src="../../../../../node_modules/@epa-wg/custom-element/custom-element.js" type="module"></script>
+<script src="../../../../../node_modules/@epa-wg/custom-element/http-request.js" type="module"></script>
+<script src="./cem-css-loader.js" type="module"></script>
+</body>
+</html>
