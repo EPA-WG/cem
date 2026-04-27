@@ -215,6 +215,36 @@ function deriveCouplingManifest(xhtml) {
 }
 
 /**
+ * Build the expected token list for cem-layering from the compiled XHTML.
+ * Returns { tokens: [{name, tier}], warnings: string[] }
+ *
+ * D4 emits basis rungs as box-shadow recipes (R-D4-1 resolution), required
+ * semantic endpoints, and 2 optional semantic endpoints (back-deep,
+ * work-floating). Forced-colors override is generator-only.
+ */
+function deriveLayeringManifest(xhtml) {
+    const warnings = [];
+    const tokens = [];
+
+    for (const tableId of [
+        "cem-layering-rungs",
+        "cem-layering-semantic",
+        "cem-layering-semantic-optional",
+    ]) {
+        const rows = extractTable(xhtml, tableId);
+        if (!rows) {
+            warnings.push(`Table not found: #${tableId}`);
+            continue;
+        }
+        const extracted = tokensFromTable(rows);
+        if (extracted.length === 0) warnings.push(`No token rows found in table #${tableId}`);
+        tokens.push(...extracted);
+    }
+
+    return { tokens, warnings };
+}
+
+/**
  * Build the expected token list for cem-stroke from the compiled XHTML.
  * Returns { tokens: [{name, tier}], warnings: string[] }
  *
@@ -436,6 +466,7 @@ async function main(argv) {
         specName === "cem-controls"    ? deriveControlsManifest :
         specName === "cem-shape"       ? deriveShapeManifest :
         specName === "cem-stroke"      ? deriveStrokeManifest :
+        specName === "cem-layering"    ? deriveLayeringManifest :
         deriveColorManifest;
     const { tokens: manifest, warnings: manifestWarnings } = deriveManifest(xhtml);
     if (manifestWarnings.length) {

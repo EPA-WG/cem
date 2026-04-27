@@ -26,7 +26,7 @@ Generator coverage by token spec.
 | `cem-controls.md`               | Controls geometry (D2c)   | `cem-controls.html` ✓         | 8 + modes     |
 | `cem-shape.md`                  | Shape & bend (D3)         | `cem-shape.html` ✓            | 15 + brand modes |
 | `cem-stroke.md`                 | Stroke & separation (D5)  | `cem-stroke.html` ✓           | 15 + forced-colors fallback |
-| `cem-layering.md`               | Layering & elevation (D4) | —                             | ~14           |
+| `cem-layering.md`               | Layering & elevation (D4) | `cem-layering.html` ✓         | 14 + forced-colors fallback |
 | `cem-voice-fonts-typography.md` | Typography & voice (D6)   | —                             | ~80+          |
 | `cem-timing.md`                 | Timing & motion (D7)      | `cem-timing.html` ✓           | 13            |
 
@@ -393,22 +393,35 @@ Depends on D2 (guard math) and D0 (zebra colors).
 Generated CSS: 15 tokens (4 basis + 8 semantic + 1 zebra-angle + 2 rings) + forced-colors ring fallbacks. Manifest
 validation green on first build.
 
-### Phase 11: D4 Layering — `cem-layering.html`
+### Phase 11: D4 Layering — `cem-layering.html` ✓ COMPLETE
 
-1. [ ] **Resolve R&D R-D4-1 (semantic-aliases-only vs adapter-hooks per channel) before generator work** — currently D4
-   names rungs but doesn't specify per-channel CSS values.
-2. [ ] Add `cem-layering-manifest` h6+table.
-3. [ ] Add metadata blocks for elevation ladder and semantic layer endpoints; per R&D outcome, possibly per-channel (
-   tone/shadow/contour/material/space/motion) tables too.
-4. [ ] Create `cem-layering.html`. Emit per the R&D-decided shape:
-    - Either semantic aliases only: `--cem-layer-work: var(--cem-elevation-1)`, etc.
-    - Or adapter hooks per channel under a `--cem-layer-{rung}-{tone|shadow|contour|material|space|motion}` naming.
-5. [ ] **NEVER emit `--cem-elevation-*` as `z-index` values** — explicitly forbidden by spec. Manifest enforces this
-   with a generator unit test.
-6. [ ] Acceptance criterion: every rung has at least one perceivable channel change vs its neighbors; ideally two in
-   dense UIs. Manifest notes the channels each rung modifies.
-7. [ ] Forced-colors validation (Phase 13): rung distinction MUST survive when contour/spacing carry the tier signal (
-   subtle shadows / tonal deltas vanish).
+1. [x] **R-D4-1 resolved (semantic-aliases shape):** D4 emits basis rungs as `box-shadow` recipes (the only
+   universally meaningful single channel that is NOT `z-index`); semantic endpoints alias to rungs via `var()`.
+   Per-channel adapter hooks (`-tone`, `-contour`, `-material`, `-space`, `-motion`) are owned by their respective
+   dimensions' theme stylesheets (D0 tone, D5 contour, D1 spacing, D7 motion) and NOT redeclared by D4.
+2. [x] Manifest tables added: `cem-layering-rungs`, `cem-layering-semantic`, `cem-layering-semantic-optional`,
+   `cem-layering-rungs-forced` (override-only). Manifest index in §19.
+3. [x] Metadata blocks for the 7-tier rung ladder, 5 required semantic endpoints, 2 optional endpoints
+   (back-deep, work-floating).
+4. [x] `cem-layering.html` created. Emits:
+    - Basis rungs (7) as `box-shadow` recipes — `--cem-recess-{2,1}` use `inset` recipes, `--cem-elevation-0` is
+      `none`, `--cem-elevation-{1..4}` use graded outset shadows.
+    - Required semantic endpoints (5): `--cem-layer-{back,base,work,overlay,command}` aliasing to rungs.
+    - Optional semantic endpoints (2): `--cem-layer-back-deep`, `--cem-layer-work-floating`.
+    - **Forced-colors fallback** inside `@media (forced-colors: active) :root { … }` collapsing every rung to
+      `none`; tier signal in forced-colors carried by D5 contour and spatial isolation.
+5. [x] **NEVER emit `--cem-elevation-*` as `z-index` values** — rungs emit as `box-shadow` recipes only. No
+   numeric/integer values for tier tokens. Spec §2.2 governance preserved.
+6. [x] **R-D4-2 resolved:** D4 emits **shadow** as one perceivable channel; **tone** is the second channel and is
+   supplied per-theme by `cem-colors.html` `.cem-theme-{light,dark,contrast-light,contrast-dark,native}` blocks.
+   Together they satisfy the §7.2 ≥1-channel rule (≥2 in dense UIs). Browser-level verification deferred to
+   Phase 13.
+7. [ ] Forced-colors validation (Phase 13): rung distinction MUST survive when contour/spacing carry the tier
+   signal (subtle shadows / tonal deltas vanish). Token-level fallback already in place; component-level
+   validation pending.
+
+Generated CSS: 14 tokens (7 rungs + 5 required semantic + 2 optional semantic) + forced-colors rung fallbacks.
+Manifest validation green on first build.
 
 ### Phase 12: D6 Typography & Voice — `cem-voice-fonts-typography.html`
 
@@ -476,8 +489,8 @@ placement. No generator may invent or guess values absent from the canonical des
 | R-D1x-WRAP     | Container-query helpers require consumer-provided containment. Decide whether CEM only documents that requirement or ships a wrapper component that sets `container-type`.                                                                                     | Does not block Phase 7 CSS output; blocks any wrapper/component deliverable.                                   |
 | R-D3-ACTION    | Ownership of `--cem-action-border-radius` emission — D0 actions, D3 shape, or composition recipe. The token is already canonical as an existing component-binding contract.                                                                                    | Does not block required D3 bend tokens; blocks only direct emission of the action binding by `cem-shape.html`. |
 | ~~R-D5-1~~     | ~~Ownership of `--cem-zebra-strip-size` and ring composition.~~ **Resolved (split documented):** D0 keeps `--cem-zebra-strip-size` and `--cem-zebra-color-{0..3}` (already shipped with full theme-mode coverage). D5 owns stroke basis/semantic/indicator-offset, ring recipes (`--cem-ring-zebra-3`, `--cem-ring-zebra-4`), and `--cem-zebra-angle`. Rings reference D0 tokens via `var()`. | Phase 10 complete.                                                                                              |
-| R-D4-1         | D4 generator output shape — semantic aliases only (`--cem-layer-work: var(--cem-elevation-1)`) vs adapter hooks per channel (`--cem-layer-work-tone`, `-shadow`, `-contour`, …). Spec must define which appearance channels are emitted at the rung level.     | Blocks Phase 11.                                                                                               |
-| R-D4-2         | Per-rung minimum perceivable channel changes — formal rule (≥1 channel; ≥2 in dense UIs) and how the generator (or a unit test) verifies it.                                                                                                                   | Blocks Phase 11 verification closure.                                                                          |
+| ~~R-D4-1~~     | ~~D4 generator output shape — semantic aliases only vs adapter hooks per channel.~~ **Resolved (semantic-aliases shape):** rungs emit `box-shadow` recipes (only universally meaningful non-`z-index` channel); semantic endpoints alias rungs via `var()`. Per-channel adapter hooks owned by D0 (tone), D5 (contour), D1 (space), D7 (motion). Documented in `cem-layering.md` §6.4. | Phase 11 complete.                                                                                              |
+| ~~R-D4-2~~     | ~~Per-rung minimum perceivable channel changes.~~ **Resolved:** D4 emits shadow as one channel; tone supplied per-theme by `cem-colors.html` mode blocks; together they satisfy §7.2's ≥1-channel rule (≥2 in dense UIs). Browser-level verification deferred to Phase 13. Documented in `cem-layering.md` §6.5.                                                                       | Phase 11 complete.                                                                                              |
 
 ## Per-generator implementation pattern
 
@@ -518,10 +531,10 @@ Each new generator HTML mirrors `cem-colors.html` AND honors the Token-to-CSS Tr
 | Controls geometry (D2c)   | 8       | 8         | 0      | ✓           |
 | Shape & bend (D3)         | 15      | 15        | 0      | ✓           |
 | Stroke & separation (D5)  | 15      | 15        | 0      | ✓           |
-| Layering & elevation (D4) | ~14     | 0         | ~14    | ✗ Phase 11  |
+| Layering & elevation (D4) | 14      | 14        | 0      | ✓           |
 | Typography & voice (D6)   | ~95+    | 0         | ~95+   | ✗ Phase 12  |
 | Timing & motion (D7)      | 13      | 13        | 0      | ✓           |
-| **Total**                 | ~340+   | 243       | ~100+  | In progress |
+| **Total**                 | ~340+   | 257       | ~85+   | In progress |
 
 (D6 estimate raised from ~80+ to ~95+ to include feature-policy, reading-ergonomics, and text-transform tokens that
 the original plan missed; D1 +sp = spacing-mode overrides; D7 dropped from ~14–26 to ~12+ pending R-D7-2 spring
