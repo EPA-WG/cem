@@ -11,7 +11,8 @@
 **Companion specs:**
 - **D0. Color (Emotional Palette)** ([`cem-colors.md`](./cem-colors.md)) — color intensity perception affected by density
 - **D1. Space & Rhythm** ([`cem-dimension.md`](./cem-dimension.md)) — gaps/insets/rhythm; must never violate D2 safety minimums
-- **D3. Shape — Bend** ([`cem-shape.md`](./cem-shape.md)) — bend interacts with control height for round-ends
+- **D2c. Controls** ([`cem-controls.md`](./cem-controls.md)) — visual control geometry (`--cem-control-*`, icon-button, row heights) and per-mode visual overrides
+- **D3. Shape — Bend** ([`cem-shape.md`](./cem-shape.md)) — bend consumes `--cem-control-height` from D2c Controls for round-ends
 - **D4. Layering** ([`cem-layering.md`](./cem-layering.md)) — overlay/modal control sizing
 - **D5. Stroke & Separation** ([`cem-stroke.md`](./cem-stroke.md)) — focus ring offset; D2 constrains adjacent zones so indicators have room
 - **D7. Time & Motion** ([`cem-timing.md`](./cem-timing.md)) — timing for density transitions
@@ -38,7 +39,12 @@ This supports the UI-space meaning you called out: proximity implies **relations
   - operable zone minimums
   - interference/isolation minimums
   - halo/expansion policy (visual size vs operable size)
-  - control geometry endpoints that affect operability (heights/paddings/row sizes)
+  - mode-invariant operability rules
+
+- **D2c. Controls** (from [`cem-controls.md`](./cem-controls.md))
+  - visual control geometry (heights, paddings, icon-button size, row heights)
+  - per-coupling-mode visual overrides
+  - D2c geometry must never reduce operability below D2 safety minimums
 
 - **D1. Space & Rhythm** (from [`cem-dimension.md`](./cem-dimension.md))
   - gaps/insets/rhythm
@@ -51,7 +57,8 @@ This supports the UI-space meaning you called out: proximity implies **relations
 Boundary heuristic:
 
 - If it changes **distance between items** → D1
-- If it changes **operable geometry of an interactive element** → D2
+- If it changes **the operable safety contract** (zone/guard/halo) → D2
+- If it changes **the visual size of a single control or row** → D2c (see [`cem-controls.md`](./cem-controls.md))
 - If it changes **indicator thickness or indicator offset** → D5 (e.g., `--cem-stroke-focus`, `--cem-stroke-indicator-offset`)
 
 ---
@@ -102,29 +109,19 @@ Compatibility guideline:
 
 Default CEM values satisfy this (8px guard vs 8px zebra extent when `--cem-zebra-strip-size = 2px`).
 
-### 4.2 Control geometry endpoints (typical mapping layer)
+### 4.2 Control geometry endpoints (visual sizing — D2c Controls)
 
-```css
-:root {
-  /* Generic control geometry */
-  --cem-control-height: 2.5rem;
-  --cem-control-padding-x: 0.75rem;
-  --cem-control-padding-y: 0.5rem;
+Visual control geometry — `--cem-control-height`, `--cem-control-padding-x`, `--cem-control-padding-y`,
+`--cem-icon-button-size`, `--cem-icon-button-icon-size`, and the list/menu/table row heights — is **defined and
+governed in D2c Controls** ([`cem-controls.md`](./cem-controls.md)).
 
-  /* Icon buttons: typically make the visible container meet the operable zone */
-  --cem-icon-button-size: var(--cem-coupling-zone-min);
-  --cem-icon-button-icon-size: 1.25rem;
+D2 references this geometry only as a normative constraint: visual sizes MUST NOT shrink the operable zone below
+`--cem-coupling-zone-min`, and adjacent layouts MUST NOT shrink distancing below `--cem-coupling-guard-min`,
+regardless of how Controls geometry varies across coupling modes. When visuals fall below the zone, components MUST
+use halo expansion (see §6.1).
 
-  /* Lists / menus */
-  --cem-list-row-height: 3rem;
-  --cem-menu-row-height: 3rem;
-
-  /* Data tables */
-  --cem-table-row-height: 2.5rem;
-}
-```
-
-Note: control geometry can vary by mode; coupling minimums should remain invariant.
+Coupling-mode overrides for visual geometry live in D2c Controls; D2 owns only the operability portions of mode
+behavior (halo policy, see §5).
 
 ---
 
@@ -143,45 +140,43 @@ Note: control geometry can vary by mode; coupling minimums should remain invaria
   - optimized for scan-heavy/data-rich screens
   - visuals may get tighter, but **coupling remains safe via halo + guard**
 
-### 5.2 Mode switch
+### 5.2 Mode switch (halo policy)
+
+D2 owns only the halo portion of mode behavior. Visual geometry overrides live in D2c Controls
+(see [`cem-controls.md`](./cem-controls.md) §3.2).
 
 ```css
 :root { --cem-coupling: balanced; }
 
-:root[data-cem-coupling="balanced"] { /* baseline */ }
+:root[data-cem-coupling="balanced"] { /* baseline halo */ }
 
 :root[data-cem-coupling="forgiving"] {
-  --cem-control-height: 2.75rem;
-  --cem-control-padding-x: 1rem;
-  --cem-control-padding-y: 0.625rem;
-
-  --cem-list-row-height: 3.25rem;
-  --cem-menu-row-height: 3.25rem;
-
-  /* Coupling remains safe; halo can be smaller because visuals are larger */
+  /* Visuals are larger (D2c); halo can be smaller because visuals already meet the zone */
   --cem-coupling-halo: 0.125rem;
 }
 
 :root[data-cem-coupling="compact"] {
-  --cem-control-height: 2.25rem;
-  --cem-control-padding-x: 0.625rem;
-  --cem-control-padding-y: 0.375rem;
-
-  --cem-list-row-height: 2.75rem;
-  --cem-menu-row-height: 2.75rem;
-
-  /* Keep coupling safe when visuals shrink */
+  /* Visuals shrink (D2c); halo grows to preserve the operable zone */
   --cem-coupling-halo: 0.375rem;
 }
 ```
 
-Governance rule: **do not reduce** `--cem-coupling-zone-min` or `--cem-coupling-guard-min` per mode.
+###### cem-coupling-halo-overrides
+| Token                 | forgiving  | compact    |
+|-----------------------|------------|------------|
+| `--cem-coupling-halo` | `0.125rem` | `0.375rem` |
+
+Governance rule: **do not reduce** `--cem-coupling-zone-min` or `--cem-coupling-guard-min` per mode. Visual geometry
+overrides are governed in D2c Controls.
 
 ---
 
 ## 6. Implementation patterns
 
 ### 6.1 Halo-based operability (compact visuals, safe coupling)
+
+`--cem-control-padding-*` come from D2c Controls; the safety floor (`min-block-size: --cem-coupling-zone-min`) is the
+D2 contribution.
 
 ```css
 .cem-control {
@@ -313,7 +308,8 @@ Use this checklist to implement Coupling consistently. The same rules apply whet
 #### Buttons
 
 - Map `min-block-size` to `--cem-coupling-zone-min` (or set visible height ≥ zone-min).
-- Use `--cem-control-height` and `--cem-control-padding-*` for visual sizing; do not shrink below operability.
+- Use `--cem-control-height` and `--cem-control-padding-*` for visual sizing; do not shrink below operability. These
+  tokens are owned by D2c Controls (see [`cem-controls.md`](./cem-controls.md)).
 - For grouped buttons, enforce **guard** using layout `gap` (or dividers) that respects `--cem-coupling-guard-min`.
 
 #### Icon buttons
@@ -337,7 +333,7 @@ Use this checklist to implement Coupling consistently. The same rules apply whet
 
 #### Table rows / data grids
 
-- It is acceptable for `--cem-table-row-height` to be below `zone-min` *only if* row actions / selection / checkboxes still meet the zone rule via:
+- It is acceptable for `--cem-table-row-height` (owned by D2c Controls) to be below `zone-min` *only if* row actions / selection / checkboxes still meet the zone rule via:
   - larger interactive containers within cells, or
   - halo expansion that does not overlap neighbors.
 - Validate dense rows with:
@@ -365,4 +361,18 @@ Pass criteria:
 - Treat coupling tokens as **contract-level**: changes should be versioned (SemVer or equivalent).
 - Avoid renaming tokens once canonical; prefer adding new tokens or revising mode values.
 - Keep the public axis semantic; keep library-specific numeric scales in adapters.
+
+## 11. Token manifest index
+
+| Source table | Section | Description |
+|---|---|---|
+| `cem-coupling-minimums` | §4.1 | Hard safety minimums: `--cem-coupling-zone-min`, `--cem-coupling-guard-min`, `--cem-coupling-halo` (mode-invariant safety contract) |
+| `cem-coupling-halo-overrides` | §5.2 | Forgiving/compact override values for `--cem-coupling-halo` only (generator-only; no new tokens) |
+
+Generator derivation rules:
+- `cem-coupling-minimums` → token list (tier in last column).
+- `cem-coupling-halo-overrides` → override data only; the token is already declared in the base `:root` block.
+- `zone-min` and `guard-min` are never overridden per mode (mode-invariant).
+- Visual control geometry (`--cem-control-*`, `--cem-icon-button-*`, row heights) is owned by D2c Controls and is NOT
+  declared by this generator. See [`cem-controls.md`](./cem-controls.md) §7.
 

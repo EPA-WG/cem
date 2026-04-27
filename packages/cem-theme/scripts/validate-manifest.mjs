@@ -188,6 +188,57 @@ function deriveBreakpointManifest(xhtml) {
 }
 
 /**
+ * Build the expected token list for cem-coupling from the compiled XHTML.
+ * Returns { tokens: [{name, tier}], warnings: string[] }
+ *
+ * D2 Coupling owns only the safety contract: zone-min, guard-min, halo.
+ * Visual control geometry is owned by D2c Controls (see deriveControlsManifest).
+ */
+function deriveCouplingManifest(xhtml) {
+    const warnings = [];
+    const tokens = [];
+
+    for (const tableId of ["cem-coupling-minimums"]) {
+        const rows = extractTable(xhtml, tableId);
+        if (!rows) {
+            warnings.push(`Table not found: #${tableId}`);
+            continue;
+        }
+        const extracted = tokensFromTable(rows);
+        if (extracted.length === 0) warnings.push(`No token rows found in table #${tableId}`);
+        tokens.push(...extracted);
+    }
+
+    // cem-coupling-halo-overrides is generator-only (override values for halo, no new tokens).
+
+    return { tokens, warnings };
+}
+
+/**
+ * Build the expected token list for cem-controls from the compiled XHTML.
+ * Returns { tokens: [{name, tier}], warnings: string[] }
+ */
+function deriveControlsManifest(xhtml) {
+    const warnings = [];
+    const tokens = [];
+
+    for (const tableId of ["cem-controls-geometry"]) {
+        const rows = extractTable(xhtml, tableId);
+        if (!rows) {
+            warnings.push(`Table not found: #${tableId}`);
+            continue;
+        }
+        const extracted = tokensFromTable(rows);
+        if (extracted.length === 0) warnings.push(`No token rows found in table #${tableId}`);
+        tokens.push(...extracted);
+    }
+
+    // cem-controls-geometry-overrides is generator-only (override values, no new tokens).
+
+    return { tokens, warnings };
+}
+
+/**
  * Build the expected token list for cem-timing from the compiled XHTML.
  * Returns { tokens: [{name, tier}], warnings: string[] }
  */
@@ -322,6 +373,8 @@ async function main(argv) {
         specName === "cem-dimension"   ? deriveDimensionManifest :
         specName === "cem-timing"      ? deriveTimingManifest :
         specName === "cem-breakpoints" ? deriveBreakpointManifest :
+        specName === "cem-coupling"    ? deriveCouplingManifest :
+        specName === "cem-controls"    ? deriveControlsManifest :
         deriveColorManifest;
     const { tokens: manifest, warnings: manifestWarnings } = deriveManifest(xhtml);
     if (manifestWarnings.length) {

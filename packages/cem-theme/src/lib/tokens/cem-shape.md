@@ -8,7 +8,8 @@
 **Companion specs:**
 - **D0. Color (Emotional Palette)** ([`cem-colors.md`](./cem-colors.md)) — color and shape work together for emotional impact
 - **D1. Space & Rhythm** ([`cem-dimension.md`](./cem-dimension.md)) — provides dimension scale used by bend
-- **D2. Coupling & Compactness** ([`cem-coupling.md`](./cem-coupling.md)) — provides control height for geometry-driven bend
+- **D2. Coupling & Compactness** ([`cem-coupling.md`](./cem-coupling.md)) — operability safety contract; coupling-mode selector
+- **D2c. Controls** ([`cem-controls.md`](./cem-controls.md)) — provides `--cem-control-height` for geometry-driven bend
 - **D5. Stroke & Separation** ([`cem-stroke.md`](./cem-stroke.md)) — boundaries, dividers, and focus/selection/target indicators
 - **D6. Typography** ([`cem-voice-fonts-typography.md`](./cem-voice-fonts-typography.md)) — related visual hierarchy
 - **D7. Time & Motion** ([`cem-timing.md`](./cem-timing.md)) — animation timing for shape transitions
@@ -138,7 +139,7 @@ This is the smallest stable basis that supports most UIs without overfitting.
   /*
     Round ends (capsule / pill):
     Semicircle ends require bend = 0.5 * element height.
-    Uses --cem-control-height from D2 (cem-coupling.md) as default.
+    Uses --cem-control-height from D2c Controls (cem-controls.md) as default.
     Provide --cem-shape-height where --cem-control-height is not appropriate.
   */
   --cem-bend-round: calc(var(--cem-shape-height, var(--cem-control-height)) / 2);
@@ -153,7 +154,7 @@ This is the smallest stable basis that supports most UIs without overfitting.
 
 **Cross-references:**
 - `--cem-dim-x-small` is defined in [`cem-dimension.md`](./cem-dimension.md) §5
-- `--cem-control-height` is defined in [`cem-coupling.md`](./cem-coupling.md) §4.2
+- `--cem-control-height` is defined in [`cem-controls.md`](./cem-controls.md) §3.1
 
 ---
 
@@ -397,7 +398,7 @@ Recommended robust pattern (shape-aligned ring in normal mode, resilient in forc
 
 Round controls can *look* smaller even when they meet minimum targets. Ensure:
 
-- D2 control height/width targets are met (especially icon buttons and small chips) — see [`cem-coupling.md`](./cem-coupling.md)
+- D2c Controls geometry targets are met (especially icon buttons and small chips) — see [`cem-controls.md`](./cem-controls.md); D2 [`cem-coupling.md`](./cem-coupling.md) governs the safety zone
 - D1 spacing provides separation between adjacent targets — see [`cem-dimension.md`](./cem-dimension.md)
 
 ### 8.5 Bend vs inset readability (bend × D1 padding)
@@ -522,7 +523,7 @@ Use this checklist to adopt the bend system with minimal churn and predictable o
 
 1. **Confirm prerequisites (D1 + D2 are present)**
    - D1 provides the physical scale used by bend (`--cem-dim-xx-small`, `--cem-dim-x-small`, `--cem-dim-small`, etc.) — see [`cem-dimension.md`](./cem-dimension.md).
-   - D2 provides height for geometry-driven bend (`--cem-control-height`), so round-ends remain correct across density/size modes — see [`cem-coupling.md`](./cem-coupling.md).
+   - D2c Controls provides height for geometry-driven bend (`--cem-control-height`), so round-ends remain correct across density/size modes — see [`cem-controls.md`](./cem-controls.md). The D2 safety contract (zone/guard/halo) lives in [`cem-coupling.md`](./cem-coupling.md).
 
 2. **Adopt the bend basis (`--cem-bend-*`)**
    - Keep the basis small: `sharp`, `smooth`, `round` (endcaps), `circle`, and the active `--cem-bend`.
@@ -686,6 +687,7 @@ These are **not** intended for product component code.
 
 **Local CEM documentation**
 - [D1. Space & Rhythm](./cem-dimension.md) — dimension scale tokens
-- [D2. Coupling & Compactness](./cem-coupling.md) — control height and operability
+- [D2. Coupling & Compactness](./cem-coupling.md) — operability safety contract (zone/guard/halo)
+- [D2c. Controls](./cem-controls.md) — visual control geometry, including `--cem-control-height`
 - [D6. Typography](./cem-voice-fonts-typography.md) — voice and typography tokens
 - [D7. Time & Motion](./cem-timing.md) — timing and easing tokens

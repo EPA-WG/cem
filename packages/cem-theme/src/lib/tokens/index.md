@@ -11,6 +11,7 @@ user experience over implementation details.
 | **D0**     | [cem-colors.md](./cem-colors.md)                                     | Color — Emotional palette, action states, theme modes         |
 | **D1**     | [cem-dimension.md](./cem-dimension.md)                               | Space & Rhythm — Spacing scale, layout gaps, density          |
 | **D2**     | [cem-coupling.md](./cem-coupling.md)                                 | Coupling & Compactness — Interactive operability, hit targets |
+| **D2c**    | [cem-controls.md](./cem-controls.md)                                 | Controls — Visual control geometry, per-mode visual overrides |
 | **D3**     | [cem-shape.md](./cem-shape.md)                                       | Shape & Bend — Corner roundedness, edge softness              |
 | **D4**     | [cem-layering.md](./cem-layering.md)                                 | Layering — Depth, elevation, planes (recess/lift)             |
 | **D5**     | [cem-stroke.md](./cem-stroke.md)                                     | Stroke & Separation — Boundaries, dividers, focus indicators  |
@@ -53,7 +54,7 @@ All dimensions have **constrained ranges** that prevent design drift while allow
 CEM tokens are designed to meet WCAG requirements automatically:
 
 - Color contrast ratios enforced via palette construction
-- Touch targets derived from `--cem-coupling-control-height`
+- Touch targets derived from `--cem-coupling-zone-min` (D2 safety) and `--cem-control-height` (D2c Controls)
 - Focus indicators via zebra outline system (D5)
 - Reduced motion support via `--cem-timing-*` tokens
 

@@ -2,6 +2,17 @@
 
 **Goal:** Generate CSS for all tokens defined in `packages/cem-theme/src/lib/tokens/*.md`
 
+## Immediate Work
+
+1. [x] **Canonical Controls split** — `cem-controls.md` added as its own canonical token spec; visual control
+   geometry moved out of D2 Coupling per [`cem-controls-reasoning.md`](../cem-controls-reasoning.md). Done in
+   Phase 8.5 below.
+   - D2 Coupling keeps operability safety: `--cem-coupling-zone-min`, `--cem-coupling-guard-min`,
+     `--cem-coupling-halo`, and coupling mode invariants (halo policy only).
+   - Controls owns visual/component geometry: `--cem-control-*`, `--cem-icon-button-*`, and list/menu/table
+     row-height geometry tokens, plus per-coupling-mode visual overrides.
+   - D3 Shape generator (Phase 9) is now unblocked — it can consume `--cem-control-height` from Controls.
+
 ## Current State
 
 ### Color (D0) — `cem-colors.html` ✓
@@ -14,15 +25,16 @@ The `cem-colors.html` generator currently produces:
 - [x] Zebra outline tokens (`--cem-zebra-color-{0-3}`, `--cem-zebra-strip-size`) - 5 tokens
 - [x] Native theme overrides (`.cem-theme-native`)
 
-### Other dimensions — generators missing
+### Other dimensions
 
-The remaining token-spec files have no working generator. `cem-breakpoints.html` exists as a stub.
+Generator coverage by token spec. `cem-controls.md` is the immediate canonical split from D2 Coupling.
 
 | Markdown spec                   | Dimension                 | Generator                     | Approx tokens |
 |---------------------------------|---------------------------|-------------------------------|---------------|
 | `cem-dimension.md`              | Space & rhythm (D1)       | `cem-dimension.html` ✓        | 27            |
 | `cem-breakpoints.md`            | Breakpoints (D1x)         | `cem-breakpoints.html` ✓      | 25            |
-| `cem-coupling.md`               | Coupling & density (D2)   | —                             | ~11 + modes   |
+| `cem-coupling.md`               | Coupling & density (D2)   | `cem-coupling.html` ✓         | safety tokens + modes |
+| `cem-controls.md`               | Controls geometry (D2c)   | —                             | ~8 + modes    |
 | `cem-shape.md`                  | Shape & bend (D3)         | —                             | ~16 + mode    |
 | `cem-layering.md`               | Layering & elevation (D4) | —                             | ~14           |
 | `cem-stroke.md`                 | Stroke & separation (D5)  | —                             | ~16           |
@@ -279,31 +291,64 @@ Per Principle P5, output is split.
    `--cem-bp-epsilon-mui: 0.05px` (for MUI `theme.breakpoints.step = 5` parity). Manifest documents both.
 6. [x] Spec prose preserves the "not device type" rule (no `isTablet` semantics).
 
-### Phase 8: D2 Coupling — `cem-coupling.html`
+### Phase 8: D2 Coupling — `cem-coupling.html` ✓ COMPLETE
 
-**Reordered before D3 / D5** because shape uses `--cem-control-height` for `--cem-bend-round`, and stroke depends on D2
-guard math.
+Reordered before D3 / D5 because stroke depends on D2 guard math. Visual control geometry split into Phase 8.5
+(D2c Controls) below.
 
-1. [ ] Add `cem-coupling-manifest` h6+table marking `--cem-coupling-zone-min` and `--cem-coupling-guard-min` as *
-   *mode-invariant** (do not change across forgiving/balanced/compact).
-2. [ ] Add metadata blocks for minimums, control geometry, density modes (
-   `data-cem-coupling="forgiving|balanced|compact"`).
-3. [ ] Create `cem-coupling.html`. Emit:
+1. [x] Add `cem-coupling-minimums` h6+table marking `--cem-coupling-zone-min` and `--cem-coupling-guard-min` as
+   **mode-invariant** (do not change across forgiving/balanced/compact). Tier column in source table.
+2. [x] Geometry tables migrated to D2c Controls (Phase 8.5). D2 retains `cem-coupling-minimums` plus the new
+   `cem-coupling-halo-overrides` table for per-mode halo policy. Token manifest index in §11.
+3. [x] `cem-coupling.html` generator emits:
     - `--cem-coupling-zone-min`, `--cem-coupling-guard-min`, `--cem-coupling-halo`
-    - `--cem-control-{height|padding-x|padding-y}`, `--cem-icon-button-{size|icon-size}`,
-      `--cem-{list|menu|table}-row-height`
-    - `:root[data-cem-coupling="forgiving|balanced|compact"]` overrides for **visual geometry and halo only** (
-      zone/guard stay invariant).
-4. [ ] Manifest documents accessibility baseline: WCAG 2.2 AA target size 24×24 CSS px (with spacing exceptions); CEM
+    - `:root[data-cem-coupling="forgiving"]` and `[compact]` overrides for **halo only** (zone/guard mode-invariant;
+      visual geometry owned by D2c Controls).
+4. [x] Validator wired: `validate-manifest.mjs` gets `deriveCouplingManifest` (3 tokens); `project.json` runs the
+   coupling validator. 3 manifest tokens all present, no extras, CSS valid. ✓
+5. [x] **Refactor for canonical Controls (Phase 8.5) complete:** visual control geometry ownership removed from D2.
+   D2 Coupling now owns only `--cem-coupling-zone-min`, `--cem-coupling-guard-min`, `--cem-coupling-halo`, mode
+   invariants, and operability rules.
+6. [ ] Manifest documents accessibility baseline: WCAG 2.2 AA target size 24×24 CSS px (with spacing exceptions); CEM
    defaults (3rem zone, 0.5rem guard) align with Android/Material 48dp+8dp guidance.
-5. [ ] Manifest notes that token generation is necessary but not sufficient — components still need `min-block-size`,
+7. [ ] Manifest notes that token generation is necessary but not sufficient — components still need `min-block-size`,
    halo wrappers/pseudo-elements, and `gap = max(layout-gap, guard-min)` formulas.
-6. [ ] Add proof surfaces (component examples) referenced from D2 spec: form trio (input + primary + icon), nav-list
+8. [ ] Add proof surfaces (component examples) referenced from D2 spec: form trio (input + primary + icon), nav-list
    trailing actions, data-table row actions + selection. These are spec prose, not generator output.
+
+### Phase 8.5: D2c Controls — `cem-controls.html` ✓ COMPLETE
+
+Canonical decision: `cem-controls.md` is the home for visual/component control geometry. See
+[`cem-controls-reasoning.md`](../cem-controls-reasoning.md).
+
+1. [x] Created `packages/cem-theme/src/lib/tokens/cem-controls.md` as a canonical spec.
+2. [x] Moved the visual control geometry source tables from `cem-coupling.md` to `cem-controls.md`:
+    - baseline `--cem-control-height`, `--cem-control-padding-x`, `--cem-control-padding-y`
+    - `--cem-icon-button-size`, `--cem-icon-button-icon-size`
+    - `--cem-list-row-height`, `--cem-menu-row-height`, `--cem-table-row-height`
+    - forgiving/compact visual geometry overrides (`cem-controls-geometry-overrides`)
+3. [x] D2 Coupling now owns operability safety only:
+    - `--cem-coupling-zone-min`, `--cem-coupling-guard-min`, `--cem-coupling-halo` (mode-invariant minimums)
+    - per-mode halo policy via `cem-coupling-halo-overrides`
+    - mode-invariant safety rules and guard/halo guidance
+4. [x] Created `cem-controls.html` generator using the existing h6+table extraction contract.
+5. [x] `validate-manifest.mjs` adds `deriveControlsManifest`; `project.json` validates `cem-controls.css` separately.
+6. [x] Cross-references updated:
+    - D3 Shape (`cem-shape.md`) consumes `--cem-control-height` from `cem-controls.md` §3.1.
+    - D2 Coupling references Controls for visual geometry; remains the safety constraint.
+    - D1 Dimension still references D2 Coupling for adjacency guard rules.
+    - Token index (`index.md`) and M3 parity (`cem-m3-parity.md`) list Controls as canonical (D2c).
+7. [x] `packages/cem-theme/src/lib/css-generators/index.html` links the new Controls generator (also Coupling, which
+   was previously missing from the index).
+8. [x] Acceptance verified by build:
+    - `cem-coupling.css` emits only safety tokens (3) plus per-mode halo overrides.
+    - `cem-controls.css` emits visual control geometry (8) plus per-mode visual overrides.
+    - Manifest validation passes for both specs with no duplicate token ownership.
 
 ### Phase 9: D3 Shape — `cem-shape.html`
 
-Now safe because D2 coupling has shipped.
+Depends on Phase 8.5 Controls because `--cem-bend-round` should consume `--cem-control-height` from canonical
+`cem-controls.md`.
 
 1. [ ] Add `cem-shape-manifest` h6+table. Mark `--cem-bend`, `--cem-bend-{sharp|smooth|round|circle}`, and core semantic
    endpoints as required per `cem-shape.md`; mark `--cem-bend-control-round-ends` as an optional semantic endpoint; mark
@@ -311,8 +356,8 @@ Now safe because D2 coupling has shipped.
 2. [ ] Add metadata blocks for bend basis, semantic endpoints, brand mode.
 3. [ ] Create `cem-shape.html`. Emit:
     - Basis and active alias: `--cem-bend-{sharp|smooth|round|circle}` plus required `--cem-bend`. `--cem-bend-round`
-      resolves via `calc(var(--cem-shape-height, var(--cem-control-height)) / 2)` — D2 dependency now satisfied.
-      Manifest provides a sane fallback constant in case D2 is absent.
+      resolves via `calc(var(--cem-shape-height, var(--cem-control-height)) / 2)` — Controls dependency satisfied by
+      Phase 8.5. Manifest provides a sane fallback constant in case Controls is absent.
     - Semantic endpoints: `--cem-bend-{control|surface|overlay|field|modal|media|avatar}` plus optional semantic
       `--cem-bend-control-round-ends` when metadata supplies its real value.
     - Pattern tokens: `--cem-bend-{attached-edge|free-edge}`.
@@ -471,7 +516,8 @@ Each new generator HTML mirrors `cem-colors.html` AND honors the Token-to-CSS Tr
 | Zebra tokens (D0)         | 5       | 5         | 0      | ✓           |
 | Dimension & rhythm (D1)   | 27      | 27        | 0      | ✓           |
 | Breakpoints (D1x)         | 25      | 25        | 0      | ✓           |
-| Coupling & density (D2)   | ~11+    | 0         | ~11+   | ✗ Phase 8   |
+| Coupling safety (D2)      | 3       | 3         | 0      | ✓           |
+| Controls geometry (D2c)   | 8       | 8         | 0      | ✓           |
 | Shape & bend (D3)         | ~16+    | 0         | ~16+   | ✗ Phase 9   |
 | Layering & elevation (D4) | ~14     | 0         | ~14    | ✗ Phase 11  |
 | Stroke & separation (D5)  | ~16     | 0         | ~16    | ✗ Phase 10  |
@@ -498,4 +544,3 @@ decision.)
 - Generator: `packages/cem-theme/src/lib/css-generators/cem-colors.html`
 - Output: `packages/cem-theme/dist/lib/css/cem-colors.css`
 - Build: `nx run @epa-wg/cem-theme:build:css`
-

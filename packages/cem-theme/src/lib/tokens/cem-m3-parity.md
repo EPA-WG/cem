@@ -18,7 +18,8 @@ This document records a comprehensive coverage review of the complete CEM spec s
 | D1 | [`cem-dimension.md`](./cem-dimension.md) | Space & Rhythm — spacing scale, gaps, insets, gutters, layout rhythm |
 | D1x | [`cem-breakpoints.md`](./cem-breakpoints.md) | Breakpoints — window size classes (compact/medium/expanded/large/xlarge) |
 | D1y | [`cem-responsive.md`](./cem-responsive.md) | Responsiveness — strategy vocabulary (intrinsic/container/breakpoint/hybrid) |
-| D2 | [`cem-coupling.md`](./cem-coupling.md) | Coupling & Compactness — zone/guard/halo, control geometry, density modes |
+| D2 | [`cem-coupling.md`](./cem-coupling.md) | Coupling & Compactness — zone/guard/halo safety contract; density modes |
+| D2c | [`cem-controls.md`](./cem-controls.md) | Controls — visual control geometry (height/padding, icon button, row heights) and per-mode visual overrides |
 | D3 | [`cem-shape.md`](./cem-shape.md) | Shape & Bend — corner radius, bend tokens, semantic endpoints |
 | D4 | [`cem-layering.md`](./cem-layering.md) | Layering — signed 7-tier depth ladder, semantic planes, representation channels |
 | D5 | [`cem-stroke.md`](./cem-stroke.md) | Stroke & Separation — boundaries, dividers, focus/selection/target indicators |
@@ -317,6 +318,7 @@ This approach preserves CEM's semantic guarantees while enabling selective adopt
 - [D1x. Breakpoints](./cem-breakpoints.md)
 - [D1y. Responsiveness Strategy](./cem-responsive.md)
 - [D2. Coupling & Compactness](./cem-coupling.md)
+- [D2c. Controls](./cem-controls.md)
 - [D3. Shape & Bend](./cem-shape.md)
 - [D4. Layering](./cem-layering.md)
 - [D5. Stroke & Separation](./cem-stroke.md)
