@@ -205,6 +205,50 @@ Please update the shape mode configuration and verify semantic endpoint mappings
 
 ---
 
+## Token Manifest Schema
+
+Every token specification encodes tier in a `tier` column on each **source table** — the same tables the generator
+already reads. The manifest validator reads those source tables directly; no separate manifest table is maintained.
+
+### Tier semantics
+
+| Tier          | Generator behavior                                                 |
+|---------------|--------------------------------------------------------------------|
+| `required`    | Always emitted; missing one is a build failure                     |
+| `recommended` | Emitted by default; adapters may opt out                           |
+| `optional`    | Emitted only when metadata supplies a real (non-placeholder) value |
+| `adapter`     | Emitted only behind an explicit opt-in flag                        |
+| `deprecated`  | Emitted only when a `--legacy` flag is set; flagged in manifest    |
+
+### Tier column convention
+
+Add `tier` as the last column of the existing source table. This preserves existing column indices so generators need
+no changes.
+
+```markdown
+###### {spec-id}-{category}
+| Token | ... existing columns ... | tier |
+|---|---|---|
+| `--cem-example-token` | ... | required |
+```
+
+For token groups derived from a **cross-product** (e.g. action tokens = intent × state × attribute), add `tier` to
+the **state** table (the axis that determines tier) rather than enumerating every combination.
+
+### Manifest index convention
+
+Each spec's final canonical section includes a `### {n}. Token manifest index` that lists the source tables and how
+the validator derives token names from them:
+
+```markdown
+| Source table h6 id | Tokens covered | Validator derivation |
+|---|---|---|
+| `{spec-id}-{category}` | `--cem-example-*` (N tokens) | one token per row |
+| `{spec-id}-{states}` × `{spec-id}-{intents}` | `--cem-example-action-*` (M tokens) | intent × state × {bg, text} |
+```
+
+See `cem-colors.md §14.3` for the worked example (D0, 148 tokens across 4 source tables).
+
 ## CSS Generation Pipeline
 
 Token specifications (`.md` files) are transpiled to XHTML and processed by HTML generators to produce CSS:

@@ -33,7 +33,11 @@
             "dependsOn": ["build:docs"],
             "executor": "nx:run-commands",
             "options": {
-                "command": "node ../../tools/scripts/capture-xpath-text.mjs \"src/lib/css-generators/*.html\" \"//code[@data-generated-css]\" \"dist/lib/css/*.css\"",
+                "commands": [
+                    "rm -f dist/lib/css/*.css",
+                    "node ../../tools/scripts/capture-xpath-text.mjs \"src/lib/css-generators/*.html\" \"//code[@data-generated-css]\" \"dist/lib/css/*.css\""
+                ],
+                "parallel": false,
                 "cwd": "packages/cem-theme"
             },
             "cache": true,
