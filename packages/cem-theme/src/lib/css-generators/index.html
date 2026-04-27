@@ -1,0 +1,169 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <title>CEM CSS generators</title>
+    <style>
+        :root {
+            color-scheme: light dark;
+            font-family: system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+            line-height: 1.5;
+        }
+
+        body {
+            margin: 0;
+            background: Canvas;
+            color: CanvasText;
+        }
+
+        main {
+            width: min(64rem, calc(100% - 2rem));
+            margin: 0 auto;
+            padding: 3rem 0;
+        }
+
+        h1 {
+            margin: 0 0 0.5rem;
+            font-size: clamp(2rem, 5vw, 3.5rem);
+            line-height: 1.1;
+        }
+
+        p {
+            max-width: 45rem;
+            margin: 0 0 2rem;
+            color: color-mix(in srgb, CanvasText 72%, Canvas);
+        }
+
+        table {
+            width: 100%;
+            border-collapse: collapse;
+            border-block: 1px solid color-mix(in srgb, CanvasText 24%, Canvas);
+        }
+
+        th,
+        td {
+            padding: 0.9rem 1rem;
+            text-align: start;
+            vertical-align: top;
+            border-block-end: 1px solid color-mix(in srgb, CanvasText 16%, Canvas);
+        }
+
+        th {
+            font-size: 0.8rem;
+            letter-spacing: 0.08em;
+            text-transform: uppercase;
+        }
+
+        tr:last-child td {
+            border-block-end: 0;
+        }
+
+        a {
+            color: LinkText;
+            text-underline-offset: 0.18em;
+        }
+
+        .generator {
+            font-weight: 700;
+        }
+
+        .description {
+            color: color-mix(in srgb, CanvasText 72%, Canvas);
+        }
+
+        @media (max-width: 42rem) {
+            main {
+                width: min(100% - 1rem, 64rem);
+                padding: 1.5rem 0;
+            }
+
+            table,
+            thead,
+            tbody,
+            tr,
+            th,
+            td {
+                display: block;
+            }
+
+            thead {
+                position: absolute;
+                width: 1px;
+                height: 1px;
+                overflow: hidden;
+                clip: rect(0 0 0 0);
+                white-space: nowrap;
+            }
+
+            tr {
+                padding: 0.75rem 0;
+                border-block-end: 1px solid color-mix(in srgb, CanvasText 16%, Canvas);
+            }
+
+            tr:last-child {
+                border-block-end: 0;
+            }
+
+            td {
+                padding: 0.25rem 0.5rem;
+                border-block-end: 0;
+            }
+
+            td::before {
+                content: attr(data-label);
+                display: block;
+                margin-block-end: 0.1rem;
+                font-size: 0.72rem;
+                font-weight: 700;
+                letter-spacing: 0.08em;
+                text-transform: uppercase;
+                color: color-mix(in srgb, CanvasText 58%, Canvas);
+            }
+        }
+    </style>
+</head>
+<body>
+<main>
+    <h1>CEM CSS generators</h1>
+    <p>HTML templates that read built token specs and emit generated CSS.</p>
+
+    <table>
+        <thead>
+        <tr>
+            <th scope="col">Generator</th>
+            <th scope="col">Token spec</th>
+            <th scope="col">Generated CSS</th>
+            <th scope="col">Scope</th>
+        </tr>
+        </thead>
+        <tbody>
+        <tr>
+            <td data-label="Generator"><a class="generator" href="./cem-breakpoints.html">Breakpoints</a></td>
+            <td data-label="Token spec"><a href="../../../dist/lib/tokens/cem-breakpoints.xhtml">cem-breakpoints.xhtml</a></td>
+            <td data-label="Generated CSS"><a href="../../../dist/lib/css/cem-breakpoints.css">cem-breakpoints.css</a></td>
+            <td data-label="Scope" class="description">Viewport, height, and container-query reference tokens.</td>
+        </tr>
+        <tr>
+            <td data-label="Generator"><a class="generator" href="./cem-colors.html">Colors</a></td>
+            <td data-label="Token spec"><a href="../../../dist/lib/tokens/cem-colors.xhtml">cem-colors.xhtml</a></td>
+            <td data-label="Generated CSS"><a href="../../../dist/lib/css/cem-colors.css">cem-colors.css</a></td>
+            <td data-label="Scope" class="description">Palette, theme mode, action intent, and zebra state tokens.</td>
+        </tr>
+        <tr>
+            <td data-label="Generator"><a class="generator" href="./cem-dimension.html">Dimension</a></td>
+            <td data-label="Token spec"><a href="../../../dist/lib/tokens/cem-dimension.xhtml">cem-dimension.xhtml</a></td>
+            <td data-label="Generated CSS"><a href="../../../dist/lib/css/cem-dimension.css">cem-dimension.css</a></td>
+            <td data-label="Scope" class="description">Scale, spacing, rhythm, layout, and density mode tokens.</td>
+        </tr>
+        <tr>
+            <td data-label="Generator"><a class="generator" href="./cem-timing.html">Timing</a></td>
+            <td data-label="Token spec"><a href="../../../dist/lib/tokens/cem-timing.xhtml">cem-timing.xhtml</a></td>
+            <td data-label="Generated CSS"><a href="../../../dist/lib/css/cem-timing.css">cem-timing.css</a></td>
+            <td data-label="Scope" class="description">Duration, easing, and reduced-motion tokens.</td>
+        </tr>
+        </tbody>
+    </table>
+</main>
+</body>
+</html>

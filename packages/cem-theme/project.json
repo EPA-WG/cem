@@ -35,7 +35,7 @@
             "options": {
                 "commands": [
                     "rm -f dist/lib/css/*.css",
-                    "node ../../tools/scripts/capture-xpath-text.mjs \"dist/lib/css-generators/*.html\" \"//code[@data-generated-css]\" \"dist/lib/css/*.css\"",
+                    "node ../../tools/scripts/capture-xpath-text.mjs \"dist/lib/css-generators/cem-*.html\" \"//code[@data-generated-css]\" \"dist/lib/css/*.css\"",
                     "node scripts/validate-manifest.mjs dist/lib/tokens/cem-colors.xhtml dist/lib/css/cem-colors.css",
                     "node scripts/validate-manifest.mjs dist/lib/tokens/cem-dimension.xhtml dist/lib/css/cem-dimension.css",
                     "node scripts/validate-manifest.mjs dist/lib/tokens/cem-timing.xhtml dist/lib/css/cem-timing.css",
