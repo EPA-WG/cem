@@ -70,18 +70,14 @@ To keep the naming dimensional and unambiguous, use three core nouns:
 
 ### 4.1 Hard safety minimums (policy anchors)
 
-```css
-:root {
-  /* Minimum operable zone (layout-level). Keep invariant across density modes. */
-  --cem-coupling-zone-min: 3rem;        /* nominally 48px @ 16px root */
+These values are **mode-invariant** — density modes MUST NOT change `zone-min` or `guard-min`.
 
-  /* Minimum distancing between adjacent operable zones (prevents interference). */
-  --cem-coupling-guard-min: 0.5rem;     /* nominally 8px */
-
-  /* Invisible expansion beyond visuals (halo). */
-  --cem-coupling-halo: 0.25rem;         /* nominally 4px */
-}
-```
+###### cem-coupling-minimums
+| Token | Value | Description | tier |
+|---|---|---|---|
+| `--cem-coupling-zone-min` | `3rem` | Minimum operable zone in both dimensions; nominally 48 px @ 16 px root | required |
+| `--cem-coupling-guard-min` | `0.5rem` | Minimum distancing between adjacent operable zones; nominally 8 px | required |
+| `--cem-coupling-halo` | `0.25rem` | Invisible expansion beyond visuals; may vary by mode (nominally 4 px) | required |
 
 Interpretation:
 

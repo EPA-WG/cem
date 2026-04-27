@@ -24,7 +24,8 @@
         "!**/*.tsbuildinfo"
     ],
     "scripts": {
-        "build:css": "node ../../tools/scripts/capture-xpath-text.mjs \"src/lib/css-generators/*.html\" \"//code[@data-generated-css]\" \"dist/lib/css/*.css\""
+        "build:html": "node ../../tools/scripts/compile-html.mjs",
+        "build:css": "node ../../tools/scripts/compile-html.mjs && node ../../tools/scripts/capture-xpath-text.mjs \"dist/lib/css-generators/*.html\" \"//code[@data-generated-css]\" \"dist/lib/css/*.css\""
     },
     "devDependencies": {
         "chokidar": "^4.0.0",

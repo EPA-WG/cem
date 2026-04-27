@@ -30,12 +30,12 @@
             ]
         },
         "build:css": {
-            "dependsOn": ["build:docs"],
+            "dependsOn": ["build:html"],
             "executor": "nx:run-commands",
             "options": {
                 "commands": [
                     "rm -f dist/lib/css/*.css",
-                    "node ../../tools/scripts/capture-xpath-text.mjs \"src/lib/css-generators/*.html\" \"//code[@data-generated-css]\" \"dist/lib/css/*.css\"",
+                    "node ../../tools/scripts/capture-xpath-text.mjs \"dist/lib/css-generators/*.html\" \"//code[@data-generated-css]\" \"dist/lib/css/*.css\"",
                     "node scripts/validate-manifest.mjs dist/lib/tokens/cem-colors.xhtml dist/lib/css/cem-colors.css",
                     "node scripts/validate-manifest.mjs dist/lib/tokens/cem-dimension.xhtml dist/lib/css/cem-dimension.css",
                     "node scripts/validate-manifest.mjs dist/lib/tokens/cem-timing.xhtml dist/lib/css/cem-timing.css",
@@ -47,10 +47,33 @@
             "cache": true,
             "inputs": [
                 "{projectRoot}/src/lib/css-generators/*.html",
+                "{projectRoot}/src/lib/css-generators/*.js",
+                "{projectRoot}/dist/lib/css-generators/*.html",
                 "{projectRoot}/dist/lib/tokens/*.xhtml"
             ],
             "outputs": [
                 "{projectRoot}/dist/lib/css/*.css"
+            ]
+        },
+        "build:html": {
+            "dependsOn": ["build:docs"],
+            "executor": "nx:run-commands",
+            "options": {
+                "command": "node ../../tools/scripts/compile-html.mjs",
+                "cwd": "packages/cem-theme"
+            },
+            "cache": true,
+            "inputs": [
+                "{projectRoot}/src/**/*.html",
+                "{projectRoot}/src/**/*.js",
+                "{workspaceRoot}/node_modules/@epa-wg/custom-element/custom-element.js",
+                "{workspaceRoot}/node_modules/@epa-wg/custom-element/http-request.js",
+                "{projectRoot}/dist/lib/**/*.xhtml"
+            ],
+            "outputs": [
+                "{projectRoot}/dist/**/*.html",
+                "{projectRoot}/dist/lib/css-generators/*.js",
+                "{projectRoot}/dist/vendor/**/*.js"
             ]
         },
         "build:docs": {
