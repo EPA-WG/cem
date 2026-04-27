@@ -24,7 +24,7 @@ Generator coverage by token spec.
 | `cem-breakpoints.md`            | Breakpoints (D1x)         | `cem-breakpoints.html` ✓      | 25            |
 | `cem-coupling.md`               | Coupling safety (D2)      | `cem-coupling.html` ✓         | 3 + halo modes |
 | `cem-controls.md`               | Controls geometry (D2c)   | `cem-controls.html` ✓         | 8 + modes     |
-| `cem-shape.md`                  | Shape & bend (D3)         | —                             | ~16 + mode    |
+| `cem-shape.md`                  | Shape & bend (D3)         | `cem-shape.html` ✓            | 15 + brand modes |
 | `cem-layering.md`               | Layering & elevation (D4) | —                             | ~14           |
 | `cem-stroke.md`                 | Stroke & separation (D5)  | —                             | ~16           |
 | `cem-voice-fonts-typography.md` | Typography & voice (D6)   | —                             | ~80+          |
@@ -334,32 +334,34 @@ Canonical decision: `cem-controls.md` is the home for visual/component control g
     - `cem-controls.css` emits visual control geometry (8) plus per-mode visual overrides.
     - Manifest validation passes for both specs with no duplicate token ownership.
 
-### Phase 9: D3 Shape — `cem-shape.html`
+### Phase 9: D3 Shape — `cem-shape.html` ✓ COMPLETE
 
-Depends on Phase 8.5 Controls because `--cem-bend-round` should consume `--cem-control-height` from canonical
+Depends on Phase 8.5 Controls because `--cem-bend-round` consumes `--cem-control-height` from canonical
 `cem-controls.md`.
 
-1. [ ] Add `cem-shape-manifest` h6+table. Mark `--cem-bend`, `--cem-bend-{sharp|smooth|round|circle}`, and core semantic
-   endpoints as required per `cem-shape.md`; mark `--cem-bend-control-round-ends` as an optional semantic endpoint; mark
-   `--cem-bend-xs` and similar M3-parity aliases as adapter-only tier.
-2. [ ] Add metadata blocks for bend basis, semantic endpoints, brand mode.
-3. [ ] Create `cem-shape.html`. Emit:
+1. [x] Manifest tables added to `cem-shape.md`: `cem-shape-basis`, `cem-shape-semantic`, `cem-shape-pattern`,
+   `cem-shape-mode-sharp`, `cem-shape-mode-round`, `cem-shape-adapter-aliases` (M3-parity, tier=adapter).
+   `--cem-bend-control-round-ends` is tagged `optional` (metadata supplies a real value, so it emits).
+2. [x] Metadata blocks for bend basis, semantic endpoints, attachment patterns, and per-mode override tables.
+3. [x] `cem-shape.html` created. Emits:
     - Basis and active alias: `--cem-bend-{sharp|smooth|round|circle}` plus required `--cem-bend`. `--cem-bend-round`
       resolves via `calc(var(--cem-shape-height, var(--cem-control-height)) / 2)` — Controls dependency satisfied by
-      Phase 8.5. Manifest provides a sane fallback constant in case Controls is absent.
-    - Semantic endpoints: `--cem-bend-{control|surface|overlay|field|modal|media|avatar}` plus optional semantic
-      `--cem-bend-control-round-ends` when metadata supplies its real value.
+      Phase 8.5.
+    - Semantic endpoints: `--cem-bend-{control|surface|overlay|field|modal|control-round-ends|media|avatar}` (8).
     - Pattern tokens: `--cem-bend-{attached-edge|free-edge}`.
-    - Existing action binding: record `--cem-action-border-radius` in the manifest as an existing component-binding
-      contract. R&D R-D3-ACTION decides whether the D3 generator emits it directly or references an existing action
-      stylesheet owner.
-    - Brand mode: `data-cem-shape="sharp|smooth|round"` overrides — marked as **optional brand policy** in manifest, NOT
-      a required selector for every product.
-4. [ ] Adapter-only M3-parity aliases (`--cem-bend-xs`, `--cem-bend-sm`, etc.) emit only behind opt-in flag.
-   `--cem-bend-control-round-ends` is NOT adapter-only; emit it according to its manifest tier.
-5. [ ] Add validation tasks (browser-level, deferred to Phase 13): focus-ring clipping with rounded corners,
-   `forced-colors: active` outline behavior, 200%/400% zoom, round-end behavior under each `data-cem-coupling` mode, RTL
-   logical-corner mapping.
+    - Existing action binding: `--cem-action-border-radius` is documented in `cem-shape.md` §14 as an existing
+      component-binding contract owned by the action stylesheet (D0); not emitted here, pending R-D3-ACTION.
+    - Brand mode: `data-cem-shape="sharp|smooth|round"` overrides emitted as **optional brand policy**; smooth is
+      the baseline `:root` block, so only sharp/round appear as override blocks.
+4. [x] Adapter-only M3-parity aliases (`cem-shape-adapter-aliases` h6+table) are NOT emitted by default.
+   `deriveShapeManifest` filters them from coverage; the generator does not loop over that table. Opt-in path is
+   left as a future flag.
+5. [ ] Browser-level validation tasks deferred to Phase 13: focus-ring clipping with rounded corners,
+   `forced-colors: active` outline behavior, 200%/400% zoom, round-end behavior under each `data-cem-coupling` mode,
+   RTL logical-corner mapping.
+
+Generated CSS: 15 tokens (5 basis + 8 semantic + 2 pattern) + sharp/round brand-mode overrides. Manifest validation
+green on first build.
 
 ### Phase 10: D5 Stroke — `cem-stroke.html`
 
@@ -507,12 +509,12 @@ Each new generator HTML mirrors `cem-colors.html` AND honors the Token-to-CSS Tr
 | Breakpoints (D1x)         | 25      | 25        | 0      | ✓           |
 | Coupling safety (D2)      | 3       | 3         | 0      | ✓           |
 | Controls geometry (D2c)   | 8       | 8         | 0      | ✓           |
-| Shape & bend (D3)         | ~16+    | 0         | ~16+   | ✗ Phase 9   |
+| Shape & bend (D3)         | 15      | 15        | 0      | ✓           |
 | Layering & elevation (D4) | ~14     | 0         | ~14    | ✗ Phase 11  |
 | Stroke & separation (D5)  | ~16     | 0         | ~16    | ✗ Phase 10  |
 | Typography & voice (D6)   | ~95+    | 0         | ~95+   | ✗ Phase 12  |
 | Timing & motion (D7)      | 13      | 13        | 0      | ✓           |
-| **Total**                 | ~340+   | 213       | ~130+  | In progress |
+| **Total**                 | ~340+   | 228       | ~115+  | In progress |
 
 (D6 estimate raised from ~80+ to ~95+ to include feature-policy, reading-ergonomics, and text-transform tokens that
 the original plan missed; D1 +sp = spacing-mode overrides; D7 dropped from ~14–26 to ~12+ pending R-D7-2 spring

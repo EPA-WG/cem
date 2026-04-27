@@ -156,6 +156,15 @@ This is the smallest stable basis that supports most UIs without overfitting.
 - `--cem-dim-x-small` is defined in [`cem-dimension.md`](./cem-dimension.md) §5
 - `--cem-control-height` is defined in [`cem-controls.md`](./cem-controls.md) §3.1
 
+###### cem-shape-basis
+| Token                | Value                                                            | Description                                                       | tier     |
+|----------------------|------------------------------------------------------------------|-------------------------------------------------------------------|----------|
+| `--cem-bend-sharp`   | `0`                                                              | No bend (sharp corners)                                           | required |
+| `--cem-bend-smooth`  | `var(--cem-dim-x-small)`                                         | Small, friendly rounding bound to D1 scale (0.5rem / 8px)         | required |
+| `--cem-bend-round`   | `calc(var(--cem-shape-height, var(--cem-control-height)) / 2)`   | Round-ends (capsule); resolves to ½ control height                | required |
+| `--cem-bend-circle`  | `50%`                                                            | True circle relative to element box (avatars, dots)               | required |
+| `--cem-bend`         | `var(--cem-bend-smooth)`                                         | Mode-switchable active bend used by endpoints with default feel   | required |
+
 ---
 
 ## 5. Semantic endpoints (product-facing contract)
@@ -182,6 +191,18 @@ These are the tokens components should consume.
 
 **Cross-references:**
 - `--cem-dim-small`, `--cem-dim-large`, `--cem-dim-xx-small` are defined in [`cem-dimension.md`](./cem-dimension.md) §5
+
+###### cem-shape-semantic
+| Token                           | Value                                                       | Description                                                        | tier        |
+|---------------------------------|-------------------------------------------------------------|--------------------------------------------------------------------|-------------|
+| `--cem-bend-control`            | `var(--cem-bend)`                                           | Primary control bend (buttons, segmented controls)                 | required    |
+| `--cem-bend-surface`            | `var(--cem-dim-small)`                                      | Container/surface bend (cards, panels) — 0.75rem / 12px            | required    |
+| `--cem-bend-overlay`            | `var(--cem-bend)`                                           | Small overlays (menus, tooltips, popovers)                         | required    |
+| `--cem-bend-field`              | `var(--cem-bend-control)`                                   | Text field / select geometry; usually equals control bend          | recommended |
+| `--cem-bend-modal`              | `calc(var(--cem-dim-large) + var(--cem-dim-xx-small))`      | Prominent overlays (dialogs, sheets) — ~28px                       | recommended |
+| `--cem-bend-control-round-ends` | `var(--cem-bend-round)`                                     | Capsule control variant; use only if pill controls are consistent  | optional    |
+| `--cem-bend-media`              | `var(--cem-bend)`                                           | Media thumbnails / previews                                        | recommended |
+| `--cem-bend-avatar`             | `var(--cem-bend-circle)`                                    | Avatar / persona geometry (circle)                                 | recommended |
 
 ---
 
@@ -244,6 +265,21 @@ preprocessor; it also obscures where the mode is applied.
 **If you introduce more granular local aliases** (e.g., card vs page surface), they may also be overridden by the mode
 selector, but only as pointers to existing endpoints. Do not mint a parallel "mode-specific" token family.
 
+###### cem-shape-mode-sharp
+| Token                | Value                    |
+|----------------------|--------------------------|
+| `--cem-bend`         | `var(--cem-bend-sharp)`  |
+| `--cem-bend-control` | `var(--cem-bend)`        |
+| `--cem-bend-surface` | `var(--cem-bend-smooth)` |
+| `--cem-bend-overlay` | `var(--cem-bend-smooth)` |
+
+###### cem-shape-mode-round
+| Token                | Value                    |
+|----------------------|--------------------------|
+| `--cem-bend`         | `var(--cem-bend-smooth)` |
+| `--cem-bend-surface` | `var(--cem-dim-medium)`  |
+| `--cem-bend-overlay` | `var(--cem-bend-smooth)` |
+
 ### 6.3 Helper classes (optional; scoped overrides)
 
 If you need one-off local overrides (e.g., a demo page or controlled experiment), helper classes are acceptable, but should
@@ -281,6 +317,12 @@ When a surface is **attached** (sheet, drawer), do not round the attached edge.
     var(--cem-bend-attached-edge);
 }
 ```
+
+###### cem-shape-pattern
+| Token                      | Value                   | Description                                              | tier        |
+|----------------------------|-------------------------|----------------------------------------------------------|-------------|
+| `--cem-bend-attached-edge` | `var(--cem-bend-sharp)` | Attached edge of asymmetric surface (drawer, sheet seam) | recommended |
+| `--cem-bend-free-edge`     | `var(--cem-bend-modal)` | Free edge of asymmetric surface (drawer top, sheet free) | recommended |
 
 ### 7.2 When to use asymmetric corners
 
@@ -661,12 +703,48 @@ These are **not** intended for product component code.
 }
 ```
 
+###### cem-shape-adapter-aliases
+| Token              | Value                     | Description                              | tier    |
+|--------------------|---------------------------|------------------------------------------|---------|
+| `--cem-bend-none`  | `var(--cem-bend-sharp)`   | M3-parity: corner-none                   | adapter |
+| `--cem-bend-xs`    | `var(--cem-dim-xx-small)` | M3-parity: corner-extra-small (~4dp)     | adapter |
+| `--cem-bend-sm`    | `var(--cem-dim-x-small)`  | M3-parity: corner-small (~8dp)           | adapter |
+| `--cem-bend-md`    | `var(--cem-dim-small)`    | M3-parity: corner-medium (~12dp)         | adapter |
+| `--cem-bend-lg`    | `var(--cem-dim-medium)`   | M3-parity: corner-large (~16dp)          | adapter |
+| `--cem-bend-xl`    | `var(--cem-bend-modal)`   | M3-parity: corner-extra-large (~28dp)    | adapter |
+| `--cem-bend-full`  | `var(--cem-bend-round)`   | M3-parity: corner-full (capsule)         | adapter |
+
+These rows are **not** emitted by the default generator output. They are visible to tooling under an explicit
+adapter opt-in flag. Do not consume these names from product code.
+
 ### A.3 Notes on validation vs "current" libraries
 
 - Material Web uses `--md-sys-shape-corner-*` tokens in theming and leaves exact numeric assignments to the system theme.
 - Angular Material may publish/ship a scale whose *numeric* values differ from the M3 "typical" table; treat Angular's
   scale as its **own source scale** and map to CEM by intent, not by exact dp numbers.
 - CEM's contract is semantic endpoints. Adapters own external token mapping.
+
+---
+
+## 14. Token manifest index
+
+| Source table | Section | Description |
+|---|---|---|
+| `cem-shape-basis` | §4 | Bend basis: `--cem-bend-{sharp,smooth,round,circle}` plus the active alias `--cem-bend` |
+| `cem-shape-semantic` | §5 | Semantic endpoints: `--cem-bend-{control,surface,overlay,field,modal,control-round-ends,media,avatar}` |
+| `cem-shape-pattern` | §7.1 | Asymmetric pattern tokens: `--cem-bend-attached-edge`, `--cem-bend-free-edge` |
+| `cem-shape-mode-sharp` | §6.2 | `data-cem-shape="sharp"` overrides (generator-only; no new tokens) |
+| `cem-shape-mode-round` | §6.2 | `data-cem-shape="round"` overrides (generator-only; no new tokens) |
+| `cem-shape-adapter-aliases` | §A.2 | M3-parity aliases (tier `adapter`; emitted only behind opt-in) |
+
+Generator derivation rules:
+- `cem-shape-basis`, `cem-shape-semantic`, `cem-shape-pattern` → token list (tier in last column).
+- `cem-shape-mode-sharp` and `cem-shape-mode-round` → override data only; tokens are already declared in the base
+  `:root` block.
+- `cem-shape-adapter-aliases` → adapter-only; default validator filters tier=`adapter` from coverage and the default
+  generator does not emit them.
+- `--cem-action-border-radius` is an existing component-binding contract owned by the action stylesheet (D0). The
+  D3 generator does NOT emit it; ownership is tracked in R&D R-D3-ACTION.
 
 ---
 
