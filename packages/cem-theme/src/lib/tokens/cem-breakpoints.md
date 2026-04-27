@@ -140,45 +140,67 @@ Height is usually secondary due to vertical scrolling, but matters for landscape
 
 ### 5.1 Basis tokens (bounds)
 
-These tokens are numeric bounds for ranges, consumed by build-time systems (PostCSS/@custom-media), JS breakpoints, and runtime CSS systems.
+These tokens are numeric bounds for ranges, consumed by build-time systems (PostCSS/@custom-media), JS breakpoints, and runtime CSS systems. Epsilon is used when expressing half-open intervals `[min, nextMin)` as exclusive `max-width`/`max-height` values.
 
-```css
-:root {
-  /*
-   * Epsilon is used only when expressing half-open intervals `[min, nextMin)`
-   * as `max-width`/`max-height` (exclusive upper bounds).
-   *
-   * Choose epsilon per adapter/toolchain:
-   * - Generic CSS: 0.01px is typically sufficient
-   * - MUI default: theme.breakpoints.step = 5 => epsilon 0.05px for down()/between()
-   */
-  --cem-bp-epsilon: 0.01px;
+###### cem-bp-basis
+| Token | Value | Description | tier |
+|---|---|---|---|
+| `--cem-bp-epsilon` | `0.01px` | Default epsilon for exclusive upper bounds | required |
+| `--cem-bp-epsilon-css` | `0.01px` | Explicit CSS adapter epsilon (same as default) | recommended |
+| `--cem-bp-epsilon-mui` | `0.05px` | MUI adapter epsilon (`theme.breakpoints.step = 5` parity) | recommended |
+| `--cem-bp-width-compact-min` | `0px` | Compact width lower bound | required |
+| `--cem-bp-width-compact-max` | `calc(var(--cem-bp-width-medium-min) - var(--cem-bp-epsilon))` | Compact width upper bound (exclusive) | required |
+| `--cem-bp-width-medium-min` | `600px` | Medium width lower bound (M3 reference) | required |
+| `--cem-bp-width-medium-max` | `calc(var(--cem-bp-width-expanded-min) - var(--cem-bp-epsilon))` | Medium width upper bound (exclusive) | required |
+| `--cem-bp-width-expanded-min` | `840px` | Expanded width lower bound (M3 reference) | required |
+| `--cem-bp-width-expanded-max` | `calc(var(--cem-bp-width-large-min) - var(--cem-bp-epsilon))` | Expanded width upper bound (exclusive) | recommended |
+| `--cem-bp-width-large-min` | `1200px` | Large width lower bound (M3 reference) | recommended |
+| `--cem-bp-width-large-max` | `calc(var(--cem-bp-width-xlarge-min) - var(--cem-bp-epsilon))` | Large width upper bound (exclusive) | recommended |
+| `--cem-bp-width-xlarge-min` | `1600px` | Xlarge width lower bound (no max; unbounded) | recommended |
 
-  /* Width mins (M3 reference lattice; dp thresholds reused as CSS px by convention) */
-  --cem-bp-width-compact-min:  0px;
-  --cem-bp-width-medium-min:   600px;
-  --cem-bp-width-expanded-min: 840px;
-  --cem-bp-width-large-min:    1200px;
-  --cem-bp-width-xlarge-min:   1600px;
+###### cem-bp-height
+| Token | Value | Description | tier |
+|---|---|---|---|
+| `--cem-bp-height-compact-min` | `0px` | Compact height lower bound | recommended |
+| `--cem-bp-height-compact-max` | `calc(var(--cem-bp-height-medium-min) - var(--cem-bp-epsilon))` | Compact height upper bound (exclusive) | recommended |
+| `--cem-bp-height-medium-min` | `480px` | Medium height lower bound | recommended |
+| `--cem-bp-height-medium-max` | `calc(var(--cem-bp-height-expanded-min) - var(--cem-bp-epsilon))` | Medium height upper bound (exclusive) | recommended |
+| `--cem-bp-height-expanded-min` | `900px` | Expanded height lower bound (no max; unbounded) | recommended |
 
-  /* Derived width max (exclusive) */
-  --cem-bp-width-compact-max:  calc(var(--cem-bp-width-medium-min)   - var(--cem-bp-epsilon));
-  --cem-bp-width-medium-max:   calc(var(--cem-bp-width-expanded-min) - var(--cem-bp-epsilon));
-  --cem-bp-width-expanded-max: calc(var(--cem-bp-width-large-min)    - var(--cem-bp-epsilon));
-  --cem-bp-width-large-max:    calc(var(--cem-bp-width-xlarge-min)   - var(--cem-bp-epsilon));
+### 5.2 Active width tracker
 
-  /* Height mins */
-  --cem-bp-height-compact-min:  0px;
-  --cem-bp-height-medium-min:   480px;
-  --cem-bp-height-expanded-min: 900px;
+The `@media` helpers in Block B set this token so that JS can read the current breakpoint class
+via `getComputedStyle(document.documentElement).getPropertyValue('--cem-bp-active-width').trim()`.
+There is no `:root` default; the value is always resolved from `@media` context.
 
-  /* Derived height max (exclusive) */
-  --cem-bp-height-compact-max: calc(var(--cem-bp-height-medium-min)   - var(--cem-bp-epsilon));
-  --cem-bp-height-medium-max:  calc(var(--cem-bp-height-expanded-min) - var(--cem-bp-epsilon));
-}
-```
+###### cem-bp-active
+| Token | Description | tier |
+|---|---|---|
+| `--cem-bp-active-width` | Current active width class (compact/medium/expanded/large/xlarge); read via JS | recommended |
+| `--cem-bp-active-height` | Current active height class (short/medium/tall); read via JS | recommended |
 
-### 5.2 Normative rules
+### 5.3 Generator helper: @media range data
+
+These tables drive the `@media` and height helper blocks in the generator. They are **not token
+sources** — rows do not begin with `--cem-*` and are excluded from the manifest automatically.
+
+###### cem-bp-media-ranges
+| range | min-width | max-width | description |
+|---|---|---|---|
+| compact | 0px | 599.99px | max-only rule; M3 compact width |
+| medium | 600px | 839.99px | M3 medium width |
+| expanded | 840px | 1199.99px | M3 expanded width |
+| large | 1200px | 1599.99px | M3 large width |
+| xlarge | 1600px | — | min-only rule; M3 xlarge width |
+
+###### cem-bp-height-ranges
+| range | min-height | max-height | description |
+|---|---|---|---|
+| compact | 0px | 479.99px | max-only rule; compact height |
+| medium | 480px | 899.99px | medium height |
+| expanded | 900px | — | min-only rule; expanded height |
+
+### 5.4 Normative rules
 
 - Bounds MUST be strictly increasing.
 - Range names MUST remain stable (`compact`, `medium`, `expanded`, optionally `large`, `xlarge`).
@@ -188,7 +210,7 @@ These tokens are numeric bounds for ranges, consumed by build-time systems (Post
   - In Material UI, prefer the built-in mechanism: `theme.breakpoints.step` (default `5`, i.e., `0.05px`) which is used to implement exclusive `down()`/`between()` upper bounds.
 
 
-### 5.3 @custom-media (where supported)
+### 5.5 @custom-media (where supported; NOT emitted in production output)
 
 ```css
 @custom-media --cem-compact  (max-width: calc(600px - 0.01px));
@@ -378,22 +400,19 @@ Some UIs (split panes, sidebars, embedded widgets) need size classes based on **
 
 ### 8.1 Container bounds (optional)
 
-```css
-:root {
-  /* Reuse the same semantic lattice; container queries are about measurement context. */
-  --cem-cq-epsilon: var(--cem-bp-epsilon);
+These reference values reuse the same semantic lattice as the viewport breakpoints. Consumers place
+them in their own `@container` rules; CEM does not emit `@container` selectors directly (see R-D1x-WRAP).
+Uses `--cem-bp-epsilon` directly — no separate `--cem-cq-epsilon` needed.
 
-  --cem-cq-width-medium-min:   600px;
-  --cem-cq-width-expanded-min: 840px;
-  --cem-cq-width-large-min:    1200px;
-
-  /* Derived max (exclusive) */
-  --cem-cq-width-compact-max:  calc(var(--cem-cq-width-medium-min)   - var(--cem-cq-epsilon));
-  --cem-cq-width-medium-max:   calc(var(--cem-cq-width-expanded-min) - var(--cem-cq-epsilon));
-  --cem-cq-width-expanded-max: calc(var(--cem-cq-width-large-min)    - var(--cem-cq-epsilon));
-}
-
-```
+###### cem-bp-cq
+| Token | Value | Description | tier |
+|---|---|---|---|
+| `--cem-cq-width-compact-max` | `calc(var(--cem-cq-width-medium-min) - var(--cem-bp-epsilon))` | Compact container upper bound (exclusive) | recommended |
+| `--cem-cq-width-medium-min` | `600px` | Medium container lower bound | recommended |
+| `--cem-cq-width-medium-max` | `calc(var(--cem-cq-width-expanded-min) - var(--cem-bp-epsilon))` | Medium container upper bound (exclusive) | recommended |
+| `--cem-cq-width-expanded-min` | `840px` | Expanded container lower bound | recommended |
+| `--cem-cq-width-expanded-max` | `calc(var(--cem-cq-width-large-min) - var(--cem-bp-epsilon))` | Expanded container upper bound (exclusive) | recommended |
+| `--cem-cq-width-large-min` | `1200px` | Large container lower bound | recommended |
 
 ### 8.2 Container query usage
 
@@ -462,34 +481,25 @@ Treat as non-breaking if you:
 
 ---
 
-## 10. Canonical token summary
+## 10. Token manifest index
 
-### 10.1 Required (width basis)
+Token tier is encoded in the `tier` column of each source table. The manifest validator derives
+expected token names from these tables using the same XPath pattern as `cem-breakpoints.html`.
 
-| Token                         | Category | Required | Meaning                              |
-|-------------------------------|----------|----------|--------------------------------------|
-| `--cem-bp-width-compact-max`  | Basis    | Yes      | upper bound for `compact` width      |
-| `--cem-bp-width-medium-min`   | Basis    | Yes      | lower bound for `medium` width       |
-| `--cem-bp-width-medium-max`   | Basis    | Yes      | upper bound for `medium` width       |
-| `--cem-bp-width-expanded-min` | Basis    | Yes      | lower bound for `expanded` width     |
+| Source table h6 id | Tokens covered | Validator derivation |
+|---|---|---|
+| `cem-bp-basis` | `--cem-bp-epsilon*` (3) + `--cem-bp-width-*` (9) = 12 tokens | one token per row |
+| `cem-bp-height` | `--cem-bp-height-*` (5 tokens) | one token per row |
+| `cem-bp-active` | `--cem-bp-active-width` + `--cem-bp-active-height` (2 tokens; set by @media, no `:root` default) | one token per row |
+| `cem-bp-cq` | `--cem-cq-width-*` (6 tokens) | one token per row |
 
-### 10.2 Recommended (extended width)
+Generator helper tables `cem-bp-media-ranges` and `cem-bp-height-ranges` are NOT token sources —
+their rows start with range names (not `--cem-*`), so they are automatically excluded from the manifest.
 
-| Token                          | Category | Required | Meaning                              |
-|--------------------------------|----------|----------|--------------------------------------|
-| `--cem-bp-width-expanded-max`  | Basis    | Optional | upper bound for `expanded` width     |
-| `--cem-bp-width-large-min`     | Basis    | Optional | lower bound for `large` width        |
-| `--cem-bp-width-large-max`     | Basis    | Optional | upper bound for `large` width        |
-| `--cem-bp-width-xlarge-min`    | Basis    | Optional | lower bound for `xlarge` width       |
-
-### 10.3 Recommended (height basis)
-
-| Token                          | Category | Required | Meaning                              |
-|--------------------------------|----------|----------|--------------------------------------|
-| `--cem-bp-height-compact-max`  | Basis    | Optional | upper bound for `compact` height     |
-| `--cem-bp-height-medium-min`   | Basis    | Optional | lower bound for `medium` height      |
-| `--cem-bp-height-medium-max`   | Basis    | Optional | upper bound for `medium` height      |
-| `--cem-bp-height-expanded-min` | Basis    | Optional | lower bound for `expanded` height    |
+Note: `@custom-media` is NOT emitted in production output per Principle P5. The `@media` helper
+block (Block B) sets `--cem-bp-active-width` for JS consumption. The `@container` helper block
+(Block C) is deferred pending R-D1x-WRAP wrapper decision; `--cem-cq-*` reference values are
+available in `:root` for consumers to use in their own `@container` rules.
 
 ---
 

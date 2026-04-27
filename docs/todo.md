@@ -21,7 +21,7 @@ The remaining token-spec files have no working generator. `cem-breakpoints.html`
 | Markdown spec                   | Dimension                 | Generator                     | Approx tokens |
 |---------------------------------|---------------------------|-------------------------------|---------------|
 | `cem-dimension.md`              | Space & rhythm (D1)       | `cem-dimension.html` ✓        | 27            |
-| `cem-breakpoints.md`            | Breakpoints (D1x)         | `cem-breakpoints.html` (stub) | ~10–18        |
+| `cem-breakpoints.md`            | Breakpoints (D1x)         | `cem-breakpoints.html` ✓      | 25            |
 | `cem-coupling.md`               | Coupling & density (D2)   | —                             | ~11 + modes   |
 | `cem-shape.md`                  | Shape & bend (D3)         | —                             | ~16 + mode    |
 | `cem-layering.md`               | Layering & elevation (D4) | —                             | ~14           |
@@ -259,26 +259,25 @@ Confirmed token names from `cem-dimension.md`: `--cem-layout-stack-gap`, `--cem-
 5. [x] Springs: not emitted — R-D7-2 (value encoding) still open; reserved names have no concrete values.
 6. [x] R-D7-1 resolved: `highlighted` uses `cubic-bezier(0.2, 0, 0, 1)` (M3 Emphasized); adapters SHOULD override.
 
-### Phase 7: D1x Breakpoints — replace stub in `cem-breakpoints.html`
+### Phase 7: D1x Breakpoints — replace stub in `cem-breakpoints.html` ✓ COMPLETE
 
 Per Principle P5, output is split.
 
-1. [ ] Add `cem-breakpoints-manifest` h6+table.
-2. [ ] Confirm width thresholds in `cem-breakpoints.md` align with current Material window classes (600 / 840 / 1200 /
+1. [x] Add `cem-breakpoints-manifest` h6+table.
+2. [x] Confirm width thresholds in `cem-breakpoints.md` align with current Material window classes (600 / 840 / 1200 /
    1600 px) and heights (480 / 900 px). Add R&D entry if spec drifts.
-3. [ ] Replace stub `.myClass{}` with three output blocks inside `<code data-generated-css>`:
+3. [x] Replace stub `.myClass{}` with three output blocks inside `<code data-generated-css>`:
     - **Block A — CSS custom properties (reference only)**:
-      `--cem-bp-width-{compact|medium|expanded|large|xlarge}-{min|max}`, `--cem-bp-epsilon`, optional
-      `--cem-bp-height-{range}-{min|max}`.
-    - **Block B — literal `@media` helpers** for stylesheet use (e.g.
-      `@media (min-width: 600px) { :root { --cem-bp-active-width: medium; } }`).
-    - **Block C — literal `@container` helpers** for portable components, gated on consumer providing `container-type` /
-      `container` ancestor (documented, not enforced).
-4. [ ] **Do NOT emit `@custom-media`** in production output. If desired as a build-time alias source, add a separate
-   `*.custom-media.css` artifact behind a build flag.
-5. [ ] Epsilon: emit two adapter variants — `--cem-bp-epsilon-css: 0.01px` (default) and
+      `--cem-bp-width-{compact|medium|expanded|large|xlarge}-{min|max}`, epsilon variants, height basis,
+      container query reference values.
+    - **Block B — literal `@media` helpers** for stylesheet use — sets `--cem-bp-active-width` and
+      `--cem-bp-active-height` in each range bracket.
+    - **Block C — deferred** (R-D1x-WRAP): `--cem-cq-width-*` reference values available in `:root`;
+      `@container` selectors emitted by consumer.
+4. [x] **Do NOT emit `@custom-media`** in production output.
+5. [x] Epsilon: emit two adapter variants — `--cem-bp-epsilon-css: 0.01px` (default) and
    `--cem-bp-epsilon-mui: 0.05px` (for MUI `theme.breakpoints.step = 5` parity). Manifest documents both.
-6. [ ] Spec prose MUST preserve the "not device type" rule (no `isTablet` semantics). Add to manifest notes column.
+6. [x] Spec prose preserves the "not device type" rule (no `isTablet` semantics).
 
 ### Phase 8: D2 Coupling — `cem-coupling.html`
 
@@ -471,14 +470,14 @@ Each new generator HTML mirrors `cem-colors.html` AND honors the Token-to-CSS Tr
 | Action tokens (D0)        | 80      | 80        | 0      | ✓           |
 | Zebra tokens (D0)         | 5       | 5         | 0      | ✓           |
 | Dimension & rhythm (D1)   | 27      | 27        | 0      | ✓           |
-| Breakpoints (D1x)         | ~10–18  | 0         | ~10–18 | ✗ Phase 7   |
+| Breakpoints (D1x)         | 25      | 25        | 0      | ✓           |
 | Coupling & density (D2)   | ~11+    | 0         | ~11+   | ✗ Phase 8   |
 | Shape & bend (D3)         | ~16+    | 0         | ~16+   | ✗ Phase 9   |
 | Layering & elevation (D4) | ~14     | 0         | ~14    | ✗ Phase 11  |
 | Stroke & separation (D5)  | ~16     | 0         | ~16    | ✗ Phase 10  |
 | Typography & voice (D6)   | ~95+    | 0         | ~95+   | ✗ Phase 12  |
 | Timing & motion (D7)      | 13      | 13        | 0      | ✓           |
-| **Total**                 | ~340+   | 142       | ~200+  | In progress |
+| **Total**                 | ~340+   | 213       | ~130+  | In progress |
 
 (D6 estimate raised from ~80+ to ~95+ to include feature-policy, reading-ergonomics, and text-transform tokens that
 the original plan missed; D1 +sp = spacing-mode overrides; D7 dropped from ~14–26 to ~12+ pending R-D7-2 spring

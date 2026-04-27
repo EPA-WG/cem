@@ -164,6 +164,30 @@ function deriveDimensionManifest(xhtml) {
 }
 
 /**
+ * Build the expected token list for cem-breakpoints from the compiled XHTML.
+ * Returns { tokens: [{name, tier}], warnings: string[] }
+ */
+function deriveBreakpointManifest(xhtml) {
+    const warnings = [];
+    const tokens = [];
+
+    // cem-bp-media-ranges and cem-bp-height-ranges are generator helpers (range names, not --cem-*);
+    // tokensFromTable filters them out automatically. Only these four contribute tokens:
+    for (const tableId of ["cem-bp-basis", "cem-bp-height", "cem-bp-active", "cem-bp-cq"]) {
+        const rows = extractTable(xhtml, tableId);
+        if (!rows) {
+            warnings.push(`Table not found: #${tableId}`);
+            continue;
+        }
+        const extracted = tokensFromTable(rows);
+        if (extracted.length === 0) warnings.push(`No token rows found in table #${tableId}`);
+        tokens.push(...extracted);
+    }
+
+    return { tokens, warnings };
+}
+
+/**
  * Build the expected token list for cem-timing from the compiled XHTML.
  * Returns { tokens: [{name, tier}], warnings: string[] }
  */
@@ -295,8 +319,9 @@ async function main(argv) {
     // Derive manifest — dispatch by spec filename
     const specName = path.basename(xhtmlPath, ".xhtml");
     const deriveManifest =
-        specName === "cem-dimension" ? deriveDimensionManifest :
-        specName === "cem-timing"    ? deriveTimingManifest :
+        specName === "cem-dimension"   ? deriveDimensionManifest :
+        specName === "cem-timing"      ? deriveTimingManifest :
+        specName === "cem-breakpoints" ? deriveBreakpointManifest :
         deriveColorManifest;
     const { tokens: manifest, warnings: manifestWarnings } = deriveManifest(xhtml);
     if (manifestWarnings.length) {
