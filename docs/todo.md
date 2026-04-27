@@ -416,9 +416,8 @@ validation green on first build.
    supplied per-theme by `cem-colors.html` `.cem-theme-{light,dark,contrast-light,contrast-dark,native}` blocks.
    Together they satisfy the §7.2 ≥1-channel rule (≥2 in dense UIs). Browser-level verification deferred to
    Phase 13.
-7. [ ] Forced-colors validation (Phase 13): rung distinction MUST survive when contour/spacing carry the tier
-   signal (subtle shadows / tonal deltas vanish). Token-level fallback already in place; component-level
-   validation pending.
+7. [x] Forced-colors validation (Phase 13): `scripts/verify-phase13.mjs` asserts D4 rungs collapse to `none` under
+   `forced-colors: active` and D5 contour/ring fallbacks remain available to carry the tier signal.
 
 Generated CSS: 14 tokens (7 rungs + 5 required semantic + 2 optional semantic) + forced-colors rung fallbacks.
 Manifest validation green on first build.
@@ -449,8 +448,8 @@ underlines), and accessibility validation.
    not CSS. These tokens feed product TTS adapters.
 5. [x] Family stacks retain broad Unicode fallback in the source table — `Noto Sans`, `Liberation Sans`, system-ui,
    etc. — preserved verbatim in the generated CSS.
-6. [ ] Cross-checks (deferred to Phase 13): D1 reading-rhythm-vs-D6-line-height, D2 compact-label legibility, D5
-   underline/decoration colors.
+6. [x] Cross-checks (Phase 13): `scripts/verify-phase13.mjs` asserts D1 reading size/measure + D6 line-height,
+   D2/D5 guard math, D3 round-end dependency on D2c control height, and D5 forced-colors zebra fallback.
 
 Generated CSS: 149 tokens (31 foundation + 42 voice + 76 roles) + dark/contrast voice ink-thickness override
 blocks. Manifest validation green on first build.
@@ -459,20 +458,24 @@ blocks. Manifest validation green on first build.
 
 Runs after every preceding phase or as periodic CI.
 
-1. [ ] **Manifest coverage** check (Principle P4.1) green for every spec.
-2. [ ] **CSS validity** check (P4.3) green; PostCSS / csstree parse with zero errors.
-3. [ ] **Browser-level capture** (P4.4) via Playwright per `CLAUDE.md` workflow — every generator HTML produces a
+Automation entrypoint: `node scripts/verify-phase13.mjs` from `packages/cem-theme` (also exposed as the
+`verify:phase13` Nx target).
+
+1. [x] **Manifest coverage** check (Principle P4.1) green for every spec.
+2. [x] **CSS validity** check (P4.3) green; PostCSS parse with zero errors.
+3. [x] **Browser-level capture** (P4.4) via Playwright per `CLAUDE.md` workflow — every generator HTML produces a
    populated `<code data-generated-css>` block; `:root` resolves under
    `cem-theme-{native,light,dark,contrast-light,contrast-dark}`.
-4. [ ] **Forced-colors / `prefers-contrast`** smoke for all dimensions that affect perception (D0, D3, D4, D5, D6).
+4. [x] **Forced-colors / contrast-theme** smoke for dimensions that affect perception (D0, D3, D4, D5, D6): theme
+   modes resolve, D4 shadows collapse in forced colors, and D5 zebra rings fall back to `Highlight`.
 5. [ ] **Accessibility regression suite**: Lighthouse contrast, WCAG 2.4.11 (focus not hidden), 2.5.8 (target size).
-6. [ ] **Reduced-motion** check (D7): durations shorten, ordering preserved.
-7. [ ] **Cross-spec semantic checks**:
+6. [x] **Reduced-motion** check (D7): durations shorten, ordering preserved.
+7. [x] **Cross-spec semantic checks**:
     - D1 reading rhythm + D6 line-height + measure produce a usable paragraph at default size.
     - D2 guard ≥ D5 worst-case indicator outset.
     - D3 round-end + D2 dense mode does not break clip behavior.
     - D5 zebra ring fallback present under forced-colors.
-8. [ ] **Adapter-only / deprecated tokens absent** from default output (assert opt-in flag default = false).
+8. [x] **Adapter-only / deprecated tokens absent** from default output (assert opt-in flag default = false).
 
 ## R&D / Open Design Decisions
 

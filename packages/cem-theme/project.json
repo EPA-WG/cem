@@ -105,6 +105,23 @@
                 "{projectRoot}/dist/**/*.gif",
                 "{projectRoot}/dist/**/*.webp"
             ]
+        },
+        "verify:phase13": {
+            "dependsOn": ["build:css"],
+            "executor": "nx:run-commands",
+            "options": {
+                "command": "node scripts/verify-phase13.mjs",
+                "cwd": "packages/cem-theme"
+            },
+            "cache": true,
+            "inputs": [
+                "{projectRoot}/scripts/verify-phase13.mjs",
+                "{projectRoot}/scripts/validate-manifest.mjs",
+                "{projectRoot}/dist/lib/css/*.css",
+                "{projectRoot}/dist/lib/css-generators/*.html",
+                "{projectRoot}/dist/lib/tokens/*.xhtml"
+            ],
+            "outputs": []
         }
     }
 }
