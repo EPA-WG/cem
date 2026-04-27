@@ -149,11 +149,11 @@ Numbers and identifiers require predictable alignment and glyph selection.
     "Liberation Mono", "Courier New", "Noto Sans Mono", monospace;
 
     /* Initialism / condensed emphasis (optional override) */
-    --cem-fontography-initialism-family: "Barlow Semi Condensed", "Roboto Condensed",
+    --cem-fontography-initialism-family: "Barlow Semi Condensed", "Roboto Condensed", "Arial Narrow",
     var(--cem-fontography-ui-family);
 
-    /* Brand / display (optional; alias until a brand face is chosen) */
-    --cem-fontography-brand-family: var(--cem-fontography-reading-family);
+    /* Brand / display: visually distinctive from the default reading/UI sans stack. */
+    --cem-fontography-brand-family: "Fraunces", "Playfair Display", Georgia, "Times New Roman", serif;
 
 
     /* =========================
@@ -536,6 +536,16 @@ Behavior:
 |-----------------------------------------------------------------|--------------------------------------------------|
 | acronyms, avatar initials, short codes meant to be “badge-like” | ![initials button example image](./initials.png) |
 
+Reason:
+
+- Initialisms and avatar initials need a compact, badge-like voice without shrinking below readable text size.
+- `"Barlow Semi Condensed"` and `"Roboto Condensed"` provide the intended condensed sans-serif styling when web fonts are
+  available.
+- `"Arial Narrow"` is the closest browser-safe / system fallback for a condensed sans-serif when those web fonts are not
+  loaded.
+- `Impact` is also commonly available and compressed, but it is intentionally not in the default stack because its very
+  heavy display weight is better reserved for high-impact headings or explicit brand/display overrides.
+
 Behavior:
 
 ```css
@@ -715,8 +725,8 @@ canonical declarations in §5.2 and §6, and add the dark / contrast ink-thickne
 | `--cem-fontography-reading-family`    | `"Roboto", "Source Sans Pro", system-ui, -apple-system, "Segoe UI", "Helvetica Neue", Arial, "Noto Sans", "Liberation Sans", sans-serif` | Long-form reading family stack                               | required    |
 | `--cem-fontography-ui-family`         | `var(--cem-fontography-reading-family)`                                                                                                          | UI labels / navigation / compact scanning                    | required    |
 | `--cem-fontography-script-family`     | `ui-monospace, "SFMono-Regular", Menlo, Monaco, Consolas, "Liberation Mono", "Courier New", "Noto Sans Mono", monospace`                         | Code / monospaced scripts                                    | required    |
-| `--cem-fontography-initialism-family` | `"Barlow Semi Condensed", "Roboto Condensed", var(--cem-fontography-ui-family)`                                                                  | Initialism / condensed emphasis                              | recommended |
-| `--cem-fontography-brand-family`      | `var(--cem-fontography-reading-family)`                                                                                                          | Brand / display family                                       | recommended |
+| `--cem-fontography-initialism-family` | `"Barlow Semi Condensed", "Roboto Condensed", "Arial Narrow", var(--cem-fontography-ui-family)`                                                  | Initialism / condensed emphasis                              | recommended |
+| `--cem-fontography-brand-family`      | `"Fraunces", "Playfair Display", Georgia, "Times New Roman", serif`                                                                              | Brand / display family                                       | recommended |
 
 ###### cem-typography-thickness
 | Token                       | Value | Description           | tier     |

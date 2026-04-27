@@ -13,6 +13,24 @@
             caption { font-size: 1.5rem; padding-bottom: 0.5rem; text-align: start; }
             tr>th:first-child { text-align: start; }
             code { color: green; font-weight: bold; }
+            .sample-cell { min-width: 14rem; width: 18rem; }
+            .type-sample {
+                display: inline-block;
+                font-family: var(--cem-fontography-ui-family, system-ui, sans-serif);
+                letter-spacing: normal;
+                white-space: normal;
+            }
+            .type-sample-block {
+                display: block;
+                max-width: 18rem;
+                white-space: normal;
+            }
+            .sample-meter {
+                display: inline-block;
+                width: 6rem;
+                border-bottom: calc(2px * var(--sample-multiplier, 1)) solid currentColor;
+                vertical-align: middle;
+            }
         </style>
 
         <http-request method="GET" slice="cem-voice-fonts-typography" url="../../../dist/lib/tokens/cem-voice-fonts-typography.xhtml"></http-request>
@@ -171,6 +189,7 @@
                 <xhtml:tr>
                     <xhtml:th>Token</xhtml:th>
                     <xhtml:th>Value</xhtml:th>
+                    <xhtml:th>Sample</xhtml:th>
                     <xhtml:th>Tier</xhtml:th>
                     <xhtml:th>Description</xhtml:th>
                 </xhtml:tr>
@@ -184,6 +203,9 @@
                     <xhtml:tr>
                         <xhtml:th><code>{$token}</code></xhtml:th>
                         <xhtml:td><code>{$value}</code></xhtml:td>
+                        <xhtml:td class="sample-cell">
+                            <xhtml:span class="type-sample" style="font-family: var({$token});">Reading UI 123</xhtml:span>
+                        </xhtml:td>
                         <xhtml:td>{$tier}</xhtml:td>
                         <xhtml:td>{$desc}</xhtml:td>
                     </xhtml:tr>
@@ -198,6 +220,7 @@
                 <xhtml:tr>
                     <xhtml:th>Token</xhtml:th>
                     <xhtml:th>Value</xhtml:th>
+                    <xhtml:th>Sample</xhtml:th>
                     <xhtml:th>Tier</xhtml:th>
                     <xhtml:th>Description</xhtml:th>
                 </xhtml:tr>
@@ -211,6 +234,41 @@
                     <xhtml:tr>
                         <xhtml:th><code>{$token}</code></xhtml:th>
                         <xhtml:td><code>{$value}</code></xhtml:td>
+                        <xhtml:td class="sample-cell">
+                            <choose>
+                                <when test="contains($token, 'thickness')">
+                                    <xhtml:span class="type-sample" style="font-weight: var({$token});">Weight Aa 123</xhtml:span>
+                                </when>
+                                <when test="contains($token, '-size-')">
+                                    <xhtml:span class="type-sample" style="font-size: var({$token});">Size Aa 123</xhtml:span>
+                                </when>
+                                <when test="contains($token, 'line-height')">
+                                    <xhtml:span class="type-sample type-sample-block" style="line-height: var({$token});">Line height example<br/>second line</xhtml:span>
+                                </when>
+                                <when test="contains($token, 'letter-spacing')">
+                                    <xhtml:span class="type-sample" style="letter-spacing: var({$token});">TRACKING 123</xhtml:span>
+                                </when>
+                                <when test="contains($token, 'numeric')">
+                                    <xhtml:span class="type-sample" style="font-variant-numeric: var({$token});">1111 8888 12.34</xhtml:span>
+                                </when>
+                                <when test="contains($token, 'ligatures')">
+                                    <xhtml:span class="type-sample" style="font-variant-ligatures: var({$token});">office affine ffi</xhtml:span>
+                                </when>
+                                <when test="contains($token, 'optical-sizing')">
+                                    <xhtml:span class="type-sample" style="font-optical-sizing: var({$token});">Optical size</xhtml:span>
+                                </when>
+                                <when test="contains($token, 'measure')">
+                                    <xhtml:span class="type-sample type-sample-block" style="max-width: var({$token});">Readable measure example wraps only when the available table space is narrower than the token.</xhtml:span>
+                                </when>
+                                <when test="contains($token, 'paragraph-gap')">
+                                    <xhtml:span class="type-sample type-sample-block">Paragraph one.</xhtml:span>
+                                    <xhtml:span class="type-sample type-sample-block" style="margin-top: var({$token});">Paragraph two.</xhtml:span>
+                                </when>
+                                <otherwise>
+                                    <xhtml:span class="type-sample">Aa 123</xhtml:span>
+                                </otherwise>
+                            </choose>
+                        </xhtml:td>
                         <xhtml:td>{$tier}</xhtml:td>
                         <xhtml:td>{$desc}</xhtml:td>
                     </xhtml:tr>
@@ -225,6 +283,7 @@
                 <xhtml:tr>
                     <xhtml:th>Token</xhtml:th>
                     <xhtml:th>Value</xhtml:th>
+                    <xhtml:th>Sample</xhtml:th>
                     <xhtml:th>Tier</xhtml:th>
                     <xhtml:th>Description</xhtml:th>
                 </xhtml:tr>
@@ -238,6 +297,31 @@
                     <xhtml:tr>
                         <xhtml:th><code>{$token}</code></xhtml:th>
                         <xhtml:td><code>{$value}</code></xhtml:td>
+                        <xhtml:td class="sample-cell">
+                            <choose>
+                                <when test="contains($token, 'ink-thickness')">
+                                    <xhtml:span class="type-sample" style="font-weight: var({$token});">Voice ink Aa 123</xhtml:span>
+                                </when>
+                                <when test="contains($token, 'icon-stroke-multiplier')">
+                                    <xhtml:span class="sample-meter" style="--sample-multiplier: var({$token});"></xhtml:span>
+                                </when>
+                                <when test="contains($token, 'speech-volume')">
+                                    <xhtml:span class="type-sample" style="opacity: var({$token});">Speech volume {$value}</xhtml:span>
+                                </when>
+                                <when test="contains($token, 'speech-rate')">
+                                    <xhtml:span class="type-sample">Speech rate {$value}</xhtml:span>
+                                </when>
+                                <when test="contains($token, 'speech-pitch')">
+                                    <xhtml:span class="type-sample">Speech pitch {$value}</xhtml:span>
+                                </when>
+                                <when test="contains($token, 'ssml-emphasis')">
+                                    <xhtml:span class="type-sample">SSML emphasis: {$value}</xhtml:span>
+                                </when>
+                                <otherwise>
+                                    <xhtml:span class="type-sample">Voice value {$value}</xhtml:span>
+                                </otherwise>
+                            </choose>
+                        </xhtml:td>
                         <xhtml:td>{$tier}</xhtml:td>
                         <xhtml:td>{$desc}</xhtml:td>
                     </xhtml:tr>
@@ -252,6 +336,7 @@
                 <xhtml:tr>
                     <xhtml:th>Token</xhtml:th>
                     <xhtml:th>Value</xhtml:th>
+                    <xhtml:th>Sample</xhtml:th>
                     <xhtml:th>Tier</xhtml:th>
                 </xhtml:tr>
             </xhtml:thead>
@@ -263,6 +348,49 @@
                     <xhtml:tr>
                         <xhtml:th><code>{$token}</code></xhtml:th>
                         <xhtml:td><code>{$value}</code></xhtml:td>
+                        <xhtml:td class="sample-cell">
+                            <choose>
+                                <when test="contains($token, 'font-family')">
+                                    <xhtml:span class="type-sample" style="font-family: var({$token});">Role family Aa 123</xhtml:span>
+                                </when>
+                                <when test="contains($token, 'font-size')">
+                                    <xhtml:span class="type-sample" style="font-size: var({$token});">Role size Aa 123</xhtml:span>
+                                </when>
+                                <when test="contains($token, 'line-height')">
+                                    <xhtml:span class="type-sample type-sample-block" style="line-height: var({$token});">Role line height<br/>second line</xhtml:span>
+                                </when>
+                                <when test="contains($token, 'letter-spacing')">
+                                    <xhtml:span class="type-sample" style="letter-spacing: var({$token});">ROLE TRACKING</xhtml:span>
+                                </when>
+                                <when test="contains($token, 'font-weight')">
+                                    <xhtml:span class="type-sample" style="font-weight: var({$token});">Role weight Aa 123</xhtml:span>
+                                </when>
+                                <when test="contains($token, 'font-variant-numeric')">
+                                    <xhtml:span class="type-sample" style="font-variant-numeric: var({$token});">1111 8888 12.34</xhtml:span>
+                                </when>
+                                <when test="contains($token, 'font-variant-ligatures')">
+                                    <xhtml:span class="type-sample" style="font-variant-ligatures: var({$token});">office affine ffi</xhtml:span>
+                                </when>
+                                <when test="contains($token, 'text-transform')">
+                                    <xhtml:span class="type-sample" style="text-transform: var({$token});">role text</xhtml:span>
+                                </when>
+                                <when test="contains($token, 'speech-volume')">
+                                    <xhtml:span class="type-sample" style="opacity: var({$token});">Speech volume {$value}</xhtml:span>
+                                </when>
+                                <when test="contains($token, 'speech-rate')">
+                                    <xhtml:span class="type-sample">Speech rate {$value}</xhtml:span>
+                                </when>
+                                <when test="contains($token, 'speech-pitch')">
+                                    <xhtml:span class="type-sample">Speech pitch {$value}</xhtml:span>
+                                </when>
+                                <when test="contains($token, 'ssml-emphasis')">
+                                    <xhtml:span class="type-sample">SSML emphasis: {$value}</xhtml:span>
+                                </when>
+                                <otherwise>
+                                    <xhtml:span class="type-sample">Role value {$value}</xhtml:span>
+                                </otherwise>
+                            </choose>
+                        </xhtml:td>
                         <xhtml:td>{$tier}</xhtml:td>
                     </xhtml:tr>
                 </for-each>
