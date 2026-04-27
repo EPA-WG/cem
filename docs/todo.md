@@ -32,6 +32,51 @@ Generator coverage by token spec.
 
 `cem-responsive.md`, `cem-m3-parity.md`, `cem-zebra.md`, and `index.md` define no token values and are out of scope.
 
+## Remaining Implementation Items
+
+Work these down one by one. Token generation coverage is complete; these remaining items are documentation,
+browser/accessibility validation, or open ownership decisions.
+
+### 1. D2 Coupling Accessibility Documentation
+
+- [ ] Document the WCAG 2.2 AA target-size baseline in `cem-coupling.md`: 24x24 CSS px with spacing exceptions.
+- [ ] Document that CEM defaults align with Android / Material-style 48dp target plus 8dp guard guidance:
+  `--cem-coupling-zone-min: 3rem` and `--cem-coupling-guard-min: 0.5rem`.
+- [ ] Document that generated tokens are necessary but not sufficient for component safety.
+- [ ] Add implementation guidance for `min-block-size`, halo wrappers / pseudo-elements, and
+  `gap = max(layout-gap, guard-min)`.
+- [ ] Add proof-surface examples in spec prose:
+    - form trio: input + primary button + icon button
+    - nav-list trailing actions
+    - data-table row actions + selection
+
+### 2. D3 Shape Browser Validation
+
+- [ ] Validate focus-ring clipping with rounded corners.
+- [ ] Validate `forced-colors: active` outline behavior for rounded controls/surfaces.
+- [ ] Validate 200% and 400% zoom behavior.
+- [ ] Validate round-end behavior under each `data-cem-coupling` mode.
+- [ ] Validate RTL logical-corner mapping for attachment/asymmetric shape patterns.
+
+### 3. Phase 13 Accessibility Regression Suite
+
+- [ ] Add or document Lighthouse contrast regression coverage.
+- [ ] Add or document WCAG 2.4.11 Focus Not Hidden coverage.
+- [ ] Add or document WCAG 2.5.8 Target Size coverage.
+
+### 4. Open R&D Decisions
+
+- [ ] Resolve R-D7-2: define spring preset value encoding (stiffness/damping/mass tuple) or remove spring presets.
+- [ ] Resolve R-D1x-WRAP: decide whether CEM only documents container-query containment or ships a wrapper component
+  that sets `container-type`.
+- [ ] Resolve R-D3-ACTION: decide ownership of `--cem-action-border-radius` emission.
+
+### 5. Final Acceptance / Tooling
+
+- [ ] `yarn lint` is green.
+- [ ] `yarn nx affected -t lint test build typecheck` is green.
+- [ ] Nx plugin-worker startup failure is resolved so Nx targets can run normally in this workspace.
+
 ## Token-to-CSS Transformation Principles
 
 These principles govern every generator (existing and new). They take precedence over any per-phase task list.
