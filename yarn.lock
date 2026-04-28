@@ -1356,6 +1356,7 @@ __metadata:
     glob: "npm:13.0.6"
     markdown-it: "npm:14.1.1"
     markdown-it-anchor: "npm:9.2.0"
+    playwright: "npm:1.59.1"
     postcss: "npm:8.5.12"
   languageName: unknown
   linkType: soft
