@@ -25,7 +25,7 @@
     ],
     "scripts": {
         "build:html": "node ../../tools/scripts/compile-html.mjs",
-        "build:css": "node ../../tools/scripts/compile-html.mjs && node ../../tools/scripts/capture-xpath-text.mjs \"dist/lib/css-generators/cem-*.html\" \"//code[@data-generated-css]\" \"dist/lib/css/*.css\""
+        "build:css": "node ../../tools/scripts/compile-html.mjs && node ../../tools/scripts/capture-xpath-text.mjs \"dist/lib/css-generators/cem-*.html\" \"//code[@data-generated-css]\" \"dist/lib/css/*.css\" && node scripts/generate-token-coverage.mjs"
     },
     "devDependencies": {
         "chokidar": "5.0.0",

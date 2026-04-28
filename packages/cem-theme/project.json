@@ -45,7 +45,8 @@
                     "node scripts/validate-manifest.mjs dist/lib/tokens/cem-shape.xhtml dist/lib/css/cem-shape.css",
                     "node scripts/validate-manifest.mjs dist/lib/tokens/cem-stroke.xhtml dist/lib/css/cem-stroke.css",
                     "node scripts/validate-manifest.mjs dist/lib/tokens/cem-layering.xhtml dist/lib/css/cem-layering.css",
-                    "node scripts/validate-manifest.mjs dist/lib/tokens/cem-voice-fonts-typography.xhtml dist/lib/css/cem-voice-fonts-typography.css"
+                    "node scripts/validate-manifest.mjs dist/lib/tokens/cem-voice-fonts-typography.xhtml dist/lib/css/cem-voice-fonts-typography.css",
+                    "node scripts/generate-token-coverage.mjs"
                 ],
                 "parallel": false,
                 "cwd": "packages/cem-theme"
@@ -54,11 +55,16 @@
             "inputs": [
                 "{projectRoot}/src/lib/css-generators/*.html",
                 "{projectRoot}/src/lib/css-generators/*.js",
+                "{projectRoot}/scripts/generate-token-coverage.mjs",
+                "{projectRoot}/scripts/manifest-utils.mjs",
+                "{projectRoot}/scripts/validate-manifest.mjs",
                 "{projectRoot}/dist/lib/css-generators/*.html",
                 "{projectRoot}/dist/lib/tokens/*.xhtml"
             ],
             "outputs": [
-                "{projectRoot}/dist/lib/css/*.css"
+                "{projectRoot}/dist/lib/css/*.css",
+                "{projectRoot}/dist/lib/tokens/generated-token-coverage.md",
+                "{projectRoot}/dist/lib/tokens/generated-token-coverage.xhtml"
             ]
         },
         "build:html": {
@@ -116,6 +122,7 @@
             "cache": true,
             "inputs": [
                 "{projectRoot}/scripts/verify-phase13.mjs",
+                "{projectRoot}/scripts/manifest-utils.mjs",
                 "{projectRoot}/scripts/validate-manifest.mjs",
                 "{projectRoot}/dist/lib/css/*.css",
                 "{projectRoot}/dist/lib/css-generators/*.html",

@@ -258,7 +258,12 @@ Token specifications (`.md` files) are transpiled to XHTML and processed by HTML
 *.md (source)  →  *.xhtml (transpiled)  →  *.html (generator)  →  *.css (output)
 ```
 
-See [docs-generation.md](../../docs/docs-generation.md) for the full build pipeline documentation.
+See [docs-generation.md](../../../docs/docs-generation.md) for the full build pipeline documentation.
+
+## Generated Token Coverage
+
+The default CSS coverage matrix is generated during `build:css` from built token XHTML manifests and generated CSS.
+See [generated-token-coverage.xhtml](./generated-token-coverage.xhtml) for the current report.
 
 ---
 
