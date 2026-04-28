@@ -32,6 +32,8 @@
                   select="$shapeData//*[@id='cem-shape-semantic']/following-sibling::xhtml:table[1]/xhtml:tbody"></variable>
         <variable name="cem-shape-pattern"
                   select="$shapeData//*[@id='cem-shape-pattern']/following-sibling::xhtml:table[1]/xhtml:tbody"></variable>
+        <variable name="cem-shape-action-bindings"
+                  select="$shapeData//*[@id='cem-shape-action-bindings']/following-sibling::xhtml:table[1]/xhtml:tbody"></variable>
         <variable name="cem-shape-mode-sharp"
                   select="$shapeData//*[@id='cem-shape-mode-sharp']/following-sibling::xhtml:table[1]/xhtml:tbody"></variable>
         <variable name="cem-shape-mode-round"
@@ -72,6 +74,12 @@
         {normalize-space(xhtml:td[1])}: {normalize-space(xhtml:td[2])};
     </for-each>
     /* endregion pattern tokens */
+
+    /* region action component bindings — geometry owned by D3 */
+    <for-each select="$cem-shape-action-bindings/xhtml:tr">
+        {normalize-space(xhtml:td[1])}: {normalize-space(xhtml:td[2])};
+    </for-each>
+    /* endregion action component bindings */
 }
 
 /* region shape mode: sharp — technical, precise brand expression */

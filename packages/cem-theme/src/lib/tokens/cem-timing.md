@@ -6,7 +6,7 @@
 
 **Audience:** Design Systems, Product Design, Front-End Engineering
 
-**Applies to:** UI animation timing (durations, easing curves, and optional spring presets)
+**Applies to:** UI animation timing (durations and easing curves)
 
 **Companion specs:**
 - **D0. Color (Emotional Palette)** ([`cem-colors.md`](./cem-colors.md)) — color transition timing
@@ -24,8 +24,6 @@ This spec defines the **CEM contract surface** for motion timing:
 
 - **Duration** tokens (how long a change takes)
 - **Easing** tokens (how the motion accelerates/decelerates)
-- **Spring** presets (optional; for platforms that support spring physics)
-
 The goal is to make motion choices **intent-driven** (what the user experiences), while allowing implementations/adapters
 (e.g., Material, custom, platform-native) to supply exact numeric curves/physics.
 
@@ -36,7 +34,6 @@ The goal is to make motion choices **intent-driven** (what the user experiences)
 - **D7. Timing & Motion** (this spec)
   - time durations
   - easing curves
-  - spring presets (optional)
 
 Related dimensions:
 
@@ -105,29 +102,23 @@ Normative rules:
 - `highlighted*` MUST be *visibly more pronounced* than the corresponding `smooth*` curves **in the same implementation**.
   The defaults use M3 Emphasized curves; adapters SHOULD provide platform-appropriate equivalents.
 
-### 4.3 Spring tokens (optional extension)
+### 4.3 Spring motion (adapter-local, not canonical tokens)
 
-Spring tokens are **optional** because spring rendering is implementation-specific (WAAPI polyfills, native toolkits,
-framework animation engines, etc.).
+R-D7-2 is resolved by **not defining or reserving canonical `--cem-spring-*` custom properties** in v1.
 
-If springs are supported, reserve the following semantic naming grid:
+Reason:
 
-- **Focus**: `reposition | highlight`
-- **Feel**: `functional | delight`
-- **Speed**: `instant | noticeable | lingering`
+- Spring rendering is implementation-specific across WAAPI polyfills, native toolkits, and framework animation engines.
+- CSS custom properties do not provide a portable spring value syntax equivalent to `stiffness`, `damping`, and `mass`.
+- Reserved names with placeholder values create false API surface and would violate the manifest rule that emitted tokens
+  must have concrete values.
 
-Recommended token shape (implementation-defined value encoding):
+Adapter guidance:
 
-```css
-:root {
-  /* Example encoding as a string. Implementations may choose a different encoding. */
-  --cem-spring-reposition-functional-instant:  "stiffness=… damping=…";
-  --cem-spring-reposition-functional-noticeable: "stiffness=… damping=…";
-  --cem-spring-reposition-functional-lingering:  "stiffness=… damping=…";
-
-  --cem-spring-highlight-delight-lingering: "stiffness=… damping=…";
-}
-```
+- Products may define adapter-local spring presets in their platform layer.
+- Adapter-local springs SHOULD map back to CEM timing intent (`instant | noticeable | lingering`) and easing intent
+  (`smooth | highlighted`) in their documentation.
+- If a future CEM version adds canonical spring tokens, it must introduce a concrete value encoding and manifest table.
 
 Normative rules (if springs are implemented):
 
@@ -178,7 +169,7 @@ Breaking (MAJOR):
 Non-breaking (MINOR/PATCH):
 
 - Adjusting numeric values while preserving semantics and ordering
-- Adding optional aliases or additional optional spring presets
+- Adding optional aliases or a future concrete spring token family with a real value encoding
 - Documentation clarifications
 
 ---
@@ -194,5 +185,6 @@ from these tables using the same XPath pattern as `cem-timing.html`.
 | `cem-timing-easings` | `--cem-easing-*` (8 tokens: all required) | one token per row |
 
 Reduced-motion overrides (`cem-timing-reduced-motion`) produce no new token names — they override core duration
-tokens within `@media (prefers-reduced-motion: reduce)`. Spring tokens (`--cem-spring-*`) are not emitted by default
-pending R-D7-2 value encoding decision.
+tokens within `@media (prefers-reduced-motion: reduce)`. Spring tokens (`--cem-spring-*`) are intentionally absent
+from the v1 manifest and default CSS output; spring motion is adapter-local until CEM defines a portable concrete
+encoding.

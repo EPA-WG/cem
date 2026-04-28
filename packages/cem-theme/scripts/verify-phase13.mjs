@@ -302,6 +302,260 @@ async function runReducedMotionChecks(browser, combinedCss) {
     logOk("reduced-motion durations shorten while preserving ordering");
 }
 
+async function runShapeBrowserValidation(browser, combinedCss) {
+    const context = await browser.newContext({ javaScriptEnabled: true, bypassCSP: true });
+    const page = await context.newPage();
+    await page.setContent(`
+        <style>
+            ${combinedCss}
+            .cem-shape-proof {
+                inline-size: 10rem;
+                block-size: var(--cem-control-height);
+                border-radius: var(--cem-bend-round);
+                outline: var(--cem-stroke-focus) solid currentColor;
+                outline-offset: var(--cem-stroke-indicator-offset);
+                overflow: visible;
+            }
+            .cem-shape-attached {
+                inline-size: 6rem;
+                block-size: 3rem;
+                border-start-start-radius: var(--cem-bend-attached-edge);
+                border-end-start-radius: var(--cem-bend-attached-edge);
+                border-start-end-radius: var(--cem-bend-free-edge);
+                border-end-end-radius: var(--cem-bend-free-edge);
+            }
+        </style>
+        <div id="shape-proof" class="cem-shape-proof" tabindex="0"></div>
+        <div id="shape-attached" class="cem-shape-attached"></div>
+    `);
+
+    const couplingResults = [];
+    for (const mode of ["balanced", "forgiving", "compact"]) {
+        await page.evaluate((nextMode) => {
+            document.documentElement.setAttribute("data-cem-coupling", nextMode);
+        }, mode);
+        couplingResults.push(await page.evaluate((nextMode) => {
+            const el = document.getElementById("shape-proof");
+            const style = getComputedStyle(el);
+            return {
+                mode: nextMode,
+                blockSize: style.blockSize,
+                borderRadius: style.borderRadius,
+                overflow: style.overflow,
+                outlineWidth: style.outlineWidth,
+                outlineOffset: style.outlineOffset,
+            };
+        }, mode));
+    }
+
+    for (const result of couplingResults) {
+        if (!(parseCssLengthPx(result.blockSize) > 0)) fail(`D3 shape ${result.mode}: control block-size did not resolve`);
+        if (!(parseCssLengthPx(result.borderRadius) > 0)) fail(`D3 shape ${result.mode}: round-end radius did not resolve`);
+        if (result.overflow !== "visible") fail(`D3 shape ${result.mode}: focus-ring proof is clipped by overflow`);
+        if (!(parseCssLengthPx(result.outlineWidth) > 0)) fail(`D3 shape ${result.mode}: focus outline width did not resolve`);
+        if (!(parseCssLengthPx(result.outlineOffset) >= 0)) fail(`D3 shape ${result.mode}: focus outline offset did not resolve`);
+    }
+
+    const zoomResults = [];
+    for (const zoom of [2, 4]) {
+        await page.evaluate((nextZoom) => {
+            document.body.style.zoom = String(nextZoom);
+        }, zoom);
+        zoomResults.push(await page.evaluate((nextZoom) => {
+            const style = getComputedStyle(document.getElementById("shape-proof"));
+            return {
+                zoom: nextZoom,
+                borderRadius: style.borderRadius,
+                outlineWidth: style.outlineWidth,
+                scrollWidth: document.documentElement.scrollWidth,
+                clientWidth: document.documentElement.clientWidth,
+            };
+        }, zoom));
+    }
+    for (const result of zoomResults) {
+        if (!(parseCssLengthPx(result.borderRadius) > 0)) fail(`D3 shape ${result.zoom * 100}% zoom: radius collapsed`);
+        if (!(parseCssLengthPx(result.outlineWidth) > 0)) fail(`D3 shape ${result.zoom * 100}% zoom: outline collapsed`);
+        if (result.scrollWidth > result.clientWidth + 1) fail(`D3 shape ${result.zoom * 100}% zoom: proof surface overflowed viewport`);
+    }
+
+    const logicalResults = [];
+    for (const dir of ["ltr", "rtl"]) {
+        await page.evaluate((nextDir) => {
+            document.documentElement.dir = nextDir;
+        }, dir);
+        logicalResults.push(await page.evaluate((nextDir) => {
+            const style = getComputedStyle(document.getElementById("shape-attached"));
+            return {
+                dir: nextDir,
+                topLeft: style.borderTopLeftRadius,
+                topRight: style.borderTopRightRadius,
+                bottomLeft: style.borderBottomLeftRadius,
+                bottomRight: style.borderBottomRightRadius,
+            };
+        }, dir));
+    }
+    const ltr = logicalResults.find((result) => result.dir === "ltr");
+    const rtl = logicalResults.find((result) => result.dir === "rtl");
+    if (!(parseCssLengthPx(ltr.topLeft) === 0 && parseCssLengthPx(ltr.bottomLeft) === 0)) {
+        fail("D3 shape LTR logical attached edge did not map to the physical left edge");
+    }
+    if (!(parseCssLengthPx(ltr.topRight) > 0 && parseCssLengthPx(ltr.bottomRight) > 0)) {
+        fail("D3 shape LTR free edge did not map to the physical right edge");
+    }
+    if (!(parseCssLengthPx(rtl.topRight) === 0 && parseCssLengthPx(rtl.bottomRight) === 0)) {
+        fail("D3 shape RTL logical attached edge did not map to the physical right edge");
+    }
+    if (!(parseCssLengthPx(rtl.topLeft) > 0 && parseCssLengthPx(rtl.bottomLeft) > 0)) {
+        fail("D3 shape RTL free edge did not map to the physical left edge");
+    }
+
+    await context.close();
+
+    const forcedContext = await browser.newContext({ javaScriptEnabled: true, bypassCSP: true, forcedColors: "active" });
+    const forcedPage = await forcedContext.newPage();
+    await forcedPage.setContent(`
+        <style>
+            ${combinedCss}
+            .cem-shape-proof {
+                inline-size: 10rem;
+                block-size: var(--cem-control-height);
+                border-radius: var(--cem-bend-round);
+                outline: var(--cem-stroke-focus) solid Highlight;
+                outline-offset: var(--cem-stroke-indicator-offset);
+                overflow: visible;
+            }
+        </style>
+        <div id="shape-proof" class="cem-shape-proof" tabindex="0"></div>
+    `);
+    const forcedResult = await forcedPage.evaluate(() => {
+        const style = getComputedStyle(document.getElementById("shape-proof"));
+        return {
+            forcedColors: matchMedia("(forced-colors: active)").matches,
+            borderRadius: style.borderRadius,
+            outlineStyle: style.outlineStyle,
+            outlineWidth: style.outlineWidth,
+            outlineOffset: style.outlineOffset,
+        };
+    });
+    await forcedContext.close();
+
+    if (!forcedResult.forcedColors) fail("D3 shape forced-colors context did not activate");
+    if (!(parseCssLengthPx(forcedResult.borderRadius) > 0)) fail("D3 shape forced-colors radius collapsed");
+    if (forcedResult.outlineStyle !== "solid") fail("D3 shape forced-colors outline style did not remain solid");
+    if (!(parseCssLengthPx(forcedResult.outlineWidth) > 0)) fail("D3 shape forced-colors outline width collapsed");
+    if (!(parseCssLengthPx(forcedResult.outlineOffset) >= 0)) fail("D3 shape forced-colors outline offset did not resolve");
+
+    logOk("D3 shape browser validation green");
+}
+
+async function runAccessibilityRegressionChecks(browser, combinedCss) {
+    const context = await browser.newContext({ javaScriptEnabled: true, bypassCSP: true });
+    const page = await context.newPage();
+    await page.setContent(`
+        <style>
+            ${combinedCss}
+            .a11y-scope {
+                background: var(--cem-palette-comfort);
+                color: var(--cem-palette-comfort-text);
+                padding: var(--cem-coupling-guard-min);
+            }
+            .a11y-action {
+                min-inline-size: var(--cem-coupling-zone-min);
+                min-block-size: var(--cem-coupling-zone-min);
+                background: var(--cem-action-explicit-default-background);
+                color: var(--cem-action-explicit-default-text);
+                outline: var(--cem-stroke-focus) solid currentColor;
+                outline-offset: var(--cem-stroke-indicator-offset);
+            }
+            .a11y-targets {
+                display: flex;
+                gap: max(var(--cem-gap-related, 0px), var(--cem-coupling-guard-min));
+                overflow: visible;
+            }
+        </style>
+        <main id="scope" class="a11y-scope">
+            <p id="text">Readable text</p>
+            <div id="targets" class="a11y-targets">
+                <button id="button-a" class="a11y-action">One</button>
+                <button id="button-b" class="a11y-action">Two</button>
+            </div>
+        </main>
+    `);
+
+    const result = await page.evaluate((themeModes) => {
+        function parseRgb(value) {
+            const match = value.match(/rgba?\(([^)]+)\)/);
+            if (!match) return null;
+            const channels = match[1].split(/[,\s/]+/).filter(Boolean).slice(0, 3).map(Number);
+            return channels.length === 3 && channels.every(Number.isFinite) ? channels : null;
+        }
+
+        function luminance([r, g, b]) {
+            return [r, g, b]
+                .map((channel) => {
+                    const srgb = channel / 255;
+                    return srgb <= 0.03928 ? srgb / 12.92 : ((srgb + 0.055) / 1.055) ** 2.4;
+                })
+                .reduce((sum, channel, index) => sum + channel * [0.2126, 0.7152, 0.0722][index], 0);
+        }
+
+        function contrast(foreground, background) {
+            const fg = parseRgb(foreground);
+            const bg = parseRgb(background);
+            if (!fg || !bg) return null;
+            const lighter = Math.max(luminance(fg), luminance(bg));
+            const darker = Math.min(luminance(fg), luminance(bg));
+            return (lighter + 0.05) / (darker + 0.05);
+        }
+
+        const scope = document.getElementById("scope");
+        const text = document.getElementById("text");
+        const targets = document.getElementById("targets");
+        const buttonA = document.getElementById("button-a");
+        const buttonB = document.getElementById("button-b");
+        const checks = [];
+
+        for (const mode of themeModes.filter((name) => name !== "cem-theme-native")) {
+            scope.className = `a11y-scope ${mode}`;
+            scope.setAttribute("data-theme", mode);
+            const scopeStyle = getComputedStyle(scope);
+            const textStyle = getComputedStyle(text);
+            const buttonStyle = getComputedStyle(buttonA);
+            buttonA.focus();
+            const buttonRect = buttonA.getBoundingClientRect();
+            const buttonBRect = buttonB.getBoundingClientRect();
+            checks.push({
+                mode,
+                textContrast: contrast(textStyle.color, scopeStyle.backgroundColor),
+                actionContrast: contrast(buttonStyle.color, buttonStyle.backgroundColor),
+                targetInline: buttonRect.width,
+                targetBlock: buttonRect.height,
+                targetGap: buttonBRect.left - buttonRect.right,
+                focusOutlineWidth: Number.parseFloat(buttonStyle.outlineWidth),
+                focusOutlineOffset: Number.parseFloat(buttonStyle.outlineOffset),
+                targetOverflow: getComputedStyle(targets).overflow,
+            });
+        }
+        return checks;
+    }, THEME_MODES);
+
+    for (const check of result) {
+        if (!(check.textContrast >= 4.5)) fail(`${check.mode}: text contrast ${check.textContrast} is below 4.5:1`);
+        if (!(check.actionContrast >= 4.5)) fail(`${check.mode}: action contrast ${check.actionContrast} is below 4.5:1`);
+        if (!(check.targetInline >= 24 && check.targetBlock >= 24)) {
+            fail(`${check.mode}: WCAG 2.5.8 target size below 24x24 CSS px`);
+        }
+        if (!(check.targetGap >= 8)) fail(`${check.mode}: target gap below CEM guard minimum`);
+        if (!(check.focusOutlineWidth > 0 && check.focusOutlineOffset >= 0)) {
+            fail(`${check.mode}: WCAG 2.4.11 focus outline geometry is not visible`);
+        }
+        if (check.targetOverflow !== "visible") fail(`${check.mode}: focus proof surface may hide focus outline`);
+    }
+
+    await context.close();
+    logOk("accessibility regression smoke green for contrast, focus visibility, and target size");
+}
+
 function parseCssLengthPx(value, rootPx = 16) {
     if (value === undefined) return Number.NaN;
     const trimmed = value.trim();
@@ -391,6 +645,8 @@ async function main() {
         await runThemeModeChecks(browser, combinedCss);
         await runForcedColorsChecks(browser, combinedCss);
         await runReducedMotionChecks(browser, combinedCss);
+        await runShapeBrowserValidation(browser, combinedCss);
+        await runAccessibilityRegressionChecks(browser, combinedCss);
     });
     await runCrossSpecChecks(combinedCss);
     logOk("Phase 13 verifier complete");

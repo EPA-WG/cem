@@ -486,16 +486,26 @@ This section provides a practical "where to bind bend" reference. It is intentio
 existing CEM endpoints. If a component needs an internal override, implement it as a **local alias** (component scope),
 not as new global tokens.
 
-### 10.1 Action binding (existing)
+### 10.1 Action binding
 
-The existing implementation binds actions to the bend system:
+R-D3-ACTION is resolved: D3 Shape owns emission of the action border-radius binding because the value is geometry.
+D0 Action tokens own action color/state (`background` / `text`) only. The binding remains in the `--cem-action-*`
+namespace because it is consumed by action components, but its value aliases the D3 control bend endpoint.
 
 ```css
+:root {
+  --cem-action-border-radius: var(--cem-bend-control);
+}
+
 .action, button {
-  --cem-action-border-radius: var(--cem-bend);
   border-radius: var(--cem-action-border-radius);
 }
 ```
+
+###### cem-shape-action-bindings
+| Token | Value | Description | tier |
+|---|---|---|---|
+| `--cem-action-border-radius` | `var(--cem-bend-control)` | Action component border-radius binding; emitted by D3 Shape because it is geometry | required |
 
 ### 10.2 Extended component mapping
 
@@ -651,7 +661,7 @@ The table below distinguishes **required CEM contract tokens** from **optional a
 | `--cem-bend-avatar`             | Semantic endpoint           |  Recommended   | Avatar/persona geometry (circle)                      |
 | `--cem-bend-attached-edge`      | Pattern token               |  Recommended   | For asymmetric attachment patterns                    |
 | `--cem-bend-free-edge`          | Pattern token               |  Recommended   | For asymmetric attachment patterns                    |
-| `--cem-action-border-radius`    | Component binding           | Yes (existing) | Existing action binding contract                      |
+| `--cem-action-border-radius`    | Component binding           | Yes            | Action border-radius binding emitted by D3 Shape      |
 
 **Adapter-only (optional) aliases**
 
@@ -733,18 +743,19 @@ adapter opt-in flag. Do not consume these names from product code.
 | `cem-shape-basis` | §4 | Bend basis: `--cem-bend-{sharp,smooth,round,circle}` plus the active alias `--cem-bend` |
 | `cem-shape-semantic` | §5 | Semantic endpoints: `--cem-bend-{control,surface,overlay,field,modal,control-round-ends,media,avatar}` |
 | `cem-shape-pattern` | §7.1 | Asymmetric pattern tokens: `--cem-bend-attached-edge`, `--cem-bend-free-edge` |
+| `cem-shape-action-bindings` | §10.1 | Action component geometry binding: `--cem-action-border-radius` |
 | `cem-shape-mode-sharp` | §6.2 | `data-cem-shape="sharp"` overrides (generator-only; no new tokens) |
 | `cem-shape-mode-round` | §6.2 | `data-cem-shape="round"` overrides (generator-only; no new tokens) |
 | `cem-shape-adapter-aliases` | §A.2 | M3-parity aliases (tier `adapter`; emitted only behind opt-in) |
 
 Generator derivation rules:
-- `cem-shape-basis`, `cem-shape-semantic`, `cem-shape-pattern` → token list (tier in last column).
+- `cem-shape-basis`, `cem-shape-semantic`, `cem-shape-pattern`, `cem-shape-action-bindings` → token list (tier in last column).
 - `cem-shape-mode-sharp` and `cem-shape-mode-round` → override data only; tokens are already declared in the base
   `:root` block.
 - `cem-shape-adapter-aliases` → adapter-only; default validator filters tier=`adapter` from coverage and the default
   generator does not emit them.
-- `--cem-action-border-radius` is an existing component-binding contract owned by the action stylesheet (D0). The
-  D3 generator does NOT emit it; ownership is tracked in R&D R-D3-ACTION.
+- `--cem-action-border-radius` is emitted by D3 Shape as a geometry binding. D0 Action tokens continue to own action
+  color/state only.
 
 ---
 

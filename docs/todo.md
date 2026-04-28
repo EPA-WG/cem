@@ -24,7 +24,7 @@ Generator coverage by token spec.
 | `cem-breakpoints.md`            | Breakpoints (D1x)         | `cem-breakpoints.html` ✓      | 25            |
 | `cem-coupling.md`               | Coupling safety (D2)      | `cem-coupling.html` ✓         | 3 + halo modes |
 | `cem-controls.md`               | Controls geometry (D2c)   | `cem-controls.html` ✓         | 8 + modes     |
-| `cem-shape.md`                  | Shape & bend (D3)         | `cem-shape.html` ✓            | 15 + brand modes |
+| `cem-shape.md`                  | Shape & bend (D3)         | `cem-shape.html` ✓            | 16 + brand modes |
 | `cem-stroke.md`                 | Stroke & separation (D5)  | `cem-stroke.html` ✓           | 15 + forced-colors fallback |
 | `cem-layering.md`               | Layering & elevation (D4) | `cem-layering.html` ✓         | 14 + forced-colors fallback |
 | `cem-voice-fonts-typography.md` | Typography & voice (D6)   | `cem-voice-fonts-typography.html` ✓ | 149 + dark/contrast ink |
@@ -37,45 +37,48 @@ Generator coverage by token spec.
 Work these down one by one. Token generation coverage is complete; these remaining items are documentation,
 browser/accessibility validation, or open ownership decisions.
 
-### 1. D2 Coupling Accessibility Documentation
+### 1. D2 Coupling Accessibility Documentation ✓ COMPLETE
 
-- [ ] Document the WCAG 2.2 AA target-size baseline in `cem-coupling.md`: 24x24 CSS px with spacing exceptions.
-- [ ] Document that CEM defaults align with Android / Material-style 48dp target plus 8dp guard guidance:
+- [x] Document the WCAG 2.2 AA target-size baseline in `cem-coupling.md`: 24x24 CSS px with spacing exceptions.
+- [x] Document that CEM defaults align with Android / Material-style 48dp target plus 8dp guard guidance:
   `--cem-coupling-zone-min: 3rem` and `--cem-coupling-guard-min: 0.5rem`.
-- [ ] Document that generated tokens are necessary but not sufficient for component safety.
-- [ ] Add implementation guidance for `min-block-size`, halo wrappers / pseudo-elements, and
+- [x] Document that generated tokens are necessary but not sufficient for component safety.
+- [x] Add implementation guidance for `min-block-size`, halo wrappers / pseudo-elements, and
   `gap = max(layout-gap, guard-min)`.
-- [ ] Add proof-surface examples in spec prose:
+- [x] Add proof-surface examples in spec prose:
     - form trio: input + primary button + icon button
     - nav-list trailing actions
     - data-table row actions + selection
 
-### 2. D3 Shape Browser Validation
+### 2. D3 Shape Browser Validation ✓ COMPLETE
 
-- [ ] Validate focus-ring clipping with rounded corners.
-- [ ] Validate `forced-colors: active` outline behavior for rounded controls/surfaces.
-- [ ] Validate 200% and 400% zoom behavior.
-- [ ] Validate round-end behavior under each `data-cem-coupling` mode.
-- [ ] Validate RTL logical-corner mapping for attachment/asymmetric shape patterns.
+- [x] Validate focus-ring clipping with rounded corners.
+- [x] Validate `forced-colors: active` outline behavior for rounded controls/surfaces.
+- [x] Validate 200% and 400% zoom behavior.
+- [x] Validate round-end behavior under each `data-cem-coupling` mode.
+- [x] Validate RTL logical-corner mapping for attachment/asymmetric shape patterns.
 
-### 3. Phase 13 Accessibility Regression Suite
+### 3. Phase 13 Accessibility Regression Suite ✓ COMPLETE
 
-- [ ] Add or document Lighthouse contrast regression coverage.
-- [ ] Add or document WCAG 2.4.11 Focus Not Hidden coverage.
-- [ ] Add or document WCAG 2.5.8 Target Size coverage.
+- [x] Add or document Lighthouse-style contrast regression coverage.
+- [x] Add or document WCAG 2.4.11 Focus Not Hidden coverage.
+- [x] Add or document WCAG 2.5.8 Target Size coverage.
 
-### 4. Open R&D Decisions
+### 4. Open R&D Decisions ✓ COMPLETE
 
-- [ ] Resolve R-D7-2: define spring preset value encoding (stiffness/damping/mass tuple) or remove spring presets.
-- [ ] Resolve R-D1x-WRAP: decide whether CEM only documents container-query containment or ships a wrapper component
-  that sets `container-type`.
-- [ ] Resolve R-D3-ACTION: decide ownership of `--cem-action-border-radius` emission.
+- [x] Resolve R-D7-2: remove canonical spring presets from v1; spring motion remains adapter-local until CEM defines a
+  concrete portable value encoding.
+- [x] Resolve R-D1x-WRAP: CEM v1 documents the container-query containment requirement; wrapper components are
+  adapter-owned and not emitted by the canonical token package.
+- [x] Resolve R-D3-ACTION: D3 Shape owns and emits `--cem-action-border-radius`; D0 Action tokens own color/state only.
 
 ### 5. Final Acceptance / Tooling
 
-- [ ] `yarn lint` is green.
-- [ ] `yarn nx affected -t lint test build typecheck` is green.
-- [ ] Nx plugin-worker startup failure is resolved so Nx targets can run normally in this workspace.
+- [ ] Add or replace the missing root `yarn lint` script; current result is `Couldn't find a script named "lint"`.
+- [ ] `yarn nx affected -t lint test build typecheck` is green after Nx can start.
+- [ ] Nx plugin-worker startup failure is resolved so Nx targets can run normally in this workspace; current failure is
+  plugin workers exiting before connection for default Nx plugins plus `@nx/js/typescript`, `@nx/eslint/plugin`, and
+  `@nx/vitest`.
 
 ## Token-to-CSS Transformation Principles
 
@@ -302,7 +305,8 @@ Confirmed token names from `cem-dimension.md`: `--cem-layout-stack-gap`, `--cem-
    tokens.
 4. [x] Emit `@media (prefers-reduced-motion: reduce)` overrides for the 3 core durations (0ms / 50ms / 100ms),
    preserving ordering. Alias tokens inherit automatically via `var()`.
-5. [x] Springs: not emitted — R-D7-2 (value encoding) still open; reserved names have no concrete values.
+5. [x] Springs: not emitted — R-D7-2 resolved by removing canonical spring presets from v1; spring motion is
+   adapter-local until CEM defines a concrete portable value encoding.
 6. [x] R-D7-1 resolved: `highlighted` uses `cubic-bezier(0.2, 0, 0, 1)` (M3 Emphasized); adapters SHOULD override.
 
 ### Phase 7: D1x Breakpoints — replace stub in `cem-breakpoints.html` ✓ COMPLETE
@@ -318,8 +322,8 @@ Per Principle P5, output is split.
       container query reference values.
     - **Block B — literal `@media` helpers** for stylesheet use — sets `--cem-bp-active-width` and
       `--cem-bp-active-height` in each range bracket.
-    - **Block C — deferred** (R-D1x-WRAP): `--cem-cq-width-*` reference values available in `:root`;
-      `@container` selectors emitted by consumer.
+    - **Block C — resolved R-D1x-WRAP:** `--cem-cq-width-*` reference values available in `:root`;
+      `@container` selectors and containment wrappers are emitted by consumers/adapters.
 4. [x] **Do NOT emit `@custom-media`** in production output.
 5. [x] Epsilon: emit two adapter variants — `--cem-bp-epsilon-css: 0.01px` (default) and
    `--cem-bp-epsilon-mui: 0.05px` (for MUI `theme.breakpoints.step = 5` parity). Manifest documents both.
@@ -343,11 +347,11 @@ Reordered before D3 / D5 because stroke depends on D2 guard math. Visual control
 5. [x] **Refactor for canonical Controls (Phase 8.5) complete:** visual control geometry ownership removed from D2.
    D2 Coupling now owns only `--cem-coupling-zone-min`, `--cem-coupling-guard-min`, `--cem-coupling-halo`, mode
    invariants, and operability rules.
-6. [ ] Manifest documents accessibility baseline: WCAG 2.2 AA target size 24×24 CSS px (with spacing exceptions); CEM
+6. [x] Manifest documents accessibility baseline: WCAG 2.2 AA target size 24×24 CSS px (with spacing exceptions); CEM
    defaults (3rem zone, 0.5rem guard) align with Android/Material 48dp+8dp guidance.
-7. [ ] Manifest notes that token generation is necessary but not sufficient — components still need `min-block-size`,
+7. [x] Manifest notes that token generation is necessary but not sufficient — components still need `min-block-size`,
    halo wrappers/pseudo-elements, and `gap = max(layout-gap, guard-min)` formulas.
-8. [ ] Add proof surfaces (component examples) referenced from D2 spec: form trio (input + primary + icon), nav-list
+8. [x] Add proof surfaces (component examples) referenced from D2 spec: form trio (input + primary + icon), nav-list
    trailing actions, data-table row actions + selection. These are spec prose, not generator output.
 
 ### Phase 8.5: D2c Controls — `cem-controls.html` ✓ COMPLETE
@@ -394,18 +398,18 @@ Depends on Phase 8.5 Controls because `--cem-bend-round` consumes `--cem-control
       Phase 8.5.
     - Semantic endpoints: `--cem-bend-{control|surface|overlay|field|modal|control-round-ends|media|avatar}` (8).
     - Pattern tokens: `--cem-bend-{attached-edge|free-edge}`.
-    - Existing action binding: `--cem-action-border-radius` is documented in `cem-shape.md` §14 as an existing
-      component-binding contract owned by the action stylesheet (D0); not emitted here, pending R-D3-ACTION.
+    - Action geometry binding: `--cem-action-border-radius` is emitted by D3 Shape as
+      `var(--cem-bend-control)`; D0 Action tokens own color/state only.
     - Brand mode: `data-cem-shape="sharp|smooth|round"` overrides emitted as **optional brand policy**; smooth is
       the baseline `:root` block, so only sharp/round appear as override blocks.
 4. [x] Adapter-only M3-parity aliases (`cem-shape-adapter-aliases` h6+table) are NOT emitted by default.
    `deriveShapeManifest` filters them from coverage; the generator does not loop over that table. Opt-in path is
    left as a future flag.
-5. [ ] Browser-level validation tasks deferred to Phase 13: focus-ring clipping with rounded corners,
+5. [x] Browser-level validation tasks covered by `scripts/verify-phase13.mjs`: focus-ring clipping with rounded corners,
    `forced-colors: active` outline behavior, 200%/400% zoom, round-end behavior under each `data-cem-coupling` mode,
    RTL logical-corner mapping.
 
-Generated CSS: 15 tokens (5 basis + 8 semantic + 2 pattern) + sharp/round brand-mode overrides. Manifest validation
+Generated CSS: 16 tokens (5 basis + 8 semantic + 2 pattern + 1 action geometry binding) + sharp/round brand-mode overrides. Manifest validation
 green on first build.
 
 ### Phase 10: D5 Stroke — `cem-stroke.html` ✓ COMPLETE
@@ -513,7 +517,8 @@ Automation entrypoint: `node scripts/verify-phase13.mjs` from `packages/cem-them
    `cem-theme-{native,light,dark,contrast-light,contrast-dark}`.
 4. [x] **Forced-colors / contrast-theme** smoke for dimensions that affect perception (D0, D3, D4, D5, D6): theme
    modes resolve, D4 shadows collapse in forced colors, and D5 zebra rings fall back to `Highlight`.
-5. [ ] **Accessibility regression suite**: Lighthouse contrast, WCAG 2.4.11 (focus not hidden), 2.5.8 (target size).
+5. [x] **Accessibility regression suite**: Playwright smoke covers contrast, WCAG 2.4.11 focus visibility, and
+   WCAG 2.5.8 target size.
 6. [x] **Reduced-motion** check (D7): durations shorten, ordering preserved.
 7. [x] **Cross-spec semantic checks**:
     - D1 reading rhythm + D6 line-height + measure produce a usable paragraph at default size.
@@ -531,9 +536,9 @@ placement. No generator may invent or guess values absent from the canonical des
 |----------------|----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|----------------------------------------------------------------------------------------------------------------|
 | ~~R-Schema-1~~ | ~~Final manifest column set + h6 ID naming convention.~~ **Resolved:** tier lives in source tables (last column); cross-products add tier to the state-axis only; specs end with a lean manifest index section.                                                | Phase 4 complete.                                                                                              |
 | ~~R-D7-1~~     | ~~`highlighted` easing currently aliases `smooth`.~~ **Resolved:** uses `cubic-bezier(0.2, 0, 0, 1)` (M3 Emphasized) for `-highlighted`, `cubic-bezier(0.3, 0, 0.8, 0.15)` for `-highlighted-start`, `cubic-bezier(0.05, 0.7, 0.1, 1)` for `-highlighted-end`. | Phase 6 complete.                                                                                              |
-| R-D7-2         | Spring presets — define real value encoding (stiffness/damping/mass tuple) or remove from spec. Reserved names without values must not appear in the manifest.                                                                                                 | Blocks spring output only; core duration/easing output may proceed.                                            |
-| R-D1x-WRAP     | Container-query helpers require consumer-provided containment. Decide whether CEM only documents that requirement or ships a wrapper component that sets `container-type`.                                                                                     | Does not block Phase 7 CSS output; blocks any wrapper/component deliverable.                                   |
-| R-D3-ACTION    | Ownership of `--cem-action-border-radius` emission — D0 actions, D3 shape, or composition recipe. The token is already canonical as an existing component-binding contract.                                                                                    | Does not block required D3 bend tokens; blocks only direct emission of the action binding by `cem-shape.html`. |
+| ~~R-D7-2~~     | ~~Spring presets — define real value encoding (stiffness/damping/mass tuple) or remove from spec.~~ **Resolved:** canonical spring presets are removed from v1; spring motion is adapter-local until CEM defines a concrete portable value encoding. Reserved names without values do not appear in the manifest. | Phase 6 complete.                                                                                              |
+| ~~R-D1x-WRAP~~ | ~~Container-query helpers require consumer-provided containment. Decide whether CEM only documents that requirement or ships a wrapper component that sets `container-type`.~~ **Resolved:** CEM v1 documents the containment requirement only; adapter libraries may ship wrapper components, but canonical token output does not. | Phase 7 complete.                                                                                              |
+| ~~R-D3-ACTION~~ | ~~Ownership of `--cem-action-border-radius` emission — D0 actions, D3 shape, or composition recipe.~~ **Resolved:** D3 Shape owns and emits the action border-radius binding as geometry (`var(--cem-bend-control)`); D0 Action tokens own action color/state only. | Phase 9 complete. |
 | ~~R-D5-1~~     | ~~Ownership of `--cem-zebra-strip-size` and ring composition.~~ **Resolved (split documented):** D0 keeps `--cem-zebra-strip-size` and `--cem-zebra-color-{0..3}` (already shipped with full theme-mode coverage). D5 owns stroke basis/semantic/indicator-offset, ring recipes (`--cem-ring-zebra-3`, `--cem-ring-zebra-4`), and `--cem-zebra-angle`. Rings reference D0 tokens via `var()`. | Phase 10 complete.                                                                                              |
 | ~~R-D4-1~~     | ~~D4 generator output shape — semantic aliases only vs adapter hooks per channel.~~ **Resolved (semantic-aliases shape):** rungs emit `box-shadow` recipes (only universally meaningful non-`z-index` channel); semantic endpoints alias rungs via `var()`. Per-channel adapter hooks owned by D0 (tone), D5 (contour), D1 (space), D7 (motion). Documented in `cem-layering.md` §6.4. | Phase 11 complete.                                                                                              |
 | ~~R-D4-2~~     | ~~Per-rung minimum perceivable channel changes.~~ **Resolved:** D4 emits shadow as one channel; tone supplied per-theme by `cem-colors.html` mode blocks; together they satisfy §7.2's ≥1-channel rule (≥2 in dense UIs). Browser-level verification deferred to Phase 13. Documented in `cem-layering.md` §6.5.                                                                       | Phase 11 complete.                                                                                              |
@@ -575,16 +580,16 @@ Each new generator HTML mirrors `cem-colors.html` AND honors the Token-to-CSS Tr
 | Breakpoints (D1x)         | 25      | 25        | 0      | ✓           |
 | Coupling safety (D2)      | 3       | 3         | 0      | ✓           |
 | Controls geometry (D2c)   | 8       | 8         | 0      | ✓           |
-| Shape & bend (D3)         | 15      | 15        | 0      | ✓           |
+| Shape & bend (D3)         | 16      | 16        | 0      | ✓           |
 | Stroke & separation (D5)  | 15      | 15        | 0      | ✓           |
 | Layering & elevation (D4) | 14      | 14        | 0      | ✓           |
 | Typography & voice (D6)   | 149     | 149       | 0      | ✓           |
 | Timing & motion (D7)      | 13      | 13        | 0      | ✓           |
-| **Total**                 | 406     | 406       | 0      | ✓ all dimensions covered |
+| **Total**                 | 407     | 407       | 0      | ✓ all dimensions covered |
 
 (Final counts after all generator phases landed: D6 grew from ~80+ estimate to 149 actuals because the spec defines
 foundation primitives + voice cross-product (7 × 6) + 76 semantic role endpoints; D1 +sp = spacing-mode overrides;
-D7 holds at 13 pending R-D7-2 spring decision.)
+D7 holds at 13 because spring presets are adapter-local after R-D7-2 resolution.)
 
 **Action tokens generated (Phase 3 complete):**
 

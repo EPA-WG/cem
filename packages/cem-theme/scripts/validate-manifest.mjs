@@ -332,7 +332,7 @@ function deriveShapeManifest(xhtml) {
     const warnings = [];
     const tokens = [];
 
-    for (const tableId of ["cem-shape-basis", "cem-shape-semantic", "cem-shape-pattern"]) {
+    for (const tableId of ["cem-shape-basis", "cem-shape-semantic", "cem-shape-pattern", "cem-shape-action-bindings"]) {
         const rows = extractTable(xhtml, tableId);
         if (!rows) {
             warnings.push(`Table not found: #${tableId}`);

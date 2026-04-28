@@ -401,8 +401,13 @@ Some UIs (split panes, sidebars, embedded widgets) need size classes based on **
 ### 8.1 Container bounds (optional)
 
 These reference values reuse the same semantic lattice as the viewport breakpoints. Consumers place
-them in their own `@container` rules; CEM does not emit `@container` selectors directly (see R-D1x-WRAP).
+them in their own `@container` rules; CEM does not emit `@container` selectors directly.
 Uses `--cem-bp-epsilon` directly — no separate `--cem-cq-epsilon` needed.
+
+**R-D1x-WRAP resolved:** CEM v1 documents the containment requirement but does **not** ship a wrapper component.
+Component libraries and products must opt each queryable host into containment with `container-type` (and optionally
+`container-name`). This keeps the token package framework-neutral and avoids adding layout side effects to consumers'
+DOM. A wrapper may still be built by an adapter library, but it is not part of the canonical D1x token output.
 
 ###### cem-bp-cq
 | Token | Value | Description | tier |
@@ -430,6 +435,16 @@ Uses `--cem-bp-epsilon` directly — no separate `--cem-cq-epsilon` needed.
   /* medium container layout */
 }
 ```
+
+Implementation requirements:
+
+- The element being queried MUST establish containment, usually with `container-type: inline-size`.
+- Name containers (`container-name`) when more than one query context can be present or when component recipes need a
+  stable target.
+- Do not expect `--cem-cq-width-*` values to activate behavior by themselves; CSS custom properties cannot be used
+  inside `@container` conditions.
+- If a product provides a wrapper component, it should be adapter-owned and should do no more than establish the
+  appropriate containment contract.
 
 
 **Material UI (optional): container query adapter and shorthand**
@@ -498,8 +513,8 @@ their rows start with range names (not `--cem-*`), so they are automatically exc
 
 Note: `@custom-media` is NOT emitted in production output per Principle P5. The `@media` helper
 block (Block B) sets `--cem-bp-active-width` for JS consumption. The `@container` helper block
-(Block C) is deferred pending R-D1x-WRAP wrapper decision; `--cem-cq-*` reference values are
-available in `:root` for consumers to use in their own `@container` rules.
+(Block C) is intentionally not emitted after R-D1x-WRAP resolution; `--cem-cq-*` reference values are
+available in `:root` for consumers or adapter-owned wrappers to use in their own `@container` rules.
 
 ---
 
