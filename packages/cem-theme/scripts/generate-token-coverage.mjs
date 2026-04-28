@@ -37,7 +37,7 @@ async function readRequired(filePath) {
     try {
         return await fs.readFile(filePath, "utf8");
     } catch (err) {
-        throw new Error(`Cannot read ${path.relative(packageRoot, filePath)}\n${err.message}`);
+        throw new Error(`Cannot read ${path.relative(packageRoot, filePath)}\n${err.message}`, { cause: err });
     }
 }
 
