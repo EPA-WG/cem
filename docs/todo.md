@@ -72,11 +72,11 @@ browser/accessibility validation, or open ownership decisions.
   adapter-owned and not emitted by the canonical token package.
 - [x] Resolve R-D3-ACTION: D3 Shape owns and emits `--cem-action-border-radius`; D0 Action tokens own color/state only.
 
-### 5. Final Acceptance / Tooling
+### 5. Final Acceptance / Tooling ✓ COMPLETE
 
-- [ ] Add or replace the missing root `yarn lint` script; current result is `Couldn't find a script named "lint"`.
-- [ ] `yarn nx affected -t lint test build typecheck` is green after Nx can start.
-- [ ] Nx plugin-worker startup failure is resolved so Nx targets can run normally in this workspace; current failure is
+- [x] Add or replace the missing root `yarn lint` script; current result is `Couldn't find a script named "lint"`.
+- [x] `yarn nx affected -t lint test build typecheck` is green after Nx can start.
+- [x] Nx plugin-worker startup failure is resolved so Nx targets can run normally in this workspace; current failure is
   plugin workers exiting before connection for default Nx plugins plus `@nx/js/typescript`, `@nx/eslint/plugin`, and
   `@nx/vitest`.
 
