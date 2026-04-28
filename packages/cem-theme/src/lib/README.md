@@ -26,21 +26,27 @@ Install the package in an application or consume it from this workspace:
 yarn add @epa-wg/cem-theme
 ```
 
-The package provides generated CSS custom properties under `dist/lib/css/`. A typical page loads the token files it
-needs, then scopes a theme mode with a class or `data-theme` attribute.
+The package provides generated CSS custom properties under `dist/lib/css/`. A typical page loads the combined
+`cem-combined.css` entrypoint, then scopes a theme mode with a class or `data-theme` attribute.
 
 ```html
 
-<link rel="stylesheet" href="/node_modules/@epa-wg/cem-theme/dist/lib/css/cem-colors.css" />
-<link rel="stylesheet" href="/node_modules/@epa-wg/cem-theme/dist/lib/css/cem-dimension.css" />
-<link rel="stylesheet" href="/node_modules/@epa-wg/cem-theme/dist/lib/css/cem-coupling.css" />
-<link rel="stylesheet" href="/node_modules/@epa-wg/cem-theme/dist/lib/css/cem-controls.css" />
-<link rel="stylesheet" href="/node_modules/@epa-wg/cem-theme/dist/lib/css/cem-shape.css" />
-<link rel="stylesheet" href="/node_modules/@epa-wg/cem-theme/dist/lib/css/cem-layering.css" />
-<link rel="stylesheet" href="/node_modules/@epa-wg/cem-theme/dist/lib/css/cem-stroke.css" />
-<link rel="stylesheet" href="/node_modules/@epa-wg/cem-theme/dist/lib/css/cem-voice-fonts-typography.css" />
-<link rel="stylesheet" href="/node_modules/@epa-wg/cem-theme/dist/lib/css/cem-timing.css" />
+<link rel="stylesheet" href="/node_modules/@epa-wg/cem-theme/dist/lib/css/cem-combined.css" />
 ```
+
+For browser-native CSS module loading, import the same combined stylesheet with ESM import attributes and adopt it on
+the document:
+
+```javascript
+// Native ESM import with attributes
+import cemThemeSheet from "/node_modules/@epa-wg/cem-theme/dist/lib/css/cem-combined.css" with { type: "css" };
+
+// Apply to the document
+document.adoptedStyleSheets = [...document.adoptedStyleSheets, cemThemeSheet];
+```
+
+Use `cem.css` when you want the import index that points at each generated CSS file separately. The individual
+`cem-*.css` files remain available for partial loading and debugging.
 
 ```html
 

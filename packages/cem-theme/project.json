@@ -46,7 +46,8 @@
                     "node scripts/validate-manifest.mjs dist/lib/tokens/cem-stroke.xhtml dist/lib/css/cem-stroke.css",
                     "node scripts/validate-manifest.mjs dist/lib/tokens/cem-layering.xhtml dist/lib/css/cem-layering.css",
                     "node scripts/validate-manifest.mjs dist/lib/tokens/cem-voice-fonts-typography.xhtml dist/lib/css/cem-voice-fonts-typography.css",
-                    "node scripts/generate-token-coverage.mjs"
+                    "node scripts/generate-token-coverage.mjs",
+                    "node scripts/generate-css-index.mjs"
                 ],
                 "parallel": false,
                 "cwd": "packages/cem-theme"
@@ -56,6 +57,7 @@
                 "{projectRoot}/src/lib/css-generators/*.html",
                 "{projectRoot}/src/lib/css-generators/*.js",
                 "{projectRoot}/scripts/generate-token-coverage.mjs",
+                "{projectRoot}/scripts/generate-css-index.mjs",
                 "{projectRoot}/scripts/manifest-utils.mjs",
                 "{projectRoot}/scripts/validate-manifest.mjs",
                 "{projectRoot}/dist/lib/css-generators/*.html",
