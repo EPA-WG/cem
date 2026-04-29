@@ -55,19 +55,19 @@ Decisions that do **not** block MVP extraction/emission:
 
 ### MVP Phase A — Token-data extraction
 
-- [ ] Extend `packages/cem-theme/scripts/manifest-utils.mjs` without changing existing manifest validation behavior.
-- [ ] Add a table extraction helper such as `tokensFromTableWithValues()` that reuses the compiled XHTML table
+- [x] Extend `packages/cem-theme/scripts/manifest-utils.mjs` without changing existing manifest validation behavior.
+- [x] Add a table extraction helper such as `tokensFromTableWithValues()` that reuses the compiled XHTML table
       extraction path and captures token name, value cells, description/notes where present, tier, and source table id.
-- [ ] Add `packages/cem-theme/scripts/derive-tokens.mjs` with `derive*Tokens()` helpers mirroring
+- [x] Add `packages/cem-theme/scripts/derive-tokens.mjs` with `derive*Tokens()` helpers mirroring
       `derive*Manifest()` by spec.
-- [ ] Return a normalized token record:
+- [x] Return a normalized token record:
       `{ name, valueRaw, tier, description, category, sourceTable, spec, row }`.
-- [ ] Handle cross-product token families, especially color action intent × state, from the same source tables used by
+- [x] Handle cross-product token families, especially color action intent × state, from the same source tables used by
       the CSS generator.
-- [ ] Add `packages/cem-theme/scripts/export-tokens.mjs` as the orchestration script. Stage 1 builds the in-memory
+- [x] Add `packages/cem-theme/scripts/export-tokens.mjs` as the orchestration script. Stage 1 builds the in-memory
       intermediate model from `dist/lib/tokens/*.xhtml`.
-- [ ] Always emit `dist/lib/tokens/cem.tokens.intermediate.json` with generated provenance and a debug-only marker.
-- [ ] Add extraction validation:
+- [x] Always emit `dist/lib/tokens/cem.tokens.intermediate.json` with generated provenance and a debug-only marker.
+- [x] Add extraction validation:
     - every manifest-derived required/recommended token eligible for export appears in the intermediate model
     - no duplicate CSS token names
     - no unsupported/unknown tier values
@@ -251,16 +251,16 @@ Decisions that do **not** block MVP extraction/emission:
 
 | File or output                                              | Kind             | Phase | Status  |
 | ----------------------------------------------------------- | ---------------- | ----- | ------- |
-| `packages/cem-theme/scripts/manifest-utils.mjs`             | existing edit    | A     | pending |
-| `packages/cem-theme/scripts/derive-tokens.mjs`              | new source       | A     | pending |
-| `packages/cem-theme/scripts/export-tokens.mjs`              | new source       | A-E   | pending |
+| `packages/cem-theme/scripts/manifest-utils.mjs`             | existing edit    | A     | done    |
+| `packages/cem-theme/scripts/derive-tokens.mjs`              | new source       | A     | done    |
+| `packages/cem-theme/scripts/export-tokens.mjs`              | new source       | A-E   | in progress (Stage 1 done) |
 | `packages/cem-theme/project.json` (`build:tokens`)          | existing edit    | E     | pending |
 | `dist/lib/tokens/cem.tokens.json`                           | generated output | C     | pending |
 | `dist/lib/tokens/cem.tokens.ts`                             | generated output | E     | pending |
 | `dist/lib/tokens/cem.voice.tokens.json`                     | generated output | C     | pending |
 | `dist/lib/tokens/cem.tokens.report.md`                      | generated output | C     | pending |
 | `dist/lib/tokens/cem.tokens.report.json`                    | generated output | C     | pending |
-| `dist/lib/tokens/cem.tokens.intermediate.json`              | debug output     | A     | pending |
+| `dist/lib/tokens/cem.tokens.intermediate.json`              | debug output     | A     | done    |
 | `dist/lib/tokens/cem.tokens.resolved.json`                  | debug output     | B     | pending |
 | `dist/lib/tokens/figma/cem-light.tokens.json`               | generated output | D     | pending |
 | `dist/lib/tokens/figma/cem-dark.tokens.json`                | generated output | D     | pending |

@@ -31,11 +31,35 @@ export const COVERAGE_CATEGORIES = [
     { id: "cem-timing", label: "Timing & motion (D7)", spec: "cem-timing" },
 ];
 
+function decodeHtmlEntities(str) {
+    return str
+        .replace(/&quot;/g, '"')
+        .replace(/&apos;/g, "'")
+        .replace(/&lt;/g, "<")
+        .replace(/&gt;/g, ">")
+        .replace(/&amp;/g, "&")
+        .replace(/&#(\d+);/g, (_, n) => String.fromCharCode(Number(n)))
+        .replace(/&#x([0-9a-f]+);/gi, (_, h) => String.fromCharCode(parseInt(h, 16)));
+}
+
+function extractCellText(html) {
+    return decodeHtmlEntities(html.replace(/<[^>]+>/g, "").replace(/\s+/g, " ").trim());
+}
+
 /**
  * Extract the <tbody> rows of the table immediately following <h6 id="tableId">.
  * Returns an array of row arrays (each row = array of plain-text cell strings).
  */
 export function extractTable(xhtml, tableId) {
+    const result = extractTableWithHeaders(xhtml, tableId);
+    return result ? result.rows : null;
+}
+
+/**
+ * Extract headers and tbody rows of the table following <h6 id="tableId">.
+ * Returns { headers: string[], rows: string[][] } or null if not found.
+ */
+export function extractTableWithHeaders(xhtml, tableId) {
     const h6Re = new RegExp(`<h6[^>]*\\bid="${tableId}"[^>]*>[\\s\\S]*?<\\/h6>`, "i");
     const h6Match = xhtml.match(h6Re);
     if (!h6Match) return null;
@@ -44,22 +68,35 @@ export function extractTable(xhtml, tableId) {
     const tableMatch = after.match(/^\s*<table[\s\S]*?<\/table>/i);
     if (!tableMatch) return null;
 
-    const tbodyMatch = tableMatch[0].match(/<tbody>([\s\S]*?)<\/tbody>/i);
-    if (!tbodyMatch) return null;
+    const tableHtml = tableMatch[0];
+
+    const headers = [];
+    const theadMatch = tableHtml.match(/<thead>([\s\S]*?)<\/thead>/i);
+    if (theadMatch) {
+        const thRe = /<th>([\s\S]*?)<\/th>/gi;
+        let thM;
+        while ((thM = thRe.exec(theadMatch[1])) !== null) {
+            headers.push(extractCellText(thM[1]));
+        }
+    }
 
     const rows = [];
-    const trRe = /<tr>([\s\S]*?)<\/tr>/gi;
-    let trM;
-    while ((trM = trRe.exec(tbodyMatch[1])) !== null) {
-        const cells = [];
-        const tdRe = /<td>([\s\S]*?)<\/td>/gi;
-        let tdM;
-        while ((tdM = tdRe.exec(trM[1])) !== null) {
-            cells.push(tdM[1].replace(/<[^>]+>/g, "").replace(/\s+/g, " ").trim());
+    const tbodyMatch = tableHtml.match(/<tbody>([\s\S]*?)<\/tbody>/i);
+    if (tbodyMatch) {
+        const trRe = /<tr>([\s\S]*?)<\/tr>/gi;
+        let trM;
+        while ((trM = trRe.exec(tbodyMatch[1])) !== null) {
+            const cells = [];
+            const tdRe = /<td>([\s\S]*?)<\/td>/gi;
+            let tdM;
+            while ((tdM = tdRe.exec(trM[1])) !== null) {
+                cells.push(extractCellText(tdM[1]));
+            }
+            if (cells.length > 0) rows.push(cells);
         }
-        if (cells.length > 0) rows.push(cells);
     }
-    return rows;
+
+    return { headers, rows };
 }
 
 /**
@@ -69,6 +106,36 @@ export function tokensFromTable(rows) {
     return rows
         .map((row) => ({ name: row[0], tier: (row[row.length - 1] || "").toLowerCase().trim() }))
         .filter((t) => t.name.startsWith("--"));
+}
+
+/**
+ * Extract {name, valueRaw, description, tier, row} from table rows + headers.
+ * Uses header names to locate value and description columns automatically.
+ */
+export function tokensFromTableWithValues(rows, headers = []) {
+    const hn = headers.map((h) => h.toLowerCase());
+
+    const VALUE_HEADERS = ["default-formula", "value"];
+    let valueCol = hn.findIndex((h) => VALUE_HEADERS.some((c) => h === c));
+    if (valueCol < 0) valueCol = 1;
+
+    const DESC_HEADERS = ["description", "notes", "label", "intended use", "role", "usage"];
+    let descCol = hn.findIndex((h) => DESC_HEADERS.some((c) => h.includes(c)));
+
+    const tierCol = hn.findIndex((h) => h === "tier");
+
+    return rows
+        .filter((row) => row[0]?.startsWith("--"))
+        .map((row) => {
+            const effectiveTierCol = tierCol >= 0 ? tierCol : row.length - 1;
+            return {
+                name: row[0],
+                valueRaw: row[valueCol] ?? "",
+                description: descCol >= 0 ? (row[descCol] ?? "") : "",
+                tier: (row[effectiveTierCol] || "").toLowerCase().trim(),
+                row,
+            };
+        });
 }
 
 function actionTokensFromCrossProduct(intentRows, stateRows) {
