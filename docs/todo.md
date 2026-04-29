@@ -42,11 +42,14 @@ Only these decisions block Phase A/B/C implementation:
 
 Decisions that do **not** block MVP extraction/emission:
 
-- [ ] Pick Style Dictionary major/version before Phase D, pinned by lockfile.
-- [ ] Finalize px→dp/pt/sp mapping before native outputs.
-- [ ] Decide if `culori` is needed as a non-Playwright fallback after browser capture is working.
+- [x] Pick Style Dictionary version policy before Phase F: use latest compatible major at implementation time, pinned
+      by lockfile; prefer v5+ if compatible, otherwise v4+.
+- [x] Finalize px→dp/pt/sp mapping before native outputs: category-aware conversion. Android layout/spacing/shape/control dimensions use `dp`; Android typography sizes use `sp`; iOS dimensions and typography use points; numeric weights/layering/opacity stay unitless.
+- [x] Decide `culori` fallback policy: do not add it unless Playwright/browser capture fails or proves insufficient.
 - [x] Decide Tokens Studio pull-only workflow: primary MVP Figma workflow.
-- [ ] Defer direct Figma REST API sync to post-v1.
+- [x] Defer direct Figma REST API sync to post-v1. Future CI integration may be considered only after manual/API sync
+      is proven; it must require explicit file id config, scoped write token, dry-run/report mode, and no default local
+      execution.
 
 ---
 
@@ -172,9 +175,11 @@ Decisions that do **not** block MVP extraction/emission:
 - [ ] Add `packages/cem-theme/scripts/build-token-platforms.mjs`.
 - [ ] Add `packages/cem-theme/scripts/validate-platforms.mjs`.
 - [ ] Implement Style Dictionary filters/transforms:
-    - `cem/size/rem-to-pt`
-    - `cem/size/rem-to-dp`
-    - `cem/size/rem-to-sp` for typography only
+    - `cem/size/layout-to-pt`
+    - `cem/size/type-to-pt`
+    - `cem/size/layout-to-dp`
+    - `cem/size/type-to-sp`
+    - `cem/number/unitless`
     - `cem/category/web-only-filter`
     - `cem/mode/expand-themes`
 - [ ] Add `build:token-platforms` target depending on `build:tokens`.
@@ -186,7 +191,7 @@ Decisions that do **not** block MVP extraction/emission:
 
 ### Post-MVP Phase G — Native platform outputs
 
-- [ ] Confirm unit policy before implementation:
+- [x] Confirm unit policy before implementation:
     - spacing/shape px or rem → Android dp
     - typography sizes → Android sp
     - iOS uses points
@@ -212,7 +217,10 @@ Decisions that do **not** block MVP extraction/emission:
 - [ ] Add a developer prompt for switching to direct Figma Variables file import.
 - [ ] Add a developer prompt for splitting one CEM collection into dimension-specific collections.
 - [ ] Do not enable Figma REST API write/sync until file import is stable and governance exists.
-- [ ] If REST sync is added later, require explicit file id config and keep it out of default local builds.
+- [ ] If REST sync is added later, start as a manual script requiring explicit file id config, scoped write token,
+      dry-run/report mode, and no default local build execution.
+- [ ] If CI REST sync is added after manual sync is proven, gate it behind protected branch/release workflows, required
+      approval, secret-scoped tokens, generated diff/report artifacts, and rollback instructions.
 
 ### Post-MVP Phase I — Adapter examples
 

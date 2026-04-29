@@ -2,7 +2,7 @@
 
 **Status:** Proposal (not yet implemented). Recommends Approach E (Hybrid).
 **Audience:** CEM maintainers, design-system reviewers, downstream platform teams.
-**Decision required:** see §12 (Open decisions).
+**Decision status:** MVP decisions are resolved; see §12 (Decision log).
 
 ---
 
@@ -263,10 +263,10 @@ target needs resolved values. It should serve a minimal fixture over HTTP that l
 HTTP-served custom-element constraints and lets the browser resolve `light-dark()`, `color-mix()`, `calc()`, and
 `var()` chains from the same CSS output shipped to web consumers.
 
-For pure JSON post-processing (when Playwright is not viable), an explicit color-math dependency such as
-[`culori`](https://culorijs.org/) can be added to resolve `color-mix(in srgb, ...)` per
-[CSS Color Module Level 5 §2.1](https://www.w3.org/TR/css-color-5/#color-mix). That fallback must be treated as a
-separate implementation path and validated against browser-computed values.
+Do not add a separate color-math dependency for the first implementation. If Playwright/browser capture fails or proves
+insufficient, an explicit fallback such as [`culori`](https://culorijs.org/) may be added to resolve
+`color-mix(in srgb, ...)` per [CSS Color Module Level 5 §2.1](https://www.w3.org/TR/css-color-5/#color-mix). That
+fallback must be treated as a separate implementation path and validated against browser-computed values.
 
 ---
 
@@ -453,9 +453,11 @@ experimental.
 
 Custom transforms required:
 
-- `cem/size/rem-to-pt` (iOS): rem → pt at 16pt base.
-- `cem/size/rem-to-dp` (Android): rem → dp at 16dp base.
-- `cem/size/rem-to-sp` (Android, typography only): rem → sp.
+- `cem/size/layout-to-pt` (iOS): spacing, shape, control, and layout dimensions → points.
+- `cem/size/type-to-pt` (iOS): typography sizes → points; no automatic dynamic type scaling in v1.
+- `cem/size/layout-to-dp` (Android): spacing, shape, control, and layout dimensions → dp.
+- `cem/size/type-to-sp` (Android): typography sizes and text line-height → sp.
+- `cem/number/unitless`: font weights, opacity, z-index/layering, and other numeric values stay unitless.
 - `cem/category/web-only-filter`: drop web-only categories before emission.
 - `cem/mode/expand-themes`: expand `$extensions.cem.modes` to per-platform conventions (asset catalog hints for iOS;
   `values-night/` for Android).
@@ -490,8 +492,8 @@ dist/lib/token-platforms/
 1. Token coverage: how many of the manifest's required/recommended tokens emitted to this target.
 2. Skipped tokens with reason: `css-expression unresolvable on iOS`, `system color VisitedText has no native
 equivalent on Android`, `voice token excluded from visual export`, etc.
-3. Platform-specific transformation choices applied (e.g., `rem→pt at 16pt base`, `color resolved via Playwright
-in light theme`).
+3. Platform-specific transformation choices applied (e.g., `layout dimension → dp`, `typography size → sp`,
+   `color resolved via Playwright in light theme`).
 4. Validation summary: pass/fail counts for each fail-hard rule (see §11).
 
 **TypeScript metadata contract.** The JS/TS output is for tooling, docs, autocomplete, and tests. It is not a
@@ -525,6 +527,13 @@ generated artifacts; write-back is deferred until governance is designed.
     - Designers or design-ops drag-drop generated DTCG JSON files into the Variables panel.
     - Lower operational risk than plugin sync; no write-back path.
     - Keep this documented as the fallback if Tokens Studio setup, permissions, or mode behavior blocks adoption.
+
+3. **Figma REST API sync** (post-v1 only).
+    - Do not include in MVP or default local builds.
+    - Start as a manual script before considering CI.
+    - Require explicit file id configuration, scoped write token, dry-run/report mode, generated diff artifacts, and
+      rollback instructions.
+    - CI integration, if added later, must run only from protected branch/release workflows with required approval.
 
 ### Figma import contract
 
@@ -755,26 +764,33 @@ The exporter logs a warning and includes the token in the per-target report (but
 
 ---
 
-## 12. Open decisions (require sign-off before Phase A)
+## 12. Decision log
 
-| #   | Decision                                 | Recommendation                                                                                                                           | Rationale                                                                                                                                                                                                  |
-| --- | ---------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| 1   | Style Dictionary version                 | **Current project-compatible major, pinned by lockfile**                                                                                 | Style Dictionary has DTCG support from v4 onward and newer v5 releases add DTCG 2025.10 support. Choose the version that matches the repo's Node runtime and required DTCG value shapes.                   |
-| 2   | Tokens Studio plan                       | **Pull-only workflow into one CEM collection is the MVP path**                                                                           | Tokens Studio gives designers the preferred workflow, but write-back remains disabled and direct Figma file import remains documented as fallback. Do not depend on a paid/free tier claim in this doc.    |
-| 3   | Figma sync direction                     | **Read-only** (md → DTCG → Figma)                                                                                                        | Two-way sync risks designer-authored drift; governance for designer changes not yet designed.                                                                                                              |
-| 4   | Voice token export scope                 | **Defer to v2**                                                                                                                          | No consumer apps with TTS adapters yet; emit metadata placeholder only in v1. Saves complexity.                                                                                                            |
-| 5   | Adapter and deprecated tier export       | **Flag-gated** (`--with-adapter`, `--with-deprecated`)                                                                                   | Matches the existing CSS pipeline contract.                                                                                                                                                                |
-| 6   | Color-resolution math library            | **Browser capture first; add `culori` only for explicit non-Playwright fallback**                                                        | Browser capture validates against shipped CSS behavior. A JS color library is useful only if it is tested against browser-computed values.                                                                 |
-| 7   | DTCG mode encoding                       | **Canonical `$extensions.cem.modes`; Figma gets one generated file per mode**                                                            | Multi-mode DTCG support is still tool-specific. Keeping CEM modes namespaced avoids overcommitting to one draft shape while Figma import remains file-per-mode.                                            |
-| 8   | Output stability commitment              | **Stabilize after Phase D ships once**                                                                                                   | Token names in CSS are already stable; DTCG/platform names need one full release cycle to stabilize before promising backwards compat.                                                                     |
-| 9   | Px → dp/pt mapping policy                | **Per token category** (spacing/shape → dp; typography sizes → sp; iOS uses points uniformly)                                            | Global px→dp creates accessibility issues — Android typography must scale with system font size (sp), other dimensions should not. iOS points are unitless on layout. Document per category, not globally. |
-| 10  | `color-mix()` resolution policy          | **Resolve at export time per theme; emit alias-preserved DTCG for DTCG-aware consumers**                                                 | Both paths coexist: native platforms get pre-resolved RGBA; DTCG-aware tools see the alias graph. Custom Style Dictionary transform reads `$extensions.cem.modes` for native targets.                      |
-| 11  | Tokens Studio support tier               | **MVP bridge, not source of truth**                                                                                                      | Tokens Studio is the preferred designer workflow, but the same DTCG JSON must still support direct Figma Variables import as fallback.                                                                     |
-| 12  | Direct Figma REST API sync               | **Defer to post-v1**; manual file import is sufficient                                                                                   | API sync requires file-id config, write permissions, and CI plumbing — adds complexity without proportional value while `cem.tokens.json` import works.                                                    |
-| 13  | Figma collections                        | **One CEM collection** with groups by dimension; split only if Figma's per-collection limits hit or designers report navigation friction | Single collection simplifies cross-token references; splitting later is a non-breaking move (consumers reimport).                                                                                          |
-| 14  | iOS dynamic type interaction             | **Do not auto-scale** in v1                                                                                                              | CEM typography sizes are nominal; product apps decide whether to apply iOS dynamic type. Exposing a hook is a future enhancement.                                                                          |
-| 15  | Android color modes                      | **Resource qualifiers (`values-night/`)** for v1; Compose color schemes optional                                                         | Resource qualifiers are the platform-native pattern and work without app-level wiring. Compose color schemes are a Compose-only convenience and can be added once value coverage stabilizes.               |
-| 16  | Package export map for generated JSON/TS | **Expose `dist/lib/tokens/cem.tokens.json` and TS metadata via `package.json` exports field**                                            | Consumers reach the artifacts via `import meta from '@epa-wg/cem-theme/tokens'` rather than deep paths; one less migration surface if internal layout changes.                                             |
+All decisions needed before MVP extraction/emission are settled. Items marked "deferred" are intentionally post-MVP or
+require implementation evidence before final commitment.
+
+| #   | Decision                                 | Status   | Decision                                                                                                                                                        | Rationale                                                                                                                                          |
+| --- | ---------------------------------------- | -------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------- |
+| 1   | Generated output paths                   | Settled  | Use one MVP token artifact tree under `dist/lib/tokens/`, including canonical JSON, TS metadata, reports, Figma files, and debug artifacts.                     | Keeps token artifacts co-located with compiled token XHTML and avoids making canonical JSON look like a platform-specific output.                  |
+| 2   | Build dependency shape                   | Settled  | `build:tokens` depends on `build:css`; `build:css` remains independent.                                                                                         | Token export resolves non-web values from the exact generated CSS shipped to web consumers.                                                        |
+| 3   | DTCG validation strategy                 | Settled  | Add a DTCG validator dependency in the MVP path.                                                                                                                | External validation gives confidence before Figma and platform exporters consume generated JSON.                                                   |
+| 4   | Theme mode export                        | Settled  | Export `light`, `dark`, `contrast-light`, `contrast-dark`, and `native`; native uses Chromium-computed browser-reference system colors.                         | Represents the full CEM theme mode surface while making clear that native colors are browser-reference values, not iOS/Android system equivalents. |
+| 5   | Figma MVP workflow                       | Settled  | Tokens Studio pull-only into one CEM collection; keep direct file import and split-collection prompts for developers.                                           | Gives designers the preferred workflow while preserving read-only governance and fallback paths.                                                   |
+| 6   | Debug artifacts                          | Settled  | Always emit `cem.tokens.intermediate.json` and `cem.tokens.resolved.json` under `dist/lib/tokens/`; mark as debug-only/non-contract.                            | Useful for CI review and exporter debugging without making these files public package APIs.                                                        |
+| 7   | Style Dictionary version                 | Settled  | Use latest compatible major at implementation time, pinned by lockfile; prefer v5+ if compatible, otherwise v4+.                                                | Avoids stale doc-pinned versions while still requiring reproducible installs.                                                                      |
+| 8   | Native unit mapping                      | Settled  | Android layout/spacing/shape/control → dp; Android typography → sp; iOS dimensions and typography → points; numeric values stay unitless.                       | Global px→dp creates accessibility issues; Android typography must scale with system font size while layout dimensions should not.                 |
+| 9   | Color-resolution fallback                | Settled  | Use browser capture only unless it fails or proves insufficient; add `culori` only as a validated fallback.                                                     | Browser capture validates against shipped CSS behavior; a JS color library adds a second resolution engine.                                        |
+| 10  | Figma REST API sync                      | Deferred | Defer to post-v1; start with a manual script before CI. Future CI requires explicit file id config, scoped write token, dry-run/report artifacts, and approval. | API sync requires file-id config, write permissions, CI secrets, and rollback planning; it is unnecessary for proving generated artifacts.         |
+| 11  | Voice token export scope                 | Deferred | Emit metadata placeholder in v1; defer full TTS adapter support to v2.                                                                                          | No current consumer apps with TTS adapters; metadata-only keeps the taxonomy visible without overbuilding.                                         |
+| 12  | Adapter and deprecated tier export       | Settled  | Gate behind `--with-adapter` and `--with-deprecated`.                                                                                                           | Matches the existing CSS pipeline contract.                                                                                                        |
+| 13  | DTCG mode encoding                       | Settled  | Use canonical `$extensions.cem.modes`; Figma gets one generated file per mode.                                                                                  | Multi-mode DTCG support is tool-specific, so CEM keeps mode data namespaced and emits Figma-friendly files.                                        |
+| 14  | Output stability commitment              | Deferred | Stabilize after Phase D ships once.                                                                                                                             | Token names in CSS are stable, but DTCG/platform output names need one full release cycle before promising compatibility.                          |
+| 15  | `color-mix()` resolution policy          | Settled  | Resolve at export time per theme; preserve alias-form DTCG for DTCG-aware consumers.                                                                            | Native platforms get concrete RGBA while DTCG-aware tools retain semantic references.                                                              |
+| 16  | Tokens Studio support tier               | Settled  | MVP bridge, not source of truth.                                                                                                                                | Tokens Studio is the preferred designer workflow, but markdown remains canonical and direct import remains fallback.                               |
+| 17  | Figma collections                        | Settled  | One CEM collection with groups by dimension; split only if collection limits or navigation friction arise.                                                      | One collection simplifies references; split-collection prompts document the future variant.                                                        |
+| 18  | iOS dynamic type                         | Settled  | Do not auto-scale in v1.                                                                                                                                        | CEM typography sizes are nominal; product apps decide whether to apply dynamic type.                                                               |
+| 19  | Android color modes                      | Settled  | Resource qualifiers (`values-night/`) for v1; Compose color schemes optional.                                                                                   | Resource qualifiers are platform-native and work without app-level Compose wiring.                                                                 |
+| 20  | Package export map for generated JSON/TS | Deferred | Expose generated JSON/TS via `package.json` exports after generated paths stabilize.                                                                            | Consumers should not depend on deep paths, but exports should wait until generated paths are proven.                                               |
 
 ---
 
