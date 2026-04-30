@@ -5,7 +5,7 @@
     "projectType": "library",
     "targets": {
         "build": {
-            "dependsOn": ["^build", "build:css"],
+            "dependsOn": ["^build", "build:tokens"],
             "executor": "nx:run-commands",
             "options": {
                 "commands": [
@@ -30,19 +30,117 @@
             ]
         },
         "build:css": {
-            "dependsOn": ["build:docs"],
+            "dependsOn": ["build:html"],
             "executor": "nx:run-commands",
             "options": {
-                "command": "node ../../tools/scripts/capture-xpath-text.mjs \"src/lib/css-generators/*.html\" \"//code[@data-generated-css]\" \"dist/lib/css/*.css\"",
+                "commands": [
+                    "rm -f dist/lib/css/*.css",
+                    "node ../../tools/scripts/capture-xpath-text.mjs \"dist/lib/css-generators/cem-*.html\" \"//code[@data-generated-css]\" \"dist/lib/css/*.css\"",
+                    "node scripts/validate-manifest.mjs dist/lib/tokens/cem-colors.xhtml dist/lib/css/cem-colors.css",
+                    "node scripts/validate-manifest.mjs dist/lib/tokens/cem-dimension.xhtml dist/lib/css/cem-dimension.css",
+                    "node scripts/validate-manifest.mjs dist/lib/tokens/cem-timing.xhtml dist/lib/css/cem-timing.css",
+                    "node scripts/validate-manifest.mjs dist/lib/tokens/cem-breakpoints.xhtml dist/lib/css/cem-breakpoints.css",
+                    "node scripts/validate-manifest.mjs dist/lib/tokens/cem-coupling.xhtml dist/lib/css/cem-coupling.css",
+                    "node scripts/validate-manifest.mjs dist/lib/tokens/cem-controls.xhtml dist/lib/css/cem-controls.css",
+                    "node scripts/validate-manifest.mjs dist/lib/tokens/cem-shape.xhtml dist/lib/css/cem-shape.css",
+                    "node scripts/validate-manifest.mjs dist/lib/tokens/cem-stroke.xhtml dist/lib/css/cem-stroke.css",
+                    "node scripts/validate-manifest.mjs dist/lib/tokens/cem-layering.xhtml dist/lib/css/cem-layering.css",
+                    "node scripts/validate-manifest.mjs dist/lib/tokens/cem-voice-fonts-typography.xhtml dist/lib/css/cem-voice-fonts-typography.css",
+                    "node scripts/generate-token-coverage.mjs",
+                    "node scripts/generate-css-index.mjs"
+                ],
+                "parallel": false,
                 "cwd": "packages/cem-theme"
             },
             "cache": true,
             "inputs": [
+                "{projectRoot}/src/lib/tokens/*.md",
                 "{projectRoot}/src/lib/css-generators/*.html",
+                "{projectRoot}/src/lib/css-generators/*.js",
+                "{projectRoot}/scripts/generate-token-coverage.mjs",
+                "{projectRoot}/scripts/generate-css-index.mjs",
+                "{projectRoot}/scripts/manifest-utils.mjs",
+                "{projectRoot}/scripts/validate-manifest.mjs",
+                "{projectRoot}/dist/lib/css-generators/*.html",
                 "{projectRoot}/dist/lib/tokens/*.xhtml"
             ],
             "outputs": [
-                "{projectRoot}/dist/lib/css/*.css"
+                "{projectRoot}/dist/lib/css/*.css",
+                "{projectRoot}/dist/lib/tokens/generated-token-coverage.md",
+                "{projectRoot}/dist/lib/tokens/generated-token-coverage.xhtml"
+            ]
+        },
+        "build:tokens": {
+            "dependsOn": ["build:css"],
+            "executor": "nx:run-commands",
+            "options": {
+                "command": "node scripts/export-tokens.mjs",
+                "cwd": "packages/cem-theme"
+            },
+            "cache": true,
+            "inputs": [
+                "{projectRoot}/src/lib/tokens/*.md",
+                "{projectRoot}/scripts/export-tokens.mjs",
+                "{projectRoot}/scripts/derive-tokens.mjs",
+                "{projectRoot}/scripts/manifest-utils.mjs",
+                "{projectRoot}/dist/lib/css/*.css",
+                "{projectRoot}/dist/lib/tokens/*.xhtml",
+                "{projectRoot}/package.json"
+            ],
+            "outputs": [
+                "{projectRoot}/dist/lib/tokens/cem.tokens.json",
+                "{projectRoot}/dist/lib/tokens/cem.tokens.ts",
+                "{projectRoot}/dist/lib/tokens/cem.voice.tokens.json",
+                "{projectRoot}/dist/lib/tokens/cem.tokens.report.md",
+                "{projectRoot}/dist/lib/tokens/cem.tokens.report.json",
+                "{projectRoot}/dist/lib/tokens/cem.tokens.intermediate.json",
+                "{projectRoot}/dist/lib/tokens/cem.tokens.resolved.json",
+                "{projectRoot}/dist/lib/tokens/figma"
+            ]
+        },
+        "build:token-platforms": {
+            "dependsOn": ["build:tokens"],
+            "executor": "nx:run-commands",
+            "options": {
+                "commands": [
+                    "node scripts/build-token-platforms.mjs",
+                    "node scripts/validate-platforms.mjs"
+                ],
+                "parallel": false,
+                "cwd": "packages/cem-theme"
+            },
+            "cache": true,
+            "inputs": [
+                "{projectRoot}/style-dictionary.config.mjs",
+                "{projectRoot}/scripts/build-token-platforms.mjs",
+                "{projectRoot}/scripts/validate-platforms.mjs",
+                "{projectRoot}/dist/lib/tokens/cem.tokens.json"
+            ],
+            "outputs": [
+                "{projectRoot}/dist/lib/token-platforms/json",
+                "{projectRoot}/dist/lib/token-platforms/ios",
+                "{projectRoot}/dist/lib/token-platforms/android"
+            ]
+        },
+        "build:html": {
+            "dependsOn": ["build:docs"],
+            "executor": "nx:run-commands",
+            "options": {
+                "command": "node ../../tools/scripts/compile-html.mjs",
+                "cwd": "packages/cem-theme"
+            },
+            "cache": true,
+            "inputs": [
+                "{projectRoot}/src/**/*.html",
+                "{projectRoot}/src/**/*.js",
+                "{workspaceRoot}/node_modules/@epa-wg/custom-element/custom-element.js",
+                "{workspaceRoot}/node_modules/@epa-wg/custom-element/http-request.js",
+                "{projectRoot}/dist/lib/**/*.xhtml"
+            ],
+            "outputs": [
+                "{projectRoot}/dist/**/*.html",
+                "{projectRoot}/dist/lib/css-generators/*.js",
+                "{projectRoot}/dist/vendor/**/*.js"
             ]
         },
         "build:docs": {
@@ -68,6 +166,24 @@
                 "{projectRoot}/dist/**/*.gif",
                 "{projectRoot}/dist/**/*.webp"
             ]
+        },
+        "verify:phase13": {
+            "dependsOn": ["build:css"],
+            "executor": "nx:run-commands",
+            "options": {
+                "command": "node scripts/verify-phase13.mjs",
+                "cwd": "packages/cem-theme"
+            },
+            "cache": true,
+            "inputs": [
+                "{projectRoot}/scripts/verify-phase13.mjs",
+                "{projectRoot}/scripts/manifest-utils.mjs",
+                "{projectRoot}/scripts/validate-manifest.mjs",
+                "{projectRoot}/dist/lib/css/*.css",
+                "{projectRoot}/dist/lib/css-generators/*.html",
+                "{projectRoot}/dist/lib/tokens/*.xhtml"
+            ],
+            "outputs": []
         }
     }
 }

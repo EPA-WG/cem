@@ -1,0 +1,6 @@
+{
+    "name": "@epa-wg/cem-components",
+    "$schema": "../../node_modules/nx/schemas/project-schema.json",
+    "sourceRoot": "packages/cem-components/src",
+    "projectType": "library"
+}

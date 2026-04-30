@@ -149,11 +149,11 @@ Numbers and identifiers require predictable alignment and glyph selection.
     "Liberation Mono", "Courier New", "Noto Sans Mono", monospace;
 
     /* Initialism / condensed emphasis (optional override) */
-    --cem-fontography-initialism-family: "Barlow Semi Condensed", "Roboto Condensed",
+    --cem-fontography-initialism-family: "Barlow Semi Condensed", "Roboto Condensed", "Arial Narrow",
     var(--cem-fontography-ui-family);
 
-    /* Brand / display (optional; alias until a brand face is chosen) */
-    --cem-fontography-brand-family: var(--cem-fontography-reading-family);
+    /* Brand / display: visually distinctive from the default reading/UI sans stack. */
+    --cem-fontography-brand-family: "Fraunces", "Playfair Display", Georgia, "Times New Roman", serif;
 
 
     /* =========================
@@ -536,6 +536,16 @@ Behavior:
 |-----------------------------------------------------------------|--------------------------------------------------|
 | acronyms, avatar initials, short codes meant to be “badge-like” | ![initials button example image](./initials.png) |
 
+Reason:
+
+- Initialisms and avatar initials need a compact, badge-like voice without shrinking below readable text size.
+- `"Barlow Semi Condensed"` and `"Roboto Condensed"` provide the intended condensed sans-serif styling when web fonts are
+  available.
+- `"Arial Narrow"` is the closest browser-safe / system fallback for a condensed sans-serif when those web fonts are not
+  loaded.
+- `Impact` is also commonly available and compressed, but it is intentionally not in the default stack because its very
+  heavy display weight is better reserved for high-impact headings or explicit brand/display overrides.
+
 Behavior:
 
 ```css
@@ -699,6 +709,287 @@ Start with these semantic roles:
 - Initialism
 
 Add Brand/Iconized only when a real use-case exists.
+
+---
+
+## 12. Token manifest tables
+
+These tables are the machine-readable contract consumed by `cem-voice-fonts-typography.html`. They mirror the
+canonical declarations in §5.2 and §6, and add the dark / contrast ink-thickness projections from §5.3.
+
+### 12.1 Foundation
+
+###### cem-typography-fontography
+| Token                                | Value                                                                                                                                            | Description                                                  | tier        |
+|--------------------------------------|--------------------------------------------------------------------------------------------------------------------------------------------------|--------------------------------------------------------------|-------------|
+| `--cem-fontography-reading-family`    | `"Roboto", "Source Sans Pro", system-ui, -apple-system, "Segoe UI", "Helvetica Neue", Arial, "Noto Sans", "Liberation Sans", sans-serif` | Long-form reading family stack                               | required    |
+| `--cem-fontography-ui-family`         | `var(--cem-fontography-reading-family)`                                                                                                          | UI labels / navigation / compact scanning                    | required    |
+| `--cem-fontography-script-family`     | `ui-monospace, "SFMono-Regular", Menlo, Monaco, Consolas, "Liberation Mono", "Courier New", "Noto Sans Mono", monospace`                         | Code / monospaced scripts                                    | required    |
+| `--cem-fontography-initialism-family` | `"Barlow Semi Condensed", "Roboto Condensed", "Arial Narrow", var(--cem-fontography-ui-family)`                                                  | Initialism / condensed emphasis                              | recommended |
+| `--cem-fontography-brand-family`      | `"Fraunces", "Playfair Display", Georgia, "Times New Roman", serif`                                                                              | Brand / display family                                       | recommended |
+
+###### cem-typography-thickness
+| Token                       | Value | Description           | tier     |
+|-----------------------------|-------|-----------------------|----------|
+| `--cem-thickness-xx-light`  | `100` | Hairline weight       | required |
+| `--cem-thickness-x-light`   | `200` | Extra-light weight    | required |
+| `--cem-thickness-light`     | `300` | Light weight          | required |
+| `--cem-thickness-normal`    | `400` | Normal/regular weight | required |
+| `--cem-thickness-bold`      | `700` | Bold weight           | required |
+| `--cem-thickness-x-bold`    | `800` | Extra-bold weight     | required |
+| `--cem-thickness-xx-bold`   | `900` | Heaviest weight       | required |
+
+###### cem-typography-size
+| Token                       | Value       | Description                             | tier     |
+|-----------------------------|-------------|-----------------------------------------|----------|
+| `--cem-typography-size-xxs` | `0.75rem`   | Smallest UI text (12px @16px root)      | required |
+| `--cem-typography-size-xs`  | `0.8125rem` | Compact UI text (13px)                  | required |
+| `--cem-typography-size-s`   | `0.875rem`  | Small UI text (14px)                    | required |
+| `--cem-typography-size-m`   | `1rem`      | Default reading/UI size (16px)          | required |
+| `--cem-typography-size-l`   | `1.125rem`  | Large emphasis (18px)                   | required |
+| `--cem-typography-size-xl`  | `1.375rem`  | Sub-headline (22px)                     | required |
+| `--cem-typography-size-xxl` | `1.75rem`   | Headline / brand size (28px)            | required |
+
+###### cem-typography-line-height
+| Token                                  | Value | Description                                  | tier     |
+|----------------------------------------|-------|----------------------------------------------|----------|
+| `--cem-typography-line-height-reading` | `1.55` | Long-form reading line-height                | required |
+| `--cem-typography-line-height-ui`      | `1.2`  | UI label / navigation line-height            | required |
+| `--cem-typography-line-height-script`  | `1.4`  | Code / script line-height                    | required |
+| `--cem-typography-line-height-badge`   | `1`    | Single-line badge / initialism line-height   | required |
+
+###### cem-typography-letter-spacing
+| Token                                      | Value     | Description                              | tier     |
+|--------------------------------------------|-----------|------------------------------------------|----------|
+| `--cem-typography-letter-spacing-reading`  | `normal`  | Default reading tracking                 | required |
+| `--cem-typography-letter-spacing-ui`       | `0.01em`  | UI / navigation tracking                 | required |
+| `--cem-typography-letter-spacing-caps`     | `0.08em`  | Caps / initialism tracking               | required |
+
+###### cem-typography-feature
+| Token                                          | Value                       | Description                                       | tier     |
+|------------------------------------------------|-----------------------------|---------------------------------------------------|----------|
+| `--cem-typography-feature-numeric-data`        | `tabular-nums lining-nums`  | Numeric features for data role                    | required |
+| `--cem-typography-feature-ligatures-script`    | `none`                      | Ligature policy for code / script role            | required |
+| `--cem-typography-feature-optical-sizing`      | `auto`                      | Optical-sizing default (variable fonts)           | required |
+
+###### cem-typography-reading-ergonomics
+| Token                                       | Value    | Description                                   | tier     |
+|---------------------------------------------|----------|-----------------------------------------------|----------|
+| `--cem-typography-reading-measure-max`      | `65ch`   | Max measure for reading flows                 | required |
+| `--cem-typography-reading-paragraph-gap`    | `0.75em` | Paragraph rhythm for reading flows            | required |
+
+### 12.2 Voice channels (cross-modal prominence)
+
+7 voices × 6 channels. `ink-thickness` is required (drives weight); other channels are recommended (drive icon
+stroke and TTS prosody).
+
+###### cem-typography-voice-ink-thickness
+| Token                                    | Value                              | Description                          | tier     |
+|------------------------------------------|------------------------------------|--------------------------------------|----------|
+| `--cem-voice-whisper-ink-thickness`      | `var(--cem-thickness-xx-light)`    | Whisper voice → 100                  | required |
+| `--cem-voice-soft-ink-thickness`         | `var(--cem-thickness-x-light)`     | Soft voice → 200                     | required |
+| `--cem-voice-gentle-ink-thickness`       | `var(--cem-thickness-light)`       | Gentle voice → 300                   | required |
+| `--cem-voice-regular-ink-thickness`      | `var(--cem-thickness-normal)`      | Regular voice → 400                  | required |
+| `--cem-voice-firm-ink-thickness`         | `var(--cem-thickness-bold)`        | Firm voice → 700                     | required |
+| `--cem-voice-strong-ink-thickness`       | `var(--cem-thickness-x-bold)`      | Strong voice → 800                   | required |
+| `--cem-voice-loud-ink-thickness`         | `var(--cem-thickness-xx-bold)`     | Loud voice → 900                     | required |
+
+###### cem-typography-voice-icon-stroke-multiplier
+| Token                                              | Value  | Description                       | tier        |
+|----------------------------------------------------|--------|-----------------------------------|-------------|
+| `--cem-voice-whisper-icon-stroke-multiplier`       | `0.90` | Whisper icon-stroke multiplier    | recommended |
+| `--cem-voice-soft-icon-stroke-multiplier`          | `0.95` | Soft icon-stroke multiplier       | recommended |
+| `--cem-voice-gentle-icon-stroke-multiplier`        | `1.00` | Gentle icon-stroke multiplier     | recommended |
+| `--cem-voice-regular-icon-stroke-multiplier`       | `1.00` | Regular icon-stroke multiplier    | recommended |
+| `--cem-voice-firm-icon-stroke-multiplier`          | `1.10` | Firm icon-stroke multiplier       | recommended |
+| `--cem-voice-strong-icon-stroke-multiplier`        | `1.20` | Strong icon-stroke multiplier     | recommended |
+| `--cem-voice-loud-icon-stroke-multiplier`          | `1.30` | Loud icon-stroke multiplier       | recommended |
+
+###### cem-typography-voice-speech-volume
+| Token                                | Value  | Description                  | tier        |
+|--------------------------------------|--------|------------------------------|-------------|
+| `--cem-voice-whisper-speech-volume`  | `0.65` | Whisper TTS volume           | recommended |
+| `--cem-voice-soft-speech-volume`     | `0.75` | Soft TTS volume              | recommended |
+| `--cem-voice-gentle-speech-volume`   | `0.85` | Gentle TTS volume            | recommended |
+| `--cem-voice-regular-speech-volume`  | `1.00` | Regular TTS volume           | recommended |
+| `--cem-voice-firm-speech-volume`     | `1.00` | Firm TTS volume              | recommended |
+| `--cem-voice-strong-speech-volume`   | `1.00` | Strong TTS volume            | recommended |
+| `--cem-voice-loud-speech-volume`     | `1.00` | Loud TTS volume              | recommended |
+
+###### cem-typography-voice-speech-rate
+| Token                              | Value  | Description                | tier        |
+|------------------------------------|--------|----------------------------|-------------|
+| `--cem-voice-whisper-speech-rate`  | `1.00` | Whisper TTS rate           | recommended |
+| `--cem-voice-soft-speech-rate`     | `1.00` | Soft TTS rate              | recommended |
+| `--cem-voice-gentle-speech-rate`   | `1.00` | Gentle TTS rate            | recommended |
+| `--cem-voice-regular-speech-rate`  | `1.00` | Regular TTS rate           | recommended |
+| `--cem-voice-firm-speech-rate`     | `0.98` | Firm TTS rate              | recommended |
+| `--cem-voice-strong-speech-rate`   | `0.96` | Strong TTS rate            | recommended |
+| `--cem-voice-loud-speech-rate`     | `0.94` | Loud TTS rate              | recommended |
+
+###### cem-typography-voice-speech-pitch
+| Token                               | Value  | Description                 | tier        |
+|-------------------------------------|--------|-----------------------------|-------------|
+| `--cem-voice-whisper-speech-pitch`  | `0.95` | Whisper TTS pitch           | recommended |
+| `--cem-voice-soft-speech-pitch`     | `0.98` | Soft TTS pitch              | recommended |
+| `--cem-voice-gentle-speech-pitch`   | `1.00` | Gentle TTS pitch            | recommended |
+| `--cem-voice-regular-speech-pitch`  | `1.00` | Regular TTS pitch           | recommended |
+| `--cem-voice-firm-speech-pitch`     | `1.03` | Firm TTS pitch              | recommended |
+| `--cem-voice-strong-speech-pitch`   | `1.06` | Strong TTS pitch            | recommended |
+| `--cem-voice-loud-speech-pitch`     | `1.10` | Loud TTS pitch              | recommended |
+
+###### cem-typography-voice-ssml-emphasis
+| Token                                  | Value      | Description                  | tier        |
+|----------------------------------------|------------|------------------------------|-------------|
+| `--cem-voice-whisper-ssml-emphasis`    | `reduced`  | Whisper SSML emphasis        | recommended |
+| `--cem-voice-soft-ssml-emphasis`       | `reduced`  | Soft SSML emphasis           | recommended |
+| `--cem-voice-gentle-ssml-emphasis`     | `moderate` | Gentle SSML emphasis         | recommended |
+| `--cem-voice-regular-ssml-emphasis`    | `moderate` | Regular SSML emphasis        | recommended |
+| `--cem-voice-firm-ssml-emphasis`       | `moderate` | Firm SSML emphasis           | recommended |
+| `--cem-voice-strong-ssml-emphasis`     | `strong`   | Strong SSML emphasis         | recommended |
+| `--cem-voice-loud-ssml-emphasis`       | `strong`   | Loud SSML emphasis           | recommended |
+
+### 12.3 Theme ink-thickness projections (override-only)
+
+Dark mode lightens ink to compensate for perceived boldness on dark backgrounds. Contrast mode strengthens ink
+where AA contrast benefits.
+
+###### cem-typography-voice-ink-thickness-dark
+| Token                                  | Dark value | Description                          |
+|----------------------------------------|------------|--------------------------------------|
+| `--cem-voice-whisper-ink-thickness`    | `100`      | Whisper (unchanged)                  |
+| `--cem-voice-soft-ink-thickness`       | `180`      | Soft (slightly lighter than 200)     |
+| `--cem-voice-gentle-ink-thickness`     | `280`      | Gentle (slightly lighter than 300)   |
+| `--cem-voice-regular-ink-thickness`    | `350`      | Regular (lighter than 400)           |
+| `--cem-voice-firm-ink-thickness`       | `650`      | Firm (lighter than 700)              |
+| `--cem-voice-strong-ink-thickness`     | `750`      | Strong (lighter than 800)            |
+| `--cem-voice-loud-ink-thickness`       | `850`      | Loud (lighter than 900)              |
+
+###### cem-typography-voice-ink-thickness-contrast
+| Token                                  | Contrast value | Description                  |
+|----------------------------------------|----------------|------------------------------|
+| `--cem-voice-gentle-ink-thickness`     | `400`          | Gentle bumped to normal      |
+| `--cem-voice-regular-ink-thickness`    | `500`          | Regular bumped               |
+| `--cem-voice-firm-ink-thickness`       | `750`          | Firm bumped                  |
+| `--cem-voice-strong-ink-thickness`     | `850`          | Strong bumped                |
+
+### 12.4 Semantic role endpoints
+
+8 role × ~9-10 properties = 76 tokens. Each row is `(token, value)`; tier is `required` for the cross-product
+contract because every role declares every property listed below. Special role-specific properties
+(`font-variant-ligatures`, `font-variant-numeric`, `text-transform`) appear only on the role that uses them.
+
+###### cem-typography-roles
+| Token                                              | Value                                              | tier     |
+|----------------------------------------------------|----------------------------------------------------|----------|
+| `--cem-typography-reading-font-family`             | `var(--cem-fontography-reading-family)`            | required |
+| `--cem-typography-reading-font-size`               | `var(--cem-typography-size-m)`                     | required |
+| `--cem-typography-reading-line-height`             | `var(--cem-typography-line-height-reading)`        | required |
+| `--cem-typography-reading-letter-spacing`          | `var(--cem-typography-letter-spacing-reading)`     | required |
+| `--cem-typography-reading-font-weight`             | `var(--cem-voice-regular-ink-thickness)`           | required |
+| `--cem-typography-reading-speech-volume`           | `var(--cem-voice-regular-speech-volume)`           | required |
+| `--cem-typography-reading-speech-rate`             | `var(--cem-voice-regular-speech-rate)`             | required |
+| `--cem-typography-reading-speech-pitch`            | `var(--cem-voice-regular-speech-pitch)`            | required |
+| `--cem-typography-reading-ssml-emphasis`           | `var(--cem-voice-regular-ssml-emphasis)`           | required |
+| `--cem-typography-ui-font-family`                  | `var(--cem-fontography-ui-family)`                 | required |
+| `--cem-typography-ui-font-size`                    | `var(--cem-typography-size-m)`                     | required |
+| `--cem-typography-ui-line-height`                  | `var(--cem-typography-line-height-ui)`             | required |
+| `--cem-typography-ui-letter-spacing`               | `var(--cem-typography-letter-spacing-ui)`          | required |
+| `--cem-typography-ui-font-weight`                  | `var(--cem-voice-gentle-ink-thickness)`            | required |
+| `--cem-typography-ui-speech-volume`                | `var(--cem-voice-gentle-speech-volume)`            | required |
+| `--cem-typography-ui-speech-rate`                  | `var(--cem-voice-gentle-speech-rate)`              | required |
+| `--cem-typography-ui-speech-pitch`                 | `var(--cem-voice-gentle-speech-pitch)`             | required |
+| `--cem-typography-ui-ssml-emphasis`                | `var(--cem-voice-gentle-ssml-emphasis)`            | required |
+| `--cem-typography-tag-font-family`                 | `var(--cem-fontography-ui-family)`                 | required |
+| `--cem-typography-tag-font-size`                   | `var(--cem-typography-size-s)`                     | required |
+| `--cem-typography-tag-line-height`                 | `var(--cem-typography-line-height-ui)`             | required |
+| `--cem-typography-tag-letter-spacing`              | `var(--cem-typography-letter-spacing-ui)`          | required |
+| `--cem-typography-tag-font-weight`                 | `var(--cem-voice-firm-ink-thickness)`              | required |
+| `--cem-typography-tag-speech-volume`               | `var(--cem-voice-firm-speech-volume)`              | required |
+| `--cem-typography-tag-speech-rate`                 | `var(--cem-voice-firm-speech-rate)`                | required |
+| `--cem-typography-tag-speech-pitch`                | `var(--cem-voice-firm-speech-pitch)`               | required |
+| `--cem-typography-tag-ssml-emphasis`               | `var(--cem-voice-firm-ssml-emphasis)`              | required |
+| `--cem-typography-script-font-family`              | `var(--cem-fontography-script-family)`             | required |
+| `--cem-typography-script-font-size`                | `var(--cem-typography-size-s)`                     | required |
+| `--cem-typography-script-line-height`              | `var(--cem-typography-line-height-script)`         | required |
+| `--cem-typography-script-letter-spacing`           | `normal`                                           | required |
+| `--cem-typography-script-font-weight`              | `var(--cem-voice-regular-ink-thickness)`           | required |
+| `--cem-typography-script-font-variant-ligatures`   | `var(--cem-typography-feature-ligatures-script)`   | required |
+| `--cem-typography-script-speech-volume`            | `var(--cem-voice-regular-speech-volume)`           | required |
+| `--cem-typography-script-speech-rate`              | `var(--cem-voice-gentle-speech-rate)`              | required |
+| `--cem-typography-script-speech-pitch`             | `var(--cem-voice-gentle-speech-pitch)`             | required |
+| `--cem-typography-script-ssml-emphasis`            | `var(--cem-voice-gentle-ssml-emphasis)`            | required |
+| `--cem-typography-data-font-family`                | `var(--cem-fontography-ui-family)`                 | required |
+| `--cem-typography-data-font-size`                  | `var(--cem-typography-size-m)`                     | required |
+| `--cem-typography-data-line-height`                | `var(--cem-typography-line-height-ui)`             | required |
+| `--cem-typography-data-letter-spacing`             | `var(--cem-typography-letter-spacing-ui)`          | required |
+| `--cem-typography-data-font-weight`                | `var(--cem-voice-regular-ink-thickness)`           | required |
+| `--cem-typography-data-font-variant-numeric`       | `var(--cem-typography-feature-numeric-data)`       | required |
+| `--cem-typography-data-speech-volume`              | `var(--cem-voice-regular-speech-volume)`           | required |
+| `--cem-typography-data-speech-rate`                | `var(--cem-voice-firm-speech-rate)`                | required |
+| `--cem-typography-data-speech-pitch`               | `var(--cem-voice-regular-speech-pitch)`            | required |
+| `--cem-typography-data-ssml-emphasis`              | `var(--cem-voice-regular-ssml-emphasis)`           | required |
+| `--cem-typography-initialism-font-family`          | `var(--cem-fontography-initialism-family)`         | required |
+| `--cem-typography-initialism-font-size`            | `var(--cem-typography-size-s)`                     | required |
+| `--cem-typography-initialism-line-height`          | `var(--cem-typography-line-height-badge)`          | required |
+| `--cem-typography-initialism-letter-spacing`       | `var(--cem-typography-letter-spacing-caps)`        | required |
+| `--cem-typography-initialism-font-weight`          | `var(--cem-voice-firm-ink-thickness)`              | required |
+| `--cem-typography-initialism-text-transform`       | `uppercase`                                        | required |
+| `--cem-typography-initialism-speech-volume`        | `var(--cem-voice-firm-speech-volume)`              | required |
+| `--cem-typography-initialism-speech-rate`          | `var(--cem-voice-firm-speech-rate)`                | required |
+| `--cem-typography-initialism-speech-pitch`         | `var(--cem-voice-firm-speech-pitch)`               | required |
+| `--cem-typography-initialism-ssml-emphasis`        | `var(--cem-voice-firm-ssml-emphasis)`              | required |
+| `--cem-typography-iconized-font-family`            | `var(--cem-fontography-initialism-family)`         | required |
+| `--cem-typography-iconized-font-size`              | `calc(var(--cem-typography-size-m) * 2)`           | required |
+| `--cem-typography-iconized-line-height`            | `var(--cem-typography-line-height-badge)`          | required |
+| `--cem-typography-iconized-letter-spacing`         | `var(--cem-typography-letter-spacing-caps)`        | required |
+| `--cem-typography-iconized-font-weight`            | `var(--cem-voice-strong-ink-thickness)`            | required |
+| `--cem-typography-iconized-text-transform`         | `uppercase`                                        | required |
+| `--cem-typography-iconized-speech-volume`          | `var(--cem-voice-strong-speech-volume)`            | required |
+| `--cem-typography-iconized-speech-rate`            | `var(--cem-voice-strong-speech-rate)`              | required |
+| `--cem-typography-iconized-speech-pitch`           | `var(--cem-voice-strong-speech-pitch)`             | required |
+| `--cem-typography-iconized-ssml-emphasis`          | `var(--cem-voice-strong-ssml-emphasis)`            | required |
+| `--cem-typography-brand-font-family`               | `var(--cem-fontography-brand-family)`              | required |
+| `--cem-typography-brand-font-size`                 | `var(--cem-typography-size-xxl)`                   | required |
+| `--cem-typography-brand-line-height`               | `1.1`                                              | required |
+| `--cem-typography-brand-letter-spacing`            | `normal`                                           | required |
+| `--cem-typography-brand-font-weight`               | `var(--cem-voice-strong-ink-thickness)`            | required |
+| `--cem-typography-brand-speech-volume`             | `var(--cem-voice-strong-speech-volume)`            | required |
+| `--cem-typography-brand-speech-rate`               | `var(--cem-voice-strong-speech-rate)`              | required |
+| `--cem-typography-brand-speech-pitch`              | `var(--cem-voice-strong-speech-pitch)`             | required |
+| `--cem-typography-brand-ssml-emphasis`             | `var(--cem-voice-strong-ssml-emphasis)`            | required |
+
+---
+
+## 13. Token manifest index
+
+| Source table | Section | Description |
+|---|---|---|
+| `cem-typography-fontography` | §12.1 | 5 family stacks (reading/ui/script/initialism/brand) |
+| `cem-typography-thickness` | §12.1 | 7-step weight scale (`--cem-thickness-*`) |
+| `cem-typography-size` | §12.1 | 7-step rem-based size scale |
+| `cem-typography-line-height` | §12.1 | 4 line-height primitives (reading/ui/script/badge) |
+| `cem-typography-letter-spacing` | §12.1 | 3 tracking primitives (reading/ui/caps) |
+| `cem-typography-feature` | §12.1 | 3 feature policies (numeric-data, ligatures-script, optical-sizing) |
+| `cem-typography-reading-ergonomics` | §12.1 | 2 reading ergonomics (measure-max, paragraph-gap) |
+| `cem-typography-voice-ink-thickness` | §12.2 | 7 voice → ink-thickness (required) |
+| `cem-typography-voice-icon-stroke-multiplier` | §12.2 | 7 voice → icon-stroke multipliers |
+| `cem-typography-voice-speech-volume` | §12.2 | 7 voice → TTS volume |
+| `cem-typography-voice-speech-rate` | §12.2 | 7 voice → TTS rate |
+| `cem-typography-voice-speech-pitch` | §12.2 | 7 voice → TTS pitch |
+| `cem-typography-voice-ssml-emphasis` | §12.2 | 7 voice → SSML emphasis |
+| `cem-typography-voice-ink-thickness-dark` | §12.3 | Dark theme overrides for voice ink-thickness (override-only) |
+| `cem-typography-voice-ink-thickness-contrast` | §12.3 | Contrast theme overrides for voice ink-thickness (override-only) |
+| `cem-typography-roles` | §12.4 | 76 semantic role endpoint tokens |
+
+Generator derivation rules:
+- All foundation tables, the 6 voice-channel tables, and the roles table contribute tokens (tier in last column).
+- The two ink-thickness override tables are **generator-only** (override values inside theme attribute selectors);
+  no new tokens.
+- Voice tokens are **CSS-exported data**, not assistive-tech behavior. Screen readers honor HTML/ARIA, not CSS.
+  These tokens feed product TTS adapters.
+- Quoted family stacks and comma-separated values MUST round-trip from the source table into the generated CSS
+  unchanged.
 
 ---
 

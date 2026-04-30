@@ -1,141 +1,112 @@
-# HTML Compilation Design
+# HTML Dist Compilation
 
 ## Overview
 
-This document describes the design for compiling HTML sources (`src/**/*.html`) into `dist/` and rewriting
-`node_modules` dependencies so each HTML file references local copies in `dist/`. Only the files actually referenced by
-HTML are copied, not entire packages.
+The theme build compiles every `src/**/*.html` file into a matching `dist/**/*.html` file. The emitted HTML is rewritten
+so it can run from the package `dist` folder without loading scripts from `node_modules`.
+
+The source HTML remains development-oriented. Only the copied `dist` HTML receives rewritten URLs.
 
 ## Goals
 
-1. **Compile HTML** - Treat `src/**/*.html` as build inputs and emit to matching paths in `dist/`
-2. **Rewrite Dependencies** - Replace `node_modules` URLs with `dist/` local equivalents
-3. **Copy Used Files Only** - Copy only the referenced assets, not full package directories
-4. **Deterministic Output** - Stable output paths for caching and reproducible builds
-5. **Watch Mode Friendly** - Rebuild and recopy only affected HTML and assets
+1. **Mirror source HTML** - Copy `src/**/*.html` to the same relative path under `dist/`.
+2. **Use dist-relative links** - Rewrite references to built token docs, generated CSS, local helper scripts, and package
+   runtime files so each emitted HTML file points at files in `dist`.
+3. **Avoid node_modules at runtime** - Copy only referenced third-party runtime files into `dist/vendor/`.
+4. **Keep generator execution stable** - Run CSS extraction from `dist/lib/css-generators/*.html`, not from source HTML.
 
-## Source and Output Structure
+## Output Structure
 
 ```
 packages/cem-theme/
-├── src/
-│   ├── pages/
-│   │   ├── index.html          → dist/pages/index.html
-│   │   └── docs.html           → dist/pages/docs.html
-│   └── assets/
-│       └── logo.svg            → dist/assets/logo.svg
-├── dist/
-│   ├── pages/
-│   │   ├── index.html
-│   │   └── docs.html
-│   └── vendor/
-│       ├── lit/
-│       │   └── core.min.js     (copied on demand)
-│       └── dayjs/
-│           └── dayjs.min.js    (copied on demand)
-└── docs/
-    └── html-compile.md         (this file)
+├── src/lib/
+│   ├── css-generators/
+│   │   ├── cem-colors.html
+│   │   ├── cem-http-request.js
+│   │   └── cem-css-loader.js
+│   └── theme-editor/
+│       └── theme-editor.html
+└── dist/
+    ├── lib/
+    │   ├── css-generators/
+    │   │   ├── cem-colors.html
+    │   │   ├── cem-http-request.js
+    │   │   └── cem-css-loader.js
+    │   ├── theme-editor/
+    │   │   └── theme-editor.html
+    │   ├── tokens/
+    │   │   └── cem-colors.xhtml
+    │   └── css/
+    │       └── cem-colors.css
+    └── vendor/
+        └── @epa-wg/custom-element/
+            ├── custom-element.js
+            └── http-request.js
 ```
-
-## Dependency Model
-
-### What counts as a dependency
-
-Dependencies are detected from HTML attributes that load external files:
-
-- `script[src]`
-- `link[href]` for stylesheets
-- `img[src]`, `source[src]`, `source[srcset]`
-- `video[src]`, `audio[src]`
-- `use[href]`, `use[xlink:href]` (inline SVG references)
-
-Only URLs that start with `node_modules/` (or `/node_modules/`) are rewritten and copied. Other relative or absolute
-references are left intact.
-
-### Output location for dependencies
-
-Copy dependencies into `dist/vendor/<package>/...` while preserving the package-internal path. Example:
-
-- `node_modules/lit/core.min.js` → `dist/vendor/lit/core.min.js`
-- `node_modules/dayjs/plugin/utc.js` → `dist/vendor/dayjs/plugin/utc.js`
-
-The HTML references are rewritten to `./../vendor/...` or `/vendor/...` depending on the project’s URL strategy.
-To keep output deterministic, use a consistent rule (recommended: absolute `/vendor/...`).
-
-## Build Flow
-
-1. **Discover HTML sources**
-   - Use a glob for `src/**/*.html`
-2. **Parse and rewrite HTML**
-   - Parse HTML and collect dependency URLs
-   - For each dependency URL under `node_modules`:
-     - Resolve to an on-disk path
-     - Compute destination path under `dist/vendor/<package>`
-     - Rewrite the URL in HTML
-3. **Copy assets**
-   - Copy each resolved dependency file to its `dist/vendor` location
-   - Copy only files actually referenced (no package directory copies)
-4. **Emit HTML**
-   - Write rewritten HTML to `dist/` in the same relative path as `src/`
 
 ## Rewriting Rules
 
-- Preserve the HTML directory structure from `src/` to `dist/`
-- Replace `node_modules/<pkg>/<path>` with `/vendor/<pkg>/<path>`
-- Replace `/node_modules/<pkg>/<path>` with `/vendor/<pkg>/<path>`
-- Do not rewrite URLs that are:
-  - Remote (`http://`, `https://`)
-  - Data URLs (`data:`)
-  - Local relative paths (e.g., `./styles.css`, `../assets/logo.svg`)
+- Source files keep their original URLs.
+- Emitted HTML uses relative URLs from the emitted file location.
+- URLs that resolve into `packages/cem-theme/dist/` are rewritten to the matching relative dist path.
+- URLs that resolve into repo `node_modules/` are copied to `packages/cem-theme/dist/vendor/` and rewritten to the
+  copied file.
+- URLs that resolve to local source JavaScript are copied to the matching path under `dist/` and rewritten if needed.
+- Relative links between source HTML files are rewritten to their mirrored `dist` locations, which usually preserves the
+  same visible URL.
+- Remote URLs, data URLs, hash-only links, and other protocol URLs are left unchanged.
+- Query strings and hash fragments are preserved after rewriting.
 
-## Example
+## Examples
 
-**Input HTML** (`src/pages/index.html`)
-
-```html
-<link rel="stylesheet" href="node_modules/prismjs/themes/prism.css" />
-<script type="module" src="/node_modules/lit/core.min.js"></script>
-<img src="./assets/logo.svg" />
-```
-
-**Output HTML** (`dist/pages/index.html`)
+From `src/lib/css-generators/cem-colors.html` to `dist/lib/css-generators/cem-colors.html`:
 
 ```html
-<link rel="stylesheet" href="/vendor/prismjs/themes/prism.css" />
-<script type="module" src="/vendor/lit/core.min.js"></script>
-<img src="./assets/logo.svg" />
+<http-request url="../../../dist/lib/tokens/cem-colors.xhtml"></http-request>
 ```
 
-**Copied files**
+becomes:
 
-- `node_modules/prismjs/themes/prism.css` → `dist/vendor/prismjs/themes/prism.css`
-- `node_modules/lit/core.min.js` → `dist/vendor/lit/core.min.js`
+```html
+<http-request url="../tokens/cem-colors.xhtml"></http-request>
+```
 
-## Caching and Incremental Builds
+Runtime scripts:
 
-- Track HTML file → dependency list to avoid recopying unchanged assets
-- On change to an HTML file, update only the assets it references
-- On change to a dependency file, recopy and update dependent HTML if needed
+```html
+<script src="../../../../../node_modules/@epa-wg/custom-element/custom-element.js" type="module"></script>
+```
 
-## Edge Cases
+becomes:
 
-- **Scoped packages**: `node_modules/@scope/pkg/file.js` → `dist/vendor/@scope/pkg/file.js`
-- **Query strings**: `node_modules/pkg/file.js?module` → resolve to file path without the query for copying, but preserve
-  the query when rewriting
-- **Srcset**: split by commas, rewrite each URL portion independently
+```html
+<script src="../../vendor/@epa-wg/custom-element/custom-element.js" type="module"></script>
+```
+
+From `src/lib/theme-editor/theme-editor.html` to `dist/lib/theme-editor/theme-editor.html`:
+
+```css
+@import "../../../dist/lib/css/cem-colors.css";
+```
+
+becomes:
+
+```css
+@import "../css/cem-colors.css";
+```
+
+## Build Flow
+
+1. `build:docs` compiles Markdown token specs into `dist/lib/tokens/*.xhtml`.
+2. `build:html` runs `tools/scripts/compile-html.mjs`, copies HTML into `dist`, rewrites URLs, and copies referenced
+   runtime files into `dist/vendor`.
+3. `build:css` executes `dist/lib/css-generators/*.html` and captures `code[data-generated-css]` into
+   `dist/lib/css/*.css`.
+4. Manifest validation checks generated CSS against the built token XHTML files.
 
 ## Validation
 
-- Ensure all rewritten URLs point to files that exist in `dist/vendor`
-- Ensure no `node_modules` references remain in emitted HTML
-
-## Implementation Checklist
-
-- Identify HTML sources with a `src/**/*.html` glob
-- Parse HTML and extract dependency URLs from relevant attributes
-- Normalize URLs, strip query/hash for filesystem resolution, keep them for output
-- Map `node_modules` paths to `dist/vendor` destinations (handle scoped packages)
-- Rewrite HTML URLs to `/vendor/...` paths
-- Copy each referenced file into `dist/vendor`, skipping duplicates
-- Emit rewritten HTML into `dist/` with original relative structure
-- Add incremental caching keyed by HTML file and dependency file mtime
+- Run `yarn build:theme`.
+- Confirm no emitted HTML references `node_modules`.
+- Open or debug `packages/cem-theme/dist/lib/css-generators/cem-colors.html` over HTTP; direct `file://` loading is not
+  supported because the generators use `fetch()`.

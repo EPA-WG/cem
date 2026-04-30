@@ -18,7 +18,8 @@ This document records a comprehensive coverage review of the complete CEM spec s
 | D1 | [`cem-dimension.md`](./cem-dimension.md) | Space & Rhythm — spacing scale, gaps, insets, gutters, layout rhythm |
 | D1x | [`cem-breakpoints.md`](./cem-breakpoints.md) | Breakpoints — window size classes (compact/medium/expanded/large/xlarge) |
 | D1y | [`cem-responsive.md`](./cem-responsive.md) | Responsiveness — strategy vocabulary (intrinsic/container/breakpoint/hybrid) |
-| D2 | [`cem-coupling.md`](./cem-coupling.md) | Coupling & Compactness — zone/guard/halo, control geometry, density modes |
+| D2 | [`cem-coupling.md`](./cem-coupling.md) | Coupling & Compactness — zone/guard/halo safety contract; density modes |
+| D2c | [`cem-controls.md`](./cem-controls.md) | Controls — visual control geometry (height/padding, icon button, row heights) and per-mode visual overrides |
 | D3 | [`cem-shape.md`](./cem-shape.md) | Shape & Bend — corner radius, bend tokens, semantic endpoints |
 | D4 | [`cem-layering.md`](./cem-layering.md) | Layering — signed 7-tier depth ladder, semantic planes, representation channels |
 | D5 | [`cem-stroke.md`](./cem-stroke.md) | Stroke & Separation — boundaries, dividers, focus/selection/target indicators |
@@ -230,7 +231,8 @@ const theme = createTheme({
 | Motion (easing + duration) | D7 Timing | ✓ Full |
 | Spacing / Rhythm | D1 Space | ✓ Full |
 | Breakpoints / Responsive | D1x Breakpoints | ✓ Full |
-| Density / Compactness | D2 Coupling | ✓ Full |
+| Density / Compactness safety | D2 Coupling | ✓ Full |
+| Controls geometry | D2c Controls | ✓ Full |
 | Focus/Selection indicators | D5 Stroke | ✓ Full |
 
 ### 5.2 CEM extensions (beyond M3/MUI)
@@ -291,6 +293,20 @@ Provide aliases that map M3/Angular Material/MUI token surfaces to CEM endpoints
 
 This approach preserves CEM's semantic guarantees while enabling selective adoption of M3/MUI values and ecosystem integration.
 
+### 6.3 Generated adapter output status
+
+The current export pipeline publishes canonical CEM tokens and resolved-per-mode platform JSON. It does not yet emit a
+dedicated M3, Angular Material, or MUI alias adapter file.
+
+Until a dedicated adapter output exists:
+
+- Treat the CSS snippets in this document as implementation guidance, not generated artifacts.
+- Use `dist/lib/tokens/cem.tokens.json` or `dist/lib/tokens/cem.tokens.ts` for type-safe CEM metadata.
+- Use `dist/lib/token-platforms/json/cem-tokens-*.json` only for resolved CEM values by mode.
+
+When an M3 alias adapter is added, it should be emitted as a separate adapter-tier artifact and cross-linked here with
+its generation command, output path, and report.
+
 ---
 
 ## 7. Quick adoption checklist
@@ -317,6 +333,7 @@ This approach preserves CEM's semantic guarantees while enabling selective adopt
 - [D1x. Breakpoints](./cem-breakpoints.md)
 - [D1y. Responsiveness Strategy](./cem-responsive.md)
 - [D2. Coupling & Compactness](./cem-coupling.md)
+- [D2c. Controls](./cem-controls.md)
 - [D3. Shape & Bend](./cem-shape.md)
 - [D4. Layering](./cem-layering.md)
 - [D5. Stroke & Separation](./cem-stroke.md)

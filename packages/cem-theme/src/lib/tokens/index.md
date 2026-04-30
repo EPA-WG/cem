@@ -11,6 +11,7 @@ user experience over implementation details.
 | **D0**     | [cem-colors.md](./cem-colors.md)                                     | Color — Emotional palette, action states, theme modes         |
 | **D1**     | [cem-dimension.md](./cem-dimension.md)                               | Space & Rhythm — Spacing scale, layout gaps, density          |
 | **D2**     | [cem-coupling.md](./cem-coupling.md)                                 | Coupling & Compactness — Interactive operability, hit targets |
+| **D2c**    | [cem-controls.md](./cem-controls.md)                                 | Controls — Visual control geometry, per-mode visual overrides |
 | **D3**     | [cem-shape.md](./cem-shape.md)                                       | Shape & Bend — Corner roundedness, edge softness              |
 | **D4**     | [cem-layering.md](./cem-layering.md)                                 | Layering — Depth, elevation, planes (recess/lift)             |
 | **D5**     | [cem-stroke.md](./cem-stroke.md)                                     | Stroke & Separation — Boundaries, dividers, focus indicators  |
@@ -53,7 +54,7 @@ All dimensions have **constrained ranges** that prevent design drift while allow
 CEM tokens are designed to meet WCAG requirements automatically:
 
 - Color contrast ratios enforced via palette construction
-- Touch targets derived from `--cem-coupling-control-height`
+- Touch targets derived from `--cem-coupling-zone-min` (D2 safety) and `--cem-control-height` (D2c Controls)
 - Focus indicators via zebra outline system (D5)
 - Reduced motion support via `--cem-timing-*` tokens
 
@@ -205,6 +206,50 @@ Please update the shape mode configuration and verify semantic endpoint mappings
 
 ---
 
+## Token Manifest Schema
+
+Every token specification encodes tier in a `tier` column on each **source table** — the same tables the generator
+already reads. The manifest validator reads those source tables directly; no separate manifest table is maintained.
+
+### Tier semantics
+
+| Tier          | Generator behavior                                                 |
+|---------------|--------------------------------------------------------------------|
+| `required`    | Always emitted; missing one is a build failure                     |
+| `recommended` | Emitted by default; adapters may opt out                           |
+| `optional`    | Emitted only when metadata supplies a real (non-placeholder) value |
+| `adapter`     | Emitted only behind an explicit opt-in flag                        |
+| `deprecated`  | Emitted only when a `--legacy` flag is set; flagged in manifest    |
+
+### Tier column convention
+
+Add `tier` as the last column of the existing source table. This preserves existing column indices so generators need
+no changes.
+
+```markdown
+###### {spec-id}-{category}
+| Token | ... existing columns ... | tier |
+|---|---|---|
+| `--cem-example-token` | ... | required |
+```
+
+For token groups derived from a **cross-product** (e.g. action tokens = intent × state × attribute), add `tier` to
+the **state** table (the axis that determines tier) rather than enumerating every combination.
+
+### Manifest index convention
+
+Each spec's final canonical section includes a `### {n}. Token manifest index` that lists the source tables and how
+the validator derives token names from them:
+
+```markdown
+| Source table h6 id | Tokens covered | Validator derivation |
+|---|---|---|
+| `{spec-id}-{category}` | `--cem-example-*` (N tokens) | one token per row |
+| `{spec-id}-{states}` × `{spec-id}-{intents}` | `--cem-example-action-*` (M tokens) | intent × state × {bg, text} |
+```
+
+See `cem-colors.md §14.3` for the worked example (D0, 148 tokens across 4 source tables).
+
 ## CSS Generation Pipeline
 
 Token specifications (`.md` files) are transpiled to XHTML and processed by HTML generators to produce CSS:
@@ -213,7 +258,38 @@ Token specifications (`.md` files) are transpiled to XHTML and processed by HTML
 *.md (source)  →  *.xhtml (transpiled)  →  *.html (generator)  →  *.css (output)
 ```
 
-See [docs-generation.md](../../docs/docs-generation.md) for the full build pipeline documentation.
+See [docs-generation.md](../../../docs/docs-generation.md) for the full build pipeline documentation.
+
+## Generated Token Coverage
+
+The default CSS coverage matrix is generated during `build:css` from built token XHTML manifests and generated CSS.
+See [generated-token-coverage.xhtml](./generated-token-coverage.xhtml) for the current report.
+
+## Platform Consumption
+
+Markdown token specs remain the source of truth. Generated artifacts under `dist/lib/tokens/` and
+`dist/lib/token-platforms/` are consumer outputs:
+
+| Artifact | Purpose | Contract |
+|---|---|---|
+| `cem.tokens.json` | Canonical DTCG-compatible visual tokens with CEM metadata and per-mode values | Public beta |
+| `cem.voice.tokens.json` | Voice/audio token metadata for TTS or speech adapters | Public beta |
+| `cem.tokens.ts` | TypeScript token names and metadata for docs, tests, examples, and autocomplete | Public beta |
+| `cem.tokens.report.{md,json}` | Human and CI-readable portability reports | Public beta |
+| `figma/cem-*.tokens.json` | One Figma/Tokens Studio file per mode | Experimental |
+| `../token-platforms/json/cem-tokens-*.json` | Resolved-per-mode flat JSON for platform adapter experiments | Experimental |
+
+Do not import `cem.tokens.intermediate.json` or `cem.tokens.resolved.json` in production code. They are debug-only
+artifacts for extractor and browser-resolution review.
+
+Package consumers should prefer explicit package subpaths over deep `dist/` imports:
+
+```ts
+import { cemTokenMetaByName, type CemTokenName } from "@epa-wg/cem-theme/tokens/cem.tokens.ts";
+```
+
+Figma usage is read-only. Tokens Studio pulls the generated `figma/cem-*.tokens.json` files into one CEM collection;
+Figma changes must be converted back into markdown spec edits before entering the build.
 
 ---
 

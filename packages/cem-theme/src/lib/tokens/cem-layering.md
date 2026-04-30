@@ -252,13 +252,49 @@ Adapters describe how the rung is rendered:
 
 Adapters can vary per theme/density without changing semantics.
 
+### 6.4 Generator output shape (R-D4-1 resolved)
+
+D4 emits the **semantic-aliases shape**, not per-channel adapter hooks:
+
+- **Basis rungs** emit a single canonical channel — a `box-shadow` recipe (positive recipes for lift, `inset`
+  recipes for recess, `none` for the canvas baseline). This is the most universally meaningful single channel
+  that is **not** `z-index` (using rungs as z-index is explicitly forbidden — see §2.2).
+- **Semantic endpoints** alias to rungs via `var()` (`--cem-layer-work: var(--cem-elevation-1)`, etc.).
+- **Per-channel adapter hooks** (`--cem-layer-{rung}-tone`, `-contour`, `-material`, `-space`, `-motion`) are
+  theme-stylesheet concerns: tone is owned by D0's `.cem-theme-{light,dark,contrast-light,contrast-dark,native}`
+  blocks; contour is owned by D5; spacing by D1; motion by D7. D4 does not redeclare them.
+
+This keeps D4 focused on rung shape; theme adapters compose the remaining channels.
+
+### 6.5 Per-rung perceivable channels (R-D4-2 resolved)
+
+§7.2 requires each rung to differ from its neighbors in at least one perceivable channel (≥2 in dense UIs). D4
+emits **shadow** as the canonical channel; **tone** is the second channel and is supplied per-theme by
+`cem-colors.html` (light/dark/contrast/native blocks). Together those two channels satisfy the rule in normal
+themes. In `forced-colors: active` themes, shadows are stripped — D4's forced-colors override collapses all rungs
+to `none`, and the tier signal is then carried by D5 contour (`--cem-stroke-boundary-strong`) and by spatial
+isolation. Browser-level verification of "≥1 perceivable channel change per rung" is performed in Phase 13.
+
 ---
 
 ## 7. Basis tokens: the canonical signed ladder
 
 ### 7.1 Required rung tokens
 
-The 7-tier ladder rungs are required and must remain stable.
+The 7-tier ladder rungs are required and must remain stable. Each rung emits as a `box-shadow` recipe (the
+canonical single channel — see §6.4). Recess rungs use `inset` recipes; lift rungs use outset recipes; the canvas
+base is `none`. Values are perceptually graded so each step differs visibly from its neighbors.
+
+###### cem-layering-rungs
+| Token               | Value                                                                                | Description                              | tier     |
+|---------------------|--------------------------------------------------------------------------------------|------------------------------------------|----------|
+| `--cem-recess-2`    | `inset 0 2px 4px rgba(0, 0, 0, 0.08), inset 0 1px 2px rgba(0, 0, 0, 0.04)`           | Deep recessed (−2)                       | required |
+| `--cem-recess-1`    | `inset 0 1px 2px rgba(0, 0, 0, 0.04)`                                                | Recessed (−1)                            | required |
+| `--cem-elevation-0` | `none`                                                                               | Base / canvas (0)                        | required |
+| `--cem-elevation-1` | `0 1px 2px rgba(0, 0, 0, 0.06), 0 1px 1px rgba(0, 0, 0, 0.04)`                       | Raised (+1) — work regions               | required |
+| `--cem-elevation-2` | `0 2px 4px rgba(0, 0, 0, 0.08), 0 1px 2px rgba(0, 0, 0, 0.06)`                       | Floating (+2) — lift within work         | required |
+| `--cem-elevation-3` | `0 4px 8px rgba(0, 0, 0, 0.10), 0 2px 4px rgba(0, 0, 0, 0.08)`                       | Overlay (+3) — menus, tooltips, popovers | required |
+| `--cem-elevation-4` | `0 8px 16px rgba(0, 0, 0, 0.12), 0 4px 8px rgba(0, 0, 0, 0.10)`                      | Command (+4) — dialogs, modal decisions  | required |
 
 ### 7.2 Appearance-change principle
 
@@ -293,6 +329,15 @@ Semantic endpoints allow components to express layering without knowing numeric 
 
 > Note: `--cem-elevation-2` (Floating) is most often an **internal component choice** within the Work layer (e.g., a temporary lifted region), not a global plane.
 
+###### cem-layering-semantic
+| Token                 | Value                          | Description                                | tier     |
+|-----------------------|--------------------------------|--------------------------------------------|----------|
+| `--cem-layer-back`    | `var(--cem-recess-1)`          | Back: context behind work                  | required |
+| `--cem-layer-base`    | `var(--cem-elevation-0)`       | Canvas / base                              | required |
+| `--cem-layer-work`    | `var(--cem-elevation-1)`       | Primary work regions                       | required |
+| `--cem-layer-overlay` | `var(--cem-elevation-3)`       | Contextual transient UI (menus, tooltips)  | required |
+| `--cem-layer-command` | `var(--cem-elevation-4)`       | Modal / must-respond surfaces (dialogs)    | required |
+
 ### 8.2 Optional endpoints
 
 Optional endpoints are allowed only if they remain stable and scoped, 
@@ -302,6 +347,12 @@ Examples:
 
 - `--cem-layer-back-deep` → `--cem-layer-back` + `--cem-recess-2`
 - `--cem-layer-work-floating` → `--cem-layer-work` + `--cem-elevation-2`
+
+###### cem-layering-semantic-optional
+| Token                        | Value                     | Description                              | tier     |
+|------------------------------|---------------------------|------------------------------------------|----------|
+| `--cem-layer-back-deep`      | `var(--cem-recess-2)`     | Back layer at deepest recess             | optional |
+| `--cem-layer-work-floating`  | `var(--cem-elevation-2)`  | Lifted affordance within work plane      | optional |
 
 ---
 
@@ -433,6 +484,24 @@ In forced-colors:
 - Tier meaning **SHOULD** be expressed primarily via contour and spacing.
 - Do not rely on subtle tonal deltas.
 
+In `forced-colors: active` themes, shadows are stripped by the user agent. D4's generator collapses every rung's
+shadow recipe to `none`, and components rely on D5 contour (`--cem-stroke-boundary-strong`) plus spatial
+isolation to carry the tier signal.
+
+###### cem-layering-rungs-forced
+| Token               | Forced-colors value |
+|---------------------|---------------------|
+| `--cem-recess-2`    | `none`              |
+| `--cem-recess-1`    | `none`              |
+| `--cem-elevation-0` | `none`              |
+| `--cem-elevation-1` | `none`              |
+| `--cem-elevation-2` | `none`              |
+| `--cem-elevation-3` | `none`              |
+| `--cem-elevation-4` | `none`              |
+
+`cem-layering-rungs-forced` is generator-only — no new tokens. The same rung names are redeclared inside
+`@media (forced-colors: active) :root { … }`.
+
 ---
 
 ## 14. Component mapping matrix
@@ -543,7 +612,27 @@ This spec is the canonical D4 contract for layering (signed depth).
 
 ---
 
-## 19. References
+## 19. Token manifest index
+
+| Source table | Section | Description |
+|---|---|---|
+| `cem-layering-rungs` | §7.1 | 7 basis rungs as `box-shadow` recipes (`--cem-recess-{2,1}`, `--cem-elevation-{0..4}`) |
+| `cem-layering-semantic` | §8.1 | 5 required semantic endpoints (`--cem-layer-{back,base,work,overlay,command}`) |
+| `cem-layering-semantic-optional` | §8.2 | 2 optional endpoints (`--cem-layer-{back-deep,work-floating}`) |
+| `cem-layering-rungs-forced` | §13.2 | Forced-colors rung override values (generator-only; no new tokens) |
+
+Generator derivation rules:
+- `cem-layering-rungs`, `cem-layering-semantic`, `cem-layering-semantic-optional` → token list (tier in last
+  column).
+- `cem-layering-rungs-forced` → override values emitted inside `@media (forced-colors: active) :root { … }`;
+  no new tokens.
+- D4 emits **shadow recipes** as the rung value (R-D4-1 resolved). Tone, contour, material, spacing, and
+  motion adapter hooks are owned by their respective dimensions (D0, D5, etc.) and are not redeclared here.
+- `--cem-elevation-*` and `--cem-recess-*` MUST NOT be used as `z-index` values (§2.2).
+
+---
+
+## 20. References
 
 ### Internal
 

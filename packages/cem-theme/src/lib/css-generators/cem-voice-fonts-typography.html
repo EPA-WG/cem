@@ -1,0 +1,415 @@
+<!DOCTYPE html>
+<html lang="en" xmlns:xhtml="http://www.w3.org/1999/xhtml">
+<head>
+    <meta charset="UTF-8">
+    <title>CEM voice / fonts / typography CSS generator</title>
+    <script src="./cem-http-request.js" type="module"></script>
+</head>
+<body>
+<custom-element>
+    <template id="cem-voice-fonts-typography-template">
+        <style>
+            td { padding: 0.5rem; letter-spacing: 0.05em; }
+            caption { font-size: 1.5rem; padding-bottom: 0.5rem; text-align: start; }
+            tr>th:first-child { text-align: start; }
+            code { color: green; font-weight: bold; }
+            .sample-cell { min-width: 14rem; width: 18rem; }
+            .type-sample {
+                display: inline-block;
+                font-family: var(--cem-fontography-ui-family, system-ui, sans-serif);
+                letter-spacing: normal;
+                white-space: normal;
+            }
+            .type-sample-block {
+                display: block;
+                max-width: 18rem;
+                white-space: normal;
+            }
+            .sample-meter {
+                display: inline-block;
+                width: 6rem;
+                border-bottom: calc(2px * var(--sample-multiplier, 1)) solid currentColor;
+                vertical-align: middle;
+            }
+        </style>
+
+        <http-request method="GET" slice="cem-voice-fonts-typography" url="../../../dist/lib/tokens/cem-voice-fonts-typography.xhtml"></http-request>
+        <variable name="typoData" select="//cem-voice-fonts-typography"></variable>
+
+        <variable name="cem-typography-fontography"
+                  select="$typoData//*[@id='cem-typography-fontography']/following-sibling::xhtml:table[1]/xhtml:tbody"></variable>
+        <variable name="cem-typography-thickness"
+                  select="$typoData//*[@id='cem-typography-thickness']/following-sibling::xhtml:table[1]/xhtml:tbody"></variable>
+        <variable name="cem-typography-size"
+                  select="$typoData//*[@id='cem-typography-size']/following-sibling::xhtml:table[1]/xhtml:tbody"></variable>
+        <variable name="cem-typography-line-height"
+                  select="$typoData//*[@id='cem-typography-line-height']/following-sibling::xhtml:table[1]/xhtml:tbody"></variable>
+        <variable name="cem-typography-letter-spacing"
+                  select="$typoData//*[@id='cem-typography-letter-spacing']/following-sibling::xhtml:table[1]/xhtml:tbody"></variable>
+        <variable name="cem-typography-feature"
+                  select="$typoData//*[@id='cem-typography-feature']/following-sibling::xhtml:table[1]/xhtml:tbody"></variable>
+        <variable name="cem-typography-reading-ergonomics"
+                  select="$typoData//*[@id='cem-typography-reading-ergonomics']/following-sibling::xhtml:table[1]/xhtml:tbody"></variable>
+        <variable name="cem-typography-voice-ink-thickness"
+                  select="$typoData//*[@id='cem-typography-voice-ink-thickness']/following-sibling::xhtml:table[1]/xhtml:tbody"></variable>
+        <variable name="cem-typography-voice-icon-stroke-multiplier"
+                  select="$typoData//*[@id='cem-typography-voice-icon-stroke-multiplier']/following-sibling::xhtml:table[1]/xhtml:tbody"></variable>
+        <variable name="cem-typography-voice-speech-volume"
+                  select="$typoData//*[@id='cem-typography-voice-speech-volume']/following-sibling::xhtml:table[1]/xhtml:tbody"></variable>
+        <variable name="cem-typography-voice-speech-rate"
+                  select="$typoData//*[@id='cem-typography-voice-speech-rate']/following-sibling::xhtml:table[1]/xhtml:tbody"></variable>
+        <variable name="cem-typography-voice-speech-pitch"
+                  select="$typoData//*[@id='cem-typography-voice-speech-pitch']/following-sibling::xhtml:table[1]/xhtml:tbody"></variable>
+        <variable name="cem-typography-voice-ssml-emphasis"
+                  select="$typoData//*[@id='cem-typography-voice-ssml-emphasis']/following-sibling::xhtml:table[1]/xhtml:tbody"></variable>
+        <variable name="cem-typography-voice-ink-thickness-dark"
+                  select="$typoData//*[@id='cem-typography-voice-ink-thickness-dark']/following-sibling::xhtml:table[1]/xhtml:tbody"></variable>
+        <variable name="cem-typography-voice-ink-thickness-contrast"
+                  select="$typoData//*[@id='cem-typography-voice-ink-thickness-contrast']/following-sibling::xhtml:table[1]/xhtml:tbody"></variable>
+        <variable name="cem-typography-roles"
+                  select="$typoData//*[@id='cem-typography-roles']/following-sibling::xhtml:table[1]/xhtml:tbody"></variable>
+
+        <variable name="css-body">
+:root {
+    /* region 1) fontography — semantic family stacks */
+    <for-each select="$cem-typography-fontography/xhtml:tr">
+        {normalize-space(xhtml:td[1])}: {normalize-space(xhtml:td[2])};
+    </for-each>
+    /* endregion fontography */
+
+    /* region 2) thickness — 7-step weight scale */
+    <for-each select="$cem-typography-thickness/xhtml:tr">
+        {normalize-space(xhtml:td[1])}: {normalize-space(xhtml:td[2])};
+    </for-each>
+    /* endregion thickness */
+
+    /* region 3) size — 7-step rem-based size scale */
+    <for-each select="$cem-typography-size/xhtml:tr">
+        {normalize-space(xhtml:td[1])}: {normalize-space(xhtml:td[2])};
+    </for-each>
+    /* endregion size */
+
+    /* region 4) line-height primitives */
+    <for-each select="$cem-typography-line-height/xhtml:tr">
+        {normalize-space(xhtml:td[1])}: {normalize-space(xhtml:td[2])};
+    </for-each>
+    /* endregion line-height */
+
+    /* region 5) letter-spacing primitives */
+    <for-each select="$cem-typography-letter-spacing/xhtml:tr">
+        {normalize-space(xhtml:td[1])}: {normalize-space(xhtml:td[2])};
+    </for-each>
+    /* endregion letter-spacing */
+
+    /* region 6) typography feature policies */
+    <for-each select="$cem-typography-feature/xhtml:tr">
+        {normalize-space(xhtml:td[1])}: {normalize-space(xhtml:td[2])};
+    </for-each>
+    /* endregion feature policies */
+
+    /* region 7) reading ergonomics */
+    <for-each select="$cem-typography-reading-ergonomics/xhtml:tr">
+        {normalize-space(xhtml:td[1])}: {normalize-space(xhtml:td[2])};
+    </for-each>
+    /* endregion reading ergonomics */
+
+    /* region 8) voice — ink-thickness (drives font-weight) */
+    <for-each select="$cem-typography-voice-ink-thickness/xhtml:tr">
+        {normalize-space(xhtml:td[1])}: {normalize-space(xhtml:td[2])};
+    </for-each>
+    /* endregion voice ink-thickness */
+
+    /* region 9) voice — icon-stroke multipliers */
+    <for-each select="$cem-typography-voice-icon-stroke-multiplier/xhtml:tr">
+        {normalize-space(xhtml:td[1])}: {normalize-space(xhtml:td[2])};
+    </for-each>
+    /* endregion voice icon-stroke */
+
+    /* region 10) voice — speech-volume (TTS adapter input, not screen-reader) */
+    <for-each select="$cem-typography-voice-speech-volume/xhtml:tr">
+        {normalize-space(xhtml:td[1])}: {normalize-space(xhtml:td[2])};
+    </for-each>
+    /* endregion voice speech-volume */
+
+    /* region 11) voice — speech-rate */
+    <for-each select="$cem-typography-voice-speech-rate/xhtml:tr">
+        {normalize-space(xhtml:td[1])}: {normalize-space(xhtml:td[2])};
+    </for-each>
+    /* endregion voice speech-rate */
+
+    /* region 12) voice — speech-pitch */
+    <for-each select="$cem-typography-voice-speech-pitch/xhtml:tr">
+        {normalize-space(xhtml:td[1])}: {normalize-space(xhtml:td[2])};
+    </for-each>
+    /* endregion voice speech-pitch */
+
+    /* region 13) voice — ssml-emphasis */
+    <for-each select="$cem-typography-voice-ssml-emphasis/xhtml:tr">
+        {normalize-space(xhtml:td[1])}: {normalize-space(xhtml:td[2])};
+    </for-each>
+    /* endregion voice ssml-emphasis */
+
+    /* region 14) semantic role endpoints — 8 roles × ~9-10 properties each */
+    <for-each select="$cem-typography-roles/xhtml:tr">
+        {normalize-space(xhtml:td[1])}: {normalize-space(xhtml:td[2])};
+    </for-each>
+    /* endregion semantic role endpoints */
+}
+
+/* region dark theme — lighter ink to compensate for perceived boldness on dark backgrounds */
+.cem-theme-dark, [data-theme="cem-theme-dark"],
+.cem-theme-contrast-dark, [data-theme="cem-theme-contrast-dark"] {
+    <for-each select="$cem-typography-voice-ink-thickness-dark/xhtml:tr">
+        {normalize-space(xhtml:td[1])}: {normalize-space(xhtml:td[2])};
+    </for-each>
+}
+/* endregion dark theme */
+
+/* region contrast theme — stronger ink for visibility (overrides dark for shared rows) */
+.cem-theme-contrast-light, [data-theme="cem-theme-contrast-light"],
+.cem-theme-contrast-dark, [data-theme="cem-theme-contrast-dark"] {
+    <for-each select="$cem-typography-voice-ink-thickness-contrast/xhtml:tr">
+        {normalize-space(xhtml:td[1])}: {normalize-space(xhtml:td[2])};
+    </for-each>
+}
+/* endregion contrast theme */
+        </variable>
+
+        <style>
+            :host {
+                display: block;
+                white-space: pre;
+                font-family: monospace;
+            }
+        </style>
+
+        <xhtml:table>
+            <xhtml:caption><a href="../../../dist/lib/tokens/cem-voice-fonts-typography.xhtml#12-1-foundation">cem-typography-fontography</a> — semantic family stacks</xhtml:caption>
+            <xhtml:thead>
+                <xhtml:tr>
+                    <xhtml:th>Token</xhtml:th>
+                    <xhtml:th>Value</xhtml:th>
+                    <xhtml:th>Sample</xhtml:th>
+                    <xhtml:th>Tier</xhtml:th>
+                    <xhtml:th>Description</xhtml:th>
+                </xhtml:tr>
+            </xhtml:thead>
+            <xhtml:tbody>
+                <for-each select="$cem-typography-fontography/xhtml:tr">
+                    <variable name="token" select="normalize-space(xhtml:td[1])"></variable>
+                    <variable name="value" select="normalize-space(xhtml:td[2])"></variable>
+                    <variable name="desc"  select="normalize-space(xhtml:td[3])"></variable>
+                    <variable name="tier"  select="normalize-space(xhtml:td[4])"></variable>
+                    <xhtml:tr>
+                        <xhtml:th><code>{$token}</code></xhtml:th>
+                        <xhtml:td><code>{$value}</code></xhtml:td>
+                        <xhtml:td class="sample-cell">
+                            <xhtml:span class="type-sample" style="font-family: var({$token});">Reading UI 123</xhtml:span>
+                        </xhtml:td>
+                        <xhtml:td>{$tier}</xhtml:td>
+                        <xhtml:td>{$desc}</xhtml:td>
+                    </xhtml:tr>
+                </for-each>
+            </xhtml:tbody>
+        </xhtml:table>
+
+        <hr/>
+        <xhtml:table>
+            <xhtml:caption>thickness, size, line-height, letter-spacing, feature, reading-ergonomics</xhtml:caption>
+            <xhtml:thead>
+                <xhtml:tr>
+                    <xhtml:th>Token</xhtml:th>
+                    <xhtml:th>Value</xhtml:th>
+                    <xhtml:th>Sample</xhtml:th>
+                    <xhtml:th>Tier</xhtml:th>
+                    <xhtml:th>Description</xhtml:th>
+                </xhtml:tr>
+            </xhtml:thead>
+            <xhtml:tbody>
+                <for-each select="$cem-typography-thickness/xhtml:tr | $cem-typography-size/xhtml:tr | $cem-typography-line-height/xhtml:tr | $cem-typography-letter-spacing/xhtml:tr | $cem-typography-feature/xhtml:tr | $cem-typography-reading-ergonomics/xhtml:tr">
+                    <variable name="token" select="normalize-space(xhtml:td[1])"></variable>
+                    <variable name="value" select="normalize-space(xhtml:td[2])"></variable>
+                    <variable name="desc"  select="normalize-space(xhtml:td[3])"></variable>
+                    <variable name="tier"  select="normalize-space(xhtml:td[4])"></variable>
+                    <xhtml:tr>
+                        <xhtml:th><code>{$token}</code></xhtml:th>
+                        <xhtml:td><code>{$value}</code></xhtml:td>
+                        <xhtml:td class="sample-cell">
+                            <choose>
+                                <when test="contains($token, 'thickness')">
+                                    <xhtml:span class="type-sample" style="font-weight: var({$token});">Weight Aa 123</xhtml:span>
+                                </when>
+                                <when test="contains($token, '-size-')">
+                                    <xhtml:span class="type-sample" style="font-size: var({$token});">Size Aa 123</xhtml:span>
+                                </when>
+                                <when test="contains($token, 'line-height')">
+                                    <xhtml:span class="type-sample type-sample-block" style="line-height: var({$token});">Line height example<br/>second line</xhtml:span>
+                                </when>
+                                <when test="contains($token, 'letter-spacing')">
+                                    <xhtml:span class="type-sample" style="letter-spacing: var({$token});">TRACKING 123</xhtml:span>
+                                </when>
+                                <when test="contains($token, 'numeric')">
+                                    <xhtml:span class="type-sample" style="font-variant-numeric: var({$token});">1111 8888 12.34</xhtml:span>
+                                </when>
+                                <when test="contains($token, 'ligatures')">
+                                    <xhtml:span class="type-sample" style="font-variant-ligatures: var({$token});">office affine ffi</xhtml:span>
+                                </when>
+                                <when test="contains($token, 'optical-sizing')">
+                                    <xhtml:span class="type-sample" style="font-optical-sizing: var({$token});">Optical size</xhtml:span>
+                                </when>
+                                <when test="contains($token, 'measure')">
+                                    <xhtml:span class="type-sample type-sample-block" style="max-width: var({$token});">Readable measure example wraps only when the available table space is narrower than the token.</xhtml:span>
+                                </when>
+                                <when test="contains($token, 'paragraph-gap')">
+                                    <xhtml:span class="type-sample type-sample-block">Paragraph one.</xhtml:span>
+                                    <xhtml:span class="type-sample type-sample-block" style="margin-top: var({$token});">Paragraph two.</xhtml:span>
+                                </when>
+                                <otherwise>
+                                    <xhtml:span class="type-sample">Aa 123</xhtml:span>
+                                </otherwise>
+                            </choose>
+                        </xhtml:td>
+                        <xhtml:td>{$tier}</xhtml:td>
+                        <xhtml:td>{$desc}</xhtml:td>
+                    </xhtml:tr>
+                </for-each>
+            </xhtml:tbody>
+        </xhtml:table>
+
+        <hr/>
+        <xhtml:table>
+            <xhtml:caption>voice channels — 7 voices × 6 channels (ink + speech)</xhtml:caption>
+            <xhtml:thead>
+                <xhtml:tr>
+                    <xhtml:th>Token</xhtml:th>
+                    <xhtml:th>Value</xhtml:th>
+                    <xhtml:th>Sample</xhtml:th>
+                    <xhtml:th>Tier</xhtml:th>
+                    <xhtml:th>Description</xhtml:th>
+                </xhtml:tr>
+            </xhtml:thead>
+            <xhtml:tbody>
+                <for-each select="$cem-typography-voice-ink-thickness/xhtml:tr | $cem-typography-voice-icon-stroke-multiplier/xhtml:tr | $cem-typography-voice-speech-volume/xhtml:tr | $cem-typography-voice-speech-rate/xhtml:tr | $cem-typography-voice-speech-pitch/xhtml:tr | $cem-typography-voice-ssml-emphasis/xhtml:tr">
+                    <variable name="token" select="normalize-space(xhtml:td[1])"></variable>
+                    <variable name="value" select="normalize-space(xhtml:td[2])"></variable>
+                    <variable name="desc"  select="normalize-space(xhtml:td[3])"></variable>
+                    <variable name="tier"  select="normalize-space(xhtml:td[4])"></variable>
+                    <xhtml:tr>
+                        <xhtml:th><code>{$token}</code></xhtml:th>
+                        <xhtml:td><code>{$value}</code></xhtml:td>
+                        <xhtml:td class="sample-cell">
+                            <choose>
+                                <when test="contains($token, 'ink-thickness')">
+                                    <xhtml:span class="type-sample" style="font-weight: var({$token});">Voice ink Aa 123</xhtml:span>
+                                </when>
+                                <when test="contains($token, 'icon-stroke-multiplier')">
+                                    <xhtml:span class="sample-meter" style="--sample-multiplier: var({$token});"></xhtml:span>
+                                </when>
+                                <when test="contains($token, 'speech-volume')">
+                                    <xhtml:span class="type-sample" style="opacity: var({$token});">Speech volume {$value}</xhtml:span>
+                                </when>
+                                <when test="contains($token, 'speech-rate')">
+                                    <xhtml:span class="type-sample">Speech rate {$value}</xhtml:span>
+                                </when>
+                                <when test="contains($token, 'speech-pitch')">
+                                    <xhtml:span class="type-sample">Speech pitch {$value}</xhtml:span>
+                                </when>
+                                <when test="contains($token, 'ssml-emphasis')">
+                                    <xhtml:span class="type-sample">SSML emphasis: {$value}</xhtml:span>
+                                </when>
+                                <otherwise>
+                                    <xhtml:span class="type-sample">Voice value {$value}</xhtml:span>
+                                </otherwise>
+                            </choose>
+                        </xhtml:td>
+                        <xhtml:td>{$tier}</xhtml:td>
+                        <xhtml:td>{$desc}</xhtml:td>
+                    </xhtml:tr>
+                </for-each>
+            </xhtml:tbody>
+        </xhtml:table>
+
+        <hr/>
+        <xhtml:table>
+            <xhtml:caption>semantic role endpoints — 8 roles × ~9-10 properties</xhtml:caption>
+            <xhtml:thead>
+                <xhtml:tr>
+                    <xhtml:th>Token</xhtml:th>
+                    <xhtml:th>Value</xhtml:th>
+                    <xhtml:th>Sample</xhtml:th>
+                    <xhtml:th>Tier</xhtml:th>
+                </xhtml:tr>
+            </xhtml:thead>
+            <xhtml:tbody>
+                <for-each select="$cem-typography-roles/xhtml:tr">
+                    <variable name="token" select="normalize-space(xhtml:td[1])"></variable>
+                    <variable name="value" select="normalize-space(xhtml:td[2])"></variable>
+                    <variable name="tier"  select="normalize-space(xhtml:td[3])"></variable>
+                    <xhtml:tr>
+                        <xhtml:th><code>{$token}</code></xhtml:th>
+                        <xhtml:td><code>{$value}</code></xhtml:td>
+                        <xhtml:td class="sample-cell">
+                            <choose>
+                                <when test="contains($token, 'font-family')">
+                                    <xhtml:span class="type-sample" style="font-family: var({$token});">Role family Aa 123</xhtml:span>
+                                </when>
+                                <when test="contains($token, 'font-size')">
+                                    <xhtml:span class="type-sample" style="font-size: var({$token});">Role size Aa 123</xhtml:span>
+                                </when>
+                                <when test="contains($token, 'line-height')">
+                                    <xhtml:span class="type-sample type-sample-block" style="line-height: var({$token});">Role line height<br/>second line</xhtml:span>
+                                </when>
+                                <when test="contains($token, 'letter-spacing')">
+                                    <xhtml:span class="type-sample" style="letter-spacing: var({$token});">ROLE TRACKING</xhtml:span>
+                                </when>
+                                <when test="contains($token, 'font-weight')">
+                                    <xhtml:span class="type-sample" style="font-weight: var({$token});">Role weight Aa 123</xhtml:span>
+                                </when>
+                                <when test="contains($token, 'font-variant-numeric')">
+                                    <xhtml:span class="type-sample" style="font-variant-numeric: var({$token});">1111 8888 12.34</xhtml:span>
+                                </when>
+                                <when test="contains($token, 'font-variant-ligatures')">
+                                    <xhtml:span class="type-sample" style="font-variant-ligatures: var({$token});">office affine ffi</xhtml:span>
+                                </when>
+                                <when test="contains($token, 'text-transform')">
+                                    <xhtml:span class="type-sample" style="text-transform: var({$token});">role text</xhtml:span>
+                                </when>
+                                <when test="contains($token, 'speech-volume')">
+                                    <xhtml:span class="type-sample" style="opacity: var({$token});">Speech volume {$value}</xhtml:span>
+                                </when>
+                                <when test="contains($token, 'speech-rate')">
+                                    <xhtml:span class="type-sample">Speech rate {$value}</xhtml:span>
+                                </when>
+                                <when test="contains($token, 'speech-pitch')">
+                                    <xhtml:span class="type-sample">Speech pitch {$value}</xhtml:span>
+                                </when>
+                                <when test="contains($token, 'ssml-emphasis')">
+                                    <xhtml:span class="type-sample">SSML emphasis: {$value}</xhtml:span>
+                                </when>
+                                <otherwise>
+                                    <xhtml:span class="type-sample">Role value {$value}</xhtml:span>
+                                </otherwise>
+                            </choose>
+                        </xhtml:td>
+                        <xhtml:td>{$tier}</xhtml:td>
+                    </xhtml:tr>
+                </for-each>
+            </xhtml:tbody>
+        </xhtml:table>
+
+        <hr/>
+        <pre class="language-css">
+            <code class="language-css" data-generated-css>
+{$css-body}
+            </code>
+        </pre>
+        <cem-css-loader value="{$css-body}"></cem-css-loader>
+
+    </template>
+</custom-element>
+<main></main>
+<script src="../../../../../node_modules/@epa-wg/custom-element/custom-element.js" type="module"></script>
+<script src="../../../../../node_modules/@epa-wg/custom-element/http-request.js" type="module"></script>
+<script src="./cem-css-loader.js" type="module"></script>
+</body>
+</html>

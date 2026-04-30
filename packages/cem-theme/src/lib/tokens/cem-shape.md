@@ -8,7 +8,8 @@
 **Companion specs:**
 - **D0. Color (Emotional Palette)** ([`cem-colors.md`](./cem-colors.md)) — color and shape work together for emotional impact
 - **D1. Space & Rhythm** ([`cem-dimension.md`](./cem-dimension.md)) — provides dimension scale used by bend
-- **D2. Coupling & Compactness** ([`cem-coupling.md`](./cem-coupling.md)) — provides control height for geometry-driven bend
+- **D2. Coupling & Compactness** ([`cem-coupling.md`](./cem-coupling.md)) — operability safety contract; coupling-mode selector
+- **D2c. Controls** ([`cem-controls.md`](./cem-controls.md)) — provides `--cem-control-height` for geometry-driven bend
 - **D5. Stroke & Separation** ([`cem-stroke.md`](./cem-stroke.md)) — boundaries, dividers, and focus/selection/target indicators
 - **D6. Typography** ([`cem-voice-fonts-typography.md`](./cem-voice-fonts-typography.md)) — related visual hierarchy
 - **D7. Time & Motion** ([`cem-timing.md`](./cem-timing.md)) — animation timing for shape transitions
@@ -138,7 +139,7 @@ This is the smallest stable basis that supports most UIs without overfitting.
   /*
     Round ends (capsule / pill):
     Semicircle ends require bend = 0.5 * element height.
-    Uses --cem-control-height from D2 (cem-coupling.md) as default.
+    Uses --cem-control-height from D2c Controls (cem-controls.md) as default.
     Provide --cem-shape-height where --cem-control-height is not appropriate.
   */
   --cem-bend-round: calc(var(--cem-shape-height, var(--cem-control-height)) / 2);
@@ -153,7 +154,16 @@ This is the smallest stable basis that supports most UIs without overfitting.
 
 **Cross-references:**
 - `--cem-dim-x-small` is defined in [`cem-dimension.md`](./cem-dimension.md) §5
-- `--cem-control-height` is defined in [`cem-coupling.md`](./cem-coupling.md) §4.2
+- `--cem-control-height` is defined in [`cem-controls.md`](./cem-controls.md) §3.1
+
+###### cem-shape-basis
+| Token                | Value                                                            | Description                                                       | tier     |
+|----------------------|------------------------------------------------------------------|-------------------------------------------------------------------|----------|
+| `--cem-bend-sharp`   | `0`                                                              | No bend (sharp corners)                                           | required |
+| `--cem-bend-smooth`  | `var(--cem-dim-x-small)`                                         | Small, friendly rounding bound to D1 scale (0.5rem / 8px)         | required |
+| `--cem-bend-round`   | `calc(var(--cem-shape-height, var(--cem-control-height)) / 2)`   | Round-ends (capsule); resolves to ½ control height                | required |
+| `--cem-bend-circle`  | `50%`                                                            | True circle relative to element box (avatars, dots)               | required |
+| `--cem-bend`         | `var(--cem-bend-smooth)`                                         | Mode-switchable active bend used by endpoints with default feel   | required |
 
 ---
 
@@ -181,6 +191,18 @@ These are the tokens components should consume.
 
 **Cross-references:**
 - `--cem-dim-small`, `--cem-dim-large`, `--cem-dim-xx-small` are defined in [`cem-dimension.md`](./cem-dimension.md) §5
+
+###### cem-shape-semantic
+| Token                           | Value                                                       | Description                                                        | tier        |
+|---------------------------------|-------------------------------------------------------------|--------------------------------------------------------------------|-------------|
+| `--cem-bend-control`            | `var(--cem-bend)`                                           | Primary control bend (buttons, segmented controls)                 | required    |
+| `--cem-bend-surface`            | `var(--cem-dim-small)`                                      | Container/surface bend (cards, panels) — 0.75rem / 12px            | required    |
+| `--cem-bend-overlay`            | `var(--cem-bend)`                                           | Small overlays (menus, tooltips, popovers)                         | required    |
+| `--cem-bend-field`              | `var(--cem-bend-control)`                                   | Text field / select geometry; usually equals control bend          | recommended |
+| `--cem-bend-modal`              | `calc(var(--cem-dim-large) + var(--cem-dim-xx-small))`      | Prominent overlays (dialogs, sheets) — ~28px                       | recommended |
+| `--cem-bend-control-round-ends` | `var(--cem-bend-round)`                                     | Capsule control variant; use only if pill controls are consistent  | optional    |
+| `--cem-bend-media`              | `var(--cem-bend)`                                           | Media thumbnails / previews                                        | recommended |
+| `--cem-bend-avatar`             | `var(--cem-bend-circle)`                                    | Avatar / persona geometry (circle)                                 | recommended |
 
 ---
 
@@ -243,6 +265,21 @@ preprocessor; it also obscures where the mode is applied.
 **If you introduce more granular local aliases** (e.g., card vs page surface), they may also be overridden by the mode
 selector, but only as pointers to existing endpoints. Do not mint a parallel "mode-specific" token family.
 
+###### cem-shape-mode-sharp
+| Token                | Value                    |
+|----------------------|--------------------------|
+| `--cem-bend`         | `var(--cem-bend-sharp)`  |
+| `--cem-bend-control` | `var(--cem-bend)`        |
+| `--cem-bend-surface` | `var(--cem-bend-smooth)` |
+| `--cem-bend-overlay` | `var(--cem-bend-smooth)` |
+
+###### cem-shape-mode-round
+| Token                | Value                    |
+|----------------------|--------------------------|
+| `--cem-bend`         | `var(--cem-bend-smooth)` |
+| `--cem-bend-surface` | `var(--cem-dim-medium)`  |
+| `--cem-bend-overlay` | `var(--cem-bend-smooth)` |
+
 ### 6.3 Helper classes (optional; scoped overrides)
 
 If you need one-off local overrides (e.g., a demo page or controlled experiment), helper classes are acceptable, but should
@@ -280,6 +317,12 @@ When a surface is **attached** (sheet, drawer), do not round the attached edge.
     var(--cem-bend-attached-edge);
 }
 ```
+
+###### cem-shape-pattern
+| Token                      | Value                   | Description                                              | tier        |
+|----------------------------|-------------------------|----------------------------------------------------------|-------------|
+| `--cem-bend-attached-edge` | `var(--cem-bend-sharp)` | Attached edge of asymmetric surface (drawer, sheet seam) | recommended |
+| `--cem-bend-free-edge`     | `var(--cem-bend-modal)` | Free edge of asymmetric surface (drawer top, sheet free) | recommended |
 
 ### 7.2 When to use asymmetric corners
 
@@ -397,7 +440,7 @@ Recommended robust pattern (shape-aligned ring in normal mode, resilient in forc
 
 Round controls can *look* smaller even when they meet minimum targets. Ensure:
 
-- D2 control height/width targets are met (especially icon buttons and small chips) — see [`cem-coupling.md`](./cem-coupling.md)
+- D2c Controls geometry targets are met (especially icon buttons and small chips) — see [`cem-controls.md`](./cem-controls.md); D2 [`cem-coupling.md`](./cem-coupling.md) governs the safety zone
 - D1 spacing provides separation between adjacent targets — see [`cem-dimension.md`](./cem-dimension.md)
 
 ### 8.5 Bend vs inset readability (bend × D1 padding)
@@ -443,16 +486,26 @@ This section provides a practical "where to bind bend" reference. It is intentio
 existing CEM endpoints. If a component needs an internal override, implement it as a **local alias** (component scope),
 not as new global tokens.
 
-### 10.1 Action binding (existing)
+### 10.1 Action binding
 
-The existing implementation binds actions to the bend system:
+R-D3-ACTION is resolved: D3 Shape owns emission of the action border-radius binding because the value is geometry.
+D0 Action tokens own action color/state (`background` / `text`) only. The binding remains in the `--cem-action-*`
+namespace because it is consumed by action components, but its value aliases the D3 control bend endpoint.
 
 ```css
+:root {
+  --cem-action-border-radius: var(--cem-bend-control);
+}
+
 .action, button {
-  --cem-action-border-radius: var(--cem-bend);
   border-radius: var(--cem-action-border-radius);
 }
 ```
+
+###### cem-shape-action-bindings
+| Token | Value | Description | tier |
+|---|---|---|---|
+| `--cem-action-border-radius` | `var(--cem-bend-control)` | Action component border-radius binding; emitted by D3 Shape because it is geometry | required |
 
 ### 10.2 Extended component mapping
 
@@ -522,7 +575,7 @@ Use this checklist to adopt the bend system with minimal churn and predictable o
 
 1. **Confirm prerequisites (D1 + D2 are present)**
    - D1 provides the physical scale used by bend (`--cem-dim-xx-small`, `--cem-dim-x-small`, `--cem-dim-small`, etc.) — see [`cem-dimension.md`](./cem-dimension.md).
-   - D2 provides height for geometry-driven bend (`--cem-control-height`), so round-ends remain correct across density/size modes — see [`cem-coupling.md`](./cem-coupling.md).
+   - D2c Controls provides height for geometry-driven bend (`--cem-control-height`), so round-ends remain correct across density/size modes — see [`cem-controls.md`](./cem-controls.md). The D2 safety contract (zone/guard/halo) lives in [`cem-coupling.md`](./cem-coupling.md).
 
 2. **Adopt the bend basis (`--cem-bend-*`)**
    - Keep the basis small: `sharp`, `smooth`, `round` (endcaps), `circle`, and the active `--cem-bend`.
@@ -608,7 +661,7 @@ The table below distinguishes **required CEM contract tokens** from **optional a
 | `--cem-bend-avatar`             | Semantic endpoint           |  Recommended   | Avatar/persona geometry (circle)                      |
 | `--cem-bend-attached-edge`      | Pattern token               |  Recommended   | For asymmetric attachment patterns                    |
 | `--cem-bend-free-edge`          | Pattern token               |  Recommended   | For asymmetric attachment patterns                    |
-| `--cem-action-border-radius`    | Component binding           | Yes (existing) | Existing action binding contract                      |
+| `--cem-action-border-radius`    | Component binding           | Yes            | Action border-radius binding emitted by D3 Shape      |
 
 **Adapter-only (optional) aliases**
 
@@ -660,12 +713,49 @@ These are **not** intended for product component code.
 }
 ```
 
+###### cem-shape-adapter-aliases
+| Token              | Value                     | Description                              | tier    |
+|--------------------|---------------------------|------------------------------------------|---------|
+| `--cem-bend-none`  | `var(--cem-bend-sharp)`   | M3-parity: corner-none                   | adapter |
+| `--cem-bend-xs`    | `var(--cem-dim-xx-small)` | M3-parity: corner-extra-small (~4dp)     | adapter |
+| `--cem-bend-sm`    | `var(--cem-dim-x-small)`  | M3-parity: corner-small (~8dp)           | adapter |
+| `--cem-bend-md`    | `var(--cem-dim-small)`    | M3-parity: corner-medium (~12dp)         | adapter |
+| `--cem-bend-lg`    | `var(--cem-dim-medium)`   | M3-parity: corner-large (~16dp)          | adapter |
+| `--cem-bend-xl`    | `var(--cem-bend-modal)`   | M3-parity: corner-extra-large (~28dp)    | adapter |
+| `--cem-bend-full`  | `var(--cem-bend-round)`   | M3-parity: corner-full (capsule)         | adapter |
+
+These rows are **not** emitted by the default generator output. They are visible to tooling under an explicit
+adapter opt-in flag. Do not consume these names from product code.
+
 ### A.3 Notes on validation vs "current" libraries
 
 - Material Web uses `--md-sys-shape-corner-*` tokens in theming and leaves exact numeric assignments to the system theme.
 - Angular Material may publish/ship a scale whose *numeric* values differ from the M3 "typical" table; treat Angular's
   scale as its **own source scale** and map to CEM by intent, not by exact dp numbers.
 - CEM's contract is semantic endpoints. Adapters own external token mapping.
+
+---
+
+## 14. Token manifest index
+
+| Source table | Section | Description |
+|---|---|---|
+| `cem-shape-basis` | §4 | Bend basis: `--cem-bend-{sharp,smooth,round,circle}` plus the active alias `--cem-bend` |
+| `cem-shape-semantic` | §5 | Semantic endpoints: `--cem-bend-{control,surface,overlay,field,modal,control-round-ends,media,avatar}` |
+| `cem-shape-pattern` | §7.1 | Asymmetric pattern tokens: `--cem-bend-attached-edge`, `--cem-bend-free-edge` |
+| `cem-shape-action-bindings` | §10.1 | Action component geometry binding: `--cem-action-border-radius` |
+| `cem-shape-mode-sharp` | §6.2 | `data-cem-shape="sharp"` overrides (generator-only; no new tokens) |
+| `cem-shape-mode-round` | §6.2 | `data-cem-shape="round"` overrides (generator-only; no new tokens) |
+| `cem-shape-adapter-aliases` | §A.2 | M3-parity aliases (tier `adapter`; emitted only behind opt-in) |
+
+Generator derivation rules:
+- `cem-shape-basis`, `cem-shape-semantic`, `cem-shape-pattern`, `cem-shape-action-bindings` → token list (tier in last column).
+- `cem-shape-mode-sharp` and `cem-shape-mode-round` → override data only; tokens are already declared in the base
+  `:root` block.
+- `cem-shape-adapter-aliases` → adapter-only; default validator filters tier=`adapter` from coverage and the default
+  generator does not emit them.
+- `--cem-action-border-radius` is emitted by D3 Shape as a geometry binding. D0 Action tokens continue to own action
+  color/state only.
 
 ---
 
@@ -686,6 +776,7 @@ These are **not** intended for product component code.
 
 **Local CEM documentation**
 - [D1. Space & Rhythm](./cem-dimension.md) — dimension scale tokens
-- [D2. Coupling & Compactness](./cem-coupling.md) — control height and operability
+- [D2. Coupling & Compactness](./cem-coupling.md) — operability safety contract (zone/guard/halo)
+- [D2c. Controls](./cem-controls.md) — visual control geometry, including `--cem-control-height`
 - [D6. Typography](./cem-voice-fonts-typography.md) — voice and typography tokens
 - [D7. Time & Motion](./cem-timing.md) — timing and easing tokens
