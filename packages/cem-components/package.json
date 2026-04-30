@@ -24,7 +24,7 @@
         "!**/*.tsbuildinfo"
     ],
     "dependencies": {
-        "@epa-wg/cem-theme": "^0.0.7"
+        "@epa-wg/cem-theme": "workspace:*"
     },
     "publishConfig": {
         "access": "public"

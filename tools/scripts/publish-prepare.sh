@@ -8,9 +8,15 @@ node tools/scripts/restore-workspace-protocol.cjs
 yarn install
 
 # Step 1: Run Nx release (bump versions, create changelog)
+# Optional first argument: version specifier (patch|minor|major|<exact>) to force a bump.
+SPECIFIER_ARG=""
+if [ -n "$1" ]; then
+    SPECIFIER_ARG="--specifier=$1"
+    echo "📌 Forcing version specifier: $1"
+fi
 echo "📦 Running Nx release..."
 set +e  # Temporarily disable exit on error
-yarn nx release --skip-publish
+yarn nx release $SPECIFIER_ARG --skip-publish
 RELEASE_EXIT_CODE=$?
 set -e  # Re-enable exit on error
 
