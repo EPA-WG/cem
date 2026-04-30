@@ -75,20 +75,20 @@ Decisions that do **not** block MVP extraction/emission:
 
 ### MVP Phase B — CSS-backed value resolution
 
-- [ ] In `export-tokens.mjs` Stage 2, launch headless Chromium with Playwright.
-- [ ] Serve a minimal local HTML fixture over HTTP that links or injects `dist/lib/css/*.css`; do not use `file://`.
-- [ ] Resolve `light`, `dark`, `contrast-light`, `contrast-dark`, and `native` mode values by applying the matching
-      `.cem-theme-*` class to `<html>` and reading
-      `getComputedStyle(document.documentElement).getPropertyValue(token.name)`.
-- [ ] Label `native` mode values as Chromium-computed browser-reference values in generated metadata and reports.
-- [ ] Resolve spacing/coupling/shape parallel groups by setting `data-cem-spacing`, `data-cem-coupling`, and
+- [x] In `export-tokens.mjs` Stage 2, launch headless Chromium with Playwright.
+- [x] Serve a minimal local HTML fixture over HTTP that links or injects `dist/lib/css/*.css`; do not use `file://`.
+- [x] Resolve `light`, `dark`, `contrast-light`, `contrast-dark`, and `native` mode values by applying the matching
+      `.cem-theme-*` class to `<body>` (CSS nesting puts theme selectors as descendants of `:root`, not on `:root`
+      itself) and reading `getComputedStyle(document.body).getPropertyValue(token.name)`.
+- [x] Label `native` mode values as Chromium-computed browser-reference values in generated metadata and reports.
+- [x] Resolve spacing/coupling/shape parallel groups by setting `data-cem-spacing`, `data-cem-coupling`, and
       `data-cem-shape` only for affected tokens.
-- [ ] Preserve both raw values and resolved values:
+- [x] Preserve both raw values and resolved values:
     - `valueRaw` keeps `var()`, `calc()`, `light-dark()`, and `color-mix()` recipes
     - `valueByMode` stores browser-computed values by supported mode
-- [ ] Always emit `dist/lib/tokens/cem.tokens.resolved.json` with generated provenance and a debug-only marker.
-- [ ] Classify each token value as `literal`, `alias`, `mode`, `css-expression`, or `platform-note`.
-- [ ] Add a 5-token manual spot-check fixture against `tools/scripts/debug-cem.mjs` or equivalent computed-style
+- [x] Always emit `dist/lib/tokens/cem.tokens.resolved.json` with generated provenance and a debug-only marker.
+- [x] Classify each token value as `literal`, `alias`, `mode`, `css-expression`, or `platform-note`.
+- [x] Add a 5-token manual spot-check fixture against `tools/scripts/debug-cem.mjs` or equivalent computed-style
       capture.
 
 ### MVP Phase C — Canonical DTCG-compatible outputs
@@ -261,7 +261,7 @@ Decisions that do **not** block MVP extraction/emission:
 | `dist/lib/tokens/cem.tokens.report.md`                      | generated output | C     | pending |
 | `dist/lib/tokens/cem.tokens.report.json`                    | generated output | C     | pending |
 | `dist/lib/tokens/cem.tokens.intermediate.json`              | debug output     | A     | done    |
-| `dist/lib/tokens/cem.tokens.resolved.json`                  | debug output     | B     | pending |
+| `dist/lib/tokens/cem.tokens.resolved.json`                  | debug output     | B     | done    |
 | `dist/lib/tokens/figma/cem-light.tokens.json`               | generated output | D     | pending |
 | `dist/lib/tokens/figma/cem-dark.tokens.json`                | generated output | D     | pending |
 | `dist/lib/tokens/figma/cem-contrast-light.tokens.json`      | generated output | D     | pending |
