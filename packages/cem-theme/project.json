@@ -5,7 +5,7 @@
     "projectType": "library",
     "targets": {
         "build": {
-            "dependsOn": ["^build", "build:css"],
+            "dependsOn": ["^build", "build:tokens"],
             "executor": "nx:run-commands",
             "options": {
                 "commands": [
@@ -54,6 +54,7 @@
             },
             "cache": true,
             "inputs": [
+                "{projectRoot}/src/lib/tokens/*.md",
                 "{projectRoot}/src/lib/css-generators/*.html",
                 "{projectRoot}/src/lib/css-generators/*.js",
                 "{projectRoot}/scripts/generate-token-coverage.mjs",
@@ -78,6 +79,7 @@
             },
             "cache": true,
             "inputs": [
+                "{projectRoot}/src/lib/tokens/*.md",
                 "{projectRoot}/scripts/export-tokens.mjs",
                 "{projectRoot}/scripts/derive-tokens.mjs",
                 "{projectRoot}/scripts/manifest-utils.mjs",
@@ -94,6 +96,28 @@
                 "{projectRoot}/dist/lib/tokens/cem.tokens.intermediate.json",
                 "{projectRoot}/dist/lib/tokens/cem.tokens.resolved.json",
                 "{projectRoot}/dist/lib/tokens/figma"
+            ]
+        },
+        "build:token-platforms": {
+            "dependsOn": ["build:tokens"],
+            "executor": "nx:run-commands",
+            "options": {
+                "commands": [
+                    "node scripts/build-token-platforms.mjs",
+                    "node scripts/validate-platforms.mjs"
+                ],
+                "parallel": false,
+                "cwd": "packages/cem-theme"
+            },
+            "cache": true,
+            "inputs": [
+                "{projectRoot}/style-dictionary.config.mjs",
+                "{projectRoot}/scripts/build-token-platforms.mjs",
+                "{projectRoot}/scripts/validate-platforms.mjs",
+                "{projectRoot}/dist/lib/tokens/cem.tokens.json"
+            ],
+            "outputs": [
+                "{projectRoot}/dist/lib/token-platforms/json"
             ]
         },
         "build:html": {

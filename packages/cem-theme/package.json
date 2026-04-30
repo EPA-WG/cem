@@ -17,7 +17,12 @@
             "types": "./dist/index.d.ts",
             "import": "./dist/index.js",
             "default": "./dist/index.js"
-        }
+        },
+        "./tokens/cem.tokens.json": "./dist/lib/tokens/cem.tokens.json",
+        "./tokens/cem.voice.tokens.json": "./dist/lib/tokens/cem.voice.tokens.json",
+        "./tokens/cem.tokens.report.json": "./dist/lib/tokens/cem.tokens.report.json",
+        "./tokens/cem.tokens.ts": "./dist/lib/tokens/cem.tokens.ts",
+        "./tokens/figma/*": "./dist/lib/tokens/figma/*"
     },
     "files": [
         "dist",
@@ -25,7 +30,8 @@
     ],
     "scripts": {
         "build:html": "node ../../tools/scripts/compile-html.mjs",
-        "build:css": "node ../../tools/scripts/compile-html.mjs && node ../../tools/scripts/capture-xpath-text.mjs \"dist/lib/css-generators/cem-*.html\" \"//code[@data-generated-css]\" \"dist/lib/css/*.css\" && node scripts/generate-token-coverage.mjs && node scripts/generate-css-index.mjs"
+        "build:css": "node ../../tools/scripts/compile-html.mjs && node ../../tools/scripts/capture-xpath-text.mjs \"dist/lib/css-generators/cem-*.html\" \"//code[@data-generated-css]\" \"dist/lib/css/*.css\" && node scripts/generate-token-coverage.mjs && node scripts/generate-css-index.mjs",
+        "build:tokens": "node scripts/export-tokens.mjs"
     },
     "devDependencies": {
         "chokidar": "5.0.0",

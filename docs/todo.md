@@ -149,14 +149,14 @@ Decisions that do **not** block MVP extraction/emission:
     - depends on `build:css`
     - command: `node scripts/export-tokens.mjs`
     - outputs canonical JSON, TS metadata, reports, and `figma/`
-- [ ] Update `packages/cem-theme/package.json` exports only after generated file paths are stable.
-- [ ] Add `build:tokens` to the package build only after canonical JSON/report outputs pass consistently.
+- [x] Update `packages/cem-theme/package.json` exports only after generated file paths are stable.
+- [x] Add `build:tokens` to the package build only after canonical JSON/report outputs pass consistently.
 
 ### MVP smoke test
 
-- [ ] Change one token value in `packages/cem-theme/src/lib/tokens/cem-colors.md`.
-- [ ] Run the CSS and token builds.
-- [ ] Verify the changed value propagates to:
+- [x] Change one token value in `packages/cem-theme/src/lib/tokens/cem-colors.md`.
+- [x] Run the CSS and token builds.
+- [x] Verify the changed value propagates to:
     - `dist/lib/css/cem-colors.css`
     - `dist/lib/tokens/cem.tokens.json`
     - `dist/lib/tokens/cem.tokens.ts`
@@ -165,15 +165,17 @@ Decisions that do **not** block MVP extraction/emission:
     - `dist/lib/tokens/figma/cem-contrast-light.tokens.json`
     - `dist/lib/tokens/figma/cem-contrast-dark.tokens.json`
     - `dist/lib/tokens/figma/cem-native.tokens.json`
-- [ ] Verify reports only change for the affected token and do not show unrelated portability/mode churn.
+- [x] Verify reports only change for the affected token and do not show unrelated portability/mode churn.
+      Smoke value was reverted after verification; report value diffs were limited to derived contextual action and
+      zebra-ring CSS-expression entries that depend on the changed color.
 
 ---
 
 ### Post-MVP Phase F — Style Dictionary fan-out
 
-- [ ] Add `packages/cem-theme/style-dictionary.config.mjs`.
-- [ ] Add `packages/cem-theme/scripts/build-token-platforms.mjs`.
-- [ ] Add `packages/cem-theme/scripts/validate-platforms.mjs`.
+- [x] Add `packages/cem-theme/style-dictionary.config.mjs`.
+- [x] Add `packages/cem-theme/scripts/build-token-platforms.mjs`.
+- [x] Add `packages/cem-theme/scripts/validate-platforms.mjs`.
 - [ ] Implement Style Dictionary filters/transforms:
     - `cem/size/layout-to-pt`
     - `cem/size/type-to-pt`
@@ -182,12 +184,12 @@ Decisions that do **not** block MVP extraction/emission:
     - `cem/number/unitless`
     - `cem/category/web-only-filter`
     - `cem/mode/expand-themes`
-- [ ] Add `build:token-platforms` target depending on `build:tokens`.
+- [x] Add `build:token-platforms` target depending on `build:tokens`.
 - [ ] Emit `dist/lib/token-platforms/js/` only if it provides value beyond MVP `cem.tokens.ts`; avoid duplicate TS
       contracts.
-- [ ] Emit `dist/lib/token-platforms/json/` resolved-per-theme flat JSON.
+- [x] Emit `dist/lib/token-platforms/json/` resolved-per-theme flat JSON.
 - [ ] Emit `dist/lib/token-platforms/scss/` only if a consumer needs SCSS variables.
-- [ ] Validate generated JS/JSON/SCSS and per-platform reports.
+- [x] Validate generated JSON and per-platform reports.
 
 ### Post-MVP Phase G — Native platform outputs
 
@@ -268,11 +270,12 @@ Decisions that do **not** block MVP extraction/emission:
 | `dist/lib/tokens/figma/cem-contrast-dark.tokens.json`       | generated output | D     | done    |
 | `dist/lib/tokens/figma/cem-native.tokens.json`              | generated output | D     | done    |
 | `dist/lib/tokens/figma/cem-figma-report.md`                 | generated output | D     | done    |
-| `packages/cem-theme/style-dictionary.config.mjs`            | new source       | F     | pending |
-| `packages/cem-theme/scripts/build-token-platforms.mjs`      | new source       | F     | pending |
-| `packages/cem-theme/scripts/validate-platforms.mjs`         | new source       | F     | pending |
-| `packages/cem-theme/project.json` (`build:token-platforms`) | existing edit    | F     | pending |
-| `dist/lib/token-platforms/{ios,android,json,scss}`          | generated output | F-G   | pending |
+| `packages/cem-theme/style-dictionary.config.mjs`            | new source       | F     | done    |
+| `packages/cem-theme/scripts/build-token-platforms.mjs`      | new source       | F     | done    |
+| `packages/cem-theme/scripts/validate-platforms.mjs`         | new source       | F     | done    |
+| `packages/cem-theme/project.json` (`build:token-platforms`) | existing edit    | F     | done    |
+| `dist/lib/token-platforms/json`                             | generated output | F     | done    |
+| `dist/lib/token-platforms/{ios,android,scss}`               | generated output | G     | pending |
 | `examples/{web,ios,android,figma}`                          | examples/docs    | H-I   | pending |
 | `packages/cem-theme/docs/docs-generation.md`                | docs edit        | J     | pending |
 | `packages/cem-theme/src/lib/tokens/index.md`                | docs edit        | J     | pending |
