@@ -304,7 +304,7 @@ function androidXml(resources) {
     return lines.join("\n");
 }
 
-async function writeAndroidOutputs(tokens, generated) {
+async function writeAndroidOutputs(tokens, _generated) {
     const valuesDir = path.join(OUT_ANDROID, "values");
     const valuesNightDir = path.join(OUT_ANDROID, "values-night");
     const composeDir = path.join(OUT_ANDROID, "compose");

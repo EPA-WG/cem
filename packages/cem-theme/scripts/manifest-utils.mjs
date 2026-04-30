@@ -120,7 +120,7 @@ export function tokensFromTableWithValues(rows, headers = []) {
     if (valueCol < 0) valueCol = 1;
 
     const DESC_HEADERS = ["description", "notes", "label", "intended use", "role", "usage"];
-    let descCol = hn.findIndex((h) => DESC_HEADERS.some((c) => h.includes(c)));
+    const descCol = hn.findIndex((h) => DESC_HEADERS.some((c) => h.includes(c)));
 
     const tierCol = hn.findIndex((h) => h === "tier");
 

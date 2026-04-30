@@ -78,8 +78,7 @@ async function readPackageVersion() {
 // Stage 1 — Token extraction
 // ---------------------------------------------------------------------------
 
-async function stage1Extract(opts) {
-    const { withOptional, withAdapter, withDeprecated } = opts;
+async function stage1Extract(_opts) {
     const allTokens = [];
     const allWarnings = [];
 
@@ -105,7 +104,7 @@ async function stage1Extract(opts) {
 // Validation
 // ---------------------------------------------------------------------------
 
-function validateIntermediate(tokens, manifestBySpec, warnings) {
+function validateIntermediate(tokens, manifestBySpec, _warnings) {
     const errors = [];
 
     // No duplicate CSS token names
