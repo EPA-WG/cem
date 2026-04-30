@@ -117,7 +117,9 @@
                 "{projectRoot}/dist/lib/tokens/cem.tokens.json"
             ],
             "outputs": [
-                "{projectRoot}/dist/lib/token-platforms/json"
+                "{projectRoot}/dist/lib/token-platforms/json",
+                "{projectRoot}/dist/lib/token-platforms/ios",
+                "{projectRoot}/dist/lib/token-platforms/android"
             ]
         },
         "build:html": {

@@ -185,10 +185,11 @@ Decisions that do **not** block MVP extraction/emission:
     - `cem/category/web-only-filter`
     - `cem/mode/expand-themes`
 - [x] Add `build:token-platforms` target depending on `build:tokens`.
-- [ ] Emit `dist/lib/token-platforms/js/` only if it provides value beyond MVP `cem.tokens.ts`; avoid duplicate TS
-      contracts.
+- [x] Emit `dist/lib/token-platforms/js/` only if it provides value beyond MVP `cem.tokens.ts`; avoid duplicate TS
+      contracts. No separate JS output emitted; MVP `cem.tokens.ts` remains the metadata contract.
 - [x] Emit `dist/lib/token-platforms/json/` resolved-per-theme flat JSON.
-- [ ] Emit `dist/lib/token-platforms/scss/` only if a consumer needs SCSS variables.
+- [x] Emit `dist/lib/token-platforms/scss/` only if a consumer needs SCSS variables. No SCSS output emitted until a
+      consumer need exists.
 - [x] Validate generated JSON and per-platform reports.
 
 ### Post-MVP Phase G — Native platform outputs
@@ -198,20 +199,20 @@ Decisions that do **not** block MVP extraction/emission:
     - typography sizes → Android sp
     - iOS uses points
     - no auto dynamic type scaling in v1
-- [ ] Emit iOS:
+- [x] Emit iOS:
     - `dist/lib/token-platforms/ios/CEMTokens.swift`
     - `dist/lib/token-platforms/ios/CEMTokens.xcassets-hints.json`
     - `dist/lib/token-platforms/ios/ios-report.md`
-- [ ] Emit Android:
+- [x] Emit Android:
     - `dist/lib/token-platforms/android/values/cem-tokens.xml`
     - `dist/lib/token-platforms/android/values-night/cem-tokens.xml`
     - optional contrast resources only after mapping is proven
     - optional `compose/CEMTokens.kt`
     - `android-report.md`
 - [ ] Validate native outputs:
-    - Swift compiles with supported Xcode version
-    - Kotlin/Compose compiles with supported Gradle version
-    - reports show zero fail-hard violations
+    - [ ] Swift compiles with supported Xcode version (toolchain unavailable in this workspace)
+    - [ ] Kotlin/Compose compiles with supported Gradle version (toolchain unavailable in this workspace)
+    - [x] reports show zero fail-hard violations
 
 ### Post-MVP Phase H — Figma workflow docs and optional sync
 
@@ -227,8 +228,8 @@ Decisions that do **not** block MVP extraction/emission:
 ### Post-MVP Phase I — Adapter examples
 
 - [x] `examples/web/import-tokens.ts` — type-safe metadata consumption.
-- [ ] `examples/ios/CEMTokensExample/` — minimal SwiftUI button + card.
-- [ ] `examples/android/cem-tokens-example/` — minimal Compose button + card.
+- [x] `examples/ios/CEMTokensExample/` — minimal SwiftUI button + card.
+- [x] `examples/android/cem-tokens-example/` — minimal Compose button + card.
 - [x] `examples/figma/` screenshots or sample file showing token application.
 - [ ] Validate visual parity against a web reference with manual screenshot comparison.
 
@@ -275,10 +276,12 @@ Decisions that do **not** block MVP extraction/emission:
 | `packages/cem-theme/scripts/validate-platforms.mjs`         | new source       | F     | done    |
 | `packages/cem-theme/project.json` (`build:token-platforms`) | existing edit    | F     | done    |
 | `dist/lib/token-platforms/json`                             | generated output | F     | done    |
-| `dist/lib/token-platforms/{ios,android,scss}`               | generated output | G     | pending |
+| `dist/lib/token-platforms/ios`                              | generated output | G     | done    |
+| `dist/lib/token-platforms/android`                          | generated output | G     | done    |
+| `dist/lib/token-platforms/scss`                             | generated output | F     | not emitted (no consumer need) |
 | `examples/web/import-tokens.ts`                              | examples/docs    | I     | done    |
 | `examples/figma/`                                             | examples/docs    | H-I   | partial (workflow + sample; screenshots pending) |
-| `examples/{ios,android}`                                      | examples/docs    | I     | pending |
+| `examples/{ios,android}`                                      | examples/docs    | I     | done    |
 | `packages/cem-theme/docs/docs-generation.md`                 | docs edit        | J     | done    |
 | `packages/cem-theme/src/lib/tokens/index.md`                 | docs edit        | J     | done    |
 | `CLAUDE.md`                                                  | docs edit        | J     | done    |

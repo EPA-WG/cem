@@ -8,9 +8,20 @@ import { CEM_PLATFORM_MODES } from "../style-dictionary.config.mjs";
 
 const PACKAGE_ROOT = path.resolve(new URL("..", import.meta.url).pathname);
 const OUT_JSON = path.join(PACKAGE_ROOT, "dist/lib/token-platforms/json");
+const OUT_IOS = path.join(PACKAGE_ROOT, "dist/lib/token-platforms/ios");
+const OUT_ANDROID = path.join(PACKAGE_ROOT, "dist/lib/token-platforms/android");
 
 async function readJson(filePath) {
     return JSON.parse(await fs.readFile(filePath, "utf8"));
+}
+
+async function readText(filePath, errors) {
+    try {
+        return await fs.readFile(filePath, "utf8");
+    } catch (err) {
+        errors.push(`cannot read ${path.relative(PACKAGE_ROOT, filePath)} (${err.message})`);
+        return "";
+    }
 }
 
 function validateModeFile(mode, json, errors) {
@@ -58,7 +69,76 @@ async function validatePlatforms() {
         }
     }
 
+    await validateIos(errors);
+    await validateAndroid(errors);
+
     return { errors, tokenCount: firstEntries.size, modeCount: files.size };
+}
+
+async function validateIos(errors) {
+    const swiftPath = path.join(OUT_IOS, "CEMTokens.swift");
+    const hintsPath = path.join(OUT_IOS, "CEMTokens.xcassets-hints.json");
+    const reportPath = path.join(OUT_IOS, "ios-report.md");
+
+    const swift = await readText(swiftPath, errors);
+    if (swift && !swift.includes("public enum CEMTokens")) errors.push("ios: CEMTokens.swift missing CEMTokens enum");
+    if (swift && !swift.includes("public enum Light")) errors.push("ios: CEMTokens.swift missing Light mode enum");
+    if (swift && !swift.includes("public enum Dark")) errors.push("ios: CEMTokens.swift missing Dark mode enum");
+
+    try {
+        const hints = await readJson(hintsPath);
+        if (!hints.$generated?.generator) errors.push("ios: CEMTokens.xcassets-hints.json missing provenance");
+        if (!hints.colors || typeof hints.colors !== "object") errors.push("ios: CEMTokens.xcassets-hints.json missing colors");
+    } catch (err) {
+        errors.push(`ios: cannot parse CEMTokens.xcassets-hints.json (${err.message})`);
+    }
+
+    const report = await readText(reportPath, errors);
+    if (report && !report.includes("| Fail-hard violations | 0 |")) {
+        errors.push("ios: report does not show zero fail-hard violations");
+    }
+}
+
+function resourceNames(xml, label, errors) {
+    if (!xml.includes("<resources>") || !xml.includes("</resources>")) {
+        errors.push(`${label}: missing <resources> root`);
+    }
+
+    const names = [];
+    const nameRe = /\bname="([^"]+)"/g;
+    let match;
+    while ((match = nameRe.exec(xml)) !== null) names.push(match[1]);
+
+    const seen = new Set();
+    for (const name of names) {
+        if (!/^[a-z][a-z0-9_]*$/.test(name)) errors.push(`${label}: invalid resource name ${name}`);
+        if (seen.has(name)) errors.push(`${label}: duplicate resource name ${name}`);
+        seen.add(name);
+    }
+
+    return names.length;
+}
+
+async function validateAndroid(errors) {
+    const lightPath = path.join(OUT_ANDROID, "values/cem-tokens.xml");
+    const darkPath = path.join(OUT_ANDROID, "values-night/cem-tokens.xml");
+    const composePath = path.join(OUT_ANDROID, "compose/CEMTokens.kt");
+    const reportPath = path.join(OUT_ANDROID, "android-report.md");
+
+    const light = await readText(lightPath, errors);
+    const dark = await readText(darkPath, errors);
+    const lightCount = resourceNames(light, "android values", errors);
+    const darkCount = resourceNames(dark, "android values-night", errors);
+    if (lightCount === 0) errors.push("android: values/cem-tokens.xml has no resources");
+    if (darkCount === 0) errors.push("android: values-night/cem-tokens.xml has no resources");
+
+    const compose = await readText(composePath, errors);
+    if (compose && !compose.includes("object CEMTokens")) errors.push("android: compose/CEMTokens.kt missing CEMTokens object");
+
+    const report = await readText(reportPath, errors);
+    if (report && !report.includes("| Fail-hard violations | 0 |")) {
+        errors.push("android: report does not show zero fail-hard violations");
+    }
 }
 
 async function main() {
