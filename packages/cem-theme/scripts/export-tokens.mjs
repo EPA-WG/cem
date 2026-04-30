@@ -7,6 +7,8 @@
  *   via headless Chromium and emit cem.tokens.resolved.json.
  * Stage 3 (Phase C): Emit canonical DTCG-compatible JSON (cem.tokens.json,
  *   cem.voice.tokens.json) and reports (cem.tokens.report.{md,json}).
+ * Stage 4 (Phase D): Emit Figma/Tokens Studio mode files and the Figma report.
+ * Stage 5 (Phase E): Emit TypeScript token metadata.
  *
  * Usage:
  *   node packages/cem-theme/scripts/export-tokens.mjs [--with-optional] [--with-adapter] [--with-deprecated]
@@ -431,6 +433,11 @@ function varToDtcgRef(varExpression) {
     return `{${m[1].split("-").join(".")}}`;
 }
 
+function varToCssName(varExpression) {
+    const m = (varExpression ?? "").match(/^var\(\s*(--[a-z0-9-]+)\s*\)$/);
+    return m?.[1] ?? null;
+}
+
 // Extract the light (first) branch from light-dark(X, Y) → X.
 // Returns null if extraction is not possible.
 function extractLightBranch(value) {
@@ -803,6 +810,591 @@ async function emitReport(stageResult) {
 }
 
 // ---------------------------------------------------------------------------
+// Stage 4 helpers — Figma value computation
+// ---------------------------------------------------------------------------
+
+function rgbStringToHex(rgb) {
+    const m3 = rgb.match(/^rgb\(\s*(\d+)\s*,\s*(\d+)\s*,\s*(\d+)\s*\)$/i);
+    if (m3) {
+        return "#" + [m3[1], m3[2], m3[3]].map((n) => Number(n).toString(16).padStart(2, "0")).join("");
+    }
+    const m4 = rgb.match(/^rgba\(\s*(\d+)\s*,\s*(\d+)\s*,\s*(\d+)\s*,\s*([0-9.]+)\s*\)$/i);
+    if (m4) {
+        const alpha = Math.round(parseFloat(m4[4]) * 255);
+        return (
+            "#" +
+            [m4[1], m4[2], m4[3]].map((n) => Number(n).toString(16).padStart(2, "0")).join("") +
+            alpha.toString(16).padStart(2, "0")
+        );
+    }
+    return null;
+}
+
+// Extract the dark (second) branch from "light-dark(X, Y)"
+function extractDarkBranch(value) {
+    const trimmed = (value ?? "").trim();
+    if (!trimmed.toLowerCase().startsWith("light-dark(")) return null;
+    const inner = trimmed.slice("light-dark(".length, trimmed.length - 1);
+    let depth = 0;
+    for (let i = 0; i < inner.length; i++) {
+        if (inner[i] === "(") depth++;
+        else if (inner[i] === ")") depth--;
+        else if (inner[i] === "," && depth === 0) return inner.slice(i + 1).trim();
+    }
+    return null;
+}
+
+// Convert a resolved CSS value to a Figma-compatible string.
+// Returns null if the value cannot be expressed in Figma format.
+function convertToFigmaValue(value, dtcgType) {
+    const v = (value ?? "").trim();
+    if (!v) return null;
+
+    switch (dtcgType) {
+        case "color": {
+            if (/^#[0-9a-f]{3,8}$/i.test(v)) return v.toLowerCase();
+            if (/^rgba?\(/i.test(v)) return rgbStringToHex(v);
+            if (/^hsl\(/i.test(v)) return v;
+            return null; // oklch, color-mix, light-dark, system colors
+        }
+        case "dimension": {
+            if (v === "0" || v === "0px") return "0px";
+            if (v.endsWith("px")) return v;
+            if (v.endsWith("rem")) return `${Math.round(parseFloat(v) * 16 * 100) / 100}px`;
+            return null; // %, vw, vh, calc() without prior resolution
+        }
+        case "duration": {
+            if (v.endsWith("ms")) return `${parseFloat(v) / 1000}s`;
+            if (/^\d+(\.\d+)?s$/.test(v)) return v;
+            return null;
+        }
+        case "fontFamily":
+            // Figma expects a single family name — take the first from a CSS font stack
+            return v.split(",")[0].trim().replace(/^["']|["']$/g, "");
+        case "fontWeight":
+        case "number":
+            return /^-?\d+(\.\d+)?$/.test(v) ? Number(v) : null;
+        default:
+            return v;
+    }
+}
+
+function figmaTypeForDtcgType(dtcgType) {
+    if (dtcgType === "fontWeight") return "number";
+    return dtcgType;
+}
+
+// Compute the Figma-compatible value for a token in a specific mode.
+// figmaResolved: { [mode]: { [cssName]: resolvedValue } } from the browser pass.
+function computeFigmaValueForMode(token, mode, dtcgType, figmaResolved) {
+    const portability = token.valueType;
+
+    if (portability === "platform-note") return null;
+
+    if (portability === "alias") {
+        // DTCG reference is mode-independent; Tokens Studio resolves per mode file
+        return varToDtcgRef(token.valueRaw);
+    }
+
+    if (portability === "css-expression") {
+        const resolved = figmaResolved?.[mode]?.[token.name] ?? "";
+        if (!resolved) return null;
+        return convertToFigmaValue(resolved, dtcgType);
+    }
+
+    if (portability === "mode") {
+        if (mode === "native") {
+            const resolved = figmaResolved?.native?.[token.name] ?? "";
+            if (!resolved) return null;
+            return convertToFigmaValue(resolved, dtcgType);
+        }
+        // Non-native modes: parse light-dark() branches directly
+        const modeVal = token.valueByMode?.light ?? "";
+        const branch =
+            mode === "light" || mode === "contrast-light"
+                ? extractLightBranch(modeVal)
+                : extractDarkBranch(modeVal);
+        return branch ? convertToFigmaValue(branch, dtcgType) : null;
+    }
+
+    // literal
+    const raw = token.valueByMode?.[mode] ?? token.valueByMode?.light ?? "";
+    return convertToFigmaValue(raw, dtcgType);
+}
+
+function computeConcreteFigmaValueForMode(token, mode, dtcgType, figmaResolved) {
+    const resolved = figmaResolved?.[mode]?.[token.name] ?? token.valueByMode?.[mode] ?? token.valueByMode?.light ?? "";
+    return convertToFigmaValue(resolved, dtcgType);
+}
+
+// ---------------------------------------------------------------------------
+// Stage 4 — browser resolution pass for Figma
+// ---------------------------------------------------------------------------
+
+// Resolve css-expression tokens (all modes) and mode tokens (native mode) via
+// element computed styles.  Returns { [mode]: { [cssName]: resolvedValue } }.
+async function resolveFigmaExpressions(tokens) {
+    const cssColorNames = tokens
+        .filter((t) => t.valueType === "css-expression" && inferDtcgType(t) === "color")
+        .map((t) => t.name);
+    const cssDimNames = tokens
+        .filter((t) => t.valueType === "css-expression" && inferDtcgType(t) === "dimension")
+        .map((t) => t.name);
+    const modeColorNames = tokens
+        .filter((t) => t.valueType === "mode" && inferDtcgType(t) === "color")
+        .map((t) => t.name);
+    const modeDimNames = tokens
+        .filter((t) => t.valueType === "mode" && inferDtcgType(t) === "dimension")
+        .map((t) => t.name);
+
+    const CSS_ABS_PATH = path.join(PACKAGE_ROOT, "dist/lib/css/cem.css");
+    const docRoot = path.parse(process.cwd()).root;
+    const FIXTURE_URL_PATH = "/__cem-figma-fixture.html";
+    const fixtureHtml = [
+        "<!DOCTYPE html>",
+        "<html>",
+        "<head>",
+        '  <meta charset="utf-8">',
+        `  <link rel="stylesheet" href="${CSS_ABS_PATH}">`,
+        "</head>",
+        "<body></body>",
+        "</html>",
+    ].join("\n");
+
+    const server = http.createServer(async (req, res) => {
+        const urlPath = decodeURIComponent(req.url.split("?")[0]);
+        if (urlPath === FIXTURE_URL_PATH) {
+            res.writeHead(200, { "Content-Type": "text/html" });
+            res.end(fixtureHtml);
+            return;
+        }
+        const filePath = path.join(docRoot, urlPath);
+        try {
+            const data = await fs.readFile(filePath);
+            const ext = path.extname(filePath).toLowerCase();
+            res.writeHead(200, { "Content-Type": MIME_TYPES[ext] || "application/octet-stream" });
+            res.end(data);
+        } catch {
+            res.writeHead(404);
+            res.end("Not found");
+        }
+    });
+    await new Promise((resolve) => server.listen(0, "127.0.0.1", resolve));
+    const { port } = server.address();
+
+    const { chromium } = await import("playwright");
+    const browser = await chromium.launch({ headless: true });
+    const context = await browser.newContext({ bypassCSP: true });
+    const page = await context.newPage();
+
+    try {
+        await page.goto(`http://127.0.0.1:${port}${FIXTURE_URL_PATH}`, { waitUntil: "networkidle" });
+        await page.waitForTimeout(500);
+
+        const results = {};
+        for (const mode of MODES) {
+            const modeClass = `cem-theme-${mode}`;
+            // For native mode, also resolve mode tokens (their native value is a system color)
+            const colorNames = mode === "native"
+                ? [...new Set([...cssColorNames, ...modeColorNames])]
+                : cssColorNames;
+            const dimNames = mode === "native"
+                ? [...new Set([...cssDimNames, ...modeDimNames])]
+                : cssDimNames;
+
+            if (colorNames.length === 0 && dimNames.length === 0) {
+                results[mode] = {};
+                continue;
+            }
+
+            // Assign var(--token) to an element's CSS property so the browser fully
+            // evaluates light-dark(), color-mix(), calc() etc. in context.
+            results[mode] = await page.evaluate(
+                ({ colorNames, dimNames, modeClass }) => {
+                    document.body.className = modeClass;
+                    const result = {};
+                    for (const name of colorNames) {
+                        const el = document.createElement("div");
+                        document.body.appendChild(el);
+                        el.style.backgroundColor = `var(${name})`;
+                        result[name] = getComputedStyle(el).backgroundColor;
+                        el.remove();
+                    }
+                    for (const name of dimNames) {
+                        const el = document.createElement("div");
+                        document.body.appendChild(el);
+                        el.style.width = `var(${name})`;
+                        result[name] = getComputedStyle(el).width;
+                        el.remove();
+                    }
+                    return result;
+                },
+                { colorNames, dimNames, modeClass }
+            );
+        }
+
+        return results;
+    } finally {
+        await browser.close();
+        await new Promise((resolve) => server.close(resolve));
+    }
+}
+
+// ---------------------------------------------------------------------------
+// Stage 4 — DTCG mode tree builder and validator
+// ---------------------------------------------------------------------------
+
+function buildFigmaModeTree(tokens, tokenFigmaValues, mode, generated) {
+    const root = { $extensions: { cem: { generated } } };
+    for (const token of tokens) {
+        const fv = tokenFigmaValues.get(token.name);
+        if (!fv) continue;
+        const $value = fv.modeValues[mode];
+        if ($value === null || $value === undefined) continue;
+
+        const pathParts = cssNameToDtcgPath(token.name);
+        let node = root;
+        for (let i = 0; i < pathParts.length - 1; i++) {
+            if (!node[pathParts[i]]) node[pathParts[i]] = {};
+            node = node[pathParts[i]];
+        }
+        const leaf = pathParts[pathParts.length - 1];
+        const record = { $type: fv.dtcgType, $value };
+        if (token.description) record.$description = token.description;
+        record.$extensions = { cem: { cssName: token.name, tier: token.tier, portability: token.valueType } };
+        if (node[leaf] && typeof node[leaf] === "object") {
+            Object.assign(node[leaf], record);
+        } else {
+            node[leaf] = record;
+        }
+    }
+    return root;
+}
+
+// Returns Map<dotPath, { type }> for all leaf tokens in a DTCG tree
+function getLeafTokenPaths(tree) {
+    const result = new Map();
+    function walk(node, prefix) {
+        for (const [key, value] of Object.entries(node)) {
+            if (key.startsWith("$")) continue;
+            if (typeof value !== "object" || value === null) continue;
+            const p = prefix ? `${prefix}.${key}` : key;
+            if ("$value" in value) result.set(p, { type: value.$type });
+            walk(value, p);
+        }
+    }
+    walk(tree, "");
+    return result;
+}
+
+// ---------------------------------------------------------------------------
+// Stage 4 — orchestration
+// ---------------------------------------------------------------------------
+
+async function stage4Figma(resolvedTokens, version, opts) {
+    const errors = [];
+    const warnings = [];
+
+    const filtered = filterByTier(resolvedTokens, opts).filter((t) => !VOICE_TABLES.has(t.sourceTable));
+
+    // Identify tokens needing Playwright resolution
+    const needsBrowser = filtered.filter(
+        (t) => t.valueType === "css-expression" || t.valueType === "mode"
+    );
+    const figmaResolved = await resolveFigmaExpressions(needsBrowser);
+
+    // Compute per-mode Figma values for all tokens
+    const tokenFigmaValues = new Map();
+    for (const t of filtered) {
+        const dtcgType = inferDtcgType(t);
+        const figmaType = figmaTypeForDtcgType(dtcgType);
+        const modeValues = {};
+        let allValid = true;
+        for (const mode of MODES) {
+            const val = computeFigmaValueForMode(t, mode, dtcgType, figmaResolved);
+            modeValues[mode] = val;
+            if (val === null) allValid = false;
+        }
+        tokenFigmaValues.set(t.name, {
+            modeValues,
+            dtcgType: figmaType,
+            canonicalType: dtcgType,
+            allValid,
+            aliasTarget: t.valueType === "alias" ? varToCssName(t.valueRaw) : null,
+            aliasResolvedToConcrete: false,
+        });
+    }
+
+    // Keep aliases where their target is also present in the same Figma collection.
+    // If an alias points to a token excluded for Figma, fall back to concrete values
+    // so the alias token can still be represented without a broken reference.
+    const candidateNames = new Set(
+        filtered.filter((t) => tokenFigmaValues.get(t.name).allValid).map((t) => t.name)
+    );
+    for (const t of filtered.filter((token) => token.valueType === "alias")) {
+        const fv = tokenFigmaValues.get(t.name);
+        if (!fv?.allValid || !fv.aliasTarget || candidateNames.has(fv.aliasTarget)) continue;
+
+        let allConcrete = true;
+        const modeValues = {};
+        for (const mode of MODES) {
+            const concrete = computeConcreteFigmaValueForMode(t, mode, fv.canonicalType, figmaResolved);
+            modeValues[mode] = concrete;
+            if (concrete === null) allConcrete = false;
+        }
+        fv.modeValues = modeValues;
+        fv.allValid = allConcrete;
+        fv.aliasResolvedToConcrete = allConcrete;
+        if (allConcrete) {
+            warnings.push(`Figma alias resolved to concrete values because target is excluded: ${t.name} → ${fv.aliasTarget}`);
+        }
+    }
+
+    const included = filtered.filter((t) => tokenFigmaValues.get(t.name).allValid);
+    const excluded = filtered.filter((t) => !tokenFigmaValues.get(t.name).allValid).map((t) => ({
+        ...t,
+        missingModes: MODES.filter((m) => tokenFigmaValues.get(t.name).modeValues[m] === null),
+    }));
+
+    for (const t of excluded) {
+        warnings.push(`Excluded from Figma: ${t.name} [${t.valueType}] — missing: ${t.missingModes.join(", ")}`);
+    }
+
+    // Validate duplicate slash-normalized names
+    const slashSeen = new Set();
+    for (const t of included) {
+        const slash = cssNameToDtcgPath(t.name).join("/");
+        if (slashSeen.has(slash)) errors.push(`Duplicate Figma path: ${slash} (${t.name})`);
+        slashSeen.add(slash);
+    }
+
+    const generated = {
+        timestamp: new Date().toISOString(),
+        packageVersion: version,
+        sourceSpecs: SPEC_ORDER.map((s) => s.name),
+        sourceBuildCommand: "node packages/cem-theme/scripts/export-tokens.mjs",
+        generator: "packages/cem-theme/scripts/export-tokens.mjs",
+        options: opts,
+        workflow: "Tokens Studio pull-only into one CEM collection; write-back disabled",
+    };
+
+    const modeFiles = {};
+    for (const mode of MODES) {
+        modeFiles[mode] = buildFigmaModeTree(included, tokenFigmaValues, mode, { ...generated, mode });
+    }
+
+    // Validate cross-mode consistency: all files must have same token paths and $types
+    const firstPaths = getLeafTokenPaths(modeFiles[MODES[0]]);
+    for (const mode of MODES.slice(1)) {
+        const modePaths = getLeafTokenPaths(modeFiles[mode]);
+        for (const [p, info] of firstPaths) {
+            if (!modePaths.has(p)) {
+                errors.push(`Figma mode consistency: ${p} in ${MODES[0]} but missing from ${mode}`);
+            } else if (modePaths.get(p).type !== info.type) {
+                errors.push(`Figma mode consistency: ${p} type ${info.type} in ${MODES[0]} vs ${modePaths.get(p).type} in ${mode}`);
+            }
+        }
+        for (const p of modePaths.keys()) {
+            if (!firstPaths.has(p)) {
+                errors.push(`Figma mode consistency: ${p} in ${mode} but missing from ${MODES[0]}`);
+            }
+        }
+    }
+
+    return { modeFiles, included, excluded, errors, warnings, generated, tokenFigmaValues };
+}
+
+// ---------------------------------------------------------------------------
+// Figma file emission
+// ---------------------------------------------------------------------------
+
+async function emitFigmaFiles(result) {
+    const { modeFiles, included, excluded, errors, warnings, generated, tokenFigmaValues } = result;
+    const figmaDir = path.join(DIST_TOKENS, "figma");
+    await fs.mkdir(figmaDir, { recursive: true });
+
+    const modePaths = {};
+    for (const mode of MODES) {
+        const filePath = path.join(figmaDir, `cem-${mode}.tokens.json`);
+        await fs.writeFile(filePath, JSON.stringify(modeFiles[mode], null, 2), "utf8");
+        modePaths[mode] = filePath;
+    }
+
+    // Markdown report
+    const md = [];
+    md.push("# CEM Figma Token Report", "");
+    md.push(`Generated: ${generated.timestamp}  `);
+    md.push(`Package: ${generated.packageVersion}  `, "");
+    md.push("## Summary", "");
+    md.push("| Stat | Count |", "| ---- | ----- |");
+    md.push(`| Tokens in all mode files | ${included.length} |`);
+    md.push(`| Excluded (incomplete modes) | ${excluded.length} |`);
+    md.push(`| Aliases resolved to concrete values | ${included.filter((t) => tokenFigmaValues.get(t.name)?.aliasResolvedToConcrete).length} |`);
+    md.push(`| Warnings | ${warnings.length} |`);
+    md.push(`| Errors | ${errors.length} |`, "");
+    md.push("## Mode files", "");
+    for (const mode of MODES) {
+        md.push(`- \`figma/cem-${mode}.tokens.json\` — ${mode} mode`);
+    }
+    md.push("");
+
+    if (excluded.length > 0) {
+        md.push("## Excluded tokens", "");
+        md.push(
+            "Tokens with no valid Figma value for at least one mode are excluded from all mode files.",
+            "Use the canonical `cem.tokens.json` for cross-platform consumption.",
+            ""
+        );
+        for (const t of excluded) {
+            md.push(`- \`${t.name}\` [${t.valueType}] — missing: ${t.missingModes.join(", ")}`);
+        }
+        md.push("");
+    }
+
+    const concreteAliases = included.filter((t) => tokenFigmaValues.get(t.name)?.aliasResolvedToConcrete);
+    if (concreteAliases.length > 0) {
+        md.push("## Aliases resolved to concrete values", "");
+        md.push("These aliases point to tokens excluded from the Figma collection, so their per-mode concrete values are emitted instead.", "");
+        for (const t of concreteAliases) {
+            const fv = tokenFigmaValues.get(t.name);
+            md.push(`- \`${t.name}\` → \`${fv.aliasTarget}\``);
+        }
+        md.push("");
+    }
+
+    if (warnings.length > 0) {
+        md.push("## Warnings", "");
+        for (const w of warnings) md.push(`- ${w}`);
+        md.push("");
+    }
+
+    md.push("## Tokens Studio setup", "");
+    md.push("1. Install the **Tokens Studio** Figma plugin.");
+    md.push("2. Create a token project or collection named **CEM**.");
+    md.push(
+        "3. Configure sync to pull the generated files from `dist/lib/tokens/figma/` as read-only source files."
+    );
+    md.push("4. Import each mode file as a separate theme/mode: light, dark, contrast-light, contrast-dark, native.");
+    md.push("5. Keep push/write-back disabled; markdown token specs remain the source of truth.");
+    md.push("6. The token names and types are identical across all mode files.", "");
+
+    if (errors.length > 0) {
+        md.push("## Errors", "");
+        for (const e of errors) md.push(`- **ERROR:** ${e}`);
+        md.push("");
+    }
+
+    md.push("---", "");
+    md.push("> Generated by `export-tokens.mjs`. Do not edit by hand.", "");
+
+    const reportPath = path.join(figmaDir, "cem-figma-report.md");
+    await fs.writeFile(reportPath, md.join("\n"), "utf8");
+
+    return { modePaths, reportPath };
+}
+
+// ---------------------------------------------------------------------------
+// TypeScript metadata emission
+// ---------------------------------------------------------------------------
+
+function tsString(value) {
+    return JSON.stringify(value ?? "");
+}
+
+function buildTokenMeta(token, bucket) {
+    return {
+        name: token.name,
+        type: inferDtcgType(token),
+        tier: token.tier,
+        spec: token.spec,
+        sourceTable: token.sourceTable,
+        category: token.category,
+        portability: token.valueType,
+        bucket,
+        rawValue: token.valueRaw ?? "",
+        modes: token.valueByMode ?? {},
+    };
+}
+
+async function emitTypeScriptMetadata(stage3Result, generated) {
+    const outPath = path.join(DIST_TOKENS, "cem.tokens.ts");
+    const allMeta = [
+        ...stage3Result.visualTokens.map((token) => buildTokenMeta(token, "visual")),
+        ...stage3Result.voiceTokens.map((token) => buildTokenMeta(token, "voice")),
+    ].sort((a, b) => a.name.localeCompare(b.name));
+
+    const tokenNames = allMeta.map((token) => token.name);
+    const tokenTypes = [...new Set(allMeta.map((token) => token.type))].sort();
+    const tiers = [...VALID_TIERS].sort();
+    const portabilities = [...new Set(allMeta.map((token) => token.portability))].sort();
+
+    const lines = [];
+    lines.push("/*");
+    lines.push(" * Generated by packages/cem-theme/scripts/export-tokens.mjs.");
+    lines.push(" * Do not edit by hand.");
+    lines.push(" */");
+    lines.push("");
+    lines.push(`export const cemTokenGenerated = ${JSON.stringify(generated, null, 4)} as const;`);
+    lines.push("");
+    lines.push("export type CemTokenName =");
+    for (const name of tokenNames) lines.push(`    | ${tsString(name)}`);
+    lines.push(";");
+    lines.push("");
+    lines.push("export type CemTokenType =");
+    for (const type of tokenTypes) lines.push(`    | ${tsString(type)}`);
+    lines.push(";");
+    lines.push("");
+    lines.push("export type CemTokenTier =");
+    for (const tier of tiers) lines.push(`    | ${tsString(tier)}`);
+    lines.push(";");
+    lines.push("");
+    lines.push("export type CemTokenPortability =");
+    for (const portability of portabilities) lines.push(`    | ${tsString(portability)}`);
+    lines.push(";");
+    lines.push("");
+    lines.push("export type CemTokenBucket = \"visual\" | \"voice\";");
+    lines.push("");
+    lines.push("export interface CemTokenMeta {");
+    lines.push("    name: CemTokenName;");
+    lines.push("    type: CemTokenType;");
+    lines.push("    tier: CemTokenTier;");
+    lines.push("    spec: string;");
+    lines.push("    sourceTable: string;");
+    lines.push("    category: string;");
+    lines.push("    portability: CemTokenPortability;");
+    lines.push("    bucket: CemTokenBucket;");
+    lines.push("    rawValue: string;");
+    lines.push("    modes: Readonly<Record<string, string>>;");
+    lines.push("}");
+    lines.push("");
+    lines.push("export const cemTokens = [");
+    for (const meta of allMeta) {
+        lines.push("    {");
+        lines.push(`        name: ${tsString(meta.name)},`);
+        lines.push(`        type: ${tsString(meta.type)},`);
+        lines.push(`        tier: ${tsString(meta.tier)},`);
+        lines.push(`        spec: ${tsString(meta.spec)},`);
+        lines.push(`        sourceTable: ${tsString(meta.sourceTable)},`);
+        lines.push(`        category: ${tsString(meta.category)},`);
+        lines.push(`        portability: ${tsString(meta.portability)},`);
+        lines.push(`        bucket: ${tsString(meta.bucket)},`);
+        lines.push(`        rawValue: ${tsString(meta.rawValue)},`);
+        lines.push(`        modes: ${JSON.stringify(meta.modes)},`);
+        lines.push("    },");
+    }
+    lines.push("] as const satisfies readonly CemTokenMeta[];");
+    lines.push("");
+    lines.push("export const cemTokenMetaByName = Object.fromEntries(");
+    lines.push("    cemTokens.map((token) => [token.name, token]),");
+    lines.push(") as unknown as Record<CemTokenName, CemTokenMeta>;");
+    lines.push("");
+
+    await fs.mkdir(DIST_TOKENS, { recursive: true });
+    await fs.writeFile(outPath, lines.join("\n"), "utf8");
+    return outPath;
+}
+
+// ---------------------------------------------------------------------------
 // Main
 // ---------------------------------------------------------------------------
 
@@ -900,6 +1492,27 @@ async function main(argv) {
     console.log(`  → ${path.relative(process.cwd(), voicePath)}`);
     console.log(`  → ${path.relative(process.cwd(), reportMdPath)}`);
     console.log(`  → ${path.relative(process.cwd(), reportJsonPath)}`);
+
+    // Stage 4 — Figma/Tokens Studio mode files
+    console.log("export-tokens: Stage 4 — Figma mode file emission");
+    const s4 = await stage4Figma(resolvedTokens, version, opts);
+
+    const { modePaths, reportPath } = await emitFigmaFiles(s4);
+
+    console.log(`  figma tokens: ${s4.included.length}  excluded: ${s4.excluded.length}`);
+    if (s4.warnings.length) console.log(`  warnings: ${s4.warnings.length} (see ${path.relative(process.cwd(), reportPath)})`);
+    for (const mode of MODES) console.log(`  → ${path.relative(process.cwd(), modePaths[mode])}`);
+    console.log(`  → ${path.relative(process.cwd(), reportPath)}`);
+
+    if (s4.errors.length) {
+        for (const e of s4.errors) console.error(`  error: ${e}`);
+        process.exit(1);
+    }
+
+    // Stage 5 — TypeScript token metadata
+    console.log("export-tokens: Stage 5 — TypeScript metadata emission");
+    const tsPath = await emitTypeScriptMetadata(s3, s3.generated);
+    console.log(`  → ${path.relative(process.cwd(), tsPath)}`);
 }
 
 main(process.argv).catch((err) => {

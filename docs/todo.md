@@ -125,27 +125,27 @@ Decisions that do **not** block MVP extraction/emission:
 
 ### MVP Phase D — Figma import files
 
-- [ ] Generate `dist/lib/tokens/figma/cem-light.tokens.json`, `cem-dark.tokens.json`,
+- [x] Generate `dist/lib/tokens/figma/cem-light.tokens.json`, `cem-dark.tokens.json`,
       `cem-contrast-light.tokens.json`, `cem-contrast-dark.tokens.json`, and `cem-native.tokens.json`.
-- [ ] Generate `dist/lib/tokens/figma/cem-figma-report.md`.
-- [ ] Configure Tokens Studio pull-only import into one CEM collection from generated token JSON. Push/write-back must
+- [x] Generate `dist/lib/tokens/figma/cem-figma-report.md`.
+- [x] Configure Tokens Studio pull-only import into one CEM collection from generated token JSON. Push/write-back must
       stay disabled.
-- [ ] Emit only Figma-supported value shapes: sRGB/HSL colors, px dimensions, seconds durations, numbers, booleans,
+- [x] Emit only Figma-supported value shapes: sRGB/HSL colors, px dimensions, seconds durations, numbers, booleans,
       strings, and single-string font families.
-- [ ] Validate duplicate slash-normalized Figma names before import.
-- [ ] Validate each Figma mode file has the same token names and `$type` values.
-- [ ] Exclude unsupported or incomplete-mode tokens from all Figma mode files and list them in the report.
+- [x] Validate duplicate slash-normalized Figma names before import.
+- [x] Validate each Figma mode file has the same token names and `$type` values.
+- [x] Exclude unsupported or incomplete-mode tokens from all Figma mode files and list them in the report.
 - [ ] Validate Tokens Studio pull into a Figma test collection and record the result in the report or a fixture note.
-- [ ] Keep direct-file-import and split-collection developer prompts in `examples/figma/README.md`.
+- [x] Keep direct-file-import and split-collection developer prompts in `examples/figma/README.md`.
 
 ### MVP Phase E — TypeScript metadata and build wiring
 
-- [ ] Emit `dist/lib/tokens/cem.tokens.ts` with:
+- [x] Emit `dist/lib/tokens/cem.tokens.ts` with:
     - `CemTokenName` union type
     - `CemTokenMeta` interface
     - generated token metadata usable by docs/tests/autocomplete
-- [ ] Ensure TypeScript metadata passes `tsc --noEmit` or the repo's equivalent typecheck.
-- [ ] Add `build:tokens` target to `packages/cem-theme/project.json`:
+- [x] Ensure TypeScript metadata passes `tsc --noEmit` or the repo's equivalent typecheck.
+- [x] Add `build:tokens` target to `packages/cem-theme/project.json`:
     - depends on `build:css`
     - command: `node scripts/export-tokens.mjs`
     - outputs canonical JSON, TS metadata, reports, and `figma/`
@@ -214,8 +214,8 @@ Decisions that do **not** block MVP extraction/emission:
 ### Post-MVP Phase H — Figma workflow docs and optional sync
 
 - [ ] Add `examples/figma/README.md` with Tokens Studio pull-only steps and screenshots.
-- [ ] Add a developer prompt for switching to direct Figma Variables file import.
-- [ ] Add a developer prompt for splitting one CEM collection into dimension-specific collections.
+- [x] Add a developer prompt for switching to direct Figma Variables file import.
+- [x] Add a developer prompt for splitting one CEM collection into dimension-specific collections.
 - [ ] Do not enable Figma REST API write/sync until file import is stable and governance exists.
 - [ ] If REST sync is added later, start as a manual script requiring explicit file id config, scoped write token,
       dry-run/report mode, and no default local build execution.
@@ -253,21 +253,21 @@ Decisions that do **not** block MVP extraction/emission:
 | ----------------------------------------------------------- | ---------------- | ----- | ------- |
 | `packages/cem-theme/scripts/manifest-utils.mjs`             | existing edit    | A     | done    |
 | `packages/cem-theme/scripts/derive-tokens.mjs`              | new source       | A     | done    |
-| `packages/cem-theme/scripts/export-tokens.mjs`              | new source       | A-E   | in progress (Stages 1-3 done) |
-| `packages/cem-theme/project.json` (`build:tokens`)          | existing edit    | E     | pending |
+| `packages/cem-theme/scripts/export-tokens.mjs`              | new source       | A-E   | in progress (Stages 1-5 done; package export/build integration pending) |
+| `packages/cem-theme/project.json` (`build:tokens`)          | existing edit    | E     | done    |
 | `dist/lib/tokens/cem.tokens.json`                           | generated output | C     | done    |
-| `dist/lib/tokens/cem.tokens.ts`                             | generated output | E     | pending |
+| `dist/lib/tokens/cem.tokens.ts`                             | generated output | E     | done    |
 | `dist/lib/tokens/cem.voice.tokens.json`                     | generated output | C     | done    |
 | `dist/lib/tokens/cem.tokens.report.md`                      | generated output | C     | done    |
 | `dist/lib/tokens/cem.tokens.report.json`                    | generated output | C     | done    |
 | `dist/lib/tokens/cem.tokens.intermediate.json`              | debug output     | A     | done    |
 | `dist/lib/tokens/cem.tokens.resolved.json`                  | debug output     | B     | done    |
-| `dist/lib/tokens/figma/cem-light.tokens.json`               | generated output | D     | pending |
-| `dist/lib/tokens/figma/cem-dark.tokens.json`                | generated output | D     | pending |
-| `dist/lib/tokens/figma/cem-contrast-light.tokens.json`      | generated output | D     | pending |
-| `dist/lib/tokens/figma/cem-contrast-dark.tokens.json`       | generated output | D     | pending |
-| `dist/lib/tokens/figma/cem-native.tokens.json`              | generated output | D     | pending |
-| `dist/lib/tokens/figma/cem-figma-report.md`                 | generated output | D     | pending |
+| `dist/lib/tokens/figma/cem-light.tokens.json`               | generated output | D     | done    |
+| `dist/lib/tokens/figma/cem-dark.tokens.json`                | generated output | D     | done    |
+| `dist/lib/tokens/figma/cem-contrast-light.tokens.json`      | generated output | D     | done    |
+| `dist/lib/tokens/figma/cem-contrast-dark.tokens.json`       | generated output | D     | done    |
+| `dist/lib/tokens/figma/cem-native.tokens.json`              | generated output | D     | done    |
+| `dist/lib/tokens/figma/cem-figma-report.md`                 | generated output | D     | done    |
 | `packages/cem-theme/style-dictionary.config.mjs`            | new source       | F     | pending |
 | `packages/cem-theme/scripts/build-token-platforms.mjs`      | new source       | F     | pending |
 | `packages/cem-theme/scripts/validate-platforms.mjs`         | new source       | F     | pending |

@@ -69,6 +69,33 @@
                 "{projectRoot}/dist/lib/tokens/generated-token-coverage.xhtml"
             ]
         },
+        "build:tokens": {
+            "dependsOn": ["build:css"],
+            "executor": "nx:run-commands",
+            "options": {
+                "command": "node scripts/export-tokens.mjs",
+                "cwd": "packages/cem-theme"
+            },
+            "cache": true,
+            "inputs": [
+                "{projectRoot}/scripts/export-tokens.mjs",
+                "{projectRoot}/scripts/derive-tokens.mjs",
+                "{projectRoot}/scripts/manifest-utils.mjs",
+                "{projectRoot}/dist/lib/css/*.css",
+                "{projectRoot}/dist/lib/tokens/*.xhtml",
+                "{projectRoot}/package.json"
+            ],
+            "outputs": [
+                "{projectRoot}/dist/lib/tokens/cem.tokens.json",
+                "{projectRoot}/dist/lib/tokens/cem.tokens.ts",
+                "{projectRoot}/dist/lib/tokens/cem.voice.tokens.json",
+                "{projectRoot}/dist/lib/tokens/cem.tokens.report.md",
+                "{projectRoot}/dist/lib/tokens/cem.tokens.report.json",
+                "{projectRoot}/dist/lib/tokens/cem.tokens.intermediate.json",
+                "{projectRoot}/dist/lib/tokens/cem.tokens.resolved.json",
+                "{projectRoot}/dist/lib/tokens/figma"
+            ]
+        },
         "build:html": {
             "dependsOn": ["build:docs"],
             "executor": "nx:run-commands",
