@@ -93,30 +93,30 @@ Decisions that do **not** block MVP extraction/emission:
 
 ### MVP Phase C — Canonical DTCG-compatible outputs
 
-- [ ] In `export-tokens.mjs` Stage 3, emit canonical DTCG-compatible JSON from extracted + resolved data.
-- [ ] Apply tier filtering:
+- [x] In `export-tokens.mjs` Stage 3, emit canonical DTCG-compatible JSON from extracted + resolved data.
+- [x] Apply tier filtering:
     - required + recommended by default
     - `--with-optional`
     - `--with-adapter`
     - `--with-deprecated`
-- [ ] Preserve aliases as DTCG references where the source token references another token.
-- [ ] Store mode values in `$extensions.cem.modes`.
-- [ ] Add `$extensions.cem` metadata to every token:
+- [x] Preserve aliases as DTCG references where the source token references another token.
+- [x] Store mode values in `$extensions.cem.modes`.
+- [x] Add `$extensions.cem` metadata to every token:
       `cssName`, `spec`, `sourceTable`, `tier`, `category`, `rawValue`, `portability`, `modes`.
-- [ ] Add top-level `$extensions.cem.generated` provenance to JSON outputs: package version, generation timestamp,
+- [x] Add top-level `$extensions.cem.generated` provenance to JSON outputs: package version, generation timestamp,
       source specs, source build command, and generator script.
-- [ ] Emit `dist/lib/tokens/cem.tokens.json` for cross-platform visual tokens.
-- [ ] Emit `dist/lib/tokens/cem.voice.tokens.json` as voice/audio metadata only in v1.
-- [ ] Emit `dist/lib/tokens/cem.tokens.report.md` and `cem.tokens.report.json` with portability, skipped tokens, and
+- [x] Emit `dist/lib/tokens/cem.tokens.json` for cross-platform visual tokens.
+- [x] Emit `dist/lib/tokens/cem.voice.tokens.json` as voice/audio metadata only in v1.
+- [x] Emit `dist/lib/tokens/cem.tokens.report.md` and `cem.tokens.report.json` with portability, skipped tokens, and
       target reasons.
-- [ ] Add fail-hard validation:
+- [x] Add fail-hard validation:
     - missing required/recommended tokens
     - duplicate canonical DTCG paths
     - invalid DTCG shape or local schema assertion failure
     - missing generated provenance
     - mode-completeness violations
     - visual output accidentally containing voice-only tokens
-- [ ] Add warn-and-report validation:
+- [x] Add warn-and-report validation:
     - skipped optional tokens
     - unresolvable `css-expression`
     - system color `platform-note`
@@ -253,13 +253,13 @@ Decisions that do **not** block MVP extraction/emission:
 | ----------------------------------------------------------- | ---------------- | ----- | ------- |
 | `packages/cem-theme/scripts/manifest-utils.mjs`             | existing edit    | A     | done    |
 | `packages/cem-theme/scripts/derive-tokens.mjs`              | new source       | A     | done    |
-| `packages/cem-theme/scripts/export-tokens.mjs`              | new source       | A-E   | in progress (Stage 1 done) |
+| `packages/cem-theme/scripts/export-tokens.mjs`              | new source       | A-E   | in progress (Stages 1-3 done) |
 | `packages/cem-theme/project.json` (`build:tokens`)          | existing edit    | E     | pending |
-| `dist/lib/tokens/cem.tokens.json`                           | generated output | C     | pending |
+| `dist/lib/tokens/cem.tokens.json`                           | generated output | C     | done    |
 | `dist/lib/tokens/cem.tokens.ts`                             | generated output | E     | pending |
-| `dist/lib/tokens/cem.voice.tokens.json`                     | generated output | C     | pending |
-| `dist/lib/tokens/cem.tokens.report.md`                      | generated output | C     | pending |
-| `dist/lib/tokens/cem.tokens.report.json`                    | generated output | C     | pending |
+| `dist/lib/tokens/cem.voice.tokens.json`                     | generated output | C     | done    |
+| `dist/lib/tokens/cem.tokens.report.md`                      | generated output | C     | done    |
+| `dist/lib/tokens/cem.tokens.report.json`                    | generated output | C     | done    |
 | `dist/lib/tokens/cem.tokens.intermediate.json`              | debug output     | A     | done    |
 | `dist/lib/tokens/cem.tokens.resolved.json`                  | debug output     | B     | done    |
 | `dist/lib/tokens/figma/cem-light.tokens.json`               | generated output | D     | pending |

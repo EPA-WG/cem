@@ -5,6 +5,8 @@
  *   in-memory intermediate model and emit cem.tokens.intermediate.json.
  * Stage 2 (Phase B): Resolve CSS custom property values for all supported modes
  *   via headless Chromium and emit cem.tokens.resolved.json.
+ * Stage 3 (Phase C): Emit canonical DTCG-compatible JSON (cem.tokens.json,
+ *   cem.voice.tokens.json) and reports (cem.tokens.report.{md,json}).
  *
  * Usage:
  *   node packages/cem-theme/scripts/export-tokens.mjs [--with-optional] [--with-adapter] [--with-deprecated]
@@ -195,8 +197,9 @@ function classifyValueType(valueRaw, resolvedLight) {
     const v = (resolvedLight ?? valueRaw ?? "").trim().toLowerCase();
     if (!v) return "literal";
     if (CSS_SYSTEM_COLORS.has(v)) return "platform-note";
-    if (v.includes("light-dark(")) return "mode";
+    // css-expression before mode: color-mix(in srgb, light-dark(...) ...) is css-expression, not mode
     if (v.includes("calc(") || v.includes("color-mix(") || v.includes("env(")) return "css-expression";
+    if (v.includes("light-dark(")) return "mode";
     return "literal";
 }
 
@@ -394,6 +397,412 @@ async function emitResolved(tokens, warnings, version, opts) {
 }
 
 // ---------------------------------------------------------------------------
+// Stage 3 constants
+// ---------------------------------------------------------------------------
+
+// Source tables that produce voice/audio tokens — routed to cem.voice.tokens.json
+const VOICE_TABLES = new Set([
+    "cem-typography-voice-ink-thickness",
+    "cem-typography-voice-icon-stroke-multiplier",
+    "cem-typography-voice-speech-volume",
+    "cem-typography-voice-speech-rate",
+    "cem-typography-voice-speech-pitch",
+    "cem-typography-voice-ssml-emphasis",
+]);
+
+// Specs whose tokens are dimension-typed by default (for bare-0 handling etc.)
+const DIMENSION_SPECS = new Set([
+    "cem-dimension", "cem-breakpoints", "cem-coupling", "cem-controls", "cem-shape", "cem-stroke",
+]);
+
+// ---------------------------------------------------------------------------
+// DTCG path and value helpers
+// ---------------------------------------------------------------------------
+
+// --cem-palette-comfort → ["cem", "palette", "comfort"]
+function cssNameToDtcgPath(cssName) {
+    return cssName.replace(/^--/, "").split("-");
+}
+
+// var(--cem-dim-x-small) → "{cem.dim.x.small}"
+function varToDtcgRef(varExpression) {
+    const m = (varExpression ?? "").match(/^var\(\s*--([a-z0-9-]+)\s*\)$/);
+    if (!m) return null;
+    return `{${m[1].split("-").join(".")}}`;
+}
+
+// Extract the light (first) branch from light-dark(X, Y) → X.
+// Returns null if extraction is not possible.
+function extractLightBranch(value) {
+    const trimmed = (value ?? "").trim();
+    if (!trimmed.toLowerCase().startsWith("light-dark(")) return null;
+    const inner = trimmed.slice("light-dark(".length, trimmed.length - 1);
+    let depth = 0;
+    for (let i = 0; i < inner.length; i++) {
+        if (inner[i] === "(") depth++;
+        else if (inner[i] === ")") depth--;
+        else if (inner[i] === "," && depth === 0) return inner.slice(0, i).trim();
+    }
+    return null;
+}
+
+// Infer the DTCG $type for a token based on its resolved light value and spec.
+function inferDtcgType(token) {
+    const spec = token.spec ?? "";
+    const lightVal = (token.valueByMode?.light ?? "").trim();
+    const rawVal = (token.valueRaw ?? "").trim();
+    const tableId = token.sourceTable ?? "";
+
+    // Typography tokens: classify by source table first to avoid numeric false-positives.
+    // Font weight values (200, 400, 700…) and voice speech parameters both look like numbers;
+    // the table id gives us the semantic intent.
+    if (spec === "cem-voice-fonts-typography") {
+        if (tableId === "cem-typography-fontography") return "fontFamily";
+        if (tableId === "cem-typography-thickness") return "fontWeight";
+        if (tableId.includes("size") || tableId.includes("line-height") ||
+            tableId.includes("letter-spacing") || tableId.includes("ergonomics")) return "dimension";
+        // Voice ink-thickness references the font-weight scale
+        if (tableId === "cem-typography-voice-ink-thickness") return "fontWeight";
+        if (tableId === "cem-typography-voice-icon-stroke-multiplier" ||
+            tableId.includes("voice-speech")) return "number";
+        // SSML emphasis levels are string keywords ("reduced", "strong", etc.)
+        if (tableId.includes("voice-ssml")) return "string";
+        return "string";
+    }
+
+    // Duration (ms, s)
+    if (/^-?\d+(\.\d+)?(ms|s)$/.test(lightVal) || /^-?\d+(\.\d+)?(ms|s)$/.test(rawVal)) return "duration";
+
+    // Bare 0 in dimension specs (e.g. --cem-bend-sharp: 0 — a dimensionless zero border-radius)
+    if ((lightVal === "0" || rawVal === "0") && DIMENSION_SPECS.has(spec)) return "dimension";
+
+    // Dimension (CSS length units)
+    if (/^-?\d+(\.\d+)?(px|rem|em|%|vw|vh|ch|vmin|vmax|fr|pt)$/.test(lightVal)) return "dimension";
+    if (/^-?\d+(\.\d+)?(px|rem|em|%|vw|vh|ch|vmin|vmax|fr|pt)$/.test(rawVal)) return "dimension";
+
+    // Color (from resolved light value)
+    if (
+        /^#[0-9a-f]{3,8}$/i.test(lightVal) ||
+        /^(rgb|rgba|hsl|hsla|oklch|lch|lab|oklab|hwb|color)\(/i.test(lightVal) ||
+        lightVal.startsWith("color-mix(") ||
+        lightVal.startsWith("light-dark(") ||
+        CSS_SYSTEM_COLORS.has(lightVal.toLowerCase())
+    ) return "color";
+
+    // Number (pure unitless numeric — z-index, opacity multipliers)
+    if (/^-?\d+(\.\d+)?$/.test(lightVal) || /^-?\d+(\.\d+)?$/.test(rawVal)) return "number";
+
+    // Spec-based fallbacks for unresolved/alias tokens
+    if (spec === "cem-colors") return "color";
+    if (spec === "cem-timing") return "duration";
+    if (DIMENSION_SPECS.has(spec)) return "dimension";
+    if (spec === "cem-layering") return "number";
+
+    return "string";
+}
+
+// Compute the DTCG $value for a token.
+function computeDtcgValue(token) {
+    const lightVal = (token.valueByMode?.light ?? "").trim();
+
+    switch (token.valueType) {
+        case "alias": {
+            const ref = varToDtcgRef(token.valueRaw);
+            return ref ?? lightVal;
+        }
+        case "mode": {
+            // Extract the light branch from light-dark() when possible
+            const lightBranch = extractLightBranch(lightVal);
+            return lightBranch ?? lightVal;
+        }
+        case "platform-note":
+            return (token.valueByMode?.native ?? token.valueRaw ?? "").trim();
+        default:
+            return lightVal || (token.valueRaw ?? "");
+    }
+}
+
+function buildDtcgTokenRecord(token) {
+    const $type = inferDtcgType(token);
+    const $value = computeDtcgValue(token);
+    const record = { $type, $value };
+    if (token.description) record.$description = token.description;
+    record.$extensions = {
+        cem: {
+            cssName: token.name,
+            spec: token.spec,
+            sourceTable: token.sourceTable,
+            tier: token.tier,
+            category: token.category,
+            rawValue: token.valueRaw,
+            portability: token.valueType,
+            modes: token.valueByMode ?? {},
+        },
+    };
+    return record;
+}
+
+// Build a nested DTCG token tree.  CSS name parts (split by "-") form the path.
+// A node can be both a token ($value present) and a group (nested children).
+function buildDtcgTree(tokens) {
+    const root = {};
+    for (const token of tokens) {
+        const path = cssNameToDtcgPath(token.name);
+        let node = root;
+        for (let i = 0; i < path.length - 1; i++) {
+            if (!node[path[i]]) node[path[i]] = {};
+            node = node[path[i]];
+        }
+        const leaf = path[path.length - 1];
+        const record = buildDtcgTokenRecord(token);
+        if (node[leaf] && typeof node[leaf] === "object") {
+            Object.assign(node[leaf], record);
+        } else {
+            node[leaf] = record;
+        }
+    }
+    return root;
+}
+
+// ---------------------------------------------------------------------------
+// DTCG validation
+// ---------------------------------------------------------------------------
+
+function validateDtcgTree(tree, tokenList, errors) {
+    // Duplicate canonical DTCG paths
+    const seenPaths = new Map();
+    for (const t of tokenList) {
+        const p = cssNameToDtcgPath(t.name).join(".");
+        if (seenPaths.has(p)) {
+            errors.push(`Duplicate DTCG path: ${p} (from ${t.name} and ${seenPaths.get(p)})`);
+        } else {
+            seenPaths.set(p, t.name);
+        }
+    }
+
+    // Invalid DTCG shape — every leaf must have $type and $value
+    function walkTree(node, nodePath) {
+        for (const [key, value] of Object.entries(node)) {
+            if (key.startsWith("$")) continue;
+            if (typeof value !== "object" || value === null) {
+                errors.push(`Invalid DTCG node at ${nodePath}.${key}: not an object`);
+                continue;
+            }
+            if ("$value" in value) {
+                if (!value.$type) errors.push(`Token ${nodePath}.${key} missing $type`);
+                if (value.$value === undefined) errors.push(`Token ${nodePath}.${key} has undefined $value`);
+            } else {
+                walkTree(value, `${nodePath}.${key}`);
+            }
+        }
+    }
+    walkTree(tree, "");
+
+    // Mode-completeness — every non-deprecated emitted token must have all 5 mode values
+    for (const t of tokenList) {
+        if (!t.valueByMode || t.tier === "deprecated") continue;
+        const missing = MODES.filter((m) => (t.valueByMode[m] ?? "") === "");
+        if (missing.length > 0 && missing.length < MODES.length) {
+            errors.push(`Mode-completeness violation for ${t.name}: missing ${missing.join(", ")}`);
+        }
+    }
+}
+
+// ---------------------------------------------------------------------------
+// Stage 3 — Canonical DTCG-compatible outputs
+// ---------------------------------------------------------------------------
+
+function filterByTier(tokens, opts) {
+    return tokens.filter((t) => {
+        if (t.tier === "required" || t.tier === "recommended") return true;
+        if (t.tier === "optional" && opts.withOptional) return true;
+        if (t.tier === "adapter" && opts.withAdapter) return true;
+        if (t.tier === "deprecated" && opts.withDeprecated) return true;
+        return false;
+    });
+}
+
+async function stage3Emit(resolvedTokens, manifestBySpec, version, opts) {
+    const errors = [];
+    const warnings = [];
+
+    // --- Tier filtering ---
+    const allFiltered = filterByTier(resolvedTokens, opts);
+    const filteredNames = new Set(allFiltered.map((t) => t.name));
+    const skipped = resolvedTokens.filter((t) => !filteredNames.has(t.name));
+
+    for (const t of skipped) {
+        if (t.tier === "optional") warnings.push(`Skipped optional token: ${t.name}`);
+        if (t.tier === "adapter") warnings.push(`Skipped adapter token: ${t.name}`);
+        // deprecated skips are expected; suppress per-token noise
+    }
+
+    // --- Visual / voice split ---
+    const voiceTokens = allFiltered.filter((t) => VOICE_TABLES.has(t.sourceTable));
+    const visualTokens = allFiltered.filter((t) => !VOICE_TABLES.has(t.sourceTable));
+
+    // Fail-hard: voice tokens must not be in visual output
+    for (const t of visualTokens.filter((t2) => VOICE_TABLES.has(t2.sourceTable))) {
+        errors.push(`Voice-only token found in visual output: ${t.name}`);
+    }
+
+    // Fail-hard: every required/recommended manifest token must be emitted
+    const emittedNames = new Set(allFiltered.map((t) => t.name));
+    for (const [specName, manifest] of Object.entries(manifestBySpec)) {
+        for (const { name, tier } of manifest) {
+            if ((tier === "required" || tier === "recommended") && !emittedNames.has(name)) {
+                errors.push(`Required/recommended token missing from output: ${name} [${tier}] (spec: ${specName})`);
+            }
+        }
+    }
+
+    // --- Build DTCG trees ---
+    const generated = {
+        timestamp: new Date().toISOString(),
+        packageVersion: version,
+        sourceSpecs: SPEC_ORDER.map((s) => s.name),
+        sourceBuildCommand: "node packages/cem-theme/scripts/export-tokens.mjs",
+        generator: "packages/cem-theme/scripts/export-tokens.mjs",
+        options: opts,
+    };
+
+    const visualTree = buildDtcgTree(visualTokens);
+    const voiceTree = buildDtcgTree(voiceTokens);
+    visualTree.$extensions = { cem: { generated } };
+    voiceTree.$extensions = { cem: { generated } };
+
+    // Fail-hard: provenance must be present
+    if (!visualTree.$extensions?.cem?.generated) {
+        errors.push("Missing $extensions.cem.generated provenance in cem.tokens.json");
+    }
+
+    // Fail-hard: validate DTCG shape and mode-completeness
+    validateDtcgTree(visualTree, visualTokens, errors);
+    validateDtcgTree(voiceTree, voiceTokens, errors);
+
+    // Warn-and-report: css-expression tokens
+    for (const t of visualTokens.filter((t2) => t2.valueType === "css-expression")) {
+        warnings.push(`css-expression (web-only): ${t.name}`);
+    }
+
+    // Warn-and-report: platform-note tokens
+    for (const t of visualTokens.filter((t2) => t2.valueType === "platform-note")) {
+        warnings.push(`platform-note: ${t.name}`);
+    }
+
+    return { visualTree, voiceTree, visualTokens, voiceTokens, skipped, errors, warnings, generated };
+}
+
+// ---------------------------------------------------------------------------
+// Canonical JSON and report emission
+// ---------------------------------------------------------------------------
+
+async function emitCanonicalJson(visualTree, voiceTree) {
+    await fs.mkdir(DIST_TOKENS, { recursive: true });
+    const visualPath = path.join(DIST_TOKENS, "cem.tokens.json");
+    const voicePath = path.join(DIST_TOKENS, "cem.voice.tokens.json");
+    await fs.writeFile(visualPath, JSON.stringify(visualTree, null, 2), "utf8");
+    await fs.writeFile(voicePath, JSON.stringify(voiceTree, null, 2), "utf8");
+    return { visualPath, voicePath };
+}
+
+async function emitReport(stageResult) {
+    const { visualTokens, voiceTokens, skipped, errors, warnings, generated } = stageResult;
+
+    const portabilityStats = {};
+    for (const t of visualTokens) {
+        portabilityStats[t.valueType] = (portabilityStats[t.valueType] ?? 0) + 1;
+    }
+    const skippedByTier = {};
+    for (const t of skipped) skippedByTier[t.tier] = (skippedByTier[t.tier] ?? 0) + 1;
+
+    const cssExprList = visualTokens.filter((t) => t.valueType === "css-expression");
+    const platformNoteList = visualTokens.filter((t) => t.valueType === "platform-note");
+
+    // --- JSON report ---
+    const reportJson = {
+        $generated: generated,
+        summary: {
+            visualTokensEmitted: visualTokens.length,
+            voiceTokensEmitted: voiceTokens.length,
+            skippedTotal: skipped.length,
+            skippedByTier,
+            errorsCount: errors.length,
+            warningsCount: warnings.length,
+        },
+        portability: portabilityStats,
+        skipped: skipped.map((t) => ({ name: t.name, tier: t.tier, spec: t.spec })),
+        cssExpressionTokens: cssExprList.map((t) => ({
+            name: t.name, spec: t.spec, lightValue: (t.valueByMode?.light ?? "").trim(),
+        })),
+        platformNoteTokens: platformNoteList.map((t) => ({
+            name: t.name, spec: t.spec, nativeValue: (t.valueByMode?.native ?? "").trim(),
+        })),
+        errors,
+        warnings,
+    };
+
+    // --- Markdown report ---
+    const md = [];
+    md.push("# CEM Token Export Report", "");
+    md.push(`Generated: ${generated.timestamp}  `);
+    md.push(`Package: ${generated.packageVersion}  `);
+    md.push(`Specs: ${generated.sourceSpecs.join(", ")}`, "");
+    md.push("## Summary", "");
+    md.push("| Stat | Count |", "| ---- | ----- |");
+    md.push(`| Visual tokens emitted | ${visualTokens.length} |`);
+    md.push(`| Voice tokens emitted | ${voiceTokens.length} |`);
+    md.push(`| Skipped (optional) | ${skippedByTier.optional ?? 0} |`);
+    md.push(`| Skipped (adapter) | ${skippedByTier.adapter ?? 0} |`);
+    md.push(`| Skipped (deprecated) | ${skippedByTier.deprecated ?? 0} |`);
+    md.push(`| Errors | ${errors.length} |`, "");
+    md.push("## Portability", "");
+    md.push("| Portability | Count |", "| ----------- | ----- |");
+    for (const [k, v] of Object.entries(portabilityStats)) md.push(`| \`${k}\` | ${v} |`);
+    md.push("");
+    if (cssExprList.length > 0) {
+        md.push("## CSS-expression tokens (web-only)", "");
+        md.push(
+            "These tokens use `color-mix()`, `calc()`, or `env()` — they require a CSS runtime and cannot",
+            "be used directly on non-web platforms. Their light-mode computed value is in `$value`.",
+            ""
+        );
+        for (const t of cssExprList) md.push(`- \`${t.name}\``);
+        md.push("");
+    }
+    if (platformNoteList.length > 0) {
+        md.push("## Platform-note tokens", "");
+        md.push(
+            "These tokens use CSS system color keywords (`Canvas`, `ButtonFace`, etc.).",
+            "The `native` mode values are Chromium-computed browser-reference values.",
+            ""
+        );
+        for (const t of platformNoteList) md.push(`- \`${t.name}\``);
+        md.push("");
+    }
+    if (skipped.length > 0) {
+        md.push("## Skipped tokens", "");
+        md.push("Pass `--with-{tier}` to include these in the output.", "");
+        for (const t of skipped) md.push(`- \`${t.name}\` (tier: \`${t.tier}\`, spec: ${t.spec})`);
+        md.push("");
+    }
+    if (errors.length > 0) {
+        md.push("## Errors", "");
+        for (const e of errors) md.push(`- **ERROR:** ${e}`);
+        md.push("");
+    }
+    md.push("---", "");
+    md.push("> Generated by `export-tokens.mjs`. Do not edit by hand.", "");
+
+    await fs.mkdir(DIST_TOKENS, { recursive: true });
+    const reportJsonPath = path.join(DIST_TOKENS, "cem.tokens.report.json");
+    const reportMdPath = path.join(DIST_TOKENS, "cem.tokens.report.md");
+    await fs.writeFile(reportJsonPath, JSON.stringify(reportJson, null, 2), "utf8");
+    await fs.writeFile(reportMdPath, md.join("\n"), "utf8");
+    return { reportJsonPath, reportMdPath };
+}
+
+// ---------------------------------------------------------------------------
 // Main
 // ---------------------------------------------------------------------------
 
@@ -468,6 +877,29 @@ async function main(argv) {
         console.error(`  ${unresolvedHard.length} token(s) not resolved — run build:css first`);
         process.exit(1);
     }
+
+    // Stage 3 — Canonical DTCG-compatible outputs
+    console.log("export-tokens: Stage 3 — canonical DTCG JSON emission");
+    const s3 = await stage3Emit(resolvedTokens, manifestBySpec, version, opts);
+
+    // Suppress per-token css-expression/deprecated noise — summary in report
+    const s3WarnShow = s3.warnings.filter((w) => !w.startsWith("css-expression") && !w.startsWith("Skipped deprecated"));
+    for (const w of s3WarnShow) console.warn(`  warn: ${w}`);
+
+    if (s3.errors.length) {
+        for (const e of s3.errors) console.error(`  error: ${e}`);
+        process.exit(1);
+    }
+
+    const { visualPath, voicePath } = await emitCanonicalJson(s3.visualTree, s3.voiceTree);
+    const { reportJsonPath, reportMdPath } = await emitReport(s3);
+
+    const cssExprCount = s3.visualTokens.filter((t) => t.valueType === "css-expression").length;
+    console.log(`  visual: ${s3.visualTokens.length}  voice: ${s3.voiceTokens.length}  skipped: ${s3.skipped.length}  css-expression: ${cssExprCount}`);
+    console.log(`  → ${path.relative(process.cwd(), visualPath)}`);
+    console.log(`  → ${path.relative(process.cwd(), voicePath)}`);
+    console.log(`  → ${path.relative(process.cwd(), reportMdPath)}`);
+    console.log(`  → ${path.relative(process.cwd(), reportJsonPath)}`);
 }
 
 main(process.argv).catch((err) => {
