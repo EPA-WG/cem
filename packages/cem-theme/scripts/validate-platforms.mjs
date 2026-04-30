@@ -4,7 +4,14 @@
 
 import fs from "node:fs/promises";
 import path from "node:path";
-import { CEM_PLATFORM_MODES } from "../style-dictionary.config.mjs";
+import {
+    CEM_PLATFORM_MODES,
+    CEM_STYLE_DICTIONARY_FILTERS,
+    CEM_STYLE_DICTIONARY_FILTER_DEFINITIONS,
+    CEM_STYLE_DICTIONARY_TRANSFORMS,
+    CEM_STYLE_DICTIONARY_TRANSFORM_DEFINITIONS,
+    cemTransformValue,
+} from "../style-dictionary.config.mjs";
 
 const PACKAGE_ROOT = path.resolve(new URL("..", import.meta.url).pathname);
 const OUT_JSON = path.join(PACKAGE_ROOT, "dist/lib/token-platforms/json");
@@ -40,6 +47,8 @@ async function validatePlatforms() {
     const errors = [];
     const files = new Map();
 
+    validateStyleDictionaryContract(errors);
+
     for (const mode of CEM_PLATFORM_MODES) {
         const filePath = path.join(OUT_JSON, `cem-tokens-${mode}.json`);
         try {
@@ -73,6 +82,77 @@ async function validatePlatforms() {
     await validateAndroid(errors);
 
     return { errors, tokenCount: firstEntries.size, modeCount: files.size };
+}
+
+function validateStyleDictionaryContract(errors) {
+    for (const name of CEM_STYLE_DICTIONARY_TRANSFORMS) {
+        const definition = CEM_STYLE_DICTIONARY_TRANSFORM_DEFINITIONS[name];
+        if (!definition) errors.push(`style-dictionary: missing transform definition ${name}`);
+        if (definition && typeof definition.transform !== "function") {
+            errors.push(`style-dictionary: transform ${name} missing transform function`);
+        }
+    }
+
+    for (const name of CEM_STYLE_DICTIONARY_FILTERS) {
+        const definition = CEM_STYLE_DICTIONARY_FILTER_DEFINITIONS[name];
+        if (!definition) errors.push(`style-dictionary: missing filter definition ${name}`);
+        if (definition && typeof definition.filter !== "function") {
+            errors.push(`style-dictionary: filter ${name} missing filter function`);
+        }
+    }
+
+    const layoutToken = {
+        $type: "dimension",
+        $value: "1rem",
+        $extensions: { cem: { cssName: "--cem-dim-medium", spec: "cem-dimension", sourceTable: "cem-dim-scale" } },
+    };
+    const typeToken = {
+        $type: "dimension",
+        $value: "20px",
+        $extensions: {
+            cem: {
+                cssName: "--cem-typography-size-l",
+                spec: "cem-voice-fonts-typography",
+                sourceTable: "cem-typography-size",
+            },
+        },
+    };
+    const numberToken = {
+        $type: "fontWeight",
+        $value: "700",
+        $extensions: { cem: { cssName: "--cem-thickness-bold", spec: "cem-voice-fonts-typography" } },
+    };
+    const modeToken = {
+        $type: "color",
+        $value: "#ffffff",
+        $extensions: { cem: { cssName: "--cem-palette-comfort", modes: { dark: "#000000" } } },
+    };
+    const voiceToken = {
+        $type: "string",
+        $value: "medium",
+        $extensions: { cem: { cssName: "--cem-typography-reading-speech-rate" } },
+    };
+
+    const assertions = [
+        ["style-dictionary: layout-to-dp rem conversion", cemTransformValue("cem/size/layout-to-dp", layoutToken), "16dp"],
+        ["style-dictionary: layout-to-pt rem conversion", cemTransformValue("cem/size/layout-to-pt", layoutToken), "16pt"],
+        ["style-dictionary: type-to-sp px conversion", cemTransformValue("cem/size/type-to-sp", typeToken), "20sp"],
+        ["style-dictionary: type-to-pt px conversion", cemTransformValue("cem/size/type-to-pt", typeToken), "20pt"],
+        ["style-dictionary: mode expansion", cemTransformValue("cem/mode/expand-themes", modeToken, { mode: "dark" }), "#000000"],
+    ];
+
+    for (const [label, actual, expected] of assertions) {
+        if (actual !== expected) errors.push(`${label}: expected ${expected}, found ${actual}`);
+    }
+
+    if (cemTransformValue("cem/number/unitless", numberToken) !== 700) {
+        errors.push("style-dictionary: number/unitless did not return a number");
+    }
+
+    const webOnlyFilter = CEM_STYLE_DICTIONARY_FILTER_DEFINITIONS["cem/category/web-only-filter"].filter;
+    if (webOnlyFilter(voiceToken) !== false) {
+        errors.push("style-dictionary: web-only filter did not reject voice/audio token");
+    }
 }
 
 async function validateIos(errors) {

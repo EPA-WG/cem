@@ -8,7 +8,12 @@
 
 import fs from "node:fs/promises";
 import path from "node:path";
-import { CEM_PLATFORM_MODES } from "../style-dictionary.config.mjs";
+import {
+    CEM_PLATFORM_MODES,
+    cemModeValue,
+    formatCemPlatformLength,
+    isCemTypographyDimensionToken,
+} from "../style-dictionary.config.mjs";
 
 const PACKAGE_ROOT = path.resolve(new URL("..", import.meta.url).pathname);
 const DIST_TOKENS = path.join(PACKAGE_ROOT, "dist/lib/tokens");
@@ -53,9 +58,7 @@ function flattenTokens(tree) {
 }
 
 function modeValue(token, mode) {
-    const value = token.modes?.[mode];
-    if (typeof value === "string" && value.trim() !== "") return value;
-    return token.value;
+    return cemModeValue(token, mode);
 }
 
 function identifierFromPath(tokenPath) {
@@ -91,25 +94,6 @@ function isHexColor(value) {
     return /^#[0-9a-f]{6}([0-9a-f]{2})?$/i.test(String(value).trim());
 }
 
-function parseLength(value) {
-    const v = String(value).trim();
-    if (v === "0") return { number: 0, unit: "" };
-    const match = v.match(/^(-?\d+(?:\.\d+)?)(px|rem)$/);
-    if (!match) return null;
-    const number = Number(match[1]);
-    if (!Number.isFinite(number)) return null;
-    return { number: match[2] === "rem" ? number * 16 : number, unit: match[2] };
-}
-
-function roundedNumber(value) {
-    return Math.round(value * 1000) / 1000;
-}
-
-function isTypographyDimension(token) {
-    return token.spec === "cem-voice-fonts-typography" &&
-        (token.name.includes("font-size") || token.name.includes("line-height") || token.name.includes("letter-spacing"));
-}
-
 function androidResourceForToken(token, mode) {
     const value = modeValue(token, mode);
     const name = androidNameFromPath(token.path);
@@ -119,10 +103,10 @@ function androidResourceForToken(token, mode) {
     }
 
     if (token.type === "dimension") {
-        const parsed = parseLength(value);
-        if (!parsed) return null;
-        const unit = isTypographyDimension(token) ? "sp" : "dp";
-        return { kind: "dimen", name, value: `${roundedNumber(parsed.number)}${unit}` };
+        const unit = isCemTypographyDimensionToken(token) ? "sp" : "dp";
+        const transformed = formatCemPlatformLength(value, unit);
+        if (!transformed) return null;
+        return { kind: "dimen", name, value: transformed };
     }
 
     if (token.type === "number" && /^-?\d+$/.test(String(value).trim())) {

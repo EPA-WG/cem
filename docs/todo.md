@@ -176,14 +176,14 @@ Decisions that do **not** block MVP extraction/emission:
 - [x] Add `packages/cem-theme/style-dictionary.config.mjs`.
 - [x] Add `packages/cem-theme/scripts/build-token-platforms.mjs`.
 - [x] Add `packages/cem-theme/scripts/validate-platforms.mjs`.
-- [ ] Implement Style Dictionary filters/transforms:
-    - `cem/size/layout-to-pt`
-    - `cem/size/type-to-pt`
-    - `cem/size/layout-to-dp`
-    - `cem/size/type-to-sp`
-    - `cem/number/unitless`
-    - `cem/category/web-only-filter`
-    - `cem/mode/expand-themes`
+- [x] Implement Style Dictionary filters/transforms:
+    - [x] `cem/size/layout-to-pt`
+    - [x] `cem/size/type-to-pt`
+    - [x] `cem/size/layout-to-dp`
+    - [x] `cem/size/type-to-sp`
+    - [x] `cem/number/unitless`
+    - [x] `cem/category/web-only-filter`
+    - [x] `cem/mode/expand-themes`
 - [x] Add `build:token-platforms` target depending on `build:tokens`.
 - [x] Emit `dist/lib/token-platforms/js/` only if it provides value beyond MVP `cem.tokens.ts`; avoid duplicate TS
       contracts. No separate JS output emitted; MVP `cem.tokens.ts` remains the metadata contract.
