@@ -27,6 +27,25 @@ Figma changes must be converted into spec edits before they enter the build.
 `native` mode values are Chromium-computed browser-reference values. They are not iOS or Android system color
 equivalents.
 
+## Sample Application
+
+Use [sample-token-application.md](./sample-token-application.md) as the local fixture for applying imported variables
+to a button and card in a Figma test file. Replace it with screenshots after the Tokens Studio pull has been validated
+in a real Figma collection.
+
+## REST API Sync Policy
+
+Do not enable Figma REST API write/sync in local builds or CI until file import is stable and token governance exists.
+If REST sync is added later, it must start as a manual script with:
+
+- explicit Figma file id configuration
+- scoped write token
+- dry-run/report mode
+- no default local build execution
+
+CI REST sync may only be considered after manual sync is proven. It must be gated behind protected branch or release
+workflows, required approval, secret-scoped tokens, generated diff/report artifacts, and rollback instructions.
+
 ## Developer Prompt: Direct Figma Variables Import
 
 Use this prompt if the MVP workflow intentionally switches from Tokens Studio pull-only to direct Figma Variables file

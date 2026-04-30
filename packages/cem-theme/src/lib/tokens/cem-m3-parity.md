@@ -293,6 +293,20 @@ Provide aliases that map M3/Angular Material/MUI token surfaces to CEM endpoints
 
 This approach preserves CEM's semantic guarantees while enabling selective adoption of M3/MUI values and ecosystem integration.
 
+### 6.3 Generated adapter output status
+
+The current export pipeline publishes canonical CEM tokens and resolved-per-mode platform JSON. It does not yet emit a
+dedicated M3, Angular Material, or MUI alias adapter file.
+
+Until a dedicated adapter output exists:
+
+- Treat the CSS snippets in this document as implementation guidance, not generated artifacts.
+- Use `dist/lib/tokens/cem.tokens.json` or `dist/lib/tokens/cem.tokens.ts` for type-safe CEM metadata.
+- Use `dist/lib/token-platforms/json/cem-tokens-*.json` only for resolved CEM values by mode.
+
+When an M3 alias adapter is added, it should be emitted as a separate adapter-tier artifact and cross-linked here with
+its generation command, output path, and report.
+
 ---
 
 ## 7. Quick adoption checklist

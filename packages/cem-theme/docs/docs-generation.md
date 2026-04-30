@@ -181,6 +181,28 @@ Do not emit production `@custom-media` rules unless a consuming build step expan
 `dist/lib/tokens/generated-token-coverage.xhtml`; the token index links to this generated report instead of carrying a
 hand-maintained matrix.
 
+## Token Export Pipeline
+
+The CSS pipeline is the web runtime output. The token export pipeline is the cross-platform artifact output. It reads
+the same compiled token XHTML and generated CSS, then emits canonical JSON, Figma files, TypeScript metadata, reports,
+and post-MVP platform files.
+
+Primary design and checklist:
+
+- [token-export.md](./token-export.md) — architecture, output contracts, Figma workflow, platform strategy, and risks.
+- [../../docs/todo.md](../../docs/todo.md) — implementation checklist and phase gates.
+
+Important target relationships:
+
+1. `build:css` remains independent and produces `dist/lib/css/*.css`.
+2. `build:tokens` depends on `build:css` because it resolves values through browser-computed CSS.
+3. `build:token-platforms` depends on `build:tokens` and currently emits resolved-per-mode flat JSON under
+   `dist/lib/token-platforms/json/`.
+
+Generated debug artifacts, `cem.tokens.intermediate.json` and `cem.tokens.resolved.json`, are not public package
+contracts. Consumers should use `cem.tokens.json`, `cem.voice.tokens.json`, `cem.tokens.ts`, Figma files, or platform
+outputs instead.
+
 ## Cross-Phase Verification
 
 Run the full theme verification suite from the workspace root:

@@ -47,6 +47,37 @@ Rules:
 See `packages/cem-theme/src/lib/tokens/index.md §Token Manifest Schema` for the full schema reference.
 See `packages/cem-theme/src/lib/tokens/cem-colors.md §14.3` for the worked example.
 
+## Token export contract
+
+Token specs remain canonical markdown. The token export pipeline reads compiled XHTML and generated CSS, then emits
+cross-platform artifacts from `packages/cem-theme/scripts/export-tokens.mjs`.
+
+Public beta outputs under `packages/cem-theme/dist/lib/tokens/`:
+
+- `cem.tokens.json` — canonical DTCG-compatible visual tokens.
+- `cem.voice.tokens.json` — voice/audio metadata, separate from visual outputs.
+- `cem.tokens.ts` — TypeScript token names and metadata for docs/tests/autocomplete.
+- `cem.tokens.report.{md,json}` — portability and skipped-token reports.
+
+Experimental outputs:
+
+- `figma/cem-*.tokens.json` — one read-only Figma/Tokens Studio file per mode.
+- `../token-platforms/json/cem-tokens-*.json` — resolved-per-mode flat JSON for adapter experiments.
+
+Debug-only outputs:
+
+- `cem.tokens.intermediate.json`
+- `cem.tokens.resolved.json`
+
+Consumers must not import debug artifacts. Prefer package export subpaths such as
+`@epa-wg/cem-theme/tokens/cem.tokens.json` or `@epa-wg/cem-theme/tokens/cem.tokens.ts` instead of deep `dist/` paths.
+
+Build relationships:
+
+- `build:css` is independent.
+- `build:tokens` depends on `build:css`.
+- `build:token-platforms` depends on `build:tokens`.
+
 ## Dev server
 
 ```bash

@@ -218,26 +218,26 @@ Decisions that do **not** block MVP extraction/emission:
 - [ ] Add `examples/figma/README.md` with Tokens Studio pull-only steps and screenshots.
 - [x] Add a developer prompt for switching to direct Figma Variables file import.
 - [x] Add a developer prompt for splitting one CEM collection into dimension-specific collections.
-- [ ] Do not enable Figma REST API write/sync until file import is stable and governance exists.
-- [ ] If REST sync is added later, start as a manual script requiring explicit file id config, scoped write token,
+- [x] Do not enable Figma REST API write/sync until file import is stable and governance exists.
+- [x] If REST sync is added later, start as a manual script requiring explicit file id config, scoped write token,
       dry-run/report mode, and no default local build execution.
-- [ ] If CI REST sync is added after manual sync is proven, gate it behind protected branch/release workflows, required
+- [x] If CI REST sync is added after manual sync is proven, gate it behind protected branch/release workflows, required
       approval, secret-scoped tokens, generated diff/report artifacts, and rollback instructions.
 
 ### Post-MVP Phase I — Adapter examples
 
-- [ ] `examples/web/import-tokens.ts` — type-safe metadata consumption.
+- [x] `examples/web/import-tokens.ts` — type-safe metadata consumption.
 - [ ] `examples/ios/CEMTokensExample/` — minimal SwiftUI button + card.
 - [ ] `examples/android/cem-tokens-example/` — minimal Compose button + card.
-- [ ] `examples/figma/` screenshots or sample file showing token application.
+- [x] `examples/figma/` screenshots or sample file showing token application.
 - [ ] Validate visual parity against a web reference with manual screenshot comparison.
 
 ### Post-MVP Phase J — Documentation cross-links
 
-- [ ] Update `packages/cem-theme/docs/docs-generation.md` to reference the export pipeline.
-- [ ] Update `packages/cem-theme/src/lib/tokens/index.md` with a "Platform consumption" section.
-- [ ] Add "Token export contract" to `CLAUDE.md`.
-- [ ] Cross-reference `cem-m3-parity.md` to any M3 alias adapter output.
+- [x] Update `packages/cem-theme/docs/docs-generation.md` to reference the export pipeline.
+- [x] Update `packages/cem-theme/src/lib/tokens/index.md` with a "Platform consumption" section.
+- [x] Add "Token export contract" to `CLAUDE.md`.
+- [x] Cross-reference `cem-m3-parity.md` to any M3 alias adapter output.
 
 ### Full end-to-end smoke after native phases
 
@@ -276,8 +276,10 @@ Decisions that do **not** block MVP extraction/emission:
 | `packages/cem-theme/project.json` (`build:token-platforms`) | existing edit    | F     | done    |
 | `dist/lib/token-platforms/json`                             | generated output | F     | done    |
 | `dist/lib/token-platforms/{ios,android,scss}`               | generated output | G     | pending |
-| `examples/{web,ios,android,figma}`                          | examples/docs    | H-I   | pending |
-| `packages/cem-theme/docs/docs-generation.md`                | docs edit        | J     | pending |
-| `packages/cem-theme/src/lib/tokens/index.md`                | docs edit        | J     | pending |
-| `CLAUDE.md`                                                 | docs edit        | J     | pending |
-| `packages/cem-theme/src/lib/tokens/cem-m3-parity.md`        | docs edit        | J     | pending |
+| `examples/web/import-tokens.ts`                              | examples/docs    | I     | done    |
+| `examples/figma/`                                             | examples/docs    | H-I   | partial (workflow + sample; screenshots pending) |
+| `examples/{ios,android}`                                      | examples/docs    | I     | pending |
+| `packages/cem-theme/docs/docs-generation.md`                 | docs edit        | J     | done    |
+| `packages/cem-theme/src/lib/tokens/index.md`                 | docs edit        | J     | done    |
+| `CLAUDE.md`                                                  | docs edit        | J     | done    |
+| `packages/cem-theme/src/lib/tokens/cem-m3-parity.md`         | docs edit        | J     | done    |
