@@ -18,6 +18,15 @@ maintainable interfaces.
 [![Downloads](https://img.shields.io/npm/dm/@epa-wg/cem-theme.svg)](https://www.npmjs.com/package/@epa-wg/cem-theme)
 [![License](https://img.shields.io/npm/l/@epa-wg/cem-theme.svg)](./LICENSE)
 
+# Figma design library
+
+The CEM UI Kit is the Figma-native design library for CEM tokens, foundations, components, patterns, and QA fixtures.
+Its Tokens page contains the native Figma Variables collection and visual token demos generated from the same source
+artifacts as the CSS generator pages.
+
+- [CEM UI Kit Tokens page](https://www.figma.com/design/vLZUzjS7xHACjXgYLA9vtD/CEM-UI-Kit?node-id=2-24&t=QQwTKeMg0v9dTQ10-1)
+- [Figma token workflow](packages/cem-theme/docs/token-figma.md)
+
 # Run locally
 
 ```bash
