@@ -75,6 +75,8 @@ git pull origin main
 
 # Run the release preparation script
 yarn publish:prepare
+## Or, if no commits with feat: prefix
+yarn publish:prepare patch
 ```
 
 **What `yarn publish:prepare` does:**
