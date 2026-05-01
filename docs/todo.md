@@ -5,8 +5,9 @@ example work has been removed from this checklist; product/module sequencing liv
 
 ## Token And Figma Validation
 
-- [ ] Validate Tokens Studio pull into a Figma test collection and record the result in the report or a fixture note.
-- [ ] Add Tokens Studio pull-only screenshots to `examples/figma/README.md`.
+- [ ] Validate the native Figma library variables in the CEM UI Kit and record the result in the report or a fixture
+      note.
+- [ ] Add native Figma library screenshots to `examples/figma/README.md`.
 - [ ] Validate visual parity against a web reference with manual screenshot comparison.
 
 ## Full Token Pipeline Smoke

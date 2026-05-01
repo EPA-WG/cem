@@ -124,6 +124,31 @@ After pushing, GitHub Actions automatically publishes to npm:
     - https://www.npmjs.com/package/@epa-wg/cem-theme
     - https://www.npmjs.com/package/@epa-wg/cem-components
 
+## Post-Release: Update Figma Library
+
+After `@epa-wg/cem-theme` is published, refresh the native Figma library so the `CEM UI Kit` uses the released token
+artifacts, not a local build.
+
+1. Confirm the released package version is available:
+   ```bash
+   npm view @epa-wg/cem-theme version
+   ```
+
+2. Open the Figma refresh prompt:
+   [Developer Prompt: Refresh Native Figma Variables](../examples/figma/README.md#developer-prompt-refresh-native-figma-variables)
+
+3. Refresh the `CEM Tokens` collection in the `CEM UI Kit` from the released npm CDN files:
+   ```text
+   https://unpkg.com/@epa-wg/cem-theme@<version>/dist/lib/tokens/figma/cem-light.tokens.json
+   https://unpkg.com/@epa-wg/cem-theme@<version>/dist/lib/tokens/figma/cem-dark.tokens.json
+   https://unpkg.com/@epa-wg/cem-theme@<version>/dist/lib/tokens/figma/cem-contrast-light.tokens.json
+   https://unpkg.com/@epa-wg/cem-theme@<version>/dist/lib/tokens/figma/cem-contrast-dark.tokens.json
+   https://unpkg.com/@epa-wg/cem-theme@<version>/dist/lib/tokens/figma/cem-native.tokens.json
+   ```
+
+4. Validate the `01 Tokens` page in Figma:
+   [CEM UI Kit Tokens page](https://www.figma.com/design/vLZUzjS7xHACjXgYLA9vtD/CEM-UI-Kit?node-id=2-24&t=QQwTKeMg0v9dTQ10-1)
+
 ## Post-Release: Sync Develop Branch
 
 After a successful release, the `main` branch is ahead of `develop`. Sync them:
@@ -254,6 +279,8 @@ git push origin develop
 - [ ] Ran `yarn publish:prepare` locally
 - [ ] Verified GitHub Actions workflow succeeded
 - [ ] Verified packages on npm
+- [ ] Refreshed the CEM UI Kit native Figma variables from the published npm CDN files
+- [ ] Validated the CEM UI Kit `01 Tokens` page
 - [ ] Synced `develop` branch with `main`
 - [ ] Continued development on `develop`
 
@@ -311,3 +338,4 @@ Prepares and pushes a release (versions, changelog, tag).
 - [Conventional Commits](https://www.conventionalcommits.org/)
 - [Semantic Versioning](https://semver.org/)
 - [GitHub Actions Workflows](../.github/workflows/)
+- [Figma Refresh Prompt](../examples/figma/README.md#developer-prompt-refresh-native-figma-variables)

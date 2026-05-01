@@ -62,7 +62,7 @@ Deliverables:
 
 Remaining gates:
 
-- Validate Tokens Studio pull into a real Figma test collection.
+- Validate native Figma library variables in the CEM UI Kit.
 - Compile generated Swift with a supported Xcode toolchain.
 - Compile generated Kotlin/Compose with a supported Gradle toolchain.
 - Run a full token-change smoke test through CSS, JSON, Figma, Swift, and Android outputs.

@@ -9,7 +9,7 @@ CEM tokens are authored in markdown specs and exported as generated JSON artifac
 artifacts as a read-only projection of the code source of truth.
 
 The `CEM UI Kit` is a Figma-native design library. Its token layer is native Figma Variables generated from CEM token
-artifacts, not Tokens Studio-managed token sets and not designer-authored token data.
+artifacts, not plugin-managed token sets and not designer-authored token data.
 
 The library file is:
 
@@ -120,28 +120,22 @@ Map token types to Figma variable types as follows:
 Aliases such as `{cem.palette.comfort}` become Figma variable aliases when the source and target variable types match.
 If the target type does not match, preserve the value as a string and list it in the import report.
 
-## Tokens Studio as an external option
-
-Tokens Studio is a potential external option for teams that want to inspect, test, or locally manage the generated CEM
-token JSON files. It is not a CEM theme deliverable and it does not define the CEM UI Kit workflow.
+## Native Figma library workflow
 
 The CEM theme deliverable for Figma is the Figma-native design library: native Figma Variables in the `CEM UI Kit`
 file, generated from the `figma/cem-*.tokens.json` artifacts.
 
-If a downstream team chooses to use Tokens Studio separately:
+The generated JSON files are read-only inputs from code. A refresh must keep the same five generated files mapped to
+the five `CEM Tokens` modes:
 
-- Treat the JSON files as read-only inputs from code.
-- Prefer multi-file sync when the workflow supports it.
-- Use the same five generated files as token sets:
-  - `cem-light`
-  - `cem-dark`
-  - `cem-contrast-light`
-  - `cem-contrast-dark`
-  - `cem-native`
+- `cem-light`
+- `cem-dark`
+- `cem-contrast-light`
+- `cem-contrast-dark`
+- `cem-native`
 
-Tokens Studio URL sync is read-only, which is compatible with CEM's governance model for external consumption. Two-way
-write-back from Figma to Git or npm is outside the CEM theme deliverable and must stay disabled unless the markdown
-source-of-truth workflow changes.
+Two-way write-back from Figma to Git or npm is outside the CEM theme deliverable and must stay disabled unless the
+markdown source-of-truth workflow changes.
 
 ## What not to import
 
