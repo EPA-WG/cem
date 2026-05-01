@@ -27,6 +27,15 @@ artifacts as the CSS generator pages.
 - [CEM UI Kit Tokens page](https://www.figma.com/design/vLZUzjS7xHACjXgYLA9vtD/CEM-UI-Kit?node-id=2-24&t=QQwTKeMg0v9dTQ10-1)
 - [Figma token workflow](packages/cem-theme/docs/token-figma.md)
 
+# Project documentation
+
+- [Documentation index](docs/index.md)
+- [Roadmap](roadmap.md)
+- [Todo](docs/todo.md)
+- [CEM theme package](packages/cem-theme/README.md)
+- [CEM components package](packages/cem-components/README.md)
+- [Token export architecture](packages/cem-theme/docs/token-export.md)
+
 # Run locally
 
 ```bash

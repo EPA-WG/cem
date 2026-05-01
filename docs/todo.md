@@ -5,24 +5,25 @@ example work has been removed from this checklist; product/module sequencing liv
 
 ## Token And Figma Validation
 
-- [ ] Validate the native Figma library variables in the CEM UI Kit and record the result in the report or a fixture
+- [x] Validate the native Figma library variables in the CEM UI Kit and record the result in the report or a fixture
       note.
-- [ ] Add native Figma library screenshots to `examples/figma/README.md`.
-- [ ] Validate visual parity against a web reference with manual screenshot comparison.
+- [x] Add native Figma library screenshots to `examples/figma/README.md`.
+- [x] Validate visual parity against a web reference with manual screenshot comparison.
 
 ## Full Token Pipeline Smoke
 
-- [ ] Change one token in `packages/cem-theme/src/lib/tokens/cem-colors.md`.
-- [ ] Run `yarn build`.
-- [ ] Verify propagation through CSS, canonical JSON, TypeScript metadata, Figma files, iOS Swift, Android XML, and any
+- [x] Change one token in `packages/cem-theme/src/lib/tokens/cem-colors.md`.
+- [ ] Run `yarn build`. Current blocker: Nx plugin-worker startup fails before targets run; targeted theme and
+      token-platform builds passed. See `docs/token-pipeline-smoke.md`.
+- [x] Verify propagation through CSS, canonical JSON, TypeScript metadata, Figma files, iOS Swift, Android XML, and any
       Style Dictionary outputs.
-- [ ] Diff all reports; only the changed token should appear unless the change intentionally affects derived aliases.
+- [x] Diff all reports; only the changed token should appear unless the change intentionally affects derived aliases.
 
 ## Roadmap Follow-Ups
 
-- [ ] Wire `roadmap.md`, `docs/todo.md`, package docs, and token export docs from the root README.
-- [ ] Add a docs index under `docs/`.
-- [ ] Decide the package name for the XML/HTML/XSLT DOM library.
-- [ ] Create the first semantic fixture set: login, registration, profile, assets list, and message thread.
-- [ ] Define the component MVP list and state matrix.
-- [ ] Add a Figma UI Kit plan that maps components to generated token variables.
+- [x] Wire `roadmap.md`, `docs/todo.md`, package docs, and token export docs from the root README.
+- [x] Add a docs index under `docs/`.
+- [x] Decide the package name for the XML/HTML/XSLT DOM library.
+- [x] Create the first semantic fixture set: login, registration, profile, assets list, and message thread.
+- [x] Define the component MVP list and state matrix.
+- [x] Add a Figma UI Kit plan that maps components to generated token variables.

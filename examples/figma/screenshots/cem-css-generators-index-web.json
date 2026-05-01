@@ -1,0 +1,65 @@
+{
+  "url": "http://127.0.0.1:44657/home/suns/aWork/cem/packages/cem-theme/src/lib/css-generators/index.html",
+  "rows": [
+    [
+      "Breakpoints",
+      "cem-breakpoints.xhtml",
+      "cem-breakpoints.css",
+      "Viewport, height, and container-query reference tokens."
+    ],
+    [
+      "Colors",
+      "cem-colors.xhtml",
+      "cem-colors.css",
+      "Palette, theme mode, action intent, and zebra state tokens."
+    ],
+    [
+      "Controls",
+      "cem-controls.xhtml",
+      "cem-controls.css",
+      "Visual control geometry: heights, paddings, icon button, list/menu/table row sizes, per-coupling-mode overrides."
+    ],
+    [
+      "Coupling",
+      "cem-coupling.xhtml",
+      "cem-coupling.css",
+      "Operability safety contract: zone, guard, halo, and per-mode halo policy."
+    ],
+    [
+      "Dimension",
+      "cem-dimension.xhtml",
+      "cem-dimension.css",
+      "Scale, spacing, rhythm, layout, and density mode tokens."
+    ],
+    [
+      "Shape",
+      "cem-shape.xhtml",
+      "cem-shape.css",
+      "Bend basis, semantic endpoints, attachment patterns, and brand mode (sharp/smooth/round) overrides."
+    ],
+    [
+      "Stroke",
+      "cem-stroke.xhtml",
+      "cem-stroke.css",
+      "Stroke basis, semantic endpoints, ring recipes, and forced-colors fallbacks."
+    ],
+    [
+      "Layering",
+      "cem-layering.xhtml",
+      "cem-layering.css",
+      "Signed-depth ladder (recess/elevation rungs as box-shadow recipes), semantic layer endpoints, and forced-colors fallbacks."
+    ],
+    [
+      "Voice / Fonts / Typography",
+      "cem-voice-fonts-typography.xhtml",
+      "cem-voice-fonts-typography.css",
+      "Family stacks, weight/size/line-height/tracking primitives, feature policies, reading ergonomics, voice channels (ink + speech), 8 semantic role endpoints, and dark/contrast ink projections."
+    ],
+    [
+      "Timing",
+      "cem-timing.xhtml",
+      "cem-timing.css",
+      "Duration, easing, and reduced-motion tokens."
+    ]
+  ]
+}

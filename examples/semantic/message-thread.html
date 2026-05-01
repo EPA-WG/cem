@@ -1,0 +1,27 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8">
+    <title>CEM Semantic Fixture - Message Thread</title>
+  </head>
+  <body>
+    <main data-cem-screen="message-thread" aria-labelledby="thread-title">
+      <h1 id="thread-title">Support thread</h1>
+      <ol data-cem-thread="support">
+        <li data-cem-message="received">
+          <p><strong>Support</strong></p>
+          <p>Your export is ready for review.</p>
+        </li>
+        <li data-cem-message="sent">
+          <p><strong>You</strong></p>
+          <p>I will compare it with the Figma token page.</p>
+        </li>
+      </ol>
+      <form data-cem-form="message-reply" method="post" action="/thread/reply">
+        <label for="reply">Reply</label>
+        <textarea id="reply" name="reply" rows="4" required></textarea>
+        <button type="submit" data-cem-action="primary">Send</button>
+      </form>
+    </main>
+  </body>
+</html>

@@ -32,6 +32,52 @@ Use [sample-token-application.md](./sample-token-application.md) as the local fi
 to a button and card in the CEM UI Kit. Replace it with screenshots after the native Figma library variables have been
 validated in the real file.
 
+## Native Library Validation
+
+Validation run: 2026-04-30.
+
+Validated CEM UI Kit file:
+https://www.figma.com/design/vLZUzjS7xHACjXgYLA9vtD/CEM-UI-Kit?node-id=2-24&t=QQwTKeMg0v9dTQ10-1
+
+Result:
+
+- `CEM Tokens` collection exists.
+- Modes: `Light`, `Dark`, `Contrast Light`, `Contrast Dark`, `Native`.
+- Variable count: 230.
+- Variable types: 42 color, 100 float, 88 string.
+- Missing mode values: 0.
+- Variable aliases present: 255 mode values.
+- `01 Tokens` includes the `CEM Generator Token Demos` frame.
+
+Screenshot:
+
+![CEM Generator Token Demos](./screenshots/cem-generator-token-demos.png)
+
+## Visual Parity Check
+
+Validation run: 2026-04-30.
+
+Web reference:
+
+- Source: `packages/cem-theme/src/lib/css-generators/index.html`
+- Screenshot: [cem-css-generators-index-web.png](./screenshots/cem-css-generators-index-web.png)
+- Extracted rows: [cem-css-generators-index-web.json](./screenshots/cem-css-generators-index-web.json)
+
+Figma reference:
+
+- File: https://www.figma.com/design/vLZUzjS7xHACjXgYLA9vtD/CEM-UI-Kit?node-id=2-24&t=QQwTKeMg0v9dTQ10-1
+- Frame: `CEM Generator Token Demos`
+- Screenshot: [cem-generator-token-demos.png](./screenshots/cem-generator-token-demos.png)
+
+Result:
+
+- The web generator index exposes 10 generator categories: Breakpoints, Colors, Controls, Coupling, Dimension, Shape,
+  Stroke, Layering, Voice / Fonts / Typography, and Timing.
+- The Figma demo includes those same 10 categories plus a `Generator Index` section that documents the category source.
+- The Figma category sections include the corresponding unpkg CDN source links in the section titles.
+- Visual parity is category-level and token-demo-level, not pixel-level. The web page is a tabular generator index; the
+  Figma page is a native design-library demo surface bound to CEM variables where Figma supports binding.
+
 ## REST API Sync Policy
 
 Do not enable Figma REST API write/sync in local builds or CI until file import is stable and token governance exists.

@@ -1,0 +1,27 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8">
+    <title>CEM Semantic Fixture - Assets List</title>
+  </head>
+  <body>
+    <main data-cem-screen="assets" aria-labelledby="assets-title">
+      <h1 id="assets-title">Assets</h1>
+      <form data-cem-form="asset-filter" role="search">
+        <label for="asset-query">Search assets</label>
+        <input id="asset-query" name="q" type="search">
+        <button type="submit" data-cem-action="secondary">Search</button>
+      </form>
+      <ul data-cem-list="assets">
+        <li data-cem-row="asset">
+          <a href="/assets/1001">Design token report</a>
+          <span data-cem-badge="info">PDF</span>
+        </li>
+        <li data-cem-row="asset">
+          <a href="/assets/1002">Theme export bundle</a>
+          <span data-cem-badge="success">JSON</span>
+        </li>
+      </ul>
+    </main>
+  </body>
+</html>
