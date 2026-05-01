@@ -1,3 +1,7 @@
+## 0.0.9 (2026-05-01)
+
+This was a version bump only for @epa-wg/cem-theme to align it with other projects, there were no code changes.
+
 ## 0.0.8 (2026-04-30)
 
 This was a version bump only for @epa-wg/cem-theme to align it with other projects, there were no code changes.
