@@ -1,0 +1,33 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8">
+    <title>CEM Semantic Fixture - Profile</title>
+  </head>
+  <body>
+    <main data-cem-screen="profile" aria-labelledby="profile-title">
+      <h1 id="profile-title">Profile</h1>
+      <section data-cem-card="identity" aria-labelledby="identity-title">
+        <h2 id="identity-title">Identity</h2>
+        <dl>
+          <dt>Name</dt>
+          <dd>Alex Carter</dd>
+          <dt>Email</dt>
+          <dd>alex@example.test</dd>
+          <dt>Status</dt>
+          <dd><span data-cem-badge="success">Verified</span></dd>
+        </dl>
+      </section>
+      <section data-cem-card="preferences" aria-labelledby="preferences-title">
+        <h2 id="preferences-title">Preferences</h2>
+        <form data-cem-form="profile-preferences">
+          <label>
+            <input name="email_updates" type="checkbox" checked>
+            Email updates
+          </label>
+          <button type="submit" data-cem-action="secondary">Save preferences</button>
+        </form>
+      </section>
+    </main>
+  </body>
+</html>

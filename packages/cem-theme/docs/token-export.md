@@ -67,7 +67,7 @@ prototype artifacts must either become generated outputs under `dist/` or be rem
                                        │
                                        ▼
                           ┌─────────────────────────────┐
-                          │  Tokens Studio / Figma      │──▶ Figma Variables (read-only)
+                          │  Native Figma library       │──▶ Figma Variables (read-only)
                           │  (Phase E)                  │
                           └─────────────────────────────┘
 ```
@@ -77,8 +77,8 @@ Principles:
 - **md → XHTML → DTCG JSON → consumers** is the new spine. CSS continues from XHTML directly (existing path
   unchanged).
 - **DTCG-compatible JSON** is the canonical machine-readable export format. It is based on the
-  [Design Tokens Community Group](https://design-tokens.github.io/community-group/format/) format used by Figma token
-  import, Style Dictionary, and Tokens Studio, but CEM metadata stays namespaced under `$extensions.cem`.
+  [Design Tokens Community Group](https://design-tokens.github.io/community-group/format/) format used by native Figma
+  variable import and Style Dictionary, but CEM metadata stays namespaced under `$extensions.cem`.
 - **Tier-aware emission** matches the CSS pipeline; the same `tier` column in source tables drives all outputs.
 - **Token classification.** Every token belongs to one of three buckets: cross-platform / web-only / voice-audio
   (see §5).
@@ -89,10 +89,10 @@ Principles:
 
 | Approach                                   | Source format                                        | Cross-platform fan-out                                                      | Figma path                                               | Pros                                                                                   | Cons                                                                                                                              |
 | ------------------------------------------ | ---------------------------------------------------- | --------------------------------------------------------------------------- | -------------------------------------------------------- | -------------------------------------------------------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------- |
-| **A. Style Dictionary on DTCG JSON**       | DTCG JSON (derived from XHTML)                       | Style Dictionary DTCG-aware transforms                                      | Figma import or Tokens Studio reads the same JSON        | Mature ecosystem; standards-aligned; one source feeds many targets                     | Adds Style Dictionary dep; needs custom transforms for `color-mix()` recipes; multi-dim modes need design                         |
+| **A. Style Dictionary on DTCG JSON**       | DTCG JSON (derived from XHTML)                       | Style Dictionary DTCG-aware transforms                                      | Native Figma import reads the same JSON                  | Mature ecosystem; standards-aligned; one source feeds many targets                     | Adds Style Dictionary dep; needs custom transforms for `color-mix()` recipes; multi-dim modes need design                         |
 | **B. Per-platform generators**             | XHTML directly (mirror CSS pipeline)                 | Hand-rolled `cem-ios.html`, `cem-android.html`, `cem-figma.html` generators | Custom Figma plugin or static JSON                       | Stays in established pattern; full control over output shape                           | Reinvents Style Dictionary's transform library; massive boilerplate per format; per-platform color/font conversion is error-prone |
 | **C. DTCG JSON only**                      | DTCG JSON                                            | Consumer-owned (apps transform themselves)                                  | DTCG-aware tools consume directly                        | Lightest weight; pure-standards; future-proof                                          | App teams want native code, not "transform yourself"; high adoption friction                                                      |
-| **D. Tokens Studio + GitHub two-way sync** | DTCG JSON in repo                                    | Same as A                                                                   | Tokens Studio syncs both ways via Git provider           | Designers can author in Figma, push to repo                                            | **Two-way sync risks designers overwriting md source-of-truth**; needs strict governance and review gates                         |
+| **D. Native Figma two-way sync**           | DTCG JSON in repo                                    | Same as A                                                                   | Figma syncs both ways through a governed connector        | Designers can author in Figma, push to repo                                            | **Two-way sync risks designers overwriting md source-of-truth**; needs strict governance and review gates                         |
 | **E. Hybrid (recommended)**                | XHTML → DTCG JSON → {Style Dictionary, Figma import} | Style Dictionary fans out to iOS/Android/JS                                 | Figma imports or pulls DTCG JSON in a read-only workflow | Best of A + C: web stays as-is, native gets Style Dictionary, Figma consumes standards | Most components to integrate; needs build-time color resolution                                                                   |
 
 ### Why Approach E
@@ -106,7 +106,7 @@ Principles:
 - **Approach C punts adoption.** App teams asking for tokens want consumable artifacts (Swift constants, Android
   XML, TS modules), not raw JSON. Friction kills adoption.
 - **Approach D's two-way sync is a governance landmine.** If a designer in Figma renames a token or changes a
-  value, Tokens Studio writes it back to Git; the canonical md spec is bypassed. Until CEM has a governance
+  value, a write-back connector could push it to Git; the canonical md spec is bypassed. Until CEM has a governance
   process for designer-authored changes, sync stays one-way (read-only from md).
 - **Approach E preserves all three sources of value:** the CSS pipeline keeps producing CSS the way it does today,
   the DTCG JSON layer becomes the canonical machine-readable export, and Style Dictionary handles platform
@@ -245,7 +245,7 @@ Non-web platforms can't evaluate `color-mix()` at runtime. Two paths:
 
 - `literal` values pass through unchanged.
 - `alias` values are **preserved as DTCG references** (`"$value": "{cem.color.blue.l}"`) for consumers that
-  understand them (Figma Variables, Tokens Studio, Style Dictionary, DTCG-aware tooling). Non-aware consumers
+  understand them (Figma Variables, Style Dictionary, DTCG-aware tooling). Non-aware consumers
   get the resolved primitive via Style Dictionary's reference resolver. **Aliases preserved over resolution
   whenever the target supports references** — this keeps the semantic graph intact in design tools.
 - `mode` values resolve to per-theme primitives at build time and emit per Figma/iOS/Android mode conventions.
@@ -514,19 +514,20 @@ export interface CemTokenMeta {
 
 ### Phase E — Figma integration
 
-The MVP path is **Tokens Studio pull-only into one CEM collection**. All Figma workflows are read-only from the
-generated artifacts; write-back is deferred until governance is designed.
+The MVP path is **native Figma Variables in the CEM UI Kit**. All Figma workflows are read-only from the generated
+artifacts; write-back is deferred until governance is designed.
 
-1. **Tokens Studio pull-only** (MVP).
-    - Configure a pull-only workflow pointing at generated token JSON. If the chosen storage provider cannot be
-      permissioned read-only, treat Tokens Studio as a manual import path rather than a sync source.
-    - Designers fetch in the plugin; tokens appear as Figma Variables organized by dimension.
-    - Push/write-back stays disabled until a governance process exists for converting designer edits into markdown
-      spec changes.
-2. **Figma Variables direct DTCG import** (developer fallback).
-    - Designers or design-ops drag-drop generated DTCG JSON files into the Variables panel.
-    - Lower operational risk than plugin sync; no write-back path.
-    - Keep this documented as the fallback if Tokens Studio setup, permissions, or mode behavior blocks adoption.
+1. **Native Figma library variables** (MVP).
+    - Refresh one `CEM Tokens` collection in the CEM UI Kit from generated token JSON.
+    - Keep five modes in the collection: `Light`, `Dark`, `Contrast Light`, `Contrast Dark`, and `Native`.
+    - Tokens appear as Figma Variables organized by slash-delimited groups.
+    - Write-back stays disabled until a governance process exists for converting designer edits into markdown spec
+      changes.
+2. **Manual Figma Variables import** (developer fallback).
+    - Designers or design-ops drag-drop generated DTCG JSON files into the Variables panel if scripted refresh is not
+      available.
+    - Lower operational risk than sync; no write-back path.
+    - Keep this documented as the fallback if file permissions, automation, or mode behavior blocks adoption.
 
 3. **Figma REST API sync** (post-v1 only).
     - Do not include in MVP or default local builds.
@@ -538,7 +539,7 @@ generated artifacts; write-back is deferred until governance is designed.
 ### Figma import contract
 
 Figma import has stricter requirements than canonical DTCG JSON. Generate separate Figma files and validate them before
-Tokens Studio pull or direct manual import:
+native library refresh or direct manual import:
 
 - Import one file per mode (`cem-light.tokens.json`, `cem-dark.tokens.json`, `cem-contrast-light.tokens.json`,
   `cem-contrast-dark.tokens.json`, `cem-native.tokens.json`). Figma creates or updates variables only when a token is
@@ -551,18 +552,19 @@ Tokens Studio pull or direct manual import:
   `com.figma.aliasData` metadata and should be deferred until the one-collection flow is proven.
 - Exclude unsupported or incomplete-mode tokens from all Figma mode files and list them in `cem-figma-report.md`.
 
-`examples/figma/README.md` will document the Tokens Studio MVP path plus direct-import and split-collection prompts.
+`examples/figma/README.md` will document the native Figma library MVP path plus direct-import and split-collection
+prompts.
 
 ### Developer prompts for Figma variants
 
 Use these prompts when intentionally changing the Figma workflow. They preserve the same source-of-truth rule:
 markdown specs remain canonical, and Figma remains read-only.
 
-**Prompt: switch MVP Figma workflow to direct file import**
+**Prompt: refresh native Figma Variables**
 
 ```text
-Update the CEM token export Figma workflow to use direct Figma Variables file import instead of Tokens Studio.
-Keep one CEM collection. Use the generated files in dist/lib/tokens/figma/ as the only Figma input:
+Update the CEM token export Figma workflow to refresh native Figma Variables in the CEM UI Kit.
+Keep one CEM Tokens collection. Use the generated files in dist/lib/tokens/figma/ as the only Figma input:
 cem-light.tokens.json, cem-dark.tokens.json, cem-contrast-light.tokens.json, cem-contrast-dark.tokens.json,
 and cem-native.tokens.json. Preserve read-only governance: Figma changes must become markdown spec edits, not
 write-backs. Update docs/todo.md, packages/cem-theme/docs/token-export.md, and examples/figma/README.md.
@@ -744,7 +746,7 @@ The exporter logs a warning and includes the token in the per-target report (but
 | B     | 5-token spot check per theme matches manual `getComputedStyle()` capture from `tools/scripts/debug-cem.mjs`.                                                                                |
 | C     | DTCG JSON validates against W3C DTCG schema (`@design-tokens/parser` or `tokens-json-validator`). Figma Variables imports without error. Report file lists every skipped token with reason. |
 | D     | Generated Swift compiles with Xcode 15+; Kotlin with Gradle 8+; TypeScript passes `tsc --noEmit`; SCSS compiles with `dart-sass`. Each per-platform report shows zero fail-hard violations. |
-| E     | Tokens Studio pull-only workflow loads the generated JSON into one CEM collection without write-back; direct file import remains documented as a fallback.                                  |
+| E     | Native Figma library workflow loads the generated JSON into one `CEM Tokens` collection without write-back; direct file import remains documented as a fallback.                              |
 | F     | Sample iOS and Android apps render a button + card using only CEM tokens; visual parity with web reference (manual screenshot diff).                                                        |
 | G     | `yarn nx affected -t lint test build typecheck` green; `verify:phase13` green.                                                                                                              |
 
@@ -775,7 +777,7 @@ require implementation evidence before final commitment.
 | 2   | Build dependency shape                   | Settled  | `build:tokens` depends on `build:css`; `build:css` remains independent.                                                                                         | Token export resolves non-web values from the exact generated CSS shipped to web consumers.                                                        |
 | 3   | DTCG validation strategy                 | Settled  | Add a DTCG validator dependency in the MVP path.                                                                                                                | External validation gives confidence before Figma and platform exporters consume generated JSON.                                                   |
 | 4   | Theme mode export                        | Settled  | Export `light`, `dark`, `contrast-light`, `contrast-dark`, and `native`; native uses Chromium-computed browser-reference system colors.                         | Represents the full CEM theme mode surface while making clear that native colors are browser-reference values, not iOS/Android system equivalents. |
-| 5   | Figma MVP workflow                       | Settled  | Tokens Studio pull-only into one CEM collection; keep direct file import and split-collection prompts for developers.                                           | Gives designers the preferred workflow while preserving read-only governance and fallback paths.                                                   |
+| 5   | Figma MVP workflow                       | Settled  | Native Figma Variables in one `CEM Tokens` collection; keep direct file import and split-collection prompts for developers.                                    | Gives designers the preferred workflow while preserving read-only governance and fallback paths.                                                   |
 | 6   | Debug artifacts                          | Settled  | Always emit `cem.tokens.intermediate.json` and `cem.tokens.resolved.json` under `dist/lib/tokens/`; mark as debug-only/non-contract.                            | Useful for CI review and exporter debugging without making these files public package APIs.                                                        |
 | 7   | Style Dictionary version                 | Settled  | Use latest compatible major at implementation time, pinned by lockfile; prefer v5+ if compatible, otherwise v4+.                                                | Avoids stale doc-pinned versions while still requiring reproducible installs.                                                                      |
 | 8   | Native unit mapping                      | Settled  | Android layout/spacing/shape/control → dp; Android typography → sp; iOS dimensions and typography → points; numeric values stay unitless.                       | Global px→dp creates accessibility issues; Android typography must scale with system font size while layout dimensions should not.                 |
@@ -786,7 +788,7 @@ require implementation evidence before final commitment.
 | 13  | DTCG mode encoding                       | Settled  | Use canonical `$extensions.cem.modes`; Figma gets one generated file per mode.                                                                                  | Multi-mode DTCG support is tool-specific, so CEM keeps mode data namespaced and emits Figma-friendly files.                                        |
 | 14  | Output stability commitment              | Deferred | Stabilize after Phase D ships once.                                                                                                                             | Token names in CSS are stable, but DTCG/platform output names need one full release cycle before promising compatibility.                          |
 | 15  | `color-mix()` resolution policy          | Settled  | Resolve at export time per theme; preserve alias-form DTCG for DTCG-aware consumers.                                                                            | Native platforms get concrete RGBA while DTCG-aware tools retain semantic references.                                                              |
-| 16  | Tokens Studio support tier               | Settled  | MVP bridge, not source of truth.                                                                                                                                | Tokens Studio is the preferred designer workflow, but markdown remains canonical and direct import remains fallback.                               |
+| 16  | Native Figma library support tier        | Settled  | MVP bridge, not source of truth.                                                                                                                                | The CEM UI Kit is the preferred designer workflow, but markdown remains canonical and direct import remains fallback.                              |
 | 17  | Figma collections                        | Settled  | One CEM collection with groups by dimension; split only if collection limits or navigation friction arise.                                                      | One collection simplifies references; split-collection prompts document the future variant.                                                        |
 | 18  | iOS dynamic type                         | Settled  | Do not auto-scale in v1.                                                                                                                                        | CEM typography sizes are nominal; product apps decide whether to apply dynamic type.                                                               |
 | 19  | Android color modes                      | Settled  | Resource qualifiers (`values-night/`) for v1; Compose color schemes optional.                                                                                   | Resource qualifiers are platform-native and work without app-level Compose wiring.                                                                 |
@@ -799,7 +801,7 @@ require implementation evidence before final commitment.
 | Risk                                                               | Impact                                                                            | Mitigation                                                                                                                                                       |
 | ------------------------------------------------------------------ | --------------------------------------------------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------- |
 | Style Dictionary's `color-mix()` support is incomplete             | Cross-platform colors may emit as raw `color-mix(...)` strings that don't compile | Resolve recipes before Style Dictionary sees them; Style Dictionary receives concrete values plus CEM metadata                                                   |
-| Figma Variables and Tokens Studio interpret DTCG modes differently | Designers see different mode behavior than expected                               | Validate Tokens Studio pull first because it is the MVP path; keep direct file import as fallback and compare mode behavior in the report                        |
+| Figma Variables import interprets DTCG modes differently           | Designers see different mode behavior than expected                               | Validate the CEM UI Kit native variables first because it is the MVP path; keep direct file import as fallback and compare mode behavior in the report           |
 | Multi-mode dimensionality explosion                                | DTCG output becomes huge and hard to navigate                                     | Theme as the only import/export mode axis; spacing/coupling/shape as parallel groups (9 vs 135)                                                                  |
 | Voice tokens leaking into visual exports                           | Designers see speech-rate as a "color" or "size" in Figma                         | Hard-filter via category prefix; separate `cem.voice.tokens.json`; Style Dictionary's `cem/category/web-only-filter` excludes voice from visual platform outputs |
 | Native platforms can't represent all theme modes                   | iOS and Android may not have a clean "contrast-light" or "native" equivalent      | Canonical JSON/Figma include all theme modes; platform-native exports may map or exclude modes per target report. Native mode is labeled Chromium-reference.     |
@@ -809,16 +811,16 @@ require implementation evidence before final commitment.
 
 ## 14. Out of scope (explicit non-goals for v1)
 
-- **Two-way Figma → md sync.** Governance for designer-authored changes is not designed yet. Tokens Studio's
-  GitHub write-back capability stays disabled.
+- **Two-way Figma → md sync.** Governance for designer-authored changes is not designed yet. Any GitHub write-back
+  capability stays disabled.
 - **CI auto-regeneration on token change.** Build-on-merge hooks are a future enhancement; v1 ships with manual
   `yarn build`.
 - **Migration of existing component libraries** (e.g., `@epa-wg/cem-components`) to consume new exports. Each
   adapter team owns the migration on their own timeline.
 - **Locale-aware token variants.** CEM voice tokens are language-agnostic; per-locale TTS configuration is a
   product-level concern, not a token-level one.
-- **Custom Figma plugin for CEM.** Tokens Studio plus Figma's native DTCG import cover the Figma path. A
-  CEM-specific plugin is an option only if those two prove insufficient — not in v1.
+- **Custom Figma plugin for CEM.** The native Figma library workflow covers the Figma path. A CEM-specific plugin is
+  an option only if the native workflow proves insufficient — not in v1.
 - **Dynamic theme synthesis.** Themes are statically resolved at build time; runtime theme generation
   (e.g., from a brand color picker) is a separate feature.
 
@@ -832,7 +834,7 @@ The full Phase A–G arc is the destination. The MVP is the **smallest slice tha
    resolved modes (Phases A + B + C, scoped to required + recommended tiers).
 2. **Portability report** — `cem.tokens.report.md` listing every token, its portability classification, and what
    the canonical export resolved vs. preserved as alias vs. skipped.
-3. **Figma file exports** — one generated file per theme mode for Tokens Studio pull-only import, with direct Figma
+3. **Figma file exports** — one generated file per theme mode for native Figma library refresh, with direct Figma
    Variables file import documented as a fallback. Cover only `literal`-portability and `alias`-portability tokens.
    `native` uses Chromium-computed browser-reference colors. `css-expression` and `platform-note` tokens listed in
    `cem-figma-report.md`.
@@ -891,7 +893,6 @@ cached copy diverges from the upstream package version.
 - [W3C Design Tokens Community Group format](https://design-tokens.github.io/community-group/format/)
 - [Material Design 3 — How to use design tokens](https://m3.material.io/foundations/design-tokens/how-to-use-tokens)
 - [Style Dictionary](https://styledictionary.com/)
-- [Tokens Studio for Figma](https://tokens.studio/)
 - [`culori` color library](https://culorijs.org/)
 - [CSS Color Module Level 5 §2.1 (`color-mix()`)](https://www.w3.org/TR/css-color-5/#color-mix)
 - [Figma Variables modes](https://help.figma.com/hc/en-us/articles/15343816063383-Modes-for-variables)

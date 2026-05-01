@@ -61,7 +61,7 @@ Public beta outputs under `packages/cem-theme/dist/lib/tokens/`:
 
 Experimental outputs:
 
-- `figma/cem-*.tokens.json` — one read-only Figma/Tokens Studio file per mode.
+- `figma/cem-*.tokens.json` — one read-only native Figma library source file per mode.
 - `../token-platforms/json/cem-tokens-*.json` — resolved-per-mode flat JSON for adapter experiments.
 
 Debug-only outputs:

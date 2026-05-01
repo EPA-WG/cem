@@ -1,0 +1,21 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8">
+    <title>CEM Semantic Fixture - Login</title>
+  </head>
+  <body>
+    <main data-cem-screen="login" aria-labelledby="login-title">
+      <h1 id="login-title">Sign in</h1>
+      <form data-cem-form="sign-in" method="post" action="/session">
+        <label for="email">Email</label>
+        <input id="email" name="email" type="email" autocomplete="email" required>
+
+        <label for="password">Password</label>
+        <input id="password" name="password" type="password" autocomplete="current-password" required>
+
+        <button type="submit" data-cem-action="primary">Sign in</button>
+      </form>
+    </main>
+  </body>
+</html>

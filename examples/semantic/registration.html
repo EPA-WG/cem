@@ -1,0 +1,29 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8">
+    <title>CEM Semantic Fixture - Registration</title>
+  </head>
+  <body>
+    <main data-cem-screen="registration" aria-labelledby="registration-title">
+      <h1 id="registration-title">Create account</h1>
+      <form data-cem-form="registration" method="post" action="/account">
+        <label for="name">Full name</label>
+        <input id="name" name="name" autocomplete="name" required>
+
+        <label for="email">Email</label>
+        <input id="email" name="email" type="email" autocomplete="email" required>
+
+        <label for="password">Password</label>
+        <input id="password" name="password" type="password" autocomplete="new-password" required>
+
+        <label>
+          <input name="terms" type="checkbox" required>
+          I agree to the terms
+        </label>
+
+        <button type="submit" data-cem-action="primary">Create account</button>
+      </form>
+    </main>
+  </body>
+</html>

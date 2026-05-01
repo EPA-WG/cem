@@ -276,7 +276,7 @@ Markdown token specs remain the source of truth. Generated artifacts under `dist
 | `cem.voice.tokens.json` | Voice/audio token metadata for TTS or speech adapters | Public beta |
 | `cem.tokens.ts` | TypeScript token names and metadata for docs, tests, examples, and autocomplete | Public beta |
 | `cem.tokens.report.{md,json}` | Human and CI-readable portability reports | Public beta |
-| `figma/cem-*.tokens.json` | One Figma/Tokens Studio file per mode | Experimental |
+| `figma/cem-*.tokens.json` | One native Figma library source file per mode | Experimental |
 | `../token-platforms/json/cem-tokens-*.json` | Resolved-per-mode flat JSON for platform adapter experiments | Experimental |
 
 Do not import `cem.tokens.intermediate.json` or `cem.tokens.resolved.json` in production code. They are debug-only
@@ -288,8 +288,9 @@ Package consumers should prefer explicit package subpaths over deep `dist/` impo
 import { cemTokenMetaByName, type CemTokenName } from "@epa-wg/cem-theme/tokens/cem.tokens.ts";
 ```
 
-Figma usage is read-only. Tokens Studio pulls the generated `figma/cem-*.tokens.json` files into one CEM collection;
-Figma changes must be converted back into markdown spec edits before entering the build.
+Figma usage is read-only. The CEM UI Kit stores the generated `figma/cem-*.tokens.json` values as native Figma
+Variables in one `CEM Tokens` collection; Figma changes must be converted back into markdown spec edits before entering
+the build.
 
 ---
 

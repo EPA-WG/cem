@@ -1,6 +1,7 @@
 {
     "name": "@epa-wg/cem-components",
     "version": "0.0.8",
+    "license": "MIT",
     "type": "module",
     "repository": {
         "type": "git",
