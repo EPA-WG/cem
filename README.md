@@ -29,62 +29,38 @@ artifacts as the CSS generator pages.
 
 # Project documentation
 
-- [Documentation index](docs/index.md)
-- [Roadmap](roadmap.md)
-- [Todo](docs/todo.md)
-- [CEM theme package](packages/cem-theme/README.md)
-- [CEM components package](packages/cem-components/README.md)
+- [Documentation index](docs/index.md) — canonical map of every CEM doc, report, and example.
+- [Roadmap](roadmap.md) — product/module sequencing and delivery phases.
+- [Todo](docs/todo.md) — current execution checklist.
 - [Token export architecture](packages/cem-theme/docs/token-export.md)
+- [CEM DOM library acceptance criteria](docs/cem-dom-ac.md)
+- [NPM publishing workflow](docs/npm-publish.md)
 
-# Run locally
+# Package map
+
+| Package | Status | Purpose |
+| ------- | ------ | ------- |
+| [`@epa-wg/cem-theme`](packages/cem-theme/README.md) | published | Canonical token specs, generated CSS, DTCG JSON, TypeScript metadata, native (iOS/Android) outputs, and Figma library files. |
+| [`@epa-wg/cem-components`](packages/cem-components/README.md) | shell | Declarative custom-element primitives that consume the theme. Component implementations land in Phase 3. |
+| `@epa-wg/cem-dom` | planned (Phase 2) | Schema, parser, validator, and XSLT-style transforms for CEM semantic documents. See [acceptance criteria](docs/cem-dom-ac.md). |
+
+# Quickstart
 
 ```bash
-yarn start
+yarn install
+yarn start                # serves docs/lib at http://localhost (dev server)
+yarn build                # builds every package via Nx
+yarn build:theme          # build just the theme package
+yarn build:css            # regenerate token CSS only
+yarn lint                 # lint every package
+nx run @epa-wg/cem-theme:test
 ```
 
-# New Nx Repository
+The dev server is required for the custom-element templates — they use `fetch()` and `<http-request>`, both of which
+break under `file://`.
 
-<a alt="Nx logo" href="https://nx.dev" target="_blank" rel="noreferrer"><img src="https://raw.githubusercontent.com/nrwl/nx/master/images/nx-logo.png" width="45"></a>
+# Release
 
-✨ Your new, shiny [Nx workspace](https://nx.dev) is ready ✨.
-
-[Learn more about this workspace setup and its capabilities](https://nx.dev/nx-api/js?utm_source=nx_project&utm_medium=readme&utm_campaign=nx_projects)
-or run `npx nx graph` to visually explore what was created. Now, let's get you up to speed!
-
-## Generate a library
-
-```sh
-npx nx g @nx/js:lib packages/pkg1 --publishable --importPath=@my-org/pkg1
-```
-
-## Run tasks
-
-To build the library use:
-
-```sh
-npx nx build pkg1
-```
-
-To run any task with Nx use:
-
-```sh
-npx nx <target> <project-name>
-```
-
-These targets are
-either [inferred automatically](https://nx.dev/concepts/inferred-tasks?utm_source=nx_project&utm_medium=readme&utm_campaign=nx_projects)
-or defined in the `project.json` or `package.json` files.
-
-[More about running tasks in the docs &raquo;](https://nx.dev/features/run-tasks?utm_source=nx_project&utm_medium=readme&utm_campaign=nx_projects)
-
-## Versioning and releasing
-
-To version and release the library use
-
-```
-npx nx release
-```
-
-Pass `--dry-run` to see what would happen without actually releasing the library.
-
-[Learn more about Nx release &raquo;](https://nx.dev/features/manage-releases?utm_source=nx_project&utm_medium=readme&utm_campaign=nx_projects)
+Releases follow [`docs/npm-publish.md`](docs/npm-publish.md). The release flow runs `yarn publish:prepare`, drives the
+Nx release pipeline, and refreshes the Figma kit afterwards. Pass `--dry-run` to any release command to preview without
+publishing.
