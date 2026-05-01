@@ -44,6 +44,44 @@ artifacts as the CSS generator pages.
 | [`@epa-wg/cem-components`](packages/cem-components/README.md) | shell | Declarative custom-element primitives that consume the theme. Component implementations land in Phase 3. |
 | `@epa-wg/cem-dom` | planned (Phase 2) | Schema, parser, validator, and XSLT-style transforms for CEM semantic documents. See [acceptance criteria](docs/cem-dom-ac.md). |
 
+# Use the token CSS
+
+The generated CSS exposes every CEM token as a CSS custom property on `:root`. Drop it into any page and consume
+tokens via `var(--cem-...)`.
+
+| File | When to use |
+| ---- | ----------- |
+| `dist/lib/css/cem-combined.css` | Single concatenated file. One HTTP request — best for `<link>` and CDN delivery. |
+| `dist/lib/css/cem.css` | `@import` index over per-spec files (`cem-colors.css`, `cem-dimension.css`, …). Best when a tool resolves `@import` and you want tree-shaking. |
+
+## Via the npm package
+
+```bash
+yarn add @epa-wg/cem-theme
+```
+
+```html
+<link rel="stylesheet" href="node_modules/@epa-wg/cem-theme/dist/lib/css/cem-combined.css" />
+```
+
+```js
+// Bundlers that handle CSS imports
+import '@epa-wg/cem-theme/dist/lib/css/cem-combined.css';
+```
+
+## Via unpkg CDN (no install)
+
+```html
+<!-- pin a specific version -->
+<link rel="stylesheet" href="https://unpkg.com/@epa-wg/cem-theme@0.0.9/dist/lib/css/cem-combined.css" />
+
+<!-- or float to latest -->
+<link rel="stylesheet" href="https://unpkg.com/@epa-wg/cem-theme@latest/dist/lib/css/cem-combined.css" />
+```
+
+The same paths work for individual specs, e.g.
+`https://unpkg.com/@epa-wg/cem-theme@latest/dist/lib/css/cem-colors.css`.
+
 # Quickstart
 
 ```bash
