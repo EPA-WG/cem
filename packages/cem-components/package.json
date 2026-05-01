@@ -1,6 +1,6 @@
 {
     "name": "@epa-wg/cem-components",
-    "version": "0.0.9",
+    "version": "0.0.10",
     "license": "MIT",
     "type": "module",
     "repository": {
@@ -25,7 +25,7 @@
         "!**/*.tsbuildinfo"
     ],
     "dependencies": {
-        "@epa-wg/cem-theme": "^0.0.9"
+        "@epa-wg/cem-theme": "^0.0.10"
     },
     "publishConfig": {
         "access": "public"
