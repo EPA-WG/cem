@@ -8,7 +8,7 @@ lens—focusing on how users perceive and interact with interfaces, rather than 
 It is implemented as a combination of:
 
 * [AI instructions](packages/cem-theme/src/lib/tokens) AI instructions for generating and adapting themes
-* CSS design tokens and stylesheets
+* [CSS design tokens and stylesheets](https://unpkg.com/@epa-wg/cem-theme@0.0.9/dist/lib/css-generators/index.html)
 * Web Components for use in fully declarative applications (no JS required)
 
 The result is a system where consumer semantics drive UI behavior and appearance, enabling consistent, accessible, and
