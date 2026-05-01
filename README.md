@@ -19,7 +19,7 @@ maintainable interfaces.
 [![License](https://img.shields.io/npm/l/@epa-wg/cem-theme.svg)](./LICENSE)
 
 [CEM POC - <custom-element>](https://unpkg.com/@epa-wg/custom-element/index.html) |
-[Material custom-element POC](https://unpkg.com/@epa-wg/custom-element-dist@0.0.37/src/material/components/icon.html)
+[Material custom-element POC](https://unpkg.com/@epa-wg/custom-element-dist/src/material/components/icon.html)
 # Figma design library
 
 The CEM UI Kit is the Figma-native design library for CEM tokens, foundations, components, patterns, and QA fixtures.
