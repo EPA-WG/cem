@@ -60,6 +60,11 @@ async function copyImage(srcPath, distPath) {
   await copyFile(srcPath, distPath);
 }
 
+async function copyMarkdown(srcPath, distPath) {
+  await mkdir(dirname(distPath), { recursive: true });
+  await copyFile(srcPath, distPath);
+}
+
 async function compileAll() {
   const srcDir = join(projectRoot, 'src');
   const distDir = join(projectRoot, 'dist');
@@ -72,10 +77,12 @@ async function compileAll() {
   for (const mdFile of mdFiles) {
     const srcPath = join(srcDir, mdFile);
     const { dir, name } = parse(mdFile);
-    const distPath = join(distDir, dir, `${name}.xhtml`);
+    const distXhtmlPath = join(distDir, dir, `${name}.xhtml`);
+    const distMarkdownPath = join(distDir, mdFile);
 
-    console.log(`  ${mdFile} → ${relative(projectRoot, distPath)}`);
-    await compileMarkdown(srcPath, distPath);
+    console.log(`  ${mdFile} → ${relative(projectRoot, distXhtmlPath)}`);
+    await compileMarkdown(srcPath, distXhtmlPath);
+    await copyMarkdown(srcPath, distMarkdownPath);
   }
 
   console.log('✓ Markdown compilation complete');
@@ -111,10 +118,12 @@ if (process.argv.includes('--watch')) {
     if (event === 'add' || event === 'change') {
       const srcPath = join(srcDir, path);
       const { dir, name } = parse(path);
-      const distPath = join(projectRoot, 'dist', dir, `${name}.xhtml`);
+      const distXhtmlPath = join(projectRoot, 'dist', dir, `${name}.xhtml`);
+      const distMarkdownPath = join(projectRoot, 'dist', path);
 
-      console.log(`  ${path} → ${relative(projectRoot, distPath)}`);
-      await compileMarkdown(srcPath, distPath);
+      console.log(`  ${path} → ${relative(projectRoot, distXhtmlPath)}`);
+      await compileMarkdown(srcPath, distXhtmlPath);
+      await copyMarkdown(srcPath, distMarkdownPath);
     }
   });
 

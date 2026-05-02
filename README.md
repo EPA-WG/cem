@@ -20,6 +20,7 @@ maintainable interfaces.
 
 [CEM POC - <custom-element>](https://unpkg.com/@epa-wg/custom-element/index.html) |
 [Material custom-element POC](https://unpkg.com/@epa-wg/custom-element-dist/src/material/components/icon.html)
+
 # Figma design library
 
 The CEM UI Kit is the Figma-native design library for CEM tokens, foundations, components, patterns, and QA fixtures.
@@ -40,21 +41,21 @@ artifacts as the CSS generator pages.
 
 # Package map
 
-| Package | Status | Purpose |
-| ------- | ------ | ------- |
-| [`@epa-wg/cem-theme`](packages/cem-theme/README.md) | published | Canonical token specs, generated CSS, DTCG JSON, TypeScript metadata, native (iOS/Android) outputs, and Figma library files. |
-| [`@epa-wg/cem-components`](packages/cem-components/README.md) | shell | Declarative custom-element primitives that consume the theme. Component implementations land in Phase 3. |
-| `@epa-wg/cem-dom` | planned (Phase 2) | Schema, parser, validator, and XSLT-style transforms for CEM semantic documents. See [acceptance criteria](docs/cem-dom-ac.md). |
+| Package                                                       | Status            | Purpose                                                                                                                         |
+|---------------------------------------------------------------|-------------------|---------------------------------------------------------------------------------------------------------------------------------|
+| [`@epa-wg/cem-theme`](packages/cem-theme/README.md)           | published         | Canonical token specs, generated CSS, DTCG JSON, TypeScript metadata, native (iOS/Android) outputs, and Figma library files.    |
+| [`@epa-wg/cem-components`](packages/cem-components/README.md) | shell             | Declarative custom-element primitives that consume the theme. Component implementations land in Phase 3.                        |
+| `@epa-wg/cem-dom`                                             | planned (Phase 2) | Schema, parser, validator, and XSLT-style transforms for CEM semantic documents. See [acceptance criteria](docs/cem-dom-ac.md). |
 
 # Use the token CSS
 
 The generated CSS exposes every CEM token as a CSS custom property on `:root`. Drop it into any page and consume
 tokens via `var(--cem-...)`.
 
-| File | When to use |
-| ---- | ----------- |
-| `dist/lib/css/cem-combined.css` | Single concatenated file. One HTTP request — best for `<link>` and CDN delivery. |
-| `dist/lib/css/cem.css` | `@import` index over per-spec files (`cem-colors.css`, `cem-dimension.css`, …). Best when a tool resolves `@import` and you want tree-shaking. |
+| File                            | When to use                                                                                                                                    |
+|---------------------------------|------------------------------------------------------------------------------------------------------------------------------------------------|
+| `dist/lib/css/cem-combined.css` | Single concatenated file. One HTTP request — best for `<link>` and CDN delivery.                                                               |
+| `dist/lib/css/cem.css`          | `@import` index over per-spec files (`cem-colors.css`, `cem-dimension.css`, …). Best when a tool resolves `@import` and you want tree-shaking. |
 
 ## Via the npm package
 
@@ -63,12 +64,28 @@ yarn add @epa-wg/cem-theme
 ```
 
 ```html
+
 <link rel="stylesheet" href="node_modules/@epa-wg/cem-theme/dist/lib/css/cem-combined.css" />
 ```
 
 ```js
 // Bundlers that handle CSS imports
 import '@epa-wg/cem-theme/dist/lib/css/cem-combined.css';
+```
+
+## Prompt for applying CEM styling to an existing project
+
+If `@epa-wg/cem-theme` is already installed as an npm dependency, use this prompt with a coding assistant:
+
+```text
+Apply CEM theme styling to this existing project using the installed `@epa-wg/cem-theme` package.
+
+Before changing styles, read the installed package-local AI instructions:
+`node_modules/@epa-wg/cem-theme/dist/lib/tokens/cem-theme-ai-instructions.md`.
+
+Follow that file's read order, token-selection rules, stylesheet setup, theme scoping, and verification checklist.
+Prefer these installed Markdown docs over GitHub because they match the installed npm package version. Do not infer CEM
+semantics from generated CSS values alone.
 ```
 
 ## Via unpkg CDN (no install)

@@ -159,6 +159,7 @@
                 "{projectRoot}/src/**/*.webp"
             ],
             "outputs": [
+                "{projectRoot}/dist/**/*.md",
                 "{projectRoot}/dist/**/*.xhtml",
                 "{projectRoot}/dist/**/*.png",
                 "{projectRoot}/dist/**/*.jpg",
