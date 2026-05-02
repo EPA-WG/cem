@@ -36,7 +36,7 @@ Tokens express **what** something means to the user, not **how** it's implemente
 
 ```
 User intent          →  Token                      →  Implementation
-"primary action"     →  --cem-action-primary-*     →  blue-l / trust palette
+"primary action"     →  --cem-action-primary-*     →  purple-l / creativity palette
 "danger/destructive" →  --cem-action-destructive-* →  red-l / danger palette
 ```
 

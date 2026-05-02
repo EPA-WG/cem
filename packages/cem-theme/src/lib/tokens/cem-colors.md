@@ -130,9 +130,9 @@ When forced-colors is active, **system colors win**. CEM must preserve semantics
 |--------------|------------------------------|-------------------------------------------|
 | comfort      | `--cem-palette-comfort`      | canvas/surfaces, low-salience backgrounds |
 | calm         | `--cem-palette-calm`         | subtle affordances, secondary emphasis    |
-| trust        | `--cem-palette-trust`        | primary emphasis, highlights              |
+| trust        | `--cem-palette-trust`        | explicit emphasis, strong call-to-action  |
 | enthusiasm   | `--cem-palette-enthusiasm`   | alternate emphasis, “positive energy”     |
-| creativity   | `--cem-palette-creativity`   | exploration, novelty                      |
+| creativity   | `--cem-palette-creativity`   | primary emphasis, “go forward” actions    |
 | danger       | `--cem-palette-danger`       | errors, destructive affordances           |
 | conservative | `--cem-palette-conservative` | neutral/disabled, “quiet UI”              |
 
@@ -307,7 +307,7 @@ Reference mappings (from `theme-data.xhtml`) use `light-dark()` so a single toke
 | `--cem-palette-calm-x`              | Calm extreme variant         | cyan-d          | cyan-l         | rgb(0, 120, 120)                   |                                       | Inverted calm color ( darked darkcyan )          | calm         | x      | recommended |
 | `--cem-palette-calm-text`           | Calm text color              | comfort-text    | comfort-text   | black                              |                                       | Text on calm backgrounds                         | calm         | text   | recommended |
 | `--cem-palette-calm-text-x`         | Calm extreme text            | comfort-text-x  | comfort-text-x | white                              |                                       | Text on extreme calm backgrounds                 | calm         | text-x | recommended |
-| `--cem-palette-trust`               | Base trust color             | blue-l          | blue-d         | color-mix(in srgb, Highlight 70%, black) |                                       | Primary actions, highlights                      | trust        |        | required |
+| `--cem-palette-trust`               | Base trust color             | blue-l          | blue-d         | color-mix(in srgb, Highlight 70%, black) |                                       | Explicit actions, highlights                     | trust        |        | required |
 | `--cem-palette-trust-x`             | Trust extreme variant        | blue-d          | blue-l         | `--cem-color-visitedtext-30-black` | `--cem-color-visitedtext-30-white`    | Darker/lighter trust variation                   | trust        | x      | recommended |
 | `--cem-palette-trust-text`          | Trust text color             | comfort-text    | white          | HighlightText                      |                                       | Text on trust backgrounds                        | trust        | text   | required |
 | `--cem-palette-trust-text-x`        | Trust extreme text           | comfort-text-x  | comfort-text-x | Canvas                             | Canvas                                | Text on extreme trust backgrounds                | trust        | text-x | recommended |
@@ -315,7 +315,7 @@ Reference mappings (from `theme-data.xhtml`) use `light-dark()` so a single toke
 | `--cem-palette-enthusiasm-x`        | Enthusiasm extreme variant   | orange-xd       | orange-xl      | `--cem-color-mark-30-black`        | `--cem-color-mark-30-white`           | Darker/lighter enthusiasm variation              | enthusiasm   | x      | recommended |
 | `--cem-palette-enthusiasm-text`     | Enthusiasm text color        | comfort-text    | white          | MarkText                           |                                       | Text on enthusiasm backgrounds                   | enthusiasm   | text   | recommended |
 | `--cem-palette-enthusiasm-text-x`   | Enthusiasm extreme text      | comfort-text-x  | comfort-text-x | Canvas                             |                                       | Text on extreme enthusiasm backgrounds           | enthusiasm   | text-x | recommended |
-| `--cem-palette-creativity`          | Base creativity color        | purple-l        | purple-d       | ButtonFace                         |                                       | Brand-1, explicit actions                        | creativity   |        | recommended |
+| `--cem-palette-creativity`          | Base creativity color        | purple-l        | purple-d       | ButtonFace                         |                                       | Brand-1, primary actions                         | creativity   |        | recommended |
 | `--cem-palette-creativity-x`        | Creativity extreme variant   | purple-d        | purple-l       | `--cem-color-canvastext-30-purple` | `--cem-color-canvastext-30-lightpink` | Darker/lighter creativity variation              | creativity   | x      | recommended |
 | `--cem-palette-creativity-text`     | Creativity text color        | comfort-text    | comfort-text   | CanvasText                         |                                       | Text on creativity backgrounds                   | creativity   | text   | recommended |
 | `--cem-palette-creativity-text-x`   | Creativity extreme text      | comfort-text-x  | comfort-text-x | Canvas                             |                                       | Text on extreme creativity backgrounds           | creativity   | text-x | recommended |
@@ -333,9 +333,9 @@ Reference mappings (from `theme-data.xhtml`) use `light-dark()` so a single toke
 
 - **comfort:** neutral surface/canvas
 - **calm:** low-salience affordances, calm emphasis
-- **trust:** primary emphasis, highlight, “go forward”
+- **trust:** explicit action affordance, highlight (the button you press)
 - **enthusiasm:** alternate/secondary positive emphasis
-- **creativity:** explicit action affordance (the button you press)
+- **creativity:** primary emphasis, “go forward”
 - **danger:** errors and destructive actions
 - **conservative:** low-emphasis/disabled/brand-3 support
 
@@ -382,8 +382,8 @@ Notes (interpretation):
 ###### cem-action-intent-emotion
 | Action intent | Emotional palette | Branded (light)    | Branded (dark)     | Primary token                                 |
 |---------------|-------------------|--------------------|--------------------|-----------------------------------------------|
-| `explicit`    | `creativity`      | purple-l (#e1bee7) | purple-d (#6a1b9a) | `--cem-action-explicit-default-background`    |
-| `primary`     | `trust`           | blue-l (#d7e3ff)   | blue-d (#002f65)   | `--cem-action-primary-default-background`     |
+| `explicit`    | `trust`           | blue-l (#d7e3ff)   | blue-d (#002f65)   | `--cem-action-explicit-default-background`    |
+| `primary`     | `creativity`      | purple-l (#e1bee7) | purple-d (#6a1b9a) | `--cem-action-primary-default-background`     |
 | `contextual`  | `comfort`         | cyan-xl (#f1fefe)  | cyan-xd (#001010)  | `--cem-action-contextual-default-background`  |
 | `alternate`   | `enthusiasm`      | orange-l (#ffe082) | orange-d (#723600) | `--cem-action-alternate-default-background`   |
 | `destructive` | `danger`          | red-l (#ba1a1a)    | red-d (#690005)    | `--cem-action-destructive-default-background` |
@@ -482,16 +482,16 @@ In `contrast-light` and `contrast-dark`, background tokens SHOULD converge on th
 **Deriving state backgrounds from palette (example):**
 
 ```css
-/* Example: primary intent is mapped to trust */
+/* Example: primary intent is mapped to creativity */
 :root {
-  --cem-action-primary-default-background: var(--cem-palette-trust);
-  --cem-action-primary-default-text:       var(--cem-palette-trust-text);
+  --cem-action-primary-default-background: var(--cem-palette-creativity);
+  --cem-action-primary-default-text:       var(--cem-palette-creativity-text);
 
-  --cem-action-primary-hover-background:   color-mix(in srgb, var(--cem-palette-trust) 70%, var(--cem-palette-trust-x));
-  --cem-action-primary-hover-text:         var(--cem-palette-trust-text);
+  --cem-action-primary-hover-background:   color-mix(in srgb, var(--cem-palette-creativity) 70%, var(--cem-palette-creativity-x));
+  --cem-action-primary-hover-text:         var(--cem-palette-creativity-text);
 
-  --cem-action-primary-active-background:  color-mix(in srgb, var(--cem-palette-trust) 25%, var(--cem-palette-trust-x));
-  --cem-action-primary-active-text:        var(--cem-palette-trust-text-x);
+  --cem-action-primary-active-background:  color-mix(in srgb, var(--cem-palette-creativity) 25%, var(--cem-palette-creativity-x));
+  --cem-action-primary-active-text:        var(--cem-palette-creativity-text-x);
 }
 
 /* Focus should be expressed via zebra outlines (D5), not by fill alone */
@@ -502,7 +502,7 @@ In `contrast-light` and `contrast-dark`, background tokens SHOULD converge on th
 
 | CEM semantic                 | MUI (conceptual)                  | Angular Material (conceptual)           |
 |------------------------------|-----------------------------------|-----------------------------------------|
-| `--cem-action-primary-*`     | `palette.primary.*`               | `primary`                               |
+| `--cem-action-primary-*`     | `palette.primary.*` (creativity)  | `primary` (creativity)                  |
 | `--cem-action-destructive-*` | `palette.error.*`                 | `warn`                                  |
 | `--cem-action-alternate-*`   | `palette.secondary.*` (or custom) | `accent` (or custom)                    |
 | zebra focus/selected/target  | focus ring / outline styles       | focus indicator / ripple-outline styles |
@@ -696,20 +696,20 @@ Implementations SHOULD preserve the three-layer model:
 ```css
 :root {
   /* Emotional palette (example) */
-  --cem-palette-trust:      light-dark(var(--cem-color-blue-l), var(--cem-color-blue-d));
-  --cem-palette-trust-x:    light-dark(var(--cem-color-blue-d), var(--cem-color-blue-l));
-  --cem-palette-trust-text: light-dark(var(--cem-color-blue-d), white);
-  --cem-palette-trust-text-x: light-dark(var(--cem-color-blue-xl), var(--cem-color-blue-xl));
+  --cem-palette-creativity:        light-dark(var(--cem-color-purple-l), var(--cem-color-purple-d));
+  --cem-palette-creativity-x:      light-dark(var(--cem-color-purple-d), var(--cem-color-purple-l));
+  --cem-palette-creativity-text:   light-dark(var(--cem-palette-comfort-text), var(--cem-palette-comfort-text));
+  --cem-palette-creativity-text-x: light-dark(var(--cem-palette-comfort-text-x), var(--cem-palette-comfort-text-x));
 
-  /* Primary intent mapped to trust */
-  --cem-action-primary-default-background: var(--cem-palette-trust);
-  --cem-action-primary-default-text:       var(--cem-palette-trust-text);
+  /* Primary intent mapped to creativity */
+  --cem-action-primary-default-background: var(--cem-palette-creativity);
+  --cem-action-primary-default-text:       var(--cem-palette-creativity-text);
 
-  --cem-action-primary-hover-background: color-mix(in srgb, var(--cem-palette-trust) 70%, var(--cem-palette-trust-x));
-  --cem-action-primary-hover-text:       var(--cem-palette-trust-text);
+  --cem-action-primary-hover-background: color-mix(in srgb, var(--cem-palette-creativity) 70%, var(--cem-palette-creativity-x));
+  --cem-action-primary-hover-text:       var(--cem-palette-creativity-text);
 
-  --cem-action-primary-active-background: color-mix(in srgb, var(--cem-palette-trust) 25%, var(--cem-palette-trust-x));
-  --cem-action-primary-active-text:       var(--cem-palette-trust-text-x);
+  --cem-action-primary-active-background: color-mix(in srgb, var(--cem-palette-creativity) 25%, var(--cem-palette-creativity-x));
+  --cem-action-primary-active-text:       var(--cem-palette-creativity-text-x);
 }
 
 @media (forced-colors: active) {

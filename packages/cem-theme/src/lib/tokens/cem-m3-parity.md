@@ -36,9 +36,9 @@ Material Design 3 exposes **system tokens** (color/typescale/shape/motion) and *
 
 | M3 token surface | CEM coverage | CEM spec | Notes |
 |------------------|--------------|----------|-------|
-| `md-sys-color-primary` / `-on-primary` | ✓ **Covered** | D0 | `--cem-palette-trust` / `--cem-palette-trust-text` |
+| `md-sys-color-primary` / `-on-primary` | ✓ **Covered** | D0 | `--cem-palette-creativity` / `--cem-palette-creativity-text` |
 | `md-sys-color-secondary` / `-on-secondary` | ✓ **Covered** | D0 | `--cem-palette-enthusiasm` or `--cem-palette-calm` |
-| `md-sys-color-tertiary` / `-on-tertiary` | ✓ **Covered** | D0 | `--cem-palette-creativity` |
+| `md-sys-color-tertiary` / `-on-tertiary` | ✓ **Covered** | D0 | `--cem-palette-trust` |
 | `md-sys-color-error` / `-on-error` | ✓ **Covered** | D0 | `--cem-palette-danger` / `--cem-palette-danger-text` |
 | `md-sys-color-surface` / `-on-surface` | ✓ **Covered** | D0 | `--cem-palette-comfort` / `--cem-palette-comfort-text` |
 | `md-sys-color-surface-container-*` (levels) | ✓ **Covered** | D0 + D4 | Surface containers via layering tonal shifts |
@@ -47,8 +47,8 @@ Material Design 3 exposes **system tokens** (color/typescale/shape/motion) and *
 
 **Crosswalk example:**
 ```css
---md-sys-color-primary:    var(--cem-palette-trust);
---md-sys-color-on-primary: var(--cem-palette-trust-text);
+--md-sys-color-primary:    var(--cem-palette-creativity);
+--md-sys-color-on-primary: var(--cem-palette-creativity-text);
 --md-sys-color-error:      var(--cem-palette-danger);
 --md-sys-color-surface:    var(--cem-palette-comfort);
 ```
@@ -140,7 +140,7 @@ Angular Material exposes `--mat-sys-*` CSS custom properties that align with M3 
 
 | Angular Material token area | CEM coverage | CEM spec | Notes |
 |----------------------------|--------------|----------|-------|
-| `--mat-sys-primary` / `-on-primary` | ✓ **Covered** | D0 | `--cem-palette-trust` / `-text` |
+| `--mat-sys-primary` / `-on-primary` | ✓ **Covered** | D0 | `--cem-palette-creativity` / `-text` |
 | `--mat-sys-surface` / `-on-surface` | ✓ **Covered** | D0 | `--cem-palette-comfort` / `-text` |
 | `--mat-sys-error` / `-on-error` | ✓ **Covered** | D0 | `--cem-palette-danger` / `-text` |
 | `--mat-sys-surface-container-*` | ✓ **Covered** | D0 + D4 | Layering + tonal shift |
@@ -152,7 +152,7 @@ Angular Material exposes `--mat-sys-*` CSS custom properties that align with M3 
 **Adapter pattern:**
 ```css
 /* Angular Material → CEM mapping */
---mat-sys-primary:   var(--cem-palette-trust);
+--mat-sys-primary:   var(--cem-palette-creativity);
 --mat-sys-surface:   var(--cem-palette-comfort);
 --mat-sys-corner-small: var(--cem-bend-smooth);
 --mat-sys-corner-extra-large: var(--cem-bend-modal);
@@ -275,14 +275,14 @@ Provide aliases that map M3/Angular Material/MUI token surfaces to CEM endpoints
 ```css
 :root {
   /* M3 → CEM aliases */
-  --md-sys-color-primary:            var(--cem-palette-trust);
-  --md-sys-color-on-primary:         var(--cem-palette-trust-text);
+  --md-sys-color-primary:            var(--cem-palette-creativity);
+  --md-sys-color-on-primary:         var(--cem-palette-creativity-text);
   --md-sys-color-surface:            var(--cem-palette-comfort);
   --md-sys-shape-corner-small:       var(--cem-bend-smooth);
   --md-sys-shape-corner-extra-large: var(--cem-bend-modal);
 
   /* Angular Material → CEM aliases */
-  --mat-sys-primary:     var(--cem-palette-trust);
+  --mat-sys-primary:     var(--cem-palette-creativity);
   --mat-sys-corner-small: var(--cem-bend-smooth);
 
   /* MUI → CEM mapping in theme */

@@ -149,9 +149,9 @@ The practical pattern is two-layer theming:
     --button-bg: var(--cem-action-primary-default-background);
     --button-fg: var(--cem-action-primary-default-text);
 
-    --md-sys-color-primary: var(--cem-palette-trust);
-    --md-sys-color-on-primary: var(--cem-palette-trust-text);
-    --mat-sys-primary: var(--cem-palette-trust);
+    --md-sys-color-primary: var(--cem-palette-creativity);
+    --md-sys-color-on-primary: var(--cem-palette-creativity-text);
+    --mat-sys-primary: var(--cem-palette-creativity);
 }
 ```
 
