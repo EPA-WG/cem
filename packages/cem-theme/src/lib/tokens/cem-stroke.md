@@ -135,7 +135,7 @@ These are the **canonical semantic endpoints** that components consume.
   --cem-stroke-divider:           var(--cem-stroke-hair);
 
   /* Canonical indicators */
-  --cem-stroke-focus:             var(--cem-stroke-standard);
+  --cem-stroke-focus:             var(--cem-stroke-strong);
   --cem-stroke-selected:          var(--cem-stroke-standard);
   --cem-stroke-target:            var(--cem-stroke-standard);
 
@@ -155,7 +155,7 @@ These are the **canonical semantic endpoints** that components consume.
 | `--cem-stroke-boundary-strong`  | `var(--cem-stroke-standard)`| Strong boundary when elevation/shadow cannot carry separation   | recommended |
 | `--cem-stroke-divider`          | `var(--cem-stroke-hair)`    | Sibling separators (list rows, table rows, sections)            | required    |
 | `--cem-stroke-grid`             | `var(--cem-stroke-divider)` | Tables / data-grid divider alias                                | recommended |
-| `--cem-stroke-focus`            | `var(--cem-stroke-standard)`| Keyboard focus indicator thickness                              | required    |
+| `--cem-stroke-focus`            | `var(--cem-stroke-strong)`  | Keyboard focus indicator thickness                              | required    |
 | `--cem-stroke-selected`         | `var(--cem-stroke-standard)`| Selection indicator thickness                                   | required    |
 | `--cem-stroke-target`           | `var(--cem-stroke-standard)`| Deep-link target indicator thickness                            | required    |
 | `--cem-stroke-indicator-offset` | `2px`                       | External ring/outline offset (distance, not thickness)          | required    |
@@ -368,7 +368,7 @@ Elevation and stroke are substitutes:
 
 ### 8.1 Focus appearance (WCAG 2.2)
 
-The focus indicator must be large/visible enough to be reliably perceived. A robust default is a **2px** perimeter (or equivalent area) around the focused component, which D5’s `--cem-stroke-focus` supports.
+The focus indicator must be large/visible enough to be reliably perceived. The default is a **3px** perimeter (or equivalent area) around the focused component, which D5’s `--cem-stroke-focus` (aliased to `--cem-stroke-strong`) supports.
 
 ### 8.2 Forced colors / high contrast
 
