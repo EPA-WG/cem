@@ -11,6 +11,9 @@ It is implemented as a combination of:
 * [CSS design tokens and stylesheets](https://unpkg.com/@epa-wg/cem-theme/dist/lib/css-generators/index.html)
 * Web Components for use in fully declarative applications (no JS required)
 
+[CEM POC - custom-element](https://unpkg.com/@epa-wg/custom-element/index.html) |
+[CEM elements lib POC](https://unpkg.com/@epa-wg/custom-element-dist/src/material/components.html)
+
 The result is a system where consumer semantics drive UI behavior and appearance, enabling consistent, accessible, and
 maintainable interfaces.
 
@@ -18,8 +21,6 @@ maintainable interfaces.
 [![Downloads](https://img.shields.io/npm/dm/@epa-wg/cem-theme.svg)](https://www.npmjs.com/package/@epa-wg/cem-theme)
 [![License](https://img.shields.io/npm/l/@epa-wg/cem-theme.svg)](./LICENSE)
 
-[CEM POC - <custom-element>](https://unpkg.com/@epa-wg/custom-element/index.html) |
-[Material custom-element POC](https://unpkg.com/@epa-wg/custom-element-dist/src/material/components/icon.html)
 
 # Figma design library
 
