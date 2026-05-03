@@ -49,7 +49,7 @@ semantics from generated CSS values alone.
 
 ```html
 <!-- pin a specific version -->
-<link rel="stylesheet" href="https://unpkg.com/@epa-wg/cem-theme@0.0.9/dist/lib/css/cem-combined.css" />
+<link rel="stylesheet" href="https://unpkg.com/@epa-wg/cem-theme@latest/dist/lib/css/cem-combined.css" />
 
 <!-- or float to latest -->
 <link rel="stylesheet" href="https://unpkg.com/@epa-wg/cem-theme@latest/dist/lib/css/cem-combined.css" />

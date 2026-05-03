@@ -21,7 +21,7 @@
         "start": "node tools/scripts/dev-server.mjs"
     },
     "dependencies": {
-        "@epa-wg/custom-element": "0.0.37"
+        "@epa-wg/custom-element": "0.0.39"
     },
     "devDependencies": {
         "@eslint/js": "10.0.1",

@@ -42,14 +42,14 @@ packages/cem-theme/dist/lib/tokens/figma/cem-contrast-dark.tokens.json
 packages/cem-theme/dist/lib/tokens/figma/cem-native.tokens.json
 ```
 
-Pinned npm CDN URLs for `@epa-wg/cem-theme@0.0.8`:
+Pinned npm CDN URLs for `@epa-wg/cem-theme`:
 
 ```text
-https://unpkg.com/@epa-wg/cem-theme@0.0.8/dist/lib/tokens/figma/cem-light.tokens.json
-https://unpkg.com/@epa-wg/cem-theme@0.0.8/dist/lib/tokens/figma/cem-dark.tokens.json
-https://unpkg.com/@epa-wg/cem-theme@0.0.8/dist/lib/tokens/figma/cem-contrast-light.tokens.json
-https://unpkg.com/@epa-wg/cem-theme@0.0.8/dist/lib/tokens/figma/cem-contrast-dark.tokens.json
-https://unpkg.com/@epa-wg/cem-theme@0.0.8/dist/lib/tokens/figma/cem-native.tokens.json
+https://unpkg.com/@epa-wg/cem-theme/dist/lib/tokens/figma/cem-light.tokens.json
+https://unpkg.com/@epa-wg/cem-theme/dist/lib/tokens/figma/cem-dark.tokens.json
+https://unpkg.com/@epa-wg/cem-theme/dist/lib/tokens/figma/cem-contrast-light.tokens.json
+https://unpkg.com/@epa-wg/cem-theme/dist/lib/tokens/figma/cem-contrast-dark.tokens.json
+https://unpkg.com/@epa-wg/cem-theme/dist/lib/tokens/figma/cem-native.tokens.json
 ```
 
 Do not use `@latest` for the production Figma library. Pin the package version and update intentionally when a new
