@@ -1,6 +1,6 @@
 # CEM - Consumer Semantic Material Theme and custom-element components library
 
-A theme system and custom-element component library for building declarative, no-JavaScript web applications.
+A theme system and custom-element Material component library for building declarative, no-JavaScript web applications.
 
 CEM reinterprets Google’s [Material Design Guidelines](https://material.io/design) through a consumer-first
 lens—focusing on how users perceive and interact with interfaces, rather than how designers construct them.

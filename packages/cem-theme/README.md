@@ -1,9 +1,18 @@
-# `@epa-wg/cem-theme`
+# `@epa-wg/cem-theme` Consumer Semantic Material Theme
 
-Canonical CEM token specs, generated CSS, DTCG JSON, TypeScript metadata, native iOS/Android outputs, and Figma
+Canonical [CEM](https://github.com/EPA-WG/cem) token specs, generated CSS, DTCG JSON, TypeScript metadata, native iOS/Android outputs, and Figma
 library files. [Token specs](./src/lib/tokens/index.md) in `src/lib/tokens/*.md` are the single source of truth; copied Markdown specs are published
 under `dist/lib/tokens/*.md` so consumers and AI coding assistants can read version-matched semantic guidance from the
 installed npm package. See the prompt below.
+
+[![npm version](https://badge.fury.io/js/%40epa-wg%2Fcem-theme.svg)](https://badge.fury.io/js/%40epa-wg%2Fcem-theme)
+[![Downloads](https://img.shields.io/npm/dm/@epa-wg/cem-theme.svg)](https://www.npmjs.com/package/@epa-wg/cem-theme)
+[![License](https://img.shields.io/npm/l/@epa-wg/cem-theme.svg)](./LICENSE)
+
+[CEM elements lib POC](https://unpkg.com/@epa-wg/custom-element-dist/src/material/components.html)
+| [design tokens demo](https://unpkg.com/@epa-wg/cem-theme/dist/lib/css-generators/index.html)
+| [Figma CEM UI Kit](https://www.figma.com/design/vLZUzjS7xHACjXgYLA9vtD/CEM-UI-Kit?node-id=2-24&t=QQwTKeMg0v9dTQ10-1)
+| [Figma token workflow](./docs/token-figma.md)
 
 ## Use the token CSS
 
