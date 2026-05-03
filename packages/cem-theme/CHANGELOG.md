@@ -1,3 +1,14 @@
+## 0.0.13 (2026-05-03)
+
+### 🩹 Fixes
+
+- @epa-wg/cem-theme README.md updates ([2018847](https://github.com/EPA-WG/cem/commit/2018847))
+- update npm on CDN links ([a574d68](https://github.com/EPA-WG/cem/commit/a574d68))
+
+### ❤️ Thank You
+
+- Sasha Firsov @sashafirsov
+
 ## 0.0.12 (2026-05-02)
 
 This was a version bump only for @epa-wg/cem-theme to align it with other projects, there were no code changes.
