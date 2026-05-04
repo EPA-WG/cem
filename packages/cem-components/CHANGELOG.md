@@ -1,3 +1,7 @@
+## 0.0.14 (2026-05-04)
+
+This was a version bump only for @epa-wg/cem-components to align it with other projects, there were no code changes.
+
 ## 0.0.13 (2026-05-03)
 
 This was a version bump only for @epa-wg/cem-components to align it with other projects, there were no code changes.
