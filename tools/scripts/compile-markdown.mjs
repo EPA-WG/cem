@@ -4,14 +4,17 @@ import MarkdownIt from 'markdown-it';
 import anchor from 'markdown-it-anchor';
 import { glob } from 'glob';
 import { readFile, writeFile, mkdir, copyFile } from 'fs/promises';
-import { dirname, relative, join, parse } from 'path';
+import { dirname, relative, join, parse, resolve } from 'path';
 import { fileURLToPath } from 'url';
 
 // Image extensions to copy alongside markdown files
 const IMAGE_EXTENSIONS = ['png', 'jpg', 'jpeg', 'gif', 'svg', 'webp', 'ico','css'];
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
-const projectRoot = join(__dirname, '../../packages/cem-theme');
+const projectArgIdx = process.argv.findIndex(a => a === '--project');
+const projectRoot = projectArgIdx >= 0
+  ? resolve(process.argv[projectArgIdx + 1])
+  : join(__dirname, '../../packages/cem-theme');
 
 // Configure markdown-it with plugins
 const md = new MarkdownIt({

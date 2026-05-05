@@ -46,7 +46,7 @@ artifacts as the CSS generator pages.
 |---------------------------------------------------------------|-------------------|---------------------------------------------------------------------------------------------------------------------------------|
 | [`@epa-wg/cem-theme`](packages/cem-theme/README.md)           | published         | Canonical token specs, generated CSS, DTCG JSON, TypeScript metadata, native (iOS/Android) outputs, and Figma library files.    |
 | [`@epa-wg/cem-components`](packages/cem-components/README.md) | shell             | Declarative custom-element primitives that consume the theme. Component implementations land in Phase 3.                        |
-| `@epa-wg/cem-dom`                                             | planned (Phase 2) | Schema, parser, validator, and XSLT-style transforms for CEM semantic documents. See [acceptance criteria](docs/cem-dom-ac.md). |
+| [`@epa-wg/cem-dom`](packages/cem-dom/README.md)               | in progress       | Schema, parser, validator, and XSLT-style transforms for CEM semantic documents. See [acceptance criteria](docs/cem-dom-ac.md). |
 
 # Use the token CSS
 

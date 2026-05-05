@@ -28,6 +28,7 @@ This index links the active project, release, and token workflow documents.
 
 ## Components
 
+- [CEM DOM package](../packages/cem-dom/README.md) — schema, parser, validator, and transform pipeline for CEM semantic documents.
 - [CEM components package](../packages/cem-components/README.md) — package-level build and test notes.
 
 ## Native Outputs
