@@ -6,7 +6,23 @@ Implement Tier A CLI behavior only: `parse`, `validate`, `check`, `fixture valid
 B/C commands documented/reserved, but do not implement them as working features. Preserve native Node TypeScript
 execution, ESM output, Nx run-command targets, and native `node:test`.
 
+## Implementation Status
+
+- [x] Shared diagnostic normalization, fail-level helpers, and report helpers are implemented.
+- [x] `parse`, `validate`, `check`, `fixture validate`, `help`, and `version` are implemented.
+- [x] Tier B/C command names are reserved with usage failures instead of partially implemented behavior.
+- [x] `validate-fixtures` delegates through the CLI.
+- [x] Native `node:test` coverage was expanded for commands, reports, fail levels, usage errors, I/O errors, and
+  reserved commands.
+- [x] Nx verification passed for package targets: `typecheck`, `lint`, `test`, `build`, and `validate-fixtures`.
+- [ ] Root `yarn build` was attempted but is blocked in this execution environment by Nx daemon/plugin-worker startup
+  failure (`EPERM` listening on the Nx daemon socket), before project targets run.
+- [ ] Schema version compatibility is still deferred until schema loading exists.
+- [ ] Real transform, conversion, schema, inspect, trace, bench, and plugin behavior remains Tier B/C deferred work.
+
 ## 1. Public API And Types
+
+**Status:** Completed for Tier A.
 
 Update `packages/cem-dom/src/lib/cem-dom.ts` so CLI behavior is driven by shared library helpers, not ad hoc CLI logic.
 
@@ -64,6 +80,8 @@ Failure policy:
 - `strict`: fail on `warning`, `error`, or `fatal`
 
 ## 2. CLI Commands And Options
+
+**Status:** Completed for Tier A.
 
 Refactor `packages/cem-dom/src/cli.ts` around a small native parser using `node:util.parseArgs`; do not add CLI
 dependencies.
@@ -155,6 +173,8 @@ Reserved commands:
 
 ## 3. Data Flow And File Layout
 
+**Status:** Completed with `src/lib/cli-options.ts`, `src/lib/fail-level.ts`, and `src/lib/reports.ts`.
+
 Create a CLI support module to keep `cli.ts` small:
 
 - `src/cli.ts`: process entrypoint and `runCemDomCli`
@@ -183,6 +203,8 @@ Report write behavior:
 
 ## 4. Edge Cases
 
+**Status:** Completed for Tier A.
+
 Handle explicitly:
 
 - Missing required input: exit `2`.
@@ -199,6 +221,8 @@ Handle explicitly:
 
 ## 5. Nx Targets
 
+**Status:** Completed. The `validate-fixtures` target now delegates to `node packages/cem-dom/src/cli.ts fixture validate`.
+
 Keep existing targets, but update commands if needed:
 
 - `build`: unchanged, `tsc --build tsconfig.lib.json`
@@ -211,6 +235,8 @@ Keep existing targets, but update commands if needed:
 Do not introduce `tsx`, `ts-node`, Jest, Vitest, Babel, or CLI dependencies.
 
 ## 6. Tests
+
+**Status:** Completed for Tier A.
 
 Use native `node:test`.
 
@@ -250,6 +276,8 @@ node packages/cem-dom/src/cli.ts check examples/semantic/login.html --report-jso
 ```
 
 ## 7. Deferred Tier B/C
+
+**Status:** Completed. These command names are reserved; real behavior is not implemented.
 
 Do not implement real behavior for:
 

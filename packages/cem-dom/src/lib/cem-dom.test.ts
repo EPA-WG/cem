@@ -1,6 +1,8 @@
 import { describe, it } from 'node:test';
 import assert from 'node:assert/strict';
 import { formatDiagnostics, parseCemDom, validateCemDom } from './cem-dom.ts';
+import { hasFailingDiagnostics } from './fail-level.ts';
+import { createCemDomReport, formatReportMarkdown, normalizeDiagnostics } from './reports.ts';
 
 describe('parseCemDom', () => {
     it('parses semantic elements, attributes, and text', () => {
@@ -70,5 +72,65 @@ describe('formatDiagnostics', () => {
             ]),
             /WARNING example 1:1 Example warning\./,
         );
+    });
+});
+
+describe('CLI support helpers', () => {
+    it('normalizes diagnostics for report output', () => {
+        const diagnostics = normalizeDiagnostics(
+            [
+                {
+                    code: 'example',
+                    severity: 'warning',
+                    message: 'Example warning.',
+                    location: { offset: 7, line: 2, column: 3 },
+                },
+            ],
+            'example.html',
+        );
+
+        assert.deepEqual(diagnostics[0], {
+            code: 'example',
+            severity: 'warning',
+            message: 'Example warning.',
+            location: { offset: 7, line: 2, column: 3 },
+            uri: 'example.html',
+            line: 2,
+            column: 3,
+            byteOffset: 7,
+        });
+    });
+
+    it('evaluates parse, validate, and strict fail levels', () => {
+        const warning = { code: 'w', severity: 'warning' as const, message: 'Warning.' };
+        const error = { code: 'e', severity: 'error' as const, message: 'Error.' };
+        const fatal = { code: 'f', severity: 'fatal' as const, message: 'Fatal.' };
+
+        assert.equal(hasFailingDiagnostics([warning], 'parse'), false);
+        assert.equal(hasFailingDiagnostics([error], 'parse'), false);
+        assert.equal(hasFailingDiagnostics([fatal], 'parse'), true);
+        assert.equal(hasFailingDiagnostics([error], 'validate'), true);
+        assert.equal(hasFailingDiagnostics([warning], 'strict'), true);
+    });
+
+    it('creates deterministic JSON and Markdown reports', () => {
+        const report = createCemDomReport([
+            {
+                uri: 'example.html',
+                diagnostics: [
+                    {
+                        code: 'validate.example',
+                        severity: 'error',
+                        message: 'Example error.',
+                    },
+                ],
+            },
+        ]);
+
+        assert.equal(report.generatedAt, '1970-01-01T00:00:00.000Z');
+        assert.equal(report.summary.inputCount, 1);
+        assert.equal(report.summary.errorCount, 1);
+        assert.equal(report.summary.hardViolationCount, 1);
+        assert.match(formatReportMarkdown(report), /Hard violations: 1/);
     });
 });

@@ -1,6 +1,7 @@
 # `cem-dom` CLI Acceptance Criteria
 
-**Status:** Proposal / planning input. The current CLI implements only `parse`, `validate`, `version`, and `help`.
+**Status:** Tier A CLI implementation in progress. The current CLI implements `parse`, `validate`, `check`,
+`fixture validate`, `version`, and `help`. Tier B/C commands are reserved, not implemented.
 **Audience:** CEM maintainers, `@epa-wg/cem-dom` contributors, CI authors, and advanced validation or migration users.
 
 This document turns the CLI proposal in [`cli-ideas.md`](./cli-ideas.md) into acceptance criteria for later
@@ -27,6 +28,27 @@ input -> parse -> validate -> interpret/transform -> output/report
   stitching, Rust type-header emission, full content-type scope dispatch, and thread-pool debugging.
 
 Tier B and Tier C commands MUST be documented as future or experimental until implemented and covered by tests.
+
+## Implementation Status
+
+Completed Tier A acceptance criteria:
+
+- **CLI-C-1 through CLI-C-5:** `parse`, `validate`, `check`, `fixture validate`, `help`, and `version`.
+- **CLI-C-8:** stable lowercase task-oriented command naming.
+- **CLI-O-1, CLI-O-2, CLI-O-5:** fail levels, report destinations, and unknown-option usage failures.
+- **CLI-O-3:** Tier A global options are accepted where relevant; `--schema`, `--content-type`, and `--base-uri` are
+  recorded but schema/content-type loading is deferred.
+- **CLI-F-1 through CLI-F-3 and CLI-F-6:** fail-level behavior and command defaults.
+- **CLI-D-1, CLI-D-3, CLI-D-4, CLI-D-5, CLI-D-7:** normalized diagnostics and deterministic JSON/Markdown reports.
+- **CLI-P-1, CLI-P-3 through CLI-P-6:** parse, validate, check, multi-input validation, and hard-violation checks.
+- **CLI-X-1 through CLI-X-3:** default and explicit fixture validation plus reports.
+- **CLI-N-1 through CLI-N-5:** native Node, ESM, Nx, and test-runner constraints.
+
+Deferred or partial criteria:
+
+- **CLI-F-4 and CLI-F-5:** schema semver behavior is deferred until schema resolution exists.
+- **CLI-D-2 and CLI-D-6:** scope metadata and source maps are deferred.
+- **CLI-C-6, CLI-C-7, CLI-X-4, CLI-T-\*:** Tier B/C behavior is reserved only.
 
 ## Command Surface
 

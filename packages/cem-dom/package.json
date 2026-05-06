@@ -31,7 +31,7 @@
         "typecheck": "tsc --project tsconfig.lib.json --noEmit && tsc --project tsconfig.spec.json --noEmit",
         "lint": "eslint .",
         "test": "node --test --experimental-test-coverage src/lib/cem-dom.test.ts src/cli.test.ts",
-        "validate-fixtures": "node scripts/validate-fixtures.ts"
+        "validate-fixtures": "node src/cli.ts fixture validate"
     },
     "publishConfig": {
         "access": "public"

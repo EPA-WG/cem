@@ -1,4 +1,6 @@
-export type CemDiagnosticSeverity = 'error' | 'warning' | 'info';
+export type CemDiagnosticSeverity = 'info' | 'warning' | 'error' | 'fatal';
+
+export type CemDomFailLevel = 'parse' | 'validate' | 'strict';
 
 export interface CemSourceLocation {
     offset: number;
@@ -7,6 +9,10 @@ export interface CemSourceLocation {
 }
 
 export interface CemDiagnostic {
+    uri?: string;
+    line?: number;
+    column?: number;
+    byteOffset?: number;
     code: string;
     severity: CemDiagnosticSeverity;
     message: string;
@@ -219,11 +225,12 @@ export function formatDiagnostics(diagnostics: readonly CemDiagnostic[]): string
 
     return diagnostics
         .map((diagnostic) => {
-            const location = diagnostic.location
-                ? `${diagnostic.location.line}:${diagnostic.location.column}`
-                : '-';
+            const line = diagnostic.line ?? diagnostic.location?.line;
+            const column = diagnostic.column ?? diagnostic.location?.column;
+            const location = line !== undefined && column !== undefined ? `${line}:${column}` : '-';
+            const uri = diagnostic.uri ? `${diagnostic.uri}:` : '';
             const node = diagnostic.node ? ` ${diagnostic.node}` : '';
-            return `${diagnostic.severity.toUpperCase()} ${diagnostic.code} ${location}${node} ${diagnostic.message}`;
+            return `${diagnostic.severity.toUpperCase()} ${diagnostic.code} ${uri}${location}${node} ${diagnostic.message}`;
         })
         .join('\n');
 }
