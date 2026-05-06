@@ -19,11 +19,13 @@ Implementation status:
   summary|ast|diagnostics|source-offsets|tree`.
 * Parser-backed conversion slice implemented: `convert --from-format html|xml --to-format dom-json|ast|events`, with
   `--out`, `--format` output aliases, and optional `--preserve-source-offsets`.
+* Parser/validator-backed trace slice implemented: `trace --format json|text`, with deterministic input, parse, and
+  validate events plus `--out` support.
 * Parser/validator-backed Tier C slice implemented: `bench` with iterations, JSON reports, cold-cache reads, recorded
   profile intent, and per-input budget checks.
 * Deferred: real schema loading/version compatibility, transforms, advanced conversion beyond parser output formats,
-  schema/advanced-inspect/trace/plugin behavior, transform benchmarking, real CPU/memory profiling, source maps, scope
-  metadata, and roundtrip fixture rendering.
+  schema/advanced-inspect/advanced-trace/plugin behavior, transform benchmarking, real CPU/memory profiling, source
+  maps, scope metadata, and roundtrip fixture rendering.
 
 I’ll turn the acceptance criteria into a CLI surface first, then package that as a reusable documentation-writing
 prompt.
@@ -357,13 +359,20 @@ cem-dom trace page.html \
 ```
 Useful for debugging:
 
-* parse event order
-* validation events
+* parse event order (implemented)
+* validation events (implemented)
 * transformation events
 * scope boundaries
 * plugin execution order
 * thread-pool scheduling, later Tier B/C
 * source-map stitching
+
+Implemented parser/validator slice:
+
+```bash
+cem-dom trace page.html --format json
+cem-dom trace page.html --format text --out trace.txt
+```
 
 ---
 Plugin-facing commands

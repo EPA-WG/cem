@@ -14,11 +14,13 @@ import {
     writeJsonReport,
     writeMarkdownReport,
     type CemDiagnostic,
+    type CemDomAttribute,
     type CemDomDocument,
     type CemDomElementNode,
     type CemDomFailLevel,
     type CemDomNode,
     type CemDomReport,
+    type CemSourceLocation,
 } from './index.ts';
 import {
     parseCemDomCliArgs,
@@ -75,6 +77,41 @@ interface BenchReport {
     inputs: BenchInputResult[];
 }
 
+type TraceStage = 'input' | 'parse' | 'validate';
+
+interface TraceEvent {
+    index: number;
+    stage: TraceStage;
+    type: string;
+    uri?: string;
+    bytes?: number;
+    rootNodeCount?: number;
+    elementCount?: number;
+    textNodeCount?: number;
+    diagnosticCount?: number;
+    tagName?: string;
+    value?: string;
+    attributes?: CemDomAttribute[];
+    location?: CemSourceLocation;
+    diagnostic?: CemDiagnostic;
+}
+
+interface TraceReport {
+    generatedAt: string;
+    uri: string;
+    sourceBytes: number;
+    summary: {
+        rootNodeCount: number;
+        elementCount: number;
+        textNodeCount: number;
+        parseDiagnosticCount: number;
+        validationDiagnosticCount: number;
+    };
+    parseDiagnostics: CemDiagnostic[];
+    validationDiagnostics: CemDiagnostic[];
+    events: TraceEvent[];
+}
+
 const defaultPackageRoot = resolve(import.meta.dirname, '..');
 const defaultWorkspaceRoot = resolve(defaultPackageRoot, '../..');
 
@@ -95,12 +132,13 @@ Implemented commands:
   inspect <input>            Inspect parser-backed document structure.
   bench <input...>           Benchmark parser and validator performance.
   convert <input>            Convert parser output representation from HTML/XML input.
+  trace <input>              Emit parser and validator trace events.
   fixture validate [input...] Validate semantic fixtures and write reports.
   version                    Print the package version.
   help                       Print this help text.
 
 Reserved Tier B/C commands:
-  transform, trace
+  transform
   schema emit|sample|replace
   fixture roundtrip
   plugin list|inspect|run
@@ -154,6 +192,8 @@ export async function runCemDomCli(
                 return await runBench(invocation.inputs, invocation.options, cwd);
             case 'convert':
                 return await runConvert(invocation.input, invocation.options, cwd);
+            case 'trace':
+                return await runTrace(invocation.input, invocation.options, cwd);
             case 'fixture-validate':
                 return await runFixtureValidate(invocation.inputs, invocation.options, cwd, workspaceRoot);
             case 'reserved':
@@ -216,6 +256,38 @@ async function runConvert(input: string, options: CemDomCliOptions, cwd: string)
 
     return {
         exitCode: hasFailingDiagnostics(document.diagnostics, failLevel) ? 1 : 0,
+        stdout: options.out || options.quiet ? '' : stdout,
+        stderr: '',
+    };
+}
+
+async function runTrace(input: string, options: CemDomCliOptions, cwd: string): Promise<CemDomCliResult> {
+    const failLevel = options.failLevel ?? 'parse';
+    const format = options.format ?? 'json';
+    if (format !== 'json' && format !== 'text') {
+        return usageError('trace supports --format json or text.');
+    }
+
+    const cliInput = await readCliInput(input, options, cwd);
+    const document = parseCemDom(cliInput.source, {
+        sourceName: cliInput.uri,
+    });
+    document.diagnostics = normalizeDiagnostics(document.diagnostics, cliInput.uri);
+    const validationDiagnostics = normalizeDiagnostics(
+        validateCemDom(cliInput.source, { sourceName: cliInput.uri }),
+        cliInput.uri,
+    );
+    const trace = createTraceReport(cliInput, document, validationDiagnostics);
+    const stdout = formatTraceOutput(trace, format);
+
+    if (options.out) {
+        await writeOutputFile(options.out, stdout);
+    }
+
+    const failingDiagnostics = failLevel === 'parse' ? document.diagnostics : validationDiagnostics;
+
+    return {
+        exitCode: hasFailingDiagnostics(failingDiagnostics, failLevel) ? 1 : 0,
         stdout: options.out || options.quiet ? '' : stdout,
         stderr: '',
     };
@@ -425,6 +497,157 @@ function formatCommandOutput(
         case 'markdown':
             return formatReportMarkdown(report);
     }
+}
+
+function createTraceReport(
+    input: CliInputResult,
+    document: CemDomDocument,
+    validationDiagnostics: readonly CemDiagnostic[],
+): TraceReport {
+    const events: TraceEvent[] = [];
+    const appendEvent = (event: Omit<TraceEvent, 'index'>): void => {
+        events.push({ index: events.length, ...event });
+    };
+    const textNodeCount = countTextNodes(document.rootNodes);
+
+    appendEvent({
+        stage: 'input',
+        type: 'input-read',
+        uri: input.uri,
+        bytes: Buffer.byteLength(input.source, 'utf8'),
+    });
+    appendEvent({
+        stage: 'parse',
+        type: 'document-start',
+        uri: input.uri,
+        rootNodeCount: document.rootNodes.length,
+        elementCount: document.elements.length,
+        textNodeCount,
+        diagnosticCount: document.diagnostics.length,
+    });
+
+    for (const node of document.rootNodes) {
+        appendTraceNodeEvents(node, appendEvent);
+    }
+
+    for (const diagnostic of document.diagnostics) {
+        appendEvent({
+            stage: 'parse',
+            type: 'diagnostic',
+            diagnostic,
+        });
+    }
+
+    appendEvent({
+        stage: 'parse',
+        type: 'document-end',
+        uri: input.uri,
+    });
+    appendEvent({
+        stage: 'validate',
+        type: 'validation-start',
+        uri: input.uri,
+        diagnosticCount: validationDiagnostics.length,
+    });
+
+    for (const diagnostic of validationDiagnostics) {
+        appendEvent({
+            stage: 'validate',
+            type: 'diagnostic',
+            diagnostic,
+        });
+    }
+
+    appendEvent({
+        stage: 'validate',
+        type: 'validation-end',
+        uri: input.uri,
+        diagnosticCount: validationDiagnostics.length,
+    });
+
+    return {
+        generatedAt: '1970-01-01T00:00:00.000Z',
+        uri: input.uri,
+        sourceBytes: Buffer.byteLength(input.source, 'utf8'),
+        summary: {
+            rootNodeCount: document.rootNodes.length,
+            elementCount: document.elements.length,
+            textNodeCount,
+            parseDiagnosticCount: document.diagnostics.length,
+            validationDiagnosticCount: validationDiagnostics.length,
+        },
+        parseDiagnostics: [...document.diagnostics],
+        validationDiagnostics: [...validationDiagnostics],
+        events,
+    };
+}
+
+function appendTraceNodeEvents(node: CemDomNode, appendEvent: (event: Omit<TraceEvent, 'index'>) => void): void {
+    if (node.type === 'text') {
+        appendEvent({
+            stage: 'parse',
+            type: 'text',
+            value: node.value,
+            location: node.location,
+        });
+        return;
+    }
+
+    appendEvent({
+        stage: 'parse',
+        type: 'element-start',
+        tagName: node.tagName,
+        attributes: node.attributes,
+        location: node.location,
+    });
+
+    for (const child of node.children) {
+        appendTraceNodeEvents(child, appendEvent);
+    }
+
+    appendEvent({
+        stage: 'parse',
+        type: 'element-end',
+        tagName: node.tagName,
+        location: node.location,
+    });
+}
+
+function formatTraceOutput(report: TraceReport, format: 'json' | 'text'): string {
+    if (format === 'json') {
+        return `${JSON.stringify(report, null, 2)}\n`;
+    }
+
+    return [
+        `Trace: ${report.uri}`,
+        `Input bytes: ${report.sourceBytes}`,
+        `Parse: roots=${report.summary.rootNodeCount} elements=${report.summary.elementCount} text=${report.summary.textNodeCount} diagnostics=${report.summary.parseDiagnosticCount}`,
+        `Validate: diagnostics=${report.summary.validationDiagnosticCount}`,
+        'Events:',
+        ...report.events.map((event) => formatTraceEvent(event)),
+        '',
+    ].join('\n');
+}
+
+function formatTraceEvent(event: TraceEvent): string {
+    const details = [
+        event.uri ? `uri=${event.uri}` : undefined,
+        event.bytes !== undefined ? `bytes=${event.bytes}` : undefined,
+        event.rootNodeCount !== undefined ? `roots=${event.rootNodeCount}` : undefined,
+        event.elementCount !== undefined ? `elements=${event.elementCount}` : undefined,
+        event.textNodeCount !== undefined ? `text=${event.textNodeCount}` : undefined,
+        event.diagnosticCount !== undefined ? `diagnostics=${event.diagnosticCount}` : undefined,
+        event.tagName ? `tag=${event.tagName}` : undefined,
+        event.value ? `value=${JSON.stringify(event.value)}` : undefined,
+        event.location ? `at=${formatTraceLocation(event.location)}` : undefined,
+        event.diagnostic ? `diagnostic=${event.diagnostic.code}` : undefined,
+    ].filter((part): part is string => part !== undefined);
+
+    return `${event.index} ${event.stage} ${event.type}${details.length > 0 ? ` ${details.join(' ')}` : ''}`;
+}
+
+function formatTraceLocation(location: CemSourceLocation): string {
+    return `${location.line}:${location.column}:${location.offset}`;
 }
 
 async function createBenchReport(

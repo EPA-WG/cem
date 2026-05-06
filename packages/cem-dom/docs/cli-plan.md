@@ -15,6 +15,7 @@ Nx run-command targets, and native `node:test`.
 - [x] `inspect` is implemented for parser-backed `summary`, `ast`, `diagnostics`, `source-offsets`, and `tree` views.
 - [x] `bench` is implemented for parser and validator timing with JSON reports and per-input budget checks.
 - [x] `convert` is implemented for parser-backed HTML/XML input to `dom-json`, `ast`, and `events`.
+- [x] `trace` is implemented for deterministic parser and validator trace output.
 - [x] Remaining Tier B/C command names are reserved with usage failures instead of partially implemented behavior.
 - [x] `validate-fixtures` delegates through the CLI.
 - [x] Native `node:test` coverage was expanded for commands, reports, fail levels, usage errors, I/O errors, and
@@ -22,7 +23,7 @@ Nx run-command targets, and native `node:test`.
 - [x] Nx verification passed for package targets: `typecheck`, `lint`, `test`, `build`, and `validate-fixtures`.
 - [x] Root `yarn build` passed in the user's manual runs after `cem-dom` rebuilds.
 - [ ] Schema version compatibility is still deferred until schema loading exists.
-- [ ] Real transform, advanced conversion, schema, trace, and plugin behavior remains Tier B/C deferred work.
+- [ ] Real transform, advanced conversion, schema, advanced trace, and plugin behavior remains Tier B/C deferred work.
 - [ ] Advanced inspect views for scopes, schema bindings, plugins, and source maps remain deferred until those
   subsystems exist.
 - [ ] Transform benchmarking and real CPU/memory profiling remain deferred until those subsystems exist.
@@ -160,6 +161,20 @@ Reject unknown options with exit code `2`.
 - Does not convert CEM-native input, AST/events input, schema versions, light-DOM/custom-element markup, comments, source
   maps, or rendered HTML/XML yet.
 
+### `cem-dom trace <input>`
+
+- Parser/validator-backed Tier C slice now implemented.
+- Reads exactly one file.
+- Supports `--format json|text`; default is `json`.
+- Writes deterministic trace output to stdout or `--out`.
+- Emits input, parse, and validate events with stable event indexes.
+- JSON output includes `generatedAt`, `uri`, `sourceBytes`, summary counts, parse diagnostics, validation diagnostics,
+  and event records.
+- Text output summarizes input bytes, parse counts, validation counts, and event lines.
+- Default `--fail-level parse`.
+- `--fail-level validate|strict` applies to validation diagnostics.
+- Does not trace transforms, plugins, source maps, scheduling, worker pools, or interpreter stages yet.
+
 ### `cem-dom validate <input...>`
 
 - Reads one or more files.
@@ -212,7 +227,6 @@ Reserved commands:
 - `schema sample`
 - `fixture roundtrip`
 - `schema replace`
-- `trace`
 - `plugin *`
 
 ## 3. Data Flow And File Layout
@@ -233,7 +247,8 @@ Flow:
 3. Read files as UTF-8.
 4. Run `parseCemDom` or `validateCemDom`.
 5. Normalize diagnostics with URI/source fields.
-6. Create output/report objects; `convert` formats parser output as `dom-json`, `ast`, or `events`.
+6. Create output/report objects; `convert` formats parser output as `dom-json`, `ast`, or `events`, and `trace`
+   emits parser/validator trace events.
 7. Write stdout, `--out`, `--report-json`, and/or `--report-md`.
 8. Return stable exit code.
 
@@ -301,6 +316,10 @@ Add/update CLI tests for:
 - `convert --from-format xml --to-format events --out file`
 - `convert --preserve-source-offsets`
 - invalid convert format options
+- `trace <file>` default JSON output
+- `trace --format text --out file`
+- `trace --fail-level strict` fails on validation warnings
+- invalid trace format option
 - `bench <file> --iterations <n>`
 - `bench --format json`
 - `bench --report-json dir`
@@ -337,8 +356,8 @@ node packages/cem-dom/src/cli.ts check examples/semantic/login.html --report-jso
 
 ## 7. Deferred Tier B/C
 
-**Status:** Partially completed. Parser-backed `inspect`, `convert`, and parser/validator-backed `bench` slices are
-implemented. The remaining command names are reserved; advanced behavior is not implemented.
+**Status:** Partially completed. Parser-backed `inspect` and `convert`, plus parser/validator-backed `trace` and
+`bench` slices, are implemented. The remaining command names are reserved; advanced behavior is not implemented.
 
 Do not implement real behavior for:
 
@@ -346,7 +365,7 @@ Do not implement real behavior for:
 - advanced conversion beyond HTML/XML input to `dom-json`, `ast`, and `events`
 - schema emit/sample/replace
 - advanced inspect views for scopes, schema bindings, plugins, and source maps
-- trace
+- advanced trace stages for transforms, plugins, source maps, scheduling, worker pools, and interpreters
 - transform benchmarking and CPU/memory profiler integration
 - plugin list/inspect/run
 - source-map generation

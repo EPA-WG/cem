@@ -1,8 +1,8 @@
 # `cem-dom` CLI Acceptance Criteria
 
 **Status:** Tier A CLI implemented, with parser-backed Tier B/C slices. The current CLI implements `parse`, `validate`,
-`check`, `inspect`, `bench`, `convert`, `fixture validate`, `version`, and `help`. Remaining Tier B/C commands are
-reserved, not implemented.
+`check`, `inspect`, `bench`, `convert`, `trace`, `fixture validate`, `version`, and `help`. Remaining Tier B/C commands
+are reserved, not implemented.
 **Audience:** CEM maintainers, `@epa-wg/cem-dom` contributors, CI authors, and advanced validation or migration users.
 
 This document turns the CLI proposal in [`cli-ideas.md`](./cli-ideas.md) into acceptance criteria for implementation
@@ -37,8 +37,9 @@ Completed Tier A acceptance criteria:
 - **CLI-C-1 through CLI-C-5:** `parse`, `validate`, `check`, `fixture validate`, `help`, and `version`.
 - **CLI-C-6 partial:** parser-backed `inspect` is implemented for summary, AST, diagnostics, source offsets, and tree
   views. Parser-backed `convert` is implemented for HTML/XML input to DOM JSON, AST, and events.
-- **CLI-C-7 partial / CLI-T-8 partial:** parser/validator-backed `bench` is implemented with iterations, JSON reports,
-  and per-input budget checks.
+- **CLI-C-7 partial / CLI-T-7 partial / CLI-T-8 partial:** parser/validator-backed `trace` is implemented with
+  deterministic JSON/text output. Parser/validator-backed `bench` is implemented with iterations, JSON reports, and
+  per-input budget checks.
 - **CLI-C-8:** stable lowercase task-oriented command naming.
 - **CLI-O-1, CLI-O-2, CLI-O-5:** fail levels, report destinations, and unknown-option usage failures.
 - **CLI-O-3:** Tier A global options are accepted where relevant; `--schema`, `--content-type`, and `--base-uri` are
@@ -56,8 +57,8 @@ Deferred or partial criteria:
 - **CLI-D-2 and CLI-D-6:** scope metadata and source maps are deferred.
 - **CLI-C-6 remaining:** transform, schema emit, schema sample, fixture roundtrip, and advanced convert behavior are
   reserved only.
-- **CLI-C-7, CLI-X-4, CLI-T-\* except parser-backed inspect and parser/validator-backed bench:** Tier B/C behavior is
-  reserved only.
+- **CLI-C-7, CLI-X-4, CLI-T-\* except parser-backed inspect, parser-backed convert, parser/validator-backed trace, and
+  parser/validator-backed bench:** Tier B/C behavior is reserved only.
 
 ## Command Surface
 
@@ -71,7 +72,8 @@ Deferred or partial criteria:
   `fixture roundtrip` after the corresponding parser, schema, and transform APIs exist. Parser-backed `inspect` and
   parser-backed `convert` are implemented; schema/transform-backed behavior remains deferred.
 - **CLI-C-7 [C] MAY** expose `schema replace`, `trace`, `bench`, and `plugin list|inspect|run` as experimental commands.
-  Parser/validator-backed `bench` is implemented; transform benchmarking and profiler integration remain deferred.
+  Parser/validator-backed `trace` and `bench` are implemented; transform/plugin/scheduling trace events, transform
+  benchmarking, and profiler integration remain deferred.
 - **CLI-C-8 [A] MUST** keep command naming stable, lowercase, and task-oriented. Subcommands SHOULD group schema,
   fixture, and plugin workflows.
 
@@ -151,7 +153,8 @@ Deferred or partial criteria:
 - **CLI-T-6 [C] MAY** allow `schema replace <input>` to replace or upgrade a schema-governed sub-document selected by
   scope URI, namespace URI, content type, XPath, or CEM selector.
 - **CLI-T-7 [C] MAY** allow `trace <input>` to emit deterministic parser, validator, interpreter, transform, plugin,
-  and scheduling traces.
+  and scheduling traces. Parser and validator trace output is implemented; interpreter, transform, plugin, source-map,
+  scheduling, worker-pool, and profiler trace output remains deferred.
 - **CLI-T-8 [C] MAY** allow `bench <input...>` to benchmark parse, validate, and transform performance. Parse and
   validate benchmarking are implemented; transform benchmarking remains deferred.
 - **CLI-T-9 [C] MAY** allow `plugin list`, `plugin inspect <plugin>`, and `plugin run <plugin> <input>`.

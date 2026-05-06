@@ -111,6 +111,47 @@ describe('runCemDomCli', () => {
         assert.equal(writtenEvents.some((event) => event.type === 'element-start' && event.tagName === 'main'), true);
     });
 
+    it('emits parser and validator trace output', async () => {
+        const dir = await mkdtemp(join(tmpdir(), 'cem-dom-'));
+        const file = join(dir, 'fixture.html');
+        const warningFile = join(dir, 'warning.html');
+        const out = join(dir, 'trace.txt');
+        await writeFile(
+            file,
+            '<main data-cem-screen="login" aria-labelledby="title"><h1 id="title">Sign in</h1></main>',
+        );
+        await writeFile(warningFile, '<main data-cem-screen="login"></main>');
+
+        const jsonResult = await runCemDomCli(['trace', file]);
+        const textResult = await runCemDomCli(['trace', file, '--format', 'text', '--out', out]);
+        const strictResult = await runCemDomCli(['trace', warningFile, '--fail-level', 'strict']);
+
+        const trace = JSON.parse(jsonResult.stdout) as {
+            uri: string;
+            summary: { elementCount: number; validationDiagnosticCount: number };
+            events: Array<{ stage: string; type: string; tagName?: string; diagnostic?: { code: string } }>;
+        };
+        const writtenTrace = await readFile(out, 'utf8');
+
+        assert.equal(jsonResult.exitCode, 0);
+        assert.equal(trace.summary.elementCount, 2);
+        assert.equal(trace.summary.validationDiagnosticCount, 0);
+        assert.equal(
+            trace.events.some((event) => event.stage === 'parse' && event.type === 'element-start' && event.tagName === 'main'),
+            true,
+        );
+        assert.equal(
+            trace.events.some((event) => event.stage === 'validate' && event.type === 'validation-end'),
+            true,
+        );
+        assert.equal(textResult.exitCode, 0);
+        assert.equal(textResult.stdout, '');
+        assert.match(writtenTrace, /Trace:/);
+        assert.match(writtenTrace, /parse element-start/);
+        assert.equal(strictResult.exitCode, 1);
+        assert.match(strictResult.stdout, /validate\.missing-accessible-name/);
+    });
+
     it('validates a file with text, json, markdown, and report outputs', async () => {
         const dir = await mkdtemp(join(tmpdir(), 'cem-dom-'));
         const file = join(dir, 'fixture.html');
@@ -317,6 +358,7 @@ describe('runCemDomCli', () => {
             '--to-format',
             'events',
         ]);
+        const invalidTraceFormat = await runCemDomCli(['trace', 'fixture.html', '--format', 'markdown']);
         const missingInput = await runCemDomCli(['parse']);
         const missingFile = await runCemDomCli(['validate', join(tmpdir(), 'does-not-exist.html')]);
         const reserved = await runCemDomCli(['transform', 'fixture.html']);
@@ -339,6 +381,8 @@ describe('runCemDomCli', () => {
         assert.match(invalidConvertAlias.stderr, /convert supports --to-format/);
         assert.equal(duplicateConvertFormat.exitCode, 2);
         assert.match(duplicateConvertFormat.stderr, /Use either --to-format or --format/);
+        assert.equal(invalidTraceFormat.exitCode, 2);
+        assert.match(invalidTraceFormat.stderr, /trace supports --format json or text/);
         assert.equal(missingInput.exitCode, 2);
         assert.match(missingInput.stderr, /parse requires a file path/);
         assert.equal(missingFile.exitCode, 6);

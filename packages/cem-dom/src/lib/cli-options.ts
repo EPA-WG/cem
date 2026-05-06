@@ -45,6 +45,7 @@ export type CemDomCliInvocation =
     | { kind: 'inspect'; input: string; options: CemDomCliOptions }
     | { kind: 'bench'; inputs: string[]; options: CemDomCliOptions }
     | { kind: 'convert'; input: string; options: CemDomCliOptions }
+    | { kind: 'trace'; input: string; options: CemDomCliOptions }
     | { kind: 'reserved'; command: string; options: CemDomCliOptions }
     | { kind: 'usage-error'; message: string; options: CemDomCliOptions };
 
@@ -53,7 +54,7 @@ const validInspectShows = new Set<CemDomInspectShow>(['summary', 'ast', 'diagnos
 const validBenchProfiles = new Set<CemDomBenchProfile>(['cpu', 'memory']);
 const validConvertFromFormats = new Set<CemDomConvertFromFormat>(['html', 'xml']);
 const validConvertToFormats = new Set<CemDomConvertToFormat>(['dom-json', 'ast', 'events']);
-const reservedTopLevelCommands = new Set(['transform', 'trace']);
+const reservedTopLevelCommands = new Set(['transform']);
 const reservedSchemaCommands = new Set(['emit', 'sample', 'replace']);
 const reservedPluginCommands = new Set(['list', 'inspect', 'run']);
 
@@ -126,6 +127,8 @@ export function parseCemDomCliArgs(argv: readonly string[]): CemDomCliInvocation
                 return parseMultiInputCommand('bench', [subcommand, ...rest], options);
             case 'convert':
                 return parseSingleInputCommand('convert', subcommand, rest, options);
+            case 'trace':
+                return parseSingleInputCommand('trace', subcommand, rest, options);
             case 'fixture':
                 return parseFixtureCommand(subcommand, rest, options);
             case 'schema':
@@ -246,7 +249,7 @@ function createCliOptions(options: Partial<CemDomCliOptions> = {}): CemDomCliOpt
 }
 
 function parseSingleInputCommand(
-    kind: 'parse' | 'inspect' | 'convert',
+    kind: 'parse' | 'inspect' | 'convert' | 'trace',
     input: string | undefined,
     extraInputs: string[],
     options: CemDomCliOptions,
