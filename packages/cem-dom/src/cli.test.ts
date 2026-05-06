@@ -165,6 +165,58 @@ describe('runCemDomCli', () => {
         assert.equal(JSON.parse(await readFile(out, 'utf8')).elementCount, 1);
     });
 
+    it('benchmarks parse and validate work', async () => {
+        const dir = await mkdtemp(join(tmpdir(), 'cem-dom-'));
+        const file = join(dir, 'fixture.html');
+        const reportDir = join(dir, 'bench-report');
+        await writeFile(file, '<main data-cem-screen="login" aria-label="Login"></main>');
+
+        const textResult = await runCemDomCli(['bench', file, '--iterations', '2']);
+        const jsonResult = await runCemDomCli(['bench', file, '--iterations', '2', '--format', 'json']);
+        const reportResult = await runCemDomCli([
+            'bench',
+            file,
+            '--iterations',
+            '1',
+            '--report-json',
+            reportDir,
+            '--profile',
+            'cpu',
+            '--cold-cache',
+        ]);
+
+        const jsonReport = JSON.parse(jsonResult.stdout) as {
+            inputCount: number;
+            iterations: number;
+            averageInputMs: number;
+        };
+        const writtenReport = JSON.parse(await readFile(join(reportDir, 'cem-dom.bench.report.json'), 'utf8')) as {
+            profile: string;
+            coldCache: boolean;
+        };
+
+        assert.equal(textResult.exitCode, 0);
+        assert.match(textResult.stdout, /Benchmarked 1 CEM DOM input/);
+        assert.equal(jsonResult.exitCode, 0);
+        assert.equal(jsonReport.inputCount, 1);
+        assert.equal(jsonReport.iterations, 2);
+        assert.equal(jsonReport.averageInputMs > 0, true);
+        assert.equal(reportResult.exitCode, 0);
+        assert.equal(writtenReport.profile, 'cpu');
+        assert.equal(writtenReport.coldCache, true);
+    });
+
+    it('fails bench when the per-input budget is exceeded', async () => {
+        const dir = await mkdtemp(join(tmpdir(), 'cem-dom-'));
+        const file = join(dir, 'fixture.html');
+        await writeFile(file, '<main data-cem-screen="login" aria-label="Login"></main>');
+
+        const result = await runCemDomCli(['bench', file, '--iterations', '1', '--budget-ms', '0']);
+
+        assert.equal(result.exitCode, 1);
+        assert.match(result.stdout, /Budget: 0\.000ms per input \(exceeded\)/);
+    });
+
     it('validates default and explicit fixtures', async () => {
         const workspaceRoot = await mkdtemp(join(tmpdir(), 'cem-dom-workspace-'));
         const semanticDir = join(workspaceRoot, 'examples/semantic');
@@ -200,6 +252,8 @@ describe('runCemDomCli', () => {
         const unknownOption = await runCemDomCli(['validate', 'fixture.html', '--unknown']);
         const invalidFailLevel = await runCemDomCli(['validate', 'fixture.html', '--fail-level', 'loud']);
         const invalidShow = await runCemDomCli(['inspect', 'fixture.html', '--show', 'scopes']);
+        const invalidBenchIterations = await runCemDomCli(['bench', 'fixture.html', '--iterations', '0']);
+        const invalidBenchProfile = await runCemDomCli(['bench', 'fixture.html', '--profile', 'gpu']);
         const missingInput = await runCemDomCli(['parse']);
         const missingFile = await runCemDomCli(['validate', join(tmpdir(), 'does-not-exist.html')]);
         const reserved = await runCemDomCli(['transform', 'fixture.html']);
@@ -210,6 +264,10 @@ describe('runCemDomCli', () => {
         assert.match(invalidFailLevel.stderr, /Invalid --fail-level/);
         assert.equal(invalidShow.exitCode, 2);
         assert.match(invalidShow.stderr, /Invalid --show/);
+        assert.equal(invalidBenchIterations.exitCode, 2);
+        assert.match(invalidBenchIterations.stderr, /--iterations must be an integer/);
+        assert.equal(invalidBenchProfile.exitCode, 2);
+        assert.match(invalidBenchProfile.stderr, /Invalid --profile/);
         assert.equal(missingInput.exitCode, 2);
         assert.match(missingInput.stderr, /parse requires a file path/);
         assert.equal(missingFile.exitCode, 6);

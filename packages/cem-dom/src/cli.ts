@@ -1,6 +1,7 @@
 #!/usr/bin/env node
 import { mkdir, readFile, writeFile } from 'node:fs/promises';
 import { basename, dirname, isAbsolute, relative, resolve } from 'node:path';
+import { performance } from 'node:perf_hooks';
 import {
     createCemDomReport,
     formatDiagnostics,
@@ -45,6 +46,30 @@ interface ValidationResult {
     diagnostics: CemDiagnostic[];
 }
 
+interface BenchInputResult {
+    uri: string;
+    bytes: number;
+    parseMs: number;
+    validateMs: number;
+    diagnostics: CemDiagnostic[];
+}
+
+interface BenchReport {
+    generatedAt: string;
+    inputCount: number;
+    iterations: number;
+    profile?: string;
+    coldCache: boolean;
+    budgetMs?: number;
+    budgetExceeded: boolean;
+    totalMs: number;
+    parseMs: number;
+    validateMs: number;
+    averageIterationMs: number;
+    averageInputMs: number;
+    inputs: BenchInputResult[];
+}
+
 const defaultPackageRoot = resolve(import.meta.dirname, '..');
 const defaultWorkspaceRoot = resolve(defaultPackageRoot, '../..');
 
@@ -63,20 +88,25 @@ Tier A commands:
   validate <input...>        Validate one or more CEM semantic documents.
   check <input...>           Parse + validate for CI-friendly checks.
   inspect <input>            Inspect parser-backed document structure.
+  bench <input...>           Benchmark parser and validator performance.
   fixture validate [input...] Validate semantic fixtures and write reports.
   version                    Print the package version.
   help                       Print this help text.
 
 Reserved Tier B/C commands:
-  transform, convert, trace, bench
+  transform, convert, trace
   schema emit|sample|replace
   fixture roundtrip
   plugin list|inspect|run
 
 Common options:
   --fail-level parse|validate|strict
-  --format text|json|markdown|dom-json
+  --format text|json|markdown|dom-json|ast|events|tree
   --show summary|ast|diagnostics|source-offsets|tree
+  --iterations <n>
+  --budget-ms <n>
+  --profile cpu|memory
+  --cold-cache
   --out <file>
   --report-json <file-or-dir>
   --report-md <file-or-dir>
@@ -111,6 +141,8 @@ export async function runCemDomCli(
                 return await runValidateOrCheck('check', invocation.inputs, invocation.options, cwd);
             case 'inspect':
                 return await runInspect(invocation.input, invocation.options, cwd);
+            case 'bench':
+                return await runBench(invocation.inputs, invocation.options, cwd);
             case 'fixture-validate':
                 return await runFixtureValidate(invocation.inputs, invocation.options, cwd, workspaceRoot);
             case 'reserved':
@@ -209,6 +241,39 @@ async function runValidateOrCheck(
 
     return {
         exitCode: failing ? 1 : 0,
+        stdout: options.out || options.quiet ? '' : stdout,
+        stderr: '',
+    };
+}
+
+async function runBench(
+    inputs: readonly string[],
+    options: CemDomCliOptions,
+    cwd: string,
+): Promise<CemDomCliResult> {
+    const format = options.format ?? 'text';
+    if (format !== 'text' && format !== 'json') {
+        return usageError('bench supports --format text or json.');
+    }
+
+    const iterations = options.iterations ?? 10;
+    if (!Number.isInteger(iterations) || iterations < 1) {
+        return usageError('--iterations must be an integer greater than or equal to 1.');
+    }
+
+    const report = await createBenchReport(inputs, options, cwd, iterations);
+    const stdout = formatBenchOutput(report, format);
+
+    if (options.reportJson) {
+        await writeBenchJsonReport(options.reportJson, report);
+    }
+
+    if (options.out) {
+        await writeOutputFile(options.out, stdout);
+    }
+
+    return {
+        exitCode: report.budgetExceeded ? 1 : 0,
         stdout: options.out || options.quiet ? '' : stdout,
         stderr: '',
     };
@@ -319,6 +384,111 @@ function formatCommandOutput(
         case 'markdown':
             return formatReportMarkdown(report);
     }
+}
+
+async function createBenchReport(
+    inputs: readonly string[],
+    options: CemDomCliOptions,
+    cwd: string,
+    iterations: number,
+): Promise<BenchReport> {
+    const warmedInputs = options.coldCache
+        ? undefined
+        : await Promise.all(inputs.map((input) => readCliInput(input, options, cwd)));
+    const perInput = new Map<string, BenchInputResult>();
+    let totalParseMs = 0;
+    let totalValidateMs = 0;
+    const totalStart = performance.now();
+
+    for (let iteration = 0; iteration < iterations; iteration += 1) {
+        const iterationInputs = options.coldCache
+            ? await Promise.all(inputs.map((input) => readCliInput(input, options, cwd)))
+            : (warmedInputs ?? []);
+
+        for (const cliInput of iterationInputs) {
+            const parseStart = performance.now();
+            parseCemDom(cliInput.source, { sourceName: cliInput.uri });
+            const parseMs = performance.now() - parseStart;
+
+            const validateStart = performance.now();
+            const diagnostics = normalizeDiagnostics(
+                validateCemDom(cliInput.source, { sourceName: cliInput.uri }),
+                cliInput.uri,
+            );
+            const validateMs = performance.now() - validateStart;
+
+            totalParseMs += parseMs;
+            totalValidateMs += validateMs;
+
+            const previous = perInput.get(cliInput.uri);
+            if (previous) {
+                previous.parseMs += parseMs;
+                previous.validateMs += validateMs;
+                previous.diagnostics = diagnostics;
+            } else {
+                perInput.set(cliInput.uri, {
+                    uri: cliInput.uri,
+                    bytes: Buffer.byteLength(cliInput.source, 'utf8'),
+                    parseMs,
+                    validateMs,
+                    diagnostics,
+                });
+            }
+        }
+    }
+
+    const totalMs = performance.now() - totalStart;
+    const inputCount = inputs.length;
+    const averageIterationMs = totalMs / iterations;
+    const averageInputMs = totalMs / (iterations * inputCount);
+    const budgetExceeded = options.budgetMs !== undefined && averageInputMs > options.budgetMs;
+
+    return {
+        generatedAt: '1970-01-01T00:00:00.000Z',
+        inputCount,
+        iterations,
+        profile: options.profile,
+        coldCache: options.coldCache,
+        budgetMs: options.budgetMs,
+        budgetExceeded,
+        totalMs,
+        parseMs: totalParseMs,
+        validateMs: totalValidateMs,
+        averageIterationMs,
+        averageInputMs,
+        inputs: [...perInput.values()].map((input) => ({
+            ...input,
+            parseMs: input.parseMs / iterations,
+            validateMs: input.validateMs / iterations,
+        })),
+    };
+}
+
+function formatBenchOutput(report: BenchReport, format: 'text' | 'json'): string {
+    if (format === 'json') {
+        return `${JSON.stringify(report, null, 2)}\n`;
+    }
+
+    return [
+        `Benchmarked ${report.inputCount} CEM DOM input(s) for ${report.iterations} iteration(s).`,
+        `Average iteration: ${formatMs(report.averageIterationMs)}`,
+        `Average input: ${formatMs(report.averageInputMs)}`,
+        `Parse total: ${formatMs(report.parseMs)}`,
+        `Validate total: ${formatMs(report.validateMs)}`,
+        report.budgetMs === undefined
+            ? 'Budget: none'
+            : `Budget: ${formatMs(report.budgetMs)} per input (${report.budgetExceeded ? 'exceeded' : 'passed'})`,
+        '',
+    ].join('\n');
+}
+
+async function writeBenchJsonReport(destination: string, report: BenchReport): Promise<void> {
+    const outputPath = destination.endsWith('.json') ? destination : resolve(destination, 'cem-dom.bench.report.json');
+    await writeOutputFile(outputPath, `${JSON.stringify(report, null, 2)}\n`);
+}
+
+function formatMs(value: number): string {
+    return `${value.toFixed(3)}ms`;
 }
 
 function formatParsePayload(

@@ -24,6 +24,7 @@ node packages/cem-dom/dist/cli.js validate examples/semantic/login.html
 node packages/cem-dom/dist/cli.js check examples/semantic/login.html --fail-level validate
 node packages/cem-dom/dist/cli.js parse examples/semantic/login.html --format ast
 node packages/cem-dom/dist/cli.js inspect examples/semantic/login.html --show tree
+node packages/cem-dom/dist/cli.js bench examples/semantic/login.html --iterations 25 --format json
 node packages/cem-dom/dist/cli.js fixture validate
 node packages/cem-dom/dist/cli.js version
 ```
@@ -36,7 +37,8 @@ node packages/cem-dom/src/cli.ts validate examples/semantic/login.html
 
 Tier A options include `--fail-level parse|validate|strict`, `--format text|json|markdown|dom-json|ast|events|tree`,
 `--show summary|ast|diagnostics|source-offsets|tree`, `--out`, `--report-json`, `--report-md`, `--schema`,
-`--content-type`, `--base-uri`, `--zero-hard-violations`, `--quiet`, `--verbose`, and `--no-color`.
+`--content-type`, `--base-uri`, `--zero-hard-violations`, `--iterations`, `--budget-ms`, `--profile`,
+`--cold-cache`, `--quiet`, `--verbose`, and `--no-color`.
 
 ### CLI roadmap
 
@@ -47,10 +49,10 @@ in:
   conversion, schema tooling, fixture workflows, inspection, trace, benchmarks, and plugins.
 - [`docs/cli-ac.md`](docs/cli-ac.md) — acceptance criteria and an implementation-planning prompt for the CLI.
 
-Completed CLI work centers on `parse`, `validate`, `check`, parser-backed `inspect`, `fixture validate`, stable
-diagnostics, JSON/Markdown reports, and `--fail-level parse|validate|strict`. Transform, conversion, schema
-emission/sample generation, advanced inspection, tracing, benchmarking, and plugin workflows are reserved future or
-experimental commands until implemented and tested.
+Completed CLI work centers on `parse`, `validate`, `check`, parser-backed `inspect`, parser/validator-backed `bench`,
+`fixture validate`, stable diagnostics, JSON/Markdown reports, and `--fail-level parse|validate|strict`. Transform,
+conversion, schema emission/sample generation, advanced inspection, tracing, transform benchmarking, profiler
+integration, and plugin workflows are reserved future or experimental work until implemented and tested.
 
 ## Nx Targets
 

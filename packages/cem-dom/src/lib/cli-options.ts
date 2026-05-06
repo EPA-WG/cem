@@ -6,6 +6,8 @@ export type CemDomCliFormat = 'text' | 'json' | 'markdown' | 'dom-json' | 'ast' 
 
 export type CemDomInspectShow = 'summary' | 'ast' | 'diagnostics' | 'source-offsets' | 'tree';
 
+export type CemDomBenchProfile = 'cpu' | 'memory';
+
 export interface CemDomCliOptions {
     failLevel?: CemDomFailLevel;
     reportJson?: string;
@@ -16,6 +18,10 @@ export interface CemDomCliOptions {
     contentType?: string;
     baseUri?: string;
     show?: CemDomInspectShow;
+    iterations?: number;
+    budgetMs?: number;
+    profile?: CemDomBenchProfile;
+    coldCache: boolean;
     quiet: boolean;
     verbose: boolean;
     noColor: boolean;
@@ -30,12 +36,14 @@ export type CemDomCliInvocation =
     | { kind: 'check'; inputs: string[]; options: CemDomCliOptions }
     | { kind: 'fixture-validate'; inputs: string[]; options: CemDomCliOptions }
     | { kind: 'inspect'; input: string; options: CemDomCliOptions }
+    | { kind: 'bench'; inputs: string[]; options: CemDomCliOptions }
     | { kind: 'reserved'; command: string; options: CemDomCliOptions }
     | { kind: 'usage-error'; message: string; options: CemDomCliOptions };
 
 const validFormats = new Set<CemDomCliFormat>(['text', 'json', 'markdown', 'dom-json', 'ast', 'events', 'tree']);
 const validInspectShows = new Set<CemDomInspectShow>(['summary', 'ast', 'diagnostics', 'source-offsets', 'tree']);
-const reservedTopLevelCommands = new Set(['transform', 'convert', 'trace', 'bench']);
+const validBenchProfiles = new Set<CemDomBenchProfile>(['cpu', 'memory']);
+const reservedTopLevelCommands = new Set(['transform', 'convert', 'trace']);
 const reservedSchemaCommands = new Set(['emit', 'sample', 'replace']);
 const reservedPluginCommands = new Set(['list', 'inspect', 'run']);
 
@@ -57,6 +65,10 @@ export function parseCemDomCliArgs(argv: readonly string[]): CemDomCliInvocation
                 'content-type': { type: 'string' },
                 'base-uri': { type: 'string' },
                 show: { type: 'string' },
+                iterations: { type: 'string' },
+                'budget-ms': { type: 'string' },
+                profile: { type: 'string' },
+                'cold-cache': { type: 'boolean' },
                 quiet: { type: 'boolean' },
                 verbose: { type: 'boolean' },
                 'no-color': { type: 'boolean' },
@@ -97,6 +109,8 @@ export function parseCemDomCliArgs(argv: readonly string[]): CemDomCliInvocation
                 return parseMultiInputCommand('check', [subcommand, ...rest], options);
             case 'inspect':
                 return parseSingleInputCommand('inspect', subcommand, rest, options);
+            case 'bench':
+                return parseMultiInputCommand('bench', [subcommand, ...rest], options);
             case 'fixture':
                 return parseFixtureCommand(subcommand, rest, options);
             case 'schema':
@@ -128,6 +142,17 @@ function readOptions(values: ReturnType<typeof parseArgs>['values']):
     const failLevel = stringValue(values['fail-level']);
     const format = stringValue(values.format);
     const show = stringValue(values.show);
+    const iterations = numberValue(values.iterations, '--iterations');
+    const budgetMs = numberValue(values['budget-ms'], '--budget-ms');
+    const profile = stringValue(values.profile);
+
+    if (typeof iterations === 'string') {
+        return { message: iterations };
+    }
+
+    if (typeof budgetMs === 'string') {
+        return { message: budgetMs };
+    }
 
     if (failLevel !== undefined && !isCemDomFailLevel(failLevel)) {
         return {
@@ -147,6 +172,12 @@ function readOptions(values: ReturnType<typeof parseArgs>['values']):
         };
     }
 
+    if (profile !== undefined && !isCemDomBenchProfile(profile)) {
+        return {
+            message: `Invalid --profile "${profile}". Expected cpu or memory.`,
+        };
+    }
+
     return {
         options: createCliOptions({
             failLevel,
@@ -158,6 +189,10 @@ function readOptions(values: ReturnType<typeof parseArgs>['values']):
             contentType: stringValue(values['content-type']),
             baseUri: stringValue(values['base-uri']),
             show,
+            iterations,
+            budgetMs,
+            profile,
+            coldCache: values['cold-cache'] === true,
             quiet: values.quiet === true,
             verbose: values.verbose === true,
             noColor: values['no-color'] === true,
@@ -172,6 +207,7 @@ function createCliOptions(options: Partial<CemDomCliOptions> = {}): CemDomCliOpt
         verbose: false,
         noColor: false,
         zeroHardViolations: false,
+        coldCache: false,
         ...options,
     };
 }
@@ -202,7 +238,7 @@ function parseSingleInputCommand(
 }
 
 function parseMultiInputCommand(
-    kind: 'validate' | 'check',
+    kind: 'validate' | 'check' | 'bench',
     inputs: Array<string | undefined>,
     options: CemDomCliOptions,
 ): CemDomCliInvocation {
@@ -280,6 +316,27 @@ function isCemDomInspectShow(value: string): value is CemDomInspectShow {
     return validInspectShows.has(value as CemDomInspectShow);
 }
 
+function isCemDomBenchProfile(value: string): value is CemDomBenchProfile {
+    return validBenchProfiles.has(value as CemDomBenchProfile);
+}
+
 function stringValue(value: unknown): string | undefined {
     return typeof value === 'string' ? value : undefined;
+}
+
+function numberValue(value: unknown, optionName: string): number | string | undefined {
+    if (value === undefined) {
+        return undefined;
+    }
+
+    if (typeof value !== 'string' || value.trim().length === 0) {
+        return `Invalid ${optionName}. Expected a non-negative number.`;
+    }
+
+    const parsed = Number(value);
+    if (!Number.isFinite(parsed) || parsed < 0) {
+        return `Invalid ${optionName} "${value}". Expected a non-negative number.`;
+    }
+
+    return parsed;
 }

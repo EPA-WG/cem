@@ -17,8 +17,11 @@ Implementation status:
   reports, deterministic aggregate reports, and reserved Tier B/C command failures.
 * Parser-backed Tier B slice implemented: `parse --format ast|events` and `inspect --show
   summary|ast|diagnostics|source-offsets|tree`.
-* Deferred: real schema loading/version compatibility, transform/convert/schema/advanced-inspect/trace/bench/plugin
-  behavior, source maps, scope metadata, and roundtrip fixture rendering.
+* Parser/validator-backed Tier C slice implemented: `bench` with iterations, JSON reports, cold-cache reads, recorded
+  profile intent, and per-input budget checks.
+* Deferred: real schema loading/version compatibility, transform/convert/schema/advanced-inspect/trace/plugin
+  behavior, transform benchmarking, real CPU/memory profiling, source maps, scope metadata, and roundtrip fixture
+  rendering.
 
 I’ll turn the acceptance criteria into a CLI surface first, then package that as a reusable documentation-writing
 prompt.
