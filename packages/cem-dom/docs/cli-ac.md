@@ -35,8 +35,8 @@ Tier B and Tier C commands MUST be documented as future or experimental until im
 Completed Tier A acceptance criteria:
 
 - **CLI-C-1 through CLI-C-5:** `parse`, `validate`, `check`, `fixture validate`, `help`, and `version`.
-- **CLI-C-6 partial:** parser-backed `inspect` is implemented for summary, AST, diagnostics, source offsets, and tree
-  views. Parser-backed `convert` is implemented for HTML/XML input to DOM JSON, AST, and events. Parser-backed
+- **CLI-C-6 partial:** parser-backed `inspect` is implemented for summary, AST, events, diagnostics, source offsets,
+  and tree views. Parser-backed `convert` is implemented for HTML/XML input to DOM JSON, AST, and events. Parser-backed
   `fixture roundtrip` is implemented for deterministic parser projection reports.
 - **CLI-C-7 partial / CLI-T-7 partial / CLI-T-8 partial:** parser/validator-backed `trace` is implemented with
   deterministic JSON/text output. Parser/validator-backed `bench` is implemented with iterations, JSON reports, and
@@ -150,9 +150,9 @@ Deferred or partial criteria:
   one XML schema mirror for MVP schema work.
 - **CLI-T-4 [B] SHOULD** allow `schema sample <schema>` to generate `minimal`, `typical`, `maximal`, `edge`, and
   intentionally `invalid` examples.
-- **CLI-T-5 [B] SHOULD** allow `inspect <input>` to show AST, scopes, schema bindings, diagnostics, source offsets,
-  plugins, and source maps. AST, diagnostics, source offsets, summary, and tree views are implemented. Scope, schema
-  binding, plugin, and source-map views remain deferred.
+- **CLI-T-5 [B] SHOULD** allow `inspect <input>` to show AST, events, scopes, schema bindings, diagnostics, source
+  offsets, plugins, and source maps. AST, events, diagnostics, source offsets, summary, and tree views are implemented.
+  Scope, schema binding, plugin, and source-map views remain deferred.
 - **CLI-T-6 [C] MAY** allow `schema replace <input>` to replace or upgrade a schema-governed sub-document selected by
   scope URI, namespace URI, content type, XPath, or CEM selector.
 - **CLI-T-7 [C] MAY** allow `trace <input>` to emit deterministic parser, validator, interpreter, transform, plugin,

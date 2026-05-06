@@ -16,7 +16,7 @@ Implementation status:
 * Tier A implemented: `parse`, `validate`, `check`, `fixture validate`, `help`, `version`, fail levels, JSON/Markdown
   reports, deterministic aggregate reports, and reserved Tier B/C command failures.
 * Parser-backed Tier B slice implemented: `parse --format ast|events` and `inspect --show
-  summary|ast|diagnostics|source-offsets|tree`.
+  summary|ast|events|diagnostics|source-offsets|tree`.
 * Parser-backed conversion slice implemented: `convert --from-format html|xml --to-format dom-json|ast|events`, with
   `--out`, `--format` output aliases, and optional `--preserve-source-offsets`.
 * Parser/validator-backed trace slice implemented: `trace --format json|text`, with deterministic input, parse, and
@@ -351,12 +351,14 @@ Examples:
 ```bash
 cem-dom inspect page.html --show scopes
 cem-dom inspect page.html --show ast
+cem-dom inspect page.html --show events
 cem-dom inspect page.html --show schema-bindings
 cem-dom inspect page.html --show source-offsets
 ```
 Useful options:
 ```bash
---show scopes|ast|events|schema-bindings|plugins|diagnostics|source-map
+--show summary|ast|events|diagnostics|source-offsets|tree
+--show scopes|schema-bindings|plugins|source-map # future
 --format text|json|tree
 ```
 ---
