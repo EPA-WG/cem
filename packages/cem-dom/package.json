@@ -1,0 +1,39 @@
+{
+    "name": "@epa-wg/cem-dom",
+    "version": "0.0.14",
+    "description": "Schema, parser, validator, and transform pipeline for CEM semantic HTML documents. Ships an ESM library API and a `cem-dom` CLI.",
+    "license": "MIT",
+    "type": "module",
+    "repository": {
+        "type": "git",
+        "url": "https://github.com/EPA-WG/cem.git",
+        "directory": "packages/cem-dom"
+    },
+    "main": "./dist/index.js",
+    "module": "./dist/index.js",
+    "types": "./dist/index.d.ts",
+    "bin": "./dist/cli.js",
+    "exports": {
+        "./package.json": "./package.json",
+        ".": {
+            "@epa-wg/cem": "./src/index.ts",
+            "types": "./dist/index.d.ts",
+            "import": "./dist/index.js",
+            "default": "./dist/index.js"
+        }
+    },
+    "files": [
+        "dist",
+        "!**/*.tsbuildinfo"
+    ],
+    "scripts": {
+        "build": "tsc --build tsconfig.lib.json",
+        "typecheck": "tsc --project tsconfig.lib.json --noEmit && tsc --project tsconfig.spec.json --noEmit",
+        "lint": "eslint .",
+        "test": "node --test --experimental-test-coverage src/lib/cem-dom.test.ts src/cli.test.ts",
+        "validate-fixtures": "node scripts/validate-fixtures.ts"
+    },
+    "publishConfig": {
+        "access": "public"
+    }
+}

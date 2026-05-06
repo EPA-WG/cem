@@ -10,11 +10,11 @@ vocabulary: [`component-mvp.md`](component-mvp.md).
 
 ### Package scaffold
 
-- [ ] Create `packages/cem-dom` with `package.json`, `project.json`, `tsconfig*.json`, and `README.md`, mirroring
+- [x] Create `packages/cem-dom` with `package.json`, `project.json`, `tsconfig*.json`, and `README.md`, mirroring
       `packages/cem-components` shape.
-- [ ] Wire `build`, `lint`, `test`, and `validate-fixtures` Nx targets.
-- [ ] Add the package to the root README package map and `docs/index.md`.
-- [ ] When `@epa-wg/cem-dom` lands, instantiate the shared README template (one-line summary, install, primary
+- [x] Wire `build`, `lint`, `test`, and `validate-fixtures` Nx targets.
+- [x] Add the package to the root README package map and `docs/index.md`.
+- [x] When `@epa-wg/cem-dom` lands, instantiate the shared README template (one-line summary, install, primary
       exports, build/test commands, key paths, related docs).
 
 ### Schema
