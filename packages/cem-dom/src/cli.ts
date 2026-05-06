@@ -1,4 +1,5 @@
 #!/usr/bin/env node
+import { createHash } from 'node:crypto';
 import { mkdir, readFile, writeFile } from 'node:fs/promises';
 import { basename, dirname, isAbsolute, relative, resolve } from 'node:path';
 import { performance } from 'node:perf_hooks';
@@ -112,6 +113,28 @@ interface TraceReport {
     events: TraceEvent[];
 }
 
+interface FixtureRoundtripInput {
+    uri: string;
+    bytes: number;
+    rootNodeCount: number;
+    elementCount: number;
+    textNodeCount: number;
+    outputBytes: number;
+    outputSha256: string;
+    diagnostics: CemDiagnostic[];
+}
+
+interface FixtureRoundtripReport {
+    generatedAt: string;
+    targetFormat: CemDomConvertToFormat;
+    inputCount: number;
+    summary: CemDomReport['summary'] & {
+        passedCount: number;
+        failedCount: number;
+    };
+    inputs: FixtureRoundtripInput[];
+}
+
 const defaultPackageRoot = resolve(import.meta.dirname, '..');
 const defaultWorkspaceRoot = resolve(defaultPackageRoot, '../..');
 
@@ -134,13 +157,13 @@ Implemented commands:
   convert <input>            Convert parser output representation from HTML/XML input.
   trace <input>              Emit parser and validator trace events.
   fixture validate [input...] Validate semantic fixtures and write reports.
+  fixture roundtrip [input...] Verify fixture parser projections and write reports.
   version                    Print the package version.
   help                       Print this help text.
 
 Reserved Tier B/C commands:
   transform
   schema emit|sample|replace
-  fixture roundtrip
   plugin list|inspect|run
 
 Common options:
@@ -196,6 +219,8 @@ export async function runCemDomCli(
                 return await runTrace(invocation.input, invocation.options, cwd);
             case 'fixture-validate':
                 return await runFixtureValidate(invocation.inputs, invocation.options, cwd, workspaceRoot);
+            case 'fixture-roundtrip':
+                return await runFixtureRoundtrip(invocation.inputs, invocation.options, cwd, workspaceRoot);
             case 'reserved':
                 return usageError(`Command "${invocation.command}" is reserved for a future Tier B/C CLI release.`);
             case 'usage-error':
@@ -417,6 +442,44 @@ async function runFixtureValidate(
     };
 }
 
+async function runFixtureRoundtrip(
+    inputs: readonly string[],
+    options: CemDomCliOptions,
+    cwd: string,
+    workspaceRoot: string,
+): Promise<CemDomCliResult> {
+    const format = options.format ?? 'text';
+    if (format !== 'text' && format !== 'json' && format !== 'markdown') {
+        return usageError('fixture roundtrip supports --format text, json, or markdown.');
+    }
+
+    const failLevel = options.failLevel ?? 'validate';
+    const targetFormat = options.toFormat ?? 'dom-json';
+    const effectiveInputs = inputs.length > 0 ? [...inputs] : defaultFixtureInputs;
+    const fixtureCwd = inputs.length > 0 ? cwd : workspaceRoot;
+    const report = await createFixtureRoundtripReport(effectiveInputs, options, fixtureCwd, targetFormat, failLevel);
+    const stdout = formatFixtureRoundtripOutput(report, format);
+
+    await writeFixtureRoundtripJsonReport(
+        options.reportJson ?? resolve(workspaceRoot, 'packages/cem-dom/dist/cem-dom.roundtrip.report.json'),
+        report,
+    );
+    await writeFixtureRoundtripMarkdownReport(
+        options.reportMd ?? resolve(workspaceRoot, 'packages/cem-dom/dist/cem-dom.roundtrip.report.md'),
+        report,
+    );
+
+    if (options.out) {
+        await writeOutputFile(options.out, stdout);
+    }
+
+    return {
+        exitCode: report.summary.failedCount > 0 ? 1 : 0,
+        stdout: options.out || options.quiet ? '' : stdout,
+        stderr: '',
+    };
+}
+
 async function validateInputs(
     inputs: readonly string[],
     options: CemDomCliOptions,
@@ -497,6 +560,151 @@ function formatCommandOutput(
         case 'markdown':
             return formatReportMarkdown(report);
     }
+}
+
+async function createFixtureRoundtripReport(
+    inputs: readonly string[],
+    options: CemDomCliOptions,
+    cwd: string,
+    targetFormat: CemDomConvertToFormat,
+    failLevel: CemDomFailLevel,
+): Promise<FixtureRoundtripReport> {
+    const roundtripInputs = await Promise.all(
+        inputs.map(async (input) => {
+            const cliInput = await readCliInput(input, options, cwd);
+            const document = parseCemDom(cliInput.source, {
+                sourceName: cliInput.uri,
+            });
+            document.diagnostics = normalizeDiagnostics(document.diagnostics, cliInput.uri);
+            const diagnostics = normalizeDiagnostics(
+                validateCemDom(cliInput.source, { sourceName: cliInput.uri }),
+                cliInput.uri,
+            );
+            const payload = formatConvertPayload(document, {
+                toFormat: targetFormat,
+                preserveSourceOffsets: options.preserveSourceOffsets,
+            });
+            const serializedPayload = JSON.stringify(payload);
+
+            return {
+                uri: cliInput.uri,
+                bytes: Buffer.byteLength(cliInput.source, 'utf8'),
+                rootNodeCount: document.rootNodes.length,
+                elementCount: document.elements.length,
+                textNodeCount: countTextNodes(document.rootNodes),
+                outputBytes: Buffer.byteLength(serializedPayload, 'utf8'),
+                outputSha256: createSha256(serializedPayload),
+                diagnostics,
+            };
+        }),
+    );
+    const diagnosticReport = createCemDomReport(
+        roundtripInputs.map((input) => ({
+            uri: input.uri,
+            diagnostics: input.diagnostics,
+        })),
+        {
+            failLevel,
+            schema: options.schema,
+            contentType: options.contentType,
+            baseUri: options.baseUri,
+        },
+    );
+    const failedCount = roundtripInputs.filter((input) => hasFailingDiagnostics(input.diagnostics, failLevel)).length;
+
+    return {
+        generatedAt: diagnosticReport.generatedAt,
+        targetFormat,
+        inputCount: roundtripInputs.length,
+        summary: {
+            ...diagnosticReport.summary,
+            passedCount: roundtripInputs.length - failedCount,
+            failedCount,
+        },
+        inputs: roundtripInputs,
+    };
+}
+
+function createSha256(value: string): string {
+    return createHash('sha256').update(value).digest('hex');
+}
+
+function formatFixtureRoundtripOutput(
+    report: FixtureRoundtripReport,
+    format: 'text' | 'json' | 'markdown',
+): string {
+    switch (format) {
+        case 'text':
+            return formatFixtureRoundtripText(report);
+        case 'json':
+            return `${JSON.stringify(report, null, 2)}\n`;
+        case 'markdown':
+            return formatFixtureRoundtripMarkdown(report);
+    }
+}
+
+function formatFixtureRoundtripText(report: FixtureRoundtripReport): string {
+    return [
+        `Roundtripped ${report.inputCount} CEM DOM fixture(s) to ${report.targetFormat}: ${report.summary.passedCount} passed, ${report.summary.failedCount} failed.`,
+        `Hard violations: ${report.summary.hardViolationCount}; warnings: ${report.summary.warningCount}`,
+        ...report.inputs.map((input) => {
+            const status = input.diagnostics.length === 0 ? 'clean' : formatDiagnosticCodes(input.diagnostics);
+            return `- ${input.uri} elements=${input.elementCount} output=${input.outputBytes}B sha256=${input.outputSha256} diagnostics=${status}`;
+        }),
+        '',
+    ].join('\n');
+}
+
+function formatFixtureRoundtripMarkdown(report: FixtureRoundtripReport): string {
+    const lines = [
+        '# CEM DOM Fixture Roundtrip Report',
+        '',
+        `Generated: ${report.generatedAt}`,
+        `Target format: ${report.targetFormat}`,
+        '',
+        `Inputs: ${report.inputCount}`,
+        `Passed: ${report.summary.passedCount}`,
+        `Failed: ${report.summary.failedCount}`,
+        `Warnings: ${report.summary.warningCount}`,
+        `Hard violations: ${report.summary.hardViolationCount}`,
+        '',
+    ];
+
+    for (const input of report.inputs) {
+        lines.push(`## ${input.uri}`, '');
+        lines.push(`- Bytes: ${input.bytes}`);
+        lines.push(`- Elements: ${input.elementCount}`);
+        lines.push(`- Text nodes: ${input.textNodeCount}`);
+        lines.push(`- Output bytes: ${input.outputBytes}`);
+        lines.push(`- Output SHA-256: ${input.outputSha256}`);
+        lines.push('', '```txt');
+        lines.push(formatDiagnostics(input.diagnostics));
+        lines.push('```', '');
+    }
+
+    return `${lines.join('\n')}\n`;
+}
+
+function formatDiagnosticCodes(diagnostics: readonly CemDiagnostic[]): string {
+    return diagnostics.length === 0 ? 'clean' : diagnostics.map((diagnostic) => diagnostic.code).join(',');
+}
+
+async function writeFixtureRoundtripJsonReport(
+    destination: string,
+    report: FixtureRoundtripReport,
+): Promise<void> {
+    const outputPath = destination.endsWith('.json')
+        ? destination
+        : resolve(destination, 'cem-dom.roundtrip.report.json');
+    await writeOutputFile(outputPath, `${JSON.stringify(report, null, 2)}\n`);
+}
+
+async function writeFixtureRoundtripMarkdownReport(
+    destination: string,
+    report: FixtureRoundtripReport,
+): Promise<void> {
+    const outputPath = destination.endsWith('.md') ? destination : resolve(destination, 'cem-dom.roundtrip.report.md');
+    await writeOutputFile(outputPath, formatFixtureRoundtripMarkdown(report));
 }
 
 function createTraceReport(

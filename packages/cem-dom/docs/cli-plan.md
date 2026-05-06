@@ -16,6 +16,7 @@ Nx run-command targets, and native `node:test`.
 - [x] `bench` is implemented for parser and validator timing with JSON reports and per-input budget checks.
 - [x] `convert` is implemented for parser-backed HTML/XML input to `dom-json`, `ast`, and `events`.
 - [x] `trace` is implemented for deterministic parser and validator trace output.
+- [x] `fixture roundtrip` is implemented for deterministic parser projection checks and reports.
 - [x] Remaining Tier B/C command names are reserved with usage failures instead of partially implemented behavior.
 - [x] `validate-fixtures` delegates through the CLI.
 - [x] Native `node:test` coverage was expanded for commands, reports, fail levels, usage errors, I/O errors, and
@@ -24,6 +25,7 @@ Nx run-command targets, and native `node:test`.
 - [x] Root `yarn build` passed in the user's manual runs after `cem-dom` rebuilds.
 - [ ] Schema version compatibility is still deferred until schema loading exists.
 - [ ] Real transform, advanced conversion, schema, advanced trace, and plugin behavior remains Tier B/C deferred work.
+- [ ] Transform/render fixture roundtrip snapshots remain deferred until the transform pipeline exists.
 - [ ] Advanced inspect views for scopes, schema bindings, plugins, and source maps remain deferred until those
   subsystems exist.
 - [ ] Transform benchmarking and real CPU/memory profiling remain deferred until those subsystems exist.
@@ -204,6 +206,24 @@ Reject unknown options with exit code `2`.
 - Default `--fail-level validate`.
 - Exit `1` on hard violations.
 
+### `cem-dom fixture roundtrip [input...]`
+
+- Parser-backed Tier B slice now implemented.
+- If no inputs are provided, use the five existing semantic fixtures:
+  `examples/semantic/assets-list.html`, `login.html`, `message-thread.html`, `profile.html`, `registration.html`.
+- If inputs are provided, roundtrip those paths.
+- Performs parse -> validate -> parser-output projection.
+- Supports `--to-format dom-json|ast|events`; default is `dom-json`.
+- Supports `--format text|json|markdown`; default is `text`.
+- Supports `--out`, `--report-json`, and `--report-md`.
+- Default reports:
+  - `packages/cem-dom/dist/cem-dom.roundtrip.report.json`
+  - `packages/cem-dom/dist/cem-dom.roundtrip.report.md`
+- Report inputs include source bytes, node counts, projected output bytes, projected output SHA-256, and diagnostics.
+- Default `--fail-level validate`.
+- Exit `1` when any input fails the selected fail level.
+- Does not transform, render, snapshot light-DOM custom-element markup, or emit source maps yet.
+
 ### `help`, `--help`, `-h`
 
 - Print top-level command list, Tier A commands, and note that Tier B/C commands are reserved.
@@ -225,7 +245,6 @@ Reserved commands:
 - `transform`
 - `schema emit`
 - `schema sample`
-- `fixture roundtrip`
 - `schema replace`
 - `plugin *`
 
@@ -247,8 +266,8 @@ Flow:
 3. Read files as UTF-8.
 4. Run `parseCemDom` or `validateCemDom`.
 5. Normalize diagnostics with URI/source fields.
-6. Create output/report objects; `convert` formats parser output as `dom-json`, `ast`, or `events`, and `trace`
-   emits parser/validator trace events.
+6. Create output/report objects; `convert` formats parser output as `dom-json`, `ast`, or `events`, `trace` emits
+   parser/validator trace events, and `fixture roundtrip` records deterministic parser projection hashes.
 7. Write stdout, `--out`, `--report-json`, and/or `--report-md`.
 8. Return stable exit code.
 
@@ -332,6 +351,11 @@ Add/update CLI tests for:
 - `check <file> --zero-hard-violations`
 - `fixture validate` default fixture set
 - `fixture validate <file>`
+- `fixture roundtrip` default fixture set
+- `fixture roundtrip <file> --to-format ast --format json`
+- `fixture roundtrip --format markdown --out file`
+- `fixture roundtrip --fail-level strict` fails on validation warnings
+- invalid fixture roundtrip format option
 - unknown command, unknown option, invalid fail level, missing input
 - unreadable file returns exit `6`
 - reserved Tier B/C command returns exit `2`
@@ -356,8 +380,9 @@ node packages/cem-dom/src/cli.ts check examples/semantic/login.html --report-jso
 
 ## 7. Deferred Tier B/C
 
-**Status:** Partially completed. Parser-backed `inspect` and `convert`, plus parser/validator-backed `trace` and
-`bench` slices, are implemented. The remaining command names are reserved; advanced behavior is not implemented.
+**Status:** Partially completed. Parser-backed `inspect`, `convert`, and `fixture roundtrip`, plus parser/validator-
+backed `trace` and `bench` slices, are implemented. The remaining command names are reserved; advanced behavior is not
+implemented.
 
 Do not implement real behavior for:
 
@@ -366,6 +391,7 @@ Do not implement real behavior for:
 - schema emit/sample/replace
 - advanced inspect views for scopes, schema bindings, plugins, and source maps
 - advanced trace stages for transforms, plugins, source maps, scheduling, worker pools, and interpreters
+- transform/render fixture roundtrip snapshots
 - transform benchmarking and CPU/memory profiler integration
 - plugin list/inspect/run
 - source-map generation

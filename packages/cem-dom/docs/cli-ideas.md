@@ -23,9 +23,11 @@ Implementation status:
   validate events plus `--out` support.
 * Parser/validator-backed Tier C slice implemented: `bench` with iterations, JSON reports, cold-cache reads, recorded
   profile intent, and per-input budget checks.
+* Parser-backed fixture roundtrip slice implemented: `fixture roundtrip --to-format dom-json|ast|events`, with
+  deterministic parser projection hashes, JSON/Markdown reports, and `--out` support.
 * Deferred: real schema loading/version compatibility, transforms, advanced conversion beyond parser output formats,
   schema/advanced-inspect/advanced-trace/plugin behavior, transform benchmarking, real CPU/memory profiling, source
-  maps, scope metadata, and roundtrip fixture rendering.
+  maps, scope metadata, transform/render fixture snapshots, and roundtrip fixture rendering.
 
 I’ll turn the acceptance criteria into a CLI surface first, then package that as a reusable documentation-writing
 prompt.
@@ -308,6 +310,17 @@ cem-dom fixture roundtrip examples/semantic/*.html \
 --transform transforms/light-dom.cemx \
 --snapshot-dir snapshots
 ```
+
+Implemented parser-backed slice:
+
+```bash
+cem-dom fixture roundtrip --to-format events
+cem-dom fixture roundtrip examples/semantic/login.html --to-format ast --format json
+cem-dom fixture roundtrip examples/semantic/login.html --format markdown --out roundtrip.md
+```
+
+The implemented slice verifies parse → validate → parser-output projection and records deterministic output hashes.
+Transform, render, source-map, and snapshot comparisons remain future work.
 ---
 
 ```bash

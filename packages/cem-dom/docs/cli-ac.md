@@ -1,8 +1,8 @@
 # `cem-dom` CLI Acceptance Criteria
 
 **Status:** Tier A CLI implemented, with parser-backed Tier B/C slices. The current CLI implements `parse`, `validate`,
-`check`, `inspect`, `bench`, `convert`, `trace`, `fixture validate`, `version`, and `help`. Remaining Tier B/C commands
-are reserved, not implemented.
+`check`, `inspect`, `bench`, `convert`, `trace`, `fixture validate`, `fixture roundtrip`, `version`, and `help`.
+Remaining Tier B/C commands are reserved, not implemented.
 **Audience:** CEM maintainers, `@epa-wg/cem-dom` contributors, CI authors, and advanced validation or migration users.
 
 This document turns the CLI proposal in [`cli-ideas.md`](./cli-ideas.md) into acceptance criteria for implementation
@@ -36,7 +36,8 @@ Completed Tier A acceptance criteria:
 
 - **CLI-C-1 through CLI-C-5:** `parse`, `validate`, `check`, `fixture validate`, `help`, and `version`.
 - **CLI-C-6 partial:** parser-backed `inspect` is implemented for summary, AST, diagnostics, source offsets, and tree
-  views. Parser-backed `convert` is implemented for HTML/XML input to DOM JSON, AST, and events.
+  views. Parser-backed `convert` is implemented for HTML/XML input to DOM JSON, AST, and events. Parser-backed
+  `fixture roundtrip` is implemented for deterministic parser projection reports.
 - **CLI-C-7 partial / CLI-T-7 partial / CLI-T-8 partial:** parser/validator-backed `trace` is implemented with
   deterministic JSON/text output. Parser/validator-backed `bench` is implemented with iterations, JSON reports, and
   per-input budget checks.
@@ -55,10 +56,10 @@ Deferred or partial criteria:
 
 - **CLI-F-4 and CLI-F-5:** schema semver behavior is deferred until schema resolution exists.
 - **CLI-D-2 and CLI-D-6:** scope metadata and source maps are deferred.
-- **CLI-C-6 remaining:** transform, schema emit, schema sample, fixture roundtrip, and advanced convert behavior are
-  reserved only.
-- **CLI-C-7, CLI-X-4, CLI-T-\* except parser-backed inspect, parser-backed convert, parser/validator-backed trace, and
-  parser/validator-backed bench:** Tier B/C behavior is reserved only.
+- **CLI-C-6 remaining:** transform, schema emit, schema sample, transform/render fixture roundtrip, and advanced convert
+  behavior are reserved only.
+- **CLI-C-7, CLI-X-4, CLI-T-\* except parser-backed inspect, parser-backed convert, parser-backed fixture roundtrip,
+  parser/validator-backed trace, and parser/validator-backed bench:** Tier B/C behavior is reserved only.
 
 ## Command Surface
 
@@ -69,8 +70,9 @@ Deferred or partial criteria:
   package-level `validate-fixtures` workflow.
 - **CLI-C-5 [A] MUST** expose `cem-dom help`, `cem-dom --help`, `cem-dom version`, and `cem-dom --version`.
 - **CLI-C-6 [B] SHOULD** expose `transform`, `convert`, `inspect`, `schema emit`, `schema sample`, and
-  `fixture roundtrip` after the corresponding parser, schema, and transform APIs exist. Parser-backed `inspect` and
-  parser-backed `convert` are implemented; schema/transform-backed behavior remains deferred.
+  `fixture roundtrip` after the corresponding parser, schema, and transform APIs exist. Parser-backed `inspect`,
+  parser-backed `convert`, and parser-backed `fixture roundtrip` are implemented; schema/transform-backed behavior
+  remains deferred.
 - **CLI-C-7 [C] MAY** expose `schema replace`, `trace`, `bench`, and `plugin list|inspect|run` as experimental commands.
   Parser/validator-backed `trace` and `bench` are implemented; transform/plugin/scheduling trace events, transform
   benchmarking, and profiler integration remain deferred.
@@ -133,7 +135,8 @@ Deferred or partial criteria:
   validation target.
 - **CLI-X-3 [A] MUST** fail non-zero when fixture validation records hard violations.
 - **CLI-X-4 [B] SHOULD** allow `fixture roundtrip` to run parse -> validate -> transform -> render/snapshot once the
-  transform pipeline exists.
+  transform pipeline exists. Parser-backed fixture roundtrip reports are implemented for parse -> validate ->
+  parser-output projection hashes; transform/render snapshots remain deferred.
 
 ## Transform, Convert, Schema, Inspect, Trace, Bench, And Plugins
 

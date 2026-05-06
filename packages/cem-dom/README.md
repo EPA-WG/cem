@@ -28,6 +28,7 @@ node packages/cem-dom/dist/cli.js convert examples/semantic/login.html --from-fo
 node packages/cem-dom/dist/cli.js trace examples/semantic/login.html --format json
 node packages/cem-dom/dist/cli.js bench examples/semantic/login.html --iterations 25 --format json
 node packages/cem-dom/dist/cli.js fixture validate
+node packages/cem-dom/dist/cli.js fixture roundtrip --to-format events
 node packages/cem-dom/dist/cli.js version
 ```
 
@@ -46,18 +47,20 @@ Implemented options include `--fail-level parse|validate|strict`, `--format text
 ### CLI roadmap
 
 The current CLI implements the Tier A surface plus parser-backed `inspect`, parser-backed `convert`,
-parser/validator-backed `trace`, and parser/validator-backed `bench` slices. The broader CLI direction is documented in:
+parser/validator-backed `trace`, parser/validator-backed `bench`, and parser-backed `fixture roundtrip` slices. The
+broader CLI direction is documented in:
 
 - [`docs/cli-ideas.md`](docs/cli-ideas.md) — brainstormed command surface for parse, validate, check, transform,
   conversion, schema tooling, fixture workflows, inspection, trace, benchmarks, and plugins.
 - [`docs/cli-ac.md`](docs/cli-ac.md) — acceptance criteria and an implementation-planning prompt for the CLI.
 
 Completed CLI work centers on `parse`, `validate`, `check`, parser-backed `inspect`, parser-backed `convert`,
-parser/validator-backed `trace`, parser/validator-backed `bench`, `fixture validate`, stable diagnostics,
-JSON/Markdown reports, and `--fail-level parse|validate|strict`. Advanced conversion beyond HTML/XML input to DOM
-JSON/AST/events, transform, schema emission/sample generation, advanced inspection, transform/plugin/scheduling trace
-events, transform benchmarking, profiler integration, and plugin workflows are reserved future or experimental work
-until implemented and tested.
+parser/validator-backed `trace`, parser/validator-backed `bench`, `fixture validate`, parser-backed
+`fixture roundtrip`, stable diagnostics, JSON/Markdown reports, and `--fail-level parse|validate|strict`. Advanced
+conversion beyond HTML/XML input to DOM JSON/AST/events, transform, schema emission/sample generation, advanced
+inspection, transform/plugin/scheduling trace events, transform/render fixture roundtrip snapshots, transform
+benchmarking, profiler integration, and plugin workflows are reserved future or experimental work until implemented and
+tested.
 
 ## Nx Targets
 

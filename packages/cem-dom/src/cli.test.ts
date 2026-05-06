@@ -341,6 +341,99 @@ describe('runCemDomCli', () => {
         );
     });
 
+    it('roundtrips default and explicit fixtures as parser projections', async () => {
+        const workspaceRoot = await mkdtemp(join(tmpdir(), 'cem-dom-workspace-'));
+        const semanticDir = join(workspaceRoot, 'examples/semantic');
+        const reports = join(workspaceRoot, 'reports');
+        const out = join(workspaceRoot, 'roundtrip.md');
+        await mkdir(semanticDir, { recursive: true });
+        for (const fixture of ['assets-list', 'login', 'message-thread', 'profile', 'registration']) {
+            await writeFile(
+                join(semanticDir, `${fixture}.html`),
+                `<main data-cem-screen="${fixture}" aria-label="${fixture}"></main>`,
+            );
+        }
+
+        const defaultResult = await runCemDomCli(['fixture', 'roundtrip', '--to-format', 'events'], {
+            workspaceRoot,
+            cwd: workspaceRoot,
+        });
+        const defaultReport = JSON.parse(
+            await readFile(join(workspaceRoot, 'packages/cem-dom/dist/cem-dom.roundtrip.report.json'), 'utf8'),
+        ) as { targetFormat: string; inputCount: number; inputs: Array<{ outputSha256: string }> };
+        const explicitResult = await runCemDomCli(
+            [
+                'fixture',
+                'roundtrip',
+                join(semanticDir, 'login.html'),
+                '--to-format',
+                'ast',
+                '--format',
+                'json',
+                '--report-json',
+                reports,
+                '--report-md',
+                reports,
+            ],
+            {
+                workspaceRoot,
+                cwd: workspaceRoot,
+            },
+        );
+        const outResult = await runCemDomCli(
+            [
+                'fixture',
+                'roundtrip',
+                join(semanticDir, 'profile.html'),
+                '--format',
+                'markdown',
+                '--out',
+                out,
+            ],
+            {
+                workspaceRoot,
+                cwd: workspaceRoot,
+            },
+        );
+
+        const explicitReport = JSON.parse(explicitResult.stdout) as {
+            targetFormat: string;
+            inputCount: number;
+            summary: { passedCount: number };
+            inputs: Array<{ elementCount: number; outputSha256: string }>;
+        };
+
+        assert.equal(defaultResult.exitCode, 0);
+        assert.match(defaultResult.stdout, /Roundtripped 5 CEM DOM fixture/);
+        assert.equal(defaultReport.targetFormat, 'events');
+        assert.equal(defaultReport.inputCount, 5);
+        assert.equal(defaultReport.inputs[0]?.outputSha256.length, 64);
+        assert.equal(explicitResult.exitCode, 0);
+        assert.equal(explicitReport.targetFormat, 'ast');
+        assert.equal(explicitReport.inputCount, 1);
+        assert.equal(explicitReport.summary.passedCount, 1);
+        assert.equal(explicitReport.inputs[0]?.elementCount, 1);
+        assert.equal(
+            JSON.parse(await readFile(join(reports, 'cem-dom.roundtrip.report.json'), 'utf8')).targetFormat,
+            'ast',
+        );
+        assert.match(await readFile(join(reports, 'cem-dom.roundtrip.report.md'), 'utf8'), /Fixture Roundtrip Report/);
+        assert.equal(outResult.exitCode, 0);
+        assert.equal(outResult.stdout, '');
+        assert.match(await readFile(out, 'utf8'), /# CEM DOM Fixture Roundtrip Report/);
+    });
+
+    it('fails fixture roundtrip in strict mode when validation warnings are present', async () => {
+        const dir = await mkdtemp(join(tmpdir(), 'cem-dom-'));
+        const file = join(dir, 'warning.html');
+        await writeFile(file, '<main data-cem-screen="login"></main>');
+
+        const result = await runCemDomCli(['fixture', 'roundtrip', file, '--fail-level', 'strict']);
+
+        assert.equal(result.exitCode, 1);
+        assert.match(result.stdout, /validate\.missing-accessible-name/);
+    });
+
     it('reports usage, I/O, and reserved command failures', async () => {
         const unknownOption = await runCemDomCli(['validate', 'fixture.html', '--unknown']);
         const invalidFailLevel = await runCemDomCli(['validate', 'fixture.html', '--fail-level', 'loud']);
@@ -359,6 +452,13 @@ describe('runCemDomCli', () => {
             'events',
         ]);
         const invalidTraceFormat = await runCemDomCli(['trace', 'fixture.html', '--format', 'markdown']);
+        const invalidRoundtripFormat = await runCemDomCli([
+            'fixture',
+            'roundtrip',
+            'fixture.html',
+            '--format',
+            'events',
+        ]);
         const missingInput = await runCemDomCli(['parse']);
         const missingFile = await runCemDomCli(['validate', join(tmpdir(), 'does-not-exist.html')]);
         const reserved = await runCemDomCli(['transform', 'fixture.html']);
@@ -383,6 +483,8 @@ describe('runCemDomCli', () => {
         assert.match(duplicateConvertFormat.stderr, /Use either --to-format or --format/);
         assert.equal(invalidTraceFormat.exitCode, 2);
         assert.match(invalidTraceFormat.stderr, /trace supports --format json or text/);
+        assert.equal(invalidRoundtripFormat.exitCode, 2);
+        assert.match(invalidRoundtripFormat.stderr, /fixture roundtrip supports --format text, json, or markdown/);
         assert.equal(missingInput.exitCode, 2);
         assert.match(missingInput.stderr, /parse requires a file path/);
         assert.equal(missingFile.exitCode, 6);

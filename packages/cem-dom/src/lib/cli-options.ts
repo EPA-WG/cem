@@ -42,6 +42,7 @@ export type CemDomCliInvocation =
     | { kind: 'validate'; inputs: string[]; options: CemDomCliOptions }
     | { kind: 'check'; inputs: string[]; options: CemDomCliOptions }
     | { kind: 'fixture-validate'; inputs: string[]; options: CemDomCliOptions }
+    | { kind: 'fixture-roundtrip'; inputs: string[]; options: CemDomCliOptions }
     | { kind: 'inspect'; input: string; options: CemDomCliOptions }
     | { kind: 'bench'; inputs: string[]; options: CemDomCliOptions }
     | { kind: 'convert'; input: string; options: CemDomCliOptions }
@@ -304,12 +305,16 @@ function parseFixtureCommand(
     }
 
     if (subcommand === 'roundtrip') {
-        return { kind: 'reserved', command: 'fixture roundtrip', options };
+        return {
+            kind: 'fixture-roundtrip',
+            inputs,
+            options,
+        };
     }
 
     return {
         kind: 'usage-error',
-        message: 'fixture requires a subcommand: validate.',
+        message: 'fixture requires a subcommand: validate or roundtrip.',
         options,
     };
 }
