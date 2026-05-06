@@ -221,9 +221,10 @@ describe('runCemDomCli', () => {
         assert.match(result.stdout, /validate\.broken-reference/);
     });
 
-    it('inspects summary, tree, diagnostics, AST, and source offsets', async () => {
+    it('inspects summary, tree, diagnostics, AST, events, and source offsets', async () => {
         const dir = await mkdtemp(join(tmpdir(), 'cem-dom-'));
         const file = join(dir, 'fixture.html');
+        const eventsOut = join(dir, 'events.json');
         await writeFile(
             file,
             '<main data-cem-screen="login" aria-labelledby="title"><h1 id="title">Sign in</h1></main>',
@@ -233,7 +234,10 @@ describe('runCemDomCli', () => {
         const treeResult = await runCemDomCli(['inspect', file, '--show', 'tree']);
         const diagnosticsResult = await runCemDomCli(['inspect', file, '--show', 'diagnostics']);
         const astResult = await runCemDomCli(['inspect', file, '--show', 'ast']);
+        const eventsResult = await runCemDomCli(['inspect', file, '--show', 'events']);
+        const eventsOutResult = await runCemDomCli(['inspect', file, '--show', 'events', '--out', eventsOut]);
         const offsetsResult = await runCemDomCli(['inspect', file, '--show', 'source-offsets']);
+        const events = JSON.parse(eventsResult.stdout) as Array<{ type: string; tagName?: string }>;
 
         assert.equal(summaryResult.exitCode, 0);
         assert.match(summaryResult.stdout, /Elements: 2/);
@@ -242,6 +246,16 @@ describe('runCemDomCli', () => {
         assert.match(treeResult.stdout, /<main data-cem-screen="login">/);
         assert.equal(JSON.parse(diagnosticsResult.stdout).diagnostics.length, 0);
         assert.equal(JSON.parse(astResult.stdout).type, 'document');
+        assert.equal(eventsResult.exitCode, 0);
+        assert.equal(events.some((event) => event.type === 'element-start' && event.tagName === 'main'), true);
+        assert.equal(eventsOutResult.exitCode, 0);
+        assert.equal(eventsOutResult.stdout, '');
+        assert.equal(
+            (JSON.parse(await readFile(eventsOut, 'utf8')) as Array<{ type: string }>).some(
+                (event) => event.type === 'document-end',
+            ),
+            true,
+        );
         assert.equal(JSON.parse(offsetsResult.stdout).offsets[0].node, '<main>');
     });
 

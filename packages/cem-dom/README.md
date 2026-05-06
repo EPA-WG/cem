@@ -24,6 +24,7 @@ node packages/cem-dom/dist/cli.js validate examples/semantic/login.html
 node packages/cem-dom/dist/cli.js check examples/semantic/login.html --fail-level validate
 node packages/cem-dom/dist/cli.js parse examples/semantic/login.html --format ast
 node packages/cem-dom/dist/cli.js inspect examples/semantic/login.html --show tree
+node packages/cem-dom/dist/cli.js inspect examples/semantic/login.html --show events
 node packages/cem-dom/dist/cli.js convert examples/semantic/login.html --from-format html --to-format ast
 node packages/cem-dom/dist/cli.js trace examples/semantic/login.html --format json
 node packages/cem-dom/dist/cli.js bench examples/semantic/login.html --iterations 25 --format json
@@ -40,7 +41,7 @@ node packages/cem-dom/src/cli.ts validate examples/semantic/login.html
 
 Implemented options include `--fail-level parse|validate|strict`, `--format text|json|markdown|dom-json|ast|events|tree`,
 `--from-format html|xml`, `--to-format dom-json|ast|events`,
-`--preserve-source-offsets`, `--show summary|ast|diagnostics|source-offsets|tree`, `--out`, `--report-json`,
+`--preserve-source-offsets`, `--show summary|ast|events|diagnostics|source-offsets|tree`, `--out`, `--report-json`,
 `--report-md`, `--schema`, `--content-type`, `--base-uri`, `--zero-hard-violations`, `--iterations`, `--budget-ms`,
 `--profile`, `--cold-cache`, `--quiet`, `--verbose`, and `--no-color`.
 

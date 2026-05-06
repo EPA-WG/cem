@@ -12,7 +12,8 @@ Nx run-command targets, and native `node:test`.
 - [x] Shared diagnostic normalization, fail-level helpers, and report helpers are implemented.
 - [x] `parse`, `validate`, `check`, `fixture validate`, `help`, and `version` are implemented.
 - [x] `parse --format ast|events|dom-json|json` is implemented for parser-backed machine-readable output.
-- [x] `inspect` is implemented for parser-backed `summary`, `ast`, `diagnostics`, `source-offsets`, and `tree` views.
+- [x] `inspect` is implemented for parser-backed `summary`, `ast`, `events`, `diagnostics`, `source-offsets`, and
+  `tree` views.
 - [x] `bench` is implemented for parser and validator timing with JSON reports and per-input budget checks.
 - [x] `convert` is implemented for parser-backed HTML/XML input to `dom-json`, `ast`, and `events`.
 - [x] `trace` is implemented for deterministic parser and validator trace output.
@@ -131,7 +132,7 @@ Reject unknown options with exit code `2`.
 
 - Parser-backed Tier B slice now implemented.
 - Default `--show summary`.
-- Supports `--show summary|ast|diagnostics|source-offsets|tree`.
+- Supports `--show summary|ast|events|diagnostics|source-offsets|tree`.
 - Supports `--format text|json|tree`, with JSON defaults for non-summary/non-tree views.
 - Writes output to stdout or `--out`.
 - Does not inspect scopes, schema bindings, plugins, or source maps yet.
@@ -328,7 +329,7 @@ Add/update CLI tests for:
 - `parse --format ast`
 - `parse --format events`
 - `parse --fail-level strict` fails on warnings
-- `inspect --show summary|ast|diagnostics|source-offsets|tree`
+- `inspect --show summary|ast|events|diagnostics|source-offsets|tree`
 - `inspect --out file`
 - `convert --from-format html --to-format ast`
 - `convert --format json`

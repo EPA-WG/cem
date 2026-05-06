@@ -171,7 +171,7 @@ Common options:
   --format text|json|markdown|dom-json|ast|events|tree
   --from-format html|xml
   --to-format dom-json|ast|events
-  --show summary|ast|diagnostics|source-offsets|tree
+  --show summary|ast|events|diagnostics|source-offsets|tree
   --iterations <n>
   --budget-ms <n>
   --profile cpu|memory
@@ -1130,6 +1130,8 @@ function createInspectPayload(
             return createInspectSummary(document, diagnostics, uri);
         case 'ast':
             return createAstPayload(document);
+        case 'events':
+            return createEventPayload(document);
         case 'diagnostics':
             return {
                 uri,

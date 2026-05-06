@@ -4,7 +4,7 @@ import { isCemDomFailLevel } from './fail-level.ts';
 
 export type CemDomCliFormat = 'text' | 'json' | 'markdown' | 'dom-json' | 'ast' | 'events' | 'tree';
 
-export type CemDomInspectShow = 'summary' | 'ast' | 'diagnostics' | 'source-offsets' | 'tree';
+export type CemDomInspectShow = 'summary' | 'ast' | 'events' | 'diagnostics' | 'source-offsets' | 'tree';
 
 export type CemDomBenchProfile = 'cpu' | 'memory';
 
@@ -51,7 +51,14 @@ export type CemDomCliInvocation =
     | { kind: 'usage-error'; message: string; options: CemDomCliOptions };
 
 const validFormats = new Set<CemDomCliFormat>(['text', 'json', 'markdown', 'dom-json', 'ast', 'events', 'tree']);
-const validInspectShows = new Set<CemDomInspectShow>(['summary', 'ast', 'diagnostics', 'source-offsets', 'tree']);
+const validInspectShows = new Set<CemDomInspectShow>([
+    'summary',
+    'ast',
+    'events',
+    'diagnostics',
+    'source-offsets',
+    'tree',
+]);
 const validBenchProfiles = new Set<CemDomBenchProfile>(['cpu', 'memory']);
 const validConvertFromFormats = new Set<CemDomConvertFromFormat>(['html', 'xml']);
 const validConvertToFormats = new Set<CemDomConvertToFormat>(['dom-json', 'ast', 'events']);
@@ -189,7 +196,7 @@ function readOptions(values: ReturnType<typeof parseArgs>['values']):
 
     if (show !== undefined && !isCemDomInspectShow(show)) {
         return {
-            message: `Invalid --show "${show}". Expected summary, ast, diagnostics, source-offsets, or tree.`,
+            message: `Invalid --show "${show}". Expected summary, ast, events, diagnostics, source-offsets, or tree.`,
         };
     }
 
