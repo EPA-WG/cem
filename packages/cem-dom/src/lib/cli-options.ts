@@ -8,6 +8,10 @@ export type CemDomInspectShow = 'summary' | 'ast' | 'diagnostics' | 'source-offs
 
 export type CemDomBenchProfile = 'cpu' | 'memory';
 
+export type CemDomConvertFromFormat = 'html' | 'xml';
+
+export type CemDomConvertToFormat = 'dom-json' | 'ast' | 'events';
+
 export interface CemDomCliOptions {
     failLevel?: CemDomFailLevel;
     reportJson?: string;
@@ -21,7 +25,10 @@ export interface CemDomCliOptions {
     iterations?: number;
     budgetMs?: number;
     profile?: CemDomBenchProfile;
+    fromFormat?: CemDomConvertFromFormat;
+    toFormat?: CemDomConvertToFormat;
     coldCache: boolean;
+    preserveSourceOffsets: boolean;
     quiet: boolean;
     verbose: boolean;
     noColor: boolean;
@@ -37,13 +44,16 @@ export type CemDomCliInvocation =
     | { kind: 'fixture-validate'; inputs: string[]; options: CemDomCliOptions }
     | { kind: 'inspect'; input: string; options: CemDomCliOptions }
     | { kind: 'bench'; inputs: string[]; options: CemDomCliOptions }
+    | { kind: 'convert'; input: string; options: CemDomCliOptions }
     | { kind: 'reserved'; command: string; options: CemDomCliOptions }
     | { kind: 'usage-error'; message: string; options: CemDomCliOptions };
 
 const validFormats = new Set<CemDomCliFormat>(['text', 'json', 'markdown', 'dom-json', 'ast', 'events', 'tree']);
 const validInspectShows = new Set<CemDomInspectShow>(['summary', 'ast', 'diagnostics', 'source-offsets', 'tree']);
 const validBenchProfiles = new Set<CemDomBenchProfile>(['cpu', 'memory']);
-const reservedTopLevelCommands = new Set(['transform', 'convert', 'trace']);
+const validConvertFromFormats = new Set<CemDomConvertFromFormat>(['html', 'xml']);
+const validConvertToFormats = new Set<CemDomConvertToFormat>(['dom-json', 'ast', 'events']);
+const reservedTopLevelCommands = new Set(['transform', 'trace']);
 const reservedSchemaCommands = new Set(['emit', 'sample', 'replace']);
 const reservedPluginCommands = new Set(['list', 'inspect', 'run']);
 
@@ -68,7 +78,10 @@ export function parseCemDomCliArgs(argv: readonly string[]): CemDomCliInvocation
                 iterations: { type: 'string' },
                 'budget-ms': { type: 'string' },
                 profile: { type: 'string' },
+                'from-format': { type: 'string' },
+                'to-format': { type: 'string' },
                 'cold-cache': { type: 'boolean' },
+                'preserve-source-offsets': { type: 'boolean' },
                 quiet: { type: 'boolean' },
                 verbose: { type: 'boolean' },
                 'no-color': { type: 'boolean' },
@@ -111,6 +124,8 @@ export function parseCemDomCliArgs(argv: readonly string[]): CemDomCliInvocation
                 return parseSingleInputCommand('inspect', subcommand, rest, options);
             case 'bench':
                 return parseMultiInputCommand('bench', [subcommand, ...rest], options);
+            case 'convert':
+                return parseSingleInputCommand('convert', subcommand, rest, options);
             case 'fixture':
                 return parseFixtureCommand(subcommand, rest, options);
             case 'schema':
@@ -145,6 +160,8 @@ function readOptions(values: ReturnType<typeof parseArgs>['values']):
     const iterations = numberValue(values.iterations, '--iterations');
     const budgetMs = numberValue(values['budget-ms'], '--budget-ms');
     const profile = stringValue(values.profile);
+    const fromFormat = stringValue(values['from-format']);
+    const toFormat = stringValue(values['to-format']);
 
     if (typeof iterations === 'string') {
         return { message: iterations };
@@ -178,6 +195,18 @@ function readOptions(values: ReturnType<typeof parseArgs>['values']):
         };
     }
 
+    if (fromFormat !== undefined && !isCemDomConvertFromFormat(fromFormat)) {
+        return {
+            message: `Invalid --from-format "${fromFormat}". Expected html or xml.`,
+        };
+    }
+
+    if (toFormat !== undefined && !isCemDomConvertToFormat(toFormat)) {
+        return {
+            message: `Invalid --to-format "${toFormat}". Expected dom-json, ast, or events.`,
+        };
+    }
+
     return {
         options: createCliOptions({
             failLevel,
@@ -192,7 +221,10 @@ function readOptions(values: ReturnType<typeof parseArgs>['values']):
             iterations,
             budgetMs,
             profile,
+            fromFormat,
+            toFormat,
             coldCache: values['cold-cache'] === true,
+            preserveSourceOffsets: values['preserve-source-offsets'] === true,
             quiet: values.quiet === true,
             verbose: values.verbose === true,
             noColor: values['no-color'] === true,
@@ -208,12 +240,13 @@ function createCliOptions(options: Partial<CemDomCliOptions> = {}): CemDomCliOpt
         noColor: false,
         zeroHardViolations: false,
         coldCache: false,
+        preserveSourceOffsets: false,
         ...options,
     };
 }
 
 function parseSingleInputCommand(
-    kind: 'parse' | 'inspect',
+    kind: 'parse' | 'inspect' | 'convert',
     input: string | undefined,
     extraInputs: string[],
     options: CemDomCliOptions,
@@ -318,6 +351,14 @@ function isCemDomInspectShow(value: string): value is CemDomInspectShow {
 
 function isCemDomBenchProfile(value: string): value is CemDomBenchProfile {
     return validBenchProfiles.has(value as CemDomBenchProfile);
+}
+
+function isCemDomConvertFromFormat(value: string): value is CemDomConvertFromFormat {
+    return validConvertFromFormats.has(value as CemDomConvertFromFormat);
+}
+
+function isCemDomConvertToFormat(value: string): value is CemDomConvertToFormat {
+    return validConvertToFormats.has(value as CemDomConvertToFormat);
 }
 
 function stringValue(value: unknown): string | undefined {

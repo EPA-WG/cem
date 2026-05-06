@@ -2,9 +2,10 @@
 
 ## Summary
 
-Implement Tier A CLI behavior only: `parse`, `validate`, `check`, `fixture validate`, `help`, and `version`. Keep Tier
-B/C commands documented/reserved, but do not implement them as working features. Preserve native Node TypeScript
-execution, ESM output, Nx run-command targets, and native `node:test`.
+Implement Tier A CLI behavior first: `parse`, `validate`, `check`, `fixture validate`, `help`, and `version`. Bounded
+parser-backed Tier B/C slices may be implemented only when they use existing parser/validator APIs and are covered by
+native tests. Keep broader Tier B/C behavior documented/reserved. Preserve native Node TypeScript execution, ESM output,
+Nx run-command targets, and native `node:test`.
 
 ## Implementation Status
 
@@ -13,16 +14,15 @@ execution, ESM output, Nx run-command targets, and native `node:test`.
 - [x] `parse --format ast|events|dom-json|json` is implemented for parser-backed machine-readable output.
 - [x] `inspect` is implemented for parser-backed `summary`, `ast`, `diagnostics`, `source-offsets`, and `tree` views.
 - [x] `bench` is implemented for parser and validator timing with JSON reports and per-input budget checks.
-- [x] Tier B/C command names are reserved with usage failures instead of partially implemented behavior.
+- [x] `convert` is implemented for parser-backed HTML/XML input to `dom-json`, `ast`, and `events`.
+- [x] Remaining Tier B/C command names are reserved with usage failures instead of partially implemented behavior.
 - [x] `validate-fixtures` delegates through the CLI.
 - [x] Native `node:test` coverage was expanded for commands, reports, fail levels, usage errors, I/O errors, and
   reserved commands.
 - [x] Nx verification passed for package targets: `typecheck`, `lint`, `test`, `build`, and `validate-fixtures`.
-- [x] Root `yarn build` passed in the user's manual run after the `cem-dom` rebuild.
-- [ ] Root `yarn build` remains blocked in this assistant execution environment by Nx daemon/plugin-worker startup
-  failure before project targets run.
+- [x] Root `yarn build` passed in the user's manual runs after `cem-dom` rebuilds.
 - [ ] Schema version compatibility is still deferred until schema loading exists.
-- [ ] Real transform, conversion, schema, trace, and plugin behavior remains Tier B/C deferred work.
+- [ ] Real transform, advanced conversion, schema, trace, and plugin behavior remains Tier B/C deferred work.
 - [ ] Advanced inspect views for scopes, schema bindings, plugins, and source maps remain deferred until those
   subsystems exist.
 - [ ] Transform benchmarking and real CPU/memory profiling remain deferred until those subsystems exist.
@@ -98,7 +98,9 @@ Global options supported for Tier A:
 - `--fail-level parse|validate|strict`
 - `--report-json <file-or-dir>`
 - `--report-md <file-or-dir>`
-- `--format text|json|markdown|dom-json`
+- `--format text|json|markdown|dom-json|ast|events|tree`
+- `--from-format html|xml`
+- `--to-format dom-json|ast|events`
 - `--out <file>`
 - `--schema <uri-or-file>` accepted and recorded, but schema loading may be a documented no-op until schema
   implementation lands
@@ -108,6 +110,7 @@ Global options supported for Tier A:
 - `--verbose`
 - `--no-color`
 - `--zero-hard-violations`
+- `--preserve-source-offsets`
 
 Reject unknown options with exit code `2`.
 
@@ -141,6 +144,21 @@ Reject unknown options with exit code `2`.
 - Accepts `--profile cpu|memory` and `--cold-cache`; `--profile` is recorded in the report, while real profiler
   integration remains deferred.
 - Does not benchmark transforms yet.
+
+### `cem-dom convert <input>`
+
+- Parser-backed Tier B slice now implemented.
+- Reads exactly one HTML/XML-ish file.
+- Supports `--from-format html|xml`; default is `html`.
+- Supports `--to-format dom-json|ast|events`; default is `dom-json`.
+- Accepts `--format dom-json|json|ast|events` as an output alias only when `--to-format` is not provided.
+- Writes the converted representation to stdout or `--out`.
+- Omits parser node `location` objects by default; `--preserve-source-offsets` retains them.
+- Includes normalized diagnostics in `dom-json` and `ast` outputs and diagnostic events in `events` output.
+- Default `--fail-level parse`.
+- Exit `1` only if fail-level rules fail.
+- Does not convert CEM-native input, AST/events input, schema versions, light-DOM/custom-element markup, comments, source
+  maps, or rendered HTML/XML yet.
 
 ### `cem-dom validate <input...>`
 
@@ -190,14 +208,11 @@ Command "<name>" is reserved for a future Tier B/C CLI release.
 Reserved commands:
 
 - `transform`
-- `convert`
-- `inspect`
 - `schema emit`
 - `schema sample`
 - `fixture roundtrip`
 - `schema replace`
 - `trace`
-- `bench`
 - `plugin *`
 
 ## 3. Data Flow And File Layout
@@ -218,7 +233,7 @@ Flow:
 3. Read files as UTF-8.
 4. Run `parseCemDom` or `validateCemDom`.
 5. Normalize diagnostics with URI/source fields.
-6. Create output/report objects.
+6. Create output/report objects; `convert` formats parser output as `dom-json`, `ast`, or `events`.
 7. Write stdout, `--out`, `--report-json`, and/or `--report-md`.
 8. Return stable exit code.
 
@@ -240,6 +255,8 @@ Handle explicitly:
 - Unknown command/option: exit `2`.
 - Invalid `--fail-level`: exit `2`.
 - Invalid `--format`: exit `2`.
+- Invalid `--from-format` or `--to-format`: exit `2`.
+- `convert` with both `--format` and `--to-format`: exit `2`.
 - File read failure: exit `6`.
 - Report write failure: exit `6`.
 - Unexpected thrown error: exit `7`.
@@ -279,6 +296,11 @@ Add/update CLI tests for:
 - `parse --fail-level strict` fails on warnings
 - `inspect --show summary|ast|diagnostics|source-offsets|tree`
 - `inspect --out file`
+- `convert --from-format html --to-format ast`
+- `convert --format json`
+- `convert --from-format xml --to-format events --out file`
+- `convert --preserve-source-offsets`
+- invalid convert format options
 - `bench <file> --iterations <n>`
 - `bench --format json`
 - `bench --report-json dir`
@@ -315,12 +337,13 @@ node packages/cem-dom/src/cli.ts check examples/semantic/login.html --report-jso
 
 ## 7. Deferred Tier B/C
 
-**Status:** Completed. These command names are reserved; real behavior is not implemented.
+**Status:** Partially completed. Parser-backed `inspect`, `convert`, and parser/validator-backed `bench` slices are
+implemented. The remaining command names are reserved; advanced behavior is not implemented.
 
 Do not implement real behavior for:
 
 - transforms
-- conversion
+- advanced conversion beyond HTML/XML input to `dom-json`, `ast`, and `events`
 - schema emit/sample/replace
 - advanced inspect views for scopes, schema bindings, plugins, and source maps
 - trace
@@ -329,4 +352,4 @@ Do not implement real behavior for:
 - source-map generation
 - schema version resolution beyond accepting `--schema`
 
-Only reserve command names and return usage text so future command names remain stable.
+Only reserve remaining command names and return usage text so future command names remain stable.

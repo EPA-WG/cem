@@ -20,7 +20,12 @@ import {
     type CemDomNode,
     type CemDomReport,
 } from './index.ts';
-import { parseCemDomCliArgs, type CemDomCliOptions, type CemDomInspectShow } from './lib/cli-options.ts';
+import {
+    parseCemDomCliArgs,
+    type CemDomCliOptions,
+    type CemDomConvertToFormat,
+    type CemDomInspectShow,
+} from './lib/cli-options.ts';
 
 export interface CemDomCliResult {
     exitCode: number;
@@ -83,18 +88,19 @@ const defaultFixtureInputs = [
 
 const helpText = `Usage: cem-dom <command> [input...] [options]
 
-Tier A commands:
+Implemented commands:
   parse <input>              Parse one CEM semantic document and print DOM JSON.
   validate <input...>        Validate one or more CEM semantic documents.
   check <input...>           Parse + validate for CI-friendly checks.
   inspect <input>            Inspect parser-backed document structure.
   bench <input...>           Benchmark parser and validator performance.
+  convert <input>            Convert parser output representation from HTML/XML input.
   fixture validate [input...] Validate semantic fixtures and write reports.
   version                    Print the package version.
   help                       Print this help text.
 
 Reserved Tier B/C commands:
-  transform, convert, trace
+  transform, trace
   schema emit|sample|replace
   fixture roundtrip
   plugin list|inspect|run
@@ -102,11 +108,14 @@ Reserved Tier B/C commands:
 Common options:
   --fail-level parse|validate|strict
   --format text|json|markdown|dom-json|ast|events|tree
+  --from-format html|xml
+  --to-format dom-json|ast|events
   --show summary|ast|diagnostics|source-offsets|tree
   --iterations <n>
   --budget-ms <n>
   --profile cpu|memory
   --cold-cache
+  --preserve-source-offsets
   --out <file>
   --report-json <file-or-dir>
   --report-md <file-or-dir>
@@ -143,6 +152,8 @@ export async function runCemDomCli(
                 return await runInspect(invocation.input, invocation.options, cwd);
             case 'bench':
                 return await runBench(invocation.inputs, invocation.options, cwd);
+            case 'convert':
+                return await runConvert(invocation.input, invocation.options, cwd);
             case 'fixture-validate':
                 return await runFixtureValidate(invocation.inputs, invocation.options, cwd, workspaceRoot);
             case 'reserved':
@@ -168,6 +179,36 @@ async function runParse(input: string, options: CemDomCliOptions, cwd: string): 
     });
     document.diagnostics = normalizeDiagnostics(document.diagnostics, cliInput.uri);
     const stdout = `${JSON.stringify(formatParsePayload(document, format), null, 2)}\n`;
+
+    if (options.out) {
+        await writeOutputFile(options.out, stdout);
+    }
+
+    return {
+        exitCode: hasFailingDiagnostics(document.diagnostics, failLevel) ? 1 : 0,
+        stdout: options.out || options.quiet ? '' : stdout,
+        stderr: '',
+    };
+}
+
+async function runConvert(input: string, options: CemDomCliOptions, cwd: string): Promise<CemDomCliResult> {
+    const failLevel = options.failLevel ?? 'parse';
+    const fromFormat = options.fromFormat ?? 'html';
+    const toFormatResult = getConvertToFormat(options);
+
+    if (typeof toFormatResult === 'string') {
+        return usageError(toFormatResult);
+    }
+
+    const cliInput = await readCliInput(input, options, cwd);
+    const document = parseConvertInput(cliInput.source, cliInput.uri, fromFormat);
+    document.diagnostics = normalizeDiagnostics(document.diagnostics, cliInput.uri);
+
+    const payload = formatConvertPayload(document, {
+        toFormat: toFormatResult.toFormat,
+        preserveSourceOffsets: options.preserveSourceOffsets,
+    });
+    const stdout = `${JSON.stringify(payload, null, 2)}\n`;
 
     if (options.out) {
         await writeOutputFile(options.out, stdout);
@@ -504,6 +545,69 @@ function formatParsePayload(
         case 'events':
             return createEventPayload(document);
     }
+}
+
+function parseConvertInput(source: string, uri: string, fromFormat: 'html' | 'xml'): CemDomDocument {
+    switch (fromFormat) {
+        case 'html':
+        case 'xml':
+            return parseCemDom(source, { sourceName: uri });
+    }
+}
+
+function getConvertToFormat(options: CemDomCliOptions): { toFormat: CemDomConvertToFormat } | string {
+    const formatAlias = options.format === undefined ? undefined : convertCliFormatToConvertToFormat(options.format);
+
+    if (options.toFormat !== undefined && formatAlias !== undefined) {
+        return 'Use either --to-format or --format for convert output, not both.';
+    }
+
+    if (options.format !== undefined && formatAlias === undefined) {
+        return 'convert supports --to-format dom-json, ast, or events. As an alias, --format supports dom-json, json, ast, or events.';
+    }
+
+    return { toFormat: options.toFormat ?? formatAlias ?? 'dom-json' };
+}
+
+function convertCliFormatToConvertToFormat(format: CemDomCliOptions['format']): CemDomConvertToFormat | undefined {
+    switch (format) {
+        case 'json':
+        case 'dom-json':
+            return 'dom-json';
+        case 'ast':
+            return 'ast';
+        case 'events':
+            return 'events';
+        default:
+            return undefined;
+    }
+}
+
+function formatConvertPayload(
+    document: CemDomDocument,
+    options: {
+        toFormat: CemDomConvertToFormat;
+        preserveSourceOffsets: boolean;
+    },
+): unknown {
+    const payload = formatParsePayload(document, options.toFormat);
+    return options.preserveSourceOffsets ? payload : omitSourceLocations(payload);
+}
+
+function omitSourceLocations(value: unknown): unknown {
+    if (Array.isArray(value)) {
+        return value.map((item) => omitSourceLocations(item));
+    }
+
+    if (value === null || typeof value !== 'object') {
+        return value;
+    }
+
+    return Object.fromEntries(
+        Object.entries(value as Record<string, unknown>)
+            .filter(([key]) => key !== 'location')
+            .map(([key, entryValue]) => [key, omitSourceLocations(entryValue)]),
+    );
 }
 
 function createAstPayload(document: CemDomDocument): unknown {

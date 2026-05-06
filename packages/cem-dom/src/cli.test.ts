@@ -59,6 +59,58 @@ describe('runCemDomCli', () => {
         assert.equal(events.some((event) => event.type === 'element-start' && event.tagName === 'main'), true);
     });
 
+    it('converts parser output representations', async () => {
+        const dir = await mkdtemp(join(tmpdir(), 'cem-dom-'));
+        const file = join(dir, 'fixture.html');
+        const out = join(dir, 'converted.events.json');
+        await writeFile(
+            file,
+            '<main data-cem-screen="login" aria-labelledby="title"><h1 id="title">Sign in</h1></main>',
+        );
+
+        const astResult = await runCemDomCli(['convert', file, '--from-format', 'html', '--to-format', 'ast']);
+        const aliasResult = await runCemDomCli(['convert', file, '--format', 'json']);
+        const preservedOffsetsResult = await runCemDomCli([
+            'convert',
+            file,
+            '--to-format',
+            'ast',
+            '--preserve-source-offsets',
+        ]);
+        const outResult = await runCemDomCli([
+            'convert',
+            file,
+            '--from-format',
+            'xml',
+            '--to-format',
+            'events',
+            '--out',
+            out,
+        ]);
+
+        const ast = JSON.parse(astResult.stdout) as {
+            type: string;
+            children: Array<{ tagName: string; location?: unknown }>;
+        };
+        const alias = JSON.parse(aliasResult.stdout) as { rootNodes: Array<{ type: string }> };
+        const preservedOffsets = JSON.parse(preservedOffsetsResult.stdout) as {
+            children: Array<{ location?: unknown }>;
+        };
+        const writtenEvents = JSON.parse(await readFile(out, 'utf8')) as Array<{ type: string; tagName?: string }>;
+
+        assert.equal(astResult.exitCode, 0);
+        assert.equal(ast.type, 'document');
+        assert.equal(ast.children[0]?.tagName, 'main');
+        assert.equal(ast.children[0]?.location, undefined);
+        assert.equal(aliasResult.exitCode, 0);
+        assert.equal(alias.rootNodes[0]?.type, 'element');
+        assert.equal(preservedOffsetsResult.exitCode, 0);
+        assert.equal(typeof preservedOffsets.children[0]?.location, 'object');
+        assert.equal(outResult.exitCode, 0);
+        assert.equal(outResult.stdout, '');
+        assert.equal(writtenEvents.some((event) => event.type === 'element-start' && event.tagName === 'main'), true);
+    });
+
     it('validates a file with text, json, markdown, and report outputs', async () => {
         const dir = await mkdtemp(join(tmpdir(), 'cem-dom-'));
         const file = join(dir, 'fixture.html');
@@ -254,6 +306,17 @@ describe('runCemDomCli', () => {
         const invalidShow = await runCemDomCli(['inspect', 'fixture.html', '--show', 'scopes']);
         const invalidBenchIterations = await runCemDomCli(['bench', 'fixture.html', '--iterations', '0']);
         const invalidBenchProfile = await runCemDomCli(['bench', 'fixture.html', '--profile', 'gpu']);
+        const invalidConvertFrom = await runCemDomCli(['convert', 'fixture.html', '--from-format', 'ast']);
+        const invalidConvertTo = await runCemDomCli(['convert', 'fixture.html', '--to-format', 'html']);
+        const invalidConvertAlias = await runCemDomCli(['convert', 'fixture.html', '--format', 'text']);
+        const duplicateConvertFormat = await runCemDomCli([
+            'convert',
+            'fixture.html',
+            '--format',
+            'ast',
+            '--to-format',
+            'events',
+        ]);
         const missingInput = await runCemDomCli(['parse']);
         const missingFile = await runCemDomCli(['validate', join(tmpdir(), 'does-not-exist.html')]);
         const reserved = await runCemDomCli(['transform', 'fixture.html']);
@@ -268,6 +331,14 @@ describe('runCemDomCli', () => {
         assert.match(invalidBenchIterations.stderr, /--iterations must be an integer/);
         assert.equal(invalidBenchProfile.exitCode, 2);
         assert.match(invalidBenchProfile.stderr, /Invalid --profile/);
+        assert.equal(invalidConvertFrom.exitCode, 2);
+        assert.match(invalidConvertFrom.stderr, /Invalid --from-format/);
+        assert.equal(invalidConvertTo.exitCode, 2);
+        assert.match(invalidConvertTo.stderr, /Invalid --to-format/);
+        assert.equal(invalidConvertAlias.exitCode, 2);
+        assert.match(invalidConvertAlias.stderr, /convert supports --to-format/);
+        assert.equal(duplicateConvertFormat.exitCode, 2);
+        assert.match(duplicateConvertFormat.stderr, /Use either --to-format or --format/);
         assert.equal(missingInput.exitCode, 2);
         assert.match(missingInput.stderr, /parse requires a file path/);
         assert.equal(missingFile.exitCode, 6);

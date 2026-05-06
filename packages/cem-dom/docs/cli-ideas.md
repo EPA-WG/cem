@@ -17,11 +17,13 @@ Implementation status:
   reports, deterministic aggregate reports, and reserved Tier B/C command failures.
 * Parser-backed Tier B slice implemented: `parse --format ast|events` and `inspect --show
   summary|ast|diagnostics|source-offsets|tree`.
+* Parser-backed conversion slice implemented: `convert --from-format html|xml --to-format dom-json|ast|events`, with
+  `--out`, `--format` output aliases, and optional `--preserve-source-offsets`.
 * Parser/validator-backed Tier C slice implemented: `bench` with iterations, JSON reports, cold-cache reads, recorded
   profile intent, and per-input budget checks.
-* Deferred: real schema loading/version compatibility, transform/convert/schema/advanced-inspect/trace/plugin
-  behavior, transform benchmarking, real CPU/memory profiling, source maps, scope metadata, and roundtrip fixture
-  rendering.
+* Deferred: real schema loading/version compatibility, transforms, advanced conversion beyond parser output formats,
+  schema/advanced-inspect/trace/plugin behavior, transform benchmarking, real CPU/memory profiling, source maps, scope
+  metadata, and roundtrip fixture rendering.
 
 I’ll turn the acceptance criteria into a CLI surface first, then package that as a reusable documentation-writing
 prompt.
@@ -132,6 +134,10 @@ Convert syntax or document representation from one schema/content model to anoth
 Example:
 
 ```bash
+cem-dom convert page.html \
+  --from-format html \
+  --to-format ast \
+  --out page.ast.json
 cem-dom convert button.cem \
   --from-schema schemas/cem-v1.cem \
   --to-schema schemas/cem-v2.cem \
@@ -146,6 +152,16 @@ Supported conversion ideas:
 * CEM AST → light-DOM custom-element markup
 * RELAX-NG / XSD mirror → CEM-native schema, if supported later
 * internal AST as an official interchange format
+
+Implemented parser-backed slice:
+
+```bash
+--from-format html|xml
+--to-format dom-json|ast|events
+--format dom-json|json|ast|events # output alias when --to-format is omitted
+--preserve-source-offsets
+--out <file>
+```
 
 Useful options:
 

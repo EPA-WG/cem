@@ -1,12 +1,12 @@
 # `cem-dom` CLI Acceptance Criteria
 
 **Status:** Tier A CLI implemented, with parser-backed Tier B/C slices. The current CLI implements `parse`, `validate`,
-`check`, `inspect`, `bench`, `fixture validate`, `version`, and `help`. Remaining Tier B/C commands are reserved, not
-implemented.
+`check`, `inspect`, `bench`, `convert`, `fixture validate`, `version`, and `help`. Remaining Tier B/C commands are
+reserved, not implemented.
 **Audience:** CEM maintainers, `@epa-wg/cem-dom` contributors, CI authors, and advanced validation or migration users.
 
-This document turns the CLI proposal in [`cli-ideas.md`](./cli-ideas.md) into acceptance criteria for later
-implementation planning. It does not describe a completed implementation.
+This document turns the CLI proposal in [`cli-ideas.md`](./cli-ideas.md) into acceptance criteria for implementation
+planning and tracks which criteria have landed.
 
 ## Goal
 
@@ -36,7 +36,7 @@ Completed Tier A acceptance criteria:
 
 - **CLI-C-1 through CLI-C-5:** `parse`, `validate`, `check`, `fixture validate`, `help`, and `version`.
 - **CLI-C-6 partial:** parser-backed `inspect` is implemented for summary, AST, diagnostics, source offsets, and tree
-  views.
+  views. Parser-backed `convert` is implemented for HTML/XML input to DOM JSON, AST, and events.
 - **CLI-C-7 partial / CLI-T-8 partial:** parser/validator-backed `bench` is implemented with iterations, JSON reports,
   and per-input budget checks.
 - **CLI-C-8:** stable lowercase task-oriented command naming.
@@ -54,7 +54,8 @@ Deferred or partial criteria:
 
 - **CLI-F-4 and CLI-F-5:** schema semver behavior is deferred until schema resolution exists.
 - **CLI-D-2 and CLI-D-6:** scope metadata and source maps are deferred.
-- **CLI-C-6 remaining:** transform, convert, schema emit, schema sample, and fixture roundtrip are reserved only.
+- **CLI-C-6 remaining:** transform, schema emit, schema sample, fixture roundtrip, and advanced convert behavior are
+  reserved only.
 - **CLI-C-7, CLI-X-4, CLI-T-\* except parser-backed inspect and parser/validator-backed bench:** Tier B/C behavior is
   reserved only.
 
@@ -67,8 +68,8 @@ Deferred or partial criteria:
   package-level `validate-fixtures` workflow.
 - **CLI-C-5 [A] MUST** expose `cem-dom help`, `cem-dom --help`, `cem-dom version`, and `cem-dom --version`.
 - **CLI-C-6 [B] SHOULD** expose `transform`, `convert`, `inspect`, `schema emit`, `schema sample`, and
-  `fixture roundtrip` after the corresponding parser, schema, and transform APIs exist. Parser-backed `inspect` is
-  implemented; schema/transform-backed behavior remains deferred.
+  `fixture roundtrip` after the corresponding parser, schema, and transform APIs exist. Parser-backed `inspect` and
+  parser-backed `convert` are implemented; schema/transform-backed behavior remains deferred.
 - **CLI-C-7 [C] MAY** expose `schema replace`, `trace`, `bench`, and `plugin list|inspect|run` as experimental commands.
   Parser/validator-backed `bench` is implemented; transform benchmarking and profiler integration remain deferred.
 - **CLI-C-8 [A] MUST** keep command naming stable, lowercase, and task-oriented. Subcommands SHOULD group schema,
@@ -82,6 +83,8 @@ Deferred or partial criteria:
   `--report-json <file-or-dir>` and `--report-md <file-or-dir>`.
 - **CLI-O-3 [A] SHOULD** support `--schema <uri-or-file>`, `--content-type <type>`, `--base-uri <uri>`,
   `--format <format>`, `--out <file-or-dir>`, `--quiet`, `--verbose`, and `--no-color` where relevant.
+- Parser-backed `convert` additionally supports `--from-format html|xml`, `--to-format dom-json|ast|events`, and
+  `--preserve-source-offsets`.
 - **CLI-O-4 [B] SHOULD** support `--source-map`, `--config <file>`, and `--debug` for transform, convert, inspect, and
   plugin workflows.
 - **CLI-O-5 [A] MUST** reject unknown options with exit code `2` and a usage message.
@@ -113,8 +116,8 @@ Deferred or partial criteria:
 
 - **CLI-P-1 [A] MUST** allow `parse` to emit at least one structured format suitable for tooling, such as AST or DOM
   JSON.
-- **CLI-P-2 [A] SHOULD** support or document parse formats. `events`, `ast`, and `dom-json` are implemented; `html`
-  and `xml` remain future conversion/serialization work.
+- **CLI-P-2 [A] SHOULD** support or document parse formats. `events`, `ast`, and `dom-json` are implemented; rendered
+  `html` and `xml` serialization remain future conversion work.
 - **CLI-P-3 [A] MUST** allow `validate` to check schema violations, broken references, missing accessible names, and
   unsafe inline content when the underlying validator supports those checks.
 - **CLI-P-4 [A] MUST** allow `check` to combine parse, validate, fail-level handling, and report emission for CI.
@@ -135,7 +138,9 @@ Deferred or partial criteria:
 - **CLI-T-1 [B] SHOULD** allow `transform <input>` to apply a CEM-native or XSLT-equivalent transform and write the
   transformed output plus diagnostics.
 - **CLI-T-2 [B] SHOULD** allow `convert <input>` to convert between CEM-native syntax, HTML, XML, AST/events, DOM JSON,
-  and schema versions.
+  and schema versions. Parser-backed conversion from HTML/XML input to `dom-json`, `ast`, and `events` is implemented;
+  CEM-native input, AST/events input, schema-version conversion, rendered HTML/XML output, comments, and source maps
+  remain deferred.
 - **CLI-T-3 [B] SHOULD** allow `schema emit <schema>` to emit schema mirrors and type headers, including TypeScript and
   one XML schema mirror for MVP schema work.
 - **CLI-T-4 [B] SHOULD** allow `schema sample <schema>` to generate `minimal`, `typical`, `maximal`, `edge`, and
