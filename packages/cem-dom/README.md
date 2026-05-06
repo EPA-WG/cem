@@ -14,6 +14,8 @@ import { formatDiagnostics, parseCemDom, validateCemDom } from '@epa-wg/cem-dom'
 
 ## CLI
 
+Current implemented commands:
+
 ```bash
 yarn nx run @epa-wg/cem-dom:build
 node packages/cem-dom/dist/cli.js help
@@ -27,6 +29,18 @@ During development the CLI can also run directly through Node's native TypeScrip
 ```bash
 node packages/cem-dom/src/cli.ts validate examples/semantic/login.html
 ```
+
+### CLI roadmap
+
+The current CLI is intentionally small. The proposed CLI direction is documented in:
+
+- [`docs/cli-ideas.md`](docs/cli-ideas.md) — brainstormed command surface for parse, validate, check, transform,
+  conversion, schema tooling, fixture workflows, inspection, trace, benchmarks, and plugins.
+- [`docs/cli-ac.md`](docs/cli-ac.md) — acceptance criteria and an implementation-planning prompt for the CLI.
+
+Planned Tier A CLI work centers on `parse`, `validate`, `check`, `fixture validate`, stable diagnostics, JSON/Markdown
+reports, and `--fail-level parse|validate|strict`. Transform, conversion, schema emission/sample generation,
+inspection, tracing, benchmarking, and plugin workflows are future or experimental until implemented and tested.
 
 ## Nx Targets
 
@@ -47,6 +61,8 @@ or Vitest.
 - `src/lib/cem-dom.ts` — parser, validator, and diagnostic formatter.
 - `src/cli.ts` — `cem-dom` CLI entrypoint.
 - `scripts/validate-fixtures.ts` — fixture validation report generator.
+- `docs/cli-ac.md` — CLI acceptance criteria and implementation-planning prompt.
+- `docs/cli-ideas.md` — raw CLI proposal notes.
 - `dist/cem-dom.report.{md,json}` — generated fixture validation reports.
 
 ## Related Docs
