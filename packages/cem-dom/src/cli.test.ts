@@ -39,6 +39,26 @@ describe('runCemDomCli', () => {
         assert.match(written, /"tagName": "main"/);
     });
 
+    it('parses AST and event formats', async () => {
+        const dir = await mkdtemp(join(tmpdir(), 'cem-dom-'));
+        const file = join(dir, 'fixture.html');
+        await writeFile(
+            file,
+            '<main data-cem-screen="login" aria-labelledby="title"><h1 id="title">Sign in</h1></main>',
+        );
+
+        const astResult = await runCemDomCli(['parse', file, '--format', 'ast']);
+        const eventsResult = await runCemDomCli(['parse', file, '--format', 'events']);
+        const ast = JSON.parse(astResult.stdout) as { type: string; children: Array<{ tagName: string }> };
+        const events = JSON.parse(eventsResult.stdout) as Array<{ type: string; tagName?: string }>;
+
+        assert.equal(astResult.exitCode, 0);
+        assert.equal(ast.type, 'document');
+        assert.equal(ast.children[0]?.tagName, 'main');
+        assert.equal(eventsResult.exitCode, 0);
+        assert.equal(events.some((event) => event.type === 'element-start' && event.tagName === 'main'), true);
+    });
+
     it('validates a file with text, json, markdown, and report outputs', async () => {
         const dir = await mkdtemp(join(tmpdir(), 'cem-dom-'));
         const file = join(dir, 'fixture.html');
@@ -108,6 +128,43 @@ describe('runCemDomCli', () => {
         assert.match(result.stdout, /validate\.broken-reference/);
     });
 
+    it('inspects summary, tree, diagnostics, AST, and source offsets', async () => {
+        const dir = await mkdtemp(join(tmpdir(), 'cem-dom-'));
+        const file = join(dir, 'fixture.html');
+        await writeFile(
+            file,
+            '<main data-cem-screen="login" aria-labelledby="title"><h1 id="title">Sign in</h1></main>',
+        );
+
+        const summaryResult = await runCemDomCli(['inspect', file]);
+        const treeResult = await runCemDomCli(['inspect', file, '--show', 'tree']);
+        const diagnosticsResult = await runCemDomCli(['inspect', file, '--show', 'diagnostics']);
+        const astResult = await runCemDomCli(['inspect', file, '--show', 'ast']);
+        const offsetsResult = await runCemDomCli(['inspect', file, '--show', 'source-offsets']);
+
+        assert.equal(summaryResult.exitCode, 0);
+        assert.match(summaryResult.stdout, /Elements: 2/);
+        assert.match(summaryResult.stdout, /CEM attributes: data-cem-screen=1/);
+        assert.equal(treeResult.exitCode, 0);
+        assert.match(treeResult.stdout, /<main data-cem-screen="login">/);
+        assert.equal(JSON.parse(diagnosticsResult.stdout).diagnostics.length, 0);
+        assert.equal(JSON.parse(astResult.stdout).type, 'document');
+        assert.equal(JSON.parse(offsetsResult.stdout).offsets[0].node, '<main>');
+    });
+
+    it('writes inspect output to --out', async () => {
+        const dir = await mkdtemp(join(tmpdir(), 'cem-dom-'));
+        const file = join(dir, 'fixture.html');
+        const out = join(dir, 'inspect.json');
+        await writeFile(file, '<main data-cem-screen="login" aria-label="Login"></main>');
+
+        const result = await runCemDomCli(['inspect', file, '--format', 'json', '--out', out]);
+
+        assert.equal(result.exitCode, 0);
+        assert.equal(result.stdout, '');
+        assert.equal(JSON.parse(await readFile(out, 'utf8')).elementCount, 1);
+    });
+
     it('validates default and explicit fixtures', async () => {
         const workspaceRoot = await mkdtemp(join(tmpdir(), 'cem-dom-workspace-'));
         const semanticDir = join(workspaceRoot, 'examples/semantic');
@@ -142,6 +199,7 @@ describe('runCemDomCli', () => {
     it('reports usage, I/O, and reserved command failures', async () => {
         const unknownOption = await runCemDomCli(['validate', 'fixture.html', '--unknown']);
         const invalidFailLevel = await runCemDomCli(['validate', 'fixture.html', '--fail-level', 'loud']);
+        const invalidShow = await runCemDomCli(['inspect', 'fixture.html', '--show', 'scopes']);
         const missingInput = await runCemDomCli(['parse']);
         const missingFile = await runCemDomCli(['validate', join(tmpdir(), 'does-not-exist.html')]);
         const reserved = await runCemDomCli(['transform', 'fixture.html']);
@@ -150,6 +208,8 @@ describe('runCemDomCli', () => {
         assert.match(unknownOption.stderr, /Unknown option/);
         assert.equal(invalidFailLevel.exitCode, 2);
         assert.match(invalidFailLevel.stderr, /Invalid --fail-level/);
+        assert.equal(invalidShow.exitCode, 2);
+        assert.match(invalidShow.stderr, /Invalid --show/);
         assert.equal(missingInput.exitCode, 2);
         assert.match(missingInput.stderr, /parse requires a file path/);
         assert.equal(missingFile.exitCode, 6);

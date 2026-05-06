@@ -13,10 +13,13 @@ import {
     writeJsonReport,
     writeMarkdownReport,
     type CemDiagnostic,
+    type CemDomDocument,
+    type CemDomElementNode,
     type CemDomFailLevel,
+    type CemDomNode,
     type CemDomReport,
 } from './index.ts';
-import { parseCemDomCliArgs, type CemDomCliOptions } from './lib/cli-options.ts';
+import { parseCemDomCliArgs, type CemDomCliOptions, type CemDomInspectShow } from './lib/cli-options.ts';
 
 export interface CemDomCliResult {
     exitCode: number;
@@ -59,12 +62,13 @@ Tier A commands:
   parse <input>              Parse one CEM semantic document and print DOM JSON.
   validate <input...>        Validate one or more CEM semantic documents.
   check <input...>           Parse + validate for CI-friendly checks.
+  inspect <input>            Inspect parser-backed document structure.
   fixture validate [input...] Validate semantic fixtures and write reports.
   version                    Print the package version.
   help                       Print this help text.
 
 Reserved Tier B/C commands:
-  transform, convert, inspect, trace, bench
+  transform, convert, trace, bench
   schema emit|sample|replace
   fixture roundtrip
   plugin list|inspect|run
@@ -72,6 +76,7 @@ Reserved Tier B/C commands:
 Common options:
   --fail-level parse|validate|strict
   --format text|json|markdown|dom-json
+  --show summary|ast|diagnostics|source-offsets|tree
   --out <file>
   --report-json <file-or-dir>
   --report-md <file-or-dir>
@@ -104,6 +109,8 @@ export async function runCemDomCli(
                 return await runValidateOrCheck('validate', invocation.inputs, invocation.options, cwd);
             case 'check':
                 return await runValidateOrCheck('check', invocation.inputs, invocation.options, cwd);
+            case 'inspect':
+                return await runInspect(invocation.input, invocation.options, cwd);
             case 'fixture-validate':
                 return await runFixtureValidate(invocation.inputs, invocation.options, cwd, workspaceRoot);
             case 'reserved':
@@ -119,8 +126,8 @@ export async function runCemDomCli(
 async function runParse(input: string, options: CemDomCliOptions, cwd: string): Promise<CemDomCliResult> {
     const failLevel = options.failLevel ?? 'parse';
     const format = options.format ?? 'dom-json';
-    if (format !== 'dom-json' && format !== 'json') {
-        return usageError('parse supports --format dom-json or --format json.');
+    if (format !== 'dom-json' && format !== 'json' && format !== 'ast' && format !== 'events') {
+        return usageError('parse supports --format dom-json, json, ast, or events.');
     }
 
     const cliInput = await readCliInput(input, options, cwd);
@@ -128,7 +135,7 @@ async function runParse(input: string, options: CemDomCliOptions, cwd: string): 
         sourceName: cliInput.uri,
     });
     document.diagnostics = normalizeDiagnostics(document.diagnostics, cliInput.uri);
-    const stdout = `${JSON.stringify(document, null, 2)}\n`;
+    const stdout = `${JSON.stringify(formatParsePayload(document, format), null, 2)}\n`;
 
     if (options.out) {
         await writeOutputFile(options.out, stdout);
@@ -136,6 +143,34 @@ async function runParse(input: string, options: CemDomCliOptions, cwd: string): 
 
     return {
         exitCode: hasFailingDiagnostics(document.diagnostics, failLevel) ? 1 : 0,
+        stdout: options.out || options.quiet ? '' : stdout,
+        stderr: '',
+    };
+}
+
+async function runInspect(input: string, options: CemDomCliOptions, cwd: string): Promise<CemDomCliResult> {
+    const cliInput = await readCliInput(input, options, cwd);
+    const document = parseCemDom(cliInput.source, {
+        sourceName: cliInput.uri,
+    });
+    document.diagnostics = normalizeDiagnostics(document.diagnostics, cliInput.uri);
+    const diagnostics = normalizeDiagnostics(validateCemDom(cliInput.source, { sourceName: cliInput.uri }), cliInput.uri);
+    const show = options.show ?? 'summary';
+    const format = options.format ?? (show === 'tree' ? 'tree' : show === 'summary' ? 'text' : 'json');
+
+    if (format !== 'text' && format !== 'json' && format !== 'tree') {
+        return usageError('inspect supports --format text, json, or tree.');
+    }
+
+    const payload = createInspectPayload(show, document, diagnostics, cliInput.uri);
+    const stdout = formatInspectPayload(show, format, payload);
+
+    if (options.out) {
+        await writeOutputFile(options.out, stdout);
+    }
+
+    return {
+        exitCode: 0,
         stdout: options.out || options.quiet ? '' : stdout,
         stderr: '',
     };
@@ -150,8 +185,8 @@ async function runValidateOrCheck(
     const failLevel = options.failLevel ?? 'validate';
     const format = options.format ?? 'text';
 
-    if (format === 'dom-json') {
-        return usageError(`${command} does not support --format dom-json.`);
+    if (format !== 'text' && format !== 'json' && format !== 'markdown') {
+        return usageError(`${command} supports --format text, json, or markdown.`);
     }
 
     if (options.out && inputs.length > 1) {
@@ -284,6 +319,248 @@ function formatCommandOutput(
         case 'markdown':
             return formatReportMarkdown(report);
     }
+}
+
+function formatParsePayload(
+    document: CemDomDocument,
+    format: 'json' | 'dom-json' | 'ast' | 'events',
+): unknown {
+    switch (format) {
+        case 'json':
+        case 'dom-json':
+            return document;
+        case 'ast':
+            return createAstPayload(document);
+        case 'events':
+            return createEventPayload(document);
+    }
+}
+
+function createAstPayload(document: CemDomDocument): unknown {
+    return {
+        type: 'document',
+        sourceName: document.sourceName,
+        diagnostics: document.diagnostics,
+        children: document.rootNodes.map((node) => createAstNode(node)),
+    };
+}
+
+function createAstNode(node: CemDomNode): unknown {
+    if (node.type === 'text') {
+        return {
+            type: 'text',
+            value: node.value,
+            location: node.location,
+        };
+    }
+
+    return {
+        type: 'element',
+        tagName: node.tagName,
+        attributes: Object.fromEntries(node.attributes.map((attribute) => [attribute.name, attribute.value])),
+        location: node.location,
+        children: node.children.map((child) => createAstNode(child)),
+    };
+}
+
+function createEventPayload(document: CemDomDocument): unknown[] {
+    const events: unknown[] = [
+        {
+            type: 'document-start',
+            sourceName: document.sourceName,
+        },
+    ];
+
+    for (const node of document.rootNodes) {
+        appendNodeEvents(node, events);
+    }
+
+    for (const diagnostic of document.diagnostics) {
+        events.push({
+            type: 'diagnostic',
+            diagnostic,
+        });
+    }
+
+    events.push({ type: 'document-end' });
+    return events;
+}
+
+function appendNodeEvents(node: CemDomNode, events: unknown[]): void {
+    if (node.type === 'text') {
+        events.push({
+            type: 'text',
+            value: node.value,
+            location: node.location,
+        });
+        return;
+    }
+
+    events.push({
+        type: 'element-start',
+        tagName: node.tagName,
+        attributes: node.attributes,
+        location: node.location,
+    });
+
+    for (const child of node.children) {
+        appendNodeEvents(child, events);
+    }
+
+    events.push({
+        type: 'element-end',
+        tagName: node.tagName,
+        location: node.location,
+    });
+}
+
+function createInspectPayload(
+    show: CemDomInspectShow,
+    document: CemDomDocument,
+    diagnostics: readonly CemDiagnostic[],
+    uri: string,
+): unknown {
+    switch (show) {
+        case 'summary':
+            return createInspectSummary(document, diagnostics, uri);
+        case 'ast':
+            return createAstPayload(document);
+        case 'diagnostics':
+            return {
+                uri,
+                diagnostics,
+            };
+        case 'source-offsets':
+            return {
+                uri,
+                offsets: document.elements.map((element) => ({
+                    node: describeElement(element),
+                    line: element.location.line,
+                    column: element.location.column,
+                    byteOffset: element.location.offset,
+                })),
+            };
+        case 'tree':
+            return renderTree(document);
+    }
+}
+
+function createInspectSummary(
+    document: CemDomDocument,
+    diagnostics: readonly CemDiagnostic[],
+    uri: string,
+): unknown {
+    const tagCounts = new Map<string, number>();
+    const semanticAttributeCounts = new Map<string, number>();
+
+    for (const element of document.elements) {
+        tagCounts.set(element.tagName, (tagCounts.get(element.tagName) ?? 0) + 1);
+        for (const attribute of element.attributes) {
+            if (attribute.name.startsWith('data-cem-')) {
+                semanticAttributeCounts.set(attribute.name, (semanticAttributeCounts.get(attribute.name) ?? 0) + 1);
+            }
+        }
+    }
+
+    return {
+        uri,
+        rootNodeCount: document.rootNodes.length,
+        elementCount: document.elements.length,
+        textNodeCount: countTextNodes(document.rootNodes),
+        diagnosticCount: diagnostics.length,
+        tagCounts: Object.fromEntries([...tagCounts.entries()].sort(([left], [right]) => left.localeCompare(right))),
+        semanticAttributeCounts: Object.fromEntries(
+            [...semanticAttributeCounts.entries()].sort(([left], [right]) => left.localeCompare(right)),
+        ),
+    };
+}
+
+function formatInspectPayload(show: CemDomInspectShow, format: 'text' | 'json' | 'tree', payload: unknown): string {
+    if (format === 'json') {
+        return `${JSON.stringify(payload, null, 2)}\n`;
+    }
+
+    if (format === 'tree') {
+        return typeof payload === 'string' ? `${payload}\n` : `${JSON.stringify(payload, null, 2)}\n`;
+    }
+
+    if (show === 'summary' && isInspectSummary(payload)) {
+        return [
+            `URI: ${payload.uri}`,
+            `Root nodes: ${payload.rootNodeCount}`,
+            `Elements: ${payload.elementCount}`,
+            `Text nodes: ${payload.textNodeCount}`,
+            `Diagnostics: ${payload.diagnosticCount}`,
+            `Tags: ${formatCounts(payload.tagCounts)}`,
+            `CEM attributes: ${formatCounts(payload.semanticAttributeCounts)}`,
+            '',
+        ].join('\n');
+    }
+
+    if (show === 'tree' && typeof payload === 'string') {
+        return `${payload}\n`;
+    }
+
+    return `${JSON.stringify(payload, null, 2)}\n`;
+}
+
+function renderTree(document: CemDomDocument): string {
+    const lines: string[] = [];
+    for (const node of document.rootNodes) {
+        appendTreeLines(node, lines, 0);
+    }
+    return lines.join('\n');
+}
+
+function appendTreeLines(node: CemDomNode, lines: string[], depth: number): void {
+    const indent = '  '.repeat(depth);
+    if (node.type === 'text') {
+        lines.push(`${indent}#text "${node.value}"`);
+        return;
+    }
+
+    lines.push(`${indent}<${node.tagName}${formatTreeAttributes(node)}>`);
+    for (const child of node.children) {
+        appendTreeLines(child, lines, depth + 1);
+    }
+}
+
+function formatTreeAttributes(element: CemDomElementNode): string {
+    const semanticAttributes = element.attributes
+        .filter((attribute) => attribute.name === 'id' || attribute.name.startsWith('data-cem-'))
+        .map((attribute) => `${attribute.name}="${attribute.value}"`);
+    return semanticAttributes.length > 0 ? ` ${semanticAttributes.join(' ')}` : '';
+}
+
+function countTextNodes(nodes: readonly CemDomNode[]): number {
+    return nodes.reduce((count, node) => {
+        if (node.type === 'text') {
+            return count + 1;
+        }
+        return count + countTextNodes(node.children);
+    }, 0);
+}
+
+function describeElement(element: CemDomElementNode): string {
+    const id = element.attributes.find((attribute) => attribute.name === 'id')?.value;
+    return id ? `<${element.tagName}#${id}>` : `<${element.tagName}>`;
+}
+
+function formatCounts(counts: Record<string, number>): string {
+    const entries = Object.entries(counts);
+    return entries.length === 0 ? '-' : entries.map(([key, value]) => `${key}=${value}`).join(', ');
+}
+
+function isInspectSummary(payload: unknown): payload is {
+    uri: string;
+    rootNodeCount: number;
+    elementCount: number;
+    textNodeCount: number;
+    diagnosticCount: number;
+    tagCounts: Record<string, number>;
+    semanticAttributeCounts: Record<string, number>;
+} {
+    return typeof payload === 'object' && payload !== null && 'elementCount' in payload && 'tagCounts' in payload;
 }
 
 async function writeRequestedReports(options: CemDomCliOptions, report: CemDomReport): Promise<void> {

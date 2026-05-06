@@ -10,15 +10,20 @@ execution, ESM output, Nx run-command targets, and native `node:test`.
 
 - [x] Shared diagnostic normalization, fail-level helpers, and report helpers are implemented.
 - [x] `parse`, `validate`, `check`, `fixture validate`, `help`, and `version` are implemented.
+- [x] `parse --format ast|events|dom-json|json` is implemented for parser-backed machine-readable output.
+- [x] `inspect` is implemented for parser-backed `summary`, `ast`, `diagnostics`, `source-offsets`, and `tree` views.
 - [x] Tier B/C command names are reserved with usage failures instead of partially implemented behavior.
 - [x] `validate-fixtures` delegates through the CLI.
 - [x] Native `node:test` coverage was expanded for commands, reports, fail levels, usage errors, I/O errors, and
   reserved commands.
 - [x] Nx verification passed for package targets: `typecheck`, `lint`, `test`, `build`, and `validate-fixtures`.
-- [ ] Root `yarn build` was attempted but is blocked in this execution environment by Nx daemon/plugin-worker startup
-  failure (`EPERM` listening on the Nx daemon socket), before project targets run.
+- [x] Root `yarn build` passed in the user's manual run after the `cem-dom` rebuild.
+- [ ] Root `yarn build` remains blocked in this assistant execution environment by Nx daemon/plugin-worker startup
+  failure before project targets run.
 - [ ] Schema version compatibility is still deferred until schema loading exists.
-- [ ] Real transform, conversion, schema, inspect, trace, bench, and plugin behavior remains Tier B/C deferred work.
+- [ ] Real transform, conversion, schema, trace, bench, and plugin behavior remains Tier B/C deferred work.
+- [ ] Advanced inspect views for scopes, schema bindings, plugins, and source maps remain deferred until those
+  subsystems exist.
 
 ## 1. Public API And Types
 
@@ -110,8 +115,18 @@ Reject unknown options with exit code `2`.
 - Reads exactly one file.
 - Writes parse document JSON to stdout or `--out`.
 - Includes diagnostics in JSON.
+- Supports `--format dom-json|json|ast|events`.
 - Default `--fail-level parse`.
 - Exit `1` only if fail-level rules fail.
+
+### `cem-dom inspect <input>`
+
+- Parser-backed Tier B slice now implemented.
+- Default `--show summary`.
+- Supports `--show summary|ast|diagnostics|source-offsets|tree`.
+- Supports `--format text|json|tree`, with JSON defaults for non-summary/non-tree views.
+- Writes output to stdout or `--out`.
+- Does not inspect scopes, schema bindings, plugins, or source maps yet.
 
 ### `cem-dom validate <input...>`
 
@@ -245,7 +260,11 @@ Add/update CLI tests for:
 - `help`, `--help`, `version`, `--version`
 - `parse <file>` default JSON output
 - `parse --out file`
+- `parse --format ast`
+- `parse --format events`
 - `parse --fail-level strict` fails on warnings
+- `inspect --show summary|ast|diagnostics|source-offsets|tree`
+- `inspect --out file`
 - `validate <file>` text output
 - `validate <file> --format json`
 - `validate <file> --report-json dir --report-md dir`
@@ -284,7 +303,8 @@ Do not implement real behavior for:
 - transforms
 - conversion
 - schema emit/sample/replace
-- inspect/trace/bench
+- advanced inspect views for scopes, schema bindings, plugins, and source maps
+- trace/bench
 - plugin list/inspect/run
 - source-map generation
 - schema version resolution beyond accepting `--schema`

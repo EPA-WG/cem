@@ -15,8 +15,10 @@ Implementation status:
 
 * Tier A implemented: `parse`, `validate`, `check`, `fixture validate`, `help`, `version`, fail levels, JSON/Markdown
   reports, deterministic aggregate reports, and reserved Tier B/C command failures.
-* Deferred: real schema loading/version compatibility, transform/convert/schema/inspect/trace/bench/plugin behavior,
-  source maps, scope metadata, and roundtrip fixture rendering.
+* Parser-backed Tier B slice implemented: `parse --format ast|events` and `inspect --show
+  summary|ast|diagnostics|source-offsets|tree`.
+* Deferred: real schema loading/version compatibility, transform/convert/schema/advanced-inspect/trace/bench/plugin
+  behavior, source maps, scope metadata, and roundtrip fixture rendering.
 
 I’ll turn the acceptance criteria into a CLI surface first, then package that as a reusable documentation-writing
 prompt.

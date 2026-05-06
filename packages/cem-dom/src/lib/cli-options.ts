@@ -2,7 +2,9 @@ import { parseArgs } from 'node:util';
 import type { CemDomFailLevel } from './cem-dom.ts';
 import { isCemDomFailLevel } from './fail-level.ts';
 
-export type CemDomCliFormat = 'text' | 'json' | 'markdown' | 'dom-json';
+export type CemDomCliFormat = 'text' | 'json' | 'markdown' | 'dom-json' | 'ast' | 'events' | 'tree';
+
+export type CemDomInspectShow = 'summary' | 'ast' | 'diagnostics' | 'source-offsets' | 'tree';
 
 export interface CemDomCliOptions {
     failLevel?: CemDomFailLevel;
@@ -13,6 +15,7 @@ export interface CemDomCliOptions {
     schema?: string;
     contentType?: string;
     baseUri?: string;
+    show?: CemDomInspectShow;
     quiet: boolean;
     verbose: boolean;
     noColor: boolean;
@@ -26,11 +29,13 @@ export type CemDomCliInvocation =
     | { kind: 'validate'; inputs: string[]; options: CemDomCliOptions }
     | { kind: 'check'; inputs: string[]; options: CemDomCliOptions }
     | { kind: 'fixture-validate'; inputs: string[]; options: CemDomCliOptions }
+    | { kind: 'inspect'; input: string; options: CemDomCliOptions }
     | { kind: 'reserved'; command: string; options: CemDomCliOptions }
     | { kind: 'usage-error'; message: string; options: CemDomCliOptions };
 
-const validFormats = new Set<CemDomCliFormat>(['text', 'json', 'markdown', 'dom-json']);
-const reservedTopLevelCommands = new Set(['transform', 'convert', 'inspect', 'trace', 'bench']);
+const validFormats = new Set<CemDomCliFormat>(['text', 'json', 'markdown', 'dom-json', 'ast', 'events', 'tree']);
+const validInspectShows = new Set<CemDomInspectShow>(['summary', 'ast', 'diagnostics', 'source-offsets', 'tree']);
+const reservedTopLevelCommands = new Set(['transform', 'convert', 'trace', 'bench']);
 const reservedSchemaCommands = new Set(['emit', 'sample', 'replace']);
 const reservedPluginCommands = new Set(['list', 'inspect', 'run']);
 
@@ -51,6 +56,7 @@ export function parseCemDomCliArgs(argv: readonly string[]): CemDomCliInvocation
                 schema: { type: 'string' },
                 'content-type': { type: 'string' },
                 'base-uri': { type: 'string' },
+                show: { type: 'string' },
                 quiet: { type: 'boolean' },
                 verbose: { type: 'boolean' },
                 'no-color': { type: 'boolean' },
@@ -89,6 +95,8 @@ export function parseCemDomCliArgs(argv: readonly string[]): CemDomCliInvocation
                 return parseMultiInputCommand('validate', [subcommand, ...rest], options);
             case 'check':
                 return parseMultiInputCommand('check', [subcommand, ...rest], options);
+            case 'inspect':
+                return parseSingleInputCommand('inspect', subcommand, rest, options);
             case 'fixture':
                 return parseFixtureCommand(subcommand, rest, options);
             case 'schema':
@@ -119,6 +127,7 @@ function readOptions(values: ReturnType<typeof parseArgs>['values']):
     | { message: string } {
     const failLevel = stringValue(values['fail-level']);
     const format = stringValue(values.format);
+    const show = stringValue(values.show);
 
     if (failLevel !== undefined && !isCemDomFailLevel(failLevel)) {
         return {
@@ -128,7 +137,13 @@ function readOptions(values: ReturnType<typeof parseArgs>['values']):
 
     if (format !== undefined && !isCemDomCliFormat(format)) {
         return {
-            message: `Invalid --format "${format}". Expected text, json, markdown, or dom-json.`,
+            message: `Invalid --format "${format}". Expected text, json, markdown, dom-json, ast, events, or tree.`,
+        };
+    }
+
+    if (show !== undefined && !isCemDomInspectShow(show)) {
+        return {
+            message: `Invalid --show "${show}". Expected summary, ast, diagnostics, source-offsets, or tree.`,
         };
     }
 
@@ -142,6 +157,7 @@ function readOptions(values: ReturnType<typeof parseArgs>['values']):
             schema: stringValue(values.schema),
             contentType: stringValue(values['content-type']),
             baseUri: stringValue(values['base-uri']),
+            show,
             quiet: values.quiet === true,
             verbose: values.verbose === true,
             noColor: values['no-color'] === true,
@@ -161,7 +177,7 @@ function createCliOptions(options: Partial<CemDomCliOptions> = {}): CemDomCliOpt
 }
 
 function parseSingleInputCommand(
-    kind: 'parse',
+    kind: 'parse' | 'inspect',
     input: string | undefined,
     extraInputs: string[],
     options: CemDomCliOptions,
@@ -258,6 +274,10 @@ function parsePluginCommand(
 
 function isCemDomCliFormat(value: string): value is CemDomCliFormat {
     return validFormats.has(value as CemDomCliFormat);
+}
+
+function isCemDomInspectShow(value: string): value is CemDomInspectShow {
+    return validInspectShows.has(value as CemDomInspectShow);
 }
 
 function stringValue(value: unknown): string | undefined {
