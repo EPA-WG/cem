@@ -1,24 +1,12 @@
-use clap::{CommandFactory, Parser, Subcommand};
+use clap::Parser;
 
 #[derive(Parser)]
-#[command(name = "cem-ml", about = "CEM DOM parser", version)]
+#[command(name = "cem-ml", about = "CEM DOM parser", version = cem_ml::VERSION, disable_version_flag = true)]
 struct Cli {
-    #[command(subcommand)]
-    command: Commands,
-}
-
-#[derive(Subcommand)]
-enum Commands {
-    /// Show help information
-    Help,
+    #[arg(short = 'v', long = "version", action = clap::ArgAction::Version)]
+    version: bool,
 }
 
 fn main() {
-    let cli = Cli::parse();
-    match cli.command {
-        Commands::Help => {
-            Cli::command().print_help().unwrap();
-            println!();
-        }
-    }
+    Cli::parse();
 }
