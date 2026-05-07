@@ -1,0 +1,459 @@
+# Schema-Defined Streaming Parser Research
+
+This memo compares algorithms and implementation patterns for schema-defined,
+stream-based parsers across XML, JSON, CSV/CSF, HTML, CSS, TypeScript, and Rust.
+For this pass, CSF is treated as CSV-style delimited text.
+
+The practical recommendation is a layered parser runtime:
+
+1. Byte source and encoding decoder.
+2. Format tokenizer or scanner.
+3. Normalized event stream.
+4. Schema-compiled validator/parser state machine.
+5. Scoped embedded-language handoff stack.
+
+This separates transport and encoding concerns from format tokenization, keeps
+schema validation incremental, and makes embedded regions explicit instead of
+special-casing them inside every parser.
+
+## Executive Recommendation
+
+The strongest general architecture is to compile schemas into small streaming
+machines that consume typed events. Nested structures should use push/pop scope
+frames, and embedded content should switch parser schemas through explicit
+handoff events.
+
+For XML-like nested formats, model the stream as visibly nested events: start,
+attributes, text, end. Validate element content with deterministic automata,
+RELAX NG-style derivatives, or visibly pushdown automata. For JSON, validate
+token streams with a stack of object/array frames and schema states. For
+CSV/CSF, use DFDL-like schema-guided recursive descent over fields, records,
+delimiters, and lengths. For HTML, use the WHATWG tokenizer and tree
+construction model, because browser-compatible parsing depends on insertion
+modes and defined error recovery. For CSS, TypeScript, and Rust, use scanner
+modes, lookahead, speculative parsing, and recovery in the style of production
+compilers.
+
+LLVM/Clang and TypeScript are most useful as architecture references for byte
+buffers, spans, diagnostics, lexical modes, parser speculation, incremental
+reuse, and error recovery. They should not be copied as direct schema-validation
+engines.
+
+## Core Architecture
+
+### 1. Byte Source And Encoding Decoder
+
+The byte layer owns raw input, chunking, and encoding detection. It should
+preserve byte offsets even when it decodes to Unicode scalar values or UTF-16
+code units.
+
+Rules:
+
+- Keep absolute byte offsets for every token and event.
+- Keep decoded scalar spans for Unicode-aware validation.
+- Preserve raw slices where possible for diagnostics, round-tripping, and
+  zero-copy string/token views.
+- Validate UTF-8 at ingress for formats that require UTF-8, such as JSON in
+  common modern pipelines and Rust source.
+- Allow XML-style entity-specific encodings where the format requires it.
+
+LLVM's `MemoryBuffer` is a useful model for efficient source buffers: it
+provides read-only access to bytes and guarantees a sentinel byte after the end
+of the buffer for fast lexing. Clang's `SourceManager` shows how to separate
+logical source locations from physical buffers, macro expansions, and diagnostic
+ranges.
+
+### 2. Tokenizer Or Scanner
+
+The scanner converts decoded input into format-native tokens. It should be
+simple, streaming, and mode-aware.
+
+Examples:
+
+- XML scanner emits start element, attribute, text, comment, processing
+  instruction, and end element events.
+- JSON scanner emits structural tokens, strings, numbers, booleans, and null.
+- CSV scanner emits record, field, delimiter, quote, escaped quote, and newline
+  events.
+- HTML scanner follows tokenizer states such as data, RCDATA, RAWTEXT, script
+  data, tag open, and attribute states.
+- CSS scanner follows the CSS Syntax tokenization rules and leaves
+  property-specific validation to downstream grammars.
+- TypeScript/Rust scanners classify identifiers, keywords, literals, trivia,
+  delimiters, and contextual tokens.
+
+The scanner should not know all schema rules. It should know enough to produce
+stable token/event boundaries and to preserve trivia when diagnostics or
+round-tripping need it.
+
+### 3. Normalized Event Stream
+
+A cross-format schema engine should not consume raw tokens directly. It should
+consume a normalized event stream with a small set of event categories:
+
+| Event category | XML/HTML example | JSON example | CSV/CSF example | Code example |
+| --- | --- | --- | --- | --- |
+| Open scope | start tag | object/array start | record start | block/module start |
+| Close scope | end tag | object/array end | record end | block/module end |
+| Name | QName, attribute name | property name | header/column name | identifier |
+| Value | text, attribute value | string/number/null | field text | literal |
+| Separator | element boundary | comma/colon | delimiter/newline | comma/semicolon |
+| Mode switch | script/style/CDATA | string subdocument | typed column payload | template/JSX/attribute |
+| Error | parse error | invalid token | malformed quote | recovery token |
+
+This layer lets schema validation share algorithms across formats while still
+retaining each format's scanner and recovery behavior.
+
+### 4. Schema-Compiled State Machine
+
+Schemas should compile to a runtime plan:
+
+- Content models become finite automata, derivatives, or parser functions.
+- Nested structures push frames containing schema state, namespace/context data,
+  and expected close events.
+- Object/record constraints track required names, seen names, multiplicity,
+  ordering, and unevaluated fields.
+- Value constraints validate scalar type, lexical form, range, pattern, and
+  normalization.
+- Handoff rules define when embedded content changes parser and schema.
+
+The runtime should be able to stop early on fatal errors or continue in a
+diagnostic mode that records recoverable errors.
+
+### 5. Scoped Embedded-Language Handoff Stack
+
+Embedded languages need first-class scope frames. A parent parser should emit a
+handoff event with:
+
+- child content type or language id;
+- byte span or streaming sub-source;
+- inherited context such as namespace, HTML tag name, attribute name, MIME type,
+  or JSON pointer;
+- child schema id;
+- return condition, such as matching end tag, string end, block close, or fixed
+  length.
+
+Examples:
+
+- HTML `<script type="module">` switches to JavaScript or TypeScript-like
+  syntax.
+- HTML `<style>` and `style=""` switch to CSS.
+- XML CDATA can be raw text or a schema-defined embedded payload.
+- JSON strings may contain schema-tagged subdocuments.
+- CSV columns may have per-column schemas, such as dates, JSON, CSS tokens, or
+  domain-specific expressions.
+- TypeScript template literals, JSX, and tagged templates can switch lexical or
+  parser modes.
+
+## Algorithm Comparison
+
+| Approach | Best fit | Streaming behavior | Strengths | Risks |
+| --- | --- | --- | --- | --- |
+| SAX event pipeline | XML | Push events as input is scanned | Low memory, mature Java stack, easy filters | Application owns state; awkward for random access |
+| StAX cursor/pull API | XML | Consumer asks for next event | Backpressure-friendly, procedural state | Still XML-specific |
+| Xerces XNI pipeline | XML and custom event pipelines | Scanner, filters, validators, handlers | Modular scanner/validator architecture; can build custom parsers | Internal API, more complex than SAX/StAX |
+| XML Schema DFA/content model | XML | Validate element children incrementally | Efficient deterministic validation | XSD edge cases are complex: wildcards, UPA, substitution groups |
+| RELAX NG derivatives | XML and grammar-like schemas | Residual schema updates per event | Elegant incremental validation; good diagnostics with residuals | Needs memoization to avoid growth |
+| Visibly pushdown automata | Nested markup/data | Push on open, pop on close | Formal model for streaming nested data | Less natural for unordered object properties |
+| DFDL schema-guided recursive descent | CSV/CSF, fixed-width, binary, legacy records | Schema drives reads over stream | Strong fit for delimited and fixed layouts | Speculation can need bounded lookahead controls |
+| Jackson-style token stream | JSON and related formats | Pull tokens in source order | Simple, low overhead, reusable across data formats | Schema logic must be layered separately |
+| simdjson structural indexing | JSON | Finds structure and validates UTF-8 fast | Excellent byte-level throughput | More document-oriented than general schema runtime |
+| WHATWG HTML parser | HTML | Tokenizer plus tree construction states | Browser-compatible recovery and embedded text modes | Not a generic XML parser; reentrant script behavior is special |
+| CSS Syntax parser | CSS | Token stream to component values/rules | Separates syntax from property grammar | Full validation needs property/value grammars |
+| Recursive descent with speculation | TypeScript, Rust, CSS values | Usually token-stream based; can be incremental | Practical recovery, contextual grammar handling | Grammar/schema is code unless generated carefully |
+| Tree-sitter incremental parsing | Programming languages and mixed documents | Incremental parse trees, changed ranges | Excellent editor use case and language injections | Produces trees, not schema validation by itself |
+
+## Unicode And UTF-8 Handling
+
+| Stack | Source model | Unicode approach | Recommendation |
+| --- | --- | --- | --- |
+| XML | Parsed entities decode to Unicode characters | XML processors must accept UTF-8 and UTF-16; legal XML characters exclude surrogate blocks and selected noncharacters | Decode per entity, validate XML character ranges, keep raw entity offsets |
+| JSON | Unicode text, commonly UTF-8 bytes | JSON Schema works on the JSON data model; fast parsers such as simdjson validate UTF-8 | Require valid UTF-8 for byte input unless a caller supplies decoded text |
+| CSV/CSF | Dialect-defined text bytes | Encoding is external to RFC-style CSV syntax; delimiters can be bytes or characters | Decode before field parsing unless a schema declares byte-oriented delimiters |
+| HTML | Byte stream decoded before tokenizer | WHATWG defines encoding detection, preprocessing, tokenizer states, and replacement handling | Follow HTML encoding/tokenizer rules for browser compatibility |
+| CSS | Bytes to code points, then tokens | CSS Syntax defines byte-to-stylesheet parsing; Rust `cssparser` consumes `&str` and points to encoding helpers | Decode to UTF-8/Unicode before tokenization; keep byte spans for source maps |
+| TypeScript | JavaScript string/source text | TypeScript assumes UTF-8 for files and detects UTF-8/UTF-16 BOMs; scanner works over source text/code units | Keep byte offsets externally, map to UTF-16 positions for TS-compatible diagnostics |
+| Rust | UTF-8 `&str` | Identifiers use Unicode XID properties and NFC equality; `rustc_lexer` works on `&str` | Validate UTF-8 at ingress, normalize identifiers only at identifier comparison/interning |
+| LLVM/Clang | Byte buffers and source locations | Lexer handles bytes and language-specific Unicode rules; source manager maps locations | Use byte spans as ground truth and layer Unicode validation by language |
+
+### Design Policy
+
+Use byte offsets as the stable storage format. Add decoded scalar spans and, when
+needed, UTF-16 code unit positions as derived views. This avoids losing exact
+source locations and lets the same parser runtime support browser-style
+diagnostics, TypeScript-compatible positions, Rust UTF-8 source rules, and
+zero-copy byte slices.
+
+Identifier policies must be language-specific:
+
+- XML names follow XML name character rules.
+- TypeScript and JavaScript identifiers follow ECMAScript/TypeScript scanner
+  behavior and source text positions.
+- Rust identifiers follow Unicode XID rules and NFC normalization.
+- CSS identifiers follow CSS Syntax escapes and tokenization.
+
+Do not normalize all text globally. Normalize only where the language or schema
+requires it, such as identifier equality or string constraints.
+
+## Embedded And Scoped Content
+
+| Parent format | Embedded region | Detection | Child parser | Return condition |
+| --- | --- | --- | --- | --- |
+| HTML | `<script>` | tag name plus `type` attribute | JavaScript/TypeScript or raw text | matching `</script>` in script-data state |
+| HTML | `<style>` | tag name | CSS | matching `</style>` |
+| HTML | `style=""` | attribute name/schema | CSS declaration parser | attribute quote end |
+| XML | CDATA/text | element schema or CDATA marker | raw text, XML fragment, or domain parser | CDATA end or element close |
+| JSON | string subdocument | schema keyword/content type | JSON, CSS, regex, DSL, etc. | JSON string end after unescape policy |
+| CSV/CSF | typed field | column schema/header | scalar parser or embedded document parser | delimiter/newline outside quotes |
+| TypeScript | JSX | lexical context | JSX/HTML-like parser | JSX close/expression boundary |
+| TypeScript | template literal | backtick/tag context | template or tagged child parser | template tail/backtick |
+| CSS | `url()`, custom functions | function token/name | URL/string/schema parser | function close |
+
+The handoff stack should make these boundaries explicit. A child parser should
+never infer the parent close condition independently unless the embedded language
+specification requires it, as HTML script data does.
+
+## Format Notes
+
+### XML And The Java Stack
+
+XML is the strongest precedent for schema-driven streaming. SAX pushes events,
+StAX pulls cursor or iterator events, and Xerces XNI models parsing as a
+pipeline of scanner, filters, validators, and handlers. XNI is especially useful
+as an architectural reference because it separates parser configuration,
+components, features/properties, scanners, and document event pipelines.
+
+For schema validation, XSD content models can be compiled to finite automata.
+This is efficient for ordered child content and occurrence constraints. RELAX NG
+derivatives are also attractive: after each event, compute the residual schema
+that remains to be matched. This gives a natural streaming algorithm and can
+improve diagnostics because the residual describes what was expected next.
+
+Nested XML can also be modeled as a visibly pushdown language: start tags push
+schema frames, end tags pop them, and text/attributes update the current frame.
+This is a good formal foundation for a general nested event runtime.
+
+### JSON
+
+JSON parsing should be token-stream based. Jackson's core streaming API is a
+practical model: a parser exposes tokens in input order and higher layers build
+data binding or validation on top. simdjson is a byte-level performance model:
+first identify structural characters and validate UTF-8 quickly, then navigate
+or consume values.
+
+JSON Schema is more complicated than simple structural validation because modern
+drafts include dynamic references, applicators, annotations, and unevaluated
+locations. A streaming validator can still handle many schemas incrementally,
+but full JSON Schema support may require buffering for object-level constraints,
+unordered properties, annotation collection, and cross-property dependencies.
+
+Recommended approach:
+
+- Use a token stream as the parser interface.
+- Keep object/array frames with active schema states.
+- Track required properties, seen properties, additional/unevaluated property
+  state, and item index.
+- Permit bounded buffering only where the schema requires sibling or annotation
+  information.
+
+### CSV/CSF And DFDL
+
+CSV and CSF should be treated as dialects of delimited records. The scanner must
+handle delimiter, quote, escape, record separator, comments, and malformed quote
+recovery according to the selected dialect.
+
+DFDL is the best schema-driven model for delimited, fixed-width, binary, and
+legacy data formats. It uses an annotated XML Schema subset to describe logical
+data and physical representation. Its logical parser is schema-guided recursive
+descent with potentially unbounded lookahead and speculative parse attempts.
+
+Recommended approach:
+
+- Compile record schemas into field readers.
+- Make delimiter and quote behavior dialect properties.
+- Allow fixed, delimited, prefixed, and explicit length field modes.
+- Use bounded speculation with configurable limits.
+- Emit normalized record/field events into the same validation runtime used by
+  other formats.
+
+### HTML
+
+HTML must follow the WHATWG parsing model if browser compatibility matters. It
+is not XML with relaxed errors. The parser is a tokenizer plus tree construction
+stage with insertion modes, stack of open elements, active formatting elements,
+foreign content rules, and special text modes such as RCDATA, RAWTEXT, script
+data, and PLAINTEXT.
+
+The useful schema lesson from HTML is scoped mode switching. A start tag can
+change tokenizer state and downstream interpretation. The architecture should
+support those state transitions explicitly.
+
+### CSS
+
+CSS Syntax defines how to turn bytes into tokens and component values. It does
+not validate every property and value by itself. Libraries such as Rust
+`cssparser` implement the syntax layer, while Lightning CSS demonstrates a
+second layer that parses many properties into typed value structures.
+
+Recommended approach:
+
+- Treat CSS Syntax as the scanner and component-value parser.
+- Compile property schemas into value grammar validators.
+- Use lexical modes for functions, blocks, strings, URLs, and escapes.
+- Preserve source spans for source maps and diagnostics.
+
+### TypeScript, Babel, Oxc, And typescript-eslint
+
+TypeScript's parser is a production recursive-descent parser over a scanner. It
+uses contextual parsing, lookahead, speculative parsing, recovery, and syntax
+tree construction optimized for incomplete code and typechecking. The scanner is
+mode-aware for JSX, template literals, regular expressions, comments, trivia,
+and contextual tokens.
+
+typescript-eslint shows the adapter pattern: TypeScript's AST is converted to
+ESTree-compatible nodes and optionally connected to TypeScript programs for type
+information. Babel and Oxc show another direction: plugin/configuration-driven
+JavaScript/TypeScript parsing for transformation, tooling, and high throughput.
+
+Recommended lessons:
+
+- Keep scanner and parser states explicit and reusable.
+- Support lookahead/speculation as a controlled parser primitive.
+- Separate syntax parsing from semantic/type validation.
+- Build AST adapters as separate layers rather than changing the core parser.
+- Cache source files, tokens, and parse results when editor/incremental use
+  matters.
+
+### Rust
+
+Rust is a useful Unicode and lexer reference. Rust source is UTF-8, and
+identifiers use Unicode XID properties with NFC-based equality. The
+`rustc_lexer` crate separates low-level lexing from rustc-specific spans,
+diagnostics, interning, and parser token conversion.
+
+Recommended lessons:
+
+- Keep raw lexing reusable and side-effect-light.
+- Attach language-specific diagnostics later.
+- Treat identifier equality and normalization as semantic token processing, not
+  whole-file text rewriting.
+
+### LLVM And Clang
+
+LLVM/Clang is the best source-location and byte-buffer reference. LLVM's
+`StringRef` and `MemoryBuffer` patterns emphasize cheap views over owned bytes.
+Clang's `SourceManager` maps logical source locations to buffers and handles
+diagnostic ranges across more complicated cases such as macro expansion.
+
+Recommended lessons:
+
+- Keep source identity, buffer identity, and byte ranges separate from AST
+  nodes.
+- Store cheap slices/views where lifetimes are known.
+- Make diagnostics a first-class consumer of parser span data.
+- Use sentinel/padding techniques only in the byte layer where memory ownership
+  is controlled.
+
+### Tree-sitter
+
+Tree-sitter is most relevant for editor scenarios and embedded languages. It
+provides incremental concrete syntax trees and supports multi-language parsing
+through included ranges and injections. It is not a schema validator, but its
+incremental invalidation model and language-injection pattern are directly
+useful for scoped embedded content.
+
+Recommended lessons:
+
+- Represent embedded regions as ranges with child language identities.
+- Reparse changed ranges instead of whole documents in editor contexts.
+- Keep concrete syntax when refactoring, formatting, or diagnostics need exact
+  source structure.
+
+## Proposed Runtime Model
+
+```text
+ByteSource
+  -> EncodingDecoder
+  -> FormatScanner
+  -> EventNormalizer
+  -> SchemaMachine
+  -> Diagnostics / AST / Typed Infoset / Streaming Consumer
+```
+
+The schema machine runs a stack of frames:
+
+```text
+Frame {
+  schema_id
+  language_id
+  state
+  source_span
+  expected_close
+  namespace_or_context
+  seen_names_or_fields
+  diagnostics
+}
+```
+
+State transitions:
+
+- `open(event)`: validate the event, push child schema frame if nested.
+- `value(event)`: validate scalar content and update current state.
+- `separator(event)`: update sequence, record, or property state.
+- `handoff(event)`: create child parser from source range or stream.
+- `close(event)`: validate nullable/complete state and pop frame.
+- `error(event)`: record diagnostic and run recovery strategy.
+
+## Practical Algorithm Choices
+
+Use these defaults unless a schema or format requires otherwise:
+
+| Problem | Default algorithm | Reason |
+| --- | --- | --- |
+| XML element content | DFA from content model | Fast, deterministic, proven in XSD implementations |
+| XML flexible grammar | RELAX NG derivatives | Residual schema is good for streaming and diagnostics |
+| Nested events | Visibly pushdown frame stack | Natural fit for open/close structures |
+| CSV/CSF records | DFDL-style schema-guided recursive descent | Handles delimiters, lengths, and field typing |
+| JSON structures | Token stream plus schema frame stack | Low memory and compatible with Jackson/simdjson style |
+| HTML | WHATWG tokenizer/tree-construction states | Required for browser-compatible behavior |
+| CSS values | CSS Syntax tokens plus property grammars | Mirrors browser-grade parser layering |
+| TypeScript/Rust syntax | Recursive descent or generated parser with recovery | Practical for contextual programming languages |
+| Mixed-language documents | Handoff stack with included ranges | Keeps parent and child grammars scoped |
+
+## Risks And Mitigations
+
+| Risk | Impact | Mitigation |
+| --- | --- | --- |
+| Full JSON Schema needs non-streaming features | Some schemas require buffering or delayed decisions | Mark streamable subset, allow bounded buffering, report non-streamable schema features |
+| Unicode positions differ by ecosystem | Diagnostics can point to wrong columns | Store byte offsets and derive code point/UTF-16 columns on demand |
+| Embedded content boundaries are ambiguous | Child parser can consume parent syntax | Parent owns return condition and passes bounded child source |
+| HTML recovery is format-specific | Generic parser produces browser-incompatible trees | Use WHATWG states for HTML rather than XML-style recovery |
+| Derivative or speculative parsing can grow | Memory/time blowups | Memoize residuals, intern schema states, set speculation limits |
+| CSV dialect variance | Incorrect field splitting | Make dialect part of schema and scanner configuration |
+
+## References
+
+- TypeScript parser source: <https://github.com/microsoft/TypeScript/blob/main/src/compiler/parser.ts>
+- TypeScript scanner source: <https://github.com/microsoft/TypeScript/blob/main/src/compiler/scanner.ts>
+- typescript-eslint parser: <https://typescript-eslint.io/packages/parser/>
+- Babel parser: <https://babeljs.io/docs/babel-parser>
+- Oxc parser guide: <https://oxc.rs/docs/guide/usage/parser>
+- LLVM programmer manual: <https://llvm.org/docs/ProgrammersManual.html>
+- Clang SourceManager: <https://clang.llvm.org/doxygen/classclang_1_1SourceManager.html>
+- LLVM MemoryBuffer: <https://www.llvm.org/docs/doxygen/classllvm_1_1MemoryBuffer.html>
+- XML 1.0: <https://www.w3.org/TR/xml/>
+- Xerces2 Java: <https://xerces.apache.org/xerces2-j/>
+- Xerces XNI parser configuration: <https://xerces.apache.org/xerces2-j/xni-config.html>
+- Java StAX API tutorial: <https://docs.oracle.com/javase/tutorial/jaxp/stax/api.html>
+- RELAX NG derivative validation: <https://relaxng.org/jclark/derivative.html>
+- Apache Daffodil: <https://daffodil.apache.org/>
+- DFDL specification: <https://daffodil.apache.org/docs/dfdl/>
+- Jackson core streaming abstractions: <https://github.com/FasterXML/jackson-core>
+- simdjson basics: <https://simdjson.org/api/2.0.0/md_doc_basics.html>
+- JSON Schema core draft 2020-12: <https://json-schema.org/draft/2020-12/json-schema-core>
+- WHATWG HTML parsing: <https://html.spec.whatwg.org/multipage/parsing.html>
+- CSS Syntax Module Level 3: <https://www.w3.org/TR/css-syntax-3/>
+- Rust cssparser crate: <https://docs.rs/cssparser/latest/cssparser/>
+- Rust identifiers reference: <https://doc.rust-lang.org/stable/reference/identifiers.html>
+- rustc_lexer documentation: <https://doc.rust-lang.org/nightly/nightly-rustc/rustc_lexer/index.html>
+- Tree-sitter documentation: <https://tree-sitter.github.io/tree-sitter/>
