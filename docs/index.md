@@ -9,6 +9,7 @@ This index links the active project, release, and token workflow documents.
 - [CEM DOM library plan](./dom-library-plan.md) — package name and initial XML/HTML/XSLT DOM responsibilities.
 - [CEM DOM acceptance criteria](./cem-dom-ac.md) — testable AC for `@epa-wg/cem-dom` (parser, schema, mutations,
   plugins).
+- [CEM ML CLI plan](./cem-ml-cli-plan.md) — Rust `cem-ml` CLI implementation plan with `cem-ml` library separation.
 - [CEM component MVP](./component-mvp.md) — first component list and state matrix.
 - [CEM UI Kit plan](./figma-ui-kit-plan.md) — Figma page, token, component, and QA mapping.
 - [Token pipeline smoke](./token-pipeline-smoke.md) — full propagation check for a one-token source change.
