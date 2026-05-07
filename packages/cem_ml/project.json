@@ -1,0 +1,49 @@
+{
+    "name": "cem_ml",
+    "$schema": "../../node_modules/nx/schemas/project-schema.json",
+    "projectType": "library",
+    "sourceRoot": "packages/cem_ml/src",
+    "targets": {
+        "build": {
+            "executor": "@monodon/rust:check",
+            "outputs": ["{options.target-dir}"],
+            "options": {
+                "package": "cem-ml",
+                "target-dir": "dist/target/cem_ml"
+            }
+        },
+        "test": {
+            "cache": true,
+            "executor": "@monodon/rust:test",
+            "outputs": ["{options.target-dir}"],
+            "options": {
+                "package": "cem-ml",
+                "target-dir": "dist/target/cem_ml"
+            },
+            "configurations": {
+                "production": {
+                    "release": true
+                }
+            }
+        },
+        "lint": {
+            "cache": true,
+            "executor": "@monodon/rust:lint",
+            "outputs": ["{options.target-dir}"],
+            "options": {
+                "package": "cem-ml",
+                "target-dir": "dist/target/cem_ml"
+            }
+        },
+        "build:wasm": {
+            "cache": true,
+            "executor": "nx:run-commands",
+            "options": {
+                "command": "cargo build --lib --target wasm32-unknown-unknown",
+                "cwd": "packages/cem_ml"
+            },
+            "outputs": ["{workspaceRoot}/dist/target/wasm32-unknown-unknown"]
+        }
+    },
+    "tags": ["scope:cem-ml", "type:lib", "lang:rust"]
+}

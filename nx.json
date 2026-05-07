@@ -40,7 +40,8 @@
                 "ciTargetName": "test-ci",
                 "testMode": "watch"
             }
-        }
+        },
+        "@monodon/rust"
     ],
     "release": {
         "groups": {

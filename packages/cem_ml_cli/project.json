@@ -1,0 +1,59 @@
+{
+    "name": "cem_ml_cli",
+    "$schema": "../../node_modules/nx/schemas/project-schema.json",
+    "projectType": "application",
+    "sourceRoot": "packages/cem_ml_cli/src",
+    "targets": {
+        "build": {
+            "cache": true,
+            "executor": "@monodon/rust:build",
+            "outputs": ["{options.target-dir}"],
+            "options": {
+                "package": "cem-ml-cli",
+                "target-dir": "dist/target/cem_ml_cli"
+            },
+            "configurations": {
+                "production": {
+                    "release": true
+                }
+            }
+        },
+        "test": {
+            "cache": true,
+            "executor": "@monodon/rust:test",
+            "outputs": ["{options.target-dir}"],
+            "options": {
+                "package": "cem-ml-cli",
+                "target-dir": "dist/target/cem_ml_cli"
+            },
+            "configurations": {
+                "production": {
+                    "release": true
+                }
+            }
+        },
+        "lint": {
+            "cache": true,
+            "executor": "@monodon/rust:lint",
+            "outputs": ["{options.target-dir}"],
+            "options": {
+                "package": "cem-ml-cli",
+                "target-dir": "dist/target/cem_ml_cli"
+            }
+        },
+        "run": {
+            "executor": "@monodon/rust:run",
+            "outputs": ["{options.target-dir}"],
+            "options": {
+                "package": "cem-ml-cli",
+                "target-dir": "dist/target/cem_ml_cli"
+            },
+            "configurations": {
+                "production": {
+                    "release": true
+                }
+            }
+        }
+    },
+    "tags": ["scope:cem-ml", "type:app", "lang:rust"]
+}

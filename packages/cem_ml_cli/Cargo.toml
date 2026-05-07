@@ -1,0 +1,15 @@
+[package]
+name = "cem-ml-cli"
+version = "0.1.0"
+edition = "2021"
+description = "CEM DOM parser CLI"
+license = "MIT"
+publish = true
+
+[[bin]]
+name = "cem-ml"
+path = "src/main.rs"
+
+[dependencies]
+clap = { version = "4", features = ["derive"] }
+cem-ml = { path = "../cem_ml" }

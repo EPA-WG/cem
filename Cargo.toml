@@ -1,0 +1,10 @@
+
+[workspace]
+resolver = '2'
+members = [
+	'packages/cem_ml',
+	'packages/cem_ml_cli',
+]
+
+[profile.release]
+lto = true

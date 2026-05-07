@@ -25,6 +25,7 @@
   },
   "devDependencies": {
     "@eslint/js": "10.0.1",
+    "@monodon/rust": "^2.3.0",
     "@nx/eslint": "22.7.0",
     "@nx/eslint-plugin": "22.7.0",
     "@nx/js": "22.7.0",

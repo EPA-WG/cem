@@ -1,0 +1,16 @@
+[package]
+name = "cem-ml"
+version = "0.1.0"
+edition = "2021"
+description = "CEM DOM parser library"
+license = "MIT"
+publish = true
+
+[lib]
+name = "cem_ml"
+crate-type = ["cdylib", "rlib"]
+
+[dependencies]
+
+[target.'cfg(target_arch = "wasm32")'.dependencies]
+wasm-bindgen = "0.2"
