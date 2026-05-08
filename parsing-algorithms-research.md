@@ -11,10 +11,12 @@ The practical recommendation is a layered parser runtime:
 3. Normalized event stream.
 4. Schema-compiled validator/parser state machine.
 5. Scoped embedded-language handoff stack.
+6. Interpreter AST builder and implementation interpreter.
 
-This separates transport and encoding concerns from format tokenization, keeps
-schema validation incremental, and makes embedded regions explicit instead of
-special-casing them inside every parser.
+This separates transport and encoding concerns from schema-driven tokenization,
+keeps schema validation incremental, makes embedded regions explicit instead of
+special-casing them inside every parser, and keeps implementation behavior such
+as DOM construction or runtime execution out of the tokenizer.
 
 ## Executive Recommendation
 
@@ -28,15 +30,16 @@ attributes, text, end. Validate element content with deterministic automata,
 RELAX NG-style derivatives, or visibly pushdown automata. For JSON, validate
 token streams with a stack of object/array frames and schema states. For
 CSV/CSF, use DFDL-like schema-guided recursive descent over fields, records,
-delimiters, and lengths. For HTML, use the WHATWG tokenizer and tree
-construction model, because browser-compatible parsing depends on insertion
-modes and defined error recovery. For CSS, TypeScript, and Rust, use scanner
-modes, lookahead, speculative parsing, and recovery in the style of production
-compilers.
+delimiters, and lengths. For HTML, use WHATWG parsing behavior as a
+compatibility reference, but keep the schema-driven tokenizer separate from the
+HTML DOM implementation that interprets events and constructs the final DOM.
+For CSS, TypeScript, and Rust, use schema-aware lexical modes and scoped name
+slots that unresolved references can point to before the defining entity is
+seen.
 
 LLVM/Clang and TypeScript are most useful as architecture references for byte
-buffers, spans, diagnostics, lexical modes, parser speculation, incremental
-reuse, and error recovery. They should not be copied as direct schema-validation
+buffers, spans, diagnostics, lexical modes, delayed binding, incremental reuse,
+and error recovery. They should not be copied as direct schema-validation
 engines.
 
 ## Core Architecture
@@ -66,7 +69,11 @@ ranges.
 ### 2. Tokenizer Or Scanner
 
 The scanner converts decoded input into format-native tokens. It should be
-simple, streaming, and mode-aware.
+schema-aware, streaming, and mode-aware. The schema is the source of truth for
+which token forms, delimiters, lexical modes, embedded regions, and scope
+boundaries are meaningful. Not every schema rule belongs in tokenization, but
+the tokenizer must be driven by the schema subset that affects lexical
+extraction.
 
 Examples:
 
@@ -75,16 +82,18 @@ Examples:
 - JSON scanner emits structural tokens, strings, numbers, booleans, and null.
 - CSV scanner emits record, field, delimiter, quote, escaped quote, and newline
   events.
-- HTML scanner follows tokenizer states such as data, RCDATA, RAWTEXT, script
-  data, tag open, and attribute states.
+- HTML scanner uses schema-selected tokenizer states such as data, RCDATA,
+  RAWTEXT, script data, tag open, and attribute states.
 - CSS scanner follows the CSS Syntax tokenization rules and leaves
   property-specific validation to downstream grammars.
 - TypeScript/Rust scanners classify identifiers, keywords, literals, trivia,
   delimiters, and contextual tokens.
 
-The scanner should not know all schema rules. It should know enough to produce
-stable token/event boundaries and to preserve trivia when diagnostics or
-round-tripping need it.
+The scanner should know the schema rules that affect token extraction:
+delimiters, escapes, lexical modes, embedded content boundaries, valid token
+families, and source preservation requirements. Structural validation,
+cross-reference binding, semantic constraints, and execution remain downstream
+interpreter responsibilities.
 
 ### 3. Normalized Event Stream
 
@@ -119,6 +128,13 @@ Schemas should compile to a runtime plan:
 
 The runtime should be able to stop early on fatal errors or continue in a
 diagnostic mode that records recoverable errors.
+
+The parser state machine builds an interpreter AST, not an executing runtime.
+The AST can contain loaded code, declarations, entity references, schema
+references, and embedded-language regions that are not yet executed or fully
+bound. Unresolved references point to mutable scoped name slots. When a target
+token, declaration, or entity is defined, the interpreter updates that slot, so
+existing references observe the value through the shared binding.
 
 ### 5. Scoped Embedded-Language Handoff Stack
 
@@ -155,12 +171,12 @@ Examples:
 | XML Schema DFA/content model | XML | Validate element children incrementally | Efficient deterministic validation | XSD edge cases are complex: wildcards, UPA, substitution groups |
 | RELAX NG derivatives | XML and grammar-like schemas | Residual schema updates per event | Elegant incremental validation; good diagnostics with residuals | Needs memoization to avoid growth |
 | Visibly pushdown automata | Nested markup/data | Push on open, pop on close | Formal model for streaming nested data | Less natural for unordered object properties |
-| DFDL schema-guided recursive descent | CSV/CSF, fixed-width, binary, legacy records | Schema drives reads over stream | Strong fit for delimited and fixed layouts | Speculation can need bounded lookahead controls |
+| DFDL schema-guided recursive descent | CSV/CSF, fixed-width, binary, legacy records | Schema drives reads over stream | Strong fit for delimited and fixed layouts | Ambiguous layouts need unresolved field/reference tracking |
 | Jackson-style token stream | JSON and related formats | Pull tokens in source order | Simple, low overhead, reusable across data formats | Schema logic must be layered separately |
 | simdjson structural indexing | JSON | Finds structure and validates UTF-8 fast | Excellent byte-level throughput | More document-oriented than general schema runtime |
-| WHATWG HTML parser | HTML | Tokenizer plus tree construction states | Browser-compatible recovery and embedded text modes | Not a generic XML parser; reentrant script behavior is special |
+| WHATWG HTML parsing behavior | HTML | Tokenizer states plus DOM interpreter rules | Browser-compatible recovery and embedded text modes | Should be split into schema tokenizer and DOM implementation interpreter |
 | CSS Syntax parser | CSS | Token stream to component values/rules | Separates syntax from property grammar | Full validation needs property/value grammars |
-| Recursive descent with speculation | TypeScript, Rust, CSS values | Usually token-stream based; can be incremental | Practical recovery, contextual grammar handling | Grammar/schema is code unless generated carefully |
+| Recursive descent with scoped name slots | TypeScript, Rust, CSS values | Token stream plus mutable scope bindings | Practical recovery and contextual grammar handling | Requires explicit scope slot lifecycle and override rules |
 | Tree-sitter incremental parsing | Programming languages and mixed documents | Incremental parse trees, changed ranges | Excellent editor use case and language injections | Produces trees, not schema validation by itself |
 
 ## Unicode And UTF-8 Handling
@@ -170,7 +186,7 @@ Examples:
 | XML | Parsed entities decode to Unicode characters | XML processors must accept UTF-8 and UTF-16; legal XML characters exclude surrogate blocks and selected noncharacters | Decode per entity, validate XML character ranges, keep raw entity offsets |
 | JSON | Unicode text, commonly UTF-8 bytes | JSON Schema works on the JSON data model; fast parsers such as simdjson validate UTF-8 | Require valid UTF-8 for byte input unless a caller supplies decoded text |
 | CSV/CSF | Dialect-defined text bytes | Encoding is external to RFC-style CSV syntax; delimiters can be bytes or characters | Decode before field parsing unless a schema declares byte-oriented delimiters |
-| HTML | Byte stream decoded before tokenizer | WHATWG defines encoding detection, preprocessing, tokenizer states, and replacement handling | Follow HTML encoding/tokenizer rules for browser compatibility |
+| HTML | Byte stream decoded before schema tokenizer | WHATWG defines encoding detection, preprocessing, tokenizer states, and replacement handling | Use those rules as compatibility constraints while keeping DOM construction in the interpreter |
 | CSS | Bytes to code points, then tokens | CSS Syntax defines byte-to-stylesheet parsing; Rust `cssparser` consumes `&str` and points to encoding helpers | Decode to UTF-8/Unicode before tokenization; keep byte spans for source maps |
 | TypeScript | JavaScript string/source text | TypeScript assumes UTF-8 for files and detects UTF-8/UTF-16 BOMs; scanner works over source text/code units | Keep byte offsets externally, map to UTF-16 positions for TS-compatible diagnostics |
 | Rust | UTF-8 `&str` | Identifiers use Unicode XID properties and NFC equality; `rustc_lexer` works on `&str` | Validate UTF-8 at ingress, normalize identifiers only at identifier comparison/interning |
@@ -265,28 +281,37 @@ recovery according to the selected dialect.
 DFDL is the best schema-driven model for delimited, fixed-width, binary, and
 legacy data formats. It uses an annotated XML Schema subset to describe logical
 data and physical representation. Its logical parser is schema-guided recursive
-descent with potentially unbounded lookahead and speculative parse attempts.
+descent over the representation described by the schema. In this architecture,
+ambiguous or unresolved field references point to scoped name slots in the
+interpreter AST. The slot value is set or overridden when the referenced token or
+entity is defined.
 
 Recommended approach:
 
 - Compile record schemas into field readers.
 - Make delimiter and quote behavior dialect properties.
 - Allow fixed, delimited, prefixed, and explicit length field modes.
-- Use bounded speculation with configurable limits.
+- Store unresolved field/entity references as pointers to current-scope slots.
+  Set or override the slot when the referenced token or entity is defined.
 - Emit normalized record/field events into the same validation runtime used by
   other formats.
 
 ### HTML
 
-HTML must follow the WHATWG parsing model if browser compatibility matters. It
-is not XML with relaxed errors. The parser is a tokenizer plus tree construction
-stage with insertion modes, stack of open elements, active formatting elements,
-foreign content rules, and special text modes such as RCDATA, RAWTEXT, script
-data, and PLAINTEXT.
+HTML compatibility still has to respect WHATWG parsing behavior, but the
+architecture should not collapse tokenization and DOM construction into one
+component. The schema-driven parser tokenizer extracts events and switches
+lexical states. The HTML DOM implementation is an interpreter over those events:
+it applies insertion modes, manages the stack of open elements, handles active
+formatting elements, resolves foreign content behavior, and constructs the final
+DOM.
 
-The useful schema lesson from HTML is scoped mode switching. A start tag can
-change tokenizer state and downstream interpretation. The architecture should
-support those state transitions explicitly.
+This separation matters because the same tokenizer/event layer can feed other
+interpreters besides a DOM builder: validators, source analyzers, transform
+pipelines, or partial document loaders. The useful schema lesson from HTML is
+scoped mode switching. A start tag can change tokenizer state and downstream
+interpretation, but the schema should define which transitions are valid and
+which child parser should own the embedded region.
 
 ### CSS
 
@@ -305,10 +330,9 @@ Recommended approach:
 ### TypeScript, Babel, Oxc, And typescript-eslint
 
 TypeScript's parser is a production recursive-descent parser over a scanner. It
-uses contextual parsing, lookahead, speculative parsing, recovery, and syntax
-tree construction optimized for incomplete code and typechecking. The scanner is
-mode-aware for JSX, template literals, regular expressions, comments, trivia,
-and contextual tokens.
+uses contextual parsing, recovery, and syntax tree construction optimized for
+incomplete code and typechecking. The scanner is mode-aware for JSX, template
+literals, regular expressions, comments, trivia, and contextual tokens.
 
 typescript-eslint shows the adapter pattern: TypeScript's AST is converted to
 ESTree-compatible nodes and optionally connected to TypeScript programs for type
@@ -318,7 +342,8 @@ JavaScript/TypeScript parsing for transformation, tooling, and high throughput.
 Recommended lessons:
 
 - Keep scanner and parser states explicit and reusable.
-- Support lookahead/speculation as a controlled parser primitive.
+- Keep references attached to scoped name slots, then set or override the slot
+  when the declaration, token, or entity is defined.
 - Separate syntax parsing from semantic/type validation.
 - Build AST adapters as separate layers rather than changing the core parser.
 - Cache source files, tokens, and parse results when editor/incremental use
@@ -374,10 +399,11 @@ Recommended lessons:
 ```text
 ByteSource
   -> EncodingDecoder
-  -> FormatScanner
+  -> SchemaTokenizer
   -> EventNormalizer
   -> SchemaMachine
-  -> Diagnostics / AST / Typed Infoset / Streaming Consumer
+  -> InterpreterAstBuilder
+  -> ImplementationInterpreter / Diagnostics / Typed Infoset / Streaming Consumer
 ```
 
 The schema machine runs a stack of frames:
@@ -417,7 +443,7 @@ Use these defaults unless a schema or format requires otherwise:
 | JSON structures | Token stream plus schema frame stack | Low memory and compatible with Jackson/simdjson style |
 | HTML | WHATWG tokenizer/tree-construction states | Required for browser-compatible behavior |
 | CSS values | CSS Syntax tokens plus property grammars | Mirrors browser-grade parser layering |
-| TypeScript/Rust syntax | Recursive descent or generated parser with recovery | Practical for contextual programming languages |
+| TypeScript/Rust syntax | Schema-aware recursive descent with scoped references | Practical for contextual programming languages |
 | Mixed-language documents | Handoff stack with included ranges | Keeps parent and child grammars scoped |
 
 ## Risks And Mitigations
@@ -428,7 +454,7 @@ Use these defaults unless a schema or format requires otherwise:
 | Unicode positions differ by ecosystem | Diagnostics can point to wrong columns | Store byte offsets and derive code point/UTF-16 columns on demand |
 | Embedded content boundaries are ambiguous | Child parser can consume parent syntax | Parent owns return condition and passes bounded child source |
 | HTML recovery is format-specific | Generic parser produces browser-incompatible trees | Use WHATWG states for HTML rather than XML-style recovery |
-| Derivative or speculative parsing can grow | Memory/time blowups | Memoize residuals, intern schema states, set speculation limits |
+| Derivative states or scoped slots can grow | Memory/time blowups | Memoize residuals, intern schema states, and compact scope tables as slots are finalized |
 | CSV dialect variance | Incorrect field splitting | Make dialect part of schema and scanner configuration |
 
 ## References
