@@ -1,8 +1,9 @@
 # Schema-Defined Streaming Parser Research
 
 This memo compares algorithms and implementation patterns for schema-defined,
-stream-based parsers across XML, JSON, CSV/CSF, HTML, CSS, TypeScript, and Rust.
-For this pass, CSF is treated as CSV-style delimited text.
+stream-based parsers across XML, Invisible XML, JSON, CSV/CSF, HTML, CSS,
+TypeScript, and Rust. For this pass, CSF is treated as CSV-style delimited
+text.
 
 The practical recommendation is a layered parser runtime:
 
@@ -11,7 +12,8 @@ The practical recommendation is a layered parser runtime:
 3. Normalized event stream.
 4. Schema-compiled validator/parser state machine.
 5. Scoped embedded-language handoff stack.
-6. Interpreter AST builder and implementation interpreter.
+6. Interpreter AST builder with per-node source-map stacks.
+7. Implementation interpreter.
 
 This separates transport and encoding concerns from schema-driven tokenization,
 keeps schema validation incremental, makes embedded regions explicit instead of
@@ -56,6 +58,7 @@ Rules:
 - Keep decoded scalar spans for Unicode-aware validation.
 - Preserve raw slices where possible for diagnostics, round-tripping, and
   zero-copy string/token views.
+- Attach source-map stacks to every AST element, not just diagnostics.
 - Validate UTF-8 at ingress for formats that require UTF-8, such as JSON in
   common modern pipelines and Rust source.
 - Allow XML-style entity-specific encodings where the format requires it.
@@ -136,6 +139,15 @@ bound. Unresolved references point to mutable scoped name slots. When a target
 token, declaration, or entity is defined, the interpreter updates that slot, so
 existing references observe the value through the shared binding.
 
+Every AST element should carry a source-map stack. A source-map stack records the
+owned context that produced the node and the current context transformations
+that were applied after it was produced. This lets tooling traverse backward and
+forward through each layer: original stream, decoded text, schema tokens,
+normalized events, embedded content extraction, generated XML/DOM/AST nodes,
+and later interpreter transformations. For binary streams, the stable source
+coordinate is byte offset and length. For text-based code, expose line and
+column as derived coordinates while keeping byte offsets as the ground truth.
+
 ### 5. Scoped Embedded-Language Handoff Stack
 
 Embedded languages need first-class scope frames. A parent parser should emit a
@@ -171,6 +183,7 @@ Examples:
 | XML Schema DFA/content model | XML | Validate element children incrementally | Efficient deterministic validation | XSD edge cases are complex: wildcards, UPA, substitution groups |
 | RELAX NG derivatives | XML and grammar-like schemas | Residual schema updates per event | Elegant incremental validation; good diagnostics with residuals | Needs memoization to avoid growth |
 | Visibly pushdown automata | Nested markup/data | Push on open, pop on close | Formal model for streaming nested data | Less natural for unordered object properties |
+| Invisible XML grammar parsing | Text formats that should expose XML structure | Grammar parser emits XML-shaped events | Makes non-XML text usable by XML pipelines while keeping original syntax | Ambiguity and serialization marks need explicit source-map ownership |
 | DFDL schema-guided recursive descent | CSV/CSF, fixed-width, binary, legacy records | Schema drives reads over stream | Strong fit for delimited and fixed layouts | Ambiguous layouts need unresolved field/reference tracking |
 | Jackson-style token stream | JSON and related formats | Pull tokens in source order | Simple, low overhead, reusable across data formats | Schema logic must be layered separately |
 | simdjson structural indexing | JSON | Finds structure and validates UTF-8 fast | Excellent byte-level throughput | More document-oriented than general schema runtime |
@@ -184,6 +197,7 @@ Examples:
 | Stack | Source model | Unicode approach | Recommendation |
 | --- | --- | --- | --- |
 | XML | Parsed entities decode to Unicode characters | XML processors must accept UTF-8 and UTF-16; legal XML characters exclude surrogate blocks and selected noncharacters | Decode per entity, validate XML character ranges, keep raw entity offsets |
+| Invisible XML | Text parsed by an ixml grammar | Grammar terminals include strings, character sets, ranges, and Unicode character classes | Preserve original text spans and map generated XML nodes back to grammar symbols and input ranges |
 | JSON | Unicode text, commonly UTF-8 bytes | JSON Schema works on the JSON data model; fast parsers such as simdjson validate UTF-8 | Require valid UTF-8 for byte input unless a caller supplies decoded text |
 | CSV/CSF | Dialect-defined text bytes | Encoding is external to RFC-style CSV syntax; delimiters can be bytes or characters | Decode before field parsing unless a schema declares byte-oriented delimiters |
 | HTML | Byte stream decoded before schema tokenizer | WHATWG defines encoding detection, preprocessing, tokenizer states, and replacement handling | Use those rules as compatibility constraints while keeping DOM construction in the interpreter |
@@ -210,6 +224,33 @@ Identifier policies must be language-specific:
 
 Do not normalize all text globally. Normalize only where the language or schema
 requires it, such as identifier equality or string constraints.
+
+## Source-Map Stack Model
+
+Source maps are part of the AST contract. They are not an optional diagnostic
+side table, because schema-driven parsing can pass through multiple owned
+contexts and transformations before an implementation consumes the result.
+
+Each AST element should contain:
+
+- `owned_source`: the source context that created this node.
+- `current_source`: the current transformed context for this node.
+- `map_stack`: ordered mappings from current context back to prior contexts.
+- `range`: byte offset/length for binary sources, plus derived line/column for
+  text sources.
+- `transform`: tokenizer, schema rule, embedded-language extraction,
+  serialization, DOM construction, lowering, or runtime preparation step.
+
+The stack must support traversal across layers. For example, an HTML `style`
+attribute can map from a CSS declaration AST node to the attribute value, then
+to the HTML token, then to decoded source text, then to the original byte
+stream. An Invisible XML result node can map from generated XML markup to the
+ixml grammar symbol that produced it and the original unmarked text span.
+
+For generated nodes with no direct input text, store the generating transform
+and the nearest owning source range. For merged nodes, store multiple source
+ranges in the same stack frame. For split nodes, each child gets the inherited
+stack plus its narrowed current range.
 
 ## Embedded And Scoped Content
 
@@ -248,6 +289,32 @@ improve diagnostics because the residual describes what was expected next.
 Nested XML can also be modeled as a visibly pushdown language: start tags push
 schema frames, end tags pop them, and text/attributes update the current frame.
 This is a good formal foundation for a general nested event runtime.
+
+### Invisible XML
+
+Invisible XML, or ixml, is directly relevant because it describes non-XML text
+with a declarative grammar and makes the implicit structure explicit as XML.
+The input text stays in its original syntax, while the parser produces
+XML-shaped structure according to grammar rules and serialization marks.
+
+In this architecture, ixml is a schema-driven tokenizer/parser profile:
+
+- The ixml grammar defines terminals, nonterminals, character sets, insertions,
+  hidden symbols, attributes, and element serialization.
+- The tokenizer and parser emit normalized XML-shaped events rather than
+  constructing implementation-specific DOM nodes.
+- Every generated element, attribute, text node, and insertion carries a
+  source-map stack back to the ixml grammar rule and original input range.
+- Insertions and hidden grammar symbols need source maps that distinguish
+  generated structure from consumed source text.
+- Ambiguous parses should remain explicit until the implementation interpreter
+  chooses a policy such as reject, choose first, expose forest, or require a
+  disambiguating schema rule.
+
+Invisible XML is a bridge between DFDL-style schema-defined text parsing and
+XML event pipelines. It is especially useful for formats whose source syntax is
+not XML but whose downstream tooling benefits from XML-like events, XPath-like
+addressing, or XML serialization.
 
 ### JSON
 
@@ -414,6 +481,7 @@ Frame {
   language_id
   state
   source_span
+  source_map_stack
   expected_close
   namespace_or_context
   seen_names_or_fields
@@ -429,6 +497,8 @@ State transitions:
 - `handoff(event)`: create child parser from source range or stream.
 - `close(event)`: validate nullable/complete state and pop frame.
 - `error(event)`: record diagnostic and run recovery strategy.
+- `transform(event)`: append a source-map stack frame when a token, event, AST
+  node, generated XML node, DOM node, or lowered runtime node changes context.
 
 ## Practical Algorithm Choices
 
@@ -438,6 +508,7 @@ Use these defaults unless a schema or format requires otherwise:
 | --- | --- | --- |
 | XML element content | DFA from content model | Fast, deterministic, proven in XSD implementations |
 | XML flexible grammar | RELAX NG derivatives | Residual schema is good for streaming and diagnostics |
+| Non-XML text to XML events | Invisible XML grammar parser | Declarative grammar can expose implicit structure as XML-shaped events |
 | Nested events | Visibly pushdown frame stack | Natural fit for open/close structures |
 | CSV/CSF records | DFDL-style schema-guided recursive descent | Handles delimiters, lengths, and field typing |
 | JSON structures | Token stream plus schema frame stack | Low memory and compatible with Jackson/simdjson style |
@@ -452,6 +523,7 @@ Use these defaults unless a schema or format requires otherwise:
 | --- | --- | --- |
 | Full JSON Schema needs non-streaming features | Some schemas require buffering or delayed decisions | Mark streamable subset, allow bounded buffering, report non-streamable schema features |
 | Unicode positions differ by ecosystem | Diagnostics can point to wrong columns | Store byte offsets and derive code point/UTF-16 columns on demand |
+| Source maps are lost across transformations | Diagnostics and tooling cannot traverse back to the original source | Store source-map stacks on every AST element and append a frame for each context transform |
 | Embedded content boundaries are ambiguous | Child parser can consume parent syntax | Parent owns return condition and passes bounded child source |
 | HTML recovery is format-specific | Generic parser produces browser-incompatible trees | Use WHATWG states for HTML rather than XML-style recovery |
 | Derivative states or scoped slots can grow | Memory/time blowups | Memoize residuals, intern schema states, and compact scope tables as slots are finalized |
@@ -468,6 +540,8 @@ Use these defaults unless a schema or format requires otherwise:
 - Clang SourceManager: <https://clang.llvm.org/doxygen/classclang_1_1SourceManager.html>
 - LLVM MemoryBuffer: <https://www.llvm.org/docs/doxygen/classllvm_1_1MemoryBuffer.html>
 - XML 1.0: <https://www.w3.org/TR/xml/>
+- Invisible XML specification: <https://www.w3.org/community/reports/ixml/CG-FINAL-ixml-20231212/>
+- Invisible XML current draft: <https://invisiblexml.org/current/>
 - Xerces2 Java: <https://xerces.apache.org/xerces2-j/>
 - Xerces XNI parser configuration: <https://xerces.apache.org/xerces2-j/xni-config.html>
 - Java StAX API tutorial: <https://docs.oracle.com/javase/tutorial/jaxp/stax/api.html>
