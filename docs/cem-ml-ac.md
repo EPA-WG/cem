@@ -1,5 +1,14 @@
 # `cem-ml` / `cem-ml-cli` — Acceptance Criteria
 
+> **Status: Derivative and provisional**
+>
+> This file is a temporary verification projection derived from
+> [`cem-ml-stack-design.md`](cem-ml-stack-design.md). The stack design is authoritative
+> for current behavior, conformance tiers, and layer boundaries. AC entries that
+> conflict with the stack design are stale. After the stack design is complete, this
+> file will be rewritten from the completed design or phased out as an independent
+> decision source.
+
 This document captures the acceptance criteria (AC) for the CEM parser/runtime and CLI. Each item is phrased as a checkable
 statement so it can be referenced from `docs/todo.md` and from PR descriptions. Every requirement uses MUST / SHOULD /
 MAY in the RFC 2119 sense.

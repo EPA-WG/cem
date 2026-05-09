@@ -18,9 +18,24 @@ into a concrete design for the `cem-ml` Rust library and `cem-ml-cli` binary. It
 - the Tier A MVP scope, and
 - open design decisions that must be resolved before implementation begins.
 
-`parsing-algorithms-research.md` is the authority for architecture decisions. Other documents
-in this workspace (acceptance criteria, CLI plan, todo) provide context but do not override the
-research.
+`parsing-algorithms-research.md` remains the primary architectural source. This
+document is the active implementation/design contract derived from that research: it
+defines current behavior, tiers, and layer boundaries for `cem-ml` work until the design
+is revised. Other workspace documents (acceptance criteria, CLI plan, todo) are
+non-authoritative projections and planning aids; they may verify this design, but they
+do not introduce or override requirements.
+
+### 1.1 Acceptance Criteria Derivation Policy
+
+Acceptance criteria must be derived from resolved design decisions and layer contracts
+in this document. They must not introduce new requirements, syntax, APIs, tiers, or
+behavior that are absent from the design.
+
+While this design is still draft, acceptance criteria that conflict with this document
+are stale and must be rewritten or ignored for implementation planning. After the
+design is complete, independent acceptance criteria should be rewritten from the
+completed design or phased out in favor of generated/checklist-style verification
+references.
 
 ---
 
@@ -1021,14 +1036,6 @@ are follow-up questions and concerns to resolve before implementation. Other wor
 documents may provide terminology, but they should not decide the answers here.
 
 ### 18.1 Contract And Status Ambiguities
-
-**Concern 18.1.2 — Acceptance criteria are not traceable to the research layers.**  
-The document describes layers and algorithms, but it does not define a checkable
-acceptance criterion for each layer boundary.
-
-**Question:** For each layer, what exact tests prove the contract is met? Examples:
-byte-offset preservation, attribute span preservation, handoff boundary ownership,
-schema residual diagnostics, AST source-map traversal, and transform output source maps.
 
 **Concern 18.1.3 — "Schema-defined tokenizer" needs a sharper contract.**  
 The research says the scanner should be schema-aware where token extraction depends on
