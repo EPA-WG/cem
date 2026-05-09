@@ -13,12 +13,20 @@ The practical recommendation is a layered parser runtime:
 4. Schema-compiled validator/parser state machine.
 5. Scoped embedded-language handoff stack.
 6. Interpreter AST builder with per-node source-map stacks.
-7. Implementation interpreter.
+7. Binary AST encoder with platform dictionaries.
+8. Compressed subtree segment delivery.
+9. Implementation interpreter.
 
 This separates transport and encoding concerns from schema-driven tokenization,
 keeps schema validation incremental, makes embedded regions explicit instead of
 special-casing them inside every parser, and keeps implementation behavior such
 as DOM construction or runtime execution out of the tokenizer.
+
+The internal AST can also be represented as a binary graph/tree format after it
+is built. Compression belongs on top of that binary representation, and the
+compressed content should be segmented by subtree roots where possible. This
+allows simultaneous delivery, broadcast, missing-chunk retry, and chunk-level
+parallel parsing/preprocessing.
 
 ## Executive Recommendation
 
@@ -191,6 +199,7 @@ Examples:
 | CSS Syntax parser | CSS | Token stream to component values/rules | Separates syntax from property grammar | Full validation needs property/value grammars |
 | Recursive descent with scoped name slots | TypeScript, Rust, CSS values | Token stream plus mutable scope bindings | Practical recovery and contextual grammar handling | Requires explicit scope slot lifecycle and override rules |
 | Tree-sitter incremental parsing | Programming languages and mixed documents | Incremental parse trees, changed ranges | Excellent editor use case and language injections | Produces trees, not schema validation by itself |
+| Binary AST with subtree compression | AST transport, cache, broadcast, and parallel preprocessing | Encoded AST chunks can stream independently | Shortens delivery, supports missing-chunk retry, and enables parallel subtree work | Needs stable ids, shared dictionaries, and cross-chunk reference handling |
 
 ## Unicode And UTF-8 Handling
 
@@ -251,6 +260,106 @@ For generated nodes with no direct input text, store the generating transform
 and the nearest owning source range. For merged nodes, store multiple source
 ranges in the same stack frame. For split nodes, each child gets the inherited
 stack plus its narrowed current range.
+
+## Binary AST, Compression, And Segmentation
+
+The interpreter AST should have a canonical binary representation. Text
+serialization is useful for debugging and interchange, but binary AST is the
+better internal transport and cache format because it can encode node kinds,
+schema ids, scope slots, source-map stacks, string tables, and typed values
+without repeated textual markup.
+
+Compression should be applied above the binary AST encoding. The compression
+model should exploit repeated root structure, shared schema definitions, common
+node layouts, and repeated source-map frame shapes. This is similar to the
+solid-archive advantage: a common dictionary/root tree improves compression over
+many related nodes. The important difference is that the common dictionary
+should be split from app-specific payloads:
+
+- Platform dictionary: common AST node kinds, primitive value encodings, schema
+  definitions, source-map frame schemas, standard content-type ids, and shared
+  string/symbol tables.
+- Application dictionary: app-specific schemas, domain node kinds, local symbol
+  tables, and frequently repeated literals.
+- Payload chunks: subtree AST nodes, local values, scope slots, references,
+  source-map stack deltas, and embedded content ranges.
+
+The platform dictionary can be installed or cached once by the runtime. App
+payloads then carry only dictionary ids and app-specific deltas. This keeps
+network payloads smaller and makes different documents share the same root AST
+vocabulary.
+
+### Subtree-Scoped Chunks
+
+Chunk boundaries should align to subtree roots whenever possible. A subtree
+chunk is independently decodable when it contains:
+
+- subtree root id and parent anchor;
+- required dictionary ids and versions;
+- local node table and edge table;
+- local scope slots and unresolved/external references;
+- source-map stack frames or deltas;
+- child chunk links and integrity hashes;
+- compression frame metadata.
+
+Subtree chunking makes the AST suitable for parallel streaming and parallel
+preprocessing. Independent chunks can be parsed, decoded, validated against
+their local schema state, decompressed, indexed, and partially interpreted on
+different threads. A chunk or series of chunks can be delivered before the full
+document arrives, which is useful for progressive rendering, editor indexing,
+distributed validation, or broadcast to many consumers.
+
+### Network Delivery And Recovery
+
+Segmented compressed chunks improve delivery in three ways:
+
+- Simultaneous delivery: multiple subtree chunks can be fetched or broadcast in
+  parallel instead of waiting for one monolithic archive.
+- Error resistance: failed chunks can be requested again by id/hash without
+  retransmitting the whole AST.
+- Prioritization: root, schema, viewport, or execution-critical chunks can be
+  delivered before deep or inactive subtrees.
+
+Each chunk should carry an integrity hash and a dependency list. The receiver
+can build a partial AST with placeholders for missing children and fill the
+corresponding scope slots when chunks arrive. This mirrors the live scoped name
+slot model used for unresolved references: absent chunks are represented by
+stable anchors, then replaced or completed as their data becomes available.
+
+### Compression Strategy
+
+Do not compress the whole document as one opaque blob if parallel delivery or
+error recovery matters. Prefer dictionary-based compression plus independently
+compressed subtree chunks:
+
+- Use the platform dictionary as a shared static compression context.
+- Use the app dictionary as a per-application or per-document compression
+  context.
+- Compress each subtree chunk independently enough that it can be retried,
+  cached, and decoded without the whole archive.
+- Allow optional chunk groups when nearby chunks benefit strongly from a shared
+  local dictionary.
+- Keep source-map stacks compressible by encoding them as frame ids plus range
+  deltas.
+
+The tradeoff is compression ratio versus independence. A single solid archive
+usually compresses better, but it blocks random access, retry of only missing
+data, and parallel chunk decoding. Subtree-scoped chunks should be the default
+for networked or interactive runtimes; full solid compression is only suitable
+for cold storage or batch transfer where random access and recovery are less
+important.
+
+### Cross-Chunk References
+
+Cross-chunk references should use stable ids and scoped slots, not raw offsets.
+A node may reference a declaration, schema entity, source-map frame, or child
+subtree that is not yet delivered. The receiver creates a slot for that id and
+fills or overrides it when the defining chunk arrives.
+
+This keeps chunk-level decoding independent while preserving AST semantics. It
+also lets preprocessing run in parallel: local validation and indexing can
+finish before every external reference is present, while consumers that need a
+missing value can wait on the specific slot.
 
 ## Embedded And Scoped Content
 
@@ -470,7 +579,9 @@ ByteSource
   -> EventNormalizer
   -> SchemaMachine
   -> InterpreterAstBuilder
-  -> ImplementationInterpreter / Diagnostics / Typed Infoset / Streaming Consumer
+  -> BinaryAstEncoder
+  -> ChunkCompressor
+  -> SegmentBroadcaster / Cache / ImplementationInterpreter / Diagnostics
 ```
 
 The schema machine runs a stack of frames:
@@ -482,6 +593,8 @@ Frame {
   state
   source_span
   source_map_stack
+  binary_node_id
+  chunk_id
   expected_close
   namespace_or_context
   seen_names_or_fields
@@ -499,6 +612,10 @@ State transitions:
 - `error(event)`: record diagnostic and run recovery strategy.
 - `transform(event)`: append a source-map stack frame when a token, event, AST
   node, generated XML node, DOM node, or lowered runtime node changes context.
+- `encode(node)`: assign binary node ids, dictionary references, source-map
+  deltas, and chunk ownership.
+- `segment(subtree)`: close a subtree-root chunk with dependencies, hashes, and
+  compression metadata.
 
 ## Practical Algorithm Choices
 
@@ -516,6 +633,7 @@ Use these defaults unless a schema or format requires otherwise:
 | CSS values | CSS Syntax tokens plus property grammars | Mirrors browser-grade parser layering |
 | TypeScript/Rust syntax | Schema-aware recursive descent with scoped references | Practical for contextual programming languages |
 | Mixed-language documents | Handoff stack with included ranges | Keeps parent and child grammars scoped |
+| Binary AST transport | Dictionary encoded subtree chunks with independent compression | Enables parallel delivery, retry, cache reuse, and subtree preprocessing |
 
 ## Risks And Mitigations
 
@@ -524,6 +642,9 @@ Use these defaults unless a schema or format requires otherwise:
 | Full JSON Schema needs non-streaming features | Some schemas require buffering or delayed decisions | Mark streamable subset, allow bounded buffering, report non-streamable schema features |
 | Unicode positions differ by ecosystem | Diagnostics can point to wrong columns | Store byte offsets and derive code point/UTF-16 columns on demand |
 | Source maps are lost across transformations | Diagnostics and tooling cannot traverse back to the original source | Store source-map stacks on every AST element and append a frame for each context transform |
+| Whole-AST compression blocks parallelism | One corrupt or missing byte can stall the whole document | Compress subtree-root chunks independently and use hashes for missing-chunk retry |
+| Shared dictionaries drift by platform version | Chunks decode differently across runtimes | Version platform and app dictionaries and include required dictionary ids per chunk |
+| Cross-chunk references arrive late | Parallel chunks decode before dependencies exist | Represent dependencies as scoped slots and fill them when defining chunks arrive |
 | Embedded content boundaries are ambiguous | Child parser can consume parent syntax | Parent owns return condition and passes bounded child source |
 | HTML recovery is format-specific | Generic parser produces browser-incompatible trees | Use WHATWG states for HTML rather than XML-style recovery |
 | Derivative states or scoped slots can grow | Memory/time blowups | Memoize residuals, intern schema states, and compact scope tables as slots are finalized |
