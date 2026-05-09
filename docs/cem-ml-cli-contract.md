@@ -21,7 +21,8 @@ input to implementation planning, not a compatibility contract with removed CLI 
 ## Planned Option Behavior
 
 - Fail level: `parse`, `validate`, `strict`.
-- Output format selection for text, JSON, Markdown, DOM JSON, AST, events, and tree-shaped output where relevant.
+- Output format selection for CEM-native, XML, JSON, text, HTML, Markdown, DOM JSON, AST, events, and tree-shaped
+  output where relevant.
 - Output destination handling for stdout and `--out`.
 - Report destinations for JSON and Markdown reports, including directory destinations with default filenames.
 - Schema, content-type, and base-URI recording even before full schema resolution exists.
@@ -46,6 +47,13 @@ Diagnostics keep these fields where available:
 - `message`
 - optional `node`
 - future `sourceMap`
+
+Reports are rendered from the canonical AST-associated report tree. Report event nodes keep:
+
+- source module state
+- event sequence
+- source-map stack at event time
+- visible partial DOM/AST hierarchy at event time
 
 Reports keep deterministic field names:
 
@@ -72,6 +80,9 @@ The deterministic default timestamp for feature tests is `1970-01-01T00:00:00.00
 - Fixture roundtrip Markdown: `packages/cem_ml_cli/dist/cem-ml.roundtrip.report.md`
 - Bench JSON: `packages/cem_ml_cli/dist/cem-ml.bench.report.json`
 
+JSON, XML, and CEM-native reports are structured projections. Text, Markdown, and HTML
+reports are reference-implementation convenience projections.
+
 ## Exit Codes
 
 - `0`: success
@@ -86,4 +97,3 @@ The deterministic default timestamp for feature tests is `1970-01-01T00:00:00.00
 ## Verification Scope
 
 Rust-side tests should assert functional behavior, option parsing, JSON/report fields, diagnostics, and exit codes.
-

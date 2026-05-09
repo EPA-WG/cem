@@ -92,7 +92,7 @@ Exit criteria: an ADR exists and no parser code has been added.
 3. Define `cem-ml` modules:
     - `diagnostic`: severity, source location, diagnostic structs, formatting
     - `fail_level`: parse, validate, strict evaluation
-    - `report`: deterministic report models and Markdown/JSON rendering
+    - `report`: AST-associated report tree and CEM/XML/JSON renderers; text/HTML reference convenience renderers
     - `formats`: parse output format names and conversion output names
     - `fixture`: default fixture paths and fixture report path policy
     - `engine`: trait boundary for parse/validate/inspect/trace/bench inputs
@@ -120,7 +120,8 @@ Exit criteria: an ADR exists and no parser code has been added.
     - `parse`: fail only on `fatal`
     - `validate`: fail on `error` or `fatal`
     - `strict`: fail on `warning`, `error`, or `fatal`
-3. Define report models matching the documented CLI shape:
+3. Define report models matching the documented CLI shape. The internal model is an AST-associated report tree, not a
+   flat diagnostics array:
     - `generatedAt`
     - `inputs`
     - `summary.inputCount`
@@ -133,6 +134,8 @@ Exit criteria: an ADR exists and no parser code has been added.
     - `options.schema`
     - `options.contentType`
     - `options.baseUri`
+    - event nodes with source module state, event sequence, source-map stack at event time, and visible partial
+      hierarchy
 4. Use a deterministic default timestamp for feature tests:
     - `1970-01-01T00:00:00.000Z`
 5. Define command output models for:
@@ -162,7 +165,7 @@ These are data shapes only. Parser-filled content remains blocked until the pars
     - `help`
 2. Preserve common options:
     - `--fail-level parse|validate|strict`
-    - `--format text|json|markdown|dom-json|ast|events|tree`
+    - `--format text|html|json|xml|cem|markdown|dom-json|ast|events|tree`
     - `--from-format html|xml`
     - `--to-format dom-json|ast|events`
     - `--show summary|ast|events|diagnostics|source-offsets|tree`
@@ -219,7 +222,8 @@ These are data shapes only. Parser-filled content remains blocked until the pars
     - Default fail level: `parse`.
     - Writes to stdout or `--out`.
 2. `cem-ml validate <input...>`
-    - Supported formats: `text`, `json`, `markdown`.
+    - Supported structured formats: `json`, `xml`, `cem`.
+    - Reference convenience formats: `text`, `html`, `markdown`.
     - Default fail level: `validate`.
     - Supports aggregate `--report-json` and `--report-md`.
 3. `cem-ml check <input...>`
@@ -237,7 +241,8 @@ These are data shapes only. Parser-filled content remains blocked until the pars
     - Supported output formats: `dom-json`, `ast`, `events`.
     - CEM-native input, schema-version conversion, rendered HTML/XML output, comments, and source maps remain deferred.
 7. `cem-ml trace <input>`
-    - Supported formats: `json`, `text`.
+    - Supported structured formats: `json`, `xml`, `cem`.
+    - Reference convenience formats: `text`, `html`.
     - Parser and validator trace records remain placeholder output shapes until parser implementation exists.
     - Scheduler, worker-pool, transform, plugin, and source-map traces remain deferred.
 8. `cem-ml bench <input...>`
@@ -259,6 +264,8 @@ These are data shapes only. Parser-filled content remains blocked until the pars
 6. Return exit code `6` for read or write failures.
 7. Keep stdout empty when `--out` is used.
 8. Keep success text suppressed by `--quiet`, but still surface errors.
+9. Generate report files by rendering the canonical report AST. JSON, XML, and CEM renderers are structured
+   projections; text, Markdown, and HTML are reference convenience projections.
 
 ## Phase 8 - Tests
 
@@ -270,11 +277,14 @@ coverage; the parser stack design only owns the layer outputs that feed CLI proj
     - fail-level evaluation
     - hard-violation detection
     - deterministic report summaries
+    - report AST event sequence and event-time source-map hierarchy
     - JSON field naming
+    - CEM/XML/JSON report rendering
+    - text/HTML convenience report rendering
     - Markdown report formatting
 2. Add `cem-ml` command tests with a fake engine for:
     - parse output formats
-    - validate text, JSON, Markdown, and report outputs
+    - validate CEM, XML, JSON, text, HTML, Markdown, and report outputs
     - check `--zero-hard-violations`
     - fixture default path selection
     - inspect output modes
@@ -297,8 +307,8 @@ coverage; the parser stack design only owns the layer outputs that feed CLI proj
     - option groups: fail level, output format, report destinations, output file, schema/content-type/base URI,
       quiet/verbose/no-color, zero hard violations, source-offset preservation, inspect views, benchmark controls, and
       fixture defaults
-    - output shapes: diagnostics, reports, DOM JSON, AST, events, inspect views, trace output, bench output, and fixture
-      roundtrip reports
+    - output shapes: diagnostics, report AST, CEM/XML/JSON report renderings, text/HTML convenience renderings, DOM
+      JSON, AST, events, inspect views, trace output, bench output, and fixture roundtrip reports
     - exit behavior: success, parser/validation failure, usage errors, reserved subsystem errors, I/O errors, and
       unexpected internal failures
     - parser-blocked cases: rows that assert routing and shape with the fake engine now, plus a future real-engine gate

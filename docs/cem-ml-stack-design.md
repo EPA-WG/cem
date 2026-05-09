@@ -449,6 +449,29 @@ Diagnostic:
 `Fatal` aborts the current scope. `Error` and `Warning` continue in diagnostic mode with
 a permissive residual.
 
+### Report Event Model
+
+Reports are owned by `cem_ml::report`, but their canonical internal data is an
+AST-associated report tree rather than a flat diagnostic list. Each parser,
+schema, handoff, transform, validation, or runtime log message is captured as a
+report event node attached to:
+
+- the current input DOM/AST or CEM AST node when one exists;
+- the current source module state, including URI, content type, schema id, active scope,
+  and source span;
+- the source-map stack as it exists at the moment the event is emitted;
+- the partial DOM/AST hierarchy visible to the emitting layer at that moment; and
+- a monotonic event sequence number that preserves emission order within the report.
+
+The report hierarchy follows the source-map/layer hierarchy, but it is event-time state:
+it records the parser or transform view when the log event happened, not the final
+post-transform tree. Diagnostics before AST construction attach to the nearest source
+module frame and are later linked to AST nodes when a matching node exists.
+
+The canonical report tree can be projected to CEM-native, XML, JSON, or any other
+supported structured format. Text and HTML reports are reference-implementation
+convenience renderers over the report tree, not canonical report storage formats.
+
 ---
 
 ## 9. Layer 5 — Scoped Embedded Handoff Stack (`cem_ml::handoff`)
@@ -795,7 +818,12 @@ cem_ml/src/
   fail_level.rs       FailLevel enum, fail-level evaluation
   report/
     mod.rs            report model structs
+    ast.rs            AST-associated report tree and event nodes
     json.rs           JSON report rendering
+    xml.rs            XML report rendering
+    cem.rs            CEM-native report rendering
+    text.rs           reference text report rendering
+    html.rs           reference HTML report rendering
     markdown.rs       Markdown report rendering
   formats.rs          parse output format names (dom-json, ast, events)
   fixture.rs          default fixture paths, report path policy
@@ -862,7 +890,7 @@ Status key:
 | L9 ImplementationInterpreter: hand-written Rust transform rules | Design partial — transform engine choice, attribute collision, data-cem-* pass-through, serialization, and future template seam unresolved (Ambiguity 4, §18.8.1–4) |
 | L9 ImplementationInterpreter: XSLT template engine              | Deferred Tier C — minimal Tier A template abstraction still needs a decision through Ambiguity 4                                 |
 | LineIndex: byte-offset → line/col projection                    | Design partial — column-unit model, newline normalization, tabs, replacement chars, and UTF-16/scalar projections unspecified (§18.2.4) |
-| Diagnostics and reports                                         | Design partial — source-map ownership, deterministic diagnostic ordering, and report projection ownership unresolved (§18.2.5, §18.11.1–2) |
+| Diagnostics and reports                                         | Design partial — source-map ownership and diagnostics-before-AST mapping unresolved (§18.2.5)                                      |
 | CLI output projections and fixture round-trip reports           | Design partial — stack-layer ownership for CLI projections remains unresolved (§18.11.1)                                          |
 | Resource and security limits                                    | Design partial — input size, nesting depth, slot/residual/cache bounds, URL/script/entity policy unresolved (§18.3.3, §18.10.1–3) |
 | Post-parse reference validation (unfilled slots)                | Design partial — Warning vs Error severity unresolved (Ambiguity 6 sub-question)                                                 |
@@ -1410,13 +1438,6 @@ projection.
 
 **Question:** Which output formats are direct serializations of layer outputs, and which
 are compatibility/report projections?
-
-**Concern 18.11.2 — Report determinism needs a single owner.**  
-Diagnostics can be produced by multiple layers. Without an ordering rule, report JSON
-can change between implementations.
-
-**Question:** Are diagnostics sorted by source order, layer order, severity, emission
-time, or a stable compound key?
 
 ---
 

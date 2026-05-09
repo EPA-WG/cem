@@ -168,6 +168,20 @@ and later interpreter transformations. For binary streams, the stable source
 coordinate is byte offset and length. For text-based code, expose line and
 column as derived coordinates while keeping byte offsets as the ground truth.
 
+Reports are AST-associated data, not a separately ordered diagnostic list. A
+log, diagnostic, validation, or transform message is recorded as an event node
+attached to the current AST/input-DOM hierarchy and to a snapshot of the source
+module state at the moment the event was emitted. The event stores its sequence
+number, severity, code, message state, source-map stack as it existed at that
+moment, and the partial DOM/AST hierarchy visible to the emitting layer. This
+means report layering matches the source-map hierarchy, but it reflects the
+event-time hierarchy rather than the final transformed tree.
+
+The internal report representation is an AST tree. Output formats are
+projections of that tree: CEM-native, XML, JSON, or any other supported
+structured format. Text and HTML report output are convenience renderers in the
+reference implementation; they must not become the canonical report model.
+
 ### 5. Scoped Embedded-Language Handoff Stack
 
 Embedded languages need first-class scope frames. A parent parser should emit a

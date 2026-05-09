@@ -87,8 +87,11 @@ are deferred.
   errors**.
 - **AC-V-3 [A] MUST** be **strict on major mismatch**. If the document pins schema X and the loaded schema is X+1,
   validation MUST fail loudly and abort the scope.
-- **AC-V-4 [A] MUST** emit a machine-readable validation report (`*.report.json`) and a human-readable
-  `*.report.md`, mirroring the convention in `packages/cem-theme/scripts/validate-platforms.mjs`.
+- **AC-V-4 [A] MUST** emit validation reports from the canonical AST-associated report tree. JSON output is required
+  for machine-readable validation reports. Text and HTML outputs MAY be provided by the reference implementation as
+  convenience renderers; they are not canonical storage formats. 
+  As internal presentation of report is series of snapshots in internal AST, the report format cant be defined as any 
+  output supported by CLI. 
 - **AC-V-5 [A] MUST** validate the existing `examples/semantic/*.html` fixtures with **zero hard violations**.
 - **AC-V-6 [A] SHOULD** detect: unknown elements/attrs, invalid state combinations, missing accessible names, broken
   `id`/`for`/`aria-*` references, unsafe inline content.
@@ -336,6 +339,13 @@ without forking the runtime.
 - **AC-O-1 [A] MUST** expose a structured event stream (`onParseEvent`, `onValidate`, `onTransform`) with stable
   shapes for tooling.
 - **AC-O-2 [B] SHOULD** support a debug mode that records a deterministic trace of thread scheduling for postmortem.
+- **AC-O-3 [A] MUST** record report/log/diagnostic events as AST-associated report nodes. Each event node MUST include
+  the current source module state, the source-map stack as it exists at emission time, the visible partial DOM/AST
+  hierarchy at that moment, and a monotonic event sequence number.
+- **AC-O-4 [A] MUST** make the internal report representation an AST tree that can be formatted into CEM-native, XML,
+  JSON, or another supported structured format.
+- **AC-O-5 [A] MAY** provide text and HTML report output in the reference implementation as convenience projections
+  from the internal report AST. Text and HTML output MUST NOT be the canonical report model.
 
 ## 13. Compatibility & Distribution
 
