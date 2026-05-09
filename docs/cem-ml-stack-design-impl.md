@@ -239,6 +239,54 @@ SchemaFrame:
   diagnostics: Vec<Diagnostic>
 ```
 
+### 3.4.1 Namespace Context Contracts
+
+```
+NsContext:
+  scope_id: ScopeId
+  parent: Option<NsContextId>
+  bindings: Vec<NamespaceBinding>   ordered by declaration sequence
+
+NamespaceBinding:
+  binding_id: NamespaceBindingId
+  name: NamespaceName               prefix, or "" for the default namespace
+  namespace_uri: NamespaceUri
+  schema_id: Option<SchemaId>
+  declared_at: ByteRange
+  effective_from: ByteRange         first source position where this binding applies
+  source_map: SourceMapStack
+
+NamespaceName:
+  String                            "" is the default namespace name
+
+ExpandedName:
+  namespace_uri: NamespaceUri
+  schema_id: Option<SchemaId>
+  local_name: String
+
+NameResolution:
+  lexical_name: String
+  expanded_name: ExpandedName
+  binding_id: Option<NamespaceBindingId>
+  source_range: ByteRange
+```
+
+Resolution uses the namespace context visible at the source position being parsed.
+Within a single scope, the latest binding with the same `NamespaceName` wins from its
+`effective_from` position forward. Nested scopes inherit parent bindings, but an inner
+binding with the same name shadows the inherited binding until the inner scope closes.
+
+Previously emitted `NameResolution` records are immutable. If `screen` resolves to
+`{NS1}screen`, and a later default namespace declaration changes the default namespace to
+`NS2`, later `screen` names resolve to `{NS2}screen` but the earlier record still points
+to the `NS1` binding id. Reports and source maps can therefore show that the same
+lexical name changed schema ownership over time.
+
+Attribute and tag collision checks use `ExpandedName`, not lexical spelling. Rendered
+projections may lower schema-qualified names to unqualified convenience attributes or
+tags, but the renderer must retain enough mapping metadata to distinguish generated
+CEM-owned names from pass-through HTML names.
+
 State transitions:
 
 ```
@@ -304,6 +352,7 @@ default stream behavior. Proposed projection layer keys:
 | `tokens`           | `tokenizer`                       | Format-native token stream with byte ranges.                                                             |
 | `events`           | `events`                          | Normalized open/close/name/value/separator/mode-switch/error events.                                     |
 | `schema-frames`    | `schema`                          | Schema frame transitions, residual/DFA state, expected closes, and validation state.                     |
+| `namespace-bindings` | `schema`                        | Ordered namespace declarations, effective ranges, overrides, and lexical-to-expanded name resolutions.   |
 | `handoffs`         | `handoff`                         | Embedded content boundaries, inherited context, child content type, and return condition.                |
 | `input-dom`        | `parser::input_dom`               | Schema-defined initial DOM/AST hierarchy reconstructed from tokens/events.                               |
 | `whatwg-dom`       | `transform::whatwg_html`          | WHATWG implementation-DOM update projection from the initial HTML parser DOM.                            |
@@ -610,7 +659,8 @@ DomPatchPolicy:
 Hydration applies event-to-state updates, re-evaluates affected render bindings, and
 patches the materialized DOM according to the patch policy. Tier A may emit the metadata
 above for static or future hydrated output. The live hydration runtime, browser adapter
-execution, and DOM patcher are deferred until the tier that owns runtime behavior.
+execution, DOM patcher, and DOM identity preservation model are subject to a separate
+design phase (TBD).
 
 ---
 
@@ -632,6 +682,7 @@ cem_ml/src/
   schema/
     mod.rs            SchemaMachine, SchemaFrame, SchemaState
     derivative.rs     RELAX NG derivative computation
+    namespace.rs      NsContext, NamespaceBinding, ExpandedName, NameResolution
     vocab.rs          CEM vocabulary constants generated from schema source
   handoff/
     mod.rs            HandoffRecord, HandoffStack, ReturnCondition, InheritedContext

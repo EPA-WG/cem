@@ -50,13 +50,14 @@ attributes. The `cem:` prefix below is illustrative; the active schema owns the 
 namespace binding:
 
 ```html
+
 <main cem:screen="login" aria-labelledby="login-title">
-  <h1 id="login-title">Sign in</h1>
-  <form cem:form="sign-in" method="post" action="/session">
-    <label for="email">Email</label>
-    <input id="email" name="email" type="email" required>
-    <button type="submit" cem:action="primary">Sign in</button>
-  </form>
+    <h1 id="login-title">Sign in</h1>
+    <form cem:form="sign-in" method="post" action="/session">
+        <label for="email">Email</label>
+        <input id="email" name="email" type="email" required>
+        <button type="submit" cem:action="primary">Sign in</button>
+    </form>
 </main>
 ```
 
@@ -363,6 +364,67 @@ Nesting rules, required sibling relationships, allowed parent elements, unknown-
 policy, and state constraints are expressed in the schema and validated through the frame
 stack. The schema source language is **Ambiguity 3**.
 
+### Namespace Resolution For Tags And Attributes
+
+Names are resolved through the schema frame's namespace context before validation or
+transformation. A parsed tag or attribute name has two identities:
+
+- **lexical name:** the literal spelling in the source, such as `cem-screen`, `screen`,
+  `cem:screen`, or `button`;
+- **expanded name:** the resolved namespace plus local name, owned by a schema.
+
+CEM-specific tags and attributes live in the namespace associated with their schema. They
+do not collide with HTML attributes, pass-through attributes, or another schema's tags as
+long as the namespace is defined. Rendered projections may choose unqualified convenience
+spellings, but the internal identity remains namespace-qualified.
+
+Namespace declarations are scoped and ordered. A namespace name is the explicit prefix
+when present, or the empty name for the default namespace. A default namespace can expose
+a schema's own tags without a prefix. Multiple default namespaces can coexist across
+nested or sequential scopes because each declaration has an effective source range and
+scope owner.
+
+Resolution rules:
+
+- A namespace declaration applies from its declaration point forward within the owning
+  scope, unless a later declaration with the same namespace name overrides it.
+- If a namespace with the same name appears multiple times in the same scope, the latter
+  declaration wins from that point forward.
+- If an inner scope declares the same namespace name as an outer scope, the inner
+  declaration wins inside the inner scope until that scope ends.
+- If two default namespaces define the same unqualified tag in the same visible scope,
+  the later effective namespace wins for subsequent unqualified uses.
+- Previously resolved references keep their expanded namespace identity even if a later
+  declaration changes which namespace the same lexical name resolves to.
+- The runtime tracks namespace binding changes as source-mapped binding events so the
+  same lexical name can resolve to different schema-owned tags at different source
+  positions.
+
+Example sequence inside one scope:
+
+1. Declare default namespace `NS1`.
+2. Use unqualified tag `screen`; it resolves to `{NS1}screen`.
+3. Declare default namespace `NS2`.
+4. Use unqualified tag `screen` again; it now resolves to `{NS2}screen`.
+
+This is intentionally similar to repeated `var` declarations in JavaScript: the binding
+name can be declared more than once in the same scope, the later declaration becomes the
+active binding for subsequent uses, and earlier uses keep the binding that was active at
+their source position.
+
+Named namespaces follow the same override rule as the default namespace. The empty
+namespace name represents the default namespace; it is not a special global singleton.
+The parser can therefore support scoped default namespaces for CEM tags, HTML-compatible
+unqualified output, and future XSLT/template-driven transformations without changing the
+AST identity model.
+
+The namespace defined as the attribute in node does not leave the ability to define multile namespacs under
+same name due to unique attribute name. While it would be possible to define a namespace
+attribute that lists multiple schemas, the ability to define the namespace via tag TBD.
+
+Namespace-resolution implementation contracts are in
+[`cem-ml-stack-design-impl.md`](cem-ml-stack-design-impl.md#341-namespace-context-contracts).
+
 ### Diagnostics And Reports
 
 Diagnostics use byte offsets as ground truth and derive line/column positions for human
@@ -404,10 +466,10 @@ Target rules:
   structured format.
 
 Standard projection layers include source metadata, decoded scalars, tokens, normalized
-events, schema frames, handoffs, input DOM, WHATWG DOM, CEM AST, transform output,
-UI DOM plans, machine state, hydration plans, template registries, source-map data,
-report AST, trace data, and deferred binary/chunk projections. The exact projection key
-table is in
+events, schema frames, namespace bindings, handoffs, input DOM, WHATWG DOM, CEM AST,
+transform output, UI DOM plans, machine state, hydration plans, template registries,
+source-map data, report AST, trace data, and deferred binary/chunk projections. The
+exact projection key table is in
 [`cem-ml-stack-design-impl.md`](cem-ml-stack-design-impl.md#36-cli-projection-keys).
 
 ---
@@ -430,11 +492,11 @@ then returns control to the parent.
 
 Tier A handoff cases:
 
-| Parent context | Trigger | Child content type | Return condition |
-| --- | --- | --- | --- |
-| HTML document | `<style>` start tag | `text/css` | `</style>` end tag |
-| HTML element | `style=""` attribute | `text/css` (declaration block) | attribute quote end |
-| HTML document | `<script>` start tag | raw text (not parsed Tier A) | `</script>` end tag |
+| Parent context | Trigger              | Child content type             | Return condition    |
+|----------------|----------------------|--------------------------------|---------------------|
+| HTML document  | `<style>` start tag  | `text/css`                     | `</style>` end tag  |
+| HTML element   | `style=""` attribute | `text/css` (declaration block) | attribute quote end |
+| HTML document  | `<script>` start tag | raw text (not parsed Tier A)   | `</script>` end tag |
 
 For Tier A, the CSS child parser is a stub that emits diagnostics but does not produce a
 typed CSS AST. Script regions are treated as raw text. The handoff stack is implemented
@@ -496,7 +558,8 @@ clone-like behavior, such as XML compatibility entity expansion, own that behavi
 their own transform scope.
 
 AST node and reference-slot shapes are in
-[`cem-ml-stack-design-impl.md`](cem-ml-stack-design-impl.md#38-layer-6-inputdomastbuilder-interpreterastbuilder-cem_mlparser).
+[
+`cem-ml-stack-design-impl.md`](cem-ml-stack-design-impl.md#38-layer-6-inputdomastbuilder-interpreterastbuilder-cem_mlparser).
 
 ---
 
@@ -546,7 +609,9 @@ back to enclosing-scope rescan when boundaries or cross-scope references are uns
 reuse.
 
 Binary, chunk, compression, id-policy, and incremental contracts are in
-[`cem-ml-stack-design-impl.md`](cem-ml-stack-design-impl.md#39-layers-7-8-binaryastencoder-and-chunkcompressor-cem_mlast) and
+[
+`cem-ml-stack-design-impl.md`](cem-ml-stack-design-impl.md#39-layers-7-8-binaryastencoder-and-chunkcompressor-cem_mlast)
+and
 [`cem-ml-stack-design-impl.md`](cem-ml-stack-design-impl.md#5-incremental-and-editor-mode-contract-deferred-tier-b).
 
 ---
@@ -645,9 +710,9 @@ location/route state, as machine state providers. CEM models those providers as 
 data adapters feeding machine state slots; they are not special AST node families.
 
 Tier A may emit static rendered output and enough template/state metadata for later
-hydration. Live event handling, browser API adapters, DOM patching, and reusable
-template registries are Tier B/C unless a narrower implementation phase explicitly
-brings one forward.
+hydration. Live event handling, browser API adapters, DOM patching, DOM identity
+preservation, and reusable template registries are subject to a separate design phase
+(TBD) unless a narrower implementation phase explicitly brings one forward.
 
 Implementation contracts for template references, machine state slots, hydration rules,
 and virtual DOM patch metadata are in
@@ -668,17 +733,17 @@ attributes (class, id, ARIA, and HTML `data-*`) pass through only as HTML-owned 
 unless the active schema defines a stricter mapping. Transformers match the CEM AST role
 projection, not raw HTML `data-*` attributes or the HTML-specific `dataset` projection.
 
-| CEM node | Source element (typical) | Output custom element |
-| --- | --- | --- |
-| `CemScreen { id }` | `<main cem:screen="id">` | `<cem-screen cem-id="id">` |
-| `CemForm { id }` | `<form cem:form="id">` | `<cem-form cem-id="id">` |
+| CEM node                | Source element (typical)        | Output custom element            |
+|-------------------------|---------------------------------|----------------------------------|
+| `CemScreen { id }`      | `<main cem:screen="id">`        | `<cem-screen cem-id="id">`       |
+| `CemForm { id }`        | `<form cem:form="id">`          | `<cem-form cem-id="id">`         |
 | `CemAction { variant }` | `<button cem:action="primary">` | `<cem-action variant="primary">` |
-| `CemList` | `<ul cem:list>` | `<cem-list>` |
-| `CemCard` | `<div cem:card>` | `<cem-card>` |
-| `CemThread` | `<ul cem:thread>` | `<cem-thread>` |
-| `CemMessage` | `<article cem:message>` | `<cem-message>` |
-| `CemBadge` | Any with `cem:badge` | `<cem-badge>` |
-| `HtmlElement` | Any other element | Pass through unchanged |
+| `CemList`               | `<ul cem:list>`                 | `<cem-list>`                     |
+| `CemCard`               | `<div cem:card>`                | `<cem-card>`                     |
+| `CemThread`             | `<ul cem:thread>`               | `<cem-thread>`                   |
+| `CemMessage`            | `<article cem:message>`         | `<cem-message>`                  |
+| `CemBadge`              | Any with `cem:badge`            | `<cem-badge>`                    |
+| `HtmlElement`           | Any other element               | Pass through unchanged           |
 
 Children are transformed recursively. Text nodes pass through unchanged.
 
@@ -812,6 +877,7 @@ design in this document is complete enough to start implementation without resol
 further open questions first.
 
 Status key:
+
 - **Design ready** — design is complete enough to implement; open sub-questions are
   refinements, not blockers.
 - **Design partial** — one or more open concerns in §17–18 must be resolved before
@@ -819,41 +885,41 @@ Status key:
 - **Deferred Tier B/C** — explicitly out of Tier A scope; interface stubs may be
   defined now for stability.
 
-| Component                                                       | Design status                                                                                                                    |
-|-----------------------------------------------------------------|----------------------------------------------------------------------------------------------------------------------------------|
-| L1 ByteSource: in-memory buffer, string, file path              | Design partial — source ownership/resource bounds need decisions (§18.3.1, §18.3.3)                                              |
-| L1 ByteSource: async network streaming                          | Deferred Tier B — Tier A interfaces must still preserve absolute offsets for future chunked input                                |
-| L1 EncodingDecoder: UTF-8                                       | Design partial — UTF-8-only CEM profile vs WHATWG encoding detection unresolved (§18.3.2)                                        |
-| L1 EncodingDecoder: UTF-16, Latin-1, BOM detection              | Design partial — required for HTML/XML profile clarity; blocked by Ambiguity 1 and §18.3.2                                       |
-| L1 Sentinel-byte ownership                                      | Design partial — Rust safety model for sentinel not resolved (§18.3.1)                                                           |
-| L2 SchemaTokenizer: HTML WHATWG profile                         | Design partial — crate choice and token offset behavior unresolved (Ambiguity 2)                    |
-| L2 SchemaTokenizer: XML 1.0 profile                             | Design partial — namespace/name model remains unresolved (§18.4.4); DTD/external-resource ownership follows transform policy (§3.2, §6) |
-| L3 EventNormalizer                                              | Design partial — attribute-list close event, void elements, name model, trivia, and ModeSwitch ownership unspecified (§18.4.1–4, §18.6.1) |
-| L4 SchemaMachine: visibly pushdown frame stack                  | Design partial — recovery invariant, multiplicity/required-name state, and diagnostic propagation affect core semantics (§18.5.3–4, Ambiguity 8) |
-| L4 SchemaMachine: RELAX NG derivative engine                    | Deferred Tier B — Tier A DFA must preserve a replacement path for residual diagnostics (Ambiguity 9, §18.5.1)                   |
-| L4 SchemaMachine: CEM vocabulary DFA                            | Design partial — DFA state table, schema compiler integration, and unknown-content policy remain unspecified (Ambiguity 3, Ambiguity 9, §18.5.1–2) |
-| L5 HandoffStack: ownership and return-condition tracking        | Design partial — authoritative handoff owner and deferred return-condition variants unresolved (§18.6.1, §18.6.4)                |
-| L5 Child parser: CSS (stub, diagnostic only)                    | Design partial — embedded-source byte/decoded-view model unspecified (§18.6.2)                                                    |
-| L5 Child parser: Script (raw text only)                         | Design partial — script preservation policy unspecified (§18.6.3); unsafe-content validation follows content-type policy (§3.2)  |
-| L6 InputDomAstBuilder: schema-defined initial DOM/AST            | Design ready — schema reconstructs token hierarchy; WHATWG DOM compliance is a downstream transformation over this initial DOM   |
-| L6 InterpreterAstBuilder: typed CEM AST projection               | Design partial — multiple CEM roles per element and non-CEM construct handling remain unresolved (§18.7.3, §18.7.5); vocabulary ownership is schema-defined (§8) |
-| L6 Reference slots: id/for/aria-*                               | Design partial — slot implementation model, lifecycle, override, duplicate, and cross-scope rules unresolved (Ambiguity 6, §18.7.1–2) |
-| L6 Source-map stacks: byte-range + transform chain              | Design partial — frame order, multi-range nodes, escape/entity decoding, and diagnostics-before-AST mapping unresolved (§18.2.1–3, §18.2.5) |
-| L6 Source-map stacks: bit-level ranges                          | Deferred Tier B — reserve representation only after source-map frame model is fixed (§18.2.1–2); no serialized binary frame ids in Tier A (§11) |
-| L7 BinaryAstEncoder                                             | Deferred Tier B — Tier A does not freeze serialized binary ids; canonical identity, ordering, and future id policy are scoped in §11 |
-| L8 ChunkCompressor                                              | Deferred Tier B — compression profiles are research-backed; canonical chunk identity, ordering, and dependency slots are scoped in §11 |
-| ContentTypeTransformPipeline: WHATWG HTML DOM                   | Design ready — schema-driven initial HTML parser DOM is transformed into WHATWG implementation DOM updates                       |
-| L9 ImplementationInterpreter: schema-driven transform rules     | Design partial — schema owns transform layers; output-reserved attribute collision remains unresolved (§18.8.1); canonical serialization and HTML `data-*` ownership are defined in §12 |
-| L9 ImplementationInterpreter: transform execution backends      | Deferred Tier B/C — Rust, template DSL, and XSLT tier placement is a scheduling decision constrained by schema-owned transform rules (§12, Ambiguity 4) |
-| Visual content and machine state data                           | Design partial — uniform AST role model is defined; live hydration, browser adapters, and DOM patch identity remain deferred or unresolved (§12, §18.8.2) |
-| LineIndex: byte-offset → line/col projection                    | Design partial — column-unit model, newline normalization, tabs, replacement chars, and UTF-16/scalar projections unspecified (§18.2.4) |
-| Diagnostics and reports                                         | Design partial — source-map ownership and diagnostics-before-AST mapping unresolved (§18.2.5)                                      |
-| CLI output projections and fixture round-trip reports           | Design ready — CLI owns projection targets and side outputs; stack layers own projected artifacts                                 |
-| Resource and security limits                                    | Design partial — byte/decode bounds remain unresolved (§18.3.3); XML external-resource limits follow transform policy and content-type limits (§3.1–3.2, §6) |
-| Incremental/editor parsing                                      | Deferred Tier B — caller-provided diffs map through source maps to changed scopes, with enclosing-scope rescan fallback           |
-| Post-parse reference validation (unfilled slots)                | Design partial — Warning vs Error severity unresolved (Ambiguity 6 sub-question)                                                 |
-| Per-scope error boundaries                                      | Deferred Tier B (Ambiguity 5)                                                                                                    |
-| Async mutation API (`*Async` DOM mutations)                     | Deferred Tier B/C — outside the primary parsing research; requires separate runtime API design                                    |
+| Component                                                   | Design status                                                                                                                                                                           |
+|-------------------------------------------------------------|-----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|
+| L1 ByteSource: in-memory buffer, string, file path          | Design partial — source ownership/resource bounds need decisions (§18.3.1, §18.3.3)                                                                                                     |
+| L1 ByteSource: async network streaming                      | Deferred Tier B — Tier A interfaces must still preserve absolute offsets for future chunked input                                                                                       |
+| L1 EncodingDecoder: UTF-8                                   | Design partial — UTF-8-only CEM profile vs WHATWG encoding detection unresolved (§18.3.2)                                                                                               |
+| L1 EncodingDecoder: UTF-16, Latin-1, BOM detection          | Design partial — required for HTML/XML profile clarity; blocked by Ambiguity 1 and §18.3.2                                                                                              |
+| L1 Sentinel-byte ownership                                  | Design partial — Rust safety model for sentinel not resolved (§18.3.1)                                                                                                                  |
+| L2 SchemaTokenizer: HTML WHATWG profile                     | Design partial — crate choice and token offset behavior unresolved (Ambiguity 2)                                                                                                        |
+| L2 SchemaTokenizer: XML 1.0 profile                         | Design partial — namespace/name model remains unresolved (§18.4.4); DTD/external-resource ownership follows transform policy (§3.2, §6)                                                 |
+| L3 EventNormalizer                                          | Design partial — attribute-list close event, void elements, name model, trivia, and ModeSwitch ownership unspecified (§18.4.1–4, §18.6.1)                                               |
+| L4 SchemaMachine: visibly pushdown frame stack              | Design partial — recovery invariant, multiplicity/required-name state, and diagnostic propagation affect core semantics (§18.5.3–4, Ambiguity 8)                                        |
+| L4 SchemaMachine: RELAX NG derivative engine                | Deferred Tier B — Tier A DFA must preserve a replacement path for residual diagnostics (Ambiguity 9, §18.5.1)                                                                           |
+| L4 SchemaMachine: CEM vocabulary DFA                        | Design partial — DFA state table, schema compiler integration, and unknown-content policy remain unspecified (Ambiguity 3, Ambiguity 9, §18.5.1–2)                                      |
+| L5 HandoffStack: ownership and return-condition tracking    | Design partial — authoritative handoff owner and deferred return-condition variants unresolved (§18.6.1, §18.6.4)                                                                       |
+| L5 Child parser: CSS (stub, diagnostic only)                | Design partial — embedded-source byte/decoded-view model unspecified (§18.6.2)                                                                                                          |
+| L5 Child parser: Script (raw text only)                     | Design partial — script preservation policy unspecified (§18.6.3); unsafe-content validation follows content-type policy (§3.2)                                                         |
+| L6 InputDomAstBuilder: schema-defined initial DOM/AST       | Design ready — schema reconstructs token hierarchy; WHATWG DOM compliance is a downstream transformation over this initial DOM                                                          |
+| L6 InterpreterAstBuilder: typed CEM AST projection          | Design partial — multiple CEM roles per element and non-CEM construct handling remain unresolved (§18.7.3, §18.7.5); vocabulary ownership is schema-defined (§8)                        |
+| L6 Reference slots: id/for/aria-*                           | Design partial — slot implementation model, lifecycle, override, duplicate, and cross-scope rules unresolved (Ambiguity 6, §18.7.1–2)                                                   |
+| L6 Source-map stacks: byte-range + transform chain          | Design partial — frame order, multi-range nodes, escape/entity decoding, and diagnostics-before-AST mapping unresolved (§18.2.1–3, §18.2.5)                                             |
+| L6 Source-map stacks: bit-level ranges                      | Deferred Tier B — reserve representation only after source-map frame model is fixed (§18.2.1–2); no serialized binary frame ids in Tier A (§11)                                         |
+| L7 BinaryAstEncoder                                         | Deferred Tier B — Tier A does not freeze serialized binary ids; canonical identity, ordering, and future id policy are scoped in §11                                                    |
+| L8 ChunkCompressor                                          | Deferred Tier B — compression profiles are research-backed; canonical chunk identity, ordering, and dependency slots are scoped in §11                                                  |
+| ContentTypeTransformPipeline: WHATWG HTML DOM               | Design ready — schema-driven initial HTML parser DOM is transformed into WHATWG implementation DOM updates                                                                              |
+| L9 ImplementationInterpreter: schema-driven transform rules | Design ready — schema owns transform layers; namespace-qualified CEM identity resolves source collisions; canonical serialization and HTML `data-*` ownership are defined in §8 and §12 |
+| L9 ImplementationInterpreter: transform execution backends  | Deferred Tier B/C — Rust, template DSL, and XSLT tier placement is a scheduling decision constrained by schema-owned transform rules (§12, Ambiguity 4)                                 |
+| Visual content and machine state data                       | Design partial — uniform AST role model is defined; live hydration, browser adapters, and DOM patch identity are subject to a separate design phase TBD (§12)                           |
+| LineIndex: byte-offset → line/col projection                | Design partial — column-unit model, newline normalization, tabs, replacement chars, and UTF-16/scalar projections unspecified (§18.2.4)                                                 |
+| Diagnostics and reports                                     | Design partial — source-map ownership and diagnostics-before-AST mapping unresolved (§18.2.5)                                                                                           |
+| CLI output projections and fixture round-trip reports       | Design ready — CLI owns projection targets and side outputs; stack layers own projected artifacts                                                                                       |
+| Resource and security limits                                | Design partial — byte/decode bounds remain unresolved (§18.3.3); XML external-resource limits follow transform policy and content-type limits (§3.1–3.2, §6)                            |
+| Incremental/editor parsing                                  | Deferred Tier B — caller-provided diffs map through source maps to changed scopes, with enclosing-scope rescan fallback                                                                 |
+| Post-parse reference validation (unfilled slots)            | Design partial — Warning vs Error severity unresolved (Ambiguity 6 sub-question)                                                                                                        |
+| Per-scope error boundaries                                  | Deferred Tier B (Ambiguity 5)                                                                                                                                                           |
+| Async mutation API (`*Async` DOM mutations)                 | Deferred Tier B/C — outside the primary parsing research; requires separate runtime API design                                                                                          |
 
 ---
 
@@ -863,25 +929,25 @@ Status key:
 
 *Multi-format parser atlas.*
 
-| Layer    | Problem                      | Algorithm                                                | Reason from research                                                                           |
-|----------|------------------------------|----------------------------------------------------------|------------------------------------------------------------------------------------------------|
-| L2       | HTML tokenization            | WHATWG tokenizer states                                  | Browser-compatible; separates token extraction from DOM                                        |
-| L2       | XML tokenization             | XML 1.0 scanner                                          | Well-defined, same tokenizer contract as HTML                                                  |
-| L3       | Cross-format event model     | Open/close/name/value taxonomy                           | Research §3: small event set lets schema validation share algorithms across formats            |
-| L4       | Nested validation            | Visibly pushdown frame stack                             | Research §4, §Algorithms: "natural fit for open/close structures"                              |
-| L4       | Schema validation Tier A     | Hand-written CEM DFA                                     | Simple constrained vocabulary; allows derivative upgrade without API change (Ambiguity 9)      |
-| L4       | Schema validation Tier B     | RELAX NG derivatives                                     | Research §XML notes: "residual describes what was expected next" — streaming, good diagnostics |
-| L5       | Embedded languages           | Parent-owned handoff with explicit return condition      | Research §5: "child parser never infers parent close condition independently"                  |
-| L6       | Initial DOM/AST              | Schema-defined token hierarchy reconstruction            | Drives WHATWG HTML DOM compliance without making tokenization circular                         |
-| Transform | WHATWG HTML DOM             | Content-type transform over initial HTML parser DOM       | Applies insertion modes, active formatting elements, foster parenting, and DOM updates          |
-| L6       | Forward references           | Mutable scoped name slots                                | Research §4: "slot filled when defining entity arrives"                                        |
-| L6       | Source location ground truth | `u64` byte offset                                        | Research Unicode policy: "byte offsets as stable storage format"                               |
-| L6       | Line/column                  | On-demand projection via LineIndex                       | Research: "derived coordinates" — never stored, computed from byte offset                      |
-| L9       | CEM transform semantics      | Schema-driven transform plan                             | Keeps schema in charge of transform layers across Rust, template, or XSLT backends             |
-| L9       | UI virtualization            | Template reference + machine-state binding               | Reuses templates by reference and applies owned scope data during transformation                |
-| L9       | CEM transform backends       | Rust convenience backend / template DSL / XSLT engine    | Backend tier placement is deferred; each backend executes the schema-owned plan                 |
-| Deferred | Binary AST transport         | Dictionary-encoded subtree chunks                        | Research §Binary AST: parallel delivery, retry, cache reuse                                    |
-| Deferred | Chunk compression            | Zstandard (`canonical-fast`), Brotli (`canonical-dense`) | Research §Compression Strategy                                                                 |
+| Layer     | Problem                      | Algorithm                                                | Reason from research                                                                           |
+|-----------|------------------------------|----------------------------------------------------------|------------------------------------------------------------------------------------------------|
+| L2        | HTML tokenization            | WHATWG tokenizer states                                  | Browser-compatible; separates token extraction from DOM                                        |
+| L2        | XML tokenization             | XML 1.0 scanner                                          | Well-defined, same tokenizer contract as HTML                                                  |
+| L3        | Cross-format event model     | Open/close/name/value taxonomy                           | Research §3: small event set lets schema validation share algorithms across formats            |
+| L4        | Nested validation            | Visibly pushdown frame stack                             | Research §4, §Algorithms: "natural fit for open/close structures"                              |
+| L4        | Schema validation Tier A     | Hand-written CEM DFA                                     | Simple constrained vocabulary; allows derivative upgrade without API change (Ambiguity 9)      |
+| L4        | Schema validation Tier B     | RELAX NG derivatives                                     | Research §XML notes: "residual describes what was expected next" — streaming, good diagnostics |
+| L5        | Embedded languages           | Parent-owned handoff with explicit return condition      | Research §5: "child parser never infers parent close condition independently"                  |
+| L6        | Initial DOM/AST              | Schema-defined token hierarchy reconstruction            | Drives WHATWG HTML DOM compliance without making tokenization circular                         |
+| Transform | WHATWG HTML DOM              | Content-type transform over initial HTML parser DOM      | Applies insertion modes, active formatting elements, foster parenting, and DOM updates         |
+| L6        | Forward references           | Mutable scoped name slots                                | Research §4: "slot filled when defining entity arrives"                                        |
+| L6        | Source location ground truth | `u64` byte offset                                        | Research Unicode policy: "byte offsets as stable storage format"                               |
+| L6        | Line/column                  | On-demand projection via LineIndex                       | Research: "derived coordinates" — never stored, computed from byte offset                      |
+| L9        | CEM transform semantics      | Schema-driven transform plan                             | Keeps schema in charge of transform layers across Rust, template, or XSLT backends             |
+| L9        | UI virtualization            | Template reference + machine-state binding               | Reuses templates by reference and applies owned scope data during transformation               |
+| L9        | CEM transform backends       | Rust convenience backend / template DSL / XSLT engine    | Backend tier placement is deferred; each backend executes the schema-owned plan                |
+| Deferred  | Binary AST transport         | Dictionary-encoded subtree chunks                        | Research §Binary AST: parallel delivery, retry, cache reuse                                    |
+| Deferred  | Chunk compression            | Zstandard (`canonical-fast`), Brotli (`canonical-dense`) | Research §Compression Strategy                                                                 |
 
 ---
 
@@ -909,7 +975,8 @@ separate decoder entry points.
 A. Two modes on the decoder: `decode_html(bytes)` strips BOM per WHATWG; `decode_xml(bytes)` preserves BOM semantics.  
 B. Unified decoder with a format hint.
 
-**Recommendation:** Option A — keeps each format's rules unambiguous, avoids a shared code path that must know about both WHATWG and XML BOM rules.
+**Recommendation:** Option A — keeps each format's rules unambiguous, avoids a shared code path that must know about
+both WHATWG and XML BOM rules.
 
 ---
 
@@ -1186,10 +1253,10 @@ text nodes may also be significant or ignorable depending on context.
 or binary AST trivia tables? If they are fully dropped, can source-preserving transforms
 or round trips ever be supported?
 
-**Concern 18.4.4 — QName and namespace handling is asserted but not defined.**  
-Normalized events use `QName`, and frames include `namespace_ctx`, but HTML lowercasing,
-XML namespaces, foreign content, prefixed attributes, and case sensitivity are not
-specified.
+**Concern 18.4.4 — QName and namespace handling is only partially defined.**  
+CEM namespace binding, scoped defaults, and ordered namespace overrides are defined in
+§8. HTML lowercasing, XML namespace syntax compatibility, foreign content, prefixed
+attribute parsing, and case sensitivity remain unspecified.
 
 **Question:** What is the Tier A name model for HTML elements, HTML attributes,
 schema-qualified CEM attributes, XML names, and future SVG/MathML foreign content?
@@ -1302,24 +1369,6 @@ instructions, raw text, or recovered error nodes.
 
 **Question:** Which non-CEM constructs are preserved in the AST, which are discarded,
 and which become diagnostics-only?
-
-### 18.8 Transform And Output Concerns
-
-**Concern 18.8.1 — Attribute collision policy is missing.**  
-Transform rules map schema-qualified CEM attributes into custom-element attributes while
-also passing through standard HTML attributes.
-
-**Question:** What happens if the source already has `cem-id`, `variant`, `state`, or
-other output-reserved attributes?
-
-**Concern 18.8.2 — Hydration and DOM patch identity are not fully specified.**  
-The visual content section defines event-to-state hydration and rerendering with
-unchanged DOM preservation, but it does not define the exact identity keys, patch
-granularity, focus/selection preservation rules, or runtime-resource lifecycle.
-
-**Question:** Which identity model determines whether a rendered node is reused,
-patched, moved, or replaced after a machine state update? Which runtime resources must be
-preserved across rerenders, and which are recreated by policy?
 
 ---
 
