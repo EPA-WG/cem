@@ -245,7 +245,8 @@ Each AST element should contain:
 - `owned_source`: the source context that created this node.
 - `current_source`: the current transformed context for this node.
 - `map_stack`: ordered mappings from current context back to prior contexts.
-- `range`: byte offset/length for binary sources, plus derived line/column for
+- `range`: byte offset/length for uncompressed binary sources, bit
+  offset/length for compressed binary sources, plus derived line/column for
   text sources.
 - `transform`: tokenizer, schema rule, embedded-language extraction,
   serialization, DOM construction, lowering, or runtime preparation step.
@@ -260,6 +261,12 @@ For generated nodes with no direct input text, store the generating transform
 and the nearest owning source range. For merged nodes, store multiple source
 ranges in the same stack frame. For split nodes, each child gets the inherited
 stack plus its narrowed current range.
+
+Compressed binary content needs bit-level source maps. Entropy-coded payloads,
+prefix codes, block headers, and compression metadata can have meaningful
+boundaries that do not align to bytes. The source-map stack should therefore
+support byte ranges for ordinary binary data, bit ranges for compressed binary
+frames, and line/column projections for text contexts.
 
 ## Binary AST, Compression, And Segmentation
 
@@ -326,7 +333,51 @@ corresponding scope slots when chunks arrive. This mirrors the live scoped name
 slot model used for unresolved references: absent chunks are represented by
 stable anchors, then replaced or completed as their data becomes available.
 
+Chunk size should be transport-aware. The standard should not require one fixed
+size, because packetization, congestion window, TLS record sizing, QUIC stream
+framing, HTTP/3 framing, path MTU, and storage page size all affect the best
+choice. Instead, define a negotiation guideline:
+
+- Start with a conservative default chunk target suitable for common HTTP/TCP
+  delivery and OS page/cache behavior.
+- During connection setup, allow peers to exchange preferred chunk ranges,
+  maximum in-flight chunks, cache page size, compression support, and transport
+  hints.
+- During delivery, allow the sender to adjust chunk grouping when connection
+  properties become known, such as observed RTT, loss, congestion window,
+  negotiated QUIC/HTTP settings, or datagram PLPMTU.
+- Cache successful client/server/network-location profiles on the client, keyed
+  by server identity, route/network class, transport, and dictionary version.
+- Keep subtree identity independent from transport segmentation, so a logical
+  subtree chunk can be split across packets or grouped with adjacent chunks
+  without changing AST identity.
+
+Broadcast delivery couples chunking to network behavior. A chunk size that is
+optimal for one client may be poor for another. Broadcast systems should use a
+baseline chunk size that most clients can receive efficiently, then support
+repair requests for missing/error chunks and optional unicast refinement for
+clients with different path properties.
+
 ### Compression Strategy
+
+The binary AST format should define an uncompressed representation and canonical
+compression profiles. The standard should not enforce compression as a required
+layer, but it should provide canonical guidelines and a reference
+implementation so producers can make interoperable choices.
+
+Recommended profiles:
+
+- `none`: uncompressed binary AST chunks. Required for debugging,
+  deterministic tests, memory mapping, and environments where compression cost
+  exceeds network/storage savings.
+- `canonical-fast`: independently compressed subtree chunks using a fast,
+  dictionary-capable method such as Zstandard.
+- `canonical-dense`: denser compression for cold storage or batch transfer,
+  such as Brotli or a stronger Zstandard level, with less emphasis on random
+  access latency.
+- `solid-archive`: optional whole-document or chunk-group compression for cold
+  storage only, where retry, random access, and parallel decode are not
+  priorities.
 
 Do not compress the whole document as one opaque blob if parallel delivery or
 error recovery matters. Prefer dictionary-based compression plus independently
@@ -341,13 +392,73 @@ compressed subtree chunks:
   local dictionary.
 - Keep source-map stacks compressible by encoding them as frame ids plus range
   deltas.
+- Preserve bit-level source-map ranges for compressed binary content. Byte
+  offsets are enough for uncompressed binary AST chunks, but compressed streams
+  and entropy-coded payloads can address meaningful boundaries at bit
+  granularity.
 
 The tradeoff is compression ratio versus independence. A single solid archive
 usually compresses better, but it blocks random access, retry of only missing
-data, and parallel chunk decoding. Subtree-scoped chunks should be the default
-for networked or interactive runtimes; full solid compression is only suitable
-for cold storage or batch transfer where random access and recovery are less
-important.
+data, and parallel chunk decoding. Network delivery and chunking are coupled:
+smaller chunks improve repair granularity and scheduling, while larger chunks
+usually improve compression ratio and reduce per-chunk overhead. Subtree-scoped
+chunks should be the default for networked or interactive runtimes; full solid
+compression is only suitable for cold storage or batch transfer where random
+access and recovery are less important.
+
+### Compressed AST As DOM Storage
+
+Compressed binary AST chunks can also be a useful DOM storage representation,
+not only a wire format. Many DOM and XPath-like workloads walk tree hierarchy
+sequentially: descend to children, scan siblings, test node names, read
+attributes, and project text. A chunked binary tree can support those paths
+efficiently when each chunk has a compact node table, child edge table,
+attribute table, and local string/symbol table.
+
+The storage format should support two access modes:
+
+- Indexed compressed access: read chunk headers, dictionaries, node tables, and
+  local indexes without inflating the whole subtree.
+- Lazy materialization: decompress only the subtree chunks required for the
+  current query, edit, render, or source-map traversal.
+
+For XPath-like queries, keep enough uncompressed or separately indexed metadata
+in the chunk header to skip irrelevant subtrees: node kind summaries, expanded
+name ids, namespace ids, attribute-name summaries, text-presence flags, and
+child chunk links. Sequential hierarchy traversal then remains efficient while
+large inactive subtrees stay compressed.
+
+### File Mapping And Direct Storage Paths
+
+Subtree-compressed chunks are well suited to file-backed storage. If chunks are
+written as independent file extents with page-aligned offsets, the runtime can
+use memory mapping to load only required DOM subtrees. The OS page cache then
+handles dynamic loading and eviction without asking the implementation to copy
+or compute the whole DOM in memory.
+
+Platform notes:
+
+- Linux: `mmap` maps files into process address space; `splice` can move data
+  between file descriptors through pipes without copying through user space, and
+  `io_uring` includes splice operations. Newer Linux zero-copy receive paths can
+  reduce kernel-to-user copies for network receive, but true socket-to-file
+  direct storage remains hardware, kernel, filesystem, and API dependent.
+- Windows: `CreateFileMapping` and `MapViewOfFile` provide file-backed mapped
+  views. `TransmitFile` is optimized for file-to-socket transfer through the OS
+  cache manager. Winsock Registered I/O can reduce overhead for socket buffers,
+  but there is no general portable user-space guarantee that received socket
+  bytes are written directly to a file without touching RAM.
+- macOS: `mmap` maps files or devices into memory, and `sendfile` sends file
+  data to sockets. General socket-to-file receive still normally goes through
+  kernel/user buffers or file cache paths rather than a portable direct-to-disk
+  API.
+
+The design should therefore allow an optimized receive-to-storage path but not
+require it. A receiver may store network segments directly into a chunk file or
+cache file when the platform can do so safely; otherwise it should fall back to
+ordinary buffered receive and write. The file format should make both paths
+equivalent by requiring chunk hashes, offsets, lengths, dictionary ids, and
+source-map bit ranges in the chunk index.
 
 ### Cross-Chunk References
 
@@ -629,7 +740,7 @@ Use these defaults unless a schema or format requires otherwise:
 | Nested events | Visibly pushdown frame stack | Natural fit for open/close structures |
 | CSV/CSF records | DFDL-style schema-guided recursive descent | Handles delimiters, lengths, and field typing |
 | JSON structures | Token stream plus schema frame stack | Low memory and compatible with Jackson/simdjson style |
-| HTML | WHATWG tokenizer/tree-construction states | Required for browser-compatible behavior |
+| HTML | Schema tokenizer plus DOM implementation interpreter | Preserves browser-compatible behavior while separating token extraction from DOM construction |
 | CSS values | CSS Syntax tokens plus property grammars | Mirrors browser-grade parser layering |
 | TypeScript/Rust syntax | Schema-aware recursive descent with scoped references | Practical for contextual programming languages |
 | Mixed-language documents | Handoff stack with included ranges | Keeps parent and child grammars scoped |
@@ -642,9 +753,11 @@ Use these defaults unless a schema or format requires otherwise:
 | Full JSON Schema needs non-streaming features | Some schemas require buffering or delayed decisions | Mark streamable subset, allow bounded buffering, report non-streamable schema features |
 | Unicode positions differ by ecosystem | Diagnostics can point to wrong columns | Store byte offsets and derive code point/UTF-16 columns on demand |
 | Source maps are lost across transformations | Diagnostics and tooling cannot traverse back to the original source | Store source-map stacks on every AST element and append a frame for each context transform |
+| Compressed source maps stop at byte boundaries | Bit-packed compression metadata cannot be traced precisely | Support bit offset/length ranges for compressed binary frames |
 | Whole-AST compression blocks parallelism | One corrupt or missing byte can stall the whole document | Compress subtree-root chunks independently and use hashes for missing-chunk retry |
 | Shared dictionaries drift by platform version | Chunks decode differently across runtimes | Version platform and app dictionaries and include required dictionary ids per chunk |
 | Cross-chunk references arrive late | Parallel chunks decode before dependencies exist | Represent dependencies as scoped slots and fill them when defining chunks arrive |
+| Network chunk size is fixed too early | Broadcast or high-loss paths get poor repair and scheduling behavior | Negotiate chunk ranges, adjust grouping in flight, and cache path profiles per client/server/network |
 | Embedded content boundaries are ambiguous | Child parser can consume parent syntax | Parent owns return condition and passes bounded child source |
 | HTML recovery is format-specific | Generic parser produces browser-incompatible trees | Use WHATWG states for HTML rather than XML-style recovery |
 | Derivative states or scoped slots can grow | Memory/time blowups | Memoize residuals, intern schema states, and compact scope tables as slots are finalized |
@@ -678,3 +791,17 @@ Use these defaults unless a schema or format requires otherwise:
 - Rust identifiers reference: <https://doc.rust-lang.org/stable/reference/identifiers.html>
 - rustc_lexer documentation: <https://doc.rust-lang.org/nightly/nightly-rustc/rustc_lexer/index.html>
 - Tree-sitter documentation: <https://tree-sitter.github.io/tree-sitter/>
+- Zstandard compression and `application/zstd`: <https://www.rfc-editor.org/rfc/rfc8878.html>
+- Brotli compressed data format: <https://www.rfc-editor.org/rfc/rfc7932>
+- DEFLATE compressed data format: <https://www.rfc-editor.org/rfc/rfc1951.html>
+- Datagram Packetization Layer PMTUD: <https://www.rfc-editor.org/rfc/rfc8899>
+- HTTP/3 framing over QUIC streams: <https://www.rfc-editor.org/rfc/rfc9114.html>
+- Linux `splice(2)`: <https://man7.org/linux/man-pages/man2/splice.2.html>
+- Linux `mmap(2)`: <https://man7.org/linux/man-pages/man2/munmap.2.html>
+- Linux io_uring zero-copy receive: <https://docs.kernel.org/networking/iou-zcrx.html>
+- Windows `CreateFileMapping`: <https://learn.microsoft.com/en-us/windows/win32/api/winbase/nf-winbase-createfilemappinga>
+- Windows `MapViewOfFile`: <https://learn.microsoft.com/en-us/windows/win32/api/memoryapi/nf-memoryapi-mapviewoffile>
+- Windows `TransmitFile`: <https://learn.microsoft.com/en-us/windows/win32/api/mswsock/nf-mswsock-transmitfile>
+- Windows Registered I/O request queues: <https://learn.microsoft.com/en-us/windows/win32/winsock/riorqueue>
+- macOS `mmap(2)`: <https://developer.apple.com/library/archive/documentation/System/Conceptual/ManPages_iPhoneOS/man2/mmap.2.html>
+- macOS `sendfile(2)`: <https://developer.apple.com/library/archive/documentation/System/Conceptual/ManPages_iPhoneOS/man2/sendfile.2.html>
