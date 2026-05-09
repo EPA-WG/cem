@@ -1,7 +1,7 @@
 # CEM Roadmap
 
-CEM should become a complete consumer-semantics design system: tokens, documentation, web components, native adapters,
-Figma assets, demos, and XML/HTML tooling that all prove the same model from different angles.
+CEM should become a complete consumer-semantics design system: tokens, documentation, schema-defined parser/runtime
+tooling, web components, native adapters, Figma assets, and demos that all prove the same model from different angles.
 
 This roadmap is intentionally higher level than `docs/todo.md`. Use this file to decide product/module order; use
 `docs/todo.md` for task-level execution.
@@ -12,9 +12,10 @@ This roadmap is intentionally higher level than `docs/todo.md`. Use this file to
 | ------ | ------- | ----------------------- |
 | CEM token/theme core | Canonical token specs, generated CSS, DTCG JSON, TypeScript metadata, and reports. | `packages/cem-theme` |
 | Native platform adapters | iOS Swift and Android Kotlin/Compose outputs generated from the same token spine. | `packages/cem-theme/dist/lib/token-platforms` |
-| CEM custom-element runtime | Declarative no-JS web component primitives built on `@epa-wg/custom-element`. | `packages/cem-components` |
+| CEM parser/runtime foundation | Schema-defined streaming parser layers: byte decoding, tokenization, normalized events, validation, AST/source maps, binary AST chunks, and implementation handoff. | future `packages/cem-parser` or `packages/cem-dom` |
+| CEM XML/HTML/XSLT library | CEM document schemas, XML/HTML profiles, Invisible XML/CSF profile experiments, DOM helpers, XSLT transforms, and validation over the parser foundation. | future `packages/cem-dom` or `packages/cem-xml` |
+| CEM custom-element runtime | Declarative no-JS web component primitives built on `@epa-wg/custom-element` and fed by validated light-DOM transform output. | `packages/cem-components` |
 | CEM component set | Material-style UI coverage expressed in CEM semantics: buttons, fields, lists, nav, cards, dialogs, tables, tabs, etc. | `packages/cem-components` |
-| CEM XML/HTML/XSLT library | Schema, parser, DOM helpers, transforms, and validation for declarative CEM documents. | future `packages/cem-dom` or `packages/cem-xml` |
 | Figma UI Kit | Designer-facing components, variants, variables, usage examples, and governance workflow. | `examples/figma`, future design artifacts |
 | CEM site | Public docs, token/component gallery, interactive examples, and release documentation wired from the repo root. | future `apps/cem-site` or static docs app |
 | Figma site demo | A realistic product demo: login, registration, profile, asset listing views, and threaded discussion. | future `examples/figma-site-demo` |
@@ -24,9 +25,13 @@ This roadmap is intentionally higher level than `docs/todo.md`. Use this file to
 
 1. Build the shared semantic spine before building demos.
 2. Generate platform outputs from source-of-truth tokens; do not hand-author native or Figma values.
-3. Prove components on the web before porting full UI examples into Figma/native.
-4. Use demos as integration tests, not as the first source of component behavior.
-5. Keep Angular Material as a reference benchmark for coverage and ergonomics, not as a required implementation
+3. Keep parser layers explicit: byte source, decoder, tokenizer, normalized event stream, schema machine, AST builder,
+   binary AST encoder, and implementation interpreter are separate contracts.
+4. Carry source-map stacks and byte offsets through every parser, transform, generated node, and runtime handoff.
+5. Treat embedded languages and mixed formats as scoped handoffs owned by the parent parser's return condition.
+6. Prove components on the web before porting full UI examples into Figma/native.
+7. Use demos as integration tests, not as the first source of component behavior.
+8. Keep Angular Material as a reference benchmark for coverage and ergonomics, not as a required implementation
    dependency unless an Angular adapter is explicitly scoped later.
 
 ## Phase 0 - Repo Spine And Docs
@@ -67,23 +72,38 @@ Remaining gates:
 - Compile generated Kotlin/Compose with a supported Gradle toolchain.
 - Run a full token-change smoke test through CSS, JSON, Figma, Swift, and Android outputs.
 
-## Phase 2 - XML/HTML/XSLT Schema, Parser, And DOM Library
+## Phase 2 - Schema-Defined Parser And Document Runtime
 
-Goal: define the declarative document layer that CEM components and demos can share.
+Goal: define the schema-driven parsing and document layer that CEM components, transforms, docs, and demos can share.
 
 Deliverables:
 
-- CEM document schema for semantic screens, forms, navigation, lists, assets, profiles, and messages.
-- Parser from CEM XML/HTML into a typed DOM model.
-- DOM helper APIs for querying semantic roles, state, validation, and relationships.
-- XSLT transforms from semantic documents into light-DOM custom-element markup.
-- Validation reports for unknown elements, invalid state combinations, missing labels, broken references, and unsafe
-  content.
+- Layered runtime contract: byte source, encoding decoder, schema tokenizer, normalized event stream,
+  schema-compiled state machine, interpreter AST builder, and implementation interpreter.
+- CEM document schema for semantic screens, forms, navigation, lists, assets, profiles, messages, and embedded payloads.
+- XML/HTML parser profile using visibly nested events, source spans, and schema frames rather than DOM construction
+  inside the tokenizer.
+- Scoped embedded-language handoff model for HTML `style`/`script`, XML CDATA or schema-tagged text, CSF fields, JSON
+  string subdocuments, and future CSS/TypeScript/Rust-like regions.
+- Typed document AST/DOM helper APIs for querying semantic roles, state, validation, relationships, source maps, and
+  unresolved references.
+- Source-map stack contract that preserves byte offsets as ground truth and derives line/column or UTF-16 positions as
+  needed.
+- Binary AST and subtree chunking design for cache, transport, retry, and parallel preprocessing; implementation can
+  start with an uncompressed debug encoding.
+- XSLT or transform pipeline from validated semantic documents into light-DOM custom-element markup.
+- Validation reports for unknown elements, invalid state combinations, missing labels, broken references, unsafe
+  content, unsupported embedded-language handoffs, and non-streamable schema features.
 - Fixtures covering login, registration, profile, asset listing, and threaded discussion documents.
 
 Exit criteria:
 
-- A fixture CEM document can be parsed, validated, transformed to HTML, and rendered by the component runtime.
+- A fixture CEM document can be decoded, tokenized, normalized into events, schema-validated, mapped into a typed AST,
+  transformed to HTML, and rendered by the component runtime.
+- Every generated node can be traced back through the source-map stack to the original source bytes or to the transform
+  that generated it.
+- Embedded `style`, `script`, CDATA/text, and CSF-like field payloads either validate through explicit scoped handoffs
+  or produce actionable diagnostics.
 - The same fixture can feed docs/examples without copying business structure into multiple formats.
 
 ## Phase 3 - Custom-Element Runtime
@@ -102,7 +122,7 @@ Deliverables:
 Exit criteria:
 
 - Components can be used declaratively with no app JavaScript for common static and form flows.
-- The runtime can consume output from the XML/HTML/XSLT transform layer.
+- The runtime can consume validated light-DOM output from the parser/document transform layer.
 
 ## Phase 4 - CEM Component Set
 
@@ -229,7 +249,7 @@ Exit criteria:
 | Milestone | Focus | Why now |
 | --------- | ----- | ------- |
 | M1 | Root docs spine and token/native validation gates | Current work is valuable but not yet easy to discover or verify end to end. |
-| M2 | XML/HTML/XSLT schema and fixture pipeline | It gives components, docs, and demos a shared semantic input model. |
+| M2 | Schema-defined parser runtime and fixture pipeline | It gives components, docs, and demos a shared semantic input model with source maps, validation, embedded-language handoffs, and an AST boundary. |
 | M3 | Custom-element runtime primitives | Components need stable behavior conventions before broad catalog work. |
 | M4 | Component set MVP | Unlocks real screens and validates token semantics in UI. |
 | M5 | Figma UI Kit MVP | Designers need the same semantics once component names and states stabilize. |
@@ -242,7 +262,12 @@ Exit criteria:
 
 - Wire `roadmap.md`, `docs/todo.md`, package docs, and token export docs from the root README.
 - Add a docs index under `docs/`.
-- Decide the package name for the XML/HTML/XSLT DOM library.
+- Decide whether the parser/runtime foundation should live in `packages/cem-parser`, `packages/cem-dom`, or split
+  packages.
+- Draft the parser runtime contract: byte decoder, tokenizer, event normalizer, schema machine, AST/source-map model,
+  and implementation interpreter boundary.
+- Define the first CEM XML/HTML profile and the scoped handoff rules for `style`, `script`, CDATA/text, CSF fields, and
+  JSON string subdocuments.
 - Create the first semantic fixture set: login, registration, profile, assets list, and message thread.
 - Define the component MVP list and state matrix.
 - Add a Figma UI Kit plan that maps components to generated token variables.
