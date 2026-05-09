@@ -584,7 +584,7 @@ Proposed projection layer keys (names TBD before implementation):
 | `input-dom` | `parser::input_dom` | Schema-defined initial DOM/AST hierarchy reconstructed from tokens/events. |
 | `whatwg-dom` | `transform::whatwg_html` | WHATWG implementation-DOM update projection from the initial HTML parser DOM. |
 | `cem-ast` | `parser` | CEM semantic AST projection over the input DOM/AST. |
-| `transform-output` | `interpreter` / transform modules | Rendered or transformed content for the selected output content type. |
+| `transform-output` | `interpreter` / transform modules | Canonical CEM-ML transform output and optional rendered projection for the selected output content type. |
 | `source-map` | `source_map` | Source-map stacks and event-time source-map hierarchy. |
 | `report-ast` | `report` | Canonical AST-associated report tree with event sequence and source module state. |
 | `trace` | `engine` / `command` | Deterministic execution trace assembled from parser, validator, transform, and report events. |
@@ -937,9 +937,15 @@ TransformContext:
   fail_level: FailLevel
 
 TransformOutput:
-  markup: String                 serialized light-DOM HTML
+  canonical: CemMlDocument            schema-owned CEM-ML AST/tree serialization
+  rendered: Option<RenderedOutput>    optional target rendering, such as light-DOM HTML
   diagnostics: Vec<Diagnostic>
   source_maps: Vec<SourceMapStack>   one per output element
+
+RenderedOutput:
+  content_type: ContentType
+  bytes: Vec<u8>
+  encoding: Encoding
 ```
 
 ### Schema-Driven Transform Rules
@@ -968,6 +974,40 @@ defines a stricter mapping.
 | `HtmlElement` | Any other element | Pass through unchanged |
 
 Children are transformed recursively. Text nodes pass through unchanged.
+
+### Canonical CEM-ML Serialization
+
+The canonical serialization of a transformed AST tree is CEM-ML format. Canonical
+snapshots, hashes, fixture round trips, and cache identities use this CEM-ML tree rather
+than rendered HTML or another target projection. The CEM-ML serialization is schema-owned
+and follows the same transform plan that produced the tree.
+
+Canonical CEM-ML serialization rules:
+
+- Node order follows schema-defined semantic order.
+- If the schema permits source-order preservation, preserve parse/source order.
+- If the schema defines a transformed order, use the schema-defined transformed order.
+- Node identity and references use stable CEM-ML keys, not process-local AST ids.
+- Attributes and properties serialize in schema-defined order first, then stable lexical
+  key order for open or extension fields.
+- Text values use the CEM-ML escaping policy for the selected CEM-ML syntax.
+- Source maps are included only when the selected projection requests them; minimal
+  canonical CEM-ML content does not require inline source-map payloads.
+- Diagnostics are serialized through the report AST, not embedded into canonical CEM-ML
+  content unless a combined report projection explicitly requests them.
+
+### Rendered Output Projections
+
+Light-DOM custom-element HTML is a rendered projection of the canonical CEM-ML tree, not
+the canonical AST serialization. Rendered output must still be deterministic for
+snapshots and fixture comparison:
+
+- schema-owned generated attributes serialize before pass-through attributes;
+- attributes within each group serialize in stable key order unless the schema defines a
+  stricter order;
+- text and attribute values use one renderer-specific escaping policy;
+- custom elements use explicit start and end tags;
+- whitespace defaults to compact output unless a pretty renderer is explicitly selected.
 
 ### Source-Map Preservation
 
@@ -1059,7 +1099,7 @@ cem_ml/src/
     whatwg_html.rs    initial HTML parser DOM → WHATWG implementation DOM update transform
     css.rs            CSS/SCSS AST and external-reference transform hooks
   interpreter/
-    mod.rs            CemInterpreter trait, TransformContext, TransformOutput
+    mod.rs            CemInterpreter trait, TransformContext, TransformOutput, RenderedOutput
     transform.rs      CEM semantic HTML → custom-element transform rules
   diagnostic.rs       Diagnostic, Severity, DiagCode
   fail_level.rs       FailLevel enum, fail-level evaluation
@@ -1134,7 +1174,7 @@ Status key:
 | L7 BinaryAstEncoder                                             | Deferred Tier B — Tier A does not freeze serialized binary ids; canonical identity, ordering, and future id policy are scoped in §11 |
 | L8 ChunkCompressor                                              | Deferred Tier B — compression profiles are research-backed; canonical chunk identity, ordering, and dependency slots are scoped in §11 |
 | ContentTypeTransformPipeline: WHATWG HTML DOM                   | Design ready — schema-driven initial HTML parser DOM is transformed into WHATWG implementation DOM updates                       |
-| L9 ImplementationInterpreter: schema-driven transform rules     | Design partial — schema owns transform layers; attribute collision, data-cem-* pass-through, and serialization remain unresolved (§18.8.1–3) |
+| L9 ImplementationInterpreter: schema-driven transform rules     | Design partial — schema owns transform layers; attribute collision and data-cem-* pass-through remain unresolved (§18.8.1–2); canonical serialization is defined in §12 |
 | L9 ImplementationInterpreter: transform execution backends      | Deferred Tier B/C — Rust, template DSL, and XSLT tier placement is a scheduling decision constrained by schema-owned transform rules (§12, Ambiguity 4) |
 | LineIndex: byte-offset → line/col projection                    | Design partial — column-unit model, newline normalization, tabs, replacement chars, and UTF-16/scalar projections unspecified (§18.2.4) |
 | Diagnostics and reports                                         | Design partial — source-map ownership and diagnostics-before-AST mapping unresolved (§18.2.5)                                      |
@@ -1616,12 +1656,6 @@ being transformed, output markup duplicates semantic source and generated semant
 
 **Question:** Are source `data-cem-*` attributes removed, renamed, preserved for
 debugging, or gated behind a debug/source-map mode?
-
-**Concern 18.8.3 — Output serialization rules are not defined.**  
-The transform returns `markup: String`, but deterministic snapshots require stable
-attribute ordering, escaping, whitespace, void-element handling, and text serialization.
-
-**Question:** What canonical serialization rules does `ImplementationInterpreter` use?
 
 ---
 
