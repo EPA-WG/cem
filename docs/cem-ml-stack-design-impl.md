@@ -1,0 +1,603 @@
+# `cem-ml` Stack Implementation Design
+
+**Status:** Draft implementation companion.  
+**Primary design:** [`cem-ml-stack-design.md`](cem-ml-stack-design.md)  
+**Primary source:** [`parsing-algorithms-research.md`](../parsing-algorithms-research.md)  
+**Date:** 2026-05-08
+
+---
+
+## 1. Purpose And Boundary
+
+This document contains the implementation-level contracts that support the high-level
+functional design in [`cem-ml-stack-design.md`](cem-ml-stack-design.md). The primary
+design owns behavior, layer responsibilities, tier scope, and unresolved decisions. This
+companion owns concrete data shapes, interface sketches, projection keys, and Rust module
+topology.
+
+Implementation contracts here must not introduce behavior that is absent from the
+primary design. If this document and the primary design conflict, the primary design wins
+until both documents are updated by a design decision.
+
+---
+
+## 2. Shared Source-Map And Diagnostic Contracts
+
+Source maps are an AST contract, not a diagnostic side table. Every AST node must carry a
+traversable stack linking it back to its origin in the byte stream.
+
+### 2.1 Coordinate System
+
+Byte offsets are the stable ground truth. Line and column are derived coordinates
+projected on demand; they are never stored permanently on AST nodes.
+
+```
+ByteRange { start: u64, len: u32 }
+    - absolute byte offset from the start of the SourceId's byte buffer.
+    - len: u32 caps a single token at 4 GiB, which is sufficient.
+```
+
+Line/column projection is performed by a `LineIndex` that records the byte offset of
+each newline in the source file. Projection is `O(log n)` via binary search. The
+`LineIndex` is computed once per `SourceId` and cached.
+
+For Tier B+ compressed binary content, the research specifies bit-level ranges
+(`bit_start: u64, bit_len: u32`). Bit fields are reserved in the source-map schema but
+not populated in Tier A.
+
+### 2.2 Source-Map Stack
+
+```
+SourceMapStack:
+  frames: [SourceMapFrame, ...]     ordered, earliest context first
+
+SourceMapFrame:
+  source_id: SourceId               which byte buffer produced this context
+  byte_range: ByteRange             position within that buffer
+  transform: TransformKind          what step created or modified this node
+```
+
+```
+TransformKind:
+  HtmlTokenizer
+  XmlTokenizer
+  EventNormalizer
+  SchemaValidation(schema_id: SchemaId)
+  CemAstBuilder
+  HandoffBoundary { child_content_type: ContentType }
+  Implementation                    transform/render step
+  BinaryEncoder                     [Tier B]
+```
+
+### 2.3 Traversal Examples
+
+An `aria-labelledby` reference in a parsed fixture traces as:
+
+```
+CemScreen { semantic_id: "login" }
+  frame[0]: CemAstBuilder, byte=(0, 50), source=main.html
+  frame[1]: SchemaValidation(cem-schema-v1), byte=(0, 50)
+  frame[2]: EventNormalizer, OpenScope("main"), byte=(0, 50)
+  frame[3]: HtmlTokenizer, StartTag("main"), byte=(0, 50)
+```
+
+A CSS rule inside an inline `<style>` element traces through its handoff boundary back
+to the parent HTML token:
+
+```
+CssDeclaration { property: "background-color" }
+  frame[0]: CssParser, byte=(0, 24), source=embedded-style@main.html:88
+  frame[1]: HandoffBoundary(text/css), parent_byte=(85, 130), source=main.html
+  frame[2]: HtmlTokenizer, StartTag("style"), byte=(85, 100), source=main.html
+```
+
+External or referenced XML resources use the same source-map relationship as
+content-type handoff scopes. The referenced source receives its own `SourceId`, and
+nodes produced from it carry frames back through the external-resource boundary to the
+originating reference.
+
+### 2.4 Generated Nodes
+
+Transform-generated nodes, such as custom-element output with no direct input text,
+store:
+
+- `transform: TransformKind::Implementation`
+- `byte_range`: the nearest owning source range from the CEM AST node that produced them.
+- Prior frames: inherited from the CEM AST source chain.
+
+### 2.5 Diagnostics
+
+```
+Diagnostic:
+  uri: String                       document URI or file path
+  line: u32                         1-based, derived from byte_offset
+  column: u32                       1-based, derived from byte_offset
+  byte_offset: u64                  ground-truth position
+  code: DiagCode                    stable enumerated code
+  severity: Severity { Fatal | Error | Warning | Info }
+  message: String
+  node: Option<AstNodeId>           AST node reference when available
+```
+
+`Fatal` aborts the current scope. `Error` and `Warning` continue in diagnostic mode with
+a permissive residual, subject to the unresolved recovery invariant in the primary
+design.
+
+---
+
+## 3. Layer Interface Contracts
+
+### 3.1 Layer 1: ByteSource And EncodingDecoder (`cem_ml::source`)
+
+Modeled on LLVM `MemoryBuffer`: a read-only byte slice with a guaranteed sentinel byte
+after the end for fast lexing without bounds checks per character.
+
+```
+SourceId: opaque stable identity for a byte buffer (used in source-map frames)
+
+ByteSource:
+  id() -> SourceId
+  bytes() -> &[u8]                  read-only; sentinel byte guaranteed at bytes.len()
+  byte_range() -> ByteRange         full range of this source
+
+DecodedChunk:
+  scalars: [(char, ByteRange)]      Unicode scalar paired with its byte span
+  byte_range: ByteRange             range covered by this chunk
+  encoding: Encoding                UTF-8, UTF-16LE, UTF-16BE, Latin-1, ...
+```
+
+Implementation rules:
+
+- Keep absolute `u64` byte offsets for every token and event.
+- Keep decoded scalar spans alongside scalars for Unicode-aware validation.
+- Preserve raw byte slices for zero-copy diagnostic snippets.
+- Validate UTF-8 at ingress for HTML inputs unless the selected profile resolves the
+  HTML/WHATWG encoding ambiguity differently.
+
+Tier A supports in-memory byte buffer, string input, and file-path input. Chunked async
+network delivery is Tier B.
+
+### 3.2 Layer 2: SchemaTokenizer (`cem_ml::tokenizer`)
+
+The tokenizer is mode-aware and schema-guided. It extracts source-spanned tokens and
+switches lexical states; it does not construct either the initial HTML parser DOM or the
+WHATWG implementation DOM.
+
+```
+RawToken:
+  kind: HtmlToken | XmlToken
+  byte_range: ByteRange
+  source_id: SourceId
+
+HtmlToken:
+  Doctype { name, public_id, system_id, force_quirks }
+  StartTag { name: String, attributes: [(name, value, name_range, value_range)], self_closing }
+  EndTag { name: String }
+  Text { data: String }
+  Comment { data: String }
+  ProcessingInstruction { target: String, data: String }
+  ParseError { code: HtmlErrorCode }
+```
+
+The `StartTag` attributes carry both the name and value ranges so the event normalizer
+can emit per-attribute byte offsets into the source-map stack.
+
+WHATWG tokenizer states (data, RCDATA, RAWTEXT, script-data, tag-open, attribute-value,
+etc.) are internal to this layer. The schema can select valid tokenizer contexts and
+embedded-content boundaries, but it does not rewrite WHATWG lexical behavior.
+
+XML tokenizer follows the same `RawToken` shape using an XML 1.0 profile, keeping Layers
+3 and above format-agnostic. XML external resources and compatibility behavior are owned
+by the XML content-type transform, not the tokenizer.
+
+### 3.3 Layer 3: EventNormalizer (`cem_ml::events`)
+
+```
+NormalizedEvent:
+  OpenScope  { name: QName, byte_range: ByteRange }
+  CloseScope { name: QName, byte_range: ByteRange }
+  Name       { value: String, byte_range: ByteRange }
+  Value      { value: ScalarValue, byte_range: ByteRange }
+  Separator  { kind: SeparatorKind, byte_range: ByteRange }
+  ModeSwitch { content_type: ContentType, handoff: HandoffRecord }
+  Error      { code: DiagCode, byte_range: ByteRange, severity: Severity }
+
+ScalarValue: Text(String) | Int(i64) | Float(f64) | Bool(bool) | Null
+SeparatorKind: ElementBoundary | Comma | Colon | Delimiter | Newline
+```
+
+HTML token mapping:
+
+| HTML token                               | Emitted events                                                                          |
+|------------------------------------------|-----------------------------------------------------------------------------------------|
+| `StartTag { name, attrs }`               | `OpenScope { name }`, then for each attr: `Name { attr_name }` + `Value { attr_value }` |
+| `EndTag { name }`                        | `CloseScope { name }`                                                                   |
+| `Text { data }`                          | `Value { Text(data) }`                                                                  |
+| `StartTag { name: "style" \| "script" }` | `OpenScope`, then `ModeSwitch { content_type }`                                         |
+| `Comment`                                | Discarded, or `Value` if schema marks comments as significant                           |
+| `ParseError`                             | `Error { ... }`                                                                         |
+
+Each `StartTag` emits its `OpenScope` first, then one `Name`+`Value` pair per attribute,
+preserving attribute source positions.
+
+### 3.4 Layer 4: SchemaMachine (`cem_ml::schema`)
+
+The CEM semantic vocabulary is defined functionally in the primary design's Layer 4
+section. Implementation code consumes the active compiled schema; `schema::vocab` is an
+implementation convenience generated from, or kept traceable to, that schema source.
+
+```
+SchemaFrame:
+  schema_id: SchemaId
+  language_id: ContentType          e.g. text/html, text/css
+  state: SchemaState                current RELAX NG residual or DFA state
+  source_span: ByteRange            range of the element that opened this frame
+  source_map_stack: SourceMapStack  accumulated map at frame entry
+  expected_close: Option<QName>     for element-level close validation
+  namespace_ctx: Option<NsContext>
+  seen_names: HashSet<String>       attribute names seen so far (for required-attr tracking)
+  diagnostics: Vec<Diagnostic>
+```
+
+State transitions:
+
+```
+open(event):
+  Validate OpenScope name against current state.
+  Push child SchemaFrame; compute initial residual for child schema.
+
+value(event):
+  Validate scalar type, range, pattern against current state.
+  Update frame's seen_names if event is a Name.
+
+separator(event):
+  Advance sequence, record, or property pointer in current state.
+
+handoff(event):
+  Emit HandoffRecord.
+  Push child frame with child content_type and child schema_id.
+
+close(event):
+  Validate nullable/complete state (residual accepts empty string).
+  Pop frame; propagate close result to parent frame.
+
+error(event):
+  Record Diagnostic on current frame.
+  Run recovery: for non-Fatal, continue with a permissive residual.
+  For Fatal, abort current scope.
+
+transform(event):
+  Append SourceMapFrame to current source_map_stack.
+
+encode(node):          [Tier B] assign binary node ids and dictionary refs.
+segment(subtree):      [Tier B] close a subtree-root chunk.
+```
+
+### 3.5 Report Event Model (`cem_ml::report`)
+
+Reports are owned by `cem_ml::report`, but their canonical internal data is an
+AST-associated report tree rather than a flat diagnostic list. Each parser, schema,
+handoff, transform, validation, or runtime log message is captured as a report event node
+attached to:
+
+- the current input DOM/AST or CEM AST node when one exists;
+- the current source module state, including URI, content type, schema id, active scope,
+  and source span;
+- the source-map stack as it exists at the moment the event is emitted;
+- the partial DOM/AST hierarchy visible to the emitting layer at that moment; and
+- a monotonic event sequence number that preserves emission order within the report.
+
+The report hierarchy follows the source-map/layer hierarchy, but it is event-time state:
+it records the parser or transform view when the log event happened, not the final
+post-transform tree. Diagnostics before AST construction attach to the nearest source
+module frame and are later linked to AST nodes when a matching node exists.
+
+### 3.6 CLI Projection Keys
+
+Stack layers own data artifacts. The CLI owns projection selection, output targets, and
+default stream behavior. Proposed projection layer keys:
+
+| Key                | Stack owner                       | Projection meaning                                                                                       |
+|--------------------|-----------------------------------|----------------------------------------------------------------------------------------------------------|
+| `source`           | `source::ByteSource`              | Source metadata, URI, byte length, and source id; raw bytes are not emitted unless explicitly requested. |
+| `decoded`          | `source::decode`                  | Encoding result, decoded scalar spans, replacement/encoding diagnostics, and line-index metadata.        |
+| `tokens`           | `tokenizer`                       | Format-native token stream with byte ranges.                                                             |
+| `events`           | `events`                          | Normalized open/close/name/value/separator/mode-switch/error events.                                     |
+| `schema-frames`    | `schema`                          | Schema frame transitions, residual/DFA state, expected closes, and validation state.                     |
+| `handoffs`         | `handoff`                         | Embedded content boundaries, inherited context, child content type, and return condition.                |
+| `input-dom`        | `parser::input_dom`               | Schema-defined initial DOM/AST hierarchy reconstructed from tokens/events.                               |
+| `whatwg-dom`       | `transform::whatwg_html`          | WHATWG implementation-DOM update projection from the initial HTML parser DOM.                            |
+| `cem-ast`          | `parser`                          | CEM semantic AST projection over the input DOM/AST.                                                      |
+| `transform-output` | `interpreter` / transform modules | Canonical CEM-ML transform output and optional rendered projection for the selected output content type. |
+| `source-map`       | `source_map`                      | Source-map stacks and event-time source-map hierarchy.                                                   |
+| `report-ast`       | `report`                          | Canonical AST-associated report tree with event sequence and source module state.                        |
+| `trace`            | `engine` / `command`              | Deterministic execution trace assembled from parser, validator, transform, and report events.            |
+| `binary-ast`       | `ast::encode`                     | Deferred binary AST representation.                                                                      |
+| `chunks`           | `ast::chunk` / `ast::compress`    | Deferred subtree chunk and compression metadata.                                                         |
+
+Fixture round-trip output is a CLI composition of projections, not a separate stack
+layer. It records selected inputs, chosen projection layer(s), rendered outputs or
+hashes, report AST summaries, and diagnostics.
+
+### 3.7 Layer 5: Scoped Embedded Handoff Stack (`cem_ml::handoff`)
+
+```
+HandoffRecord:
+  child_content_type: ContentType
+  byte_span: Option<ByteRange>       known upfront for buffered embedded regions
+  inherited_ctx: InheritedContext    parent element name, attribute name, MIME type, namespace
+  child_schema_id: Option<SchemaId>
+  return_condition: ReturnCondition
+
+ReturnCondition:
+  MatchingEndTag(QName)              e.g. </style>, </script>
+  AttributeEnd                       attribute quote close
+  StringEnd                          JSON string end after unescape
+  BlockClose                         CSS block close
+  FixedLength(u64)
+```
+
+The parent schema machine emits a `HandoffRecord` with the exact `ReturnCondition`
+before yielding the byte stream to the child parser. The child parser consumes bytes up
+to the return condition and signals completion. The parent resumes with the byte
+following the condition boundary.
+
+### 3.8 Layer 6: InputDomAstBuilder / InterpreterAstBuilder (`cem_ml::parser`)
+
+```
+CemNode:
+  Document(CemDocument)
+  Screen(CemScreen)
+  Form(CemForm)
+  Action(CemAction)
+  List(CemList)
+  Card(CemCard)
+  Thread(CemThread)
+  Message(CemMessage)
+  Badge(CemBadge)
+  HtmlElement(HtmlElement)     non-CEM HTML elements (pass-through)
+  Text(TextNode)
+
+CemDocument:
+  source_id: SourceId
+  root_children: Vec<AstNodeId>
+  id_table: HashMap<String, AstNodeId>   global id map for reference resolution
+  diagnostics: Vec<Diagnostic>
+
+CemScreen:
+  node_id: AstNodeId
+  semantic_id: String            value of schema-qualified screen attribute
+  label: Option<LabelRef>        resolved or pending aria-labelledby reference
+  children: Vec<AstNodeId>
+  source: SourceMapStack
+  attrs: AttributeMap
+  state: Option<CemState>
+```
+
+`CemForm`, `CemAction`, `CemList`, `CemCard`, `CemThread`, `CemMessage`, and `CemBadge`
+follow the same shape: `node_id`, `semantic_id` (the schema-qualified role value),
+`children`, `source`, `attrs`, and `state`.
+
+Reference slots:
+
+```
+NameSlot: Arc<Mutex<Option<AstNodeId>>>
+
+LabelRef(NameSlot)          - wraps a slot; filled when id="..." element is parsed
+ForRef(NameSlot)            - for/id pairing
+AriaRef(NameSlot)           - aria-labelledby, aria-describedby, etc.
+```
+
+When the parser encounters an element with an `id` attribute, it looks up the slot in
+the document's `id_table` and fills it. Any prior `LabelRef`/`ForRef`/`AriaRef` holding
+the same slot observes the fill immediately.
+
+Forward references are represented as unfilled slots at parse time. The schema machine
+performs a post-parse reference check to identify remaining unfilled slots and emit
+diagnostics.
+
+The `InputDomAstBuilder` appends a source-map frame when reconstructing the
+schema-defined token hierarchy. The `InterpreterAstBuilder` appends a
+`TransformKind::CemAstBuilder` frame when creating each CEM projection node. The prior
+frames come from the `SchemaFrame.source_map_stack` at the point the element was
+validated.
+
+### 3.9 Layers 7-8: BinaryAstEncoder And ChunkCompressor (`cem_ml::ast`)
+
+```
+BinaryAstEncoder responsibilities:
+  - Assign stable binary node ids after the binary format is active.
+  - Reference platform and app dictionaries by id.
+  - Emit source-map deltas (not full frames) to compress the map chain.
+  - Assign subtree chunk ownership.
+
+ChunkCompressor responsibilities:
+  - Platform dictionary: common AST node kinds, primitive encodings, schema defs, shared strings.
+  - App dictionary: CEM-specific node kinds, local symbol tables, repeated literals.
+  - Payload chunks: subtree AST nodes, scope slots, source-map deltas, embedded ranges.
+```
+
+Chunk boundaries align to subtree roots. Each chunk is independently decodable and
+carries integrity hashes, dependency ids, and dictionary version requirements.
+
+Cross-chunk dependency slots and AST reference slots are separate namespaces with
+separate lifecycle rules. An AST reference slot resolves a language or document reference
+such as `id`/`for`/`aria-*`; a chunk dependency slot resolves transport availability for
+binary subtree data.
+
+```
+ChunkRelation:
+  subtree_id: BinarySubtreeId
+  relation: ChunkRelationKind       primary, continuation, boundary, side_table, ...
+  sequence: u32                     ordering within relation for this subtree
+```
+
+Compression profiles:
+
+| Profile           | Algorithm                        | Use case                                                                                     |
+|-------------------|----------------------------------|----------------------------------------------------------------------------------------------|
+| `none`            | Uncompressed binary              | Debugging, tests, memory-mapped storage, environments where compression cost exceeds savings |
+| `canonical-fast`  | Zstandard with shared dictionary | Interactive delivery, most networked runtimes                                                |
+| `canonical-dense` | Brotli or high-level Zstandard   | Cold storage, batch transfer                                                                 |
+| `solid-archive`   | Whole-document compression       | Cold storage only; no parallel decode or retry                                               |
+
+Tier A must not freeze serialized binary identifiers. Node ids, dictionary ids, scope
+slot ids, chunk ids, and source-map frame ids are not part of the Tier A external
+contract because the binary transport/cache format is deferred. Tier A may use opaque
+internal handles while building in-memory trees, but those handles must not be
+serialized, hashed, exposed as stable API values, or treated as future binary ids.
+
+### 3.10 Layer 9: ImplementationInterpreter (`cem_ml::interpreter`)
+
+```
+CemInterpreter trait:
+  transform(doc: &CemDocument, plan: &TransformPlan, ctx: &TransformContext) -> Result<TransformOutput, CemError>
+
+TransformPlan:
+  schema_id: SchemaId
+  target_content_type: ContentType
+  rules: Vec<TransformRule>        schema-owned rules; backend-neutral
+
+TransformContext:
+  schema_id: SchemaId
+  base_uri: Option<String>
+  fail_level: FailLevel
+
+TransformOutput:
+  canonical: CemMlDocument            schema-owned CEM-ML AST/tree serialization
+  rendered: Option<RenderedOutput>    optional target rendering, such as light-DOM HTML
+  diagnostics: Vec<Diagnostic>
+  source_maps: Vec<SourceMapStack>    one per output element
+
+RenderedOutput:
+  content_type: ContentType
+  bytes: Vec<u8>
+  encoding: Encoding
+```
+
+Each output custom-element node appends a `TransformKind::Implementation` frame. The
+prior frames, inherited from the CEM AST node's `SourceMapStack`, trace back to the
+original HTML token.
+
+The reference implementation stack must execute schema-driven transform plans. A
+hand-written Rust backend is allowed as developer convenience, for prototyping, and for
+optimized execution of schema rules, but it must not become the essential source of
+transform behavior. Any Rust implementation must be traceable back to schema-owned rules
+and must preserve the same diagnostics and source-map semantics as another backend.
+
+---
+
+## 4. Rust Module Map
+
+```
+cem_ml/src/
+  lib.rs
+  source/
+    mod.rs            ByteSource trait, SourceId, ByteRange
+    decode.rs         EncodingDecoder, DecodedChunk, Encoding
+    line_index.rs     LineIndex - byte offset -> (line, col) projection
+  tokenizer/
+    mod.rs            RawToken, SchemaTokenizer trait
+    html.rs           WHATWG HTML tokenizer profile
+    xml.rs            XML 1.0 tokenizer profile
+  events/
+    mod.rs            NormalizedEvent, EventNormalizer
+  schema/
+    mod.rs            SchemaMachine, SchemaFrame, SchemaState
+    derivative.rs     RELAX NG derivative computation
+    vocab.rs          CEM vocabulary constants generated from schema source
+  handoff/
+    mod.rs            HandoffRecord, HandoffStack, ReturnCondition, InheritedContext
+  parser/
+    mod.rs            InputDomNode, CemNode enum, CemDocument
+    input_dom.rs      schema-defined initial DOM/AST reconstruction
+    nodes.rs          CemScreen, CemForm, CemAction, CemList, CemCard, CemThread, CemMessage, CemBadge
+    slots.rs          NameSlot, LabelRef, ForRef, AriaRef - reference resolution
+  source_map/
+    mod.rs            SourceMapStack, SourceMapFrame, TransformKind
+  transform/
+    mod.rs            content-type transformation pipeline
+    whatwg_html.rs    initial HTML parser DOM -> WHATWG implementation DOM update transform
+    css.rs            CSS/SCSS AST and external-reference transform hooks
+  interpreter/
+    mod.rs            CemInterpreter trait, TransformContext, TransformOutput, RenderedOutput
+    transform.rs      CEM semantic HTML -> custom-element transform rules
+  diagnostic.rs       Diagnostic, Severity, DiagCode
+  fail_level.rs       FailLevel enum, fail-level evaluation
+  report/
+    mod.rs            report model structs
+    ast.rs            AST-associated report tree and event nodes
+    json.rs           JSON report rendering
+    xml.rs            XML report rendering
+    cem.rs            CEM-native report rendering
+    text.rs           reference text report rendering
+    html.rs           reference HTML report rendering
+    markdown.rs       Markdown report rendering
+  formats.rs          parse output format names (dom-json, ast, events)
+  fixture.rs          default fixture paths, report path policy
+  engine/
+    mod.rs            CemMlEngine trait (I/O-independent)
+    fake.rs           FakeEngine for CLI feature tests
+  command/
+    mod.rs            I/O-independent command orchestration
+  error.rs            CemError, usage/IO/schema/transform/plugin error variants
+  query/
+    mod.rs            role lookup, state lookup, validation messages, label resolution, source-map lookup
+  ast/                [Tier B] binary AST encoding
+    encode.rs         BinaryAstEncoder - node ids, dictionary refs, source-map deltas
+    compress.rs       ChunkCompressor - platform/app dictionary, payload chunks
+    chunk.rs          chunk metadata, integrity hash, dependency list
+```
+
+`ast/` sub-modules are reserved stubs in Tier A. Their interfaces are defined but their
+bodies are no-ops.
+
+`cem_ml_cli/src/main.rs` owns only Clap argument parsing, cwd/workspace detection,
+stdout/stderr writing, and process exit. All logic lives in `cem_ml`.
+
+---
+
+## 5. Incremental And Editor Mode Contract (Deferred Tier B)
+
+Incremental/editor support is classified as Tier B. Tier A remains a batch/fixture path,
+but Tier A source maps and scope boundaries must preserve enough information for later
+incremental reuse.
+
+The runtime does not compute text diffs itself. An editor, version-control integration,
+or document store provides changed byte ranges or an equivalent diff. The runtime maps
+those ranges through source-map stacks to the smallest owning schema scopes whose prior
+source spans overlap the change. Those scopes are invalidated and reparsed with their
+parent-owned handoff boundaries.
+
+Unchanged sibling scopes may be reused only when all of these remain stable:
+
+- source-map range and source id;
+- schema id and content type;
+- parent-owned return condition or delimiter boundary;
+- namespace/context frame;
+- dependency slots that cross into or out of the changed scope.
+
+When the change crosses a scope boundary, changes a schema or content type, modifies an
+embedded return condition, or touches unresolved/cross-scope references, the runtime uses
+the conservative fallback: rescan the nearest enclosing stable scope and revalidate the
+partially reused tree.
+
+Validation after an incremental edit recomputes affected ancestors, changed scopes, and
+references that cross between changed and reused scopes. Report events for incremental
+passes attach to the event-time partial tree, just like batch reports.
+
+---
+
+## 6. Implementation Ownership Rules
+
+- The primary design defines functional behavior, tier scope, and unresolved decisions.
+- This file defines implementation shapes for the behavior already present in the
+  primary design.
+- Acceptance criteria must be derived from resolved design decisions, not from
+  speculative implementation details.
+- Deferred Tier B/C interfaces may be stubbed in Tier A only when the primary design
+  calls for stable seams.
+
+---
+
+*End of implementation design document.*
