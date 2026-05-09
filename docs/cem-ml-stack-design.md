@@ -44,10 +44,11 @@ references.
 
 ## 2. Domain Context
 
-CEM semantic HTML is standard HTML5 plus schema-qualified semantic attributes. The CEM
-roles live in the namespace associated with the active schema, not in HTML `data-*`
-attributes. The `cem:` prefix below is illustrative; the active schema owns the concrete
-namespace binding:
+CEM semantic HTML is standard HTML5 plus schema-qualified CEM attributes. These
+attributes are transformation annotations in the namespace associated with the active
+schema, not HTML `data-*` metadata and not replacements for native HTML element meaning.
+The `cem:` prefix below is illustrative; the active schema owns the concrete namespace
+binding:
 
 ```html
 
@@ -293,9 +294,9 @@ scalar text values. Comments are discarded unless the active schema marks commen
 significant. Parse errors become diagnostic events.
 
 HTML `data-*` attributes stay in the HTML stack and may be projected to the HTML-specific
-`dataset` equivalent on HTML AST nodes. CEM semantic attributes are schema-qualified
-names, arrive as name/value events within the element's open-scope group, and are handled
-by the schema machine.
+`dataset` equivalent on HTML AST nodes. CEM transform annotation attributes are
+schema-qualified names, arrive as name/value events within the element's open-scope
+group, and are handled by the schema machine.
 
 The event enum and token mapping table are in
 [`cem-ml-stack-design-impl.md`](cem-ml-stack-design-impl.md#33-layer-3-eventnormalizer-cem_mlevents).
@@ -339,13 +340,13 @@ transition sketches are in
 ### CEM Vocabulary In The Schema
 
 The schema defines the namespace, qualified attribute names, allowed values, and nesting
-rules for CEM semantic roles. CEM does not use HTML `data-cem-*` attributes for semantic
-ownership. HTML `data-*` remains HTML-specific metadata and is exposed, when needed, as
-the HTML `dataset` equivalent on HTML AST nodes. Based on the component surface and
-fixture vocabulary:
+rules for CEM transform annotations. CEM does not use HTML `data-cem-*` attributes for
+CEM ownership. HTML `data-*` remains HTML-specific metadata and is exposed, when needed,
+as the HTML `dataset` equivalent on HTML AST nodes. Based on the component
+surface and fixture vocabulary:
 
 ```
-CEM semantic attributes in the active schema namespace:
+CEM transform annotation attributes in the active schema namespace:
   cem:screen   - screen/page root
   cem:form     - form boundary
   cem:action   - interactive action (button, link)
@@ -741,10 +742,10 @@ and virtual DOM patch metadata are in
 ### Schema-Driven Transform Rules
 
 Transform behavior is schema-driven. The schema owns the transform layers, including
-source-role matching, target element construction, attribute mapping, child traversal,
-copy/pass-through rules, and source-map frame creation. Rust code, XSLT, or a template
-DSL are execution backends for the schema-owned transform plan; none of them is the
-reference source of truth.
+source annotation matching, target element construction, attribute mapping, child
+traversal, copy/pass-through rules, and source-map frame creation. Rust code, XSLT, or a
+template DSL are execution backends for the schema-owned transform plan; none of them is
+the reference source of truth.
 
 For the CEM semantic HTML projection, schema-qualified CEM annotations drive custom
 element output, wrapper generation, attribute generation, or no structural output
@@ -1157,9 +1158,9 @@ content models, interleave, and attribute ordering. Better diagnostics (residual
 describes expected content). Significant implementation work; few mature Rust crates
 available (most existing implementations are Java — Jing/Trang per the research).
 
-**Hand-written DFA:** Purpose-built for the CEM vocabulary (eight semantic roles, ten
-states, two dozen attributes). Fast to implement, deterministic, easy to test. Cannot
-generalize to schemas beyond CEM without rewriting.
+**Hand-written DFA:** Purpose-built for the CEM vocabulary (eight transform annotations,
+ten states, two dozen attributes). Fast to implement, deterministic, easy to test.
+Cannot generalize to schemas beyond CEM without rewriting.
 
 **Recommendation:** Option C (hybrid): Tier A uses a hand-written DFA for the CEM
 vocabulary. The `SchemaState` type and `derivative.rs` module interface are designed so
