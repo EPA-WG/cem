@@ -5,7 +5,7 @@
 Phase 0 artifact: [`docs/cem-ml-cli-parity-matrix.md`](./cem-ml-cli-parity-matrix.md).
 Phase 1 artifact: [`docs/cem-ml-parser-schema-adr.md`](./cem-ml-parser-schema-adr.md).
 
-This plan maps the deprecated `cem-dom` CLI's useful functional coverage onto the Rust platform:
+This plan implements the functional coverage defined in [`cem-ml-cli-contract.md`](./cem-ml-cli-contract.md) for the Rust platform:
 
 - App crate: `packages/cem_ml_cli`, Cargo package `cem-ml-cli`, binary `cem-ml`.
 - Library crate: `packages/cem_ml`, Cargo package `cem-ml`, Rust crate `cem_ml`.
@@ -32,7 +32,7 @@ codes. Exact deprecated command syntax is not a compatibility target.
     - `docs/cem-ml-cli-parity-matrix.md`
     - `docs/cem-ml-ac.md`
 2. Create a parity matrix with columns:
-    - deprecated behavior or AC id, where one exists
+    - AC id, where one exists
     - Rust command or library module
     - required output shape
     - implementation status
@@ -335,7 +335,7 @@ Use Nx through the workspace package manager.
     - no CLI command or output-shape redesign is needed
     - fixture validation can be enabled as an Nx target
 4. Parity gate, future plan:
-    - `cem-ml` CLI reaches the same functional acceptance status as the useful deprecated CLI behavior.
+    - `cem-ml` CLI reaches the full functional acceptance status defined in [`cem-ml-cli-contract.md`](./cem-ml-cli-contract.md).
 
 ## Deferred Work
 

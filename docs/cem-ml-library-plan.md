@@ -8,7 +8,6 @@ Rationale:
 
 - The active parser/runtime implementation is Rust-first and already lives in `packages/cem_ml`.
 - The CLI boundary already lives in `packages/cem_ml_cli`.
-- It separates runtime capability from the deprecated TypeScript `@epa-wg/cem-dom` package.
 - It leaves room for future packages such as CEM fixtures, adapters, or npm/WASM wrappers without overloading the core
   crate.
 

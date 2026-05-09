@@ -1,7 +1,7 @@
 # `cem-ml` CLI Phase 0 Contract Lock
 
-**Status:** Phase 0 complete. This document preserves the useful deprecated `cem-dom` CLI behavior for the Rust
-`cem-ml` CLI before parser, schema, transform, or plugin implementation starts.
+**Status:** Phase 0 complete. This document locks the functional contract for the Rust `cem-ml` CLI before parser,
+schema, transform, or plugin implementation starts.
 
 ## Source Contract Pin
 
@@ -11,7 +11,7 @@ Active contract source:
 
 - [`cem-ml-cli-contract.md`](./cem-ml-cli-contract.md) - normative functional CLI contract.
 - [`cem-ml-ac.md`](./cem-ml-ac.md) - parser/runtime, schema, validation, transform, plugin, performance, and security ACs.
-- This matrix - historical map from the deprecated behavior to Rust work items.
+- This matrix — contract lock from functional requirements to Rust work items.
 
 Existing Rust package boundary:
 
@@ -19,23 +19,22 @@ Existing Rust package boundary:
 - Library crate: `packages/cem_ml`, Cargo package `cem-ml`, Rust crate `cem_ml`.
 - Nx project targets already declared: `cem_ml:{build,test,lint,build:wasm}` and
   `cem_ml_cli:{build,test,lint,run}`.
-- Workspace project discovery should include `@epa-wg/cem-components`, `cem_ml_cli`, `@epa-wg/cem-theme`, `cem_ml`,
-  and `@epa-wg/cem` after package removal.
+- Active workspace projects: `@epa-wg/cem-components`, `cem_ml_cli`, `@epa-wg/cem-theme`, `cem_ml`, and `@epa-wg/cem`.
 
-## Platform Remaps
+## Platform Configuration
 
-| Contract item                     | `cem-dom` value                                       | `cem-ml` value                                          |
-| --------------------------------- | ----------------------------------------------------- | ------------------------------------------------------- |
-| Binary                            | `cem-dom`                                             | `cem-ml`                                                |
-| App package/crate                 | Deprecated TypeScript CLI entry                       | Cargo package `cem-ml-cli` in `packages/cem_ml_cli`     |
-| Shared library                    | Deprecated TypeScript library                         | Cargo package `cem-ml` in `packages/cem_ml`             |
-| Fixture inputs                    | `examples/semantic/*.html`                            | unchanged                                               |
-| Fixture validate JSON report      | Deprecated package report path                        | `packages/cem_ml_cli/dist/cem-ml.report.json`           |
-| Fixture validate Markdown report  | Deprecated package report path                        | `packages/cem_ml_cli/dist/cem-ml.report.md`             |
-| Fixture roundtrip JSON report     | Deprecated package report path                        | `packages/cem_ml_cli/dist/cem-ml.roundtrip.report.json` |
-| Fixture roundtrip Markdown report | Deprecated package report path                        | `packages/cem_ml_cli/dist/cem-ml.roundtrip.report.md`   |
-| Bench JSON report                 | Deprecated package report path                        | `packages/cem_ml_cli/dist/cem-ml.bench.report.json`     |
-| JSON field names                  | `cem-dom` report and diagnostic field names           | unchanged                                               |
+| Item                              | Value                                                   |
+| --------------------------------- | ------------------------------------------------------- |
+| Binary                            | `cem-ml`                                                |
+| App package/crate                 | Cargo package `cem-ml-cli` in `packages/cem_ml_cli`     |
+| Shared library                    | Cargo package `cem-ml` in `packages/cem_ml`             |
+| Fixture inputs                    | `examples/semantic/*.html`                              |
+| Fixture validate JSON report      | `packages/cem_ml_cli/dist/cem-ml.report.json`           |
+| Fixture validate Markdown report  | `packages/cem_ml_cli/dist/cem-ml.report.md`             |
+| Fixture roundtrip JSON report     | `packages/cem_ml_cli/dist/cem-ml.roundtrip.report.json` |
+| Fixture roundtrip Markdown report | `packages/cem_ml_cli/dist/cem-ml.roundtrip.report.md`   |
+| Bench JSON report                 | `packages/cem_ml_cli/dist/cem-ml.bench.report.json`     |
+| JSON field names                  | Defined in the active contract specification            |
 
 Default fixture set remains:
 
@@ -68,8 +67,8 @@ Default fixture set remains:
 
 ## Command Surface Matrix
 
-| `cem-dom` AC id | Rust command or library module                                                                         | Required output shape                                                                                 | Implementation status                                                     | Blocked-by-parser status                                                               |
-| --------------- | ------------------------------------------------------------------------------------------------------ | ----------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------- | -------------------------------------------------------------------------------------- |
+| AC id           | Rust command or library module                                                                         | Required output shape                                                                                 | Implementation status                                                     | Blocked-by-parser status                                                               |
+| ------- | ------------------------------------------------------------------------------------------------------ | ----------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------- | -------------------------------------------------------------------------------------- |
 | CLI-C-1         | `cem-ml parse <input>` via `cem_ml::command` and `cem_ml_cli`                                          | DOM JSON by default; `json`, `ast`, and `events` formats; stdout or `--out`; fail-level exit handling | Scaffolded only; planned Phases 4-6                                       | Boundary first; real content blocked                                                   |
 | CLI-C-2         | `cem-ml validate <input...>` plus report models                                                        | Text, JSON, or Markdown validation output; optional aggregate JSON/Markdown reports                   | Planned Phases 4-7                                                        | Boundary first; real validation blocked                                                |
 | CLI-C-3         | `cem-ml check <input...>`                                                                              | Same report shape as validate; CI exit behavior; `--zero-hard-violations`                             | Planned Phases 4-7                                                        | Boundary first; real validation blocked                                                |
@@ -81,8 +80,8 @@ Default fixture set remains:
 
 ## Global Options Matrix
 
-| `cem-dom` AC id | Rust command or library module             | Required output shape                                                                                                                               | Implementation status        | Blocked-by-parser status                                |
-| --------------- | ------------------------------------------ | --------------------------------------------------------------------------------------------------------------------------------------------------- | ---------------------------- | ------------------------------------------------------- |
+| AC id           | Rust command or library module             | Required output shape                                                                                                                               | Implementation status        | Blocked-by-parser status                                |
+| ------- | ------------------------------------------ | --------------------------------------------------------------------------------------------------------------------------------------------------- | ---------------------------- | ------------------------------------------------------- |
 | CLI-O-1         | `cem_ml::fail_level` and Clap enum         | `--fail-level` accepts `parse`, `validate`, or `strict` across parse, validate, check, fixtures, trace, convert, and roundtrip                      | Planned Phases 3-4           | No                                                      |
 | CLI-O-2         | `cem_ml::report` and `cem_ml::fixture`     | `--report-json <file-or-dir>` and `--report-md <file-or-dir>` with default filenames when destination is a directory                                | Planned Phases 3, 7          | No                                                      |
 | CLI-O-3         | Shared option structs in `cem_ml::command` | Record `--schema`, `--content-type`, `--base-uri`, `--format`, `--out`, `--quiet`, `--verbose`, `--no-color`; output shapes consume relevant values | Planned Phases 3-7           | Mostly no; schema semantics blocked by schema subsystem |
@@ -91,8 +90,8 @@ Default fixture set remains:
 
 ## Fail Level Matrix
 
-| `cem-dom` AC id | Rust command or library module                 | Required output shape                                                                                                               | Implementation status                | Blocked-by-parser status    |
-| --------------- | ---------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------ | --------------------------- |
+| AC id           | Rust command or library module                 | Required output shape                                                                                                               | Implementation status                | Blocked-by-parser status    |
+| ------- | ---------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------ | --------------------------- |
 | CLI-F-1         | `cem_ml::fail_level`                           | `parse` fails only on `fatal` diagnostics                                                                                           | Planned Phase 3                      | No                          |
 | CLI-F-2         | `cem_ml::fail_level`                           | `validate` fails on `error` or `fatal` diagnostics                                                                                  | Planned Phase 3                      | No                          |
 | CLI-F-3         | `cem_ml::fail_level`                           | `strict` fails on `warning`, `error`, or `fatal` diagnostics                                                                        | Planned Phase 3                      | No                          |
@@ -102,8 +101,8 @@ Default fixture set remains:
 
 ## Diagnostics And Reports Matrix
 
-| `cem-dom` AC id | Rust command or library module                           | Required output shape                                                                                    | Implementation status        | Blocked-by-parser status              |
-| --------------- | -------------------------------------------------------- | -------------------------------------------------------------------------------------------------------- | ---------------------------- | ------------------------------------- |
+| AC id           | Rust command or library module                           | Required output shape                                                                                    | Implementation status        | Blocked-by-parser status              |
+| ------- | -------------------------------------------------------- | -------------------------------------------------------------------------------------------------------- | ---------------------------- | ------------------------------------- |
 | CLI-D-1         | `cem_ml::diagnostic`                                     | Diagnostics emit `{ uri, line, column, byteOffset, code, severity, message }`; optional `node` preserved | Planned Phase 3              | Types no; real locations blocked      |
 | CLI-D-2         | `cem_ml::diagnostic` future scope metadata               | Optional `{ schemaUri, contentType, namespaceUri }` when scope metadata exists                           | Deferred                     | Blocked by parser/schema scope design |
 | CLI-D-3         | `cem_ml::diagnostic::format_text` and command formatting | Human terminal output for diagnostics, summaries, trace, bench, help, version                            | Planned Phases 3-6           | No for formatting; content blocked    |
@@ -114,8 +113,8 @@ Default fixture set remains:
 
 ## Parse, Validate, And Check Matrix
 
-| `cem-dom` AC id | Rust command or library module               | Required output shape                                                                                                               | Implementation status                          | Blocked-by-parser status                |
-| --------------- | -------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------- | ---------------------------------------------- | --------------------------------------- |
+| AC id           | Rust command or library module               | Required output shape                                                                                                               | Implementation status                          | Blocked-by-parser status                |
+| ------- | -------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------- | ---------------------------------------------- | --------------------------------------- |
 | CLI-P-1         | `cem-ml parse` and output models             | At least one structured parse format; contract keeps `dom-json`, `ast`, and `events`                                                | Planned Phases 3-6                             | Real parse blocked                      |
 | CLI-P-2         | `cem_ml::formats`                            | Document and enforce parse formats: `dom-json`, `json`, `ast`, `events`; rendered HTML/XML deferred                                 | Planned Phases 3-6                             | Real parse blocked                      |
 | CLI-P-3         | `cem_ml::engine::CemMlEngine` validate path  | Validation diagnostics for schema violations, broken references, missing accessible names, and unsafe inline content when supported | Boundary planned Phase 5; real checks deferred | Real validation blocked                 |
@@ -125,8 +124,8 @@ Default fixture set remains:
 
 ## Fixture Workflow Matrix
 
-| `cem-dom` AC id | Rust command or library module                  | Required output shape                                                                                                                                   | Implementation status                         | Blocked-by-parser status                                            |
-| --------------- | ----------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------- | --------------------------------------------- | ------------------------------------------------------------------- |
+| AC id           | Rust command or library module                  | Required output shape                                                                                                                                   | Implementation status                         | Blocked-by-parser status                                            |
+| ------- | ----------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------- | --------------------------------------------- | ------------------------------------------------------------------- |
 | CLI-X-1         | `cem_ml::fixture` and `cem-ml fixture validate` | Default five semantic fixtures or explicit input paths                                                                                                  | Planned Phases 4, 6-7                         | No for path policy; real validation blocked                         |
 | CLI-X-2         | `cem_ml::fixture` report writers                | Default `packages/cem_ml_cli/dist/cem-ml.report.json` and `.md`; same report conventions as package target                                              | Planned Phases 6-7                            | No for writers; content blocked                                     |
 | CLI-X-3         | `cem_ml::fixture` fail handling                 | Non-zero when fixture validation records hard violations                                                                                                | Planned Phase 6                               | Real validation blocked                                             |
@@ -134,8 +133,8 @@ Default fixture set remains:
 
 ## Transform, Convert, Schema, Inspect, Trace, Bench, And Plugins Matrix
 
-| `cem-dom` AC id | Rust command or library module           | Required output shape                                                                                                                        | Implementation status        | Blocked-by-parser status               |
-| --------------- | ---------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------- | ---------------------------- | -------------------------------------- |
+| AC id           | Rust command or library module           | Required output shape                                                                                                                        | Implementation status        | Blocked-by-parser status               |
+| ------- | ---------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------- | ---------------------------- | -------------------------------------- |
 | CLI-T-1         | Reserved `cem-ml transform <input>`      | Usage error `2` until transform plan exists; future transformed output plus diagnostics                                                      | Reserved Phase 4             | Blocked by transform subsystem         |
 | CLI-T-2         | `cem-ml convert <input>`                 | HTML/XML to `dom-json`, `ast`, or `events`; stdout or `--out`; `--preserve-source-offsets`; rendered HTML/XML and schema conversion deferred | Planned Phase 6              | Real conversion blocked                |
 | CLI-T-3         | Reserved `cem-ml schema emit <schema>`   | Usage error `2` until schema mirror plan exists; future schema mirrors/type headers                                                          | Reserved Phase 4             | Blocked by schema subsystem            |
@@ -149,8 +148,8 @@ Default fixture set remains:
 
 ## Exit Code Matrix
 
-| `cem-dom` AC id | Rust command or library module                | Required output shape                                           | Implementation status | Blocked-by-parser status        |
-| --------------- | --------------------------------------------- | --------------------------------------------------------------- | --------------------- | ------------------------------- |
+| AC id           | Rust command or library module                | Required output shape                                           | Implementation status | Blocked-by-parser status        |
+| ------- | --------------------------------------------- | --------------------------------------------------------------- | --------------------- | ------------------------------- |
 | CLI-E-1         | `cem_ml::error` and `cem_ml_cli` process exit | Exit `0` on success                                             | Planned Phases 2-4    | No                              |
 | CLI-E-2         | `cem_ml::error` and fail-level evaluation     | Exit `1` for parse, validation, strict-mode, or budget failures | Planned Phases 3-6    | No for mapping; content blocked |
 | CLI-E-3         | Clap and command validation                   | Exit `2` for CLI usage errors                                   | Planned Phase 4       | No                              |
@@ -162,8 +161,8 @@ Default fixture set remains:
 
 ## Native Node And Nx Matrix
 
-| `cem-dom` AC id | Rust command or library module  | Required output shape                                                                                                         | Implementation status                                                           | Blocked-by-parser status |
-| --------------- | ------------------------------- | ----------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------- | ------------------------ |
+| AC id           | Rust command or library module  | Required output shape                                                                                                         | Implementation status                                                           | Blocked-by-parser status |
+| ------- | ------------------------------- | ----------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------- | ------------------------ |
 | CLI-N-1         | Rust/Cargo package metadata     | Node ESM package requirement does not apply; Rust replacement is Cargo workspace package metadata                             | Rust-specific replacement exists                                                | No                       |
 | CLI-N-2         | Rust/Cargo development workflow | Native Node TypeScript execution does not apply; use Cargo through Nx targets                                                 | Rust-specific replacement exists                                                | No                       |
 | CLI-N-3         | Rust/Cargo test workflow        | No `ts-node`, `tsx`, Babel, Jest, or Vitest for Rust CLI tests; use Cargo tests through Nx                                    | Rust-specific replacement exists                                                | No                       |

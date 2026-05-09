@@ -1,7 +1,7 @@
 # `cem-ml-cli` Functional Contract
 
-`cem-ml-cli` replaces the deprecated `cem-dom` CLI. This document preserves functional coverage, option behavior,
-report fields, diagnostics, fixture workflows, and exit-code policy without requiring the old `cem-dom` command syntax.
+This document defines the functional contract for `cem-ml-cli`: command capabilities, option behavior, report fields,
+diagnostics, fixture workflows, and exit-code policy.
 
 ## Functional Surface
 

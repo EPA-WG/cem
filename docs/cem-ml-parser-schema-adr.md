@@ -8,7 +8,7 @@
 
 ## Context
 
-The Rust `cem-ml` CLI must preserve the `cem-dom` CLI contract while avoiding premature parser implementation. Phase 1
+The Rust `cem-ml` CLI must implement the functional contract in [`cem-ml-cli-contract.md`](./cem-ml-cli-contract.md) while avoiding premature parser implementation. Phase 1
 exists to assess Java XML precedents, Rust library options, schema mirror choices, diagnostics, source locations,
 security defaults, and WASM constraints before parser-backed command work starts.
 

@@ -262,8 +262,6 @@ Exit criteria:
 
 - Wire `roadmap.md`, `docs/todo.md`, package docs, and token export docs from the root README.
 - Add a docs index under `docs/`.
-- Retire the deprecated `packages/cem-dom` package and keep parser/runtime ownership in `packages/cem_ml` plus
-  `packages/cem_ml_cli`.
 - Draft the parser runtime contract: byte decoder, tokenizer, event normalizer, schema machine, AST/source-map model,
   and implementation interpreter boundary.
 - Define the first CEM XML/HTML profile and the scoped handoff rules for `style`, `script`, CDATA/text, CSF fields, and

@@ -2,42 +2,6 @@
 
 This file tracks remaining execution tasks only. Product/module sequencing lives in [`../roadmap.md`](../roadmap.md).
 
-## Immediate - Graceful `packages/cem-dom` Removal
-
-`@epa-wg/cem-dom` is deprecated. `@epa-wg/cem-ml` and `@epa-wg/cem-ml-cli` are the forward path for parser/runtime
-and CLI work. The old TypeScript implementation is not a compatibility target and can be removed completely.
-
-The removal goal is **functional coverage**, especially CLI option behavior and output contracts. Do not preserve
-`cem-dom` command syntax for its own sake; preserve capabilities, option semantics, diagnostics, reports, fixture
-workflows, and exit-code behavior where they still matter.
-
-### Removal Gates
-
-- [x] Freeze the useful `cem-dom` CLI capability contract into `cem-ml-cli` docs before deleting source files:
-      command capabilities, option semantics, report fields, diagnostic fields, fixture defaults, default formats,
-      fail-level behavior, reserved workflow behavior, and exit codes.
-- [x] Treat the former package-local CLI docs and [`cem-ml-cli-parity-matrix.md`](cem-ml-cli-parity-matrix.md) as
-      migration inputs only. The normative functional contract lives in
-      [`cem-ml-cli-contract.md`](cem-ml-cli-contract.md).
-- [ ] Verify `cem-ml-cli` covers the former CLI functionality, regardless of exact syntax:
-      `parse`, `validate`, `check`, `inspect`, `convert`, `trace`, `bench`, `fixture validate`, `fixture roundtrip`,
-      `help`, `version`, and reserved `transform`, `schema`, and `plugin` workflows.
-- [ ] Verify option-function coverage in `cem-ml-cli`: fail level, output format, report destinations, output file,
-      schema/content-type/base URI recording, quiet/verbose/no-color, zero hard violations, preserve source offsets,
-      convert input/output formats, inspect views, benchmark iterations/budget/profile/cold-cache, and fixture defaults.
-- [ ] Add Rust-side contract tests for option behavior and output shape before relying on `cem-ml-cli` in CI. Tests
-      should assert behavior, JSON/report fields, diagnostics, and exit codes rather than copying `cem-dom` syntax.
-- [ ] Move fixture validation report ownership to `packages/cem_ml_cli/dist/cem-ml.report.{json,md}` and round-trip /
-      benchmark reports to `cem-ml`-named outputs.
-- [x] Remove `packages/cem-dom` from the Nx workspace and package graph: project config, package metadata, source,
-      tests, docs that only describe the old implementation, generated `dist` artifacts, README package-map entries,
-      docs index entries, and package references from component docs.
-- [ ] Keep or move only migration-relevant contract material. Anything tied to the old TypeScript parser/validator
-      implementation can be deleted.
-- [x] Verify workspace discovery and Rust targets after removal:
-      `yarn nx show projects`, `yarn nx run cem_ml:build`, `yarn nx run cem_ml:test`,
-      `yarn nx run cem_ml_cli:build`, and `yarn nx run cem_ml_cli:test`.
-
 ## Phase 2 - Schema-Defined Parser And Document Runtime (`@epa-wg/cem-ml` / `@epa-wg/cem-ml-cli`)
 
 Bring the existing fixtures in `examples/semantic/` into a layered schema-defined pipeline:
@@ -60,17 +24,24 @@ Component vocabulary: [`component-mvp.md`](component-mvp.md). Research input:
 ### Package Direction
 
 - [x] Scaffold `packages/cem_ml` and `packages/cem_ml_cli`.
-- [x] Remove the deprecated `packages/cem-dom` sub-project.
 - [ ] Wire `build`, `lint`, `test`, and future `validate-fixtures` Nx targets through `cem_ml` / `cem_ml_cli`.
 - [ ] Update the root README package map, `docs/index.md`, and related package docs to name `@epa-wg/cem-ml` and
       `@epa-wg/cem-ml-cli` as the active parser/runtime and CLI packages.
+- [ ] Verify `cem-ml-cli` covers the full functional contract from [`cem-ml-cli-contract.md`](cem-ml-cli-contract.md):
+      `parse`, `validate`, `check`, `inspect`, `convert`, `trace`, `bench`, `fixture validate`, `fixture roundtrip`,
+      `help`, `version`, and reserved `transform`, `schema`, and `plugin` workflows.
+- [ ] Verify option-function coverage in `cem-ml-cli`: fail level, output format, report destinations, output file,
+      schema/content-type/base URI recording, quiet/verbose/no-color, zero hard violations, preserve source offsets,
+      convert input/output formats, inspect views, benchmark iterations/budget/profile/cold-cache, and fixture defaults.
+- [ ] Add Rust-side contract tests for option behavior and output shape before relying on `cem-ml-cli` in CI. Tests
+      should assert behavior, JSON/report fields, diagnostics, and exit codes.
+- [ ] Move fixture validation report ownership to `packages/cem_ml_cli/dist/cem-ml.report.{json,md}` and round-trip /
+      benchmark reports to `cem-ml`-named outputs.
 
 ### Planning And Contract Reconciliation
 
 - [ ] Update parser/runtime acceptance criteria so Tier A matches the layered runtime contract: byte decoding,
       tokenization, normalized events, schema machine, typed AST, source-map stacks, transform, and diagnostics.
-- [x] Replace the old DOM library plan with [`cem-ml-library-plan.md`](cem-ml-library-plan.md), making Rust ownership
-      explicit and no longer treating `@epa-wg/cem-dom` as an active package.
 - [ ] Define the first public runtime interfaces: `ByteSource`, `DecodedChunk`, `SchemaToken`, `NormalizedEvent`,
       `SchemaFrame`, `CemAstNode`, `SourceMapFrame`, `Diagnostic`, and `Interpreter`.
 - [ ] Decide and document Tier A deferrals for compression, multi-content plugins, full WHATWG DOM compatibility,
