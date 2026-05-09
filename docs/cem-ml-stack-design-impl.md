@@ -728,7 +728,7 @@ cem_ml/src/
   parser/
     mod.rs            InputDomNode, CemNode enum, CemDocument
     input_dom.rs      schema-defined initial DOM/AST reconstruction
-    nodes.rs          CemScreen, CemForm, CemAction, CemList, CemCard, CemThread, CemMessage, CemBadge
+    nodes.rs          InputElement, CemAnnotatedInput, CemAnnotation, pass-through input nodes
     slots.rs          NameSlot, LabelRef, ForRef, AriaRef - reference resolution
   source_map/
     mod.rs            SourceMapStack, SourceMapFrame, TransformKind
