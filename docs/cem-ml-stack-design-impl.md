@@ -398,6 +398,19 @@ following the condition boundary.
 ### 3.8 Layer 6: InputDomAstBuilder / InterpreterAstBuilder (`cem_ml::parser`)
 
 ```
+InputDomNode:
+  Document(InputDocument)
+  Element(InputElement)
+  Attribute(InputAttribute)
+  Text(TextNode)
+  Comment(CommentNode)
+  Doctype(DoctypeNode)
+  ProcessingInstruction(ProcessingInstructionNode)
+  Cdata(CdataNode)
+  RawText(RawTextNode)
+  ErrorNode(RecoveredErrorNode)
+  Extension(ExtensionNode)
+
 CemNode:
   Document(CemDocument)
   Screen(CemScreen)
@@ -408,7 +421,7 @@ CemNode:
   Thread(CemThread)
   Message(CemMessage)
   Badge(CemBadge)
-  HtmlElement(HtmlElement)     non-CEM HTML elements (pass-through)
+  InputNode(AstNodeId)         pass-through generic XML/(X)HTML input DOM node
   Text(TextNode)
 
 CemDocument:
@@ -426,6 +439,10 @@ CemScreen:
   attrs: AttributeMap
   state: Option<CemState>
 ```
+
+`InputDomNode` is the generic schema-defined AST surface. Its minimal Tier A preserved
+construct set is TBD. The CEM projection uses `CemNode` and can carry non-CEM source
+constructs by reference through `InputNode(AstNodeId)`.
 
 `CemForm`, `CemAction`, `CemList`, `CemCard`, `CemThread`, `CemMessage`, and `CemBadge`
 follow the same shape: `node_id`, `semantic_id` (the schema-qualified role value),

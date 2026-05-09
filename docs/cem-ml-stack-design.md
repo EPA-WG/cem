@@ -528,7 +528,18 @@ the initial parser DOM.
 
 ### Functional Design
 
-The CEM AST node set is:
+The input DOM/AST is generic and schema-defined. It must be able to represent XML and
+(X)HTML grammar constructs such as elements, attributes, text, comments, doctypes,
+processing instructions, CDATA sections where the content type supports them, raw-text
+regions, recovered error nodes, and future schema-owned node kinds. These are not CEM
+semantic constructs by default, but they remain part of the source-preserving input tree
+when the active schema or content-type policy preserves them.
+
+The minimal Tier A set of non-CEM constructs to preserve is TBD. CEM-specific support
+and syntax for treating comments or CDATA as semantic CEM content is also TBD.
+
+The typed CEM AST projection is narrower than the generic input DOM/AST. Its semantic
+node set is:
 
 - document;
 - screen;
@@ -539,7 +550,7 @@ The CEM AST node set is:
 - thread;
 - message;
 - badge;
-- pass-through HTML element;
+- pass-through generic/input DOM node;
 - text node.
 
 Each CEM semantic node has a node id, the schema-qualified semantic id or role value,
@@ -902,7 +913,7 @@ Status key:
 | L5 Child parser: CSS (stub, diagnostic only)                | Design partial — embedded-source byte/decoded-view model unspecified (§18.6.2)                                                                                                          |
 | L5 Child parser: Script (raw text only)                     | Design partial — script preservation policy unspecified (§18.6.3); unsafe-content validation follows content-type policy (§3.2)                                                         |
 | L6 InputDomAstBuilder: schema-defined initial DOM/AST       | Design ready — schema reconstructs token hierarchy; WHATWG DOM compliance is a downstream transformation over this initial DOM                                                          |
-| L6 InterpreterAstBuilder: typed CEM AST projection          | Design partial — multiple CEM roles per element and non-CEM construct handling remain unresolved (§18.7.3, §18.7.5); vocabulary ownership is schema-defined (§8)                        |
+| L6 InterpreterAstBuilder: typed CEM AST projection          | Design partial — multiple CEM roles per element remain unresolved (§18.7.3); generic AST support exists for XML/(X)HTML constructs, with Tier A minimum and CEM comment/CDATA syntax TBD (§10) |
 | L6 Reference slots: id/for/aria-*                           | Design partial — slot implementation model, lifecycle, override, duplicate, and cross-scope rules unresolved (Ambiguity 6, §18.7.1–2)                                                   |
 | L6 Source-map stacks: byte-range + transform chain          | Design partial — frame order, multi-range nodes, escape/entity decoding, and diagnostics-before-AST mapping unresolved (§18.2.1–3, §18.2.5)                                             |
 | L6 Source-map stacks: bit-level ranges                      | Deferred Tier B — reserve representation only after source-map frame model is fixed (§18.2.1–2); no serialized binary frame ids in Tier A (§11)                                         |
@@ -1362,13 +1373,6 @@ than one schema-qualified CEM role attribute on the same element.
 
 **Question:** Are multiple semantic roles invalid, does one role win by precedence, or
 does the AST represent a composed role set?
-
-**Concern 18.7.5 — Text and pass-through HTML nodes need normalization rules.**  
-The AST includes `HtmlElement` and `Text`, but not comments, doctypes, processing
-instructions, raw text, or recovered error nodes.
-
-**Question:** Which non-CEM constructs are preserved in the AST, which are discarded,
-and which become diagnostics-only?
 
 ---
 
