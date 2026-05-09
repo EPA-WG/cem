@@ -1500,6 +1500,20 @@ size, chunk count, or diagnostic count.
 **Question:** What hard limits and fail-open/fail-closed behavior protect the parser
 from pathological inputs?
 
+**Decision:** Depth and count limits are defined by the active content-type policy.
+The outer content type owns the effective limits and criticality for the parse scope,
+including nesting depth, attributes per element, references per document, residual cache
+size, chunk count, diagnostic count, and analogous resource ceilings. Embedded contexts
+inherit the outer policy and may only increase restraint: a child content-type policy can
+lower a limit or raise the failure criticality, but it cannot raise a limit or downgrade a
+fail-closed condition from the parent.
+
+This makes resource behavior monotonic across handoff boundaries. A permissive outer
+HTML parse may allow a child CSS parser to impose stricter CSS-specific bounds, but an
+embedded context cannot weaken document-level protections. When a limit is exceeded, the
+effective policy determines whether the parser records a recoverable diagnostic and
+continues in degraded mode, aborts the current scope, or aborts the full parse.
+
 ---
 
 *End of design document. Each ambiguity and review concern above should be resolved with
