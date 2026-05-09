@@ -755,33 +755,49 @@ stdout/stderr writing, and process exit. All logic lives in `cem_ml`.
 
 ## 15. Tier A Scope
 
-| Component | Tier A status |
-| --- | --- |
-| L1 ByteSource: in-memory buffer, string, file path | Implemented |
-| L1 ByteSource: async network streaming | Deferred Tier B |
-| L1 EncodingDecoder: UTF-8 | Implemented |
-| L1 EncodingDecoder: UTF-16, Latin-1, BOM detection | Deferred (Ambiguity 1) |
-| L2 SchemaTokenizer: HTML WHATWG profile | Implemented |
-| L2 SchemaTokenizer: XML 1.0 profile | Partial: well-formed only |
-| L3 EventNormalizer | Implemented |
-| L4 SchemaMachine: visibly pushdown frame stack | Implemented |
-| L4 SchemaMachine: RELAX NG derivative engine | Deferred; Tier A uses hand-written DFA (Ambiguity 9) |
-| L4 SchemaMachine: CEM vocabulary DFA | Implemented |
-| L5 HandoffStack: struct and return-condition tracking | Implemented |
-| L5 Child parser: CSS (stub, diagnostic only) | Partial |
-| L5 Child parser: Script (raw text only) | Partial |
-| L6 InterpreterAstBuilder: typed CEM AST | Implemented |
-| L6 Reference slots: id/for/aria-* | Implemented |
-| L6 Source-map stacks: byte-range + transform chain | Implemented |
-| L6 Source-map stacks: bit-level ranges for compressed content | Deferred Tier B |
-| L7 BinaryAstEncoder | Deferred stub Tier B |
-| L8 ChunkCompressor | Deferred stub Tier B |
-| L9 ImplementationInterpreter: hand-written Rust transform rules | Implemented |
-| L9 ImplementationInterpreter: XSLT template engine | Deferred Tier C |
-| LineIndex: byte-offset → line/col projection | Implemented |
-| Post-parse reference validation (unfilled slots) | Implemented |
-| Per-scope error boundaries | Deferred Tier B (Ambiguity 5) |
-| Async mutation API (`*Async` DOM mutations) | Deferred Tier B |
+Nothing is implemented yet. The table below reflects **design readiness** — whether the
+design in this document is complete enough to start implementation without resolving
+further open questions first.
+
+Status key:
+- **Design ready** — design is complete enough to implement; open sub-questions are
+  refinements, not blockers.
+- **Design partial** — one or more open concerns in §17–18 must be resolved before
+  clean implementation can begin. Blocker references are noted.
+- **Deferred Tier B/C** — explicitly out of Tier A scope; interface stubs may be
+  defined now for stability.
+
+| Component                                                       | Design status                                                                                                                    |
+|-----------------------------------------------------------------|----------------------------------------------------------------------------------------------------------------------------------|
+| L1 ByteSource: in-memory buffer, string, file path              | Design partial — source ownership/resource bounds need decisions (§18.3.1, §18.3.3)                                              |
+| L1 ByteSource: async network streaming                          | Deferred Tier B — Tier A interfaces must still preserve absolute offsets for future chunked input                                |
+| L1 EncodingDecoder: UTF-8                                       | Design partial — UTF-8-only CEM profile vs WHATWG encoding detection unresolved (§18.3.2)                                        |
+| L1 EncodingDecoder: UTF-16, Latin-1, BOM detection              | Design partial — required for HTML/XML profile clarity; blocked by Ambiguity 1 and §18.3.2                                       |
+| L1 Sentinel-byte ownership                                      | Design partial — Rust safety model for sentinel not resolved (§18.3.1)                                                           |
+| L2 SchemaTokenizer: HTML WHATWG profile                         | Design partial — schema-influenced tokenizer subset, crate choice, offsets, and tree-builder boundary unresolved (§18.1.3, §18.4.5, Ambiguity 2) |
+| L2 SchemaTokenizer: XML 1.0 profile                             | Design partial — namespace/name model plus DTD/entity/external-resource policy unspecified (§18.4.4, §18.10.1)                   |
+| L3 EventNormalizer                                              | Design partial — attribute-list close event, void elements, name model, trivia, and ModeSwitch ownership unspecified (§18.4.1–4, §18.6.1) |
+| L4 SchemaMachine: visibly pushdown frame stack                  | Design partial — recovery invariant, multiplicity/required-name state, and diagnostic propagation affect core semantics (§18.5.3–4, Ambiguity 8) |
+| L4 SchemaMachine: RELAX NG derivative engine                    | Deferred Tier B — Tier A DFA must preserve a replacement path for residual diagnostics (Ambiguity 9, §18.5.1)                   |
+| L4 SchemaMachine: CEM vocabulary DFA                            | Design partial — DFA state table, schema source, vocabulary ownership, and unknown-content policy unspecified (Ambiguity 3, Ambiguity 9, §18.5.1–2, §18.7.4) |
+| L5 HandoffStack: struct and return-condition tracking           | Design partial — authoritative `HandoffRecord` owner and deferred return-condition variants unresolved (§18.6.1, §18.6.4)        |
+| L5 Child parser: CSS (stub, diagnostic only)                    | Design partial — embedded-source byte/decoded-view model unspecified (§18.6.2)                                                    |
+| L5 Child parser: Script (raw text only)                         | Design partial — script preservation/security policy unspecified (§18.6.3, §18.10.2)                                             |
+| L6 InterpreterAstBuilder: typed CEM AST                         | Design partial — multiple CEM roles per element, non-CEM construct handling, and vocabulary source unresolved (§18.7.3–5)        |
+| L6 Reference slots: id/for/aria-*                               | Design partial — slot implementation model, lifecycle, override, duplicate, and cross-scope rules unresolved (Ambiguity 6, §18.7.1–2) |
+| L6 Source-map stacks: byte-range + transform chain              | Design partial — frame order, multi-range nodes, escape/entity decoding, and diagnostics-before-AST mapping unresolved (§18.2.1–3, §18.2.5) |
+| L6 Source-map stacks: bit-level ranges                          | Deferred Tier B — reserve representation only after source-map frame model is fixed (§18.2.1–2, §18.9.1)                         |
+| L7 BinaryAstEncoder                                             | Deferred Tier B — do not freeze IDs or trait signatures until binary determinism and slot identity are resolved (§18.9.1–3)      |
+| L8 ChunkCompressor                                              | Deferred Tier B — compression profiles are research-backed, but chunk determinism and cross-chunk references remain open (§18.9.2–3) |
+| L9 ImplementationInterpreter: hand-written Rust transform rules | Design partial — transform engine choice, attribute collision, data-cem-* pass-through, serialization, and future template seam unresolved (Ambiguity 4, §18.8.1–4) |
+| L9 ImplementationInterpreter: XSLT template engine              | Deferred Tier C — minimal Tier A template abstraction still needs a decision through Ambiguity 4                                 |
+| LineIndex: byte-offset → line/col projection                    | Design partial — column-unit model, newline normalization, tabs, replacement chars, and UTF-16/scalar projections unspecified (§18.2.4) |
+| Diagnostics and reports                                         | Design partial — source-map ownership, deterministic diagnostic ordering, and report projection ownership unresolved (§18.2.5, §18.11.1–2) |
+| CLI output projections and fixture round-trip reports           | Design partial — stack-layer ownership and functional-coverage test matrix unresolved (§18.11.1, §18.11.3)                       |
+| Resource and security limits                                    | Design partial — input size, nesting depth, slot/residual/cache bounds, URL/script/entity policy unresolved (§18.3.3, §18.10.1–3) |
+| Post-parse reference validation (unfilled slots)                | Design partial — Warning vs Error severity unresolved (Ambiguity 6 sub-question)                                                 |
+| Per-scope error boundaries                                      | Deferred Tier B (Ambiguity 5)                                                                                                    |
+| Async mutation API (`*Async` DOM mutations)                     | Deferred Tier B/C — outside the primary parsing research; requires separate runtime API design                                    |
 
 ---
 
@@ -1005,13 +1021,6 @@ are follow-up questions and concerns to resolve before implementation. Other wor
 documents may provide terminology, but they should not decide the answers here.
 
 ### 18.1 Contract And Status Ambiguities
-
-**Concern 18.1.1 — Tier A status table reads as implementation status.**  
-Section 15 marks many items as `Implemented`, but the document status says "design only"
-and no implementation is included. This can mislead implementers and reviewers.
-
-**Question:** Should Section 15 be reframed as "Tier A target", "MVP requirement",
-"prototype status", or actual implementation status?
 
 **Concern 18.1.2 — Acceptance criteria are not traceable to the research layers.**  
 The document describes layers and algorithms, but it does not define a checkable
