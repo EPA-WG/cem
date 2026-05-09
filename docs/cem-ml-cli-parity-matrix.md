@@ -1,23 +1,17 @@
 # `cem-ml` CLI Phase 0 Contract Lock
 
-**Status:** Phase 0 complete. This document locks the `cem-dom` CLI contract for the Rust `cem-ml` CLI before parser,
-schema, transform, or plugin implementation starts.
+**Status:** Phase 0 complete. This document preserves the useful deprecated `cem-dom` CLI behavior for the Rust
+`cem-ml` CLI before parser, schema, transform, or plugin implementation starts.
 
 ## Source Contract Pin
 
 Pinned on 2026-05-07 against workspace revision `5c4149b1c421e7f8dcbbac62428c1612287f5878`.
 
-Read and pinned:
+Active contract source:
 
-- `packages/cem-dom/docs/cli-ac.md` - normative CLI acceptance criteria and AC ids.
-- `packages/cem-dom/docs/cli-plan.md` - implemented `cem-dom` behavior, deferred work, edge cases, and verification.
-- `docs/cem-dom-ac.md` - system-level parser, schema, validation, transform, plugin, performance, and security ACs.
-- `packages/cem-dom/src/cli.ts` - executable command behavior, report paths, fixture defaults, and exit mapping.
-- `packages/cem-dom/src/lib/cem-dom.ts` - diagnostic, parser, validator, document, AST, and source-location shapes.
-- `packages/cem-dom/src/lib/cli-options.ts` - command routing, option enums, reserved commands, and usage errors.
-- `packages/cem-dom/src/lib/fail-level.ts` - fail-level and hard-violation evaluation.
-- `packages/cem-dom/src/lib/reports.ts` - deterministic JSON/Markdown report models and report destination policy.
-- `packages/cem-dom/src/lib/cem-dom.test.ts` - helper-level behavioral examples for diagnostics, fail levels, and reports.
+- [`cem-ml-cli-contract.md`](./cem-ml-cli-contract.md) - normative functional CLI contract.
+- [`cem-ml-ac.md`](./cem-ml-ac.md) - parser/runtime, schema, validation, transform, plugin, performance, and security ACs.
+- This matrix - historical map from the deprecated behavior to Rust work items.
 
 Existing Rust package boundary:
 
@@ -25,22 +19,22 @@ Existing Rust package boundary:
 - Library crate: `packages/cem_ml`, Cargo package `cem-ml`, Rust crate `cem_ml`.
 - Nx project targets already declared: `cem_ml:{build,test,lint,build:wasm}` and
   `cem_ml_cli:{build,test,lint,run}`.
-- Workspace project discovery confirmed with `yarn nx show projects`: `@epa-wg/cem-components`, `cem_ml_cli`,
-  `@epa-wg/cem-theme`, `@epa-wg/cem-dom`, `cem_ml`, and `@epa-wg/cem`.
+- Workspace project discovery should include `@epa-wg/cem-components`, `cem_ml_cli`, `@epa-wg/cem-theme`, `cem_ml`,
+  and `@epa-wg/cem` after package removal.
 
 ## Platform Remaps
 
 | Contract item                     | `cem-dom` value                                       | `cem-ml` value                                          |
 | --------------------------------- | ----------------------------------------------------- | ------------------------------------------------------- |
 | Binary                            | `cem-dom`                                             | `cem-ml`                                                |
-| App package/crate                 | `@epa-wg/cem-dom` CLI entry                           | Cargo package `cem-ml-cli` in `packages/cem_ml_cli`     |
-| Shared library                    | `packages/cem-dom/src/lib/*.ts`                       | Cargo package `cem-ml` in `packages/cem_ml`             |
+| App package/crate                 | Deprecated TypeScript CLI entry                       | Cargo package `cem-ml-cli` in `packages/cem_ml_cli`     |
+| Shared library                    | Deprecated TypeScript library                         | Cargo package `cem-ml` in `packages/cem_ml`             |
 | Fixture inputs                    | `examples/semantic/*.html`                            | unchanged                                               |
-| Fixture validate JSON report      | `packages/cem-dom/dist/cem-dom.report.json`           | `packages/cem_ml_cli/dist/cem-ml.report.json`           |
-| Fixture validate Markdown report  | `packages/cem-dom/dist/cem-dom.report.md`             | `packages/cem_ml_cli/dist/cem-ml.report.md`             |
-| Fixture roundtrip JSON report     | `packages/cem-dom/dist/cem-dom.roundtrip.report.json` | `packages/cem_ml_cli/dist/cem-ml.roundtrip.report.json` |
-| Fixture roundtrip Markdown report | `packages/cem-dom/dist/cem-dom.roundtrip.report.md`   | `packages/cem_ml_cli/dist/cem-ml.roundtrip.report.md`   |
-| Bench JSON report                 | `packages/cem-dom/dist/cem-dom.bench.report.json`     | `packages/cem_ml_cli/dist/cem-ml.bench.report.json`     |
+| Fixture validate JSON report      | Deprecated package report path                        | `packages/cem_ml_cli/dist/cem-ml.report.json`           |
+| Fixture validate Markdown report  | Deprecated package report path                        | `packages/cem_ml_cli/dist/cem-ml.report.md`             |
+| Fixture roundtrip JSON report     | Deprecated package report path                        | `packages/cem_ml_cli/dist/cem-ml.roundtrip.report.json` |
+| Fixture roundtrip Markdown report | Deprecated package report path                        | `packages/cem_ml_cli/dist/cem-ml.roundtrip.report.md`   |
+| Bench JSON report                 | Deprecated package report path                        | `packages/cem_ml_cli/dist/cem-ml.bench.report.json`     |
 | JSON field names                  | `cem-dom` report and diagnostic field names           | unchanged                                               |
 
 Default fixture set remains:

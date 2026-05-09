@@ -2,7 +2,7 @@
 name = "cem-ml-cli"
 version = "0.1.0"
 edition = "2021"
-description = "CEM DOM parser CLI"
+description = "CEM parser/runtime CLI"
 license = "MIT"
 publish = true
 

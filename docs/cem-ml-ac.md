@@ -1,6 +1,6 @@
-# `@epa-wg/cem-dom` — Acceptance Criteria
+# `cem-ml` / `cem-ml-cli` — Acceptance Criteria
 
-This document captures the acceptance criteria (AC) for `@epa-wg/cem-dom`. Each item is phrased as a checkable
+This document captures the acceptance criteria (AC) for the CEM parser/runtime and CLI. Each item is phrased as a checkable
 statement so it can be referenced from `docs/todo.md` and from PR descriptions. Every requirement uses MUST / SHOULD /
 MAY in the RFC 2119 sense.
 
@@ -13,7 +13,7 @@ MAY in the RFC 2119 sense.
 
 ## Goal
 
-`@epa-wg/cem-dom` is a parser + schema + interpreter stack that replaces, with functional parity:
+`cem-ml` is a parser + schema + interpreter stack that replaces, with functional parity:
 
 - HTML / XML / XSLT / XPath / SVG / MathML / Canvas / SMIL parsing.
 - XSLT template-engine evaluation.
@@ -312,7 +312,7 @@ without forking the runtime.
   developer-class machine (single-thread, cold cache). Benchmarked in CI with a tolerance band.
 - **AC-N-2 [A] MUST** use bounded memory during streaming — peak heap during parse MUST scale with **open-element
   depth**, not document byte length. Verified by a 10 MB synthetic fixture.
-- **AC-N-3 [B] SHOULD** publish a benchmark suite (`packages/cem-dom/bench/`) with regressions surfaced via Nx Cloud.
+- **AC-N-3 [B] SHOULD** publish a benchmark suite in the Rust workspace with regressions surfaced via Nx.
 
 ## 11. Security
 
@@ -333,8 +333,8 @@ without forking the runtime.
 - **AC-C-1 [A] MUST** run in modern browsers (latest 2 of Chromium, Firefox, Safari) and Node ≥ 22, with the same
   public API.
 - **AC-C-2 [B] SHOULD** ship a Rust crate that exposes the core parser/validator (compiled to native + WASM).
-- **AC-C-3 [A] MUST** publish to npm as `@epa-wg/cem-dom` with ESM + types; `package.json` exports map mirrors
-  `@epa-wg/cem-components` shape.
+- **AC-C-3 [A] MUST** keep the Rust crate and CLI package boundaries publishable. Any future npm/WASM wrapper must
+  consume the Rust-owned contract instead of restoring the deprecated TypeScript package.
 
 ---
 
@@ -342,11 +342,11 @@ without forking the runtime.
 
 A release is acceptance-tested by running:
 
-1. `yarn nx test cem-dom` — unit tests covering parser, validator, interpreter, transform.
-2. `yarn nx run cem-dom:validate-fixtures` — runs validation across every `examples/semantic/*.html`. Exits 0 only if
+1. `yarn nx run cem_ml:test` — unit tests covering parser, validator, interpreter, transform.
+2. `yarn nx run cem_ml_cli:validate-fixtures` — runs validation across every `examples/semantic/*.html`. Exits 0 only if
    the report records zero hard violations.
-3. `yarn nx run cem-dom:bench` — runs parse/validate/transform benchmarks. Numbers archived per release.
-4. `yarn nx run cem-dom:e2e` — round-trips each fixture: parse → validate → transform → render via
+3. `yarn nx run cem_ml_cli:bench` — runs parse/validate/transform benchmarks. Numbers archived per release.
+4. `yarn nx run cem_ml_cli:e2e` — round-trips each fixture: parse → validate → transform → render via
    `@epa-wg/custom-element`. Snapshot compared against committed expectations.
 5. Manual smoke: open the rendered fixture in a browser, confirm it renders the expected semantic surface.
 
@@ -379,5 +379,5 @@ These must be answered before AC are testable:
 - iXml — Invisible XML: <https://invisiblexml.org/1.0/ixml.xml.html>
 - HTML5 in RELAX-NG: <https://github.com/validator/validator/blob/main/schema/html5/html5.rnc>
 - `@epa-wg/custom-element` — runtime target for transformed output (workspace dep).
-- Companion docs: [`dom-library-plan.md`](dom-library-plan.md), [`component-mvp.md`](component-mvp.md),
+- Companion docs: [`cem-ml-library-plan.md`](cem-ml-library-plan.md), [`component-mvp.md`](component-mvp.md),
   [`todo.md`](todo.md).

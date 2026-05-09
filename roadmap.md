@@ -12,8 +12,8 @@ This roadmap is intentionally higher level than `docs/todo.md`. Use this file to
 | ------ | ------- | ----------------------- |
 | CEM token/theme core | Canonical token specs, generated CSS, DTCG JSON, TypeScript metadata, and reports. | `packages/cem-theme` |
 | Native platform adapters | iOS Swift and Android Kotlin/Compose outputs generated from the same token spine. | `packages/cem-theme/dist/lib/token-platforms` |
-| CEM parser/runtime foundation | Schema-defined streaming parser layers: byte decoding, tokenization, normalized events, validation, AST/source maps, binary AST chunks, and implementation handoff. | future `packages/cem-parser` or `packages/cem-dom` |
-| CEM XML/HTML/XSLT library | CEM document schemas, XML/HTML profiles, Invisible XML/CSF profile experiments, DOM helpers, XSLT transforms, and validation over the parser foundation. | future `packages/cem-dom` or `packages/cem-xml` |
+| CEM parser/runtime foundation | Schema-defined streaming parser layers: byte decoding, tokenization, normalized events, validation, AST/source maps, binary AST chunks, and implementation handoff. | `packages/cem_ml` |
+| CEM XML/HTML/XSLT CLI | CEM document schemas, XML/HTML profiles, Invisible XML/CSF profile experiments, DOM helpers, transforms, validation, and reports over the parser foundation. | `packages/cem_ml_cli` |
 | CEM custom-element runtime | Declarative no-JS web component primitives built on `@epa-wg/custom-element` and fed by validated light-DOM transform output. | `packages/cem-components` |
 | CEM component set | Material-style UI coverage expressed in CEM semantics: buttons, fields, lists, nav, cards, dialogs, tables, tabs, etc. | `packages/cem-components` |
 | Figma UI Kit | Designer-facing components, variants, variables, usage examples, and governance workflow. | `examples/figma`, future design artifacts |
@@ -262,8 +262,8 @@ Exit criteria:
 
 - Wire `roadmap.md`, `docs/todo.md`, package docs, and token export docs from the root README.
 - Add a docs index under `docs/`.
-- Decide whether the parser/runtime foundation should live in `packages/cem-parser`, `packages/cem-dom`, or split
-  packages.
+- Retire the deprecated `packages/cem-dom` package and keep parser/runtime ownership in `packages/cem_ml` plus
+  `packages/cem_ml_cli`.
 - Draft the parser runtime contract: byte decoder, tokenizer, event normalizer, schema machine, AST/source-map model,
   and implementation interpreter boundary.
 - Define the first CEM XML/HTML profile and the scoped handoff rules for `style`, `script`, CDATA/text, CSF fields, and

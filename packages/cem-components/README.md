@@ -4,7 +4,7 @@ Declarative custom-element primitives that consume the CEM theme. No shadow DOM 
 light DOM via [`@epa-wg/custom-element`](https://www.npmjs.com/package/@epa-wg/custom-element).
 
 > **Status: shell.** The package currently re-exports the theme entry point. Component implementations land in
-> Phase 3 of the [roadmap](../../roadmap.md), after the `@epa-wg/cem-dom` schema/parser/transform pipeline (Phase 2)
+> Phase 3 of the [roadmap](../../roadmap.md), after the `cem-ml` / `cem-ml-cli` schema/parser/transform pipeline (Phase 2)
 > is in place. The component surface is defined ahead of time in [component MVP](../../docs/component-mvp.md).
 
 ## Install
@@ -38,9 +38,9 @@ nx run @epa-wg/cem-components:lint
 ## Related docs
 
 - [CEM component MVP](../../docs/component-mvp.md) — first component list and state matrix.
-- [CEM DOM library plan](../../docs/dom-library-plan.md) — the upcoming `@epa-wg/cem-dom` consumes/produces the
+- [CEM ML library plan](../../docs/cem-ml-library-plan.md) — the active parser/runtime path consumes/produces the
   declarative markup these components will render.
-- [CEM DOM acceptance criteria](../../docs/cem-dom-ac.md) — testable AC for the parser/transform stack.
+- [CEM ML acceptance criteria](../../docs/cem-ml-ac.md) — testable AC for the parser/transform stack.
 - [Roadmap](../../roadmap.md) — Phase 3 (custom-element runtime) and Phase 4 (component set) define this package's
   delivery sequencing.
 - [Repository documentation index](../../docs/index.md) — full project map.

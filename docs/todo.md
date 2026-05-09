@@ -13,12 +13,12 @@ workflows, and exit-code behavior where they still matter.
 
 ### Removal Gates
 
-- [ ] Freeze the useful `cem-dom` CLI capability contract into `cem-ml-cli` docs before deleting source files:
+- [x] Freeze the useful `cem-dom` CLI capability contract into `cem-ml-cli` docs before deleting source files:
       command capabilities, option semantics, report fields, diagnostic fields, fixture defaults, default formats,
       fail-level behavior, reserved workflow behavior, and exit codes.
-- [ ] Treat `packages/cem-dom/docs/cli-ac.md`, `packages/cem-dom/docs/cli-plan.md`, and
-      [`cem-ml-cli-parity-matrix.md`](cem-ml-cli-parity-matrix.md) as migration inputs only. After migration, the
-      normative contract lives under `cem-ml` / `cem-ml-cli` docs.
+- [x] Treat the former package-local CLI docs and [`cem-ml-cli-parity-matrix.md`](cem-ml-cli-parity-matrix.md) as
+      migration inputs only. The normative functional contract lives in
+      [`cem-ml-cli-contract.md`](cem-ml-cli-contract.md).
 - [ ] Verify `cem-ml-cli` covers the former CLI functionality, regardless of exact syntax:
       `parse`, `validate`, `check`, `inspect`, `convert`, `trace`, `bench`, `fixture validate`, `fixture roundtrip`,
       `help`, `version`, and reserved `transform`, `schema`, and `plugin` workflows.
@@ -29,12 +29,12 @@ workflows, and exit-code behavior where they still matter.
       should assert behavior, JSON/report fields, diagnostics, and exit codes rather than copying `cem-dom` syntax.
 - [ ] Move fixture validation report ownership to `packages/cem_ml_cli/dist/cem-ml.report.{json,md}` and round-trip /
       benchmark reports to `cem-ml`-named outputs.
-- [ ] Remove `packages/cem-dom` from the Nx workspace and package graph: project config, package metadata, source,
+- [x] Remove `packages/cem-dom` from the Nx workspace and package graph: project config, package metadata, source,
       tests, docs that only describe the old implementation, generated `dist` artifacts, README package-map entries,
       docs index entries, and package references from component docs.
 - [ ] Keep or move only migration-relevant contract material. Anything tied to the old TypeScript parser/validator
       implementation can be deleted.
-- [ ] Verify workspace discovery and Rust targets after removal:
+- [x] Verify workspace discovery and Rust targets after removal:
       `yarn nx show projects`, `yarn nx run cem_ml:build`, `yarn nx run cem_ml:test`,
       `yarn nx run cem_ml_cli:build`, and `yarn nx run cem_ml_cli:test`.
 
@@ -53,14 +53,14 @@ ByteSource
   -> ImplementationInterpreter / Transform
 ```
 
-Acceptance criteria: [`cem-dom-ac.md`](cem-dom-ac.md). Plan: [`dom-library-plan.md`](dom-library-plan.md). Component
-vocabulary: [`component-mvp.md`](component-mvp.md). Research input:
+Acceptance criteria: [`cem-ml-ac.md`](cem-ml-ac.md). Plan: [`cem-ml-library-plan.md`](cem-ml-library-plan.md).
+Component vocabulary: [`component-mvp.md`](component-mvp.md). Research input:
 [`../parsing-algorithms-research.md`](../parsing-algorithms-research.md).
 
 ### Package Direction
 
 - [x] Scaffold `packages/cem_ml` and `packages/cem_ml_cli`.
-- [ ] Remove the deprecated `packages/cem-dom` sub-project once the migration gates above are satisfied.
+- [x] Remove the deprecated `packages/cem-dom` sub-project.
 - [ ] Wire `build`, `lint`, `test`, and future `validate-fixtures` Nx targets through `cem_ml` / `cem_ml_cli`.
 - [ ] Update the root README package map, `docs/index.md`, and related package docs to name `@epa-wg/cem-ml` and
       `@epa-wg/cem-ml-cli` as the active parser/runtime and CLI packages.
@@ -69,8 +69,8 @@ vocabulary: [`component-mvp.md`](component-mvp.md). Research input:
 
 - [ ] Update parser/runtime acceptance criteria so Tier A matches the layered runtime contract: byte decoding,
       tokenization, normalized events, schema machine, typed AST, source-map stacks, transform, and diagnostics.
-- [ ] Update [`dom-library-plan.md`](dom-library-plan.md) or replace it with a `cem-ml` plan that makes Rust ownership
-      explicit and no longer treats `@epa-wg/cem-dom` as an active package.
+- [x] Replace the old DOM library plan with [`cem-ml-library-plan.md`](cem-ml-library-plan.md), making Rust ownership
+      explicit and no longer treating `@epa-wg/cem-dom` as an active package.
 - [ ] Define the first public runtime interfaces: `ByteSource`, `DecodedChunk`, `SchemaToken`, `NormalizedEvent`,
       `SchemaFrame`, `CemAstNode`, `SourceMapFrame`, `Diagnostic`, and `Interpreter`.
 - [ ] Decide and document Tier A deferrals for compression, multi-content plugins, full WHATWG DOM compatibility,

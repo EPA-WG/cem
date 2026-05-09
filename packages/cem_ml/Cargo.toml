@@ -2,7 +2,7 @@
 name = "cem-ml"
 version = "0.1.0"
 edition = "2021"
-description = "CEM DOM parser library"
+description = "CEM schema-defined parser/runtime library"
 license = "MIT"
 publish = true
 

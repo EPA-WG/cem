@@ -5,15 +5,15 @@
 Phase 0 artifact: [`docs/cem-ml-cli-parity-matrix.md`](./cem-ml-cli-parity-matrix.md).
 Phase 1 artifact: [`docs/cem-ml-parser-schema-adr.md`](./cem-ml-parser-schema-adr.md).
 
-This plan maps the completed `cem-dom` CLI contract onto the Rust platform:
+This plan maps the deprecated `cem-dom` CLI's useful functional coverage onto the Rust platform:
 
 - App crate: `packages/cem_ml_cli`, Cargo package `cem-ml-cli`, binary `cem-ml`.
 - Library crate: `packages/cem_ml`, Cargo package `cem-ml`, Rust crate `cem_ml`.
-- Acceptance source: `packages/cem-dom/docs/cli-ac.md` and `packages/cem-dom/docs/cli-plan.md`.
+- Acceptance source: [`cem-ml-cli-contract.md`](./cem-ml-cli-contract.md) and
+  [`cem-ml-cli-parity-matrix.md`](./cem-ml-cli-parity-matrix.md).
 
-Where the `cem-dom` CLI AC names the executable or package-owned output files, map the platform name from
-`cem-dom` to `cem-ml`. Otherwise preserve command names, options, report fields, diagnostic fields, fail-level behavior,
-and exit codes.
+The goal is to preserve capabilities, option semantics, report fields, diagnostic fields, fail-level behavior, and exit
+codes. Exact deprecated command syntax is not a compatibility target.
 
 ## Explicit Scope
 
@@ -28,19 +28,17 @@ and exit codes.
 **Status:** Complete. See [`docs/cem-ml-cli-parity-matrix.md`](./cem-ml-cli-parity-matrix.md).
 
 1. Read and pin the source contract:
-    - `packages/cem-dom/docs/cli-ac.md`
-    - `packages/cem-dom/docs/cli-plan.md`
-    - `docs/cem-dom-ac.md`
-    - `packages/cem-dom/src/cli.ts`
-    - `packages/cem-dom/src/lib/*.ts`
+    - `docs/cem-ml-cli-contract.md`
+    - `docs/cem-ml-cli-parity-matrix.md`
+    - `docs/cem-ml-ac.md`
 2. Create a parity matrix with columns:
-    - `cem-dom` AC id
+    - deprecated behavior or AC id, where one exists
     - Rust command or library module
     - required output shape
     - implementation status
     - blocked-by-parser status
-3. Confirm the platform remaps:
-    - binary: `cem-dom` -> `cem-ml`
+3. Confirm the platform outputs:
+    - binary: `cem-ml`
     - default fixture report paths:
         - `packages/cem_ml_cli/dist/cem-ml.report.json`
         - `packages/cem_ml_cli/dist/cem-ml.report.md`
@@ -110,7 +108,8 @@ Exit criteria: an ADR exists and no parser code has been added.
     - `engine`: trait boundary for parse/validate/inspect/trace/bench inputs
     - `command`: I/O-independent command orchestration
     - `error`: usage, I/O, schema, transform, plugin, and internal error mapping
-4. Use Rust type names with `CemMl` where a prefix is useful, but keep JSON field names compatible with `cem-dom`.
+4. Use Rust type names with `CemMl` where a prefix is useful, but keep JSON field names compatible with the active
+   contract.
 5. Add serialization dependencies only when the implementation phase starts:
     - `serde`
     - `serde_json`
@@ -118,7 +117,7 @@ Exit criteria: an ADR exists and no parser code has been added.
 
 ## Phase 3 - Shared Contract Types In `cem-ml`
 
-1. Define diagnostic types matching the `cem-dom` JSON shape:
+1. Define diagnostic types matching the active JSON shape:
     - `uri`
     - `line`
     - `column`
@@ -131,7 +130,7 @@ Exit criteria: an ADR exists and no parser code has been added.
     - `parse`: fail only on `fatal`
     - `validate`: fail on `error` or `fatal`
     - `strict`: fail on `warning`, `error`, or `fatal`
-3. Define report models matching `cem-dom`:
+3. Define report models matching the active contract:
     - `generatedAt`
     - `inputs`
     - `summary.inputCount`
@@ -159,7 +158,7 @@ These are data contracts only. Parser-filled content remains blocked until the p
 
 ## Phase 4 - CLI Command Surface
 
-1. Implement Clap command declarations for the same surface as `cem-dom`, with binary name `cem-ml`:
+1. Implement Clap command declarations for the same functional surface, with binary name `cem-ml`:
     - `parse <input>`
     - `validate <input...>`
     - `check <input...>`
@@ -263,7 +262,7 @@ These are data contracts only. Parser-filled content remains blocked until the p
 ## Phase 7 - File I/O And Reports
 
 1. Resolve inputs relative to cwd unless absolute.
-2. Apply `--base-uri` to emitted diagnostic/report URIs using the same path normalization policy as `cem-dom`.
+2. Apply `--base-uri` to emitted diagnostic/report URIs using the documented path normalization policy.
 3. Write parent directories recursively for `--out`, `--report-json`, and `--report-md`.
 4. If a report destination has the expected file extension, write exactly that file.
 5. If a report destination is a directory, write the default report filename inside it.
@@ -315,8 +314,8 @@ Use Nx through the workspace package manager.
     - `yarn nx run cem_ml_cli:lint`
     - `yarn nx run cem_ml_cli:run`
 2. Add `cem_ml_cli:validate-fixtures` only after a real parser engine exists.
-3. Do not claim parity with `@epa-wg/cem-dom:validate-fixtures` until `cem-ml fixture validate` validates
-   `examples/semantic/*.html` with zero hard violations.
+3. Do not claim fixture-validation parity until `cem-ml fixture validate` validates `examples/semantic/*.html` with
+   zero hard violations.
 4. Keep `cem_ml_cli` dependent on `cem_ml` through Cargo, not by duplicating code.
 
 ## Phase 10 - Completion Gates
@@ -324,7 +323,7 @@ Use Nx through the workspace package manager.
 1. Contract gate:
     - help/version work
     - CLI usage errors match exit-code policy
-    - report and diagnostic models match `cem-dom`
+    - report and diagnostic models match the active contract
     - parser-backed commands are routed through `CemMlEngine`
     - fake-engine contract tests pass
 2. Decision gate:
@@ -336,7 +335,7 @@ Use Nx through the workspace package manager.
     - no CLI command or output-shape redesign is needed
     - fixture validation can be enabled as an Nx target
 4. Parity gate, future plan:
-    - `cem-ml` CLI reaches the same acceptance status as current `cem-dom` CLI, subject only to platform naming.
+    - `cem-ml` CLI reaches the same functional acceptance status as the useful deprecated CLI behavior.
 
 ## Deferred Work
 

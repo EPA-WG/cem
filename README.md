@@ -37,7 +37,8 @@ artifacts as the CSS generator pages.
 - [Roadmap](roadmap.md) — product/module sequencing and delivery phases.
 - [Todo](docs/todo.md) — current execution checklist.
 - [Token export architecture](packages/cem-theme/docs/token-export.md)
-- [CEM DOM library acceptance criteria](docs/cem-dom-ac.md)
+- [CEM ML parser/runtime acceptance criteria](docs/cem-ml-ac.md)
+- [CEM ML CLI functional contract](docs/cem-ml-cli-contract.md)
 - [NPM publishing workflow](docs/npm-publish.md)
 
 # Package map
@@ -46,7 +47,8 @@ artifacts as the CSS generator pages.
 |---------------------------------------------------------------|-------------------|---------------------------------------------------------------------------------------------------------------------------------|
 | [`@epa-wg/cem-theme`](packages/cem-theme/README.md)           | published         | Canonical token specs, generated CSS, DTCG JSON, TypeScript metadata, native (iOS/Android) outputs, and Figma library files.    |
 | [`@epa-wg/cem-components`](packages/cem-components/README.md) | shell             | Declarative custom-element primitives that consume the theme. Component implementations land in Phase 3.                        |
-| [`@epa-wg/cem-dom`](packages/cem-dom/README.md)               | shell             | Parser, validator, fixture report generator, and native Node CLI foundation for CEM semantic documents.                         |
+| [`cem-ml`](packages/cem_ml/Cargo.toml)                        | shell             | Rust parser/runtime library for CEM semantic documents.                                                                         |
+| [`cem-ml-cli`](packages/cem_ml_cli/Cargo.toml)                | shell             | Rust CLI for CEM parsing, validation, reports, fixtures, and migration workflows.                                               |
 
 # Use the token CSS
 

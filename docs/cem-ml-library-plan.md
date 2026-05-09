@@ -1,27 +1,33 @@
-# CEM DOM Library Plan
+# CEM ML Library Plan
 
 ## Package Name
 
-Use `@epa-wg/cem-dom` for the XML/HTML/XSLT DOM library.
+Use `cem-ml` for the parser/runtime library and `cem-ml-cli` for the command-line interface.
 
 Rationale:
 
-- It stays under the existing `@epa-wg` package scope.
-- It is distinct from `@epa-wg/cem-theme` and `@epa-wg/cem-components`.
-- It describes the package responsibility directly: parse, normalize, query, validate, and transform CEM semantic DOM
-  documents.
-- It leaves room for future packages such as `@epa-wg/cem-fixtures` or `@epa-wg/cem-adapters` without overloading the
-  DOM package.
+- The active parser/runtime implementation is Rust-first and already lives in `packages/cem_ml`.
+- The CLI boundary already lives in `packages/cem_ml_cli`.
+- It separates runtime capability from the deprecated TypeScript `@epa-wg/cem-dom` package.
+- It leaves room for future packages such as CEM fixtures, adapters, or npm/WASM wrappers without overloading the core
+  crate.
 
 ## Initial Responsibility
 
-`@epa-wg/cem-dom` should own:
+`cem-ml` should own:
 
 - Typed semantic document nodes for screens, regions, forms, fields, lists, assets, profiles, and messages.
 - Parser helpers for CEM XML/HTML into a normalized DOM model.
 - Query helpers for semantic roles, state, validation messages, relationships, and labels.
 - Validation reports for invalid state combinations, broken references, and missing accessible names.
 - XSLT transform helpers from semantic fixtures into light-DOM custom-element markup.
+
+`cem-ml-cli` should own:
+
+- CLI argument parsing and process exit behavior.
+- File input/output and report destination handling.
+- Fixture validation and round-trip workflows.
+- Functional parity with the useful deprecated CLI behavior documented in [`cem-ml-cli-contract.md`](./cem-ml-cli-contract.md).
 
 ## Non-Goals
 

@@ -6,12 +6,13 @@ This index links the active project, release, and token workflow documents.
 
 - [Roadmap](../roadmap.md) — product/module sequencing and major delivery phases.
 - [Todo](./todo.md) — remaining execution tasks only.
-- [CEM DOM library plan](./dom-library-plan.md) — package name and initial XML/HTML/XSLT DOM responsibilities.
-- [CEM DOM acceptance criteria](./cem-dom-ac.md) — testable AC for `@epa-wg/cem-dom` (parser, schema, mutations,
-  plugins).
+- [CEM ML library plan](./cem-ml-library-plan.md) — Rust parser/runtime ownership and initial XML/HTML/XSLT
+  responsibilities.
+- [CEM ML acceptance criteria](./cem-ml-ac.md) — testable AC for the parser, schema, mutations, and plugin runtime.
+- [CEM ML CLI functional contract](./cem-ml-cli-contract.md) — active CLI capability and option-behavior contract.
 - [CEM ML CLI plan](./cem-ml-cli-plan.md) — Rust `cem-ml` CLI implementation plan with `cem-ml` library separation.
-- [CEM ML CLI parity matrix](./cem-ml-cli-parity-matrix.md) — Phase 0 contract lock mapping `cem-dom` CLI ACs to
-  `cem-ml`.
+- [CEM ML CLI parity matrix](./cem-ml-cli-parity-matrix.md) — Phase 0 contract lock mapping the deprecated CLI
+  behavior to `cem-ml`.
 - [CEM ML parser/schema ADR](./cem-ml-parser-schema-adr.md) — Phase 1 parser engine, schema mirror, source-location,
   security, and WASM decisions.
 - [CEM component MVP](./component-mvp.md) — first component list and state matrix.
@@ -35,9 +36,10 @@ This index links the active project, release, and token workflow documents.
 
 - [CEM components package](../packages/cem-components/README.md) — package-level build and test notes.
 
-## DOM
+## Parser Runtime
 
-- [CEM DOM package](../packages/cem-dom/README.md) — parser, validator, fixture reports, and native Node CLI notes.
+- [CEM ML library package](../packages/cem_ml/Cargo.toml) — Rust parser/runtime crate metadata.
+- [CEM ML CLI package](../packages/cem_ml_cli/Cargo.toml) — Rust CLI crate metadata.
 
 ## Native Outputs
 
