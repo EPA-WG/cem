@@ -101,6 +101,24 @@ The schema machine instantiates a child pipeline (tokenizer → normalizer → s
 machine) for each embedded content region. The handoff stack controls the boundary and
 return condition.
 
+### 3.1 Resource Limit Policy
+
+Depth and count limits are defined by the active content-type policy. The outer content
+type owns the effective limits and criticality for the parse scope, including nesting
+depth, attributes per element, references per document, residual cache size, chunk count,
+diagnostic count, and analogous resource ceilings.
+
+Embedded contexts inherit the outer policy and may only increase restraint: a child
+content-type policy can lower a limit or raise the failure criticality, but it cannot
+raise a limit or downgrade a fail-closed condition from the parent. This makes resource
+behavior monotonic across handoff boundaries. A permissive outer HTML parse may allow a
+child CSS parser to impose stricter CSS-specific bounds, but an embedded context cannot
+weaken document-level protections.
+
+When a limit is exceeded, the effective policy determines whether the parser records a
+recoverable diagnostic and continues in degraded mode, aborts the current scope, or
+aborts the full parse.
+
 ---
 
 ## 4. Source-Map Model
@@ -970,7 +988,7 @@ Status key:
 | LineIndex: byte-offset → line/col projection                    | Design partial — column-unit model, newline normalization, tabs, replacement chars, and UTF-16/scalar projections unspecified (§18.2.4) |
 | Diagnostics and reports                                         | Design partial — source-map ownership and diagnostics-before-AST mapping unresolved (§18.2.5)                                      |
 | CLI output projections and fixture round-trip reports           | Design ready — CLI owns projection targets and side outputs; stack layers own projected artifacts                                 |
-| Resource and security limits                                    | Design partial — input size, nesting depth, slot/residual/cache bounds, URL/script/entity policy unresolved (§18.3.3, §18.10.1–3) |
+| Resource and security limits                                    | Design partial — byte/decode bounds and URL/script/entity policy unresolved (§18.3.3, §18.10.1–2); depth and count limits follow content-type policy (§3.1) |
 | Incremental/editor parsing                                      | Deferred Tier B — caller-provided diffs map through source maps to changed scopes, with enclosing-scope rescan fallback           |
 | Post-parse reference validation (unfilled slots)                | Design partial — Warning vs Error severity unresolved (Ambiguity 6 sub-question)                                                 |
 | Per-scope error boundaries                                      | Deferred Tier B (Ambiguity 5)                                                                                                    |
@@ -1491,28 +1509,6 @@ event handlers, `srcdoc`, or unsafe form actions.
 
 **Question:** Which layer owns unsafe-content diagnostics: tokenizer, schema machine,
 AST validation pass, or transform interpreter?
-
-**Concern 18.10.3 — Depth and count limits are missing.**  
-The research warns about derivative state and slot growth. The design does not define
-limits for nesting depth, attributes per element, references per document, residual cache
-size, chunk count, or diagnostic count.
-
-**Question:** What hard limits and fail-open/fail-closed behavior protect the parser
-from pathological inputs?
-
-**Decision:** Depth and count limits are defined by the active content-type policy.
-The outer content type owns the effective limits and criticality for the parse scope,
-including nesting depth, attributes per element, references per document, residual cache
-size, chunk count, diagnostic count, and analogous resource ceilings. Embedded contexts
-inherit the outer policy and may only increase restraint: a child content-type policy can
-lower a limit or raise the failure criticality, but it cannot raise a limit or downgrade a
-fail-closed condition from the parent.
-
-This makes resource behavior monotonic across handoff boundaries. A permissive outer
-HTML parse may allow a child CSS parser to impose stricter CSS-specific bounds, but an
-embedded context cannot weaken document-level protections. When a limit is exceeded, the
-effective policy determines whether the parser records a recoverable diagnostic and
-continues in degraded mode, aborts the current scope, or aborts the full parse.
 
 ---
 
