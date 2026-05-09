@@ -818,22 +818,22 @@ Status key:
 
 ## 16. Algorithm Selection Summary
 
-| Layer | Problem | Algorithm | Reason from research |
-| --- | --- | --- | --- |
-| L2 | HTML tokenization | WHATWG tokenizer states | Browser-compatible; separates token extraction from DOM |
-| L2 | XML tokenization | XML 1.0 scanner | Well-defined, same `RawToken` shape as HTML |
-| L3 | Cross-format event model | Open/close/name/value taxonomy | Research §3: small event set lets schema validation share algorithms across formats |
-| L4 | Nested validation | Visibly pushdown frame stack | Research §4, §Algorithms: "natural fit for open/close structures" |
-| L4 | Schema validation Tier A | Hand-written CEM DFA | Simple constrained vocabulary; allows derivative upgrade without API change (Ambiguity 9) |
-| L4 | Schema validation Tier B | RELAX NG derivatives | Research §XML notes: "residual describes what was expected next" — streaming, good diagnostics |
-| L5 | Embedded languages | Parent-owned handoff with explicit return condition | Research §5: "child parser never infers parent close condition independently" |
-| L6 | Forward references | Mutable scoped name slots (Arc<Mutex<Option<NodeId>>>) | Research §4: "slot filled when defining entity arrives" |
-| L6 | Source location ground truth | `u64` byte offset | Research Unicode policy: "byte offsets as stable storage format" |
-| L6 | Line/column | On-demand projection via LineIndex | Research: "derived coordinates" — never stored, computed from byte offset |
-| L9 | CEM transform Tier A | Hand-written Rust match rules | Research: "XSLT transform helpers" — minimal subset acceptable |
-| L9 | CEM transform Tier B/C | XSLT subset / full XSLT engine | Research: XSLT-equivalent transform; Tier C full XSLT 4.0 |
-| Deferred | Binary AST transport | Dictionary-encoded subtree chunks | Research §Binary AST: parallel delivery, retry, cache reuse |
-| Deferred | Chunk compression | Zstandard (`canonical-fast`), Brotli (`canonical-dense`) | Research §Compression Strategy |
+| Layer    | Problem                      | Algorithm                                                | Reason from research                                                                           |
+|----------|------------------------------|----------------------------------------------------------|------------------------------------------------------------------------------------------------|
+| L2       | HTML tokenization            | WHATWG tokenizer states                                  | Browser-compatible; separates token extraction from DOM                                        |
+| L2       | XML tokenization             | XML 1.0 scanner                                          | Well-defined, same `RawToken` shape as HTML                                                    |
+| L3       | Cross-format event model     | Open/close/name/value taxonomy                           | Research §3: small event set lets schema validation share algorithms across formats            |
+| L4       | Nested validation            | Visibly pushdown frame stack                             | Research §4, §Algorithms: "natural fit for open/close structures"                              |
+| L4       | Schema validation Tier A     | Hand-written CEM DFA                                     | Simple constrained vocabulary; allows derivative upgrade without API change (Ambiguity 9)      |
+| L4       | Schema validation Tier B     | RELAX NG derivatives                                     | Research §XML notes: "residual describes what was expected next" — streaming, good diagnostics |
+| L5       | Embedded languages           | Parent-owned handoff with explicit return condition      | Research §5: "child parser never infers parent close condition independently"                  |
+| L6       | Forward references           | Mutable scoped name slots (Arc<Mutex<Option<NodeId>>>)   | Research §4: "slot filled when defining entity arrives"                                        |
+| L6       | Source location ground truth | `u64` byte offset                                        | Research Unicode policy: "byte offsets as stable storage format"                               |
+| L6       | Line/column                  | On-demand projection via LineIndex                       | Research: "derived coordinates" — never stored, computed from byte offset                      |
+| L9       | CEM transform Tier A         | Hand-written Rust match rules                            | Research: "XSLT transform helpers" — minimal subset acceptable                                 |
+| L9       | CEM transform Tier B/C       | XSLT subset / full XSLT engine                           | Research: XSLT-equivalent transform; Tier C full XSLT 4.0                                      |
+| Deferred | Binary AST transport         | Dictionary-encoded subtree chunks                        | Research §Binary AST: parallel delivery, retry, cache reuse                                    |
+| Deferred | Chunk compression            | Zstandard (`canonical-fast`), Brotli (`canonical-dense`) | Research §Compression Strategy                                                                 |
 
 ---
 
