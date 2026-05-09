@@ -363,7 +363,9 @@ clients with different path properties.
 The binary AST format should define an uncompressed representation and canonical
 compression profiles. The standard should not enforce compression as a required
 layer, but it should provide canonical guidelines and a reference
-implementation so producers can make interoperable choices.
+implementation so producers can make interoperable choices. Reference server
+chunking, compression selection, and cache policy are part of the platform
+layer as reference implementation, not app-specific parser behavior.
 
 Recommended profiles:
 
@@ -378,6 +380,24 @@ Recommended profiles:
 - `solid-archive`: optional whole-document or chunk-group compression for cold
   storage only, where retry, random access, and parallel decode are not
   priorities.
+
+A web server can use uncompressed binary AST chunks as an intermediate form:
+
+```text
+Interpreter AST
+  -> canonical uncompressed binary subtree chunks
+  -> negotiated compressed/cacheable transport chunks
+```
+
+This is valuable when the same AST payload may be served repeatedly or to
+clients with different network and compression capabilities. The server can
+validate chunk boundaries once, assign stable subtree ids, reuse source-map and
+dictionary indexes, and then generate `none`, `canonical-fast`,
+`canonical-dense`, or transport-specific chunk groupings without rerunning the
+schema tokenizer and AST builder. The uncompressed intermediate can itself be
+cacheable in the reference server so compression and transport packaging become
+platform services. For one-off payloads, direct compressed chunk generation may
+be cheaper because it avoids storing the larger intermediate representation.
 
 Do not compress the whole document as one opaque blob if parallel delivery or
 error recovery matters. Prefer dictionary-based compression plus independently
