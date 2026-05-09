@@ -472,6 +472,54 @@ The canonical report tree can be projected to CEM-native, XML, JSON, or any othe
 supported structured format. Text and HTML reports are reference-implementation
 convenience renderers over the report tree, not canonical report storage formats.
 
+### CLI Projection And Target Ownership
+
+Stack layers own data artifacts. The CLI owns projection selection, output targets, and
+default stream behavior. A command may expose one primary output, one report output, and
+zero or more side outputs that address intermediate stack layers.
+
+Target rules:
+
+- Primary output goes to `--out` when provided; otherwise it goes to `stdout`.
+- Validation-style operations (`validate`, `check`, `fixture validate`) have the report
+  as their primary output. They render the selected report format to `stdout` by default.
+  `stderr` is reserved for CLI usage errors, I/O failures, unexpected internal failures,
+  and operational messages that are not part of the report AST.
+- Load/save or conversion-style operations (`parse`, `convert`, future `load`/`save`)
+  have converted content or selected layer data as their primary output. They write it
+  to `--out` when provided, or to `stdout` by default. Reports for these operations are
+  side outputs and should be written only when a report target is requested.
+- When the primary output uses `stdout`, additional layer projections must not also write
+  to `stdout` unless the CLI explicitly selects a multiplexed container format. Side
+  outputs should use explicit file targets.
+- Human text and HTML outputs are reference convenience projections. Structured report
+  or layer projections should prefer CEM-native, XML, JSON, or another supported
+  structured format.
+
+Proposed projection layer keys (names TBD before implementation):
+
+| Key | Stack owner | Projection meaning |
+| --- | --- | --- |
+| `source` | `source::ByteSource` | Source metadata, URI, byte length, and source id; raw bytes are not emitted unless explicitly requested. |
+| `decoded` | `source::decode` | Encoding result, decoded scalar spans, replacement/encoding diagnostics, and line-index metadata. |
+| `tokens` | `tokenizer` | Format-native token stream with byte ranges. |
+| `events` | `events` | Normalized open/close/name/value/separator/mode-switch/error events. |
+| `schema-frames` | `schema` | Schema frame transitions, residual/DFA state, expected closes, and validation state. |
+| `handoffs` | `handoff` | Embedded content boundaries, inherited context, child content type, and return condition. |
+| `input-dom` | `parser::input_dom` | Schema-defined initial DOM/AST hierarchy reconstructed from tokens/events. |
+| `whatwg-dom` | `transform::whatwg_html` | WHATWG implementation-DOM update projection from the initial HTML parser DOM. |
+| `cem-ast` | `parser` | CEM semantic AST projection over the input DOM/AST. |
+| `transform-output` | `interpreter` / transform modules | Rendered or transformed content for the selected output content type. |
+| `source-map` | `source_map` | Source-map stacks and event-time source-map hierarchy. |
+| `report-ast` | `report` | Canonical AST-associated report tree with event sequence and source module state. |
+| `trace` | `engine` / `command` | Deterministic execution trace assembled from parser, validator, transform, and report events. |
+| `binary-ast` | `ast::encode` | Deferred binary AST representation. |
+| `chunks` | `ast::chunk` / `ast::compress` | Deferred subtree chunk and compression metadata. |
+
+Fixture round-trip output is a CLI composition of projections, not a separate stack
+layer. It records selected inputs, chosen projection layer(s), rendered outputs or hashes,
+report AST summaries, and diagnostics.
+
 ---
 
 ## 9. Layer 5 — Scoped Embedded Handoff Stack (`cem_ml::handoff`)
@@ -891,7 +939,7 @@ Status key:
 | L9 ImplementationInterpreter: XSLT template engine              | Deferred Tier C — minimal Tier A template abstraction still needs a decision through Ambiguity 4                                 |
 | LineIndex: byte-offset → line/col projection                    | Design partial — column-unit model, newline normalization, tabs, replacement chars, and UTF-16/scalar projections unspecified (§18.2.4) |
 | Diagnostics and reports                                         | Design partial — source-map ownership and diagnostics-before-AST mapping unresolved (§18.2.5)                                      |
-| CLI output projections and fixture round-trip reports           | Design partial — stack-layer ownership for CLI projections remains unresolved (§18.11.1)                                          |
+| CLI output projections and fixture round-trip reports           | Design ready — CLI owns projection targets and side outputs; stack layers own projected artifacts                                 |
 | Resource and security limits                                    | Design partial — input size, nesting depth, slot/residual/cache bounds, URL/script/entity policy unresolved (§18.3.3, §18.10.1–3) |
 | Post-parse reference validation (unfilled slots)                | Design partial — Warning vs Error severity unresolved (Ambiguity 6 sub-question)                                                 |
 | Per-scope error boundaries                                      | Deferred Tier B (Ambiguity 5)                                                                                                    |
@@ -1428,16 +1476,6 @@ part of the handoff/source-map design.
 
 **Question:** Should the stack preserve enough concrete syntax and stable node identity
 for future incremental parsing, or is the first design strictly batch/fixture oriented?
-
-### 18.11 CLI And Report Boundary Concerns
-
-**Concern 18.11.1 — CLI projections are not tied to stack layers.**  
-The Rust module map includes output formats and reports, but the stack design does not
-state which layer owns `dom-json`, `ast`, `events`, trace output, and fixture round-trip
-projection.
-
-**Question:** Which output formats are direct serializations of layer outputs, and which
-are compatibility/report projections?
 
 ---
 

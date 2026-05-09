@@ -261,10 +261,21 @@ These are data shapes only. Parser-filled content remains blocked until the pars
 3. Write parent directories recursively for `--out`, `--report-json`, and `--report-md`.
 4. If a report destination has the expected file extension, write exactly that file.
 5. If a report destination is a directory, write the default report filename inside it.
-6. Return exit code `6` for read or write failures.
-7. Keep stdout empty when `--out` is used.
-8. Keep success text suppressed by `--quiet`, but still surface errors.
-9. Generate report files by rendering the canonical report AST. JSON, XML, and CEM renderers are structured
+6. Treat validation-style commands (`validate`, `check`, `fixture validate`) as report-primary operations:
+    - selected report output goes to `stdout` by default
+    - explicit report targets write files instead
+    - `stderr` is reserved for usage errors, I/O failures, unexpected internal failures, and non-report operational
+      messages
+7. Treat parse/convert/load/save-style commands as content-primary operations:
+    - converted content or selected layer projection goes to `--out` when provided
+    - otherwise it goes to `stdout`
+    - reports are side outputs and are written only when report targets are requested
+8. Additional layer outputs such as `events`, `tokens`, `input-dom`, `cem-ast`, or `report-ast` require explicit side
+   output targets unless the CLI later defines a multiplexed container format.
+9. Return exit code `6` for read or write failures.
+10. Keep stdout empty when `--out` is used for the primary output.
+11. Keep success text suppressed by `--quiet`, but still surface errors.
+12. Generate report files by rendering the canonical report AST. JSON, XML, and CEM renderers are structured
    projections; text, Markdown, and HTML are reference convenience projections.
 
 ## Phase 8 - Tests
