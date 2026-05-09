@@ -12,15 +12,17 @@ The practical recommendation is a layered parser runtime:
 3. Normalized event stream.
 4. Schema-compiled validator/parser state machine.
 5. Scoped embedded-language handoff stack.
-6. Interpreter AST builder with per-node source-map stacks.
-7. Binary AST encoder with platform dictionaries.
-8. Compressed subtree segment delivery.
-9. Implementation interpreter.
+6. Input DOM/AST builder with per-node source-map stacks.
+7. Content-type transformation pipeline.
+8. Binary AST encoder with platform dictionaries.
+9. Compressed subtree segment delivery.
+10. Implementation interpreter.
 
 This separates transport and encoding concerns from schema-driven tokenization,
 keeps schema validation incremental, makes embedded regions explicit instead of
 special-casing them inside every parser, and keeps implementation behavior such
-as DOM construction or runtime execution out of the tokenizer.
+as WHATWG DOM updates, DOM construction, or runtime execution out of the
+tokenizer.
 
 The internal AST can also be represented as a binary graph/tree format after it
 is built. Compression belongs on top of that binary representation, and the
@@ -41,8 +43,9 @@ RELAX NG-style derivatives, or visibly pushdown automata. For JSON, validate
 token streams with a stack of object/array frames and schema states. For
 CSV/CSF, use DFDL-like schema-guided recursive descent over fields, records,
 delimiters, and lengths. For HTML, use WHATWG parsing behavior as a
-compatibility reference, but keep the schema-driven tokenizer separate from the
-HTML DOM implementation that interprets events and constructs the final DOM.
+compatibility reference, but keep the schema-driven tokenizer and input
+DOM/AST separate from the WHATWG DOM implementation that applies updates and
+constructs the final DOM.
 For CSS, TypeScript, and Rust, use schema-aware lexical modes and scoped name
 slots that unresolved references can point to before the defining entity is
 seen.
@@ -140,12 +143,17 @@ Schemas should compile to a runtime plan:
 The runtime should be able to stop early on fatal errors or continue in a
 diagnostic mode that records recoverable errors.
 
-The parser state machine builds an interpreter AST, not an executing runtime.
-The AST can contain loaded code, declarations, entity references, schema
-references, and embedded-language regions that are not yet executed or fully
-bound. Unresolved references point to mutable scoped name slots. When a target
-token, declaration, or entity is defined, the interpreter updates that slot, so
-existing references observe the value through the shared binding.
+The parser state machine builds an input DOM/AST, not an executing runtime and
+not the WHATWG implementation DOM. For HTML, this is the HTML parser DOM: the
+source-preserving tree produced by the tokenizer, event normalizer, schema
+machine, and handoff stack. It can contain loaded code, declarations, entity
+references, schema references, and embedded-language regions that are not yet
+executed or fully bound.
+
+Unresolved references point to mutable scoped name slots. When a target token,
+declaration, or entity is defined, the owning transformation or interpreter
+updates that slot, so existing references observe the value through the shared
+binding.
 
 Every AST element should carry a source-map stack. A source-map stack records the
 owned context that produced the node and the current context transformations
@@ -181,6 +189,54 @@ Examples:
 - TypeScript template literals, JSX, and tagged templates can switch lexical or
   parser modes.
 
+### 6. Content-Type Transformation Pipeline
+
+Transformations operate over the input DOM/AST and its scoped embedded child
+trees. They are not part of tokenization and they are not implicit side effects
+of validation. A transformation consumes a typed input tree or subtree, emits a
+typed output tree or subtree, and appends source-map frames for every generated,
+rewritten, split, or merged node.
+
+This makes WHATWG DOM construction and update behavior a transformation phase
+over the parsed HTML input DOM/AST. The HTML tokenizer and schema machine
+produce source-preserving HTML events and input nodes. A WHATWG DOM
+transformation then applies insertion-mode behavior, active formatting element
+handling, foreign-content behavior, foster parenting, and other DOM update
+rules to produce or update an implementation DOM. Other consumers can choose a
+different transformation over the same input DOM/AST, such as validation-only
+analysis, a static source index, a CEM semantic tree, a custom-element output
+tree, or a partial document loader.
+
+Content-type transformations are the common case, not a special extension
+point. Examples:
+
+- `text/scss` to `text/css`, preserving a map from generated CSS rules and
+  declarations back to SCSS source ranges.
+- `text/css` with external references to a CSS AST whose `url()` or `@import`
+  references point to parsed child ASTs or stable unresolved resource slots.
+- `text/html` input DOM/AST to WHATWG implementation DOM updates.
+- CEM semantic HTML input DOM/AST to light-DOM custom-element markup.
+- TypeScript or JSX source AST to JavaScript or HTML-like child ASTs, depending
+  on the schema and host context.
+
+A transformation descriptor should include:
+
+- input content type and input tree kind;
+- output content type and output tree kind;
+- whether it observes, mutates, lowers, resolves references, or materializes an
+  implementation DOM;
+- source-map support and source-map stitching policy;
+- inherited scope context and resource limits;
+- whether unresolved references are represented as scoped slots, diagnostics, or
+  blocking dependencies.
+
+Transformation order is explicit. Parent scopes may install transformations
+that apply to descendants by content type, while child scopes may add more
+specific transformations without bypassing parent-owned boundaries. Observing
+transformations should run before mutating/lowering transformations when both
+apply to the same content type, so linting, policy checks, and security analysis
+can inspect the unmodified input DOM/AST.
+
 ## Algorithm Comparison
 
 | Approach | Best fit | Streaming behavior | Strengths | Risks |
@@ -195,7 +251,7 @@ Examples:
 | DFDL schema-guided recursive descent | CSV/CSF, fixed-width, binary, legacy records | Schema drives reads over stream | Strong fit for delimited and fixed layouts | Ambiguous layouts need unresolved field/reference tracking |
 | Jackson-style token stream | JSON and related formats | Pull tokens in source order | Simple, low overhead, reusable across data formats | Schema logic must be layered separately |
 | simdjson structural indexing | JSON | Finds structure and validates UTF-8 fast | Excellent byte-level throughput | More document-oriented than general schema runtime |
-| WHATWG HTML parsing behavior | HTML | Tokenizer states plus DOM interpreter rules | Browser-compatible recovery and embedded text modes | Should be split into schema tokenizer and DOM implementation interpreter |
+| WHATWG HTML parsing behavior | HTML | Tokenizer states plus implementation DOM update rules | Browser-compatible recovery and embedded text modes | Should be split into schema tokenizer, source-preserving input DOM/AST, and WHATWG DOM update transformation |
 | CSS Syntax parser | CSS | Token stream to component values/rules | Separates syntax from property grammar | Full validation needs property/value grammars |
 | Recursive descent with scoped name slots | TypeScript, Rust, CSS values | Token stream plus mutable scope bindings | Practical recovery and contextual grammar handling | Requires explicit scope slot lifecycle and override rules |
 | Tree-sitter incremental parsing | Programming languages and mixed documents | Incremental parse trees, changed ranges | Excellent editor use case and language injections | Produces trees, not schema validation by itself |
@@ -209,7 +265,7 @@ Examples:
 | Invisible XML | Text parsed by an ixml grammar | Grammar terminals include strings, character sets, ranges, and Unicode character classes | Preserve original text spans and map generated XML nodes back to grammar symbols and input ranges |
 | JSON | Unicode text, commonly UTF-8 bytes | JSON Schema works on the JSON data model; fast parsers such as simdjson validate UTF-8 | Require valid UTF-8 for byte input unless a caller supplies decoded text |
 | CSV/CSF | Dialect-defined text bytes | Encoding is external to RFC-style CSV syntax; delimiters can be bytes or characters | Decode before field parsing unless a schema declares byte-oriented delimiters |
-| HTML | Byte stream decoded before schema tokenizer | WHATWG defines encoding detection, preprocessing, tokenizer states, and replacement handling | Use those rules as compatibility constraints while keeping DOM construction in the interpreter |
+| HTML | Byte stream decoded before schema tokenizer | WHATWG defines encoding detection, preprocessing, tokenizer states, and replacement handling | Use those rules as compatibility constraints while keeping WHATWG DOM construction and updates in the transformation/interpreter phase |
 | CSS | Bytes to code points, then tokens | CSS Syntax defines byte-to-stylesheet parsing; Rust `cssparser` consumes `&str` and points to encoding helpers | Decode to UTF-8/Unicode before tokenization; keep byte spans for source maps |
 | TypeScript | JavaScript string/source text | TypeScript assumes UTF-8 for files and detects UTF-8/UTF-16 BOMs; scanner works over source text/code units | Keep byte offsets externally, map to UTF-16 positions for TS-compatible diagnostics |
 | Rust | UTF-8 `&str` | Identifiers use Unicode XID properties and NFC equality; `rustc_lexer` works on `&str` | Validate UTF-8 at ingress, normalize identifiers only at identifier comparison/interning |
@@ -249,7 +305,8 @@ Each AST element should contain:
   offset/length for compressed binary sources, plus derived line/column for
   text sources.
 - `transform`: tokenizer, schema rule, embedded-language extraction,
-  serialization, DOM construction, lowering, or runtime preparation step.
+  serialization, input DOM construction, content-type transformation, WHATWG
+  DOM update, lowering, or runtime preparation step.
 
 The stack must support traversal across layers. For example, an HTML `style`
 attribute can map from a CSS declaration AST node to the attribute value, then
@@ -270,11 +327,11 @@ frames, and line/column projections for text contexts.
 
 ## Binary AST, Compression, And Segmentation
 
-The interpreter AST should have a canonical binary representation. Text
-serialization is useful for debugging and interchange, but binary AST is the
-better internal transport and cache format because it can encode node kinds,
-schema ids, scope slots, source-map stacks, string tables, and typed values
-without repeated textual markup.
+The input DOM/AST and any transformed tree should have a canonical binary
+representation. Text serialization is useful for debugging and interchange, but
+binary AST is the better internal transport and cache format because it can
+encode node kinds, schema ids, scope slots, source-map stacks, string tables,
+and typed values without repeated textual markup.
 
 Compression should be applied above the binary AST encoding. The compression
 model should exploit repeated root structure, shared schema definitions, common
@@ -589,9 +646,9 @@ DFDL is the best schema-driven model for delimited, fixed-width, binary, and
 legacy data formats. It uses an annotated XML Schema subset to describe logical
 data and physical representation. Its logical parser is schema-guided recursive
 descent over the representation described by the schema. In this architecture,
-ambiguous or unresolved field references point to scoped name slots in the
-interpreter AST. The slot value is set or overridden when the referenced token or
-entity is defined.
+ambiguous or unresolved field references point to scoped name slots in the input
+DOM/AST. The slot value is set or overridden when the referenced token or entity
+is defined.
 
 Recommended approach:
 
@@ -606,19 +663,22 @@ Recommended approach:
 ### HTML
 
 HTML compatibility still has to respect WHATWG parsing behavior, but the
-architecture should not collapse tokenization and DOM construction into one
-component. The schema-driven parser tokenizer extracts events and switches
-lexical states. The HTML DOM implementation is an interpreter over those events:
-it applies insertion modes, manages the stack of open elements, handles active
-formatting elements, resolves foreign content behavior, and constructs the final
+architecture should not collapse tokenization, parser DOM construction, and
+implementation DOM updates into one component. The schema-driven parser
+tokenizer extracts events and switches lexical states. The parser output is a
+source-preserving HTML input DOM/AST. The WHATWG DOM implementation is a
+content-type transformation over that input DOM/AST: it applies insertion modes,
+manages the stack of open elements, handles active formatting elements, resolves
+foreign content behavior, and constructs or updates the final implementation
 DOM.
 
-This separation matters because the same tokenizer/event layer can feed other
-interpreters besides a DOM builder: validators, source analyzers, transform
-pipelines, or partial document loaders. The useful schema lesson from HTML is
-scoped mode switching. A start tag can change tokenizer state and downstream
-interpretation, but the schema should define which transitions are valid and
-which child parser should own the embedded region.
+This separation matters because the same tokenizer/event/input-DOM layer can
+feed transformations besides a WHATWG DOM updater: validators, source analyzers,
+custom-element renderers, source indexes, or partial document loaders. The
+useful schema lesson from HTML is scoped mode switching. A start tag can change
+tokenizer state and downstream transformation behavior, but the schema should
+define which transitions are valid and which child parser should own the
+embedded region.
 
 ### CSS
 
@@ -709,7 +769,8 @@ ByteSource
   -> SchemaTokenizer
   -> EventNormalizer
   -> SchemaMachine
-  -> InterpreterAstBuilder
+  -> InputDomAstBuilder
+  -> ContentTypeTransformPipeline
   -> BinaryAstEncoder
   -> ChunkCompressor
   -> SegmentBroadcaster / Cache / ImplementationInterpreter / Diagnostics
@@ -742,7 +803,8 @@ State transitions:
 - `close(event)`: validate nullable/complete state and pop frame.
 - `error(event)`: record diagnostic and run recovery strategy.
 - `transform(event)`: append a source-map stack frame when a token, event, AST
-  node, generated XML node, DOM node, or lowered runtime node changes context.
+  node, generated XML node, input DOM node, implementation DOM node, or lowered
+  runtime node changes context.
 - `encode(node)`: assign binary node ids, dictionary references, source-map
   deltas, and chunk ownership.
 - `segment(subtree)`: close a subtree-root chunk with dependencies, hashes, and
@@ -760,8 +822,9 @@ Use these defaults unless a schema or format requires otherwise:
 | Nested events | Visibly pushdown frame stack | Natural fit for open/close structures |
 | CSV/CSF records | DFDL-style schema-guided recursive descent | Handles delimiters, lengths, and field typing |
 | JSON structures | Token stream plus schema frame stack | Low memory and compatible with Jackson/simdjson style |
-| HTML | Schema tokenizer plus DOM implementation interpreter | Preserves browser-compatible behavior while separating token extraction from DOM construction |
+| HTML | Schema tokenizer plus input DOM/AST plus WHATWG DOM update transformation | Preserves browser-compatible behavior while separating token extraction and parser DOM from implementation DOM updates |
 | CSS values | CSS Syntax tokens plus property grammars | Mirrors browser-grade parser layering |
+| Content-type transforms | Explicit transformation descriptors over input DOM/AST subtrees | Makes SCSS-to-CSS, CSS reference resolution, HTML-to-WHATWG-DOM, and CEM custom-element lowering share one source-map-preserving model |
 | TypeScript/Rust syntax | Schema-aware recursive descent with scoped references | Practical for contextual programming languages |
 | Mixed-language documents | Handoff stack with included ranges | Keeps parent and child grammars scoped |
 | Binary AST transport | Dictionary encoded subtree chunks with independent compression | Enables parallel delivery, retry, cache reuse, and subtree preprocessing |
@@ -772,14 +835,14 @@ Use these defaults unless a schema or format requires otherwise:
 | --- | --- | --- |
 | Full JSON Schema needs non-streaming features | Some schemas require buffering or delayed decisions | Mark streamable subset, allow bounded buffering, report non-streamable schema features |
 | Unicode positions differ by ecosystem | Diagnostics can point to wrong columns | Store byte offsets and derive code point/UTF-16 columns on demand |
-| Source maps are lost across transformations | Diagnostics and tooling cannot traverse back to the original source | Store source-map stacks on every AST element and append a frame for each context transform |
+| Source maps are lost across transformations | Diagnostics and tooling cannot traverse back to the original source | Store source-map stacks on every AST element and append a frame for each content-type or implementation transform |
 | Compressed source maps stop at byte boundaries | Bit-packed compression metadata cannot be traced precisely | Support bit offset/length ranges for compressed binary frames |
 | Whole-AST compression blocks parallelism | One corrupt or missing byte can stall the whole document | Compress subtree-root chunks independently and use hashes for missing-chunk retry |
 | Shared dictionaries drift by platform version | Chunks decode differently across runtimes | Version platform and app dictionaries and include required dictionary ids per chunk |
 | Cross-chunk references arrive late | Parallel chunks decode before dependencies exist | Represent dependencies as scoped slots and fill them when defining chunks arrive |
 | Network chunk size is fixed too early | Broadcast or high-loss paths get poor repair and scheduling behavior | Negotiate chunk ranges, adjust grouping in flight, and cache path profiles per client/server/network |
 | Embedded content boundaries are ambiguous | Child parser can consume parent syntax | Parent owns return condition and passes bounded child source |
-| HTML recovery is format-specific | Generic parser produces browser-incompatible trees | Use WHATWG states for HTML rather than XML-style recovery |
+| HTML recovery is format-specific | Generic parser produces browser-incompatible input or implementation DOMs | Use WHATWG tokenizer states for HTML and model WHATWG DOM update behavior as an explicit transformation |
 | Derivative states or scoped slots can grow | Memory/time blowups | Memoize residuals, intern schema states, and compact scope tables as slots are finalized |
 | CSV dialect variance | Incorrect field splitting | Make dialect part of schema and scanner configuration |
 
