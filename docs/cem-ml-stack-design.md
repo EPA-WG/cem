@@ -127,6 +127,12 @@ When a limit is exceeded, the effective policy determines whether the parser rec
 recoverable diagnostic and continues in degraded mode, aborts the current scope, or
 aborts the full parse.
 
+Resource ceilings for transform-owned loading graphs use the same scope policy model.
+The outer content type owns the effective policy, and child scopes may only increase
+restraint by lowering limits or raising criticality. Fetch count, redirect depth, byte
+count, reference depth, timeout, and allowed schemes are content-type policy fields, not
+tokenizer behavior.
+
 ### 3.2 Unsafe Content And URL Policy
 
 Unsafe-content diagnostics are owned by content-type transformation policies, not by the
@@ -134,6 +140,15 @@ tokenizer. The tokenizer preserves source bytes and tokens, the schema machine v
 structure, and the input DOM records URL-bearing attributes and inline content with
 source maps. URL-bearing fields are then resolved by the active transformation policy
 against the owner context's base URL, module or import map, and substitution rules.
+External resources such as XML DTDs follow the same rule: the matching content-type
+transform owns fetch initialization, parsing, transformation, and application back to the
+originating context. They are modeled like CSS or JavaScript loading graphs, not as
+tokenizer-owned side effects.
+
+When no transform has opted into handling an external construct, the active scope policy
+determines whether the construct is rejected, diagnosed, or preserved. If the policy does
+not reject it, the construct is kept as an unresolved resource slot for later use by a
+matching transform or caller.
 
 After resolution and before any fetch, execution, embedding, or output materialization,
 the same policy applies security restrictions such as allowed schemes, `javascript:`
@@ -220,6 +235,11 @@ CssDeclaration { property: "background-color" }
   frame[1]: HandoffBoundary(text/css), parent_byte=(85, 130), source=main.html
   frame[2]: HtmlTokenizer, StartTag("style"), byte=(85, 100), source=main.html
 ```
+
+External or referenced XML resources use the same source-map relationship as
+content-type handoff scopes. The referenced source receives its own `SourceId`, and
+nodes produced from it carry frames back through the external-resource boundary to the
+originating reference.
 
 ### 4.4 Generated Nodes
 
@@ -322,7 +342,17 @@ already-switched tokens and validates/reconstructs the schema-defined hierarchy 
 later drives the WHATWG DOM transformation.
 
 XML tokenizer follows the same `RawToken` shape using an XML 1.0 profile, keeping Layers
-3 and above format-agnostic.
+3 and above format-agnostic. XML constructs that require external resources or
+XML-specific compatibility behavior are delegated to the XML content-type transform, not
+the tokenizer. This includes internal DTD subsets, external DTD subsets, general
+entities, parameter entities, notation declarations, and XInclude. The XML transform
+defines which of these constructs are active in its own scope and tier.
+
+Entity expansion is XML-specific and is not a CEM-ML primitive. CEM-ML reference
+resolution uses slots and inlined references without cloning referenced content into the
+originating tree. XML entity expansion, when needed for an XML compatibility profile,
+remains inside the XML content-type transform and emits source-map frames for the
+external source and originating reference.
 
 **Ambiguity 2** (see § 17) covers whether to use an existing Rust HTML5 crate or a
 custom WHATWG implementation.
@@ -692,6 +722,11 @@ as unfilled slots at parse time. The schema machine performs a post-parse refere
 to identify remaining unfilled slots and emit `Warning` diagnostics (broken references).
 See **Ambiguity 6** for the trade-off between one-pass and two-pass resolution.
 
+CEM-ML reference slots inline references by binding to the resolved target; they do not
+clone the referenced content into the originating tree. Content-type transforms that need
+clone-like behavior, such as XML compatibility entity expansion, own that behavior within
+their own transform scope.
+
 ### Source-Map Stack Population
 
 The `InputDomAstBuilder` appends a source-map frame when reconstructing the
@@ -730,6 +765,29 @@ ChunkCompressor responsibilities:
 
 Chunk boundaries align to subtree roots. Each chunk is independently decodable and
 carries integrity hashes, dependency ids, and dictionary version requirements.
+
+Cross-chunk dependency slots and AST reference slots are separate namespaces with
+separate lifecycle rules. An AST reference slot resolves a language or document reference
+such as `id`/`for`/`aria-*`; a chunk dependency slot resolves transport availability for
+binary subtree data. They can point to the same logical target when there is a direct
+match, but they are not the same primitive.
+
+A logical subtree may be represented by more than one chunk. In that case, the chunks are
+joined by explicit relation metadata plus a monotonic sequence number within that
+relation, for example:
+
+```
+ChunkRelation:
+  subtree_id: BinarySubtreeId
+  relation: ChunkRelationKind       primary, continuation, boundary, side_table, ...
+  sequence: u32                     ordering within relation for this subtree
+```
+
+Processing a chunked subtree may begin as soon as the first usable chunk is available.
+When processing reaches the edge of the current chunk, the boundary or continuation chunk
+for that edge is a hard dependency before traversal can leave the available range. This
+allows progressive decode and validation inside available chunk boundaries while keeping
+cross-boundary traversal deterministic.
 
 Compression profiles from the research:
 
@@ -1004,7 +1062,7 @@ Status key:
 | L1 EncodingDecoder: UTF-16, Latin-1, BOM detection              | Design partial — required for HTML/XML profile clarity; blocked by Ambiguity 1 and §18.3.2                                       |
 | L1 Sentinel-byte ownership                                      | Design partial — Rust safety model for sentinel not resolved (§18.3.1)                                                           |
 | L2 SchemaTokenizer: HTML WHATWG profile                         | Design partial — crate choice and token offset behavior unresolved (Ambiguity 2)                    |
-| L2 SchemaTokenizer: XML 1.0 profile                             | Design partial — namespace/name model plus DTD/entity/external-resource policy unspecified (§18.4.4, §18.10.1)                   |
+| L2 SchemaTokenizer: XML 1.0 profile                             | Design partial — namespace/name model remains unresolved (§18.4.4); DTD/external-resource ownership follows transform policy (§3.2, §6) |
 | L3 EventNormalizer                                              | Design partial — attribute-list close event, void elements, name model, trivia, and ModeSwitch ownership unspecified (§18.4.1–4, §18.6.1) |
 | L4 SchemaMachine: visibly pushdown frame stack                  | Design partial — recovery invariant, multiplicity/required-name state, and diagnostic propagation affect core semantics (§18.5.3–4, Ambiguity 8) |
 | L4 SchemaMachine: RELAX NG derivative engine                    | Deferred Tier B — Tier A DFA must preserve a replacement path for residual diagnostics (Ambiguity 9, §18.5.1)                   |
@@ -1018,14 +1076,14 @@ Status key:
 | L6 Source-map stacks: byte-range + transform chain              | Design partial — frame order, multi-range nodes, escape/entity decoding, and diagnostics-before-AST mapping unresolved (§18.2.1–3, §18.2.5) |
 | L6 Source-map stacks: bit-level ranges                          | Deferred Tier B — reserve representation only after source-map frame model is fixed (§18.2.1–2, §18.9.1)                         |
 | L7 BinaryAstEncoder                                             | Deferred Tier B — do not freeze IDs or trait signatures until binary determinism and slot identity are resolved (§18.9.1–3)      |
-| L8 ChunkCompressor                                              | Deferred Tier B — compression profiles are research-backed, but chunk determinism and cross-chunk references remain open (§18.9.2–3) |
+| L8 ChunkCompressor                                              | Deferred Tier B — compression profiles are research-backed, but canonical chunk determinism remains open (§18.9.2); cross-chunk dependency slots are scoped in §11 |
 | ContentTypeTransformPipeline: WHATWG HTML DOM                   | Design ready — schema-driven initial HTML parser DOM is transformed into WHATWG implementation DOM updates                       |
 | L9 ImplementationInterpreter: hand-written Rust transform rules | Design partial — transform engine choice, attribute collision, data-cem-* pass-through, serialization, and future template seam unresolved (Ambiguity 4, §18.8.1–4) |
 | L9 ImplementationInterpreter: XSLT template engine              | Deferred Tier C — minimal Tier A template abstraction still needs a decision through Ambiguity 4                                 |
 | LineIndex: byte-offset → line/col projection                    | Design partial — column-unit model, newline normalization, tabs, replacement chars, and UTF-16/scalar projections unspecified (§18.2.4) |
 | Diagnostics and reports                                         | Design partial — source-map ownership and diagnostics-before-AST mapping unresolved (§18.2.5)                                      |
 | CLI output projections and fixture round-trip reports           | Design ready — CLI owns projection targets and side outputs; stack layers own projected artifacts                                 |
-| Resource and security limits                                    | Design partial — byte/decode bounds and XML entity policy unresolved (§18.3.3, §18.10.1); depth/count and unsafe-content limits follow content-type policies (§3.1–3.2) |
+| Resource and security limits                                    | Design partial — byte/decode bounds remain unresolved (§18.3.3); XML external-resource limits follow transform policy and content-type limits (§3.1–3.2, §6) |
 | Incremental/editor parsing                                      | Deferred Tier B — caller-provided diffs map through source maps to changed scopes, with enclosing-scope rescan fallback           |
 | Post-parse reference validation (unfilled slots)                | Design partial — Warning vs Error severity unresolved (Ambiguity 6 sub-question)                                                 |
 | Per-scope error boundaries                                      | Deferred Tier B (Ambiguity 5)                                                                                                    |
@@ -1270,13 +1328,14 @@ AST/transformed frame? This must be fixed before traversal, compression deltas, 
 generated-node inheritance are implemented.
 
 **Concern 18.2.2 — A single `ByteRange` per frame is not enough for all research cases.**  
-The research explicitly mentions merged nodes, split nodes, generated nodes, entity
-expansions, and source-map stacks through transformations. A single `byte_range` cannot
-represent a text node produced from multiple source regions, such as `a&amp;b`, or a node
-merged from adjacent text/event fragments.
+The research explicitly mentions merged nodes, split nodes, generated nodes,
+transform-owned reference inlining, and source-map stacks through transformations. A
+single `byte_range` cannot represent a text node produced from multiple source regions,
+such as `a&amp;b`, or a node merged from adjacent text/event fragments.
 
-**Question:** Should `SourceMapFrame` support one range, many ranges, and generated
-sentinel ranges? If not, where are entity expansion, merge, and split mappings stored?
+**Question:** Should `SourceMapFrame` support one range, many ranges, generated sentinel
+ranges, and transform-owned reference inlining? If not, where are escape decoding,
+merge, split, and XML-compatibility entity mappings stored?
 
 **Concern 18.2.3 — Entity and escape decoding needs source-map ownership.**  
 HTML character references, XML entity references, CSS escapes, JSON string escapes, and
@@ -1526,23 +1585,6 @@ ordering and canonical encoding.
 
 **Question:** What are the ordering rules for nodes, attributes, string tables,
 dictionaries, source-map deltas, and diagnostics?
-
-**Concern 18.9.3 — Cross-chunk reference slots and AST reference slots may be the same
-concept or different concepts.**  
-The research uses scoped slots both for unresolved language references and for late
-chunk arrival.
-
-**Question:** Does one slot system serve AST name references and chunk dependency
-placeholders, or are they separate namespaces with separate lifecycle rules?
-
-### 18.10 Security, Recovery, And Resource Concerns
-
-**Concern 18.10.1 — XML entity, DTD, and external-resource policy is absent.**  
-The research allows XML-style encodings, but an XML profile also raises entity expansion,
-external DTD, and resource-fetch questions.
-
-**Question:** Are DTDs, external entities, XIncludes, and network fetches rejected,
-ignored, or exposed as diagnostics in Tier A?
 
 ---
 
