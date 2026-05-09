@@ -405,8 +405,9 @@ Target rules:
 
 Standard projection layers include source metadata, decoded scalars, tokens, normalized
 events, schema frames, handoffs, input DOM, WHATWG DOM, CEM AST, transform output,
-source-map data, report AST, trace data, and deferred binary/chunk projections. The exact
-projection key table is in
+UI DOM plans, machine state, hydration plans, template registries, source-map data,
+report AST, trace data, and deferred binary/chunk projections. The exact projection key
+table is in
 [`cem-ml-stack-design-impl.md`](cem-ml-stack-design-impl.md#36-cli-projection-keys).
 
 ---
@@ -495,7 +496,7 @@ clone-like behavior, such as XML compatibility entity expansion, own that behavi
 their own transform scope.
 
 AST node and reference-slot shapes are in
-[`cem-ml-stack-design-impl.md`](cem-ml-stack-design-impl.md#38-layer-6-inputdomastbuilder--interpreterastbuilder-cem_mlparser).
+[`cem-ml-stack-design-impl.md`](cem-ml-stack-design-impl.md#38-layer-6-inputdomastbuilder-interpreterastbuilder-cem_mlparser).
 
 ---
 
@@ -582,6 +583,75 @@ Other content-type transformations use the same model: SCSS can lower to CSS, CS
 resolve `url()`/`@import` references into parsed child ASTs or unresolved resource slots,
 and CEM semantic HTML can lower to custom-element markup while preserving source-map
 stacks.
+
+### Visual Content And Machine State Data
+
+The internal CEM AST uses one ownership, source-map, reference-slot, and scope model
+across content types. It does not create fundamentally different AST families for HTML,
+SVG, MathML, canvas instructions, CSS, JavaScript, JSON, XML, or other embedded formats.
+Content type is scope metadata plus transform policy. The active policy decides whether
+a scope is treated as visual content, executable or transform code, machine state data,
+or an inert/unresolved resource.
+
+Functional scope roles:
+
+- **Visual content:** HTML, SVG, MathML, canvas command data, images, video, and other
+  renderable scopes that can contribute nodes or resources to the UI output.
+- **Machine state data:** data islands, attributes, `dataset`, payload/slot content,
+  fetched resources, route/location state, storage state, form state, and runtime
+  slices that parameterize transforms.
+- **Code or transform content:** CSS, SCSS, XSLT or template DSL fragments, JavaScript
+  when enabled by policy, and other content that can affect rendering or state but is
+  not itself the rendered UI tree.
+- **Unresolved resource slots:** external resources or embedded constructs preserved
+  for a later transform or caller when no active policy consumes them.
+
+The CEM engine can transform a visual scope with access to both:
+
+- the owned scope data visible through the schema frame and AST ownership chain; and
+- the HTML implementation DOM projection produced by the WHATWG DOM transformation when
+  that projection is available.
+
+The result is a CEM UI DOM plan: a virtual rendering plan that can materialize browser
+DOM, light-DOM custom-element markup, or another rendered projection. Virtualization at
+this layer means template reuse by reference plus data application during
+transformation. A template is a scoped transform resource. It can be addressed by schema
+identity, local id, URL, URL fragment, registry entry, or a DCE/custom-element tag name;
+the render plan keeps the template reference stable and binds current machine state data
+into that template when transforming.
+
+This behavior is part of the CEM concept and does not require Declarative Custom Element
+(DCE) markup as the template source. DCE is one runtime/authoring projection. In that
+projection, a custom tag or `<custom-element>` declaration provides the template
+reference and binds attributes, dataset, payload/slots, and data slices into the
+transformation data. The CEM transform model must remain able to execute the same
+template-reference plus data-binding concept without requiring the DCE syntax.
+
+Hydration rules describe which runtime events can update machine state and which render
+scope is invalidated by that update. A hydrated render follows this sequence:
+
+1. Runtime event or browser data adapter updates a machine state slot.
+2. The hydration rule maps that slot to one or more affected transform scopes.
+3. The engine re-applies the template reference to the updated state.
+4. The DOM update layer patches the rendered UI while preserving unchanged DOM nodes,
+   source-map relationships, focus/selection state, and runtime-owned resources where
+   policy allows.
+
+The `<custom-element>` stack is therefore an integration target, not the definition of
+the CEM render model. Its DCE implementation adds declarative interactivity by
+propagating events to data slices and rerendering affected UI. Other custom-element
+stack primitives expose browser data and APIs, such as HTTP request, storage, and
+location/route state, as machine state providers. CEM models those providers as runtime
+data adapters feeding machine state slots; they are not special AST node families.
+
+Tier A may emit static rendered output and enough template/state metadata for later
+hydration. Live event handling, browser API adapters, DOM patching, and reusable
+template registries are Tier B/C unless a narrower implementation phase explicitly
+brings one forward.
+
+Implementation contracts for template references, machine state slots, hydration rules,
+and virtual DOM patch metadata are in
+[`cem-ml-stack-design-impl.md`](cem-ml-stack-design-impl.md#311-visual-content-machine-state-and-hydration-contracts).
 
 ### Schema-Driven Transform Rules
 
@@ -721,6 +791,7 @@ cem_ml/src/
   source_map/    source-map stacks and transform frame kinds
   transform/     content-type transform pipeline, including WHATWG HTML and CSS hooks
   interpreter/   schema-driven CEM transform execution and rendered output
+  runtime/       machine state slots, template registry, hydration rules, patch policy
   report/        AST-associated report tree and report renderers
   engine/        I/O-independent execution interface
   command/       I/O-independent command orchestration
@@ -774,6 +845,7 @@ Status key:
 | ContentTypeTransformPipeline: WHATWG HTML DOM                   | Design ready — schema-driven initial HTML parser DOM is transformed into WHATWG implementation DOM updates                       |
 | L9 ImplementationInterpreter: schema-driven transform rules     | Design partial — schema owns transform layers; output-reserved attribute collision remains unresolved (§18.8.1); canonical serialization and HTML `data-*` ownership are defined in §12 |
 | L9 ImplementationInterpreter: transform execution backends      | Deferred Tier B/C — Rust, template DSL, and XSLT tier placement is a scheduling decision constrained by schema-owned transform rules (§12, Ambiguity 4) |
+| Visual content and machine state data                           | Design partial — uniform AST role model is defined; live hydration, browser adapters, and DOM patch identity remain deferred or unresolved (§12, §18.8.2) |
 | LineIndex: byte-offset → line/col projection                    | Design partial — column-unit model, newline normalization, tabs, replacement chars, and UTF-16/scalar projections unspecified (§18.2.4) |
 | Diagnostics and reports                                         | Design partial — source-map ownership and diagnostics-before-AST mapping unresolved (§18.2.5)                                      |
 | CLI output projections and fixture round-trip reports           | Design ready — CLI owns projection targets and side outputs; stack layers own projected artifacts                                 |
@@ -806,6 +878,7 @@ Status key:
 | L6       | Source location ground truth | `u64` byte offset                                        | Research Unicode policy: "byte offsets as stable storage format"                               |
 | L6       | Line/column                  | On-demand projection via LineIndex                       | Research: "derived coordinates" — never stored, computed from byte offset                      |
 | L9       | CEM transform semantics      | Schema-driven transform plan                             | Keeps schema in charge of transform layers across Rust, template, or XSLT backends             |
+| L9       | UI virtualization            | Template reference + machine-state binding               | Reuses templates by reference and applies owned scope data during transformation                |
 | L9       | CEM transform backends       | Rust convenience backend / template DSL / XSLT engine    | Backend tier placement is deferred; each backend executes the schema-owned plan                 |
 | Deferred | Binary AST transport         | Dictionary-encoded subtree chunks                        | Research §Binary AST: parallel delivery, retry, cache reuse                                    |
 | Deferred | Chunk compression            | Zstandard (`canonical-fast`), Brotli (`canonical-dense`) | Research §Compression Strategy                                                                 |
@@ -1238,6 +1311,15 @@ also passing through standard HTML attributes.
 
 **Question:** What happens if the source already has `cem-id`, `variant`, `state`, or
 other output-reserved attributes?
+
+**Concern 18.8.2 — Hydration and DOM patch identity are not fully specified.**  
+The visual content section defines event-to-state hydration and rerendering with
+unchanged DOM preservation, but it does not define the exact identity keys, patch
+granularity, focus/selection preservation rules, or runtime-resource lifecycle.
+
+**Question:** Which identity model determines whether a rendered node is reused,
+patched, moved, or replaced after a machine state update? Which runtime resources must be
+preserved across rerenders, and which are recreated by policy?
 
 ---
 
