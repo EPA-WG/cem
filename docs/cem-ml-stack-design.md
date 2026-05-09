@@ -522,9 +522,10 @@ schema-defined token hierarchy, not the WHATWG implementation DOM. Every node ca
 source-map stack, attributes, and reference slots for unresolved `id`/`for`/`aria-*`
 targets.
 
-The typed CEM AST is a semantic projection over that input DOM/AST. It adds semantic
-roles, state labels, CEM node kinds, and CEM-specific reference helpers without changing
-the initial parser DOM.
+The CEM AST projection is an annotation and transformation view over that input DOM/AST.
+It records schema-qualified CEM attributes, state labels, transform triggers, and
+CEM-specific reference helpers without changing the initial parser DOM or replacing an
+element's native HTML/XML identity.
 
 ### Functional Design
 
@@ -538,10 +539,9 @@ when the active schema or content-type policy preserves them.
 The minimal Tier A set of non-CEM constructs to preserve is TBD. CEM-specific support
 and syntax for treating comments or CDATA as semantic CEM content is also TBD.
 
-The typed CEM AST projection is narrower than the generic input DOM/AST. Its semantic
-node set is:
+The CEM projection is narrower than the generic input DOM/AST. It records CEM transform
+annotations attached to source nodes, including:
 
-- document;
 - screen;
 - form;
 - action;
@@ -550,12 +550,22 @@ node set is:
 - thread;
 - message;
 - badge;
-- pass-through generic/input DOM node;
-- text node.
+- state.
 
-Each CEM semantic node has a node id, the schema-qualified semantic id or role value,
-children, source-map stack, attributes, and optional state. The document also owns the
-global id table used for reference resolution.
+These schema-qualified attributes are transform triggers and transform inputs. They do
+not, by themselves, replace the source element's tag meaning or native role. For example,
+`<button cem:action="primary">` is still a `button`; `cem:action` supplies CEM
+transformation data associated with that button.
+
+A source element may carry zero or more CEM annotations. Transformations usually preserve
+the associated source element. When a schema-owned transform changes the subtree,
+including replacing or splitting the element itself, that transform plan owns
+composition, precedence, rejection, or diagnostics for any incompatible annotations on
+the same source node.
+
+Each CEM annotation has an annotation id, source node id, schema-qualified annotation
+name, value, source-map stack, and optional state. The document also owns the global id
+table used for reference resolution.
 
 Reference slots support unresolved forward references. A reference to an id that has not
 yet appeared binds to a mutable slot. When the parser later encounters the target id, it
@@ -568,9 +578,8 @@ clone the referenced content into the originating tree. Content-type transforms 
 clone-like behavior, such as XML compatibility entity expansion, own that behavior within
 their own transform scope.
 
-AST node and reference-slot shapes are in
-[
-`cem-ml-stack-design-impl.md`](cem-ml-stack-design-impl.md#38-layer-6-inputdomastbuilder-interpreterastbuilder-cem_mlparser).
+AST node, annotation, and reference-slot shapes are in
+[`cem-ml-stack-design-impl.md`](cem-ml-stack-design-impl.md#38-layer-6-inputdomastbuilder-interpreterastbuilder-cem_mlparser).
 
 ---
 
@@ -737,24 +746,26 @@ copy/pass-through rules, and source-map frame creation. Rust code, XSLT, or a te
 DSL are execution backends for the schema-owned transform plan; none of them is the
 reference source of truth.
 
-For the CEM semantic HTML projection, each CEM semantic node maps to a custom element.
-Schema-qualified CEM attributes become generated custom-element attributes such as
-`cem-id`, `variant`, or `state` according to the active schema. Other standard HTML
-attributes (class, id, ARIA, and HTML `data-*`) pass through only as HTML-owned metadata
-unless the active schema defines a stricter mapping. Transformers match the CEM AST role
-projection, not raw HTML `data-*` attributes or the HTML-specific `dataset` projection.
+For the CEM semantic HTML projection, schema-qualified CEM annotations drive custom
+element output, wrapper generation, attribute generation, or no structural output
+depending on the active transform plan. Schema-qualified CEM attributes can become
+generated custom-element attributes such as `cem-id`, `variant`, or `state` according to
+the active schema. Other standard HTML attributes (class, id, ARIA, and HTML `data-*`)
+pass through only as HTML-owned metadata unless the active schema defines a stricter
+mapping. Transformers match CEM annotations, not raw HTML `data-*` attributes or the
+HTML-specific `dataset` projection.
 
-| CEM node                | Source element (typical)        | Output custom element            |
-|-------------------------|---------------------------------|----------------------------------|
-| `CemScreen { id }`      | `<main cem:screen="id">`        | `<cem-screen cem-id="id">`       |
-| `CemForm { id }`        | `<form cem:form="id">`          | `<cem-form cem-id="id">`         |
-| `CemAction { variant }` | `<button cem:action="primary">` | `<cem-action variant="primary">` |
-| `CemList`               | `<ul cem:list>`                 | `<cem-list>`                     |
-| `CemCard`               | `<div cem:card>`                | `<cem-card>`                     |
-| `CemThread`             | `<ul cem:thread>`               | `<cem-thread>`                   |
-| `CemMessage`            | `<article cem:message>`         | `<cem-message>`                  |
-| `CemBadge`              | Any with `cem:badge`            | `<cem-badge>`                    |
-| `HtmlElement`           | Any other element               | Pass through unchanged           |
+| CEM annotation         | Source element (typical)        | Possible output projection       |
+|------------------------|---------------------------------|----------------------------------|
+| `cem:screen="id"`      | `<main cem:screen="id">`        | `<cem-screen cem-id="id">`       |
+| `cem:form="id"`        | `<form cem:form="id">`          | `<cem-form cem-id="id">`         |
+| `cem:action="primary"` | `<button cem:action="primary">` | `<cem-action variant="primary">` |
+| `cem:list`             | `<ul cem:list>`                 | `<cem-list>`                     |
+| `cem:card`             | `<div cem:card>`                | `<cem-card>`                     |
+| `cem:thread`           | `<ul cem:thread>`               | `<cem-thread>`                   |
+| `cem:message`          | `<article cem:message>`         | `<cem-message>`                  |
+| `cem:badge`            | Any with `cem:badge`            | `<cem-badge>`                    |
+| No CEM annotation      | Any other element               | Pass through unchanged           |
 
 Children are transformed recursively. Text nodes pass through unchanged.
 
@@ -913,7 +924,7 @@ Status key:
 | L5 Child parser: CSS (stub, diagnostic only)                | Design partial — embedded-source byte/decoded-view model unspecified (§18.6.2)                                                                                                          |
 | L5 Child parser: Script (raw text only)                     | Design partial — script preservation policy unspecified (§18.6.3); unsafe-content validation follows content-type policy (§3.2)                                                         |
 | L6 InputDomAstBuilder: schema-defined initial DOM/AST       | Design ready — schema reconstructs token hierarchy; WHATWG DOM compliance is a downstream transformation over this initial DOM                                                          |
-| L6 InterpreterAstBuilder: typed CEM AST projection          | Design partial — multiple CEM roles per element remain unresolved (§18.7.3); generic AST support exists for XML/(X)HTML constructs, with Tier A minimum and CEM comment/CDATA syntax TBD (§10) |
+| L6 InterpreterAstBuilder: CEM annotation projection         | Design partial — CEM attributes are transform annotations on source nodes; transform conflict policy is schema-owned; Tier A non-CEM minimum and CEM comment/CDATA syntax remain TBD (§10) |
 | L6 Reference slots: id/for/aria-*                           | Design partial — slot implementation model, lifecycle, override, duplicate, and cross-scope rules unresolved (Ambiguity 6, §18.7.1–2)                                                   |
 | L6 Source-map stacks: byte-range + transform chain          | Design partial — frame order, multi-range nodes, escape/entity decoding, and diagnostics-before-AST mapping unresolved (§18.2.1–3, §18.2.5)                                             |
 | L6 Source-map stacks: bit-level ranges                      | Deferred Tier B — reserve representation only after source-map frame model is fixed (§18.2.1–2); no serialized binary frame ids in Tier A (§11)                                         |
@@ -1366,13 +1377,6 @@ The design only covers filling an empty id slot.
 
 **Question:** What happens on duplicate IDs, shadowed scoped names, late overrides,
 deleted/replaced nodes, or cross-scope references?
-
-**Concern 18.7.3 — Multiple CEM roles on one element are not specified.**  
-The AST enum implies a single CEM node kind per source element. HTML could contain more
-than one schema-qualified CEM role attribute on the same element.
-
-**Question:** Are multiple semantic roles invalid, does one role win by precedence, or
-does the AST represent a composed role set?
 
 ---
 

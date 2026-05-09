@@ -74,7 +74,7 @@ TransformKind:
 An `aria-labelledby` reference in a parsed fixture traces as:
 
 ```
-CemScreen { semantic_id: "login" }
+CemAnnotation { kind: Screen, value: "login" }
   frame[0]: CemAstBuilder, byte=(0, 50), source=main.html
   frame[1]: SchemaValidation(cem-schema-v1), byte=(0, 50)
   frame[2]: EventNormalizer, OpenScope("main"), byte=(0, 50)
@@ -400,7 +400,7 @@ following the condition boundary.
 ```
 InputDomNode:
   Document(InputDocument)
-  Element(InputElement)
+  Element(InputElement)             native XML/(X)HTML identity plus optional CEM annotations
   Attribute(InputAttribute)
   Text(TextNode)
   Comment(CommentNode)
@@ -411,42 +411,64 @@ InputDomNode:
   ErrorNode(RecoveredErrorNode)
   Extension(ExtensionNode)
 
+InputElement:
+  node_id: AstNodeId
+  expanded_name: ExpandedName       native tag identity, such as HTML button or SVG path
+  attributes: AttributeMap
+  annotations: Vec<CemAnnotationId>
+  children: Vec<AstNodeId>
+  source: SourceMapStack
+
+CemAnnotation:
+  annotation_id: CemAnnotationId
+  source_node: AstNodeId
+  name: ExpandedName                schema-qualified CEM annotation name
+  kind: CemAnnotationKind
+  value: Option<ScalarValue>
+  source: SourceMapStack
+  state: Option<CemState>
+
+CemAnnotationKind:
+  Screen
+  Form
+  Action
+  List
+  Card
+  Thread
+  Message
+  Badge
+  State
+  Extension
+
 CemNode:
   Document(CemDocument)
-  Screen(CemScreen)
-  Form(CemForm)
-  Action(CemAction)
-  List(CemList)
-  Card(CemCard)
-  Thread(CemThread)
-  Message(CemMessage)
-  Badge(CemBadge)
+  AnnotatedInput(CemAnnotatedInput)
   InputNode(AstNodeId)         pass-through generic XML/(X)HTML input DOM node
   Text(TextNode)
+
+CemAnnotatedInput:
+  node_id: AstNodeId
+  source_node: AstNodeId
+  annotations: Vec<CemAnnotationId>
+  children: Vec<AstNodeId>
+  source: SourceMapStack
 
 CemDocument:
   source_id: SourceId
   root_children: Vec<AstNodeId>
   id_table: HashMap<String, AstNodeId>   global id map for reference resolution
   diagnostics: Vec<Diagnostic>
-
-CemScreen:
-  node_id: AstNodeId
-  semantic_id: String            value of schema-qualified screen attribute
-  label: Option<LabelRef>        resolved or pending aria-labelledby reference
-  children: Vec<AstNodeId>
-  source: SourceMapStack
-  attrs: AttributeMap
-  state: Option<CemState>
 ```
 
 `InputDomNode` is the generic schema-defined AST surface. Its minimal Tier A preserved
 construct set is TBD. The CEM projection uses `CemNode` and can carry non-CEM source
 constructs by reference through `InputNode(AstNodeId)`.
 
-`CemForm`, `CemAction`, `CemList`, `CemCard`, `CemThread`, `CemMessage`, and `CemBadge`
-follow the same shape: `node_id`, `semantic_id` (the schema-qualified role value),
-`children`, `source`, `attrs`, and `state`.
+`CemAnnotation` records schema-qualified transform triggers such as `cem:screen` or
+`cem:action`. Multiple annotations can attach to the same `InputElement`; the source
+element keeps its `ExpandedName` and native DOM meaning. If a transform rewrites or
+replaces the source element, the schema-owned transform plan resolves annotation
+composition, precedence, rejection, or diagnostics.
 
 Reference slots:
 
