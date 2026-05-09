@@ -309,6 +309,10 @@ default stream behavior. Proposed projection layer keys:
 | `whatwg-dom`       | `transform::whatwg_html`          | WHATWG implementation-DOM update projection from the initial HTML parser DOM.                            |
 | `cem-ast`          | `parser`                          | CEM semantic AST projection over the input DOM/AST.                                                      |
 | `transform-output` | `interpreter` / transform modules | Canonical CEM-ML transform output and optional rendered projection for the selected output content type. |
+| `ui-dom-plan`      | `interpreter` / `runtime`         | Virtual UI DOM plan: template references, data bindings, visual scope ownership, and patch identity.     |
+| `machine-state`    | `runtime`                         | Runtime data slots from attributes, dataset, payload/slots, slices, browser adapters, or caller state.   |
+| `hydration-plan`   | `runtime`                         | Event-to-state and state-to-render invalidation rules for hydrated output.                               |
+| `template-registry` | `interpreter` / `runtime`        | Local, external, schema-owned, registry-owned, and DCE tag-name template references.                     |
 | `source-map`       | `source_map`                      | Source-map stacks and event-time source-map hierarchy.                                                   |
 | `report-ast`       | `report`                          | Canonical AST-associated report tree with event sequence and source module state.                        |
 | `trace`            | `engine` / `command`              | Deterministic execution trace assembled from parser, validator, transform, and report events.            |
@@ -465,6 +469,7 @@ TransformContext:
 
 TransformOutput:
   canonical: CemMlDocument            schema-owned CEM-ML AST/tree serialization
+  ui_dom_plan: Option<UiDomPlan>      virtual UI DOM plan before rendered materialization
   rendered: Option<RenderedOutput>    optional target rendering, such as light-DOM HTML
   diagnostics: Vec<Diagnostic>
   source_maps: Vec<SourceMapStack>    one per output element
@@ -484,6 +489,128 @@ hand-written Rust backend is allowed as developer convenience, for prototyping, 
 optimized execution of schema rules, but it must not become the essential source of
 transform behavior. Any Rust implementation must be traceable back to schema-owned rules
 and must preserve the same diagnostics and source-map semantics as another backend.
+
+### 3.11 Visual Content, Machine State, And Hydration Contracts
+
+The AST core remains uniform across content types. The implementation records content
+type and functional role on scopes; it does not create separate AST families for visual,
+code, or data content.
+
+```
+ContentScope:
+  scope_id: ScopeId
+  content_type: ContentType
+  role: ContentScopeRole
+  owner: Option<ScopeId>
+  source: SourceMapStack
+  policy: ContentTypePolicy
+
+ContentScopeRole:
+  Visual
+  MachineState
+  Code
+  ResourceSlot
+  Mixed
+```
+
+Visual scopes can produce a virtual UI DOM plan. Machine state scopes provide the data
+used to parameterize that plan. Code scopes provide transform or styling behavior when
+allowed by policy. Resource slots preserve unresolved external or embedded inputs for a
+later transform or caller.
+
+```
+TemplateRef:
+  SchemaTemplate { schema_id: SchemaId, name: String }
+  LocalId { source_id: SourceId, id: String }
+  Url { url: String }
+  UrlFragment { url: String, fragment: String }
+  RegistryEntry { registry_id: RegistryId, name: String }
+  DceTagName { tag_name: String }
+
+MachineStateSlot:
+  slot_id: StateSlotId
+  owner_scope: ScopeId
+  key: StateKey
+  source: MachineStateSource
+  value: ScalarValue | AstNodeId | ResourceRef | Null
+  source_map: SourceMapStack
+
+MachineStateSource:
+  Attributes
+  Dataset
+  PayloadSlots
+  Slice
+  Fetch
+  Storage
+  Location
+  FormState
+  CallerProvided
+```
+
+DCE integration is represented as ordinary template and state metadata. A DCE tag name
+is a `TemplateRef`; DCE attributes, dataset, payload/slots, and slices become
+`MachineStateSlot`s. Browser-facing custom-element primitives such as HTTP request,
+storage, and location/route providers are runtime state sources, not AST node kinds.
+
+```
+RenderBinding:
+  visual_scope: ScopeId
+  template_ref: TemplateRef
+  input_dom_root: Option<AstNodeId>
+  state_slots: Vec<StateSlotId>
+  transform_rules: Vec<TransformRule>
+
+UiDomPlan:
+  plan_id: UiDomPlanId
+  root: UiDomNodeId
+  binding: RenderBinding
+  nodes: Vec<UiDomNode>
+  hydration_rules: Vec<HydrationRule>
+  patch_policy: DomPatchPolicy
+  source_maps: Vec<SourceMapStack>
+```
+
+The UI DOM plan is virtual because it records how a template reference is reused with a
+state binding. Materialization to browser DOM, light-DOM custom-element markup, static
+HTML, or another rendered target is a projection of this plan.
+
+```
+HydrationRule:
+  rule_id: HydrationRuleId
+  event_source: HydrationEventSource
+  event_name: String
+  state_target: StateSlotId
+  value_expr: Option<TransformExpr>
+  invalidates: Vec<InvalidationTarget>
+  policy: HydrationPolicy
+
+InvalidationTarget:
+  Scope(ScopeId)
+  UiDomNode(UiDomNodeId)
+
+HydrationEventSource:
+  DomEvent { node: UiDomNodeId }
+  BrowserAdapter { adapter: BrowserAdapterKind }
+  CallerEvent { name: String }
+
+BrowserAdapterKind:
+  HttpRequest
+  Storage
+  Location
+  Route
+  Form
+
+DomPatchPolicy:
+  preserve_node_identity: bool
+  preserve_focus_selection: bool
+  preserve_runtime_resources: bool
+  patch_granularity: Scope | Node | Attribute | Text
+```
+
+Hydration applies event-to-state updates, re-evaluates affected render bindings, and
+patches the materialized DOM according to the patch policy. Tier A may emit the metadata
+above for static or future hydrated output. The live hydration runtime, browser adapter
+execution, and DOM patcher are deferred until the tier that owns runtime behavior.
 
 ---
 
@@ -522,6 +649,11 @@ cem_ml/src/
   interpreter/
     mod.rs            CemInterpreter trait, TransformContext, TransformOutput, RenderedOutput
     transform.rs      CEM semantic HTML -> custom-element transform rules
+  runtime/
+    mod.rs            machine state, template registry, hydration plans, DOM patch policy
+    state.rs          MachineStateSlot and state source adapters
+    hydration.rs      HydrationRule, event mapping, invalidation rules
+    ui_dom.rs         UiDomPlan, UiDomNode, RenderBinding, patch identity
   diagnostic.rs       Diagnostic, Severity, DiagCode
   fail_level.rs       FailLevel enum, fail-level evaluation
   report/
