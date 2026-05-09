@@ -1,7 +1,8 @@
-# `cem-ml-cli` Functional Contract
+# `cem-ml-cli` Feature Summary
 
-This document defines the functional contract for `cem-ml-cli`: command capabilities, option behavior, report fields,
-diagnostics, fixture workflows, and exit-code policy.
+This document summarizes planned `cem-ml-cli` features: command capabilities, option
+behavior, report fields, diagnostics, fixture workflows, and exit-code policy. It is an
+input to implementation planning, not a compatibility contract with removed CLI behavior.
 
 ## Functional Surface
 
@@ -17,7 +18,7 @@ diagnostics, fixture workflows, and exit-code policy.
 - Print help and version information.
 - Reserve transform, schema, and plugin workflows until their subsystems are designed.
 
-## Option Behavior To Preserve
+## Planned Option Behavior
 
 - Fail level: `parse`, `validate`, `strict`.
 - Output format selection for text, JSON, Markdown, DOM JSON, AST, events, and tree-shaped output where relevant.
@@ -32,7 +33,7 @@ diagnostics, fixture workflows, and exit-code policy.
 - Benchmark iterations, budget, profile, cold-cache, and JSON report options.
 - Default semantic fixture paths.
 
-## Output Contracts
+## Output Shapes
 
 Diagnostics keep these fields where available:
 
@@ -61,7 +62,7 @@ Reports keep deterministic field names:
 - `options.contentType`
 - `options.baseUri`
 
-The deterministic default timestamp for contract tests is `1970-01-01T00:00:00.000Z`.
+The deterministic default timestamp for feature tests is `1970-01-01T00:00:00.000Z`.
 
 ## Report Ownership
 
@@ -85,4 +86,4 @@ The deterministic default timestamp for contract tests is `1970-01-01T00:00:00.0
 ## Verification Scope
 
 Rust-side tests should assert functional behavior, option parsing, JSON/report fields, diagnostics, and exit codes.
-They should not copy the removed TypeScript implementation or require the old binary name.
+

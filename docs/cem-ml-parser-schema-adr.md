@@ -8,9 +8,11 @@
 
 ## Context
 
-The Rust `cem-ml` CLI must implement the functional contract in [`cem-ml-cli-contract.md`](./cem-ml-cli-contract.md) while avoiding premature parser implementation. Phase 1
-exists to assess Java XML precedents, Rust library options, schema mirror choices, diagnostics, source locations,
-security defaults, and WASM constraints before parser-backed command work starts.
+The Rust `cem-ml` CLI should support the feature set summarized in
+[`cem-ml-cli-contract.md`](./cem-ml-cli-contract.md) while avoiding premature parser
+implementation. Phase 1 exists to assess Java XML precedents, Rust library options,
+schema mirror choices, diagnostics, source locations, security defaults, and WASM
+constraints before parser-backed command work starts.
 
 The required diagnostic shape remains:
 
@@ -18,8 +20,8 @@ The required diagnostic shape remains:
 { uri, line, column, byteOffset, code, severity, message }
 ```
 
-The parser implementation must eventually feed a CEM-owned event and report model. No third-party DOM or parser API is
-allowed to become the public `cem-ml` contract.
+The parser implementation must eventually feed a CEM-owned event and report model. No
+third-party DOM or parser API is allowed to become the public `cem-ml` data surface.
 
 ## Java XML Stack Inventory
 
@@ -47,7 +49,7 @@ allowed to become the public `cem-ml` contract.
 | `xsd_parser`                   | Good XSD-to-Rust code generation and schema introspection candidate.                                                                                    | Its own roadmap lists schema-based validation as planned. Use for XSD adapter experiments, not runtime validation.                               |
 | `fastxml`                      | Claims pure-Rust DOM, XPath, and streaming XSD validation.                                                                                              | Early crate surface and domain-specific claims need independent verification before adopting. Track as research only.                            |
 | `sxd-document` and `sxd-xpath` | Mature-ish pure-Rust XPath 1.0 path for simple XML trees.                                                                                               | XPath 1.0 only, limited relationship to future CEM transform needs.                                                                              |
-| `xrust`                        | Ambitious pure-Rust XPath/XSLT direction with WASM-oriented external resource closures.                                                                 | Docs warn the library has not been extensively tested. Do not depend on it for CLI contract parity yet.                                          |
+| `xrust`                        | Ambitious pure-Rust XPath/XSLT direction with WASM-oriented external resource closures.                                                                 | Docs warn the library has not been extensively tested. Do not depend on it for planned CLI feature work yet.                                     |
 | Pure Rust RELAX NG crates      | No clearly mature, primary RELAX NG validator emerged from the inventory.                                                                               | This is the largest schema runtime gap. Prefer generated CEM-specific validation or Java/libxml oracle checks until a Rust option is proven.     |
 
 ## Decision
@@ -56,18 +58,18 @@ allowed to become the public `cem-ml` contract.
    third-party DOM.
     - XML path: prototype with `quick-xml`, using namespace-aware reading or a CEM namespace layer.
     - HTML path: prototype with `html5ever`, using a custom CEM sink rather than `markup5ever_rcdom`.
-    - Public command output stays in `cem_ml` data contracts, not in third-party crate structs.
+    - Public command output stays in `cem_ml` data shapes, not in third-party crate structs.
 2. **Schema mirror recommendation:** use RELAX NG as the primary XML schema mirror for CEM semantic documents.
     - Keep CEM-native schema syntax as the eventual source of truth.
     - Emit RELAX NG XML and compact syntax mirrors for validation/tooling.
     - Treat XSD as a downstream adapter only when a consumer requires it.
 3. **Runtime validation recommendation:** do not require a general RELAX NG runtime validator in `cem-ml` until a Rust
    implementation is proven.
-    - Use generated CEM-specific validators for Rust contract behavior where practical.
+    - Use generated CEM-specific validators for Rust behavior where practical.
     - Use Jing/Trang and, if needed, libxml2 as external conformance oracles in tests and release tooling.
 4. **XPath/XSLT recommendation:** defer XPath/XSLT engine selection.
     - Follow Saxon's staged `Processor`/compiler/executable pattern for future architecture.
-    - Do not add `sxd-xpath`, `xrust`, Saxon, or libxslt bindings for Phase 2-8 CLI contract work.
+    - Do not add `sxd-xpath`, `xrust`, Saxon, or libxslt bindings for Phase 2-8 CLI feature work.
 
 ## Source Location Strategy
 
@@ -77,7 +79,7 @@ allowed to become the public `cem-ml` contract.
    line-index result.
 4. For XML, prototype byte offsets with `quick-xml` `buffer_position()` and `error_position()`.
 5. For HTML, prototype byte offsets separately. If `html5ever` cannot expose enough source-span data through a custom
-   sink/tokenizer path, parser-backed HTML offset parity remains blocked.
+   sink/tokenizer path, parser-backed HTML offset support remains blocked.
 6. Diagnostics emitted by schema, validation, transform, or plugin layers must attach back to the nearest known CEM
    source span and preserve `uri`.
 
@@ -120,8 +122,8 @@ allowed to become the public `cem-ml` contract.
 ## Follow-Up Plan
 
 1. Phase 2 can define crate boundaries and modules without parser dependencies.
-2. Phase 3 can define diagnostic, fail-level, report, and command-output data contracts.
-3. Phase 4-8 can use a fake engine for CLI contract tests.
+2. Phase 3 can define diagnostic, fail-level, report, and command-output data shapes.
+3. Phase 4-8 can use a fake engine for CLI feature tests.
 4. Parser implementation must start with a prototype branch that measures source-span fidelity for `quick-xml` and
    `html5ever`.
 5. Schema implementation must start with CEM-native-to-RELAX-NG mirror generation and Java-oracle conformance tests.

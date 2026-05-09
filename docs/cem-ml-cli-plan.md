@@ -2,18 +2,17 @@
 
 **Status:** Phase 1 parser/schema assessment complete. No Rust implementation is included in this document.
 
-Phase 0 artifact: [`docs/cem-ml-cli-parity-matrix.md`](./cem-ml-cli-parity-matrix.md).
 Phase 1 artifact: [`docs/cem-ml-parser-schema-adr.md`](./cem-ml-parser-schema-adr.md).
 
-This plan implements the functional coverage defined in [`cem-ml-cli-contract.md`](./cem-ml-cli-contract.md) for the Rust platform:
+This plan defines the planned `cem-ml` CLI feature set for the Rust platform. Existing
+CLI notes in [`cem-ml-cli-contract.md`](./cem-ml-cli-contract.md) are idea inputs, not
+decision criteria or compatibility requirements.
 
 - App crate: `packages/cem_ml_cli`, Cargo package `cem-ml-cli`, binary `cem-ml`.
 - Library crate: `packages/cem_ml`, Cargo package `cem-ml`, Rust crate `cem_ml`.
-- Acceptance source: [`cem-ml-cli-contract.md`](./cem-ml-cli-contract.md) and
-  [`cem-ml-cli-parity-matrix.md`](./cem-ml-cli-parity-matrix.md).
 
-The goal is to preserve capabilities, option semantics, report fields, diagnostic fields, fail-level behavior, and exit
-codes. Exact deprecated command syntax is not a compatibility target.
+The goal is to provide useful parser/runtime CLI capabilities: command workflows, option
+semantics, report fields, diagnostic fields, fail-level behavior, and exit codes.
 
 ## Explicit Scope
 
@@ -23,21 +22,12 @@ codes. Exact deprecated command syntax is not a compatibility target.
 - Do front-load a separate Java XML stack, parser pattern, and schema pattern assessment before implementation.
 - Keep `cem-ml-cli` thin. Shared behavior belongs in `cem-ml`.
 
-## Phase 0 - Contract Lock
+## Phase 0 - Feature Baseline
 
-**Status:** Complete. See [`docs/cem-ml-cli-parity-matrix.md`](./cem-ml-cli-parity-matrix.md).
+**Status:** Complete. The feature baseline is captured in this plan and summarized in
+[`docs/cem-ml-cli-contract.md`](./cem-ml-cli-contract.md).
 
-1. Read and pin the source contract:
-    - `docs/cem-ml-cli-contract.md`
-    - `docs/cem-ml-cli-parity-matrix.md`
-    - `docs/cem-ml-ac.md`
-2. Create a parity matrix with columns:
-    - AC id, where one exists
-    - Rust command or library module
-    - required output shape
-    - implementation status
-    - blocked-by-parser status
-3. Confirm the platform outputs:
+1. Confirm the platform outputs:
     - binary: `cem-ml`
     - default fixture report paths:
         - `packages/cem_ml_cli/dist/cem-ml.report.json`
@@ -46,7 +36,7 @@ codes. Exact deprecated command syntax is not a compatibility target.
         - `packages/cem_ml_cli/dist/cem-ml.roundtrip.report.md`
         - `packages/cem_ml_cli/dist/cem-ml.bench.report.json`
     - fixture inputs remain `examples/semantic/*.html`.
-4. Preserve exit codes:
+2. Define exit codes:
     - `0`: success
     - `1`: parse, validation, strict-mode, or benchmark-budget failure
     - `2`: CLI usage error
@@ -109,15 +99,15 @@ Exit criteria: an ADR exists and no parser code has been added.
     - `command`: I/O-independent command orchestration
     - `error`: usage, I/O, schema, transform, plugin, and internal error mapping
 4. Use Rust type names with `CemMl` where a prefix is useful, but keep JSON field names compatible with the active
-   contract.
+   feature documents.
 5. Add serialization dependencies only when the implementation phase starts:
     - `serde`
     - `serde_json`
     - optional `thiserror`
 
-## Phase 3 - Shared Contract Types In `cem-ml`
+## Phase 3 - Shared CLI Types In `cem-ml`
 
-1. Define diagnostic types matching the active JSON shape:
+1. Define diagnostic types matching the documented JSON shape:
     - `uri`
     - `line`
     - `column`
@@ -130,7 +120,7 @@ Exit criteria: an ADR exists and no parser code has been added.
     - `parse`: fail only on `fatal`
     - `validate`: fail on `error` or `fatal`
     - `strict`: fail on `warning`, `error`, or `fatal`
-3. Define report models matching the active contract:
+3. Define report models matching the documented CLI shape:
     - `generatedAt`
     - `inputs`
     - `summary.inputCount`
@@ -143,7 +133,7 @@ Exit criteria: an ADR exists and no parser code has been added.
     - `options.schema`
     - `options.contentType`
     - `options.baseUri`
-4. Use a deterministic default timestamp for contract tests:
+4. Use a deterministic default timestamp for feature tests:
     - `1970-01-01T00:00:00.000Z`
 5. Define command output models for:
     - DOM JSON
@@ -154,11 +144,11 @@ Exit criteria: an ADR exists and no parser code has been added.
     - bench report
     - fixture roundtrip report
 
-These are data contracts only. Parser-filled content remains blocked until the parser decision phase is complete.
+These are data shapes only. Parser-filled content remains blocked until the parser decision phase is complete.
 
 ## Phase 4 - CLI Command Surface
 
-1. Implement Clap command declarations for the same functional surface, with binary name `cem-ml`:
+1. Implement Clap command declarations for the planned functional surface, with binary name `cem-ml`:
     - `parse <input>`
     - `validate <input...>`
     - `check <input...>`
@@ -215,13 +205,13 @@ These are data contracts only. Parser-filled content remains blocked until the p
     - `bench`
     - `fixture validate`
     - `fixture roundtrip`
-3. Provide a fake engine only for contract tests.
+3. Provide a fake engine only for feature tests.
 4. Do not add a real parser engine in this plan.
 5. Do not mark parser-backed AC complete until the future parser implementation exists.
 6. Keep the command orchestration complete enough that replacing the fake engine with the real engine does not require
    changing Clap definitions, output models, report writers, or exit-code logic.
 
-## Phase 6 - Command Behavior Contracts
+## Phase 6 - Command Behavior
 
 1. `cem-ml parse <input>`
     - Default format: `dom-json`.
@@ -248,7 +238,7 @@ These are data contracts only. Parser-filled content remains blocked until the p
     - CEM-native input, schema-version conversion, rendered HTML/XML output, comments, and source maps remain deferred.
 7. `cem-ml trace <input>`
     - Supported formats: `json`, `text`.
-    - Parser and validator trace records are contract-only until parser implementation exists.
+    - Parser and validator trace records remain placeholder output shapes until parser implementation exists.
     - Scheduler, worker-pool, transform, plugin, and source-map traces remain deferred.
 8. `cem-ml bench <input...>`
     - Supported formats: `text`, `json`.
@@ -314,18 +304,18 @@ Use Nx through the workspace package manager.
     - `yarn nx run cem_ml_cli:lint`
     - `yarn nx run cem_ml_cli:run`
 2. Add `cem_ml_cli:validate-fixtures` only after a real parser engine exists.
-3. Do not claim fixture-validation parity until `cem-ml fixture validate` validates `examples/semantic/*.html` with
-   zero hard violations.
+3. Do not claim fixture validation is complete until `cem-ml fixture validate` validates
+   `examples/semantic/*.html` with zero hard violations.
 4. Keep `cem_ml_cli` dependent on `cem_ml` through Cargo, not by duplicating code.
 
 ## Phase 10 - Completion Gates
 
-1. Contract gate:
+1. Feature gate:
     - help/version work
     - CLI usage errors match exit-code policy
-    - report and diagnostic models match the active contract
+    - report and diagnostic models match the documented CLI feature shapes
     - parser-backed commands are routed through `CemMlEngine`
-    - fake-engine contract tests pass
+    - fake-engine feature tests pass
 2. Decision gate:
     - Java XML stack and schema/parser ADR is accepted
     - parser and schema mirror recommendations are recorded
@@ -334,8 +324,10 @@ Use Nx through the workspace package manager.
     - real engine fills the existing `CemMlEngine` boundary
     - no CLI command or output-shape redesign is needed
     - fixture validation can be enabled as an Nx target
-4. Parity gate, future plan:
-    - `cem-ml` CLI reaches the full functional acceptance status defined in [`cem-ml-cli-contract.md`](./cem-ml-cli-contract.md).
+4. Feature-complete gate, future plan:
+    - `cem-ml` CLI implements the command, option, report, diagnostic, fixture, trace,
+      and benchmark features documented here and summarized in
+      [`cem-ml-cli-contract.md`](./cem-ml-cli-contract.md).
 
 ## Deferred Work
 

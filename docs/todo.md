@@ -27,13 +27,13 @@ Component vocabulary: [`component-mvp.md`](component-mvp.md). Research input:
 - [ ] Wire `build`, `lint`, `test`, and future `validate-fixtures` Nx targets through `cem_ml` / `cem_ml_cli`.
 - [ ] Update the root README package map, `docs/index.md`, and related package docs to name `@epa-wg/cem-ml` and
       `@epa-wg/cem-ml-cli` as the active parser/runtime and CLI packages.
-- [ ] Verify `cem-ml-cli` covers the full functional contract from [`cem-ml-cli-contract.md`](cem-ml-cli-contract.md):
+- [ ] Verify `cem-ml-cli` covers the planned feature summary from [`cem-ml-cli-contract.md`](cem-ml-cli-contract.md):
       `parse`, `validate`, `check`, `inspect`, `convert`, `trace`, `bench`, `fixture validate`, `fixture roundtrip`,
       `help`, `version`, and reserved `transform`, `schema`, and `plugin` workflows.
 - [ ] Verify option-function coverage in `cem-ml-cli`: fail level, output format, report destinations, output file,
       schema/content-type/base URI recording, quiet/verbose/no-color, zero hard violations, preserve source offsets,
       convert input/output formats, inspect views, benchmark iterations/budget/profile/cold-cache, and fixture defaults.
-- [ ] Add Rust-side contract tests for option behavior and output shape before relying on `cem-ml-cli` in CI. Tests
+- [ ] Add Rust-side feature tests for option behavior and output shape before relying on `cem-ml-cli` in CI. Tests
       should assert behavior, JSON/report fields, diagnostics, and exit codes.
 - [ ] Move fixture validation report ownership to `packages/cem_ml_cli/dist/cem-ml.report.{json,md}` and round-trip /
       benchmark reports to `cem-ml`-named outputs.

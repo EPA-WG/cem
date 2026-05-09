@@ -801,7 +801,7 @@ cem_ml/src/
   fixture.rs          default fixture paths, report path policy
   engine/
     mod.rs            CemMlEngine trait (I/O-independent)
-    fake.rs           FakeEngine for CLI contract tests
+    fake.rs           FakeEngine for CLI feature tests
   command/
     mod.rs            I/O-independent command orchestration
   error.rs            CemError, usage/IO/schema/transform/plugin error variants
@@ -1206,7 +1206,7 @@ The design recommends a hand-written DFA for Tier A, while the research favors
 derivatives for residual-based expected-content diagnostics.
 
 **Question:** What diagnostic quality must the Tier A DFA match so that later replacing
-it with a derivative engine does not break reports or contract tests?
+it with a derivative engine does not break reports or feature tests?
 
 **Concern 18.5.2 — Unknown/extension content policy is not formalized.**  
 The design mentions warnings for unknown attributes and semver-compatible drift, but does
@@ -1418,12 +1418,13 @@ can change between implementations.
 **Question:** Are diagnostics sorted by source order, layer order, severity, emission
 time, or a stable compound key?
 
-**Concern 18.11.3 — "Functional coverage, not syntax" needs a test matrix.**  
-The design focuses on parser internals. The migration goal requires preserving CLI
-capabilities and option behavior without requiring the deprecated command syntax.
+**Concern 18.11.3 — CLI feature coverage needs a test matrix.**
+The design focuses on parser internals. The CLI plan also needs tests for command
+capabilities and option behavior.
 
-**Question:** Which stack-layer tests and which CLI contract tests together prove that
-no former CLI functionality was lost?
+**Question:** Which stack-layer tests and which CLI feature tests together prove that
+the planned CLI command, option, report, diagnostic, fixture, trace, and benchmark
+features are covered?
 
 ---
 

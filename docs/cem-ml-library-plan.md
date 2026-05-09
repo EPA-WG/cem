@@ -26,7 +26,7 @@ Rationale:
 - CLI argument parsing and process exit behavior.
 - File input/output and report destination handling.
 - Fixture validation and round-trip workflows.
-- Functional parity with the useful deprecated CLI behavior documented in [`cem-ml-cli-contract.md`](./cem-ml-cli-contract.md).
+- Planned CLI capabilities summarized in [`cem-ml-cli-contract.md`](./cem-ml-cli-contract.md).
 
 ## Non-Goals
 

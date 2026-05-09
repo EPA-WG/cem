@@ -38,7 +38,7 @@ artifacts as the CSS generator pages.
 - [Todo](docs/todo.md) — current execution checklist.
 - [Token export architecture](packages/cem-theme/docs/token-export.md)
 - [CEM ML parser/runtime acceptance criteria](docs/cem-ml-ac.md)
-- [CEM ML CLI functional contract](docs/cem-ml-cli-contract.md)
+- [CEM ML CLI feature summary](docs/cem-ml-cli-contract.md)
 - [NPM publishing workflow](docs/npm-publish.md)
 
 # Package map
