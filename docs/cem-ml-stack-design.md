@@ -752,7 +752,7 @@ markup.
 
 ```
 BinaryAstEncoder responsibilities:
-  — Assign stable binary node ids.
+  — Assign stable binary node ids after the binary format is active.
   — Reference platform and app dictionaries by id.
   — Emit source-map deltas (not full frames) to compress the map chain.
   — Assign subtree chunk ownership.
@@ -789,6 +789,44 @@ for that edge is a hard dependency before traversal can leave the available rang
 allows progressive decode and validation inside available chunk boundaries while keeping
 cross-boundary traversal deterministic.
 
+### Canonical Identity And Ordering
+
+Canonical binary representation must not depend on incidental AST element order for
+identity or references. Parsing preserves source order where the source format makes
+order semantic. Transformations preserve that order unless the active schema for the
+content type permits or defines a different order. When a schema redefines ordering, that
+schema-defined order is the semantic order for the transformed representation.
+
+References in canonical binary form are key/value mappings by default. Node references,
+attributes, dictionary entries, source-map frames, dependency slots, and chunk relations
+must have stable logical keys so references remain valid if physical storage order
+changes. For deterministic hashing and cache reuse, unordered maps are serialized by a
+stable key order, but consumers must not treat that serialization order as semantic AST
+child order.
+
+Order and index references are permitted only as schema-constrained optimizations. A
+schema-optimized AST representation may use positional indexes instead of keys when the
+schema constrains the variety and order of fields tightly enough that the index is
+unambiguous for the schema version. Such indexes are an encoding shortcut over the
+canonical key/value model, not a different logical identity model.
+
+Diagnostics and report-linked data preserve emission order through monotonic event
+sequence numbers. Chunk continuation order is preserved through `ChunkRelation.sequence`.
+Both are explicit ordered fields rather than implicit dependence on map or storage order.
+
+### Tier A Binary Id Policy
+
+Tier A must not freeze serialized binary identifiers. Node ids, dictionary ids, scope
+slot ids, chunk ids, and source-map frame ids are not part of the Tier A external
+contract because the binary transport/cache format is deferred. Tier A may use opaque
+internal handles while building in-memory trees, but those handles must not be serialized,
+hashed, exposed as stable API values, or treated as future binary ids.
+
+The first tier that implements binary AST transport owns the stable id policy. That tier
+must derive ids from the canonical key/value identity model, schema version, dictionary
+version, and chunk relation metadata defined above rather than from incidental in-memory
+allocation order.
+
 Compression profiles from the research:
 
 | Profile | Algorithm | Use case |
@@ -814,7 +852,8 @@ For Tier A, the pipeline skips these two layers. The `InputDomAstBuilder` and
 `InterpreterAstBuilder` outputs are in-memory Rust trees with no binary encoding. The
 `encode` and `segment` state transitions on the `SchemaMachine` are no-ops. The module
 boundaries and trait signatures are defined so that adding the real encoder does not
-change the external API of the schema machine or AST builder.
+change the external API of the schema machine or AST builder. Any IDs used inside those
+stubs are opaque process-local handles only and are not serialized binary identifiers.
 
 ### Incremental And Editor Mode (Deferred Tier B)
 
@@ -885,7 +924,12 @@ stacks.
 
 ```
 CemInterpreter trait:
-  transform(doc: &CemDocument, ctx: &TransformContext) -> Result<TransformOutput, CemError>
+  transform(doc: &CemDocument, plan: &TransformPlan, ctx: &TransformContext) -> Result<TransformOutput, CemError>
+
+TransformPlan:
+  schema_id: SchemaId
+  target_content_type: ContentType
+  rules: Vec<TransformRule>        schema-owned rules; backend-neutral
 
 TransformContext:
   schema_id: SchemaId
@@ -898,11 +942,18 @@ TransformOutput:
   source_maps: Vec<SourceMapStack>   one per output element
 ```
 
-### Transform Rules (Tier A)
+### Schema-Driven Transform Rules
 
-Each CEM semantic node maps to a custom element. The `data-cem-*` attribute becomes a
-`cem-id` attribute on the generated element. Other standard HTML attributes (class, id,
-ARIA, data-*) pass through.
+Transform behavior is schema-driven. The schema owns the transform layers, including
+source-role matching, target element construction, attribute mapping, child traversal,
+copy/pass-through rules, and source-map frame creation. Rust code, XSLT, or a template
+DSL are execution backends for the schema-owned transform plan; none of them is the
+reference source of truth.
+
+For the CEM semantic HTML projection, each CEM semantic node maps to a custom element.
+The `data-cem-*` attribute becomes a `cem-id` attribute on the generated element. Other
+standard HTML attributes (class, id, ARIA, data-*) pass through unless the active schema
+defines a stricter mapping.
 
 | CEM node | Source element (typical) | Output custom element |
 | --- | --- | --- |
@@ -925,13 +976,18 @@ prior frames (inherited from the CEM AST node's `SourceMapStack`) trace back to 
 original HTML token. This enables tooling to resolve from a generated `<cem-screen>` all
 the way back to the raw byte range of `<main data-cem-screen="login">`.
 
-### XSLT vs. Hand-Written Rules
+### Transform Execution Backends
 
-The research recommends "XSLT transform helpers from semantic fixtures into light-DOM
-custom-element markup." For Tier A, the transform rules are implemented as hand-written
-Rust match arms. A full XSLT engine is Tier C. **Ambiguity 4** covers whether Tier A
-needs a minimal XSLT-like template DSL or whether hard-coded Rust rules are sufficient
-for the five-fixture surface.
+The reference implementation stack must execute schema-driven transform plans. A
+hand-written Rust backend is allowed as developer convenience, for prototyping, and for
+optimized execution of schema rules, but it must not become the essential source of
+transform behavior. Any Rust implementation must be traceable back to schema-owned rules
+and must preserve the same diagnostics and source-map semantics as another backend.
+
+XSLT or an XSLT-like template backend is one possible execution backend for the same
+schema-owned plan. Tier placement for the Rust backend, a minimal template DSL, or a full
+XSLT engine is a scheduling decision and can be defined later as long as it does not
+conflict with the primary principle that schema controls transform layers.
 
 ---
 
@@ -1074,12 +1130,12 @@ Status key:
 | L6 InterpreterAstBuilder: typed CEM AST projection               | Design partial — multiple CEM roles per element, non-CEM construct handling, and vocabulary source unresolved (§18.7.3–5)        |
 | L6 Reference slots: id/for/aria-*                               | Design partial — slot implementation model, lifecycle, override, duplicate, and cross-scope rules unresolved (Ambiguity 6, §18.7.1–2) |
 | L6 Source-map stacks: byte-range + transform chain              | Design partial — frame order, multi-range nodes, escape/entity decoding, and diagnostics-before-AST mapping unresolved (§18.2.1–3, §18.2.5) |
-| L6 Source-map stacks: bit-level ranges                          | Deferred Tier B — reserve representation only after source-map frame model is fixed (§18.2.1–2, §18.9.1)                         |
-| L7 BinaryAstEncoder                                             | Deferred Tier B — do not freeze IDs or trait signatures until binary determinism and slot identity are resolved (§18.9.1–3)      |
-| L8 ChunkCompressor                                              | Deferred Tier B — compression profiles are research-backed, but canonical chunk determinism remains open (§18.9.2); cross-chunk dependency slots are scoped in §11 |
+| L6 Source-map stacks: bit-level ranges                          | Deferred Tier B — reserve representation only after source-map frame model is fixed (§18.2.1–2); no serialized binary frame ids in Tier A (§11) |
+| L7 BinaryAstEncoder                                             | Deferred Tier B — Tier A does not freeze serialized binary ids; canonical identity, ordering, and future id policy are scoped in §11 |
+| L8 ChunkCompressor                                              | Deferred Tier B — compression profiles are research-backed; canonical chunk identity, ordering, and dependency slots are scoped in §11 |
 | ContentTypeTransformPipeline: WHATWG HTML DOM                   | Design ready — schema-driven initial HTML parser DOM is transformed into WHATWG implementation DOM updates                       |
-| L9 ImplementationInterpreter: hand-written Rust transform rules | Design partial — transform engine choice, attribute collision, data-cem-* pass-through, serialization, and future template seam unresolved (Ambiguity 4, §18.8.1–4) |
-| L9 ImplementationInterpreter: XSLT template engine              | Deferred Tier C — minimal Tier A template abstraction still needs a decision through Ambiguity 4                                 |
+| L9 ImplementationInterpreter: schema-driven transform rules     | Design partial — schema owns transform layers; attribute collision, data-cem-* pass-through, and serialization remain unresolved (§18.8.1–3) |
+| L9 ImplementationInterpreter: transform execution backends      | Deferred Tier B/C — Rust, template DSL, and XSLT tier placement is a scheduling decision constrained by schema-owned transform rules (§12, Ambiguity 4) |
 | LineIndex: byte-offset → line/col projection                    | Design partial — column-unit model, newline normalization, tabs, replacement chars, and UTF-16/scalar projections unspecified (§18.2.4) |
 | Diagnostics and reports                                         | Design partial — source-map ownership and diagnostics-before-AST mapping unresolved (§18.2.5)                                      |
 | CLI output projections and fixture round-trip reports           | Design ready — CLI owns projection targets and side outputs; stack layers own projected artifacts                                 |
@@ -1111,8 +1167,8 @@ Status key:
 | L6       | Forward references           | Mutable scoped name slots (Arc<Mutex<Option<NodeId>>>)   | Research §4: "slot filled when defining entity arrives"                                        |
 | L6       | Source location ground truth | `u64` byte offset                                        | Research Unicode policy: "byte offsets as stable storage format"                               |
 | L6       | Line/column                  | On-demand projection via LineIndex                       | Research: "derived coordinates" — never stored, computed from byte offset                      |
-| L9       | CEM transform Tier A         | Hand-written Rust match rules                            | Research: "XSLT transform helpers" — minimal subset acceptable                                 |
-| L9       | CEM transform Tier B/C       | XSLT subset / full XSLT engine                           | Research: XSLT-equivalent transform; Tier C full XSLT 4.0                                      |
+| L9       | CEM transform semantics      | Schema-driven transform plan                             | Keeps schema in charge of transform layers across Rust, template, or XSLT backends             |
+| L9       | CEM transform backends       | Rust convenience backend / template DSL / XSLT engine    | Backend tier placement is deferred; each backend executes the schema-owned plan                 |
 | Deferred | Binary AST transport         | Dictionary-encoded subtree chunks                        | Research §Binary AST: parallel delivery, retry, cache reuse                                    |
 | Deferred | Chunk compression            | Zstandard (`canonical-fast`), Brotli (`canonical-dense`) | Research §Compression Strategy                                                                 |
 
@@ -1187,21 +1243,25 @@ loads it.
 
 ---
 
-### Ambiguity 4 — Tier A Transform Engine
+### Ambiguity 4 — Transform Backend Tier Placement
 
-**Blocks:** Layer 9 implementation depth.
+**Blocks:** Layer 9 implementation depth, not the schema-owned transform principle.
 
-**Question:** Does the Tier A `ImplementationInterpreter` use:  
-A. Hand-written Rust match rules (minimal, predictable, easy to snapshot-test).  
-B. A minimal XSLT-like template DSL (match + value-of + apply-templates + copy).  
-C. A full XSLT engine (Tier C per AC-T-3).
+**Question:** Which execution backend is implemented in each tier for schema-owned
+transform plans:  
+A. Rust convenience backend generated from or traceable to schema rules.  
+B. Minimal template DSL backend (match + value-of + apply-templates + copy).  
+C. Full XSLT engine backend (Tier C per AC-T-3).
+
+**Resolved principle:** Transform semantics are schema-driven. Hand-written Rust rules
+are not the reference implementation source of truth; they are a developer convenience
+or optimization backend only. Tier A or Tier C placement can be defined later as long as
+the chosen backend executes the same schema-owned transform plan.
 
 **Impact:** Option B requires building a template parser/evaluator but moves closer to
-the Tier C target and makes transforms loadable from URI or stream (AC-T-4). Option A
-is simpler but means AC-T-4 is not achievable in Tier A.
-
-**Recommendation from research:** "XSLT transform helpers" suggests a minimal subset is
-acceptable for Tier A, not a full engine.
+loadable transforms from URI or stream (AC-T-4). Option A is simpler for early execution,
+but it must remain generated from or traceable to schema rules and cannot block a later
+template or XSLT backend.
 
 ---
 
@@ -1562,29 +1622,6 @@ The transform returns `markup: String`, but deterministic snapshots require stab
 attribute ordering, escaping, whitespace, void-element handling, and text serialization.
 
 **Question:** What canonical serialization rules does `ImplementationInterpreter` use?
-
-**Concern 18.8.4 — XSLT-equivalent behavior is not acceptance-testable yet.**  
-The design says hand-written Rust rules are Tier A and XSLT is Tier C, but the research
-and transform goal imply loadable transform behavior over time.
-
-**Question:** What minimum abstraction keeps Tier A hand-written transforms from
-blocking a future template/XSLT-style transform engine?
-
-### 18.9 Binary AST And Compression Concerns
-
-**Concern 18.9.1 — Deferred binary interfaces may prematurely freeze bad IDs.**  
-The design says Tier A defines trait signatures for binary AST stubs, but the binary
-format is a complex storage and transport design in the research.
-
-**Question:** Which binary concepts must be stable in Tier A: node IDs, dictionary IDs,
-scope slot IDs, chunk IDs, source-map frame IDs, or none of them?
-
-**Concern 18.9.2 — Canonical binary representation requires determinism rules.**  
-The research calls binary AST a cache/transport format. Caches and hashes require stable
-ordering and canonical encoding.
-
-**Question:** What are the ordering rules for nodes, attributes, string tables,
-dictionaries, source-map deltas, and diagnostics?
 
 ---
 
