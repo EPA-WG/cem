@@ -119,6 +119,25 @@ When a limit is exceeded, the effective policy determines whether the parser rec
 recoverable diagnostic and continues in degraded mode, aborts the current scope, or
 aborts the full parse.
 
+### 3.2 Unsafe Content And URL Policy
+
+Unsafe-content diagnostics are owned by content-type transformation policies, not by the
+tokenizer. The tokenizer preserves source bytes and tokens, the schema machine validates
+structure, and the input DOM records URL-bearing attributes and inline content with
+source maps. URL-bearing fields are then resolved by the active transformation policy
+against the owner context's base URL, module or import map, and substitution rules.
+
+After resolution and before any fetch, execution, embedding, or output materialization,
+the same policy applies security restrictions such as allowed schemes, `javascript:`
+rejection, same-origin requirements, inline-event handling, `srcdoc` handling,
+form-action constraints, and allowed embedded content types.
+
+Each parse or handoff scope has an effective policy inherited from its owner context.
+Embedded contexts may tighten restrictions or add content-type-specific validation, but
+they may not weaken the outer policy. The outer context may override inner URL mappings
+and substitutions; inner scopes cannot override parent mappings in a way that relaxes
+security.
+
 ---
 
 ## 4. Source-Map Model
@@ -974,7 +993,7 @@ Status key:
 | L4 SchemaMachine: CEM vocabulary DFA                            | Design partial — DFA state table, schema source, vocabulary ownership, and unknown-content policy unspecified (Ambiguity 3, Ambiguity 9, §18.5.1–2, §18.7.4) |
 | L5 HandoffStack: struct and return-condition tracking           | Design partial — authoritative `HandoffRecord` owner and deferred return-condition variants unresolved (§18.6.1, §18.6.4)        |
 | L5 Child parser: CSS (stub, diagnostic only)                    | Design partial — embedded-source byte/decoded-view model unspecified (§18.6.2)                                                    |
-| L5 Child parser: Script (raw text only)                         | Design partial — script preservation/security policy unspecified (§18.6.3, §18.10.2)                                             |
+| L5 Child parser: Script (raw text only)                         | Design partial — script preservation policy unspecified (§18.6.3); unsafe-content validation follows content-type policy (§3.2)  |
 | L6 InputDomAstBuilder: schema-defined initial DOM/AST            | Design ready — schema reconstructs token hierarchy; WHATWG DOM compliance is a downstream transformation over this initial DOM   |
 | L6 InterpreterAstBuilder: typed CEM AST projection               | Design partial — multiple CEM roles per element, non-CEM construct handling, and vocabulary source unresolved (§18.7.3–5)        |
 | L6 Reference slots: id/for/aria-*                               | Design partial — slot implementation model, lifecycle, override, duplicate, and cross-scope rules unresolved (Ambiguity 6, §18.7.1–2) |
@@ -988,7 +1007,7 @@ Status key:
 | LineIndex: byte-offset → line/col projection                    | Design partial — column-unit model, newline normalization, tabs, replacement chars, and UTF-16/scalar projections unspecified (§18.2.4) |
 | Diagnostics and reports                                         | Design partial — source-map ownership and diagnostics-before-AST mapping unresolved (§18.2.5)                                      |
 | CLI output projections and fixture round-trip reports           | Design ready — CLI owns projection targets and side outputs; stack layers own projected artifacts                                 |
-| Resource and security limits                                    | Design partial — byte/decode bounds and URL/script/entity policy unresolved (§18.3.3, §18.10.1–2); depth and count limits follow content-type policy (§3.1) |
+| Resource and security limits                                    | Design partial — byte/decode bounds and XML entity policy unresolved (§18.3.3, §18.10.1); depth/count and unsafe-content limits follow content-type policies (§3.1–3.2) |
 | Incremental/editor parsing                                      | Deferred Tier B — caller-provided diffs map through source maps to changed scopes, with enclosing-scope rescan fallback           |
 | Post-parse reference validation (unfilled slots)                | Design partial — Warning vs Error severity unresolved (Ambiguity 6 sub-question)                                                 |
 | Per-scope error boundaries                                      | Deferred Tier B (Ambiguity 5)                                                                                                    |
@@ -1502,13 +1521,6 @@ external DTD, and resource-fetch questions.
 
 **Question:** Are DTDs, external entities, XIncludes, and network fetches rejected,
 ignored, or exposed as diagnostics in Tier A?
-
-**Concern 18.10.2 — Script, URL, and unsafe-content validation needs a source layer.**  
-The design mentions script raw text but not URL policies, `javascript:` URLs, inline
-event handlers, `srcdoc`, or unsafe form actions.
-
-**Question:** Which layer owns unsafe-content diagnostics: tokenizer, schema machine,
-AST validation pass, or transform interpreter?
 
 ---
 
