@@ -64,8 +64,13 @@ message-thread) are the Tier A validation surface. The pipeline must:
 4. Validate event structure against the CEM schema using a RELAX NG derivative validator.
 5. Handle embedded content (inline `<style>`, `style=""` attributes) through an explicit
    handoff stack.
-6. Build a typed CEM AST with source-map stacks and reference slots on every node.
-7. Transform the AST to light-DOM custom-element markup (`<cem-screen>`, `<cem-form>`, etc.).
+6. Reconstruct the schema-defined token hierarchy as the initial input DOM/AST with
+   source-map stacks and reference slots on every node.
+7. Apply content-type transformations over that input DOM/AST. For HTML, WHATWG DOM
+   compliance is a schema-driven transformation from the initial HTML parser DOM to the
+   implementation DOM.
+8. Transform the CEM AST projection to light-DOM custom-element markup (`<cem-screen>`,
+   `<cem-form>`, etc.).
 
 ---
 
@@ -77,8 +82,11 @@ ByteSource
        └─ SchemaTokenizer              (WHATWG HTML or XML 1.0 profile)
             └─ EventNormalizer
                  └─ SchemaMachine      (RELAX NG derivative frame stack)
-                      └─ [HandoffStack ──> child SchemaTokenizer / SchemaMachine]
-                           └─ InterpreterAstBuilder    (typed CEM AST + source maps)
+                      ├─ [HandoffStack ──> child SchemaTokenizer / SchemaMachine]
+                      └─ InputDomAstBuilder
+                           (schema-defined initial DOM/AST + source maps)
+                           └─ ContentTypeTransformPipeline
+                                (WHATWG HTML DOM update, CSS/SCSS transforms, CEM projection)
                                 └─ [BinaryAstEncoder]  ← deferred Tier B
                                      └─ [ChunkCompressor]  ← deferred Tier B
                                           └─ ImplementationInterpreter
@@ -229,13 +237,18 @@ delivery. The async streaming interface (AC-P-2, `ReadableStream`) is Tier B; se
 
 Converts decoded input into format-native tokens. The tokenizer is mode-aware and
 schema-guided: it knows which lexical modes, embedded boundaries, and delimiter patterns
-the schema defines. Structural validation and semantic rules remain downstream.
+the schema defines. The schema also defines the token hierarchy that downstream layers
+must reconstruct. Structural validation, hierarchy reconstruction, and semantic rules
+remain downstream.
 
 ### Design
 
 The research (§ HTML format notes) separates the schema-driven HTML tokenizer from the
-DOM implementation interpreter. The tokenizer extracts events and switches lexical states;
-DOM construction is Layer 9's job.
+initial HTML parser DOM and from the WHATWG implementation DOM. The tokenizer extracts
+events and switches lexical states. It does not construct either DOM. The schema-defined
+token hierarchy is reconstructed by the input DOM/AST builder, and WHATWG DOM
+construction/update behavior is applied later as a content-type transformation over that
+initial DOM.
 
 ```
 RawToken:
@@ -258,8 +271,10 @@ can emit per-attribute byte offsets into the source-map stack.
 
 WHATWG tokenizer states (data, RCDATA, RAWTEXT, script-data, tag-open, attribute-value,
 etc.) are internal to this layer. The tokenizer switches states as required by WHATWG
-rules; the schema machine (Layer 4) does not drive tokenizer-state changes directly — it
-receives the already-switched tokens.
+rules. The schema can select valid tokenizer contexts and embedded-content boundaries,
+but it does not rewrite WHATWG lexical behavior. The schema machine receives the
+already-switched tokens and validates/reconstructs the schema-defined hierarchy that
+later drives the WHATWG DOM transformation.
 
 XML tokenizer follows the same `RawToken` shape using an XML 1.0 profile, keeping Layers
 3 and above format-agnostic.
@@ -488,13 +503,19 @@ tokenizer state, not the schema machine.
 
 ---
 
-## 10. Layer 6 — InterpreterAstBuilder (`cem_ml::parser`)
+## 10. Layer 6 — InputDomAstBuilder / InterpreterAstBuilder (`cem_ml::parser`)
 
 ### Purpose
 
-Converts the validated, normalized event stream into a typed CEM AST. Every node carries
-a `SourceMapStack`, semantic role, state labels, attributes, and reference slots for
-unresolved `id`/`for`/`aria-*` targets.
+Converts the validated, normalized event stream into the schema-defined input DOM/AST.
+For HTML, this is the initial HTML parser DOM: a source-preserving reconstruction of the
+schema-defined token hierarchy, not the WHATWG implementation DOM. Every node carries a
+`SourceMapStack`, attributes, and reference slots for unresolved `id`/`for`/`aria-*`
+targets.
+
+The typed CEM AST is a semantic projection over that input DOM/AST. It adds semantic
+roles, state labels, CEM node kinds, and CEM-specific reference helpers without changing
+the initial parser DOM.
 
 ### CEM AST Node Shapes
 
@@ -557,9 +578,11 @@ See **Ambiguity 6** for the trade-off between one-pass and two-pass resolution.
 
 ### Source-Map Stack Population
 
-The `InterpreterAstBuilder` appends a `TransformKind::CemAstBuilder` frame when creating
-each CEM node. The prior frames come from the `SchemaFrame.source_map_stack` at the point
-the element was validated.
+The `InputDomAstBuilder` appends a source-map frame when reconstructing the
+schema-defined token hierarchy. The `InterpreterAstBuilder` appends a
+`TransformKind::CemAstBuilder` frame when creating each CEM projection node. The prior
+frames come from the `SchemaFrame.source_map_stack` at the point the element was
+validated.
 
 For generated nodes (CEM nodes inferred from schema defaults, not directly present as
 tokens), the nearest owning source range is used and the `transform` field records
@@ -603,11 +626,11 @@ Compression profiles from the research:
 
 ### Tier A Stub
 
-For Tier A, the pipeline skips these two layers. The `InterpreterAstBuilder` output is
-an in-memory Rust AST with no binary encoding. The `encode` and `segment` state
-transitions on the `SchemaMachine` are no-ops. The module boundaries and trait signatures
-are defined so that adding the real encoder does not change the external API of the schema
-machine or AST builder.
+For Tier A, the pipeline skips these two layers. The `InputDomAstBuilder` and
+`InterpreterAstBuilder` outputs are in-memory Rust trees with no binary encoding. The
+`encode` and `segment` state transitions on the `SchemaMachine` are no-ops. The module
+boundaries and trait signatures are defined so that adding the real encoder does not
+change the external API of the schema machine or AST builder.
 
 ---
 
@@ -618,6 +641,31 @@ machine or AST builder.
 Consumes the validated typed CEM AST and produces the target output. For CEM Tier A, the
 interpreter is the transform pipeline: semantic HTML → light-DOM custom-element markup
 compatible with `@epa-wg/custom-element`.
+
+### WHATWG HTML DOM Transformation
+
+WHATWG HTML DOM treatment is a content-type transformation over the initial HTML parser
+DOM. It is driven by the active schema because the schema defines the token hierarchy
+that the input DOM/AST builder reconstructs from the token stream. The transformation
+then applies WHATWG insertion modes, stack-of-open-elements behavior, active formatting
+element handling, foster parenting, foreign-content behavior, and DOM update rules to
+produce or update an implementation DOM.
+
+This boundary keeps token extraction, hierarchy reconstruction, and implementation DOM
+compliance separate:
+
+- `SchemaTokenizer` follows WHATWG lexical/tokenizer rules and emits source-spanned
+  tokens.
+- `SchemaMachine` validates the stream and determines the schema-defined hierarchy and
+  embedded-content ownership.
+- `InputDomAstBuilder` reconstructs the initial HTML parser DOM from that hierarchy.
+- The WHATWG HTML DOM transformation materializes the compliant implementation DOM from
+  the initial DOM.
+
+Other content-type transformations use the same model: SCSS can lower to CSS, CSS can
+resolve `url()`/`@import` references into parsed child ASTs or unresolved resource slots,
+and CEM semantic HTML can lower to custom-element markup while preserving source-map
+stacks.
 
 ### Transform Interface
 
@@ -730,11 +778,16 @@ cem_ml/src/
   handoff/
     mod.rs            HandoffRecord, HandoffStack, ReturnCondition, InheritedContext
   parser/
-    mod.rs            CemNode enum, CemDocument
+    mod.rs            InputDomNode, CemNode enum, CemDocument
+    input_dom.rs      schema-defined initial DOM/AST reconstruction
     nodes.rs          CemScreen, CemForm, CemAction, CemList, CemCard, CemThread, CemMessage, CemBadge
     slots.rs          NameSlot, LabelRef, ForRef, AriaRef — reference resolution
   source_map/
     mod.rs            SourceMapStack, SourceMapFrame, TransformKind
+  transform/
+    mod.rs            content-type transformation pipeline
+    whatwg_html.rs    initial HTML parser DOM → WHATWG implementation DOM update transform
+    css.rs            CSS/SCSS AST and external-reference transform hooks
   interpreter/
     mod.rs            CemInterpreter trait, TransformContext, TransformOutput
     transform.rs      CEM semantic HTML → custom-element transform rules
@@ -789,7 +842,7 @@ Status key:
 | L1 EncodingDecoder: UTF-8                                       | Design partial — UTF-8-only CEM profile vs WHATWG encoding detection unresolved (§18.3.2)                                        |
 | L1 EncodingDecoder: UTF-16, Latin-1, BOM detection              | Design partial — required for HTML/XML profile clarity; blocked by Ambiguity 1 and §18.3.2                                       |
 | L1 Sentinel-byte ownership                                      | Design partial — Rust safety model for sentinel not resolved (§18.3.1)                                                           |
-| L2 SchemaTokenizer: HTML WHATWG profile                         | Design partial — schema-influenced tokenizer subset, crate choice, offsets, and tree-builder boundary unresolved (§18.1.3, §18.4.5, Ambiguity 2) |
+| L2 SchemaTokenizer: HTML WHATWG profile                         | Design partial — crate choice and token offset behavior unresolved (Ambiguity 2)                    |
 | L2 SchemaTokenizer: XML 1.0 profile                             | Design partial — namespace/name model plus DTD/entity/external-resource policy unspecified (§18.4.4, §18.10.1)                   |
 | L3 EventNormalizer                                              | Design partial — attribute-list close event, void elements, name model, trivia, and ModeSwitch ownership unspecified (§18.4.1–4, §18.6.1) |
 | L4 SchemaMachine: visibly pushdown frame stack                  | Design partial — recovery invariant, multiplicity/required-name state, and diagnostic propagation affect core semantics (§18.5.3–4, Ambiguity 8) |
@@ -798,12 +851,14 @@ Status key:
 | L5 HandoffStack: struct and return-condition tracking           | Design partial — authoritative `HandoffRecord` owner and deferred return-condition variants unresolved (§18.6.1, §18.6.4)        |
 | L5 Child parser: CSS (stub, diagnostic only)                    | Design partial — embedded-source byte/decoded-view model unspecified (§18.6.2)                                                    |
 | L5 Child parser: Script (raw text only)                         | Design partial — script preservation/security policy unspecified (§18.6.3, §18.10.2)                                             |
-| L6 InterpreterAstBuilder: typed CEM AST                         | Design partial — multiple CEM roles per element, non-CEM construct handling, and vocabulary source unresolved (§18.7.3–5)        |
+| L6 InputDomAstBuilder: schema-defined initial DOM/AST            | Design ready — schema reconstructs token hierarchy; WHATWG DOM compliance is a downstream transformation over this initial DOM   |
+| L6 InterpreterAstBuilder: typed CEM AST projection               | Design partial — multiple CEM roles per element, non-CEM construct handling, and vocabulary source unresolved (§18.7.3–5)        |
 | L6 Reference slots: id/for/aria-*                               | Design partial — slot implementation model, lifecycle, override, duplicate, and cross-scope rules unresolved (Ambiguity 6, §18.7.1–2) |
 | L6 Source-map stacks: byte-range + transform chain              | Design partial — frame order, multi-range nodes, escape/entity decoding, and diagnostics-before-AST mapping unresolved (§18.2.1–3, §18.2.5) |
 | L6 Source-map stacks: bit-level ranges                          | Deferred Tier B — reserve representation only after source-map frame model is fixed (§18.2.1–2, §18.9.1)                         |
 | L7 BinaryAstEncoder                                             | Deferred Tier B — do not freeze IDs or trait signatures until binary determinism and slot identity are resolved (§18.9.1–3)      |
 | L8 ChunkCompressor                                              | Deferred Tier B — compression profiles are research-backed, but chunk determinism and cross-chunk references remain open (§18.9.2–3) |
+| ContentTypeTransformPipeline: WHATWG HTML DOM                   | Design ready — schema-driven initial HTML parser DOM is transformed into WHATWG implementation DOM updates                       |
 | L9 ImplementationInterpreter: hand-written Rust transform rules | Design partial — transform engine choice, attribute collision, data-cem-* pass-through, serialization, and future template seam unresolved (Ambiguity 4, §18.8.1–4) |
 | L9 ImplementationInterpreter: XSLT template engine              | Deferred Tier C — minimal Tier A template abstraction still needs a decision through Ambiguity 4                                 |
 | LineIndex: byte-offset → line/col projection                    | Design partial — column-unit model, newline normalization, tabs, replacement chars, and UTF-16/scalar projections unspecified (§18.2.4) |
@@ -827,6 +882,8 @@ Status key:
 | L4       | Schema validation Tier A     | Hand-written CEM DFA                                     | Simple constrained vocabulary; allows derivative upgrade without API change (Ambiguity 9)      |
 | L4       | Schema validation Tier B     | RELAX NG derivatives                                     | Research §XML notes: "residual describes what was expected next" — streaming, good diagnostics |
 | L5       | Embedded languages           | Parent-owned handoff with explicit return condition      | Research §5: "child parser never infers parent close condition independently"                  |
+| L6       | Initial DOM/AST              | Schema-defined token hierarchy reconstruction            | Drives WHATWG HTML DOM compliance without making tokenization circular                         |
+| Transform | WHATWG HTML DOM             | Content-type transform over initial HTML parser DOM       | Applies insertion modes, active formatting elements, foster parenting, and DOM updates          |
 | L6       | Forward references           | Mutable scoped name slots (Arc<Mutex<Option<NodeId>>>)   | Research §4: "slot filled when defining entity arrives"                                        |
 | L6       | Source location ground truth | `u64` byte offset                                        | Research Unicode policy: "byte offsets as stable storage format"                               |
 | L6       | Line/column                  | On-demand projection via LineIndex                       | Research: "derived coordinates" — never stored, computed from byte offset                      |
@@ -1035,17 +1092,6 @@ This section records unresolved issues found by reviewing this design against
 are follow-up questions and concerns to resolve before implementation. Other workspace
 documents may provide terminology, but they should not decide the answers here.
 
-### 18.1 Contract And Status Ambiguities
-
-**Concern 18.1.3 — "Schema-defined tokenizer" needs a sharper contract.**  
-The research says the scanner should be schema-aware where token extraction depends on
-schema rules. The design also says WHATWG tokenizer state changes are internal and not
-driven by the schema machine.
-
-**Question:** What exact subset of schema information is allowed to influence HTML
-tokenization, and what must remain fixed by WHATWG rules? Without this boundary, the
-tokenizer can become circularly dependent on schema validation.
-
 ### 18.2 Source-Map And Coordinate Model Gaps
 
 **Concern 18.2.1 — Source-map frame order is internally inconsistent.**  
@@ -1151,15 +1197,6 @@ specified.
 
 **Question:** What is the Tier A name model for HTML elements, HTML attributes,
 `data-cem-*` attributes, XML names, and future SVG/MathML foreign content?
-
-**Concern 18.4.5 — HTML tokenizer vs. HTML tree builder boundary can change semantics.**  
-The research requires separating tokenizer from DOM implementation. However, browser
-HTML behavior is not just tokenization; insertion modes and tree-building repair
-misnested markup and infer elements.
-
-**Question:** Does Tier A validate the raw token stream, a WHATWG tree-builder event
-stream, or only a fixture-safe HTML subset where raw token nesting matches the intended
-tree?
 
 ### 18.5 Schema-Machine And Validation Questions
 

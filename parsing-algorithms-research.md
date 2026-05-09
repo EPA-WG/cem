@@ -84,10 +84,11 @@ ranges.
 
 The scanner converts decoded input into format-native tokens. It should be
 schema-aware, streaming, and mode-aware. The schema is the source of truth for
-which token forms, delimiters, lexical modes, embedded regions, and scope
-boundaries are meaningful. Not every schema rule belongs in tokenization, but
-the tokenizer must be driven by the schema subset that affects lexical
-extraction.
+which token forms, delimiters, lexical modes, embedded regions, scope
+boundaries, and token hierarchy reconstruction are meaningful. Not every schema
+rule belongs in tokenization. The tokenizer is driven only by schema facts that
+affect token extraction and bounded handoff, while the schema-defined hierarchy
+is reconstructed downstream from the token stream.
 
 Examples:
 
@@ -105,9 +106,12 @@ Examples:
 
 The scanner should know the schema rules that affect token extraction:
 delimiters, escapes, lexical modes, embedded content boundaries, valid token
-families, and source preservation requirements. Structural validation,
-cross-reference binding, semantic constraints, and execution remain downstream
-interpreter responsibilities.
+families, and source preservation requirements. For HTML, WHATWG tokenizer
+rules remain fixed compatibility constraints; the schema can select valid
+tokenizer contexts and define the hierarchy that must be reconstructed, but it
+does not rewrite WHATWG lexical behavior. Structural validation, hierarchy
+reconstruction, cross-reference binding, semantic constraints, and execution
+remain downstream transformation or interpreter responsibilities.
 
 ### 3. Normalized Event Stream
 
@@ -199,13 +203,16 @@ rewritten, split, or merged node.
 
 This makes WHATWG DOM construction and update behavior a transformation phase
 over the parsed HTML input DOM/AST. The HTML tokenizer and schema machine
-produce source-preserving HTML events and input nodes. A WHATWG DOM
-transformation then applies insertion-mode behavior, active formatting element
-handling, foreign-content behavior, foster parenting, and other DOM update
-rules to produce or update an implementation DOM. Other consumers can choose a
-different transformation over the same input DOM/AST, such as validation-only
-analysis, a static source index, a CEM semantic tree, a custom-element output
-tree, or a partial document loader.
+produce source-preserving HTML events and input nodes by reconstructing the
+schema-defined token hierarchy. A WHATWG DOM transformation then applies
+insertion-mode behavior, active formatting element handling, foreign-content
+behavior, foster parenting, and other DOM update rules to produce or update an
+implementation DOM. This hierarchy reconstruction is the driver for WHATWG HTML
+DOM compliance, but it remains a downstream transformation contract rather than
+a tokenizer side effect. Other consumers can choose a different transformation
+over the same input DOM/AST, such as validation-only analysis, a static source
+index, a CEM semantic tree, a custom-element output tree, or a partial document
+loader.
 
 Content-type transformations are the common case, not a special extension
 point. Examples:
