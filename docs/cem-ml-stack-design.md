@@ -703,6 +703,36 @@ For Tier A, the pipeline skips these two layers. The `InputDomAstBuilder` and
 boundaries and trait signatures are defined so that adding the real encoder does not
 change the external API of the schema machine or AST builder.
 
+### Incremental And Editor Mode (Deferred Tier B)
+
+Incremental/editor support is classified as Tier B. Tier A remains a batch/fixture path,
+but Tier A source maps and scope boundaries must preserve enough information for later
+incremental reuse.
+
+The runtime does not compute text diffs itself. An editor, version-control integration,
+or document store provides changed byte ranges or an equivalent diff. The runtime maps
+those ranges through source-map stacks to the smallest owning schema scopes whose prior
+source spans overlap the change. Those scopes are invalidated and reparsed with their
+parent-owned handoff boundaries.
+
+Unchanged sibling scopes may be reused only when all of these remain stable:
+
+- source-map range and source id;
+- schema id and content type;
+- parent-owned return condition or delimiter boundary;
+- namespace/context frame;
+- dependency slots that cross into or out of the changed scope.
+
+When the change crosses a scope boundary, changes a schema or content type, modifies an
+embedded return condition, or touches unresolved/cross-scope references, the runtime uses
+the conservative fallback: rescan the nearest enclosing stable scope and revalidate the
+partially reused tree. This slower approach is valid for all incremental cases and is the
+required fallback before accepting a mixed old/new tree.
+
+Validation after an incremental edit recomputes affected ancestors, changed scopes, and
+references that cross between changed and reused scopes. Report events for incremental
+passes attach to the event-time partial tree, just like batch reports.
+
 ---
 
 ## 12. Layer 9 — ImplementationInterpreter (`cem_ml::interpreter`)
@@ -941,6 +971,7 @@ Status key:
 | Diagnostics and reports                                         | Design partial — source-map ownership and diagnostics-before-AST mapping unresolved (§18.2.5)                                      |
 | CLI output projections and fixture round-trip reports           | Design ready — CLI owns projection targets and side outputs; stack layers own projected artifacts                                 |
 | Resource and security limits                                    | Design partial — input size, nesting depth, slot/residual/cache bounds, URL/script/entity policy unresolved (§18.3.3, §18.10.1–3) |
+| Incremental/editor parsing                                      | Deferred Tier B — caller-provided diffs map through source maps to changed scopes, with enclosing-scope rescan fallback           |
 | Post-parse reference validation (unfilled slots)                | Design partial — Warning vs Error severity unresolved (Ambiguity 6 sub-question)                                                 |
 | Per-scope error boundaries                                      | Deferred Tier B (Ambiguity 5)                                                                                                    |
 | Async mutation API (`*Async` DOM mutations)                     | Deferred Tier B/C — outside the primary parsing research; requires separate runtime API design                                    |
@@ -1468,14 +1499,6 @@ size, chunk count, or diagnostic count.
 
 **Question:** What hard limits and fail-open/fail-closed behavior protect the parser
 from pathological inputs?
-
-**Concern 18.10.4 — Incremental/editor scenarios are not classified.**  
-The research references Tree-sitter for incremental parsing and included ranges. The
-design does not state whether incremental parsing is out of scope, a Tier B feature, or
-part of the handoff/source-map design.
-
-**Question:** Should the stack preserve enough concrete syntax and stable node identity
-for future incremental parsing, or is the first design strictly batch/fixture oriented?
 
 ---
 

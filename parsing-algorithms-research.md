@@ -782,6 +782,21 @@ Recommended lessons:
 - Keep concrete syntax when refactoring, formatting, or diagnostics need exact
   source structure.
 
+Incremental/editor parsing is a caller-driven mode, not the default Tier A batch path.
+An editor, version-control integration, or document store provides a diff or changed byte
+ranges. The runtime maps those ranges through source-map stacks to the smallest owning
+schema scopes whose prior source spans overlap the change. Those scopes are invalidated
+and reparsed with their parent-owned handoff boundaries. Unchanged sibling scopes may be
+reused when their source-map ranges, schema ids, content types, and dependency slots are
+unchanged.
+
+The conservative fallback is to rescan the nearest enclosing stable scope, then
+revalidate the partially reused tree. This slower path is always allowed when the change
+crosses a scope boundary, invalidates a delimiter/return condition, changes a schema or
+content type, or touches unresolved reference slots. Incremental results are accepted
+only after validation recomputes affected ancestors and any references crossing from the
+changed scope into reused scopes.
+
 ## Proposed Runtime Model
 
 ```text
