@@ -76,6 +76,10 @@ message-thread) are the Tier A validation surface. The pipeline must:
 
 ## 3. Pipeline Overview
 
+![Architectural blueprint illustration for the CEM-ML stack design.](assets/cem-ml-stack-design/announcement-architectural-blueprint.png)
+
+*Architectural blueprint.*
+
 ```
 ByteSource
   └─ EncodingDecoder
@@ -102,6 +106,10 @@ machine) for each embedded content region. The handoff stack controls the bounda
 return condition.
 
 ### 3.1 Resource Limit Policy
+
+![Streaming data corridor illustration for the CEM-ML stack design.](assets/cem-ml-stack-design/announcement-streaming-corridor.png)
+
+*Streaming data corridor.*
 
 Depth and count limits are defined by the active content-type policy. The outer content
 type owns the effective limits and criticality for the parse scope, including nesting
@@ -732,6 +740,16 @@ Compression profiles from the research:
 | `canonical-dense` | Brotli or high-level Zstandard | Cold storage, batch transfer |
 | `solid-archive` | Whole-document compression | Cold storage only; no parallel decode or retry |
 
+### Data Broadcast (Deferred Tier B)
+
+![Rust systems control room illustration for the CEM-ML stack design data broadcast path.](assets/cem-ml-stack-design/announcement-rust-control-room.png)
+
+*Rust systems control room.*
+
+Broadcast/cache paths are absent in Tier A. Later tiers can attach broadcast delivery to
+the compressed chunk layer after subtree ownership, dependency ids, integrity hashes, and
+dictionary version requirements are stable.
+
 ### Tier A Stub
 
 For Tier A, the pipeline skips these two layers. The `InputDomAstBuilder` and
@@ -1016,6 +1034,10 @@ Status key:
 ---
 
 ## 16. Algorithm Selection Summary
+
+![Multi-format parser atlas illustration for the CEM-ML stack design.](assets/cem-ml-stack-design/announcement-parser-atlas.png)
+
+*Multi-format parser atlas.*
 
 | Layer    | Problem                      | Algorithm                                                | Reason from research                                                                           |
 |----------|------------------------------|----------------------------------------------------------|------------------------------------------------------------------------------------------------|
