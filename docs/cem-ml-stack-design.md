@@ -863,7 +863,7 @@ Status key:
 | L9 ImplementationInterpreter: XSLT template engine              | Deferred Tier C — minimal Tier A template abstraction still needs a decision through Ambiguity 4                                 |
 | LineIndex: byte-offset → line/col projection                    | Design partial — column-unit model, newline normalization, tabs, replacement chars, and UTF-16/scalar projections unspecified (§18.2.4) |
 | Diagnostics and reports                                         | Design partial — source-map ownership, deterministic diagnostic ordering, and report projection ownership unresolved (§18.2.5, §18.11.1–2) |
-| CLI output projections and fixture round-trip reports           | Design partial — stack-layer ownership and functional-coverage test matrix unresolved (§18.11.1, §18.11.3)                       |
+| CLI output projections and fixture round-trip reports           | Design partial — stack-layer ownership for CLI projections remains unresolved (§18.11.1)                                          |
 | Resource and security limits                                    | Design partial — input size, nesting depth, slot/residual/cache bounds, URL/script/entity policy unresolved (§18.3.3, §18.10.1–3) |
 | Post-parse reference validation (unfilled slots)                | Design partial — Warning vs Error severity unresolved (Ambiguity 6 sub-question)                                                 |
 | Per-scope error boundaries                                      | Deferred Tier B (Ambiguity 5)                                                                                                    |
@@ -1417,14 +1417,6 @@ can change between implementations.
 
 **Question:** Are diagnostics sorted by source order, layer order, severity, emission
 time, or a stable compound key?
-
-**Concern 18.11.3 — CLI feature coverage needs a test matrix.**
-The design focuses on parser internals. The CLI plan also needs tests for command
-capabilities and option behavior.
-
-**Question:** Which stack-layer tests and which CLI feature tests together prove that
-the planned CLI command, option, report, diagnostic, fixture, trace, and benchmark
-features are covered?
 
 ---
 

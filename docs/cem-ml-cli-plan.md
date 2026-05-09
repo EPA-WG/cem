@@ -262,6 +262,9 @@ These are data shapes only. Parser-filled content remains blocked until the pars
 
 ## Phase 8 - Tests
 
+Concern: CLI feature coverage needs an explicit test matrix. The CLI plan owns this
+coverage; the parser stack design only owns the layer outputs that feed CLI projections.
+
 1. Add `cem-ml` unit tests for:
     - diagnostic normalization
     - fail-level evaluation
@@ -288,8 +291,20 @@ These are data shapes only. Parser-filled content remains blocked until the pars
     - missing required input
     - reserved commands
     - file read failure exit `6`
-4. Do not assert real parsing behavior in this phase.
-5. Keep parser-backed fixture success tests blocked until the parser implementation plan is approved.
+4. Maintain a feature coverage matrix in the test module docs or test manifest with rows for:
+    - command surface: `parse`, `validate`, `check`, `inspect`, `convert`, `trace`, `bench`, `fixture validate`,
+      `fixture roundtrip`, `help`, `version`, and reserved `transform`, `schema`, and `plugin` workflows
+    - option groups: fail level, output format, report destinations, output file, schema/content-type/base URI,
+      quiet/verbose/no-color, zero hard violations, source-offset preservation, inspect views, benchmark controls, and
+      fixture defaults
+    - output shapes: diagnostics, reports, DOM JSON, AST, events, inspect views, trace output, bench output, and fixture
+      roundtrip reports
+    - exit behavior: success, parser/validation failure, usage errors, reserved subsystem errors, I/O errors, and
+      unexpected internal failures
+    - parser-blocked cases: rows that assert routing and shape with the fake engine now, plus a future real-engine gate
+      for semantic fixture validation
+5. Do not assert real parsing behavior in this phase.
+6. Keep parser-backed fixture success tests blocked until the parser implementation plan is approved.
 
 ## Phase 9 - Nx And Cargo Verification
 
@@ -315,6 +330,7 @@ Use Nx through the workspace package manager.
     - CLI usage errors match exit-code policy
     - report and diagnostic models match the documented CLI feature shapes
     - parser-backed commands are routed through `CemMlEngine`
+    - CLI feature coverage matrix is present and every non-parser-blocked row has test coverage
     - fake-engine feature tests pass
 2. Decision gate:
     - Java XML stack and schema/parser ADR is accepted
