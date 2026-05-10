@@ -413,15 +413,45 @@ SchemaFrame:
   scope_id: ScopeId
   schema_id: SchemaId
   language_id: ContentType          e.g. text/html, text/css
-  state: SchemaState                current structural DFA state or derivative residual
+  phase: FramePhase
+  attr_state: AttributeState
+  content_state: ContentState
+  recovery: Option<ErrorSubtreeState>
   effective_policy: ScopePolicy
   source_span: ByteRange            range of the element that opened this frame
   source_map_stack: SourceMapStack  accumulated map at frame entry
   expected_close: Option<QName>     for element-level close validation
   namespace_ctx: Option<NsContext>
-  seen_names: HashSet<String>       attribute names seen so far (for required-attr tracking)
   diagnostics: Vec<Diagnostic>
+
+FramePhase:
+  Attribute
+  Content
+  Closed
+
+AttributeState:
+  seen: HashMap<ExpandedName, ByteRange>
+  required_remaining: HashSet<ExpandedName>
+
+ContentState:
+  residual_or_dfa_state: SchemaState
+  seen_children: Vec<(ExpandedName, ByteRange)>
+  required_remaining_children: HashSet<ExpandedName>
+
+ErrorSubtreeState:
+  expected_close: Option<QName>
+  taint_ast_nodes: bool
 ```
+
+`AttributeState.seen` stores expanded attribute names with their first byte range for
+duplicate diagnostics. Attribute multiplicity is 0..1; multi-valued attribute semantics
+are validated by value-shape rules. `ContentState.seen_children` stores only children
+needed for diagnostics, in emission order. `required_remaining_children` is a diagnostic
+mirror for close-time missing-child messages; ordering and multiplicity remain enforced
+by `residual_or_dfa_state`. Unordered-but-required content groups use the set tracker
+plus a residual or DFA state that accepts the allowed order. Attribute-order constraints
+are unsupported in Tier A and fail schema compilation with
+`cem.schema.unsupported_constraint`.
 
 ### 3.4.1 Namespace Context Contracts
 
@@ -475,29 +505,41 @@ State transitions:
 
 ```
 open(event):
-  Validate OpenScope name against current state.
-  Push child SchemaFrame; compute initial residual for child schema.
+  Require current frame phase = Content.
+  Validate OpenScope name, ordering, and multiplicity against content_state.
+  Record diagnostic-relevant child in seen_children and update required_remaining_children.
+  Push child SchemaFrame with phase = Attribute and required attr/content sets from schema.
+
+name(event):
+  Require current frame phase = Attribute.
+  Resolve ExpandedName in namespace_ctx.
+  Check duplicate and unknown attribute rules against attr_state.seen and schema.
+  Insert first-seen range and remove required_remaining entry when accepted.
 
 value(event):
-  Validate scalar type, range, pattern against current state.
-  Update frame's seen_names if event is a Name.
+  In Attribute phase, validate the current attribute's value shape.
+  In Content phase, validate text content against content_state.residual_or_dfa_state.
 
 separator(event):
-  Advance sequence, record, or property pointer in current state.
+  On ElementBoundary in Attribute phase, emit required-attribute diagnostics, then
+  transition the frame to Content phase.
+  For other separators, advance sequence, record, or property pointer in current state.
 
 handoff(event):
   Emit HandoffRecord.
   Push child frame with child content_type and child schema_id.
 
 close(event):
-  Validate nullable/complete state (residual accepts empty string).
+  Validate expected_close, required_remaining_children, and nullable/complete state.
+  Transition phase to Closed.
   Pop frame; propagate close result to parent frame.
 
 error(event):
   Create Diagnostic with origin_scope = current frame scope.
   Bubble to nearest SchemaDeclared or ContextRoot error boundary.
   Evaluate boundary frame's effective ScopePolicy.
-  Hide, report, recover, abort boundary scope, or abort full parse per policy.
+  Hide, report, push ErrorSubtree recovery frame, abort boundary scope, or abort full
+  parse per policy.
 
 transform(event):
   Append SourceMapFrame to current source_map_stack.
@@ -1003,7 +1045,7 @@ cem_ml/src/
   events/
     mod.rs            NormalizedEvent, EventNormalizer
   schema/
-    mod.rs            SchemaMachine, SchemaFrame, SchemaState
+    mod.rs            SchemaMachine, SchemaFrame, FramePhase, AttributeState, ContentState, SchemaState
     compiler.rs       CEM-native schema source -> CompiledSchema
     ir.rs             CompiledSchema, StructuralSchemaIr, SemanticRule, open-content policy
     policy.rs         ScopePolicy, ErrorBoundaryKind, ErrorBoundaryPolicy, DiagnosticVisibility, parent overrides

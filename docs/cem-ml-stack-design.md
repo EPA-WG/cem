@@ -375,9 +375,36 @@ unknown `OpenScope` has no schema-provided expected close, recovery waits for th
 matching lexical close; if the construct is void-like and has no close, recovery ends at
 the parent close. Validated events are passed to the input DOM/AST builder.
 
-A schema frame owns the active schema id, content type, validation state, expected close,
-namespace context, source-map stack, seen names, diagnostics, and effective scope policy.
-Exact frame fields and transition sketches are in
+A schema frame owns the active schema id, content type, expected close, namespace
+context, source-map stack, diagnostics, effective scope policy, and explicit validation
+phase. Attribute validation and child-content validation use distinct trackers:
+`AttributeState` stores seen attribute names and required attributes that remain;
+`ContentState` stores the residual or DFA state, diagnostic-relevant seen children in
+emit order, and required children that remain. Attribute multiplicity is 0..1 and checked on each
+attribute `Name`; multi-valued attribute semantics are value-shape checks. Child
+multiplicity and ordering are encoded in the residual or DFA state, with
+`required_remaining_children` kept as a diagnostic mirror for close-time messages.
+
+Constraint checks have fixed trigger events:
+
+| Constraint                 | Trigger                              | Frame phase |
+|----------------------------|--------------------------------------|-------------|
+| Duplicate attribute        | `Name`                               | Attribute   |
+| Unknown attribute          | `Name`                               | Attribute   |
+| Bad attribute value        | attribute `Value`                    | Attribute   |
+| Required attribute missing | `Separator { kind: ElementBoundary }` | Attribute -> Content |
+| Unexpected child element   | `OpenScope`                          | Content     |
+| Unexpected text content    | text `Value`                         | Content     |
+| Bad child ordering         | `OpenScope`                          | Content     |
+| Multiplicity exceeded      | `OpenScope`                          | Content     |
+| Required child missing     | `CloseScope`                         | Content -> Closed |
+| Unclosed scope             | EOF                                  | any -> Closed |
+
+Unordered-but-required content groups use a set tracker on `ContentState` plus a
+residual or DFA state that accepts the allowed order; multiplicity remains enforced by
+the structural state. Schemas that declare attribute order significant are rejected at
+schema compile time with `cem.schema.unsupported_constraint`. Exact frame fields and
+transition sketches are in
 [`cem-ml-stack-design-impl.md`](cem-ml-stack-design-impl.md#34-layer-4-schemamachine-cem_mlschema).
 
 ### CEM Vocabulary In The Schema
@@ -1038,7 +1065,7 @@ Status key:
 | L2 SchemaTokenizer: HTML WHATWG profile                     | Design ready — custom WHATWG-state tokenizer selected for exact source-map preservation across nested embedded contexts (§6)                                                            |
 | L2 SchemaTokenizer: XML 1.0 profile                         | Design partial — namespace/name model remains unresolved (§18.4.4); DTD/external-resource ownership follows transform policy (§3.2, §6)                                                 |
 | L3 EventNormalizer                                          | Design partial — attribute-list close event, void elements, name model, and trivia remain unspecified (§18.4.1–4); `ModeSwitch` creates the embedded context (§9)                       |
-| L4 SchemaMachine: visibly pushdown frame stack              | Design partial — multiplicity/required-name state affects core semantics (§18.5.4); recovery invariant and diagnostic propagation boundary are resolved (§8, §3.1)                         |
+| L4 SchemaMachine: visibly pushdown frame stack              | Design ready — frame phases, attribute/content trackers, recovery invariant, and diagnostic propagation boundary are resolved (§8, §3.1)                                                  |
 | L4 SchemaMachine: RELAX NG derivative engine                | Deferred Tier B — CEM structural schema has RELAX NG functional parity; Tier A limited DFA profile must preserve residual diagnostic parity (§18.5.1)                                   |
 | L4 SchemaMachine: CEM vocabulary DFA                        | Design partial — limited Tier A DFA profile is selected; DFA state table and unknown-content edge cases remain unspecified (§18.5.1–2); compiler output contract is fixed by §13 and impl §3.4 |
 | L5 HandoffStack: ownership and return-condition tracking    | Design ready — current context parser recognizes `ModeSwitch`; CEM framework maps entity content type and creates child context with decoded stream (§9)                                  |
@@ -1785,87 +1812,6 @@ event.
 - Custom elements (`<my-thing>`) — unknown HTML element warning, or accepted as a
   WHATWG-conformant author-defined element? Default: accepted; CEM does not police the
   customElements registry.
-
-**Concern 18.5.4 — Multiplicity, ordering, and required-name tracking need phase
-boundaries.**  
-The frame stores `seen_names`, but content validation also needs seen children, required
-child roles, multiplicity, ordering, and possibly unordered/interleaved groups.
-
-**Question:** What exact state is tracked on `SchemaFrame` for attributes versus child
-content, and when is each constraint checked?
-
-**Answer A — Split frame state into two explicit phases with distinct trackers.**
-
-```
-SchemaFrame:
-  ...existing fields...
-  phase: FramePhase                       // Attribute | Content | Closed
-  attr_state: AttributeState
-  content_state: ContentState
-
-AttributeState:
-  seen: HashMap<ExpandedName, ByteRange>  // name → first-occurrence range (for dup diagnostics)
-  required_remaining: HashSet<ExpandedName>
-  // attribute multiplicity is always 0..1 in HTML/XML; multi-valued attrs validated
-  // at value-shape level, not here
-
-ContentState:
-  residual_or_dfa_state: SchemaState      // RELAX NG residual | DFA state id
-  seen_children: Vec<(ExpandedName, ByteRange)>   // emit-order, for ordering diagnostics
-  required_remaining_children: HashSet<ExpandedName>
-  // multiplicity tracked inside residual/DFA state; required_remaining_children is a
-  // mirror for fast "what's missing" diagnostics at close time
-```
-
-Constraint check schedule:
-| Constraint                  | Where checked                         | Frame phase    |
-|-----------------------------|---------------------------------------|----------------|
-| Duplicate attribute         | on `Name` event                       | Attribute      |
-| Unknown attribute           | on `Name` event                       | Attribute      |
-| Bad attribute value         | on `Value` event                      | Attribute      |
-| Required attribute missing  | on `Separator { ElementBoundary }`    | Attribute→Content transition |
-| Unexpected child element    | on `OpenScope`                        | Content        |
-| Unexpected text content     | on `Value` (text)                     | Content        |
-| Bad child ordering          | on `OpenScope`                        | Content        |
-| Multiplicity exceeded       | on `OpenScope`                        | Content        |
-| Required child missing      | on `CloseScope`                       | Content→Closed |
-| Unclosed scope              | on EOF                                | any → Closed   |
-
-Pros: each constraint has one well-defined trigger point; diagnostic byte ranges
-correspond to the precise event that violated the rule; required-set diagnostics emit at
-the boundary that closes the corresponding phase.
-
-**Answer B — Single residual covers both attribute and content; check on every event.**
-Treat attributes as ordered grammar prefix (`attribute-set` non-terminal) followed by
-`content`. Pros: uniform model; matches RELAX NG derivative computation literally. Cons:
-attribute order in HTML is arbitrary, so the residual must encode "interleave" — this
-is expensive and the diagnostic for "missing required attribute" comes out at the wrong
-position (at the close, not the boundary).
-
-**Answer C — Hybrid: attributes as a separate non-residual check (set-membership +
-required set); content uses residual/DFA.**
-Equivalent to A but without explicit phase tracking — the engine picks behavior per
-event kind. Pros: simpler than A's phase enum. Cons: no explicit place for the
-"attribute phase complete" hook; required-attribute diagnostics still need a trigger
-event (which is `ElementBoundary` from 18.4.1 anyway).
-
-**Recommendation:** Adopt **Answer A**. The explicit phase enum makes the
-`Separator { ElementBoundary }` event from 18.4.1 load-bearing for required-attribute
-diagnostics, gives `seen_children` a natural home for ordering diagnostics, and matches
-the constraint table verbatim.
-
-**Ambiguity (to be answered):**
-- For unordered-but-required content groups (e.g. `<head>` allows `<title>`,
-  `<meta charset>`, `<base>` in any order, exactly one each), is the model an
-  interleave operator in the residual or a separate set-tracker? Default: set-tracker
-  on `ContentState` (`required_remaining_children`) plus a residual that accepts any
-  order; multiplicity policed by the set tracker.
-- Does `seen_children` store all children or only the unexpected/required-relevant
-  ones? Default: only those needed for diagnostics — the residual already encodes the
-  rest.
-- For schemas that declare attribute *order* significant (rare; not in CEM today), how
-  is that expressed? Default: deferred — emit `cem.schema.unsupported_constraint` at
-  schema compile time.
 
 *End of design document. Each ambiguity and review concern above should be resolved with
 a brief decision record before the corresponding implementation phase starts. Resolved
