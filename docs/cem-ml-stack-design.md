@@ -363,7 +363,7 @@ Allowed state values (on any CEM-attributed element):
 
 Nesting rules, required sibling relationships, allowed parent elements, unknown-content
 policy, and state constraints are expressed in the schema and validated through the frame
-stack. The schema source language is **Ambiguity 3**.
+stack. The schema source language is the CEM-native declarative format selected in §13.
 
 ### Namespace Resolution For Tags And Attributes
 
@@ -487,11 +487,15 @@ child parser never infers the parent's return condition independently.
 
 A handoff records the child content type, the inherited parent context, the child schema
 id when one is known, the source span when available, and the return condition. The
-container content type owns decoding for its own content before handoff. The child
+current context parser is responsible for recognizing a content-type switch and decoding
+the owned body or attribute content when decoding is required. Creation of the embedded
+context is the `ModeSwitch`: it yields a `HandoffRecord` plus the source-mapped decoded
+stream for the child context. The reference implementation recommends using the CEM
+framework to map the entity context type, create the embedded context, and attach the
+decoded stream, instead of hand-constructing child contexts in each parser. The child
 context receives a source-mapped decoded stream, not a plain string and not undecoded
-parent bytes. The parent schema machine emits the authoritative handoff before yielding
-that stream to the child parser. The child parser consumes through the declared return
-condition and then returns control to the parent.
+parent bytes. The child parser consumes through the declared return condition and then
+returns control to the parent.
 
 Tier A handoff cases:
 
@@ -861,35 +865,37 @@ Transform interface shapes are in
 ## 13. CEM Schema Language
 
 The schema machine requires a machine-readable CEM schema. The research establishes
-RELAX NG derivatives as the validation algorithm. The language in which the schema is
-*authored* is open.
+RELAX NG derivatives as the **validation algorithm**. The selected schema authoring
+source is a CEM-native declarative format.
 
-### Options
+The CEM-native format is the source of truth for CEM vocabulary and schema behavior:
+roles, states, token tiers, component names, namespace ownership, open-content policy,
+structural content models, embedded handoff declarations, and schema-owned transform
+hooks. Existing token tables or external schema artifacts may be supported as import
+adapters, but they are not competing canonical authoring formats for CEM schemas.
 
-**Option A — RELAX NG compact syntax (`.rnc`)**: The validation algorithm uses RELAX NG
-derivatives, so authoring in RELAX NG compact is a natural match. The HTML5 validator
-(`validator.nu`) uses an HTML5 RELAX NG schema; this is a proven path. Drawback: authors
-must know RELAX NG compact syntax.
+The dedicated schema compiler emits two products:
 
-**Option B — Invisible XML grammar (`.ixml`)**: The research describes iXml as a
-schema-driven tokenizer/parser profile for exposing non-XML text as XML events. CEM HTML
-is already HTML, so iXml's primary use case is not dominant here. iXml could define a
-CEM-specific DSL syntax (e.g., component shorthand), but it adds a grammar compiler
-dependency. Drawback: less mature tooling than RELAX NG.
+- a structural validation IR that can drive the Tier A CEM DFA and preserve the Tier B
+  RELAX NG derivative replacement path; and
+- a semantic rule registry for cross-reference, contextual, policy, and transform checks
+  that are not structural grammar constraints.
 
-**Option C — CEM markdown tables compiled to RELAX NG**: The existing `cem-colors.md`
-style (h6 + table) is already a declarative schema format. A CEM schema compiler could
-read these tables and emit `.rnc` for use by the derivative runtime. This is
-CEM-friendly authoring with a proven validation backend.
+Functional parity requirements:
 
-**Option D — CEM-native declarative format**: A purpose-built format tailored to CEM's
-vocabulary (roles, states, token tiers, component names). Compiled by a dedicated schema
-compiler. Requires the most up-front work but gives the most semantic precision.
-
-All options except B ultimately feed the same RELAX NG derivative runtime. The choice
-affects what the schema compiler must implement, not the schema machine itself.
-
-This is **Ambiguity 3**.
+- The structural IR must support `D(event, schema)` computation, or an equivalent DFA
+  transition model, so the schema machine can produce residual/expected-content
+  diagnostics with the contract defined in §18.5.1.
+- The format must represent the CEM annotations and state values in §8, namespace
+  bindings, qualified names, required attributes and children, child ordering and
+  multiplicity, simple value-type and pattern constraints, unknown/open-content policy,
+  embedded content handoffs, content-type transform hooks, and rendered/canonical
+  projection metadata.
+- The compiler must separate structural constraints from cross-reference and semantic
+  constraints using the tier split in §18.5.5.
+- The schema machine consumes compiler output, not authoring syntax. Selecting the
+  CEM-native format fixes the compiler source contract without changing the event
+  processing, frame-stack, DFA, or derivative-runtime boundaries.
 
 ---
 
@@ -949,11 +955,11 @@ Status key:
 | L1 Sentinel-byte ownership                                  | Design partial — Rust safety model for sentinel not resolved (§18.3.1)                                                                                                                  |
 | L2 SchemaTokenizer: HTML WHATWG profile                     | Design partial — crate choice and token offset behavior unresolved (Ambiguity 2)                                                                                                        |
 | L2 SchemaTokenizer: XML 1.0 profile                         | Design partial — namespace/name model remains unresolved (§18.4.4); DTD/external-resource ownership follows transform policy (§3.2, §6)                                                 |
-| L3 EventNormalizer                                          | Design partial — attribute-list close event, void elements, name model, trivia, and ModeSwitch ownership unspecified (§18.4.1–4, §18.6.1)                                               |
+| L3 EventNormalizer                                          | Design partial — attribute-list close event, void elements, name model, and trivia remain unspecified (§18.4.1–4); `ModeSwitch` creates the embedded context (§9)                       |
 | L4 SchemaMachine: visibly pushdown frame stack              | Design partial — recovery invariant, multiplicity/required-name state, and diagnostic propagation affect core semantics (§18.5.3–4, Ambiguity 8)                                        |
 | L4 SchemaMachine: RELAX NG derivative engine                | Deferred Tier B — Tier A DFA must preserve a replacement path for residual diagnostics (Ambiguity 9, §18.5.1)                                                                           |
-| L4 SchemaMachine: CEM vocabulary DFA                        | Design partial — DFA state table, schema compiler integration, and unknown-content policy remain unspecified (Ambiguity 3, Ambiguity 9, §18.5.1–2)                                      |
-| L5 HandoffStack: ownership and return-condition tracking    | Design partial — authoritative handoff owner remains unresolved (§18.6.1); deferred cases are listed with XML → JSON → HTML/other implementation priority (§9)                          |
+| L4 SchemaMachine: CEM vocabulary DFA                        | Design partial — DFA state table and unknown-content edge cases remain unspecified (Ambiguity 9, §18.5.1–2); CEM-native source and compiler output contract are fixed by §13 and impl §3.4 |
+| L5 HandoffStack: ownership and return-condition tracking    | Design ready — current context parser recognizes `ModeSwitch`; CEM framework maps entity content type and creates child context with decoded stream (§9)                                  |
 | L5 Child parser: CSS (stub, diagnostic only)                | Design ready — container content type decodes before handoff; child receives a source-mapped decoded stream (§9)                                                                        |
 | L5 Child parser: Script (raw text only)                     | Design ready — parser preserves raw text; warning/error/reject/allow behavior is defined by active scope/content-type policy (§3.1–3.2, §9)                                             |
 | L6 InputDomAstBuilder: schema-defined initial DOM/AST       | Design ready — schema reconstructs token hierarchy; WHATWG DOM compliance is a downstream transformation over this initial DOM                                                          |
@@ -1008,8 +1014,9 @@ Status key:
 
 ## 17. Open Ambiguities
 
-Each ambiguity is a design decision that must be resolved before the corresponding
-implementation phase begins. They are ordered by the layer they block.
+Each open ambiguity is a design decision that must be resolved before the corresponding
+implementation phase begins. Numbering preserves previously assigned ambiguity IDs;
+resolved items are omitted. They are ordered by the layer they block.
 
 ---
 
@@ -1052,27 +1059,6 @@ token and attribute; no coupling to external crate API evolution.
 The chosen crate must preserve exact byte offsets for every attribute name, attribute
 value, and text node — or the source-map stack cannot be fully populated. Verify before
 committing.
-
----
-
-### Ambiguity 3 — CEM Schema Source Language
-
-**Blocks:** Layer 4 schema compilation; AC-S-1 ("CEM-native syntax as source of truth").
-
-**Question:** What language is the CEM element/attribute schema authored in?
-
-**Options:** RELAX NG compact (`.rnc`), Invisible XML grammar (`.ixml`), CEM markdown
-tables compiled to RELAX NG (extending the existing `cem-colors.md` pattern), or a
-CEM-native declarative format.
-
-**Impact:** Determines the schema compiler pipeline and the derivative runtime's input
-format. All options except iXml compile to something derivative-computable; the choice
-is about authoring ergonomics and schema expressiveness.
-
-**Key constraint:** The derivative runtime needs the schema in a form that permits
-`D(event, schema)` computation. Whatever the source language, it must compile to RELAX NG
-compact (or an equivalent derivative-computable representation) before the schema machine
-loads it.
 
 ---
 
@@ -1220,6 +1206,38 @@ map examples list `CemAstBuilder` before `SchemaValidation`, `EventNormalizer`, 
 AST/transformed frame? This must be fixed before traversal, compression deltas, and
 generated-node inheritance are implemented.
 
+**Answer A — `frames[0]` is the original byte-source frame; the current frame is `frames.last()`.**
+This matches §2.2's literal "earliest context first" wording and the natural reading of a
+"stack" appended to as transforms accrue: the bottom is the origin, the top is now. Pros:
+(a) traversal back to the byte source is `frames[0]` — a stable index that does not move
+when new transform frames are pushed; (b) inheritance for generated nodes is "copy
+parent's stack, push a new top", which is `Vec::push`-shaped; (c) compression deltas
+between sibling nodes share long common prefixes, so prefix-shared encoding is efficient.
+Action: rewrite the §2.3 traversal examples in origin-first order so `frame[0]` is
+`HtmlTokenizer` and the last frame is `CemAstBuilder`. Treat the current examples as the
+bug, not the contract.
+
+**Answer B — `frames[0]` is the current/topmost frame; the original byte-source frame is `frames.last()`.**
+This matches the §2.3 examples literally and reads diagnostics top-down ("here is where
+the node is now; here is what produced it"). Pros: (a) error rendering walks `frames[0..]`
+in the order a human reads a stack trace; (b) `frame[0].byte_range` is the most-local
+range, useful for snippet extraction without a length lookup. Cons: (a) every push must
+shift existing frames or use a different data structure (`VecDeque::push_front` /
+reverse-indexed slice); (b) the §2.2 phrase "earliest context first" must be rewritten to
+"latest context first". Action: keep the examples, fix the prose, and document push as
+"prepend" semantically (it can still be implemented as `Vec::push` with reversed read
+order, but the contract must be explicit).
+
+**Recommendation:** Adopt **Answer A**. It is the cheaper retrofit (prose stays, examples
+get reordered), preserves O(1) origin lookup at `[0]`, makes "inherit + push" the natural
+generated-node operation in §2.4, and matches how compiler source-map stacks are normally
+built (lex → parse → lower, each appended). The §2.3 examples are the artifact to fix.
+
+**Ambiguity (to be answered):** Regardless of order chosen, the contract must name two
+indices explicitly — `origin_frame()` and `current_frame()` — so consumers never index
+positionally. Open question: are these methods on `SourceMapStack`, or on a thin
+`SourceMapView` returned from traversal?
+
 **Concern 18.2.2 — A single `ByteRange` per frame is not enough for all research cases.**  
 The research explicitly mentions merged nodes, split nodes, generated nodes,
 transform-owned reference inlining, and source-map stacks through transformations. A
@@ -1229,6 +1247,68 @@ such as `a&amp;b`, or a node merged from adjacent text/event fragments.
 **Question:** Should `SourceMapFrame` support one range, many ranges, generated sentinel
 ranges, and transform-owned reference inlining? If not, where are escape decoding,
 merge, split, and XML-compatibility entity mappings stored?
+
+**Answer A — Promote `byte_range` to an enum `FrameSpan`.**
+Replace `byte_range: ByteRange` with:
+
+```
+FrameSpan:
+  Single(ByteRange)                  // common case: 1:1 source mapping
+  Multi(Vec<ByteRange>)              // merged text nodes, joined fragments
+  Generated { owner: ByteRange }     // transform-synthesized; carries nearest source range
+  Inlined { reference: ByteRange,    // a reference site that pulled in another source
+            target: SourceMapStack } //   target carries its own origin chain
+```
+
+The default constructor still takes one range (no migration of single-range call sites).
+Pros: encodes all four cases in §2.2 without auxiliary side tables; `Generated` matches
+§2.4's existing "owner range" notion; `Inlined` is the only shape that can faithfully
+represent transform-owned reference resolution (e.g. `aria-labelledby` slot inlining)
+without flattening the target's own provenance. Cons: pattern-matching cost on every
+traversal; serialization size of the report grows.
+
+**Answer B — Keep one `byte_range` and add typed sub-frames per concern.**
+`SourceMapFrame` stays single-range. Instead, define explicit `TransformKind` variants
+that carry the extra structure:
+
+```
+TransformKind::EscapeDecoded { decoded_to_source: Vec<(ScalarRange, ByteRange)> }
+TransformKind::TextMerged    { parts: Vec<ByteRange> }
+TransformKind::TextSplit     { source: ByteRange, slice: ByteRange }
+TransformKind::Generated     { owner: ByteRange }
+TransformKind::ReferenceInlined { ref_site: ByteRange, target_stack: SourceMapStack }
+```
+
+The frame's outer `byte_range` becomes the *summary* span (e.g. min start to max end of
+the merged parts) for snippet rendering; the variant payload holds exact mapping. Pros:
+common case stays cheap; consumers that only need snippet bounds touch one field; mapping
+fidelity lives where the transform is named, not in a generic span container. Cons:
+duplicates the "where am I" answer between the outer span and the variant payload; risk
+of drift between the two.
+
+**Answer C — Hybrid: `Single | Multi` on the frame; reference inlining as a separate frame.**
+Allow only `Single` and `Multi` on `FrameSpan`. Reference inlining and external-resource
+boundaries get their own dedicated frames (`TransformKind::ReferenceInlined`,
+`TransformKind::ExternalResource`) whose own `source_id` switches to the target buffer —
+the target's source map is then the natural continuation when traversal crosses the
+frame, exactly as §2.3's CSS-in-`<style>` example already does. Pros: keeps the frame
+shape uniform; reuses the existing handoff-style boundary pattern; no nested stacks
+embedded in a frame. Cons: traversal of an inlined reference now requires walking out of
+one stack and into another via the boundary frame's metadata.
+
+**Recommendation:** Adopt **Answer C** as the primary contract, with `Multi(Vec<ByteRange>)`
+covering escape decoding, text merge, and entity expansion. Reference inlining and
+external-resource resolution are already boundary-shaped (`HandoffBoundary` is the
+analogue), so reusing that pattern keeps `SourceMapFrame` shape uniform. Generated nodes
+keep §2.4's "nearest owning range" rule — they are expressible as
+`Single(owner_range)` plus `TransformKind::Implementation`.
+
+**Ambiguity (to be answered):**
+- For `Multi`, is the order of ranges source-order or emit-order? (For `a&amp;b`, source
+  order is `[a-range, &amp;-range, b-range]`; emit order matches.) Pick source-order;
+  document explicitly.
+- Does a per-scalar mapping live on the frame (heavy) or on the `DecodedChunk` it
+  produced (deferred lookup)? See 18.2.3.
 
 **Concern 18.2.3 — Entity and escape decoding needs source-map ownership.**  
 HTML character references, XML entity references, CSS escapes, JSON string escapes, and
@@ -1240,6 +1320,43 @@ state how escape-produced scalars preserve their original source.
 processing, or does it append a transform frame that maps decoded values back to raw
 bytes?
 
+**Answer A — Per-scalar source ranges on `DecodedChunk` (no extra frame).**
+Layer 1's `DecodedChunk { scalars: [(char, ByteRange)] }` already pairs each decoded
+scalar with its origin span. Extend this to escape-producing tokenizers (HTML char refs,
+XML entity refs, CSS escapes, JSON `\uXXXX`, CSV doubled-quote): the decoded scalar's
+`ByteRange` is the entire raw source span that produced it (e.g. `&amp;` → one scalar
+`&` with `ByteRange` covering all 5 source bytes). Pros: zero new frame types; matches
+the existing layer-1 contract; per-scalar precision is available to everyone downstream
+without any decoding-aware traversal logic. Cons: `Vec<(char, ByteRange)>` is heavy for
+ASCII-only spans; needs a memory-efficient encoding (e.g. run-length `1:1` segments plus
+sparse "decoded" entries).
+
+**Answer B — Append a `TransformKind::EscapeDecoded` frame per escape.**
+Tokenizers leave the decoded text on the token; `EventNormalizer` (or the tokenizer
+itself) adds an `EscapeDecoded` frame to the resulting `Value` event's source map. The
+frame carries `Vec<(decoded_offset, source_range)>` for every decoded escape inside the
+value. Pros: cost is paid only when escapes occur; raw 1:1 spans need no special
+encoding. Cons: every consumer that wants a per-scalar position must walk frames; two
+adjacent escapes in one value still need a vector inside the frame.
+
+**Answer C — Hybrid (recommended).**
+Layer 1 emits per-scalar ranges only for byte→scalar decoding (UTF-8/UTF-16/Latin-1).
+Higher-level escape processing (HTML/XML entities, CSS/JSON/CSV escapes) is owned by the
+tokenizer that recognizes the escape, and the tokenizer attaches an `EscapeDecoded`
+sub-mapping to the *token* (not a separate frame): `RawToken.escape_map: Option<Vec<(char_index, ByteRange)>>`.
+Empty/None means 1:1. Reasoning: the frame stack records *layer transitions*, while
+escape decoding is intra-layer detail of the tokenizer. Source-map traversal stays
+shallow; per-scalar precision is available when the consumer asks for it.
+
+**Recommendation:** Adopt **Answer C**. It keeps frame depth bounded by layer count
+(predictable for compression deltas in 18.2.1) while still letting Tier B reports
+project per-scalar offsets when needed.
+
+**Ambiguity (to be answered):** For multi-scalar entities (e.g. `&NotEqualTilde;` →
+two-scalar grapheme), does the escape map record one entry per output scalar or one
+entry per input source span? Default: one entry per output scalar, both pointing at the
+same source span — round-tripping the source span is the dominant query.
+
 **Concern 18.2.4 — Line/column projection is underspecified.**  
 The design says line/column are derived from byte offsets, but different consumers need
 different column units: Unicode scalar index, UTF-16 code units, display columns, or
@@ -1249,6 +1366,43 @@ language-specific positions.
 CRLF, isolated CR, tabs, multi-byte UTF-8, replacement characters, and HTML preprocessing
 handled?
 
+**Answer A — Tier A ships exactly one projection: `(line, column_utf8_bytes)`.**
+Lines are 1-based and counted at decoded-scalar level after WHATWG HTML preprocessing
+(`CR`, `CRLF`, and isolated `LF` all collapse to `LF` for line counting; the original
+byte offset still points at the raw `CR` or `CRLF` start). Columns are 1-based byte
+counts within the line, not scalar counts. Tabs count as one column. Multi-byte UTF-8
+sequences count as their byte length (matches `git`, `clang`, `rustc`, most editors with
+"raw column" mode). Replacement characters (U+FFFD) introduced by Layer 1 are treated as
+ordinary scalars with whatever byte length their producing source had. Pros: one
+projection, easy to test, matches what most CLIs print. Cons: editors that report
+columns in UTF-16 code units (LSP) must convert.
+
+**Answer B — Tier A ships two projections: byte-column and UTF-16 code units.**
+Add `column_utf16: u32` alongside `column_utf8_bytes` for direct LSP consumption. Pros:
+no conversion shim in editor integrations; matches `textDocument/publishDiagnostics`
+without a hidden re-encoding pass. Cons: doubles the projection cost; computing UTF-16
+units requires a second scan or a richer `LineIndex`.
+
+**Answer C — Single byte-column projection in Tier A; defer scalar/UTF-16/display columns to a `ProjectionService` in Tier B.**
+Tier A reports always carry `(byte_offset, line, column_utf8_bytes)`. A separate
+`ProjectionService` in Tier B owns scalar-index, UTF-16, display-width, and
+language-specific columns and is invoked by editor adapters. Pros: keeps Tier A surface
+minimal; lets editor adapters pick their own column convention without bloating the
+diagnostic shape. Cons: editor adapters must always run a projection pass.
+
+**Recommendation:** Adopt **Answer C**. Tier A diagnostics are CLI-readable with byte
+columns; Tier B/editor work converts on demand. CRLF/CR/LF normalization rule:
+`LineIndex` stores raw byte offsets of each `LF`; an isolated `CR` (no following `LF`)
+is also a line break for index purposes but column resets *after* the `CR`'s byte. HTML
+preprocessing (NUL → U+FFFD, etc.) runs in Layer 1 and never changes byte offsets —
+substituted scalars keep the original byte's range.
+
+**Ambiguity (to be answered):**
+- Does the byte column include or exclude the BOM on line 1? Default: exclude (BOM is
+  not on a line; byte offsets still address it).
+- Are tab stops ever expanded for "display columns"? Defer to Tier B `ProjectionService`;
+  Tier A never expands tabs.
+
 **Concern 18.2.5 — Diagnostics before AST construction still need source-map stacks.**  
 The research says source maps are not just a diagnostic side table, but parse and schema
 diagnostics can occur before AST nodes exist. The current `Diagnostic` shape has
@@ -1256,6 +1410,42 @@ diagnostics can occur before AST nodes exist. The current `Diagnostic` shape has
 
 **Question:** Should diagnostics carry a `SourceMapStack` directly, or only a
 `SourceId + ByteRange` until AST nodes exist?
+
+**Answer A — Every `Diagnostic` carries a `SourceMapStack`, always.**
+Replace `byte_offset: u64` + optional `node` with a required `source_map: SourceMapStack`.
+Pre-AST diagnostics emit a single-frame stack
+(`[Frame { transform: HtmlTokenizer | EncodingDecoder | ..., byte_range, source_id }]`).
+AST-time diagnostics inherit the node's stack. Pros: one shape; consumers never branch
+on "is there a node yet?"; aligns with the design rule that "source maps are an AST
+contract, not a side table" — a diagnostic *is* a source-map consumer regardless of
+phase. Cons: small allocation cost per pre-AST diagnostic that previously needed only a
+`u64`.
+
+**Answer B — Tagged union: `DiagnosticLocation::PreAst { source_id, byte_range } | NodeBound { node, source_map }`.**
+Pre-AST diagnostics stay cheap (no stack allocation); AST-time diagnostics carry the
+node's stack. Pros: minimal allocation in the hot tokenizer/decoder path. Cons:
+consumers must handle both shapes; relinking pre-AST diagnostics to nodes after the fact
+needs a separate pass.
+
+**Answer C — `SourceMapStack` always, with a `Phase` tag.**
+Same as A, but add `phase: DiagnosticPhase { ByteSource | Decode | Tokenize | Normalize | Schema | AstBuild | Transform | Render }`
+so consumers can filter without inspecting the topmost frame. Pros: clearer report
+grouping; matches the report-event model in §3.5 of the impl doc, which already records
+"source module state" at emit time. Cons: phase is largely derivable from the topmost
+`TransformKind` — risks duplicating that information.
+
+**Recommendation:** Adopt **Answer A** (with `phase` derivable from
+`source_map.last().transform`, not stored separately). The hot-path allocation worry is
+small — a single-frame stack is one `Vec` with capacity 1, and most diagnostics are
+either rare (errors) or batched (warnings). The §3.5 report-event model already requires
+a source-map stack on every event; making `Diagnostic` consistent with that avoids two
+location shapes.
+
+**Ambiguity (to be answered):**
+- Does the `node: Option<AstNodeId>` field stay (as a convenience back-reference) or
+  get removed in favor of "look at the topmost AST frame"? Default: keep as
+  `Option<AstNodeId>`, populated when (and only when) the diagnostic was raised against
+  a built AST node.
 
 ### 18.3 ByteSource And Decoding Questions
 
@@ -1267,6 +1457,45 @@ byte after `bytes.len()` unless the runtime owns an internal padded allocation.
 sentinel, or an internal padded buffer that includes it? How do offsets exclude the
 sentinel?
 
+**Answer A — Public `bytes()` returns the original slice; sentinel is private.**
+`ByteSource` internally owns a padded `Vec<u8>` of length `n + K` (with `K ≥ 1`
+zero/sentinel bytes). `bytes()` returns `&padded[..n]`. Lexers that need the sentinel
+get it via a separate, internal-only API: `bytes_with_sentinel() -> &[u8]` (crate-private,
+returning `&padded[..n + K]`). All public byte ranges, line indices, and snippet ranges
+are within `[0, n)`. Pros: external invariant "offset < bytes.len()" is unambiguous;
+sentinel is an implementation detail of the lexer; safe Rust slice semantics enforce the
+boundary. Cons: requires the runtime to own the buffer (no zero-copy from a borrowed
+caller `&[u8]` without an internal copy or padding allocation).
+
+**Answer B — Public `bytes()` returns the padded slice; the contract documents that valid offsets are `< len_unpadded`.**
+`ByteSource::len_unpadded() -> u64` is the authoritative end-of-source bound. Lexers may
+read `bytes()[offset]` up to and including offset = `len_unpadded()` (the sentinel) but
+must never address beyond that. Pros: one slice, no second API. Cons: easier to write
+buggy consumers that scan `bytes().len()` directly; the sentinel leaks into the public
+contract.
+
+**Answer C — Two-mode constructor.**
+- Owned mode: `ByteSource::from_owned(bytes: Vec<u8>)` allocates `+K` padding internally
+  and behaves like Answer A.
+- Borrowed mode: `ByteSource::from_borrowed(bytes: &'a [u8])` does not pad; lexers get a
+  `bytes_with_optional_sentinel()` that returns `Either<padded, unpadded>` and falls
+  back to a per-character bounds check on the unpadded path.
+
+Pros: zero-copy for embedders that already pad; safe default for the common owned case.
+Cons: lexer hot path must handle both shapes (or always copy on ingress to normalize).
+
+**Recommendation:** Adopt **Answer A**. It cleanly separates contract (`bytes()` is real
+source bytes; offsets are `[0, bytes.len())`) from implementation (lexer scans through
+sentinel via a private API). Tier A is in-memory anyway (§18.3.3), so the one-time
+padding allocation is acceptable. Borrowed-mode optimization is a Tier B concern.
+
+**Ambiguity (to be answered):**
+- How many sentinel bytes? `K = 4` (largest UTF-8 sequence length) is the safe default
+  so `next_char` can read up to 4 bytes past `len_unpadded` without bounds checks. The
+  sentinel byte value should be `0x00` (matches LLVM `MemoryBuffer`); confirm this does
+  not collide with any tokenizer's "EOF" marker semantics.
+- Should `bytes()` return `&[u8]` or `Cow<[u8]>`? `&[u8]` for simplicity.
+
 **Concern 18.3.2 — HTML decoding policy conflicts with "validate UTF-8 at ingress".**  
 The research says HTML uses byte-stream decoding and WHATWG compatibility behavior.
 The design says to validate UTF-8 at ingress for HTML inputs, but browser-style HTML can
@@ -1276,11 +1505,85 @@ decode non-UTF-8 inputs or replacement characters depending on encoding detectio
 encoding detection and replacement behavior? If UTF-8-only, is that a CEM profile
 restriction rather than an HTML tokenizer rule?
 
+**Answer A — Tier A: CEM HTML profile is UTF-8-only; non-UTF-8 input is a fatal Layer 1 error.**
+This is a *CEM profile* restriction, not a WHATWG tokenizer change. The tokenizer remains
+WHATWG-conformant for everything that operates on decoded scalars; Layer 1 simply
+rejects bytes that are not valid UTF-8 with a `Fatal` diagnostic. Document `<meta charset>`
+and BOM sniffing as informational only in Tier A — if they declare anything other than
+UTF-8, the CEM profile rejects the document. Rationale: the five Tier A fixtures and
+all current CEM authoring tooling produce UTF-8; building WHATWG encoding detection
+adds significant tokenizer-internal state (encoding-confidence transitions, prescan,
+late re-encoding) that we don't need to validate the design.
+
+**Answer B — Tier A: full WHATWG byte-stream decode (BOM sniff → prescan → meta → fallback).**
+Layer 1 implements WHATWG encoding detection and replacement; tokenizer consumes
+already-decoded scalars. Pros: handles legacy and conformance corpora out of the box;
+no profile restriction documentation. Cons: large surface area for Tier A; encoding
+late-binding ("change encoding after seeing `<meta charset>`") forces Layer 1 to
+support re-decode — incompatible with "absolute byte offsets are stable from byte 0".
+
+**Answer C — Hybrid: UTF-8-only CEM profile + UTF-16/Latin-1 transcoded pre-pass for non-CEM XML/CSS handoff sources.**
+HTML inputs are UTF-8-only (Answer A). Other content types entering through the handoff
+stack (CSS files, XML resources) may be in their native ABI-defined encodings; Layer 1
+transcodes them to UTF-8 before tokenizer entry, with byte ranges tracked through a
+`TransformKind::Transcoded` frame. Pros: tightens CEM HTML semantics while leaving room
+for legacy embedded content. Cons: more bookkeeping; the transcoded frame is a new
+source-map shape.
+
+**Recommendation:** Adopt **Answer A** for Tier A, with an explicit profile note: "CEM
+HTML inputs MUST be UTF-8. Documents with a non-UTF-8 BOM or `<meta charset>`
+declaration are rejected with `Fatal` diagnostic `cem.encoding.unsupported`." Tier B
+upgrades to **Answer C** when legacy embedded content arises.
+
+**Ambiguity (to be answered):**
+- Does an isolated UTF-8 BOM produce a warning, an info note, or silent acceptance?
+  Default: silent acceptance, BOM excluded from byte ranges (see 18.2.4 ambiguity).
+- Are HTML preprocessing replacements (NUL → U+FFFD, control chars) Tier A required
+  behavior or WHATWG-deferred? Default: Tier A required — they happen on decoded
+  scalars, not bytes, and the rule is small.
+
 **Concern 18.3.3 — Resource bounds are missing from the byte and decode layer.**  
 The research emphasizes streaming and bounded memory, but Tier A uses in-memory buffers.
 
 **Question:** What are the maximum input size, maximum line index size, maximum decoded
 scalar count, and maximum diagnostic snippet size for Tier A?
+
+**Answer A — Tight, compile-time-checked Tier A limits.**
+- Maximum input size: **64 MiB** per `SourceId`. Larger inputs return
+  `cem.source.too_large` (`Fatal`) at `from_bytes`/`from_path`. Rationale: Tier A is
+  in-memory; 64 MiB covers the largest realistic single CEM document by ≥3 orders of
+  magnitude.
+- Maximum line count: **8 M** lines (matches 64 MiB at average ≥8 bytes/line). The
+  `LineIndex` is a `Vec<u32>` of relative offsets per line, capped at this size.
+- Maximum decoded scalar count: derived (bounded by input size); no separate cap.
+- Maximum diagnostic snippet size: **240 bytes** before/after the offending byte range,
+  truncated at the nearest line boundary; total snippet ≤ 1 KiB.
+- Maximum frames in a `SourceMapStack`: **32** (sufficient for tokenizer →
+  normalizer → schema → ast-builder → handoff(×N) → impl-transform → render).
+- Maximum AST depth: **1024**.
+- Maximum diagnostics per source: **10 000** (further diagnostics dropped with one
+  trailing `cem.diagnostics.truncated` event).
+
+**Answer B — Configurable limits with sane defaults.**
+Same numbers as Answer A become fields on a `ParserConfig` struct passed to the runtime;
+tests and benchmarks can lift them. Pros: future-proofing; one place to retune. Cons:
+config plumbing through every layer.
+
+**Answer C — Defer all limits to Tier B; Tier A is best-effort.**
+Layer 1 imposes only `usize::MAX` (host limit). Pros: no policy work. Cons: silent
+performance cliffs and no clean error code for "this input is too big to handle".
+
+**Recommendation:** Adopt **Answer A** for Tier A and revisit the numbers in Tier B as
+**Answer B** (with the same defaults). Hard-coded constants are easier to test and
+document; configurability without a use case is premature.
+
+**Ambiguity (to be answered):**
+- Does the 64 MiB cap apply to the original source, the decoded scalar buffer, or
+  both? Default: applies to the *original byte buffer*; decoded scalars are derived and
+  do not have a separate cap.
+- Should the limits be defined in a single `cem_ml::limits` module, or as
+  `pub const` items on each layer? Default: `cem_ml::limits` for discoverability and
+  test override.
 
 ### 18.4 Tokenizer And Event-Normalizer Gaps
 
@@ -1293,12 +1596,91 @@ content separately.
 **Question:** Should the normalizer emit an explicit `SeparatorKind::ElementBoundary`,
 `StartTagEnd`, or `OpenScopeComplete` event after all attributes?
 
+**Answer A — Emit `Separator { kind: ElementBoundary, byte_range }` after the last attribute of every start tag.**
+The byte range covers the `>` (or `/>` end) of the start tag. SchemaMachine treats
+`ElementBoundary` as the trigger for "attribute set complete; check required-attribute
+rule and duplicate-attribute rule; transition to child-content state". Pros: reuses an
+existing `SeparatorKind` variant; uniform with comma/colon/delimiter separators in
+JSON/CSS handoff streams; no new event variant. Cons: zero-attribute start tags must
+also emit it (otherwise the trigger is implicit), which makes the event stream slightly
+more chatty.
+
+**Answer B — Add a dedicated `OpenScopeComplete { name, byte_range }` event.**
+A first-class event signals end-of-attributes. Pros: explicit and self-describing; easy
+to grep for in the events projection. Cons: new variant in `NormalizedEvent`; slightly
+more code in every consumer.
+
+**Answer C — Emit attribute-set boundaries via a paired sub-scope: `OpenAttributes` / `CloseAttributes` around the `Name`/`Value` pairs, then content events follow.**
+Mirrors `OpenScope`/`CloseScope` for the attribute "container". Pros: schema validation
+of attribute multiplicity feels symmetric to content multiplicity; eases future
+attribute-shape grammars. Cons: doubles event count for the common case; deviates from
+research-paper event shape and existing §3.3 mapping table.
+
+**Answer D — No event; SchemaMachine looks ahead one event for `OpenScope` or another opening event to detect attribute-set close.**
+Pros: smallest event stream. Cons: implicit; complicates streaming where lookahead is
+expensive; required-attribute checks happen lazily.
+
+**Recommendation:** Adopt **Answer A**. It reuses the existing variant, requires one
+line of addition to the §3.3 mapping table ("after all attribute pairs, emit
+`Separator { kind: ElementBoundary }`"), and makes the SchemaMachine's "attribute phase
+→ content phase" transition explicit. Update §3.3 mapping table to include the
+boundary emission for both attribute-bearing and zero-attribute start tags.
+
+**Ambiguity (to be answered):**
+- Does `ElementBoundary` carry the byte range of the `>` character only, or the entire
+  start tag? Default: the closing delimiter only (`>` or `/>`), so SchemaMachine can
+  attribute "missing required attribute" diagnostics to a precise position.
+- For self-closing tags (next concern), does `ElementBoundary` precede or coincide with
+  the synthetic `CloseScope`? Default: precede. The boundary closes the attribute
+  phase; the synthetic close then closes the element scope.
+
 **Concern 18.4.2 — Self-closing and void HTML elements need explicit close semantics.**  
 The mapping table handles `StartTag` and `EndTag`, but not `self_closing` or HTML void
 elements such as `input`, `img`, and `br`.
 
 **Question:** Does the normalizer synthesize `CloseScope` for self-closing and void
 elements? If so, what source range does the synthetic close event use?
+
+**Answer A — Synthesize `CloseScope` immediately for both void HTML elements and self-closing XML/foreign-content tags.**
+After emitting `OpenScope`, attribute pairs, and `Separator { ElementBoundary }`, the
+normalizer emits `CloseScope { name, byte_range }` synchronously when:
+- the start tag has `self_closing = true` *and* the active tokenizer mode permits
+  self-closing semantics (XML, SVG, MathML); or
+- the element is a known HTML void element (`area`, `base`, `br`, `col`, `embed`, `hr`,
+  `img`, `input`, `link`, `meta`, `source`, `track`, `wbr`).
+
+Source range for the synthetic close: the byte range of the start tag's closing
+delimiter (`>` or `/>`), with a `TransformKind::EventNormalizer` frame and a `synthetic:
+true` marker on the event (`CloseScope { name, byte_range, synthesis: Synthesis::VoidElement | Synthesis::SelfClosing | Synthesis::Real }`).
+Pros: schema validation sees a clean open/close pair for every element regardless of
+syntax; downstream layers don't need void-element knowledge; the `synthesis` tag lets
+report formatters distinguish "the author wrote `</br>`" from "we synthesized one".
+
+**Answer B — Synthesize for XML self-closing only; void HTML elements close at the next `OpenScope`/`CloseScope` of the parent.**
+Pros: matches WHATWG insertion-mode behavior literally (void elements have no end
+tag). Cons: SchemaMachine must implement WHATWG insertion-mode parenting separately —
+defeats the layer separation that lets it consume a uniform event stream.
+
+**Answer C — Synthesize for void HTML; reject `self_closing` on non-foreign HTML with `cem.html.invalid_self_close` warning, no synthesis.**
+WHATWG ignores `self_closing` on HTML namespace start tags. Pros: WHATWG-conformant.
+Cons: still doesn't address what `OpenScope`/`CloseScope` shape the schema layer sees
+for `<input/>` typed by the author.
+
+**Recommendation:** Adopt **Answer A**, with the caveat from C: in HTML namespace,
+`self_closing` on a non-void element produces a warning *and* the synthetic close is
+emitted (Synthesis::SelfClosingIgnored). This gives the schema layer a uniform stream
+while preserving WHATWG diagnostics. Add `synthesis: Synthesis` field to `CloseScope`
+in the impl doc.
+
+**Ambiguity (to be answered):**
+- Does the synthetic close share the byte range with `Separator { ElementBoundary }`?
+  Default: yes — both point at the same `/>` or `>`. The events differ in kind, not
+  position.
+- For HTML elements like `<p>` or `<li>` that close implicitly via WHATWG insertion-mode
+  rules, does the normalizer synthesize closes? Default: **no** — implicit close is
+  WHATWG DOM-construction concern, owned by the WHATWG content-type transform (§7), not
+  the event normalizer. The schema layer either accepts the resulting stream as-is or
+  consumes the post-WHATWG-transform tree.
 
 **Concern 18.4.3 — Comments, whitespace, and trivia policy is underspecified.**  
 The design says comments are discarded unless schema marks them significant. Whitespace
@@ -1308,6 +1690,44 @@ text nodes may also be significant or ignorable depending on context.
 or binary AST trivia tables? If they are fully dropped, can source-preserving transforms
 or round trips ever be supported?
 
+**Answer A — Tier A: comments and ignorable whitespace are dropped; round-tripping is a non-goal.**
+The tokenizer still emits `Comment` and `Whitespace` tokens (so debug projection
+`tokens` can show them); the normalizer discards them unless the active schema marks
+them significant (per §3.3 of the impl doc). They do not appear in the AST, source map,
+or report tree. Round-trip is explicitly deferred to Tier C with a `TriviaTable`
+side-structure. Pros: keeps Tier A small; matches research recommendation that "trivia
+is round-trip surface, not validation surface". Cons: cannot regenerate byte-identical
+source from the AST.
+
+**Answer B — Tier A: trivia preserved as a per-source `TriviaTable`, not on AST nodes.**
+A `TriviaTable { entries: [(byte_range, TriviaKind)] }` is built alongside the AST.
+Source-preserving transforms read from it; standard transforms ignore it. Pros:
+round-trip-capable from day one; storage cost is bounded by source size. Cons: every
+transform that reorders or rewrites must also rewrite the trivia table to maintain
+positions.
+
+**Answer C — Tier A: schema-significant trivia only; everything else dropped (matches §3.3).**
+Schemas declare which whitespace and comment regions are significant
+(e.g. `<pre>` content, comment-bearing CSS rules). The normalizer emits `Value`/`Comment`
+events for those; everything else is dropped without trace. Pros: matches the existing
+§3.3 mapping table verbatim; no new contract. Cons: round-trip is impossible without
+modifying the schema to mark all trivia significant.
+
+**Recommendation:** Adopt **Answer A** for Tier A and explicitly defer **Answer B** to
+Tier C. The Tier A `tokens` projection retains comments/whitespace for debugging, so
+trivia is never *invisible*, just not load-bearing.
+
+**Ambiguity (to be answered):**
+- Are HTML processing instructions (`<?xml-stylesheet … ?>`) trivia, errors, or
+  schema-driven? Default: HTML namespace → `cem.html.unexpected_pi` warning + drop;
+  XML namespace → emit as a typed event the schema can opt into.
+- Inside `<pre>`, `<textarea>`, and the embedded `<style>`/`<script>` script-data
+  states, *all* whitespace is content. Confirm: significance is decided by tokenizer
+  state, not the normalizer.
+- Do diagnostics that reference a comment or whitespace span (e.g. "comment near `<x>`
+  contains `--` sequence") still need a `byte_range`? Yes — diagnostics are not bound
+  to surviving events.
+
 **Concern 18.4.4 — QName and namespace handling is only partially defined.**  
 CEM namespace binding, scoped defaults, and ordered namespace overrides are defined in
 §8. HTML lowercasing, XML namespace syntax compatibility, foreign content, prefixed
@@ -1315,6 +1735,57 @@ attribute parsing, and case sensitivity remain unspecified.
 
 **Question:** What is the Tier A name model for HTML elements, HTML attributes,
 schema-qualified CEM attributes, XML names, and future SVG/MathML foreign content?
+
+**Answer A — One unified `QName { prefix, local, expanded: ExpandedName }` resolved at the normalizer boundary; case folding is a per-namespace policy.**
+- HTML namespace (`http://www.w3.org/1999/xhtml`): element and attribute lexical names
+  are ASCII-lowercased *during tokenization* (matches WHATWG); the lexical name on the
+  `QName` is the lowercased form, and `ExpandedName.local_name` matches.
+- XML namespace and any non-HTML namespace: case is preserved verbatim.
+- CEM schema-qualified attributes: prefix is resolved through the active `NsContext`
+  (per §3.4.1 of the impl doc) to an `ExpandedName { namespace_uri, schema_id, local_name }`.
+  Prefix-less attribute names without a default schema namespace are *HTML-namespaced*,
+  not CEM-namespaced.
+- Foreign content (SVG, MathML): tokenizer enters foreign-content mode (per WHATWG
+  insertion-mode rules later applied by the WHATWG content-type transform); names are
+  case-preserved per the foreign namespace's case-folding rules (SVG has a list of
+  camelCase exceptions; MathML preserves case).
+- Collision and duplicate-attribute checks compare `ExpandedName`, not lexical
+  spelling.
+
+**Answer B — Two name layers: `LexicalName` on tokens, `ExpandedName` on schema events.**
+Tokens carry only `LexicalName: String` (raw bytes, post-decoding). The normalizer
+attaches the resolved `ExpandedName` and `binding_id` to each `OpenScope`/`Name` event
+via the existing §3.4.1 `NameResolution` shape. Pros: tokenizer doesn't need namespace
+context; resolution is centralized. Cons: matches §3.4.1 anyway.
+
+**Answer C — Case folding is a content-type-transform concern, not a tokenizer concern.**
+Tokenizer keeps raw bytes verbatim; the WHATWG HTML content-type transform performs
+ASCII-lowercasing as it builds the implementation DOM. Pros: token-level fidelity;
+"raw" projection shows what the author wrote. Cons: schema validation runs *before* the
+content-type transform — schema rules would have to deal with both `Input` and `INPUT`
+forms.
+
+**Recommendation:** Adopt **Answer B** with **Answer A**'s namespace rules. Tokenizer
+emits raw lexical names; normalizer attaches `NameResolution` and lowercases for the
+HTML namespace at the moment of attaching. This matches §3.4.1 and keeps the tokenizer
+free of namespace context. Foreign-content cases (SVG/MathML) are deferred — Tier A
+fixtures contain none — but the contract is: foreign content's tokenizer mode tags
+its tokens with a `foreign_namespace_hint`, and the normalizer applies the foreign
+namespace's case-folding policy when binding `ExpandedName`.
+
+**Ambiguity (to be answered):**
+- Are HTML `data-*` attributes a separate `ExpandedName` family (synthetic
+  `cem:html-data` namespace), or are they HTML-namespace attributes with no special
+  treatment? Default: HTML-namespace attributes; the schema may match them by lexical
+  prefix `data-`.
+- Does HTML5's "duplicate attribute → drop subsequent" tokenizer rule run before or
+  after the normalizer's `ExpandedName` resolution? Default: tokenizer drops duplicate
+  *lexical* names per WHATWG (which is sufficient because HTML attribute names are all
+  same-namespace); CEM-prefixed duplicates are caught later via `ExpandedName`
+  collision in the schema machine.
+- For SVG `viewBox`, `preserveAspectRatio`, etc., is the camelCase preservation list
+  hard-coded in the tokenizer or pulled from schema metadata? Default: hard-coded WHATWG
+  list, since it is normative; schema may extend, not override.
 
 ### 18.5 Schema-Machine And Validation Questions
 
@@ -1326,6 +1797,46 @@ derivatives for residual-based expected-content diagnostics.
 **Question:** What diagnostic quality must the Tier A DFA match so that later replacing
 it with a derivative engine does not break reports or feature tests?
 
+**Answer A — Define a stable diagnostic contract (codes + payload shape) that both engines must satisfy; the DFA is allowed to under-approximate "expected content" but must not produce different `DiagCode`s for the same input.**
+Required diagnostic shape at every error:
+- stable `DiagCode` (e.g. `cem.schema.unexpected_open`, `cem.schema.required_missing`,
+  `cem.schema.duplicate_attr`, `cem.schema.bad_value_type`, `cem.schema.bad_value_pattern`,
+  `cem.schema.unexpected_close`, `cem.schema.unclosed_scope`),
+- `expected_set: Vec<ExpectedItem>` where each item is one of
+  `Element { qname }`, `Attribute { qname, required: bool }`, `Value { kind, pattern: Option<String> }`,
+  `Close { qname }`,
+- `actual: Option<EventDescriptor>` (what was seen),
+- `byte_range: ByteRange` and `source_map: SourceMapStack`.
+
+The Tier A DFA computes `expected_set` from outgoing transitions of the current state
+(possibly empty if the DFA was hand-written and didn't precompute follow sets). A
+derivative engine computes it from the residual's nullable-leaves analysis — same shape,
+finer answers. Feature tests assert on `DiagCode` and required `expected_set` *members*
+(superset relation), not exact set equality. Migration to derivatives strengthens
+`expected_set` without breaking tests.
+
+**Answer B — Tier A DFA has no `expected_set`; only `DiagCode` and `actual` are stable.**
+Pros: simplest DFA; no follow-set precomputation. Cons: feature tests cannot assert on
+"after `<form>`, expected `<label>` or `<button>`"; migration to derivatives changes
+test surface.
+
+**Answer C — Tier A DFA precomputes follow sets at compile time; derivative engine produces equivalent follow sets at runtime.**
+Pros: identical diagnostic quality at the boundary. Cons: more upfront work in Tier A;
+hand-written follow-set tables drift from grammar changes.
+
+**Recommendation:** Adopt **Answer A**. The contract guarantees code-level
+compatibility (same `DiagCode`s, same payload shape); engines may differ in
+*completeness* of `expected_set`. Tier A tests should assert "expected_set ⊇ {required
+items}", which is monotone under engine upgrade.
+
+**Ambiguity (to be answered):**
+- Is `expected_set` ordered? Default: stable but unspecified ordering at the contract
+  level; reports sort it for display. The engine should produce a canonical order
+  (lexicographic on `ExpandedName`) to keep snapshot tests stable.
+- Should `actual` carry the resolved `ExpandedName` (helpful for namespace-related
+  errors) or the lexical name (closer to author intent)? Default: both —
+  `actual: { lexical: String, expanded: Option<ExpandedName> }`.
+
 **Concern 18.5.2 — Unknown/extension content policy is not formalized.**  
 The design mentions warnings for unknown attributes and semver-compatible drift, but does
 not define open-content rules in the schema state.
@@ -1334,12 +1845,95 @@ not define open-content rules in the schema state.
 which are ignored? Does the policy differ for standard HTML, ARIA, HTML `data-*`, and
 schema-qualified CEM attributes?
 
+**Answer A — Open-content policy keyed on `ExpandedName` namespace.**
+| Family                                                   | Unknown element                                   | Unknown attribute                                  |
+|----------------------------------------------------------|---------------------------------------------------|----------------------------------------------------|
+| HTML namespace, standard tag/attr                        | `error: cem.schema.unknown_html_element`          | `warning: cem.schema.unknown_html_attribute`       |
+| HTML `data-*`                                            | n/a                                               | accepted, ignored by validation                    |
+| ARIA (`role`, `aria-*`)                                  | n/a                                               | accepted; ARIA validity is a separate pass (Tier B)|
+| Active CEM schema namespace                              | `error: cem.schema.unknown_cem_element`           | `error: cem.schema.unknown_cem_attribute`          |
+| Other registered schema namespaces                       | per registered schema's open-content policy       | per registered schema's open-content policy        |
+| Unbound prefix                                           | `error: cem.schema.unbound_prefix`                | `error: cem.schema.unbound_prefix`                 |
+| No-namespace, schema declares `open: true`               | `warning: cem.schema.extension_element`           | `warning: cem.schema.extension_attribute`          |
+| No-namespace, schema declares `open: false` (default)    | `error`                                           | `error`                                            |
+
+Pros: explicit per-family rule; `data-*` and ARIA carve-outs are clearly orthogonal to
+schema validation; semver-compatible drift is expressible by registering schema
+namespaces with `open: true`. Cons: requires the schema model to expose an
+`open: bool` (or a richer `OpenContent { allowed: Vec<NamespaceUri>, severity }`) per
+content model.
+
+**Answer B — Single global "unknown → warning" policy with a per-name allowlist.**
+Pros: simple. Cons: cannot distinguish "unknown CEM attribute" (should be an error,
+likely a typo) from "unknown HTML attribute on a custom element" (should be ignored).
+
+**Answer C — Schema-language-driven: the schema declares open-content rules per content model, no built-in defaults.**
+Pros: maximum flexibility. Cons: empty schemas behave inconsistently; no sensible
+default if the author forgets the rule.
+
+**Recommendation:** Adopt **Answer A**. The CEM schema language gains a per-content-model
+`OpenContent` declaration (default closed for CEM names, default warning for HTML, accept
+for `data-*` and ARIA). The DFA/derivative engine consults this model on every unknown
+event.
+
+**Ambiguity (to be answered):**
+- Are vendor-prefixed HTML attributes (e.g. `x-data` from Alpine.js) treated as `data-*`
+  or as unknown? Default: unknown (warning), unless an extension namespace is registered.
+- Custom elements (`<my-thing>`) — unknown HTML element warning, or accepted as a
+  WHATWG-conformant author-defined element? Default: accepted; CEM does not police the
+  customElements registry.
+
 **Concern 18.5.3 — Recovery with a "permissive residual" needs a concrete invariant.**  
 The schema machine says non-fatal errors continue with a permissive residual, but a
 permissive state can hide cascaded errors or corrupt AST shape.
 
 **Question:** After an error, does recovery skip to the next close event, accept any
 child until expected close, or continue with a special "error subtree" frame?
+
+**Answer A — Push an `ErrorSubtree` frame; accept any child until matching close, then resume parent state.**
+On any non-Fatal schema error during open/value/separator handling, the engine:
+1. Records the diagnostic on the current frame.
+2. Pushes a `SchemaFrame { state: SchemaState::ErrorSubtree, expected_close: <name from triggering event>, ... }`.
+3. Accepts every child event without further structural validation (still validates
+   well-formedness: balanced opens/closes, value type minimums).
+4. On the matching `CloseScope`, pops the error frame and resumes the parent state
+   *unchanged* (the parent never advanced; the error subtree is treated as if the parent
+   saw exactly one acceptable child placeholder).
+5. AST nodes built inside the error subtree carry a `tainted: true` marker so downstream
+   transforms can skip or specially handle them.
+
+Pros: bounded blast radius (one element); parent state preserved; cascading errors
+suppressed inside the error subtree but report tree still records diagnostics; matches
+the research's "permissive residual" framing as a *frame-local* relaxation rather than
+a state machine corruption.
+
+**Answer B — Skip to next sibling close: drop events until the matching `CloseScope` of the offending element, then resume.**
+Like A but no error frame; events are silently consumed. Pros: simpler. Cons: no AST
+nodes inside the error region (loses content for IDE features); no place to attach
+nested diagnostics.
+
+**Answer C — Continue with a permissive residual: any element/value is acceptable in the current state until the next valid close.**
+Pros: maximum tooling completeness. Cons: hides cascading errors; one missing tag turns
+the rest of the document into "anything goes".
+
+**Answer D — Fatal-on-first-error mode for batch validation; A for IDE/tooling mode.**
+Configurable per invocation. Pros: lints can fail-fast; editors get full diagnostics.
+Cons: two contracts to test.
+
+**Recommendation:** Adopt **Answer A** as the default behavior. **Answer D** is a thin
+configuration wrapper: `RecoveryPolicy::FailFast | Recover` that gates whether a
+non-Fatal error is upgraded to Fatal. Add `tainted: bool` to AST nodes and `Synthesis`
+already on synthetic close events (see 18.4.2).
+
+**Ambiguity (to be answered):**
+- If the offending event was an `OpenScope` of an element that is unknown to the
+  schema (no expected `CloseScope` name), does recovery still wait for a matching close?
+  Default: yes — the engine matches by lexical name; if the unknown element is
+  void-ish and has no matching close, recovery ends at the parent's close instead.
+- Do attribute-phase errors (`Name`/`Value` validation failures during the start tag)
+  push an error frame, or just record the diagnostic and continue the attribute phase?
+  Default: continue the attribute phase, no frame; only OpenScope/element-content
+  errors push `ErrorSubtree`.
 
 **Concern 18.5.4 — Multiplicity, ordering, and required-name tracking need phase
 boundaries.**  
@@ -1349,24 +1943,123 @@ child roles, multiplicity, ordering, and possibly unordered/interleaved groups.
 **Question:** What exact state is tracked on `SchemaFrame` for attributes versus child
 content, and when is each constraint checked?
 
-**Concern 18.5.5 — Schema language options mix authoring syntax with runtime semantics.**  
-Section 13 states that all options except iXml feed the same RELAX NG derivative runtime.
-That assumes the chosen source language can represent every required CEM constraint in
-a derivative-computable form.
+**Answer A — Split frame state into two explicit phases with distinct trackers.**
+
+```
+SchemaFrame:
+  ...existing fields...
+  phase: FramePhase                       // Attribute | Content | Closed
+  attr_state: AttributeState
+  content_state: ContentState
+
+AttributeState:
+  seen: HashMap<ExpandedName, ByteRange>  // name → first-occurrence range (for dup diagnostics)
+  required_remaining: HashSet<ExpandedName>
+  // attribute multiplicity is always 0..1 in HTML/XML; multi-valued attrs validated
+  // at value-shape level, not here
+
+ContentState:
+  residual_or_dfa_state: SchemaState      // RELAX NG residual | DFA state id
+  seen_children: Vec<(ExpandedName, ByteRange)>   // emit-order, for ordering diagnostics
+  required_remaining_children: HashSet<ExpandedName>
+  // multiplicity tracked inside residual/DFA state; required_remaining_children is a
+  // mirror for fast "what's missing" diagnostics at close time
+```
+
+Constraint check schedule:
+| Constraint                  | Where checked                         | Frame phase    |
+|-----------------------------|---------------------------------------|----------------|
+| Duplicate attribute         | on `Name` event                       | Attribute      |
+| Unknown attribute           | on `Name` event                       | Attribute      |
+| Bad attribute value         | on `Value` event                      | Attribute      |
+| Required attribute missing  | on `Separator { ElementBoundary }`    | Attribute→Content transition |
+| Unexpected child element    | on `OpenScope`                        | Content        |
+| Unexpected text content     | on `Value` (text)                     | Content        |
+| Bad child ordering          | on `OpenScope`                        | Content        |
+| Multiplicity exceeded       | on `OpenScope`                        | Content        |
+| Required child missing      | on `CloseScope`                       | Content→Closed |
+| Unclosed scope              | on EOF                                | any → Closed   |
+
+Pros: each constraint has one well-defined trigger point; diagnostic byte ranges
+correspond to the precise event that violated the rule; required-set diagnostics emit at
+the boundary that closes the corresponding phase.
+
+**Answer B — Single residual covers both attribute and content; check on every event.**
+Treat attributes as ordered grammar prefix (`attribute-set` non-terminal) followed by
+`content`. Pros: uniform model; matches RELAX NG derivative computation literally. Cons:
+attribute order in HTML is arbitrary, so the residual must encode "interleave" — this
+is expensive and the diagnostic for "missing required attribute" comes out at the wrong
+position (at the close, not the boundary).
+
+**Answer C — Hybrid: attributes as a separate non-residual check (set-membership +
+required set); content uses residual/DFA.**
+Equivalent to A but without explicit phase tracking — the engine picks behavior per
+event kind. Pros: simpler than A's phase enum. Cons: no explicit place for the
+"attribute phase complete" hook; required-attribute diagnostics still need a trigger
+event (which is `ElementBoundary` from 18.4.1 anyway).
+
+**Recommendation:** Adopt **Answer A**. The explicit phase enum makes the
+`Separator { ElementBoundary }` event from 18.4.1 load-bearing for required-attribute
+diagnostics, gives `seen_children` a natural home for ordering diagnostics, and matches
+the constraint table verbatim.
+
+**Ambiguity (to be answered):**
+- For unordered-but-required content groups (e.g. `<head>` allows `<title>`,
+  `<meta charset>`, `<base>` in any order, exactly one each), is the model an
+  interleave operator in the residual or a separate set-tracker? Default: set-tracker
+  on `ContentState` (`required_remaining_children`) plus a residual that accepts any
+  order; multiplicity policed by the set tracker.
+- Does `seen_children` store all children or only the unexpected/required-relevant
+  ones? Default: only those needed for diagnostics — the residual already encodes the
+  rest.
+- For schemas that declare attribute *order* significant (rare; not in CEM today), how
+  is that expressed? Default: deferred — emit `cem.schema.unsupported_constraint` at
+  schema compile time.
+
+**Concern 18.5.5 — CEM-native schema language must separate authoring syntax from runtime semantics.**
+Section 13 selects the CEM-native declarative format as the schema source of truth. That
+selection still requires a clear boundary between constraints compiled into structural
+validation IR and constraints enforced by later semantic passes.
 
 **Question:** Which CEM constraints are structural grammar constraints, and which are
 semantic validation passes outside RELAX NG derivatives?
 
-### 18.6 Embedded Handoff Concerns
+**Answer A — Split CEM constraints into three explicit tiers.**
 
-**Concern 18.6.1 — ModeSwitch ownership is ambiguous between tokenizer, normalizer, and
-schema machine.**  
-The normalizer mapping emits `ModeSwitch` for `<style>` and `<script>`, while Layer 5 says
-the parent schema machine emits `HandoffRecord`s. For WHATWG HTML, raw text content is
-also controlled by tokenizer state.
+| Tier                                    | Examples                                                                                                                       | Engine                                  |
+|-----------------------------------------|--------------------------------------------------------------------------------------------------------------------------------|-----------------------------------------|
+| 1. Structural (derivative-computable)   | element/attribute names, child ordering & multiplicity, attribute presence, simple value-type and pattern constraints          | CEM schema IR -> Tier A DFA / later derivative runtime |
+| 2. Cross-references (post-structural)   | `aria-labelledby` / `for` ID resolution, `href` fragment targets, `cem:slot` slot-to-named-target binding                      | Reference-resolution pass over input DOM/AST |
+| 3. Semantic / contextual                | uniqueness of `id`, allowed embedding by content-type (e.g. `<style>` only inside `<head>` or scoped contexts), ARIA semantics | Dedicated validation passes after AST build  |
 
-**Question:** Which layer creates the authoritative `HandoffRecord`, and which layer
-only reports that the lexical mode changed?
+Section 13's CEM-native compiler contract applies strictly to Tier 1. The compiler emits
+a structural IR that can drive either the Tier A DFA or a later derivative runtime. Tiers
+2 and 3 run *after* structural validation completes and may consult the full input
+DOM/AST plus `NameResolution` records. Their rules live in a separate `SemanticRule`
+registry emitted from the CEM-native schema and keyed by AST node kind, not inside the
+structural grammar.
+
+**Answer B — All constraints in the residual; non-derivative-computable rules emit `cem.schema.unsupported_constraint` at compile time.**
+Pros: one engine. Cons: rejects useful constraints (ID uniqueness across siblings,
+ARIA-required-context); pushes ad-hoc encoding into the grammar.
+
+**Answer C — Two-tier: structural in residual, everything else in a single "semantic pass" framework.**
+Pros: simpler than A. Cons: lumps cross-references with arbitrary semantic checks;
+makes it harder to specialize incremental re-validation.
+
+**Recommendation:** Adopt **Answer A**. The three tiers map cleanly onto reuse: Tier 1
+is engine-swappable (DFA → derivatives); Tier 2 reuses `NameResolution` and slot
+tables already produced for the projection layer; Tier 3 hosts policy-style rules
+(ARIA, ID uniqueness) and can be enabled per-profile.
+
+**Remaining implementation questions:**
+- Where does HTML5 conformance live (e.g. `<input type="checkbox" checked>` is fine,
+  `<input checked>` without `type` is allowed)? Tier 1 (residual) for type/value
+  combinations; Tier 3 for context-dependent attribute requirements (e.g. `alt` is
+  required on `<img>` but content-dependent on `role`).
+- Should Tier 2 and Tier 3 produce diagnostics with the same `DiagCode` namespace as
+  Tier 1, or separate (`cem.semantic.*`, `cem.refs.*`)? Default: separate namespaces so
+  filters and report grouping are obvious.
 
 ---
 

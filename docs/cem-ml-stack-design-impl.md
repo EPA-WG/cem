@@ -223,14 +223,59 @@ preserving attribute source positions.
 ### 3.4 Layer 4: SchemaMachine (`cem_ml::schema`)
 
 The CEM semantic vocabulary is defined functionally in the primary design's Layer 4
-section. Implementation code consumes the active compiled schema; `schema::vocab` is an
-implementation convenience generated from, or kept traceable to, that schema source.
+section. CEM-native declarative schema files are the source of truth. Implementation
+code consumes the active compiled schema; `schema::vocab` is an implementation
+convenience generated from, or kept traceable to, that compiled CEM-native schema.
+
+```
+CompiledSchema:
+  schema_id: SchemaId
+  namespace_uri: NamespaceUri
+  source: CemNativeSchemaSource
+  structural: StructuralSchemaIr
+  semantic_rules: Vec<SemanticRule>
+  transform_plans: Vec<TransformPlanRef>
+  open_content: OpenContentPolicy
+
+CemNativeSchemaSource:
+  uri: String
+  version: String
+  source_id: SourceId
+  source_map: SourceMapStack
+
+StructuralSchemaIr:
+  entry_state: SchemaState
+  states: Vec<SchemaStateDef>        DFA-ready structural states for Tier A
+  derivative: Option<DerivativeIr>   Tier B residual/derivative representation
+  diagnostics: DiagnosticContract
+
+SemanticRule:
+  rule_id: SemanticRuleId
+  phase: SemanticRulePhase           CrossReference | Contextual | Policy | Transform
+  applies_to: ExpandedName
+  severity: Severity
+  source: SourceMapStack
+```
+
+The compiler boundary is:
+
+```
+CEM-native schema source
+  -> CompiledSchema
+  -> StructuralSchemaIr for the SchemaMachine
+  -> SemanticRule registry for post-structural validation
+  -> TransformPlan metadata for interpreter backends
+```
+
+Only `StructuralSchemaIr` is consumed during streaming event validation. Cross-reference,
+contextual, policy, and transform checks are emitted as `SemanticRule`s and run after the
+relevant input DOM/AST state exists.
 
 ```
 SchemaFrame:
   schema_id: SchemaId
   language_id: ContentType          e.g. text/html, text/css
-  state: SchemaState                current RELAX NG residual or DFA state
+  state: SchemaState                current structural DFA state or derivative residual
   source_span: ByteRange            range of the element that opened this frame
   source_map_stack: SourceMapStack  accumulated map at frame entry
   expected_close: Option<QName>     for element-level close validation
@@ -407,11 +452,13 @@ Deferred return-condition variants are listed for interface stability. Implement
 priority after Tier A is XML first, JSON second, then HTML extensions and other embedded
 language cases.
 
-The container content type decodes its own content before handoff. The parent schema
-machine emits a `HandoffRecord` with the exact `ReturnCondition` before yielding the
-source-mapped decoded stream to the child parser. The child parser consumes stream units
-up to the return condition and signals completion. The parent resumes with the source
-position following the condition boundary.
+The current context parser recognizes the content-type switch and decodes its owned
+content before handoff when decoding is required. `ModeSwitch` is the embedded-context
+creation event: it carries the `HandoffRecord`, the mapped child content type, and the
+source-mapped decoded stream. The reference implementation should use the CEM framework
+to map entity context type and create the child context. The child parser consumes stream
+units up to the return condition and signals completion. The parent resumes with the
+source position following the condition boundary.
 
 ### 3.8 Layer 6: InputDomAstBuilder / InterpreterAstBuilder (`cem_ml::parser`)
 
@@ -749,9 +796,12 @@ cem_ml/src/
     mod.rs            NormalizedEvent, EventNormalizer
   schema/
     mod.rs            SchemaMachine, SchemaFrame, SchemaState
+    compiler.rs       CEM-native schema source -> CompiledSchema
+    ir.rs             CompiledSchema, StructuralSchemaIr, SemanticRule, open-content policy
+    dfa.rs            Tier A structural validator backend
     derivative.rs     RELAX NG derivative computation
     namespace.rs      NsContext, NamespaceBinding, ExpandedName, NameResolution
-    vocab.rs          CEM vocabulary constants generated from schema source
+    vocab.rs          CEM vocabulary constants generated from compiled CEM-native schema
   handoff/
     mod.rs            HandoffRecord, HandoffStack, ReturnCondition, InheritedContext
   parser/
