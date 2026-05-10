@@ -245,7 +245,7 @@ by the XML content-type transform, not the tokenizer.
 NormalizedEvent:
   OpenScope  { name: QName, byte_range: ByteRange }
   CloseScope { name: QName, byte_range: ByteRange }
-  Name       { value: String, byte_range: ByteRange }
+  Name       { name: QName, byte_range: ByteRange }
   Value      { value: ScalarValue, byte_range: ByteRange }
   Separator  { kind: SeparatorKind, byte_range: ByteRange }
   ModeSwitch { content_type: ContentType, handoff: HandoffRecord }
@@ -259,7 +259,7 @@ HTML token mapping:
 
 | HTML token                               | Emitted events                                                                          |
 |------------------------------------------|-----------------------------------------------------------------------------------------|
-| `StartTag { name, attrs }`               | `OpenScope { name }`, then for each attr: `Name { attr_name }` + `Value { attr_value }` |
+| `StartTag { name, attrs }`               | `OpenScope { name }`, then for each attr: `Name { name: attr_qname }` + `Value { attr_value }` |
 | `EndTag { name }`                        | `CloseScope { name }`                                                                   |
 | `Text { data }`                          | `Value { Text(data) }`                                                                  |
 | `StartTag { name: "style" \| "script" }` | `OpenScope`, then `ModeSwitch { content_type }`                                         |
@@ -309,7 +309,7 @@ OpenContentDefaults:
   html_unknown_element: Diagnostic { code: cem.schema.unknown_html_element, severity: Error }
   html_unknown_attribute: Diagnostic { code: cem.schema.unknown_html_attribute, severity: Warning }
   html_custom_element: Accept
-  html_data_attribute: AcceptIgnore
+  cem_html_data_attribute: AcceptIgnore
   aria_or_role_attribute: DeferToSemanticPass
   active_cem_unknown_element: Diagnostic { code: cem.schema.unknown_cem_element, severity: Error }
   active_cem_unknown_attribute: Diagnostic { code: cem.schema.unknown_cem_attribute, severity: Error }
@@ -449,12 +449,14 @@ constraints.
 
 `OpenContentPolicy` is consulted by the SchemaMachine for each unknown `OpenScope` and
 attribute `Name` after `ExpandedName` resolution. Rules are keyed by content model and
-namespace. HTML `data-*` attributes are accepted and ignored by schema validation. ARIA
-and `role` attributes are accepted here and deferred to a later semantic pass. WHATWG
-custom element names are accepted without checking the browser registry; attributes on
-those elements still follow the same namespace/open-content policy. Vendor-prefixed HTML
-attributes such as `x-data` use `vendor_prefixed_html_attribute` unless a registered
-extension namespace or explicit open-content rule accepts them.
+namespace. HTML `data-*` attributes resolve to the synthetic `cem:html-data` namespace,
+are accepted, and are ignored by schema validation unless an explicit schema rule maps
+that synthetic namespace. ARIA and `role` attributes are accepted here and deferred to a
+later semantic pass. WHATWG custom element names are accepted without checking the
+browser registry; attributes on those elements still follow the same
+namespace/open-content policy. Vendor-prefixed HTML attributes such as `x-data` use
+`vendor_prefixed_html_attribute` unless a registered extension namespace or explicit
+open-content rule accepts them.
 
 `ScopePolicy` is resolved when a context scope is created. The document root creates the
 initial policy. Child parser, handoff, transform, and embedded-content scopes inherit
@@ -494,8 +496,14 @@ FramePhase:
   Closed
 
 AttributeState:
-  seen: HashMap<ExpandedName, ByteRange>
+  active: HashMap<ExpandedName, AttributeOccurrence>
+  pending: Option<ExpandedName>
   required_remaining: HashSet<ExpandedName>
+
+AttributeOccurrence:
+  name: QName
+  value_range: Option<ByteRange>
+  source_map: SourceMapStack
 
 ContentState:
   residual_or_dfa_state: SchemaState
@@ -507,15 +515,16 @@ ErrorSubtreeState:
   taint_ast_nodes: bool
 ```
 
-`AttributeState.seen` stores expanded attribute names with their first byte range for
-duplicate diagnostics. Attribute multiplicity is 0..1; multi-valued attribute semantics
-are validated by value-shape rules. `ContentState.seen_children` stores only children
-needed for diagnostics, in emission order. `required_remaining_children` is a diagnostic
-mirror for close-time missing-child messages; ordering and multiplicity remain enforced
-by `residual_or_dfa_state`. Unordered-but-required content groups use the set tracker
-plus a residual or DFA state that accepts the allowed order. Attribute-order constraints
-are unsupported in Tier A and fail schema compilation with
-`cem.schema.unsupported_constraint`.
+`AttributeState.active` stores the effective attribute set by `ExpandedName`. Duplicate
+attributes are resolved after namespace binding with last-writer-wins semantics: a later
+attribute with the same expanded name replaces the active value and source range instead
+of emitting a duplicate-attribute diagnostic. Multi-valued attribute semantics are
+validated by value-shape rules. `ContentState.seen_children` stores only children needed
+for diagnostics, in emission order. `required_remaining_children` is a diagnostic mirror
+for close-time missing-child messages; ordering and multiplicity remain enforced by
+`residual_or_dfa_state`. Unordered-but-required content groups use the set tracker plus a
+residual or DFA state that accepts the allowed order. Attribute-order constraints are
+unsupported in Tier A and fail schema compilation with `cem.schema.unsupported_constraint`.
 
 ### 3.4.1 Namespace Context Contracts
 
@@ -537,6 +546,19 @@ NamespaceBinding:
 NamespaceName:
   String                            "" is the default namespace name
 
+QName:
+  lexical_name: String              exact source spelling after decoding
+  prefix: Option<String>
+  local_name: String                namespace-policy local name
+  expanded_name: ExpandedName
+  binding_id: Option<NamespaceBindingId>
+  kind: NameKind
+  source_range: ByteRange
+
+NameKind:
+  Element
+  Attribute
+
 ExpandedName:
   namespace_uri: NamespaceUri
   schema_id: Option<SchemaId>
@@ -544,8 +566,11 @@ ExpandedName:
 
 NameResolution:
   lexical_name: String
+  prefix: Option<String>
+  local_name: String
   expanded_name: ExpandedName
   binding_id: Option<NamespaceBindingId>
+  kind: NameKind
   source_range: ByteRange
 ```
 
@@ -554,16 +579,30 @@ Within a single scope, the latest binding with the same `NamespaceName` wins fro
 `effective_from` position forward. Nested scopes inherit parent bindings, but an inner
 binding with the same name shadows the inherited binding until the inner scope closes.
 
+The normalizer resolves `QName` before emitting `OpenScope`, `CloseScope`, or `Name`.
+HTML element names bind to the HTML namespace with ASCII-lowercased `local_name`.
+Attributes are case-sensitive in every context and may use camelCase; their `local_name`
+preserves the source spelling after prefix removal. XML and non-HTML child contexts
+preserve element and attribute case unless that context's schema declares a different
+policy. HTML `data-*` attributes bind to the synthetic `cem:html-data` namespace with a
+case-sensitive local name equal to the suffix after `data-`.
+
+Foreign content such as SVG and MathML is represented as a `ModeSwitch` to a child
+content-type scope with its own `NsContext`, schema id, and name policy. The HTML parent
+does not keep a special in-place foreign-content name mode; source-map frames link the
+parent token range to the child context.
+
 Previously emitted `NameResolution` records are immutable. If `screen` resolves to
 `{NS1}screen`, and a later default namespace declaration changes the default namespace to
 `NS2`, later `screen` names resolve to `{NS2}screen` but the earlier record still points
 to the `NS1` binding id. Reports and source maps can therefore show that the same
 lexical name changed schema ownership over time.
 
-Attribute and tag collision checks use `ExpandedName`, not lexical spelling. Rendered
-projections may lower schema-qualified names to unqualified convenience attributes or
-tags, but the renderer must retain enough mapping metadata to distinguish generated
-CEM-owned names from pass-through HTML names.
+Attribute and tag collision checks use `ExpandedName`, not lexical spelling. Duplicate
+attributes in the same start tag use the later `ExpandedName` occurrence as the active
+value. Rendered projections may lower schema-qualified names to unqualified convenience
+attributes or tags, but the renderer must retain enough mapping metadata to distinguish
+generated CEM-owned names from pass-through HTML names.
 
 State transitions:
 
@@ -577,13 +616,15 @@ open(event):
 
 name(event):
   Require current frame phase = Attribute.
-  Resolve ExpandedName in namespace_ctx.
-  Check duplicate and unknown attribute rules against attr_state.seen, schema, and
-  open_content.
-  Insert first-seen range and remove required_remaining entry when accepted.
+  Use the event's already-resolved QName.
+  Check unknown attribute rules against schema and open_content.
+  Insert or replace attr_state.active by ExpandedName using last-writer-wins semantics.
+  Set attr_state.pending to the event's ExpandedName.
+  Remove required_remaining entry when the effective attribute is accepted.
 
 value(event):
-  In Attribute phase, validate the current attribute's value shape.
+  In Attribute phase, validate the pending attribute's value shape and update its
+  AttributeOccurrence.value_range.
   In Content phase, validate text content against content_state.residual_or_dfa_state.
 
 separator(event):
@@ -1117,7 +1158,7 @@ cem_ml/src/
     policy.rs         ScopePolicy, ErrorBoundaryKind, ErrorBoundaryPolicy, DiagnosticVisibility, parent overrides
     dfa.rs            Tier A structural validator backend
     derivative.rs     RELAX NG derivative computation
-    namespace.rs      NsContext, NamespaceBinding, ExpandedName, NameResolution
+    namespace.rs      NsContext, NamespaceBinding, QName, ExpandedName, NameResolution
     vocab.rs          CEM vocabulary constants generated from compiled CEM-native schema
   handoff/
     mod.rs            HandoffRecord, HandoffStack, ReturnCondition, InheritedContext

@@ -312,14 +312,14 @@ The normalized taxonomy is:
 - error.
 
 For HTML, each start tag emits an open scope followed by name/value events for each
-attribute, preserving attribute source positions. End tags emit close scopes. Text emits
-scalar text values. Comments are discarded unless the active schema marks comments as
-significant. Parse errors become diagnostic events.
+attribute, preserving attribute source positions and attribute case. End tags emit close
+scopes. Text emits scalar text values. Comments are discarded unless the active schema
+marks comments as significant. Parse errors become diagnostic events.
 
-HTML `data-*` attributes stay in the HTML stack and may be projected to the HTML-specific
-`dataset` equivalent on HTML AST nodes. CEM transform annotation attributes are
-schema-qualified names, arrive as name/value events within the element's open-scope
-group, and are handled by the schema machine.
+HTML `data-*` attributes are normalized into the synthetic `cem:html-data` namespace and
+may be projected to the HTML-specific `dataset` equivalent on HTML AST nodes. CEM
+transform annotation attributes are schema-qualified names, arrive as name/value events
+within the element's open-scope group, and are handled by the schema machine.
 
 The event enum and token mapping table are in
 [`cem-ml-stack-design-impl.md`](cem-ml-stack-design-impl.md#33-layer-3-eventnormalizer-cem_mlevents).
@@ -379,18 +379,19 @@ the parent close. Validated events are passed to the input DOM/AST builder.
 A schema frame owns the active schema id, content type, expected close, namespace
 context, source-map stack, diagnostics, effective scope policy, and explicit validation
 phase. Attribute validation and child-content validation use distinct trackers:
-`AttributeState` stores seen attribute names and required attributes that remain;
+`AttributeState` stores the active effective attributes and required attributes that remain;
 `ContentState` stores the residual or DFA state, diagnostic-relevant seen children in
-emit order, and required children that remain. Attribute multiplicity is 0..1 and checked on each
-attribute `Name`; multi-valued attribute semantics are value-shape checks. Child
-multiplicity and ordering are encoded in the residual or DFA state, with
+emit order, and required children that remain. Attribute multiplicity is normalized to
+0..1 per expanded name by last-writer-wins override; multi-valued attribute semantics
+are value-shape checks. Child multiplicity and ordering are encoded in the residual or
+DFA state, with
 `required_remaining_children` kept as a diagnostic mirror for close-time messages.
 
 Constraint checks have fixed trigger events:
 
 | Constraint                 | Trigger                              | Frame phase |
 |----------------------------|--------------------------------------|-------------|
-| Duplicate attribute        | `Name`                               | Attribute   |
+| Duplicate attribute        | `Name`                               | Attribute; later value overrides earlier value |
 | Unknown attribute          | `Name`                               | Attribute   |
 | Bad attribute value        | attribute `Value`                    | Attribute   |
 | Required attribute missing | `Separator { kind: ElementBoundary }` | Attribute -> Content |
@@ -412,8 +413,9 @@ transition sketches are in
 
 The schema defines the namespace, qualified attribute names, allowed values, and nesting
 rules for CEM transform annotations. CEM does not use HTML `data-cem-*` attributes for
-CEM ownership. HTML `data-*` remains HTML-specific metadata and is exposed, when needed,
-as the HTML `dataset` equivalent on HTML AST nodes. Based on the component
+CEM ownership. HTML `data-*` remains HTML-specific metadata, resolves into the synthetic
+`cem:html-data` namespace, and is exposed, when needed, as the HTML `dataset` equivalent
+on HTML AST nodes. Based on the component
 surface and fixture vocabulary:
 
 ```
@@ -439,8 +441,8 @@ stack. The schema source language is the CEM-native declarative format selected 
 Unknown and extension content is governed by a schema-owned open-content policy keyed on
 `ExpandedName` namespace and active content model. The active schema declares
 `OpenContent` per content model. If it omits a declaration, CEM-owned names default
-closed, unknown HTML attributes default to warnings, and HTML `data-*`, `role`, and
-`aria-*` remain orthogonal pass-through attributes.
+closed, unknown HTML attributes default to warnings, and synthetic `cem:html-data`,
+`role`, and `aria-*` remain orthogonal pass-through attributes.
 
 Default unknown-content behavior:
 
@@ -448,7 +450,7 @@ Default unknown-content behavior:
 |---------------------------------------|---------------------------------------------------|----------------------------------------------|
 | HTML namespace, non-custom unknown name | `error: cem.schema.unknown_html_element`        | `warning: cem.schema.unknown_html_attribute` |
 | WHATWG custom element name            | accepted                                          | n/a                                          |
-| HTML `data-*`                         | n/a                                               | accepted, ignored by schema validation       |
+| Synthetic `cem:html-data` (`data-*`)  | n/a                                               | accepted, ignored by schema validation       |
 | ARIA (`role`, `aria-*`)               | n/a                                               | accepted; ARIA validity is a separate pass   |
 | Active CEM schema namespace           | `error: cem.schema.unknown_cem_element`           | `error: cem.schema.unknown_cem_attribute`    |
 | Other registered schema namespaces    | per registered schema open-content policy         | per registered schema open-content policy    |
@@ -472,6 +474,31 @@ transformation. A parsed tag or attribute name has two identities:
 - **lexical name:** the literal spelling in the source, such as `cem-screen`, `screen`,
   `cem:screen`, or `button`;
 - **expanded name:** the resolved namespace plus local name, owned by a schema.
+
+Tier A uses one `QName { prefix, local, expanded }` model for tags and attributes. The
+normalizer resolves `QName` at the event boundary before the schema machine consumes the
+event. Tokenizer output keeps the original source spelling for source maps and reports.
+Namespace policy decides the normalized `local` value for elements; attributes are
+case-sensitive and may use camelCase. HTML element names bind to the HTML namespace with
+ASCII-lowercased local names; HTML attributes keep their source case. XML and other
+non-HTML contexts preserve case for both elements and attributes.
+
+HTML `data-*` attributes resolve to the synthetic `cem:html-data` namespace, with the
+local name taken from the case-sensitive suffix after `data-`. For example,
+`data-userId` resolves as `{cem:html-data}userId` while the lexical name remains
+`data-userId`. Prefix-less attribute names without a default schema namespace remain
+HTML-owned or synthetic HTML-data names; they do not become CEM-owned by default.
+
+Duplicate attributes are resolved by `ExpandedName` after namespace binding. If multiple
+attributes in the same start tag resolve to the same expanded name, the last attribute
+overrides the previous value and source range. The earlier occurrence is shadowed for
+validation and transformation rather than diagnosed as a duplicate attribute.
+
+Foreign content, including SVG and MathML, is a content-type switch rather than an
+in-place HTML tokenizer name mode. The parent context emits a `ModeSwitch` and creates a
+child context scope with its own content type, namespace context, schema, and case
+policy. Names inside that scope are resolved by the child context; the parent source-map
+stack wraps the child scope.
 
 CEM-specific tags and attributes live in the namespace associated with their schema. They
 do not collide with HTML attributes, pass-through attributes, or another schema's tags as
@@ -893,10 +920,10 @@ For the CEM semantic HTML projection, schema-qualified CEM annotations drive cus
 element output, wrapper generation, attribute generation, or no structural output
 depending on the active transform plan. Schema-qualified CEM attributes can become
 generated custom-element attributes such as `cem-id`, `variant`, or `state` according to
-the active schema. Other standard HTML attributes (class, id, ARIA, and HTML `data-*`)
-pass through only as HTML-owned metadata unless the active schema defines a stricter
-mapping. Transformers match CEM annotations, not raw HTML `data-*` attributes or the
-HTML-specific `dataset` projection.
+the active schema. Other standard HTML attributes (class, id, ARIA, and synthetic
+`cem:html-data` names from HTML `data-*`) pass through only as HTML-owned metadata
+unless the active schema defines a stricter mapping. Transformers match CEM annotations,
+not raw HTML `data-*` attributes or the HTML-specific `dataset` projection.
 
 | CEM annotation         | Source element (typical)        | Possible output projection       |
 |------------------------|---------------------------------|----------------------------------|
@@ -1095,8 +1122,8 @@ Status key:
 | L1 EncodingDecoder: UTF-16, Latin-1, BOM detection          | Design ready — byte-stream initiation, BOM precedence, BOM skipping, and caller/default encoding precedence are resolved (§5, §18.3.2)                                                   |
 | L1 Sentinel-byte ownership                                  | Design partial — Rust safety model for sentinel not resolved (§18.3.1)                                                                                                                  |
 | L2 SchemaTokenizer: HTML WHATWG profile                     | Design ready — custom WHATWG-state tokenizer selected for exact source-map preservation across nested embedded contexts (§6)                                                            |
-| L2 SchemaTokenizer: XML 1.0 profile                         | Design partial — namespace/name model remains unresolved (§18.4.4); DTD/external-resource ownership follows transform policy (§3.2, §6)                                                 |
-| L3 EventNormalizer                                          | Design partial — attribute-list close event, void elements, name model, and trivia remain unspecified (§18.4.1–4); `ModeSwitch` creates the embedded context (§9)                       |
+| L2 SchemaTokenizer: XML 1.0 profile                         | Design partial — DTD/external-resource ownership follows transform policy (§3.2, §6)                                                                                                     |
+| L3 EventNormalizer                                          | Design partial — attribute-list close event, void elements, and trivia remain unspecified (§18.4.1–3); `QName` resolution and `ModeSwitch` context creation are defined (§8, §9)          |
 | L4 SchemaMachine: visibly pushdown frame stack              | Design ready — frame phases, attribute/content trackers, recovery invariant, and diagnostic propagation boundary are resolved (§8, §3.1)                                                  |
 | L4 SchemaMachine: RELAX NG derivative engine                | Deferred Tier B — CEM structural schema has RELAX NG functional parity; switching from Tier A DFA to derivatives may break report compatibility (§8, §13)                                |
 | L4 SchemaMachine: CEM vocabulary DFA                        | Design partial — limited Tier A DFA profile is selected and open-content defaults are resolved (§8, §13); DFA state table remains unspecified                                             |
@@ -1550,8 +1577,8 @@ document; configurability without a use case is premature.
 **Concern 18.4.1 — Attribute-list boundaries are not represented.**  
 The normalizer emits `OpenScope`, then `Name`/`Value` pairs for attributes, then children
 appear later. The schema machine needs to know when the start tag's attribute set is
-complete so it can validate required attributes, duplicate attributes, and element
-content separately.
+complete so it can validate required attributes, resolve duplicate-attribute overrides,
+and validate element content separately.
 
 **Question:** Should the normalizer emit an explicit `SeparatorKind::ElementBoundary`,
 `StartTagEnd`, or `OpenScopeComplete` event after all attributes?
@@ -1601,11 +1628,11 @@ elements such as `input`, `img`, and `br`.
 **Question:** Does the normalizer synthesize `CloseScope` for self-closing and void
 elements? If so, what source range does the synthetic close event use?
 
-**Answer A — Synthesize `CloseScope` immediately for both void HTML elements and self-closing XML/foreign-content tags.**
+**Answer A — Synthesize `CloseScope` immediately for both void HTML elements and self-closing XML or child content-type scopes.**
 After emitting `OpenScope`, attribute pairs, and `Separator { ElementBoundary }`, the
 normalizer immediately emits `CloseScope { name, byte_range }` when:
-- the start tag has `self_closing = true` *and* the active tokenizer mode permits
-  self-closing semantics (XML, SVG, MathML); or
+- the start tag has `self_closing = true` *and* the active context's content type permits
+  self-closing semantics (XML or child scopes such as SVG/MathML); or
 - the element is a known HTML void element (`area`, `base`, `br`, `col`, `embed`, `hr`,
   `img`, `input`, `link`, `meta`, `source`, `track`, `wbr`).
 
@@ -1687,65 +1714,6 @@ trivia is never *invisible*, just not load-bearing.
 - Do diagnostics that reference a comment or whitespace span (e.g. "comment near `<x>`
   contains `--` sequence") still need a `byte_range`? Yes — diagnostics are not bound
   to surviving events.
-
-**Concern 18.4.4 — QName and namespace handling is only partially defined.**  
-CEM namespace binding, scoped defaults, and ordered namespace overrides are defined in
-§8. HTML lowercasing, XML namespace syntax compatibility, foreign content, prefixed
-attribute parsing, and case sensitivity remain unspecified.
-
-**Question:** What is the Tier A name model for HTML elements, HTML attributes,
-schema-qualified CEM attributes, XML names, and future SVG/MathML foreign content?
-
-**Answer A — One unified `QName { prefix, local, expanded: ExpandedName }` resolved at the normalizer boundary; case folding is a per-namespace policy.**
-- HTML namespace (`http://www.w3.org/1999/xhtml`): element and attribute lexical names
-  are ASCII-lowercased *during tokenization* (matches WHATWG); the lexical name on the
-  `QName` is the lowercased form, and `ExpandedName.local_name` matches.
-- XML namespace and any non-HTML namespace: case is preserved verbatim.
-- CEM schema-qualified attributes: prefix is resolved through the active `NsContext`
-  (per §3.4.1 of the impl doc) to an `ExpandedName { namespace_uri, schema_id, local_name }`.
-  Prefix-less attribute names without a default schema namespace are *HTML-namespaced*,
-  not CEM-namespaced.
-- Foreign content (SVG, MathML): tokenizer enters foreign-content mode (per WHATWG
-  insertion-mode rules later applied by the WHATWG content-type transform); names are
-  case-preserved per the foreign namespace's case-folding rules (SVG has a list of
-  camelCase exceptions; MathML preserves case).
-- Collision and duplicate-attribute checks compare `ExpandedName`, not lexical
-  spelling.
-
-**Answer B — Two name layers: `LexicalName` on tokens, `ExpandedName` on schema events.**
-Tokens carry only `LexicalName: String` (raw bytes, post-decoding). The normalizer
-attaches the resolved `ExpandedName` and `binding_id` to each `OpenScope`/`Name` event
-via the existing §3.4.1 `NameResolution` shape. Pros: tokenizer doesn't need namespace
-context; resolution is centralized. Cons: matches §3.4.1 anyway.
-
-**Answer C — Case folding is a content-type-transform concern, not a tokenizer concern.**
-Tokenizer keeps raw bytes verbatim; the WHATWG HTML content-type transform performs
-ASCII-lowercasing as it builds the implementation DOM. Pros: token-level fidelity;
-"raw" projection shows what the author wrote. Cons: schema validation runs *before* the
-content-type transform — schema rules would have to deal with both `Input` and `INPUT`
-forms.
-
-**Recommendation:** Adopt **Answer B** with **Answer A**'s namespace rules. Tokenizer
-emits raw lexical names; normalizer attaches `NameResolution` and lowercases for the
-HTML namespace at the moment of attaching. This matches §3.4.1 and keeps the tokenizer
-free of namespace context. Foreign-content cases (SVG/MathML) are deferred — Tier A
-fixtures contain none — but the contract is: foreign content's tokenizer mode tags
-its tokens with a `foreign_namespace_hint`, and the normalizer applies the foreign
-namespace's case-folding policy when binding `ExpandedName`.
-
-**Ambiguity (to be answered):**
-- Are HTML `data-*` attributes a separate `ExpandedName` family (synthetic
-  `cem:html-data` namespace), or are they HTML-namespace attributes with no special
-  treatment? Default: HTML-namespace attributes; the schema may match them by lexical
-  prefix `data-`.
-- Does HTML5's "duplicate attribute → drop subsequent" tokenizer rule run before or
-  after the normalizer's `ExpandedName` resolution? Default: tokenizer drops duplicate
-  *lexical* names per WHATWG (which is sufficient because HTML attribute names are all
-  same-namespace); CEM-prefixed duplicates are caught later via `ExpandedName`
-  collision in the schema machine.
-- For SVG `viewBox`, `preserveAspectRatio`, etc., is the camelCase preservation list
-  hard-coded in the tokenizer or pulled from schema metadata? Default: hard-coded WHATWG
-  list, since it is normative; schema may extend, not override.
 
 ### 18.5 Schema-Machine And Validation Questions
 
