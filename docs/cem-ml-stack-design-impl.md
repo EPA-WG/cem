@@ -183,15 +183,20 @@ network delivery is Tier B.
 
 ### 3.2 Layer 2: SchemaTokenizer (`cem_ml::tokenizer`)
 
-The tokenizer is mode-aware and schema-guided. It extracts source-spanned tokens and
-switches lexical states; it does not construct either the initial HTML parser DOM or the
-WHATWG implementation DOM.
+The tokenizer is mode-aware and schema-guided. The HTML profile is a custom
+WHATWG-state tokenizer, not a wrapper around an external tokenizer crate. The custom
+implementation is required so every token
+and token sub-span can preserve source-map stacks through decoded streams and nested
+embedded handoff layers. It extracts source-spanned tokens and switches lexical states;
+it does not construct either the initial HTML parser DOM or the WHATWG implementation
+DOM.
 
 ```
 RawToken:
   kind: HtmlToken | XmlToken
   byte_range: ByteRange
   source_id: SourceId
+  source_map: SourceMapStack
 
 HtmlToken:
   Doctype { name, public_id, system_id, force_quirks }
@@ -204,7 +209,10 @@ HtmlToken:
 ```
 
 The `StartTag` attributes carry both the name and value ranges so the event normalizer
-can emit per-attribute byte offsets into the source-map stack.
+can emit per-attribute byte offsets into the source-map stack. `RawToken.source_map`
+maps the token's local `source_id` and `byte_range` back through any decoded stream or
+embedded handoff boundary that produced it. Attribute sub-ranges are interpreted within
+that same token source-map context.
 
 WHATWG tokenizer states (data, RCDATA, RAWTEXT, script-data, tag-open, attribute-value,
 etc.) are internal to this layer. The schema can select valid tokenizer contexts and
@@ -814,7 +822,7 @@ cem_ml/src/
     line_index.rs     LineIndex - byte offset -> (line, col) projection
   tokenizer/
     mod.rs            RawToken, SchemaTokenizer trait
-    html.rs           WHATWG HTML tokenizer profile
+    html.rs           Custom WHATWG-state HTML tokenizer profile
     xml.rs            XML 1.0 tokenizer profile
   events/
     mod.rs            NormalizedEvent, EventNormalizer

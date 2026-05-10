@@ -254,10 +254,14 @@ remain downstream.
 
 ### Functional Design
 
-For HTML, the tokenizer follows WHATWG tokenizer states and emits source-spanned tokens.
-It does not construct either the source-preserving initial HTML parser DOM or the WHATWG
-implementation DOM. The schema-defined token hierarchy is reconstructed later by the
-input DOM/AST builder, and WHATWG DOM compliance is applied as a content-type transform.
+For HTML, Tier A uses a custom WHATWG-state tokenizer and emits source-spanned tokens.
+The custom tokenizer is selected over wrapping an existing Rust HTML5 tokenizer because
+CEM requires exact source-map preservation across nested embedded contexts, decoded
+handoff streams, token envelopes, attribute names, attribute values, text runs, and raw
+text return boundaries. It does not construct either the source-preserving initial HTML
+parser DOM or the WHATWG implementation DOM. The schema-defined token hierarchy is
+reconstructed later by the input DOM/AST builder, and WHATWG DOM compliance is applied
+as a content-type transform.
 
 The schema can select valid tokenizer contexts and embedded-content boundaries, but it
 does not rewrite WHATWG lexical behavior. XML follows the same layer contract with an
@@ -268,9 +272,6 @@ entities, notation declarations, and XInclude, are delegated to the XML content-
 transform. Entity expansion is XML-specific and is not a CEM-ML primitive; CEM-ML
 reference resolution uses slots and inlined references without cloning referenced content
 into the originating tree.
-
-**Ambiguity 2** covers whether Tier A wraps an existing Rust HTML5 tokenizer or uses a
-custom WHATWG implementation.
 
 Token shapes are in
 [`cem-ml-stack-design-impl.md`](cem-ml-stack-design-impl.md#32-layer-2-schematokenizer-cem_mltokenizer).
@@ -962,7 +963,7 @@ Status key:
 | L1 EncodingDecoder: UTF-8                                   | Design ready — UTF-8 is the fallback when no BOM or explicit/default encoding is present (§5, §18.3.2)                                                                                  |
 | L1 EncodingDecoder: UTF-16, Latin-1, BOM detection          | Design ready — byte-stream initiation, BOM precedence, BOM skipping, and caller/default encoding precedence are resolved (§5, §18.3.2)                                                   |
 | L1 Sentinel-byte ownership                                  | Design partial — Rust safety model for sentinel not resolved (§18.3.1)                                                                                                                  |
-| L2 SchemaTokenizer: HTML WHATWG profile                     | Design partial — crate choice and token offset behavior unresolved (Ambiguity 2)                                                                                                        |
+| L2 SchemaTokenizer: HTML WHATWG profile                     | Design ready — custom WHATWG-state tokenizer selected for exact source-map preservation across nested embedded contexts (§6)                                                            |
 | L2 SchemaTokenizer: XML 1.0 profile                         | Design partial — namespace/name model remains unresolved (§18.4.4); DTD/external-resource ownership follows transform policy (§3.2, §6)                                                 |
 | L3 EventNormalizer                                          | Design partial — attribute-list close event, void elements, name model, and trivia remain unspecified (§18.4.1–4); `ModeSwitch` creates the embedded context (§9)                       |
 | L4 SchemaMachine: visibly pushdown frame stack              | Design partial — recovery invariant, multiplicity/required-name state, and diagnostic propagation affect core semantics (§18.5.3–4, Ambiguity 8)                                        |
@@ -1001,7 +1002,7 @@ Status key:
 
 | Layer     | Problem                      | Algorithm                                                | Reason from research                                                                           |
 |-----------|------------------------------|----------------------------------------------------------|------------------------------------------------------------------------------------------------|
-| L2        | HTML tokenization            | WHATWG tokenizer states                                  | Browser-compatible; separates token extraction from DOM                                        |
+| L2        | HTML tokenization            | Custom WHATWG-state tokenizer                            | Browser-compatible; preserves exact source maps across nested embedded contexts                |
 | L2        | XML tokenization             | XML 1.0 scanner                                          | Well-defined, same tokenizer contract as HTML                                                  |
 | L3        | Cross-format event model     | Open/close/name/value taxonomy                           | Research §3: small event set lets schema validation share algorithms across formats            |
 | L4        | Nested validation            | Visibly pushdown frame stack                             | Research §4, §Algorithms: "natural fit for open/close structures"                              |
@@ -1026,28 +1027,6 @@ Status key:
 Each open ambiguity is a design decision that must be resolved before the corresponding
 implementation phase begins. Numbering preserves previously assigned ambiguity IDs;
 resolved items are omitted. They are ordered by the layer they block.
-
----
-
-### Ambiguity 2 — HTML5 Tokenizer: Existing Crate vs. Custom
-
-**Blocks:** Layer 2 HTML profile implementation.
-
-**Question:** Should `cem_ml::tokenizer::html` wrap an existing Rust HTML5 tokenizer
-crate (e.g., `html5ever`, `lol_html`, `quick-xml`) or implement a custom WHATWG-compliant
-tokenizer?
-
-**For existing crate:** Battle-tested WHATWG recovery behavior; handles real-world HTML
-edge cases; faster to integrate.  
-**For custom:** Full control of token shapes; guaranteed byte-offset preservation on every
-token and attribute; no coupling to external crate API evolution.
-
-**Key constraint from research:** The tokenizer must emit byte-range-annotated tokens.
-The chosen crate must preserve exact byte offsets for every attribute name, attribute
-value, and text node — or the source-map stack cannot be fully populated. Verify before
-committing.
-
----
 
 ### Ambiguity 4 — Transform Backend Tier Placement
 
