@@ -925,8 +925,25 @@ The dedicated schema compiler emits two products:
 
 - a structural validation IR with RELAX NG functional parity that can drive the limited
   Tier A CEM DFA profile and the full derivative runtime; and
-- a semantic rule registry for cross-reference, contextual, policy, and transform checks
-  that are not structural grammar constraints.
+- a schema-owned rule registry for cross-reference, semantic/contextual, lexical/mode,
+  tokenizer-boundary, policy, and transform checks with explicit dependency tier and
+  execution placement.
+
+All CEM constraints are schema-owned. The compiler separates *ownership* from
+*execution placement* by assigning each rule to the earliest safe layer that has enough
+information to enforce it:
+
+| Tier                                  | Examples                                                                                                              | Primary execution placement |
+|---------------------------------------|-----------------------------------------------------------------------------------------------------------------------|-----------------------------|
+| 1. Structural (derivative-computable) | element/attribute names, child ordering and multiplicity, attribute presence, simple value-type and pattern constraints | SchemaMachine via CEM structural IR -> Tier A DFA / later derivative runtime |
+| 2. Cross-references                   | `aria-labelledby` / `for` ID resolution, `href` fragment targets, `cem:slot` slot-to-named-target binding             | Reference-resolution pass when slot/name-resolution state is available |
+| 3. Semantic / contextual              | uniqueness of `id`, allowed embedding by content type, ARIA semantics, policy-sensitive validation                    | Earliest safe tokenizer, normalizer, AST, transform, or policy pass |
+
+Tier 2 and Tier 3 checks do not have to wait for full document completion. Tokenizer or
+normalizer placement is valid for schema-owned lexical/mode, delimiter,
+embedded-boundary, or local token diagnostics. Tokenizer-executed diagnostics remain
+schema-owned and must not make the tokenizer the semantic source of truth or allow it to
+rewrite WHATWG lexical behavior.
 
 Functional parity requirements:
 
@@ -938,8 +955,10 @@ Functional parity requirements:
   multiplicity, simple value-type and pattern constraints, unknown/open-content policy,
   embedded content handoffs, content-type transform hooks, and rendered/canonical
   projection metadata.
-- The compiler must separate structural constraints from cross-reference and semantic
-  constraints using the tier split in §18.5.5.
+- The compiler must emit structural constraints into the structural IR and emit
+  cross-reference, semantic/contextual, lexical/mode, tokenizer-boundary, policy, and
+  transform constraints into the schema-owned rule registry with explicit execution
+  placement.
 - The schema machine consumes compiler output, not authoring syntax. Selecting the
   CEM-native format fixes the compiler source contract without changing the event
   processing, frame-stack, DFA, or derivative-runtime boundaries.
@@ -1883,46 +1902,6 @@ the constraint table verbatim.
 - For schemas that declare attribute *order* significant (rare; not in CEM today), how
   is that expressed? Default: deferred — emit `cem.schema.unsupported_constraint` at
   schema compile time.
-
-**Concern 18.5.5 — CEM-native schema language must separate schema ownership from execution placement.**
-Section 13 selects the CEM-native declarative format as the schema source of truth. All
-CEM constraints are schema-owned, including structural, cross-reference, semantic,
-contextual, lexical/mode, tokenizer-boundary, policy, and transform constraints. The
-compiler assigns each schema-owned rule to the earliest safe execution layer that has
-enough information to enforce it.
-
-**Question:** Which CEM constraints are structural grammar constraints, and which are
-semantic validation passes outside RELAX NG derivatives?
-
-**Answer A — Split CEM constraints into three schema-owned execution tiers.**
-
-| Tier                                    | Examples                                                                                                                       | Primary execution placement             |
-|-----------------------------------------|--------------------------------------------------------------------------------------------------------------------------------|-----------------------------------------|
-| 1. Structural (derivative-computable)   | element/attribute names, child ordering & multiplicity, attribute presence, simple value-type and pattern constraints          | SchemaMachine via CEM structural IR -> Tier A DFA / later derivative runtime |
-| 2. Cross-references                     | `aria-labelledby` / `for` ID resolution, `href` fragment targets, `cem:slot` slot-to-named-target binding                      | Reference-resolution pass when slot/name-resolution state is available |
-| 3. Semantic / contextual                | uniqueness of `id`, allowed embedding by content type, ARIA semantics, policy-sensitive validation                             | Earliest safe tokenizer, normalizer, AST, transform, or policy pass |
-
-The compiler emits structural IR for Tier 1 and a schema-owned rule registry for Tiers 2
-and 3. That registry records each rule's dependency tier and execution placement. Some
-Tier 3 checks can execute in the tokenizer when they require only lexical mode,
-delimiter, embedded-boundary, or local token information. Tokenizer-executed checks are
-still schema-owned diagnostics and must not make the tokenizer the semantic source of
-truth or allow it to rewrite WHATWG lexical behavior.
-
-Tier 2 and Tier 3 checks do not have to wait for full document completion. They run at
-the earliest safe layer that has the required data: tokenizer or normalizer for local
-lexical/mode constraints, SchemaMachine for structural constraints, reference-resolution
-passes for slot/name constraints, AST passes for context-sensitive constraints, and
-transform/policy passes for rendering, resource, or security constraints.
-
-**Decision:** Adopt **Answer A**. The three tiers map cleanly onto reuse while keeping
-one source of truth: the CEM-native schema. Tier 1 is engine-swappable (Tier A DFA ->
-derivatives); Tier 2 reuses `NameResolution` and slot tables; Tier 3 hosts contextual
-and policy-style rules. Diagnostics use distinct namespaces by default
-(`cem.schema.*`, `cem.refs.*`, `cem.semantic.*`) so filters and report grouping are
-obvious.
-
----
 
 *End of design document. Each ambiguity and review concern above should be resolved with
 a brief decision record before the corresponding implementation phase starts. Resolved
