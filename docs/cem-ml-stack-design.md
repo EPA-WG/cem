@@ -500,8 +500,11 @@ Tier A handoff cases:
 | HTML document  | `<script>` start tag | raw text (not parsed Tier A)   | `</script>` end tag |
 
 For Tier A, the CSS child parser is a stub that emits diagnostics but does not produce a
-typed CSS AST. Script regions are treated as raw text. The handoff stack is implemented
-fully in Tier A to keep the interface stable for Tier B content-type expansion.
+typed CSS AST. Script regions are treated as raw text by the parser. Whether a script
+region is preserved, warned, rejected, or allowed only for specific `type` values is
+defined by the active scope/content-type policy, using the same error-level handling as
+all other content types. The handoff stack is implemented fully in Tier A to keep the
+interface stable for Tier B content-type expansion.
 
 The one WHATWG-specified exception is script-data mode: `</script>` ends the script
 region according to WHATWG tokenizer rules regardless of the child parser. This is
@@ -945,7 +948,7 @@ Status key:
 | L4 SchemaMachine: CEM vocabulary DFA                        | Design partial — DFA state table, schema compiler integration, and unknown-content policy remain unspecified (Ambiguity 3, Ambiguity 9, §18.5.1–2)                                      |
 | L5 HandoffStack: ownership and return-condition tracking    | Design partial — authoritative handoff owner remains unresolved (§18.6.1); deferred cases are listed with XML → JSON → HTML/other implementation priority (§9)                          |
 | L5 Child parser: CSS (stub, diagnostic only)                | Design partial — embedded-source byte/decoded-view model unspecified (§18.6.2)                                                                                                          |
-| L5 Child parser: Script (raw text only)                     | Design partial — script preservation policy unspecified (§18.6.3); unsafe-content validation follows content-type policy (§3.2)                                                         |
+| L5 Child parser: Script (raw text only)                     | Design ready — parser preserves raw text; warning/error/reject/allow behavior is defined by active scope/content-type policy (§3.1–3.2, §9)                                             |
 | L6 InputDomAstBuilder: schema-defined initial DOM/AST       | Design ready — schema reconstructs token hierarchy; WHATWG DOM compliance is a downstream transformation over this initial DOM                                                          |
 | L6 InterpreterAstBuilder: CEM annotation projection         | Design partial — CEM attributes are transform annotations on source nodes; transform conflict policy is schema-owned; Tier A non-CEM minimum and CEM comment/CDATA syntax remain TBD (§10) |
 | L6 Reference slots: id/for/aria-*                           | Design partial — unfilled-slot severity remains unresolved (Ambiguity 6); concrete slot storage model is implementation TBD (§10)                                                        |
@@ -1367,14 +1370,6 @@ characters do not map one-to-one to raw bytes.
 **Question:** Does the child parser consume a synthetic `SourceId` with its own decoded
 text and a source-map frame back to the parent attribute, or does it consume raw parent
 bytes with escape awareness?
-
-**Concern 18.6.3 — Script handling says "raw text" but security and diagnostics still
-need a policy.**  
-Tier A treats scripts as raw text, but CEM semantic documents may need to reject,
-warning-report, or preserve scripts.
-
-**Question:** Are `<script>` regions always warnings, always errors, preserved raw, or
-allowed only with specific `type` values?
 
 ---
 
