@@ -473,7 +473,7 @@ composition, precedence, rejection, or diagnostics.
 Reference slots:
 
 ```
-NameSlot: Arc<Mutex<Option<AstNodeId>>>
+NameSlot: logical mutable placeholder for a referenced AstNodeId
 
 LabelRef(NameSlot)          - wraps a slot; filled when id="..." element is parsed
 ForRef(NameSlot)            - for/id pairing
@@ -487,6 +487,12 @@ the same slot observes the fill immediately.
 Forward references are represented as unfilled slots at parse time. The schema machine
 performs a post-parse reference check to identify remaining unfilled slots and emit
 diagnostics.
+
+Implementation TBD: `NameSlot` is a logical contract, not a required
+`Arc<Mutex<Option<AstNodeId>>>` public shape. For a synchronous Tier A parser, a
+generational slot arena or handle table is likely simpler, faster, and easier to
+serialize into the future binary AST. Thread-safe shared ownership is required only if a
+public async/concurrent API exposes slots across threads or tasks.
 
 The `InputDomAstBuilder` appends a source-map frame when reconstructing the
 schema-defined token hierarchy. The `InterpreterAstBuilder` appends a
@@ -639,6 +645,11 @@ DCE integration is represented as ordinary template and state metadata. A DCE ta
 is a `TemplateRef`; DCE attributes, dataset, payload/slots, and slices become
 `MachineStateSlot`s. Browser-facing custom-element primitives such as HTTP request,
 storage, and location/route providers are runtime state sources, not AST node kinds.
+
+Machine-state slots are CEM data placeholders supplied by a call instance, caller, or
+runtime adapter. They are unrelated to HTML `<slot>` distribution. If multiple
+`MachineStateSlot` references use the same `StateKey` in the same effective scope, they
+resolve to the same slot id and reuse the same data.
 
 ```
 RenderBinding:

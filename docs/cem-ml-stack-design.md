@@ -932,7 +932,7 @@ Status key:
 | L5 Child parser: Script (raw text only)                     | Design partial — script preservation policy unspecified (§18.6.3); unsafe-content validation follows content-type policy (§3.2)                                                         |
 | L6 InputDomAstBuilder: schema-defined initial DOM/AST       | Design ready — schema reconstructs token hierarchy; WHATWG DOM compliance is a downstream transformation over this initial DOM                                                          |
 | L6 InterpreterAstBuilder: CEM annotation projection         | Design partial — CEM attributes are transform annotations on source nodes; transform conflict policy is schema-owned; Tier A non-CEM minimum and CEM comment/CDATA syntax remain TBD (§10) |
-| L6 Reference slots: id/for/aria-*                           | Design partial — slot implementation model and unfilled-slot severity remain unresolved (Ambiguity 6, §18.7.1); machine-state slots are call-instance data placeholders (§12)            |
+| L6 Reference slots: id/for/aria-*                           | Design partial — unfilled-slot severity remains unresolved (Ambiguity 6); concrete slot storage model is implementation TBD (§10)                                                        |
 | L6 Source-map stacks: byte-range + transform chain          | Design partial — frame order, multi-range nodes, escape/entity decoding, and diagnostics-before-AST mapping unresolved (§18.2.1–3, §18.2.5)                                             |
 | L6 Source-map stacks: bit-level ranges                      | Deferred Tier B — reserve representation only after source-map frame model is fixed (§18.2.1–2); no serialized binary frame ids in Tier A (§11)                                         |
 | L7 BinaryAstEncoder                                         | Deferred Tier B — Tier A does not freeze serialized binary ids; canonical identity, ordering, and future id policy are scoped in §11                                                    |
@@ -1367,16 +1367,6 @@ deferred or unsupported.
 
 **Question:** Should the handoff module define enum variants for all research return
 conditions now, even if only HTML style/script cases are active in Tier A?
-
-### 18.7 AST And Reference Model Concerns
-
-**Concern 18.7.1 — `Arc<Mutex<Option<AstNodeId>>>` may overfit future concurrency.**  
-The research requires mutable scoped name slots, but not necessarily `Arc<Mutex>`.
-For a synchronous Tier A parser, a generational slot arena may be simpler, faster, and
-easier to serialize into the binary AST.
-
-**Question:** Is `NameSlot` a logical concept whose implementation can be an arena slot,
-or is thread-safe shared ownership part of the public contract?
 
 ---
 
