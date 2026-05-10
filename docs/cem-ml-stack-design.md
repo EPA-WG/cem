@@ -684,8 +684,8 @@ Functional scope roles:
 - **Visual content:** HTML, SVG, MathML, canvas command data, images, video, and other
   renderable scopes that can contribute nodes or resources to the UI output.
 - **Machine state data:** data islands, attributes, `dataset`, payload/slot content,
-  fetched resources, route/location state, storage state, form state, and runtime
-  slices that parameterize transforms.
+  fetched resources, route/location state, storage state, form state, call-instance
+  slot data, and runtime slices that parameterize transforms.
 - **Code or transform content:** CSS, SCSS, XSLT or template DSL fragments, JavaScript
   when enabled by policy, and other content that can affect rendering or state but is
   not itself the rendered UI tree.
@@ -729,6 +729,12 @@ propagating events to data slices and rerendering affected UI. Other custom-elem
 stack primitives expose browser data and APIs, such as HTTP request, storage, and
 location/route state, as machine state providers. CEM models those providers as runtime
 data adapters feeding machine state slots; they are not special AST node families.
+
+CEM machine-state slots are data propagation placeholders supplied by a call instance or
+runtime adapter. They are not HTML `<slot>` elements and do not follow HTML slot
+distribution rules. Multiple CEM slots with the same name intentionally refer to the
+same state slot, so the same data is reused wherever that name appears in the same
+effective scope.
 
 Tier A may emit static rendered output and enough template/state metadata for later
 hydration. Live event handling, browser API adapters, DOM patching, DOM identity
@@ -926,7 +932,7 @@ Status key:
 | L5 Child parser: Script (raw text only)                     | Design partial — script preservation policy unspecified (§18.6.3); unsafe-content validation follows content-type policy (§3.2)                                                         |
 | L6 InputDomAstBuilder: schema-defined initial DOM/AST       | Design ready — schema reconstructs token hierarchy; WHATWG DOM compliance is a downstream transformation over this initial DOM                                                          |
 | L6 InterpreterAstBuilder: CEM annotation projection         | Design partial — CEM attributes are transform annotations on source nodes; transform conflict policy is schema-owned; Tier A non-CEM minimum and CEM comment/CDATA syntax remain TBD (§10) |
-| L6 Reference slots: id/for/aria-*                           | Design partial — slot implementation model, lifecycle, override, duplicate, and cross-scope rules unresolved (Ambiguity 6, §18.7.1–2)                                                   |
+| L6 Reference slots: id/for/aria-*                           | Design partial — slot implementation model and unfilled-slot severity remain unresolved (Ambiguity 6, §18.7.1); machine-state slots are call-instance data placeholders (§12)            |
 | L6 Source-map stacks: byte-range + transform chain          | Design partial — frame order, multi-range nodes, escape/entity decoding, and diagnostics-before-AST mapping unresolved (§18.2.1–3, §18.2.5)                                             |
 | L6 Source-map stacks: bit-level ranges                      | Deferred Tier B — reserve representation only after source-map frame model is fixed (§18.2.1–2); no serialized binary frame ids in Tier A (§11)                                         |
 | L7 BinaryAstEncoder                                         | Deferred Tier B — Tier A does not freeze serialized binary ids; canonical identity, ordering, and future id policy are scoped in §11                                                    |
@@ -1371,13 +1377,6 @@ easier to serialize into the binary AST.
 
 **Question:** Is `NameSlot` a logical concept whose implementation can be an arena slot,
 or is thread-safe shared ownership part of the public contract?
-
-**Concern 18.7.2 — Slot lifecycle and override rules are not defined.**  
-The research says slots are set or overridden when a referenced token/entity is defined.
-The design only covers filling an empty id slot.
-
-**Question:** What happens on duplicate IDs, shadowed scoped names, late overrides,
-deleted/replaced nodes, or cross-scope references?
 
 ---
 
