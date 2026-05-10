@@ -140,10 +140,29 @@ ByteSource:
   bytes() -> &[u8]                  read-only; sentinel byte guaranteed at bytes.len()
   byte_range() -> ByteRange         full range of this source
 
+DecodeConfig:
+  default_encoding: Option<Encoding> // caller/server/child-source encoding, if known
+  content_type: ContentType
+
+DecodeResult:
+  chunks: Vec<DecodedChunk>
+  selected_encoding: Encoding
+  selection: EncodingSelection
+  bom: Option<BomInfo>
+
 DecodedChunk:
   scalars: [(char, ByteRange)]      Unicode scalar paired with its byte span
   byte_range: ByteRange             range covered by this chunk
   encoding: Encoding                UTF-8, UTF-16LE, UTF-16BE, Latin-1, ...
+
+EncodingSelection:
+  Bom
+  DefaultParameter
+  Utf8Fallback
+
+BomInfo:
+  encoding: Encoding
+  byte_range: ByteRange             source bytes skipped from the decoded scalar stream
 ```
 
 Implementation rules:
@@ -151,8 +170,13 @@ Implementation rules:
 - Keep absolute `u64` byte offsets for every token and event.
 - Keep decoded scalar spans alongside scalars for Unicode-aware validation.
 - Preserve raw byte slices for zero-copy diagnostic snippets.
-- Validate UTF-8 at ingress for HTML inputs unless the selected profile resolves the
-  HTML/WHATWG encoding ambiguity differently.
+- Inspect the first bytes of each `ByteSource` before tokenization. A supported BOM
+  selects the encoding for that source, is skipped from `DecodedChunk.scalars`, and
+  suppresses later encoding overrides for that source.
+- If no BOM is present, use `DecodeConfig.default_encoding`. If it is absent, use UTF-8.
+- Inline embedded handoffs consume the owner's decoded Unicode stream and do not run BOM
+  detection. External or separately loaded resources receive their own `ByteSource` and
+  `DecodeConfig`, then apply the same initiation rule.
 
 Tier A supports in-memory byte buffer, string input, and file-path input. Chunked async
 network delivery is Tier B.

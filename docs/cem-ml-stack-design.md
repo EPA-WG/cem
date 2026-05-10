@@ -217,11 +217,20 @@ Rules from the research:
 - Keep absolute `u64` byte offsets for every token and event.
 - Keep decoded scalar spans alongside scalars for Unicode-aware validation.
 - Preserve raw byte slices for zero-copy diagnostic snippets.
-- Validate UTF-8 at ingress for the CEM HTML profile unless the HTML/WHATWG encoding
-  decision resolves otherwise.
+- Decode each byte source into a Unicode scalar stream before tokenization. Tokenizers
+  consume decoded Unicode scalars, never raw encoding-specific code units.
+- Treat BOM detection as byte-stream initiation. If the first bytes of a `ByteSource`
+  are a supported BOM, the BOM determines the source encoding, the BOM bytes are skipped
+  from the decoded scalar stream, and later encoding overrides for that source are
+  ignored.
+- If no BOM is present, use the explicit/default encoding parameter supplied with the
+  source. Callers may derive this value from server `Content-Type` headers or other
+  transport metadata. If no encoding is supplied, default to UTF-8.
+- Inline embedded contexts receive source-mapped decoded streams from their owner and do
+  not perform BOM detection. External or separately loaded resources are new byte-source
+  initiations and apply the same BOM/default-encoding precedence independently.
 
-**Ambiguity 1** covers BOM handling differences between HTML and XML inputs. Encoding
-policy and resource bounds remain open review items in §18.3.
+Encoding resource bounds remain an open review item in §18.3.3.
 
 ### Tier A Scope
 
@@ -950,8 +959,8 @@ Status key:
 |-------------------------------------------------------------|-----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|
 | L1 ByteSource: in-memory buffer, string, file path          | Design partial — source ownership/resource bounds need decisions (§18.3.1, §18.3.3)                                                                                                     |
 | L1 ByteSource: async network streaming                      | Deferred Tier B — Tier A interfaces must still preserve absolute offsets for future chunked input                                                                                       |
-| L1 EncodingDecoder: UTF-8                                   | Design partial — UTF-8-only CEM profile vs WHATWG encoding detection unresolved (§18.3.2)                                                                                               |
-| L1 EncodingDecoder: UTF-16, Latin-1, BOM detection          | Design partial — required for HTML/XML profile clarity; blocked by Ambiguity 1 and §18.3.2                                                                                              |
+| L1 EncodingDecoder: UTF-8                                   | Design ready — UTF-8 is the fallback when no BOM or explicit/default encoding is present (§5, §18.3.2)                                                                                  |
+| L1 EncodingDecoder: UTF-16, Latin-1, BOM detection          | Design ready — byte-stream initiation, BOM precedence, BOM skipping, and caller/default encoding precedence are resolved (§5, §18.3.2)                                                   |
 | L1 Sentinel-byte ownership                                  | Design partial — Rust safety model for sentinel not resolved (§18.3.1)                                                                                                                  |
 | L2 SchemaTokenizer: HTML WHATWG profile                     | Design partial — crate choice and token offset behavior unresolved (Ambiguity 2)                                                                                                        |
 | L2 SchemaTokenizer: XML 1.0 profile                         | Design partial — namespace/name model remains unresolved (§18.4.4); DTD/external-resource ownership follows transform policy (§3.2, §6)                                                 |
@@ -1017,28 +1026,6 @@ Status key:
 Each open ambiguity is a design decision that must be resolved before the corresponding
 implementation phase begins. Numbering preserves previously assigned ambiguity IDs;
 resolved items are omitted. They are ordered by the layer they block.
-
----
-
-### Ambiguity 1 — BOM Handling For Multi-Format Sources
-
-**Blocks:** Layer 1 implementation.
-
-**Question:** When the same `ByteSource` + `EncodingDecoder` module handles both HTML and
-XML inputs, how is the BOM treated?
-
-- WHATWG HTML: detect encoding from BOM, then strip it before decoding.
-- XML 1.0: BOM is the byte order mark for UTF-16; UTF-8 BOM is permitted, signals UTF-8.
-
-**Impact:** `source::decode` needs either a `DecoderMode { Html, Xml }` parameter, or two
-separate decoder entry points.
-
-**Options:**  
-A. Two modes on the decoder: `decode_html(bytes)` strips BOM per WHATWG; `decode_xml(bytes)` preserves BOM semantics.  
-B. Unified decoder with a format hint.
-
-**Recommendation:** Option A — keeps each format's rules unambiguous, avoids a shared code path that must know about
-both WHATWG and XML BOM rules.
 
 ---
 
@@ -1397,11 +1384,11 @@ is also a line break for index purposes but column resets *after* the `CR`'s byt
 preprocessing (NUL → U+FFFD, etc.) runs in Layer 1 and never changes byte offsets —
 substituted scalars keep the original byte's range.
 
-**Ambiguity (to be answered):**
-- Does the byte column include or exclude the BOM on line 1? Default: exclude (BOM is
-  not on a line; byte offsets still address it).
-- Are tab stops ever expanded for "display columns"? Defer to Tier B `ProjectionService`;
-  Tier A never expands tabs.
+**Resolved detail:** Byte columns exclude a skipped BOM on line 1. The BOM is byte-stream
+metadata, not a line character, but byte offsets still address the original BOM bytes.
+
+**Remaining implementation detail:** Tab stops for display columns are deferred to Tier B
+`ProjectionService`; Tier A never expands tabs.
 
 **Concern 18.2.5 — Diagnostics before AST construction still need source-map stacks.**  
 The research says source maps are not just a diagnostic side table, but parse and schema
@@ -1496,51 +1483,38 @@ padding allocation is acceptable. Borrowed-mode optimization is a Tier B concern
   not collide with any tokenizer's "EOF" marker semantics.
 - Should `bytes()` return `&[u8]` or `Cow<[u8]>`? `&[u8]` for simplicity.
 
-**Concern 18.3.2 — HTML decoding policy conflicts with "validate UTF-8 at ingress".**  
-The research says HTML uses byte-stream decoding and WHATWG compatibility behavior.
-The design says to validate UTF-8 at ingress for HTML inputs, but browser-style HTML can
-decode non-UTF-8 inputs or replacement characters depending on encoding detection.
+**Decision 18.3.2 — Source-stream decoding policy.**
+The parser consumes a Unicode scalar stream. Layer 1 owns the byte-to-Unicode transition
+before tokenization starts for a source.
 
-**Question:** Does Tier A require UTF-8-only CEM HTML, or does it implement WHATWG
-encoding detection and replacement behavior? If UTF-8-only, is that a CEM profile
-restriction rather than an HTML tokenizer rule?
+Encoding selection order for each byte-source initiation:
 
-**Answer A — Tier A: CEM HTML profile is UTF-8-only; non-UTF-8 input is a fatal Layer 1 error.**
-This is a *CEM profile* restriction, not a WHATWG tokenizer change. The tokenizer remains
-WHATWG-conformant for everything that operates on decoded scalars; Layer 1 simply
-rejects bytes that are not valid UTF-8 with a `Fatal` diagnostic. Document `<meta charset>`
-and BOM sniffing as informational only in Tier A — if they declare anything other than
-UTF-8, the CEM profile rejects the document. Rationale: the five Tier A fixtures and
-all current CEM authoring tooling produce UTF-8; building WHATWG encoding detection
-adds significant tokenizer-internal state (encoding-confidence transitions, prescan,
-late re-encoding) that we don't need to validate the design.
+1. **BOM wins.** If the source begins with a supported BOM, the BOM determines the
+   encoding. The BOM bytes are skipped from the decoded scalar stream, remain addressable
+   in the original `ByteSource`, and cause later encoding overrides for that source to be
+   ignored.
+2. **Explicit/default encoding parameter.** If no BOM is present, use the encoding
+   supplied with the parse request. For browser/server inputs, the caller can derive this
+   from transport metadata such as `Content-Type` headers. For library callers, this is a
+   parser configuration parameter.
+3. **UTF-8 fallback.** If neither a BOM nor a supplied encoding exists, assume UTF-8.
 
-**Answer B — Tier A: full WHATWG byte-stream decode (BOM sniff → prescan → meta → fallback).**
-Layer 1 implements WHATWG encoding detection and replacement; tokenizer consumes
-already-decoded scalars. Pros: handles legacy and conformance corpora out of the box;
-no profile restriction documentation. Cons: large surface area for Tier A; encoding
-late-binding ("change encoding after seeing `<meta charset>`") forces Layer 1 to
-support re-decode — incompatible with "absolute byte offsets are stable from byte 0".
+Inline embedded contexts are not byte-source initiations. The owning context has already
+decoded the source bytes, and the handoff passes a source-mapped decoded stream to the
+child context. Therefore inline embedded contexts do not perform BOM detection and cannot
+contain an independent BOM header. If an external resource or explicitly byte-valued
+payload is loaded as its own `ByteSource`, it starts a new source initiation and applies
+the same precedence above.
 
-**Answer C — Hybrid: UTF-8-only CEM profile + UTF-16/Latin-1 transcoded pre-pass for non-CEM XML/CSS handoff sources.**
-HTML inputs are UTF-8-only (Answer A). Other content types entering through the handoff
-stack (CSS files, XML resources) may be in their native ABI-defined encodings; Layer 1
-transcodes them to UTF-8 before tokenizer entry, with byte ranges tracked through a
-`TransformKind::Transcoded` frame. Pros: tightens CEM HTML semantics while leaving room
-for legacy embedded content. Cons: more bookkeeping; the transcoded frame is a new
-source-map shape.
+In-band encoding declarations discovered after decoding, including HTML metadata or
+content-type-specific encoding switches, do not force the current source to be re-decoded.
+If policy allows an in-band declaration to initiate or configure a later child byte
+stream, it supplies that child stream's explicit/default encoding parameter. A BOM on the
+child source still wins over that parameter.
 
-**Recommendation:** Adopt **Answer A** for Tier A, with an explicit profile note: "CEM
-HTML inputs MUST be UTF-8. Documents with a non-UTF-8 BOM or `<meta charset>`
-declaration are rejected with `Fatal` diagnostic `cem.encoding.unsupported`." Tier B
-upgrades to **Answer C** when legacy embedded content arises.
-
-**Ambiguity (to be answered):**
-- Does an isolated UTF-8 BOM produce a warning, an info note, or silent acceptance?
-  Default: silent acceptance, BOM excluded from byte ranges (see 18.2.4 ambiguity).
-- Are HTML preprocessing replacements (NUL → U+FFFD, control chars) Tier A required
-  behavior or WHATWG-deferred? Default: Tier A required — they happen on decoded
-  scalars, not bytes, and the rule is small.
+HTML preprocessing replacements such as NUL handling occur after decoding on Unicode
+scalars, not on raw bytes. An isolated UTF-8 BOM is accepted silently and excluded from
+the decoded scalar stream; byte ranges continue to address the original source bytes.
 
 **Concern 18.3.3 — Resource bounds are missing from the byte and decode layer.**  
 The research emphasizes streaming and bounded memory, but Tier A uses in-memory buffers.
