@@ -333,7 +333,24 @@ StructuralSchemaIr:
   tier_a_profile: TierAValidationProfile
   states: Vec<SchemaStateDef>        DFA-ready limited structural states for Tier A
   derivative: Option<DerivativeIr>   full residual/derivative representation
-  diagnostics: DiagnosticContract
+  diagnostics: EngineDiagnosticProfile
+
+EngineDiagnosticProfile:
+  engine: ValidationEngineKind
+  expected_content: ExpectedContentDiagnosticMode
+  report_compatibility: ReportCompatibility
+
+ValidationEngineKind:
+  TierADfa
+  RelaxNgDerivative
+
+ExpectedContentDiagnosticMode:
+  None
+  DfaFollowSet
+  DerivativeResidual
+
+ReportCompatibility:
+  EngineVersionLocal                 no compatibility guarantee across validation engines
 
 TierAValidationProfile:
   supported_constraints: Vec<StructuralConstraintKind>
@@ -419,6 +436,9 @@ Only `StructuralSchemaIr` is consumed during streaming event validation. Its str
 semantics are RELAX-NG-equivalent. Tier A executes the `tier_a_profile` DFA subset and
 rejects unsupported structural constraints at schema compile time; later derivative
 runtimes consume `relax_ng_equivalent` / `derivative` without changing schema semantics.
+Switching validation engines may change diagnostic codes, payload shapes,
+expected-content sets, ordering, wording, and report snapshots; report compatibility
+across the DFA and derivative engines is not required.
 Cross-reference, contextual, lexical/mode, policy, and transform checks are emitted as
 `SemanticRule`s with an explicit `RuleExecutionPlacement`. A rule runs at the earliest
 safe layer whose input data satisfies its `ConstraintTier`: tokenizer or normalizer for

@@ -347,7 +347,8 @@ From the research algorithm comparison table:
   runtime computes the residual schema `D(event, schema)`; Tier A may instead use a
   limited DFA transition generated from the same structural IR. If the residual or DFA
   state is the empty language, emit a hard error. Residuals and DFA follow sets provide
-  expected-content diagnostics through the same diagnostic contract.
+  engine-specific expected-content diagnostics; report compatibility between the Tier A
+  DFA and a later derivative runtime is not a compatibility requirement.
 
 ### Functional Design
 
@@ -1020,7 +1021,10 @@ Functional parity requirements:
 
 - The structural IR must be RELAX-NG-equivalent for structural validation and support
   `D(event, schema)` computation. Tier A may expose only a limited DFA execution profile
-  over that IR, but it must produce diagnostics with the contract defined in §18.5.1.
+  over that IR. Replacing the Tier A DFA with a derivative runtime must preserve
+  structural accept/reject semantics for supported constraints, but it may change
+  diagnostic codes, payload shapes, expected-content sets, ordering, wording, and report
+  snapshots.
 - The format must represent the CEM annotations and state values in §8, namespace
   bindings, qualified names, required attributes and children, child ordering and
   multiplicity, simple value-type and pattern constraints, unknown/open-content policy,
@@ -1094,8 +1098,8 @@ Status key:
 | L2 SchemaTokenizer: XML 1.0 profile                         | Design partial — namespace/name model remains unresolved (§18.4.4); DTD/external-resource ownership follows transform policy (§3.2, §6)                                                 |
 | L3 EventNormalizer                                          | Design partial — attribute-list close event, void elements, name model, and trivia remain unspecified (§18.4.1–4); `ModeSwitch` creates the embedded context (§9)                       |
 | L4 SchemaMachine: visibly pushdown frame stack              | Design ready — frame phases, attribute/content trackers, recovery invariant, and diagnostic propagation boundary are resolved (§8, §3.1)                                                  |
-| L4 SchemaMachine: RELAX NG derivative engine                | Deferred Tier B — CEM structural schema has RELAX NG functional parity; Tier A limited DFA profile must preserve residual diagnostic parity (§18.5.1)                                   |
-| L4 SchemaMachine: CEM vocabulary DFA                        | Design partial — limited Tier A DFA profile is selected and open-content defaults are resolved (§8, §13); DFA state table remains unspecified (§18.5.1)                                      |
+| L4 SchemaMachine: RELAX NG derivative engine                | Deferred Tier B — CEM structural schema has RELAX NG functional parity; switching from Tier A DFA to derivatives may break report compatibility (§8, §13)                                |
+| L4 SchemaMachine: CEM vocabulary DFA                        | Design partial — limited Tier A DFA profile is selected and open-content defaults are resolved (§8, §13); DFA state table remains unspecified                                             |
 | L5 HandoffStack: ownership and return-condition tracking    | Design ready — current context parser recognizes `ModeSwitch`; CEM framework maps entity content type and creates child context with decoded stream (§9)                                  |
 | L5 Child parser: CSS (stub, diagnostic only)                | Design ready — container content type decodes before handoff; child receives a source-mapped decoded stream (§9)                                                                        |
 | L5 Child parser: Script (raw text only)                     | Design ready — parser preserves raw text; warning/error/reject/allow behavior is defined by active scope/content-type policy (§3.1–3.2, §9)                                             |
@@ -1744,56 +1748,6 @@ namespace's case-folding policy when binding `ExpandedName`.
   list, since it is normative; schema may extend, not override.
 
 ### 18.5 Schema-Machine And Validation Questions
-
-**Concern 18.5.1 — RELAX NG derivatives and the limited Tier A DFA profile may not
-produce equivalent diagnostics.**
-The design requires CEM structural schema semantics to have RELAX NG functional parity,
-while Tier A may execute only a limited DFA profile over the same structural IR.
-
-**Question:** What diagnostic quality must the Tier A DFA match so that later replacing
-it with a derivative engine does not break reports or feature tests?
-
-**Answer A — Define a stable diagnostic contract (codes + payload shape) that both engines must satisfy; the DFA is allowed to under-approximate "expected content" but must not produce different `DiagCode`s for the same input.**
-Required diagnostic shape at every error:
-- stable `DiagCode` (e.g. `cem.schema.unexpected_open`, `cem.schema.required_missing`,
-  `cem.schema.duplicate_attr`, `cem.schema.bad_value_type`, `cem.schema.bad_value_pattern`,
-  `cem.schema.unexpected_close`, `cem.schema.unclosed_scope`),
-- `expected_set: Vec<ExpectedItem>` where each item is one of
-  `Element { qname }`, `Attribute { qname, required: bool }`, `Value { kind, pattern: Option<String> }`,
-  `Close { qname }`,
-- `actual: Option<EventDescriptor>` (what was seen),
-- `byte_range: ByteRange` and `source_map: SourceMapStack`.
-
-The Tier A DFA profile computes `expected_set` from outgoing transitions of the current
-state. A derivative engine computes it from the residual's nullable-leaves analysis —
-same shape, finer answers. Feature tests assert on `DiagCode` and required
-`expected_set` *members* (superset relation), not exact set equality. Migration to full
-derivatives strengthens `expected_set` without breaking tests.
-
-**Answer B — Tier A DFA has no `expected_set`; only `DiagCode` and `actual` are stable.**
-Pros: simplest DFA; no follow-set precomputation. Cons: feature tests cannot assert on
-"after `<form>`, expected `<label>` or `<button>`"; migration to derivatives changes
-test surface.
-
-**Answer C — Tier A DFA precomputes follow sets at compile time; derivative engine produces equivalent follow sets at runtime.**
-Pros: identical diagnostic quality at the boundary. Cons: more upfront work in Tier A;
-hand-written follow-set tables drift from grammar changes.
-
-**Recommendation:** Adopt **Answer A**. The contract guarantees code-level
-compatibility (same `DiagCode`s, same payload shape); engines may differ in
-*completeness* of `expected_set`. Tier A tests should assert "expected_set ⊇ {required
-items}", which is monotone under engine upgrade. Tier A may reject unsupported structural
-constructs at schema compile time with `cem.schema.unsupported_tier_a_constraint`; such
-rejections are limits of the Tier A execution profile, not differences in CEM schema
-semantics.
-
-**Ambiguity (to be answered):**
-- Is `expected_set` ordered? Default: stable but unspecified ordering at the contract
-  level; reports sort it for display. The engine should produce a canonical order
-  (lexicographic on `ExpandedName`) to keep snapshot tests stable.
-- Should `actual` carry the resolved `ExpandedName` (helpful for namespace-related
-  errors) or the lexical name (closer to author intent)? Default: both —
-  `actual: { lexical: String, expanded: Option<ExpandedName> }`.
 
 *End of design document. Each ambiguity and review concern above should be resolved with
 a brief decision record before the corresponding implementation phase starts. Resolved
