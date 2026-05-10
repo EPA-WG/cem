@@ -384,11 +384,22 @@ HandoffRecord:
 
 ReturnCondition:
   MatchingEndTag(QName)              e.g. </style>, </script>
+  CdataEnd                           XML CDATA ]]>
+  EntityEnd                          XML entity/reference boundary
   AttributeEnd                       attribute quote close
   StringEnd                          JSON string end after unescape
+  JsonValueEnd                       JSON object/array/value boundary
   BlockClose                         CSS block close
+  FunctionClose                      CSS function close
+  TemplateEnd                        TypeScript template string end
+  JsxIslandEnd                       JSX island boundary
+  FieldEnd                           CSV/CSF field delimiter
   FixedLength(u64)
 ```
+
+Deferred return-condition variants are listed for interface stability. Implementation
+priority after Tier A is XML first, JSON second, then HTML extensions and other embedded
+language cases.
 
 The parent schema machine emits a `HandoffRecord` with the exact `ReturnCondition`
 before yielding the byte stream to the child parser. The child parser consumes bytes up

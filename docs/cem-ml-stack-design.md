@@ -508,6 +508,22 @@ region according to WHATWG tokenizer rules regardless of the child parser. This 
 modeled as a matching-end-tag return condition but driven by the WHATWG tokenizer state,
 not independently inferred by the child parser.
 
+Deferred handoff cases should be listed in the handoff model now, but implementation
+priority is explicit:
+
+1. **XML next:** CDATA sections, entity boundaries, DTD/internal subsets, external
+   resources, XInclude, and XML compatibility handoffs.
+2. **JSON after XML:** JSON strings, object/array subtrees, escaped string views, and
+   fixed-length or delimiter-bounded JSON payloads.
+3. **HTML and other embedded cases later:** additional HTML raw-text and RCDATA cases,
+   CSV/CSF fields, TypeScript template strings, JSX islands, CSS functions, and any
+   other language-specific embedded boundaries from the research.
+
+Listing a deferred case does not move it into Tier A. Tier A implements the HTML
+style/script cases above and keeps the enum/interface surface broad enough to add XML,
+JSON, HTML extensions, and other embedded handoffs without changing parent-owned
+boundary semantics.
+
 Handoff record and return-condition shapes are in
 [`cem-ml-stack-design-impl.md`](cem-ml-stack-design-impl.md#37-layer-5-scoped-embedded-handoff-stack-cem_mlhandoff).
 
@@ -927,7 +943,7 @@ Status key:
 | L4 SchemaMachine: visibly pushdown frame stack              | Design partial — recovery invariant, multiplicity/required-name state, and diagnostic propagation affect core semantics (§18.5.3–4, Ambiguity 8)                                        |
 | L4 SchemaMachine: RELAX NG derivative engine                | Deferred Tier B — Tier A DFA must preserve a replacement path for residual diagnostics (Ambiguity 9, §18.5.1)                                                                           |
 | L4 SchemaMachine: CEM vocabulary DFA                        | Design partial — DFA state table, schema compiler integration, and unknown-content policy remain unspecified (Ambiguity 3, Ambiguity 9, §18.5.1–2)                                      |
-| L5 HandoffStack: ownership and return-condition tracking    | Design partial — authoritative handoff owner and deferred return-condition variants unresolved (§18.6.1, §18.6.4)                                                                       |
+| L5 HandoffStack: ownership and return-condition tracking    | Design partial — authoritative handoff owner remains unresolved (§18.6.1); deferred cases are listed with XML → JSON → HTML/other implementation priority (§9)                          |
 | L5 Child parser: CSS (stub, diagnostic only)                | Design partial — embedded-source byte/decoded-view model unspecified (§18.6.2)                                                                                                          |
 | L5 Child parser: Script (raw text only)                     | Design partial — script preservation policy unspecified (§18.6.3); unsafe-content validation follows content-type policy (§3.2)                                                         |
 | L6 InputDomAstBuilder: schema-defined initial DOM/AST       | Design ready — schema reconstructs token hierarchy; WHATWG DOM compliance is a downstream transformation over this initial DOM                                                          |
@@ -1359,14 +1375,6 @@ warning-report, or preserve scripts.
 
 **Question:** Are `<script>` regions always warnings, always errors, preserved raw, or
 allowed only with specific `type` values?
-
-**Concern 18.6.4 — Primary research includes JSON strings, XML CDATA, CSV/CSF fields,
-TypeScript templates, JSX, and CSS functions as handoff examples.**  
-The design lists Tier A HTML cases but does not clearly mark the other research cases as
-deferred or unsupported.
-
-**Question:** Should the handoff module define enum variants for all research return
-conditions now, even if only HTML style/script cases are active in Tier A?
 
 ---
 
