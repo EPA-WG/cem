@@ -247,11 +247,14 @@ NormalizedEvent:
   CloseScope { name: QName, byte_range: ByteRange }
   Name       { name: QName, byte_range: ByteRange }
   Value      { value: ScalarValue, byte_range: ByteRange }
+  Trivia     { kind: TriviaKind, byte_range: ByteRange }
+  ProcessingInstruction { target: String, data: String, byte_range: ByteRange }
   Separator  { kind: SeparatorKind, byte_range: ByteRange }
   ModeSwitch { content_type: ContentType, handoff: HandoffRecord }
   Error      { code: DiagCode, byte_range: ByteRange, severity: Severity }
 
 ScalarValue: Text(String) | Int(i64) | Float(f64) | Bool(bool) | Null
+TriviaKind: Whitespace(String) | Comment(String)
 SeparatorKind: ElementBoundary | Comma | Colon | Delimiter | Newline
 ```
 
@@ -261,13 +264,19 @@ HTML token mapping:
 |------------------------------------------|-----------------------------------------------------------------------------------------|
 | `StartTag { name, attrs }`               | `OpenScope { name }`, then for each attr: `Name { name: attr_qname }` + `Value { attr_value }` |
 | `EndTag { name }`                        | `CloseScope { name }`                                                                   |
-| `Text { data }`                          | `Value { Text(data) }`                                                                  |
+| `Text { data }`                          | `Value { Text(data) }` when content; otherwise `Trivia { Whitespace(data) }` if preserved |
 | `StartTag { name: "style" \| "script" }` | `OpenScope`, then `ModeSwitch { content_type }`                                         |
-| `Comment`                                | Discarded, or `Value` if schema marks comments as significant                           |
+| `Comment`                                | `Trivia { Comment(data) }` unless the effective scope policy strips comments            |
+| `ProcessingInstruction`                  | `ProcessingInstruction { target, data }`; schema/policy decides accept/diagnose/strip   |
 | `ParseError`                             | `Error { ... }`                                                                         |
 
 Each `StartTag` emits its `OpenScope` first, then one `Name`+`Value` pair per attribute,
 preserving attribute source positions.
+
+Trivia preservation is policy-driven. The document root policy is seeded by CLI/config;
+child context scopes inherit it unless their content type or schema overrides it. Context
+entries such as `<pre>`, `<textarea>`, `<style>`, and `<script>` may preserve whitespace
+as content or preserve comments as trivia independently from the parent HTML scope.
 
 ### 3.4 Layer 4: SchemaMachine (`cem_ml::schema`)
 
@@ -389,6 +398,7 @@ ScopePolicy:
   error_boundary: ErrorBoundaryKind
   resources: ContentTypePolicy
   errors: ErrorBoundaryPolicy
+  trivia: TriviaPolicy
   diagnostics: DiagnosticVisibility
   parent_override: ParentPolicyOverride
 
@@ -414,6 +424,18 @@ DiagnosticVisibility:
   Public
   ScopeLocal
   HiddenFromParent
+
+TriviaPolicy:
+  comments: TriviaDisposition
+  whitespace: TriviaDisposition
+  processing_instructions: ProcessingInstructionPolicy
+
+TriviaDisposition:
+  Preserve
+  Strip
+
+ProcessingInstructionPolicy:
+  SchemaDriven
 
 ParentPolicyOverride:
   force_visibility: Option<DiagnosticVisibility>
@@ -467,6 +489,14 @@ only when the parent override permits it. `ErrorBoundaryPolicy.severity_by_code`
 stable `DiagCode`s to severity overrides for that scope; unresolved reference diagnostics
 default to `Warning` when no override is present. CLI parameters or config seed the
 document root `ScopePolicy` before parsing begins.
+
+`TriviaPolicy` defaults to preserving comments and whitespace. CLI/config can set the
+document-level default, and schema/content-type scopes can override it for child
+contexts. Processing instructions are schema-driven: the tokenizer and normalizer
+preserve their source range, and the active schema decides whether they are accepted,
+diagnosed, transformed, or stripped. Diagnostics and source maps always refer to the
+initial decoded stream, so stripped trivia still counts for byte offsets, line/column
+projection, snippets, and report events.
 
 Diagnostic propagation walks from the origin frame toward its ancestors until it reaches
 the nearest scope whose `error_boundary` is `SchemaDeclared` or `ContextRoot`. If no
@@ -673,6 +703,9 @@ The report hierarchy follows the source-map/layer hierarchy, but it is event-tim
 it records the parser or transform view when the log event happened, not the final
 post-transform tree. Diagnostics before AST construction attach to the nearest source
 module frame and are later linked to AST nodes when a matching node exists.
+Comments, whitespace, and processing instructions are part of the initial source stream
+for reporting. Diagnostics can reference trivia byte ranges even when the active output
+transform later removes those nodes.
 
 ### 3.6 CLI Projection Keys
 
@@ -684,7 +717,7 @@ default stream behavior. Proposed projection layer keys:
 | `source`           | `source::ByteSource`              | Source metadata, URI, byte length, and source id; raw bytes are not emitted unless explicitly requested. |
 | `decoded`          | `source::decode`                  | Encoding result, decoded scalar spans, replacement/encoding diagnostics, and line-index metadata.        |
 | `tokens`           | `tokenizer`                       | Format-native token stream with byte ranges.                                                             |
-| `events`           | `events`                          | Normalized open/close/name/value/separator/mode-switch/error events.                                     |
+| `events`           | `events`                          | Normalized open/close/name/value/trivia/processing-instruction/separator/mode-switch/error events.       |
 | `schema-frames`    | `schema`                          | Schema frame transitions, residual/DFA state, expected closes, and validation state.                     |
 | `namespace-bindings` | `schema`                        | Ordered namespace declarations, effective ranges, overrides, and lexical-to-expanded name resolutions.   |
 | `handoffs`         | `handoff`                         | Embedded content boundaries, inherited context, child content type, and return condition.                |
@@ -757,6 +790,7 @@ InputDomNode:
   Element(InputElement)             native XML/(X)HTML identity plus optional CEM annotations
   Attribute(InputAttribute)
   Text(TextNode)
+  Whitespace(WhitespaceNode)
   Comment(CommentNode)
   Doctype(DoctypeNode)
   ProcessingInstruction(ProcessingInstructionNode)
@@ -814,9 +848,11 @@ CemDocument:
   diagnostics: Vec<Diagnostic>
 ```
 
-`InputDomNode` is the generic schema-defined AST surface. Its minimal Tier A preserved
-construct set is TBD. The CEM projection uses `CemNode` and can carry non-CEM source
-constructs by reference through `InputNode(AstNodeId)`.
+`InputDomNode` is the generic schema-defined AST surface. Tier A preserves text,
+whitespace, comments, doctypes, processing instructions accepted by schema policy,
+CDATA where supported by the content type, raw text, and recovered error nodes unless
+the effective scope policy strips a trivia class. The CEM projection uses `CemNode` and
+can carry non-CEM source constructs by reference through `InputNode(AstNodeId)`.
 
 `CemAnnotation` records schema-qualified transform triggers such as `cem:screen` or
 `cem:action`. Multiple annotations can attach to the same `InputElement`; the source
@@ -978,6 +1014,12 @@ and `TemplateRule` data emitted by the compiled schema. The renderer should prov
 XSLT-like coverage for matching, value selection, conditionals, iteration, recursive
 template application, copy/pass-through rules, named/template-reference calls, parameter
 or state binding, and deterministic serialization.
+
+The reference implementation also provides a schema-independent trivia-strip transform.
+It removes `Comment` and `Whitespace` input nodes when requested by CLI/config or a
+context-scope policy, but it does not rewrite the source-map origin or report tree.
+Diagnostics emitted before or during stripping continue to point at the initial decoded
+stream and may reference stripped trivia ranges.
 
 Scoped queries are XPath-like in capability but are evaluated only against
 `QueryContextScope`: the current AST node, the active schema scope, allowed machine-state
@@ -1173,6 +1215,7 @@ cem_ml/src/
     mod.rs            content-type transformation pipeline
     whatwg_html.rs    initial HTML parser DOM -> WHATWG implementation DOM update transform
     css.rs            CSS/SCSS AST and external-reference transform hooks
+    trivia.rs         comment/whitespace stripping transform preserving reports/source maps
   interpreter/
     mod.rs            CemInterpreter trait, TransformContext, TransformOutput, RenderedOutput
     template.rs       Rust CEM template renderer and scoped query evaluator

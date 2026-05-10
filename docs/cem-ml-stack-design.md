@@ -307,14 +307,24 @@ The normalized taxonomy is:
 - close scope;
 - name;
 - scalar value;
+- trivia;
+- processing instruction;
 - separator;
 - mode switch for embedded content;
 - error.
 
 For HTML, each start tag emits an open scope followed by name/value events for each
 attribute, preserving attribute source positions and attribute case. End tags emit close
-scopes. Text emits scalar text values. Comments are discarded unless the active schema
-marks comments as significant. Parse errors become diagnostic events.
+scopes. Text emits scalar text values. Comments and whitespace are preserved by default
+as source-bearing input nodes or trivia events unless the effective document or context
+scope policy says to strip them. Parse errors become diagnostic events.
+
+HTML processing instructions are schema-driven. The tokenizer preserves their source
+range; the active schema or context-scope policy decides whether they are accepted,
+diagnosed, transformed, or stripped. Context-type entries such as `<pre>`, `<textarea>`,
+`<style>`, and `<script>` create or select scopes with their own whitespace/comment
+preservation policy. Whitespace in a context where it is content remains content; other
+whitespace can be preserved as trivia.
 
 HTML `data-*` attributes are normalized into the synthetic `cem:html-data` namespace and
 may be projected to the HTML-specific `dataset` equivalent on HTML AST nodes. CEM
@@ -565,6 +575,11 @@ The report tree can be projected to CEM-native, XML, JSON, Markdown, text, HTML,
 other supported structured format. Text and HTML reports are reference convenience
 renderers over the report tree, not canonical report storage formats.
 
+Diagnostics and source maps always address the initial decoded source stream. Comments
+and whitespace count when deriving byte offsets, line/column positions, and snippets,
+even if a later transform removes those nodes. Diagnostics may refer to comments,
+whitespace, or processing instructions that no longer survive in a transformed output.
+
 Diagnostic and report data shapes are in
 [`cem-ml-stack-design-impl.md`](cem-ml-stack-design-impl.md#25-diagnostics) and
 [`cem-ml-stack-design-impl.md`](cem-ml-stack-design-impl.md#35-report-event-model-cem_mlreport).
@@ -579,8 +594,9 @@ Target rules:
 
 - Primary output goes to `--out` when provided; otherwise it goes to `stdout`.
 - CLI parameters or a config file may set the document top-level context policy,
-  including per-diagnostic severity overrides. Descendant scopes inherit that policy
-  unless the active schema/content type redefines it within parent override bounds.
+  including per-diagnostic severity overrides and comment/whitespace preservation.
+  Descendant scopes inherit that policy unless the active schema/content type redefines
+  it within parent override bounds.
 - Validation-style operations (`validate`, `check`, `fixture validate`) have the report
   as their primary output. They render the selected report format to `stdout` by default.
   `stderr` is reserved for CLI usage errors, I/O failures, unexpected internal failures,
@@ -693,12 +709,17 @@ element's native HTML/XML identity.
 The input DOM/AST is generic and schema-defined. It must be able to represent XML and
 (X)HTML grammar constructs such as elements, attributes, text, comments, doctypes,
 processing instructions, CDATA sections where the content type supports them, raw-text
-regions, recovered error nodes, and future schema-owned node kinds. These are not CEM
-semantic constructs by default, but they remain part of the source-preserving input tree
-when the active schema or content-type policy preserves them.
+regions, whitespace/trivia nodes, recovered error nodes, and future schema-owned node
+kinds. These are not CEM semantic constructs by default, but comments and whitespace
+remain part of the source-preserving input tree unless the effective scope policy strips
+them. Processing instructions are schema-driven and may be preserved, diagnosed,
+transformed, or stripped by the active schema/content-type policy.
 
-The minimal Tier A set of non-CEM constructs to preserve is TBD. CEM-specific support
-and syntax for treating comments or CDATA as semantic CEM content is also TBD.
+The reference implementation includes a transformer that strips comments and whitespace
+from the working tree while preserving report entries and source-map references to the
+initial stream. This makes compact output a transform concern rather than a tokenizer or
+normalizer behavior. CEM-specific support and syntax for treating comments or CDATA as
+semantic CEM content is still TBD.
 
 The CEM projection is narrower than the generic input DOM/AST. It records CEM transform
 annotations attached to source nodes, including:
@@ -971,7 +992,8 @@ snapshots and fixture comparison:
   stricter order;
 - text and attribute values use one renderer-specific escaping policy;
 - custom elements use explicit start and end tags;
-- whitespace defaults to compact output unless a pretty renderer is explicitly selected.
+- whitespace output is controlled by the selected transform/renderer; source whitespace
+  is preserved in the input tree unless policy strips it.
 
 Each output custom-element node appends an implementation transform frame. Prior frames
 trace back to the original input token, enabling generated output such as `<cem-screen>`
@@ -1123,7 +1145,7 @@ Status key:
 | L1 Sentinel-byte ownership                                  | Design partial — Rust safety model for sentinel not resolved (§18.3.1)                                                                                                                  |
 | L2 SchemaTokenizer: HTML WHATWG profile                     | Design ready — custom WHATWG-state tokenizer selected for exact source-map preservation across nested embedded contexts (§6)                                                            |
 | L2 SchemaTokenizer: XML 1.0 profile                         | Design partial — DTD/external-resource ownership follows transform policy (§3.2, §6)                                                                                                     |
-| L3 EventNormalizer                                          | Design partial — attribute-list close event, void elements, and trivia remain unspecified (§18.4.1–3); `QName` resolution and `ModeSwitch` context creation are defined (§8, §9)          |
+| L3 EventNormalizer                                          | Design partial — attribute-list close event and void elements remain unspecified (§18.4.1–2); trivia preservation, `QName` resolution, and `ModeSwitch` context creation are defined (§7–9) |
 | L4 SchemaMachine: visibly pushdown frame stack              | Design ready — frame phases, attribute/content trackers, recovery invariant, and diagnostic propagation boundary are resolved (§8, §3.1)                                                  |
 | L4 SchemaMachine: RELAX NG derivative engine                | Deferred Tier B — CEM structural schema has RELAX NG functional parity; switching from Tier A DFA to derivatives may break report compatibility (§8, §13)                                |
 | L4 SchemaMachine: CEM vocabulary DFA                        | Design partial — limited Tier A DFA profile is selected and open-content defaults are resolved (§8, §13); DFA state table remains unspecified                                             |
@@ -1131,7 +1153,7 @@ Status key:
 | L5 Child parser: CSS (stub, diagnostic only)                | Design ready — container content type decodes before handoff; child receives a source-mapped decoded stream (§9)                                                                        |
 | L5 Child parser: Script (raw text only)                     | Design ready — parser preserves raw text; warning/error/reject/allow behavior is defined by active scope/content-type policy (§3.1–3.2, §9)                                             |
 | L6 InputDomAstBuilder: schema-defined initial DOM/AST       | Design ready — schema reconstructs token hierarchy; WHATWG DOM compliance is a downstream transformation over this initial DOM                                                          |
-| L6 InterpreterAstBuilder: CEM annotation projection         | Design partial — CEM attributes are transform annotations on source nodes; transform conflict policy is schema-owned; Tier A non-CEM minimum and CEM comment/CDATA syntax remain TBD (§10) |
+| L6 InterpreterAstBuilder: CEM annotation projection         | Design partial — CEM attributes are transform annotations on source nodes; transform conflict policy is schema-owned; CEM comment/CDATA syntax remains TBD (§10)                         |
 | L6 Reference slots: id/for/aria-*                           | Design ready — one-pass mutable slots are sufficient; unfilled slots warn on owning scope close unless scope policy overrides severity per error type (§10, §3.1)                         |
 | L6 Source-map stacks: byte-range + transform chain          | Design partial — frame order, multi-range nodes, escape/entity decoding, and diagnostics-before-AST mapping unresolved (§18.2.1–3, §18.2.5)                                             |
 | L6 Source-map stacks: bit-level ranges                      | Deferred Tier B — reserve representation only after source-map frame model is fixed (§18.2.1–2); no serialized binary frame ids in Tier A (§11)                                         |
@@ -1668,52 +1690,6 @@ in the impl doc.
   WHATWG DOM-construction concern, owned by the WHATWG content-type transform (§7), not
   the event normalizer. The schema layer either accepts the resulting stream as-is or
   consumes the post-WHATWG-transform tree.
-
-**Concern 18.4.3 — Comments, whitespace, and trivia policy is underspecified.**  
-The design says comments are discarded unless schema marks them significant. Whitespace
-text nodes may also be significant or ignorable depending on context.
-
-**Question:** Are discarded comments/whitespace represented in source maps, diagnostics,
-or binary AST trivia tables? If they are fully dropped, can source-preserving transforms
-or round trips ever be supported?
-
-**Answer A — Tier A: comments and ignorable whitespace are dropped; round-tripping is a non-goal.**
-The tokenizer still emits `Comment` and `Whitespace` tokens (so debug projection
-`tokens` can show them); the normalizer discards them unless the active schema marks
-them significant (per §3.3 of the impl doc). They do not appear in the AST, source map,
-or report tree. Round-trip is explicitly deferred to Tier C with a `TriviaTable`
-side-structure. Pros: keeps Tier A small; matches research recommendation that "trivia
-is round-trip surface, not validation surface". Cons: cannot regenerate byte-identical
-source from the AST.
-
-**Answer B — Tier A: trivia preserved as a per-source `TriviaTable`, not on AST nodes.**
-A `TriviaTable { entries: [(byte_range, TriviaKind)] }` is built alongside the AST.
-Source-preserving transforms read from it; standard transforms ignore it. Pros:
-round-trip-capable from day one; storage cost is bounded by source size. Cons: every
-transform that reorders or rewrites must also rewrite the trivia table to maintain
-positions.
-
-**Answer C — Tier A: schema-significant trivia only; everything else dropped (matches §3.3).**
-Schemas declare which whitespace and comment regions are significant
-(e.g. `<pre>` content, comment-bearing CSS rules). The normalizer emits `Value`/`Comment`
-events for those; everything else is dropped without trace. Pros: matches the existing
-§3.3 mapping table verbatim; no new contract. Cons: round-trip is impossible without
-modifying the schema to mark all trivia significant.
-
-**Recommendation:** Adopt **Answer A** for Tier A and explicitly defer **Answer B** to
-Tier C. The Tier A `tokens` projection retains comments/whitespace for debugging, so
-trivia is never *invisible*, just not load-bearing.
-
-**Ambiguity (to be answered):**
-- Are HTML processing instructions (`<?xml-stylesheet … ?>`) trivia, errors, or
-  schema-driven? Default: HTML namespace → `cem.html.unexpected_pi` warning + drop;
-  XML namespace → emit as a typed event the schema can opt into.
-- Inside `<pre>`, `<textarea>`, and the embedded `<style>`/`<script>` script-data
-  states, *all* whitespace is content. Confirm: significance is decided by tokenizer
-  state, not the normalizer.
-- Do diagnostics that reference a comment or whitespace span (e.g. "comment near `<x>`
-  contains `--` sequence") still need a `byte_range`? Yes — diagnostics are not bound
-  to surviving events.
 
 ### 18.5 Schema-Machine And Validation Questions
 
