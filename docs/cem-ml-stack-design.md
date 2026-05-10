@@ -467,6 +467,9 @@ zero or more side outputs that address intermediate stack layers.
 Target rules:
 
 - Primary output goes to `--out` when provided; otherwise it goes to `stdout`.
+- CLI parameters or a config file may set the document top-level context policy,
+  including per-diagnostic severity overrides. Descendant scopes inherit that policy
+  unless the active schema/content type redefines it within parent override bounds.
 - Validation-style operations (`validate`, `check`, `fixture validate`) have the report
   as their primary output. They render the selected report format to `stdout` by default.
   `stderr` is reserved for CLI usage errors, I/O failures, unexpected internal failures,
@@ -615,10 +618,13 @@ name, value, source-map stack, and optional state. The document also owns the gl
 table used for reference resolution.
 
 Reference slots support unresolved forward references. A reference to an id that has not
-yet appeared binds to a mutable slot. When the parser later encounters the target id, it
-fills the slot, and existing label/for/ARIA references observe the resolved target.
-Remaining unfilled slots are checked at document close and reported according to the
-severity decision in **Ambiguity 6**.
+yet appeared binds to a mutable slot in one pass. When the parser later encounters the
+target id, it fills the slot, and existing label/for/ARIA references observe the
+resolved target. Remaining unfilled slots are checked when the owning context scope
+closes. By default, unresolved references emit warnings. The effective context-scope
+policy can override the diagnostic severity per error type; that policy is inherited
+from the document top-level scope unless a descendant scope redefines it within parent
+override bounds.
 
 CEM-ML reference slots inline references by binding to the resolved target; they do not
 clone the referenced content into the originating tree. Content-type transforms that need
@@ -993,7 +999,7 @@ Status key:
 | L5 Child parser: Script (raw text only)                     | Design ready — parser preserves raw text; warning/error/reject/allow behavior is defined by active scope/content-type policy (§3.1–3.2, §9)                                             |
 | L6 InputDomAstBuilder: schema-defined initial DOM/AST       | Design ready — schema reconstructs token hierarchy; WHATWG DOM compliance is a downstream transformation over this initial DOM                                                          |
 | L6 InterpreterAstBuilder: CEM annotation projection         | Design partial — CEM attributes are transform annotations on source nodes; transform conflict policy is schema-owned; Tier A non-CEM minimum and CEM comment/CDATA syntax remain TBD (§10) |
-| L6 Reference slots: id/for/aria-*                           | Design partial — unfilled-slot severity remains unresolved (Ambiguity 6); concrete slot storage model is implementation TBD (§10)                                                        |
+| L6 Reference slots: id/for/aria-*                           | Design ready — one-pass mutable slots are sufficient; unfilled slots warn on owning scope close unless scope policy overrides severity per error type (§10, §3.1)                         |
 | L6 Source-map stacks: byte-range + transform chain          | Design partial — frame order, multi-range nodes, escape/entity decoding, and diagnostics-before-AST mapping unresolved (§18.2.1–3, §18.2.5)                                             |
 | L6 Source-map stacks: bit-level ranges                      | Deferred Tier B — reserve representation only after source-map frame model is fixed (§18.2.1–2); no serialized binary frame ids in Tier A (§11)                                         |
 | L7 BinaryAstEncoder                                         | Deferred Tier B — Tier A does not freeze serialized binary ids; canonical identity, ordering, and future id policy are scoped in §11                                                    |
@@ -1007,7 +1013,7 @@ Status key:
 | CLI output projections and fixture round-trip reports       | Design ready — CLI owns projection targets and side outputs; stack layers own projected artifacts                                                                                       |
 | Resource and security limits                                | Design partial — byte/decode bounds remain unresolved (§18.3.3); XML external-resource limits follow context-scope policy and content-type transforms (§3.1–3.2, §6)                     |
 | Incremental/editor parsing                                  | Deferred Tier B — caller-provided diffs map through source maps to changed scopes, with enclosing-scope rescan fallback                                                                 |
-| Post-parse reference validation (unfilled slots)            | Design partial — Warning vs Error severity unresolved (Ambiguity 6 sub-question)                                                                                                        |
+| Scope-close reference validation (unfilled slots)           | Design ready — unresolved references emit warnings on owning scope close by default; context-scope policy can override per diagnostic type (§10, §3.1)                                   |
 | Per-scope error boundaries                                  | Design ready — each context scope owns error handling and policy; inner scopes may relax or hide own errors only within parent override bounds (§3.1–3.2)                               |
 | Async mutation API (`*Async` DOM mutations)                 | Deferred Tier B/C — outside the primary parsing research; requires separate runtime API design                                                                                          |
 
@@ -1046,27 +1052,6 @@ Status key:
 Each open ambiguity is a design decision that must be resolved before the corresponding
 implementation phase begins. Numbering preserves previously assigned ambiguity IDs;
 resolved items are omitted. They are ordered by the layer they block.
-
-### Ambiguity 6 — Forward Reference Resolution Strategy
-
-**Blocks:** Layer 6 `slots.rs` design and post-parse validation ordering.
-
-**Question:** One-pass with mutable `NameSlot`s, or two-pass (first build id table, then
-resolve references)?
-
-**Research position:** The research explicitly describes one-pass mutable slots: "When a
-target token, declaration, or entity is defined, the interpreter updates that slot." This
-is the design.
-
-**Consequence:** AC-V-6 (broken `id`/`for`/`aria-*` references) is validated in a
-post-parse step that inspects unfilled `NameSlot`s, not during streaming. The schema
-machine's `close` transition on the document root triggers this check.
-
-**Open sub-question:** Should unfilled slots on document close be `Warning` or `Error`
-severity? The answer depends on whether CEM allows documents with dangling references
-(e.g., `aria-labelledby` pointing to a dynamically rendered id).
-
----
 
 ### Ambiguity 7 — Synchronous vs. Async Rust API For Tier A
 

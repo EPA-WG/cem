@@ -300,6 +300,7 @@ ScopePolicy:
 ErrorBoundaryPolicy:
   default_action: ErrorAction
   severity_floor: Severity
+  severity_by_code: HashMap<DiagCode, Severity>
   recover_with_error_subtree: bool
 
 ErrorAction:
@@ -340,7 +341,10 @@ initial policy. Child parser, handoff, transform, and embedded-content scopes in
 that policy, apply any local content-type or schema-declared policy changes, and then
 apply the owner scope's `ParentPolicyOverride`. The resulting `effective_policy` is
 stored on the `SchemaFrame`. A child scope may hide or relax handling for its own errors
-only when the parent override permits it.
+only when the parent override permits it. `ErrorBoundaryPolicy.severity_by_code` maps
+stable `DiagCode`s to severity overrides for that scope; unresolved reference diagnostics
+default to `Warning` when no override is present. CLI parameters or config seed the
+document root `ScopePolicy` before parsing begins.
 
 ```
 SchemaFrame:
@@ -611,7 +615,11 @@ composition, precedence, rejection, or diagnostics.
 Reference slots:
 
 ```
-NameSlot: logical mutable placeholder for a referenced AstNodeId
+NameSlot:
+  owner_scope: ScopeId
+  target_name: String
+  resolved: Option<AstNodeId>
+  source: SourceMapStack
 
 LabelRef(NameSlot)          - wraps a slot; filled when id="..." element is parsed
 ForRef(NameSlot)            - for/id pairing
@@ -622,9 +630,13 @@ When the parser encounters an element with an `id` attribute, it looks up the sl
 the document's `id_table` and fills it. Any prior `LabelRef`/`ForRef`/`AriaRef` holding
 the same slot observes the fill immediately.
 
-Forward references are represented as unfilled slots at parse time. The schema machine
-performs a post-parse reference check to identify remaining unfilled slots and emit
-diagnostics.
+Forward references are represented as unfilled slots at parse time. One pass is
+sufficient: when a target id appears, the parser fills the matching slot and all prior
+references observe the resolved target. When an owning context scope closes, the schema
+machine inspects unfilled `NameSlot`s owned by that scope and emits unresolved-reference
+diagnostics. The default severity is `Warning`; the current `ScopePolicy` may override
+severity per `DiagCode`, including CLI/config-provided overrides inherited from the
+document root.
 
 Implementation TBD: `NameSlot` is a logical contract, not a required
 `Arc<Mutex<Option<AstNodeId>>>` public shape. For a synchronous Tier A parser, a
@@ -952,7 +964,7 @@ cem_ml/src/
     mod.rs            CemMlEngine trait (I/O-independent)
     fake.rs           FakeEngine for CLI feature tests
   command/
-    mod.rs            I/O-independent command orchestration
+    mod.rs            I/O-independent command orchestration and top-level ScopePolicy config
   error.rs            CemError, usage/IO/schema/transform/plugin error variants
   query/
     mod.rs            role lookup, state lookup, validation messages, label resolution, source-map lookup
