@@ -105,8 +105,10 @@ ByteSource
 ```
 
 Layers in brackets are designed for stable interfaces but not implemented in Tier A.
-For Tier A, the pipeline runs synchronously in-process against an in-memory byte buffer;
-the encoder, compressor, and broadcast/cache paths are absent.
+For Tier A, all public Rust and WASM entry points are asynchronous. The implementation
+may buffer a complete input before tokenization in the first implementation phase, but
+callers interact with futures/streams only; no synchronous parser API is exposed. The
+encoder, compressor, and broadcast/cache paths are absent.
 
 The schema machine instantiates a child pipeline (tokenizer → normalizer → schema
 machine) for each embedded content region. The handoff stack controls the boundary and
@@ -240,9 +242,11 @@ Encoding resource bounds remain an open review item in §18.3.3.
 
 ### Tier A Scope
 
-Tier A accepts in-memory byte buffers, string input, and file-path input. Chunked async
-network delivery is deferred to Tier B, but Tier A must preserve absolute offsets so the
-future streaming interface can reuse the same source-map model.
+Tier A accepts in-memory byte buffers, string input, file-path input, and async byte or
+string streams through asynchronous APIs. The implementation may choose to collect a
+complete source before tokenization in Tier A; incremental parsing while chunks arrive is
+deferred to Tier B. Tier A must still preserve absolute offsets so the streaming parser
+can reuse the same source-map model.
 
 Implementation interfaces are in
 [`cem-ml-stack-design-impl.md`](cem-ml-stack-design-impl.md#31-layer-1-bytesource-and-encodingdecoder-cem_mlsource).
@@ -983,8 +987,8 @@ Status key:
 
 | Component                                                   | Design status                                                                                                                                                                           |
 |-------------------------------------------------------------|-----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|
-| L1 ByteSource: in-memory buffer, string, file path          | Design partial — source ownership/resource bounds need decisions (§18.3.1, §18.3.3)                                                                                                     |
-| L1 ByteSource: async network streaming                      | Deferred Tier B — Tier A interfaces must still preserve absolute offsets for future chunked input                                                                                       |
+| L1 ByteSource: in-memory buffer, string, file path          | Design partial — source ownership/resource bounds need decisions (§18.3.1, §18.3.3); exposed through async APIs only                                                                    |
+| L1 ByteSource: async byte/string streams                    | Design ready — async Rust and WASM input APIs are primary; Tier A may buffer before tokenization, while incremental parse-as-chunks-arrive remains Tier B                               |
 | L1 EncodingDecoder: UTF-8                                   | Design ready — UTF-8 is the fallback when no BOM or explicit/default encoding is present (§5, §18.3.2)                                                                                  |
 | L1 EncodingDecoder: UTF-16, Latin-1, BOM detection          | Design ready — byte-stream initiation, BOM precedence, BOM skipping, and caller/default encoding precedence are resolved (§5, §18.3.2)                                                   |
 | L1 Sentinel-byte ownership                                  | Design partial — Rust safety model for sentinel not resolved (§18.3.1)                                                                                                                  |
@@ -1015,7 +1019,7 @@ Status key:
 | Incremental/editor parsing                                  | Deferred Tier B — caller-provided diffs map through source maps to changed scopes, with enclosing-scope rescan fallback                                                                 |
 | Scope-close reference validation (unfilled slots)           | Design ready — unresolved references emit warnings on owning scope close by default; context-scope policy can override per diagnostic type (§10, §3.1)                                   |
 | Per-scope error boundaries                                  | Design ready — each context scope owns error handling and policy; inner scopes may relax or hide own errors only within parent override bounds (§3.1–3.2)                               |
-| Async mutation API (`*Async` DOM mutations)                 | Deferred Tier B/C — outside the primary parsing research; requires separate runtime API design                                                                                          |
+| Async mutation API (`*Async` DOM mutations)                 | Deferred Tier B/C — outside the primary parsing research; separate from the required async parse/load APIs                                                                              |
 
 ---
 
@@ -1052,26 +1056,6 @@ Status key:
 Each open ambiguity is a design decision that must be resolved before the corresponding
 implementation phase begins. Numbering preserves previously assigned ambiguity IDs;
 resolved items are omitted. They are ordered by the layer they block.
-
-### Ambiguity 7 — Synchronous vs. Async Rust API For Tier A
-
-**Blocks:** Layer 1 and Layer 9 API contract.
-
-**Question:** Does the Tier A `cem_ml` library expose a synchronous Rust API (processes
-an in-memory byte slice end-to-end), or a fully async API from the start?
-
-**AC-A-1** requires all processing to be asynchronous. **AC-P-2** requires the parser to
-accept a `ReadableStream<Uint8Array | string>`.
-
-**Research position:** The `ByteSource` model is a byte buffer; streaming is a delivery
-concern. A synchronous Rust parser can be wrapped by a WASM/JS binding that returns a
-`Promise`, satisfying the JS API contract.
-
-**Recommendation:** Tier A Rust library is synchronous — takes `&[u8]` or file path.
-The WASM/JS binding wraps the synchronous call in a resolved `Promise`. Full async
-chunked-input delivery (parsing while bytes arrive over the network) is Tier B.
-
----
 
 ### Ambiguity 8 — Diagnostic Error Propagation Across Layers
 
@@ -1561,7 +1545,7 @@ elements? If so, what source range does the synthetic close event use?
 
 **Answer A — Synthesize `CloseScope` immediately for both void HTML elements and self-closing XML/foreign-content tags.**
 After emitting `OpenScope`, attribute pairs, and `Separator { ElementBoundary }`, the
-normalizer emits `CloseScope { name, byte_range }` synchronously when:
+normalizer immediately emits `CloseScope { name, byte_range }` when:
 - the start tag has `self_closing = true` *and* the active tokenizer mode permits
   self-closing semantics (XML, SVG, MathML); or
 - the element is a known HTML void element (`area`, `base`, `br`, `col`, `embed`, `hr`,

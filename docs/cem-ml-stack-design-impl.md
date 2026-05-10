@@ -140,6 +140,14 @@ ByteSource:
   bytes() -> &[u8]                  read-only; sentinel byte guaranteed at bytes.len()
   byte_range() -> ByteRange         full range of this source
 
+AsyncByteSource:
+  next_chunk() -> Future<Option<ByteChunk>>
+  source_hint() -> SourceHint
+
+ByteChunk:
+  bytes: Vec<u8> | String
+  byte_range: Option<ByteRange>     known after source assembly or stream offset tracking
+
 DecodeConfig:
   default_encoding: Option<Encoding> // caller/server/child-source encoding, if known
   content_type: ContentType
@@ -178,8 +186,11 @@ Implementation rules:
   detection. External or separately loaded resources receive their own `ByteSource` and
   `DecodeConfig`, then apply the same initiation rule.
 
-Tier A supports in-memory byte buffer, string input, and file-path input. Chunked async
-network delivery is Tier B.
+Tier A exposes asynchronous source APIs only. In-memory byte buffers, strings, file-path
+input, and WASM `ReadableStream<Uint8Array | string>` inputs are normalized through
+`AsyncByteSource`. The first implementation may collect a complete `ByteSource` before
+tokenization; parse-as-chunks-arrive incremental delivery is Tier B. No synchronous
+public parser or WASM entry point is defined.
 
 ### 3.2 Layer 2: SchemaTokenizer (`cem_ml::tokenizer`)
 
@@ -639,10 +650,11 @@ severity per `DiagCode`, including CLI/config-provided overrides inherited from 
 document root.
 
 Implementation TBD: `NameSlot` is a logical contract, not a required
-`Arc<Mutex<Option<AstNodeId>>>` public shape. For a synchronous Tier A parser, a
-generational slot arena or handle table is likely simpler, faster, and easier to
-serialize into the future binary AST. Thread-safe shared ownership is required only if a
-public async/concurrent API exposes slots across threads or tasks.
+`Arc<Mutex<Option<AstNodeId>>>` public shape. Even though public parsing APIs are async,
+slot resolution can remain task-local to one parse run. A generational slot arena or
+handle table is likely simpler, faster, and easier to serialize into the future binary
+AST. Thread-safe shared ownership is required only if the runtime exposes slots across
+threads or concurrently polled tasks.
 
 The `InputDomAstBuilder` appends a source-map frame when reconstructing the
 schema-defined token hierarchy. The `InterpreterAstBuilder` appends a
@@ -899,6 +911,28 @@ above for static or future hydrated output. The live hydration runtime, browser 
 execution, DOM patcher, and DOM identity preservation model are subject to a separate
 design phase (TBD).
 
+### 3.12 Async Engine And WASM API Contract
+
+All public parser, loader, validator, and transform entry points are asynchronous in Rust
+and WASM. The crate does not expose synchronous parser APIs.
+
+```
+CemMlEngine:
+  parse(input: AsyncByteSource, config: ParserConfig) -> Future<Result<ParseOutput, CemError>>
+  validate(input: AsyncByteSource, config: ParserConfig) -> Future<Result<ReportAst, CemError>>
+  transform(input: AsyncByteSource, target: OutputTarget, config: ParserConfig) -> Future<Result<TransformOutput, CemError>>
+
+WasmApi:
+  parse(input: ReadableStream<Uint8Array | string> | Uint8Array | string, config) -> Promise<ParseOutput>
+  validate(input: ReadableStream<Uint8Array | string> | Uint8Array | string, config) -> Promise<ReportAst>
+  transform(input: ReadableStream<Uint8Array | string> | Uint8Array | string, target, config) -> Promise<TransformOutput>
+```
+
+In-memory inputs are wrapped as already-ready async sources. File inputs are opened and
+read through async runtime adapters. Tier A may await source assembly before tokenization;
+that is still an async API contract. Incremental parsing while chunks arrive is deferred
+to Tier B.
+
 ---
 
 ## 4. Rust Module Map
@@ -907,7 +941,7 @@ design phase (TBD).
 cem_ml/src/
   lib.rs
   source/
-    mod.rs            ByteSource trait, SourceId, ByteRange
+    mod.rs            AsyncByteSource and assembled ByteSource traits, SourceId, ByteRange
     decode.rs         EncodingDecoder, DecodedChunk, Encoding
     line_index.rs     LineIndex - byte offset -> (line, col) projection
   tokenizer/
@@ -961,7 +995,7 @@ cem_ml/src/
   formats.rs          parse output format names (dom-json, ast, events)
   fixture.rs          default fixture paths, report path policy
   engine/
-    mod.rs            CemMlEngine trait (I/O-independent)
+    mod.rs            async CemMlEngine trait (I/O-independent)
     fake.rs           FakeEngine for CLI feature tests
   command/
     mod.rs            I/O-independent command orchestration and top-level ScopePolicy config
