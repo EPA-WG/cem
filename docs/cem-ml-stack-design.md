@@ -328,9 +328,10 @@ The event enum and token mapping table are in
 ### Purpose
 
 Validates the normalized event stream against the CEM schema incrementally. Maintains a
-push/pop stack of schema frames. The preferred algorithm is a RELAX NG derivative
-validator; Tier A may use a hand-written DFA for the constrained CEM vocabulary if it
-keeps the derivative replacement path open.
+push/pop stack of schema frames. CEM structural schema semantics must have functional
+parity with RELAX NG validation. Tier A may execute a limited structural subset through a
+compiled DFA profile, but that profile is generated from the same RELAX-NG-equivalent
+CEM schema IR and must preserve the full derivative runtime path.
 
 ### Algorithm Selection
 
@@ -338,12 +339,12 @@ From the research algorithm comparison table:
 
 - **Nested events -> visibly pushdown frame stack.** Start tags push frames, end tags pop
   frames, and attributes/text update the current frame.
-- **Schema validation -> RELAX NG derivatives.** After each event, compute the residual
-  schema `D(event, schema)`. If the residual is the empty language, emit a hard error.
-  Residuals also provide expected-content diagnostics.
-
-**Ambiguity 9** covers whether Tier A uses a full RELAX NG derivative engine or a
-hand-written DFA for the initial CEM vocabulary.
+- **Schema validation -> RELAX NG-compatible structural IR.** Full validation semantics
+  are RELAX NG-equivalent and derivative-computable. After each event, a full derivative
+  runtime computes the residual schema `D(event, schema)`; Tier A may instead use a
+  limited DFA transition generated from the same structural IR. If the residual or DFA
+  state is the empty language, emit a hard error. Residuals and DFA follow sets provide
+  expected-content diagnostics through the same diagnostic contract.
 
 ### Functional Design
 
@@ -919,16 +920,16 @@ adapters, but they are not competing canonical authoring formats for CEM schemas
 
 The dedicated schema compiler emits two products:
 
-- a structural validation IR that can drive the Tier A CEM DFA and preserve the Tier B
-  RELAX NG derivative replacement path; and
+- a structural validation IR with RELAX NG functional parity that can drive the limited
+  Tier A CEM DFA profile and the full derivative runtime; and
 - a semantic rule registry for cross-reference, contextual, policy, and transform checks
   that are not structural grammar constraints.
 
 Functional parity requirements:
 
-- The structural IR must support `D(event, schema)` computation, or an equivalent DFA
-  transition model, so the schema machine can produce residual/expected-content
-  diagnostics with the contract defined in §18.5.1.
+- The structural IR must be RELAX-NG-equivalent for structural validation and support
+  `D(event, schema)` computation. Tier A may expose only a limited DFA execution profile
+  over that IR, but it must produce diagnostics with the contract defined in §18.5.1.
 - The format must represent the CEM annotations and state values in §8, namespace
   bindings, qualified names, required attributes and children, child ordering and
   multiplicity, simple value-type and pattern constraints, unknown/open-content policy,
@@ -1000,8 +1001,8 @@ Status key:
 | L2 SchemaTokenizer: XML 1.0 profile                         | Design partial — namespace/name model remains unresolved (§18.4.4); DTD/external-resource ownership follows transform policy (§3.2, §6)                                                 |
 | L3 EventNormalizer                                          | Design partial — attribute-list close event, void elements, name model, and trivia remain unspecified (§18.4.1–4); `ModeSwitch` creates the embedded context (§9)                       |
 | L4 SchemaMachine: visibly pushdown frame stack              | Design partial — recovery invariant and multiplicity/required-name state affect core semantics (§18.5.3–4); diagnostic propagation boundary is resolved (§8, §3.1)                       |
-| L4 SchemaMachine: RELAX NG derivative engine                | Deferred Tier B — Tier A DFA must preserve a replacement path for residual diagnostics (Ambiguity 9, §18.5.1)                                                                           |
-| L4 SchemaMachine: CEM vocabulary DFA                        | Design partial — DFA state table and unknown-content edge cases remain unspecified (Ambiguity 9, §18.5.1–2); CEM-native source and compiler output contract are fixed by §13 and impl §3.4 |
+| L4 SchemaMachine: RELAX NG derivative engine                | Deferred Tier B — CEM structural schema has RELAX NG functional parity; Tier A limited DFA profile must preserve residual diagnostic parity (§18.5.1)                                   |
+| L4 SchemaMachine: CEM vocabulary DFA                        | Design partial — limited Tier A DFA profile is selected; DFA state table and unknown-content edge cases remain unspecified (§18.5.1–2); compiler output contract is fixed by §13 and impl §3.4 |
 | L5 HandoffStack: ownership and return-condition tracking    | Design ready — current context parser recognizes `ModeSwitch`; CEM framework maps entity content type and creates child context with decoded stream (§9)                                  |
 | L5 Child parser: CSS (stub, diagnostic only)                | Design ready — container content type decodes before handoff; child receives a source-mapped decoded stream (§9)                                                                        |
 | L5 Child parser: Script (raw text only)                     | Design ready — parser preserves raw text; warning/error/reject/allow behavior is defined by active scope/content-type policy (§3.1–3.2, §9)                                             |
@@ -1039,8 +1040,8 @@ Status key:
 | L2        | XML tokenization             | XML 1.0 scanner                                          | Well-defined, same tokenizer contract as HTML                                                  |
 | L3        | Cross-format event model     | Open/close/name/value taxonomy                           | Research §3: small event set lets schema validation share algorithms across formats            |
 | L4        | Nested validation            | Visibly pushdown frame stack                             | Research §4, §Algorithms: "natural fit for open/close structures"                              |
-| L4        | Schema validation Tier A     | Hand-written CEM DFA                                     | Simple constrained vocabulary; allows derivative upgrade without API change (Ambiguity 9)      |
-| L4        | Schema validation Tier B     | RELAX NG derivatives                                     | Research §XML notes: "residual describes what was expected next" — streaming, good diagnostics |
+| L4        | Schema validation Tier A     | Limited CEM DFA profile over RELAX-NG-equivalent IR      | Keeps Tier A bounded while preserving the full structural validation contract                  |
+| L4        | Schema validation Tier B     | RELAX NG derivatives over the same structural IR          | Research §XML notes: "residual describes what was expected next" — streaming, good diagnostics |
 | L5        | Embedded languages           | Parent-owned handoff with explicit return condition      | Research §5: "child parser never infers parent close condition independently"                  |
 | L6        | Initial DOM/AST              | Schema-defined token hierarchy reconstruction            | Drives WHATWG HTML DOM compliance without making tokenization circular                         |
 | Transform | WHATWG HTML DOM              | Content-type transform over initial HTML parser DOM      | Applies insertion modes, active formatting elements, foster parenting, and DOM updates         |
@@ -1057,31 +1058,9 @@ Status key:
 
 ## 17. Open Ambiguities
 
-Each open ambiguity is a design decision that must be resolved before the corresponding
-implementation phase begins. Numbering preserves previously assigned ambiguity IDs;
-resolved items are omitted. They are ordered by the layer they block.
-
-### Ambiguity 9 — RELAX NG Derivative Engine vs. Hand-Written DFA
-
-**Blocks:** Layer 4 schema validation algorithm choice for Tier A.
-
-**Question:** Does Tier A implement a full RELAX NG derivative engine, or a
-hand-written DFA specifically for the CEM vocabulary?
-
-**Full derivative engine:** General, handles arbitrary RELAX NG grammars including open
-content models, interleave, and attribute ordering. Better diagnostics (residual
-describes expected content). Significant implementation work; few mature Rust crates
-available (most existing implementations are Java — Jing/Trang per the research).
-
-**Hand-written DFA:** Purpose-built for the CEM vocabulary (eight transform annotations,
-ten states, two dozen attributes). Fast to implement, deterministic, easy to test.
-Cannot generalize to schemas beyond CEM without rewriting.
-
-**Recommendation:** Option C (hybrid): Tier A uses a hand-written DFA for the CEM
-vocabulary. The `SchemaState` type and `derivative.rs` module interface are designed so
-that the derivative engine can replace the DFA without changing the `SchemaMachine`
-external API. Full RELAX NG derivatives are required when mixed-content HTML5 schemas
-or external schema loading (AC-S-5) are needed.
+No open ambiguity entries remain in this section. Previously assigned ambiguity IDs are
+omitted after resolution; related implementation concerns that still need details are
+tracked in §18.
 
 ---
 
@@ -1673,10 +1652,10 @@ namespace's case-folding policy when binding `ExpandedName`.
 
 ### 18.5 Schema-Machine And Validation Questions
 
-**Concern 18.5.1 — RELAX NG derivatives and the Tier A DFA may not produce equivalent
-diagnostics.**  
-The design recommends a hand-written DFA for Tier A, while the research favors
-derivatives for residual-based expected-content diagnostics.
+**Concern 18.5.1 — RELAX NG derivatives and the limited Tier A DFA profile may not
+produce equivalent diagnostics.**
+The design requires CEM structural schema semantics to have RELAX NG functional parity,
+while Tier A may execute only a limited DFA profile over the same structural IR.
 
 **Question:** What diagnostic quality must the Tier A DFA match so that later replacing
 it with a derivative engine does not break reports or feature tests?
@@ -1692,12 +1671,11 @@ Required diagnostic shape at every error:
 - `actual: Option<EventDescriptor>` (what was seen),
 - `byte_range: ByteRange` and `source_map: SourceMapStack`.
 
-The Tier A DFA computes `expected_set` from outgoing transitions of the current state
-(possibly empty if the DFA was hand-written and didn't precompute follow sets). A
-derivative engine computes it from the residual's nullable-leaves analysis — same shape,
-finer answers. Feature tests assert on `DiagCode` and required `expected_set` *members*
-(superset relation), not exact set equality. Migration to derivatives strengthens
-`expected_set` without breaking tests.
+The Tier A DFA profile computes `expected_set` from outgoing transitions of the current
+state. A derivative engine computes it from the residual's nullable-leaves analysis —
+same shape, finer answers. Feature tests assert on `DiagCode` and required
+`expected_set` *members* (superset relation), not exact set equality. Migration to full
+derivatives strengthens `expected_set` without breaking tests.
 
 **Answer B — Tier A DFA has no `expected_set`; only `DiagCode` and `actual` are stable.**
 Pros: simplest DFA; no follow-set precomputation. Cons: feature tests cannot assert on
@@ -1711,7 +1689,10 @@ hand-written follow-set tables drift from grammar changes.
 **Recommendation:** Adopt **Answer A**. The contract guarantees code-level
 compatibility (same `DiagCode`s, same payload shape); engines may differ in
 *completeness* of `expected_set`. Tier A tests should assert "expected_set ⊇ {required
-items}", which is monotone under engine upgrade.
+items}", which is monotone under engine upgrade. Tier A may reject unsupported structural
+constructs at schema compile time with `cem.schema.unsupported_tier_a_constraint`; such
+rejections are limits of the Tier A execution profile, not differences in CEM schema
+semantics.
 
 **Ambiguity (to be answered):**
 - Is `expected_set` ordered? Default: stable but unspecified ordering at the contract

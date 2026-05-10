@@ -291,9 +291,18 @@ CemNativeSchemaSource:
 
 StructuralSchemaIr:
   entry_state: SchemaState
-  states: Vec<SchemaStateDef>        DFA-ready structural states for Tier A
-  derivative: Option<DerivativeIr>   Tier B residual/derivative representation
+  relax_ng_equivalent: RelaxNgEquivalentIr
+  tier_a_profile: TierAValidationProfile
+  states: Vec<SchemaStateDef>        DFA-ready limited structural states for Tier A
+  derivative: Option<DerivativeIr>   full residual/derivative representation
   diagnostics: DiagnosticContract
+
+TierAValidationProfile:
+  supported_constraints: Vec<StructuralConstraintKind>
+  unsupported_policy: UnsupportedConstraintPolicy
+
+UnsupportedConstraintPolicy:
+  CompileError(DiagCode)             default: cem.schema.unsupported_tier_a_constraint
 
 SemanticRule:
   rule_id: SemanticRuleId
@@ -352,9 +361,12 @@ CEM-native schema source
   -> TransformPlan metadata for the CEM template renderer
 ```
 
-Only `StructuralSchemaIr` is consumed during streaming event validation. Cross-reference,
-contextual, policy, and transform checks are emitted as `SemanticRule`s and run after the
-relevant input DOM/AST state exists.
+Only `StructuralSchemaIr` is consumed during streaming event validation. Its structural
+semantics are RELAX-NG-equivalent. Tier A executes the `tier_a_profile` DFA subset and
+rejects unsupported structural constraints at schema compile time; later derivative
+runtimes consume `relax_ng_equivalent` / `derivative` without changing schema semantics.
+Cross-reference, contextual, policy, and transform checks are emitted as `SemanticRule`s
+and run after the relevant input DOM/AST state exists.
 
 `ScopePolicy` is resolved when a context scope is created. The document root creates the
 initial policy. Child parser, handoff, transform, and embedded-content scopes inherit
