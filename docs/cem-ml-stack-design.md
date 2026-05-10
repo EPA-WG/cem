@@ -118,27 +118,32 @@ return condition.
 
 *Streaming data corridor.*
 
-Depth and count limits are defined by the active content-type policy. The outer content
-type owns the effective limits and criticality for the parse scope, including nesting
-depth, attributes per element, references per document, residual cache size, chunk count,
-diagnostic count, and analogous resource ceilings.
+Depth, count limits, and error-boundary behavior are defined by the active context-scope
+policy. The document top-level scope establishes the initial policy. Every parser,
+handoff, transform, and embedded-content context runs inside a context scope with an
+effective policy. Inner scopes may redefine their own policy downward, including relaxed
+error handling, diagnostic hiding, scope-local recovery, stricter resource limits, or
+content-type-specific validation behavior.
 
-Embedded contexts inherit the outer policy and may only increase restraint: a child
-content-type policy can lower a limit or raise the failure criticality, but it cannot
-raise a limit or downgrade a fail-closed condition from the parent. This makes resource
-behavior monotonic across handoff boundaries. A permissive outer HTML parse may allow a
-child CSS parser to impose stricter CSS-specific bounds, but an embedded context cannot
-weaken document-level protections.
+The parent/owner scope remains authoritative for the effective policy. A parent can
+allow an embedded context to hide or relax its own errors, or it can override that inner
+policy by enforcing severity floors, fail-closed behavior, diagnostic visibility,
+resource ceilings, allowed schemes, or full-parse abort behavior. This means embedded
+contexts can be locally permissive only within the envelope allowed by their owner
+context.
+
+Resource behavior is therefore policy-inherited, not globally monotonic. A child
+content-type policy may lower or raise local limits and may downgrade local diagnostics
+when the parent allows it. A parent policy can still impose non-relaxable ceilings or
+failure criticality for document-level protections.
 
 When a limit is exceeded, the effective policy determines whether the parser records a
 recoverable diagnostic and continues in degraded mode, aborts the current scope, or
 aborts the full parse.
 
-Resource ceilings for transform-owned loading graphs use the same scope policy model.
-The outer content type owns the effective policy, and child scopes may only increase
-restraint by lowering limits or raising criticality. Fetch count, redirect depth, byte
-count, reference depth, timeout, and allowed schemes are content-type policy fields, not
-tokenizer behavior.
+Resource ceilings for transform-owned loading graphs use the same context-scope policy
+model. Fetch count, redirect depth, byte count, reference depth, timeout, and allowed
+schemes are scope-policy fields, not tokenizer behavior.
 
 ### 3.2 Unsafe Content And URL Policy
 
@@ -163,10 +168,11 @@ rejection, same-origin requirements, inline-event handling, `srcdoc` handling,
 form-action constraints, and allowed embedded content types.
 
 Each parse or handoff scope has an effective policy inherited from its owner context.
-Embedded contexts may tighten restrictions or add content-type-specific validation, but
-they may not weaken the outer policy. The outer context may override inner URL mappings
-and substitutions; inner scopes cannot override parent mappings in a way that relaxes
-security.
+Embedded contexts may redefine local URL mappings, substitutions, diagnostics, and
+security handling only within the envelope permitted by the owner. The outer context may
+override inner URL mappings, substitutions, diagnostic visibility, error severity,
+resource limits, and security restrictions; inner scopes cannot override parent mappings
+in a way that the parent policy forbids.
 
 ---
 
@@ -999,10 +1005,10 @@ Status key:
 | LineIndex: byte-offset → line/col projection                | Design partial — column-unit model, newline normalization, tabs, replacement chars, and UTF-16/scalar projections unspecified (§18.2.4)                                                 |
 | Diagnostics and reports                                     | Design partial — source-map ownership and diagnostics-before-AST mapping unresolved (§18.2.5)                                                                                           |
 | CLI output projections and fixture round-trip reports       | Design ready — CLI owns projection targets and side outputs; stack layers own projected artifacts                                                                                       |
-| Resource and security limits                                | Design partial — byte/decode bounds remain unresolved (§18.3.3); XML external-resource limits follow transform policy and content-type limits (§3.1–3.2, §6)                            |
+| Resource and security limits                                | Design partial — byte/decode bounds remain unresolved (§18.3.3); XML external-resource limits follow context-scope policy and content-type transforms (§3.1–3.2, §6)                     |
 | Incremental/editor parsing                                  | Deferred Tier B — caller-provided diffs map through source maps to changed scopes, with enclosing-scope rescan fallback                                                                 |
 | Post-parse reference validation (unfilled slots)            | Design partial — Warning vs Error severity unresolved (Ambiguity 6 sub-question)                                                                                                        |
-| Per-scope error boundaries                                  | Deferred Tier B (Ambiguity 5)                                                                                                                                                           |
+| Per-scope error boundaries                                  | Design ready — each context scope owns error handling and policy; inner scopes may relax or hide own errors only within parent override bounds (§3.1–3.2)                               |
 | Async mutation API (`*Async` DOM mutations)                 | Deferred Tier B/C — outside the primary parsing research; requires separate runtime API design                                                                                          |
 
 ---
@@ -1040,23 +1046,6 @@ Status key:
 Each open ambiguity is a design decision that must be resolved before the corresponding
 implementation phase begins. Numbering preserves previously assigned ambiguity IDs;
 resolved items are omitted. They are ordered by the layer they block.
-
-### Ambiguity 5 — Scope Granularity For CEM Documents
-
-**Blocks:** Layer 4 scope-boundary design; Tier B scope isolation (AC-P-4, AC-I-3).
-
-**Question:** Is a CEM parse scope (error boundary) one per document, or one per
-top-level schema-qualified CEM element (e.g., per `cem:screen`)?
-
-**Per document:** Simple; one schema machine per parse run.  
-**Per `cem:screen`:** Aligns with AC-P-5 (nested scopes) and AC-I-3 (interpreter
-owns subtree exclusively). Errors inside one screen don't corrupt others.
-
-**Recommendation:** For Tier A, use one scope per document with named subtree anchors.
-Per-screen scope isolation is Tier B; design the `SchemaFrame` to carry a `scope_id` now
-so the Tier B boundary is additive.
-
----
 
 ### Ambiguity 6 — Forward Reference Resolution Strategy
 

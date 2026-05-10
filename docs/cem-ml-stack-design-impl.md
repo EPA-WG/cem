@@ -287,6 +287,38 @@ SemanticRule:
   applies_to: ExpandedName
   severity: Severity
   source: SourceMapStack
+
+ScopePolicy:
+  scope_id: ScopeId
+  parent: Option<ScopeId>
+  content_type: ContentType
+  resources: ContentTypePolicy
+  errors: ErrorBoundaryPolicy
+  diagnostics: DiagnosticVisibility
+  parent_override: ParentPolicyOverride
+
+ErrorBoundaryPolicy:
+  default_action: ErrorAction
+  severity_floor: Severity
+  recover_with_error_subtree: bool
+
+ErrorAction:
+  Inherit
+  HideAndContinue
+  ReportAndContinue
+  AbortScope
+  AbortParse
+
+DiagnosticVisibility:
+  Public
+  ScopeLocal
+  HiddenFromParent
+
+ParentPolicyOverride:
+  force_visibility: Option<DiagnosticVisibility>
+  severity_floor: Option<Severity>
+  force_abort_at: Option<Severity>
+  resource_ceiling: Option<ContentTypePolicy>
 ```
 
 The compiler boundary is:
@@ -303,11 +335,20 @@ Only `StructuralSchemaIr` is consumed during streaming event validation. Cross-r
 contextual, policy, and transform checks are emitted as `SemanticRule`s and run after the
 relevant input DOM/AST state exists.
 
+`ScopePolicy` is resolved when a context scope is created. The document root creates the
+initial policy. Child parser, handoff, transform, and embedded-content scopes inherit
+that policy, apply any local content-type or schema-declared policy changes, and then
+apply the owner scope's `ParentPolicyOverride`. The resulting `effective_policy` is
+stored on the `SchemaFrame`. A child scope may hide or relax handling for its own errors
+only when the parent override permits it.
+
 ```
 SchemaFrame:
+  scope_id: ScopeId
   schema_id: SchemaId
   language_id: ContentType          e.g. text/html, text/css
   state: SchemaState                current structural DFA state or derivative residual
+  effective_policy: ScopePolicy
   source_span: ByteRange            range of the element that opened this frame
   source_map_stack: SourceMapStack  accumulated map at frame entry
   expected_close: Option<QName>     for element-level close validation
@@ -388,8 +429,8 @@ close(event):
 
 error(event):
   Record Diagnostic on current frame.
-  Run recovery: for non-Fatal, continue with a permissive residual.
-  For Fatal, abort current scope.
+  Evaluate current frame's effective ScopePolicy.
+  Hide, report, recover, abort current scope, or abort full parse per policy.
 
 transform(event):
   Append SourceMapFrame to current source_map_stack.
@@ -731,7 +772,7 @@ ContentScope:
   role: ContentScopeRole
   owner: Option<ScopeId>
   source: SourceMapStack
-  policy: ContentTypePolicy
+  policy: ScopePolicy
 
 ContentScopeRole:
   Visual
@@ -867,6 +908,7 @@ cem_ml/src/
     mod.rs            SchemaMachine, SchemaFrame, SchemaState
     compiler.rs       CEM-native schema source -> CompiledSchema
     ir.rs             CompiledSchema, StructuralSchemaIr, SemanticRule, open-content policy
+    policy.rs         ScopePolicy, ErrorBoundaryPolicy, DiagnosticVisibility, parent overrides
     dfa.rs            Tier A structural validator backend
     derivative.rs     RELAX NG derivative computation
     namespace.rs      NsContext, NamespaceBinding, ExpandedName, NameResolution
