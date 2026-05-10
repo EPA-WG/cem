@@ -356,8 +356,24 @@ and closes. It records each diagnostic at the scope where the error originates, 
 bubbles the diagnostic to the nearest error-boundary scope. An error-boundary scope is
 either declared explicitly by the active schema or, when no explicit boundary exists, the
 current context root. The boundary scope's effective policy decides whether to hide,
-report, recover, abort the boundary scope, or abort the full parse. Validated events are
-passed to the input DOM/AST builder.
+report, recover, abort the boundary scope, or abort the full parse. The document scope
+is the topmost error boundary context; engine defaults, CLI parameters, or config seed
+its policy before parsing, and descendant scopes inherit or redefine that policy within
+parent override bounds. The effective policy maps stable diagnostic codes to severity
+and can upgrade a recoverable warning or error to fatal/fail-fast behavior.
+
+When policy allows recovery for a non-fatal schema error, the machine pushes an
+`ErrorSubtree` frame. The frame accepts child events until the matching `CloseScope`
+while still preserving well-formedness checks such as balanced opens/closes and scalar
+value minimums. On the matching close, the machine pops the error frame and resumes the
+parent frame unchanged; the parent structural state is not broadly permissive and is not
+corrupted by the rejected subtree. AST nodes built inside the recovered subtree carry
+`tainted: true` so downstream transforms can skip or specially handle them.
+Open-scope and element-content recovery use `ErrorSubtree`; attribute-phase name/value
+errors are recorded and the attribute phase continues unless policy escalates. If an
+unknown `OpenScope` has no schema-provided expected close, recovery waits for the
+matching lexical close; if the construct is void-like and has no close, recovery ends at
+the parent close. Validated events are passed to the input DOM/AST builder.
 
 A schema frame owns the active schema id, content type, validation state, expected close,
 namespace context, source-map stack, seen names, diagnostics, and effective scope policy.
@@ -1022,7 +1038,7 @@ Status key:
 | L2 SchemaTokenizer: HTML WHATWG profile                     | Design ready — custom WHATWG-state tokenizer selected for exact source-map preservation across nested embedded contexts (§6)                                                            |
 | L2 SchemaTokenizer: XML 1.0 profile                         | Design partial — namespace/name model remains unresolved (§18.4.4); DTD/external-resource ownership follows transform policy (§3.2, §6)                                                 |
 | L3 EventNormalizer                                          | Design partial — attribute-list close event, void elements, name model, and trivia remain unspecified (§18.4.1–4); `ModeSwitch` creates the embedded context (§9)                       |
-| L4 SchemaMachine: visibly pushdown frame stack              | Design partial — recovery invariant and multiplicity/required-name state affect core semantics (§18.5.3–4); diagnostic propagation boundary is resolved (§8, §3.1)                       |
+| L4 SchemaMachine: visibly pushdown frame stack              | Design partial — multiplicity/required-name state affects core semantics (§18.5.4); recovery invariant and diagnostic propagation boundary are resolved (§8, §3.1)                         |
 | L4 SchemaMachine: RELAX NG derivative engine                | Deferred Tier B — CEM structural schema has RELAX NG functional parity; Tier A limited DFA profile must preserve residual diagnostic parity (§18.5.1)                                   |
 | L4 SchemaMachine: CEM vocabulary DFA                        | Design partial — limited Tier A DFA profile is selected; DFA state table and unknown-content edge cases remain unspecified (§18.5.1–2); compiler output contract is fixed by §13 and impl §3.4 |
 | L5 HandoffStack: ownership and return-condition tracking    | Design ready — current context parser recognizes `ModeSwitch`; CEM framework maps entity content type and creates child context with decoded stream (§9)                                  |
@@ -1769,58 +1785,6 @@ event.
 - Custom elements (`<my-thing>`) — unknown HTML element warning, or accepted as a
   WHATWG-conformant author-defined element? Default: accepted; CEM does not police the
   customElements registry.
-
-**Concern 18.5.3 — Recovery with a "permissive residual" needs a concrete invariant.**  
-The schema machine says non-fatal errors continue with a permissive residual, but a
-permissive state can hide cascaded errors or corrupt AST shape.
-
-**Question:** After an error, does recovery skip to the next close event, accept any
-child until expected close, or continue with a special "error subtree" frame?
-
-**Answer A — Push an `ErrorSubtree` frame; accept any child until matching close, then resume parent state.**
-On any non-Fatal schema error during open/value/separator handling, the engine:
-1. Records the diagnostic on the current frame.
-2. Pushes a `SchemaFrame { state: SchemaState::ErrorSubtree, expected_close: <name from triggering event>, ... }`.
-3. Accepts every child event without further structural validation (still validates
-   well-formedness: balanced opens/closes, value type minimums).
-4. On the matching `CloseScope`, pops the error frame and resumes the parent state
-   *unchanged* (the parent never advanced; the error subtree is treated as if the parent
-   saw exactly one acceptable child placeholder).
-5. AST nodes built inside the error subtree carry a `tainted: true` marker so downstream
-   transforms can skip or specially handle them.
-
-Pros: bounded blast radius (one element); parent state preserved; cascading errors
-suppressed inside the error subtree but report tree still records diagnostics; matches
-the research's "permissive residual" framing as a *frame-local* relaxation rather than
-a state machine corruption.
-
-**Answer B — Skip to next sibling close: drop events until the matching `CloseScope` of the offending element, then resume.**
-Like A but no error frame; events are silently consumed. Pros: simpler. Cons: no AST
-nodes inside the error region (loses content for IDE features); no place to attach
-nested diagnostics.
-
-**Answer C — Continue with a permissive residual: any element/value is acceptable in the current state until the next valid close.**
-Pros: maximum tooling completeness. Cons: hides cascading errors; one missing tag turns
-the rest of the document into "anything goes".
-
-**Answer D — Fatal-on-first-error mode for batch validation; A for IDE/tooling mode.**
-Configurable per invocation. Pros: lints can fail-fast; editors get full diagnostics.
-Cons: two contracts to test.
-
-**Recommendation:** Adopt **Answer A** as the default behavior. **Answer D** is a thin
-configuration wrapper: `RecoveryPolicy::FailFast | Recover` that gates whether a
-non-Fatal error is upgraded to Fatal. Add `tainted: bool` to AST nodes and `Synthesis`
-already on synthetic close events (see 18.4.2).
-
-**Ambiguity (to be answered):**
-- If the offending event was an `OpenScope` of an element that is unknown to the
-  schema (no expected `CloseScope` name), does recovery still wait for a matching close?
-  Default: yes — the engine matches by lexical name; if the unknown element is
-  void-ish and has no matching close, recovery ends at the parent's close instead.
-- Do attribute-phase errors (`Name`/`Value` validation failures during the start tag)
-  push an error frame, or just record the diagnostic and continue the attribute phase?
-  Default: continue the attribute phase, no frame; only OpenScope/element-content
-  errors push `ErrorSubtree`.
 
 **Concern 18.5.4 — Multiplicity, ordering, and required-name tracking need phase
 boundaries.**  
