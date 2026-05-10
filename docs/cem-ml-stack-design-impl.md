@@ -117,11 +117,14 @@ Diagnostic:
   severity: Severity { Fatal | Error | Warning | Info }
   message: String
   node: Option<AstNodeId>           AST node reference when available
+  origin_scope: ScopeId
+  boundary_scope: ScopeId           error-boundary scope that handled the diagnostic
 ```
 
-`Fatal` aborts the current scope. `Error` and `Warning` continue in diagnostic mode with
-a permissive residual, subject to the unresolved recovery invariant in the primary
-design.
+Diagnostics originate in the scope where the parser, validator, transform, or runtime
+detected the error. They bubble to the nearest error-boundary scope. `Fatal`,
+`Error`, and `Warning` handling is decided by that boundary scope's effective
+`ScopePolicy`.
 
 ---
 
@@ -303,10 +306,16 @@ ScopePolicy:
   scope_id: ScopeId
   parent: Option<ScopeId>
   content_type: ContentType
+  error_boundary: ErrorBoundaryKind
   resources: ContentTypePolicy
   errors: ErrorBoundaryPolicy
   diagnostics: DiagnosticVisibility
   parent_override: ParentPolicyOverride
+
+ErrorBoundaryKind:
+  SchemaDeclared
+  ContextRoot
+  None
 
 ErrorBoundaryPolicy:
   default_action: ErrorAction
@@ -356,6 +365,12 @@ only when the parent override permits it. `ErrorBoundaryPolicy.severity_by_code`
 stable `DiagCode`s to severity overrides for that scope; unresolved reference diagnostics
 default to `Warning` when no override is present. CLI parameters or config seed the
 document root `ScopePolicy` before parsing begins.
+
+Diagnostic propagation walks from the origin frame toward its ancestors until it reaches
+the nearest scope whose `error_boundary` is `SchemaDeclared` or `ContextRoot`. If no
+schema-declared boundary is found before the context root, the context root handles the
+diagnostic. The boundary scope applies its effective policy and becomes the diagnostic's
+`boundary_scope`.
 
 ```
 SchemaFrame:
@@ -443,9 +458,10 @@ close(event):
   Pop frame; propagate close result to parent frame.
 
 error(event):
-  Record Diagnostic on current frame.
-  Evaluate current frame's effective ScopePolicy.
-  Hide, report, recover, abort current scope, or abort full parse per policy.
+  Create Diagnostic with origin_scope = current frame scope.
+  Bubble to nearest SchemaDeclared or ContextRoot error boundary.
+  Evaluate boundary frame's effective ScopePolicy.
+  Hide, report, recover, abort boundary scope, or abort full parse per policy.
 
 transform(event):
   Append SourceMapFrame to current source_map_stack.
@@ -954,7 +970,7 @@ cem_ml/src/
     mod.rs            SchemaMachine, SchemaFrame, SchemaState
     compiler.rs       CEM-native schema source -> CompiledSchema
     ir.rs             CompiledSchema, StructuralSchemaIr, SemanticRule, open-content policy
-    policy.rs         ScopePolicy, ErrorBoundaryPolicy, DiagnosticVisibility, parent overrides
+    policy.rs         ScopePolicy, ErrorBoundaryKind, ErrorBoundaryPolicy, DiagnosticVisibility, parent overrides
     dfa.rs            Tier A structural validator backend
     derivative.rs     RELAX NG derivative computation
     namespace.rs      NsContext, NamespaceBinding, ExpandedName, NameResolution

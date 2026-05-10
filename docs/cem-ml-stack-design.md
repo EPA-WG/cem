@@ -348,13 +348,16 @@ hand-written DFA for the initial CEM vocabulary.
 ### Functional Design
 
 The schema machine validates scope opens, scalar values, separators, embedded handoffs,
-and closes. It records diagnostics on the current frame, runs recovery for non-fatal
-errors, aborts the current scope for fatal errors, and passes validated events to the
-input DOM/AST builder.
+and closes. It records each diagnostic at the scope where the error originates, then
+bubbles the diagnostic to the nearest error-boundary scope. An error-boundary scope is
+either declared explicitly by the active schema or, when no explicit boundary exists, the
+current context root. The boundary scope's effective policy decides whether to hide,
+report, recover, abort the boundary scope, or abort the full parse. Validated events are
+passed to the input DOM/AST builder.
 
 A schema frame owns the active schema id, content type, validation state, expected close,
-namespace context, source-map stack, seen names, and diagnostics. Exact frame fields and
-transition sketches are in
+namespace context, source-map stack, seen names, diagnostics, and effective scope policy.
+Exact frame fields and transition sketches are in
 [`cem-ml-stack-design-impl.md`](cem-ml-stack-design-impl.md#34-layer-4-schemamachine-cem_mlschema).
 
 ### CEM Vocabulary In The Schema
@@ -452,7 +455,8 @@ Diagnostics use byte offsets as ground truth and derive line/column positions fo
 outputs. The canonical report model is an AST-associated report tree, not a flat list.
 Each parser, schema, handoff, transform, validation, or runtime event attaches to the
 current AST node when one exists, the current source module state, the event-time
-source-map stack, and a monotonic event sequence number.
+source-map stack, the originating scope, the error-boundary scope that handled it, and a
+monotonic event sequence number.
 
 The report tree can be projected to CEM-native, XML, JSON, Markdown, text, HTML, or any
 other supported structured format. Text and HTML reports are reference convenience
@@ -995,7 +999,7 @@ Status key:
 | L2 SchemaTokenizer: HTML WHATWG profile                     | Design ready — custom WHATWG-state tokenizer selected for exact source-map preservation across nested embedded contexts (§6)                                                            |
 | L2 SchemaTokenizer: XML 1.0 profile                         | Design partial — namespace/name model remains unresolved (§18.4.4); DTD/external-resource ownership follows transform policy (§3.2, §6)                                                 |
 | L3 EventNormalizer                                          | Design partial — attribute-list close event, void elements, name model, and trivia remain unspecified (§18.4.1–4); `ModeSwitch` creates the embedded context (§9)                       |
-| L4 SchemaMachine: visibly pushdown frame stack              | Design partial — recovery invariant, multiplicity/required-name state, and diagnostic propagation affect core semantics (§18.5.3–4, Ambiguity 8)                                        |
+| L4 SchemaMachine: visibly pushdown frame stack              | Design partial — recovery invariant and multiplicity/required-name state affect core semantics (§18.5.3–4); diagnostic propagation boundary is resolved (§8, §3.1)                       |
 | L4 SchemaMachine: RELAX NG derivative engine                | Deferred Tier B — Tier A DFA must preserve a replacement path for residual diagnostics (Ambiguity 9, §18.5.1)                                                                           |
 | L4 SchemaMachine: CEM vocabulary DFA                        | Design partial — DFA state table and unknown-content edge cases remain unspecified (Ambiguity 9, §18.5.1–2); CEM-native source and compiler output contract are fixed by §13 and impl §3.4 |
 | L5 HandoffStack: ownership and return-condition tracking    | Design ready — current context parser recognizes `ModeSwitch`; CEM framework maps entity content type and creates child context with decoded stream (§9)                                  |
@@ -1056,28 +1060,6 @@ Status key:
 Each open ambiguity is a design decision that must be resolved before the corresponding
 implementation phase begins. Numbering preserves previously assigned ambiguity IDs;
 resolved items are omitted. They are ordered by the layer they block.
-
-### Ambiguity 8 — Diagnostic Error Propagation Across Layers
-
-**Blocks:** Layer 4 and Layer 9 error model; AC-A-8.
-
-**Question:** Do per-node errors appear as rejected promises on that node only, or do
-they bubble to the document root?
-
-**Research position:** The schema machine records diagnostics on the current `SchemaFrame`
-and runs a recovery strategy. Errors do not automatically propagate up the frame stack
-unless severity is `Fatal`.
-
-**Recommendation:** Diagnostics are collected per frame and surfaced through the
-structured event stream (`onParseEvent`). Promise-level rejection applies only to `Fatal`
-severity or explicit scope aborts. Non-fatal errors accumulate in the diagnostic list
-and appear in the report, not as thrown exceptions.
-
-**Open sub-question:** What is the exact boundary between `Error` severity (scope
-continues with permissive residual) and `Fatal` severity (scope aborts)? This needs a
-severity table in the schema machine implementation.
-
----
 
 ### Ambiguity 9 — RELAX NG Derivative Engine vs. Hand-Written DFA
 
