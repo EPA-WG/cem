@@ -487,9 +487,11 @@ child parser never infers the parent's return condition independently.
 
 A handoff records the child content type, the inherited parent context, the child schema
 id when one is known, the source span when available, and the return condition. The
-parent schema machine emits the authoritative handoff before yielding the byte stream to
-the child parser. The child parser consumes through the declared return condition and
-then returns control to the parent.
+container content type owns decoding for its own content before handoff. The child
+context receives a source-mapped decoded stream, not a plain string and not undecoded
+parent bytes. The parent schema machine emits the authoritative handoff before yielding
+that stream to the child parser. The child parser consumes through the declared return
+condition and then returns control to the parent.
 
 Tier A handoff cases:
 
@@ -498,6 +500,11 @@ Tier A handoff cases:
 | HTML document  | `<style>` start tag  | `text/css`                     | `</style>` end tag  |
 | HTML element   | `style=""` attribute | `text/css` (declaration block) | attribute quote end |
 | HTML document  | `<script>` start tag | raw text (not parsed Tier A)   | `</script>` end tag |
+
+For attribute handoffs such as `style=""`, the HTML container first decodes the attribute
+value according to HTML rules. The CSS child parser receives the decoded stream with
+source-map frames back to the parent attribute ranges, including entity or escape-origin
+mapping where available.
 
 For Tier A, the CSS child parser is a stub that emits diagnostics but does not produce a
 typed CSS AST. Script regions are treated as raw text by the parser. Whether a script
@@ -947,7 +954,7 @@ Status key:
 | L4 SchemaMachine: RELAX NG derivative engine                | Deferred Tier B — Tier A DFA must preserve a replacement path for residual diagnostics (Ambiguity 9, §18.5.1)                                                                           |
 | L4 SchemaMachine: CEM vocabulary DFA                        | Design partial — DFA state table, schema compiler integration, and unknown-content policy remain unspecified (Ambiguity 3, Ambiguity 9, §18.5.1–2)                                      |
 | L5 HandoffStack: ownership and return-condition tracking    | Design partial — authoritative handoff owner remains unresolved (§18.6.1); deferred cases are listed with XML → JSON → HTML/other implementation priority (§9)                          |
-| L5 Child parser: CSS (stub, diagnostic only)                | Design partial — embedded-source byte/decoded-view model unspecified (§18.6.2)                                                                                                          |
+| L5 Child parser: CSS (stub, diagnostic only)                | Design ready — container content type decodes before handoff; child receives a source-mapped decoded stream (§9)                                                                        |
 | L5 Child parser: Script (raw text only)                     | Design ready — parser preserves raw text; warning/error/reject/allow behavior is defined by active scope/content-type policy (§3.1–3.2, §9)                                             |
 | L6 InputDomAstBuilder: schema-defined initial DOM/AST       | Design ready — schema reconstructs token hierarchy; WHATWG DOM compliance is a downstream transformation over this initial DOM                                                          |
 | L6 InterpreterAstBuilder: CEM annotation projection         | Design partial — CEM attributes are transform annotations on source nodes; transform conflict policy is schema-owned; Tier A non-CEM minimum and CEM comment/CDATA syntax remain TBD (§10) |
@@ -1360,16 +1367,6 @@ also controlled by tokenizer state.
 
 **Question:** Which layer creates the authoritative `HandoffRecord`, and which layer
 only reports that the lexical mode changed?
-
-**Concern 18.6.2 — Embedded content byte ranges can be decoded views, not contiguous raw
-bytes.**  
-A `style=""` attribute child CSS source is the decoded attribute value. HTML entity
-references inside that attribute mean the child parser sees a logical string whose
-characters do not map one-to-one to raw bytes.
-
-**Question:** Does the child parser consume a synthetic `SourceId` with its own decoded
-text and a source-map frame back to the parent attribute, or does it consume raw parent
-bytes with escape awareness?
 
 ---
 

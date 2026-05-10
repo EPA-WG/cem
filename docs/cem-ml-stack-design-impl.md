@@ -378,9 +378,15 @@ hashes, report AST summaries, and diagnostics.
 HandoffRecord:
   child_content_type: ContentType
   byte_span: Option<ByteRange>       known upfront for buffered embedded regions
+  decoded_stream: DecodedStreamRef   source-mapped stream prepared by the container
   inherited_ctx: InheritedContext    parent element name, attribute name, MIME type, namespace
   child_schema_id: Option<SchemaId>
   return_condition: ReturnCondition
+
+DecodedStreamRef:
+  source_id: SourceId                synthetic or parent-backed source identity
+  decoded_units: DecodedUnitStream   scalar/token units visible to the child context
+  source_map: SourceMapStack         maps stream units back to container ranges
 
 ReturnCondition:
   MatchingEndTag(QName)              e.g. </style>, </script>
@@ -401,10 +407,11 @@ Deferred return-condition variants are listed for interface stability. Implement
 priority after Tier A is XML first, JSON second, then HTML extensions and other embedded
 language cases.
 
-The parent schema machine emits a `HandoffRecord` with the exact `ReturnCondition`
-before yielding the byte stream to the child parser. The child parser consumes bytes up
-to the return condition and signals completion. The parent resumes with the byte
-following the condition boundary.
+The container content type decodes its own content before handoff. The parent schema
+machine emits a `HandoffRecord` with the exact `ReturnCondition` before yielding the
+source-mapped decoded stream to the child parser. The child parser consumes stream units
+up to the return condition and signals completion. The parent resumes with the source
+position following the condition boundary.
 
 ### 3.8 Layer 6: InputDomAstBuilder / InterpreterAstBuilder (`cem_ml::parser`)
 
