@@ -726,9 +726,9 @@ Functional scope roles:
 - **Machine state data:** data islands, attributes, `dataset`, payload/slot content,
   fetched resources, route/location state, storage state, form state, call-instance
   slot data, and runtime slices that parameterize transforms.
-- **Code or transform content:** CSS, SCSS, XSLT or template DSL fragments, JavaScript
-  when enabled by policy, and other content that can affect rendering or state but is
-  not itself the rendered UI tree.
+- **Code or transform content:** CSS, SCSS, CEM template fragments, JavaScript when
+  enabled by policy, and other content that can affect rendering or state but is not
+  itself the rendered UI tree.
 - **Unresolved resource slots:** external resources or embedded constructs preserved
   for a later transform or caller when no active policy consumes them.
 
@@ -789,9 +789,9 @@ and virtual DOM patch metadata are in
 
 Transform behavior is schema-driven. The schema owns the transform layers, including
 source annotation matching, target element construction, attribute mapping, child
-traversal, copy/pass-through rules, and source-map frame creation. Rust code, XSLT, or a
-template DSL are execution backends for the schema-owned transform plan; none of them is
-the reference source of truth.
+traversal, copy/pass-through rules, and source-map frame creation. The selected
+execution backend is the CEM template renderer implemented in Rust. It is generic across
+schema-owned transform plans and is not a set of hand-written per-component Rust rules.
 
 For the CEM semantic HTML projection, schema-qualified CEM annotations drive custom
 element output, wrapper generation, attribute generation, or no structural output
@@ -854,18 +854,31 @@ Each output custom-element node appends an implementation transform frame. Prior
 trace back to the original input token, enabling generated output such as `<cem-screen>`
 to resolve back to `<main cem:screen="login">`.
 
-### Transform Execution Backends
+### Transform Execution Backend
 
-The reference implementation stack must execute schema-driven transform plans. A
-hand-written Rust backend is allowed as developer convenience, for prototyping, and for
-optimized execution of schema rules, but it must not become the essential source of
-transform behavior. Any Rust implementation must be traceable back to schema-owned rules
-and must preserve the same diagnostics and source-map semantics as another backend.
+The transform backend is resolved as a Rust implementation of the schema-driven CEM
+template renderer. For most content types, schema-owned CEM templates define matching,
+selection, output construction, attribute generation, copy/pass-through behavior,
+recursive application, source-map frame creation, and diagnostics.
 
-XSLT or an XSLT-like template backend is one possible execution backend for the same
-schema-owned plan. Tier placement for the Rust backend, a minimal template DSL, or a full
-XSLT engine is a scheduling decision and can be defined later as long as it does not
-conflict with the primary principle that schema controls transform layers.
+The renderer is generic: transform behavior is loaded from the compiled schema/template
+plan, not encoded as bespoke Rust logic for individual CEM components. Rust owns
+execution, type checking, resource limits, source-map preservation, diagnostics, and
+security enforcement.
+
+The CEM template model is expected to provide parity with the majority of XSLT-style
+transformation functionality: template matching, scoped context, value selection,
+conditional output, iteration, recursive template application, copy/pass-through rules,
+named/template-reference calls, parameter or state binding, and deterministic output
+serialization. It does not adopt unrestricted XPath/XSLT execution as the runtime
+contract.
+
+The primary differences from XSLT are context scope and selector language. CEM template
+queries are evaluated against the current transform scope, schema-owned AST view,
+machine-state slots, and policy-visible resources only. The selector/query language must
+provide XPath-like expressive power for the supported CEM AST and data model, but access
+outside the allowed context is rejected by construction. The exact CEM template syntax
+and scoped query syntax remain TBD.
 
 Transform interface shapes are in
 [`cem-ml-stack-design-impl.md`](cem-ml-stack-design-impl.md#310-layer-9-implementationinterpreter-cem_mlinterpreter).
@@ -981,7 +994,7 @@ Status key:
 | L8 ChunkCompressor                                          | Deferred Tier B — compression profiles are research-backed; canonical chunk identity, ordering, and dependency slots are scoped in §11                                                  |
 | ContentTypeTransformPipeline: WHATWG HTML DOM               | Design ready — schema-driven initial HTML parser DOM is transformed into WHATWG implementation DOM updates                                                                              |
 | L9 ImplementationInterpreter: schema-driven transform rules | Design ready — schema owns transform layers; namespace-qualified CEM identity resolves source collisions; canonical serialization and HTML `data-*` ownership are defined in §8 and §12 |
-| L9 ImplementationInterpreter: transform execution backends  | Deferred Tier B/C — Rust, template DSL, and XSLT tier placement is a scheduling decision constrained by schema-owned transform rules (§12, Ambiguity 4)                                 |
+| L9 ImplementationInterpreter: transform execution backend   | Design partial — Rust CEM template renderer is selected; exact CEM template syntax and scoped query syntax remain TBD (§12)                                                             |
 | Visual content and machine state data                       | Design partial — uniform AST role model is defined; live hydration, browser adapters, and DOM patch identity are subject to a separate design phase TBD (§12)                           |
 | LineIndex: byte-offset → line/col projection                | Design partial — column-unit model, newline normalization, tabs, replacement chars, and UTF-16/scalar projections unspecified (§18.2.4)                                                 |
 | Diagnostics and reports                                     | Design partial — source-map ownership and diagnostics-before-AST mapping unresolved (§18.2.5)                                                                                           |
@@ -1014,9 +1027,9 @@ Status key:
 | L6        | Forward references           | Mutable scoped name slots                                | Research §4: "slot filled when defining entity arrives"                                        |
 | L6        | Source location ground truth | `u64` byte offset                                        | Research Unicode policy: "byte offsets as stable storage format"                               |
 | L6        | Line/column                  | On-demand projection via LineIndex                       | Research: "derived coordinates" — never stored, computed from byte offset                      |
-| L9        | CEM transform semantics      | Schema-driven transform plan                             | Keeps schema in charge of transform layers across Rust, template, or XSLT backends             |
+| L9        | CEM transform semantics      | Schema-driven CEM template plan                          | Keeps schema in charge of transform layers while Rust executes the generic template renderer    |
 | L9        | UI virtualization            | Template reference + machine-state binding               | Reuses templates by reference and applies owned scope data during transformation               |
-| L9        | CEM transform backends       | Rust convenience backend / template DSL / XSLT engine    | Backend tier placement is deferred; each backend executes the schema-owned plan                |
+| L9        | CEM transform backend        | Rust CEM template renderer with scoped query evaluation   | Provides XSLT-like transform coverage while enforcing CEM scope and policy boundaries          |
 | Deferred  | Binary AST transport         | Dictionary-encoded subtree chunks                        | Research §Binary AST: parallel delivery, retry, cache reuse                                    |
 | Deferred  | Chunk compression            | Zstandard (`canonical-fast`), Brotli (`canonical-dense`) | Research §Compression Strategy                                                                 |
 
@@ -1027,28 +1040,6 @@ Status key:
 Each open ambiguity is a design decision that must be resolved before the corresponding
 implementation phase begins. Numbering preserves previously assigned ambiguity IDs;
 resolved items are omitted. They are ordered by the layer they block.
-
-### Ambiguity 4 — Transform Backend Tier Placement
-
-**Blocks:** Layer 9 implementation depth, not the schema-owned transform principle.
-
-**Question:** Which execution backend is implemented in each tier for schema-owned
-transform plans:  
-A. Rust convenience backend generated from or traceable to schema rules.  
-B. Minimal template DSL backend (match + value-of + apply-templates + copy).  
-C. Full XSLT engine backend (Tier C per AC-T-3).
-
-**Resolved principle:** Transform semantics are schema-driven. Hand-written Rust rules
-are not the reference implementation source of truth; they are a developer convenience
-or optimization backend only. Tier A or Tier C placement can be defined later as long as
-the chosen backend executes the same schema-owned transform plan.
-
-**Impact:** Option B requires building a template parser/evaluator but moves closer to
-loadable transforms from URI or stream (AC-T-4). Option A is simpler for early execution,
-but it must remain generated from or traceable to schema rules and cannot block a later
-template or XSLT backend.
-
----
 
 ### Ambiguity 5 — Scope Granularity For CEM Documents
 

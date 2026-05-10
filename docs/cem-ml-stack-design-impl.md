@@ -296,7 +296,7 @@ CEM-native schema source
   -> CompiledSchema
   -> StructuralSchemaIr for the SchemaMachine
   -> SemanticRule registry for post-structural validation
-  -> TransformPlan metadata for interpreter backends
+  -> TransformPlan metadata for the CEM template renderer
 ```
 
 Only `StructuralSchemaIr` is consumed during streaming event validation. Cross-reference,
@@ -651,12 +651,42 @@ CemInterpreter trait:
 TransformPlan:
   schema_id: SchemaId
   target_content_type: ContentType
-  rules: Vec<TransformRule>        schema-owned rules; backend-neutral
+  template_module: CemTemplateModule
+  rules: Vec<TemplateRule>         schema-owned CEM template rules
+
+CemTemplateModule:
+  module_id: TemplateModuleId
+  templates: Vec<CemTemplate>
+  query_language: ScopedQueryLanguage
+  source: SourceMapStack
+
+CemTemplate:
+  template_id: TemplateId
+  match_query: ScopedQuery
+  priority: i32
+  body: Vec<TemplateOp>
+  params: Vec<TemplateParam>
+  source: SourceMapStack
+
+ScopedQuery:
+  expression: String               syntax TBD
+  allowed_context: QueryContextScope
+  source: SourceMapStack
+
+ScopedQueryLanguage:
+  CemScopedQuery                   XPath-like semantics, CEM scope and policy bounded
+
+QueryContextScope:
+  current_node: AstNodeId
+  schema_scope: ScopeId
+  state_slots: Vec<StateSlotId>
+  resource_policy: ContentTypePolicy
 
 TransformContext:
   schema_id: SchemaId
   base_uri: Option<String>
   fail_level: FailLevel
+  query_scope: QueryContextScope
 
 TransformOutput:
   canonical: CemMlDocument            schema-owned CEM-ML AST/tree serialization
@@ -675,11 +705,18 @@ Each output custom-element node appends a `TransformKind::Implementation` frame.
 prior frames, inherited from the CEM AST node's `SourceMapStack`, trace back to the
 original HTML token.
 
-The reference implementation stack must execute schema-driven transform plans. A
-hand-written Rust backend is allowed as developer convenience, for prototyping, and for
-optimized execution of schema rules, but it must not become the essential source of
-transform behavior. Any Rust implementation must be traceable back to schema-owned rules
-and must preserve the same diagnostics and source-map semantics as another backend.
+The reference implementation stack executes schema-driven CEM template plans with a
+generic Rust renderer. Rust owns the renderer, query evaluator, diagnostics, source-map
+preservation, and policy checks, but transform behavior comes from `CemTemplateModule`
+and `TemplateRule` data emitted by the compiled schema. The renderer should provide
+XSLT-like coverage for matching, value selection, conditionals, iteration, recursive
+template application, copy/pass-through rules, named/template-reference calls, parameter
+or state binding, and deterministic serialization.
+
+Scoped queries are XPath-like in capability but are evaluated only against
+`QueryContextScope`: the current AST node, the active schema scope, allowed machine-state
+slots, and policy-visible resources. The exact CEM template syntax and scoped query
+syntax are TBD; the implementation contract is the scoped execution model.
 
 ### 3.11 Visual Content, Machine State, And Hydration Contracts
 
@@ -754,7 +791,7 @@ RenderBinding:
   template_ref: TemplateRef
   input_dom_root: Option<AstNodeId>
   state_slots: Vec<StateSlotId>
-  transform_rules: Vec<TransformRule>
+  transform_rules: Vec<TemplateRule>
 
 UiDomPlan:
   plan_id: UiDomPlanId
@@ -849,7 +886,8 @@ cem_ml/src/
     css.rs            CSS/SCSS AST and external-reference transform hooks
   interpreter/
     mod.rs            CemInterpreter trait, TransformContext, TransformOutput, RenderedOutput
-    transform.rs      CEM semantic HTML -> custom-element transform rules
+    template.rs       Rust CEM template renderer and scoped query evaluator
+    transform.rs      CEM semantic HTML -> custom-element template plans
   runtime/
     mod.rs            machine state, template registry, hydration plans, DOM patch policy
     state.rs          MachineStateSlot and state source adapters
