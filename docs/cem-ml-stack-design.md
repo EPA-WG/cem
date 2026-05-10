@@ -435,6 +435,34 @@ Nesting rules, required sibling relationships, allowed parent elements, unknown-
 policy, and state constraints are expressed in the schema and validated through the frame
 stack. The schema source language is the CEM-native declarative format selected in §13.
 
+Unknown and extension content is governed by a schema-owned open-content policy keyed on
+`ExpandedName` namespace and active content model. The active schema declares
+`OpenContent` per content model. If it omits a declaration, CEM-owned names default
+closed, unknown HTML attributes default to warnings, and HTML `data-*`, `role`, and
+`aria-*` remain orthogonal pass-through attributes.
+
+Default unknown-content behavior:
+
+| Family                                | Unknown element                                   | Unknown attribute                            |
+|---------------------------------------|---------------------------------------------------|----------------------------------------------|
+| HTML namespace, non-custom unknown name | `error: cem.schema.unknown_html_element`        | `warning: cem.schema.unknown_html_attribute` |
+| WHATWG custom element name            | accepted                                          | n/a                                          |
+| HTML `data-*`                         | n/a                                               | accepted, ignored by schema validation       |
+| ARIA (`role`, `aria-*`)               | n/a                                               | accepted; ARIA validity is a separate pass   |
+| Active CEM schema namespace           | `error: cem.schema.unknown_cem_element`           | `error: cem.schema.unknown_cem_attribute`    |
+| Other registered schema namespaces    | per registered schema open-content policy         | per registered schema open-content policy    |
+| Unbound prefix                        | `error: cem.schema.unbound_prefix`                | `error: cem.schema.unbound_prefix`           |
+| No namespace, `open: true`            | `warning: cem.schema.extension_element`           | `warning: cem.schema.extension_attribute`    |
+| No namespace, `open: false` (default) | `error: cem.schema.unknown_element`               | `error: cem.schema.unknown_attribute`        |
+
+Vendor-prefixed HTML attributes such as `x-data` are unknown HTML attributes by default
+and therefore warn unless an extension namespace or open-content rule accepts them.
+Custom elements such as `<my-thing>` are accepted as WHATWG-conformant author-defined
+elements; CEM does not police the browser `customElements` registry. Attributes on those
+elements still follow the same namespace/open-content policy. The schema machine
+consults the open-content policy for each unknown `OpenScope` or attribute `Name` before
+emitting diagnostics.
+
 ### Namespace Resolution For Tags And Attributes
 
 Names are resolved through the schema frame's namespace context before validation or
@@ -1067,7 +1095,7 @@ Status key:
 | L3 EventNormalizer                                          | Design partial — attribute-list close event, void elements, name model, and trivia remain unspecified (§18.4.1–4); `ModeSwitch` creates the embedded context (§9)                       |
 | L4 SchemaMachine: visibly pushdown frame stack              | Design ready — frame phases, attribute/content trackers, recovery invariant, and diagnostic propagation boundary are resolved (§8, §3.1)                                                  |
 | L4 SchemaMachine: RELAX NG derivative engine                | Deferred Tier B — CEM structural schema has RELAX NG functional parity; Tier A limited DFA profile must preserve residual diagnostic parity (§18.5.1)                                   |
-| L4 SchemaMachine: CEM vocabulary DFA                        | Design partial — limited Tier A DFA profile is selected; DFA state table and unknown-content edge cases remain unspecified (§18.5.1–2); compiler output contract is fixed by §13 and impl §3.4 |
+| L4 SchemaMachine: CEM vocabulary DFA                        | Design partial — limited Tier A DFA profile is selected and open-content defaults are resolved (§8, §13); DFA state table remains unspecified (§18.5.1)                                      |
 | L5 HandoffStack: ownership and return-condition tracking    | Design ready — current context parser recognizes `ModeSwitch`; CEM framework maps entity content type and creates child context with decoded stream (§9)                                  |
 | L5 Child parser: CSS (stub, diagnostic only)                | Design ready — container content type decodes before handoff; child receives a source-mapped decoded stream (§9)                                                                        |
 | L5 Child parser: Script (raw text only)                     | Design ready — parser preserves raw text; warning/error/reject/allow behavior is defined by active scope/content-type policy (§3.1–3.2, §9)                                             |
@@ -1766,52 +1794,6 @@ semantics.
 - Should `actual` carry the resolved `ExpandedName` (helpful for namespace-related
   errors) or the lexical name (closer to author intent)? Default: both —
   `actual: { lexical: String, expanded: Option<ExpandedName> }`.
-
-**Concern 18.5.2 — Unknown/extension content policy is not formalized.**  
-The design mentions warnings for unknown attributes and semver-compatible drift, but does
-not define open-content rules in the schema state.
-
-**Question:** Which unknown elements and attributes are warnings, which are errors, and
-which are ignored? Does the policy differ for standard HTML, ARIA, HTML `data-*`, and
-schema-qualified CEM attributes?
-
-**Answer A — Open-content policy keyed on `ExpandedName` namespace.**
-| Family                                                   | Unknown element                                   | Unknown attribute                                  |
-|----------------------------------------------------------|---------------------------------------------------|----------------------------------------------------|
-| HTML namespace, standard tag/attr                        | `error: cem.schema.unknown_html_element`          | `warning: cem.schema.unknown_html_attribute`       |
-| HTML `data-*`                                            | n/a                                               | accepted, ignored by validation                    |
-| ARIA (`role`, `aria-*`)                                  | n/a                                               | accepted; ARIA validity is a separate pass (Tier B)|
-| Active CEM schema namespace                              | `error: cem.schema.unknown_cem_element`           | `error: cem.schema.unknown_cem_attribute`          |
-| Other registered schema namespaces                       | per registered schema's open-content policy       | per registered schema's open-content policy        |
-| Unbound prefix                                           | `error: cem.schema.unbound_prefix`                | `error: cem.schema.unbound_prefix`                 |
-| No-namespace, schema declares `open: true`               | `warning: cem.schema.extension_element`           | `warning: cem.schema.extension_attribute`          |
-| No-namespace, schema declares `open: false` (default)    | `error`                                           | `error`                                            |
-
-Pros: explicit per-family rule; `data-*` and ARIA carve-outs are clearly orthogonal to
-schema validation; semver-compatible drift is expressible by registering schema
-namespaces with `open: true`. Cons: requires the schema model to expose an
-`open: bool` (or a richer `OpenContent { allowed: Vec<NamespaceUri>, severity }`) per
-content model.
-
-**Answer B — Single global "unknown → warning" policy with a per-name allowlist.**
-Pros: simple. Cons: cannot distinguish "unknown CEM attribute" (should be an error,
-likely a typo) from "unknown HTML attribute on a custom element" (should be ignored).
-
-**Answer C — Schema-language-driven: the schema declares open-content rules per content model, no built-in defaults.**
-Pros: maximum flexibility. Cons: empty schemas behave inconsistently; no sensible
-default if the author forgets the rule.
-
-**Recommendation:** Adopt **Answer A**. The CEM schema language gains a per-content-model
-`OpenContent` declaration (default closed for CEM names, default warning for HTML, accept
-for `data-*` and ARIA). The DFA/derivative engine consults this model on every unknown
-event.
-
-**Ambiguity (to be answered):**
-- Are vendor-prefixed HTML attributes (e.g. `x-data` from Alpine.js) treated as `data-*`
-  or as unknown? Default: unknown (warning), unless an extension namespace is registered.
-- Custom elements (`<my-thing>`) — unknown HTML element warning, or accepted as a
-  WHATWG-conformant author-defined element? Default: accepted; CEM does not police the
-  customElements registry.
 
 *End of design document. Each ambiguity and review concern above should be resolved with
 a brief decision record before the corresponding implementation phase starts. Resolved

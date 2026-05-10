@@ -286,6 +286,41 @@ CompiledSchema:
   transform_plans: Vec<TransformPlanRef>
   open_content: OpenContentPolicy
 
+OpenContentPolicy:
+  rules: Vec<OpenContentRule>
+  defaults: OpenContentDefaults
+
+OpenContentRule:
+  content_model: Option<ContentModelId>
+  namespace_uri: Option<NamespaceUri>
+  open: bool
+  unknown_element: OpenContentAction
+  unknown_attribute: OpenContentAction
+  source: SourceMapStack
+
+OpenContentAction:
+  Accept
+  AcceptIgnore
+  DeferToSemanticPass
+  DelegateToRegisteredSchema
+  Diagnostic { code: DiagCode, severity: Severity }
+
+OpenContentDefaults:
+  html_unknown_element: Diagnostic { code: cem.schema.unknown_html_element, severity: Error }
+  html_unknown_attribute: Diagnostic { code: cem.schema.unknown_html_attribute, severity: Warning }
+  html_custom_element: Accept
+  html_data_attribute: AcceptIgnore
+  aria_or_role_attribute: DeferToSemanticPass
+  active_cem_unknown_element: Diagnostic { code: cem.schema.unknown_cem_element, severity: Error }
+  active_cem_unknown_attribute: Diagnostic { code: cem.schema.unknown_cem_attribute, severity: Error }
+  other_registered_schema: DelegateToRegisteredSchema
+  unbound_prefix: Diagnostic { code: cem.schema.unbound_prefix, severity: Error }
+  no_namespace_open_true_element: Diagnostic { code: cem.schema.extension_element, severity: Warning }
+  no_namespace_open_true_attribute: Diagnostic { code: cem.schema.extension_attribute, severity: Warning }
+  no_namespace_open_false_element: Diagnostic { code: cem.schema.unknown_element, severity: Error }
+  no_namespace_open_false_attribute: Diagnostic { code: cem.schema.unknown_attribute, severity: Error }
+  vendor_prefixed_html_attribute: Diagnostic { code: cem.schema.unknown_html_attribute, severity: Warning }
+
 CemNativeSchemaSource:
   uri: String
   version: String
@@ -391,6 +426,15 @@ local lexical/mode constraints, SchemaMachine for structural constraints,
 reference-resolution for slot/name constraints, AST validation for context-sensitive
 constraints, and transform/policy placement for rendering, resource, or security
 constraints.
+
+`OpenContentPolicy` is consulted by the SchemaMachine for each unknown `OpenScope` and
+attribute `Name` after `ExpandedName` resolution. Rules are keyed by content model and
+namespace. HTML `data-*` attributes are accepted and ignored by schema validation. ARIA
+and `role` attributes are accepted here and deferred to a later semantic pass. WHATWG
+custom element names are accepted without checking the browser registry; attributes on
+those elements still follow the same namespace/open-content policy. Vendor-prefixed HTML
+attributes such as `x-data` use `vendor_prefixed_html_attribute` unless a registered
+extension namespace or explicit open-content rule accepts them.
 
 `ScopePolicy` is resolved when a context scope is created. The document root creates the
 initial policy. Child parser, handoff, transform, and embedded-content scopes inherit
@@ -507,13 +551,15 @@ State transitions:
 open(event):
   Require current frame phase = Content.
   Validate OpenScope name, ordering, and multiplicity against content_state.
+  If the name is unknown, consult open_content before emitting the diagnostic.
   Record diagnostic-relevant child in seen_children and update required_remaining_children.
   Push child SchemaFrame with phase = Attribute and required attr/content sets from schema.
 
 name(event):
   Require current frame phase = Attribute.
   Resolve ExpandedName in namespace_ctx.
-  Check duplicate and unknown attribute rules against attr_state.seen and schema.
+  Check duplicate and unknown attribute rules against attr_state.seen, schema, and
+  open_content.
   Insert first-seen range and remove required_remaining entry when accepted.
 
 value(event):
