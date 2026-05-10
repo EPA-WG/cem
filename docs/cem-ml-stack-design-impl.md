@@ -230,7 +230,10 @@ that same token source-map context.
 
 WHATWG tokenizer states (data, RCDATA, RAWTEXT, script-data, tag-open, attribute-value,
 etc.) are internal to this layer. The schema can select valid tokenizer contexts and
-embedded-content boundaries, but it does not rewrite WHATWG lexical behavior.
+embedded-content boundaries, and the compiler may place schema-owned lexical/mode or
+embedded-boundary diagnostics in this layer when they require only local token context.
+Tokenizer-executed schema diagnostics do not make the tokenizer the semantic source of
+truth and do not rewrite WHATWG lexical behavior.
 
 XML tokenizer follows the same `RawToken` shape using an XML 1.0 profile, keeping Layers
 3 and above format-agnostic. XML external resources and compatibility behavior are owned
@@ -307,9 +310,25 @@ UnsupportedConstraintPolicy:
 SemanticRule:
   rule_id: SemanticRuleId
   phase: SemanticRulePhase           CrossReference | Contextual | Policy | Transform
+  dependency_tier: ConstraintTier
+  execution: RuleExecutionPlacement
   applies_to: ExpandedName
   severity: Severity
   source: SourceMapStack
+
+ConstraintTier:
+  Structural
+  CrossReference
+  SemanticContextual
+
+RuleExecutionPlacement:
+  Tokenizer
+  EventNormalizer
+  SchemaMachine
+  ReferenceResolution
+  AstValidation
+  Transform
+  Policy
 
 ScopePolicy:
   scope_id: ScopeId
@@ -357,7 +376,7 @@ The compiler boundary is:
 CEM-native schema source
   -> CompiledSchema
   -> StructuralSchemaIr for the SchemaMachine
-  -> SemanticRule registry for post-structural validation
+  -> SemanticRule registry with dependency tier and execution placement
   -> TransformPlan metadata for the CEM template renderer
 ```
 
@@ -365,8 +384,13 @@ Only `StructuralSchemaIr` is consumed during streaming event validation. Its str
 semantics are RELAX-NG-equivalent. Tier A executes the `tier_a_profile` DFA subset and
 rejects unsupported structural constraints at schema compile time; later derivative
 runtimes consume `relax_ng_equivalent` / `derivative` without changing schema semantics.
-Cross-reference, contextual, policy, and transform checks are emitted as `SemanticRule`s
-and run after the relevant input DOM/AST state exists.
+Cross-reference, contextual, lexical/mode, policy, and transform checks are emitted as
+`SemanticRule`s with an explicit `RuleExecutionPlacement`. A rule runs at the earliest
+safe layer whose input data satisfies its `ConstraintTier`: tokenizer or normalizer for
+local lexical/mode constraints, SchemaMachine for structural constraints,
+reference-resolution for slot/name constraints, AST validation for context-sensitive
+constraints, and transform/policy placement for rendering, resource, or security
+constraints.
 
 `ScopePolicy` is resolved when a context scope is created. The document root creates the
 initial policy. Child parser, handoff, transform, and embedded-content scopes inherit
