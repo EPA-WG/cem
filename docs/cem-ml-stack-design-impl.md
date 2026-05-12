@@ -282,10 +282,13 @@ HTML token mapping:
 
 Each `StartTag` emits its `OpenScope` first, then one `Name`+`Value` pair per attribute,
 preserving attribute source positions, then `Separator { kind: ElementBoundary }` at
-the start tag closing delimiter. Immediate synthetic closes for self-closing and void
-elements use the same delimiter byte range. Implied closes caused by a later start tag
-use that later start tag's first byte. Implied closes caused by an ancestor end tag use
-the ancestor end tag range. EOF recovery closes use the EOF range.
+the start tag closing delimiter. `ElementBoundary` closes the lexical start-tag
+attribute segment only; schema-declared header/prelude child scopes may still update the
+parent frame's effective attributes, namespace bindings, or other parameters before body
+content begins. Immediate synthetic closes for self-closing and void elements use the
+same delimiter byte range. Implied closes caused by a later start tag use that later
+start tag's first byte. Implied closes caused by an ancestor end tag use the ancestor end
+tag range. EOF recovery closes use the EOF range.
 
 Synthetic close events close already-open scopes only; they do not insert missing
 elements. Missing HTML container insertion such as `tbody`/`tr`, foster parenting, and
@@ -540,15 +543,24 @@ SchemaFrame:
 
 FramePhase:
   Attribute
+  Header
   Content
   Closed
 
 AttributeState:
   active: HashMap<ExpandedName, AttributeOccurrence>
   pending: Option<ExpandedName>
-  required_remaining: HashSet<ExpandedName>
+  required_tag_remaining: HashSet<ExpandedName>
+  required_header_remaining: HashSet<ExpandedName>
+  header_declarations: Vec<HeaderDeclaration>
 
 AttributeOccurrence:
+  name: QName
+  value_range: Option<ByteRange>
+  source_map: SourceMapStack
+
+HeaderDeclaration:
+  kind: Attribute | Namespace | Parameter
   name: QName
   value_range: Option<ByteRange>
   source_map: SourceMapStack
@@ -563,13 +575,17 @@ ErrorSubtreeState:
   taint_ast_nodes: bool
 ```
 
-`AttributeState.active` stores the effective attribute set by `ExpandedName`. Duplicate
-attributes are resolved after namespace binding with last-writer-wins semantics: a later
-attribute with the same expanded name replaces the active value and source range instead
-of emitting a duplicate-attribute diagnostic. Multi-valued attribute semantics are
-validated by value-shape rules. `ContentState.seen_children` stores only children needed
-for diagnostics, in emission order. `required_remaining_children` is a diagnostic mirror
-for close-time missing-child messages; ordering and multiplicity remain enforced by
+`AttributeState.active` stores the effective attribute set by `ExpandedName`, including
+lexical start-tag attributes and schema-declared header/prelude attribute forms.
+Duplicate attributes are resolved after namespace binding with last-writer-wins
+semantics: a later attribute with the same expanded name replaces the active value and
+source range instead of emitting a duplicate-attribute diagnostic. Multi-valued
+attribute semantics are validated by value-shape rules. Header/prelude declarations are
+only accepted at the beginning of the element body; the first non-header event finalizes
+`required_header_remaining` before being consumed as content. `ContentState.seen_children`
+stores only children needed for diagnostics, in emission order.
+`required_remaining_children` is a diagnostic mirror for close-time missing-child
+messages; ordering and multiplicity remain enforced by
 `residual_or_dfa_state`. Unordered-but-required content groups use the set tracker plus a
 residual or DFA state that accepts the allowed order. Attribute-order constraints are
 unsupported in Tier A and fail schema compilation with `cem.schema.unsupported_constraint`.
@@ -656,6 +672,11 @@ State transitions:
 
 ```
 open(event):
+  If current frame phase = Header and event is a schema-declared header/prelude scope,
+  validate the declaration, push its child frame, and arrange its close result to update
+  the parent AttributeState or namespace_ctx.
+  If current frame phase = Header and event is not a header/prelude scope, finalize
+  required_header_remaining, transition current frame to Content, then re-dispatch event.
   Require current frame phase = Content.
   Validate OpenScope name, ordering, and multiplicity against content_state.
   If the name is unknown, consult open_content before emitting the diagnostic.
@@ -668,16 +689,18 @@ name(event):
   Check unknown attribute rules against schema and open_content.
   Insert or replace attr_state.active by ExpandedName using last-writer-wins semantics.
   Set attr_state.pending to the event's ExpandedName.
-  Remove required_remaining entry when the effective attribute is accepted.
+  Remove required_tag_remaining entry when the effective lexical attribute is accepted.
 
 value(event):
   In Attribute phase, validate the pending attribute's value shape and update its
   AttributeOccurrence.value_range.
+  In Header phase, finalize required_header_remaining, transition to Content, then
+  re-dispatch as body text.
   In Content phase, validate text content against content_state.residual_or_dfa_state.
 
 separator(event):
-  On ElementBoundary in Attribute phase, emit required-attribute diagnostics, then
-  transition the frame to Content phase.
+  On ElementBoundary in Attribute phase, emit required lexical-attribute diagnostics,
+  then transition the frame to Header phase.
   For other separators, advance sequence, record, or property pointer in current state.
 
 handoff(event):
@@ -685,6 +708,8 @@ handoff(event):
   Push child frame with child content_type and child schema_id.
 
 close(event):
+  If current frame phase = Header, finalize required_header_remaining before close-time
+  child requirements.
   Validate expected_close, required_remaining_children, and nullable/complete state.
   Transition phase to Closed.
   Pop frame; propagate close result to parent frame.

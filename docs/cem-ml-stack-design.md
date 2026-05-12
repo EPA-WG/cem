@@ -320,6 +320,24 @@ close scopes. Text emits scalar text values. Comments and whitespace are preserv
 default as source-bearing input nodes or trivia events unless the effective document or
 context scope policy says to strip them. Parse errors become diagnostic events.
 
+`ElementBoundary` closes only the lexical start-tag attribute segment. It does not mean
+that every schema-owned header parameter for the element is complete. After the start
+tag, the active schema may declare a leading header/prelude region whose child scopes
+contribute effective attributes, namespace bindings, or other scope parameters before
+real body content begins. Examples include schema-level forms such as
+`<ATTRIBUTE name="abc">value</>` or `<NAMESPACE name="xyz" url="..."/>` at the beginning
+of an element body. These are parsed as child scopes with source ranges of their own,
+then applied to the parent frame's effective parameter state by the schema machine.
+Header namespace declarations update the active namespace context from their source
+position forward before later names are resolved; previously emitted name-resolution
+records remain immutable.
+
+The schema machine closes the header/prelude region when the first non-header body event
+arrives, or when the element closes. That boundary is schema-state, not a tokenizer
+event: the body-start event is first used to finalize header requirements and namespace
+scope updates, then consumed as normal content. This keeps start-tag syntax, schema
+parameters, and body content separate without requiring lookahead in the tokenizer.
+
 The tokenizer reports lexical facts such as a `self_closing` marker and raw token
 spans. It does not decide whether `/>` is meaningful in the current namespace. The
 event normalizer, using the active schema frame, emits explicit `CloseScope` events when
@@ -409,13 +427,17 @@ the parent close. Validated events are passed to the input DOM/AST builder.
 
 A schema frame owns the active schema id, content type, expected close, namespace
 context, source-map stack, diagnostics, effective scope policy, and explicit validation
-phase. Attribute validation and child-content validation use distinct trackers:
-`AttributeState` stores the active effective attributes and required attributes that remain;
+phase. Validation phases distinguish lexical start-tag attributes, optional schema
+header/prelude declarations, body content, and closed scopes. Attribute validation and
+child-content validation use distinct trackers: `AttributeState` stores active effective
+attributes, namespace/parameter declarations, and required header items that remain;
 `ContentState` stores the residual or DFA state, diagnostic-relevant seen children in
 emit order, and required children that remain. Attribute multiplicity is normalized to
 0..1 per expanded name by last-writer-wins override; multi-valued attribute semantics
-are value-shape checks. Child multiplicity and ordering are encoded in the residual or
-DFA state, with
+are value-shape checks. Child scopes that the schema marks as header/prelude declarations
+are consumed before body content and update `AttributeState` or the namespace context
+instead of being counted as body children. Child multiplicity and ordering are encoded
+in the residual or DFA state, with
 `required_remaining_children` kept as a diagnostic mirror for close-time messages.
 
 Constraint checks have fixed trigger events:
@@ -425,8 +447,9 @@ Constraint checks have fixed trigger events:
 | Duplicate attribute        | `Name`                               | Attribute; later value overrides earlier value |
 | Unknown attribute          | `Name`                               | Attribute   |
 | Bad attribute value        | attribute `Value`                    | Attribute   |
-| Required attribute missing | `Separator { kind: ElementBoundary }` | Attribute -> Content |
-| Unexpected child element   | `OpenScope`                          | Content     |
+| Required lexical attribute missing | `Separator { kind: ElementBoundary }` | Attribute -> Header |
+| Required header parameter missing | first non-header body event or `CloseScope` | Header -> Content/Closed |
+| Unexpected child element   | `OpenScope`                          | Header or Content |
 | Unexpected text content    | text `Value`                         | Content     |
 | Bad child ordering         | `OpenScope`                          | Content     |
 | Multiplicity exceeded      | `OpenScope`                          | Content     |
@@ -1173,7 +1196,7 @@ Status key:
 | L1 Sentinel-byte ownership                                  | Design partial — Rust safety model for sentinel not resolved (§18.3.1)                                                                                                                  |
 | L2 SchemaTokenizer: HTML WHATWG profile                     | Design ready — custom WHATWG-state tokenizer selected for exact source-map preservation across nested embedded contexts (§6)                                                            |
 | L2 SchemaTokenizer: XML 1.0 profile                         | Design partial — DTD/external-resource ownership follows transform policy (§3.2, §6)                                                                                                     |
-| L3 EventNormalizer                                          | Design partial — attribute-list close event and void elements remain unspecified (§18.4.1–2); trivia preservation, `QName` resolution, and `ModeSwitch` context creation are defined (§7–9) |
+| L3 EventNormalizer                                          | Design ready — `ElementBoundary`, header/prelude parameter handling, synthesized close reasons, trivia preservation, `QName` resolution, and `ModeSwitch` context creation are defined (§7–9) |
 | L4 SchemaMachine: visibly pushdown frame stack              | Design ready — frame phases, attribute/content trackers, recovery invariant, and diagnostic propagation boundary are resolved (§8, §3.1)                                                  |
 | L4 SchemaMachine: RELAX NG derivative engine                | Deferred Tier B — CEM structural schema has RELAX NG functional parity; switching from Tier A DFA to derivatives may break report compatibility (§8, §13)                                |
 | L4 SchemaMachine: CEM vocabulary DFA                        | Design partial — limited Tier A DFA profile is selected and open-content defaults are resolved (§8, §13); DFA state table remains unspecified                                             |
@@ -1621,55 +1644,6 @@ document; configurability without a use case is premature.
 - Should the limits be defined in a single `cem_ml::limits` module, or as
   `pub const` items on each layer? Default: `cem_ml::limits` for discoverability and
   test override.
-
-### 18.4 Tokenizer And Event-Normalizer Gaps
-
-**Concern 18.4.1 — Attribute-list boundaries are not represented.**  
-The normalizer emits `OpenScope`, then `Name`/`Value` pairs for attributes, then children
-appear later. The schema machine needs to know when the start tag's attribute set is
-complete so it can validate required attributes, resolve duplicate-attribute overrides,
-and validate element content separately.
-
-**Question:** Should the normalizer emit an explicit `SeparatorKind::ElementBoundary`,
-`StartTagEnd`, or `OpenScopeComplete` event after all attributes?
-
-**Answer A — Emit `Separator { kind: ElementBoundary, byte_range }` after the last attribute of every start tag.**
-The byte range covers the `>` (or `/>` end) of the start tag. SchemaMachine treats
-`ElementBoundary` as the trigger for "attribute set complete; check required-attribute
-rule and duplicate-attribute rule; transition to child-content state". Pros: reuses an
-existing `SeparatorKind` variant; uniform with comma/colon/delimiter separators in
-JSON/CSS handoff streams; no new event variant. Cons: zero-attribute start tags must
-also emit it (otherwise the trigger is implicit), which makes the event stream slightly
-more chatty.
-
-**Answer B — Add a dedicated `OpenScopeComplete { name, byte_range }` event.**
-A first-class event signals end-of-attributes. Pros: explicit and self-describing; easy
-to grep for in the events projection. Cons: new variant in `NormalizedEvent`; slightly
-more code in every consumer.
-
-**Answer C — Emit attribute-set boundaries via a paired sub-scope: `OpenAttributes` / `CloseAttributes` around the `Name`/`Value` pairs, then content events follow.**
-Mirrors `OpenScope`/`CloseScope` for the attribute "container". Pros: schema validation
-of attribute multiplicity feels symmetric to content multiplicity; eases future
-attribute-shape grammars. Cons: doubles event count for the common case; deviates from
-research-paper event shape and existing §3.3 mapping table.
-
-**Answer D — No event; SchemaMachine looks ahead one event for `OpenScope` or another opening event to detect attribute-set close.**
-Pros: smallest event stream. Cons: implicit; complicates streaming where lookahead is
-expensive; required-attribute checks happen lazily.
-
-**Recommendation:** Adopt **Answer A**. It reuses the existing variant, requires one
-line of addition to the §3.3 mapping table ("after all attribute pairs, emit
-`Separator { kind: ElementBoundary }`"), and makes the SchemaMachine's "attribute phase
-→ content phase" transition explicit. Update §3.3 mapping table to include the
-boundary emission for both attribute-bearing and zero-attribute start tags.
-
-**Ambiguity (to be answered):**
-- Does `ElementBoundary` carry the byte range of the `>` character only, or the entire
-  start tag? Default: the closing delimiter only (`>` or `/>`), so SchemaMachine can
-  attribute "missing required attribute" diagnostics to a precise position.
-- For self-closing tags, does `ElementBoundary` precede or coincide with
-  the synthetic `CloseScope`? Resolved in Layer 3: precede. The boundary closes the
-  attribute phase; the synthetic close then closes the element scope.
 
 ### 18.5 Schema-Machine And Validation Questions
 
