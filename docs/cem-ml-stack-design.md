@@ -448,12 +448,16 @@ The schema machine validates scope opens, scalar values, separators, embedded ha
 and closes. It records each diagnostic at the scope where the error originates, then
 bubbles the diagnostic to the nearest error-boundary scope. An error-boundary scope is
 either declared explicitly by the active schema or, when no explicit boundary exists, the
-current context root. The boundary scope's effective policy decides whether to hide,
-report, recover, abort the boundary scope, or abort the full parse. The document scope
-is the topmost error boundary context; engine defaults, CLI parameters, or config seed
-its policy before parsing, and descendant scopes inherit or redefine that policy within
-parent override bounds. The effective policy maps stable diagnostic codes to severity
-and can upgrade a recoverable warning or error to fatal/fail-fast behavior.
+nearest active context root. A context root is a scope frame, not necessarily the
+document root; embedded content, option/prelude scopes, namespace-declaration scopes, and
+schema-declared contexts may sit in the middle of the tree and own the effective policy
+for diagnostics emitted inside them. The boundary scope's effective policy decides
+whether to hide, report, recover, abort the boundary scope, or abort the full parse. The
+document scope is only the topmost error-boundary context; engine defaults, CLI
+parameters, or config seed its policy before parsing, and descendant scopes inherit or
+redefine that policy within parent override bounds. The effective policy maps stable
+diagnostic codes to severity and can upgrade a recoverable warning or error to
+fatal/fail-fast behavior.
 
 When policy allows recovery for a non-fatal schema error, the machine pushes an
 `ErrorSubtree` frame. The frame accepts child events until the matching `CloseScope`
@@ -654,9 +658,11 @@ Namespace-resolution implementation contracts are in
 Diagnostics use byte offsets as ground truth and derive line/column positions for human
 outputs. The canonical report model is an AST-associated report tree, not a flat list.
 Each parser, schema, handoff, transform, validation, or runtime event attaches to the
-current AST node when one exists, the current source module state, the event-time
+current AST node when one exists, the active event-time scope context, the event-time
 source-map stack, the originating scope, the error-boundary scope that handled it, and a
-monotonic event sequence number.
+monotonic event sequence number. Diagnostics before AST construction use the same
+location shape as AST-time diagnostics: they carry a `SourceMapStack` and active scope
+context, while the AST-node back-reference remains empty until a node exists.
 
 The report tree can be projected to CEM-native, XML, JSON, Markdown, text, HTML, or any
 other supported structured format. Text and HTML reports are reference convenience
@@ -1248,7 +1254,7 @@ Status key:
 | L6 InputDomAstBuilder: schema-defined initial DOM/AST       | Design ready — schema reconstructs token hierarchy; WHATWG DOM compliance is a downstream transformation over this initial DOM                                                          |
 | L6 InterpreterAstBuilder: CEM annotation projection         | Design partial — CEM attributes are transform annotations on source nodes; transform conflict policy is schema-owned; CEM comment/CDATA syntax remains TBD (§10)                         |
 | L6 Reference slots: id/for/aria-*                           | Design ready — one-pass mutable slots are sufficient; unfilled slots warn on owning scope close unless scope policy overrides severity per error type (§10, §3.1)                         |
-| L6 Source-map stacks: byte-range + transform chain          | Design partial — frame order, multi-range nodes, escape/entity decoding, and diagnostics-before-AST mapping unresolved (§18.2.1–3, §18.2.5)                                             |
+| L6 Source-map stacks: byte-range + transform chain          | Design partial — frame order, multi-range nodes, and escape/entity decoding remain under review (§18.2.1–3); diagnostic mapping is defined in the report contract (§8)                   |
 | L6 Source-map stacks: bit-level ranges                      | Deferred Tier B — reserve representation only after source-map frame model is fixed (§18.2.1–2); no serialized binary frame ids in Tier A (§11)                                         |
 | L7 BinaryAstEncoder                                         | Deferred Tier B — Tier A does not freeze serialized binary ids; canonical identity, ordering, and future id policy are scoped in §11                                                    |
 | L8 ChunkCompressor                                          | Deferred Tier B — compression profiles are research-backed; canonical chunk identity, ordering, and dependency slots are scoped in §11                                                  |
@@ -1257,9 +1263,9 @@ Status key:
 | L9 ImplementationInterpreter: transform execution backend   | Design partial — Rust CEM template renderer is selected; exact CEM template syntax and scoped query syntax remain TBD (§12)                                                             |
 | Visual content and machine state data                       | Design partial — uniform AST role model is defined; live hydration, browser adapters, and DOM patch identity are subject to a separate design phase TBD (§12)                           |
 | LineIndex: byte-offset → line/col projection                | Design partial — column-unit model, newline normalization, tabs, replacement chars, and UTF-16/scalar projections unspecified (§18.2.4)                                                 |
-| Diagnostics and reports                                     | Design partial — source-map ownership and diagnostics-before-AST mapping unresolved (§18.2.5)                                                                                           |
+| Diagnostics and reports                                     | Design ready — diagnostics always carry event-time source-map stacks, active scope context, origin/boundary scopes, and optional AST-node back-references (§8)                           |
 | CLI output projections and fixture round-trip reports       | Design ready — CLI owns projection targets and side outputs; stack layers own projected artifacts                                                                                       |
-| Resource and security limits                                | Design ready — source byte, retained-window, decoded-chunk, source-map depth, AST depth, and diagnostic caps are defined in Layer 1; XML external-resource limits follow context-scope policy and content-type transforms (§3.1–3.2, §5–6) |
+| Resource and security limits                                | Design ready — source byte, source-chunk, decoder-carry, token-buffer, decoded-chunk, source-map depth, AST depth, and diagnostic caps are defined in Layer 1; XML external-resource limits follow context-scope policy and content-type transforms (§3.1–3.2, §5–6) |
 | Incremental/editor parsing                                  | Deferred Tier B — caller-provided diffs map through source maps to changed scopes, with enclosing-scope rescan fallback                                                                 |
 | Scope-close reference validation (unfilled slots)           | Design ready — unresolved references emit warnings on owning scope close by default; context-scope policy can override per diagnostic type (§10, §3.1)                                   |
 | Per-scope error boundaries                                  | Design ready — each context scope owns error handling and policy; inner scopes may relax or hide own errors only within parent override bounds (§3.1–3.2)                               |
@@ -1499,7 +1505,8 @@ without a hidden re-encoding pass. Cons: doubles the projection cost; computing 
 units requires a second scan or a richer `LineIndex`.
 
 **Answer C — Single byte-column projection in Tier A; defer scalar/UTF-16/display columns to a `ProjectionService` in Tier B.**
-Tier A reports always carry `(byte_offset, line, column_utf8_bytes)`. A separate
+Tier A report renderers always project `(byte_offset, line, column_utf8_bytes)` from the
+diagnostic source-map stack. A separate
 `ProjectionService` in Tier B owns scalar-index, UTF-16, display-width, and
 language-specific columns and is invoked by editor adapters. Pros: keeps Tier A surface
 minimal; lets editor adapters pick their own column convention without bloating the
@@ -1517,50 +1524,6 @@ metadata, not a line character, but byte offsets still address the original BOM 
 
 **Remaining implementation detail:** Tab stops for display columns are deferred to Tier B
 `ProjectionService`; Tier A never expands tabs.
-
-**Concern 18.2.5 — Diagnostics before AST construction still need source-map stacks.**  
-The research says source maps are not just a diagnostic side table, but parse and schema
-diagnostics can occur before AST nodes exist. The current `Diagnostic` shape has
-`byte_offset` and optional `node`, but no explicit `SourceMapStack`.
-
-**Question:** Should diagnostics carry a `SourceMapStack` directly, or only a
-`SourceId + ByteRange` until AST nodes exist?
-
-**Answer A — Every `Diagnostic` carries a `SourceMapStack`, always.**
-Replace `byte_offset: u64` + optional `node` with a required `source_map: SourceMapStack`.
-Pre-AST diagnostics emit a single-frame stack
-(`[Frame { transform: HtmlTokenizer | EncodingDecoder | ..., byte_range, source_id }]`).
-AST-time diagnostics inherit the node's stack. Pros: one shape; consumers never branch
-on "is there a node yet?"; aligns with the design rule that "source maps are an AST
-contract, not a side table" — a diagnostic *is* a source-map consumer regardless of
-phase. Cons: small allocation cost per pre-AST diagnostic that previously needed only a
-`u64`.
-
-**Answer B — Tagged union: `DiagnosticLocation::PreAst { source_id, byte_range } | NodeBound { node, source_map }`.**
-Pre-AST diagnostics stay cheap (no stack allocation); AST-time diagnostics carry the
-node's stack. Pros: minimal allocation in the hot tokenizer/decoder path. Cons:
-consumers must handle both shapes; relinking pre-AST diagnostics to nodes after the fact
-needs a separate pass.
-
-**Answer C — `SourceMapStack` always, with a `Phase` tag.**
-Same as A, but add `phase: DiagnosticPhase { ByteSource | Decode | Tokenize | Normalize | Schema | AstBuild | Transform | Render }`
-so consumers can filter without inspecting the topmost frame. Pros: clearer report
-grouping; matches the report-event model in §3.5 of the impl doc, which already records
-"source module state" at emit time. Cons: phase is largely derivable from the topmost
-`TransformKind` — risks duplicating that information.
-
-**Recommendation:** Adopt **Answer A** (with `phase` derivable from
-`source_map.last().transform`, not stored separately). The hot-path allocation worry is
-small — a single-frame stack is one `Vec` with capacity 1, and most diagnostics are
-either rare (errors) or batched (warnings). The §3.5 report-event model already requires
-a source-map stack on every event; making `Diagnostic` consistent with that avoids two
-location shapes.
-
-**Ambiguity (to be answered):**
-- Does the `node: Option<AstNodeId>` field stay (as a convenience back-reference) or
-  get removed in favor of "look at the topmost AST frame"? Default: keep as
-  `Option<AstNodeId>`, populated when (and only when) the diagnostic was raised against
-  a built AST node.
 
 ### 18.5 Schema-Machine And Validation Questions
 

@@ -110,9 +110,9 @@ store:
 ```
 Diagnostic:
   uri: String                       document URI or file path
-  line: u32                         1-based, derived from byte_offset
-  column: u32                       1-based, derived from byte_offset
-  byte_offset: u64                  ground-truth position
+  line: u32                         1-based, derived from source_map current frame
+  column: u32                       1-based, derived from source_map current frame
+  source_map: SourceMapStack        required for pre-AST and AST-time diagnostics
   code: DiagCode                    stable enumerated code
   severity: Severity { Fatal | Error | Warning | Info }
   message: String
@@ -124,7 +124,13 @@ Diagnostic:
 Diagnostics originate in the scope where the parser, validator, transform, or runtime
 detected the error. They bubble to the nearest error-boundary scope. `Fatal`,
 `Error`, and `Warning` handling is decided by that boundary scope's effective
-`ScopePolicy`.
+`ScopePolicy`. `source_map` is mandatory even before AST construction; tokenizer,
+normalizer, and schema diagnostics create an event-time stack whose current frame is the
+emitting layer. `line`, `column`, and any byte-offset projection are derived from that
+stack, and diagnostic phase is derived from that current frame's `TransformKind` rather
+than stored as a separate field. This gives consumers one location shape for all phases.
+`node` is only a convenience back-reference populated when an AST node already exists;
+consumers must not rely on it for location.
 
 ---
 
@@ -548,9 +554,12 @@ diagnosed, transformed, or stripped. Diagnostics and source maps always refer to
 initial decoded stream, so stripped trivia still counts for byte offsets, line/column
 projection, snippets, and report events.
 
-Diagnostic propagation walks from the origin frame toward its ancestors until it reaches
-the nearest scope whose `error_boundary` is `SchemaDeclared` or `ContextRoot`. If no
-schema-declared boundary is found before the context root, the context root handles the
+Diagnostic propagation walks from the origin scope frame toward its ancestors until it
+reaches the nearest scope whose `error_boundary` is `SchemaDeclared` or `ContextRoot`.
+`ContextRoot` means the nearest active context-root scope, not necessarily the document
+root; embedded content, option/prelude, namespace, and schema-declared mid-tree contexts
+can all be the applicable root for diagnostics emitted inside them. If no
+schema-declared boundary is found before that context root, the context root handles the
 diagnostic. The boundary scope applies its effective policy and becomes the diagnostic's
 `boundary_scope`.
 
@@ -745,7 +754,7 @@ close(event):
 
 error(event):
   Create Diagnostic with origin_scope = current frame scope.
-  Bubble to nearest SchemaDeclared or ContextRoot error boundary.
+  Bubble to nearest SchemaDeclared or active ContextRoot error boundary.
   Evaluate boundary frame's effective ScopePolicy.
   Hide, report, push ErrorSubtree recovery frame, abort boundary scope, or abort full
   parse per policy.
@@ -765,16 +774,19 @@ handoff, transform, validation, or runtime log message is captured as a report e
 attached to:
 
 - the current input DOM/AST or CEM AST node when one exists;
-- the current source module state, including URI, content type, schema id, active scope,
-  and source span;
+- the active event-time scope context, including URI, content type, schema id, namespace
+  context, effective policy, active scope, and source span;
 - the source-map stack as it exists at the moment the event is emitted;
 - the partial DOM/AST hierarchy visible to the emitting layer at that moment; and
 - a monotonic event sequence number that preserves emission order within the report.
 
 The report hierarchy follows the source-map/layer hierarchy, but it is event-time state:
 it records the parser or transform view when the log event happened, not the final
-post-transform tree. Diagnostics before AST construction attach to the nearest source
-module frame and are later linked to AST nodes when a matching node exists.
+post-transform tree. Diagnostics before AST construction attach to the active scope
+context frame at the point of emission, which may be a mid-tree options, namespace,
+embedded-content, or schema scope. They are later linked to AST nodes when a matching
+node exists, but their canonical location remains the original event-time source-map
+stack and scope context.
 Comments, whitespace, and processing instructions are part of the initial source stream
 for reporting. Diagnostics can reference trivia byte ranges even when the active output
 transform later removes those nodes.
@@ -802,7 +814,7 @@ default stream behavior. Proposed projection layer keys:
 | `hydration-plan`   | `runtime`                         | Event-to-state and state-to-render invalidation rules for hydrated output.                               |
 | `template-registry` | `interpreter` / `runtime`        | Local, external, schema-owned, registry-owned, and DCE tag-name template references.                     |
 | `source-map`       | `source_map`                      | Source-map stacks and event-time source-map hierarchy.                                                   |
-| `report-ast`       | `report`                          | Canonical AST-associated report tree with event sequence and source module state.                        |
+| `report-ast`       | `report`                          | Canonical AST-associated report tree with event sequence and event-time scope context.                   |
 | `trace`            | `engine` / `command`              | Deterministic execution trace assembled from parser, validator, transform, and report events.            |
 | `binary-ast`       | `ast::encode`                     | Deferred binary AST representation.                                                                      |
 | `chunks`           | `ast::chunk` / `ast::compress`    | Deferred subtree chunk and compression metadata.                                                         |
