@@ -207,6 +207,14 @@ CEM AST builder, handoff boundaries, implementation transforms, and future binar
 encoding. This lets tooling resolve from generated custom-element output back to the raw
 HTML token or embedded resource that produced it.
 
+Each source-map frame carries a `FrameSpan`: `Single(ByteRange)` for the common one-span
+case or `Multi(Vec<ByteRange>)` for merged or split source spans. `Multi` range order has
+no semantic meaning; consumers use each range directly to project to the proper location
+in the source stream. Generated nodes use the nearest owning range with the transform
+frame that created them. Reference inlining and external-resource resolution are modeled
+as boundary frames whose target has its own source-map stack, matching embedded handoff
+behavior instead of nesting source maps inside a span.
+
 Layer 1 owns byte encoding only. Language-local encodings recognized by a tokenizer,
 such as HTML character references, XML entity references, CSS escapes, JSON string
 escapes, or CSV quoted escapes, append an `EscapeDecoded` source-map frame that maps
@@ -1275,8 +1283,8 @@ Status key:
 | L6 InputDomAstBuilder: schema-defined initial DOM/AST       | Design ready — schema reconstructs token hierarchy; WHATWG DOM compliance is a downstream transformation over this initial DOM                                                          |
 | L6 InterpreterAstBuilder: CEM annotation projection         | Design partial — CEM attributes are transform annotations on source nodes; transform conflict policy is schema-owned; CEM comment/CDATA syntax remains TBD (§10)                         |
 | L6 Reference slots: id/for/aria-*                           | Design ready — one-pass mutable slots are sufficient; unfilled slots warn on owning scope close unless scope policy overrides severity per error type (§10, §3.1)                         |
-| L6 Source-map stacks: byte-range + transform chain          | Design partial — frame order and multi-range nodes remain under review (§18.2.1–2); tokenizer-local escape/entity decoding uses `EscapeDecoded` frames (§4, §6)                         |
-| L6 Source-map stacks: bit-level ranges                      | Deferred Tier B — reserve representation only after source-map frame model is fixed (§18.2.1–2); no serialized binary frame ids in Tier A (§11)                                         |
+| L6 Source-map stacks: byte-range + transform chain          | Design partial — frame order remains under review (§18.2.1); `FrameSpan::Multi`, boundary frames, and tokenizer-local `EscapeDecoded` frames are defined (§4, §6)                       |
+| L6 Source-map stacks: bit-level ranges                      | Deferred Tier B — reserve representation only after source-map frame order is fixed (§18.2.1); no serialized binary frame ids in Tier A (§11)                                           |
 | L7 BinaryAstEncoder                                         | Deferred Tier B — Tier A does not freeze serialized binary ids; canonical identity, ordering, and future id policy are scoped in §11                                                    |
 | L8 ChunkCompressor                                          | Deferred Tier B — compression profiles are research-backed; canonical chunk identity, ordering, and dependency slots are scoped in §11                                                  |
 | ContentTypeTransformPipeline: WHATWG HTML DOM               | Design ready — schema-driven initial HTML parser DOM is transformed into WHATWG implementation DOM updates                                                                              |
@@ -1362,9 +1370,9 @@ bug, not the contract.
 **Answer B — `frames[0]` is the current/topmost frame; the original byte-source frame is `frames.last()`.**
 This matches the §2.3 examples literally and reads diagnostics top-down ("here is where
 the node is now; here is what produced it"). Pros: (a) error rendering walks `frames[0..]`
-in the order a human reads a stack trace; (b) `frame[0].byte_range` is the most-local
-range, useful for snippet extraction without a length lookup. Cons: (a) every push must
-shift existing frames or use a different data structure (`VecDeque::push_front` /
+in the order a human reads a stack trace; (b) `frame[0].span` is the most-local range,
+useful for snippet extraction without a length lookup. Cons: (a) every push must shift
+existing frames or use a different data structure (`VecDeque::push_front` /
 reverse-indexed slice); (b) the §2.2 phrase "earliest context first" must be rewritten to
 "latest context first". Action: keep the examples, fix the prose, and document push as
 "prepend" semantically (it can still be implemented as `Vec::push` with reversed read
@@ -1379,79 +1387,6 @@ built (lex → parse → lower, each appended). The §2.3 examples are the artif
 indices explicitly — `origin_frame()` and `current_frame()` — so consumers never index
 positionally. Open question: are these methods on `SourceMapStack`, or on a thin
 `SourceMapView` returned from traversal?
-
-**Concern 18.2.2 — A single `ByteRange` per frame is not enough for all research cases.**  
-The research explicitly mentions merged nodes, split nodes, generated nodes,
-transform-owned reference inlining, and source-map stacks through transformations. A
-single `byte_range` cannot represent a text node produced from multiple source regions,
-such as `a&amp;b`, or a node merged from adjacent text/event fragments.
-
-**Question:** Should `SourceMapFrame` support one range, many ranges, generated ranges,
-and transform-owned reference inlining? If not, where are merge, split, generated-node,
-and reference-inlining mappings stored?
-
-**Answer A — Promote `byte_range` to an enum `FrameSpan`.**
-Replace `byte_range: ByteRange` with:
-
-```
-FrameSpan:
-  Single(ByteRange)                  // common case: 1:1 source mapping
-  Multi(Vec<ByteRange>)              // merged text nodes, joined fragments
-  Generated { owner: ByteRange }     // transform-synthesized; carries nearest source range
-  Inlined { reference: ByteRange,    // a reference site that pulled in another source
-            target: SourceMapStack } //   target carries its own origin chain
-```
-
-The default constructor still takes one range (no migration of single-range call sites).
-Pros: encodes all four cases in §2.2 without auxiliary side tables; `Generated` matches
-§2.4's existing "owner range" notion; `Inlined` is the only shape that can faithfully
-represent transform-owned reference resolution (e.g. `aria-labelledby` slot inlining)
-without flattening the target's own provenance. Cons: pattern-matching cost on every
-traversal; serialization size of the report grows.
-
-**Answer B — Keep one `byte_range` and add typed sub-frames per concern.**
-`SourceMapFrame` stays single-range. Instead, define explicit `TransformKind` variants
-that carry the extra structure:
-
-```
-TransformKind::TextMerged    { parts: Vec<ByteRange> }
-TransformKind::TextSplit     { source: ByteRange, slice: ByteRange }
-TransformKind::Generated     { owner: ByteRange }
-TransformKind::ReferenceInlined { ref_site: ByteRange, target_stack: SourceMapStack }
-```
-
-The frame's outer `byte_range` becomes the *summary* span (e.g. min start to max end of
-the merged parts) for snippet rendering; the variant payload holds exact mapping. Pros:
-common case stays cheap; consumers that only need snippet bounds touch one field; mapping
-fidelity lives where the transform is named, not in a generic span container. Cons:
-duplicates the "where am I" answer between the outer span and the variant payload; risk
-of drift between the two.
-
-**Answer C — Hybrid: `Single | Multi` on the frame; reference inlining as a separate frame.**
-Allow only `Single` and `Multi` on `FrameSpan`. Reference inlining and external-resource
-boundaries get their own dedicated frames (`TransformKind::ReferenceInlined`,
-`TransformKind::ExternalResource`) whose own `source_id` switches to the target buffer —
-the target's source map is then the natural continuation when traversal crosses the
-frame, exactly as §2.3's CSS-in-`<style>` example already does. Pros: keeps the frame
-shape uniform; reuses the existing handoff-style boundary pattern; no nested stacks
-embedded in a frame. Cons: traversal of an inlined reference now requires walking out of
-one stack and into another via the boundary frame's metadata.
-
-**Recommendation:** Adopt **Answer C** as the primary contract, with `Multi(Vec<ByteRange>)`
-covering text merge and split cases. Language-local decoding such as escapes and entity
-references is represented by tokenizer-owned `EscapeDecoded` source-map frames. Reference
-inlining and external-resource resolution are already boundary-shaped (`HandoffBoundary`
-is the analogue), so reusing that pattern keeps `SourceMapFrame` shape uniform. Generated
-nodes keep §2.4's "nearest owning range" rule — they are expressible as
-`Single(owner_range)` plus `TransformKind::Implementation`.
-
-**Ambiguity (to be answered):**
-- For `Multi`, is the order of ranges source-order or emit-order? (For `a&amp;b`, source
-  order is `[a-range, &amp;-range, b-range]`; emit order matches.) Pick source-order;
-  document explicitly.
-- Local tokenizer decoding uses `TransformKind::EscapeDecoded`; multi-scalar entities
-  record one decoded scalar range per emitted scalar, each pointing at the same raw
-  source span when appropriate.
 
 ### 18.5 Schema-Machine And Validation Questions
 

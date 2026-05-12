@@ -58,8 +58,12 @@ SourceMapStack:
 
 SourceMapFrame:
   source_id: SourceId               which byte stream produced this context
-  byte_range: ByteRange             position within that stream
+  span: FrameSpan                   position(s) within that stream
   transform: TransformKind          what step created or modified this node
+
+FrameSpan:
+  Single(ByteRange)                  common case: one source span
+  Multi(Vec<ByteRange>)              merged or split source spans
 ```
 
 ```
@@ -71,6 +75,8 @@ TransformKind:
   SchemaValidation(schema_id: SchemaId)
   CemAstBuilder
   HandoffBoundary { child_content_type: ContentType }
+  ReferenceInlined { ref_site: ByteRange }
+  ExternalResource { ref_site: ByteRange }
   Implementation                    transform/render step
   BinaryEncoder                     [Tier B]
 
@@ -78,6 +84,16 @@ ScalarRange:
   start: u32                         decoded scalar offset within the frame value
   len: u32                           decoded scalar length
 ```
+
+`FrameSpan::Single` is the default. `FrameSpan::Multi` is used when a node or event maps
+to multiple source spans, such as merged text fragments or split source fragments. The
+order of ranges in `Multi` has no semantic meaning; projection consumers must use each
+range's own `SourceId`/`ByteRange` to locate the proper place in the source stream. If a
+renderer wants a summary snippet, it may sort or group ranges for that projection.
+Generated nodes use `Single(nearest_owner_range)` with the transform frame that generated
+them. Reference inlining and external-resource resolution are modeled as boundary frames;
+the referenced target carries its own source-map stack across the boundary rather than
+embedding a nested stack inside `FrameSpan`.
 
 ### 2.3 Traversal Examples
 
@@ -112,7 +128,8 @@ Transform-generated nodes, such as custom-element output with no direct input te
 store:
 
 - `transform: TransformKind::Implementation`
-- `byte_range`: the nearest owning source range from the CEM AST node that produced them.
+- `span`: `FrameSpan::Single(nearest owning source range)` from the CEM AST node that
+  produced them.
 - Prior frames: inherited from the CEM AST source chain.
 
 ### 2.5 Diagnostics
