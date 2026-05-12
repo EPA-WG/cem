@@ -33,13 +33,13 @@ projected on demand; they are never stored permanently on AST nodes.
 
 ```
 ByteRange { start: u64, len: u32 }
-    - absolute byte offset from the start of the SourceId's byte buffer.
+    - absolute byte offset from the start of the SourceId's byte stream.
     - len: u32 caps a single token at 4 GiB, which is sufficient.
 ```
 
-Line/column projection is performed by a `LineIndex` that records the byte offset of
-each newline in the source file. Projection is `O(log n)` via binary search. The
-`LineIndex` is computed once per `SourceId` and cached.
+Line/column projection is performed by a streaming `LineIndex` that records newline byte
+offsets as chunks pass through Layer 1. Projection is `O(log n)` via binary search over
+the accumulated checkpoints for that `SourceId`.
 
 For Tier B+ compressed binary content, the research specifies bit-level ranges
 (`bit_start: u64, bit_len: u32`). Bit fields are reserved in the source-map schema but
@@ -52,8 +52,8 @@ SourceMapStack:
   frames: [SourceMapFrame, ...]     ordered, earliest context first
 
 SourceMapFrame:
-  source_id: SourceId               which byte buffer produced this context
-  byte_range: ByteRange             position within that buffer
+  source_id: SourceId               which byte stream produced this context
+  byte_range: ByteRange             position within that stream
   transform: TransformKind          what step created or modified this node
 ```
 
@@ -132,18 +132,14 @@ detected the error. They bubble to the nearest error-boundary scope. `Fatal`,
 
 ### 3.1 Layer 1: ByteSource And EncodingDecoder (`cem_ml::source`)
 
-Modeled as an asynchronous source plus bounded retained byte windows. A retained window
-may use LLVM `MemoryBuffer`-style private sentinel padding after the window end for fast
-lexing, but the public contract remains a stream of real source bytes with absolute
-offsets.
+Modeled as an asynchronous source stream. Layer 1 assigns stable `SourceId` values and
+absolute byte offsets, performs encoding selection, and yields decoded scalar chunks. It
+does not expose parser-wide scan storage, lexer padding, or lexer-oriented byte windows.
+Any buffering beyond transport chunk delivery belongs to the consuming layer and must be
+bounded by that layer's purpose.
 
 ```
 SourceId: opaque stable identity for a byte stream (used in source-map frames)
-
-ByteWindow:
-  id() -> SourceId
-  bytes() -> &[u8]                  read-only real bytes retained for this window
-  byte_range() -> ByteRange         absolute range covered by this window
 
 AsyncByteSource:
   next_chunk() -> Future<Option<ByteChunk>>
@@ -182,7 +178,8 @@ Implementation rules:
 
 - Keep absolute `u64` byte offsets for every token and event.
 - Keep decoded scalar spans alongside scalars for Unicode-aware validation.
-- Preserve raw byte windows for diagnostic snippets without retaining the whole source.
+- Preserve current-chunk bytes only long enough to emit diagnostics for that chunk;
+  source maps retain offsets, not source text.
 - Inspect the first bytes of each source initiation before tokenization. A supported BOM
   selects the encoding for that source, is skipped from decoded scalars, and suppresses
   later encoding overrides for that source.
@@ -194,14 +191,16 @@ Implementation rules:
 Tier A exposes asynchronous source APIs only. Owned byte buffers, strings, file-path
 input, and WASM `ReadableStream<Uint8Array | string>` inputs are normalized through
 `AsyncByteSource` adapters. The parser decodes and tokenizes chunks monotonically while
-retaining only bounded byte/scalar windows for lookahead, source-map spans, and
-diagnostic snippets. Editor-style incremental reparse and resumable chunk graphs are
-Tier B. No synchronous public parser or WASM entry point is defined.
+the tokenizer owns any token-local buffering needed for lookahead or token assembly.
+Editor-style incremental reparse and resumable chunk graphs are Tier B. No synchronous
+public parser or WASM entry point is defined.
 
 Default source limits live in `cem_ml::limits`:
 
 - `MAX_SOURCE_BYTES_PER_SOURCE_ID = 64 MiB`;
-- `MAX_RETAINED_BYTE_WINDOW = 64 KiB` plus tokenizer lookahead and snippet slack;
+- `MAX_SOURCE_CHUNK_BYTES = 64 KiB` recommended adapter chunk size;
+- `MAX_DECODER_CARRY_BYTES = 4`;
+- `MAX_TOKEN_BUFFER_BYTES = 64 KiB`;
 - `MAX_DECODED_SCALARS_PER_CHUNK = 64 Ki`;
 - `MAX_LINE_COUNT = 8 M`;
 - `MAX_DIAGNOSTIC_SNIPPET_BYTES = 1 KiB`;
@@ -218,6 +217,13 @@ and token sub-span can preserve source-map stacks through decoded streams and ne
 embedded handoff layers. It extracts source-spanned tokens and switches lexical states;
 it does not construct either the initial HTML parser DOM or the WHATWG implementation
 DOM.
+
+Tokenizer buffering is token-local. The tokenizer may accumulate decoded scalars and
+their byte spans while a token is incomplete, including format-defined lookahead, but it
+must emit or fail the token before the buffer exceeds `MAX_TOKEN_BUFFER_BYTES`. After
+`RawToken` emission, the accumulator is released; downstream layers receive token data
+and byte ranges, not retained source text. The tokenizer does not require a specific
+memory-buffer strategy.
 
 ```
 RawToken:
@@ -1230,8 +1236,9 @@ WasmApi:
 
 Owned byte and string inputs are wrapped as already-ready async source adapters. File
 inputs are opened and read through async runtime adapters. Tier A decodes and tokenizes
-chunks as they arrive with bounded retained windows. Editor-style incremental reparse,
-chunk graph reuse, and resumable partial parses are deferred to Tier B.
+chunks as they arrive; tokenizer accumulation is token-local and released after token
+emission. Editor-style incremental reparse, chunk graph reuse, and resumable partial
+parses are deferred to Tier B.
 
 ---
 
@@ -1241,7 +1248,7 @@ chunk graph reuse, and resumable partial parses are deferred to Tier B.
 cem_ml/src/
   lib.rs
   source/
-    mod.rs            AsyncByteSource and retained ByteWindow traits, SourceId, ByteRange
+    mod.rs            AsyncByteSource, SourceId, ByteRange
     decode.rs         EncodingDecoder, DecodedChunk, Encoding
     line_index.rs     LineIndex - byte offset -> (line, col) projection
   tokenizer/
