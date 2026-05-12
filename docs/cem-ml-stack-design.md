@@ -314,10 +314,31 @@ The normalized taxonomy is:
 - error.
 
 For HTML, each start tag emits an open scope followed by name/value events for each
-attribute, preserving attribute source positions and attribute case. End tags emit close
-scopes. Text emits scalar text values. Comments and whitespace are preserved by default
-as source-bearing input nodes or trivia events unless the effective document or context
-scope policy says to strip them. Parse errors become diagnostic events.
+attribute, preserving attribute source positions and attribute case, then
+`Separator { kind: ElementBoundary }` at the start tag closing delimiter. End tags emit
+close scopes. Text emits scalar text values. Comments and whitespace are preserved by
+default as source-bearing input nodes or trivia events unless the effective document or
+context scope policy says to strip them. Parse errors become diagnostic events.
+
+The tokenizer reports lexical facts such as a `self_closing` marker and raw token
+spans. It does not decide whether `/>` is meaningful in the current namespace. The
+event normalizer, using the active schema frame, emits explicit `CloseScope` events when
+the active content-type/schema rules determine that an element's source scope has
+closed:
+
+- XML self-closing tags in self-closing-capable contexts and HTML void elements close
+  immediately after `ElementBoundary`; the synthetic close uses the start tag's closing
+  delimiter range and carries `Synthesis::SelfClosing` or `Synthesis::VoidElement`.
+- A self-closing marker on a non-void HTML element emits `cem.html.invalid_self_close`;
+  the element remains open unless another close rule applies.
+- A start tag that cannot be embedded in the currently open HTML element closes that
+  existing element before the new `OpenScope`; for example, `<p><p>` emits a synthetic
+  close for the first `p` before opening the second.
+- When policy allows recovery and an end tag closes an ancestor while descendants are
+  still open, descendant scopes are closed first using
+  `Synthesis::ImpliedByAncestorClose`; strict XML-compatible profiles may instead make
+  the misnested close fatal.
+- EOF recovery may close remaining open scopes with `Synthesis::ImpliedByEof`.
 
 HTML processing instructions are schema-driven. The tokenizer preserves their source
 range; the active schema or context-scope policy decides whether they are accepted,
@@ -848,6 +869,13 @@ compliance separate:
 - `InputDomAstBuilder` reconstructs the initial HTML parser DOM from that hierarchy.
 - The WHATWG HTML DOM transformation materializes the compliant implementation DOM from
   the initial DOM.
+
+Synthetic `CloseScope` events close already-open source scopes only; they do not create
+new element nodes. Missing-node insertion, reparenting, foster parenting,
+active-formatting-element handling, and other WHATWG implementation DOM effects stay in
+this content-type transform. For example, the normalizer may close the first `td` before
+a second sibling `td`, but insertion of missing `tbody` and `tr` nodes is performed here
+with transform source-map frames.
 
 Other content-type transformations use the same model: SCSS can lower to CSS, CSS can
 resolve `url()`/`@import` references into parsed child ASTs or unresolved resource slots,
@@ -1639,57 +1667,9 @@ boundary emission for both attribute-bearing and zero-attribute start tags.
 - Does `ElementBoundary` carry the byte range of the `>` character only, or the entire
   start tag? Default: the closing delimiter only (`>` or `/>`), so SchemaMachine can
   attribute "missing required attribute" diagnostics to a precise position.
-- For self-closing tags (next concern), does `ElementBoundary` precede or coincide with
-  the synthetic `CloseScope`? Default: precede. The boundary closes the attribute
-  phase; the synthetic close then closes the element scope.
-
-**Concern 18.4.2 — Self-closing and void HTML elements need explicit close semantics.**  
-The mapping table handles `StartTag` and `EndTag`, but not `self_closing` or HTML void
-elements such as `input`, `img`, and `br`.
-
-**Question:** Does the normalizer synthesize `CloseScope` for self-closing and void
-elements? If so, what source range does the synthetic close event use?
-
-**Answer A — Synthesize `CloseScope` immediately for both void HTML elements and self-closing XML or child content-type scopes.**
-After emitting `OpenScope`, attribute pairs, and `Separator { ElementBoundary }`, the
-normalizer immediately emits `CloseScope { name, byte_range }` when:
-- the start tag has `self_closing = true` *and* the active context's content type permits
-  self-closing semantics (XML or child scopes such as SVG/MathML); or
-- the element is a known HTML void element (`area`, `base`, `br`, `col`, `embed`, `hr`,
-  `img`, `input`, `link`, `meta`, `source`, `track`, `wbr`).
-
-Source range for the synthetic close: the byte range of the start tag's closing
-delimiter (`>` or `/>`), with a `TransformKind::EventNormalizer` frame and a `synthetic:
-true` marker on the event (`CloseScope { name, byte_range, synthesis: Synthesis::VoidElement | Synthesis::SelfClosing | Synthesis::Real }`).
-Pros: schema validation sees a clean open/close pair for every element regardless of
-syntax; downstream layers don't need void-element knowledge; the `synthesis` tag lets
-report formatters distinguish "the author wrote `</br>`" from "we synthesized one".
-
-**Answer B — Synthesize for XML self-closing only; void HTML elements close at the next `OpenScope`/`CloseScope` of the parent.**
-Pros: matches WHATWG insertion-mode behavior literally (void elements have no end
-tag). Cons: SchemaMachine must implement WHATWG insertion-mode parenting separately —
-defeats the layer separation that lets it consume a uniform event stream.
-
-**Answer C — Synthesize for void HTML; reject `self_closing` on non-foreign HTML with `cem.html.invalid_self_close` warning, no synthesis.**
-WHATWG ignores `self_closing` on HTML namespace start tags. Pros: WHATWG-conformant.
-Cons: still doesn't address what `OpenScope`/`CloseScope` shape the schema layer sees
-for `<input/>` typed by the author.
-
-**Recommendation:** Adopt **Answer A**, with the caveat from C: in HTML namespace,
-`self_closing` on a non-void element produces a warning *and* the synthetic close is
-emitted (Synthesis::SelfClosingIgnored). This gives the schema layer a uniform stream
-while preserving WHATWG diagnostics. Add `synthesis: Synthesis` field to `CloseScope`
-in the impl doc.
-
-**Ambiguity (to be answered):**
-- Does the synthetic close share the byte range with `Separator { ElementBoundary }`?
-  Default: yes — both point at the same `/>` or `>`. The events differ in kind, not
-  position.
-- For HTML elements like `<p>` or `<li>` that close implicitly via WHATWG insertion-mode
-  rules, does the normalizer synthesize closes? Default: **no** — implicit close is
-  WHATWG DOM-construction concern, owned by the WHATWG content-type transform (§7), not
-  the event normalizer. The schema layer either accepts the resulting stream as-is or
-  consumes the post-WHATWG-transform tree.
+- For self-closing tags, does `ElementBoundary` precede or coincide with
+  the synthetic `CloseScope`? Resolved in Layer 3: precede. The boundary closes the
+  attribute phase; the synthetic close then closes the element scope.
 
 ### 18.5 Schema-Machine And Validation Questions
 

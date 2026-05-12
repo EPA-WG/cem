@@ -244,7 +244,7 @@ by the XML content-type transform, not the tokenizer.
 ```
 NormalizedEvent:
   OpenScope  { name: QName, byte_range: ByteRange }
-  CloseScope { name: QName, byte_range: ByteRange }
+  CloseScope { name: QName, byte_range: ByteRange, synthesis: Synthesis }
   Name       { name: QName, byte_range: ByteRange }
   Value      { value: ScalarValue, byte_range: ByteRange }
   Trivia     { kind: TriviaKind, byte_range: ByteRange }
@@ -256,14 +256,24 @@ NormalizedEvent:
 ScalarValue: Text(String) | Int(i64) | Float(f64) | Bool(bool) | Null
 TriviaKind: Whitespace(String) | Comment(String)
 SeparatorKind: ElementBoundary | Comma | Colon | Delimiter | Newline
+Synthesis:
+  Real
+  SelfClosing
+  VoidElement
+  ImpliedByStartTag
+  ImpliedByAncestorClose
+  ImpliedByEof
 ```
 
 HTML token mapping:
 
 | HTML token                               | Emitted events                                                                          |
 |------------------------------------------|-----------------------------------------------------------------------------------------|
-| `StartTag { name, attrs }`               | `OpenScope { name }`, then for each attr: `Name { name: attr_qname }` + `Value { attr_value }` |
-| `EndTag { name }`                        | `CloseScope { name }`                                                                   |
+| `StartTag { name, attrs }`               | Close any non-embeddable current scope implied by this start tag, then `OpenScope { name }`, then for each attr: `Name { name: attr_qname }` + `Value { attr_value }`, then `Separator { kind: ElementBoundary }` |
+| `StartTag { name, attrs, self_closing }` | Same as `StartTag`; if the active content-type/schema scope permits self-closing semantics, append `CloseScope { name, synthesis: SelfClosing }` after `ElementBoundary` |
+| HTML void `StartTag`                     | Same as `StartTag`, then append `CloseScope { name, synthesis: VoidElement }` after `ElementBoundary` |
+| HTML non-void `StartTag` with `/>`       | Same as `StartTag`, plus `cem.html.invalid_self_close`; the element remains open unless closed by another rule |
+| `EndTag { name }`                        | If policy allows recovery, close any still-open descendants implied by this ancestor end tag, then `CloseScope { name, synthesis: Real }` |
 | `Text { data }`                          | `Value { Text(data) }` when content; otherwise `Trivia { Whitespace(data) }` if preserved |
 | `StartTag { name: "style" \| "script" }` | `OpenScope`, then `ModeSwitch { content_type }`                                         |
 | `Comment`                                | `Trivia { Comment(data) }` unless the effective scope policy strips comments            |
@@ -271,7 +281,15 @@ HTML token mapping:
 | `ParseError`                             | `Error { ... }`                                                                         |
 
 Each `StartTag` emits its `OpenScope` first, then one `Name`+`Value` pair per attribute,
-preserving attribute source positions.
+preserving attribute source positions, then `Separator { kind: ElementBoundary }` at
+the start tag closing delimiter. Immediate synthetic closes for self-closing and void
+elements use the same delimiter byte range. Implied closes caused by a later start tag
+use that later start tag's first byte. Implied closes caused by an ancestor end tag use
+the ancestor end tag range. EOF recovery closes use the EOF range.
+
+Synthetic close events close already-open scopes only; they do not insert missing
+elements. Missing HTML container insertion such as `tbody`/`tr`, foster parenting, and
+other WHATWG implementation DOM effects are content-type transform behavior.
 
 Trivia preservation is policy-driven. The document root policy is seeded by CLI/config;
 child context scopes inherit it unless their content type or schema overrides it. Context
