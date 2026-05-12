@@ -207,6 +207,13 @@ CEM AST builder, handoff boundaries, implementation transforms, and future binar
 encoding. This lets tooling resolve from generated custom-element output back to the raw
 HTML token or embedded resource that produced it.
 
+Layer 1 owns byte encoding only. Language-local encodings recognized by a tokenizer,
+such as HTML character references, XML entity references, CSS escapes, JSON string
+escapes, or CSV quoted escapes, append an `EscapeDecoded` source-map frame that maps
+decoded scalar ranges back to the raw byte ranges that produced them. This keeps local
+decoding with the language tokenizer that recognizes it while preserving exact source
+positions for reports and transforms.
+
 Detailed `ByteRange`, `SourceMapStack`, `SourceMapFrame`, `TransformKind`, diagnostic,
 and traversal shapes live in
 [`cem-ml-stack-design-impl.md`](cem-ml-stack-design-impl.md#2-shared-source-map-and-diagnostic-contracts).
@@ -1268,7 +1275,7 @@ Status key:
 | L6 InputDomAstBuilder: schema-defined initial DOM/AST       | Design ready — schema reconstructs token hierarchy; WHATWG DOM compliance is a downstream transformation over this initial DOM                                                          |
 | L6 InterpreterAstBuilder: CEM annotation projection         | Design partial — CEM attributes are transform annotations on source nodes; transform conflict policy is schema-owned; CEM comment/CDATA syntax remains TBD (§10)                         |
 | L6 Reference slots: id/for/aria-*                           | Design ready — one-pass mutable slots are sufficient; unfilled slots warn on owning scope close unless scope policy overrides severity per error type (§10, §3.1)                         |
-| L6 Source-map stacks: byte-range + transform chain          | Design partial — frame order, multi-range nodes, and escape/entity decoding remain under review (§18.2.1–3); diagnostic mapping is defined in the report contract (§8)                   |
+| L6 Source-map stacks: byte-range + transform chain          | Design partial — frame order and multi-range nodes remain under review (§18.2.1–2); tokenizer-local escape/entity decoding uses `EscapeDecoded` frames (§4, §6)                         |
 | L6 Source-map stacks: bit-level ranges                      | Deferred Tier B — reserve representation only after source-map frame model is fixed (§18.2.1–2); no serialized binary frame ids in Tier A (§11)                                         |
 | L7 BinaryAstEncoder                                         | Deferred Tier B — Tier A does not freeze serialized binary ids; canonical identity, ordering, and future id policy are scoped in §11                                                    |
 | L8 ChunkCompressor                                          | Deferred Tier B — compression profiles are research-backed; canonical chunk identity, ordering, and dependency slots are scoped in §11                                                  |
@@ -1380,8 +1387,8 @@ single `byte_range` cannot represent a text node produced from multiple source r
 such as `a&amp;b`, or a node merged from adjacent text/event fragments.
 
 **Question:** Should `SourceMapFrame` support one range, many ranges, generated ranges,
-and transform-owned reference inlining? If not, where are escape decoding, merge, split,
-and XML-compatibility entity mappings stored?
+and transform-owned reference inlining? If not, where are merge, split, generated-node,
+and reference-inlining mappings stored?
 
 **Answer A — Promote `byte_range` to an enum `FrameSpan`.**
 Replace `byte_range: ByteRange` with:
@@ -1407,7 +1414,6 @@ traversal; serialization size of the report grows.
 that carry the extra structure:
 
 ```
-TransformKind::EscapeDecoded { decoded_to_source: Vec<(ScalarRange, ByteRange)> }
 TransformKind::TextMerged    { parts: Vec<ByteRange> }
 TransformKind::TextSplit     { source: ByteRange, slice: ByteRange }
 TransformKind::Generated     { owner: ByteRange }
@@ -1432,65 +1438,20 @@ embedded in a frame. Cons: traversal of an inlined reference now requires walkin
 one stack and into another via the boundary frame's metadata.
 
 **Recommendation:** Adopt **Answer C** as the primary contract, with `Multi(Vec<ByteRange>)`
-covering escape decoding, text merge, and entity expansion. Reference inlining and
-external-resource resolution are already boundary-shaped (`HandoffBoundary` is the
-analogue), so reusing that pattern keeps `SourceMapFrame` shape uniform. Generated nodes
-keep §2.4's "nearest owning range" rule — they are expressible as
+covering text merge and split cases. Language-local decoding such as escapes and entity
+references is represented by tokenizer-owned `EscapeDecoded` source-map frames. Reference
+inlining and external-resource resolution are already boundary-shaped (`HandoffBoundary`
+is the analogue), so reusing that pattern keeps `SourceMapFrame` shape uniform. Generated
+nodes keep §2.4's "nearest owning range" rule — they are expressible as
 `Single(owner_range)` plus `TransformKind::Implementation`.
 
 **Ambiguity (to be answered):**
 - For `Multi`, is the order of ranges source-order or emit-order? (For `a&amp;b`, source
   order is `[a-range, &amp;-range, b-range]`; emit order matches.) Pick source-order;
   document explicitly.
-- Does a per-scalar mapping live on the frame (heavy) or on the `DecodedChunk` it
-  produced (deferred lookup)? See 18.2.3.
-
-**Concern 18.2.3 — Entity and escape decoding needs source-map ownership.**  
-HTML character references, XML entity references, CSS escapes, JSON string escapes, and
-CSV quoted escapes all transform raw bytes into logical scalar values. The current
-`DecodedChunk` model maps scalars to byte spans, but later token/event layers do not
-state how escape-produced scalars preserve their original source.
-
-**Question:** Does each language tokenizer emit per-scalar source ranges after escape
-processing, or does it append a transform frame that maps decoded values back to raw
-bytes?
-
-**Answer A — Per-scalar source ranges on `DecodedChunk` (no extra frame).**
-Layer 1's `DecodedChunk { scalars: [(char, ByteRange)] }` already pairs each decoded
-scalar with its origin span. Extend this to escape-producing tokenizers (HTML char refs,
-XML entity refs, CSS escapes, JSON `\uXXXX`, CSV doubled-quote): the decoded scalar's
-`ByteRange` is the entire raw source span that produced it (e.g. `&amp;` → one scalar
-`&` with `ByteRange` covering all 5 source bytes). Pros: zero new frame types; matches
-the existing layer-1 contract; per-scalar precision is available to everyone downstream
-without any decoding-aware traversal logic. Cons: `Vec<(char, ByteRange)>` is heavy for
-ASCII-only spans; needs a memory-efficient encoding (e.g. run-length `1:1` segments plus
-sparse "decoded" entries).
-
-**Answer B — Append a `TransformKind::EscapeDecoded` frame per escape.**
-Tokenizers leave the decoded text on the token; `EventNormalizer` (or the tokenizer
-itself) adds an `EscapeDecoded` frame to the resulting `Value` event's source map. The
-frame carries `Vec<(decoded_offset, source_range)>` for every decoded escape inside the
-value. Pros: cost is paid only when escapes occur; raw 1:1 spans need no special
-encoding. Cons: every consumer that wants a per-scalar position must walk frames; two
-adjacent escapes in one value still need a vector inside the frame.
-
-**Answer C — Hybrid (recommended).**
-Layer 1 emits per-scalar ranges only for byte→scalar decoding (UTF-8/UTF-16/Latin-1).
-Higher-level escape processing (HTML/XML entities, CSS/JSON/CSV escapes) is owned by the
-tokenizer that recognizes the escape, and the tokenizer attaches an `EscapeDecoded`
-sub-mapping to the *token* (not a separate frame): `RawToken.escape_map: Option<Vec<(char_index, ByteRange)>>`.
-Empty/None means 1:1. Reasoning: the frame stack records *layer transitions*, while
-escape decoding is intra-layer detail of the tokenizer. Source-map traversal stays
-shallow; per-scalar precision is available when the consumer asks for it.
-
-**Recommendation:** Adopt **Answer C**. It keeps frame depth bounded by layer count
-(predictable for compression deltas in 18.2.1) while still letting Tier B reports
-project per-scalar offsets when needed.
-
-**Ambiguity (to be answered):** For multi-scalar entities (e.g. `&NotEqualTilde;` →
-two-scalar grapheme), does the escape map record one entry per output scalar or one
-entry per input source span? Default: one entry per output scalar, both pointing at the
-same source span — round-tripping the source span is the dominant query.
+- Local tokenizer decoding uses `TransformKind::EscapeDecoded`; multi-scalar entities
+  record one decoded scalar range per emitted scalar, each pointing at the same raw
+  source span when appropriate.
 
 ### 18.5 Schema-Machine And Validation Questions
 

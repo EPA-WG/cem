@@ -66,12 +66,17 @@ SourceMapFrame:
 TransformKind:
   HtmlTokenizer
   XmlTokenizer
+  EscapeDecoded { decoded_to_source: Vec<(ScalarRange, ByteRange)> }
   EventNormalizer
   SchemaValidation(schema_id: SchemaId)
   CemAstBuilder
   HandoffBoundary { child_content_type: ContentType }
   Implementation                    transform/render step
   BinaryEncoder                     [Tier B]
+
+ScalarRange:
+  start: u32                         decoded scalar offset within the frame value
+  len: u32                           decoded scalar length
 ```
 
 ### 2.3 Traversal Examples
@@ -246,6 +251,14 @@ must emit or fail the token before the buffer exceeds `MAX_TOKEN_BUFFER_BYTES`. 
 `RawToken` emission, the accumulator is released; downstream layers receive token data
 and byte ranges, not retained source text. The tokenizer does not require a specific
 memory-buffer strategy.
+
+Layer 1 decodes only byte encodings such as UTF-8, UTF-16, and Latin-1. Language-local
+encodings recognized by a tokenizer, such as HTML character references, XML entity
+references, CSS escapes, JSON string escapes, or CSV quoted escapes, append an
+`EscapeDecoded` source-map frame. The frame maps decoded scalar ranges in the token value
+back to the raw byte ranges that produced them. Multi-scalar entities record one decoded
+range per emitted scalar, each pointing at the same raw source span when appropriate.
+Tokens without local decoding omit the frame.
 
 ```
 RawToken:
