@@ -181,12 +181,21 @@ Implementation rules:
 - Preserve current-chunk bytes only long enough to emit diagnostics for that chunk;
   source maps retain offsets, not source text.
 - Inspect the first bytes of each source initiation before tokenization. A supported BOM
-  selects the encoding for that source, is skipped from decoded scalars, and suppresses
-  later encoding overrides for that source.
-- If no BOM is present, use `DecodeConfig.default_encoding`. If it is absent, use UTF-8.
+  selects the encoding for that source, is skipped from decoded scalars, remains
+  addressable by source-map byte ranges, and suppresses later encoding overrides for that
+  source.
+- If no BOM is present, use `DecodeConfig.default_encoding`. Browser/server callers may
+  derive it from transport metadata such as `Content-Type`; library callers pass it in
+  parser configuration. If it is absent, use UTF-8.
 - Inline embedded handoffs consume the owner's decoded Unicode stream and do not run BOM
   detection. External or separately loaded resources receive their own source stream and
   `DecodeConfig`, then apply the same initiation rule.
+- In-band encoding declarations discovered after decoding do not re-decode the current
+  source. If policy uses one to configure a later child source stream, it sets that
+  stream's `DecodeConfig.default_encoding`; a child BOM still wins.
+- HTML preprocessing replacements such as NUL handling run on decoded Unicode scalars.
+  An isolated UTF-8 BOM is accepted silently and omitted from decoded scalars while byte
+  ranges still address the original source bytes.
 
 Tier A exposes asynchronous source APIs only. Owned byte buffers, strings, file-path
 input, and WASM `ReadableStream<Uint8Array | string>` inputs are normalized through

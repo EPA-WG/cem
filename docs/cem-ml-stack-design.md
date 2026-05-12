@@ -230,14 +230,23 @@ Rules from the research:
   consume decoded Unicode scalars, never raw encoding-specific code units.
 - Treat BOM detection as byte-stream initiation. If the first bytes of a source
   initiation are a supported BOM, the BOM determines the source encoding, the BOM bytes
-  are skipped from the decoded scalar stream, and later encoding overrides for that
-  source are ignored.
+  are skipped from the decoded scalar stream, remain addressable by source-map byte
+  ranges, and later encoding overrides for that source are ignored.
 - If no BOM is present, use the explicit/default encoding parameter supplied with the
-  source. Callers may derive this value from server `Content-Type` headers or other
-  transport metadata. If no encoding is supplied, default to UTF-8.
+  source. Browser/server callers may derive this value from transport metadata such as
+  `Content-Type`; library callers pass it through parser configuration. If neither a BOM
+  nor a supplied encoding exists, default to UTF-8.
 - Inline embedded contexts receive source-mapped decoded streams from their owner and do
   not perform BOM detection. External or separately loaded resources are new byte-source
   initiations and apply the same BOM/default-encoding precedence independently.
+- In-band encoding declarations discovered after decoding, including HTML metadata or
+  content-type-specific encoding switches, do not force the current source to be
+  re-decoded. If policy allows such a declaration to initiate or configure a later child
+  byte stream, it supplies that child stream's explicit/default encoding parameter; a BOM
+  on the child source still wins over that parameter.
+- HTML preprocessing replacements such as NUL handling occur after decoding on Unicode
+  scalars, not on raw bytes. An isolated UTF-8 BOM is accepted silently and excluded from
+  the decoded scalar stream while byte ranges continue to address the original bytes.
 
 Tier A enforces resource bounds while streaming. The default limits are:
 
@@ -1225,8 +1234,8 @@ Status key:
 |-------------------------------------------------------------|-----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|
 | L1 ByteSource: owned bytes, string, file path               | Design ready — finite inputs are source adapters into the async streaming API; complete-source assembly before tokenization is not required (§5)                                          |
 | L1 ByteSource: async byte/string streams                    | Design ready — async Rust and WASM input APIs are primary; Tier A parses chunks monotonically; tokenizer buffering is token-local, while editor-style incremental reparse remains Tier B  |
-| L1 EncodingDecoder: UTF-8                                   | Design ready — UTF-8 is the fallback when no BOM or explicit/default encoding is present (§5, §18.3.2)                                                                                  |
-| L1 EncodingDecoder: UTF-16, Latin-1, BOM detection          | Design ready — byte-stream initiation, BOM precedence, BOM skipping, and caller/default encoding precedence are resolved (§5, §18.3.2)                                                   |
+| L1 EncodingDecoder: UTF-8                                   | Design ready — UTF-8 is the fallback when no BOM or explicit/default encoding is present (§5)                                                                                           |
+| L1 EncodingDecoder: UTF-16, Latin-1, BOM detection          | Design ready — byte-stream initiation, BOM precedence, BOM skipping, caller/default encoding precedence, in-band declaration handling, and scalar preprocessing are resolved (§5)         |
 | L2 SchemaTokenizer: HTML WHATWG profile                     | Design ready — custom WHATWG-state tokenizer selected for exact source-map preservation across nested embedded contexts (§6)                                                            |
 | L2 SchemaTokenizer: XML 1.0 profile                         | Design partial — DTD/external-resource ownership follows transform policy (§3.2, §6)                                                                                                     |
 | L3 EventNormalizer                                          | Design ready — `ElementBoundary`, header/prelude parameter handling, synthesized close reasons, trivia preservation, `QName` resolution, and `ModeSwitch` context creation are defined (§7–9) |
@@ -1552,41 +1561,6 @@ location shapes.
   get removed in favor of "look at the topmost AST frame"? Default: keep as
   `Option<AstNodeId>`, populated when (and only when) the diagnostic was raised against
   a built AST node.
-
-### 18.3 ByteSource And Decoding Questions
-
-**Decision 18.3.2 — Source-stream decoding policy.**
-The parser consumes a Unicode scalar stream. Layer 1 owns the byte-to-Unicode transition
-before tokenization starts for a source.
-
-Encoding selection order for each byte-source initiation:
-
-1. **BOM wins.** If the source begins with a supported BOM, the BOM determines the
-   encoding. The BOM bytes are skipped from the decoded scalar stream, remain
-   addressable through retained source windows and source maps, and cause later encoding
-   overrides for that source to be ignored.
-2. **Explicit/default encoding parameter.** If no BOM is present, use the encoding
-   supplied with the parse request. For browser/server inputs, the caller can derive this
-   from transport metadata such as `Content-Type` headers. For library callers, this is a
-   parser configuration parameter.
-3. **UTF-8 fallback.** If neither a BOM nor a supplied encoding exists, assume UTF-8.
-
-Inline embedded contexts are not byte-source initiations. The owning context has already
-decoded the source bytes, and the handoff passes a source-mapped decoded stream to the
-child context. Therefore inline embedded contexts do not perform BOM detection and cannot
-contain an independent BOM header. If an external resource or explicitly byte-valued
-payload is loaded as its own source stream, it starts a new source initiation and applies
-the same precedence above.
-
-In-band encoding declarations discovered after decoding, including HTML metadata or
-content-type-specific encoding switches, do not force the current source to be re-decoded.
-If policy allows an in-band declaration to initiate or configure a later child byte
-stream, it supplies that child stream's explicit/default encoding parameter. A BOM on the
-child source still wins over that parameter.
-
-HTML preprocessing replacements such as NUL handling occur after decoding on Unicode
-scalars, not on raw bytes. An isolated UTF-8 BOM is accepted silently and excluded from
-the decoded scalar stream; byte ranges continue to address the original source bytes.
 
 ### 18.5 Schema-Machine And Validation Questions
 
