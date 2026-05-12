@@ -106,9 +106,9 @@ ByteSource
 
 Layers in brackets are designed for stable interfaces but not implemented in Tier A.
 For Tier A, all public Rust and WASM entry points are asynchronous. The implementation
-may buffer a complete input before tokenization in the first implementation phase, but
-callers interact with futures/streams only; no synchronous parser API is exposed. The
-encoder, compressor, and broadcast/cache paths are absent.
+parses chunk streams monotonically with bounded retained windows; callers interact with
+futures/streams only and no synchronous parser API is exposed. The encoder, compressor,
+and broadcast/cache paths are absent.
 
 The schema machine instantiates a child pipeline (tokenizer → normalizer → schema
 machine) for each embedded content region. The handoff stack controls the boundary and
@@ -224,13 +224,13 @@ Rules from the research:
 
 - Keep absolute `u64` byte offsets for every token and event.
 - Keep decoded scalar spans alongside scalars for Unicode-aware validation.
-- Preserve raw byte slices for zero-copy diagnostic snippets.
+- Preserve bounded raw byte windows for diagnostic snippets.
 - Decode each byte source into a Unicode scalar stream before tokenization. Tokenizers
   consume decoded Unicode scalars, never raw encoding-specific code units.
-- Treat BOM detection as byte-stream initiation. If the first bytes of a `ByteSource`
-  are a supported BOM, the BOM determines the source encoding, the BOM bytes are skipped
-  from the decoded scalar stream, and later encoding overrides for that source are
-  ignored.
+- Treat BOM detection as byte-stream initiation. If the first bytes of a source
+  initiation are a supported BOM, the BOM determines the source encoding, the BOM bytes
+  are skipped from the decoded scalar stream, and later encoding overrides for that
+  source are ignored.
 - If no BOM is present, use the explicit/default encoding parameter supplied with the
   source. Callers may derive this value from server `Content-Type` headers or other
   transport metadata. If no encoding is supplied, default to UTF-8.
@@ -238,15 +238,36 @@ Rules from the research:
   not perform BOM detection. External or separately loaded resources are new byte-source
   initiations and apply the same BOM/default-encoding precedence independently.
 
-Encoding resource bounds remain an open review item in §18.3.3.
+Layer 1 enforces resource bounds while streaming. The default limits are:
+
+- maximum total bytes per `SourceId`: **64 MiB**, enforced cumulatively across chunks;
+- maximum buffered raw-byte window: **64 KiB** plus tokenizer lookahead and diagnostic
+  snippet slack;
+- maximum decoded scalar chunk: **64 Ki scalars** before downstream backpressure;
+- maximum line count: **8 M** line starts, stored as streaming line-index checkpoints;
+- maximum diagnostic snippet: **240 bytes** before/after the offending range, truncated
+  at the nearest line boundary, total snippet <= **1 KiB**;
+- maximum `SourceMapStack` frames: **32**;
+- maximum AST depth: **1024**;
+- maximum diagnostics per source: **10 000**, followed by one
+  `cem.diagnostics.truncated` event.
+
+Limit breaches emit fatal source/decode diagnostics such as `cem.source.too_large` or
+`cem.decode.window_too_large` before downstream layers allocate unbounded state. The
+limits apply to the original byte stream and retained streaming windows. Decoded scalars
+are chunked output, not a complete secondary buffer.
 
 ### Tier A Scope
 
-Tier A accepts in-memory byte buffers, string input, file-path input, and async byte or
-string streams through asynchronous APIs. The implementation may choose to collect a
-complete source before tokenization in Tier A; incremental parsing while chunks arrive is
-deferred to Tier B. Tier A must still preserve absolute offsets so the streaming parser
-can reuse the same source-map model.
+Tier A accepts owned byte buffers, strings, file paths, and async byte or string streams
+only through asynchronous source adapters. Byte and string inputs are finite stream
+adapters; file paths are opened as chunked streams; WASM inputs use
+`ReadableStream<Uint8Array | string>` where available. The parser consumes chunks
+monotonically through decode, tokenization, normalization, schema validation, and AST
+construction. It may retain bounded raw-byte and decoded-scalar windows for lookahead,
+source-map ranges, and diagnostic snippets, but it must not require assembling the whole
+source before tokenization. Tier B adds editor-style incremental reparse and resumable
+chunk graphs; Tier A is still streaming for a single parse pass.
 
 Implementation interfaces are in
 [`cem-ml-stack-design-impl.md`](cem-ml-stack-design-impl.md#31-layer-1-bytesource-and-encodingdecoder-cem_mlsource).
@@ -1189,8 +1210,8 @@ Status key:
 
 | Component                                                   | Design status                                                                                                                                                                           |
 |-------------------------------------------------------------|-----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|
-| L1 ByteSource: in-memory buffer, string, file path          | Design partial — source ownership/resource bounds need decisions (§18.3.1, §18.3.3); exposed through async APIs only                                                                    |
-| L1 ByteSource: async byte/string streams                    | Design ready — async Rust and WASM input APIs are primary; Tier A may buffer before tokenization, while incremental parse-as-chunks-arrive remains Tier B                               |
+| L1 ByteSource: owned bytes, string, file path               | Design ready — finite inputs are source adapters into the async streaming API; complete-source assembly before tokenization is not required (§5)                                          |
+| L1 ByteSource: async byte/string streams                    | Design ready — async Rust and WASM input APIs are primary; Tier A parses chunks monotonically with bounded raw/decode windows, while editor-style incremental reparse remains Tier B      |
 | L1 EncodingDecoder: UTF-8                                   | Design ready — UTF-8 is the fallback when no BOM or explicit/default encoding is present (§5, §18.3.2)                                                                                  |
 | L1 EncodingDecoder: UTF-16, Latin-1, BOM detection          | Design ready — byte-stream initiation, BOM precedence, BOM skipping, and caller/default encoding precedence are resolved (§5, §18.3.2)                                                   |
 | L1 Sentinel-byte ownership                                  | Design partial — Rust safety model for sentinel not resolved (§18.3.1)                                                                                                                  |
@@ -1217,7 +1238,7 @@ Status key:
 | LineIndex: byte-offset → line/col projection                | Design partial — column-unit model, newline normalization, tabs, replacement chars, and UTF-16/scalar projections unspecified (§18.2.4)                                                 |
 | Diagnostics and reports                                     | Design partial — source-map ownership and diagnostics-before-AST mapping unresolved (§18.2.5)                                                                                           |
 | CLI output projections and fixture round-trip reports       | Design ready — CLI owns projection targets and side outputs; stack layers own projected artifacts                                                                                       |
-| Resource and security limits                                | Design partial — byte/decode bounds remain unresolved (§18.3.3); XML external-resource limits follow context-scope policy and content-type transforms (§3.1–3.2, §6)                     |
+| Resource and security limits                                | Design ready — source byte, retained-window, decoded-chunk, source-map depth, AST depth, and diagnostic caps are defined in Layer 1; XML external-resource limits follow context-scope policy and content-type transforms (§3.1–3.2, §5–6) |
 | Incremental/editor parsing                                  | Deferred Tier B — caller-provided diffs map through source maps to changed scopes, with enclosing-scope rescan fallback                                                                 |
 | Scope-close reference validation (unfilled slots)           | Design ready — unresolved references emit warnings on owning scope close by default; context-scope policy can override per diagnostic type (§10, §3.1)                                   |
 | Per-scope error boundaries                                  | Design ready — each context scope owns error handling and policy; inner scopes may relax or hide own errors only within parent override bounds (§3.1–3.2)                               |
@@ -1524,43 +1545,46 @@ location shapes.
 
 **Concern 18.3.1 — Sentinel-byte semantics are unsafe unless ownership is explicit.**  
 The LLVM `MemoryBuffer` model is useful, but a Rust `&[u8]` cannot guarantee a sentinel
-byte after `bytes.len()` unless the runtime owns an internal padded allocation.
+byte after `bytes.len()` unless the runtime owns an internal padded allocation for the
+retained byte window being scanned.
 
-**Question:** Does `ByteSource.bytes()` expose the original byte slice without the
-sentinel, or an internal padded buffer that includes it? How do offsets exclude the
+**Question:** Does `ByteWindow.bytes()` expose the retained source bytes without the
+sentinel, or an internal padded window that includes it? How do offsets exclude the
 sentinel?
 
 **Answer A — Public `bytes()` returns the original slice; sentinel is private.**
-`ByteSource` internally owns a padded `Vec<u8>` of length `n + K` (with `K ≥ 1`
+`ByteWindow` internally owns a padded window of length `n + K` (with `K ≥ 1`
 zero/sentinel bytes). `bytes()` returns `&padded[..n]`. Lexers that need the sentinel
-get it via a separate, internal-only API: `bytes_with_sentinel() -> &[u8]` (crate-private,
-returning `&padded[..n + K]`). All public byte ranges, line indices, and snippet ranges
-are within `[0, n)`. Pros: external invariant "offset < bytes.len()" is unambiguous;
-sentinel is an implementation detail of the lexer; safe Rust slice semantics enforce the
-boundary. Cons: requires the runtime to own the buffer (no zero-copy from a borrowed
-caller `&[u8]` without an internal copy or padding allocation).
+get it via a separate, internal-only API: `bytes_with_sentinel() -> &[u8]`
+(crate-private, returning `&padded[..n + K]`). All public byte ranges, line indices, and
+snippet ranges use absolute source offsets inside the real window range. Pros: external
+invariant "offset is inside the real retained window" is unambiguous; sentinel is an
+implementation detail of the lexer; safe Rust slice semantics enforce the boundary.
+Cons: requires the runtime to own or copy each retained window before sentinel scanning.
 
 **Answer B — Public `bytes()` returns the padded slice; the contract documents that valid offsets are `< len_unpadded`.**
-`ByteSource::len_unpadded() -> u64` is the authoritative end-of-source bound. Lexers may
+`ByteWindow::len_unpadded() -> u64` is the authoritative real-window length. Lexers may
 read `bytes()[offset]` up to and including offset = `len_unpadded()` (the sentinel) but
 must never address beyond that. Pros: one slice, no second API. Cons: easier to write
 buggy consumers that scan `bytes().len()` directly; the sentinel leaks into the public
 contract.
 
 **Answer C — Two-mode constructor.**
-- Owned mode: `ByteSource::from_owned(bytes: Vec<u8>)` allocates `+K` padding internally
+- Owned mode: `ByteWindow::from_owned(bytes: Vec<u8>)` allocates `+K` padding internally
   and behaves like Answer A.
-- Borrowed mode: `ByteSource::from_borrowed(bytes: &'a [u8])` does not pad; lexers get a
+- Borrowed mode: `ByteWindow::from_borrowed(bytes: &'a [u8])` does not pad; lexers get a
   `bytes_with_optional_sentinel()` that returns `Either<padded, unpadded>` and falls
   back to a per-character bounds check on the unpadded path.
 
 Pros: zero-copy for embedders that already pad; safe default for the common owned case.
 Cons: lexer hot path must handle both shapes (or always copy on ingress to normalize).
 
-**Recommendation:** Adopt **Answer A**. It cleanly separates contract (`bytes()` is real
-source bytes; offsets are `[0, bytes.len())`) from implementation (lexer scans through
-sentinel via a private API). Tier A is in-memory anyway (§18.3.3), so the one-time
-padding allocation is acceptable. Borrowed-mode optimization is a Tier B concern.
+**Recommendation:** Adopt **Answer A** for each retained chunk/window. It cleanly
+separates contract (`bytes()` is real source bytes; offsets are within the real source
+range) from implementation (lexer scans through sentinel padding via a private API).
+Streaming Tier A may allocate padding around bounded windows; it must not assemble the
+complete source only to obtain sentinel bytes. Borrowed-mode optimization is a Tier B
+concern.
 
 **Ambiguity (to be answered):**
 - How many sentinel bytes? `K = 4` (largest UTF-8 sequence length) is the safe default
@@ -1576,9 +1600,9 @@ before tokenization starts for a source.
 Encoding selection order for each byte-source initiation:
 
 1. **BOM wins.** If the source begins with a supported BOM, the BOM determines the
-   encoding. The BOM bytes are skipped from the decoded scalar stream, remain addressable
-   in the original `ByteSource`, and cause later encoding overrides for that source to be
-   ignored.
+   encoding. The BOM bytes are skipped from the decoded scalar stream, remain
+   addressable through retained source windows and source maps, and cause later encoding
+   overrides for that source to be ignored.
 2. **Explicit/default encoding parameter.** If no BOM is present, use the encoding
    supplied with the parse request. For browser/server inputs, the caller can derive this
    from transport metadata such as `Content-Type` headers. For library callers, this is a
@@ -1589,7 +1613,7 @@ Inline embedded contexts are not byte-source initiations. The owning context has
 decoded the source bytes, and the handoff passes a source-mapped decoded stream to the
 child context. Therefore inline embedded contexts do not perform BOM detection and cannot
 contain an independent BOM header. If an external resource or explicitly byte-valued
-payload is loaded as its own `ByteSource`, it starts a new source initiation and applies
+payload is loaded as its own source stream, it starts a new source initiation and applies
 the same precedence above.
 
 In-band encoding declarations discovered after decoding, including HTML metadata or
@@ -1601,49 +1625,6 @@ child source still wins over that parameter.
 HTML preprocessing replacements such as NUL handling occur after decoding on Unicode
 scalars, not on raw bytes. An isolated UTF-8 BOM is accepted silently and excluded from
 the decoded scalar stream; byte ranges continue to address the original source bytes.
-
-**Concern 18.3.3 — Resource bounds are missing from the byte and decode layer.**  
-The research emphasizes streaming and bounded memory, but Tier A uses in-memory buffers.
-
-**Question:** What are the maximum input size, maximum line index size, maximum decoded
-scalar count, and maximum diagnostic snippet size for Tier A?
-
-**Answer A — Tight, compile-time-checked Tier A limits.**
-- Maximum input size: **64 MiB** per `SourceId`. Larger inputs return
-  `cem.source.too_large` (`Fatal`) at `from_bytes`/`from_path`. Rationale: Tier A is
-  in-memory; 64 MiB covers the largest realistic single CEM document by ≥3 orders of
-  magnitude.
-- Maximum line count: **8 M** lines (matches 64 MiB at average ≥8 bytes/line). The
-  `LineIndex` is a `Vec<u32>` of relative offsets per line, capped at this size.
-- Maximum decoded scalar count: derived (bounded by input size); no separate cap.
-- Maximum diagnostic snippet size: **240 bytes** before/after the offending byte range,
-  truncated at the nearest line boundary; total snippet ≤ 1 KiB.
-- Maximum frames in a `SourceMapStack`: **32** (sufficient for tokenizer →
-  normalizer → schema → ast-builder → handoff(×N) → impl-transform → render).
-- Maximum AST depth: **1024**.
-- Maximum diagnostics per source: **10 000** (further diagnostics dropped with one
-  trailing `cem.diagnostics.truncated` event).
-
-**Answer B — Configurable limits with sane defaults.**
-Same numbers as Answer A become fields on a `ParserConfig` struct passed to the runtime;
-tests and benchmarks can lift them. Pros: future-proofing; one place to retune. Cons:
-config plumbing through every layer.
-
-**Answer C — Defer all limits to Tier B; Tier A is best-effort.**
-Layer 1 imposes only `usize::MAX` (host limit). Pros: no policy work. Cons: silent
-performance cliffs and no clean error code for "this input is too big to handle".
-
-**Recommendation:** Adopt **Answer A** for Tier A and revisit the numbers in Tier B as
-**Answer B** (with the same defaults). Hard-coded constants are easier to test and
-document; configurability without a use case is premature.
-
-**Ambiguity (to be answered):**
-- Does the 64 MiB cap apply to the original source, the decoded scalar buffer, or
-  both? Default: applies to the *original byte buffer*; decoded scalars are derived and
-  do not have a separate cap.
-- Should the limits be defined in a single `cem_ml::limits` module, or as
-  `pub const` items on each layer? Default: `cem_ml::limits` for discoverability and
-  test override.
 
 ### 18.5 Schema-Machine And Validation Questions
 

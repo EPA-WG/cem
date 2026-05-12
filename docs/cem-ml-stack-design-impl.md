@@ -132,16 +132,18 @@ detected the error. They bubble to the nearest error-boundary scope. `Fatal`,
 
 ### 3.1 Layer 1: ByteSource And EncodingDecoder (`cem_ml::source`)
 
-Modeled on LLVM `MemoryBuffer`: a read-only byte slice with a guaranteed sentinel byte
-after the end for fast lexing without bounds checks per character.
+Modeled as an asynchronous source plus bounded retained byte windows. A retained window
+may use LLVM `MemoryBuffer`-style private sentinel padding after the window end for fast
+lexing, but the public contract remains a stream of real source bytes with absolute
+offsets.
 
 ```
-SourceId: opaque stable identity for a byte buffer (used in source-map frames)
+SourceId: opaque stable identity for a byte stream (used in source-map frames)
 
-ByteSource:
+ByteWindow:
   id() -> SourceId
-  bytes() -> &[u8]                  read-only; sentinel byte guaranteed at bytes.len()
-  byte_range() -> ByteRange         full range of this source
+  bytes() -> &[u8]                  read-only real bytes retained for this window
+  byte_range() -> ByteRange         absolute range covered by this window
 
 AsyncByteSource:
   next_chunk() -> Future<Option<ByteChunk>>
@@ -149,14 +151,14 @@ AsyncByteSource:
 
 ByteChunk:
   bytes: Vec<u8> | String
-  byte_range: Option<ByteRange>     known after source assembly or stream offset tracking
+  byte_range: Option<ByteRange>     known after adapter offset assignment or stream tracking
 
 DecodeConfig:
   default_encoding: Option<Encoding> // caller/server/child-source encoding, if known
   content_type: ContentType
 
 DecodeResult:
-  chunks: Vec<DecodedChunk>
+  chunk: DecodedChunk
   selected_encoding: Encoding
   selection: EncodingSelection
   bom: Option<BomInfo>
@@ -180,20 +182,32 @@ Implementation rules:
 
 - Keep absolute `u64` byte offsets for every token and event.
 - Keep decoded scalar spans alongside scalars for Unicode-aware validation.
-- Preserve raw byte slices for zero-copy diagnostic snippets.
-- Inspect the first bytes of each `ByteSource` before tokenization. A supported BOM
-  selects the encoding for that source, is skipped from `DecodedChunk.scalars`, and
-  suppresses later encoding overrides for that source.
+- Preserve raw byte windows for diagnostic snippets without retaining the whole source.
+- Inspect the first bytes of each source initiation before tokenization. A supported BOM
+  selects the encoding for that source, is skipped from decoded scalars, and suppresses
+  later encoding overrides for that source.
 - If no BOM is present, use `DecodeConfig.default_encoding`. If it is absent, use UTF-8.
 - Inline embedded handoffs consume the owner's decoded Unicode stream and do not run BOM
-  detection. External or separately loaded resources receive their own `ByteSource` and
+  detection. External or separately loaded resources receive their own source stream and
   `DecodeConfig`, then apply the same initiation rule.
 
-Tier A exposes asynchronous source APIs only. In-memory byte buffers, strings, file-path
+Tier A exposes asynchronous source APIs only. Owned byte buffers, strings, file-path
 input, and WASM `ReadableStream<Uint8Array | string>` inputs are normalized through
-`AsyncByteSource`. The first implementation may collect a complete `ByteSource` before
-tokenization; parse-as-chunks-arrive incremental delivery is Tier B. No synchronous
-public parser or WASM entry point is defined.
+`AsyncByteSource` adapters. The parser decodes and tokenizes chunks monotonically while
+retaining only bounded byte/scalar windows for lookahead, source-map spans, and
+diagnostic snippets. Editor-style incremental reparse and resumable chunk graphs are
+Tier B. No synchronous public parser or WASM entry point is defined.
+
+Default source limits live in `cem_ml::limits`:
+
+- `MAX_SOURCE_BYTES_PER_SOURCE_ID = 64 MiB`;
+- `MAX_RETAINED_BYTE_WINDOW = 64 KiB` plus tokenizer lookahead and snippet slack;
+- `MAX_DECODED_SCALARS_PER_CHUNK = 64 Ki`;
+- `MAX_LINE_COUNT = 8 M`;
+- `MAX_DIAGNOSTIC_SNIPPET_BYTES = 1 KiB`;
+- `MAX_SOURCE_MAP_FRAMES = 32`;
+- `MAX_AST_DEPTH = 1024`;
+- `MAX_DIAGNOSTICS_PER_SOURCE = 10_000`.
 
 ### 3.2 Layer 2: SchemaTokenizer (`cem_ml::tokenizer`)
 
@@ -757,7 +771,7 @@ default stream behavior. Proposed projection layer keys:
 
 | Key                | Stack owner                       | Projection meaning                                                                                       |
 |--------------------|-----------------------------------|----------------------------------------------------------------------------------------------------------|
-| `source`           | `source::ByteSource`              | Source metadata, URI, byte length, and source id; raw bytes are not emitted unless explicitly requested. |
+| `source`           | `source::SourceRecord`            | Source metadata, URI, byte length, and source id; raw bytes are not emitted unless explicitly requested. |
 | `decoded`          | `source::decode`                  | Encoding result, decoded scalar spans, replacement/encoding diagnostics, and line-index metadata.        |
 | `tokens`           | `tokenizer`                       | Format-native token stream with byte ranges.                                                             |
 | `events`           | `events`                          | Normalized open/close/name/value/trivia/processing-instruction/separator/mode-switch/error events.       |
@@ -1214,10 +1228,10 @@ WasmApi:
   transform(input: ReadableStream<Uint8Array | string> | Uint8Array | string, target, config) -> Promise<TransformOutput>
 ```
 
-In-memory inputs are wrapped as already-ready async sources. File inputs are opened and
-read through async runtime adapters. Tier A may await source assembly before tokenization;
-that is still an async API contract. Incremental parsing while chunks arrive is deferred
-to Tier B.
+Owned byte and string inputs are wrapped as already-ready async source adapters. File
+inputs are opened and read through async runtime adapters. Tier A decodes and tokenizes
+chunks as they arrive with bounded retained windows. Editor-style incremental reparse,
+chunk graph reuse, and resumable partial parses are deferred to Tier B.
 
 ---
 
@@ -1227,7 +1241,7 @@ to Tier B.
 cem_ml/src/
   lib.rs
   source/
-    mod.rs            AsyncByteSource and assembled ByteSource traits, SourceId, ByteRange
+    mod.rs            AsyncByteSource and retained ByteWindow traits, SourceId, ByteRange
     decode.rs         EncodingDecoder, DecodedChunk, Encoding
     line_index.rs     LineIndex - byte offset -> (line, col) projection
   tokenizer/
