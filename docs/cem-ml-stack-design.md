@@ -207,6 +207,11 @@ CEM AST builder, handoff boundaries, implementation transforms, and future binar
 encoding. This lets tooling resolve from generated custom-element output back to the raw
 HTML token or embedded resource that produced it.
 
+Source-map frames are ordered origin-first. `frames[0]` is the original source frame for
+the stack, transforms append new frames as the node moves through the pipeline, and
+`frames.last()` is the current frame. Generated nodes inherit the producer node's stack
+and append the transform frame that created them.
+
 Each source-map frame carries a `FrameSpan`: `Single(ByteRange)` for the common one-span
 case or `Multi(Vec<ByteRange>)` for merged or split source spans. `Multi` range order has
 no semantic meaning; consumers use each range directly to project to the proper location
@@ -1283,8 +1288,8 @@ Status key:
 | L6 InputDomAstBuilder: schema-defined initial DOM/AST       | Design ready — schema reconstructs token hierarchy; WHATWG DOM compliance is a downstream transformation over this initial DOM                                                          |
 | L6 InterpreterAstBuilder: CEM annotation projection         | Design partial — CEM attributes are transform annotations on source nodes; transform conflict policy is schema-owned; CEM comment/CDATA syntax remains TBD (§10)                         |
 | L6 Reference slots: id/for/aria-*                           | Design ready — one-pass mutable slots are sufficient; unfilled slots warn on owning scope close unless scope policy overrides severity per error type (§10, §3.1)                         |
-| L6 Source-map stacks: byte-range + transform chain          | Design partial — frame order remains under review (§18.2.1); `FrameSpan::Multi`, boundary frames, and tokenizer-local `EscapeDecoded` frames are defined (§4, §6)                       |
-| L6 Source-map stacks: bit-level ranges                      | Deferred Tier B — reserve representation only after source-map frame order is fixed (§18.2.1); no serialized binary frame ids in Tier A (§11)                                           |
+| L6 Source-map stacks: byte-range + transform chain          | Design ready — frames are origin-first, current frame is last, `FrameSpan::Multi`, boundary frames, and tokenizer-local `EscapeDecoded` frames are defined (§4, §6)                      |
+| L6 Source-map stacks: bit-level ranges                      | Deferred Tier B — reserve representation only; no serialized binary frame ids in Tier A (§11)                                                                                           |
 | L7 BinaryAstEncoder                                         | Deferred Tier B — Tier A does not freeze serialized binary ids; canonical identity, ordering, and future id policy are scoped in §11                                                    |
 | L8 ChunkCompressor                                          | Deferred Tier B — compression profiles are research-backed; canonical chunk identity, ordering, and dependency slots are scoped in §11                                                  |
 | ContentTypeTransformPipeline: WHATWG HTML DOM               | Design ready — schema-driven initial HTML parser DOM is transformed into WHATWG implementation DOM updates                                                                              |
@@ -1344,49 +1349,6 @@ This section records unresolved issues found by reviewing this design against
 `parsing-algorithms-research.md` as the primary source. These are not decisions. They
 are follow-up questions and concerns to resolve before implementation. Other workspace
 documents may provide terminology, but they should not decide the answers here.
-
-### 18.2 Source-Map And Coordinate Model Gaps
-
-**Concern 18.2.1 — Source-map frame order is internally inconsistent.**  
-The implementation companion defines frames as "earliest context first", but the source
-map examples list `CemAstBuilder` before `SchemaValidation`, `EventNormalizer`, and
-`HtmlTokenizer`, which is latest-context first.
-
-**Question:** Is `SourceMapStack.frames[0]` the original byte source frame or the current
-AST/transformed frame? This must be fixed before traversal, compression deltas, and
-generated-node inheritance are implemented.
-
-**Answer A — `frames[0]` is the original byte-source frame; the current frame is `frames.last()`.**
-This matches §2.2's literal "earliest context first" wording and the natural reading of a
-"stack" appended to as transforms accrue: the bottom is the origin, the top is now. Pros:
-(a) traversal back to the byte source is `frames[0]` — a stable index that does not move
-when new transform frames are pushed; (b) inheritance for generated nodes is "copy
-parent's stack, push a new top", which is `Vec::push`-shaped; (c) compression deltas
-between sibling nodes share long common prefixes, so prefix-shared encoding is efficient.
-Action: rewrite the §2.3 traversal examples in origin-first order so `frame[0]` is
-`HtmlTokenizer` and the last frame is `CemAstBuilder`. Treat the current examples as the
-bug, not the contract.
-
-**Answer B — `frames[0]` is the current/topmost frame; the original byte-source frame is `frames.last()`.**
-This matches the §2.3 examples literally and reads diagnostics top-down ("here is where
-the node is now; here is what produced it"). Pros: (a) error rendering walks `frames[0..]`
-in the order a human reads a stack trace; (b) `frame[0].span` is the most-local range,
-useful for snippet extraction without a length lookup. Cons: (a) every push must shift
-existing frames or use a different data structure (`VecDeque::push_front` /
-reverse-indexed slice); (b) the §2.2 phrase "earliest context first" must be rewritten to
-"latest context first". Action: keep the examples, fix the prose, and document push as
-"prepend" semantically (it can still be implemented as `Vec::push` with reversed read
-order, but the contract must be explicit).
-
-**Recommendation:** Adopt **Answer A**. It is the cheaper retrofit (prose stays, examples
-get reordered), preserves O(1) origin lookup at `[0]`, makes "inherit + push" the natural
-generated-node operation in §2.4, and matches how compiler source-map stacks are normally
-built (lex → parse → lower, each appended). The §2.3 examples are the artifact to fix.
-
-**Ambiguity (to be answered):** Regardless of order chosen, the contract must name two
-indices explicitly — `origin_frame()` and `current_frame()` — so consumers never index
-positionally. Open question: are these methods on `SourceMapStack`, or on a thin
-`SourceMapView` returned from traversal?
 
 ### 18.5 Schema-Machine And Validation Questions
 

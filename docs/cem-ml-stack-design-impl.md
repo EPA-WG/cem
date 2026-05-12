@@ -54,7 +54,7 @@ not populated in Tier A.
 
 ```
 SourceMapStack:
-  frames: [SourceMapFrame, ...]     ordered, earliest context first
+  frames: [SourceMapFrame, ...]     ordered origin-first; current frame is last
 
 SourceMapFrame:
   source_id: SourceId               which byte stream produced this context
@@ -95,16 +95,22 @@ them. Reference inlining and external-resource resolution are modeled as boundar
 the referenced target carries its own source-map stack across the boundary rather than
 embedding a nested stack inside `FrameSpan`.
 
+Stacks are built by appending frames as processing advances. `frames[0]` is the origin
+frame and `frames.last()` is the current frame. Code should use conceptual
+`origin_frame()` and `current_frame()` accessors instead of positional indexing; whether
+those methods live directly on `SourceMapStack` or on a `SourceMapView` is an
+implementation API decision driven by call-site ergonomics.
+
 ### 2.3 Traversal Examples
 
 An `aria-labelledby` reference in a parsed fixture traces as:
 
 ```
 CemAnnotation { kind: Screen, value: "login" }
-  frame[0]: CemAstBuilder, byte=(0, 50), source=main.html
-  frame[1]: SchemaValidation(cem-schema-v1), byte=(0, 50)
-  frame[2]: EventNormalizer, OpenScope("main"), byte=(0, 50)
-  frame[3]: HtmlTokenizer, StartTag("main"), byte=(0, 50)
+  frame[0]: HtmlTokenizer, StartTag("main"), byte=(0, 50), source=main.html
+  frame[1]: EventNormalizer, OpenScope("main"), byte=(0, 50)
+  frame[2]: SchemaValidation(cem-schema-v1), byte=(0, 50)
+  frame[3]: CemAstBuilder, byte=(0, 50)
 ```
 
 A CSS rule inside an inline `<style>` element traces through its handoff boundary back
@@ -112,9 +118,9 @@ to the parent HTML token:
 
 ```
 CssDeclaration { property: "background-color" }
-  frame[0]: CssParser, byte=(0, 24), source=embedded-style@main.html:88
+  frame[0]: HtmlTokenizer, StartTag("style"), byte=(85, 100), source=main.html
   frame[1]: HandoffBoundary(text/css), parent_byte=(85, 130), source=main.html
-  frame[2]: HtmlTokenizer, StartTag("style"), byte=(85, 100), source=main.html
+  frame[2]: CssParser, byte=(0, 24), source=embedded-style@main.html:88
 ```
 
 External or referenced XML resources use the same source-map relationship as
