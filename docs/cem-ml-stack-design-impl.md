@@ -28,8 +28,9 @@ traversable stack linking it back to its origin in the byte stream.
 
 ### 2.1 Coordinate System
 
-Byte offsets are the stable ground truth. Line and column are derived coordinates
-projected on demand; they are never stored permanently on AST nodes.
+Byte offsets in source-map frames are the stable ground truth. Line and column are
+derived reporting coordinates projected on demand for a selected frame; they are never
+stored permanently on AST nodes and are not parser semantics.
 
 ```
 ByteRange { start: u64, len: u32 }
@@ -38,8 +39,12 @@ ByteRange { start: u64, len: u32 }
 ```
 
 Line/column projection is performed by a streaming `LineIndex` that records newline byte
-offsets as chunks pass through Layer 1. Projection is `O(log n)` via binary search over
-the accumulated checkpoints for that `SourceId`.
+offsets as chunks pass through each source stream. Projection is `O(log n)` via binary
+search over the accumulated checkpoints for the selected frame's `SourceId`. A report
+renderer chooses the frame to project: origin/input for author-facing diagnostics,
+current/generated for transform debugging, or an intermediate frame for pipeline traces.
+Different frames can legitimately produce different line/column values for the same
+diagnostic.
 
 For Tier B+ compressed binary content, the research specifies bit-level ranges
 (`bit_start: u64, bit_len: u32`). Bit fields are reserved in the source-map schema but
@@ -110,8 +115,8 @@ store:
 ```
 Diagnostic:
   uri: String                       document URI or file path
-  line: u32                         1-based, derived from source_map current frame
-  column: u32                       1-based, derived from source_map current frame
+  line: u32                         1-based projection for the selected report frame
+  column: u32                       1-based projection for the selected report frame
   source_map: SourceMapStack        required for pre-AST and AST-time diagnostics
   code: DiagCode                    stable enumerated code
   severity: Severity { Fatal | Error | Warning | Info }
@@ -126,11 +131,11 @@ detected the error. They bubble to the nearest error-boundary scope. `Fatal`,
 `Error`, and `Warning` handling is decided by that boundary scope's effective
 `ScopePolicy`. `source_map` is mandatory even before AST construction; tokenizer,
 normalizer, and schema diagnostics create an event-time stack whose current frame is the
-emitting layer. `line`, `column`, and any byte-offset projection are derived from that
-stack, and diagnostic phase is derived from that current frame's `TransformKind` rather
-than stored as a separate field. This gives consumers one location shape for all phases.
-`node` is only a convenience back-reference populated when an AST node already exists;
-consumers must not rely on it for location.
+emitting layer. `line`, `column`, and any byte-offset projection are renderer outputs
+derived from a selected frame in that stack, and diagnostic phase is derived from the
+current frame's `TransformKind` rather than stored as a separate field. This gives
+consumers one location shape for all phases. `node` is only a convenience back-reference
+populated when an AST node already exists; consumers must not rely on it for location.
 
 ---
 
@@ -199,9 +204,11 @@ Implementation rules:
 - In-band encoding declarations discovered after decoding do not re-decode the current
   source. If policy uses one to configure a later child source stream, it sets that
   stream's `DecodeConfig.default_encoding`; a child BOM still wins.
-- HTML preprocessing replacements such as NUL handling run on decoded Unicode scalars.
-  An isolated UTF-8 BOM is accepted silently and omitted from decoded scalars while byte
-  ranges still address the original source bytes.
+- Content-type preprocessing replacements, including HTML-specific replacement rules,
+  run on decoded Unicode scalars in the owning tokenizer or transform. Replacement
+  scalars retain source ranges pointing at the original bytes. An isolated UTF-8 BOM is
+  accepted silently and omitted from decoded scalars while byte ranges still address the
+  original source bytes.
 
 Tier A exposes asynchronous source APIs only. Owned byte buffers, strings, file-path
 input, and WASM `ReadableStream<Uint8Array | string>` inputs are normalized through
@@ -550,9 +557,10 @@ document root `ScopePolicy` before parsing begins.
 document-level default, and schema/content-type scopes can override it for child
 contexts. Processing instructions are schema-driven: the tokenizer and normalizer
 preserve their source range, and the active schema decides whether they are accepted,
-diagnosed, transformed, or stripped. Diagnostics and source maps always refer to the
-initial decoded stream, so stripped trivia still counts for byte offsets, line/column
-projection, snippets, and report events.
+diagnosed, transformed, or stripped. Diagnostics and source maps retain the event-time
+source-map stack. When a report projects the input frame, stripped trivia still counts
+for byte offsets, line/column projection, snippets, and report events; transform-facing
+reports may project a generated or intermediate frame instead.
 
 Diagnostic propagation walks from the origin scope frame toward its ancestors until it
 reaches the nearest scope whose `error_boundary` is `SchemaDeclared` or `ContextRoot`.

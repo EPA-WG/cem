@@ -189,10 +189,18 @@ them.
 The coordinate model is byte-first:
 
 - `ByteRange` is the durable location primitive: absolute byte offset plus byte length.
-- Line and column are projections from a per-source line index; they are derived for
-  reports and editor integration, not stored as node identity.
+- Line and column are reporting/tooling projections from a selected source-map frame's
+  `SourceId` and `ByteRange`; they are not parser semantics and are never stored as node
+  identity.
 - Bit-level ranges are reserved for deferred binary/compressed content and are not
   populated in Tier A.
+
+When a source-map stack crosses tokenizer, normalizer, schema, handoff, transform, and
+render frames, each frame may refer to a different source stream. Report renderers and
+compiler-style tooling choose which frame to project: author-facing diagnostics usually
+project the origin/input frame, while transform debugging may project the current
+generated or intermediate frame. The line and column values can therefore differ across
+frames without changing the canonical byte-range mapping.
 
 The stack records the processing chain: tokenizer, event normalizer, schema validation,
 CEM AST builder, handoff boundaries, implementation transforms, and future binary
@@ -244,9 +252,11 @@ Rules from the research:
   re-decoded. If policy allows such a declaration to initiate or configure a later child
   byte stream, it supplies that child stream's explicit/default encoding parameter; a BOM
   on the child source still wins over that parameter.
-- HTML preprocessing replacements such as NUL handling occur after decoding on Unicode
-  scalars, not on raw bytes. An isolated UTF-8 BOM is accepted silently and excluded from
-  the decoded scalar stream while byte ranges continue to address the original bytes.
+- Content-type preprocessing replacements, including HTML-specific replacement rules,
+  occur after decoding on Unicode scalars in the owning tokenizer or transform, not on
+  raw bytes in Layer 1. Replacement-produced scalars retain source ranges pointing at
+  the original bytes. An isolated UTF-8 BOM is accepted silently and excluded from the
+  decoded scalar stream while byte ranges continue to address the original bytes.
 
 Tier A enforces resource bounds while streaming. The default limits are:
 
@@ -655,8 +665,10 @@ Namespace-resolution implementation contracts are in
 
 ### Diagnostics And Reports
 
-Diagnostics use byte offsets as ground truth and derive line/column positions for human
-outputs. The canonical report model is an AST-associated report tree, not a flat list.
+Diagnostics use source-map byte ranges as ground truth. Line and column positions are
+human-facing projections, like compiler or linter output, computed from the source-map
+frame selected by the report renderer. The canonical report model is an AST-associated
+report tree, not a flat list.
 Each parser, schema, handoff, transform, validation, or runtime event attaches to the
 current AST node when one exists, the active event-time scope context, the event-time
 source-map stack, the originating scope, the error-boundary scope that handled it, and a
@@ -668,10 +680,12 @@ The report tree can be projected to CEM-native, XML, JSON, Markdown, text, HTML,
 other supported structured format. Text and HTML reports are reference convenience
 renderers over the report tree, not canonical report storage formats.
 
-Diagnostics and source maps always address the initial decoded source stream. Comments
-and whitespace count when deriving byte offsets, line/column positions, and snippets,
-even if a later transform removes those nodes. Diagnostics may refer to comments,
-whitespace, or processing instructions that no longer survive in a transformed output.
+Diagnostics and source maps retain the event-time source-map stack. For source-facing
+reports, comments and whitespace count when deriving byte offsets, line/column
+positions, and snippets from the input frame, even if a later transform removes those
+nodes. Transform-facing reports may instead project a generated or intermediate frame.
+Diagnostics may refer to comments, whitespace, or processing instructions that no longer
+survive in a transformed output.
 
 Diagnostic and report data shapes are in
 [`cem-ml-stack-design-impl.md`](cem-ml-stack-design-impl.md#25-diagnostics) and
@@ -1262,7 +1276,7 @@ Status key:
 | L9 ImplementationInterpreter: schema-driven transform rules | Design ready — schema owns transform layers; namespace-qualified CEM identity resolves source collisions; canonical serialization and HTML `data-*` ownership are defined in §8 and §12 |
 | L9 ImplementationInterpreter: transform execution backend   | Design partial — Rust CEM template renderer is selected; exact CEM template syntax and scoped query syntax remain TBD (§12)                                                             |
 | Visual content and machine state data                       | Design partial — uniform AST role model is defined; live hydration, browser adapters, and DOM patch identity are subject to a separate design phase TBD (§12)                           |
-| LineIndex: byte-offset → line/col projection                | Design partial — column-unit model, newline normalization, tabs, replacement chars, and UTF-16/scalar projections unspecified (§18.2.4)                                                 |
+| LineIndex: byte-offset → line/col projection                | Design ready — line/column are report projections over a selected source-map frame; Tier A provides byte-column projection, while scalar, UTF-16, and display columns are Tier B tooling |
 | Diagnostics and reports                                     | Design ready — diagnostics always carry event-time source-map stacks, active scope context, origin/boundary scopes, and optional AST-node back-references (§8)                           |
 | CLI output projections and fixture round-trip reports       | Design ready — CLI owns projection targets and side outputs; stack layers own projected artifacts                                                                                       |
 | Resource and security limits                                | Design ready — source byte, source-chunk, decoder-carry, token-buffer, decoded-chunk, source-map depth, AST depth, and diagnostic caps are defined in Layer 1; XML external-resource limits follow context-scope policy and content-type transforms (§3.1–3.2, §5–6) |
@@ -1477,53 +1491,6 @@ project per-scalar offsets when needed.
 two-scalar grapheme), does the escape map record one entry per output scalar or one
 entry per input source span? Default: one entry per output scalar, both pointing at the
 same source span — round-tripping the source span is the dominant query.
-
-**Concern 18.2.4 — Line/column projection is underspecified.**  
-The design says line/column are derived from byte offsets, but different consumers need
-different column units: Unicode scalar index, UTF-16 code units, display columns, or
-language-specific positions.
-
-**Question:** Which coordinate projections are required in Tier A reports, and how are
-CRLF, isolated CR, tabs, multi-byte UTF-8, replacement characters, and HTML preprocessing
-handled?
-
-**Answer A — Tier A ships exactly one projection: `(line, column_utf8_bytes)`.**
-Lines are 1-based and counted at decoded-scalar level after WHATWG HTML preprocessing
-(`CR`, `CRLF`, and isolated `LF` all collapse to `LF` for line counting; the original
-byte offset still points at the raw `CR` or `CRLF` start). Columns are 1-based byte
-counts within the line, not scalar counts. Tabs count as one column. Multi-byte UTF-8
-sequences count as their byte length (matches `git`, `clang`, `rustc`, most editors with
-"raw column" mode). Replacement characters (U+FFFD) introduced by Layer 1 are treated as
-ordinary scalars with whatever byte length their producing source had. Pros: one
-projection, easy to test, matches what most CLIs print. Cons: editors that report
-columns in UTF-16 code units (LSP) must convert.
-
-**Answer B — Tier A ships two projections: byte-column and UTF-16 code units.**
-Add `column_utf16: u32` alongside `column_utf8_bytes` for direct LSP consumption. Pros:
-no conversion shim in editor integrations; matches `textDocument/publishDiagnostics`
-without a hidden re-encoding pass. Cons: doubles the projection cost; computing UTF-16
-units requires a second scan or a richer `LineIndex`.
-
-**Answer C — Single byte-column projection in Tier A; defer scalar/UTF-16/display columns to a `ProjectionService` in Tier B.**
-Tier A report renderers always project `(byte_offset, line, column_utf8_bytes)` from the
-diagnostic source-map stack. A separate
-`ProjectionService` in Tier B owns scalar-index, UTF-16, display-width, and
-language-specific columns and is invoked by editor adapters. Pros: keeps Tier A surface
-minimal; lets editor adapters pick their own column convention without bloating the
-diagnostic shape. Cons: editor adapters must always run a projection pass.
-
-**Recommendation:** Adopt **Answer C**. Tier A diagnostics are CLI-readable with byte
-columns; Tier B/editor work converts on demand. CRLF/CR/LF normalization rule:
-`LineIndex` stores raw byte offsets of each `LF`; an isolated `CR` (no following `LF`)
-is also a line break for index purposes but column resets *after* the `CR`'s byte. HTML
-preprocessing (NUL → U+FFFD, etc.) runs in Layer 1 and never changes byte offsets —
-substituted scalars keep the original byte's range.
-
-**Resolved detail:** Byte columns exclude a skipped BOM on line 1. The BOM is byte-stream
-metadata, not a line character, but byte offsets still address the original BOM bytes.
-
-**Remaining implementation detail:** Tab stops for display columns are deferred to Tier B
-`ProjectionService`; Tier A never expands tabs.
 
 ### 18.5 Schema-Machine And Validation Questions
 
