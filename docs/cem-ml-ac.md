@@ -309,6 +309,34 @@ participate in interpreter ownership, scope scheduling, batching, and diagnostic
 - **AC-T-6 [A] MUST** preserve standard HTML attributes, ARIA, class/id, and synthetic
   HTML-data metadata as pass-through input unless the active schema defines a stricter
   mapping. Transformers match schema-qualified CEM annotations, not raw `data-*`.
+- **AC-T-7 [A] MUST** embed `cem-ql` expressions inside CEM-ML template bodies using
+  **XSLT 3.0-style syntax**, with no CEM-specific delimiter invented:
+  - **Attribute Value Templates (AVTs)** — any template attribute value may
+    interpolate cem-ql expressions inside `{ … }`, e.g.
+    `<cem:value text="Hello {.name}, {count(.items)} items"/>`. Multiple
+    interpolations per attribute are allowed; literal `{` and `}` are
+    escaped as `{{` and `}}` (XSLT rule).
+  - **`select=` attributes** — template elements designed to take a single
+    expression as their entire attribute value (e.g. `cem:value-of`,
+    `cem:for-each`, `cem:if`, `cem:choose`/`when`, `cem:variable`) use
+    `select="cem-ql-expression"`. The attribute value is the cem-ql source
+    verbatim, with HTML attribute escaping applied; no surrounding `{ }`.
+  - **Match / test / use / group-by attributes** — `match=`, `test=`,
+    `use=`, `group-by=`, and any attribute documented as taking a query in
+    a CEM template schema follow the same `select=` rule: full attribute
+    value is one cem-ql expression.
+  - **Text-node interpolation** — text content inside CEM-ML template
+    bodies MAY use the same `{ … }` AVT form, gated by the surrounding
+    template element's schema declaration (no global text interpolation
+    by default; opt-in per element type per the CEM template schema).
+  This binds the host side of `cem-ql-ac.md` AC-QS-6 (cem-ql is not
+  embedded in HTML attributes by default; the template compiler handles
+  the boundary) and **fully resolves Open Question 9 below**. The cem-ql
+  parser is invoked on the attribute-value or text-node substring after
+  the template compiler strips AVT braces and resolves XML escapes; the
+  emitted source-map frame is `TransformKind::TemplateEmbedding` and
+  preserves both the host attribute span and the cem-ql sub-span per
+  AC-P-7.
 
 ## 7. Transformation Plugins
 
@@ -636,19 +664,21 @@ These must be answered before AC are testable:
 7. **Thread-pool default size** — `navigator.hardwareConcurrency` vs fixed cap per scope.
 8. **Schema semver syntax** — exact schema URI/version syntax and how prerelease/build
    metadata affect AC-V-2 / AC-V-3.
-9. **CEM template/query syntax** — **RESOLVED (split)** —
+9. **CEM template/query syntax** — **RESOLVED** —
    - *XPath-like scoped queries* — resolved by [`cem-ql-ac.md`](cem-ql-ac.md).
      `cem-ql` is the normative surface for the `ScopedQueryLanguage::CemScopedQuery`
      placeholder in `cem-ml-stack-design-impl.md §3.10`. Tier A/B/C in `cem-ql`
      mirrors host tiers; query-time contracts (read-only AST access, scope policy,
      source-map propagation, diagnostic routing) are defined there and consumed
      by AC-T-1 / AC-T-2 / AC-T-3 here without re-statement.
-   - *CEM-native template module syntax* — query expressions inside template
-     bodies use `cem-ql` per above; the residual question is the **delimiter** used
-     to embed a `cem-ql` expression inside a CEM-ML template attribute (XSLT-style
-     `{ … }` AVTs vs. `select="…"` vs. a CEM-specific form that survives HTML
-     attribute escaping). Tracked as `cem-ql-ac.md` Open Question 8 ("Embedding
-     syntax in CEM-ML templates"). Closing that item closes this sub-question.
+   - *CEM-native template embedding syntax* — resolved by **AC-T-7** above:
+     CEM-ML templates adopt XSLT 3.0-style embedding (`{ … }` AVTs in
+     attribute values and opt-in text nodes; `select="…"` /
+     `match="…"` / `test="…"` for attributes that take a single
+     expression). No CEM-specific delimiter is invented; the template
+     compiler owns the AVT-strip / escape-resolution / cem-ql-parse
+     boundary and emits a `TransformKind::TemplateEmbedding` source-map
+     frame.
 10. **Tier B/C promotion gates** — criteria for moving plugin runtime, DOM mutation,
    live hydration, NVDL dispatch, and external-resource loading into implementation
    phases.
@@ -665,8 +695,8 @@ These must be answered before AC are testable:
 - Design docs: [`cem-ml-stack-design.md`](cem-ml-stack-design.md),
   [`cem-ml-stack-design-impl.md`](cem-ml-stack-design-impl.md).
 - Query language AC: [`cem-ql-ac.md`](cem-ql-ac.md) — normative surface for the
-  scoped query language consumed by AC-T-1 / AC-T-2 / AC-T-3 and the
-  `ScopedQueryLanguage::CemScopedQuery` placeholder. Resolves Open Question 9
-  (query side); residual template-embedding delimiter tracked there.
+  scoped query language consumed by AC-T-1 / AC-T-2 / AC-T-3 / AC-T-7 and the
+  `ScopedQueryLanguage::CemScopedQuery` placeholder. Together with AC-T-7
+  (XSLT-style template embedding) this fully resolves Open Question 9.
 - Companion docs: [`cem-ml-library-plan.md`](cem-ml-library-plan.md), [`component-mvp.md`](component-mvp.md),
   [`todo.md`](todo.md).

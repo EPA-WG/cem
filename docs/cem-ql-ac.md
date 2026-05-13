@@ -10,12 +10,13 @@
 > language that consumes them.
 >
 > This file **resolves** `cem-ml-ac.md` Open Question 9 ("CEM template/query
-> syntax") for the query-language half: the cem-ql surface defined here is the
-> normative replacement for the `ScopedQueryLanguage::CemScopedQuery`
-> placeholder in `cem-ml-stack-design-impl.md §3.10`. The residual sub-question
-> from host OQ9 — the **delimiter** used to embed a cem-ql expression inside a
-> CEM-ML template attribute — is carried as Open Question 8 in this document
-> (§15). Closing that item closes the host sub-question.
+> syntax"). The cem-ql surface defined here is the normative replacement for
+> the `ScopedQueryLanguage::CemScopedQuery` placeholder in
+> `cem-ml-stack-design-impl.md §3.10`. Template-side embedding of cem-ql
+> expressions is owned by the host AC at `cem-ml-ac.md` **AC-T-7** and uses
+> XSLT 3.0-style `{ … }` AVTs and `select="…"`/`match="…"`/`test="…"`
+> attributes; cem-ql itself does not define a template-embedding delimiter
+> (see AC-QS-6).
 >
 > If a requirement here contradicts `cem-ml-ac.md`, `cem-ml-ac.md` wins until
 > this document is aligned.
@@ -42,9 +43,10 @@ validators, transforms, plugins, CLI projections, and runtime hydration
 rules.
 
 This language is the normative resolution of `cem-ml-ac.md` Open Question 9
-(query-language half) and replaces the `ScopedQueryLanguage::CemScopedQuery`
-placeholder in `cem-ml-stack-design-impl.md §3.10`. The residual template-
-embedding delimiter is tracked as §15 Open Question 8 below.
+and replaces the `ScopedQueryLanguage::CemScopedQuery` placeholder in
+`cem-ml-stack-design-impl.md §3.10`. Template-side embedding is defined by
+`cem-ml-ac.md` AC-T-7 (XSLT 3.0-style AVTs and `select=`/`match=`/`test=`);
+cem-ql defines no embedding delimiter of its own.
 
 The long-range parity target is XPath 3.1 / XQuery 3.1 expression coverage,
 XSLT-style user-defined functions and module composition, and Python-style
@@ -164,7 +166,7 @@ Each AC below is tagged `[A]`, `[B]`, or `[C]`.
   - **Keys** are **string literals** (double-quoted), aligning with the
     XQuery 3.1 map constructor and avoiding ambiguity with XSLT-style
     `{ … }` AVT delimiters and `select="…"` attribute embedding used by
-    CEM-ML templates (see §15 OQ embedding-syntax residual).
+    CEM-ML templates per `cem-ml-ac.md` AC-T-7.
   - **Computed keys** use `[expression]` and evaluate to a string.
   - **Values** are cem-ql expressions — the same expression grammar that
     appears inside template `{ … }` AVTs and `select=` attributes.
@@ -187,7 +189,12 @@ Each AC below is tagged `[A]`, `[B]`, or `[C]`.
   on host content type, host whitespace policy, or host trivia preservation
   policy. Query source is plain UTF-8 text and uses its own tokenizer; it
   is not embedded as XML/HTML attributes by default. Embedding inside CEM-ML
-  template attributes is a host concern handled by the template compiler.
+  template attributes is owned by the host AC at `cem-ml-ac.md` **AC-T-7**,
+  which adopts XSLT 3.0-style syntax: `{ cem-ql-expression }` Attribute
+  Value Templates with `{{` / `}}` escapes, and full-attribute
+  `select="…"` / `match="…"` / `test="…"` forms. The cem-ql parser is
+  invoked by the template compiler on the post-AVT-strip, post-XML-escape
+  substring; cem-ql itself sees plain UTF-8.
 
 ---
 
@@ -708,14 +715,6 @@ These must be answered before AC are testable:
    Tier B template surface or can be deferred to Tier C.
 7. **AC-QV-7 policy hooks** — exact shape of policy-injected bindings:
    structured records vs. opaque handles.
-8. **Embedding syntax in CEM-ML templates** — how a cem-ql expression is
-   delimited inside a CEM-ML template attribute. Candidates: XSLT-style
-   `{ … }` AVTs, `select="…"` attribute form, or a CEM-specific delimiter
-   that does not collide with HTML attribute escaping or CEM theme `{…}`
-   AVTs (see `packages/cem-theme/.../tokens` template usage). This is the
-   **residual sub-question carried over from `cem-ml-ac.md` Open Question 9**;
-   the query-language half of host OQ9 is resolved by the rest of this
-   document. Closing this item closes host OQ9 entirely.
 ---
 
 ## 16. References
