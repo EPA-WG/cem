@@ -1,23 +1,26 @@
 # `cem-ml` Stack Implementation Design
 
-**Status:** Draft implementation companion.  
-**Primary design:** [`cem-ml-stack-design.md`](cem-ml-stack-design.md)  
-**Primary source:** [`parsing-algorithms-research.md`](../parsing-algorithms-research.md)  
+**Status:** Draft implementation companion derived from the primary acceptance criteria
+and high-level design.
+**Primary acceptance criteria:** [`cem-ml-ac.md`](cem-ml-ac.md)
+**High-level design:** [`cem-ml-stack-design.md`](cem-ml-stack-design.md)
+**Architectural research source:** [`parsing-algorithms-research.md`](../parsing-algorithms-research.md)
 **Date:** 2026-05-08
 
 ---
 
 ## 1. Purpose And Boundary
 
-This document contains the implementation-level contracts that support the high-level
-functional design in [`cem-ml-stack-design.md`](cem-ml-stack-design.md). The primary
-design owns behavior, layer responsibilities, tier scope, and unresolved decisions. This
-companion owns concrete data shapes, interface sketches, projection keys, and Rust module
-topology.
+This document contains the implementation-level contracts that support the primary
+acceptance criteria in [`cem-ml-ac.md`](cem-ml-ac.md) and the high-level functional
+design in [`cem-ml-stack-design.md`](cem-ml-stack-design.md). The AC owns required
+behavior and tier scope. The high-level design explains layer responsibilities and
+functional boundaries. This companion owns concrete data shapes, interface sketches,
+projection keys, and Rust module topology.
 
-Implementation contracts here must not introduce behavior that is absent from the
-primary design. If this document and the primary design conflict, the primary design wins
-until both documents are updated by a design decision.
+Implementation contracts here must not introduce behavior that is absent from the AC or
+high-level design. If this document conflicts with the AC, the AC wins until this
+document is corrected or an unresolved ambiguity is recorded.
 
 ---
 
@@ -1422,23 +1425,21 @@ passes attach to the event-time partial tree, just like batch reports.
 
 ## 6. Implementation Ownership Rules
 
-- The primary design defines functional behavior, tier scope, and unresolved decisions.
-- This file defines implementation shapes for the behavior already present in the
+- The acceptance criteria define required behavior, tier scope, and open decisions.
+- The primary design defines functional layer boundaries and reasoning for those AC
+  items.
+- This file defines implementation shapes for behavior already present in the AC and
   primary design.
-- Acceptance criteria must be derived from resolved design decisions, not from
-  speculative implementation details.
-- Deferred Tier B/C interfaces may be stubbed in Tier A only when the primary design
-  calls for stable seams.
+- Deferred Tier B/C interfaces may be stubbed in Tier A only when the AC or primary
+  design calls for stable interfaces.
 
 ---
 
-## 7. Appendix: Implementation Alignment Review Against `cem-ml-ac.md`
+## 7. Appendix: Implementation AC Follow-Up
 
-Review date: 2026-05-12. Review basis: the current worktree version of
-[`cem-ml-ac.md`](cem-ml-ac.md), treated as the primary requirements source for this
-appendix. This appendix records implementation-level inconsistencies and missing shapes;
-the high-level requirement conflicts are listed in
-[`cem-ml-stack-design.md` §19](cem-ml-stack-design.md#19-appendix-alignment-review-against-cem-ml-acmd).
+Review date: 2026-05-12. The table below is the pre-alignment implementation review
+that drove the current AC update. It is retained for provenance. The authoritative
+follow-up list is the "Current Implementation Follow-Up" table after it.
 
 | ID             | AC reference                  | Implementation finding                                                                                                                                                                                                                                | Missing or conflicting contract                                                                          |
 |----------------|-------------------------------|-------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|----------------------------------------------------------------------------------------------------------|
@@ -1457,6 +1458,24 @@ the high-level requirement conflicts are listed in
 | IMPL-ALIGN-013 | AC-R-1 through AC-R-3         | `TemplateRef::DceTagName` and `template-registry` projection do not model scoped DCE custom-element registrations, inherited lookup, or collision diagnostics.                                                                                        | Add scoped registry structs and lookup/collision algorithms.                                             |
 | IMPL-ALIGN-014 | AC-N-1, AC-N-2                | Limits constants exist, but no benchmark harness contract, 150 ms budget, CI tolerance band, or memory proof tying retained structures to the AC's depth-bound requirement exists.                                                                    | Add benchmark and memory-budget contracts.                                                               |
 | IMPL-ALIGN-015 | AC-C-1 through AC-C-3         | WASM APIs are sketched, but there is no browser latest-two/Node >= 22 compatibility policy or publishability gate for native crate, WASM, and npm wrappers.                                                                                           | Add distribution and runtime compatibility contracts.                                                    |
+
+### 7.1 Current Implementation Follow-Up
+
+[`cem-ml-ac.md`](cem-ml-ac.md) is now the primary decision driver. These
+implementation shapes remain open:
+
+| ID | AC reference | Implementation follow-up |
+|----|--------------|--------------------------|
+| IMPL-FOLLOW-001 | AC-S-2 through AC-S-6 | Add compiler output structs/modules for RELAX NG XML/compact mirrors, TypeScript `.d.ts`, Rust `.rs`, stable URI publication, and TS type strategy. |
+| IMPL-FOLLOW-002 | AC-V-2, AC-V-3 | Add semver parsing/comparison structs and schema compatibility severity mapping. |
+| IMPL-FOLLOW-003 | AC-P-3, AC-O-1 | Add event stream/callback types and mandatory `byteOffset` report projection. |
+| IMPL-FOLLOW-004 | AC-F-2 | Add inline schema and mid-document schema switch syntax once AC open question 2 is resolved. |
+| IMPL-FOLLOW-005 | AC-I-1, AC-M-1 through AC-M-14 | Do not add a Tier A public DOM mutation module; design it as a Tier C runtime module later. |
+| IMPL-FOLLOW-006 | AC-PL-1 through AC-PL-20 | Add plugin module, descriptors, chain execution, source-map stitching, lifecycle, budgets, and sandbox types. |
+| IMPL-FOLLOW-007 | AC-A-4 through AC-A-7, AC-O-2 | Add scheduler, bounded queue, cancellation, external-resource queue, and deterministic trace types. |
+| IMPL-FOLLOW-008 | AC-R-1 through AC-R-3 | Add scoped template/registry lookup structs and collision diagnostics. |
+| IMPL-FOLLOW-009 | AC-N-1 through AC-N-3 | Add benchmark harness contracts, memory limit tests, and CI tolerance configuration. |
+| IMPL-FOLLOW-010 | AC-C-1 through AC-C-3 | Add browser/Node/WASM compatibility gates and package publication checks. |
 
 ---
 

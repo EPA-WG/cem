@@ -1,8 +1,10 @@
 # `cem-ml` Stack Design
 
-**Status:** Draft high-level design. Implementation contracts are split into
-[`cem-ml-stack-design-impl.md`](cem-ml-stack-design-impl.md).  
-**Primary source:** [`parsing-algorithms-research.md`](../parsing-algorithms-research.md)  
+**Status:** Draft high-level design derived from the primary acceptance criteria.
+Implementation contracts are split into
+[`cem-ml-stack-design-impl.md`](cem-ml-stack-design-impl.md).
+**Primary acceptance criteria:** [`cem-ml-ac.md`](cem-ml-ac.md)
+**Architectural research source:** [`parsing-algorithms-research.md`](../parsing-algorithms-research.md)
 **Date:** 2026-05-08
 
 ---
@@ -19,26 +21,27 @@ into a concrete design for the `cem-ml` Rust library and `cem-ml-cli` binary. It
 - the Tier A MVP scope, and
 - open design decisions that must be resolved before implementation begins.
 
-`parsing-algorithms-research.md` remains the primary architectural source. This
-document is the active high-level design contract derived from that research: it defines
-current behavior, tiers, module responsibilities, and layer boundaries for `cem-ml` work
-until the design is revised. Concrete interface sketches, struct shapes, projection keys,
-and file-level implementation ownership live in
-[`cem-ml-stack-design-impl.md`](cem-ml-stack-design-impl.md). Other workspace documents
-(acceptance criteria, CLI plan, todo) are non-authoritative projections and planning
-aids; they may verify this design, but they do not introduce or override requirements.
+[`cem-ml-ac.md`](cem-ml-ac.md) is the primary decision driver. This document translates
+those acceptance criteria and the architectural research into high-level design:
+behavior, tiers, module responsibilities, and layer boundaries for `cem-ml` work.
+Concrete interface sketches, struct shapes, projection keys, and file-level
+implementation ownership live in
+[`cem-ml-stack-design-impl.md`](cem-ml-stack-design-impl.md). If this design conflicts
+with the AC, the AC wins until this design is corrected or an unresolved ambiguity is
+recorded in both documents.
 
-### 1.1 Acceptance Criteria Derivation Policy
+### 1.1 Acceptance Criteria Alignment Policy
 
-Acceptance criteria must be derived from resolved design decisions and layer contracts
-in this document and its implementation companion. They must not introduce new
-requirements, syntax, APIs, tiers, or behavior that are absent from the design.
+Acceptance criteria are the source of truth. The design documents must explain how each
+AC item is satisfied, deferred, or blocked by an explicit open question. Design updates
+may propose corrections, but once the AC is aligned, implementation planning follows the
+AC until a new AC revision accepts or rejects that proposal.
 
-While this design is still draft, acceptance criteria that conflict with this document
-are stale and must be rewritten or ignored for implementation planning. After the
-design is complete, independent acceptance criteria should be rewritten from the
-completed design or phased out in favor of generated/checklist-style verification
-references.
+Resolved design reasoning has been folded back into the AC as of the current alignment
+pass: CEM-native schema source, RELAX-NG structural parity, streaming-first async
+public APIs, context-scope error policy, origin-first source-map stacks,
+schema-qualified CEM annotations, schema-driven CEM template transforms, canonical
+CEM-ML output, and deferred DOM mutation runtime scope are AC decisions.
 
 ---
 
@@ -1303,7 +1306,7 @@ Status key:
 | Incremental/editor parsing                                  | Deferred Tier B — caller-provided diffs map through source maps to changed scopes, with enclosing-scope rescan fallback                                                                 |
 | Scope-close reference validation (unfilled slots)           | Design ready — unresolved references emit warnings on owning scope close by default; context-scope policy can override per diagnostic type (§10, §3.1)                                   |
 | Per-scope error boundaries                                  | Design ready — each context scope owns error handling and policy; inner scopes may relax or hide own errors only within parent override bounds (§3.1–3.2)                               |
-| Async mutation API (`*Async` DOM mutations)                 | Deferred Tier B/C — outside the primary parsing research; separate from the required async parse/load APIs                                                                              |
+| Async mutation API (`*Async` DOM mutations)                 | Deferred Tier C — runtime-phase surface separate from the required async parse/load/validate/transform APIs                                                                             |
 
 ---
 
@@ -1345,20 +1348,20 @@ tracked in §18.
 
 ## 18. Critical Review Questions And Concerns
 
-This section records unresolved issues found by reviewing this design against
-`parsing-algorithms-research.md` as the primary source. These are not decisions. They
-are follow-up questions and concerns to resolve before implementation. Other workspace
-documents may provide terminology, but they should not decide the answers here.
+This section records unresolved issues found by reviewing this design against the
+primary AC and the architectural research. These are not decisions. They are follow-up
+questions and concerns to resolve before implementation. Other workspace documents may
+provide terminology, but they should not decide the answers here.
 
 ### 18.5 Schema-Machine And Validation Questions
 
 ---
 
-## 19. Appendix: Alignment Review Against `cem-ml-ac.md`
+## 19. Appendix: AC Alignment Follow-Up
 
-Review date: 2026-05-12. Review basis: the current worktree version of
-[`cem-ml-ac.md`](cem-ml-ac.md), treated as the primary requirements source for this
-appendix. This appendix records inconsistencies only; it does not resolve them.
+Review date: 2026-05-12. The table below is the pre-alignment review that drove the
+current AC update. It is retained for provenance. The authoritative follow-up list is
+the "Current Design Follow-Up" table after it.
 
 Status terms:
 
@@ -1395,7 +1398,29 @@ Status terms:
 | AC-ALIGN-021 | AC-N-1, Verification Plan                          | The AC requires fixture parse/validate/transform under 150 ms and specific Nx verification targets. This design defines no benchmark budget or CI tolerance band.                                                                                                                                                                                                                                                                                  | Add performance budgets and verification ownership to the design.                                                             |
 | AC-ALIGN-022 | AC-C-1, AC-C-2, AC-C-3                             | The AC requires modern browser and Node >= 22 API parity, Rust crate native+WASM exposure, and publishable package boundaries. This design mentions Rust/WASM async APIs and package boundaries but not the browser/Node compatibility matrix or distribution gates.                                                                                                                                                                               | Add runtime compatibility and packaging acceptance gates.                                                                     |
 | AC-ALIGN-023 | "CEM-ML schema features" and "CEM-ML API features" | The new top-level AC feature lists require syntax for encoding/error level/namespace switching, schema switch/loading inline and by URI, validation error-level switching, template/entity references, parser/schema/validation/interpreter/DOM mutation/transformation/plugin APIs, concurrency, resource management, and source-map support. This design covers several concepts but does not define the required syntaxes or every API surface. | Turn the feature lists into traceable AC IDs and map each to a design section, tier, and owner.                               |
-| AC-ALIGN-024 | Open Questions                                     | Several AC open decisions are already resolved or bypassed here (`AC-P-8`, `AC-S-2-OPEN`, `AC-I-6`, `AC-A-8`) while others are omitted (`AC-S-6`, `AC-M-9`, `AC-PL-20`, thread-pool default).                                                                                                                                                                                                                                                      | Add decision records that explicitly close, defer, or keep open each AC open question.                                        |
+| AC-ALIGN-024 | Open Questions                                     | Pre-alignment finding: several open decisions were resolved or bypassed in design while others were omitted. This has been superseded by the current AC open-question list.                                                                                                                                                                                                                                                                      | Use the current AC open questions and follow-up table below.                                                                  |
+
+### 19.1 Current Design Follow-Up
+
+[`cem-ml-ac.md`](cem-ml-ac.md) is now the primary decision driver. These design updates
+remain open:
+
+| ID | AC reference | Design follow-up |
+|----|--------------|------------------|
+| DESIGN-FOLLOW-001 | AC-S-2 through AC-S-6 | Add release artifact details for RELAX NG XML/compact mirrors, TypeScript `.d.ts`, Rust `.rs`, stable schema URIs, and TS type strategy. |
+| DESIGN-FOLLOW-002 | AC-V-2, AC-V-3 | Add schema URI/version parsing and semver compatibility rules, including prerelease/build metadata handling. |
+| DESIGN-FOLLOW-003 | AC-P-3, AC-O-1 | Define the public event stream API and required `byteOffset` diagnostic/report projection. |
+| DESIGN-FOLLOW-004 | AC-V-6, AC-X-3 | Add concrete schema-owned semantic checks for accessibility, ARIA, invalid state combinations, and unsafe inline content. |
+| DESIGN-FOLLOW-005 | AC-F-2 | Resolve or document inline schema declaration and mid-document schema switch syntax. |
+| DESIGN-FOLLOW-006 | AC-I-1 | Design the later runtime `apply(transform)` API shape, or keep it explicitly open until the runtime phase. |
+| DESIGN-FOLLOW-007 | AC-M-1 through AC-M-14 | Keep DOM mutation as Tier C and add a separate runtime design before implementation. |
+| DESIGN-FOLLOW-008 | AC-PL-1 through AC-PL-20 | Add a plugin architecture section covering descriptor, chain, lifecycle, source-map stitching, budgets, and sandboxing. |
+| DESIGN-FOLLOW-009 | AC-A-4 through AC-A-7, AC-O-2 | Add worker-pool, bounded queue, cancellation, external-resource I/O queue, and scheduler trace design. |
+| DESIGN-FOLLOW-010 | AC-R-1 through AC-R-3 | Add scoped template/registry lookup and collision behavior for DCE/custom-element integration. |
+| DESIGN-FOLLOW-011 | AC-N-1 through AC-N-3 | Add performance budgets, memory-limit verification, and benchmark ownership. |
+| DESIGN-FOLLOW-012 | AC-C-1 through AC-C-3 | Add browser/Node/Rust/WASM compatibility and packaging gates. |
+| DESIGN-FOLLOW-013 | AC-P-6 | Add deferred NVDL-style dispatch design for Tier C. |
+| DESIGN-FOLLOW-014 | AC-T-3 and AC open question 9 | Resolve CEM template/query syntax and the boundary for XSLT/XPath-equivalent coverage. |
 
 *End of design document. Each ambiguity and review concern above should be resolved with
 a brief decision record before the corresponding implementation phase starts. Resolved
