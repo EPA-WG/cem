@@ -413,7 +413,29 @@ is created; this matrix exists to make the parity contract testable.
 - **AC-QV-7 [B] SHOULD** allow per-scope **policy hooks**: a scope policy
   may inject named bindings, e.g. `$scope.theme` or `$scope.user`, into the
   query environment for descendants. This mirrors XSLT's `xsl:param`
-  passing and the host's `MachineStateSlot` model.
+  passing and the host's `MachineStateSlot` model. When a policy injects a
+  binding, both forms below are available; the policy MUST declare which
+  form applies per name (policy-declared, both available, with explicit
+  cost ownership):
+  - **`record(SchemaRef)`** — an eager value carrying a schema-derived
+    record type per AC-QT-1. cem-ql code reads it as a normal record
+    (`$scope.theme.name`, `$scope.theme.tokens.where(...)`). Static
+    type-check applies. Use for small, immutable, public-facing context.
+  - **`resource(content-type, SchemaRef?)`** — a host-mediated handle per
+    AC-QL-2. cem-ql code dereferences it only through stdlib accessor
+    functions in a companion `urn:cem:stdlib/<topic>` module (AC-QI-3). The
+    optional `SchemaRef` drives static type-check of accessor return types.
+    Use for large, lazy, async, or privacy-sensitive bindings.
+  - Inheritance is **by reference** through the AC-QV-3 / AC-QV-4
+    resolution chain. Descendant scopes pay no per-inheritance memory
+    cost. The **one-time realization cost** for `record` bindings is owned
+    by the policy at the scope where the binding is introduced;
+    `resource` bindings defer all work to accessor invocation and run
+    under the active scope's resource budgets per AC-QR-1.
+  - Accessor failures on `resource` bindings route through the host report
+    AST per AC-O-3 with `cem.ql.policy_accessor_failed`, attaching the
+    originating expression's source-map stack and the policy stamp under
+    which the accessor ran.
 - **AC-QV-8 [A] MUST** make the inheritance contract testable: every name
   resolution emits a structured event into the report AST recording
   resolved scope id, declaration site, and resolution rule. Used by
@@ -555,6 +577,7 @@ is created; this matrix exists to make the parity contract testable.
   - `cem.ql.aborted`
   - `cem.ql.budget_exceeded`
   - `cem.ql.closure_detached`
+  - `cem.ql.policy_accessor_failed`
 - **AC-QE-2 [A] MUST** support an XPath/XQuery-style `try { … } catch (code,
   msg) { … }` (Tier B for the surface keyword; Tier A reports through the
   diagnostic channel only).
@@ -629,6 +652,16 @@ A `cem-ql` Tier A release is acceptance-tested with:
 10. **AC-QR-V-1** — budget test: a deliberately-wide `descendants()` query
     over a synthetic 10 MB fixture hits the per-pipeline materialization
     cap and aborts with `cem.ql.budget_exceeded`.
+11. **AC-QV-V-2** — policy-hook test: a parent scope's policy injects two
+    bindings — `$scope.theme` as `record(theme-schema)` and `$scope.user`
+    as `resource("user-profile", user-schema)`. A descendant scope (a)
+    reads `$scope.theme.name` via record-style field access and statically
+    type-checks against the schema; (b) calls `user:has_role($scope.user,
+    "admin")` from `urn:cem:stdlib/user`; (c) confirms the bindings are
+    inherited by reference (no clone-on-inherit cost on a deep scope
+    chain); (d) forces the accessor to fail and asserts
+    `cem.ql.policy_accessor_failed` is emitted with the correct source-map
+    stack.
 
 Each section above contributes a concrete check to one of these scripts; AC
 items missing a check are not closeable.
@@ -713,8 +746,7 @@ These must be answered before AC are testable:
    per `cem-ml-ac.md` AC-V-2.
 6. **AC-QX-4 FLWOR `group by`** — whether grouping is required for the
    Tier B template surface or can be deferred to Tier C.
-7. **AC-QV-7 policy hooks** — exact shape of policy-injected bindings:
-   structured records vs. opaque handles.
+
 ---
 
 ## 16. References
