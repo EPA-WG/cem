@@ -252,9 +252,17 @@ Each AC below is tagged `[A]`, `[B]`, or `[C]`.
 - **AC-QX-3 [B] SHOULD** add XPath 3.1 maps and arrays (already covered by
   `record` and `array` in AC-QL-2; this item enforces the cast/round-trip
   rules).
-- **AC-QX-4 [B] SHOULD** add **FLWOR**: full `for / let / where / order by /
-  group by / return` with window clauses, semantically equivalent to
-  XQuery 3.1.
+- **AC-QX-4 [B] SHOULD** add **FLWOR**: `for / let / where / order by /
+  return` with window clauses, semantically equivalent to XQuery 3.1
+  *minus* the `group by` clause. Grouping at Tier B is provided by the
+  `group_by(stream, .key)` stdlib helper (AC-QO-6) and its companions
+  `count_by` / `partition`, which return `stream<record{key, items}>` and
+  compose with the rest of FLWOR through ordinary `for`/`let` bindings.
+  The FLWOR `group by` clause itself is **Tier C** (see AC-QX-5);
+  deferring it keeps the Tier B evaluator from owning post-grouping
+  variable-rebinding semantics that the template surface does not need,
+  since AVT/`select=` attributes favor short pipelines over multi-clause
+  FLWOR. This **resolves** §15 Open Question 6.
 - **AC-QX-5 [C] MAY** evaluate the XPath 4.0 candidate function library at
   `qt4cg.org` and adopt accepted functions; rejected items are explicitly
   waived.
@@ -277,7 +285,8 @@ Each AC below is tagged `[A]`, `[B]`, or `[C]`.
 | `if/then/else`, `let`                                 | A           | Per AC-QS-4                                                            |
 | `for…return`                                          | A           |                                                                        |
 | `some/every…satisfies`                                | A           |                                                                        |
-| FLWOR with `where/order by/group by`                  | B           |                                                                        |
+| FLWOR with `where/order by`                           | B           | `group by` clause is Tier C; use `group_by()` helper at Tier B         |
+| FLWOR `group by` clause                               | C           | Tier B uses `group_by(stream, .key)` stdlib helper per AC-QO-6         |
 | Path expressions `step / step`                        | A           | `/` and `.` chains are interchangeable; `.` form is canonical          |
 | Type expressions `instance of`, `cast as`, `treat as` | A           | Driven by schema-derived types                                         |
 | Higher-order functions                                | A           | Lambdas; `function-call` first-class                                   |
@@ -744,8 +753,6 @@ These must be answered before AC are testable:
    query *parsing*, block *evaluation*, or only emit diagnostics by
    default. Needs to align with the host's "forgiving by default" stance
    per `cem-ml-ac.md` AC-V-2.
-6. **AC-QX-4 FLWOR `group by`** — whether grouping is required for the
-   Tier B template surface or can be deferred to Tier C.
 
 ---
 
