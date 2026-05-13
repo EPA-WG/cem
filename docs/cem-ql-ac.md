@@ -239,6 +239,22 @@ Each AC below is tagged `[A]`, `[B]`, or `[C]`.
 
 ## 4. XPath Functional Parity
 
+- **AC-QX-0 [A] MUST** treat parity with XPath 3.1 / XQuery 3.1 as
+  **functional, not syntactic**. cem-ql is expected to compute the same
+  results over the same inputs for the subset listed in AC-QX-1 and the
+  §4.1 matrix, but it is **not** required to mirror XPath/XQuery clause
+  syntax where a simpler construct — typically a stdlib helper drawn
+  from the Rust iterator / `itertools` ecosystem — covers the same
+  functional surface. Where such a helper exists and the host AC has no
+  contrary requirement, the helper form is canonical and the
+  XPath/XQuery syntactic form is **not** added. Concrete instances:
+  grouping uses `group_by()` (AC-QX-4, AC-QO-6) rather than a FLWOR
+  `group by` clause; set arithmetic uses the four infix operators
+  `| & - ^` (AC-QO-1) rather than the `union / intersect / except`
+  keyword forms; collection helpers are named functions (AC-QO-6) rather
+  than additional XPath-style operators. Decisions to omit XPath syntax
+  in favor of a helper MUST be recorded inline at the relevant AC so the
+  parity matrix remains testable.
 - **AC-QX-1 [A] MUST** be **functionally equivalent to XPath 3.1** for the
   subset that operates over a tree-shaped node store: axes (per AC-QD-1),
   name and kind tests, predicates `[…]`, sequence construction, comparisons
@@ -254,15 +270,15 @@ Each AC below is tagged `[A]`, `[B]`, or `[C]`.
   rules).
 - **AC-QX-4 [B] SHOULD** add **FLWOR**: `for / let / where / order by /
   return` with window clauses, semantically equivalent to XQuery 3.1
-  *minus* the `group by` clause. Grouping at Tier B is provided by the
+  *minus* the `group by` clause. **Functional parity with XPath/XQuery
+  is not syntactic parity** (see AC-QX-0): grouping is provided by the
   `group_by(stream, .key)` stdlib helper (AC-QO-6) and its companions
   `count_by` / `partition`, which return `stream<record{key, items}>` and
   compose with the rest of FLWOR through ordinary `for`/`let` bindings.
-  The FLWOR `group by` clause itself is **Tier C** (see AC-QX-5);
-  deferring it keeps the Tier B evaluator from owning post-grouping
-  variable-rebinding semantics that the template surface does not need,
-  since AVT/`select=` attributes favor short pipelines over multi-clause
-  FLWOR. This **resolves** §15 Open Question 6.
+  cem-ql does **not** ship the FLWOR `group by` clause at any tier; the
+  Rust-ecosystem-style helper covers the same functional surface with a
+  simpler construct, and AVT/`select=` attributes favor short pipelines
+  over multi-clause FLWOR anyway. This **resolves** §15 Open Question 6.
 - **AC-QX-5 [C] MAY** evaluate the XPath 4.0 candidate function library at
   `qt4cg.org` and adopt accepted functions; rejected items are explicitly
   waived.
@@ -285,8 +301,7 @@ Each AC below is tagged `[A]`, `[B]`, or `[C]`.
 | `if/then/else`, `let`                                 | A           | Per AC-QS-4                                                            |
 | `for…return`                                          | A           |                                                                        |
 | `some/every…satisfies`                                | A           |                                                                        |
-| FLWOR with `where/order by`                           | B           | `group by` clause is Tier C; use `group_by()` helper at Tier B         |
-| FLWOR `group by` clause                               | C           | Tier B uses `group_by(stream, .key)` stdlib helper per AC-QO-6         |
+| FLWOR with `where/order by`                           | B           | No `group by` clause at any tier; grouping via `group_by()` per AC-QO-6 |
 | Path expressions `step / step`                        | A           | `/` and `.` chains are interchangeable; `.` form is canonical          |
 | Type expressions `instance of`, `cast as`, `treat as` | A           | Driven by schema-derived types                                         |
 | Higher-order functions                                | A           | Lambdas; `function-call` first-class                                   |
