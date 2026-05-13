@@ -9,10 +9,16 @@
 > This document does not redefine those contracts; it constrains a query
 > language that consumes them.
 >
-> Where this file overlaps with `cem-ml-ac.md` open question 9 ("CEM template
-> /query syntax"), this file is the resolution path. If a requirement here
-> contradicts `cem-ml-ac.md`, `cem-ml-ac.md` wins until this document is
-> aligned.
+> This file **resolves** `cem-ml-ac.md` Open Question 9 ("CEM template/query
+> syntax") for the query-language half: the cem-ql surface defined here is the
+> normative replacement for the `ScopedQueryLanguage::CemScopedQuery`
+> placeholder in `cem-ml-stack-design-impl.md §3.10`. The residual sub-question
+> from host OQ9 — the **delimiter** used to embed a cem-ql expression inside a
+> CEM-ML template attribute — is carried as Open Question 8 in this document
+> (§15). Closing that item closes the host sub-question.
+>
+> If a requirement here contradicts `cem-ml-ac.md`, `cem-ml-ac.md` wins until
+> this document is aligned.
 
 This document captures acceptance criteria for `cem-ql`. Each item is phrased
 as a checkable statement. RFC 2119 keywords (MUST / SHOULD / MAY) and the
@@ -35,9 +41,10 @@ registries, source-map stacks) and produce streamed results for templates,
 validators, transforms, plugins, CLI projections, and runtime hydration
 rules.
 
-The language is the resolution path for `cem-ml-ac.md` open question 9 and
-the `ScopedQueryLanguage::CemScopedQuery` placeholder in
-`cem-ml-stack-design-impl.md §3.10`.
+This language is the normative resolution of `cem-ml-ac.md` Open Question 9
+(query-language half) and replaces the `ScopedQueryLanguage::CemScopedQuery`
+placeholder in `cem-ml-stack-design-impl.md §3.10`. The residual template-
+embedding delimiter is tracked as §15 Open Question 8 below.
 
 The long-range parity target is XPath 3.1 / XQuery 3.1 expression coverage,
 XSLT-style user-defined functions and module composition, and Python-style
@@ -152,9 +159,19 @@ Each AC below is tagged `[A]`, `[B]`, or `[C]`.
   a pipeline step body to mean "the current item." Outside a pipeline step
   body, leading-dot is a syntax error. This matches the JQ-style projection
   the design discussion settled on without making `this` implicit globally.
-- **AC-QS-3 [A] MUST** support **anonymous record literals**
-  `{ key: expression, … }` where keys are static strings or computed
-  expressions in `[brackets]`, and values are sub-expressions.
+- **AC-QS-3 [A] MUST** support **anonymous record literals** in the canonical
+  XQuery 3.1 map form `{ "key": expression, … }`:
+  - **Keys** are **string literals** (double-quoted), aligning with the
+    XQuery 3.1 map constructor and avoiding ambiguity with XSLT-style
+    `{ … }` AVT delimiters and `select="…"` attribute embedding used by
+    CEM-ML templates (see §15 OQ embedding-syntax residual).
+  - **Computed keys** use `[expression]` and evaluate to a string.
+  - **Values** are cem-ql expressions — the same expression grammar that
+    appears inside template `{ … }` AVTs and `select=` attributes.
+  - Bare-identifier keys (`{ key: value }`, JSON-style) are **not**
+    accepted in Tier A; the parser emits `cem.ql.parse_error` and suggests
+    quoting. Tier C MAY reintroduce them as sugar if template embedding
+    can be disambiguated without re-opening this contract.
 - **AC-QS-4 [A] MUST** support **block expressions**
   `let name := expression in body` for local binding inside any expression.
   `let` cascades left-to-right; later bindings see earlier ones.
@@ -611,43 +628,97 @@ items missing a check are not closeable.
 
 ---
 
-## 14. Open Questions
+## 14. Compiled Query Artifact & Cache Protocol
 
-These must be answered before AC are testable:
+cem-ql queries participate in the **shared content-addressed cache and
+transport protocol** defined by [`cem-ml-ac.md` §14](cem-ml-ac.md). The cem-ml
+host owns the protocol; this section binds cem-ql to it so a single loader
+implementation handles both kinds of artifact and a single `CEM-Hash` header
+governs both.
 
-1. **AC-QS-3 record-key syntax** — choose `{ key: value }` (JSON) vs.
-   `{ "key": value }` (XQuery map) as canonical. Affects authoring
-   ergonomics inside templates.
-2. **AC-QO-1 dedup identity for atoms** — XPath value-equality vs. strict
-   IEEE-754 vs. string-canonicalization identity for `decimal`/`double`
-   set-op deduplication.
-3. **AC-QV-3 resolution order** — confirm whether scope-policy stdlib
-   bindings sit *below* host scope hierarchy or are interleaved per scope.
-   Affects whether a deeply nested scope can override a stdlib name.
-4. **AC-QI-3 stdlib URI scheme** — choose between `urn:cem:stdlib/...` and
-   `cem:stdlib:...`. Aligns with `cem-ml-ac.md` AC-S-5 stable URI policy.
-5. **AC-QA-1 `read()` content-type registry** — concrete Tier B set vs. an
-   open registry consulted from the host's plugin chain
-   (`cem-ml-ac.md` §7).
-6. **AC-QT-3 type-failure behavior** — whether static type errors block
-   query *parsing*, block *evaluation*, or only emit diagnostics by
-   default. Needs to align with the host's "forgiving by default" stance
-   per `cem-ml-ac.md` AC-V-2.
-7. **AC-QX-4 FLWOR `group by`** — whether grouping is required for the
-   Tier B template surface or can be deferred to Tier C.
-8. **AC-QV-7 policy hooks** — exact shape of policy-injected bindings:
-   structured records vs. opaque handles.
-9. **Embedding syntax in CEM-ML templates** — how a query is delimited
-   inside a template attribute (XSLT uses `{ … }` for AVTs and
-   `select="…"`); pick a delimiter that does not collide with HTML
-   attribute escaping. Tracked alongside `cem-ml-ac.md` open question 9.
-10. **Compiled query artifact** — whether queries compile to a portable
-    binary form for cache reuse, paralleling the deferred binary AST in
-    `cem-ml-ac.md §11`.
+- **AC-QC-1 [B] MUST** treat a cem-ql module — after parse, name resolution,
+  schema-type resolution, and type-check — as a **compiled query artifact**
+  hashable under `cem-ml-ac.md` AC-CC-1. The hash inputs are the canonical
+  UTF-8 module source, the cem-ql version, the active schema fingerprint at
+  compile time, and the hash-scheme tag. Hash identity MUST be reproducible
+  across hosts.
+- **AC-QC-2 [B] MUST** serialize the compiled artifact to the shared binary
+  form per AC-CC-2: typed evaluator IR, resolved schema-type bindings (or
+  rebindable stubs), captured source-map stacks (dev mode only per AC-CC-4),
+  the import closure, and the policy stamps under which it was compiled.
+  Reloading the binary MUST skip the cem-ql parser, type checker, and name
+  resolver and resume at evaluation.
+- **AC-QC-3 [B] MUST** carry **policy stamps** per AC-CC-3: declared
+  imports, declared `read()` content types, declared external resources.
+  A binary whose stamps the active scope policy cannot satisfy MUST fail
+  with `cem.cc.policy_mismatch` and fall back to the source if available.
+  Scope-relative schema-type identity (AC-QT-4) MUST re-resolve on load;
+  unresolved types emit `cem.ql.unknown_type` exactly as on a fresh compile.
+- **AC-QC-4 [B] MUST** participate in the **transport protocol** per
+  AC-CC-6 / AC-CC-7. Servers that ship cem-ql modules — stdlib URIs,
+  policy-granted user modules per AC-QI-4, plugin-supplied query modules —
+  MUST emit `CEM-Hash`. Engines holding a cached compiled artifact MAY send
+  `If-CEM-Hash`; a confirmation-only `304` is sufficient to satisfy the
+  module load. This is the **resolution** of the previously-open
+  "compiled query artifact" question: queries compile to a portable binary,
+  share the host's cache/transport, and Tier C may add chunked or
+  cross-artifact deduplication per AC-CC-9 / AC-CC-10.
+- **AC-QC-5 [B] MUST** preserve source-map stacks in dev-mode binaries so a
+  diagnostic emitted from a reloaded query — including `cem.ql.parse_error`
+  surrogates, `cem.ql.type_error`, `cem.ql.unresolved_reference`, and the
+  resolution-trace events from AC-QV-8 — is indistinguishable from the
+  source-driven diagnostic.
+- **AC-QC-6 [B] MUST NOT** ship dynamic-source compilation per AC-QR-3: the
+  binary form is a **load-time** artifact emitted by a trusted compile
+  stage (build pipeline, CLI, or in-process pre-warm). `eval`-style runtime
+  compilation of arbitrary string input remains prohibited.
+- **AC-QC-7 [B] MUST** scope the cache by `(content-type=cem-ql, hash, mode)`
+  per AC-CC-5; dev and prod compiled artifacts are distinct cache entries.
+- **AC-QC-V-1 [B]** — verification: compile a Tier A query corpus to
+  dev-mode binaries, evict in-memory state, reload, re-evaluate against
+  the same fixtures; assert diagnostics, stream order, set-operator
+  identity, and source-map stacks match the source-driven run.
+- **AC-QC-V-2 [B]** — verification: end-to-end `If-CEM-Hash` test through
+  the cem-ml-cli loader: server returns `304` for an already-cached
+  compiled query; engine evaluates from cache; assert the cem-ql parser
+  is not entered on the second pass.
 
 ---
 
-## 15. References
+## 15. Open Questions
+
+These must be answered before AC are testable:
+
+1. **AC-QO-1 dedup identity for atoms** — XPath value-equality vs. strict
+   IEEE-754 vs. string-canonicalization identity for `decimal`/`double`
+   set-op deduplication.
+2. **AC-QV-3 resolution order** — confirm whether scope-policy stdlib
+   bindings sit *below* host scope hierarchy or are interleaved per scope.
+   Affects whether a deeply nested scope can override a stdlib name.
+3. **AC-QI-3 stdlib URI scheme** — choose between `urn:cem:stdlib/...` and
+   `cem:stdlib:...`. Aligns with `cem-ml-ac.md` AC-S-5 stable URI policy.
+4. **AC-QA-1 `read()` content-type registry** — concrete Tier B set vs. an
+   open registry consulted from the host's plugin chain
+   (`cem-ml-ac.md` §7).
+5. **AC-QT-3 type-failure behavior** — whether static type errors block
+   query *parsing*, block *evaluation*, or only emit diagnostics by
+   default. Needs to align with the host's "forgiving by default" stance
+   per `cem-ml-ac.md` AC-V-2.
+6. **AC-QX-4 FLWOR `group by`** — whether grouping is required for the
+   Tier B template surface or can be deferred to Tier C.
+7. **AC-QV-7 policy hooks** — exact shape of policy-injected bindings:
+   structured records vs. opaque handles.
+8. **Embedding syntax in CEM-ML templates** — how a cem-ql expression is
+   delimited inside a CEM-ML template attribute. Candidates: XSLT-style
+   `{ … }` AVTs, `select="…"` attribute form, or a CEM-specific delimiter
+   that does not collide with HTML attribute escaping or CEM theme `{…}`
+   AVTs (see `packages/cem-theme/.../tokens` template usage). This is the
+   **residual sub-question carried over from `cem-ml-ac.md` Open Question 9**;
+   the query-language half of host OQ9 is resolved by the rest of this
+   document. Closing this item closes host OQ9 entirely.
+---
+
+## 16. References
 
 - Primary host AC: [`cem-ml-ac.md`](cem-ml-ac.md), in particular
   AC-F-1 / AC-F-7 (scopes, async streams), AC-P-* (parser surface),

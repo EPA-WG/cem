@@ -484,6 +484,123 @@ the concrete plugin architecture section.
 
 ---
 
+## 14. Content-Addressed Binary Cache & Transport
+
+This section defines a **shared cache and transport protocol** used by every
+parsed artifact in the stack: cem-ml documents, schemas, transform plans, and
+cem-ql query modules (see [`cem-ql-ac.md`](cem-ql-ac.md) §14). The intent is
+that a parse happens **at most once** for a given input across the build and
+runtime sides; reload skips the parser, validator-frame construction, and
+type-check, and resumes from a binary form keyed by content hash.
+
+### Hashing & binary form
+
+- **AC-CC-1 [B] MUST** assign every parsed top-level artifact a deterministic
+  **content hash**. Hash inputs:
+  - the canonical UTF-8 source bytes after BOM strip,
+  - the artifact's content-type identifier,
+  - a versioned hash-scheme tag (`cem-bin/1+blake3` for the initial scheme).
+  The hash MUST be reproducible across hosts and platforms and MUST identify
+  the artifact for cache reuse. Artifacts covered: cem-ml documents (parser
+  output), schemas (`StructuralSchemaIr`), transform plans (AC-T-4),
+  cem-ql modules.
+- **AC-CC-2 [B] MUST** emit and accept a portable binary serialization of
+  the parsed/typed artifact, keyed by AC-CC-1. Loading a binary whose hash
+  matches an in-process or on-disk cache entry MUST skip parsing and proceed
+  directly to validation / interpretation / evaluation. The binary format is
+  owned by this AC and shared with downstream stacks (cem-ql) so a single
+  loader implementation handles both.
+- **AC-CC-3 [B] MUST** carry the artifact's declared **policy stamps** in the
+  binary: declared schema URIs, declared plugin imports, declared external
+  reads, and the scope-policy fingerprint under which it was produced. A
+  binary whose policy stamps the active scope cannot satisfy MUST fail with
+  `cem.cc.policy_mismatch` and fall back to the source when available; the
+  cached binary MUST NOT be silently used under a less-restrictive policy.
+
+### Development vs production mode
+
+- **AC-CC-4 [B] MUST** support a `mode: "dev" | "prod"` cache axis. **Dev**
+  binaries MUST preserve full **source-map stacks** per AC-O-3 / AC-P-7 so
+  diagnostics from a reloaded binary are indistinguishable from diagnostics
+  produced by re-parsing the source. **Prod** binaries MAY omit source-map
+  stacks to reduce size.
+- **AC-CC-5 [B] MUST** make source-map sidecars **independently
+  content-addressed**: a dev binary references its source-map sidecar by
+  AC-CC-1 hash, the sidecar is cached separately, and either side can be
+  evicted and re-fetched. Cache scope is `(content-type, hash, mode)`; a
+  dev artifact and a prod artifact with the same AST payload are distinct
+  cache entries because their source-map content differs.
+
+### Transport protocol
+
+- **AC-CC-6 [B] MUST** define an HTTP(S) and `file://`-equivalent loader
+  protocol expressed as headers on the source response:
+  - **Response** MUST carry `CEM-Hash: <hash>` on every body that produces a
+    parsed artifact. The engine uses `CEM-Hash` for **integrity check**
+    (compare against AC-CC-1 recomputed locally on first load) and as the
+    **cache key**.
+  - **Request** MAY carry `If-CEM-Hash: <hash>` when the engine already
+    holds a cached binary it would prefer to reuse.
+  - When `If-CEM-Hash` matches the server's current `CEM-Hash`, the server
+    MUST respond `304 Not Modified` with an empty body, the matching
+    `CEM-Hash` header, and the same `Content-Type`. The engine satisfies
+    the load from local cache and emits no `cem.cc.*` diagnostic. This is
+    the cem-ml analogue of `ETag`/`If-None-Match`, scoped to the **parsed
+    artifact** rather than the raw source bytes — two source files that
+    canonicalize to the same AST share one cache entry.
+  - Hash mismatch (recomputed AC-CC-1 hash ≠ declared `CEM-Hash`) MUST fail
+    closed with `cem.cc.hash_mismatch`, discard any cached binary at that
+    hash, and refuse to use the body.
+- **AC-CC-7 [B] MUST** apply the same protocol to **secondary-content
+  retrieval**: schemas, transform plans, plugin modules, external `read()`
+  content per cem-ql AC-QA-1, and `<http-request>`-style template fetches.
+  When the engine knows the expected hash for a secondary resource, it MAY
+  send `If-CEM-Hash`; a confirmation-only `304` response is sufficient for
+  the engine to satisfy the request from cache without re-downloading the
+  body. Servers that cannot honor `If-CEM-Hash` MUST return the full body
+  with `CEM-Hash` — degradation is graceful.
+- **AC-CC-8 [B] SHOULD** expose the same protocol over `cem-ml-cli` and
+  build-pipeline interfaces, not only HTTP, so a build emits binaries +
+  hashes into a content-addressed store that a runtime loader consumes via
+  the same `CEM-Hash` semantics.
+
+### Tier C — chunked & shared substructure
+
+- **AC-CC-9 [C] MAY** support **chunked binaries**: subtrees of a parse
+  result are independently hashed and addressable, enabling partial cache
+  reuse across documents that share template/schema/scope substructure.
+  Aligns with the deferred chunk-compression and binary-transport scope
+  in §0.
+- **AC-CC-10 [C] MAY** support **cross-artifact deduplication**: schemas,
+  source-map blobs, and reference closures shared by multiple cem-ml or
+  cem-ql binaries are stored once in the cache and referenced by hash.
+
+### Diagnostics
+
+- **AC-CC-D-1 [B] MUST** route every cache/transport error through the host
+  report AST per AC-O-3 with codes:
+  `cem.cc.hash_mismatch`, `cem.cc.policy_mismatch`, `cem.cc.format_version`,
+  `cem.cc.cache_evicted`, `cem.cc.source_map_missing` (dev only).
+
+### Verification
+
+- **AC-CC-V-1 [B]** — round-trip test: parse a fixture set in dev mode,
+  serialize, evict in-memory cache, reload from binary, re-validate;
+  diagnostics, source-map stacks, and `AstNodeId` identity MUST match the
+  source-driven run byte-for-byte.
+- **AC-CC-V-2 [B]** — hash-protocol test: a mock loader serves a cem-ml
+  document. First request returns `200` + `CEM-Hash`. Second request sends
+  `If-CEM-Hash`; server responds `304` with empty body; engine satisfies
+  the AST from cache; assert the parser is **not** entered on pass two.
+- **AC-CC-V-3 [B]** — policy-stamp test: a binary produced under a permissive
+  scope policy is loaded under a stricter one; assert
+  `cem.cc.policy_mismatch` and fallback to source.
+- **AC-CC-V-4 [B]** — dev/prod cache-axis test: the same source parsed in
+  dev and prod yields two binaries with different hashes; loading either
+  satisfies its own request only.
+
+---
+
 ## Verification Plan
 
 A release is acceptance-tested by running:
@@ -519,8 +636,19 @@ These must be answered before AC are testable:
 7. **Thread-pool default size** — `navigator.hardwareConcurrency` vs fixed cap per scope.
 8. **Schema semver syntax** — exact schema URI/version syntax and how prerelease/build
    metadata affect AC-V-2 / AC-V-3.
-9. **CEM template/query syntax** — exact syntax for CEM-native template modules and
-   XPath-like scoped queries.
+9. **CEM template/query syntax** — **RESOLVED (split)** —
+   - *XPath-like scoped queries* — resolved by [`cem-ql-ac.md`](cem-ql-ac.md).
+     `cem-ql` is the normative surface for the `ScopedQueryLanguage::CemScopedQuery`
+     placeholder in `cem-ml-stack-design-impl.md §3.10`. Tier A/B/C in `cem-ql`
+     mirrors host tiers; query-time contracts (read-only AST access, scope policy,
+     source-map propagation, diagnostic routing) are defined there and consumed
+     by AC-T-1 / AC-T-2 / AC-T-3 here without re-statement.
+   - *CEM-native template module syntax* — query expressions inside template
+     bodies use `cem-ql` per above; the residual question is the **delimiter** used
+     to embed a `cem-ql` expression inside a CEM-ML template attribute (XSLT-style
+     `{ … }` AVTs vs. `select="…"` vs. a CEM-specific form that survives HTML
+     attribute escaping). Tracked as `cem-ql-ac.md` Open Question 8 ("Embedding
+     syntax in CEM-ML templates"). Closing that item closes this sub-question.
 10. **Tier B/C promotion gates** — criteria for moving plugin runtime, DOM mutation,
    live hydration, NVDL dispatch, and external-resource loading into implementation
    phases.
@@ -536,5 +664,9 @@ These must be answered before AC are testable:
 - `@epa-wg/custom-element` — runtime target for transformed output (workspace dep).
 - Design docs: [`cem-ml-stack-design.md`](cem-ml-stack-design.md),
   [`cem-ml-stack-design-impl.md`](cem-ml-stack-design-impl.md).
+- Query language AC: [`cem-ql-ac.md`](cem-ql-ac.md) — normative surface for the
+  scoped query language consumed by AC-T-1 / AC-T-2 / AC-T-3 and the
+  `ScopedQueryLanguage::CemScopedQuery` placeholder. Resolves Open Question 9
+  (query side); residual template-embedding delimiter tracked there.
 - Companion docs: [`cem-ml-library-plan.md`](cem-ml-library-plan.md), [`component-mvp.md`](component-mvp.md),
   [`todo.md`](todo.md).
