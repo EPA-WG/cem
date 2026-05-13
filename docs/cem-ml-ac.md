@@ -49,6 +49,41 @@ are deferred.
 
 ---
 
+# CEM-ML schema features
+* define the encoding/error level/namespace switching mechanism for a scope and inline (till the next scope) 
+* define the schema switch/loading syntax. Inline and by URI
+* define the validation error level switch
+* define tags, attributes, namespaces
+* for namespace defines schema/content type switching
+* define reference syntax for templates and "entity" as in XML
+
+Parity with features of
+* XML, SVG, MathML
+* JSON
+* RELAX-NG
+* HTML, XHTML
+* CSS
+* XSLT
+* iXml, YAML, CSV
+* CEM-ML-Query
+* XPath
+* JS/TS
+* Rust
+
+# CEM-ML API features
+* all API are asynchronous, data as stream when possible.
+* define the parser API
+* define the schema API
+* define the validation API and mechanism
+* define the interpreter API
+* define the DOM mutation API
+* define the transformation API
+* define the transformation plugin API
+* define the error reporting mechanism
+* define the concurrency model
+* define the resource management model
+* define the source-map support
+
 ## 1. Parser
 
 - **AC-P-1 [A] MUST** parse XML 1.0 well-formed documents and HTML5 documents into the same in-memory DOM model. Both
