@@ -391,13 +391,21 @@ participate in interpreter ownership, scope scheduling, batching, and diagnostic
 
 ### Errors & Rollback
 
-- **AC-M-9 [C] OPEN** — rollback contract on rejection. Three candidate models:
-  - *Atomic*: a rejected `*Async` mutation leaves the DOM unchanged.
-  - *Best-effort*: partial application is allowed; the rejection carries the post-state.
-  - *Transactional*: mutations declared inside `withTransaction(async () => …)` are atomic; bare mutators are
-    best-effort.
-  - Recommendation: pick **Transactional** because it matches both interpreter ownership and the parser's
-    error-boundary model. Confirm before implementation.
+- **AC-M-9 [C] MUST** — rollback contract on rejection follows the **Transactional** model. Bare `*Async` mutators are
+  best-effort: a rejection carries the post-state and any work that already committed stays committed. Mutations
+  declared inside `withTransaction(async () => …)` are atomic — a rejection (from any mutator, schema validation, plugin
+  failure, or `AbortSignal`) unwinds every commit made inside the transaction body, including cascading interpreter
+  work per AC-M-2 (style recalc, scoped-registry updates, child-scope spawning). Concretely:
+  - *Scope.* A transaction is bound to a single owning interpreter (per AC-M-4); attempting to mutate across scopes
+    inside `withTransaction` rejects with `ScopeViolationError` and rolls back the transaction.
+  - *Nesting.* Nested `withTransaction` calls flatten into the outermost transaction. The inner promise resolves only
+    when the outer transaction commits; the inner cannot commit independently.
+  - *Observer visibility.* `MutationObserver` callbacks (AC-M-8) fire only for *committed* transactions. A rolled-back
+    transaction produces no `MutationRecord` and no observer wake-up, even if individual batches inside it had begun to
+    flush.
+  - *Bare-mutator failure.* A rejected bare mutator emits its `MutationRecord` for whatever did commit before the
+    failure point and routes the rejection through AC-M-10's error stream. Consumers needing all-or-nothing semantics
+    MUST wrap the sequence in `withTransaction`.
 - **AC-M-10 [C] MUST** route rejected mutations through the same error stream as parser/validator errors
   (`onParseEvent`, AC-O-1) so consumers see one error pipeline.
 - **AC-M-11 [C] SHOULD** validate the post-mutation tree against the active schema before commit. A schema violation
@@ -418,10 +426,14 @@ participate in interpreter ownership, scope scheduling, batching, and diagnostic
   before/after, confirm the snapshot matches an equivalent sync-mutation reference.
 - **AC-M-V-2** — ordering test: assert `await Promise.all([appendChildAsync(a), appendChildAsync(b)])` results in the
   documented order regardless of microtask scheduling.
-- **AC-M-V-3** — abort test: a mutation aborted via `AbortSignal` must leave both the DOM and observers untouched
-  (assuming Atomic or Transactional resolution of AC-M-9).
+- **AC-M-V-3** — abort test: a bare mutator aborted via `AbortSignal` *before* its queued work begins leaves the DOM
+  and observers untouched (AC-M-7); a bare mutator aborted *after* work begins follows best-effort semantics per
+  AC-M-9 and the post-state is reported on the rejection.
 - **AC-M-V-4** — observer test: N mutations within the batch window produce 1 `MutationRecord`; N+1 mutations split
   across the window produce 2 records.
+- **AC-M-V-5** — transaction rollback: a `withTransaction` body that performs three commits and then rejects (via
+  schema violation per AC-M-11, plugin failure per AC-PL-15, or `AbortSignal` per AC-M-7) leaves the DOM byte-identical
+  to the pre-transaction snapshot, emits zero `MutationRecord`s, and routes the rejection through AC-M-10.
 
 ## 6. Transformations
 
@@ -821,7 +833,6 @@ These must be answered before AC are testable:
    still undecided.
 3. **AC-I-1 runtime phase** — public DOM `apply(transform)` API shape and whether it
    accepts URI, stream, DOM fragment, or a narrower transform-source abstraction.
-4. **AC-M-9** — async-mutation rollback model (Atomic / Best-effort / Transactional). Recommended: Transactional.
 ---
 
 ## 16. Tier Promotion Gates
@@ -1019,18 +1030,18 @@ rollback discipline.
   a mutated tree can re-hash deterministically); AC-I-6 (WHATWG
   DOM compliance — mutation targets the schema-driven projection,
   not a fork of it).
-- **Required resolved OQs**: OQ 4 (AC-M-9 rollback model:
-  Atomic / Best-effort / Transactional — recommended Transactional).
+- **Required resolved OQs**: none remaining for this gate (AC-M-9
+  resolved to Transactional in §6).
 - **Entry fixture**: AC-M-V-1 (round-trip test on a single
   `examples/semantic/` fixture) passes; the read-only invariant
   cem-ql AC-Q-2 holds — queries see the mutated state but cannot
   themselves write.
-- **Exit fixture**: AC-M-V-1..AC-M-V-4 all pass (round-trip,
-  ordering, abort, observer batching); rollback behaves per the
-  OQ-4 resolution under three induced failure modes (schema
-  validation failure per AC-M-11, plugin rejection per AC-PL-15,
-  cancelled mutation per AC-M-7); `flushAsync(scope?)` (AC-M-14)
-  preserves submission order per AC-M-5 when used.
+- **Exit fixture**: AC-M-V-1..AC-M-V-5 all pass (round-trip,
+  ordering, abort, observer batching, transaction rollback); the
+  Transactional rollback contract holds under three induced failure
+  modes (schema validation failure per AC-M-11, plugin rejection per
+  AC-PL-15, cancelled mutation per AC-M-7); `flushAsync(scope?)`
+  (AC-M-14) preserves submission order per AC-M-5 when used.
 - **Depends on gates**: G-PLUG (mutation may be initiated by
   mutate-mode plugins per AC-PL-4 / AC-PL-15).
 
