@@ -308,7 +308,7 @@ Each AC below is tagged `[A]`, `[B]`, or `[C]`.
 | Maps and arrays                                       | A/B         | Records in A; XPath 3.1 array semantics in B                           |
 | Try/catch                                             | B           |                                                                        |
 | Regex (`fn:matches`, `fn:replace`)                    | B           |                                                                        |
-| `fn:doc / fn:collection`                              | B (renamed) | `read(uri, content-type)` per AC-QA-1                                  |
+| `fn:doc / fn:collection`                              | B (renamed) | `read(uri, accepts?)` per AC-QA-1; `accepts` omitted / `Accept`-header string / collection of canonical IDs (AC-QA-1.1) |
 
 The full table will be tracked in `cem-ql-stack-design.md` once that document
 is created; this matrix exists to make the parity contract testable.
@@ -532,19 +532,104 @@ is created; this matrix exists to make the parity contract testable.
 
 ## 9. Async & External Data
 
-- **AC-QA-1 [B] MUST** expose `read(uri, content-type)` as the only built-in
-  way to load an external structured document. The function MUST:
+- **AC-QA-1 [B] MUST** expose `read(uri, accepts?)` as the only built-in
+  way to load an external structured document. The signature is a
+  content-negotiation surface, not a content-type assertion: the caller
+  declares which shapes it is prepared to consume; the resource and the
+  host transform graph decide which one is produced. The function MUST:
+
   - resolve `uri` against the active scope's `base_uri`;
-  - dispatch by `content-type` to the cem-ml content-type transform
-    pipeline (`cem-ml-ac.md` AC-I-2 / AC-T-* and the stack design
-    §3.2 / §9). Permitted Tier B content types match the host's Tier B
-    set: HTML, XML, SVG, MathML, CSS, SCSS, JSON, YAML, CSV, JS/TS islands,
-    CEM-ML, plus any plugin-registered content type;
-  - produce a `Stream<node>` of the parsed document's roots;
+  - accept `accepts` in **three forms**, in precedence order:
+    1. **Omitted (or `()` / `null`)** — equivalent to passing the
+       full **CEM-supported floor list** from AC-QA-1.1 in its declared
+       order. Authors writing `read(uri)` get "anything the host can
+       turn into a CEM-supported type"; the host transform graph picks
+       the highest-preference floor entry reachable from the wire type.
+    2. **Single string** — parsed as an HTTP `Accept` header per
+       RFC 9110 §12.5.1: comma-separated media-range entries with
+       optional `;q=<weight>` parameters. Resulting preference order
+       is q-value descending, then source order on ties. Wildcard
+       ranges (`*/*`, `text/*`) MUST be expanded against the host
+       transform graph at evaluation time, not at compile time.
+    3. **Collection of strings** (stream or array) — each item is one
+       full media-type identifier (no q-values, no media ranges).
+       Order is caller preference order, left-to-right. Empty
+       collection is equivalent to omission per (1).
+  - convey the resolved preference list to the resource loader: HTTP(S)
+    loaders MUST emit a corresponding `Accept` header (forms (2) and
+    (3) round-trip exactly; form (1) emits the floor list with
+    descending q-values); `file://` and other byte-stream loaders
+    retrieve bytes and label the response from response metadata, file
+    extension, or content sniff in that order;
+  - dispatch the **returned** wire content type into the cem-ml
+    content-type transform pipeline (`cem-ml-ac.md` AC-I-2 / AC-T-*
+    and the stack design §3.2 / §9) and select the
+    **highest-preference resolved `accepts` entry reachable from the
+    wire type via the registered transform graph**. A wire type that
+    is itself in the resolved `accepts` is a zero-step path and wins
+    by definition;
+  - produce a `Stream<node>` of the parsed-and-transformed document's
+    roots, typed as the selected `accepts` entry;
   - reuse the host's external-resource I/O queue per
     `cem-ml-ac.md` AC-A-6 (no thread-pool slot, scope-bounded);
-  - reject when the active scope policy denies the scheme/host or when the
-    content type has no registered transform, with `cem.ql.read_denied`.
+  - reject with `cem.ql.read_denied` when the active scope policy
+    denies the scheme/host of the resolved URI or denies the wire
+    content type;
+  - reject with `cem.ql.read_unsatisfiable` when the loader returns
+    bytes labelled with a wire content type from which no transform
+    path exists to any entry in the resolved `accepts`. The diagnostic
+    carries the wire type, the resolved `accepts` list, the form
+    (omitted / header-string / collection) the caller used, and the
+    originating expression's source-map stack.
+
+  This **resolves** §15 Open Question 4. There is no frozen Tier B
+  content-type set in the AC: the reachable types are exactly those the
+  host plugin chain (`cem-ml-ac.md §7`) can produce or transform between.
+  cem-ql expresses intent via `accepts`; the host owns the transform
+  graph; cross-host portability of compiled artifacts is determined by
+  whether a target host's transform graph can satisfy the same
+  `accepts` lists.
+
+### AC-QA-1.1 Canonical content-type identifiers (Tier B compliance floor)
+
+The Tier B **compliance floor** — content types every conformant
+Tier B engine MUST be able to satisfy as an `accepts` target when the
+host has the corresponding plugin installed, and the **default
+preference list** when `accepts` is omitted (form (1) above) — uses
+the canonical identifiers below. These identifiers are **part of the
+AC**: they are what `accepts` collections compare against, what
+compiled artifacts stamp per AC-QC-3, and what HTTP `Accept` headers
+emitted by `read()` carry. Aliases parse but normalize to the
+canonical form before stamping or comparison.
+
+| Canonical identifier         | Floor name      | Accepted aliases (informative)                  |
+|------------------------------|-----------------|-------------------------------------------------|
+| `text/html`                  | HTML            | —                                               |
+| `application/xml`            | XML             | `text/xml`                                      |
+| `image/svg+xml`              | SVG             | —                                               |
+| `application/mathml+xml`     | MathML          | —                                               |
+| `text/css`                   | CSS             | —                                               |
+| `text/x-scss`                | SCSS            | `text/scss`                                     |
+| `application/json`           | JSON            | `text/json`                                     |
+| `application/yaml`           | YAML            | `text/yaml`, `application/x-yaml`               |
+| `text/csv`                   | CSV             | —                                               |
+| `application/javascript`     | JS island       | `text/javascript`                               |
+| `application/typescript`     | TS island       | `text/typescript`, `application/x-typescript`   |
+| `application/cem+xml`        | CEM-ML          | —                                               |
+
+The **default preference list** (form (1)) is the rows above in the
+order shown — HTML first, CEM-ML last. Plugin-registered content
+types beyond the floor are usable through the same surface; their
+identifiers are owned by the registering plugin per `cem-ml-ac.md §7`,
+their portability is host-defined, and they are **not** added to the
+default preference list — callers asking for a plugin type MUST pass
+it explicitly via form (2) or form (3).
+
+A cem-ql stdlib module `urn:cem:stdlib/content-types` (Tier B; see
+AC-QI-3) MUST expose the canonical identifiers above as exported
+string constants (e.g. `ct:html`, `ct:json`, `ct:cemml`) and the
+default preference list as `ct:floor`, so authors can write
+`read($u, [ct:json, ct:yaml])` without re-typing string literals.
 - **AC-QA-2 [B] MUST** support **awaitable** semantics: pipeline operators
   consuming a `read()` stream automatically await partial results without
   surfacing an explicit `await` keyword. Authors MAY write `await expr` for
@@ -591,7 +676,12 @@ is created; this matrix exists to make the parity contract testable.
   - `urn:cem:stdlib/state` — read-side machine-state slot helpers;
   - `urn:cem:stdlib/template` — template-registry lookup helpers;
   - `urn:cem:stdlib/cemml` — read CEM-ML canonical content from in-memory
-    strings.
+    strings;
+  - `urn:cem:stdlib/content-types` (Tier B) — canonical media-type
+    identifiers and the default `read()` preference list per
+    AC-QA-1.1 (`ct:html`, `ct:xml`, `ct:svg`, `ct:mathml`, `ct:css`,
+    `ct:scss`, `ct:json`, `ct:yaml`, `ct:csv`, `ct:js`, `ct:ts`,
+    `ct:cemml`, `ct:floor`).
 - **AC-QI-4 [B] SHOULD** support **scope-policy-gated user modules** loaded
   from URIs that the host has whitelisted. The grant model is exactly the
   host's external-resource policy; nothing new is invented here.
@@ -624,6 +714,8 @@ is created; this matrix exists to make the parity contract testable.
   - `cem.ql.use_and_or`
   - `cem.ql.import_denied`
   - `cem.ql.read_denied`
+  - `cem.ql.read_unsatisfiable`
+  - `cem.ql.read_dynamic_accepts`
   - `cem.ql.aborted`
   - `cem.ql.budget_exceeded`
   - `cem.ql.closure_detached`
@@ -693,9 +785,30 @@ A `cem-ql` Tier A release is acceptance-tested with:
 7. **AC-QI-V-1** — import gating test: an unwhitelisted URI fails with
    `cem.ql.import_denied` at warning severity by default; raising the
    policy to `error` aborts the evaluation; whitelisting the URI loads it.
-8. **AC-QA-V-1** — `read()` happy-path test: read an HTML, an XML, a JSON,
-   and a CSV fixture inside one query under a Tier B policy that grants
-   `file://fixtures/`; assert content-type dispatch produced typed nodes.
+8. **AC-QA-V-1** — `read()` content-negotiation test under a Tier B
+   policy that grants `file://fixtures/`. Covers all three input forms
+   from AC-QA-1 plus the failure mode:
+   (a) **Form (1) — omitted**: `read($u)` over an HTML, an XML, a
+   JSON, and a CSV fixture; assert nodes typed as the matching floor
+   entry from AC-QA-1.1 and that the emitted HTTP `Accept` header
+   (when applicable) carries the floor list with descending q-values.
+   (b) **Form (2) — header string**: `read($u, "application/json;q=0.9,
+   application/yaml;q=1.0")` over a fixture the loader can return as
+   either type; assert YAML wins on q-value and the `*/*` wildcard
+   case expands at load time, not compile time.
+   (c) **Form (3) — collection**: `read($u, [ct:cemml, ct:json])`
+   from `urn:cem:stdlib/content-types`; assert preferred type is
+   selected when reachable, otherwise the next entry; assert alias
+   inputs (`text/xml` → `application/xml`) normalize before
+   comparison.
+   (d) **Wire/accept transform**: read a YAML fixture with
+   `accepts = [ct:json]`; assert the YAML→JSON transform fires and
+   the result is typed as JSON.
+   (e) **Unsatisfiable**: read a binary fixture whose wire type has
+   no transform path to any `accepts` entry; assert
+   `cem.ql.read_unsatisfiable` with the wire type, the resolved
+   `accepts` list, and the original input form recorded in the
+   diagnostic.
 9. **AC-QD-V-1** — reference-resolution test: a query against a fixture
    with `for=` and `aria-labelledby=` resolves through `.target` and emits
    the documented warning when a target is missing.
@@ -739,11 +852,32 @@ governs both.
   Reloading the binary MUST skip the cem-ql parser, type checker, and name
   resolver and resume at evaluation.
 - **AC-QC-3 [B] MUST** carry **policy stamps** per AC-CC-3: declared
-  imports, declared `read()` content types, declared external resources.
-  A binary whose stamps the active scope policy cannot satisfy MUST fail
-  with `cem.cc.policy_mismatch` and fall back to the source if available.
-  Scope-relative schema-type identity (AC-QT-4) MUST re-resolve on load;
-  unresolved types emit `cem.ql.unknown_type` exactly as on a fresh compile.
+  imports, declared `read()` `accepts` lists (one stamp per `read()`
+  call site, capturing the static `accepts` value when statically
+  known), declared external resources. Stamping rules for `read()`
+  follow the AC-QA-1 input forms:
+  - **Form (1) — omitted** stamps the canonical floor preference list
+    from AC-QA-1.1 by reference (a single `accepts: floor` marker, not
+    the expanded list, so a future floor extension does not invalidate
+    older binaries).
+  - **Form (2) — header string** is parsed at compile time when
+    statically known, normalized through the AC-QA-1.1 alias table,
+    and stamped as the canonical preference list with q-values; an
+    unresolvable wildcard (`*/*`, `text/*`) stamps as the unexpanded
+    range — wildcard expansion is deferred to load-time evaluation
+    against the active host's transform graph.
+  - **Form (3) — collection** is normalized through the alias table
+    and stamped in caller order. Dynamically computed entries emit
+    `cem.ql.read_dynamic_accepts` at compile and stamp as wildcard.
+
+  A binary whose stamps the active scope policy cannot satisfy MUST
+  fail with `cem.cc.policy_mismatch` and fall back to the source if
+  available. Stamps record **caller intent**, not the wire content
+  type observed at compile time — cross-host portability requires the
+  target host's transform graph to satisfy the same `accepts` lists,
+  not to expose the same wire types. Scope-relative schema-type
+  identity (AC-QT-4) MUST re-resolve on load; unresolved types emit
+  `cem.ql.unknown_type` exactly as on a fresh compile.
 - **AC-QC-4 [B] MUST** participate in the **transport protocol** per
   AC-CC-6 / AC-CC-7. Servers that ship cem-ql modules — stdlib URIs,
   policy-granted user modules per AC-QI-4, plugin-supplied query modules —
@@ -787,9 +921,6 @@ These must be answered before AC are testable:
    Affects whether a deeply nested scope can override a stdlib name.
 3. **AC-QI-3 stdlib URI scheme** — choose between `urn:cem:stdlib/...` and
    `cem:stdlib:...`. Aligns with `cem-ml-ac.md` AC-S-5 stable URI policy.
-4. **AC-QA-1 `read()` content-type registry** — concrete Tier B set vs. an
-   open registry consulted from the host's plugin chain
-   (`cem-ml-ac.md` §7).
 
 ---
 
