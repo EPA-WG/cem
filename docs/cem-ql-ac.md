@@ -406,20 +406,54 @@ is created; this matrix exists to make the parity contract testable.
   (`declare function ns:name(args) { body }`). Functions are first-class
   and can be passed to higher-order operators.
 - **AC-QV-3 [A] MUST** resolve variable, function, namespace, schema-type,
-  and template-reference names using the **host's scope hierarchy** as the
-  outer lookup, then the query module scope, then the local lexical scope.
-  Each cem-ml `SchemaFrame`/`ScopeId` exposes:
-  - the variables and functions declared by query modules attached at that
-    scope;
+  and template-reference names using the **host's scope hierarchy as
+  the outer lookup, with stdlib bindings interleaved per scope**, then
+  the query module scope, then the local lexical scope. Each cem-ml
+  `SchemaFrame`/`ScopeId` exposes a single ordered binding set:
+  - the variables and functions declared by query modules attached at
+    that scope;
   - the schema-derived types (AC-QT-*);
   - the namespace bindings (`NsContext`);
   - the template references (`TemplateRef`);
-  - the machine-state slot keys.
-  Inner scopes inherit those names from outer scopes; an inner scope MAY
-  shadow an inherited binding within parent override bounds per
-  `cem-ml-ac.md` AC-P-4 / AC-P-5. Resolution order:
-  `local lexical → query module → ancestor host scopes (innermost first) →
-  scope-policy stdlib bindings`.
+  - the machine-state slot keys;
+  - the **stdlib overlay** for that scope — a map of
+    `(module-uri, name) → binding` that re-binds any name reachable
+    via a `cem:stdlib/<topic>` import, installed by the scope's policy
+    or by the scope's authoring layer.
+
+  Inner scopes inherit the entire binding set from outer scopes,
+  including the stdlib overlay; an inner scope MAY shadow any
+  inherited binding within parent override bounds per
+  `cem-ml-ac.md` AC-P-4 / AC-P-5. Resolution order, per reference:
+  ```
+  local lexical
+    → query module (declarations + non-cem: imports)
+      → for each ancestor host scope, innermost first:
+            { scope's bindings ∪ scope's stdlib overlay }
+        → platform stdlib defaults (implicit root, host-crate-shipped
+          implementations of every cem:stdlib/<topic> name)
+  ```
+  This **resolves** §15 Open Question 2 in favor of *interleaved per
+  scope* — a scope is in charge of its mapping and inherits the
+  parent's mapping by default. A deeply nested scope MAY override a
+  stdlib name (e.g. swap `seq:flatten` for a custom implementation
+  with the same signature) and the override applies to that scope and
+  its descendants only; sibling subtrees and ancestors continue to see
+  the inherited or platform binding. Module identity stability per
+  AC-QI-6 is unaffected: the overlay shadows specific *names* within
+  the resolution chain, it does not change which module body
+  `cem:stdlib/<topic>` loads. The reservation in AC-QI-2 still
+  prevents scope policies from claiming `cem:` as an *import grant
+  source*; per-scope name shadowing is a distinct, narrower mechanism.
+
+  Overlay-introduced bindings MUST be type-checked at compile time
+  against any callers in the same scope subtree per AC-QT-3; overlays
+  with incompatible signatures fail compile. Overlay state is
+  captured in §14 cache stamps per AC-QC-3 — a binary compiled under
+  one scope's overlay is reused only when the loading scope's
+  resolved overlay matches. Every overlay hit MUST emit a structured
+  resolution-trace event per AC-QV-8 recording the overlay-installing
+  scope id alongside the resolved binding.
 - **AC-QV-4 [A] MUST** make name resolution **lexical and source-position
   aware**, mirroring the cem-ml namespace-resolution rule in
   `cem-ml-stack-design.md §8`: a re-declaration in the same scope shadows
@@ -435,10 +469,22 @@ is created; this matrix exists to make the parity contract testable.
   outlives the host scope; the runtime detaches such captures into a value
   copy and emits `cem.ql.closure_detached` if information is lost.
 - **AC-QV-7 [B] SHOULD** allow per-scope **policy hooks**: a scope policy
-  may inject named bindings, e.g. `$scope.theme` or `$scope.user`, into the
-  query environment for descendants. This mirrors XSLT's `xsl:param`
-  passing and the host's `MachineStateSlot` model. When a policy injects a
-  binding, both forms below are available; the policy MUST declare which
+  may inject named bindings into the query environment for descendants
+  through two distinct surfaces, both governed by AC-QV-3's
+  per-scope inheritance:
+  - **`$scope.*` injection** — fresh names introduced into the
+    host-scope binding set, e.g. `$scope.theme` or `$scope.user`.
+    Used for context that has no stdlib analogue.
+  - **stdlib overlay** — re-binding of an existing
+    `cem:stdlib/<topic>` name (the AC-QV-3 overlay map). Used to
+    swap an implementation while keeping the same call site syntax,
+    e.g. installing a tenant-specific `dom:url-encode` for a
+    descendant subtree. Overlay entries MUST match the platform
+    binding's signature per AC-QT-3, otherwise compile fails.
+
+  This mirrors XSLT's `xsl:param` passing and the host's
+  `MachineStateSlot` model. When a policy injects a binding via either
+  surface, both forms below are available; the policy MUST declare which
   form applies per name (policy-declared, both available, with explicit
   cost ownership):
   - **`record(SchemaRef)`** — an eager value carrying a schema-derived
@@ -793,11 +839,24 @@ A `cem-ql` Tier A release is acceptance-tested with:
    match the host's existing transform snapshots.
 4. `yarn nx run cem_ql:bench` — selector benchmarks shared with the host
    `cem_ml_cli:bench` budget per AC-QR-5.
-5. **AC-QV-V-1** — scope-inheritance test: a parent module declares
-   `local:fmt(...)`; a child scope's query resolves it and the diagnostic
-   trace records the resolution rule. Re-declaring `local:fmt` in the
-   child scope shadows it; uses earlier in the child still see the
-   inherited binding (per AC-QV-4).
+5. **AC-QV-V-1** — scope-inheritance test, three cases:
+   (a) **User-name inheritance and shadowing**: a parent module
+   declares `local:fmt(...)`; a child scope's query resolves it and
+   the resolution-trace event (AC-QV-8) records the resolution rule.
+   Re-declaring `local:fmt` in the child scope shadows it; uses
+   earlier in the child still see the inherited binding (per AC-QV-4).
+   (b) **Stdlib overlay inheritance**: a parent scope's policy
+   installs an overlay binding for `seq:flatten` (matching the
+   platform signature per AC-QT-3); a descendant scope's query
+   resolving `seq:flatten` hits the overlay, and the resolution-trace
+   event records the overlay-installing scope id. A sibling subtree
+   without the overlay still resolves to the platform binding.
+   (c) **Overlay shadowing in deep nesting**: a grandchild scope
+   re-overlays `seq:flatten` again; the grandchild and its descendants
+   see the grandchild's binding, the parent of the grandchild
+   continues to see the parent-installed overlay, and platform stdlib
+   remains visible at the root scope. Resolution traces distinguish
+   all three layers.
 6. **AC-QO-V-1** — set-operator fixture: produce four overlapping streams
    `A, B`; assert `A | B`, `A & B`, `A - B`, `A ^ B` against committed
    snapshots; confirm document order and identity rules per AC-QO-2 /
@@ -873,8 +932,11 @@ governs both.
   schema-type resolution, and type-check — as a **compiled query artifact**
   hashable under `cem-ml-ac.md` AC-CC-1. The hash inputs are the canonical
   UTF-8 module source, the cem-ql version, the active schema fingerprint at
-  compile time, and the hash-scheme tag. Hash identity MUST be reproducible
-  across hosts.
+  compile time, the **resolved stdlib overlay fingerprint** at compile
+  time per AC-QV-3 (so two hosts that compile the same source under
+  different overlays produce distinct artifacts), and the hash-scheme
+  tag. Hash identity MUST be reproducible across hosts whose overlays
+  fingerprint identically.
 - **AC-QC-2 [B] MUST** serialize the compiled artifact to the shared binary
   form per AC-CC-2: typed evaluator IR, resolved schema-type bindings (or
   rebindable stubs), captured source-map stacks (dev mode only per AC-CC-4),
@@ -884,8 +946,15 @@ governs both.
 - **AC-QC-3 [B] MUST** carry **policy stamps** per AC-CC-3: declared
   imports, declared `read()` `accepts` lists (one stamp per `read()`
   call site, capturing the static `accepts` value when statically
-  known), declared external resources. Stamping rules for `read()`
-  follow the AC-QA-1 input forms:
+  known), declared external resources, and the **resolved stdlib
+  overlay** under which the artifact was compiled (per AC-QV-3). The
+  overlay stamp is a deterministic hash of the
+  `(module-uri, name) → binding-fingerprint` map for every overlaid
+  name reachable from the artifact; the absent-overlay case (pure
+  platform stdlib) hashes to a sentinel that any host can satisfy.
+  A binary whose overlay stamp the loading scope's resolved overlay
+  cannot reproduce MUST fail with `cem.cc.policy_mismatch`. Stamping
+  rules for `read()` follow the AC-QA-1 input forms:
   - **Form (1) — omitted** stamps the canonical floor preference list
     from AC-QA-1.1 by reference (a single `accepts: floor` marker, not
     the expanded list, so a future floor extension does not invalidate
@@ -946,9 +1015,6 @@ These must be answered before AC are testable:
 1. **AC-QO-1 dedup identity for atoms** — XPath value-equality vs. strict
    IEEE-754 vs. string-canonicalization identity for `decimal`/`double`
    set-op deduplication.
-2. **AC-QV-3 resolution order** — confirm whether scope-policy stdlib
-   bindings sit *below* host scope hierarchy or are interleaved per scope.
-   Affects whether a deeply nested scope can override a stdlib name.
 
 ---
 
