@@ -555,12 +555,35 @@ the concrete plugin architecture section.
 - **AC-A-3 [A] MUST** make Tier A child-scope completion deterministic. A single-threaded
   implementation may resolve owned child work depth-first. Parallel worker scheduling is
   Tier B and must preserve report event sequence determinism.
-- **AC-A-4 [B] MUST** route processing through a **thread pool** sized per-scope, to prevent resource overbooking.
-  Default size is documented and configurable.
+- **AC-A-4 [B] MUST** route processing through a **thread pool** sized
+  per-scope, to prevent resource overbooking. Thread-pool size — and
+  every other resource characteristic the host enforces (queue size
+  per AC-A-5, external-I/O stream count per AC-A-6, per-scope memory
+  caps, per-plugin time/memory budgets per AC-PL-17, etc.) — is owned
+  by the **scope policy** per AC-F-1 and inherits down the scope tree
+  per AC-P-4 / AC-P-5. The host's **root scope** carries a documented
+  default thread-pool size:
+  - in browser/WASM hosts, `min(navigator.hardwareConcurrency, 8)`,
+    floored at 1;
+  - in native hosts, `min(num_cpus, 8)`, floored at 1;
+  - hosts MAY override the root default via the same scope-policy
+    surface used by every other scope.
+
+  Child scopes inherit the parent scope's resource caps and MAY
+  **constrain further only** — a child scope MAY lower the
+  thread-pool size, queue size, stream count, memory cap, or budget
+  it offers to its own subtree, but MUST NOT raise any cap above what
+  its parent allows. Attempts to relax (raise) an inherited cap are
+  rejected at policy load with `cem.a.cap_relaxation_denied`. This
+  matches the parent-override-bounds rule in AC-P-5 and makes
+  resource governance one-directional: untrusted descendants cannot
+  escape an ancestor's budget by installing a more permissive policy.
 - **AC-A-5 [B] MUST** keep the per-scope queue size bounded; overflow policy (block / reject / spill to parent) MUST
-  be documented per scope.
+  be documented per scope. Queue size obeys the same parent-bound
+  inheritance as AC-A-4.
 - **AC-A-6 [B] MUST** route **external resource I/O** (network, FS) through an event-stream queue that does **not**
-  consume thread-pool slots. Stream count is also scope-bounded.
+  consume thread-pool slots. Stream count is also scope-bounded and
+  obeys the same parent-bound inheritance as AC-A-4.
 - **AC-A-7 [B] SHOULD** support cancellation via `AbortSignal` end-to-end (parser, interpreter, fetch).
 - **AC-A-8 [A] MUST** use diagnostic bubbling rather than implicit per-node promise
   rejection as the canonical error propagation contract. Errors originate at the
@@ -774,8 +797,6 @@ These must be answered before AC are testable:
    out-of-process).
 6. **Render policy default** — confirm whether the 100 ms batch window applies broadly,
    only to first paint, or only to runtime DOM mutation/hydration.
-7. **Thread-pool default size** — `navigator.hardwareConcurrency` vs fixed cap per scope.
-
 ---
 
 ## 16. Tier Promotion Gates
@@ -906,7 +927,8 @@ resource budgeting for plugin invocations.
   scope isolation); AC-O-1, AC-O-3 (event stream, report routing);
   AC-T-1 (transform contract that plugins compose with).
 - **Required resolved OQs**: OQ 5 (AC-PL-20 plugin sandboxing
-  model); OQ 7 (thread-pool default size).
+  model). Thread-pool default and per-scope cap inheritance are
+  normative under AC-A-4.
 - **Entry fixture**: AC-PL-V-1 (SCSS-to-CSS plugin happy path)
   passes end-to-end through the public async API with a stitched
   source map per AC-PL-12.
