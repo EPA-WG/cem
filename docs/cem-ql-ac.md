@@ -491,7 +491,33 @@ is created; this matrix exists to make the parity contract testable.
 - **AC-QT-3 [A] MUST** check types **statically at query compile time**
   when both sides are statically known, and fall back to runtime checks
   otherwise. Static failures are `cem.ql.type_error`; runtime failures emit
-  the same code with the runtime span attached.
+  the same code with the runtime span attached. The **default failure
+  contract is strict**, as a deliberate departure from the host's
+  forgiving-by-default stance (`cem-ml-ac.md` AC-V-2):
+  - **Static** `cem.ql.type_error` — the query module fails to compile.
+    No evaluator IR is produced, no compiled artifact is emitted to the
+    §14 cache, and `evaluate(...)` MUST reject with the same diagnostic
+    attached to the originating expression's source-map stack.
+  - **Runtime** `cem.ql.type_error` — the current evaluation aborts at
+    the failing call, exactly as for `cem.ql.budget_exceeded` per
+    AC-QR-2. Sibling evaluations under unrelated scopes are not
+    affected; the diagnostic bubbles per the host bubble-to-boundary
+    contract (`cem-ml-ac.md §3.1`, AC-QE-4).
+  - The shipped default scope policy MUST therefore stamp
+    `cem.ql.type_error` (and the related static-resolution codes
+    `cem.ql.unknown_type`, `cem.ql.unknown_function`,
+    `cem.ql.unknown_variable`) at `error` severity so AC-QE-4's
+    fail-fast/abort path applies.
+  - A **development / debugging CLI profile** (a named scope-policy
+    preset shipped by the host CLI) MAY relax this contract by
+    remapping the codes above to `warning`. Under that profile the
+    compiler still emits the diagnostic but **does** produce evaluator
+    IR; runtime type failures substitute the empty stream for the
+    failing sub-expression and continue evaluating siblings. The
+    profile MUST be opt-in (e.g. `--profile=dev` or equivalent) and
+    MUST NOT be the default for non-interactive callers (templates,
+    validators, build pipelines, server-side hosts).
+  - This **resolves** §15 Open Question 5.
 - **AC-QT-4 [A] MUST** make schema-type identity **scope-relative**: the
   same lexical name `Button` may resolve to different schema-declared types
   in different host scopes if different schemas are active per
@@ -764,10 +790,6 @@ These must be answered before AC are testable:
 4. **AC-QA-1 `read()` content-type registry** — concrete Tier B set vs. an
    open registry consulted from the host's plugin chain
    (`cem-ml-ac.md` §7).
-5. **AC-QT-3 type-failure behavior** — whether static type errors block
-   query *parsing*, block *evaluation*, or only emit diagnostics by
-   default. Needs to align with the host's "forgiving by default" stance
-   per `cem-ml-ac.md` AC-V-2.
 
 ---
 
