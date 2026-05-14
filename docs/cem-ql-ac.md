@@ -319,9 +319,16 @@ is created; this matrix exists to make the parity contract testable.
 
 - **AC-QO-1 [A] MUST** define exactly four binary infix set operators over
   streams of host items, semantically and notationally aligned with XPath
-  node-set operators and Python set arithmetic:
-  - `|` — **union** (XPath `|`; Python `a | b`). Removes duplicate items by
-    item identity for nodes, by value equality for atoms.
+  node-set operators and Python set arithmetic, under **strict typed
+  identity with no implicit casting** (see AC-QO-3):
+  - `|` — **union** (XPath `|`; Python `a | b`). Removes duplicate items
+    by typed identity per AC-QO-3. `1 :: integer` and `1.0 :: double`
+    are **distinct** items and do **not** collapse — XPath's automatic
+    numeric promotion is rejected here per the AC-QX-0 functional-not-
+    syntactic-parity principle. Authors who want uniform dedup MUST
+    convert the elements explicitly first, e.g.
+    `(stream_a | stream_b).map(double(.)) .unique()` or
+    `stream_a.map(double(.)) | stream_b.map(double(.))`.
   - `&` — **intersection** (XPath `intersect`; Python `a & b`).
   - `-` — **difference** (XPath `except`; Python `a - b`).
   - `^` — **symmetric difference** (Python `a ^ b`; not present in XPath).
@@ -330,13 +337,51 @@ is created; this matrix exists to make the parity contract testable.
   follows the left operand, then any new items from the right operand in
   their source order. Duplicates inside one operand are deduplicated before
   combination. This makes set operators stable for snapshot tests.
-- **AC-QO-3 [A] MUST** define identity for the operators:
+- **AC-QO-3 [A] MUST** define identity for the operators under a
+  **strict-typed, no-implicit-cast** rule (this **resolves** §15 Open
+  Question 1):
   - node identity = host `AstNodeId` (stable for one parse);
   - attribute identity = `(AstNodeId, ExpandedName)` last-writer-wins per
     `cem-ml-stack-design-impl.md §3.4`;
-  - record identity = structural deep equality of keys and values;
-  - array identity = positional deep equality;
-  - atom identity = XPath value equality.
+  - record identity = structural deep equality of keys and values, with
+    atom-typed leaves compared per the atom rule below;
+  - array identity = positional deep equality, with atom-typed elements
+    compared per the atom rule below;
+  - **atom identity = `(static-type, canonical-lexical-form)` tuple
+    equality**. Different XPath atom types are **always** distinct
+    items (`xs:integer(1)` ≠ `xs:decimal(1)` ≠ `xs:double(1.0)` ≠
+    `xs:string("1")`), regardless of whether XPath value equality
+    would consider them equal. Within a single type, equality is on
+    the type's canonical lexical form per the rules below:
+    - `xs:integer`, `xs:decimal` — canonical lexical form per
+      XPath 3.1 (decimals: minimal-digit canonical form, so `1.0` and
+      `1.00` collapse). Exact representation, no floating-point
+      hazards.
+    - `xs:double`, `xs:float` — IEEE-754 bit pattern equality
+      **with two normalizations** required for snapshot stability:
+      all NaN values normalize to a single canonical NaN at the
+      cem-ql surface (payload bits are not surfaced and MUST NOT
+      affect dedup), and `+0` / `-0` remain **distinct** items
+      (sign is preserved). Subnormals and infinities compare by bit
+      pattern.
+    - `xs:string`, `xs:anyURI` — codepoint-by-codepoint equality.
+      No Unicode normalization (NFC/NFD), no case folding, no URI
+      percent-encoding normalization. Authors who want NFC dedup or
+      case-insensitive dedup convert via `nfc(.)` / `lower(.)`
+      first.
+    - `xs:boolean`, `xs:date`, `xs:dateTime`, `xs:time`,
+      `xs:duration` — canonical lexical form per XPath 3.1.
+      Timezone offsets are part of the canonical form for date/time
+      types, so `2026-05-13T12:00:00Z` and `2026-05-13T08:00:00-04:00`
+      are distinct atoms even though they denote the same instant.
+      Authors who want instant-equality dedup normalize to UTC first
+      via `to_utc(.)`.
+
+  The principle is uniform: **set operators perform no coercion**;
+  collapse across types is achieved by mapping the stream to a single
+  uniform type before the operator runs. This composes cleanly with
+  AC-QO-6 helpers (`.map(double(.)) .unique()`,
+  `distinct_by(stream, .canonical_form)`).
 - **AC-QO-4 [A] MUST** make set operators **streamed**: they MUST NOT
   materialize either operand fully unless the operator's semantics require
   it. `|` can stream both; `&`, `-`, `^` may buffer the right operand
@@ -366,11 +411,25 @@ is created; this matrix exists to make the parity contract testable.
   the helpers above, e.g.
   `[ .name for c in descendants(Component) where .visible ]`. Desugaring
   rules MUST be one-to-one so authors can reason about cost.
-- **AC-QO-8 [A] MUST** define **comparison rules across collection types**:
-  comparing a string to an array of chars converts neither implicitly;
-  authors call `string(…)` or `chars(…)` explicitly. Cross-collection
-  equality is `false` by default and produces `cem.ql.cross_type_compare`
-  warning when both operands are nonempty.
+- **AC-QO-8 [A] MUST** define **comparison rules across collection types
+  and across atom types**, consistent with the strict-typed identity in
+  AC-QO-3. No implicit coercion is ever performed:
+  - Comparing a string to an array of chars converts neither implicitly;
+    authors call `string(…)` or `chars(…)` explicitly.
+  - Comparing atoms of different XPath types via `eq` / `=` (e.g.
+    `xs:integer(1) eq xs:double(1.0)`) is **false** by default and
+    emits `cem.ql.cross_type_compare` at warning severity. This
+    departs from XPath 3.1's automatic numeric promotion per AC-QX-0.
+    Authors call the explicit conversion (`double(.)`, `decimal(.)`,
+    `integer(.)`, `string(.)`) to compare across types.
+  - Comparing collections of different shape (string vs. array,
+    record vs. array) is `false` and emits the same warning when
+    both operands are nonempty.
+
+  The warning is the same code as the existing cross-collection rule;
+  the *typed-atom* extension is what's new here. The warning is
+  silenced under the dev/debug CLI profile from AC-QT-3 to keep
+  exploratory queries quiet.
 
 ---
 
@@ -857,10 +916,30 @@ A `cem-ql` Tier A release is acceptance-tested with:
    continues to see the parent-installed overlay, and platform stdlib
    remains visible at the root scope. Resolution traces distinguish
    all three layers.
-6. **AC-QO-V-1** — set-operator fixture: produce four overlapping streams
-   `A, B`; assert `A | B`, `A & B`, `A - B`, `A ^ B` against committed
-   snapshots; confirm document order and identity rules per AC-QO-2 /
+6. **AC-QO-V-1** — set-operator fixture, three groups of cases:
+   (a) **Node and structured-item identity**: produce overlapping
+   streams `A, B` of nodes, attributes, records, and arrays; assert
+   `A | B`, `A & B`, `A - B`, `A ^ B` against committed snapshots;
+   confirm document order and structured identity rules per AC-QO-2 /
    AC-QO-3.
+   (b) **Strict typed atom identity**: assert `[xs:integer(1)] |
+   [xs:decimal(1)] | [xs:double(1.0)] | [xs:string("1")]` produces
+   four distinct items; assert `[xs:double("NaN")] |
+   [xs:double("NaN")]` collapses to one item (NaN normalization);
+   assert `[xs:double(0.0)] | [xs:double(-0.0)]` produces two distinct
+   items (sign preserved); assert `[xs:string("é" /* NFC */)] |
+   [xs:string("é" /* NFD */)]` produces two distinct items (no Unicode
+   normalization); assert
+   `[xs:dateTime("2026-05-13T12:00:00Z")] |
+    [xs:dateTime("2026-05-13T08:00:00-04:00")]` produces two distinct
+   items.
+   (c) **Explicit-conversion uniformity**: same inputs as (b) but
+   pre-mapped through `double(.)` / `nfc(.)` / `to_utc(.)`; assert
+   each case collapses to one item, demonstrating the documented
+   pattern for cross-type dedup.
+   (d) **Cross-type comparison warning**: assert
+   `xs:integer(1) eq xs:double(1.0)` returns `false` and emits
+   `cem.ql.cross_type_compare` per AC-QO-8.
 7. **AC-QI-V-1** — import gating test, one case per AC-QI-2 scheme tier:
    (a) **`cem:` (platform)**: `import "cem:stdlib/sequence"` resolves
    without any scope-policy grant; a scope policy that *attempts* to
@@ -1010,11 +1089,9 @@ governs both.
 
 ## 15. Open Questions
 
-These must be answered before AC are testable:
-
-1. **AC-QO-1 dedup identity for atoms** — XPath value-equality vs. strict
-   IEEE-754 vs. string-canonicalization identity for `decimal`/`double`
-   set-op deduplication.
+*All open questions in earlier revisions of this AC have been
+resolved. New questions raised during implementation will be appended
+here and tracked alongside the relevant AC item.*
 
 ---
 
