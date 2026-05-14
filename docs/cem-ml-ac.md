@@ -331,7 +331,8 @@ participate in interpreter ownership, scope scheduling, batching, and diagnostic
     by default; opt-in per element type per the CEM template schema).
   This binds the host side of `cem-ql-ac.md` AC-QS-6 (cem-ql is not
   embedded in HTML attributes by default; the template compiler handles
-  the boundary) and **fully resolves Open Question 9 below**. The cem-ql
+  the boundary) and is the normative CEM-ML template embedding
+  contract. The cem-ql
   parser is invoked on the attribute-value or text-node substring after
   the template compiler strips AVT braces and resolves XML escapes; the
   emitted source-map frame is `TransformKind::TemplateEmbedding` and
@@ -664,24 +665,244 @@ These must be answered before AC are testable:
 7. **Thread-pool default size** — `navigator.hardwareConcurrency` vs fixed cap per scope.
 8. **Schema semver syntax** — exact schema URI/version syntax and how prerelease/build
    metadata affect AC-V-2 / AC-V-3.
-9. **CEM template/query syntax** — **RESOLVED** —
-   - *XPath-like scoped queries* — resolved by [`cem-ql-ac.md`](cem-ql-ac.md).
-     `cem-ql` is the normative surface for the `ScopedQueryLanguage::CemScopedQuery`
-     placeholder in `cem-ml-stack-design-impl.md §3.10`. Tier A/B/C in `cem-ql`
-     mirrors host tiers; query-time contracts (read-only AST access, scope policy,
-     source-map propagation, diagnostic routing) are defined there and consumed
-     by AC-T-1 / AC-T-2 / AC-T-3 here without re-statement.
-   - *CEM-native template embedding syntax* — resolved by **AC-T-7** above:
-     CEM-ML templates adopt XSLT 3.0-style embedding (`{ … }` AVTs in
-     attribute values and opt-in text nodes; `select="…"` /
-     `match="…"` / `test="…"` for attributes that take a single
-     expression). No CEM-specific delimiter is invented; the template
-     compiler owns the AVT-strip / escape-resolution / cem-ql-parse
-     boundary and emits a `TransformKind::TemplateEmbedding` source-map
-     frame.
-10. **Tier B/C promotion gates** — criteria for moving plugin runtime, DOM mutation,
-   live hydration, NVDL dispatch, and external-resource loading into implementation
-   phases.
+---
+
+## 16. Tier Promotion Gates
+
+Five Tier B/C features
+cross major contract boundaries (security, concurrency, schema model,
+network) and depend on each other; promoting any of them informally
+puts pressure on Tier A ACs that have already shipped. Each gate
+below names its preconditions, resolved OQs, entry and exit fixtures,
+and cross-gate dependencies. The §13 verification plan stays
+authoritative for *what* must pass; this section binds *when*
+implementation work on a gated feature may begin and *when* the
+feature is considered shippable at its tier.
+
+### 16.0 Gate framework
+
+- **AC-G-1 MUST** — every Tier B/C AC item that implements a feature
+  named in §16 MUST cite the relevant gate identifier (`G-EXT`,
+  `G-PLUG`, `G-NVDL`, `G-MUT`, `G-HYD`) in its body. Implementation
+  work MUST NOT begin against a gated AC item until its gate is
+  **open**. New Tier B/C ACs added later that fall inside a gate's
+  scope inherit the gate by virtue of citing it.
+
+- **AC-G-2 MUST** — a gate is **open** when *all* of the following
+  hold:
+  1. every AC listed in its `Required closed prior-tier ACs` field
+     passes its §13 verification script with **no recorded waiver**;
+  2. every Open Question listed in its `Required resolved OQs`
+     field has a committed answer in §15;
+  3. every upstream gate listed in its `Depends on gates` field is
+     itself open;
+  4. its `Entry fixture` passes.
+
+  A gate transitions from open to **closed** when its `Exit fixture`
+  passes; a closed gate is the formal "this Tier B/C feature is
+  shippable at its tier" signal. Closed gates remain closed unless
+  demoted per AC-G-4.
+
+- **AC-G-3 MUST** — gate state (open / closed / demoted) is recorded
+  in `cem-ml-stack-design-impl.md` once that document grows a "Gate
+  status" subsection. Until then, gate state is recorded in PR
+  descriptions that touch a gated AC item, and the head-of-`develop`
+  state is the source of truth.
+
+- **AC-G-4 MUST** — a gate that fails its entry or exit fixture, or
+  whose `Required closed` ACs regress on a green-to-red verification
+  run, MUST be **demoted** to *closed-pending*: in-flight work on
+  that gate's ACs pauses, the failing condition is filed as a
+  release blocker, and downstream gates that depend on it are
+  demoted in turn. Demotion does not delete code already merged
+  behind the gate; it stops new work and falls back to Tier A
+  snapshot baselines for affected fixtures until the regression is
+  fixed.
+
+- **AC-G-5 SHOULD** — `cem-ql-ac.md` Tier B AC items that depend on
+  a host gate (notably `read()` per cem-ql AC-QA-1, `AbortSignal`
+  propagation per cem-ql AC-QA-3, network-scheme imports per
+  cem-ql AC-QI-2 / AC-QI-4, and the §14 cache transport per
+  cem-ql AC-QC-*) cite the same gate identifier rather than
+  re-asserting the precondition. This keeps the two ACs from
+  drifting and lets a single PR open the gate on both sides.
+
+### 16.1 Cross-gate dependency graph
+
+```
+                [Tier A close]
+                       │
+                       ▼
+                    G-EXT  ──────────────────┐
+                       │                     │
+                       ▼                     │  (also unblocks
+                    G-PLUG  ─────┐           │   cem-ql AC-QA-*,
+                       │         │           │   cem-ql AC-QI-2/4,
+                       ▼         ▼           │   cem-ql AC-QC-*)
+                    G-NVDL    G-MUT          │
+                                 │           │
+                                 ▼           │
+                              G-HYD ◀────────┘
+                              (also depends on G-EXT for
+                               network-driven hydration)
+```
+
+`G-EXT` is the foundational gate; nothing else opens until it does.
+`G-NVDL` and `G-MUT` are independent of each other and may open in
+either order once `G-PLUG` is open. `G-HYD` is the deepest gate and
+requires all others to have at least entered the open state.
+
+### 16.2 G-EXT — External-resource loading (Tier B)
+
+Covers the AC-A-6 I/O queue, scope-policy grant model for fetches,
+content-type registry resolution at fetch time, and the cem-ql
+`read()` surface (cem-ql AC-QA-1 / AC-QA-1.1).
+
+- **Required closed prior-tier ACs**: AC-A-1, AC-A-2, AC-A-3, AC-A-8
+  (async API foundation + diagnostic bubbling); AC-X-1, AC-X-3
+  (untrusted-input handling); AC-O-3 (report routing); AC-F-1
+  (scope policy surface); AC-P-3, AC-P-4, AC-P-7 (parser diagnostic
+  / context-scope / source-map contracts the I/O queue inherits).
+- **Required resolved OQs**: none. AC-A-6 is normative; this gate
+  enforces its preconditions but does not need a §15 decision.
+- **Entry fixture**: a single `file://` fixture loads through
+  AC-A-6's I/O queue under a Tier B scope policy that grants
+  `file://fixtures/`; a denied scheme on the same call site routes
+  through AC-O-3 with the originating scope context attached and
+  the documented `cem.ext.fetch_denied` code.
+- **Exit fixture**: HTTP and `file://` fetches succeed and fail
+  correctly under three documented scope policies (deny-all,
+  allow-by-prefix, allow-with-budget); cancellation via
+  `AbortSignal` (AC-A-7) cleanly aborts pending requests with no
+  leaked queue slots; benchmark publication per AC-N-3 shows queue
+  overhead within the AC-N-1 150 ms budget when no fetches are
+  queued; the AC-CC-6 / AC-CC-7 transport `If-CEM-Hash` round-trip
+  succeeds for a content-type-dispatched secondary artifact.
+- **Depends on gates**: none (root gate after Tier A close).
+- **Downstream cem-ql impact**: opens cem-ql AC-QA-1 / AC-QA-2 /
+  AC-QA-3 / AC-QA-V-1, cem-ql AC-QI-2 network tier, and cem-ql
+  AC-QC-4 transport participation.
+
+### 16.3 G-PLUG — Plugin runtime (Tier B)
+
+Covers §7 (AC-PL-1..AC-PL-19), the per-scope plugin chain, observe /
+mutate mode separation, source-map stitching, and per-scope
+resource budgeting for plugin invocations.
+
+- **Required closed prior-tier ACs**: AC-PL-1..AC-PL-19 (plugin
+  surface and chain semantics); AC-A-4, AC-A-5 (per-scope thread
+  pool, queue overflow policy); AC-X-1, AC-X-2 (untrusted input,
+  scope isolation); AC-O-1, AC-O-3 (event stream, report routing);
+  AC-T-1 (transform contract that plugins compose with).
+- **Required resolved OQs**: OQ 5 (AC-PL-20 plugin sandboxing
+  model); OQ 7 (thread-pool default size).
+- **Entry fixture**: AC-PL-V-1 (SCSS-to-CSS plugin happy path)
+  passes end-to-end through the public async API with a stitched
+  source map per AC-PL-12.
+- **Exit fixture**: AC-PL-V-1..AC-PL-V-6 all pass; an out-of-scope
+  mutation attempt from a registered plugin is rejected at the
+  trust boundary with the documented diagnostic and does not
+  corrupt sibling-scope state per AC-X-2; a 100-plugin chain on a
+  single scope stays under per-plugin budget per AC-PL-17 without
+  exhausting the scope's thread-pool slots; observer-only
+  enforcement (AC-PL-V-6) holds under the chosen sandboxing model.
+- **Depends on gates**: G-EXT (plugin descriptors and observe-mode
+  fetches use the AC-A-6 I/O queue; observe plugins MAY emit
+  external requests under their scope's policy).
+
+### 16.4 G-NVDL — NVDL schema dispatch (Tier C)
+
+Covers AC-P-6 (NVDL-style mid-document schema dispatch),
+namespace-driven schema switching, and per-scope schema identity
+under multi-content scopes.
+
+- **Required closed prior-tier ACs**: AC-P-4, AC-P-5 (context
+  scopes and nesting); AC-V-1, AC-V-2, AC-V-3, AC-V-7, AC-V-8
+  (validation contracts, semver behavior, open-content policy,
+  recovery model); AC-I-2 (content-type switching, the Tier B
+  expansion of which is itself a precondition); AC-CC-1, AC-CC-3
+  (binary cache hash and policy-stamp surface so schema id
+  changes invalidate cache entries correctly); AC-T-4 (schema-owned
+  transform plans).
+- **Required resolved OQs**: OQ 8 (schema URI / version syntax,
+  prerelease/build metadata interaction).
+- **Entry fixture**: a single fixture parses with two schemas
+  dispatched by namespace inside one document; source-map stacks
+  span the boundary cleanly per AC-P-7; the AC-O-3 report tree
+  shows diagnostics from both schemas attached to the originating
+  scope.
+- **Exit fixture**: at least three documented namespace dispatches
+  inside one parse; per-scope policies inherit and override
+  correctly across boundaries per AC-P-5; binary-cache reuse
+  (AC-CC-1) succeeds across two hosts that have the same schema
+  set installed and fails with `cem.cc.policy_mismatch` when one
+  host is missing a dispatched schema.
+- **Depends on gates**: G-PLUG (NVDL-driven dispatch may invoke
+  plugin chains owned by the dispatched schema); G-EXT (schemas
+  may be loaded externally under the AC-A-6 I/O queue).
+
+### 16.5 G-MUT — DOM mutation API (Tier C)
+
+Covers §5 (AC-M-1..AC-M-14), the async mutation surface over the
+sync DOM, queue ordering, batch coalescing, observer dispatch, and
+rollback discipline.
+
+- **Required closed prior-tier ACs**: AC-T-1, AC-T-3 (transform
+  contract — mutation is layered over transforms, not under them);
+  AC-P-7 (source-map stability under replay — mutations re-emit
+  source frames per AC-PL-13's stitching model); AC-A-1..AC-A-7
+  (async + abort + queue + I/O — every mutator is async and
+  cancellable); AC-O-3 (report routing for AC-M-10 rejection
+  errors); AC-CC-1, AC-CC-2, AC-CC-3 (binary cache hash and
+  serialization stable across pre- and post-mutation snapshots so
+  a mutated tree can re-hash deterministically); AC-I-6 (WHATWG
+  DOM compliance — mutation targets the schema-driven projection,
+  not a fork of it).
+- **Required resolved OQs**: OQ 4 (AC-M-9 rollback model:
+  Atomic / Best-effort / Transactional — recommended Transactional).
+- **Entry fixture**: AC-M-V-1 (round-trip test on a single
+  `examples/semantic/` fixture) passes; the read-only invariant
+  cem-ql AC-Q-2 holds — queries see the mutated state but cannot
+  themselves write.
+- **Exit fixture**: AC-M-V-1..AC-M-V-4 all pass (round-trip,
+  ordering, abort, observer batching); rollback behaves per the
+  OQ-4 resolution under three induced failure modes (schema
+  validation failure per AC-M-11, plugin rejection per AC-PL-15,
+  cancelled mutation per AC-M-7); `flushAsync(scope?)` (AC-M-14)
+  preserves submission order per AC-M-5 when used.
+- **Depends on gates**: G-PLUG (mutation may be initiated by
+  mutate-mode plugins per AC-PL-4 / AC-PL-15).
+
+### 16.6 G-HYD — Live hydration / render-while-parsing (Tier C)
+
+Covers AC-I-4 (render-while-parsing), AC-I-5 (batch policy), and
+the integration of mutation queues with the rendering pipeline so
+visible state can change during parse.
+
+- **Required closed prior-tier ACs**: AC-I-4, AC-I-5 (render
+  before EOF, batch flush policy); AC-M-* (every mutator —
+  hydration writes through the mutation queue, not bypassing it);
+  AC-O-1 (event stream so hosts can drive UI off render events);
+  AC-O-2 (deterministic scheduling trace for postmortem); AC-N-1
+  (150 ms first-paint budget, which hydration MUST respect under
+  the `examples/semantic/` fixture set).
+- **Required resolved OQs**: OQ 6 (render policy default — does
+  the 100 ms batch window apply broadly, only to first paint, or
+  only to runtime mutation/hydration).
+- **Entry fixture**: a single `examples/semantic/` fixture renders
+  visible state before EOF on its input stream per AC-I-4;
+  `MutationRecord` batching behaves per AC-M-V-4 across the parse
+  → hydration boundary.
+- **Exit fixture**: render-while-parsing on **all** five
+  `examples/semantic/*.html` fixtures stays under the AC-N-1
+  first-paint budget; the AC-O-2 debug trace records scheduling
+  deterministically across two runs; cancellation mid-render via
+  `AbortSignal` leaves the DOM in a consistent state per the
+  OQ-4 rollback model and emits the documented `cem.hyd.aborted`
+  diagnostic.
+- **Depends on gates**: G-MUT (live hydration writes through the
+  async mutation queue); G-EXT (network-driven hydration cases —
+  e.g. resources fetched mid-stream — use the AC-A-6 I/O queue).
 
 ---
 
@@ -696,7 +917,7 @@ These must be answered before AC are testable:
   [`cem-ml-stack-design-impl.md`](cem-ml-stack-design-impl.md).
 - Query language AC: [`cem-ql-ac.md`](cem-ql-ac.md) — normative surface for the
   scoped query language consumed by AC-T-1 / AC-T-2 / AC-T-3 / AC-T-7 and the
-  `ScopedQueryLanguage::CemScopedQuery` placeholder. Together with AC-T-7
-  (XSLT-style template embedding) this fully resolves Open Question 9.
+  `ScopedQueryLanguage::CemScopedQuery` placeholder. AC-T-7 owns the
+  CEM-ML template embedding side; cem-ql owns the expression grammar.
 - Companion docs: [`cem-ml-library-plan.md`](cem-ml-library-plan.md), [`component-mvp.md`](component-mvp.md),
   [`todo.md`](todo.md).

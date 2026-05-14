@@ -9,9 +9,10 @@
 > This document does not redefine those contracts; it constrains a query
 > language that consumes them.
 >
-> This file **resolves** `cem-ml-ac.md` Open Question 9 ("CEM template/query
-> syntax"). The cem-ql surface defined here is the normative replacement for
-> the `ScopedQueryLanguage::CemScopedQuery` placeholder in
+> This file is the normative resolution for the CEM template/query
+> syntax question in `cem-ml-ac.md`. The cem-ql surface defined here
+> is the normative replacement for the
+> `ScopedQueryLanguage::CemScopedQuery` placeholder in
 > `cem-ml-stack-design-impl.md §3.10`. Template-side embedding of cem-ql
 > expressions is owned by the host AC at `cem-ml-ac.md` **AC-T-7** and uses
 > XSLT 3.0-style `{ … }` AVTs and `select="…"`/`match="…"`/`test="…"`
@@ -42,8 +43,8 @@ registries, source-map stacks) and produce streamed results for templates,
 validators, transforms, plugins, CLI projections, and runtime hydration
 rules.
 
-This language is the normative resolution of `cem-ml-ac.md` Open Question 9
-and replaces the `ScopedQueryLanguage::CemScopedQuery` placeholder in
+This language is the normative replacement for the
+`ScopedQueryLanguage::CemScopedQuery` placeholder in
 `cem-ml-stack-design-impl.md §3.10`. Template-side embedding is defined by
 `cem-ml-ac.md` AC-T-7 (XSLT 3.0-style AVTs and `select=`/`match=`/`test=`);
 cem-ql defines no embedding delimiter of its own.
@@ -278,7 +279,7 @@ Each AC below is tagged `[A]`, `[B]`, or `[C]`.
   cem-ql does **not** ship the FLWOR `group by` clause at any tier; the
   Rust-ecosystem-style helper covers the same functional surface with a
   simpler construct, and AVT/`select=` attributes favor short pipelines
-  over multi-clause FLWOR anyway. This **resolves** §15 Open Question 6.
+  over multi-clause FLWOR anyway.
 - **AC-QX-5 [C] MAY** evaluate the XPath 4.0 candidate function library at
   `qt4cg.org` and adopt accepted functions; rejected items are explicitly
   waived.
@@ -338,8 +339,7 @@ is created; this matrix exists to make the parity contract testable.
   their source order. Duplicates inside one operand are deduplicated before
   combination. This makes set operators stable for snapshot tests.
 - **AC-QO-3 [A] MUST** define identity for the operators under a
-  **strict-typed, no-implicit-cast** rule (this **resolves** §15 Open
-  Question 1):
+  **strict-typed, no-implicit-cast** rule:
   - node identity = host `AstNodeId` (stable for one parse);
   - attribute identity = `(AstNodeId, ExpandedName)` last-writer-wins per
     `cem-ml-stack-design-impl.md §3.4`;
@@ -492,8 +492,8 @@ is created; this matrix exists to make the parity contract testable.
         → platform stdlib defaults (implicit root, host-crate-shipped
           implementations of every cem:stdlib/<topic> name)
   ```
-  This **resolves** §15 Open Question 2 in favor of *interleaved per
-  scope* — a scope is in charge of its mapping and inherits the
+  Stdlib bindings are **interleaved per scope** — a scope is in
+  charge of its mapping and inherits the
   parent's mapping by default. A deeply nested scope MAY override a
   stdlib name (e.g. swap `seq:flatten` for a custom implementation
   with the same signature) and the override applies to that scope and
@@ -622,7 +622,6 @@ is created; this matrix exists to make the parity contract testable.
     profile MUST be opt-in (e.g. `--profile=dev` or equivalent) and
     MUST NOT be the default for non-interactive callers (templates,
     validators, build pipelines, server-side hosts).
-  - This **resolves** §15 Open Question 5.
 - **AC-QT-4 [A] MUST** make schema-type identity **scope-relative**: the
   same lexical name `Button` may resolve to different schema-declared types
   in different host scopes if different schemas are active per
@@ -687,8 +686,8 @@ is created; this matrix exists to make the parity contract testable.
     (omitted / header-string / collection) the caller used, and the
     originating expression's source-map stack.
 
-  This **resolves** §15 Open Question 4. There is no frozen Tier B
-  content-type set in the AC: the reachable types are exactly those the
+  There is no frozen Tier B content-type set in the AC:
+  the reachable types are exactly those the
   host plugin chain (`cem-ml-ac.md §7`) can produce or transform between.
   cem-ql expresses intent via `accepts`; the host owns the transform
   graph; cross-host portability of compiled artifacts is determined by
@@ -761,7 +760,7 @@ default preference list as `ct:floor`, so authors can write
   functions, and types under `alias:`.
 - **AC-QI-2 [A] MUST** define module-import behavior **per URI scheme**.
   cem-ql recognizes exactly three scheme tiers, in ascending order of
-  trust requirement; this **resolves** §15 Open Question 3:
+  trust requirement:
 
   | Scheme        | Source                                                    | Policy gate                                                      |
   |---------------|-----------------------------------------------------------|------------------------------------------------------------------|
