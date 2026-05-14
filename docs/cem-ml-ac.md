@@ -184,8 +184,20 @@ are deferred.
 - **AC-S-3 [A] MUST** emit type headers in **TypeScript** (`.d.ts`) that mirror schema element/attribute shapes.
 - **AC-S-4 [B] SHOULD** emit type headers in **Rust** (`.rs`) for native consumers.
 - **AC-S-5 [A] MUST** expose schemas at stable URIs so namespace declarations in documents can resolve them.
-- **AC-S-6 [A] OPEN** — pick TS-emit strategy: structural types vs branded nominal types. Affects ergonomics and
-  validation cost.
+- **AC-S-6 [A] MUST** — TS emit strategy is **structural by default with opt-in
+  `Validated<T>` wrappers**. Emitted `.d.ts` types are plain structural interfaces /
+  type aliases that mirror schema shapes — no brand fields, no `unique symbol` markers,
+  no nominal discriminators — so they interop with `lib.dom.d.ts` (`HTMLElement`,
+  `SVGElement`, `XMLDocument` derivatives) without adapters. The emitter additionally
+  exposes a generic `Validated<T>` brand and constructors `asValidated<T>(input: T): Validated<T>`
+  (throws on schema-validation failure) and `tryValidated<T>(input: T): Validated<T> | ValidationError`
+  for callers who want the type system to track validation status. `Validated<Badge>` is
+  structurally assignable to `Badge` (so it flows through DOM-typed APIs unchanged) but
+  the reverse requires going through a constructor. Validation failure inside the
+  constructors routes diagnostics through AC-V-1 / AC-O-1 using the same source-map and
+  diagnostic-code surface as inline validation. Schema version identity (§3.1) is
+  carried in the brand parameterization so `Validated<Badge@1.0>` and `Validated<Badge@2.0>`
+  are distinct nominal types.
 - **AC-S-7 [A] MUST** compile CEM-native schemas into a structural validation IR with
   RELAX-NG functional parity. Tier A MAY execute a limited DFA profile generated from
   that IR; unsupported Tier A structural constraints fail schema compilation instead of
@@ -196,6 +208,27 @@ are deferred.
 - **AC-S-9 [A] MUST** define CEM annotations as schema-qualified names, not HTML
   `data-*` attributes. HTML `data-*` resolves to synthetic HTML-data metadata and does
   not become CEM-owned unless a schema rule maps it.
+
+### Verification
+
+- **AC-S-V-1** — structural interop: a CEM-emitted type for an element extending an
+  HTML/SVG/XML schema (e.g. a `Badge` whose schema declares it derived from
+  `HTMLElement`) is assignable to and from the matching `lib.dom.d.ts` type with no cast
+  and no adapter. Verified by `tsc --noEmit` on an emitted `.d.ts` + a fixture
+  `accepts(el: HTMLElement)` call site receiving an emitted `Badge`.
+- **AC-S-V-2** — `Validated<T>` brand integrity: a plain object literal of `Badge` shape
+  is **not** assignable to `Validated<Badge>` without going through `asValidated` /
+  `tryValidated`. Verified by a `// @ts-expect-error` fixture.
+- **AC-S-V-3** — `Validated<T>` flows as `T`: a `Validated<Badge>` value is assignable
+  to a parameter typed `Badge` (and through it to `HTMLElement` if the schema declares
+  the inheritance). Verified by a fixture call site.
+- **AC-S-V-4** — version-identity discrimination: `Validated<Badge@1.0>` and
+  `Validated<Badge@2.0>` are non-assignable to each other; emitted from two §3.1
+  schema-version inputs of the same logical type.
+- **AC-S-V-5** — validation-failure diagnostics: `asValidated` rejection on
+  schema-invalid input emits an AC-V-1-shaped diagnostic with the same code/severity
+  surface as inline validation and a source-map frame derived from the caller's
+  invocation site.
 
 ## 3. Validation & Strict Typing
 
@@ -905,10 +938,9 @@ Each section above contributes a concrete check to one of these scripts; AC item
 
 ## Open Questions
 
-These must be answered before AC are testable:
+All previously open questions are resolved. New ones, if surfaced during implementation,
+should be appended here.
 
-1. **AC-S-6** — TS emit strategy: structural vs branded. Affects ergonomics and
-   validation cost.
 ---
 
 ## 16. Tier Promotion Gates
