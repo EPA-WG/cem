@@ -550,9 +550,12 @@ the concrete plugin architecture section.
 - **AC-PL-18 [B] MUST** — plugins are registered via descriptor objects, not by side-effecting imports.
 - **AC-PL-19 [B] MUST** — plugins are installable / uninstallable at runtime per scope. In-flight invocations either
   drain to completion or are cancelled via `AbortSignal` (AC-A-7); the policy is host-selectable.
-- **AC-PL-20 [B] OPEN** — plugin sandboxing model. For v0.1, plugins run with host privileges (host trusts what it
-  registers). For untrusted/marketplace plugins, decide between Worker isolation, capability-restricted ctx, or
-  out-of-process. Track separately.
+- **AC-PL-20 [B] MUST** — plugin sandboxing model. Plugins run in-process with host privileges; isolation is enforced
+  at load time by the CEM Rust AST validator. CEM is the sole producer of plugin Rust ASTs and MUST reject any AST
+  that references capabilities outside the plugin descriptor's declared capability set (e.g. `std::fs`, `std::net`,
+  `std::process`, `unsafe`, FFI, `extern crate` outside the allow-list). Rejection happens before `rustc`/JIT
+  invocation and surfaces as `PluginCapabilityError`. No Worker, capability-restricted ctx façade, or out-of-process
+  runtime is required at this tier; revisit only if a future plugin source bypasses the CEM AST pipeline.
 
 ### Verification
 
@@ -568,6 +571,9 @@ the concrete plugin architecture section.
   chain back to the original SCSS source.
 - **AC-PL-V-6** — observer-only enforcement: a mutation attempt from an `observe`-mode plugin throws
   `ObserverViolationError` and the scope's tree is unchanged.
+- **AC-PL-V-7** — capability enforcement (AC-PL-20): a plugin whose Rust AST references `std::fs::read`, `std::net`,
+  or `unsafe { ... }` without declaring the corresponding capability in its descriptor is rejected at load time with
+  `PluginCapabilityError`; no host code from the plugin is executed and the scope's plugin chain is unchanged.
 
 ## 8. API Conventions
 
@@ -816,8 +822,6 @@ These must be answered before AC are testable:
 3. **AC-I-1 runtime phase** — public DOM `apply(transform)` API shape and whether it
    accepts URI, stream, DOM fragment, or a narrower transform-source abstraction.
 4. **AC-M-9** — async-mutation rollback model (Atomic / Best-effort / Transactional). Recommended: Transactional.
-5. **AC-PL-20** — plugin sandboxing model (host-trusted vs Worker isolation vs capability-restricted ctx vs
-   out-of-process).
 ---
 
 ## 16. Tier Promotion Gates
@@ -942,18 +946,19 @@ Covers §7 (AC-PL-1..AC-PL-19), the per-scope plugin chain, observe /
 mutate mode separation, source-map stitching, and per-scope
 resource budgeting for plugin invocations.
 
-- **Required closed prior-tier ACs**: AC-PL-1..AC-PL-19 (plugin
-  surface and chain semantics); AC-A-4, AC-A-5 (per-scope thread
-  pool, queue overflow policy); AC-X-1, AC-X-2 (untrusted input,
-  scope isolation); AC-O-1, AC-O-3 (event stream, report routing);
-  AC-T-1 (transform contract that plugins compose with).
-- **Required resolved OQs**: OQ 5 (AC-PL-20 plugin sandboxing
-  model). Thread-pool default and per-scope cap inheritance are
-  normative under AC-A-4.
+- **Required closed prior-tier ACs**: AC-PL-1..AC-PL-20 (plugin
+  surface, chain semantics, and AST-validator sandboxing); AC-A-4,
+  AC-A-5 (per-scope thread pool, queue overflow policy); AC-X-1,
+  AC-X-2 (untrusted input, scope isolation); AC-O-1, AC-O-3 (event
+  stream, report routing); AC-T-1 (transform contract that plugins
+  compose with).
+- **Required resolved OQs**: none remaining for this gate (AC-PL-20
+  resolved in §7). Thread-pool default and per-scope cap inheritance
+  are normative under AC-A-4.
 - **Entry fixture**: AC-PL-V-1 (SCSS-to-CSS plugin happy path)
   passes end-to-end through the public async API with a stitched
   source map per AC-PL-12.
-- **Exit fixture**: AC-PL-V-1..AC-PL-V-6 all pass; an out-of-scope
+- **Exit fixture**: AC-PL-V-1..AC-PL-V-7 all pass; an out-of-scope
   mutation attempt from a registered plugin is rejected at the
   trust boundary with the documented diagnostic and does not
   corrupt sibling-scope state per AC-X-2; a 100-plugin chain on a
