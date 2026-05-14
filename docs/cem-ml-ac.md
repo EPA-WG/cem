@@ -314,8 +314,31 @@ runtime surface.
   rejection is governed by the deferred DOM mutation ACs.
 - **AC-I-4 [B] MUST** support render-while-parsing: an interpreter can emit visible state before EOF on its input
   stream. Examples that drive this requirement: top-level-await scripts, HTML with external images/CSS.
-- **AC-I-5 [B] SHOULD** batch render updates. Default policy: flush on stream completion, OR after 100 ms since first
-  pending update — whichever comes first. Policy is configurable per scope.
+- **AC-I-5 [B] SHOULD** batch render updates. The render-batch policy
+  is **host-defined**, owned by the scope policy per AC-F-1 and
+  inherited per AC-A-4: the cem-ml library exposes the knob but does
+  **not** dictate a numeric default. Each scope policy sets a
+  `render_batch_window` (a duration after which pending updates flush
+  even if the input stream has not completed) plus the implicit
+  flush-on-stream-completion trigger. Consumer apps choose values
+  that fit their environment:
+  - **Browser / interactive hosts** typically use a short window
+    (~100 ms is a common author choice that matches first-paint
+    perception budgets); flush also fires on stream completion.
+  - **Server-side / build-pipeline hosts** typically equate the
+    window with the host's critical timeout — render flushes only
+    on stream completion or when the host's request/job timeout
+    fires, whichever comes first; the timeout reaching the render
+    layer materializes as the host's critical-timeout error.
+  - **Test / snapshot hosts** typically use stream-completion-only
+    (no time-based flush) so render output is deterministic across
+    runs.
+
+  Reference implementations MAY ship a thin convenience preset per
+  host environment for ergonomics, but the preset is host-side
+  configuration, not a library-level default. Child scopes MAY
+  shorten the inherited window but MUST NOT lengthen it, per the
+  AC-A-4 cap-tightening rule.
 - **AC-I-6 [A] MUST** implement WHATWG HTML DOM compliance as a schema-driven
   content-type transform over the initial HTML parser DOM. Full browser DOM API
   compatibility remains a later runtime decision.
@@ -358,8 +381,8 @@ participate in interpreter ownership, scope scheduling, batching, and diagnostic
 - **AC-M-5 [C] MUST** preserve **submission order** within a single owner: if `appendChildAsync(a)` is called before
   `appendChildAsync(b)` against the same parent, `a` MUST settle before `b`. Cross-parent ordering is not guaranteed.
 - **AC-M-6 [C] SHOULD** **coalesce** mutations that fall within the same batch window (per AC-I-5) into a single
-  observer notification — multiple `setAttributeAsync` calls on the same node within 100 ms surface as one
-  `MutationRecord`. The Promise of each call resolves only once the merged batch flushes.
+  observer notification — multiple `setAttributeAsync` calls on the same node within the host's configured
+  `render_batch_window` surface as one `MutationRecord`. The Promise of each call resolves only once the merged batch flushes.
 - **AC-M-7 [C] MUST** support `AbortSignal` on every `*Async` mutator. Aborting before the queued mutation begins
   rejects the promise with `DOMException("Aborted", "AbortError")` and skips the mutation. Aborting after work has
   begun follows the rollback policy in AC-M-9.
@@ -795,8 +818,6 @@ These must be answered before AC are testable:
 4. **AC-M-9** — async-mutation rollback model (Atomic / Best-effort / Transactional). Recommended: Transactional.
 5. **AC-PL-20** — plugin sandboxing model (host-trusted vs Worker isolation vs capability-restricted ctx vs
    out-of-process).
-6. **Render policy default** — confirm whether the 100 ms batch window applies broadly,
-   only to first paint, or only to runtime DOM mutation/hydration.
 ---
 
 ## 16. Tier Promotion Gates
@@ -1021,9 +1042,8 @@ visible state can change during parse.
   AC-O-2 (deterministic scheduling trace for postmortem); AC-N-1
   (150 ms first-paint budget, which hydration MUST respect under
   the `examples/semantic/` fixture set).
-- **Required resolved OQs**: OQ 6 (render policy default — does
-  the 100 ms batch window apply broadly, only to first paint, or
-  only to runtime mutation/hydration).
+- **Required resolved OQs**: none (render-batch policy is
+  host-defined per AC-I-5 and inherited per AC-A-4).
 - **Entry fixture**: a single `examples/semantic/` fixture renders
   visible state before EOF on its input stream per AC-I-4;
   `MutationRecord` batching behaves per AC-M-V-4 across the parse
