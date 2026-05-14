@@ -178,6 +178,118 @@ are deferred.
   subtrees when policy allows recovery. Recovered subtrees preserve source maps and do
   not corrupt the parent structural state.
 
+### 3.1 Schema Version Identity
+
+This sub-section is normative and is cited by AC-V-2, AC-V-3,
+AC-CC-1, AC-CC-3, AC-S-5, the G-NVDL gate, and
+`cem-ql-ac.md` AC-QT-4 / AC-QC-1. AC-V-2 and AC-V-3 hinge on a
+precise definition of "schema version"; without it, two
+implementations can produce subtly different validation outcomes
+for the same document.
+
+- **AC-V-9 [A] MUST** define schema version identity as a pair:
+  - **URI** — stable schema identity per AC-S-5. The URI MAY end
+    with a version segment as a **partial pin**, in any of the
+    forms `MAJOR` (`/1`), `MAJOR.MINOR` (`/1.2`), or full
+    SemVer 2.0 (`/1.2.3`, `/1.2.3-rc.1`, `/1.2.3+sha.abc`). The
+    version segment, when present, expresses the document's
+    **constraint** and is matched by the loader against schema
+    candidates' embedded version per AC-V-10. A URI without a
+    version segment means "any version of this schema."
+  - **Embedded version** — every loaded schema descriptor MUST
+    carry a **complete** SemVer 2.0 string in `descriptor.version`
+    (e.g. `1.2.3`, `1.2.3-rc.1`, `1.2.3+sha.abc`; never `1.2`).
+    Partial versions in this field are rejected at load with
+    `cem.v.semver_invalid`. The embedded version is the
+    authoritative version of the loaded schema; the URI tail is
+    advisory.
+
+- **AC-V-10 [A] MUST** define how URI-tail constraints match
+  embedded versions during schema resolution:
+  - URI without version segment matches any embedded version.
+  - URI ending in `MAJOR` matches any embedded `MAJOR.*.*`.
+  - URI ending in `MAJOR.MINOR` matches any embedded
+    `MAJOR.MINOR.*`.
+  - URI ending in full SemVer matches embedded versions that
+    satisfy AC-V-2 forgiving-mode comparison against the URI's
+    full version (same `MAJOR`, embedded `(MINOR, PATCH)` ≥
+    URI `(MINOR, PATCH)` per SemVer §11 precedence).
+  - Prereleases satisfy a non-prerelease URI segment **only when
+    explicitly named** (`/1.2.3-rc.1` matches embedded
+    `1.2.3-rc.1`, never embedded `1.2.3` or vice versa). This
+    matches npm default behavior and avoids surprising
+    rc-into-stable matches.
+  - Build metadata (`+meta`) on the URI tail is matched
+    case-sensitively against the embedded build metadata when
+    the URI specifies it; URIs without build metadata match
+    embedded versions with any build metadata.
+
+- **AC-V-11 [A] MUST** ground AC-V-2 and AC-V-3 comparison in the
+  **embedded full version** of the loaded schema, not the
+  URI-tail partial version. Concretely, given declared embedded
+  `D` (from the document's resolved schema reference) and loaded
+  embedded `L`:
+  - **AC-V-2 forgiving mode** fires when `L.MAJOR == D.MAJOR` and
+    `(L.MINOR, L.PATCH) >= (D.MINOR, D.PATCH)` per SemVer §11
+    precedence. Unknown elements/attributes warn under
+    `cem.v.minor_skew`.
+  - **AC-V-3 strict mode** fires when `L.MAJOR != D.MAJOR`, or
+    when `L.MAJOR == 0` and `(L.MINOR, L.PATCH) != (D.MINOR,
+    D.PATCH)` (per SemVer §4 — `0.x` is unstable, every bump may
+    break). Validation aborts the scope under
+    `cem.v.major_mismatch`.
+  - Build metadata (`+meta`) is **ignored** for AC-V-2 and AC-V-3
+    precedence per SemVer §10. It IS included in the AC-CC-1
+    fingerprint (see AC-V-12) so the cache distinguishes builds
+    without changing validation behavior.
+  - A prerelease declaration is satisfied only by the exact
+    embedded prerelease per AC-V-10. Mismatched prereleases
+    abort under `cem.v.prerelease_unmatched`.
+
+- **AC-V-12 [A] MUST** make the **embedded full version** the
+  canonical input to the AC-CC-1 schema fingerprint and the
+  AC-CC-3 policy stamp, including any prerelease and build
+  metadata components verbatim. The URI-tail partial version
+  MUST NOT enter the fingerprint — two documents declaring the
+  same schema with different URI tails (`/1.2` vs `/1` vs
+  unversioned) MUST hash to the **same** fingerprint when they
+  resolve to the same embedded version. This decouples cache
+  identity from author shorthand and keeps cross-host artifact
+  reuse stable across documents that pin loosely.
+
+- **AC-V-13 [A] MUST** record the URI-to-embedded resolution as
+  a structured event in the report tree per AC-O-3 with code
+  `cem.v.semver_resolved`. The event carries the URI as
+  declared, the embedded full version, and which AC-V-10
+  matching rule fired (`unconstrained`, `major`, `major-minor`,
+  `full`, `prerelease-exact`). This makes G-NVDL dispatch traces
+  and cross-host cache mismatches diagnosable without re-running
+  the loader.
+
+- **AC-V-V-S [A]** — verification (under §"Verification Plan"):
+  one document per row of AC-V-10's matching table loads against
+  a fixture schema descriptor with a known embedded version;
+  assert the resolution event carries the documented match rule;
+  assert AC-V-2 / AC-V-3 outcomes per AC-V-11 across at least one
+  minor-skew case, one major-mismatch case, one `0.x` minor-skew
+  case (which must trigger strict mode), one prerelease-exact
+  case, and one prerelease-mismatch case; assert AC-CC-1
+  fingerprints collapse across `/1`, `/1.2`, and `/1.2.3` URI
+  forms when they resolve to the same embedded `1.2.3`.
+
+#### Diagnostic codes (this sub-section)
+
+| Code                            | Severity (default)        | Source AC      |
+|---------------------------------|---------------------------|----------------|
+| `cem.v.semver_invalid`          | error (rejected at load)  | AC-V-9         |
+| `cem.v.minor_skew`              | warning                   | AC-V-11/AC-V-2 |
+| `cem.v.major_mismatch`          | error (aborts scope)      | AC-V-11/AC-V-3 |
+| `cem.v.prerelease_unmatched`    | error (aborts scope)      | AC-V-11        |
+| `cem.v.semver_resolved`         | info                      | AC-V-13        |
+
+Scope policies MAY remap severities per the host bubble-to-boundary
+contract; the values above are the shipped defaults.
+
 ## 4. Interpreter & DOM State Machine
 
 The implementation MUST split:
@@ -663,8 +775,7 @@ These must be answered before AC are testable:
 6. **Render policy default** — confirm whether the 100 ms batch window applies broadly,
    only to first paint, or only to runtime DOM mutation/hydration.
 7. **Thread-pool default size** — `navigator.hardwareConcurrency` vs fixed cap per scope.
-8. **Schema semver syntax** — exact schema URI/version syntax and how prerelease/build
-   metadata affect AC-V-2 / AC-V-3.
+
 ---
 
 ## 16. Tier Promotion Gates
@@ -819,13 +930,15 @@ under multi-content scopes.
 - **Required closed prior-tier ACs**: AC-P-4, AC-P-5 (context
   scopes and nesting); AC-V-1, AC-V-2, AC-V-3, AC-V-7, AC-V-8
   (validation contracts, semver behavior, open-content policy,
-  recovery model); AC-I-2 (content-type switching, the Tier B
-  expansion of which is itself a precondition); AC-CC-1, AC-CC-3
-  (binary cache hash and policy-stamp surface so schema id
-  changes invalidate cache entries correctly); AC-T-4 (schema-owned
-  transform plans).
-- **Required resolved OQs**: OQ 8 (schema URI / version syntax,
-  prerelease/build metadata interaction).
+  recovery model); AC-V-9..AC-V-13 (§3.1 schema version identity —
+  required so namespace-dispatched schemas resolve to the same
+  embedded version across hosts); AC-I-2 (content-type switching,
+  the Tier B expansion of which is itself a precondition);
+  AC-CC-1, AC-CC-3 (binary cache hash and policy-stamp surface so
+  schema id changes invalidate cache entries correctly); AC-T-4
+  (schema-owned transform plans).
+- **Required resolved OQs**: none (the schema URI / version
+  syntax precondition is now normative under §3.1).
 - **Entry fixture**: a single fixture parses with two schemas
   dispatched by namespace inside one document; source-map stacks
   span the boundary cleanly per AC-P-7; the AC-O-3 report tree
