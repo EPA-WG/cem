@@ -181,7 +181,7 @@ Each AC below is tagged `[A]`, `[B]`, or `[C]`.
   variable, function, and import statements:
   ```
   module urn:ex:my-module
-  import "urn:cem:stdlib/strings" as str   ;; off by default per AC-QI-*
+  import "cem:stdlib/strings" as str       ;; platform stdlib, always available per AC-QI-2
   declare variable $TITLE := "hi"
   declare function local:greet($who) { "hello " || $who }
   ```
@@ -447,7 +447,7 @@ is created; this matrix exists to make the parity contract testable.
     type-check applies. Use for small, immutable, public-facing context.
   - **`resource(content-type, SchemaRef?)`** — a host-mediated handle per
     AC-QL-2. cem-ql code dereferences it only through stdlib accessor
-    functions in a companion `urn:cem:stdlib/<topic>` module (AC-QI-3). The
+    functions in a companion `cem:stdlib/<topic>` module (AC-QI-3). The
     optional `SchemaRef` drives static type-check of accessor return types.
     Use for large, lazy, async, or privacy-sensitive bindings.
   - Inheritance is **by reference** through the AC-QV-3 / AC-QV-4
@@ -625,7 +625,7 @@ their portability is host-defined, and they are **not** added to the
 default preference list — callers asking for a plugin type MUST pass
 it explicitly via form (2) or form (3).
 
-A cem-ql stdlib module `urn:cem:stdlib/content-types` (Tier B; see
+A cem-ql stdlib module `cem:stdlib/content-types` (Tier B; see
 AC-QI-3) MUST expose the canonical identifiers above as exported
 string constants (e.g. `ct:html`, `ct:json`, `ct:cemml`) and the
 default preference list as `ct:floor`, so authors can write
@@ -654,37 +654,55 @@ default preference list as `ct:floor`, so authors can write
 - **AC-QI-1 [A] MUST** support a query-module `import` statement:
   `import "uri" as alias`. Imported modules contribute variables,
   functions, and types under `alias:`.
-- **AC-QI-2 [A] MUST** be **off by default** for any import that resolves to
-  an external URI. Imports are only resolved when the **active scope
-  policy** explicitly grants the source. Granted sources are listed by
-  scheme/host/path prefix in the scope policy. Denied imports emit
-  `cem.ql.import_denied` and the scope policy decides severity per
-  `cem-ml-ac.md §3.1` propagation rules.
+- **AC-QI-2 [A] MUST** define module-import behavior **per URI scheme**.
+  cem-ql recognizes exactly three scheme tiers, in ascending order of
+  trust requirement; this **resolves** §15 Open Question 3:
+
+  | Scheme        | Source                                                    | Policy gate                                                      |
+  |---------------|-----------------------------------------------------------|------------------------------------------------------------------|
+  | `cem:`        | platform implementation, baked into the host crate        | none — always available, scope policy cannot deny                |
+  | `urn:cem:`    | dynamically registered via plugins or a config-time registry map | host trust setup (plugin install / config) — per-scope policy cannot deny what was registered, but unregistered URIs fail with `cem.ql.import_unresolved` |
+  | `https:` (and other network schemes: `http:`, `file:`, plugin-registered transports) | online or local resource carrying its own schema, content-type metadata, and module body | **scope policy** per AC-QI-4 — off by default, granted by scheme/host/path prefix |
+
+  Both `cem:` and `urn:cem:` are **reserved**: scope-policy grants whose
+  source matches either scheme are rejected at policy load with
+  `cem.ql.reserved_scheme`. This prevents an attacker who can edit a
+  scope policy from shadowing platform stdlib lookups. Network-scheme
+  imports denied by the active scope policy emit `cem.ql.import_denied`
+  and severity propagates per `cem-ml-ac.md §3.1`.
+
 - **AC-QI-3 [A] MUST** ship a **cem-ml standard library** as the only
-  out-of-the-box import set. Stdlib modules use the URI scheme
-  `urn:cem:stdlib/<topic>` and resolve from the host crate without any
-  policy grant. Initial Tier A stdlib topics:
-  - `urn:cem:stdlib/sequence` — set/stream helpers from AC-QO-6;
-  - `urn:cem:stdlib/strings` — string manipulation, codepoint iteration,
+  out-of-the-box import set. Stdlib modules use the platform
+  scheme `cem:stdlib/<topic>` per AC-QI-2 and resolve from the host
+  crate without any policy grant. The shorter scheme reflects that
+  these modules ship **with the platform** — they are not loaded
+  dynamically and they are not fetched. Initial Tier A stdlib topics:
+  - `cem:stdlib/sequence` — set/stream helpers from AC-QO-6;
+  - `cem:stdlib/strings` — string manipulation, codepoint iteration,
     regex (Tier B for regex);
-  - `urn:cem:stdlib/numbers` — math, formatting, bigint helpers;
-  - `urn:cem:stdlib/datetime` — XPath `xs:date / xs:dateTime` helpers;
-  - `urn:cem:stdlib/dom` — host AST helpers (axes, attribute access,
+  - `cem:stdlib/numbers` — math, formatting, bigint helpers;
+  - `cem:stdlib/datetime` — XPath `xs:date / xs:dateTime` helpers;
+  - `cem:stdlib/dom` — host AST helpers (axes, attribute access,
     reference resolution) when authors want them as functions instead of
     pipeline steps;
-  - `urn:cem:stdlib/report` — diagnostic emit and severity helpers;
-  - `urn:cem:stdlib/state` — read-side machine-state slot helpers;
-  - `urn:cem:stdlib/template` — template-registry lookup helpers;
-  - `urn:cem:stdlib/cemml` — read CEM-ML canonical content from in-memory
+  - `cem:stdlib/report` — diagnostic emit and severity helpers;
+  - `cem:stdlib/state` — read-side machine-state slot helpers;
+  - `cem:stdlib/template` — template-registry lookup helpers;
+  - `cem:stdlib/cemml` — read CEM-ML canonical content from in-memory
     strings;
-  - `urn:cem:stdlib/content-types` (Tier B) — canonical media-type
+  - `cem:stdlib/content-types` (Tier B) — canonical media-type
     identifiers and the default `read()` preference list per
     AC-QA-1.1 (`ct:html`, `ct:xml`, `ct:svg`, `ct:mathml`, `ct:css`,
     `ct:scss`, `ct:json`, `ct:yaml`, `ct:csv`, `ct:js`, `ct:ts`,
     `ct:cemml`, `ct:floor`).
-- **AC-QI-4 [B] SHOULD** support **scope-policy-gated user modules** loaded
-  from URIs that the host has whitelisted. The grant model is exactly the
-  host's external-resource policy; nothing new is invented here.
+- **AC-QI-4 [B] SHOULD** support **scope-policy-gated user modules**
+  under the network-scheme tier of AC-QI-2 (`https:`, `http:`, `file:`,
+  plugin-registered transports). Grants are per scope, listed by
+  scheme/host/path prefix, and follow the host's external-resource
+  policy; nothing new is invented here. Modules under `urn:cem:` are
+  **not** subject to this gate — their availability is determined by
+  host trust setup (plugin registration or config-time registry
+  mapping) per AC-QI-2, not by per-scope grants.
 - **AC-QI-5 [A] MUST NOT** allow side-effecting imports. A module MUST be
   loadable, parseable, and type-checkable without executing code.
 - **AC-QI-6 [A] MUST** make module identity stable: a module is keyed by
@@ -713,6 +731,8 @@ default preference list as `ct:floor`, so authors can write
   - `cem.ql.cross_type_compare`
   - `cem.ql.use_and_or`
   - `cem.ql.import_denied`
+  - `cem.ql.import_unresolved`
+  - `cem.ql.reserved_scheme`
   - `cem.ql.read_denied`
   - `cem.ql.read_unsatisfiable`
   - `cem.ql.read_dynamic_accepts`
@@ -782,7 +802,17 @@ A `cem-ql` Tier A release is acceptance-tested with:
    `A, B`; assert `A | B`, `A & B`, `A - B`, `A ^ B` against committed
    snapshots; confirm document order and identity rules per AC-QO-2 /
    AC-QO-3.
-7. **AC-QI-V-1** — import gating test: an unwhitelisted URI fails with
+7. **AC-QI-V-1** — import gating test, one case per AC-QI-2 scheme tier:
+   (a) **`cem:` (platform)**: `import "cem:stdlib/sequence"` resolves
+   without any scope-policy grant; a scope policy that *attempts* to
+   list `cem:` in its grant set is rejected at policy load with
+   `cem.ql.reserved_scheme`. (b) **`urn:cem:` (dynamic registry)**: a
+   plugin registers `urn:cem:acme/widgets`; import resolves without a
+   scope-policy grant; importing the unregistered
+   `urn:cem:acme/missing` fails with `cem.ql.import_unresolved`; a
+   scope-policy grant for `urn:cem:` is rejected with
+   `cem.ql.reserved_scheme`. (c) **`https:` (network)**: an
+   unwhitelisted `https://example.com/mod` fails with
    `cem.ql.import_denied` at warning severity by default; raising the
    policy to `error` aborts the evaluation; whitelisting the URI loads it.
 8. **AC-QA-V-1** — `read()` content-negotiation test under a Tier B
@@ -797,7 +827,7 @@ A `cem-ql` Tier A release is acceptance-tested with:
    either type; assert YAML wins on q-value and the `*/*` wildcard
    case expands at load time, not compile time.
    (c) **Form (3) — collection**: `read($u, [ct:cemml, ct:json])`
-   from `urn:cem:stdlib/content-types`; assert preferred type is
+   from `cem:stdlib/content-types`; assert preferred type is
    selected when reachable, otherwise the next entry; assert alias
    inputs (`text/xml` → `application/xml`) normalize before
    comparison.
@@ -820,7 +850,7 @@ A `cem-ql` Tier A release is acceptance-tested with:
     as `resource("user-profile", user-schema)`. A descendant scope (a)
     reads `$scope.theme.name` via record-style field access and statically
     type-checks against the schema; (b) calls `user:has_role($scope.user,
-    "admin")` from `urn:cem:stdlib/user`; (c) confirms the bindings are
+    "admin")` from `cem:stdlib/user`; (c) confirms the bindings are
     inherited by reference (no clone-on-inherit cost on a deep scope
     chain); (d) forces the accessor to fail and asserts
     `cem.ql.policy_accessor_failed` is emitted with the correct source-map
@@ -919,8 +949,6 @@ These must be answered before AC are testable:
 2. **AC-QV-3 resolution order** — confirm whether scope-policy stdlib
    bindings sit *below* host scope hierarchy or are interleaved per scope.
    Affects whether a deeply nested scope can override a stdlib name.
-3. **AC-QI-3 stdlib URI scheme** — choose between `urn:cem:stdlib/...` and
-   `cem:stdlib:...`. Aligns with `cem-ml-ac.md` AC-S-5 stable URI policy.
 
 ---
 
