@@ -304,8 +304,8 @@ runtime surface.
 
 - **AC-I-1 [A] MUST** treat parsing, validation, AST construction, content-type
   transforms, CEM projection, and rendered output as explicit state transitions with
-  source-map frame creation at each transform boundary. A public DOM `apply(transform)`
-  API is **OPEN** for the runtime phase, not required for Tier A.
+  source-map frame creation at each transform boundary. The runtime-phase public DOM
+  `apply()` API is specified by AC-I-7.
 - **AC-I-2 [A] MUST** switch parser/transform context when content type changes. Tier A
   switches for HTML `<style>`, `style=""`, and raw-text `<script>` boundaries; SVG,
   MathML, CSS `url(...)`, JSON, JS template islands, and external resources are Tier B/C.
@@ -342,6 +342,40 @@ runtime surface.
 - **AC-I-6 [A] MUST** implement WHATWG HTML DOM compliance as a schema-driven
   content-type transform over the initial HTML parser DOM. Full browser DOM API
   compatibility remains a later runtime decision.
+- **AC-I-7 [C] MUST** expose the runtime-phase apply API as
+  `apply(stream, opts?) => Promise<void>`, where `stream` is a **CEM DOM
+  stream** — a typed stream of already-parsed, already-projected, source-map-bearing
+  CEM nodes — and `opts` is `{ target?: Node, signal?: AbortSignal }`. Loading and
+  programmatic construction of the stream are **separate concerns** (handled by AC-T-4's
+  transform-source loader and by host-side construction APIs respectively); both
+  upstream producers are themselves async and abortable per AC-A-1 / AC-A-7. `apply`
+  itself MUST:
+  - Default `target` to the document root when omitted; the transform's own match
+    patterns (AC-T-1) scope within `target`.
+  - Run as a single AC-M-9 transaction. Any failure during stream consumption,
+    transform execution, schema validation (AC-M-11), or chained plugin work
+    (AC-PL-15) rolls back the whole apply; the promise rejects with the originating
+    error routed through AC-M-10.
+  - Resolve the promise on transaction **commit**. Visible render fires through the
+    normal AC-I-4 / AC-I-5 batch window — `apply` does not expose a separate
+    commit-vs-render knob; callers needing a settled tree use `flushAsync` (AC-M-14).
+  - Honor `signal` per AC-A-7: aborting before commit rolls back the transaction;
+    aborting after commit is a no-op on the tree (the abort still rejects any
+    outstanding stream consumption).
+
+### Verification
+
+- **AC-I-V-1** — `apply()` happy path: construct a CEM DOM stream from a build-time
+  loader (AC-T-4 URI variant) and from an in-memory construction API, call
+  `apply(stream, { target })` against a subtree of an `examples/semantic/*.html`
+  fixture, confirm the transformed subtree matches the AC-T-2 snapshot and a single
+  `MutationRecord` is emitted on commit per AC-M-V-4.
+- **AC-I-V-2** — `apply()` rollback: induce a mid-stream schema violation (AC-M-11)
+  on a fixture subtree, confirm the apply promise rejects, the subtree is byte-identical
+  to the pre-apply snapshot per AC-M-V-5, and zero `MutationRecord`s are emitted.
+- **AC-I-V-3** — `apply()` abort: signal `AbortController.abort()` after stream
+  consumption begins but before commit; confirm the promise rejects with
+  `DOMException("Aborted", "AbortError")` and the transaction rolls back per AC-M-9.
 
 ## 5. DOM Mutation API — Async Layer Over Sync Surface
 
@@ -418,7 +452,7 @@ participate in interpreter ownership, scope scheduling, batching, and diagnostic
 - **AC-M-13 [C] SHOULD** allow **read amid pending writes**: synchronous reads see the last committed state, never an
   in-flight intermediate. Reads inside the same microtask after an awaited mutation MUST observe that mutation.
 - **AC-M-14 [C] MAY** offer `flushAsync(scope?)` to force pending mutations to commit immediately, bypassing the
-  batch window. Used by tests and by `apply(transform)` (AC-I-1) when transform completion requires a settled tree.
+  batch window. Used by tests and by `apply` (AC-I-7) when callers need a settled tree before observing render output.
 
 ### Verification
 
@@ -831,8 +865,6 @@ These must be answered before AC are testable:
 2. **AC-F-2** — inline schema declarations and mid-document schema
    switch/loading syntax. Stable URI/file schema loading is required; inline syntax is
    still undecided.
-3. **AC-I-1 runtime phase** — public DOM `apply(transform)` API shape and whether it
-   accepts URI, stream, DOM fragment, or a narrower transform-source abstraction.
 ---
 
 ## 16. Tier Promotion Gates
@@ -1036,8 +1068,9 @@ rollback discipline.
   `examples/semantic/` fixture) passes; the read-only invariant
   cem-ql AC-Q-2 holds — queries see the mutated state but cannot
   themselves write.
-- **Exit fixture**: AC-M-V-1..AC-M-V-5 all pass (round-trip,
-  ordering, abort, observer batching, transaction rollback); the
+- **Exit fixture**: AC-M-V-1..AC-M-V-5 and AC-I-V-1..AC-I-V-3 all
+  pass (round-trip, ordering, abort, observer batching, transaction
+  rollback, plus apply happy-path / rollback / abort); the
   Transactional rollback contract holds under three induced failure
   modes (schema validation failure per AC-M-11, plugin rejection per
   AC-PL-15, cancelled mutation per AC-M-7); `flushAsync(scope?)`
