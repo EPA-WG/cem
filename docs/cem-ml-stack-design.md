@@ -1224,6 +1224,52 @@ Functional parity requirements:
   CEM-native format fixes the compiler source contract without changing the event
   processing, frame-stack, DFA, or derivative-runtime boundaries.
 
+### 13.1 Document-Side Schema Scoping
+
+A document references schemas through four forms: an inline body definition, an
+element-level mid-document switch (self-closing or wrapping), and a scope-policy
+attribute applicable to any element. All four open new scopes that follow the AC-F-1
+scope-policy inheritance model; none mutates the active schema of an ancestor scope.
+
+**Form table — declaration and switching constructs:**
+
+| Form                                                          | Self-closing | Effect                                                                                                                                                                                            |
+|---------------------------------------------------------------|--------------|---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|
+| `<cem:schema cem:name="...">…body…</cem:schema>`              | No           | Declares an inline schema with an addressable name. Does **not** switch the active schema on its parent scope. The body is available for reference via `cem:schema-select` from descendant scopes. |
+| `<cem:schema src="..."/>`                                     | Yes          | Mid-document schema switch at sibling position. Opens a new scope that adopts the loaded schema for itself and subsequent siblings until the end of the parent scope.                              |
+| `<cem:schema src="...">…children…</cem:schema>`               | No           | Wrapping switch. Opens a scope around its children; the loaded schema applies inside the wrapper only. The parent scope is unaffected after `</cem:schema>`.                                       |
+| `<cem:schema select="..."/>` or `<cem:schema select="...">…</cem:schema>` | either | Same as the `src` forms but the schema body is resolved by cem-ql query within the document — typically resolving to an inline `<cem:schema cem:name="...">` node.                                |
+| `cem:schema-src="..."` on any element                         | n/a          | The host element becomes a scope. The loaded schema applies **inside** the element only; the parent scope's active schema is unchanged. No upward propagation.                                     |
+| `cem:schema-select="..."` on any element                      | n/a          | Same as above, with the schema body resolved by cem-ql query.                                                                                                                                     |
+
+**Source-attribute table — URI vs cem-ql resolution:**
+
+| Attribute              | Value form                  | Resolution path                                                                                          |
+|------------------------|-----------------------------|----------------------------------------------------------------------------------------------------------|
+| `src` (on `<cem:schema>`) / `cem:schema-src` (on any element) | URI literal (http / file / relative) | AC-T-4 transform-source loader, gated by the AC-A-6 external-resource I/O queue when not local.        |
+| `select` (on `<cem:schema>`) / `cem:schema-select` (on any element) | cem-ql expression           | Evaluated against the document with scope-chain-aware semantics. Resolution returns the innermost match. |
+
+Both `src`/`select` (and their `cem:schema-*` attribute variants) are mutually
+exclusive on a single host. A host declaring neither is a schema-compilation error.
+
+**Identifier-resolution table — `cem:name` declarations and lookups:**
+
+| Aspect             | Behavior                                                                                                                                          |
+|--------------------|---------------------------------------------------------------------------------------------------------------------------------------------------|
+| Declaration        | `cem:name="..."` on `<cem:schema>` (inline form only; loaded schemas carry their own identity via §3.1 schema version identity).                  |
+| Visibility         | Scope-chain — the binding is visible to the host scope and all descendants per AC-F-1 inheritance.                                                |
+| Override           | A nested `<cem:schema cem:name="X">` shadows an outer `<cem:schema cem:name="X">` within the nested scope. Outer remains active outside.          |
+| Uniqueness         | Names need **not** be globally unique. Intentionally differs from HTML `id` (which is required-unique) so nested-redefinition is a legal override. |
+| Reference syntax   | `cem:schema-select` (or `select` on `<cem:schema>`) value resolves a cem-ql query against the scope-chain-aware document; innermost match wins.   |
+| Identity for cache | An inline schema's content-addressed identity for AC-CC-1 hashing is `inline:<sha256-of-body>`; the `cem:name` is an alias, not the identity.     |
+
+Scope opening for all four forms routes through the existing parser scope machinery
+(AC-P-4, AC-P-5). The schema machine sees a new scope frame with the dispatched schema
+id; source-map frames span the boundary cleanly per AC-P-7. NVDL-style namespace
+dispatch (AC-P-6) remains the orthogonal mechanism for namespace-driven switching;
+when both fire on the same boundary, NVDL applies first and the explicit form layers
+on top within its scope.
+
 ---
 
 ## 14. Rust Module Map

@@ -70,9 +70,35 @@ are deferred.
 - **AC-F-1 [A] MUST** define scope policy as the shared mechanism for encoding defaults,
   error-level overrides, namespace bindings, content type, schema id, resource limits,
   diagnostic visibility, and parent override bounds.
-- **AC-F-2 [A] MUST** support schema loading from stable URI/file identities. Inline
-  schema declarations and mid-document schema switch syntax are **OPEN** until
-  Open Questions item 2 is resolved.
+- **AC-F-2 [A] MUST** support schema loading from stable URI/file identities **and**
+  inline schema declarations with mid-document schema switching. The full document-side
+  scoping contract — declaration/switching forms, source attributes (URI vs cem-ql),
+  and identifier resolution — is normative in `docs/cem-ml-stack-design.md §13.1`.
+  Summary of normative requirements:
+  - **Inline declaration.** `<cem:schema cem:name="...">…body…</cem:schema>` declares an
+    inline schema with a scope-chain-resolved name. Declaration does **not** switch the
+    parent scope's active schema; the body is available for reference from descendant
+    scopes.
+  - **Mid-document switch (element form).** `<cem:schema src="..."/>` (self-closing)
+    opens a sibling-position scope adopting the loaded schema for itself and subsequent
+    siblings to end of parent scope. `<cem:schema src="...">…</cem:schema>` (open form)
+    wraps its children in a scope and the parent scope is unaffected after the close
+    tag. The `select="..."` variant accepts a cem-ql expression in place of a URI.
+  - **Mid-document switch (attribute form).** `cem:schema-src="..."` or
+    `cem:schema-select="..."` on any element makes that element a scope; the loaded
+    schema applies inside only and does **not** propagate up to the parent scope.
+  - **Source attributes.** `src` / `cem:schema-src` carry a URI literal resolved via
+    AC-T-4 (gated by AC-A-6 for non-local). `select` / `cem:schema-select` carry a
+    cem-ql expression evaluated with scope-chain-aware semantics; innermost match wins.
+    The two are mutually exclusive on a single host; absence of both is a
+    schema-compilation error.
+  - **Identifier resolution.** `cem:name` bindings on inline `<cem:schema>` are
+    scope-chain visible per AC-F-1; nested redefinition shadows. Names are not required
+    globally unique. Content-addressed cache identity (AC-CC-1) for an inline schema is
+    `inline:<sha256-of-body>`; `cem:name` is an alias, not the cache identity.
+  - **Composition with NVDL.** Namespace-driven dispatch (AC-P-6, G-NVDL) remains the
+    orthogonal mechanism for namespace-driven switching. When both fire on the same
+    boundary, NVDL applies first and the explicit form layers within its scope.
 - **AC-F-3 [A] MUST** define tags, attributes, namespaces, open-content policy, CEM
   annotation names, state values, and transform hooks in the CEM-native schema.
 - **AC-F-4 [A] MUST** model namespace-owned content-type switches as parent-owned
@@ -88,6 +114,27 @@ are deferred.
 - **AC-F-7 [A] MUST** keep data streaming where possible. Public Rust and WASM
   entry points are asynchronous and accept finite source adapters or streams. Internal
   Tier A processing may use task-local state and token-local buffers.
+
+### Verification
+
+- **AC-F-V-1** — inline schema declaration with reference: a document declares
+  `<cem:schema cem:name="badge">…</cem:schema>` at one location and references it via
+  `cem:schema-select` from a descendant scope; validation succeeds, the descendant
+  scope's diagnostics route under the inline schema's identity per AC-P-4, and the
+  AC-CC-1 cache identity for the inline body is `inline:<sha256>`.
+- **AC-F-V-2** — `cem:name` scope-chain override: an outer `<cem:schema cem:name="X">`
+  and a nested `<cem:schema cem:name="X">` resolve correctly per scope — references in
+  the outer scope hit the outer definition, references in the nested scope hit the
+  nested definition; no diagnostic is emitted for duplicate-name.
+- **AC-F-V-3** — mid-document switch (self-closing and wrapping forms): a fixture uses
+  `<cem:schema src="..."/>` for sibling-position switching and `<cem:schema src="...">…</cem:schema>`
+  for wrapping; in both cases the parent scope's active schema is unchanged after the
+  switched-in scope ends, and AC-P-7 source-map frames span the boundary.
+- **AC-F-V-4** — attribute-form switch on arbitrary element: `cem:schema-src` and
+  `cem:schema-select` on a `<section>` make that element a scope; descendants validate
+  under the new schema, siblings of `<section>` remain under the parent's schema. NVDL
+  composition: when both an active NVDL dispatch and an explicit attribute apply, NVDL
+  resolves first and the explicit form layers within.
 
 ## 1. Parser
 
@@ -862,9 +909,6 @@ These must be answered before AC are testable:
 
 1. **AC-S-6** — TS emit strategy: structural vs branded. Affects ergonomics and
    validation cost.
-2. **AC-F-2** — inline schema declarations and mid-document schema
-   switch/loading syntax. Stable URI/file schema loading is required; inline syntax is
-   still undecided.
 ---
 
 ## 16. Tier Promotion Gates
