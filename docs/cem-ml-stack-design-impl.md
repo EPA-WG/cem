@@ -78,6 +78,7 @@ TransformKind:
   SchemaValidation(schema_id: SchemaId)
   CemAstBuilder
   HandoffBoundary { child_content_type: ContentType }
+  TemplateEmbedding { host_span: ByteRange, query_span: ByteRange }
   ReferenceInlined { ref_site: ByteRange }
   ExternalResource { ref_site: ByteRange }
   Implementation                    transform/render step
@@ -146,6 +147,7 @@ store:
 ```
 Diagnostic:
   uri: String                       document URI or file path
+  byte_offset: u64                  projection from the selected report frame
   line: u32                         1-based projection for the selected report frame
   column: u32                       1-based projection for the selected report frame
   source_map: SourceMapStack        required for pre-AST and AST-time diagnostics
@@ -162,10 +164,11 @@ detected the error. They bubble to the nearest error-boundary scope. `Fatal`,
 `Error`, and `Warning` handling is decided by that boundary scope's effective
 `ScopePolicy`. `source_map` is mandatory even before AST construction; tokenizer,
 normalizer, and schema diagnostics create an event-time stack whose current frame is the
-emitting layer. `line`, `column`, and any byte-offset projection are renderer outputs
-derived from a selected frame in that stack, and diagnostic phase is derived from the
-current frame's `TransformKind` rather than stored as a separate field. This gives
-consumers one location shape for all phases. `node` is only a convenience back-reference
+emitting layer. `byte_offset`, `line`, `column`, and any other scalar location
+projection are renderer outputs derived from a selected frame in that stack, and
+diagnostic phase is derived from the current frame's `TransformKind` rather than stored
+as a separate field. This gives consumers one location shape for all phases. `node` is
+only a convenience back-reference
 populated when an AST node already exists; consumers must not rely on it for location.
 
 ---
@@ -391,6 +394,7 @@ convenience generated from, or kept traceable to, that compiled CEM-native schem
 CompiledSchema:
   schema_id: SchemaId
   namespace_uri: NamespaceUri
+  version_identity: SchemaVersionIdentity
   source: CemNativeSchemaSource
   structural: StructuralSchemaIr
   semantic_rules: Vec<SemanticRule>
@@ -434,9 +438,29 @@ OpenContentDefaults:
 
 CemNativeSchemaSource:
   uri: String
-  version: String
+  version: String                    complete SemVer 2.0 descriptor.version
   source_id: SourceId
   source_map: SourceMapStack
+
+SchemaVersionIdentity:
+  uri: String                         stable schema identity / author constraint
+  embedded_version: SemVer            authoritative complete descriptor version
+  constraint: SchemaVersionConstraint
+  match_rule: SchemaVersionMatchRule
+  fingerprint_input: String           embedded_version including prerelease/build
+
+SchemaVersionConstraint:
+  Unconstrained
+  Major(u64)
+  MajorMinor(u64, u64)
+  Full(SemVer)
+
+SchemaVersionMatchRule:
+  Unconstrained
+  Major
+  MajorMinor
+  Full
+  PrereleaseExact
 
 StructuralSchemaIr:
   entry_state: SchemaState
@@ -614,6 +638,7 @@ diagnostic. The boundary scope applies its effective policy and becomes the diag
 SchemaFrame:
   scope_id: ScopeId
   schema_id: SchemaId
+  schema_version: SchemaVersionIdentity
   language_id: ContentType          e.g. text/html, text/css
   phase: FramePhase
   attr_state: AttributeState
@@ -659,6 +684,13 @@ ErrorSubtreeState:
   expected_close: Option<QName>
   taint_ast_nodes: bool
 ```
+
+Schema resolution populates `SchemaVersionIdentity` before a `SchemaFrame` starts
+validating. URI-tail constraints are matched against the embedded complete SemVer per
+`cem-ml-ac.md` AC-V-9..AC-V-13. The schema machine emits
+`cem.v.semver_resolved` into the report AST, then applies compatible-minor warning and
+major-mismatch abort rules through the same diagnostic bubbling path as structural
+validation.
 
 `AttributeState.active` stores the effective attribute set by `ExpandedName`, including
 lexical start-tag attributes and schema-declared header/prelude attribute forms.
@@ -1090,7 +1122,7 @@ TransformPlan:
 CemTemplateModule:
   module_id: TemplateModuleId
   templates: Vec<CemTemplate>
-  query_language: ScopedQueryLanguage
+  query_language: QueryLanguage
   source: SourceMapStack
 
 CemTemplate:
@@ -1102,12 +1134,12 @@ CemTemplate:
   source: SourceMapStack
 
 ScopedQuery:
-  expression: String               syntax TBD
+  expression: String               cem-ql source per docs/cem-ql-ac.md
   allowed_context: QueryContextScope
   source: SourceMapStack
 
-ScopedQueryLanguage:
-  CemScopedQuery                   XPath-like semantics, CEM scope and policy bounded
+QueryLanguage:
+  CemQl                            CEM scope and policy bounded query language
 
 QueryContextScope:
   current_node: AstNodeId
@@ -1152,10 +1184,13 @@ context-scope policy, but it does not rewrite the source-map origin or report tr
 Diagnostics emitted before or during stripping continue to point at the initial decoded
 stream and may reference stripped trivia ranges.
 
-Scoped queries are XPath-like in capability but are evaluated only against
-`QueryContextScope`: the current AST node, the active schema scope, allowed machine-state
-slots, and policy-visible resources. The exact CEM template syntax and scoped query
-syntax are TBD; the implementation contract is the scoped execution model.
+Scoped queries are `cem-ql` expressions evaluated only against `QueryContextScope`: the
+current AST node, the active schema scope, allowed machine-state slots, and
+policy-visible resources. CEM-ML template embedding uses AC-T-7's XSLT 3.0-style AVT /
+`select=` / `match=` / `test=` boundary. When the template compiler extracts a query
+substring from an attribute or text node, it appends
+`TransformKind::TemplateEmbedding` with both the host span and the query sub-span before
+handing plain UTF-8 source to the cem-ql parser.
 
 ### 3.11 Visual Content, Machine State, And Hydration Contracts
 
@@ -1302,11 +1337,40 @@ WasmApi:
   transform(input: ReadableStream<Uint8Array | string> | Uint8Array | string, target, config) -> Promise<TransformOutput>
 ```
 
+Observability is a parallel surface on the same calls, not a blocking alternative:
+
+```
+ParserConfig:
+  observers: Vec<EngineObserver>
+
+EngineObserver:
+  onParseEvent(event: ReportEvent)
+  onValidate(event: ReportEvent)
+  onTransform(event: ReportEvent)
+```
+
+Implementations MAY expose those observers as callbacks or async streams, but the
+payload categories and names are stable per AC-O-1. The canonical storage form remains
+the `ReportAst`; observers are projections emitted while the report tree is being built.
+
 Owned byte and string inputs are wrapped as already-ready async source adapters. File
 inputs are opened and read through async runtime adapters. Tier A decodes and tokenizes
 chunks as they arrive; tokenizer accumulation is token-local and released after token
 emission. Editor-style incremental reparse, chunk graph reuse, and resumable partial
 parses are deferred to Tier B.
+
+### 3.13 Gate Status
+
+Gate state is recorded here per `cem-ml-ac.md` AC-G-3. Current status is intentionally
+conservative because Tier A has not closed yet.
+
+| Gate   | Status  | Reason |
+|--------|---------|--------|
+| G-EXT  | blocked | Tier A async, diagnostic, policy, source-map, and untrusted-input prerequisites are not yet verified. |
+| G-PLUG | blocked | Depends on G-EXT plus worker-pool/queue and plugin architecture contracts. |
+| G-NVDL | blocked | Depends on G-EXT and G-PLUG plus schema-version/cache prerequisites. |
+| G-MUT  | blocked | Depends on G-PLUG plus async queue/cache/runtime mutation contracts. |
+| G-HYD  | blocked | Depends on G-MUT and G-EXT plus render-event trace and first-paint budget verification. |
 
 ---
 
@@ -1467,9 +1531,9 @@ implementation shapes remain open:
 | ID | AC reference | Implementation follow-up |
 |----|--------------|--------------------------|
 | IMPL-FOLLOW-001 | AC-S-2 through AC-S-6 | Add compiler output structs/modules for RELAX NG XML/compact mirrors, TypeScript `.d.ts`, Rust `.rs`, stable URI publication, and TS type strategy. |
-| IMPL-FOLLOW-002 | AC-V-2, AC-V-3 | Add semver parsing/comparison structs and schema compatibility severity mapping. |
-| IMPL-FOLLOW-003 | AC-P-3, AC-O-1 | Add event stream/callback types and mandatory `byteOffset` report projection. |
-| IMPL-FOLLOW-004 | AC-F-2 | Add inline schema and mid-document schema switch syntax once AC open question 2 is resolved. |
+| IMPL-FOLLOW-002 | AC-V-2, AC-V-3, AC-V-9..AC-V-13 | Schema-version structs are sketched in §3.4; add parser/comparison implementation and compatibility severity tests. |
+| IMPL-FOLLOW-003 | AC-P-3, AC-O-1 | Event observer and `byte_offset` shapes are sketched in §2.5 / §3.12; add concrete Rust/WASM APIs and report projections. |
+| IMPL-FOLLOW-004 | AC-F-2 | Add parser and schema-frame lowering for inline schema declarations and mid-document schema switch forms from AC-F-2 / design §13.1. |
 | IMPL-FOLLOW-005 | AC-I-1, AC-M-1 through AC-M-14 | Do not add a Tier A public DOM mutation module; design it as a Tier C runtime module later. |
 | IMPL-FOLLOW-006 | AC-PL-1 through AC-PL-20 | Add plugin module, descriptors, chain execution, source-map stitching, lifecycle, budgets, and sandbox types. |
 | IMPL-FOLLOW-007 | AC-A-4 through AC-A-7, AC-O-2 | Add scheduler, bounded queue, cancellation, external-resource queue, and deterministic trace types. |

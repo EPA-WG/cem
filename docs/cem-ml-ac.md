@@ -957,27 +957,29 @@ feature is considered shippable at its tier.
 
 ### 16.0 Gate framework
 
-- **AC-G-1 MUST** — every Tier B/C AC item that implements a feature
-  named in §16 MUST cite the relevant gate identifier (`G-EXT`,
-  `G-PLUG`, `G-NVDL`, `G-MUT`, `G-HYD`) in its body. Implementation
-  work MUST NOT begin against a gated AC item until its gate is
-  **open**. New Tier B/C ACs added later that fall inside a gate's
-  scope inherit the gate by virtue of citing it.
+- **AC-G-1 MUST** — every Tier B/C AC item, or the containing AC
+  subsection that owns a set of related AC items, that implements a
+  feature named in §16 MUST cite the relevant gate identifier
+  (`G-EXT`, `G-PLUG`, `G-NVDL`, `G-MUT`, `G-HYD`). Implementation work
+  MUST NOT begin against a gated AC item until its gate is **open**.
+  New Tier B/C ACs added later that fall inside a gate's scope inherit
+  the gate by virtue of citing it.
 
 - **AC-G-2 MUST** — a gate is **open** when *all* of the following
   hold:
-  1. every AC listed in its `Required closed prior-tier ACs` field
+  1. every AC listed in its `Prerequisite ACs` field
      passes its §13 verification script with **no recorded waiver**;
   2. every Open Question listed in its `Required resolved OQs`
      field has a committed answer in §15;
   3. every upstream gate listed in its `Depends on gates` field is
-     itself open;
-  4. its `Entry fixture` passes.
+     itself open.
 
-  A gate transitions from open to **closed** when its `Exit fixture`
-  passes; a closed gate is the formal "this Tier B/C feature is
-  shippable at its tier" signal. Closed gates remain closed unless
-  demoted per AC-G-4.
+  The gate's `Entry fixture` is the first implementation checkpoint
+  after opening; it proves the new gated surface has entered the
+  pipeline without claiming shippability. A gate transitions from open
+  to **closed** when its `Exit fixture` passes; a closed gate is the
+  formal "this Tier B/C feature is shippable at its tier" signal.
+  Closed gates remain closed unless demoted per AC-G-4.
 
 - **AC-G-3 MUST** — gate state (open / closed / demoted) is recorded
   in `cem-ml-stack-design-impl.md` once that document grows a "Gate
@@ -986,7 +988,7 @@ feature is considered shippable at its tier.
   state is the source of truth.
 
 - **AC-G-4 MUST** — a gate that fails its entry or exit fixture, or
-  whose `Required closed` ACs regress on a green-to-red verification
+  whose `Prerequisite ACs` regress on a green-to-red verification
   run, MUST be **demoted** to *closed-pending*: in-flight work on
   that gate's ACs pauses, the failing condition is filed as a
   release blocker, and downstream gates that depend on it are
@@ -1025,8 +1027,9 @@ feature is considered shippable at its tier.
 
 `G-EXT` is the foundational gate; nothing else opens until it does.
 `G-NVDL` and `G-MUT` are independent of each other and may open in
-either order once `G-PLUG` is open. `G-HYD` is the deepest gate and
-requires all others to have at least entered the open state.
+either order once `G-PLUG` is open. `G-HYD` is the deepest runtime gate:
+it requires G-MUT and G-EXT, but does not require G-NVDL unless a
+hydration fixture explicitly depends on namespace-dispatched schemas.
 
 ### 16.2 G-EXT — External-resource loading (Tier B)
 
@@ -1034,7 +1037,10 @@ Covers the AC-A-6 I/O queue, scope-policy grant model for fetches,
 content-type registry resolution at fetch time, and the cem-ql
 `read()` surface (cem-ql AC-QA-1 / AC-QA-1.1).
 
-- **Required closed prior-tier ACs**: AC-A-1, AC-A-2, AC-A-3, AC-A-8
+- **Gated ACs**: AC-A-6, the external-resource parts of AC-T-4 /
+  AC-CC-6 / AC-CC-7, and downstream cem-ql AC-QA-1..AC-QA-3 /
+  AC-QA-5 / AC-QI-2 network tier / AC-QI-4 / AC-QC-4.
+- **Prerequisite ACs**: AC-A-1, AC-A-2, AC-A-3, AC-A-8
   (async API foundation + diagnostic bubbling); AC-X-1, AC-X-3
   (untrusted-input handling); AC-O-3 (report routing); AC-F-1
   (scope policy surface); AC-P-3, AC-P-4, AC-P-7 (parser diagnostic
@@ -1061,16 +1067,15 @@ content-type registry resolution at fetch time, and the cem-ql
 
 ### 16.3 G-PLUG — Plugin runtime (Tier B)
 
-Covers §7 (AC-PL-1..AC-PL-19), the per-scope plugin chain, observe /
+Covers §7 (AC-PL-1..AC-PL-20), the per-scope plugin chain, observe /
 mutate mode separation, source-map stitching, and per-scope
 resource budgeting for plugin invocations.
 
-- **Required closed prior-tier ACs**: AC-PL-1..AC-PL-20 (plugin
-  surface, chain semantics, and AST-validator sandboxing); AC-A-4,
-  AC-A-5 (per-scope thread pool, queue overflow policy); AC-X-1,
-  AC-X-2 (untrusted input, scope isolation); AC-O-1, AC-O-3 (event
-  stream, report routing); AC-T-1 (transform contract that plugins
-  compose with).
+- **Gated ACs**: AC-PL-1..AC-PL-20.
+- **Prerequisite ACs**: AC-A-4, AC-A-5 (per-scope thread pool, queue
+  overflow policy); AC-X-1, AC-X-2 (untrusted input, scope isolation);
+  AC-O-1, AC-O-3 (event stream, report routing); AC-T-1 (transform
+  contract that plugins compose with).
 - **Required resolved OQs**: none remaining for this gate (AC-PL-20
   resolved in §7). Thread-pool default and per-scope cap inheritance
   are normative under AC-A-4.
@@ -1094,7 +1099,9 @@ Covers AC-P-6 (NVDL-style mid-document schema dispatch),
 namespace-driven schema switching, and per-scope schema identity
 under multi-content scopes.
 
-- **Required closed prior-tier ACs**: AC-P-4, AC-P-5 (context
+- **Gated ACs**: AC-P-6 and namespace-driven schema switching beyond
+  explicit AC-F-2 forms.
+- **Prerequisite ACs**: AC-P-4, AC-P-5 (context
   scopes and nesting); AC-V-1, AC-V-2, AC-V-3, AC-V-7, AC-V-8
   (validation contracts, semver behavior, open-content policy,
   recovery model); AC-V-9..AC-V-13 (§3.1 schema version identity —
@@ -1127,19 +1134,19 @@ Covers §5 (AC-M-1..AC-M-14), the async mutation surface over the
 sync DOM, queue ordering, batch coalescing, observer dispatch, and
 rollback discipline.
 
-- **Required closed prior-tier ACs**: AC-T-1, AC-T-3 (transform
-  contract — mutation is layered over transforms, not under them);
-  AC-P-7 (source-map stability under replay — mutations re-emit
-  source frames per AC-PL-13's stitching model); AC-A-1..AC-A-7
-  (async + abort + queue + I/O — every mutator is async and
-  cancellable); AC-O-3 (report routing for AC-M-10 rejection
-  errors); AC-CC-1, AC-CC-2, AC-CC-3 (binary cache hash and
-  serialization stable across pre- and post-mutation snapshots so
-  a mutated tree can re-hash deterministically); AC-I-6 (WHATWG
-  DOM compliance — mutation targets the schema-driven projection,
-  not a fork of it).
+- **Gated ACs**: AC-I-7 and AC-M-1..AC-M-14.
+- **Prerequisite ACs**: AC-T-1 (transform contract — mutation is
+  layered over transforms, not under them); AC-P-7 (source-map
+  stability under replay — mutations re-emit source frames per
+  AC-PL-13's stitching model); AC-A-1..AC-A-7 (async + abort + queue
+  + I/O — every mutator is async and cancellable); AC-O-3 (report
+  routing for AC-M-10 rejection errors); AC-CC-1, AC-CC-2, AC-CC-3
+  (binary cache hash and serialization stable across pre- and
+  post-mutation snapshots so a mutated tree can re-hash
+  deterministically); AC-I-6 (WHATWG DOM compliance — mutation
+  targets the schema-driven projection, not a fork of it).
 - **Required resolved OQs**: none remaining for this gate (AC-M-9
-  resolved to Transactional in §6).
+  resolved to Transactional in §5).
 - **Entry fixture**: AC-M-V-1 (round-trip test on a single
   `examples/semantic/` fixture) passes; the read-only invariant
   cem-ql AC-Q-2 holds — queries see the mutated state but cannot
@@ -1160,13 +1167,12 @@ Covers AC-I-4 (render-while-parsing), AC-I-5 (batch policy), and
 the integration of mutation queues with the rendering pipeline so
 visible state can change during parse.
 
-- **Required closed prior-tier ACs**: AC-I-4, AC-I-5 (render
-  before EOF, batch flush policy); AC-M-* (every mutator —
-  hydration writes through the mutation queue, not bypassing it);
-  AC-O-1 (event stream so hosts can drive UI off render events);
-  AC-O-2 (deterministic scheduling trace for postmortem); AC-N-1
-  (150 ms first-paint budget, which hydration MUST respect under
-  the `examples/semantic/` fixture set).
+- **Gated ACs**: AC-I-4, AC-I-5, and hydration-specific integration
+  with the mutation queue opened by G-MUT.
+- **Prerequisite ACs**: AC-O-1 (event stream so hosts can drive UI off
+  render events); AC-O-2 (deterministic scheduling trace for
+  postmortem); AC-N-1 (150 ms first-paint budget, which hydration MUST
+  respect under the `examples/semantic/` fixture set).
 - **Required resolved OQs**: none (render-batch policy is
   host-defined per AC-I-5 and inherited per AC-A-4).
 - **Entry fixture**: a single `examples/semantic/` fixture renders

@@ -64,7 +64,9 @@ Tier A profile without leaving open contracts.
   predicates, equality and comparison, lambdas, `.`-chained pipelines, the
   four set operators (`|`, `&`, `-`, `^`), variable binding, single-module
   function definition, schema-derived types as runtime guards, deterministic
-  ordering. No async, no imports, no external documents.
+  ordering. No async external loading, no policy-gated user/network
+  imports, and no external documents; platform `cem:` stdlib imports are
+  allowed because they resolve from the host crate without I/O.
 - **Tier B — Multi-document, multi-content-type, async streaming.** Adds
   `read(uri, content-type)` against the cem-ml content-type transform set,
   external module imports gated by scope policy, async iteration, cancel via
@@ -129,6 +131,8 @@ Each AC below is tagged `[A]`, `[B]`, or `[C]`.
     `cem-ml-stack-design-impl.md §3.11`;
   - `resource` — opaque handle for unresolved external resources permitted
     by scope policy.
+  Tier B extends the item set with `template-ref` when AC-QD-7 / host
+  AC-R-2 make template-registry entries query-addressable.
 - **AC-QL-3 [A] MUST** treat strings, arrays of chars, arrays of numbers,
   and arrays of records as collections that compose with the same operators
   as node streams. A string is iterable as a stream of codepoints; an array
@@ -297,7 +301,7 @@ Each AC below is tagged `[A]`, `[B]`, or `[C]`.
 | Name tests, kind tests                                | A           | `*`, `prefix:*`, `*:local`, `Component`, `text()`, `comment()`         |
 | Predicates                                            | A           | One predicate per step in A; positional `[1]` / `[last()]` in A        |
 | Sequence operators `, \| except`                      | A           | Spelled `,`, `\|`, `-` (see AC-QO-1)                                   |
-| Arithmetic                                            | A           | Integer, decimal, double; promotion rules per XPath                    |
+| Arithmetic                                            | A           | Integer, decimal, double; explicit conversion only; no implicit numeric promotion per AC-QO-8 |
 | Comparisons                                           | A           | Value `eq ne lt gt`, general `= !=`                                    |
 | `if/then/else`, `let`                                 | A           | Per AC-QS-4                                                            |
 | `for…return`                                          | A           |                                                                        |
@@ -465,9 +469,10 @@ is created; this matrix exists to make the parity contract testable.
   (`declare function ns:name(args) { body }`). Functions are first-class
   and can be passed to higher-order operators.
 - **AC-QV-3 [A] MUST** resolve variable, function, namespace, schema-type,
-  and template-reference names using the **host's scope hierarchy as
-  the outer lookup, with stdlib bindings interleaved per scope**, then
-  the query module scope, then the local lexical scope. Each cem-ml
+  and template-reference names in nearest-binding order: local lexical
+  scope, then query module scope, then the **host's scope hierarchy with
+  stdlib bindings interleaved per scope**, then platform stdlib defaults.
+  Each cem-ml
   `SchemaFrame`/`ScopeId` exposes a single ordered binding set:
   - the variables and functions declared by query modules attached at
     that scope;
@@ -638,7 +643,7 @@ is created; this matrix exists to make the parity contract testable.
 
 - **AC-QA-1 [B] MUST** expose `read(uri, accepts?)` as the only built-in
   way to load an external structured document. The signature is a
-  content-negotiation surface, not a content-type assertion: the caller
+  content-negotiation surface, not a content-type assertion. **Gate:** G-EXT. The caller
   declares which shapes it is prepared to consume; the resource and the
   host transform graph decide which one is produced. The function MUST:
 
@@ -734,14 +739,16 @@ AC-QI-3) MUST expose the canonical identifiers above as exported
 string constants (e.g. `ct:html`, `ct:json`, `ct:cemml`) and the
 default preference list as `ct:floor`, so authors can write
 `read($u, [ct:json, ct:yaml])` without re-typing string literals.
+
 - **AC-QA-2 [B] MUST** support **awaitable** semantics: pipeline operators
   consuming a `read()` stream automatically await partial results without
-  surfacing an explicit `await` keyword. Authors MAY write `await expr` for
-  clarity; it parses but is a no-op when `expr` is already a stream.
+  surfacing an explicit `await` keyword. **Gate:** G-EXT. Authors MAY write
+  `await expr` for clarity; it parses but is a no-op when `expr` is already
+  a stream.
 - **AC-QA-3 [B] MUST** propagate `AbortSignal` per `cem-ml-ac.md` AC-A-7.
   An aborted query MUST stop fetching, stop iterating, and emit
-  `cem.ql.aborted` with the active scope context. Pending stream items are
-  released.
+  `cem.ql.aborted` with the active scope context. **Gate:** G-EXT. Pending
+  stream items are released.
 - **AC-QA-4 [A] MUST** make Tier A queries usable without `read()`. Tier A
   evaluators MUST NOT require an external loader to be configured.
 - **AC-QA-5 [B] SHOULD** support **content-typed write helpers** that build
@@ -749,7 +756,7 @@ default preference list as `ct:floor`, so authors can write
   `parse_xml(string)`, `parse_json(string)`, `parse_csv(string)`,
   `parse_yaml(string)`. They share the host's content-type transform
   pipeline and are off when the host has not enabled the relevant content
-  type.
+  type. **Gate:** G-EXT.
 
 ---
 
@@ -766,7 +773,7 @@ default preference list as `ct:floor`, so authors can write
   |---------------|-----------------------------------------------------------|------------------------------------------------------------------|
   | `cem:`        | platform implementation, baked into the host crate        | none — always available, scope policy cannot deny                |
   | `urn:cem:`    | dynamically registered via plugins or a config-time registry map | host trust setup (plugin install / config) — per-scope policy cannot deny what was registered, but unregistered URIs fail with `cem.ql.import_unresolved` |
-  | `https:` (and other network schemes: `http:`, `file:`, plugin-registered transports) | online or local resource carrying its own schema, content-type metadata, and module body | **scope policy** per AC-QI-4 — off by default, granted by scheme/host/path prefix |
+  | `https:` (and other network schemes: `http:`, `file:`, plugin-registered transports) | online or local resource carrying its own schema, content-type metadata, and module body | **scope policy** per AC-QI-4 / host G-EXT — off by default, granted by scheme/host/path prefix |
 
   Both `cem:` and `urn:cem:` are **reserved**: scope-policy grants whose
   source matches either scheme are rejected at policy load with
@@ -780,8 +787,11 @@ default preference list as `ct:floor`, so authors can write
   scheme `cem:stdlib/<topic>` per AC-QI-2 and resolve from the host
   crate without any policy grant. The shorter scheme reflects that
   these modules ship **with the platform** — they are not loaded
-  dynamically and they are not fetched. Initial Tier A stdlib topics:
-  - `cem:stdlib/sequence` — set/stream helpers from AC-QO-6;
+  dynamically and they are not fetched. Initial stdlib topics and tier
+  floors:
+  - `cem:stdlib/sequence` — Tier A exposes the step helpers required by
+    AC-QP-2 plus function aliases for the four AC-QO-1 set operators; the
+    full helper family listed in AC-QO-6 is Tier B;
   - `cem:stdlib/strings` — string manipulation, codepoint iteration,
     regex (Tier B for regex);
   - `cem:stdlib/numbers` — math, formatting, bigint helpers;
@@ -803,7 +813,7 @@ default preference list as `ct:floor`, so authors can write
   under the network-scheme tier of AC-QI-2 (`https:`, `http:`, `file:`,
   plugin-registered transports). Grants are per scope, listed by
   scheme/host/path prefix, and follow the host's external-resource
-  policy; nothing new is invented here. Modules under `urn:cem:` are
+  policy; nothing new is invented here. **Gate:** G-EXT. Modules under `urn:cem:` are
   **not** subject to this gate — their availability is determined by
   host trust setup (plugin registration or config-time registry
   mapping) per AC-QI-2, not by per-scope grants.
@@ -844,7 +854,7 @@ default preference list as `ct:floor`, so authors can write
   - `cem.ql.budget_exceeded`
   - `cem.ql.closure_detached`
   - `cem.ql.policy_accessor_failed`
-- **AC-QE-2 [A] MUST** support an XPath/XQuery-style `try { … } catch (code,
+- **AC-QE-2 [B] MUST** support an XPath/XQuery-style `try { … } catch (code,
   msg) { … }` (Tier B for the surface keyword; Tier A reports through the
   diagnostic channel only).
 - **AC-QE-3 [A] MUST** make every diagnostic include the query
@@ -1058,9 +1068,9 @@ governs both.
 - **AC-QC-4 [B] MUST** participate in the **transport protocol** per
   AC-CC-6 / AC-CC-7. Servers that ship cem-ql modules — stdlib URIs,
   policy-granted user modules per AC-QI-4, plugin-supplied query modules —
-  MUST emit `CEM-Hash`. Engines holding a cached compiled artifact MAY send
-  `If-CEM-Hash`; a confirmation-only `304` is sufficient to satisfy the
-  module load. This is the **resolution** of the previously-open
+  MUST emit `CEM-Hash`. **Gate:** G-EXT. Engines holding a cached compiled
+  artifact MAY send `If-CEM-Hash`; a confirmation-only `304` is sufficient
+  to satisfy the module load. This is the **resolution** of the previously-open
   "compiled query artifact" question: queries compile to a portable binary,
   share the host's cache/transport, and Tier C may add chunked or
   cross-artifact deduplication per AC-CC-9 / AC-CC-10.

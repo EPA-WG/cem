@@ -9,11 +9,17 @@ This index links the active project, release, and token workflow documents.
 - [CEM ML library plan](./cem-ml-library-plan.md) — Rust parser/runtime ownership and initial XML/HTML/XSLT
   responsibilities.
 - [CEM ML acceptance criteria](./cem-ml-ac.md) — testable AC for the parser, schema, mutations, and plugin runtime.
+- [CEM QL acceptance criteria](./cem-ql-ac.md) — testable AC for the CEM-ML query language consumed by templates and
+  validation.
+- [CEM ML / CEM QL AC design revalidation](./cem-ac-design-revalidation.md) — current AC-to-design match,
+  corrections, and remaining non-matches.
 - [CEM ML CLI feature summary](./cem-ml-cli-contract.md) — planned CLI capabilities, options, reports, diagnostics,
   fixture workflows, and exit codes.
 - [CEM ML CLI plan](./cem-ml-cli-plan.md) — Rust `cem-ml` CLI implementation plan with `cem-ml` library separation.
 - [CEM ML parser/schema ADR](./cem-ml-parser-schema-adr.md) — Phase 1 parser engine, schema mirror, source-location,
   security, and WASM decisions.
+- [CEM ML syntax draft](./cem-ml-syntax.md) — proposed `{name @attributes | content...}` syntax and XML convention
+  comparison examples.
 - [CEM component MVP](./component-mvp.md) — first component list and state matrix.
 - [CEM UI Kit plan](./figma-ui-kit-plan.md) — Figma page, token, component, and QA mapping.
 - [Token pipeline smoke](./token-pipeline-smoke.md) — full propagation check for a one-token source change.

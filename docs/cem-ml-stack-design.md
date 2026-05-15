@@ -679,12 +679,28 @@ The parser can therefore support scoped default namespaces for CEM tags, HTML-co
 unqualified output, and future XSLT/template-driven transformations without changing the
 AST identity model.
 
-The namespace defined as the attribute in node does not leave the ability to define multile namespacs under
-same name due to unique attribute name. While it would be possible to define a namespace
-attribute that lists multiple schemas, the ability to define the namespace via tag TBD.
+Attribute-form namespace declarations remain one binding event per attribute because
+source syntax requires unique attribute names. Schema switching by element is not an
+open namespace-declaration question: it is the explicit AC-F-2 `<cem:schema ...>` family
+described in §13.1. Any future compact syntax that lists multiple schema bindings in one
+attribute must lower to the same ordered `NamespaceBinding` events before validation.
 
 Namespace-resolution implementation contracts are in
 [`cem-ml-stack-design-impl.md`](cem-ml-stack-design-impl.md#341-namespace-context-contracts).
+
+### Schema Version Compatibility
+
+Schema version identity is now AC-bound rather than design-open. The normative rules
+live in [`cem-ml-ac.md`](cem-ml-ac.md#31-schema-version-identity): schema identity is
+`{ uri, embedded SemVer }`, URI tails are constraints, the embedded complete SemVer is
+authoritative, compatible minor/patch skew warns for unknown content, major mismatch
+aborts the scope, and prerelease/build metadata follow the AC-V-10..AC-V-12 rules.
+
+The design consequence for Layer 4 is simple: schema resolution produces both a
+`SchemaId` and a resolved version record before validation starts, and the schema
+machine records the `cem.v.semver_resolved` report event before any compatibility
+diagnostic that depends on that resolution. Cache and policy stamps consume the embedded
+full version, not the URI shorthand.
 
 ### Diagnostics And Reports
 
@@ -709,6 +725,11 @@ positions, and snippets from the input frame, even if a later transform removes 
 nodes. Transform-facing reports may instead project a generated or intermediate frame.
 Diagnostics may refer to comments, whitespace, or processing instructions that no longer
 survive in a transformed output.
+
+The public diagnostic projection includes `byteOffset` alongside `uri`, `line`, and
+`column`. `byteOffset` is derived from the selected report frame's `ByteRange.start`;
+the underlying diagnostic location remains the full `SourceMapStack`, not the scalar
+projection.
 
 Diagnostic and report data shapes are in
 [`cem-ml-stack-design-impl.md`](cem-ml-stack-design-impl.md#25-diagnostics) and
@@ -1157,10 +1178,12 @@ contract.
 
 The primary differences from XSLT are context scope and selector language. CEM template
 queries are evaluated against the current transform scope, schema-owned AST view,
-machine-state slots, and policy-visible resources only. The selector/query language must
-provide XPath-like expressive power for the supported CEM AST and data model, but access
-outside the allowed context is rejected by construction. The exact CEM template syntax
-and scoped query syntax remain TBD.
+machine-state slots, and policy-visible resources only. The selector/query language is
+`cem-ql` as specified in [`cem-ql-ac.md`](cem-ql-ac.md); host-side template embedding is
+the XSLT 3.0-style AVT / `select=` / `match=` / `test=` contract in
+[`cem-ml-ac.md` AC-T-7](cem-ml-ac.md#6-transformations). Concrete renderer grammar and
+evaluator IR details belong in the future `cem-ql-stack-design.md`, but the delimiter
+and expression-language decision is no longer TBD.
 
 Transform interface shapes are in
 [`cem-ml-stack-design-impl.md`](cem-ml-stack-design-impl.md#310-layer-9-implementationinterpreter-cem_mlinterpreter).
@@ -1343,7 +1366,7 @@ Status key:
 | L8 ChunkCompressor                                          | Deferred Tier B — compression profiles are research-backed; canonical chunk identity, ordering, and dependency slots are scoped in §11                                                  |
 | ContentTypeTransformPipeline: WHATWG HTML DOM               | Design ready — schema-driven initial HTML parser DOM is transformed into WHATWG implementation DOM updates                                                                              |
 | L9 ImplementationInterpreter: schema-driven transform rules | Design ready — schema owns transform layers; namespace-qualified CEM identity resolves source collisions; canonical serialization and HTML `data-*` ownership are defined in §8 and §12 |
-| L9 ImplementationInterpreter: transform execution backend   | Design partial — Rust CEM template renderer is selected; exact CEM template syntax and scoped query syntax remain TBD (§12)                                                             |
+| L9 ImplementationInterpreter: transform execution backend   | Design ready for Tier A — Rust CEM template renderer is selected; AC-T-7 owns template embedding and `cem-ql-ac.md` owns expression semantics. Future cem-ql stack design still needs evaluator IR (§12) |
 | Visual content and machine state data                       | Design partial — uniform AST role model is defined; live hydration, browser adapters, and DOM patch identity are subject to a separate design phase TBD (§12)                           |
 | LineIndex: byte-offset → line/col projection                | Design ready — line/column are report projections over a selected source-map frame; Tier A provides byte-column projection, while scalar, UTF-16, and display columns are Tier B tooling |
 | Diagnostics and reports                                     | Design ready — diagnostics always carry event-time source-map stacks, active scope context, origin/boundary scopes, and optional AST-node back-references (§8)                           |
@@ -1454,10 +1477,10 @@ remain open:
 | ID | AC reference | Design follow-up |
 |----|--------------|------------------|
 | DESIGN-FOLLOW-001 | AC-S-2 through AC-S-6 | Add release artifact details for RELAX NG XML/compact mirrors, TypeScript `.d.ts`, Rust `.rs`, stable schema URIs, and TS type strategy. |
-| DESIGN-FOLLOW-002 | AC-V-2, AC-V-3 | Add schema URI/version parsing and semver compatibility rules, including prerelease/build metadata handling. |
-| DESIGN-FOLLOW-003 | AC-P-3, AC-O-1 | Define the public event stream API and required `byteOffset` diagnostic/report projection. |
+| DESIGN-FOLLOW-002 | AC-V-2, AC-V-3 | AC rules are resolved in `cem-ml-ac.md` §3.1 and summarized in this design; implementation structs and tests still need to be added. |
+| DESIGN-FOLLOW-003 | AC-P-3, AC-O-1 | `byteOffset` and observer names are now sketched in design/impl; add concrete payload schemas, Rust/WASM API details, and tests. |
 | DESIGN-FOLLOW-004 | AC-V-6, AC-X-3 | Add concrete schema-owned semantic checks for accessibility, ARIA, invalid state combinations, and unsafe inline content. |
-| DESIGN-FOLLOW-005 | AC-F-2 | Resolve or document inline schema declaration and mid-document schema switch syntax. |
+| DESIGN-FOLLOW-005 | AC-F-2 | Resolved in §13.1; keep implementation follow-up for concrete parser/schema-frame lowering. |
 | DESIGN-FOLLOW-006 | AC-I-1 | Design the later runtime `apply(transform)` API shape, or keep it explicitly open until the runtime phase. |
 | DESIGN-FOLLOW-007 | AC-M-1 through AC-M-14 | Keep DOM mutation as Tier C and add a separate runtime design before implementation. |
 | DESIGN-FOLLOW-008 | AC-PL-1 through AC-PL-20 | Add a plugin architecture section covering descriptor, chain, lifecycle, source-map stitching, budgets, and sandboxing. |
@@ -1466,7 +1489,7 @@ remain open:
 | DESIGN-FOLLOW-011 | AC-N-1 through AC-N-3 | Add performance budgets, memory-limit verification, and benchmark ownership. |
 | DESIGN-FOLLOW-012 | AC-C-1 through AC-C-3 | Add browser/Node/Rust/WASM compatibility and packaging gates. |
 | DESIGN-FOLLOW-013 | AC-P-6 | Add deferred NVDL-style dispatch design for Tier C. |
-| DESIGN-FOLLOW-014 | AC-T-3 and AC open question 9 | Resolve CEM template/query syntax and the boundary for XSLT/XPath-equivalent coverage. |
+| DESIGN-FOLLOW-014 | AC-T-3, AC-T-7, cem-ql AC | Resolved at AC level: AC-T-7 owns host embedding and `cem-ql-ac.md` owns expression semantics. Remaining design work is the future cem-ql grammar/evaluator IR companion, not an open CEM-ML syntax question. |
 
 *End of design document. Each ambiguity and review concern above should be resolved with
 a brief decision record before the corresponding implementation phase starts. Resolved
