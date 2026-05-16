@@ -20,6 +20,7 @@ The current base shape is:
 The equivalent XML convention is:
 
 ```xml
+
 <name attributes="...">content...</name>
 ```
 
@@ -35,18 +36,96 @@ Core goals:
 
 ## Visual Planes
 
-| Plane | CEM-ML proposal | XML convention | Meaning |
-| --- | --- | --- | --- |
-| Node start | `{screen` | `<cem:screen` | Opens a structured node. |
-| Node end | `}` | `</cem:screen>` | Closes the node. |
-| Attribute | `@state=pending` | `state="pending"` | Metadata on the current node. |
-| Namespaced node | `{html:aside ...}` | `<html:aside ...>` | Node owned by a namespace. |
-| Namespaced attribute | `@html:class="summary"` | `html:class="summary"` | Attribute owned by a namespace. |
-| Content boundary | `|` | `>` after the start tag | Switches from node header to content. |
-| Text content | `|Secure checkout` | `Secure checkout` | Character content. |
-| Raw content | `` ```...``` `` | `<![CDATA[...]]>` or raw-text element rules | Content with reduced escaping. |
-| Typed scope | `{@type="text/html" | ...}` | `<cem:scope type="text/html">...</cem:scope>` | Parser/schema content-type scope without a semantic node. |
-| Directive | `@ns`, `@default`, `@schema` | `xmlns`, `xsi:schemaLocation`, processing instructions | Parser/schema control. |
+| Plane                | CEM-ML proposal              | XML convention                                         | Meaning                                                   |
+|----------------------|------------------------------|--------------------------------------------------------|-----------------------------------------------------------|
+| Node start           | `{screen`                    | `<cem:screen`                                          | Opens a structured node.                                  |
+| Node end             | `}`                          | `</cem:screen>`                                        | Closes the node.                                          |
+| Attribute            | `@state=pending`             | `state="pending"`                                      | Metadata on the current node.                             |
+| Namespaced node      | `{html:aside ...}`           | `<html:aside ...>`                                     | Node owned by a namespace.                                |
+| Namespaced attribute | `@html:class="summary"`      | `html:class="summary"`                                 | Attribute owned by a namespace.                           |
+| Content boundary     | `\|`                         | `>` after the start tag                                | Switches from node header to content.                     |
+| Text content         | `\| Secure checkout`         | `Secure checkout`                                      | Character content.                                        |
+| Raw content          | `` ```...``` ``              | `<![CDATA[...]]>` or raw-text element rules            | Content with reduced escaping.                            |
+| Typed scope          | `{@type="text/html" \| ...}` | `<cem:scope type="text/html">...</cem:scope>`          | Parser/schema content-type scope without a semantic node. |
+| Directive            | `@ns`, `@default`, `@schema` | `xmlns`, `xsi:schemaLocation`, processing instructions | Parser/schema control.                                    |
+
+## ASCII And Unicode Profiles
+
+CEM-ML may allow ASCII and Unicode surface symbols as equivalent lexical
+choices. This is similar to allowing both single-quoted and double-quoted string
+values: authors can choose the delimiter that causes the least escaping for the
+local content. Canonical output should still pick one profile for stable diffs.
+
+The Unicode profile uses white braces `⦃⦄` as the structural delimiters.
+The heavier `【...】` pair is alternative syntax for rich content allowing to skip encoding the backticks and
+double brackets.
+
+The comment profile uses `※` for line comments and `⸨...⸩` for ordinary ignored block comments.
+The starred parenthesis `﴾...﴿` pair is alternative syntax for block comments allowing to skip encoding other comment
+characters.
+
+| Role                                | ASCII           | Unicode               | Example                                                  |
+|-------------------------------------|-----------------|-----------------------|----------------------------------------------------------|
+| Markup beginning / node-scope begin | `{`             | `⦃` U+2983            | `{badge ...}` / `⦃badge ...⦄`                            |
+| Markup end / node-scope end         | `}`             | `⦄` U+2984            | `{badge}` / `⦃badge⦄`                                    |
+| Attribute marker                    | `@`             | `@`                   | `@tone=info`                                             |
+| Content/context marker              | `\|`            | `▷` U+25B7            | `{badge \| text}` / `⦃badge ▷ text⦄`                     |
+| Namespace separator                 | `:`             | `:`                   | `html:aside`                                             |
+| Assignment                          | `=`             | `=`                   | `@type="text/html"`                                      |
+| Double-quoted string                | `"..."`         | `"..."`               | `@label="Secure checkout"`                               |
+| Single-quoted string                | `'...'`         | `'...'`               | `@label='Secure checkout'`                               |
+| Rich content enclosure 1,2          | `` ```...``` `` | `⟦...⟧` U+27E6/U+27E7 | `` ```<code>`x`</code>``` ``  / `⟦<code>```x```</code>⟧` |
+| Rich content enclosure 3            |                 | `【...】` U+3014/U+3015 | `【 ⟦<code>```x```</code>⟧ 】`                             |
+| Block comment 1,2                   | `/* ... */`     | `⸨...⸩` U+2E28/U+2E29 | `⸨ ignored block ⸩`                                      |
+| Block comment 3                     |                 | `﴾...﴿` U+FD3E/U+FD3F | `﴾ ⸨ignored⸩ block ﴿`                                    |
+| Line comment                        | `// ...`        | `※ ...` U+203B        | `※ ignored to line end`                                  |
+
+ASCII and Unicode forms are semantically equivalent:
+
+```cem
+{badge @tone="info" | Secure checkout}
+```
+
+```cem
+⦃badge @tone='info' ▷ Secure checkout⦄
+```
+
+Rich/native content may choose any listed enclosure:
+
+````cem
+{@type="text/html" |
+  ```
+  <code>Use `cem parse` here.</code>
+  ```
+}
+````
+
+```cem
+⦃@type='text/html' ▷
+  ⟦
+  <code>Use ``` fences here without escaping.</code>
+  ⟧
+⦄
+```
+
+```cem
+⦃@type='text/html' ▷
+  【
+  <code>Use ⟦ rich content brackets ⟧ here without escaping.</code>
+  】
+⦄
+```
+
+Profile rules:
+
+- ASCII and Unicode delimiter forms may be mixed only where the delimiters are
+  locally balanced. For example, a node opened with `⦃` must close with `⦄`.
+- String quote style is local: `"..."` and `'...'` have the same semantic value
+  after unescaping.
+- Rich/raw enclosure style is local: triple backticks, `⟦...⟧`, and `【...】`
+  have the same semantic role after unescaping.
+- Canonical CEM-ML should select one output profile, likely ASCII, unless a
+  Unicode profile is explicitly requested.
 
 ## Core Rules
 
@@ -63,6 +142,7 @@ CEM-ML:
 XML convention:
 
 ```xml
+
 <cem:badge tone="info">Secure checkout</cem:badge>
 ```
 
@@ -80,11 +160,14 @@ CEM-ML:
 XML convention:
 
 ```xml
+
 <cem:field name="email" required="required" maxLength="120"/>
 ```
 
 Attribute values may be unquoted when they are simple identifiers or numbers.
-Canonical serialization may quote all string values.
+Quoted string values may use either `"..."` or `'...'` as equivalent local
+delimiter choices. Canonical serialization may quote all string values with one
+chosen quote style.
 
 ### Content Runs
 
@@ -103,9 +186,10 @@ CEM-ML:
 XML convention:
 
 ```xml
+
 <cem:action id="pay" intent="primary">
-  <cem:icon name="lock"/>
-  Pay now
+    <cem:icon name="lock"/>
+    Pay now
 </cem:action>
 ```
 
@@ -141,13 +225,15 @@ CEM-ML:
 XML convention:
 
 ```xml
+
 <cem:scope type="text/html">
-  <label>
-    <svg viewBox="0 0 16 16" aria-hidden="true">
-      <path d="M2 8h12"/>
-    </svg>
-    name: <input name="name"/>
-  </label>
+    <label>
+        <svg viewBox="0 0 16 16" aria-hidden="true">
+            <path d="M2 8h12"/>
+        </svg>
+        name:
+        <input name="name"/>
+    </label>
 </cem:scope>
 ```
 
@@ -182,7 +268,7 @@ CEM-ML:
 XML convention:
 
 ```xml
-<cem:scope type="text/html"><![CDATA[
+<cem:scope type="text/html">
   <label>
     <script type="module">
       const input = document.querySelector("input[name='name']");
@@ -191,7 +277,7 @@ XML convention:
       });
     </script>
   </label>
-]]></cem:scope>
+</cem:scope>
 ```
 
 The nested scope model is:
@@ -226,6 +312,7 @@ CEM-ML:
 XML convention:
 
 ```xml
+
 <cem:style type="text/css"><![CDATA[
   label {
     display: inline-flex;
@@ -247,6 +334,7 @@ CEM-ML:
 XML convention:
 
 ```xml
+
 <cem:script type="module"><![CDATA[
   const input = document.querySelector("input[name='name']");
 ]]></cem:script>
@@ -277,13 +365,14 @@ CEM-ML:
 XML convention:
 
 ```xml
+
 <cem:screen
-  xmlns:cem="https://cem.dev/ns/core/1"
-  xmlns:html="http://www.w3.org/1999/xhtml"
-  id="checkout">
-  <html:aside class="summary">
-    <cem:badge tone="info">Secure checkout</cem:badge>
-  </html:aside>
+        xmlns:cem="https://cem.dev/ns/core/1"
+        xmlns:html="http://www.w3.org/1999/xhtml"
+        id="checkout">
+    <html:aside class="summary">
+        <cem:badge tone="info">Secure checkout</cem:badge>
+    </html:aside>
 </cem:screen>
 ```
 
@@ -314,11 +403,12 @@ CEM-ML:
 XML convention:
 
 ```xml
+
 <cem:screen
-  xmlns:cem="https://cem.dev/ns/core/1"
-  cem:schema-src="./schemas/checkout.cem-schema"
-  id="checkout">
-  <cem:form id="payment" state="pending"/>
+        xmlns:cem="https://cem.dev/ns/core/1"
+        cem:schema-src="./schemas/checkout.cem-schema"
+        id="checkout">
+    <cem:form id="payment" state="pending"/>
 </cem:screen>
 ```
 
@@ -333,8 +423,9 @@ CEM-ML:
 XML convention:
 
 ```xml
+
 <cem:section cem:schema-src="./schemas/admin.cem-schema">
-  <cem:action intent="danger">Delete account</cem:action>
+    <cem:action intent="danger">Delete account</cem:action>
 </cem:section>
 ```
 
@@ -394,40 +485,43 @@ XML convention:
 ```xml
 <?xml version="1.0"?>
 <cem:screen
-  xmlns:cem="https://cem.dev/ns/core/1"
-  xmlns:html="http://www.w3.org/1999/xhtml"
-  cem:schema-src="./schemas/checkout.cem-schema"
-  id="checkout">
-  <cem:style type="text/css"><![CDATA[
+        xmlns:cem="https://cem.dev/ns/core/1"
+        xmlns:html="http://www.w3.org/1999/xhtml"
+        cem:schema-src="./schemas/checkout.cem-schema"
+        id="checkout">
+    <cem:style type="text/css"><![CDATA[
     .checkout-card {
       display: grid;
       gap: 1rem;
     }
   ]]></cem:style>
 
-  <cem:scope type="text/html"><![CDATA[
-    <section class="checkout-card">
-      <h1>Checkout</h1>
-      <label>
-        <svg viewBox="0 0 16 16" aria-hidden="true">
-          <path d="M2 8h12"/>
-        </svg>
-        name: <input name="name"/>
-      </label>
-    </section>
-  ]]></cem:scope>
+    <cem:scope type="text/html">
+        <section class="checkout-card">
+          <h1>Checkout</h1>
+          <label>
+            <svg viewBox="0 0 16 16" aria-hidden="true">
+              <path d="M2 8h12"/>
+            </svg>
+            name: <input name="name"/>
+          </label>
+        </section>
+    </cem:scope>
 
-  <cem:form id="payment" state="pending">
-    <cem:action id="pay" intent="primary">
-      Pay now
-    </cem:action>
-  </cem:form>
+    <cem:form id="payment" state="pending">
+        <cem:action id="pay" intent="primary">
+            Pay now
+        </cem:action>
+    </cem:form>
 </cem:screen>
 ```
 
 ## Draft Grammar Sketch
 
 This sketch is intentionally incomplete. It captures the current shape only.
+The grammar names token kinds using ASCII spellings for readability; the
+tokenizer recognizes ASCII and Unicode spellings as the same lexical token kinds
+before grammar parsing.
 
 ```text
 document        := directive* item*
