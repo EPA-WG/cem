@@ -47,6 +47,7 @@ Core goals:
 | Text content         | `\| Secure checkout`         | `Secure checkout`                                      | Character content.                                        |
 | Raw content          | `` ```...``` ``              | `<![CDATA[...]]>` or raw-text element rules            | Content with reduced escaping.                            |
 | Typed scope          | `{@type="text/html" \| ...}` | `<cem:scope type="text/html">...</cem:scope>`          | Parser/schema content-type scope without a semantic node. |
+| Expression scope     | `{$ \| ...}`                 | `<cem:expr>...</cem:expr>`                             | Reserved cem-ql expression node.                          |
 | Directive            | `@ns`, `@default`, `@schema` | `xmlns`, `xsi:schemaLocation`, processing instructions | Parser/schema control.                                    |
 
 ## ASCII And Unicode Profiles
@@ -69,6 +70,7 @@ characters.
 | Markup beginning / node-scope begin | `{`             | `⦃` U+2983            | `{badge ...}` / `⦃badge ...⦄`                            |
 | Markup end / node-scope end         | `}`             | `⦄` U+2984            | `{badge}` / `⦃badge⦄`                                    |
 | Attribute marker                    | `@`             | `@`                   | `@tone=info`                                             |
+| Reserved expression node            | `$`             | `$`                   | `{$ \| .items}` / `⦃$ ▷ .items⦄`                         |
 | Content/context marker              | `\|`            | `▷` U+25B7            | `{badge \| text}` / `⦃badge ▷ text⦄`                     |
 | Namespace separator                 | `:`             | `:`                   | `html:aside`                                             |
 | Assignment                          | `=`             | `=`                   | `@type="text/html"`                                      |
@@ -169,15 +171,47 @@ Quoted string values may use either `"..."` or `'...'` as equivalent local
 delimiter choices. Canonical serialization may quote all string values with one
 chosen quote style.
 
+Attribute values may also contain cem-ql expression spans. In attribute-value
+mode, `{...}` is not CEM-ML structural syntax and cannot open a CEM-ML node; it
+is part of the attribute value and is scanned by the cem-ql/AVT layer when the
+active schema marks the attribute as template-aware.
+
+CEM-ML:
+
+```cem
+{button @disabled={.busy} @label="Hello {.name}" | Save}
+```
+
+XML convention:
+
+```xml
+
+<cem:button disabled="{.busy}" label="Hello {.name}">Save</cem:button>
+```
+
+For template-aware attribute values, literal braces escape as `{{` and `}}`.
+
 ### Content Runs
 
-The `|` token starts the content plane. After `|`, bare words are content, not
-attributes. Nested `{name ...}` forms remain structured CEM-ML nodes.
+The `|` token starts the content plane explicitly. Its Unicode equivalent is
+`▷`. The marker is optional when the content boundary can be inferred from the
+first non-attribute token. After the content plane starts, bare words are
+content, not attributes. Nested `{name ...}` forms remain structured CEM-ML
+nodes.
 
 CEM-ML:
 
 ```cem
 {action @id=pay @intent=primary |
+  {icon @name=lock}
+  Pay now
+}
+```
+
+Equivalent relaxed form:
+
+```cem
+{action @id=pay @intent=primary
   {icon @name=lock}
   Pay now
 }
@@ -193,15 +227,62 @@ XML convention:
 </cem:action>
 ```
 
-Content-run rules:
+Relaxed content-boundary rules:
 
-- Before `|`, the parser is in the node header plane.
-- After `|`, the parser is in the content plane.
+- `|` / `▷` may be used to mark the content boundary explicitly.
+- `|` / `▷` may be omitted when the first non-attribute token starts content.
+- A normal node header is `{` node-name attributes*. Attributes must start with
+  `@`.
+- The first non-attribute token after the node name and attributes starts
+  CEM-ML content.
 - In the content plane, `{name ...}` opens a nested CEM-ML node.
 - In the content plane, native syntax may be used when the active content type
   says it owns that region.
+- Canonical CEM-ML should include `|` / `▷` for clarity even when the parser
+  accepts the relaxed form.
 - Source-preserving AST nodes retain original content segments even when
   canonical semantic text is merged.
+
+### Reserved cem-ql Node
+
+`$` is a reserved node name. `{$ | ...}` opens a cem-ql expression scope rather
+than a normal CEM semantic node. The node name selects the cem-ql content type;
+the expression body is parsed by the cem-ql parser, not by the CEM-ML structural
+parser. Braces inside the expression body therefore belong to cem-ql. The
+content marker is optional here too: `{$ expr}` and `{$ | expr}` are equivalent.
+
+CEM-ML:
+
+```cem
+{$ | .items.filter(|item| item.active).count()}
+```
+
+Equivalent relaxed form:
+
+```cem
+{$ .items.filter(|item| item.active).count()}
+```
+
+CEM-ML with a Rust-like cem-ql block expression:
+
+```cem
+{$ |
+  {
+    let active := .items.filter(|item| item.active);
+    active.count()
+  }
+}
+```
+
+Attribute values can use direct cem-ql spans without the `$` node because the
+attribute-value scanner already owns `{...}`:
+
+```cem
+{button @disabled={.busy} | Save}
+```
+
+Use the `$` node when an expression is itself a content item or when a full
+expression scope is clearer than an inline AVT span.
 
 ### Anonymous Typed Scopes
 
@@ -525,14 +606,15 @@ before grammar parsing.
 
 ```text
 document        := directive* item*
-item            := node | anonymous_scope | directive | comment | content
-node            := "{" qname attribute* content_run? item* "}"
-anonymous_scope := "{" attribute+ content_run? item* "}"
+item            := node | expression_node | anonymous_scope | directive | comment | content
+node            := "{" qname attribute* content_boundary? item* "}"
+expression_node := "{" "$" content_boundary? cem_ql_expression "}"
+anonymous_scope := "{" attribute+ content_boundary? item* "}"
 attribute       := "@" qname ("=" value)?
-content_run     := "|" content_body
+content_boundary := "|"
 qname           := name | prefix ":" name
-value           := bare_value | quoted_string | fenced_block
-content_body    := text | fenced_block | native_content | item*
+value           := bare_value | quoted_string | fenced_block | cem_ql_span
+cem_ql_span     := "{" cem_ql_expression "}"  // attribute-value mode only
 directive       := "@doc" ... | "@ns" ... | "@default" ... | "@schema" ...
 ```
 
