@@ -1,10 +1,11 @@
-# CEM-ML Syntax Draft
+# CEM-ML Syntax
 
-> Status: proposed syntax draft.
+> Status: chosen CEM-native canonical surface direction.
 >
-> This document records the current CEM-ML surface syntax proposal and compares
-> it with equivalent XML-convention forms. The examples are syntax sketches, not
-> a final grammar specification.
+> This document records the canonical CEM-ML curly-brace surface and compares it
+> with equivalent XML-convention forms. XML syntax remains a secondary parity
+> surface and should be developed alongside each feature. The examples are
+> syntax sketches, not a final grammar specification.
 
 ## Goals
 
@@ -283,6 +284,45 @@ attribute-value scanner already owns `{...}`:
 
 Use the `$` node when an expression is itself a content item or when a full
 expression scope is clearer than an inline AVT span.
+
+### Template Embedding
+
+Text interpolation is schema-gated. In normal CEM-ML content, `{name ...}` is a
+structural child node and bare `{...}` is not treated as a cem-ql expression.
+An element schema may mark a text-content position as template-aware. Only in
+that template-aware text context does `{...}` become an Attribute Value
+Template-style cem-ql interpolation span.
+
+Default structural content:
+
+```cem
+{p Hello {em world}}
+```
+
+Template-aware text content:
+
+```cem
+{p Hello {.name}, {count(.items)} items}
+```
+
+Equivalent explicit expression-node form:
+
+```cem
+{p Hello {$ .name}, {$ count(.items)} items}
+```
+
+Text-interpolation rules:
+
+- Default content-plane parsing treats `{name ...}` as CEM-ML structure.
+- Bare `{...}` interpolation is enabled only when the active element schema
+  marks that text position as template-aware.
+- Inside template-aware text, `{...}` is scanned as cem-ql and does not open a
+  CEM-ML node.
+- Inside template-aware text, literal braces escape as `{{` and `}}`.
+- `{$ ...}` or `{$ | ...}` is always an explicit cem-ql expression node and does
+  not require the surrounding text position to be template-aware.
+- Attribute values do not need the `$` node because the attribute-value scanner
+  already owns `{...}` spans.
 
 ### Anonymous Typed Scopes
 
