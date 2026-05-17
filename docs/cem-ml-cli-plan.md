@@ -442,11 +442,43 @@ tests do not need command-shape changes.
     - `yarn nx run cem_ml_cli:e2e`
     - `yarn nx run cem_ml_cli:bench`
 
-## Phase 13 - Authoring Tooling
+## Phase 13 - Semantic Validation Rule Catalog
+
+**Status:** Future validation phase. This phase turns AC-V-6 / AC-X-3 into concrete
+schema-owned rule tables without making semantic validation an HTML/SVG-only subsystem.
+
+1. Define the semantic-rule catalog shape in the compiled schema:
+    - rule id
+    - owning schema/content type
+    - trigger layer
+    - required AST/reference/source-map inputs
+    - diagnostic code/severity defaults
+    - policy override hooks
+2. Build the first Tier A catalog for CEM UI projections over HTML/SVG/ARIA:
+    - accessible-name requirements for rendered interactive and labeled nodes
+    - ARIA role/attribute compatibility and reference integrity
+    - `id` / `for` / `aria-*` reference-slot resolution
+    - SVG-in-HTML accessibility boundaries such as `aria-hidden`, title/description, and focusability
+3. Add generic CEM rules that are not HTML/SVG-specific:
+    - invalid component state combinations
+    - required/forbidden state transitions
+    - template, slot, and schema-owned reference integrity
+    - schema-owned open-content and unknown-name policy checks
+4. Add unsafe-content rule tables for content-policy concerns:
+    - inline script and event-handler policy
+    - `javascript:` and unsafe URL-bearing attributes
+    - `srcdoc`, imports, external entities/DTDs, and other policy-gated resource hooks
+5. Keep later content types extensible through the same rule-registry model; CSS, JS,
+   XML, JSON, plugin-loaded content, and future runtime content add rules instead of
+   forking validation.
+6. Add fixture expectations for canonical CEM-ML and HTML parity fixtures, including
+   matching diagnostics where source syntax differs but semantic identity is the same.
+
+## Phase 14 - Authoring Tooling
 
 **Status:** Future tooling phase. This phase starts after the Phase 11 tokenizer and
 Phase 12 conversion/parity rules are stable enough that tools do not encode a competing
-grammar.
+grammar. Semantic diagnostics from Phase 13 feed editor/linter output when available.
 
 1. Publish a machine-readable CEM-ML lexical grammar for editor integration and test it
    against the tokenizer fixtures from Phase 12.
@@ -480,7 +512,7 @@ The following remain deferred beyond the parser/tokenizer and fixture-parity pha
 above:
 
 - parser profiles beyond canonical CEM-ML, HTML parity, and XML parity
-- full incremental/editor reparsing beyond the tooling grammar in Phase 13
+- full incremental/editor reparsing beyond the tooling grammar in Phase 14
 - multithreading, worker pools, scheduler traces, and bounded queues
 - schema emit/sample/replace implementation
 - schema semver resolution behavior beyond accepting and recording `--schema`

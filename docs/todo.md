@@ -123,8 +123,18 @@ Component vocabulary: [`component-mvp.md`](component-mvp.md). Research input:
 
 ### Validation
 
-- [ ] Implement validation checking unknown elements/attributes, invalid state combinations, missing
-      accessible names, broken `id`/`for`/`aria-*` references, unsafe content, unsupported handoffs, and non-streamable
+- [ ] Define a schema-owned semantic-rule catalog shape with rule id, owning schema/content type, trigger layer,
+      required inputs, diagnostic defaults, and policy override hooks.
+- [ ] Implement the first Tier A semantic-rule catalog for CEM UI projections over HTML/SVG/ARIA: accessible names,
+      ARIA role/attribute compatibility, `id`/`for`/`aria-*` reference integrity, and SVG-in-HTML accessibility
+      boundaries.
+- [ ] Implement generic CEM semantic rules for invalid component state combinations, state-transition constraints,
+      template/slot/schema reference integrity, and schema-owned open-content policy.
+- [ ] Implement unsafe-content policy checks for inline scripts, event handlers, unsafe URL-bearing attributes,
+      `srcdoc`, imports, XML external entities/DTDs, and other policy-gated resource hooks.
+- [ ] Keep semantic validation extensible so CSS, JS, XML, JSON, plugin-loaded content, and future runtime content add
+      rules through the same registry model.
+- [ ] Implement structural validation checking unknown elements/attributes, unsupported handoffs, and non-streamable
       schema features.
 - [ ] Emit `cem-ml.report.md` and `cem-ml.report.json`, mirroring the `validate-platforms.mjs` report
       convention.
