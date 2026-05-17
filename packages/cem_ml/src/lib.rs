@@ -11,6 +11,7 @@ pub mod events;
 pub mod handoff;
 pub mod interpreter;
 pub mod parser;
+pub mod query;
 pub mod schema;
 pub mod source;
 pub mod source_map;

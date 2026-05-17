@@ -4,6 +4,9 @@
 //! `CemAstNode` is the typed AST surface that downstream transforms and
 //! interpreters consume.
 
+pub mod builder;
+pub mod document;
+
 use crate::source_map::SourceMapStack;
 
 pub type AstNodeId = u32;
@@ -25,7 +28,10 @@ pub enum CemAstNode {
     Element {
         node_id: AstNodeId,
         expanded_name: ExpandedName,
-        annotations: Vec<AstNodeId>,
+        /// All attributes on this element, including CEM annotations
+        /// (attributes in the `cem:` namespace). Use
+        /// `query::cem_annotations` to filter for the annotation subset.
+        attributes: Vec<AstNodeId>,
         children: Vec<AstNodeId>,
         source: SourceMapStack,
     },

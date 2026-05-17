@@ -188,12 +188,27 @@ Component vocabulary: [`component-mvp.md`](component-mvp.md). Research input:
 
 ### AST, DOM Helpers, And Source Maps
 
-- [ ] Implement `cem_ml::parser` as event stream to typed CEM AST, with semantic roles, state, labels, references,
-      scope IDs, and unresolved reference slots.
-- [ ] Implement query helpers in `cem_ml::query` for roles, state lookups, validation messages, label resolution,
-      reference traversal, and source-map lookup.
-- [ ] Attach source-map stacks to every AST node, generated node, diagnostic, and transform result.
-- [ ] Unit test each fixture's parsed shape and source trace back to original byte offsets.
+- [x] Event stream → typed CEM AST: `packages/cem_ml/src/parser/builder.rs` (`CemAstBuilder<E: EventNormalizer>`).
+      Drives a flat `CemDocument` arena (`parser/document.rs`) where every node carries an `AstNodeId` index. Builds
+      `Document` / `Element` / `Attribute` / `Text` / `Whitespace` / `Comment` / `ProcessingInstruction` / `Error`
+      variants. `Element` records attributes (including CEM annotations) and children separately. `id=` attributes
+      populate `id_table`; `for=` / `aria-labelledby=` / `aria-describedby=` / `aria-controls=` resolve through it
+      and unresolved slots get queued. Semantic roles surface via the existing `cem:` namespace prefix carried on
+      attributes; state surfaces via `cem:state="..."` (single or space-separated values).
+- [x] Query helpers in `packages/cem_ml/src/query.rs`: `find_by_id`, `find_by_local_name`, `elements`,
+      `attributes_in_prefix`, `cem_annotations`, `elements_with_annotation`, `state_of`, `resolve_reference`,
+      `origin_byte_range`, `source_map_frames`, `validation_messages`.
+- [x] Source-map stacks on every AST node: the builder pushes a `TransformKind::CemAstBuilder` frame onto the
+      tokenizer-rooted stack inherited from the active parent, so every Element/Attribute/Text/Trivia/Error node
+      walks origin-first back to its byte range. Unresolved reference slots carry their attribute's source-map stack.
+- [x] Per-fixture parse-shape + byte-offset tracing tests (12 unit tests in `parser::builder::tests`): document root
+      at node 0, nested-child linkage, attribute value recording, boolean attribute (no value), `id`+`for` round
+      trip through `id_table`, unresolved-reference Warning, `cem_annotations` filters out `cem:state`,
+      `state_of` parses single + space-separated values, `elements_with_annotation` enumerates every screen,
+      `fixture_login_cem_parses_into_expected_shape` asserts `main` + `cem:screen` + `cem:form` presence,
+      `every_canonical_fixture_parses_without_ast_hard_violations` exercises all 5 fixtures, and
+      `origin_byte_range_traces_to_source_bytes` round-trips a text node's byte range back through the source
+      bytes to confirm the slice contains the expected content.
 
 ### Binary AST And Chunk Boundary Design
 
