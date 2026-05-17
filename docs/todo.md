@@ -74,12 +74,23 @@ Component vocabulary: [`component-mvp.md`](component-mvp.md). Research input:
 
 ### Byte Source And Encoding Decoder
 
-- [ ] Implement the `cem_ml::source` byte-source boundary for in-memory byte buffers, strings, files, and async byte
-      streams.
-- [ ] Implement the `cem_ml::source::decode` boundary preserving absolute byte offsets, decoded scalar ranges, and
-      derived line/column positions.
-- [ ] Add UTF-8 validation and XML/HTML-compatible character diagnostics for fixture inputs.
-- [ ] Unit test chunk boundaries, BOM handling, invalid byte sequences, and line/column projection.
+- [x] `cem_ml::source` byte-source boundary: `BytesSource`, `StringSource`, `FileSource` implement the chunk-pull
+      `ByteSource` trait with absolute byte offsets and a configurable `chunk_size` (default `MAX_SOURCE_CHUNK_BYTES`
+      = 64 KiB). Async-stream wrapper around the same adapters is documented as a Phase 11 follow-up once the executor
+      choice is finalized.
+- [x] `cem_ml::source::decode` boundary: `Utf8Decoder` is a streaming UTF-8 decoder with bounded carry-over (up to 3
+      bytes for an in-progress sequence), BOM detection (UTF-8 / UTF-16LE / UTF-16BE), preservation of absolute byte
+      offsets on every decoded scalar, and `LineIndex` for byte-offset → 1-based (line, column) projection.
+- [x] Source-layer diagnostics with `byteOffset` projection: `cem.byte.invalid_utf8` (Error) on orphan continuation
+      bytes / truncated sequences / invalid leads; `cem.byte.invalid_xml_char` (Warning, gated by
+      `DecodeConfig.strict_xml_chars`) for scalars outside the XML 1.0 `Char` production;
+      `cem.byte.unsupported_encoding` (Error) for UTF-16 / Latin-1 paths until full decoders land;
+      `cem.byte.io_error` (Fatal) for transport failures.
+- [x] Tests in `packages/cem_ml/src/source/` (23 unit tests total) cover: chunk boundaries (1-byte chunks splitting a
+      2-byte UTF-8 sequence; chunk_size smaller than total length), BOM (UTF-8 skipped + selection recorded; UTF-16LE
+      detected + flagged), invalid byte sequences (orphan continuation, truncated at EOF), restricted XML chars (NUL
+      flagged when strict, ignored when relaxed), `LineIndex` projection (single line, multi-byte column advance,
+      multi-line documents, newline-at-offset edge case), and `FileSource` round-trip through a tmp file.
 
 ### Tokenizer And Event Normalizer
 
