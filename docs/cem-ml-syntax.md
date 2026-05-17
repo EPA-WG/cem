@@ -287,11 +287,9 @@ expression scope is clearer than an inline AVT span.
 
 ### Template Embedding
 
-Text interpolation is schema-gated. In normal CEM-ML content, `{name ...}` is a
-structural child node and bare `{...}` is not treated as a cem-ql expression.
-An element schema may mark a text-content position as template-aware. Only in
-that template-aware text context does `{...}` become an Attribute Value
-Template-style cem-ql interpolation span.
+Text templates use CEM-ML child nodes. A text template must use `{node ...}` for
+structure or `{$ ...}` / `{$ | ...}` for cem-ql expressions. Bare `{...}`
+cem-ql interpolation in text content is not permitted.
 
 Default structural content:
 
@@ -299,28 +297,22 @@ Default structural content:
 {p Hello {em world}}
 ```
 
-Template-aware text content:
-
-```cem
-{p Hello {.name}, {count(.items)} items}
-```
-
-Equivalent explicit expression-node form:
+Template text with cem-ql expression nodes:
 
 ```cem
 {p Hello {$ .name}, {$ count(.items)} items}
 ```
 
-Text-interpolation rules:
+Template-embedding rules:
 
 - Default content-plane parsing treats `{name ...}` as CEM-ML structure.
-- Bare `{...}` interpolation is enabled only when the active element schema
-  marks that text position as template-aware.
-- Inside template-aware text, `{...}` is scanned as cem-ql and does not open a
-  CEM-ML node.
-- Inside template-aware text, literal braces escape as `{{` and `}}`.
 - `{$ ...}` or `{$ | ...}` is always an explicit cem-ql expression node and does
   not require the surrounding text position to be template-aware.
+- Bare `{.name}` and `{count(.items)}` forms are not valid text interpolation in
+  CEM-ML content. Write `{$ .name}` and `{$ count(.items)}` instead.
+- Literal braces in text content are ordinary text unless they start a valid
+  CEM-ML child node or `$` expression node; use a rich/raw enclosure when exact
+  brace preservation would otherwise be unclear.
 - Attribute values do not need the `$` node because the attribute-value scanner
   already owns `{...}` spans.
 
