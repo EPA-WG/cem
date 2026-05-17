@@ -361,24 +361,121 @@ Use Nx through the workspace package manager.
     - parser and schema mirror recommendations are recorded
     - security defaults are documented
 3. Parser-enabled gate, future plan:
+    - canonical CEM-ML tokenizer/parser implements the Tier A surface in
+      [`cem-ml-syntax.md`](./cem-ml-syntax.md)
+    - XML/HTML parity profiles lower into the same event model
     - real engine fills the existing `CemMlEngine` boundary
     - no CLI command or output-shape redesign is needed
-    - fixture validation can be enabled as an Nx target
+    - fixture validation and parity comparison can be enabled as Nx targets
 4. Feature-complete gate, future plan:
     - `cem-ml` CLI implements the command, option, report, diagnostic, fixture, trace,
       and benchmark features documented here and summarized in
       [`cem-ml-cli-contract.md`](./cem-ml-cli-contract.md).
 
+## Phase 11 - Parser/Tokenizer Implementation
+
+**Status:** Future parser-enabled phase. This is the execution plan for making the
+Tier A canonical CEM-ML surface executable.
+
+1. Implement `cem_ml::tokenizer::cem` for the canonical curly syntax:
+    - `{name @attributes | content...}` node scopes
+    - optional `|` / relaxed content-boundary rules
+    - `$` expression nodes and rejection of bare `{...}` text interpolation
+    - anonymous typed scopes
+    - directives (`@doc`, `@ns`, `@default`, `@schema`)
+    - comments and rich-content enclosures from `cem-ml-syntax.md`
+2. Lower CEM-native tokens into the shared `NormalizedEvent` model without going through
+   HTML or XML token shapes.
+3. Preserve source-map spans for node starts/ends, attributes, content boundaries,
+   comments, rich content, and `$` expression bodies.
+4. Implement tokenizer dispatch from `--from-format cem|html|xml`, file extension, and
+   explicit content type, with `.cem` selecting canonical CEM-ML by default.
+5. Keep HTML and XML tokenizer profiles as secondary parity paths that lower into the
+   same event model as CEM-native input.
+6. Wire the real parser engine into `CemMlEngine` while preserving the existing CLI
+   command/output shapes.
+7. Add parser diagnostics for syntax errors, unbound prefixes, unterminated scopes,
+   invalid relaxed-boundary use, and invalid text interpolation.
+
+Exit criteria: `cem_ml:test` has tokenizer and event-normalizer coverage for canonical
+CEM-ML, HTML parity still routes through the same engine boundary, and CLI fake-engine
+tests do not need command-shape changes.
+
+## Phase 12 - Fixture Parity Tests
+
+1. Maintain a fixture manifest pairing each canonical `examples/cem-ml/*.cem` file with
+   its `examples/semantic/*.html` HTML parity fixture.
+2. Add tokenizer fixtures for:
+    - nested CEM-ML nodes
+    - relaxed and explicit content boundaries
+    - `$` expression nodes
+    - attribute `{...}` cem-ql spans
+    - comments and rich-content enclosures
+3. Add event-normalizer tests proving paired CEM-ML and HTML fixtures lower to the same
+   schema event stream after content-type-specific trivia differences are accounted for.
+4. Add validation fixtures proving the paired CEM-ML and HTML inputs produce the same
+   hard-violation result and compatible diagnostics.
+5. Add transform/roundtrip fixtures proving canonical CEM-ML snapshots are stable and
+   rendered light-DOM custom-element output is unchanged by the source syntax.
+6. Define exact lossless conversion rules for CEM-ML ↔ XML/HTML before enabling
+   cross-surface conversion:
+    - namespace bindings and default namespace changes
+    - comments, whitespace, doctypes, processing instructions, CDATA/raw text, and
+      content-type-specific trivia
+    - anonymous typed scopes and schema/content-type switches
+    - rich-content enclosures and raw/native content blocks
+    - `$` expression nodes and attribute-value cem-ql spans
+    - source-map frame preservation across both directions
+7. Add XML convention parity fixtures when XML forms become executable; they must join
+   the same manifest instead of creating a separate test path.
+8. Enable Nx targets after the real engine exists:
+    - `yarn nx run cem_ml_cli:validate-fixtures`
+    - `yarn nx run cem_ml_cli:e2e`
+    - `yarn nx run cem_ml_cli:bench`
+
+## Phase 13 - Authoring Tooling
+
+**Status:** Future tooling phase. This phase starts after the Phase 11 tokenizer and
+Phase 12 conversion/parity rules are stable enough that tools do not encode a competing
+grammar.
+
+1. Publish a machine-readable CEM-ML lexical grammar for editor integration and test it
+   against the tokenizer fixtures from Phase 12.
+2. Add syntax-highlighting support for canonical CEM-ML, including:
+    - node starts/ends
+    - attributes and namespaces
+    - content markers
+    - `$` expression scopes
+    - rich-content enclosures
+    - comments and diagnostics
+3. Add a tree-sitter grammar or equivalent incremental parse grammar for editor use.
+   It must round-trip with the canonical tokenizer on the shared fixture corpus.
+4. Add formatter rules, including a Prettier-like profile, for:
+    - stable indentation and line breaks
+    - canonical `|` insertion policy
+    - attribute ordering where schema permits it
+    - quote and rich-content enclosure normalization
+    - preservation of comments, whitespace-sensitive content, and source-map anchors
+5. Add lint rules for unbound prefixes, invalid relaxed-boundary use, suspicious
+   content-type switches, noncanonical but accepted delimiter choices, and forbidden
+   bare `{...}` text interpolation.
+6. Surface parser/schema diagnostics in editor-friendly shapes with byte offsets,
+   line/column projections, quick-fix metadata where safe, and links back to source-map
+   frames.
+7. Add CLI entry points or subcommands only after the library contracts exist; the CLI
+   remains a consumer of the tooling APIs, not the owner of the grammar.
+
 ## Deferred Work
 
-The following are intentionally outside this plan:
+The following remain deferred beyond the parser/tokenizer and fixture-parity phases
+above:
 
-- streaming parser implementation
-- parser algorithm selection or parser crate integration
+- parser profiles beyond canonical CEM-ML, HTML parity, and XML parity
+- full incremental/editor reparsing beyond the tooling grammar in Phase 13
 - multithreading, worker pools, scheduler traces, and bounded queues
 - schema emit/sample/replace implementation
 - schema semver resolution behavior beyond accepting and recording `--schema`
 - transform implementation
 - plugin implementation
-- source maps
+- source-map sidecar/export formats beyond the parser span preservation required in Phase 11
 - WASM packaging beyond keeping the `cem-ml` crate boundary compatible

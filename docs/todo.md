@@ -4,7 +4,8 @@ This file tracks remaining execution tasks only. Product/module sequencing lives
 
 ## Phase 2 - Schema-Defined Parser And Document Runtime (`@epa-wg/cem-ml` / `@epa-wg/cem-ml-cli`)
 
-Bring the existing fixtures in `examples/semantic/` into a layered schema-defined pipeline:
+Bring the canonical fixtures in `examples/cem-ml/` and the HTML parity fixtures in
+`examples/semantic/` into a layered schema-defined pipeline:
 
 ```text
 ByteSource
@@ -58,13 +59,19 @@ Component vocabulary: [`component-mvp.md`](component-mvp.md). Research input:
 
 ### Tokenizer And Event Normalizer
 
-- [ ] Implement an HTML/XML tokenizer profile that emits start, attribute, text, comment, processing-instruction, and
-      end events without constructing the implementation DOM.
+- [ ] Implement the canonical CEM-ML curly tokenizer profile for `{name @attributes | content...}`, relaxed content
+      boundaries, `$` expression nodes, anonymous typed scopes, directives, comments, and rich-content enclosures.
+- [ ] Reject bare `{...}` text interpolation in CEM-ML content and accept `{...}` cem-ql spans only in
+      template-aware attribute-value mode.
+- [ ] Implement HTML/XML tokenizer profiles as secondary parity paths that emit start, attribute, text, comment,
+      processing-instruction, and end events without constructing the implementation DOM.
 - [ ] Normalize tokenizer output into shared event categories: open scope, close scope, name, value, separator, mode
       switch, error, and transform.
 - [ ] Preserve byte spans and source-map frames on every token and normalized event.
-- [ ] Add fixtures proving HTML and XML-like inputs normalize into the same CEM event model where their semantic shape
-      is equivalent.
+- [ ] Add tokenizer fixtures for nested CEM-ML nodes, explicit and relaxed content boundaries, `$` expression nodes,
+      attribute `{...}` cem-ql spans, comments, and rich-content enclosures.
+- [ ] Add fixtures proving canonical CEM-ML, HTML parity, and XML-like inputs normalize into the same CEM event model
+      where their semantic shape is equivalent.
 
 ### Schema Machine
 
@@ -114,6 +121,8 @@ Component vocabulary: [`component-mvp.md`](component-mvp.md). Research input:
       convention.
 - [ ] Add a `cem-ml-cli` fixture validation target that runs validation across `examples/cem-ml/*.cem` and
       `examples/semantic/*.html` parity fixtures and fails non-zero on hard violations.
+- [ ] Add fixture-pair tests proving each `examples/cem-ml/*.cem` file and matching `examples/semantic/*.html` parity
+      file produce the same hard-violation result and compatible diagnostics.
 - [ ] Ensure validation diagnostics include `{ uri, line, column, byteOffset, code, severity, message, sourceMap }`.
 
 ### Transform
@@ -124,11 +133,31 @@ Component vocabulary: [`component-mvp.md`](component-mvp.md). Research input:
 - [ ] Preserve transform source-map frames for generated custom-element markup.
 - [ ] Snapshot the transform output for each fixture under `test/__snapshots__/`.
 
+### Cross-Surface Conversion
+
+- [ ] Define exact CEM-ML ↔ XML/HTML conversion rules for namespaces, default namespace changes, comments,
+      whitespace, typed scopes, rich content, `$` expression nodes, attribute cem-ql spans, and source maps.
+- [ ] Add conversion tests proving canonical CEM-ML fixtures can project to XML/HTML parity forms and back without
+      losing schema event identity or source-map traceability.
+
 ### Verification
 
-- [ ] All five fixtures decode, tokenize, normalize, schema-validate, build a typed AST, validate clean, transform, and
-      render successfully end to end.
+- [ ] All five canonical CEM-ML fixtures and their HTML parity fixtures decode, tokenize, normalize, schema-validate,
+      build a typed AST, validate clean, transform, and render successfully end to end.
+- [ ] Canonical/parity fixture tests compare normalized event streams, validation results, canonical CEM-ML snapshots,
+      and rendered light-DOM custom-element output.
 - [ ] Every generated node in fixture output traces back to original source bytes or to the transform that generated it.
 - [ ] `yarn build` includes `cem-ml` / `cem-ml-cli` build plus fixture validation when the real parser is enabled;
       report shows zero hard violations.
 - [ ] Document the round trip in `cem-ml-cli` docs with a worked example using `login.html`.
+
+### Authoring Tooling
+
+- [ ] Publish a machine-readable CEM-ML lexical grammar and keep it synchronized with tokenizer fixtures.
+- [ ] Add syntax highlighting coverage for nodes, attributes, namespaces, content markers, `$` expression scopes, rich
+      content, comments, and diagnostics.
+- [ ] Add a tree-sitter grammar or equivalent editor parse grammar that round-trips with tokenizer fixtures.
+- [ ] Add formatter and Prettier-like rules for indentation, canonical `|` insertion, attribute ordering, quote/rich
+      enclosure normalization, and comment/whitespace preservation.
+- [ ] Add lint diagnostics for unbound prefixes, invalid relaxed-boundary use, suspicious content-type switches,
+      noncanonical delimiter choices, and forbidden bare `{...}` text interpolation.
