@@ -1,8 +1,10 @@
 //! Layer 4 — `SchemaMachine`.
 //!
 //! Public contract per AC-F-10 / `cem-ml-stack-design-impl.md` §3.4.
-//! Tier A exposes the frame shape; the RELAX-NG derivative body lands with
-//! the parser in Phase 11.
+//! Tier A vocab + machine live in submodules.
+
+pub mod machine;
+pub mod vocab;
 
 use crate::source::ByteRange;
 use crate::source_map::SourceMapStack;

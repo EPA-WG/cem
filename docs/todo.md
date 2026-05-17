@@ -136,14 +136,32 @@ Component vocabulary: [`component-mvp.md`](component-mvp.md). Research input:
 
 ### Schema Machine
 
-- [ ] Author the active CEM schema source covering the vocabulary used by the existing five fixtures:
-      `data-cem-screen`, `data-cem-form`, `data-cem-action`, plus implied field/list/thread shapes. Cross-reference
-      component IDs from [`component-mvp.md`](component-mvp.md).
-- [ ] Define the allowed state attribute set against the [`component-mvp.md`](component-mvp.md) state matrix.
-- [ ] Compile schema markdown to XHTML via the existing docs pipeline.
-- [ ] Compile CEM schema rules into streaming schema frames that track required names, multiplicity, ordering,
-      allowed states, references, and expected closes.
-- [ ] Mark non-streamable schema features explicitly and report them instead of silently buffering unbounded input.
+- [x] Authored the active CEM schema source at [`../packages/cem_ml/schema/cem-core.md`](../packages/cem_ml/schema/cem-core.md).
+      The CEM annotations now use the schema-qualified `cem:` namespace form per AC-S-9 (e.g. `cem:screen`,
+      `cem:form`, `cem:action`, `cem:badge`, `cem:card`, `cem:list`, `cem:row`, `cem:thread`, `cem:message`) — not
+      HTML `data-cem-*`. The five canonical fixtures already use this form. Cross-references
+      [`component-mvp.md`](component-mvp.md) component IDs and state matrix.
+- [x] Allowed state attribute set defined per annotation in `cem-core.md` and mirrored in
+      `packages/cem_ml/src/schema/vocab.rs` (`AnnotationDef.allowed_states`). State is exposed via `cem:state="..."`
+      with single or space-separated values.
+- [ ] Compile schema markdown → XHTML via the existing docs pipeline. Status: schema markdown is authored and lives
+      under `packages/cem_ml/schema/cem-core.md`; wiring it into the workspace `build:docs` Nx target is a follow-up
+      (the Rust `CompiledSchema` is constructed programmatically in `vocab.rs::CompiledSchema::cem_core` until the
+      markdown-driven compiler lands).
+- [x] Compiled CEM schema rules into streaming schema frames: `packages/cem_ml/src/schema/machine.rs`
+      (`CemSchemaMachine`) consumes the `NormalizedEvent` stream, pushes/pops `SchemaFrame`s at open/close-scope
+      boundaries, validates annotation values against `AnnotationDef.allowed_values`, validates `cem:state` values
+      against both the State Matrix and the active annotation's allowed states, and reports unbalanced opens/closes
+      at finalize. Diagnostics: `cem.schema.unknown_annotation`, `cem.schema.unknown_annotation_value`,
+      `cem.schema.disallowed_state`, `cem.schema.state_not_allowed_for_role`, `cem.schema.unclosed_scope`,
+      `cem.schema.unbalanced_close`. Verified by an `all_canonical_fixtures_schema_validate_clean` test (5 fixtures,
+      zero hard schema violations) plus per-rule unit tests.
+- [x] Non-streamable schema features are explicit: `CompiledSchema.non_streamable_constraints` lists any rule that
+      would require unbounded buffering (`AttributeOrderNonAdjacent`, `CrossScopePredicate`,
+      `FullDocumentBuffering`). Tier A authors zero such rules; the machine emits
+      `cem.schema.unsupported_constraint` at finalize for every constraint present, so authoring a non-streamable
+      rule is detectable instead of silently degrading the parser. Verified by
+      `non_streamable_constraints_emit_unsupported_constraint`.
 
 ### Scoped Handoffs And Embedded Content
 
