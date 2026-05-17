@@ -25,12 +25,15 @@ Component vocabulary: [`component-mvp.md`](component-mvp.md). Research input:
 ### Package Direction
 
 - [x] Scaffold `packages/cem_ml` and `packages/cem_ml_cli`.
-- [ ] Wire `build`, `lint`, `test`, and future `validate-fixtures` Nx targets through `cem_ml` / `cem_ml_cli`.
-- [ ] Update the root README package map, `docs/index.md`, and related package docs to name `@epa-wg/cem-ml` and
+- [x] Wire `build`, `lint`, `test` Nx targets through `cem_ml` / `cem_ml_cli`. `validate-fixtures` is plan-gated to
+      Phase 12 in [`cem-ml-cli-plan.md`](cem-ml-cli-plan.md) §10/§12 — add only when the real parser engine exists.
+- [x] Update the root README package map, `docs/index.md`, and related package docs to name `@epa-wg/cem-ml` and
       `@epa-wg/cem-ml-cli` as the active parser/runtime and CLI packages.
-- [ ] Verify `cem-ml-cli` covers the planned feature summary from [`cem-ml-cli-contract.md`](cem-ml-cli-contract.md):
-      `parse`, `validate`, `check`, `inspect`, `convert`, `trace`, `bench`, `fixture validate`, `fixture roundtrip`,
-      `help`, `version`, and reserved `transform`, `schema`, and `plugin` workflows.
+- [x] Scaffold `cem-ml-cli` clap command surface for the planned feature summary in
+      [`cem-ml-cli-contract.md`](cem-ml-cli-contract.md): `parse`, `validate`, `check`, `inspect`, `convert`, `trace`,
+      `bench`, `fixture validate`, `fixture roundtrip`, `help`, `version`, and reserved `transform`, `schema`, and
+      `plugin` workflows (reserved commands exit 2). Parser-backed handlers are stubs awaiting Phase 11
+      [`cem-ml-cli-plan.md`](cem-ml-cli-plan.md).
 - [ ] Verify option-function coverage in `cem-ml-cli`: fail level, output format, report destinations, output file,
       schema/content-type/base URI recording, quiet/verbose/no-color, zero hard violations, preserve source offsets,
       convert input/output formats, inspect views, benchmark iterations/budget/profile/cold-cache, and fixture defaults.

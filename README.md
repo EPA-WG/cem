@@ -47,8 +47,8 @@ artifacts as the CSS generator pages.
 |---------------------------------------------------------------|-------------------|---------------------------------------------------------------------------------------------------------------------------------|
 | [`@epa-wg/cem-theme`](packages/cem-theme/README.md)           | published         | Canonical token specs, generated CSS, DTCG JSON, TypeScript metadata, native (iOS/Android) outputs, and Figma library files.    |
 | [`@epa-wg/cem-components`](packages/cem-components/README.md) | shell             | Declarative custom-element primitives that consume the theme. Component implementations land in Phase 3.                        |
-| [`cem-ml`](packages/cem_ml/Cargo.toml)                        | shell             | Rust parser/runtime library for CEM semantic documents.                                                                         |
-| [`cem-ml-cli`](packages/cem_ml_cli/Cargo.toml)                | shell             | Rust CLI for CEM parsing, validation, reports, fixtures, and migration workflows.                                               |
+| [`@epa-wg/cem-ml`](packages/cem_ml/Cargo.toml)                | active scaffold   | Active Rust parser/runtime library (Cargo: `cem-ml`) for canonical CEM-ML plus XML/HTML parity inputs.                          |
+| [`@epa-wg/cem-ml-cli`](packages/cem_ml_cli/Cargo.toml)        | active scaffold   | Active Rust CLI (Cargo: `cem-ml-cli`, binary: `cem-ml`) for CEM parsing, validation, reports, fixtures, and migration workflows. |
 
 # Use the token CSS
 

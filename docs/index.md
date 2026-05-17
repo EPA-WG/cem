@@ -43,8 +43,10 @@ This index links the active project, release, and token workflow documents.
 
 ## Parser Runtime
 
-- [CEM ML library package](../packages/cem_ml/Cargo.toml) — Rust parser/runtime crate metadata.
-- [CEM ML CLI package](../packages/cem_ml_cli/Cargo.toml) — Rust CLI crate metadata.
+- [`@epa-wg/cem-ml`](../packages/cem_ml/Cargo.toml) — active Rust parser/runtime library (Cargo crate `cem-ml`) for
+  canonical CEM-ML plus XML/HTML parity inputs.
+- [`@epa-wg/cem-ml-cli`](../packages/cem_ml_cli/Cargo.toml) — active Rust CLI (Cargo crate `cem-ml-cli`, binary
+  `cem-ml`) for parsing, validation, reports, fixtures, and migration workflows.
 
 ## Native Outputs
 
