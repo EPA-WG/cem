@@ -4,6 +4,10 @@
 //! Tier A defines three profiles (canonical CEM curly, WHATWG HTML, XML 1.0)
 //! that all emit the same `SchemaToken` shape.
 
+pub mod cem;
+pub mod html;
+pub mod xml;
+
 use crate::source::ByteRange;
 use crate::source_map::SourceMapStack;
 

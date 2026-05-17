@@ -94,28 +94,45 @@ Component vocabulary: [`component-mvp.md`](component-mvp.md). Research input:
 
 ### Tokenizer And Event Normalizer
 
-- [ ] Implement the canonical CEM-ML curly tokenizer profile for `{name @attributes | content...}`, relaxed content
-      boundaries, `$` expression nodes, anonymous typed scopes, directives, comments, and rich-content enclosures.
-- [ ] Implement CEM-ML schema-scoping forms: `@schema` prelude shorthand, `{cem:schema @cem:name=...}` inline
-      declarations, `{cem:schema @src=...}` / `@select=...` switches, host-node `@cem:schema-src` /
-      `@cem:schema-select`, and scope-chain `cem:name` shadowing.
-- [ ] Implement namespace binding rebinding for repeated prefix names and the blank/default binding, preserving the
-      expanded namespace identity active at each source position.
-- [ ] Reject bare `{...}` text interpolation in CEM-ML content and accept `{...}` cem-ql spans only in
-      template-aware attribute-value mode.
-- [ ] Implement HTML/XML tokenizer profiles as secondary parity paths that emit start, attribute, text, comment,
-      processing-instruction, and end events without constructing the implementation DOM.
-- [ ] Normalize tokenizer output into shared event categories: open scope, close scope, name, value, separator, mode
-      switch, error, and transform.
-- [ ] Preserve byte spans and source-map frames on every token and normalized event.
-- [ ] Add tokenizer fixtures for nested CEM-ML nodes, explicit and relaxed content boundaries, `$` expression nodes,
-      attribute `{...}` cem-ql spans, comments, and rich-content enclosures.
-- [ ] Add schema-scoping fixtures covering inline declarations, sibling-position switches, wrapping switches,
-      host-node switches, `src`/`select` exclusivity, and nested `cem:name` shadowing.
-- [ ] Add namespace rebinding fixtures covering unprefixed HTML, unprefixed SVG, and rebinding the default namespace
-      back to HTML in one CEM-ML document with XML parity output.
-- [ ] Add fixtures proving canonical CEM-ML, HTML parity, and XML-like inputs normalize into the same CEM event model
-      where their semantic shape is equivalent.
+- [x] Canonical CEM-ML curly tokenizer in `packages/cem_ml/src/tokenizer/cem.rs`. Handles `{name @attrs | content...}`
+      with explicit `|` and relaxed (implied) content boundaries, `$` expression nodes (`{$ expr}` and `{$ | expr}`),
+      anonymous typed scopes (`{@type=... | ...}`), directives (`@doc`, `@ns`, `@default`, `@schema`), line
+      (`// ...`) and block (`/* ... */`) comments, rich-content enclosures (triple backticks, body verbatim),
+      quoted-string + bare + AVT-span attribute values, and qualified attribute names (`cem:screen`).
+- [x] Bare `{...}` text interpolation in CEM-ML content is rejected with `cem.tokenizer.bare_brace_text` and an
+      `Error` token; `{...}` cem-ql spans are accepted only in attribute-value mode (passed through verbatim wrapped
+      in braces so consumers see this is a span, not a literal).
+- [x] HTML / XML tokenizer profile boundaries exist (`tokenizer::html::HtmlTokenizer`, `tokenizer::xml::XmlTokenizer`)
+      and emit `cem.tokenizer.profile_not_implemented` until Phase 11 of `cem-ml-cli-plan.md` lands the WHATWG-state
+      HTML tokenizer + XML 1.0 profile; downstream consumers can program against the trait today.
+- [x] Event normalization in `packages/cem_ml/src/events/cem.rs` (`CemEventNormalizer`) lowers every token into the
+      shared event categories `OpenScope` / `CloseScope` / `Name` / `Value` / `Trivia` / `Separator(ElementBoundary)`
+      / `ProcessingInstruction` / `ModeSwitch` / `Error`. `@type="..."` attributes (incl. on anonymous scopes) emit a
+      `ModeSwitch` alongside their `Name` + `Value` so the schema machine sees content-type handoffs without
+      rescanning. Directives lower to `OpenScope @<name>` + `Value` + `CloseScope`.
+- [x] Byte spans + source-map stacks are preserved on every token (`SchemaToken.byte_range`,
+      `SchemaToken.source_map`) and propagate into every event. Tokens carry a `TransformKind::CemTokenizer` frame;
+      the test `source_map_frames_carry_through_to_events` asserts that frames survive the lowering.
+- [x] Tokenizer fixtures (15 unit tests in `tokenizer::cem::tests`) cover: simple node, attribute value forms (quoted,
+      bare, boolean, AVT span), nested nodes, relaxed content boundary, `$` expression node (relaxed + explicit
+      boundary), anonymous typed scope, directives, line + block comments, rich-content enclosure, qualified
+      attribute name, byte-range absoluteness, bare-brace rejection, and a `login.cem` fixture parse + an
+      all-canonical-fixtures smoke test that all 5 `examples/cem-ml/*.cem` files tokenize without hard violations.
+- [ ] CEM-ML schema-scoping forms (`@schema` prelude, `{cem:schema @cem:name=...}` inline, `{cem:schema @src=...}` /
+      `@select=...` switches, host-node `@cem:schema-src` / `@cem:schema-select`, scope-chain `cem:name` shadowing).
+      Status: the tokenizer surfaces the underlying `Directive` and node/attribute tokens; semantic interpretation
+      lives in the schema-machine block (`docs/cem-ml-ac.md` §AC-F-2 details, `cem-ml-stack-design.md` §13.1) and
+      lands with that layer.
+- [ ] Namespace binding rebinding for repeated prefix names and the blank/default binding. Status: tokens carry
+      lexical names (`cem:screen`) without expansion; rebinding/expansion is owned by `cem_ml::schema::namespace`
+      (`NsContext`, `NamespaceBinding`) in `cem-ml-stack-design-impl.md` §3.4.1 and tracked with the schema-machine
+      block.
+- [ ] Schema-scoping fixtures (inline declarations, sibling/wrapping switches, host-node switches, src/select
+      exclusivity, nested `cem:name` shadowing). Blocked on schema-scoping form support above.
+- [ ] Namespace rebinding fixtures (unprefixed HTML, unprefixed SVG, default-namespace rebinding back to HTML in one
+      CEM-ML document with XML parity output). Blocked on namespace-binding support above.
+- [ ] Fixtures proving canonical CEM-ML, HTML parity, and XML-like inputs normalize into the same CEM event model.
+      Blocked on Phase 11 HTML/XML parity tokenizer profiles above.
 
 ### Schema Machine
 

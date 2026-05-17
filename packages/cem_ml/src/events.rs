@@ -4,6 +4,8 @@
 //! Every tokenizer profile lowers into this shared event stream so layers
 //! above don't see syntax-flavor-specific token shapes.
 
+pub mod cem;
+
 use crate::source::ByteRange;
 use crate::source_map::SourceMapStack;
 
