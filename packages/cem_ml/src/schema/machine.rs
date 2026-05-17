@@ -9,7 +9,8 @@
 //! event history; pending state is bounded by the depth of open scopes.
 
 use crate::diagnostics::{Diagnostic, Severity};
-use crate::events::{EventNormalizer, NormalizedEvent, ScalarValue};
+use crate::events::{EventNormalizer, HandoffRecord, NormalizedEvent, ScalarValue};
+use crate::handoff::{is_supported_content_type, HandoffStack};
 use crate::schema::vocab::CompiledSchema;
 use crate::schema::{FramePhase, SchemaFrame, SchemaMachine, SchemaVersionIdentity, ScopeId};
 use crate::source::ByteRange;
@@ -19,6 +20,11 @@ pub struct CemSchemaMachine<E: EventNormalizer> {
     schema: CompiledSchema,
     events: E,
     frames: Vec<SchemaFrame>,
+    handoffs: HandoffStack,
+    /// One entry per open frame: depth of `handoffs` when the frame opened,
+    /// so close can pop any handoffs the frame owned without losing track
+    /// of outer ones.
+    handoff_depths: Vec<usize>,
     diagnostics: Vec<Diagnostic>,
     next_scope_id: ScopeId,
     /// While walking an element's attributes, this holds the
@@ -60,6 +66,8 @@ impl<E: EventNormalizer> CemSchemaMachine<E> {
             schema,
             events,
             frames: Vec::new(),
+            handoffs: HandoffStack::default(),
+            handoff_depths: Vec::new(),
             diagnostics: Vec::new(),
             next_scope_id: 1,
             pending_attr: None,
@@ -83,6 +91,7 @@ impl<E: EventNormalizer> CemSchemaMachine<E> {
         }
         SchemaMachineOutcome {
             frames: self.frames,
+            handoffs_at_eof: self.handoffs.depth(),
             diagnostics: self.diagnostics,
         }
     }
@@ -119,13 +128,13 @@ impl<E: EventNormalizer> CemSchemaMachine<E> {
                     }
                 }
             }
-            NormalizedEvent::Trivia { .. }
-            | NormalizedEvent::ProcessingInstruction { .. }
-            | NormalizedEvent::ModeSwitch { .. } => {
-                // Trivia + PIs are reported but don't change schema state;
-                // ModeSwitch is handled by the handoff stack (Layer 5),
-                // not here.
+            NormalizedEvent::Trivia { .. } | NormalizedEvent::ProcessingInstruction { .. } => {
+                // Trivia + PIs are reported but don't change schema state.
             }
+            NormalizedEvent::ModeSwitch {
+                content_type,
+                handoff,
+            } => self.on_mode_switch(content_type, handoff),
             NormalizedEvent::Error { code, byte_range, severity } => {
                 self.diagnostics.push(Diagnostic {
                     uri: None,
@@ -173,6 +182,7 @@ impl<E: EventNormalizer> CemSchemaMachine<E> {
             },
         };
         self.frames.push(frame);
+        self.handoff_depths.push(self.handoffs.depth());
         self.pending_attr = None;
         self.pending_states.clear();
         self.pending_annotation = None;
@@ -193,6 +203,14 @@ impl<E: EventNormalizer> CemSchemaMachine<E> {
             return;
         }
         let frame = self.frames.pop().expect("frames non-empty");
+        // Pop every handoff owned by the frame that's closing. A child
+        // parser cannot consume past the parent's close — this enforces
+        // that bound at the schema layer.
+        if let Some(prior_depth) = self.handoff_depths.pop() {
+            while self.handoffs.depth() > prior_depth {
+                self.handoffs.pop();
+            }
+        }
         // States collected for this scope are validated at close, against
         // the annotation seen on this same frame. (Annotation validation
         // already happened at value-time.)
@@ -202,6 +220,47 @@ impl<E: EventNormalizer> CemSchemaMachine<E> {
         }
         let _ = frame;
         self.pending_annotation = None;
+    }
+
+    fn on_mode_switch(&mut self, content_type: String, mut handoff: HandoffRecord) {
+        // Fill the inherited context from the active parent frame. The
+        // parent close byte offset is the upper bound the child parser
+        // must respect; in Tier A the frame's `source_span.end()` is the
+        // best available approximation until the parser fills the
+        // expected-close offset.
+        let parent_close_byte_offset = self.frames.last().map(|f| f.source_span.end());
+        handoff.inherited_context.parent_close_byte_offset = parent_close_byte_offset;
+        handoff.inherited_context.schema_id = self.frames.last().map(|f| f.schema_id);
+
+        let span = handoff.source_span;
+        if !is_supported_content_type(&content_type) {
+            self.diagnostics.push(Diagnostic {
+                uri: None,
+                line: None,
+                column: None,
+                byte_offset: Some(span.start),
+                code: "cem.handoff.unsupported_content_type".to_owned(),
+                severity: Severity::Error,
+                message: format!(
+                    "content type `{content_type}` has no Tier A handoff; region is bounded but not interpreted"
+                ),
+                node: None,
+            });
+        } else {
+            self.diagnostics.push(Diagnostic {
+                uri: None,
+                line: None,
+                column: None,
+                byte_offset: Some(span.start),
+                code: "cem.handoff.child_parser_deferred".to_owned(),
+                severity: Severity::Info,
+                message: format!(
+                    "child parser for `{content_type}` lands in Phase 11; region preserved as opaque text bounded by the parent scope's close"
+                ),
+                node: None,
+            });
+        }
+        self.handoffs.push(handoff);
     }
 
     fn on_value(&mut self, value: ScalarValue, byte_range: ByteRange) {
@@ -376,6 +435,7 @@ impl<E: EventNormalizer> CemSchemaMachine<E> {
 
 pub struct SchemaMachineOutcome {
     pub frames: Vec<SchemaFrame>,
+    pub handoffs_at_eof: usize,
     pub diagnostics: Vec<Diagnostic>,
 }
 
@@ -532,6 +592,161 @@ mod tests {
             checked += 1;
         }
         assert!(checked >= 5);
+    }
+
+    #[test]
+    fn supported_content_type_emits_deferred_info_diag() {
+        let out = run_schema(r#"{@type="text/html" | <p>hi</p>}"#);
+        let deferred = out
+            .diagnostics
+            .iter()
+            .find(|d| d.code == "cem.handoff.child_parser_deferred")
+            .expect("expected child_parser_deferred diag");
+        assert_eq!(deferred.severity, Severity::Info);
+        assert!(deferred.message.contains("text/html"));
+        // No hard violations from a supported handoff.
+        let hard: Vec<&Diagnostic> = out
+            .diagnostics
+            .iter()
+            .filter(|d| matches!(d.severity, Severity::Error | Severity::Fatal))
+            .collect();
+        assert!(hard.is_empty(), "expected no hard violations: {hard:?}");
+    }
+
+    #[test]
+    fn unsupported_content_type_emits_error_but_region_is_bounded() {
+        let out = run_schema(r#"{@type="application/x-rocks" | totally opaque }"#);
+        let bad = out
+            .diagnostics
+            .iter()
+            .find(|d| d.code == "cem.handoff.unsupported_content_type")
+            .expect("expected unsupported_content_type diag");
+        assert_eq!(bad.severity, Severity::Error);
+        // The scope still closed: no `cem.schema.unclosed_scope` should fire.
+        assert!(out
+            .diagnostics
+            .iter()
+            .all(|d| d.code != "cem.schema.unclosed_scope"));
+    }
+
+    #[test]
+    fn handoff_records_carry_inherited_context_with_parent_close_offset() {
+        // Drive the events directly so we can inspect the handoff record.
+        use crate::events::{
+            HandoffRecord, InheritedContext, NormalizedEvent, QName, ReturnCondition, Synthesis,
+        };
+        use crate::source::ByteRange;
+        use crate::source_map::SourceMapStack;
+
+        struct Replay(Vec<NormalizedEvent>);
+        impl crate::events::EventNormalizer for Replay {
+            fn next_event(&mut self) -> Option<NormalizedEvent> {
+                if self.0.is_empty() {
+                    None
+                } else {
+                    Some(self.0.remove(0))
+                }
+            }
+        }
+
+        let span = ByteRange::new(0, 40);
+        let ctx = SourceMapStack::default();
+        let qn = |s: &str| QName {
+            lexical_name: s.to_owned(),
+            prefix: None,
+            local_name: s.to_owned(),
+            source_range: ByteRange::new(0, s.len() as u32),
+        };
+        let evts = vec![
+            NormalizedEvent::OpenScope {
+                name: qn(""),
+                byte_range: span,
+                source_map: ctx.clone(),
+            },
+            NormalizedEvent::ModeSwitch {
+                content_type: "text/html".into(),
+                handoff: HandoffRecord {
+                    content_type: "text/html".into(),
+                    schema_id: None,
+                    source_span: ByteRange::new(1, 16),
+                    inherited_context: InheritedContext {
+                        schema_id: None,
+                        namespace_uri: None,
+                        parent_close_byte_offset: None,
+                    },
+                    return_condition: ReturnCondition::ParentScopeClose,
+                },
+            },
+            NormalizedEvent::CloseScope {
+                name: qn(""),
+                byte_range: ByteRange::new(39, 1),
+                synthesis: Synthesis::Real,
+                source_map: ctx,
+            },
+        ];
+
+        let schema = CompiledSchema::cem_core();
+        // Build the machine, but instrument by snooping handoffs via a
+        // wrapper: consume events one at a time so we can inspect state
+        // mid-stream.
+        let mut machine = CemSchemaMachine::new(schema, Replay(evts));
+        // Step 1: OpenScope.
+        let ev = machine.events.next_event().unwrap();
+        machine.consume(ev);
+        assert_eq!(machine.frames.len(), 1);
+        // Step 2: ModeSwitch.
+        let ev = machine.events.next_event().unwrap();
+        machine.consume(ev);
+        assert_eq!(machine.handoffs.depth(), 1);
+        let top = machine.handoffs.top().unwrap();
+        assert_eq!(top.content_type, "text/html");
+        assert_eq!(top.return_condition, ReturnCondition::ParentScopeClose);
+        assert_eq!(
+            top.inherited_context.parent_close_byte_offset,
+            Some(40),
+            "parent close offset should equal opening frame's source_span.end()"
+        );
+        // Step 3: CloseScope pops the handoff.
+        let ev = machine.events.next_event().unwrap();
+        machine.consume(ev);
+        assert!(machine.handoffs.is_empty(), "handoff should pop on close");
+    }
+
+    #[test]
+    fn child_parser_cannot_consume_past_parent_close() {
+        use crate::events::{
+            HandoffRecord, InheritedContext, ReturnCondition,
+        };
+        use crate::handoff::HandoffStack;
+        let mut stack = HandoffStack::default();
+        stack.push(HandoffRecord {
+            content_type: "text/html".into(),
+            schema_id: None,
+            source_span: crate::source::ByteRange::new(10, 30),
+            inherited_context: InheritedContext {
+                schema_id: None,
+                namespace_uri: None,
+                parent_close_byte_offset: Some(40),
+            },
+            return_condition: ReturnCondition::ParentScopeClose,
+        });
+        assert!(stack.within_bounds(39), "39 < 40 is inside the parent");
+        assert!(!stack.within_bounds(40), "40 is the close boundary; not consumable");
+        assert!(!stack.within_bounds(41), "past the close is forbidden");
+    }
+
+    #[test]
+    fn nested_scopes_pop_only_owned_handoffs() {
+        // Outer scope does NOT switch content type; inner scope switches to
+        // text/html. Closing the inner scope must pop the handoff;
+        // closing the outer scope leaves zero handoffs.
+        let input = r#"{outer | {@type="text/html" | body}}"#;
+        let out = run_schema(input);
+        assert_eq!(out.handoffs_at_eof, 0);
+        assert!(out
+            .diagnostics
+            .iter()
+            .any(|d| d.code == "cem.handoff.child_parser_deferred"));
     }
 
     #[test]

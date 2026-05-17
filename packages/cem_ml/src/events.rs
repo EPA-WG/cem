@@ -51,12 +51,35 @@ pub enum Synthesis {
     ImpliedByEof,
 }
 
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub enum ReturnCondition {
+    /// The child parser must stop at the parent scope's closing brace.
+    /// This is the Tier A default for `@type="..."` anonymous-scope handoffs.
+    ParentScopeClose,
+    /// The child parser must stop at a matching close-tag (e.g. HTML
+    /// `</style>` for the `style` element handoff).
+    MatchingCloseTag(String),
+    /// The child parser runs to end-of-stream (used only for top-level
+    /// fragments).
+    EndOfStream,
+}
+
+#[derive(Debug, Clone)]
+pub struct InheritedContext {
+    pub schema_id: Option<u32>,
+    pub namespace_uri: Option<String>,
+    /// Byte offset of the parent scope's expected close, if known. The
+    /// child parser is forbidden from consuming past this offset.
+    pub parent_close_byte_offset: Option<u64>,
+}
+
 #[derive(Debug, Clone)]
 pub struct HandoffRecord {
     pub content_type: String,
     pub schema_id: Option<u32>,
     pub source_span: ByteRange,
-    pub return_condition: String,
+    pub inherited_context: InheritedContext,
+    pub return_condition: ReturnCondition,
 }
 
 #[derive(Debug, Clone)]

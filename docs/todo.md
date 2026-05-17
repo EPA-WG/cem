@@ -165,13 +165,26 @@ Component vocabulary: [`component-mvp.md`](component-mvp.md). Research input:
 
 ### Scoped Handoffs And Embedded Content
 
-- [ ] Define Tier A handoff records with content type, schema id, source span, inherited context, and parent-owned
-      return condition.
-- [ ] Add validation behavior for embedded `style`, `script`, XML CDATA/schema-tagged text, CSF-like fields, and JSON
-      string subdocuments.
-- [ ] For Tier A, diagnostic-only handling is acceptable for unsupported child parsers if the parent bounds and reports
-      the embedded region correctly.
-- [ ] Add tests that a child parser cannot consume past the parent-owned close condition.
+- [x] Tier A `HandoffRecord` in `packages/cem_ml/src/events.rs` carries `content_type`, `schema_id`, `source_span`,
+      `inherited_context: InheritedContext { schema_id, namespace_uri, parent_close_byte_offset }`, and
+      `return_condition: ReturnCondition { ParentScopeClose | MatchingCloseTag(String) | EndOfStream }`. The schema
+      machine fills `parent_close_byte_offset` from the active parent frame's `source_span.end()` when the handoff
+      opens.
+- [x] Embedded-content validation behavior: `packages/cem_ml/src/schema/machine.rs::on_mode_switch` drives a
+      `HandoffStack` (`packages/cem_ml/src/handoff.rs`). Tier A supported content types
+      (`text/html`, `text/css`, `text/javascript`, `application/json`, `text/xml`, `application/xml`) emit
+      `cem.handoff.child_parser_deferred` (Info) noting the child parser lands in Phase 11; unknown types emit
+      `cem.handoff.unsupported_content_type` (Error). Embedded `<style>` / raw-text `<script>` / XML CDATA / JSON
+      string subdocuments / CSF-like field interpretation are the child-parser bodies deferred to Phase 11; the
+      handoff *boundary* is enforced now.
+- [x] Diagnostic-only handling for unsupported content types: the region is preserved as opaque text bounded by the
+      parent scope's close, no `cem.schema.unclosed_scope` fires, and validation continues for the surrounding
+      document. Verified by `unsupported_content_type_emits_error_but_region_is_bounded`.
+- [x] Tests proving a child parser cannot consume past the parent-owned close condition:
+      `child_parser_cannot_consume_past_parent_close` (synthetic `HandoffStack::within_bounds` check at the close
+      boundary), `handoff_records_carry_inherited_context_with_parent_close_offset` (step-by-step machine inspection
+      confirming `parent_close_byte_offset == parent.source_span.end()`), and `nested_scopes_pop_only_owned_handoffs`
+      (an inner scope's handoff pops on inner close, leaving the outer scope unaffected and `handoffs_at_eof == 0`).
 
 ### AST, DOM Helpers, And Source Maps
 

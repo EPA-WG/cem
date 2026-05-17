@@ -9,8 +9,8 @@
 //! traversal as elements without a directive-specific event variant.
 
 use crate::events::{
-    EventNormalizer, HandoffRecord, NormalizedEvent, QName, ScalarValue, SeparatorKind, Synthesis,
-    TriviaKind,
+    EventNormalizer, HandoffRecord, InheritedContext, NormalizedEvent, QName, ReturnCondition,
+    ScalarValue, SeparatorKind, Synthesis, TriviaKind,
 };
 use crate::source::ByteRange;
 use crate::source_map::SourceMapStack;
@@ -92,7 +92,15 @@ impl<T: SchemaTokenizer> CemEventNormalizer<T> {
                                 content_type: ct,
                                 schema_id: None,
                                 source_span: byte_range,
-                                return_condition: "scope-close".to_owned(),
+                                inherited_context: InheritedContext {
+                                    schema_id: None,
+                                    namespace_uri: None,
+                                    // The schema machine fills the actual
+                                    // parent close offset when it owns the
+                                    // open frame for this handoff.
+                                    parent_close_byte_offset: None,
+                                },
+                                return_condition: ReturnCondition::ParentScopeClose,
                             },
                         });
                     }
