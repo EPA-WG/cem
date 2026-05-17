@@ -1,0 +1,23 @@
+@doc cem-ml 1
+@ns cem = "https://cem.dev/ns/core/1"
+@ns html = "http://www.w3.org/1999/xhtml"
+@default html
+
+{main @cem:screen="message-thread" @aria-labelledby="thread-title" |
+  {h1 @id="thread-title" | Support thread}
+  {ol @cem:thread="support" |
+    {li @cem:message=received |
+      {p | {strong | Support}}
+      {p | Your export is ready for review.}
+    }
+    {li @cem:message=sent |
+      {p | {strong | You}}
+      {p | I will compare it with the Figma token page.}
+    }
+  }
+  {form @cem:form="message-reply" @method=post @action="/thread/reply" |
+    {label @for=reply | Reply}
+    {textarea @id=reply @name=reply @rows=4 @required}
+    {button @type=submit @cem:action=primary | Send}
+  }
+}

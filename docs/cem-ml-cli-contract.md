@@ -4,6 +4,11 @@ This document summarizes planned `cem-ml-cli` features: command capabilities, op
 behavior, report fields, diagnostics, fixture workflows, and exit-code policy. It is an
 input to implementation planning, not a compatibility contract with removed CLI behavior.
 
+The default parser-backed input surface is canonical CEM-ML (`.cem`) using the
+curly-brace syntax in [`cem-ml-syntax.md`](cem-ml-syntax.md). XML and HTML are
+secondary parity input surfaces and should remain selectable anywhere parser-backed
+input format is exposed.
+
 ## Functional Surface
 
 - Parse one input into structured output.
@@ -21,6 +26,7 @@ input to implementation planning, not a compatibility contract with removed CLI 
 ## Planned Option Behavior
 
 - Fail level: `parse`, `validate`, `strict`.
+- Input format selection for CEM-native, XML, and HTML.
 - Output format selection for CEM-native, XML, JSON, text, HTML, Markdown, DOM JSON, AST, events, and tree-shaped
   output where relevant.
 - Output destination handling for stdout and `--out`.
@@ -32,7 +38,7 @@ input to implementation planning, not a compatibility contract with removed CLI 
 - Convert input/output format selection.
 - Inspect view selection.
 - Benchmark iterations, budget, profile, cold-cache, and JSON report options.
-- Default semantic fixture paths.
+- Default canonical CEM-ML fixture paths and secondary semantic HTML parity fixture paths.
 
 ## Output Shapes
 

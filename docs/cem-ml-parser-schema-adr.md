@@ -14,6 +14,11 @@ implementation. Phase 1 exists to assess Java XML precedents, Rust library optio
 schema mirror choices, diagnostics, source locations, security defaults, and WASM
 constraints before parser-backed command work starts.
 
+Surface update: canonical authoring input is now curly-brace CEM-ML as defined in
+[`cem-ml-syntax.md`](./cem-ml-syntax.md). The XML/HTML parser inventory remains
+relevant as secondary parity input support, schema mirror generation, and conformance
+oracle work; it is not the canonical source-syntax decision.
+
 The required diagnostic shape remains:
 
 ```txt
@@ -56,11 +61,13 @@ third-party DOM or parser API is allowed to become the public `cem-ml` data surf
 
 1. **Parser engine recommendation:** build a CEM-owned parser engine boundary over Rust event readers, not over a
    third-party DOM.
-    - XML path: prototype with `quick-xml`, using namespace-aware reading or a CEM namespace layer.
-    - HTML path: prototype with `html5ever`, using a custom CEM sink rather than `markup5ever_rcdom`.
+    - CEM-native path: implement the canonical curly-brace tokenizer/parser first and lower it into the shared CEM
+      event model.
+    - XML parity path: prototype with `quick-xml`, using namespace-aware reading or a CEM namespace layer.
+    - HTML parity path: prototype with `html5ever`, using a custom CEM sink rather than `markup5ever_rcdom`.
     - Public command output stays in `cem_ml` data shapes, not in third-party crate structs.
 2. **Schema mirror recommendation:** use RELAX NG as the primary XML schema mirror for CEM semantic documents.
-    - Keep CEM-native schema syntax as the eventual source of truth.
+    - Keep CEM-native schema syntax as the canonical source of truth.
     - Emit RELAX NG XML and compact syntax mirrors for validation/tooling.
     - Treat XSD as a downstream adapter only when a consumer requires it.
 3. **Runtime validation recommendation:** do not require a general RELAX NG runtime validator in `cem-ml` until a Rust
@@ -105,6 +112,7 @@ third-party DOM or parser API is allowed to become the public `cem-ml` data surf
 | Namespace and schema URI behavior | Namespace handling belongs in the CEM event layer; schema URI resolution belongs behind an explicit catalog/resolver policy. |
 | Secure defaults                   | Java precedents support disabling DTD/entities and external access. Rust implementation must make the same policy explicit.  |
 | Stable event model                | `quick-xml` and `html5ever` can feed a CEM event model. The CEM event model remains the only stable boundary.                |
+| Canonical source syntax           | Curly CEM-ML is implemented as the primary source tokenizer; XML/HTML inputs are parity adapters into the same event model.  |
 | Schema mirror generation          | RELAX NG mirrors fit CEM's mixed, extensible document model better than XSD as the primary mirror.                           |
 | WASM feasibility                  | Pure Rust XML/HTML parser paths remain feasible. Java and libxml2 paths are oracle or native-only escape hatches.            |
 
@@ -114,7 +122,7 @@ third-party DOM or parser API is allowed to become the public `cem-ml` data surf
 2. Prove namespace event normalization for `quick-xml` against the five semantic fixtures and XML namespace edge cases.
 3. Decide whether the internal materialized tree should be custom, `xot`, or another structure after the event model is
    stable.
-4. Define the CEM-native schema syntax and the generator path into RELAX NG XML and compact syntax.
+4. Finish the CEM-native schema grammar and generator path into RELAX NG XML and compact syntax.
 5. Decide how generated CEM-specific validation maps to RELAX NG conformance tests.
 6. Decide how XML Catalog semantics should be represented in Rust without introducing network or filesystem surprises.
 7. Reassess Rust XPath/XSLT candidates only when transform work enters scope.
@@ -124,8 +132,8 @@ third-party DOM or parser API is allowed to become the public `cem-ml` data surf
 1. Phase 2 can define crate boundaries and modules without parser dependencies.
 2. Phase 3 can define diagnostic, fail-level, report, and command-output data shapes.
 3. Phase 4-8 can use a fake engine for CLI feature tests.
-4. Parser implementation must start with a prototype branch that measures source-span fidelity for `quick-xml` and
-   `html5ever`.
+4. Parser implementation must start with the canonical CEM-ML tokenizer prototype, then measure source-span fidelity for
+   the `quick-xml` and `html5ever` parity paths.
 5. Schema implementation must start with CEM-native-to-RELAX-NG mirror generation and Java-oracle conformance tests.
 
 ## References

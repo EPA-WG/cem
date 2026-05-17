@@ -650,10 +650,10 @@ cem_ql_span     := "{" cem_ql_expression "}"  // attribute-value mode only
 directive       := "@doc" ... | "@ns" ... | "@default" ... | "@schema" ...
 ```
 
-Open decisions:
+Remaining grammar details:
 
 - Exact escaping rules for quoted strings and fenced blocks.
 - Whether `|` inline content ends at line end or only at the closing `}`.
 - Whether canonical CEM-ML quotes all text and attribute values.
-- Exact comment syntax and whether comments are AST-preserved by default.
+- Whether comments are AST-preserved by default in every content type.
 - The complete grammar for inline schema declarations.

@@ -1,0 +1,29 @@
+@doc cem-ml 1
+@ns cem = "https://cem.dev/ns/core/1"
+@ns html = "http://www.w3.org/1999/xhtml"
+@default html
+
+{main @cem:screen="profile" @aria-labelledby="profile-title" |
+  {h1 @id="profile-title" | Profile}
+  {section @cem:card="identity" @aria-labelledby="identity-title" |
+    {h2 @id="identity-title" | Identity}
+    {dl |
+      {dt | Name}
+      {dd | Alex Carter}
+      {dt | Email}
+      {dd | alex@example.test}
+      {dt | Status}
+      {dd | {span @cem:badge=success | Verified}}
+    }
+  }
+  {section @cem:card="preferences" @aria-labelledby="preferences-title" |
+    {h2 @id="preferences-title" | Preferences}
+    {form @cem:form="profile-preferences" |
+      {label |
+        {input @name=email_updates @type=checkbox @checked}
+        Email updates
+      }
+      {button @type=submit @cem:action=secondary | Save preferences}
+    }
+  }
+}

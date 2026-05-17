@@ -1,0 +1,25 @@
+@doc cem-ml 1
+@ns cem = "https://cem.dev/ns/core/1"
+@ns html = "http://www.w3.org/1999/xhtml"
+@default html
+
+{main @cem:screen="registration" @aria-labelledby="registration-title" |
+  {h1 @id="registration-title" | Create account}
+  {form @cem:form="registration" @method=post @action="/account" |
+    {label @for=name | Full name}
+    {input @id=name @name=name @autocomplete=name @required}
+
+    {label @for=email | Email}
+    {input @id=email @name=email @type=email @autocomplete=email @required}
+
+    {label @for=password | Password}
+    {input @id=password @name=password @type=password @autocomplete=new-password @required}
+
+    {label |
+      {input @name=terms @type=checkbox @required}
+      I agree to the terms
+    }
+
+    {button @type=submit @cem:action=primary | Create account}
+  }
+}

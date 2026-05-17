@@ -14,10 +14,11 @@
 > is the normative replacement for the
 > `ScopedQueryLanguage::CemScopedQuery` placeholder in
 > `cem-ml-stack-design-impl.md §3.10`. Template-side embedding of cem-ql
-> expressions is owned by the host AC at `cem-ml-ac.md` **AC-T-7** and uses
-> XSLT 3.0-style `{ … }` AVTs and `select="…"`/`match="…"`/`test="…"`
-> attributes; cem-ql itself does not define a template-embedding delimiter
-> (see AC-QS-6).
+> expressions is owned by the host AC at `cem-ml-ac.md` **AC-T-7**. Attribute values
+> may use host-owned `{…}` cem-ql spans, whole-expression attributes use
+> `select="…"`, `match="…"`, or `test="…"`, and content expressions use the explicit
+> CEM-ML `$` node (`{$ …}` / `{$ | …}`). cem-ql itself does not define a
+> template-embedding delimiter (see AC-QS-6).
 >
 > If a requirement here contradicts `cem-ml-ac.md`, `cem-ml-ac.md` wins until
 > this document is aligned.
@@ -46,8 +47,9 @@ rules.
 This language is the normative replacement for the
 `ScopedQueryLanguage::CemScopedQuery` placeholder in
 `cem-ml-stack-design-impl.md §3.10`. Template-side embedding is defined by
-`cem-ml-ac.md` AC-T-7 (XSLT 3.0-style AVTs and `select=`/`match=`/`test=`);
-cem-ql defines no embedding delimiter of its own.
+`cem-ml-ac.md` AC-T-7: host-owned attribute `{...}` spans, whole-expression
+attributes such as `select=`/`match=`/`test=`, and explicit `$` expression nodes for
+content. cem-ql defines no embedding delimiter of its own.
 
 The long-range parity target is XPath 3.1 / XQuery 3.1 expression coverage,
 XSLT-style user-defined functions and module composition, and Python-style
@@ -169,12 +171,13 @@ Each AC below is tagged `[A]`, `[B]`, or `[C]`.
 - **AC-QS-3 [A] MUST** support **anonymous record literals** in the canonical
   XQuery 3.1 map form `{ "key": expression, … }`:
   - **Keys** are **string literals** (double-quoted), aligning with the
-    XQuery 3.1 map constructor and avoiding ambiguity with XSLT-style
-    `{ … }` AVT delimiters and `select="…"` attribute embedding used by
-    CEM-ML templates per `cem-ml-ac.md` AC-T-7.
+    XQuery 3.1 map constructor and avoiding ambiguity with host-owned
+    attribute `{...}` spans, content `$` expression nodes, and `select="..."`
+    attribute embedding used by CEM-ML templates per `cem-ml-ac.md` AC-T-7.
   - **Computed keys** use `[expression]` and evaluate to a string.
   - **Values** are cem-ql expressions — the same expression grammar that
-    appears inside template `{ … }` AVTs and `select=` attributes.
+    appears inside template attribute `{...}` spans, `$` expression nodes, and
+    `select=` attributes.
   - Bare-identifier keys (`{ key: value }`, JSON-style) are **not**
     accepted in Tier A; the parser emits `cem.ql.parse_error` and suggests
     quoting. Tier C MAY reintroduce them as sugar if template embedding
@@ -194,12 +197,13 @@ Each AC below is tagged `[A]`, `[B]`, or `[C]`.
   on host content type, host whitespace policy, or host trivia preservation
   policy. Query source is plain UTF-8 text and uses its own tokenizer; it
   is not embedded as XML/HTML attributes by default. Embedding inside CEM-ML
-  template attributes is owned by the host AC at `cem-ml-ac.md` **AC-T-7**,
-  which adopts XSLT 3.0-style syntax: `{ cem-ql-expression }` Attribute
-  Value Templates with `{{` / `}}` escapes, and full-attribute
-  `select="…"` / `match="…"` / `test="…"` forms. The cem-ql parser is
-  invoked by the template compiler on the post-AVT-strip, post-XML-escape
-  substring; cem-ql itself sees plain UTF-8.
+  templates is owned by the host AC at `cem-ml-ac.md` **AC-T-7**: template-aware
+  attributes may contain host-owned `{ cem-ql-expression }` spans with `{{` / `}}`
+  literal-brace escapes, whole-expression attributes use forms such as
+  `select="..."` / `match="..."` / `test="..."`, and content expressions use explicit
+  `$` expression nodes (`{$ ...}` or `{$ | ...}`). The cem-ql parser is invoked by the
+  template compiler on the unescaped attribute span, whole-attribute value, or `$` node
+  body; cem-ql itself sees plain UTF-8.
 
 ---
 
@@ -886,10 +890,10 @@ default preference list as `ct:floor`, so authors can write
 - **AC-QR-4 [A] MUST** treat all input as untrusted per `cem-ml-ac.md`
   AC-X-1. Even AC-QA-5 in-memory parsers run inside the host's
   content-type transform sandbox.
-- **AC-QR-5 [B] SHOULD** publish a benchmark suite for representative
-  selectors over the `examples/semantic/*.html` fixtures, hooked into
-  `cem-ml-ac.md` AC-N-3. Selector + transform end-to-end stays under the
-  host's 150 ms Tier A budget when run together.
+- **AC-QR-5 [B] SHOULD** publish a benchmark suite for representative selectors over
+  the canonical `examples/cem-ml/*.cem` fixtures and the `examples/semantic/*.html`
+  HTML parity fixtures, hooked into `cem-ml-ac.md` AC-N-3. Selector + transform
+  end-to-end stays under the host's 150 ms Tier A budget when run together.
 
 ---
 
@@ -902,9 +906,10 @@ A `cem-ql` Tier A release is acceptance-tested with:
 2. `yarn nx run cem_ql:test:xpath-parity` — table-driven tests against the
    XPath 3.1 conformance suite, restricted to the AC-QX-1 subset. Failures
    on out-of-subset items are skipped, not reported as failures.
-3. `yarn nx run cem_ql:test:fixtures` — runs every Tier A query the CEM
-   templates need to transform `examples/semantic/*.html`. Output snapshots
-   match the host's existing transform snapshots.
+3. `yarn nx run cem_ql:test:fixtures` — runs every Tier A query the CEM templates
+   need to transform canonical `examples/cem-ml/*.cem` fixtures and
+   `examples/semantic/*.html` HTML parity fixtures. Output snapshots match the host's
+   existing transform snapshots.
 4. `yarn nx run cem_ql:bench` — selector benchmarks shared with the host
    `cem_ml_cli:bench` budget per AC-QR-5.
 5. **AC-QV-V-1** — scope-inheritance test, three cases:

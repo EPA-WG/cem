@@ -41,46 +41,58 @@ Resolved design reasoning has been folded back into the AC as of the current ali
 pass: CEM-native schema source, RELAX-NG structural parity, streaming-first async
 public APIs, context-scope error policy, origin-first source-map stacks,
 schema-qualified CEM annotations, schema-driven CEM template transforms, canonical
-CEM-ML output, and deferred DOM mutation runtime scope are AC decisions.
+curly CEM-ML output with XML/HTML parity surfaces, and deferred DOM mutation runtime
+scope are AC decisions.
 
 ---
 
 ## 2. Domain Context
 
-CEM semantic HTML is standard HTML5 plus schema-qualified CEM attributes. These
-attributes are transformation annotations in the namespace associated with the active
-schema, not HTML `data-*` metadata and not replacements for native HTML element meaning.
-The `cem:` prefix below is illustrative; the active schema owns the concrete namespace
-binding:
+Canonical CEM-ML source uses the curly-brace surface from
+[`cem-ml-syntax.md`](cem-ml-syntax.md). XML and HTML remain secondary parity surfaces:
+they must lower into the same event model and AST, but they do not replace the CEM-ML
+source form as the authoring canonical.
 
-```html
+Schema-qualified CEM attributes are transformation annotations in the namespace
+associated with the active schema. They are not HTML `data-*` metadata and not
+replacements for native HTML element meaning. The `cem:` prefix below is illustrative;
+the active schema owns the concrete namespace binding:
 
-<main cem:screen="login" aria-labelledby="login-title">
-    <h1 id="login-title">Sign in</h1>
-    <form cem:form="sign-in" method="post" action="/session">
-        <label for="email">Email</label>
-        <input id="email" name="email" type="email" required>
-        <button type="submit" cem:action="primary">Sign in</button>
-    </form>
-</main>
+```cem
+@doc cem-ml 1
+@ns cem = "https://cem.dev/ns/core/1"
+@ns html = "http://www.w3.org/1999/xhtml"
+@default html
+
+{main @cem:screen="login" @aria-labelledby="login-title" |
+  {h1 @id="login-title" | Sign in}
+  {form @cem:form="sign-in" @method=post @action="/session" |
+    {label @for=email | Email}
+    {input @id=email @name=email @type=email @required}
+    {button @type=submit @cem:action=primary | Sign in}
+  }
+}
 ```
 
-The five fixtures in `examples/semantic/` (login, registration, profile, assets-list,
-message-thread) are the Tier A validation surface. The pipeline must:
+The canonical fixture set lives under `examples/cem-ml/` and mirrors the five existing
+HTML parity fixtures in `examples/semantic/` (login, registration, profile,
+assets-list, message-thread). The pipeline must:
 
-1. Read raw HTML bytes, detect/decode encoding, preserve byte offsets throughout.
-2. Tokenize as HTML following WHATWG tokenizer states.
-3. Normalize tokens into a cross-format event stream (open, close, name, value, …).
-4. Validate event structure against the CEM schema using a RELAX NG derivative validator.
-5. Handle embedded content (inline `<style>`, `style=""` attributes) through an explicit
-   handoff stack.
+1. Read raw source bytes, detect/decode encoding, and preserve byte offsets throughout.
+2. Tokenize canonical CEM-ML curly syntax, or a selected XML/HTML parity profile, into
+   the same schema event vocabulary.
+3. Normalize tokens into a cross-format event stream (open, close, name, value, ...).
+4. Validate event structure against the CEM schema using a RELAX NG-equivalent
+   structural IR.
+5. Handle embedded content (inline `<style>`, `style=""` attributes, CEM-ML typed
+   scopes, and raw-text `<script>` handoffs) through an explicit handoff stack.
 6. Reconstruct the schema-defined token hierarchy as the initial input DOM/AST with
    source-map stacks and reference slots on every node.
 7. Apply content-type transformations over that input DOM/AST. For HTML, WHATWG DOM
    compliance is a schema-driven transformation from the initial HTML parser DOM to the
    implementation DOM.
-8. Transform the CEM AST projection to light-DOM custom-element markup (`<cem-screen>`,
-   `<cem-form>`, etc.).
+8. Transform the CEM AST projection to canonical CEM-ML and to rendered light-DOM
+   custom-element markup (`<cem-screen>`, `<cem-form>`, etc.).
 
 ---
 
@@ -93,7 +105,7 @@ message-thread) are the Tier A validation surface. The pipeline must:
 ```
 ByteSource
   └─ EncodingDecoder
-       └─ SchemaTokenizer              (WHATWG HTML or XML 1.0 profile)
+       └─ SchemaTokenizer              (CEM-native curly, WHATWG HTML, or XML 1.0 profile)
             └─ EventNormalizer
                  └─ SchemaMachine      (RELAX NG derivative frame stack)
                       ├─ [HandoffStack ──> child SchemaTokenizer / SchemaMachine]
@@ -334,14 +346,19 @@ compiler places those rules there.
 
 ### Functional Design
 
-For HTML, Tier A uses a custom WHATWG-state tokenizer and emits source-spanned tokens.
-The custom tokenizer is selected over wrapping an existing Rust HTML5 tokenizer because
-CEM requires exact source-map preservation across nested embedded contexts, decoded
-handoff streams, token envelopes, attribute names, attribute values, text runs, and raw
-text return boundaries. It does not construct either the source-preserving initial HTML
-parser DOM or the WHATWG implementation DOM. The schema-defined token hierarchy is
-reconstructed later by the input DOM/AST builder, and WHATWG DOM compliance is applied
-as a content-type transform.
+For canonical CEM-ML, Tier A tokenizes the curly-brace surface from
+[`cem-ml-syntax.md`](cem-ml-syntax.md): `{name @attributes | content...}` nodes, `$`
+expression nodes, anonymous typed scopes, directives, comments, and rich-content
+enclosures. This tokenizer is the primary authoring path.
+
+For HTML parity, Tier A uses a custom WHATWG-state tokenizer and emits source-spanned
+tokens. The custom tokenizer is selected over wrapping an existing Rust HTML5 tokenizer
+because CEM requires exact source-map preservation across nested embedded contexts,
+decoded handoff streams, token envelopes, attribute names, attribute values, text runs,
+and raw text return boundaries. It does not construct either the source-preserving
+initial HTML parser DOM or the WHATWG implementation DOM. The schema-defined token
+hierarchy is reconstructed later by the input DOM/AST builder, and WHATWG DOM
+compliance is applied as a content-type transform.
 
 The tokenizer is the only layer that owns token assembly buffering. It consumes decoded
 scalar chunks, keeps the partial bytes/scalars needed for the current token and any
@@ -352,9 +369,9 @@ another bounded strategy as long as streaming order, source ranges, and token si
 are preserved.
 
 The schema can select valid tokenizer contexts and embedded-content boundaries, but it
-does not rewrite WHATWG lexical behavior or make the tokenizer the semantic source of
-truth. XML follows the same layer contract with an XML 1.0 profile so Layers 3 and above
-can consume a format-agnostic event stream.
+does not rewrite CEM-ML, WHATWG, or XML lexical behavior or make the tokenizer the
+semantic source of truth. XML follows the same layer contract with an XML 1.0 profile so
+Layers 3 and above can consume a format-agnostic event stream.
 
 XML constructs that require external resources or compatibility behavior, including DTDs,
 entities, notation declarations, and XInclude, are delegated to the XML content-type
@@ -1120,10 +1137,12 @@ Children are transformed recursively. Text nodes pass through unchanged.
 
 ### Canonical CEM-ML Serialization
 
-The canonical serialization of a transformed AST tree is CEM-ML format. Canonical
-snapshots, hashes, fixture round trips, and cache identities use this CEM-ML tree rather
-than rendered HTML or another target projection. The CEM-ML serialization is schema-owned
-and follows the same transform plan that produced the tree.
+The canonical serialization of a transformed AST tree is the curly-brace CEM-ML surface
+defined in [`cem-ml-syntax.md`](cem-ml-syntax.md). Canonical snapshots, hashes, fixture
+round trips, and cache identities use this CEM-ML tree rather than rendered HTML, XML, or
+another target projection. The CEM-ML serialization is schema-owned and follows the same
+transform plan that produced the tree. XML convention serialization is a deterministic
+secondary parity projection.
 
 Canonical CEM-ML serialization rules:
 
@@ -1180,10 +1199,11 @@ The primary differences from XSLT are context scope and selector language. CEM t
 queries are evaluated against the current transform scope, schema-owned AST view,
 machine-state slots, and policy-visible resources only. The selector/query language is
 `cem-ql` as specified in [`cem-ql-ac.md`](cem-ql-ac.md); host-side template embedding is
-the XSLT 3.0-style AVT / `select=` / `match=` / `test=` contract in
-[`cem-ml-ac.md` AC-T-7](cem-ml-ac.md#6-transformations). Concrete renderer grammar and
-evaluator IR details belong in the future `cem-ql-stack-design.md`, but the delimiter
-and expression-language decision is no longer TBD.
+the AC-T-7 contract: host-owned `{...}` spans in template-aware attributes,
+whole-expression attributes such as `select=` / `match=` / `test=`, and explicit `$`
+expression nodes for content. Concrete renderer grammar and evaluator IR details belong
+in the future `cem-ql-stack-design.md`, but the delimiter and expression-language
+decision is no longer TBD.
 
 Transform interface shapes are in
 [`cem-ml-stack-design-impl.md`](cem-ml-stack-design-impl.md#310-layer-9-implementationinterpreter-cem_mlinterpreter).
@@ -1194,13 +1214,15 @@ Transform interface shapes are in
 
 The schema machine requires a machine-readable CEM schema. The research establishes
 RELAX NG derivatives as the **validation algorithm**. The selected schema authoring
-source is a CEM-native declarative format.
+source is a CEM-native declarative format expressed through the canonical curly CEM-ML
+surface, with XML/RELAX NG mirrors emitted as secondary artifacts.
 
 The CEM-native format is the source of truth for CEM vocabulary and schema behavior:
 roles, states, token tiers, component names, namespace ownership, open-content policy,
 structural content models, embedded handoff declarations, and schema-owned transform
-hooks. Existing token tables or external schema artifacts may be supported as import
-adapters, but they are not competing canonical authoring formats for CEM schemas.
+hooks. Existing token tables, XML schema files, RELAX NG compact/XML, or other external
+schema artifacts may be supported as import adapters or emitted mirrors, but they are
+not competing canonical authoring formats for CEM schemas.
 
 The dedicated schema compiler emits two products:
 
@@ -1254,6 +1276,18 @@ element-level mid-document switch (self-closing or wrapping), and a scope-policy
 attribute applicable to any element. All four open new scopes that follow the AC-F-1
 scope-policy inheritance model; none mutates the active schema of an ancestor scope.
 
+Canonical CEM-ML and XML convention forms are kept in parity. The XML table below is
+the secondary mirror form; the canonical CEM-ML surface uses directives and `@`-prefixed
+attributes:
+
+| Canonical CEM-ML form                                      | XML convention mirror                                      |
+|------------------------------------------------------------|------------------------------------------------------------|
+| `@schema src="./schema.cem-schema"`                        | `<cem:schema src="./schema.cem-schema"/>` or host `cem:schema-src` |
+| `{schema @name="badge" \| ...}` where schema language allows | `<cem:schema cem:name="badge">...</cem:schema>`            |
+| `{schema @src="./schema.cem-schema" \| ...}`                | `<cem:schema src="./schema.cem-schema">...</cem:schema>`   |
+| `{section @schema-src="./admin.cem-schema" \| ...}`         | `<cem:section cem:schema-src="./admin.cem-schema">...</cem:section>` |
+| `{section @schema-select="$schemaQuery" \| ...}`            | `<cem:section cem:schema-select="$schemaQuery">...</cem:section>` |
+
 **Form table — declaration and switching constructs:**
 
 | Form                                                          | Self-closing | Effect                                                                                                                                                                                            |
@@ -1305,7 +1339,7 @@ ownership live in
 ```
 cem_ml/src/
   source/        byte sources, decoding, line-index projection
-  tokenizer/     WHATWG HTML and XML tokenization profiles
+  tokenizer/     canonical CEM-ML curly, WHATWG HTML, and XML tokenization profiles
   events/        normalized event taxonomy and token-to-event conversion
   schema/        schema machine, validation state, derivative/DFA backend
   handoff/       embedded content handoff stack and return conditions
@@ -1348,6 +1382,7 @@ Status key:
 | L1 ByteSource: async byte/string streams                    | Design ready — async Rust and WASM input APIs are primary; Tier A parses chunks monotonically; tokenizer buffering is token-local, while editor-style incremental reparse remains Tier B  |
 | L1 EncodingDecoder: UTF-8                                   | Design ready — UTF-8 is the fallback when no BOM or explicit/default encoding is present (§5)                                                                                           |
 | L1 EncodingDecoder: UTF-16, Latin-1, BOM detection          | Design ready — byte-stream initiation, BOM precedence, BOM skipping, caller/default encoding precedence, in-band declaration handling, and scalar preprocessing are resolved (§5)         |
+| L2 SchemaTokenizer: CEM-native curly profile                | Design ready — canonical `{name @attributes \| content...}` syntax, `$` expression nodes, anonymous scopes, rich-content enclosures, and XML parity rules are defined in `cem-ml-syntax.md` |
 | L2 SchemaTokenizer: HTML WHATWG profile                     | Design ready — custom WHATWG-state tokenizer selected for exact source-map preservation across nested embedded contexts (§6)                                                            |
 | L2 SchemaTokenizer: XML 1.0 profile                         | Design partial — DTD/external-resource ownership follows transform policy (§3.2, §6)                                                                                                     |
 | L3 EventNormalizer                                          | Design ready — `ElementBoundary`, header/prelude parameter handling, synthesized close reasons, trivia preservation, `QName` resolution, and `ModeSwitch` context creation are defined (§7–9) |
@@ -1358,7 +1393,7 @@ Status key:
 | L5 Child parser: CSS (stub, diagnostic only)                | Design ready — container content type decodes before handoff; child receives a source-mapped decoded stream (§9)                                                                        |
 | L5 Child parser: Script (raw text only)                     | Design ready — parser preserves raw text; warning/error/reject/allow behavior is defined by active scope/content-type policy (§3.1–3.2, §9)                                             |
 | L6 InputDomAstBuilder: schema-defined initial DOM/AST       | Design ready — schema reconstructs token hierarchy; WHATWG DOM compliance is a downstream transformation over this initial DOM                                                          |
-| L6 InterpreterAstBuilder: CEM annotation projection         | Design partial — CEM attributes are transform annotations on source nodes; transform conflict policy is schema-owned; CEM comment/CDATA syntax remains TBD (§10)                         |
+| L6 InterpreterAstBuilder: CEM annotation projection         | Design partial — CEM attributes are transform annotations on source nodes; transform conflict policy is schema-owned; comment and rich-content syntax follows `cem-ml-syntax.md`           |
 | L6 Reference slots: id/for/aria-*                           | Design ready — one-pass mutable slots are sufficient; unfilled slots warn on owning scope close unless scope policy overrides severity per error type (§10, §3.1)                         |
 | L6 Source-map stacks: byte-range + transform chain          | Design ready — frames are origin-first, current frame is last, `FrameSpan::Multi`, boundary frames, and tokenizer-local `EscapeDecoded` frames are defined (§4, §6)                      |
 | L6 Source-map stacks: bit-level ranges                      | Deferred Tier B — reserve representation only; no serialized binary frame ids in Tier A (§11)                                                                                           |
@@ -1387,6 +1422,7 @@ Status key:
 
 | Layer     | Problem                      | Algorithm                                                | Reason from research                                                                           |
 |-----------|------------------------------|----------------------------------------------------------|------------------------------------------------------------------------------------------------|
+| L2        | CEM-ML tokenization          | Canonical curly CEM-ML tokenizer                         | Keeps authoring syntax canonical while lowering to the same schema event model as parity forms |
 | L2        | HTML tokenization            | Custom WHATWG-state tokenizer                            | Browser-compatible; preserves exact source maps across nested embedded contexts                |
 | L2        | XML tokenization             | XML 1.0 scanner                                          | Well-defined, same tokenizer contract as HTML                                                  |
 | L3        | Cross-format event model     | Open/close/name/value taxonomy                           | Research §3: small event set lets schema validation share algorithms across formats            |

@@ -36,20 +36,27 @@ template transformation, Canvas command data, SMIL-style timed content, and bina
 transport. Parity is tiered. A feature named here is not Tier A unless its AC item says
 `[A]`.
 
+The canonical authoring/source surface is the curly-brace CEM-ML syntax defined in
+[`cem-ml-syntax.md`](cem-ml-syntax.md). XML convention syntax remains a secondary
+parity/mirror surface and must be developed alongside each feature that can be expressed
+in XML.
+
 ## Conformance Tiers
 
 The stack is large enough that one binary AC list would never finish. Three tiers:
 
-- **Tier A — Streaming schema/transform MVP.** Parses the existing five
-  `examples/semantic/*.html` fixtures through async Rust/WASM public APIs, validates
-  them against a CEM-native schema compiled to a RELAX-NG-equivalent structural IR,
-  builds a source-preserving input DOM/AST plus CEM projection, and transforms them to
-  deterministic canonical CEM-ML and rendered light-DOM custom-element markup. Tier A
-  includes source-stream decoding, basic namespace resolution, CEM schema-qualified
-  annotations, source-map stacks, AST-associated reports, one-pass reference slots,
-  WHATWG HTML tokenization, an XML 1.0 profile, and parent-owned HTML style/script
-  handoff interfaces. Tier A may be single-threaded internally, but public processing
-  APIs are asynchronous.
+- **Tier A — Streaming schema/transform MVP.** Parses the canonical
+  `examples/cem-ml/*.cem` fixture set and the existing secondary
+  `examples/semantic/*.html` HTML parity fixtures through async Rust/WASM public APIs,
+  validates them against a CEM-native schema compiled to a RELAX-NG-equivalent
+  structural IR, builds a source-preserving input DOM/AST plus CEM projection, and
+  transforms them to deterministic canonical CEM-ML and rendered light-DOM
+  custom-element markup. Tier A includes source-stream decoding, basic namespace
+  resolution, CEM schema-qualified annotations, source-map stacks, AST-associated
+  reports, one-pass reference slots, CEM-native curly tokenization, WHATWG HTML
+  tokenization, an XML 1.0 profile, and parent-owned HTML style/script handoff
+  interfaces. Tier A may be single-threaded internally, but public processing APIs are
+  asynchronous.
 - **Tier B — Multi-content and runtime infrastructure.** Adds fuller embedded
   content-type switching, SVG/MathML child scopes, JSON/CSS/SCSS/JS island expansion,
   external-resource loading through policy-gated queues, scoped template/registry
@@ -114,6 +121,9 @@ are deferred.
 - **AC-F-7 [A] MUST** keep data streaming where possible. Public Rust and WASM
   entry points are asynchronous and accept finite source adapters or streams. Internal
   Tier A processing may use task-local state and token-local buffers.
+- **AC-F-8 [A] MUST** treat the curly-brace CEM-ML surface in
+  [`cem-ml-syntax.md`](cem-ml-syntax.md) as the canonical document syntax. XML
+  convention forms are secondary parity/mirror forms, not competing canonical sources.
 
 ### Verification
 
@@ -135,15 +145,18 @@ are deferred.
   under the new schema, siblings of `<section>` remain under the parent's schema. NVDL
   composition: when both an active NVDL dispatch and an explicit attribute apply, NVDL
   resolves first and the explicit form layers within.
+- **AC-F-V-5** — syntax parity: a canonical CEM-ML fixture and its XML/HTML parity
+  fixture lower to the same schema event stream, source-map frame model, and validation
+  result, except for source syntax spans and content-type-specific trivia.
 
 ## 1. Parser
 
-- **AC-P-1 [A] MUST** parse HTML5 documents and XML 1.0 well-formed profile documents
-  into the same source-preserving input DOM/AST abstraction. The public parser tree
-  surface exposes common document, element, attribute, text, trivia, processing
-  instruction, raw-text, error-node, source-map, and reference-slot APIs. WHATWG
-  implementation DOM and CEM AST are projections over that input tree, not competing
-  parser roots.
+- **AC-P-1 [A] MUST** parse canonical curly-brace CEM-ML documents, HTML5 documents,
+  and XML 1.0 well-formed profile documents into the same source-preserving input
+  DOM/AST abstraction. The public parser tree surface exposes common document, element,
+  attribute, text, trivia, processing instruction, raw-text, error-node, source-map, and
+  reference-slot APIs. CEM AST, WHATWG implementation DOM, and XML projections are
+  projections over that input tree, not competing parser roots.
 - **AC-P-2 [A] MUST** be a streaming-first parser: it accepts async byte/string source
   adapters, including WASM `ReadableStream<Uint8Array | string>` where available, and
   emits parse/report events incrementally. Tokenizer buffering MUST be token-local and
@@ -166,9 +179,10 @@ are deferred.
   are ordered origin-first, the current frame is last, and each frame uses byte ranges
   as durable location identity. Line/column are report projections, not parser
   semantics.
-- **AC-P-8 [A] MUST** use CEM-native schema and document syntax as the source of truth
-  for CEM schema behavior. RELAX NG and other schema formats are mirrors/adapters, not
-  competing canonical CEM sources.
+- **AC-P-8 [A] MUST** use CEM-native schema syntax and canonical curly-brace CEM-ML
+  document syntax as the source of truth for CEM schema behavior. RELAX NG, XML
+  convention syntax, HTML fixture syntax, and other schema/document formats are
+  mirrors/adapters, not competing canonical CEM sources.
 - **AC-P-9 [A] MUST** preserve comments, whitespace, doctypes, processing
   instructions, CDATA/raw-text nodes where supported by content type, and recovered
   error nodes in the initial input DOM/AST unless the effective scope policy strips them
@@ -247,7 +261,9 @@ are deferred.
   convenience renderers; they are not canonical storage formats. The internal report is
   an event-time AST-associated tree with source-map stacks, visible partial hierarchy,
   active scope context, origin/boundary scopes, and monotonic event sequence numbers.
-- **AC-V-5 [A] MUST** validate the existing `examples/semantic/*.html` fixtures with **zero hard violations**.
+- **AC-V-5 [A] MUST** validate the canonical `examples/cem-ml/*.cem` fixtures and the
+  existing `examples/semantic/*.html` HTML parity fixtures with **zero hard
+  violations**.
 - **AC-V-6 [A] SHOULD** detect: unknown elements/attrs, invalid state combinations, missing accessible names, broken
   `id`/`for`/`aria-*` references, unsafe inline content.
 - **AC-V-7 [A] MUST** use schema-owned open-content policy for unknown elements and
@@ -447,8 +463,9 @@ runtime surface.
 
 - **AC-I-V-1** — `apply()` happy path: construct a CEM DOM stream from a build-time
   loader (AC-T-4 URI variant) and from an in-memory construction API, call
-  `apply(stream, { target })` against a subtree of an `examples/semantic/*.html`
-  fixture, confirm the transformed subtree matches the AC-T-2 snapshot and a single
+  `apply(stream, { target })` against a subtree of a canonical `examples/cem-ml/*.cem`
+  fixture and its `examples/semantic/*.html` HTML parity fixture, confirm the
+  transformed subtree matches the AC-T-2 snapshot and a single
   `MutationRecord` is emitted on commit per AC-M-V-4.
 - **AC-I-V-2** — `apply()` rollback: induce a mid-stream schema violation (AC-M-11)
   on a fixture subtree, confirm the apply promise rejects, the subtree is byte-identical
@@ -536,8 +553,10 @@ participate in interpreter ownership, scope scheduling, batching, and diagnostic
 
 ### Verification
 
-- **AC-M-V-1** — round-trip test: mutate every fixture in `examples/semantic/*.html` via the async API, snapshot
-  before/after, confirm the snapshot matches an equivalent sync-mutation reference.
+- **AC-M-V-1** — round-trip test: mutate every canonical `examples/cem-ml/*.cem`
+  fixture and every `examples/semantic/*.html` HTML parity fixture via the async API,
+  snapshot before/after, confirm the snapshot matches an equivalent sync-mutation
+  reference.
 - **AC-M-V-2** — ordering test: assert `await Promise.all([appendChildAsync(a), appendChildAsync(b)])` results in the
   documented order regardless of microtask scheduling.
 - **AC-M-V-3** — abort test: a bare mutator aborted via `AbortSignal` *before* its queued work begins leaves the DOM
@@ -557,8 +576,9 @@ participate in interpreter ownership, scope scheduling, batching, and diagnostic
   recursive application, generated attributes, deterministic serialization, and
   source-map frame creation. It does not adopt unrestricted XPath/XSLT execution as the
   runtime contract.
-- **AC-T-2 [A] MUST** transform every fixture in `examples/semantic/*.html` to light-DOM custom-element markup
-  compatible with `@epa-wg/custom-element` and snapshot the output.
+- **AC-T-2 [A] MUST** transform every canonical fixture in `examples/cem-ml/*.cem` and
+  every HTML parity fixture in `examples/semantic/*.html` to light-DOM custom-element
+  markup compatible with `@epa-wg/custom-element` and snapshot the output.
 - **AC-T-3 [C] SHOULD** evaluate XSLT 4.0 surface (see `qt4cg.org` reference) for
   completeness and map accepted capabilities into CEM template/query semantics.
 - **AC-T-4 [A] MUST** support schema-owned transform plans loaded from the compiled
@@ -570,35 +590,29 @@ participate in interpreter ownership, scope scheduling, batching, and diagnostic
 - **AC-T-6 [A] MUST** preserve standard HTML attributes, ARIA, class/id, and synthetic
   HTML-data metadata as pass-through input unless the active schema defines a stricter
   mapping. Transformers match schema-qualified CEM annotations, not raw `data-*`.
-- **AC-T-7 [A] MUST** embed `cem-ql` expressions inside CEM-ML template bodies using
-  **XSLT 3.0-style syntax**, with no CEM-specific delimiter invented:
-  - **Attribute Value Templates (AVTs)** — any template attribute value may
-    interpolate cem-ql expressions inside `{ … }`, e.g.
-    `<cem:value text="Hello {.name}, {count(.items)} items"/>`. Multiple
-    interpolations per attribute are allowed; literal `{` and `}` are
-    escaped as `{{` and `}}` (XSLT rule).
-  - **`select=` attributes** — template elements designed to take a single
-    expression as their entire attribute value (e.g. `cem:value-of`,
-    `cem:for-each`, `cem:if`, `cem:choose`/`when`, `cem:variable`) use
-    `select="cem-ql-expression"`. The attribute value is the cem-ql source
-    verbatim, with HTML attribute escaping applied; no surrounding `{ }`.
-  - **Match / test / use / group-by attributes** — `match=`, `test=`,
-    `use=`, `group-by=`, and any attribute documented as taking a query in
-    a CEM template schema follow the same `select=` rule: full attribute
-    value is one cem-ql expression.
-  - **Text-node interpolation** — text content inside CEM-ML template
-    bodies MAY use the same `{ … }` AVT form, gated by the surrounding
-    template element's schema declaration (no global text interpolation
-    by default; opt-in per element type per the CEM template schema).
-  This binds the host side of `cem-ql-ac.md` AC-QS-6 (cem-ql is not
-  embedded in HTML attributes by default; the template compiler handles
-  the boundary) and is the normative CEM-ML template embedding
-  contract. The cem-ql
-  parser is invoked on the attribute-value or text-node substring after
-  the template compiler strips AVT braces and resolves XML escapes; the
-  emitted source-map frame is `TransformKind::TemplateEmbedding` and
-  preserves both the host attribute span and the cem-ql sub-span per
-  AC-P-7.
+- **AC-T-7 [A] MUST** embed `cem-ql` expressions using the canonical CEM-ML host rules
+  in [`cem-ml-syntax.md`](cem-ml-syntax.md), with XML convention parity maintained:
+  - **Template-aware attribute values** — attribute-value mode owns `{...}` spans, so a
+    schema-marked attribute may contain cem-ql expressions such as
+    `{button @disabled={.busy} @label="Hello {.name}" | Save}`. Multiple spans per
+    attribute are allowed; literal `{` and `}` escape as `{{` and `}}`.
+  - **Whole-expression attributes** — attributes documented by the schema as taking one
+    expression (`select`, `match`, `test`, `use`, `group-by`, etc.) use the full
+    attribute value as cem-ql source without surrounding `{}`.
+  - **Content expressions** — text/content templates MUST NOT use bare `{.name}` or
+    `{count(.items)}` interpolation. A content expression is an explicit `$` node:
+    `{$ .name}` or `{$ | count(.items)}`. Structural template content uses normal
+    `{node ...}` CEM-ML nodes.
+  - **XML parity** — XML convention templates retain XSLT-style AVT braces in
+    template-aware attributes, but content expressions lower to an explicit
+    `<cem:expr>...</cem:expr>` (or schema-equivalent expression element), not to bare
+    text interpolation.
+  This binds the host side of `cem-ql-ac.md` AC-QS-6 (cem-ql is not embedded in normal
+  HTML attributes by default; the template compiler handles the boundary) and is the
+  normative CEM-ML template embedding contract. The cem-ql parser is invoked on the
+  attribute-value span or `$` expression-node body after host-syntax unescaping; the
+  emitted source-map frame is `TransformKind::TemplateEmbedding` and preserves both the
+  host span and the cem-ql sub-span per AC-P-7.
 
 ## 7. Transformation Plugins
 
@@ -758,8 +772,10 @@ the concrete plugin architecture section.
 
 ## 10. Performance & Resource Budgets
 
-- **AC-N-1 [A] MUST** parse + validate + transform any fixture in `examples/semantic/` in under **150 ms** on a
-  developer-class machine (single-thread, cold cache). Benchmarked in CI with a tolerance band.
+- **AC-N-1 [A] MUST** parse + validate + transform any canonical fixture in
+  `examples/cem-ml/` and any HTML parity fixture in `examples/semantic/` in under
+  **150 ms** on a developer-class machine (single-thread, cold cache). Benchmarked in CI
+  with a tolerance band.
 - **AC-N-2 [A] MUST** use bounded streaming accumulators. Tokenizer memory scales with
   current token and open-scope depth, not document byte length. Retained AST, report,
   source-map, line-index, reference-slot, and diagnostic structures are allowed but MUST
@@ -925,11 +941,13 @@ type-check, and resumes from a binary form keyed by content hash.
 A release is acceptance-tested by running:
 
 1. `yarn nx run cem_ml:test` — unit tests covering parser, validator, interpreter, transform.
-2. `yarn nx run cem_ml_cli:validate-fixtures` — runs validation across every `examples/semantic/*.html`. Exits 0 only if
-   the report records zero hard violations.
+2. `yarn nx run cem_ml_cli:validate-fixtures` — runs validation across every
+   `examples/cem-ml/*.cem` canonical fixture and every `examples/semantic/*.html` HTML
+   parity fixture. Exits 0 only if the report records zero hard violations.
 3. `yarn nx run cem_ml_cli:bench` — runs parse/validate/transform benchmarks. Numbers archived per release.
-4. `yarn nx run cem_ml_cli:e2e` — round-trips each fixture: parse → validate → transform → render via
-   `@epa-wg/custom-element`. Snapshot compared against committed expectations.
+4. `yarn nx run cem_ml_cli:e2e` — round-trips each canonical and parity fixture:
+   parse → validate → transform → render via `@epa-wg/custom-element`. Snapshot
+   compared against committed expectations.
 5. Manual smoke: open the rendered fixture in a browser, confirm it renders the expected semantic surface.
 
 Each section above contributes a concrete check to one of these scripts; AC items missing a check are not closeable.
@@ -1172,16 +1190,18 @@ visible state can change during parse.
 - **Prerequisite ACs**: AC-O-1 (event stream so hosts can drive UI off
   render events); AC-O-2 (deterministic scheduling trace for
   postmortem); AC-N-1 (150 ms first-paint budget, which hydration MUST
-  respect under the `examples/semantic/` fixture set).
+  respect under the canonical `examples/cem-ml/` fixture set and the
+  `examples/semantic/` HTML parity set).
 - **Required resolved OQs**: none (render-batch policy is
   host-defined per AC-I-5 and inherited per AC-A-4).
-- **Entry fixture**: a single `examples/semantic/` fixture renders
-  visible state before EOF on its input stream per AC-I-4;
+- **Entry fixture**: a single canonical `examples/cem-ml/` fixture and its
+  `examples/semantic/` HTML parity fixture render visible state before EOF on their
+  input streams per AC-I-4;
   `MutationRecord` batching behaves per AC-M-V-4 across the parse
   → hydration boundary.
-- **Exit fixture**: render-while-parsing on **all** five
-  `examples/semantic/*.html` fixtures stays under the AC-N-1
-  first-paint budget; the AC-O-2 debug trace records scheduling
+- **Exit fixture**: render-while-parsing on **all** canonical
+  `examples/cem-ml/*.cem` fixtures and HTML parity `examples/semantic/*.html` fixtures
+  stays under the AC-N-1 first-paint budget; the AC-O-2 debug trace records scheduling
   deterministically across two runs; cancellation mid-render via
   `AbortSignal` leaves the DOM in a consistent state per the
   OQ-4 rollback model and emits the documented `cem.hyd.aborted`

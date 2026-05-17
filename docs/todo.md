@@ -112,8 +112,8 @@ Component vocabulary: [`component-mvp.md`](component-mvp.md). Research input:
       schema features.
 - [ ] Emit `cem-ml.report.md` and `cem-ml.report.json`, mirroring the `validate-platforms.mjs` report
       convention.
-- [ ] Add a `cem-ml-cli` fixture validation target that runs validation across `examples/semantic/*.html` and fails
-      non-zero on hard violations.
+- [ ] Add a `cem-ml-cli` fixture validation target that runs validation across `examples/cem-ml/*.cem` and
+      `examples/semantic/*.html` parity fixtures and fails non-zero on hard violations.
 - [ ] Ensure validation diagnostics include `{ uri, line, column, byteOffset, code, severity, message, sourceMap }`.
 
 ### Transform

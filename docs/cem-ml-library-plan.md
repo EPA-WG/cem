@@ -16,10 +16,12 @@ Rationale:
 `cem-ml` should own:
 
 - Typed semantic document nodes for screens, regions, forms, fields, lists, assets, profiles, and messages.
-- Parser helpers for CEM XML/HTML into a normalized DOM model.
+- Parser helpers for canonical curly CEM-ML into a normalized DOM model, plus XML/HTML
+  parity adapters that lower into the same model.
 - Query helpers for semantic roles, state, validation messages, relationships, and labels.
 - Validation reports for invalid state combinations, broken references, and missing accessible names.
-- XSLT transform helpers from semantic fixtures into light-DOM custom-element markup.
+- Schema-driven transform helpers from canonical and parity semantic fixtures into
+  canonical CEM-ML snapshots and light-DOM custom-element markup.
 
 `cem-ml-cli` should own:
 

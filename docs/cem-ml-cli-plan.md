@@ -18,7 +18,8 @@ semantics, report fields, diagnostic fields, fail-level behavior, and exit codes
 
 - Do not implement or design the streaming parser in this plan.
 - Do not implement or design multithreading, worker pools, scheduler traces, or render-while-parsing.
-- Do not implement parser internals yet, including XML, HTML, CEM-native syntax, AST construction, or event production.
+- Do not implement parser internals yet, including canonical CEM-ML curly syntax,
+  XML/HTML parity profiles, AST construction, or event production.
 - Do front-load a separate Java XML stack, parser pattern, and schema pattern assessment before implementation.
 - Keep `cem-ml-cli` thin. Shared behavior belongs in `cem-ml`.
 
@@ -35,7 +36,8 @@ semantics, report fields, diagnostic fields, fail-level behavior, and exit codes
         - `packages/cem_ml_cli/dist/cem-ml.roundtrip.report.json`
         - `packages/cem_ml_cli/dist/cem-ml.roundtrip.report.md`
         - `packages/cem_ml_cli/dist/cem-ml.bench.report.json`
-    - fixture inputs remain `examples/semantic/*.html`.
+    - canonical fixture inputs live in `examples/cem-ml/*.cem`.
+    - existing `examples/semantic/*.html` files remain secondary HTML parity fixtures.
 2. Define exit codes:
     - `0`: success
     - `1`: parse, validation, strict-mode, or benchmark-budget failure
@@ -166,7 +168,7 @@ These are data shapes only. Parser-filled content remains blocked until the pars
 2. Preserve common options:
     - `--fail-level parse|validate|strict`
     - `--format text|html|json|xml|cem|markdown|dom-json|ast|events|tree`
-    - `--from-format html|xml`
+    - `--from-format cem|html|xml`
     - `--to-format dom-json|ast|events`
     - `--show summary|ast|events|diagnostics|source-offsets|tree`
     - `--iterations <n>`
@@ -231,15 +233,16 @@ These are data shapes only. Parser-filled content remains blocked until the pars
     - Supports `--zero-hard-violations`.
     - Default fail level: `validate`.
 4. `cem-ml fixture validate [input...]`
-    - Defaults to the five semantic fixtures when no input is passed.
+    - Defaults to the canonical CEM-ML fixtures and HTML parity fixtures when no input is passed.
     - Writes default `cem-ml.report.json` and `cem-ml.report.md`.
 5. `cem-ml inspect <input>`
     - Supported `--show`: `summary`, `ast`, `events`, `diagnostics`, `source-offsets`, `tree`.
     - Scope, schema-binding, plugin, and source-map views remain deferred.
 6. `cem-ml convert <input>`
-    - Supported input formats: `html`, `xml`.
+    - Supported input formats: `cem`, `html`, `xml`.
     - Supported output formats: `dom-json`, `ast`, `events`.
-    - CEM-native input, schema-version conversion, rendered HTML/XML output, comments, and source maps remain deferred.
+    - Schema-version conversion, rendered HTML/XML output, comment-preservation behavior, and source maps remain deferred
+      to the parser implementation.
 7. `cem-ml trace <input>`
     - Supported structured formats: `json`, `xml`, `cem`.
     - Reference convenience formats: `text`, `html`.
@@ -250,7 +253,7 @@ These are data shapes only. Parser-filled content remains blocked until the pars
     - Supports `--iterations`, `--budget-ms`, `--profile`, `--cold-cache`, and `--report-json`.
     - Benchmarking uses the engine boundary; parser performance work is deferred.
 9. `cem-ml fixture roundtrip [input...]`
-    - Defaults to the five semantic fixtures.
+    - Defaults to the canonical CEM-ML fixtures and HTML parity fixtures.
     - Supports `--to-format dom-json|ast|events`.
     - Transform/render snapshots remain deferred.
 
@@ -341,7 +344,7 @@ Use Nx through the workspace package manager.
     - `yarn nx run cem_ml_cli:run`
 2. Add `cem_ml_cli:validate-fixtures` only after a real parser engine exists.
 3. Do not claim fixture validation is complete until `cem-ml fixture validate` validates
-   `examples/semantic/*.html` with zero hard violations.
+   `examples/cem-ml/*.cem` and `examples/semantic/*.html` with zero hard violations.
 4. Keep `cem_ml_cli` dependent on `cem_ml` through Cargo, not by duplicating code.
 
 ## Phase 10 - Completion Gates

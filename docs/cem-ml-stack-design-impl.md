@@ -266,13 +266,17 @@ Default source limits live in `cem_ml::limits`:
 
 ### 3.2 Layer 2: SchemaTokenizer (`cem_ml::tokenizer`)
 
-The tokenizer is mode-aware and schema-guided. The HTML profile is a custom
-WHATWG-state tokenizer, not a wrapper around an external tokenizer crate. The custom
-implementation is required so every token
-and token sub-span can preserve source-map stacks through decoded streams and nested
-embedded handoff layers. It extracts source-spanned tokens and switches lexical states;
-it does not construct either the initial HTML parser DOM or the WHATWG implementation
-DOM.
+The tokenizer is mode-aware and schema-guided. The canonical profile is the CEM-native
+curly tokenizer for `{name @attributes | content...}`, `$` expression nodes, anonymous
+typed scopes, directives, comments, and rich-content enclosures. XML and HTML profiles
+are secondary parity inputs that lower to the same `RawToken` and `NormalizedEvent`
+contracts.
+
+The HTML parity profile is a custom WHATWG-state tokenizer, not a wrapper around an
+external tokenizer crate. The custom implementation is required so every token and token
+sub-span can preserve source-map stacks through decoded streams and nested embedded
+handoff layers. It extracts source-spanned tokens and switches lexical states; it does
+not construct either the initial HTML parser DOM or the WHATWG implementation DOM.
 
 Tokenizer buffering is token-local. The tokenizer may accumulate decoded scalars and
 their byte spans while a token is incomplete, including format-defined lookahead, but it
@@ -291,7 +295,7 @@ Tokens without local decoding omit the frame.
 
 ```
 RawToken:
-  kind: HtmlToken | XmlToken
+  kind: CemToken | HtmlToken | XmlToken
   byte_range: ByteRange
   source_id: SourceId
   source_map: SourceMapStack
@@ -304,6 +308,18 @@ HtmlToken:
   Comment { data: String }
   ProcessingInstruction { target: String, data: String }
   ParseError { code: HtmlErrorCode }
+
+CemToken:
+  NodeStart { name: String }
+  NodeEnd
+  Attribute { name: String, value: Option<ScalarValue> }
+  ContentBoundary
+  Text { data: String }
+  ExpressionNode { data: String }
+  AnonymousScopeStart
+  Directive { name: String, data: String }
+  Comment { data: String }
+  RichContent { data: String, enclosure: RichContentEnclosure }
 ```
 
 The `StartTag` attributes carry both the name and value ranges so the event normalizer
@@ -311,6 +327,10 @@ can emit per-attribute byte offsets into the source-map stack. `RawToken.source_
 maps the token's local `source_id` and `byte_range` back through any decoded stream or
 embedded handoff boundary that produced it. Attribute sub-ranges are interpreted within
 that same token source-map context.
+
+For CEM-native tokenization, attribute-value mode owns `{...}` cem-ql spans; content
+mode treats `{name ...}` as a child node and `{$ ...}` as an expression node. Bare
+`{.name}` text interpolation is rejected before event normalization.
 
 WHATWG tokenizer states (data, RCDATA, RAWTEXT, script-data, tag-open, attribute-value,
 etc.) are internal to this layer. The schema can select valid tokenizer contexts and
@@ -1186,9 +1206,10 @@ stream and may reference stripped trivia ranges.
 
 Scoped queries are `cem-ql` expressions evaluated only against `QueryContextScope`: the
 current AST node, the active schema scope, allowed machine-state slots, and
-policy-visible resources. CEM-ML template embedding uses AC-T-7's XSLT 3.0-style AVT /
-`select=` / `match=` / `test=` boundary. When the template compiler extracts a query
-substring from an attribute or text node, it appends
+policy-visible resources. CEM-ML template embedding uses AC-T-7's host-owned attribute
+`{...}` spans, whole-expression attributes such as `select=` / `match=` / `test=`, and
+explicit `$` expression nodes for content. When the template compiler extracts a query
+substring from an attribute value or `$` expression node, it appends
 `TransformKind::TemplateEmbedding` with both the host span and the query sub-span before
 handing plain UTF-8 source to the cem-ql parser.
 
@@ -1385,6 +1406,7 @@ cem_ml/src/
     line_index.rs     LineIndex - byte offset -> (line, col) projection
   tokenizer/
     mod.rs            RawToken, SchemaTokenizer trait
+    cem.rs            Canonical curly CEM-ML tokenizer profile
     html.rs           Custom WHATWG-state HTML tokenizer profile
     xml.rs            XML 1.0 tokenizer profile
   events/
@@ -1392,6 +1414,7 @@ cem_ml/src/
   schema/
     mod.rs            SchemaMachine, SchemaFrame, FramePhase, AttributeState, ContentState, SchemaState
     compiler.rs       CEM-native schema source -> CompiledSchema
+    mirrors.rs        RELAX NG XML/compact mirrors and schema artifact emission
     ir.rs             CompiledSchema, StructuralSchemaIr, SemanticRule, open-content policy
     policy.rs         ScopePolicy, ErrorBoundaryKind, ErrorBoundaryPolicy, DiagnosticVisibility, parent overrides
     dfa.rs            Tier A structural validator backend
@@ -1531,6 +1554,7 @@ implementation shapes remain open:
 | ID | AC reference | Implementation follow-up |
 |----|--------------|--------------------------|
 | IMPL-FOLLOW-001 | AC-S-2 through AC-S-6 | Add compiler output structs/modules for RELAX NG XML/compact mirrors, TypeScript `.d.ts`, Rust `.rs`, stable URI publication, and TS type strategy. |
+| IMPL-FOLLOW-001A | AC-F-8, AC-P-1, AC-P-8 | Add concrete CEM-native tokenizer lowering tests for `{name @attributes \| content...}`, `$` expression nodes, anonymous scopes, comments, rich-content enclosures, and rejection of bare `{...}` text interpolation. |
 | IMPL-FOLLOW-002 | AC-V-2, AC-V-3, AC-V-9..AC-V-13 | Schema-version structs are sketched in §3.4; add parser/comparison implementation and compatibility severity tests. |
 | IMPL-FOLLOW-003 | AC-P-3, AC-O-1 | Event observer and `byte_offset` shapes are sketched in §2.5 / §3.12; add concrete Rust/WASM APIs and report projections. |
 | IMPL-FOLLOW-004 | AC-F-2 | Add parser and schema-frame lowering for inline schema declarations and mid-document schema switch forms from AC-F-2 / design §13.1. |
