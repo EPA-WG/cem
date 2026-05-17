@@ -187,6 +187,20 @@ are deferred.
   instructions, CDATA/raw-text nodes where supported by content type, and recovered
   error nodes in the initial input DOM/AST unless the effective scope policy strips them
   through a transform that preserves report/source-map references.
+- **AC-P-10 [A] MUST** support scoped namespace rebinding for the same namespace binding
+  name, including the empty/default binding. Unprefixed tags resolve against the active
+  binding at their source position; previously resolved nodes keep their expanded
+  namespace identity even when a later declaration reuses the same binding name for a
+  different schema namespace.
+
+### Verification
+
+- **AC-P-V-1** — default namespace rebinding: a CEM-ML fixture declares HTML as the
+  default namespace, emits an unprefixed HTML host node, rebinds the default namespace
+  to SVG for an unprefixed `{svg}` / `{path}` subtree, then rebinds the default namespace
+  to HTML for an unprefixed `{input}`. The parser records distinct expanded names for
+  the HTML and SVG nodes, keeps source-map namespace frames at each binding change, and
+  validates equivalent XML default-namespace markup to the same namespace identities.
 
 ## 2. Schema
 

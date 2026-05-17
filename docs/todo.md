@@ -64,6 +64,8 @@ Component vocabulary: [`component-mvp.md`](component-mvp.md). Research input:
 - [ ] Implement CEM-ML schema-scoping forms: `@schema` prelude shorthand, `{cem:schema @cem:name=...}` inline
       declarations, `{cem:schema @src=...}` / `@select=...` switches, host-node `@cem:schema-src` /
       `@cem:schema-select`, and scope-chain `cem:name` shadowing.
+- [ ] Implement namespace binding rebinding for repeated prefix names and the blank/default binding, preserving the
+      expanded namespace identity active at each source position.
 - [ ] Reject bare `{...}` text interpolation in CEM-ML content and accept `{...}` cem-ql spans only in
       template-aware attribute-value mode.
 - [ ] Implement HTML/XML tokenizer profiles as secondary parity paths that emit start, attribute, text, comment,
@@ -75,6 +77,8 @@ Component vocabulary: [`component-mvp.md`](component-mvp.md). Research input:
       attribute `{...}` cem-ql spans, comments, and rich-content enclosures.
 - [ ] Add schema-scoping fixtures covering inline declarations, sibling-position switches, wrapping switches,
       host-node switches, `src`/`select` exclusivity, and nested `cem:name` shadowing.
+- [ ] Add namespace rebinding fixtures covering unprefixed HTML, unprefixed SVG, and rebinding the default namespace
+      back to HTML in one CEM-ML document with XML parity output.
 - [ ] Add fixtures proving canonical CEM-ML, HTML parity, and XML-like inputs normalize into the same CEM event model
       where their semantic shape is equivalent.
 

@@ -493,10 +493,57 @@ Namespace rules:
 
 - `@ns prefix = "uri"` declares a namespace prefix in the current scope.
 - `@default prefix` sets the default namespace for unprefixed node names.
+- The same namespace binding name may be declared more than once in a scope.
+  This includes the blank/default binding selected by `@default`.
 - Prefix declarations are scoped to the containing block and descendants.
+- A later declaration wins from its source position forward; earlier nodes keep
+  the expanded namespace identity that was active where they appeared.
 - Unprefixed attributes are interpreted by the current node schema.
 - Prefixed attributes, such as `@html:class`, are explicitly namespace-owned.
 - Rendered XML/HTML uses normal `xmlns` declarations.
+
+### Default Namespace Rebinding
+
+The blank/default namespace can be rebound so different schemas can be used
+without prefixes at different source positions. This is useful for common HTML
+with inline SVG, where both languages usually read better unprefixed.
+
+CEM-ML:
+
+```cem
+@ns html = "http://www.w3.org/1999/xhtml"
+@ns svg = "http://www.w3.org/2000/svg"
+@default html
+
+{label |
+  @default svg
+  {svg @viewBox="0 0 16 16" @aria-hidden=true |
+    {path @d="M2 8h12"}
+  }
+
+  @default html
+  name:
+  {input @name=name}
+}
+```
+
+XML convention:
+
+```xml
+<label xmlns="http://www.w3.org/1999/xhtml">
+    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 16 16" aria-hidden="true">
+        <path d="M2 8h12"/>
+    </svg>
+
+    name:
+    <input name="name"/>
+</label>
+```
+
+In the example, `{label}` and `{input}` resolve under the HTML namespace, while
+`{svg}` and `{path}` resolve under the SVG namespace. The same lexical default
+binding name is used for both schemas. The source-map namespace frame records
+which default binding was active at each source position.
 
 ## Schema Scoping
 

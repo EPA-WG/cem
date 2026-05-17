@@ -417,6 +417,8 @@ tests do not need command-shape changes.
     - `$` expression nodes
     - attribute `{...}` cem-ql spans
     - schema-scoping forms and `cem:name` shadowing
+    - repeated namespace binding names, including default namespace rebinding across
+      unprefixed HTML/SVG subtrees
     - comments and rich-content enclosures
 3. Add event-normalizer tests proving paired CEM-ML and HTML fixtures lower to the same
    schema event stream after content-type-specific trivia differences are accounted for.

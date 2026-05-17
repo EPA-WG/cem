@@ -662,6 +662,13 @@ a schema's own tags without a prefix. Multiple default namespaces can coexist ac
 nested or sequential scopes because each declaration has an effective source range and
 scope owner.
 
+The same namespace binding name may intentionally refer to different schema namespaces
+at different source positions. This includes the empty/default binding. For example, a
+document can use unprefixed HTML nodes, rebind the default to SVG for an inline icon, and
+then rebind the default back to HTML for following form controls. The lexical node names
+remain unprefixed in all three regions, but their expanded names differ because the
+active namespace binding differs.
+
 Resolution rules:
 
 - A namespace declaration applies from its declaration point forward within the owning
@@ -684,11 +691,35 @@ Example sequence inside one scope:
 2. Use unqualified tag `screen`; it resolves to `{NS1}screen`.
 3. Declare default namespace `NS2`.
 4. Use unqualified tag `screen` again; it now resolves to `{NS2}screen`.
+5. Declare default namespace `NS1` again.
+6. Use unqualified tag `screen`; it resolves to `{NS1}screen` again.
 
 This is intentionally similar to repeated `var` declarations in JavaScript: the binding
 name can be declared more than once in the same scope, the later declaration becomes the
 active binding for subsequent uses, and earlier uses keep the binding that was active at
 their source position.
+
+HTML/SVG example:
+
+```cem
+@ns html = "http://www.w3.org/1999/xhtml"
+@ns svg = "http://www.w3.org/2000/svg"
+@default html
+
+{label |
+  @default svg
+  {svg @viewBox="0 0 16 16" |
+    {path @d="M2 8h12"}
+  }
+
+  @default html
+  {input @name=name}
+}
+```
+
+`{label}` and `{input}` resolve to HTML expanded names. `{svg}` and `{path}` resolve to
+SVG expanded names. The namespace binding events are source-mapped so diagnostics and
+transforms can explain which default namespace was active for each unprefixed node.
 
 Named namespaces follow the same override rule as the default namespace. The empty
 namespace name represents the default namespace; it is not a special global singleton.
