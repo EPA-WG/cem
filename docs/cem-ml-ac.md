@@ -158,6 +158,72 @@ are deferred.
 - **AC-F-9 [A] MUST** treat the curly-brace CEM-ML surface in
   [`cem-ml-syntax.md`](cem-ml-syntax.md) as the canonical document syntax. XML
   convention forms are secondary parity/mirror forms, not competing canonical sources.
+- **AC-F-10 [A] MUST** implement the parser/runtime as a layered pipeline whose
+  inter-layer boundaries are public contracts. Tier A names eight layers; the
+  high-level boundaries between layers are normative for Tier A even when an individual
+  layer's body is deferred. Reference design: [`cem-ml-stack-design.md`](cem-ml-stack-design.md)
+  §§5–12 and [`cem-ml-stack-design-impl.md`](cem-ml-stack-design-impl.md) §3.
+  - **Layer 1 — ByteSource / EncodingDecoder.** Async byte/string sources, encoding
+    selection, BOM handling, and absolute byte-offset assignment. Emits
+    `DecodedChunk { scalars, byte_range, encoding }` and a `SourceId`. Boundary:
+    Layer 2 receives decoded scalars plus byte ranges, never raw transport bytes.
+  - **Layer 2 — SchemaTokenizer.** Profile-aware tokenizer (canonical CEM curly,
+    WHATWG HTML state machine, XML 1.0). Emits `SchemaToken`/`RawToken` with token-local
+    buffering bounded by `MAX_TOKEN_BUFFER_BYTES`. Boundary: every token carries a
+    source-map stack rooted in Layer 1's `SourceId`.
+  - **Layer 3 — EventNormalizer.** Lowers every tokenizer profile into a shared
+    `NormalizedEvent` stream (`OpenScope`, `CloseScope`, `Name`, `Value`, `Trivia`,
+    `Separator`, `ModeSwitch`, `Error`). Boundary: downstream layers see no
+    syntax-flavor-specific token shapes.
+  - **Layer 4 — SchemaMachine.** RELAX-NG-derivative frame stack with phase/attribute/content
+    state, scope policy, namespace context, and an expected-close set. Owns the
+    handoff stack for parent-bounded embedded content (Layer 5). Boundary: emits
+    typed AST construction events to Layer 6 along with the active `SchemaFrame`.
+  - **Layer 5 — Scoped Embedded Handoff Stack.** Records `HandoffRecord { content_type,
+    schema_id, source_span, inherited_context, return_condition }`. Boundary: a child
+    parser cannot consume past the parent-owned return condition.
+  - **Layer 6 — InputDomAstBuilder / InterpreterAstBuilder.** Builds the
+    source-preserving input DOM/AST and the CEM projection. Every node carries a
+    `SourceMapStack` and unresolved reference slots are filled by parse-time `id_table`
+    lookup. Boundary: emits a typed `CemAstNode` graph plus `id_table` + diagnostic
+    slots.
+  - **Layer 7 — BinaryAstEncoder (interface only in Tier A).** Stable interface for a
+    deterministic uncompressed AST encoding with dictionaries for node kinds, schema
+    ids, strings, source-map frames, scope slots, and typed values. Body deferred to
+    Tier B per AC-CC-* and §16.0.
+  - **Layer 8 — ChunkCompressor (deferred).** Per `cem-ml-stack-design.md` §11; not
+    in Tier A.
+  - **Layer 9 — ImplementationInterpreter / Transform.** Applies content-type
+    transforms (WHATWG HTML DOM compliance is a transform per AC-I-6) and renders to
+    custom-element light-DOM markup per AC-T-* and the active CEM template plan.
+    Boundary: returns `TransformOutput` with transform-frame source maps preserved.
+  - **Cross-cutting contracts.** `SourceMapStack` (origin-first, byte-range identity)
+    threads every layer per AC-P-7. `Diagnostic { uri, line, column, byteOffset, code,
+    severity, message, sourceMap }` per AC-P-3 surfaces from any layer; `line`/`column`
+    remain projections from the selected frame, never stored permanently on AST
+    nodes.
+- **AC-F-11 [A] MUST** explicitly defer the following from Tier A while preserving
+  their interface boundaries so a later tier can implement them without re-shaping
+  Tier A code:
+  - **Binary AST chunk compression.** Layer 8 (`ChunkCompressor`) interface is Tier A;
+    payload compression, platform/app dictionaries, and chunk graphs are Tier B per
+    AC-CC-1..AC-CC-4 and `cem-ml-stack-design.md` §11.
+  - **Multi-content plugin runtime.** Plugin descriptors, chain execution, scope
+    transformation chains, sandboxing, and budgets are gated on G-PLUG (Tier B) per
+    AC-PL-* and AC-G-*. Tier A handoffs are limited to HTML `<style>`, `style=""`,
+    and raw-text `<script>`; SVG/MathML/CSS/JSON islands are Tier B per AC-F-4 / AC-I-2.
+  - **Full WHATWG DOM API compatibility.** AC-I-6 makes WHATWG HTML DOM compliance a
+    content-type transform over the initial parser DOM. The full browser DOM API
+    surface (live `NodeList`/`HTMLCollection`, `MutationObserver`, ranges, custom-element
+    upgrade lifecycle, event dispatch) is a later runtime decision and not Tier A.
+  - **Thread pools, bounded queues, and external-I/O scheduler.** AC-A-4..AC-A-7 and
+    AC-O-2 worker-pool, bounded-queue, external-I/O queue, and AbortSignal trace
+    contracts are Tier B per gate G-EXT. Tier A is async on public APIs but
+    single-threaded internally.
+  - **Published Rust and WASM output artifacts.** AC-C-* compatibility and
+    distribution gates (browser/Node/Rust/WASM publishability matrix, release checks)
+    are Tier B. Tier A ships the Rust crate path-locally inside this workspace; no
+    crates.io publish, no npm WASM bundle.
 
 ### Verification
 
@@ -187,6 +253,19 @@ are deferred.
   Tier A parser profile; a missing top-level `@doc`, unknown format id, invalid SemVer,
   unsupported future minor/patch, major mismatch, and prerelease mismatch each emit the
   documented diagnostic before schema loading.
+- **AC-F-V-7** — layered runtime contract present in the public crate: `cem_ml`
+  exposes module boundaries for each Tier A layer named in AC-F-10 (`source`,
+  `tokenizer`, `events`, `schema`, `handoff`, `parser`, `ast` interface stubs,
+  `interpreter` / `transform`) with the public type names listed there resolving as
+  importable items, even where the body is a stub. Verified by a Rust compile-time
+  check (`cargo check -p cem-ml`) that imports `ByteSource`, `DecodedChunk`,
+  `SchemaToken`, `NormalizedEvent`, `SchemaFrame`, `CemAstNode`, `SourceMapFrame`,
+  `Diagnostic`, and `Interpreter` and exercises their stable identities.
+- **AC-F-V-8** — Tier A deferrals are present as interface boundaries, not gaps:
+  for each item in AC-F-11, the relevant boundary type or trait exists in the public
+  crate (e.g. `BinaryAstEncoder`, plugin descriptor types, scheduler-trace events)
+  marked with a `#[doc(hidden)]` or `Tier B`-noted comment, so future tiers can
+  implement the body without changing imports.
 
 ## 1. Parser
 

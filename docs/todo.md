@@ -55,12 +55,22 @@ Component vocabulary: [`component-mvp.md`](component-mvp.md). Research input:
 
 ### Planning And Contract Reconciliation
 
-- [ ] Update parser/runtime acceptance criteria so Tier A matches the layered runtime contract: byte decoding,
-      tokenization, normalized events, schema machine, typed AST, source-map stacks, transform, and diagnostics.
-- [ ] Define the first public runtime interfaces: `ByteSource`, `DecodedChunk`, `SchemaToken`, `NormalizedEvent`,
-      `SchemaFrame`, `CemAstNode`, `SourceMapFrame`, `Diagnostic`, and `Interpreter`.
-- [ ] Decide and document Tier A deferrals for compression, multi-content plugins, full WHATWG DOM compatibility,
-      thread pools, and Rust/WASM outputs.
+- [x] Added `AC-F-10` to [`cem-ml-ac.md`](cem-ml-ac.md) binding Tier A to the eight-layer runtime contract
+      (`ByteSource`/`EncodingDecoder` → `SchemaTokenizer` → `EventNormalizer` → `SchemaMachine` →
+      `HandoffStack` → `InputDomAstBuilder` → `BinaryAstEncoder` interface → `Interpreter`/Transform) plus the
+      cross-cutting `SourceMapStack` + `Diagnostic` contracts. Verification fixtures `AC-F-V-7` and `AC-F-V-8`
+      assert the public boundary at compile time.
+- [x] Scaffolded the first public runtime interfaces in `packages/cem_ml/src/`: `source` (`ByteSource`,
+      `EncodingDecoder`, `DecodedChunk`, `ByteRange`, `SourceId`, `Encoding`), `source_map` (`SourceMapFrame`,
+      `SourceMapStack`, `TransformKind`), `tokenizer` (`SchemaToken`, `SchemaTokenizer`), `events`
+      (`NormalizedEvent`, `EventNormalizer`, `QName`, `HandoffRecord`), `schema` (`SchemaFrame`, `SchemaMachine`,
+      `SchemaVersionIdentity`), `handoff` (`HandoffStack`), `parser` (`CemAstNode`, `InputDomAstBuilder`,
+      `NameSlot`, `ExpandedName`), `ast` (`BinaryAstEncoder` interface stub), `interpreter` (`Interpreter`,
+      `OutputTarget`, `TransformOutput`). Verified by `layered_runtime_contract_types_are_importable` unit test.
+- [x] Added `AC-F-11` documenting Tier A deferrals: binary AST chunk compression (Layer 8 body), multi-content
+      plugin runtime (G-PLUG), full WHATWG DOM API compatibility, thread pools / bounded queues / external-I/O
+      scheduler (G-EXT), and published Rust/WASM output artifacts (AC-C-*). Each deferral preserves its interface
+      boundary in the public crate so future tiers can fill the body without re-shaping Tier A code.
 
 ### Byte Source And Encoding Decoder
 

@@ -4,6 +4,18 @@ pub mod diagnostics;
 pub mod engine;
 pub mod report;
 
+// Tier A layered runtime contract (AC-F-10). Bodies arrive in Phase 11; types
+// here fix the public boundary used by downstream layers and `cem-ml-cli`.
+pub mod ast;
+pub mod events;
+pub mod handoff;
+pub mod interpreter;
+pub mod parser;
+pub mod schema;
+pub mod source;
+pub mod source_map;
+pub mod tokenizer;
+
 #[cfg(feature = "fake-engine")]
 pub mod fake;
 
@@ -57,6 +69,37 @@ mod tests {
         assert_eq!(report.summary.fatal_count, 1);
         assert_eq!(report.summary.hard_violation_count, 2);
         assert_eq!(report.generated_at, DETERMINISTIC_TIMESTAMP);
+    }
+
+    #[test]
+    fn layered_runtime_contract_types_are_importable() {
+        // AC-F-V-7: every public type named in AC-F-10 resolves via the crate's
+        // public path. Stable identity check — this test catches an accidental
+        // rename or unintended visibility change at the layer boundary.
+        use crate::ast::BinaryAstEncoder;
+        use crate::diagnostics::Diagnostic;
+        use crate::events::NormalizedEvent;
+        use crate::interpreter::Interpreter;
+        use crate::parser::CemAstNode;
+        use crate::schema::SchemaFrame;
+        use crate::source::{ByteSource, DecodedChunk, EncodingDecoder};
+        use crate::source_map::SourceMapFrame;
+        use crate::tokenizer::SchemaToken;
+        fn _accept<T>() {}
+        _accept::<Diagnostic>();
+        _accept::<NormalizedEvent>();
+        _accept::<CemAstNode>();
+        _accept::<SchemaFrame>();
+        _accept::<DecodedChunk>();
+        _accept::<SourceMapFrame>();
+        _accept::<SchemaToken>();
+        fn _trait_object_boundaries(
+            _b: &dyn ByteSource,
+            _d: &mut dyn EncodingDecoder,
+            _i: &dyn Interpreter,
+            _e: &dyn BinaryAstEncoder,
+        ) {
+        }
     }
 
     #[test]
