@@ -501,34 +501,75 @@ Namespace rules:
 ## Schema Scoping
 
 CEM-ML keeps schema scoping explicit. The CEM-ML syntax differs from XML, but
-the scope behavior maps to the same parser/schema model.
+the scope behavior maps to the same parser/schema model as AC-F-2 and
+`cem-ml-stack-design.md` §13.1. Schema declarations and switches open schema
+scopes. They do not mutate an ancestor scope.
 
-CEM-ML:
+### Form Matrix
+
+| Role                         | CEM-ML canonical form                                     | XML convention                                                                                   |
+|------------------------------|-----------------------------------------------------------|--------------------------------------------------------------------------------------------------|
+| Document/block shorthand     | `@schema src="./schema.cem-schema"`                       | `<cem:schema src="./schema.cem-schema"/>` at the same sibling position, or host `cem:schema-src` |
+| Inline schema declaration    | `{cem:schema @cem:name="badge" \| ...}`                   | `<cem:schema cem:name="badge">...</cem:schema>`                                                  |
+| Mid-document sibling switch  | `{cem:schema @src="./schema.cem-schema"}`                 | `<cem:schema src="./schema.cem-schema"/>`                                                        |
+| Wrapping schema switch       | `{cem:schema @src="./schema.cem-schema" \| ...}`          | `<cem:schema src="./schema.cem-schema">...</cem:schema>`                                         |
+| Query-resolved schema switch | `{cem:schema @select='schema("badge")'}` or wrapping form | `<cem:schema select='schema("badge")'/>` or wrapping form                                        |
+| Host-node URI switch         | `{section @cem:schema-src="./schema.cem-schema" \| ...}`  | `<cem:section cem:schema-src="./schema.cem-schema">...</cem:section>`                            |
+| Host-node query switch       | `{section @cem:schema-select='schema("badge")' \| ...}`   | `<cem:section cem:schema-select='schema("badge")'>...</cem:section>`                             |
+
+`@schema src="..."` is a document- or block-prelude shorthand. It lowers to a
+sibling-position schema switch at the same point in the event stream. Use
+`{cem:schema ...}` when the schema switch itself needs source identity, a query
+form, wrapping content, or parity with XML examples.
+
+### Inline Declaration
 
 ```cem
-@schema src="./schemas/checkout.cem-schema"
+@ns cem = "https://cem.dev/ns/core/1"
+@default cem
 
-{screen @id=checkout |
-  {form @id=payment @state=pending}
+{cem:schema @cem:name="badge" |
+  {define @name=badge |
+    {attribute @name=tone}
+    {text}
+  }
+}
+
+{section @cem:schema-select='schema("badge")' |
+  {badge @tone=info | Secure checkout}
 }
 ```
 
 XML convention:
 
 ```xml
+<cem:schema xmlns:cem="https://cem.dev/ns/core/1" cem:name="badge">
+    <define name="badge">
+        <attribute name="tone"/>
+        <text/>
+    </define>
+</cem:schema>
 
-<cem:screen
-        xmlns:cem="https://cem.dev/ns/core/1"
-        cem:schema-src="./schemas/checkout.cem-schema"
-        id="checkout">
-    <cem:form id="payment" state="pending"/>
-</cem:screen>
+<cem:section cem:schema-select='schema("badge")'>
+    <cem:badge tone="info">Secure checkout</cem:badge>
+</cem:section>
 ```
+
+Inline schema declarations bind an addressable name in the scope chain. The
+declaration does not switch the active schema of the parent scope. Descendant
+schema selections resolve the innermost matching `cem:name`.
+
+### Mid-Document Switch
 
 CEM-ML:
 
 ```cem
-{section @schema-src="./schemas/admin.cem-schema" |
+@ns cem = "https://cem.dev/ns/core/1"
+@default cem
+
+{cem:schema @src="./schemas/admin.cem-schema"}
+
+{section |
   {action @intent=danger |Delete account}
 }
 ```
@@ -537,18 +578,91 @@ XML convention:
 
 ```xml
 
-<cem:section cem:schema-src="./schemas/admin.cem-schema">
+<cem:schema xmlns:cem="https://cem.dev/ns/core/1" src="./schemas/admin.cem-schema"/>
+
+<cem:section>
     <cem:action intent="danger">Delete account</cem:action>
 </cem:section>
 ```
 
+The self-closing switch opens a sibling-position scope. The loaded schema
+applies to itself and subsequent siblings until the end of the parent scope.
+
+### Wrapping Switch
+
+CEM-ML:
+
+```cem
+{cem:schema @src="./schemas/admin.cem-schema" |
+  {section |
+    {action @intent=danger |Delete account}
+  }
+}
+```
+
+XML convention:
+
+```xml
+<cem:schema xmlns:cem="https://cem.dev/ns/core/1" src="./schemas/admin.cem-schema">
+    <cem:section>
+        <cem:action intent="danger">Delete account</cem:action>
+    </cem:section>
+</cem:schema>
+```
+
+The wrapping switch opens a schema scope for its own content only. The parent
+scope is unchanged after the wrapper closes.
+
+### Host-Node Switch
+
+CEM-ML:
+
+```cem
+{section @cem:schema-src="./schemas/admin.cem-schema" |
+  {action @intent=danger |Delete account}
+}
+```
+
+XML convention:
+
+```xml
+<cem:section xmlns:cem="https://cem.dev/ns/core/1" cem:schema-src="./schemas/admin.cem-schema">
+    <cem:action intent="danger">Delete account</cem:action>
+</cem:section>
+```
+
+The host-node switch makes that node a schema scope. The loaded schema applies
+inside the host only; siblings remain under the parent scope's active schema.
+
+### Source Attributes
+
+| Attribute | Value form | Resolution |
+|-----------|------------|------------|
+| `src` on `{cem:schema}` / `@cem:schema-src` on any node | URI literal | Resolved through the transform-source loader and resource policy. |
+| `select` on `{cem:schema}` / `@cem:schema-select` on any node | cem-ql expression | Evaluated against the active document and scope chain; innermost match wins. |
+
+`src` and `select` are mutually exclusive on one schema-switch host. A
+schema-switching host with neither is a schema-compilation error.
+
+### Identifier Resolution
+
+| Aspect | Behavior |
+|--------|----------|
+| Declaration | `@cem:name="..."` on an inline `{cem:schema ...}` declaration. |
+| Visibility | Scope-chain visible to the host scope and descendants. |
+| Override | A nested inline declaration with the same `@cem:name` shadows the outer declaration inside the nested scope only. |
+| Uniqueness | Names do not need to be globally unique; shadowing is legal. |
+| Reference | `@cem:schema-select` or `{cem:schema @select=...}` resolves through cem-ql against the scope chain. |
+| Cache identity | Inline schema cache identity is content-addressed from the body; `@cem:name` is an alias, not the cache key. |
+
 Schema-scope rules:
 
-- `@schema src="..."` applies to the current document or block scope.
-- `@schema-src="..."` on a node makes that node a schema scope.
-- `@schema-select="..."` resolves a schema through CEM-QL in the active scope.
-- Inline schema declarations are allowed where the schema language permits them.
+- `@schema src="..."` is a prelude shorthand for a sibling-position schema switch.
+- Use `@cem:schema-src="..."` and `@cem:schema-select="..."` on host nodes; the `cem:` prefix is part of the schema-owned attribute identity.
+- Inline schema declarations use `{cem:schema @cem:name="..." | ...}`.
 - Schema switches open child scopes; they do not mutate ancestor scopes.
+- When NVDL-style namespace dispatch and an explicit schema switch both apply,
+  namespace dispatch applies first and the explicit switch layers within that scope.
 
 ## Document Example
 

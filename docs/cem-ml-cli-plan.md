@@ -384,17 +384,23 @@ Tier A canonical CEM-ML surface executable.
     - anonymous typed scopes
     - directives (`@doc`, `@ns`, `@default`, `@schema`)
     - comments and rich-content enclosures from `cem-ml-syntax.md`
-2. Lower CEM-native tokens into the shared `NormalizedEvent` model without going through
+2. Implement schema-scoping syntax from `cem-ml-syntax.md`:
+    - `@schema src="..."` prelude shorthand
+    - inline `{cem:schema @cem:name="..." | ...}` declarations
+    - self-closing and wrapping `{cem:schema @src=...}` / `@select=...` switches
+    - host-node `@cem:schema-src` / `@cem:schema-select` attributes
+    - scope-chain `cem:name` shadowing behavior
+3. Lower CEM-native tokens into the shared `NormalizedEvent` model without going through
    HTML or XML token shapes.
-3. Preserve source-map spans for node starts/ends, attributes, content boundaries,
+4. Preserve source-map spans for node starts/ends, attributes, content boundaries,
    comments, rich content, and `$` expression bodies.
-4. Implement tokenizer dispatch from `--from-format cem|html|xml`, file extension, and
+5. Implement tokenizer dispatch from `--from-format cem|html|xml`, file extension, and
    explicit content type, with `.cem` selecting canonical CEM-ML by default.
-5. Keep HTML and XML tokenizer profiles as secondary parity paths that lower into the
+6. Keep HTML and XML tokenizer profiles as secondary parity paths that lower into the
    same event model as CEM-native input.
-6. Wire the real parser engine into `CemMlEngine` while preserving the existing CLI
+7. Wire the real parser engine into `CemMlEngine` while preserving the existing CLI
    command/output shapes.
-7. Add parser diagnostics for syntax errors, unbound prefixes, unterminated scopes,
+8. Add parser diagnostics for syntax errors, unbound prefixes, unterminated scopes,
    invalid relaxed-boundary use, and invalid text interpolation.
 
 Exit criteria: `cem_ml:test` has tokenizer and event-normalizer coverage for canonical
@@ -410,6 +416,7 @@ tests do not need command-shape changes.
     - relaxed and explicit content boundaries
     - `$` expression nodes
     - attribute `{...}` cem-ql spans
+    - schema-scoping forms and `cem:name` shadowing
     - comments and rich-content enclosures
 3. Add event-normalizer tests proving paired CEM-ML and HTML fixtures lower to the same
    schema event stream after content-type-specific trivia differences are accounted for.

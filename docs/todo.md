@@ -61,6 +61,9 @@ Component vocabulary: [`component-mvp.md`](component-mvp.md). Research input:
 
 - [ ] Implement the canonical CEM-ML curly tokenizer profile for `{name @attributes | content...}`, relaxed content
       boundaries, `$` expression nodes, anonymous typed scopes, directives, comments, and rich-content enclosures.
+- [ ] Implement CEM-ML schema-scoping forms: `@schema` prelude shorthand, `{cem:schema @cem:name=...}` inline
+      declarations, `{cem:schema @src=...}` / `@select=...` switches, host-node `@cem:schema-src` /
+      `@cem:schema-select`, and scope-chain `cem:name` shadowing.
 - [ ] Reject bare `{...}` text interpolation in CEM-ML content and accept `{...}` cem-ql spans only in
       template-aware attribute-value mode.
 - [ ] Implement HTML/XML tokenizer profiles as secondary parity paths that emit start, attribute, text, comment,
@@ -70,6 +73,8 @@ Component vocabulary: [`component-mvp.md`](component-mvp.md). Research input:
 - [ ] Preserve byte spans and source-map frames on every token and normalized event.
 - [ ] Add tokenizer fixtures for nested CEM-ML nodes, explicit and relaxed content boundaries, `$` expression nodes,
       attribute `{...}` cem-ql spans, comments, and rich-content enclosures.
+- [ ] Add schema-scoping fixtures covering inline declarations, sibling-position switches, wrapping switches,
+      host-node switches, `src`/`select` exclusivity, and nested `cem:name` shadowing.
 - [ ] Add fixtures proving canonical CEM-ML, HTML parity, and XML-like inputs normalize into the same CEM event model
       where their semantic shape is equivalent.
 
