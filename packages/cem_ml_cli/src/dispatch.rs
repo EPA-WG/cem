@@ -271,16 +271,28 @@ fn severity_label(s: cem_ml::diagnostics::Severity) -> &'static str {
     }
 }
 
+/// Default basenames per `cem-ml-cli-contract.md` §Report Ownership.
+/// Files land under `packages/cem_ml_cli/dist/` when the user supplies that
+/// directory; the basenames disambiguate the command that produced them.
+pub const REPORT_BASENAME_VALIDATE: &str = "cem-ml.report";
+pub const REPORT_BASENAME_ROUNDTRIP: &str = "cem-ml.roundtrip.report";
+pub const REPORT_BASENAME_BENCH: &str = "cem-ml.bench.report";
+
+fn resolve_report_target(p: &Path, basename: &str, ext: &str) -> std::path::PathBuf {
+    if p.extension().is_some() {
+        p.to_path_buf()
+    } else {
+        p.join(format!("{basename}.{ext}"))
+    }
+}
+
 fn write_report_files(
     report: &cem_ml::report::Report,
     report_opts: &cli::ReportOptions,
+    basename: &str,
 ) -> io::Result<()> {
     if let Some(p) = &report_opts.report_json {
-        let target = if p.extension().is_some() {
-            p.clone()
-        } else {
-            p.join("cem-ml.report.json")
-        };
+        let target = resolve_report_target(p, basename, "json");
         if let Some(parent) = target.parent() {
             if !parent.as_os_str().is_empty() {
                 fs::create_dir_all(parent)?;
@@ -289,11 +301,7 @@ fn write_report_files(
         fs::write(&target, serde_json::to_string_pretty(report)?)?;
     }
     if let Some(p) = &report_opts.report_md {
-        let target = if p.extension().is_some() {
-            p.clone()
-        } else {
-            p.join("cem-ml.report.md")
-        };
+        let target = resolve_report_target(p, basename, "md");
         if let Some(parent) = target.parent() {
             if !parent.as_os_str().is_empty() {
                 fs::create_dir_all(parent)?;
@@ -380,7 +388,7 @@ pub fn run_validate<E: CemMlEngine + ?Sized>(
     };
     match engine.validate(req) {
         Ok(resp) => {
-            if let Err(e) = write_report_files(&resp.report, &args.report) {
+            if let Err(e) = write_report_files(&resp.report, &args.report, REPORT_BASENAME_VALIDATE) {
                 let _ = writeln!(s.stderr, "cem-ml: report write failure: {e}");
                 return Outcome::code(EXIT_IO);
             }
@@ -416,7 +424,7 @@ pub fn run_check<E: CemMlEngine + ?Sized>(
     };
     match engine.check(req) {
         Ok(resp) => {
-            if let Err(e) = write_report_files(&resp.report, &args.report) {
+            if let Err(e) = write_report_files(&resp.report, &args.report, REPORT_BASENAME_VALIDATE) {
                 let _ = writeln!(s.stderr, "cem-ml: report write failure: {e}");
                 return Outcome::code(EXIT_IO);
             }
@@ -543,11 +551,7 @@ pub fn run_bench<E: CemMlEngine + ?Sized>(
             }
             if let Some(p) = &args.report.report_json {
                 if let Err(e) = (|| -> io::Result<()> {
-                    let target = if p.extension().is_some() {
-                        p.clone()
-                    } else {
-                        p.join("cem-ml.bench.report.json")
-                    };
+                    let target = resolve_report_target(p, REPORT_BASENAME_BENCH, "json");
                     if let Some(parent) = target.parent() {
                         if !parent.as_os_str().is_empty() {
                             fs::create_dir_all(parent)?;
@@ -583,7 +587,7 @@ pub fn run_fixture_validate<E: CemMlEngine + ?Sized>(
     };
     match engine.fixture_validate(req) {
         Ok(resp) => {
-            if let Err(e) = write_report_files(&resp.report, &args.report) {
+            if let Err(e) = write_report_files(&resp.report, &args.report, REPORT_BASENAME_VALIDATE) {
                 let _ = writeln!(s.stderr, "cem-ml: report write failure: {e}");
                 return Outcome::code(EXIT_IO);
             }
@@ -617,7 +621,7 @@ pub fn run_fixture_roundtrip<E: CemMlEngine + ?Sized>(
     };
     match engine.fixture_roundtrip(req) {
         Ok(resp) => {
-            if let Err(e) = write_report_files(&resp.report, &args.report) {
+            if let Err(e) = write_report_files(&resp.report, &args.report, REPORT_BASENAME_ROUNDTRIP) {
                 let _ = writeln!(s.stderr, "cem-ml: report write failure: {e}");
                 return Outcome::code(EXIT_IO);
             }
@@ -888,6 +892,97 @@ mod tests {
         assert_eq!(outcome.exit_code, EXIT_OK);
         let v: serde_json::Value = serde_json::from_str(stdout.trim()).unwrap();
         assert_eq!(v["view"], "events");
+    }
+
+    #[test]
+    fn fixture_validate_with_dir_uses_default_basename() {
+        let dir = std::env::temp_dir().join("cem-ml-cli-tests/fv-dir");
+        let _ = std::fs::remove_dir_all(&dir);
+        let (outcome, _, _) = run(
+            &FakeEngine,
+            &[
+                "fixture",
+                "validate",
+                "--report-json",
+                dir.to_str().unwrap(),
+                "--report-md",
+                dir.to_str().unwrap(),
+            ],
+        );
+        assert_eq!(outcome.exit_code, EXIT_OK);
+        assert!(dir.join("cem-ml.report.json").is_file());
+        assert!(dir.join("cem-ml.report.md").is_file());
+    }
+
+    #[test]
+    fn fixture_roundtrip_with_dir_uses_roundtrip_basename() {
+        let dir = std::env::temp_dir().join("cem-ml-cli-tests/fr-dir");
+        let _ = std::fs::remove_dir_all(&dir);
+        let (outcome, _, _) = run(
+            &FakeEngine,
+            &[
+                "fixture",
+                "roundtrip",
+                "--report-json",
+                dir.to_str().unwrap(),
+                "--report-md",
+                dir.to_str().unwrap(),
+            ],
+        );
+        assert_eq!(outcome.exit_code, EXIT_OK);
+        assert!(
+            dir.join("cem-ml.roundtrip.report.json").is_file(),
+            "missing roundtrip.report.json"
+        );
+        assert!(
+            dir.join("cem-ml.roundtrip.report.md").is_file(),
+            "missing roundtrip.report.md"
+        );
+        assert!(
+            !dir.join("cem-ml.report.json").exists(),
+            "should not have written validate basename"
+        );
+    }
+
+    #[test]
+    fn bench_with_dir_uses_bench_basename() {
+        let p = write_fixture("bench-dir.cem", "{x}");
+        let dir = std::env::temp_dir().join("cem-ml-cli-tests/bench-dir");
+        let _ = std::fs::remove_dir_all(&dir);
+        let (outcome, _, _) = run(
+            &FakeEngine,
+            &[
+                "bench",
+                "--format",
+                "json",
+                "--report-json",
+                dir.to_str().unwrap(),
+                p.to_str().unwrap(),
+            ],
+        );
+        assert_eq!(outcome.exit_code, EXIT_OK);
+        assert!(
+            dir.join("cem-ml.bench.report.json").is_file(),
+            "missing bench.report.json"
+        );
+    }
+
+    #[test]
+    fn report_explicit_file_path_overrides_basename() {
+        let p = write_fixture("validate-explicit.cem", "{x}");
+        let json_path = std::env::temp_dir().join("cem-ml-cli-tests/custom-name.json");
+        let _ = std::fs::remove_file(&json_path);
+        let (outcome, _, _) = run(
+            &FakeEngine,
+            &[
+                "validate",
+                "--report-json",
+                json_path.to_str().unwrap(),
+                p.to_str().unwrap(),
+            ],
+        );
+        assert_eq!(outcome.exit_code, EXIT_OK);
+        assert!(json_path.is_file(), "explicit filename should be honored");
     }
 
     #[test]

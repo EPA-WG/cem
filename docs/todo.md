@@ -46,8 +46,12 @@ Component vocabulary: [`component-mvp.md`](component-mvp.md). Research input:
       `failLevel`/`schema`/`contentType`/`baseUri`), diagnostics, deterministic timestamp, `--out` vs stdout split,
       `--report-json`/`--report-md` writers, fixture default inputs, fail-level semantics, `--zero-hard-violations`,
       `--quiet`, and exit codes (0 success/stub, 1 hard failure, 2 reserved, 6 I/O).
-- [ ] Move fixture validation report ownership to `packages/cem_ml_cli/dist/cem-ml.report.{json,md}` and round-trip /
-      benchmark reports to `cem-ml`-named outputs.
+- [x] Honor `cem-ml-cli-contract.md` §Report Ownership filename conventions: fixture-validate / validate / check write
+      `cem-ml.report.{json,md}`, fixture-roundtrip writes `cem-ml.roundtrip.report.{json,md}`, bench writes
+      `cem-ml.bench.report.json`. Basenames are applied when `--report-json` / `--report-md` resolve to a directory;
+      explicit file paths are honored verbatim. Covered by 4 dispatch tests in `packages/cem_ml_cli/src/dispatch.rs`
+      (`fixture_validate_with_dir_uses_default_basename`, `fixture_roundtrip_with_dir_uses_roundtrip_basename`,
+      `bench_with_dir_uses_bench_basename`, `report_explicit_file_path_overrides_basename`).
 
 ### Planning And Contract Reconciliation
 
