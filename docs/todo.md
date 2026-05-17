@@ -34,11 +34,18 @@ Component vocabulary: [`component-mvp.md`](component-mvp.md). Research input:
       `bench`, `fixture validate`, `fixture roundtrip`, `help`, `version`, and reserved `transform`, `schema`, and
       `plugin` workflows (reserved commands exit 2). Parser-backed handlers are stubs awaiting Phase 11
       [`cem-ml-cli-plan.md`](cem-ml-cli-plan.md).
-- [ ] Verify option-function coverage in `cem-ml-cli`: fail level, output format, report destinations, output file,
-      schema/content-type/base URI recording, quiet/verbose/no-color, zero hard violations, preserve source offsets,
-      convert input/output formats, inspect views, benchmark iterations/budget/profile/cold-cache, and fixture defaults.
-- [ ] Add Rust-side feature tests for option behavior and output shape before relying on `cem-ml-cli` in CI. Tests
-      should assert behavior, JSON/report fields, diagnostics, and exit codes.
+- [x] Wire option-function coverage in `cem-ml-cli` clap layer: fail level, per-command format enums (`parse`,
+      `validate`/`check`, `trace`, `bench`), `--show` inspect views, convert input/output layer formats,
+      report destinations (`--report-json`/`--report-md`), schema/content-type/base URI recording,
+      quiet/verbose (mutually exclusive)/no-color, zero hard violations, preserve source offsets,
+      benchmark iterations/budget/profile/cold-cache (with `>=1` range validators), and fixture-default empty inputs.
+      Backed by 17 unit tests in `packages/cem_ml_cli/src/cli.rs`.
+- [x] Scaffold the `CemMlEngine` trait boundary in `cem-ml` (engine/diagnostics/report modules + `NotImplementedEngine`
+      + feature-gated `FakeEngine`), route every parser-backed CLI command through it, and add Rust-side feature tests
+      for option behavior and output shape: JSON/report fields (`generatedAt`, `summary.*Count`, `options.*` with
+      `failLevel`/`schema`/`contentType`/`baseUri`), diagnostics, deterministic timestamp, `--out` vs stdout split,
+      `--report-json`/`--report-md` writers, fixture default inputs, fail-level semantics, `--zero-hard-violations`,
+      `--quiet`, and exit codes (0 success/stub, 1 hard failure, 2 reserved, 6 I/O).
 - [ ] Move fixture validation report ownership to `packages/cem_ml_cli/dist/cem-ml.report.{json,md}` and round-trip /
       benchmark reports to `cem-ml`-named outputs.
 

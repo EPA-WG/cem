@@ -13,3 +13,7 @@ path = "src/main.rs"
 [dependencies]
 clap = { version = "4", features = ["derive"] }
 cem-ml = { path = "../cem_ml" }
+serde_json = "1"
+
+[dev-dependencies]
+cem-ml = { path = "../cem_ml", features = ["fake-engine"] }

@@ -15,7 +15,8 @@ pub struct Cli {
     #[command(subcommand)]
     pub command: Command,
 
-    #[arg(long, global = true, help = "Suppress success/info output (errors still surface)")]
+    #[arg(long, global = true, conflicts_with = "verbose",
+          help = "Suppress success/info output (errors still surface)")]
     pub quiet: bool,
 
     #[arg(long, global = true, help = "Emit verbose progress and trace text")]
@@ -69,42 +70,61 @@ pub enum PluginCmd {
     Run,
 }
 
-#[derive(ValueEnum, Copy, Clone, Debug)]
+#[derive(ValueEnum, Copy, Clone, Debug, PartialEq, Eq)]
 pub enum FailLevel {
     Parse,
     Validate,
     Strict,
 }
 
-#[derive(ValueEnum, Copy, Clone, Debug)]
-pub enum OutputFormat {
-    Text,
-    Html,
-    Json,
-    Xml,
-    Cem,
-    Markdown,
-    DomJson,
-    Ast,
-    Events,
-    Tree,
-}
-
-#[derive(ValueEnum, Copy, Clone, Debug)]
+#[derive(ValueEnum, Copy, Clone, Debug, PartialEq, Eq)]
 pub enum InputFormat {
     Cem,
     Html,
     Xml,
 }
 
-#[derive(ValueEnum, Copy, Clone, Debug)]
+#[derive(ValueEnum, Copy, Clone, Debug, PartialEq, Eq)]
 pub enum LayerFormat {
     DomJson,
     Ast,
     Events,
 }
 
-#[derive(ValueEnum, Copy, Clone, Debug)]
+#[derive(ValueEnum, Copy, Clone, Debug, PartialEq, Eq)]
+pub enum ParseFormat {
+    DomJson,
+    Json,
+    Ast,
+    Events,
+}
+
+#[derive(ValueEnum, Copy, Clone, Debug, PartialEq, Eq)]
+pub enum ValidateFormat {
+    Json,
+    Xml,
+    Cem,
+    Text,
+    Html,
+    Markdown,
+}
+
+#[derive(ValueEnum, Copy, Clone, Debug, PartialEq, Eq)]
+pub enum TraceFormat {
+    Json,
+    Xml,
+    Cem,
+    Text,
+    Html,
+}
+
+#[derive(ValueEnum, Copy, Clone, Debug, PartialEq, Eq)]
+pub enum BenchFormat {
+    Text,
+    Json,
+}
+
+#[derive(ValueEnum, Copy, Clone, Debug, PartialEq, Eq)]
 pub enum InspectView {
     Summary,
     Ast,
@@ -114,7 +134,7 @@ pub enum InspectView {
     Tree,
 }
 
-#[derive(ValueEnum, Copy, Clone, Debug)]
+#[derive(ValueEnum, Copy, Clone, Debug, PartialEq, Eq)]
 pub enum BenchProfile {
     Cpu,
     Memory,
@@ -146,9 +166,9 @@ pub struct ParseArgs {
     #[arg(value_name = "INPUT", help = "Path to a CEM-ML/HTML/XML input")]
     pub input: PathBuf,
 
-    #[arg(long, value_enum, default_value_t = OutputFormat::DomJson,
-          help = "Output projection (dom-json|json|ast|events for parse)")]
-    pub format: OutputFormat,
+    #[arg(long, value_enum, default_value_t = ParseFormat::DomJson,
+          help = "Output projection (dom-json|json|ast|events)")]
+    pub format: ParseFormat,
 
     #[arg(long = "from-format", value_enum, help = "Override input format detection")]
     pub from_format: Option<InputFormat>,
@@ -173,9 +193,9 @@ pub struct ValidateArgs {
     #[arg(value_name = "INPUT", required = true, num_args = 1.., help = "One or more inputs")]
     pub inputs: Vec<PathBuf>,
 
-    #[arg(long, value_enum, default_value_t = OutputFormat::Text,
+    #[arg(long, value_enum, default_value_t = ValidateFormat::Text,
           help = "Report projection (json|xml|cem|text|html|markdown)")]
-    pub format: OutputFormat,
+    pub format: ValidateFormat,
 
     #[arg(long = "from-format", value_enum)]
     pub from_format: Option<InputFormat>,
@@ -194,8 +214,8 @@ pub struct CheckArgs {
     #[arg(value_name = "INPUT", required = true, num_args = 1..)]
     pub inputs: Vec<PathBuf>,
 
-    #[arg(long, value_enum, default_value_t = OutputFormat::Text)]
-    pub format: OutputFormat,
+    #[arg(long, value_enum, default_value_t = ValidateFormat::Text)]
+    pub format: ValidateFormat,
 
     #[arg(long = "from-format", value_enum)]
     pub from_format: Option<InputFormat>,
@@ -258,9 +278,9 @@ pub struct TraceArgs {
     #[arg(value_name = "INPUT")]
     pub input: PathBuf,
 
-    #[arg(long, value_enum, default_value_t = OutputFormat::Json,
+    #[arg(long, value_enum, default_value_t = TraceFormat::Json,
           help = "Trace projection (json|xml|cem|text|html)")]
-    pub format: OutputFormat,
+    pub format: TraceFormat,
 
     #[arg(long = "from-format", value_enum)]
     pub from_format: Option<InputFormat>,
@@ -277,14 +297,17 @@ pub struct BenchArgs {
     #[arg(value_name = "INPUT", required = true, num_args = 1..)]
     pub inputs: Vec<PathBuf>,
 
-    #[arg(long, value_enum, default_value_t = OutputFormat::Text,
+    #[arg(long, value_enum, default_value_t = BenchFormat::Text,
           help = "Bench report projection (text|json)")]
-    pub format: OutputFormat,
+    pub format: BenchFormat,
 
-    #[arg(long, value_name = "N", default_value_t = 1, help = "Number of iterations")]
+    #[arg(long, value_name = "N", default_value_t = 1, value_parser = clap::value_parser!(u32).range(1..),
+          help = "Number of iterations (>=1)")]
     pub iterations: u32,
 
-    #[arg(long = "budget-ms", value_name = "MS", help = "Fail when per-iteration wall time exceeds this budget")]
+    #[arg(long = "budget-ms", value_name = "MS",
+          value_parser = clap::value_parser!(u64).range(1..),
+          help = "Fail when per-iteration wall time exceeds this budget")]
     pub budget_ms: Option<u64>,
 
     #[arg(long, value_enum, help = "Optional profiling mode")]
@@ -330,4 +353,140 @@ pub struct FixtureRoundtripArgs {
     pub context: ContextOptions,
     #[command(flatten)]
     pub report: ReportOptions,
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use clap::CommandFactory;
+
+    #[test]
+    fn clap_definition_is_well_formed() {
+        Cli::command().debug_assert();
+    }
+
+    fn try_parse(args: &[&str]) -> Result<Cli, clap::Error> {
+        Cli::try_parse_from(std::iter::once("cem-ml").chain(args.iter().copied()))
+    }
+
+    #[test]
+    fn parse_accepts_layer_formats_only() {
+        for fmt in ["dom-json", "json", "ast", "events"] {
+            try_parse(&["parse", "--format", fmt, "in.cem"]).expect(fmt);
+        }
+        for fmt in ["xml", "cem", "text", "html", "markdown", "tree"] {
+            assert!(try_parse(&["parse", "--format", fmt, "in.cem"]).is_err(), "rejected: {fmt}");
+        }
+    }
+
+    #[test]
+    fn validate_accepts_report_formats_only() {
+        for fmt in ["json", "xml", "cem", "text", "html", "markdown"] {
+            try_parse(&["validate", "--format", fmt, "in.cem"]).expect(fmt);
+        }
+        for fmt in ["dom-json", "ast", "events", "tree"] {
+            assert!(try_parse(&["validate", "--format", fmt, "in.cem"]).is_err(), "rejected: {fmt}");
+        }
+    }
+
+    #[test]
+    fn check_accepts_report_formats_only() {
+        try_parse(&["check", "--format", "json", "in.cem"]).unwrap();
+        assert!(try_parse(&["check", "--format", "ast", "in.cem"]).is_err());
+    }
+
+    #[test]
+    fn trace_accepts_trace_formats_only() {
+        for fmt in ["json", "xml", "cem", "text", "html"] {
+            try_parse(&["trace", "--format", fmt, "in.cem"]).expect(fmt);
+        }
+        for fmt in ["markdown", "dom-json", "ast", "events", "tree"] {
+            assert!(try_parse(&["trace", "--format", fmt, "in.cem"]).is_err(), "rejected: {fmt}");
+        }
+    }
+
+    #[test]
+    fn bench_accepts_text_or_json_only() {
+        try_parse(&["bench", "--format", "text", "in.cem"]).unwrap();
+        try_parse(&["bench", "--format", "json", "in.cem"]).unwrap();
+        for fmt in ["xml", "cem", "html", "markdown", "dom-json", "ast", "events", "tree"] {
+            assert!(try_parse(&["bench", "--format", fmt, "in.cem"]).is_err(), "rejected: {fmt}");
+        }
+    }
+
+    #[test]
+    fn inspect_accepts_documented_views() {
+        for view in ["summary", "ast", "events", "diagnostics", "source-offsets", "tree"] {
+            try_parse(&["inspect", "--show", view, "in.cem"]).expect(view);
+        }
+        assert!(try_parse(&["inspect", "--show", "scope", "in.cem"]).is_err());
+    }
+
+    #[test]
+    fn convert_to_format_restricted_to_layer_formats() {
+        for fmt in ["dom-json", "ast", "events"] {
+            try_parse(&["convert", "--to-format", fmt, "in.cem"]).expect(fmt);
+        }
+        for fmt in ["json", "xml", "cem", "text", "html"] {
+            assert!(try_parse(&["convert", "--to-format", fmt, "in.cem"]).is_err(), "rejected: {fmt}");
+        }
+    }
+
+    #[test]
+    fn quiet_and_verbose_conflict() {
+        assert!(try_parse(&["--quiet", "--verbose", "version"]).is_err());
+    }
+
+    #[test]
+    fn fail_level_enum_values() {
+        for lvl in ["parse", "validate", "strict"] {
+            try_parse(&["validate", "--fail-level", lvl, "in.cem"]).expect(lvl);
+        }
+        assert!(try_parse(&["validate", "--fail-level", "warn", "in.cem"]).is_err());
+    }
+
+    #[test]
+    fn iterations_must_be_at_least_one() {
+        try_parse(&["bench", "--iterations", "1", "in.cem"]).unwrap();
+        assert!(try_parse(&["bench", "--iterations", "0", "in.cem"]).is_err());
+    }
+
+    #[test]
+    fn budget_ms_must_be_at_least_one() {
+        try_parse(&["bench", "--budget-ms", "1", "in.cem"]).unwrap();
+        assert!(try_parse(&["bench", "--budget-ms", "0", "in.cem"]).is_err());
+    }
+
+    #[test]
+    fn unknown_subcommand_is_rejected() {
+        assert!(try_parse(&["bogus"]).is_err());
+    }
+
+    #[test]
+    fn fixture_subcommands_parse() {
+        try_parse(&["fixture", "validate"]).unwrap();
+        try_parse(&["fixture", "roundtrip"]).unwrap();
+        try_parse(&["fixture", "validate", "a.cem", "b.cem"]).unwrap();
+    }
+
+    #[test]
+    fn reserved_subcommands_parse() {
+        try_parse(&["transform"]).unwrap();
+        try_parse(&["schema", "emit"]).unwrap();
+        try_parse(&["schema", "sample"]).unwrap();
+        try_parse(&["schema", "replace"]).unwrap();
+        try_parse(&["plugin", "list"]).unwrap();
+        try_parse(&["plugin", "inspect"]).unwrap();
+        try_parse(&["plugin", "run"]).unwrap();
+    }
+
+    #[test]
+    fn validate_requires_input() {
+        assert!(try_parse(&["validate"]).is_err());
+    }
+
+    #[test]
+    fn fixture_validate_allows_empty_inputs() {
+        try_parse(&["fixture", "validate"]).unwrap();
+    }
 }
