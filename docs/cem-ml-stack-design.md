@@ -41,8 +41,8 @@ Resolved design reasoning has been folded back into the AC as of the current ali
 pass: CEM-native schema source, RELAX-NG structural parity, streaming-first async
 public APIs, context-scope error policy, origin-first source-map stacks,
 schema-qualified CEM annotations, schema-driven CEM template transforms, canonical
-curly CEM-ML output with XML/HTML parity surfaces, and deferred DOM mutation runtime
-scope are AC decisions.
+curly CEM-ML output with XML/HTML parity surfaces, document-format version identity,
+and deferred DOM mutation runtime scope are AC decisions.
 
 ---
 
@@ -52,6 +52,15 @@ Canonical CEM-ML source uses the curly-brace surface from
 [`cem-ml-syntax.md`](cem-ml-syntax.md). XML and HTML remain secondary parity surfaces:
 they must lower into the same event model and AST, but they do not replace the CEM-ML
 source form as the authoring canonical.
+
+Top-level canonical CEM-ML source begins with `@doc cem-ml <version>` per AC-F-8.
+This is document-format identity, not schema identity: it selects the CEM-ML language
+grammar and parser compatibility family before schema loading starts. Tier A supports
+embedded document-format version `1.0.0`; author-facing `@doc cem-ml 1` is the normal
+shorthand. Embedded CEM-ML fragments inherit an already-established document-format
+identity unless the host API supplies one explicitly. XML and HTML parity inputs get
+their format identity from the selected parser/content-type profile and do not accept
+`@doc`.
 
 Schema-qualified CEM attributes are transformation annotations in the namespace
 associated with the active schema. They are not HTML `data-*` metadata and not

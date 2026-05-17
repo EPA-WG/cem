@@ -316,6 +316,28 @@ Template-embedding rules:
 - Attribute values do not need the `$` node because the attribute-value scanner
   already owns `{...}` spans.
 
+## Document Format Directive
+
+Top-level canonical CEM-ML documents begin with a required document-format
+directive:
+
+```cem
+@doc cem-ml 1
+```
+
+The form is `@doc cem-ml <version>`. The version accepts the SemVer constraint
+forms defined by `cem-ml-ac.md` AC-F-8: `MAJOR`, `MAJOR.MINOR`, or full
+`MAJOR.MINOR.PATCH` with optional prerelease/build metadata. Tier A defines the
+canonical `cem-ml` format at embedded version `1.0.0`, so `@doc cem-ml 1`,
+`@doc cem-ml 1.0`, and `@doc cem-ml 1.0.0` select the same Tier A parser
+profile.
+
+`@doc` must appear before any non-trivia top-level directive or item in a
+persisted `.cem` document. Embedded CEM-ML fragments inherit the parent
+document-format identity unless the host API supplies an explicit fragment
+format. XML and HTML parity documents do not use `@doc`; their format identity
+comes from the selected parser/content-type profile.
+
 ### Anonymous Typed Scopes
 
 If the first item after `{` is an attribute or directive instead of a node name,
@@ -798,17 +820,19 @@ tokenizer recognizes ASCII and Unicode spellings as the same lexical token kinds
 before grammar parsing.
 
 ```text
-document        := directive* item*
-item            := node | expression_node | anonymous_scope | directive | comment | content
-node            := "{" qname attribute* content_boundary? item* "}"
-expression_node := "{" "$" content_boundary? cem_ql_expression "}"
-anonymous_scope := "{" attribute+ content_boundary? item* "}"
-attribute       := "@" qname ("=" value)?
+document         := doc_directive directive* item*
+fragment         := directive* item*
+item             := node | expression_node | anonymous_scope | directive | comment | content
+node             := "{" qname attribute* content_boundary? item* "}"
+expression_node  := "{" "$" content_boundary? cem_ql_expression "}"
+anonymous_scope  := "{" attribute+ content_boundary? item* "}"
+attribute        := "@" qname ("=" value)?
 content_boundary := "|"
-qname           := name | prefix ":" name
-value           := bare_value | quoted_string | fenced_block | cem_ql_span
-cem_ql_span     := "{" cem_ql_expression "}"  // attribute-value mode only
-directive       := "@doc" ... | "@ns" ... | "@default" ... | "@schema" ...
+qname            := name | prefix ":" name
+value            := bare_value | quoted_string | fenced_block | cem_ql_span
+cem_ql_span      := "{" cem_ql_expression "}"  // attribute-value mode only
+doc_directive    := "@doc" format_id semver_constraint
+directive        := "@ns" ... | "@default" ... | "@schema" ...
 ```
 
 Remaining grammar details:

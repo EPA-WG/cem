@@ -121,7 +121,41 @@ are deferred.
 - **AC-F-7 [A] MUST** keep data streaming where possible. Public Rust and WASM
   entry points are asynchronous and accept finite source adapters or streams. Internal
   Tier A processing may use task-local state and token-local buffers.
-- **AC-F-8 [A] MUST** treat the curly-brace CEM-ML surface in
+- **AC-F-8 [A] MUST** define document-format version identity for canonical CEM-ML
+  source as `{ formatId, contentType, formatVersion }`. Tier A defines exactly one
+  canonical document format: `formatId = "cem-ml"`,
+  `contentType = "text/cem-ml"`, and initial embedded supported version `1.0.0`.
+  Author-facing `@doc cem-ml 1` is the required shorthand for the `1.x`
+  compatibility family.
+  - **Top-level requirement.** Persisted top-level canonical `.cem` documents MUST
+    begin, before any non-trivia directive or item, with `@doc cem-ml <version>`.
+    Missing top-level `@doc` rejects the document before schema loading with
+    `cem.doc.version_missing`.
+  - **Accepted `@doc` version syntax.** `<version>` accepts `MAJOR`, `MAJOR.MINOR`,
+    or full SemVer 2.0 `MAJOR.MINOR.PATCH` with optional prerelease/build metadata.
+    Partial forms are constraints, not embedded versions: `1` means any supported
+    `1.x.y`, `1.2` means any supported `1.2.y`, and `1.2.3` means a supported
+    full version compatible with `1.2.3`.
+  - **Compatibility.** The parser resolves the declared constraint against its
+    embedded supported document-format versions using the same SemVer compatibility
+    model as AC-V-10 / AC-V-11: same major with loaded `(MINOR, PATCH)` greater
+    than or equal to declared `(MINOR, PATCH)`, `0.x` exact minor/patch behavior,
+    exact prerelease matching when prerelease is declared, and build metadata ignored
+    for precedence. Unknown format ids reject with `cem.doc.format_unknown`; invalid
+    SemVer rejects with `cem.doc.semver_invalid`; unsupported version constraints or
+    major mismatches reject with `cem.doc.version_unsupported`; prerelease mismatches
+    reject with `cem.doc.prerelease_unmatched`.
+  - **Resolution identity.** Resolution MUST produce a full embedded document-format
+    version before parsing any syntax that can vary by version, record
+    `cem.doc.version_resolved` in the AC-O-3 report tree, and carry the resolved
+    `{ formatId, contentType, formatVersion }` on the document root scope and any
+    AC-CC-1 / AC-CC-3 cache or policy identity for the parsed document.
+  - **Fragments and parity formats.** Embedded CEM-ML fragments parsed inside an
+    already-established CEM-ML scope inherit the parent document-format identity unless
+    the host API supplies an explicit fragment format. XML and HTML parity inputs do
+    not accept `@doc`; their document-format identity comes from the selected
+    parser/content-type profile.
+- **AC-F-9 [A] MUST** treat the curly-brace CEM-ML surface in
   [`cem-ml-syntax.md`](cem-ml-syntax.md) as the canonical document syntax. XML
   convention forms are secondary parity/mirror forms, not competing canonical sources.
 
@@ -148,6 +182,11 @@ are deferred.
 - **AC-F-V-5** — syntax parity: a canonical CEM-ML fixture and its XML/HTML parity
   fixture lower to the same schema event stream, source-map frame model, and validation
   result, except for source syntax spans and content-type-specific trivia.
+- **AC-F-V-6** — document-format version identity: fixtures cover
+  `@doc cem-ml 1`, `@doc cem-ml 1.0`, and `@doc cem-ml 1.0.0` resolving to the same
+  Tier A parser profile; a missing top-level `@doc`, unknown format id, invalid SemVer,
+  unsupported future minor/patch, major mismatch, and prerelease mismatch each emit the
+  documented diagnostic before schema loading.
 
 ## 1. Parser
 
@@ -847,7 +886,8 @@ type-check, and resumes from a binary form keyed by content hash.
 - **AC-CC-1 [B] MUST** assign every parsed top-level artifact a deterministic
   **content hash**. Hash inputs:
   - the canonical UTF-8 source bytes after BOM strip,
-  - the artifact's content-type identifier,
+  - the artifact's content-type identifier and, for CEM-ML documents or fragments,
+    the resolved document-format identity from AC-F-8,
   - a versioned hash-scheme tag (`cem-bin/1+blake3` for the initial scheme).
   The hash MUST be reproducible across hosts and platforms and MUST identify
   the artifact for cache reuse. Artifacts covered: cem-ml documents (parser
@@ -860,8 +900,9 @@ type-check, and resumes from a binary form keyed by content hash.
   owned by this AC and shared with downstream stacks (cem-ql) so a single
   loader implementation handles both.
 - **AC-CC-3 [B] MUST** carry the artifact's declared **policy stamps** in the
-  binary: declared schema URIs, declared plugin imports, declared external
-  reads, and the scope-policy fingerprint under which it was produced. A
+  binary: resolved document-format identity for CEM-ML documents or fragments,
+  declared schema URIs, declared plugin imports, declared external reads, and
+  the scope-policy fingerprint under which it was produced. A
   binary whose policy stamps the active scope cannot satisfy MUST fail with
   `cem.cc.policy_mismatch` and fall back to the source when available; the
   cached binary MUST NOT be silently used under a less-restrictive policy.
