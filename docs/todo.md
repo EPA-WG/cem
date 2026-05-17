@@ -212,12 +212,27 @@ Component vocabulary: [`component-mvp.md`](component-mvp.md). Research input:
 
 ### Binary AST And Chunk Boundary Design
 
-- [ ] Specify an uncompressed debug binary AST representation with dictionaries for node kinds, schema ids, strings,
-      source-map frame shapes, scope slots, and typed values.
-- [ ] Define subtree chunk metadata: root id, parent anchor, dictionary ids, local node/edge tables, source-map deltas,
-      child links, external references, and integrity hash.
-- [ ] Implement a minimal deterministic encoder used by tests only; compression profiles can remain deferred.
-- [ ] Add round-trip tests from AST to debug binary encoding and back for the five fixtures.
+- [x] Uncompressed debug binary format specified in `packages/cem_ml/src/ast/format.rs` with magic `CEMB`, version `1`,
+      and 4 dictionaries: strings (length-prefixed UTF-8), source ids (`SourceId.0` raw), transforms (tag + optional
+      string-payload index), and source-map frames (source-id-dict + span-kind + ranges + transform-dict). Node kinds
+      are stable `u8` tags (`Document`/`Element`/`Attribute`/`Text`/`Whitespace`/`Comment`/`ProcessingInstruction`/
+      `Cdata`/`RawText`/`Error`). Typed values currently surface as strings; the format is forward-compatible for
+      typed-value tags via the `FLAGS_NONE` reserved field.
+- [x] Subtree chunk metadata (`ChunkMetadata`) records: `root_id`, optional `parent_anchor`, `dictionary_ids` (Tier A
+      always `[0]`), `local_node_start` + `local_node_count`, `source_map_deltas`, `child_links`, `external_references`,
+      and an `integrity_hash` (FNV-1a 64-bit over the byte prefix). Tier A emits a single whole-document chunk; the
+      deltas/links/external-refs lists are always empty until the Phase 11 streaming encoder lands.
+- [x] Minimal deterministic encoder in `packages/cem_ml/src/ast/encode.rs` (`DebugBinaryEncoder`): strings/source-ids/
+      transforms/source-map frames are interned by first-seen order during a deterministic pre-walk, then nodes /
+      edges / `id_table` / unresolved-slots / chunk metadata sections write in fixed order. The encoder is gated as
+      `#[doc(hidden)]` — it's not a compatibility-stable production format. Mirror `DebugBinaryDecoder` in
+      `packages/cem_ml/src/ast/decode.rs` verifies the trailing FNV-1a hash before parsing and produces a
+      `CemDocument` byte-identical (after re-encode) to the original.
+- [x] Round-trip tests (8 unit tests in `ast::tests`): magic + version header inspection, empty input, simple element,
+      nested element with `id`/`for` references, encoder determinism (same input → byte-identical output), integrity
+      hash protects against single-byte tampering (`IntegrityMismatch` returned), chunk-metadata field assertions,
+      and `every_canonical_fixture_round_trips` exercising all 5 `examples/cem-ml/*.cem` fixtures end-to-end with a
+      byte-stability re-encode check.
 
 ### Validation
 
