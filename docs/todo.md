@@ -152,8 +152,13 @@ Component vocabulary: [`component-mvp.md`](component-mvp.md). Research input:
       exclusivity, nested `cem:name` shadowing). Blocked on schema-scoping form support above.
 - [ ] Namespace rebinding fixtures (unprefixed HTML, unprefixed SVG, default-namespace rebinding back to HTML in one
       CEM-ML document with XML parity output). Blocked on namespace-binding support above.
-- [ ] Fixtures proving canonical CEM-ML, HTML parity, and XML-like inputs normalize into the same CEM event model.
-      Blocked on Phase 11 HTML/XML parity tokenizer profiles above.
+- [x] Fixtures proving canonical CEM-ML and HTML parity inputs normalize into the same CEM event model. Driven by
+      `every_fixture_pair_shares_comparable_element_multiset` +
+      `every_fixture_pair_has_balanced_event_streams` in
+      [`../packages/cem_ml/tests/fixture_pair.rs`](../packages/cem_ml/tests/fixture_pair.rs). Both surfaces lower
+      through the shared `CemEventNormalizer` and produce the same element open/close shape after HTML wrapper
+      stripping. XML-like input parity remains Phase 11 work (the XML 1.0 tokenizer profile at
+      `packages/cem_ml/src/tokenizer/xml.rs` is still a stub).
 
 ### Schema Machine
 
@@ -297,9 +302,15 @@ Component vocabulary: [`component-mvp.md`](component-mvp.md). Research input:
 - [ ] `cem-ml-cli` `validate-fixtures` Nx target. Plan-gated to Phase 12 of
       [`cem-ml-cli-plan.md`](cem-ml-cli-plan.md); landing this requires the parser-enabled engine + the markdown
       report parity above.
-- [ ] Fixture-pair tests proving canonical CEM-ML and HTML parity fixtures produce the same hard-violation result.
-      Blocked on the Phase 11 HTML parity tokenizer; the Tier A canonical fixtures already validate clean end-to-end
-      via `every_canonical_fixture_validates_clean`.
+- [x] Fixture-pair parity tests at
+      [`../packages/cem_ml/tests/fixture_pair.rs`](../packages/cem_ml/tests/fixture_pair.rs). 5 integration tests
+      pairing each `examples/cem-ml/*.cem` fixture with its matching `examples/semantic/*.html`:
+      `every_fixture_pair_tokenizes_without_hard_violations`, `every_fixture_pair_has_balanced_event_streams`,
+      `every_fixture_pair_shares_comparable_element_multiset` (after stripping HTML-only wrappers
+      `html`/`head`/`body`/`meta`/`title`/`link`/`style`/`script`), `every_fixture_pair_has_a_top_level_landmark_element`,
+      `parity_diagnostic_codes_align_across_surfaces`. All 5 pairs (login, registration, profile, assets-list,
+      message-thread) tokenize clean on both surfaces and share the same element multiset in the comparable
+      subtree.
 
 ### Transform
 
