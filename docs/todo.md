@@ -185,10 +185,14 @@ Component vocabulary: [`component-mvp.md`](component-mvp.md). Research input:
 - [x] Allowed state attribute set defined per annotation in `cem-core.md` and mirrored in
       `packages/cem_ml/src/schema/vocab.rs` (`AnnotationDef.allowed_states`). State is exposed via `cem:state="..."`
       with single or space-separated values.
-- [ ] Compile schema markdown → XHTML via the existing docs pipeline. Status: schema markdown is authored and lives
-      under `packages/cem_ml/schema/cem-core.md`; wiring it into the workspace `build:docs` Nx target is a follow-up
-      (the Rust `CompiledSchema` is constructed programmatically in `vocab.rs::CompiledSchema::cem_core` until the
-      markdown-driven compiler lands).
+- [x] Schema markdown → XHTML pipeline wired. `tools/scripts/compile-markdown.mjs` accepts `--project <path>` and
+      `--src-dir <relative>` (or `MARKDOWN_PROJECT_ROOT` / `MARKDOWN_SRC_DIR` env vars) so it can compile any
+      project's markdown sources. `packages/cem_ml/project.json` defines a `build:docs` Nx target that runs
+      `node tools/scripts/compile-markdown.mjs --project packages/cem_ml --src-dir schema` and the `cem_ml:build`
+      target declares `dependsOn: ["build:docs"]`, so `yarn nx run cem_ml:build` (and therefore `yarn build`)
+      produces `packages/cem_ml/dist/cem-core.xhtml` alongside the cargo check. The cem-theme invocation retains
+      its default behavior — no flags required — so `yarn build:theme` is unchanged. The Rust `CompiledSchema`
+      constructor remains the source of truth for the runtime; the markdown XHTML is the human-readable schema doc.
 - [x] Compiled CEM schema rules into streaming schema frames: `packages/cem_ml/src/schema/machine.rs`
       (`CemSchemaMachine`) consumes the `NormalizedEvent` stream, pushes/pops `SchemaFrame`s at open/close-scope
       boundaries, validates annotation values against `AnnotationDef.allowed_values`, validates `cem:state` values

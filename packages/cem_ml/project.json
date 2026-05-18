@@ -6,11 +6,27 @@
     "targets": {
         "build": {
             "executor": "@monodon/rust:check",
+            "dependsOn": ["build:docs"],
             "outputs": ["{options.target-dir}"],
             "options": {
                 "package": "cem-ml",
                 "target-dir": "dist/target/cem_ml"
             }
+        },
+        "build:docs": {
+            "executor": "nx:run-commands",
+            "options": {
+                "command": "node tools/scripts/compile-markdown.mjs --project packages/cem_ml --src-dir schema",
+                "cwd": "{workspaceRoot}"
+            },
+            "cache": true,
+            "inputs": [
+                "{projectRoot}/schema/**/*.md"
+            ],
+            "outputs": [
+                "{projectRoot}/dist/**/*.md",
+                "{projectRoot}/dist/**/*.xhtml"
+            ]
         },
         "test": {
             "cache": true,

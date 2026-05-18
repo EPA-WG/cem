@@ -11,7 +11,39 @@ import { fileURLToPath } from 'url';
 const IMAGE_EXTENSIONS = ['png', 'jpg', 'jpeg', 'gif', 'svg', 'webp', 'ico','css'];
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
-const projectRoot = join(__dirname, '../../packages/cem-theme');
+const workspaceRoot = join(__dirname, '../..');
+
+// Project root is resolved in this order:
+//   1. `--project <path>` argument (workspace-relative or absolute)
+//   2. `MARKDOWN_PROJECT_ROOT` env var
+//   3. Default: packages/cem-theme (back-compat)
+function resolveProjectRoot() {
+  const argIdx = process.argv.indexOf('--project');
+  if (argIdx !== -1 && process.argv[argIdx + 1]) {
+    const v = process.argv[argIdx + 1];
+    return v.startsWith('/') ? v : join(workspaceRoot, v);
+  }
+  if (process.env.MARKDOWN_PROJECT_ROOT) {
+    const v = process.env.MARKDOWN_PROJECT_ROOT;
+    return v.startsWith('/') ? v : join(workspaceRoot, v);
+  }
+  return join(workspaceRoot, 'packages/cem-theme');
+}
+
+// Source directory inside the project (default `src`, override via
+// `--src-dir <relative-path>`).
+function resolveSrcDir(projectRoot) {
+  const argIdx = process.argv.indexOf('--src-dir');
+  if (argIdx !== -1 && process.argv[argIdx + 1]) {
+    return join(projectRoot, process.argv[argIdx + 1]);
+  }
+  if (process.env.MARKDOWN_SRC_DIR) {
+    return join(projectRoot, process.env.MARKDOWN_SRC_DIR);
+  }
+  return join(projectRoot, 'src');
+}
+
+const projectRoot = resolveProjectRoot();
 
 // Configure markdown-it with plugins
 const md = new MarkdownIt({
@@ -66,7 +98,7 @@ async function copyMarkdown(srcPath, distPath) {
 }
 
 async function compileAll() {
-  const srcDir = join(projectRoot, 'src');
+  const srcDir = resolveSrcDir(projectRoot);
   const distDir = join(projectRoot, 'dist');
 
   // Find all .md files in src/
@@ -109,7 +141,7 @@ async function compileAll() {
 // Handle watch mode
 if (process.argv.includes('--watch')) {
   const chokidar = await import('chokidar');
-  const srcDir = join(projectRoot, 'src');
+  const srcDir = resolveSrcDir(projectRoot);
 
   console.log('Watching for changes...');
 
