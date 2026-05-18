@@ -118,11 +118,23 @@ Component vocabulary: [`component-mvp.md`](component-mvp.md). Research input:
       boundary), anonymous typed scope, directives, line + block comments, rich-content enclosure, qualified
       attribute name, byte-range absoluteness, bare-brace rejection, and a `login.cem` fixture parse + an
       all-canonical-fixtures smoke test that all 5 `examples/cem-ml/*.cem` files tokenize without hard violations.
-- [ ] CEM-ML schema-scoping forms (`@schema` prelude, `{cem:schema @cem:name=...}` inline, `{cem:schema @src=...}` /
-      `@select=...` switches, host-node `@cem:schema-src` / `@cem:schema-select`, scope-chain `cem:name` shadowing).
-      Status: the tokenizer surfaces the underlying `Directive` and node/attribute tokens; semantic interpretation
-      lives in the schema-machine block (`docs/cem-ml-ac.md` §AC-F-2 details, `cem-ml-stack-design.md` §13.1) and
-      lands with that layer.
+- [x] CEM-ML schema-scoping forms wired into the schema machine. The `packages/cem_ml/src/schema/scoping.rs` module
+      defines `SchemaSource` (`Default` / `Uri` / `Select` / `InlineRef`), `InlineSchemaDeclaration`,
+      `SchemaScopeFrame`, and `SchemaScopeContext` with scope-chain inheritance and innermost-wins
+      `resolve_name`. The schema machine pushes/pops a `SchemaScopeContext` frame on every non-directive
+      OpenScope / CloseScope, detects `cem:schema` element opens, captures `cem:name` / `src` / `select`
+      attributes, and applies the switch to the current scope when the attribute *value* arrives so the element's
+      body sees the new active source. Host-node attribute forms `@cem:schema-src` / `@cem:schema-select` apply
+      to the host's own scope via `apply_host_node_schema_switch`. Mutual-exclusivity errors emit
+      `cem.schema.scoping.exclusive_src_select`; a `cem:schema` element with none of `src`, `select`, `cem:name`
+      emits `cem.schema.scoping.missing_source`. Inline declarations (`cem:name`) register into the *parent*
+      scope so descendant scopes can resolve them via scope-chain walk. Verified by 7 unit tests in
+      `schema::scoping::tests` (covering scope inheritance, shadowing, content-addressed cache identity, pop-below-root
+      safety) plus 6 integration-style tests in `schema::machine::tests` for the element src/select forms,
+      mutual-exclusivity error, missing-source error, inline declaration shadowing, and host-node attribute forms.
+      Note: `@schema` prelude shorthand routes through the existing directive path (`commit_directive` Schema arm is
+      reserved) and the self-closing sibling-position form is left for Phase 11 once the tokenizer surfaces
+      self-closing distinct from open form.
 - [x] Namespace binding rebinding for repeated prefix names and the blank/default binding. Implemented in
       `packages/cem_ml/src/schema/namespace.rs` (`NsContext`, `NamespaceBinding`, `ResolvedQName`) per
       `cem-ml-stack-design-impl.md` §3.4.1. The schema machine maintains a scope-chain stack: every non-directive

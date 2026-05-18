@@ -80,7 +80,7 @@ pub struct BinaryAstPayload {
     pub chunks: Vec<ChunkMetadata>,
 }
 
-pub(super) fn fnv1a64(bytes: &[u8]) -> u64 {
+pub fn fnv1a64(bytes: &[u8]) -> u64 {
     let mut hash: u64 = 0xcbf2_9ce4_8422_2325;
     for b in bytes {
         hash ^= *b as u64;

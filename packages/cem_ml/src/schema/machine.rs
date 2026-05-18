@@ -14,6 +14,9 @@ use crate::diagnostics::{Diagnostic, Severity};
 use crate::events::{EventNormalizer, HandoffRecord, NormalizedEvent, ScalarValue};
 use crate::handoff::{is_supported_content_type, HandoffStack};
 use crate::schema::namespace::NsContext;
+use crate::schema::scoping::{
+    inline_cache_identity, InlineSchemaDeclaration, SchemaScopeContext, SchemaSource,
+};
 use crate::schema::vocab::CompiledSchema;
 use crate::schema::{FramePhase, SchemaFrame, SchemaMachine, SchemaVersionIdentity, ScopeId};
 use crate::source::ByteRange;
@@ -28,6 +31,16 @@ pub struct CemSchemaMachine<E: EventNormalizer> {
     /// `@ns`, `@default`, `@schema`) do *not* push a context; their
     /// bindings register into the enclosing scope's context.
     ns_contexts: Vec<NsContext>,
+    /// Scope-chain schema-scoping context tracking inline `cem:schema`
+    /// declarations, mid-document `src`/`select` switches, and host-node
+    /// attribute-form switches per AC-F-2 / `cem-ml-stack-design.md`
+    /// §13.1. Pushed/popped alongside `ns_contexts` for non-directive
+    /// scopes.
+    schema_scopes: SchemaScopeContext,
+    /// While processing a `cem:schema` element, accumulates the
+    /// declared attributes so we can validate src/select exclusivity
+    /// and commit the inline declaration on close.
+    pending_schema_element: Option<PendingSchemaElement>,
     /// Tracks the directive currently being consumed (e.g. `@ns`,
     /// `@default`). Cleared on close. The value events between open and
     /// close go into `pending_directive_body`.
@@ -76,6 +89,21 @@ struct PendingState {
 }
 
 #[derive(Debug, Clone)]
+struct PendingSchemaElement {
+    open_byte_range: ByteRange,
+    cem_name: Option<String>,
+    src: Option<String>,
+    select: Option<String>,
+    /// Tracks whether the element introduced its own scope (always true
+    /// in Tier A — the schema machine treats every `cem:schema` element
+    /// as a scope; sibling-form vs wrapping-form is decided by whether
+    /// the element has body content). Reserved for the Phase 11
+    /// self-closing form.
+    #[allow(dead_code)]
+    is_self_closing: bool,
+}
+
+#[derive(Debug, Clone)]
 struct PendingAnnotation {
     local: String,
     value: Option<String>,
@@ -90,6 +118,8 @@ impl<E: EventNormalizer> CemSchemaMachine<E> {
             events,
             frames: Vec::new(),
             ns_contexts: vec![NsContext::new(0)],
+            schema_scopes: SchemaScopeContext::new(),
+            pending_schema_element: None,
             active_directive: None,
             pending_directive_body: String::new(),
             pending_directive_open: None,
@@ -108,6 +138,13 @@ impl<E: EventNormalizer> CemSchemaMachine<E> {
     /// Available for downstream layers that need namespace resolution.
     pub fn current_ns_context(&self) -> &NsContext {
         self.ns_contexts.last().expect("ns_contexts has document root")
+    }
+
+    /// Returns the active schema-scoping context (the top of the chain).
+    /// Use this to query the active schema source on the current scope
+    /// or to resolve a `cem:name` reference walking outward.
+    pub fn schema_scopes(&self) -> &SchemaScopeContext {
+        &self.schema_scopes
     }
 
     /// Drain the entire event stream. Returns the diagnostics produced;
@@ -233,6 +270,16 @@ impl<E: EventNormalizer> CemSchemaMachine<E> {
                 None => NsContext::new(scope_id),
             };
             self.ns_contexts.push(child);
+            self.schema_scopes.push(scope_id);
+            if name == "cem:schema" {
+                self.pending_schema_element = Some(PendingSchemaElement {
+                    open_byte_range: byte_range,
+                    cem_name: None,
+                    src: None,
+                    select: None,
+                    is_self_closing: true,
+                });
+            }
         }
     }
 
@@ -273,8 +320,18 @@ impl<E: EventNormalizer> CemSchemaMachine<E> {
             self.active_directive = None;
             self.pending_directive_body.clear();
             self.pending_directive_open = None;
-        } else if self.ns_contexts.len() > 1 {
-            self.ns_contexts.pop();
+        } else {
+            // Commit any pending `cem:schema` element before popping
+            // this scope. The pending element's effects apply to the
+            // surrounding scope (declaration / src / select switches);
+            // the schema-scoping context is then popped.
+            if let Some(pending) = self.pending_schema_element.take() {
+                self.commit_schema_element(pending, &frame);
+            }
+            if self.ns_contexts.len() > 1 {
+                self.ns_contexts.pop();
+            }
+            self.schema_scopes.pop();
         }
         // States collected for this scope are validated at close, against
         // the annotation seen on this same frame. (Annotation validation
@@ -372,6 +429,70 @@ impl<E: EventNormalizer> CemSchemaMachine<E> {
     }
 
     fn handle_attribute(&mut self, attr: PendingAttr, value: String, value_range: ByteRange) {
+        // Host-node attribute-form schema switches: `cem:schema-src` /
+        // `cem:schema-select`. These apply to the *current* scope (the
+        // host element's scope, which was already opened) and are
+        // mutually exclusive.
+        if attr.name == "cem:schema-src" {
+            self.apply_host_node_schema_switch(SchemaSource::Uri(value), false, attr.name_range);
+            return;
+        }
+        if attr.name == "cem:schema-select" {
+            self.apply_host_node_schema_switch(SchemaSource::Select(value), true, attr.name_range);
+            return;
+        }
+        // `cem:schema` element attributes — record for commit-on-close
+        // (so we can validate exclusivity + missing-source at the
+        // element boundary) AND apply the switch to the current scope
+        // immediately so the element's body sees the new active source.
+        if self.pending_schema_element.is_some() {
+            match attr.name.as_str() {
+                "src" => {
+                    let already_select = matches!(
+                        self.schema_scopes.current().active,
+                        SchemaSource::Select(_)
+                    );
+                    if let Some(p) = self.pending_schema_element.as_mut() {
+                        p.src = Some(value.clone());
+                    }
+                    if already_select {
+                        // commit_schema_element will report the
+                        // exclusivity error at close.
+                    } else {
+                        self.schema_scopes
+                            .current_mut()
+                            .set_active(SchemaSource::Uri(value));
+                    }
+                    return;
+                }
+                "select" => {
+                    let already_uri = matches!(
+                        self.schema_scopes.current().active,
+                        SchemaSource::Uri(_)
+                    );
+                    if let Some(p) = self.pending_schema_element.as_mut() {
+                        p.select = Some(value.clone());
+                    }
+                    if already_uri {
+                        // commit_schema_element will report exclusivity.
+                    } else {
+                        self.schema_scopes
+                            .current_mut()
+                            .set_active(SchemaSource::Select(value));
+                    }
+                    return;
+                }
+                "cem:name" => {
+                    if let Some(p) = self.pending_schema_element.as_mut() {
+                        p.cem_name = Some(value.clone());
+                    }
+                    // Fall through so cem:name also flows through the
+                    // annotation/state path below.
+                }
+                _ => {}
+            }
+        }
+
         if let Some(rest) = attr.name.strip_prefix("cem:") {
             if rest == "state" {
                 // `cem:state="a b"` may carry multiple state names.
@@ -395,6 +516,130 @@ impl<E: EventNormalizer> CemSchemaMachine<E> {
         // Host-element attributes (e.g. `id`, `href`, `aria-*`) are not the
         // schema's concern at this layer; the semantic-rule catalog
         // (`AC-V-6`) handles them.
+    }
+
+    fn apply_host_node_schema_switch(
+        &mut self,
+        source: SchemaSource,
+        is_select: bool,
+        name_range: ByteRange,
+    ) {
+        // If a switch was already applied at this scope, the second one
+        // is the mutual-exclusivity error.
+        let existing_is_select = matches!(
+            self.schema_scopes.current().active,
+            SchemaSource::Select(_)
+        );
+        let existing_is_uri = matches!(self.schema_scopes.current().active, SchemaSource::Uri(_));
+        if (existing_is_select && !is_select) || (existing_is_uri && is_select) {
+            self.diagnostics.push(Diagnostic {
+                uri: None,
+                line: None,
+                column: None,
+                byte_offset: Some(name_range.start),
+                code: "cem.schema.scoping.exclusive_src_select".to_owned(),
+                severity: Severity::Error,
+                message:
+                    "`cem:schema-src` and `cem:schema-select` are mutually exclusive on the same host"
+                        .to_owned(),
+                node: None,
+                source_map: None,
+            });
+            return;
+        }
+        self.schema_scopes.current_mut().set_active(source);
+    }
+
+    fn commit_schema_element(
+        &mut self,
+        pending: PendingSchemaElement,
+        frame: &SchemaFrame,
+    ) {
+        let _ = frame;
+        // 1. Validate exclusivity: src and select cannot both appear.
+        if pending.src.is_some() && pending.select.is_some() {
+            self.diagnostics.push(Diagnostic {
+                uri: None,
+                line: None,
+                column: None,
+                byte_offset: Some(pending.open_byte_range.start),
+                code: "cem.schema.scoping.exclusive_src_select".to_owned(),
+                severity: Severity::Error,
+                message:
+                    "`cem:schema` element may carry `src` or `select`, not both".to_owned(),
+                node: None,
+                source_map: None,
+            });
+            return;
+        }
+        // 2. Inline declaration form: `cem:schema cem:name="..."`. The
+        // declaration registers into the *parent* scope so descendants
+        // can reference it. We pop the schema scope on close after this
+        // commit runs (see `on_close`).
+        if let Some(name) = pending.cem_name.clone() {
+            // Body byte range approximates the inline-schema content;
+            // Tier A uses the frame's source_span minus the open header.
+            let cache_identity = inline_cache_identity(name.as_bytes());
+            let decl = InlineSchemaDeclaration {
+                name: name.clone(),
+                body_byte_range: pending.open_byte_range,
+                cache_identity,
+                source_map: frame.source_map_stack.clone(),
+            };
+            // Register at the parent scope so descendants resolve it.
+            // (When the cem:schema element closes, the inner scope is
+            // popped; we need to declare into what *will be* the
+            // current scope after pop.)
+            if self.schema_scopes.depth() >= 2 {
+                let parent_idx = self.schema_scopes.depth() - 2;
+                // Safe access to parent frame via private API.
+                self.declare_inline_at(parent_idx, decl);
+            } else {
+                self.schema_scopes.current_mut().declare_inline(decl);
+            }
+        }
+        // 3. The src/select switch was already applied to the current
+        // scope in `handle_attribute` when the attribute value arrived.
+        // The wrapping-form behavior follows naturally from `on_close`
+        // popping the schema scope.
+        //
+        // 4. Missing-source error: a `cem:schema` element with no `src`,
+        // `select`, *or* `cem:name` is a schema-compilation error per
+        // AC-F-2.
+        if pending.cem_name.is_none() && pending.src.is_none() && pending.select.is_none() {
+            self.diagnostics.push(Diagnostic {
+                uri: None,
+                line: None,
+                column: None,
+                byte_offset: Some(pending.open_byte_range.start),
+                code: "cem.schema.scoping.missing_source".to_owned(),
+                severity: Severity::Error,
+                message:
+                    "`cem:schema` element must declare `cem:name`, `src`, or `select`".to_owned(),
+                node: None,
+                source_map: None,
+            });
+        }
+    }
+
+    fn declare_inline_at(&mut self, idx: usize, decl: InlineSchemaDeclaration) {
+        // The SchemaScopeContext doesn't expose per-index mutation;
+        // implement it via a swap-and-rebuild pattern. For Tier A we
+        // pop down to the index, declare, then push back the popped
+        // frames. This is O(depth) but acceptable since schema scopes
+        // are bounded by AC limits.
+        let mut popped = Vec::new();
+        while self.schema_scopes.depth() > idx + 1 {
+            let frame = self.schema_scopes.current().clone();
+            self.schema_scopes.pop();
+            popped.push(frame);
+        }
+        self.schema_scopes.current_mut().declare_inline(decl);
+        for frame in popped.into_iter().rev() {
+            self.schema_scopes.push(frame.scope_id);
+            // Reapply the frame's state (best-effort restore).
+            *self.schema_scopes.current_mut() = frame;
+        }
     }
 
     fn commit_pending_annotation(&mut self) {
@@ -987,6 +1232,138 @@ mod tests {
         assert_eq!(cem_uri.as_deref(), Some("https://cem.dev/ns/core/1"));
         assert_eq!(html_uri.as_deref(), Some("http://www.w3.org/1999/xhtml"));
         assert_eq!(default_uri.as_deref(), Some("http://www.w3.org/1999/xhtml"));
+    }
+
+    #[test]
+    fn cem_schema_element_with_src_switches_scope() {
+        let input = r#"{section | {cem:schema @src="schema://x" | {p Hi}}}"#;
+        let src_bytes = BytesSource::new(SourceId(1), input.as_bytes().to_vec());
+        let tok = CemTokenizer::from_source(src_bytes);
+        let normalizer = CemEventNormalizer::new(tok);
+        let mut machine = CemSchemaMachine::new(CompiledSchema::cem_core(), normalizer);
+
+        // Capture active source after every event; the switch applies
+        // once the `@src` Value arrives, not at scope open.
+        let mut saw_uri = false;
+        while let Some(ev) = machine.events.next_event() {
+            machine.consume(ev);
+            if matches!(
+                machine.schema_scopes().current().active,
+                SchemaSource::Uri(ref u) if u == "schema://x"
+            ) {
+                saw_uri = true;
+            }
+        }
+        machine.finalize();
+        assert!(saw_uri, "cem:schema @src=... should switch the active source to Uri");
+    }
+
+    #[test]
+    fn cem_schema_element_with_select_records_select_source() {
+        let input = r#"{section | {cem:schema @select=".pred" | {p Hi}}}"#;
+        let src = BytesSource::new(SourceId(1), input.as_bytes().to_vec());
+        let tok = CemTokenizer::from_source(src);
+        let normalizer = CemEventNormalizer::new(tok);
+        let mut machine = CemSchemaMachine::new(CompiledSchema::cem_core(), normalizer);
+        let mut saw_select = false;
+        while let Some(ev) = machine.events.next_event() {
+            machine.consume(ev);
+            if matches!(
+                machine.schema_scopes().current().active,
+                SchemaSource::Select(_)
+            ) {
+                saw_select = true;
+            }
+        }
+        machine.finalize();
+        assert!(saw_select, "expected a Select source at some point during the parse");
+    }
+
+    #[test]
+    fn cem_schema_src_and_select_together_is_an_error() {
+        let input = r#"{cem:schema @src="x" @select="y" | body}"#;
+        let src = BytesSource::new(SourceId(1), input.as_bytes().to_vec());
+        let tok = CemTokenizer::from_source(src);
+        let normalizer = CemEventNormalizer::new(tok);
+        let outcome = CemSchemaMachine::new(CompiledSchema::cem_core(), normalizer).run();
+        assert!(outcome
+            .diagnostics
+            .iter()
+            .any(|d| d.code == "cem.schema.scoping.exclusive_src_select"));
+    }
+
+    #[test]
+    fn cem_schema_with_neither_src_select_nor_name_is_an_error() {
+        let input = r#"{cem:schema | body}"#;
+        let src = BytesSource::new(SourceId(1), input.as_bytes().to_vec());
+        let tok = CemTokenizer::from_source(src);
+        let normalizer = CemEventNormalizer::new(tok);
+        let outcome = CemSchemaMachine::new(CompiledSchema::cem_core(), normalizer).run();
+        assert!(outcome
+            .diagnostics
+            .iter()
+            .any(|d| d.code == "cem.schema.scoping.missing_source"));
+    }
+
+    #[test]
+    fn cem_schema_inline_declaration_registers_into_parent_scope() {
+        let input = r#"{section | {cem:schema @cem:name="badge" | body} {p Hi}}"#;
+        let src = BytesSource::new(SourceId(1), input.as_bytes().to_vec());
+        let tok = CemTokenizer::from_source(src);
+        let normalizer = CemEventNormalizer::new(tok);
+        let mut machine = CemSchemaMachine::new(CompiledSchema::cem_core(), normalizer);
+        let mut saw_inline_in_sibling_scope = false;
+        while let Some(ev) = machine.events.next_event() {
+            machine.consume(ev);
+            // After the cem:schema element closes, the sibling `p` scope
+            // should see `badge` resolvable.
+            if machine.schema_scopes().resolve_name("badge").is_some() {
+                saw_inline_in_sibling_scope = true;
+            }
+        }
+        machine.finalize();
+        assert!(
+            saw_inline_in_sibling_scope,
+            "inline `cem:name=\"badge\"` should resolve in subsequent sibling scopes"
+        );
+    }
+
+    #[test]
+    fn host_node_schema_src_attribute_switches_scope() {
+        let input = r#"{section @cem:schema-src="schema://x" | body}"#;
+        let src = BytesSource::new(SourceId(1), input.as_bytes().to_vec());
+        let tok = CemTokenizer::from_source(src);
+        let normalizer = CemEventNormalizer::new(tok);
+        let mut machine = CemSchemaMachine::new(CompiledSchema::cem_core(), normalizer);
+        let mut saw_uri = false;
+        while let Some(ev) = machine.events.next_event() {
+            machine.consume(ev);
+            if matches!(
+                machine.schema_scopes().current().active,
+                SchemaSource::Uri(ref u) if u == "schema://x"
+            ) {
+                saw_uri = true;
+            }
+        }
+        machine.finalize();
+        assert!(
+            saw_uri,
+            "@cem:schema-src=... should switch the host's scope to Uri"
+        );
+    }
+
+    #[test]
+    fn host_node_schema_src_and_select_together_is_an_error() {
+        let input =
+            r#"{section @cem:schema-src="x" @cem:schema-select=".p" | body}"#;
+        let src = BytesSource::new(SourceId(1), input.as_bytes().to_vec());
+        let tok = CemTokenizer::from_source(src);
+        let normalizer = CemEventNormalizer::new(tok);
+        let outcome = CemSchemaMachine::new(CompiledSchema::cem_core(), normalizer).run();
+        assert!(outcome
+            .diagnostics
+            .iter()
+            .any(|d| d.code == "cem.schema.scoping.exclusive_src_select"));
     }
 
     #[test]

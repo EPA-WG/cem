@@ -5,6 +5,7 @@
 
 pub mod machine;
 pub mod namespace;
+pub mod scoping;
 pub mod vocab;
 
 use crate::source::ByteRange;
