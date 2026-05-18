@@ -305,10 +305,25 @@ Component vocabulary: [`component-mvp.md`](component-mvp.md). Research input:
 
 ### Cross-Surface Conversion
 
-- [ ] Define exact CEM-ML ↔ XML/HTML conversion rules for namespaces, default namespace changes, comments,
-      whitespace, typed scopes, rich content, `$` expression nodes, attribute cem-ql spans, and source maps.
-- [ ] Add conversion tests proving canonical CEM-ML fixtures can project to XML/HTML parity forms and back without
-      losing schema event identity or source-map traceability.
+- [x] Exact CEM-ML ↔ XML/HTML conversion rules authored at
+      [`../packages/cem_ml/docs/cross-surface-conversion.md`](../packages/cem_ml/docs/cross-surface-conversion.md).
+      11 sections covering namespaces (prefix bindings + `@default` ↔ `xmlns`), default-namespace mid-document
+      rebinding, comments (`/* */` ↔ `<!-- -->`, line `//` is CEM-ML only), whitespace preservation rules
+      (inter-attribute dropped, inter-sibling preserved as `Trivia(Whitespace)` events), typed scopes
+      (`{@type="..." | ...}` ↔ `<cem:scope type="...">`), rich content (triple-backtick ↔ CDATA / raw `<script>`),
+      `$` expression nodes (`{$ ...}` ↔ `<cem:expr>`), attribute cem-ql spans (verbatim braces, `{{` / `}}`
+      escaping), source-map preservation (origin-first frames + `ContentTypeTransform` boundary frame), the Tier A
+      runnable test matrix, and the non-lossless constructs that require the canonical formatter for byte-stable
+      round trips.
+- [x] Projection tests in
+      [`../packages/cem_ml/tests/cross_surface_projection.rs`](../packages/cem_ml/tests/cross_surface_projection.rs)
+      cover the CEM-ML → light-DOM HTML direction across every canonical fixture: deterministic re-projection,
+      open/close-scope balance with matching lexical names (the `CemEventNormalizer` was upgraded to track an
+      `open_stack` so `CloseScope` carries the matching name per the cross-surface event-identity contract),
+      `cem:*` namespace-attribute preservation, and source-map traceability through `InterpreterRender` + at least
+      one upstream transform frame. The mirror direction (HTML / XML → CEM-ML) lands when the Phase 11 HTML / XML
+      parity tokenizers replace the stubs in `packages/cem_ml/src/tokenizer/html.rs` and `xml.rs`; the assertion
+      shape stays the same.
 
 ### Verification
 

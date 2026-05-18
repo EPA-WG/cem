@@ -20,6 +20,12 @@ use std::collections::VecDeque;
 pub struct CemEventNormalizer<T: SchemaTokenizer> {
     tokenizer: T,
     pending: VecDeque<NormalizedEvent>,
+    /// Open-scope names tracked so `CloseScope` events carry the matching
+    /// lexical name. The tokenizer emits `NodeEnd { name: None }` for the
+    /// curly form (`}` has no name attached); the normalizer fills it
+    /// here so the cross-surface event-identity contract holds (see
+    /// `packages/cem_ml/docs/cross-surface-conversion.md` §10).
+    open_stack: Vec<String>,
 }
 
 impl<T: SchemaTokenizer> CemEventNormalizer<T> {
@@ -27,6 +33,7 @@ impl<T: SchemaTokenizer> CemEventNormalizer<T> {
         Self {
             tokenizer,
             pending: VecDeque::new(),
+            open_stack: Vec::new(),
         }
     }
 
@@ -48,6 +55,7 @@ impl<T: SchemaTokenizer> CemEventNormalizer<T> {
         } = token;
         match kind {
             SchemaTokenKind::NodeStart { name } => {
+                self.open_stack.push(name.clone());
                 self.pending.push_back(NormalizedEvent::OpenScope {
                     name: qname(&name, byte_range),
                     byte_range,
@@ -55,8 +63,10 @@ impl<T: SchemaTokenizer> CemEventNormalizer<T> {
                 });
             }
             SchemaTokenKind::NodeEnd { name } => {
+                let popped = self.open_stack.pop().unwrap_or_default();
+                let resolved = name.unwrap_or(popped);
                 self.pending.push_back(NormalizedEvent::CloseScope {
-                    name: qname(name.as_deref().unwrap_or(""), byte_range),
+                    name: qname(&resolved, byte_range),
                     byte_range,
                     synthesis: Synthesis::Real,
                     source_map,
@@ -155,7 +165,9 @@ impl<T: SchemaTokenizer> CemEventNormalizer<T> {
             SchemaTokenKind::AnonymousScopeStart => {
                 // Anonymous scopes lower as OpenScope with an empty local
                 // name; the schema machine treats them as parser/policy
-                // boundaries.
+                // boundaries. Push an empty marker so the matching
+                // `NodeEnd { name: None }` token pops the right entry.
+                self.open_stack.push(String::new());
                 self.pending.push_back(NormalizedEvent::OpenScope {
                     name: qname("", byte_range),
                     byte_range,

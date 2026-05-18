@@ -85,17 +85,17 @@ impl Renderer {
         match node {
             CemAstNode::Document {
                 root_children,
-                source,
                 ..
             } => {
-                let span_start = self.out.len() as u64;
-                let _ = source;
+                // The Document is a virtual wrapper; it has no source
+                // origin of its own. Skip recording a Document-spanning
+                // OutputSpan — children record their own spans and
+                // collectively cover every emitted byte.
                 for child_id in root_children {
                     if let Some(child) = doc.get(*child_id) {
                         self.render_node(doc, child);
                     }
                 }
-                self.record_span(span_start, source);
             }
             CemAstNode::Element {
                 expanded_name,
