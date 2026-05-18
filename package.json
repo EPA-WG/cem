@@ -10,7 +10,7 @@
   },
   "scripts": {
     "rebuild": "yarn build:clean; yarn build",
-    "build": "nx run-many -t build",
+    "build": "nx run-many -t build && nx run cem_ml_cli:validate-fixtures",
     "build:clean": "nx reset; rm -rf packages/cem-theme/dist; rm -rf packages/cem-components/dist",
     "build:theme": "nx run @epa-wg/cem-theme:build",
     "build:css": "nx run @epa-wg/cem-theme:build:css",

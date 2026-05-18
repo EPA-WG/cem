@@ -313,14 +313,18 @@ Component vocabulary: [`component-mvp.md`](component-mvp.md). Research input:
       `Diagnostic.source_map` field is serialized as `sourceMap` per the contract; rules attach the node's
       `SourceMapStack` and project `byteOffset` from its origin frame. `line` / `column` remain projections via
       `LineIndex` (Tier A reporters compute them on demand).
-- [ ] Emit `cem-ml.report.md` and `cem-ml.report.json` mirroring `validate-platforms.mjs`. Status: the CLI dispatch
-      layer's report writers already emit JSON + Markdown files at the contract-named locations
-      (`packages/cem_ml_cli/dist/cem-ml.report.{json,md}` when a directory destination is given); exact byte parity
-      with `validate-platforms.mjs` is a separate docs/parity follow-up that should land alongside the
-      `validate-fixtures` Nx target.
-- [ ] `cem-ml-cli` `validate-fixtures` Nx target. Plan-gated to Phase 12 of
-      [`cem-ml-cli-plan.md`](cem-ml-cli-plan.md); landing this requires the parser-enabled engine + the markdown
-      report parity above.
+- [x] `cem-ml.report.md` and `cem-ml.report.json` emitted at the contract-named locations
+      (`packages/cem_ml_cli/dist/cem-ml.report.{json,md}`) by the now-real CLI pipeline.
+      `yarn nx run cem_ml_cli:validate-fixtures` writes the deterministic-timestamp report covering all 10
+      canonical fixtures (5 .cem + 5 .html parity); the markdown carries the inputs / info / warning / error /
+      fatal / hardViolations summary table mirroring the `validate-platforms.mjs` report convention. Exact byte
+      parity with `validate-platforms.mjs`'s in-house formatter remains a docs follow-up — the report-shape
+      contract from `cem-ml-cli-contract.md` is fully satisfied today.
+- [x] `cem-ml-cli:validate-fixtures` Nx target wired in `packages/cem_ml_cli/project.json`. Runs
+      `cem-ml fixture validate --zero-hard-violations --report-json packages/cem_ml_cli/dist
+      --report-md packages/cem_ml_cli/dist` and depends on `build`. Verified: `yarn nx run
+      cem_ml_cli:validate-fixtures` exits 0 across all 10 canonical fixtures (`.cem` + `.html` parity) with zero
+      hard violations.
 - [x] Fixture-pair parity tests at
       [`../packages/cem_ml/tests/fixture_pair.rs`](../packages/cem_ml/tests/fixture_pair.rs). 5 integration tests
       pairing each `examples/cem-ml/*.cem` fixture with its matching `examples/semantic/*.html`:
@@ -394,7 +398,9 @@ Component vocabulary: [`component-mvp.md`](component-mvp.md). Research input:
       `CemAstBuilder` / `InterpreterRender` frames. The byte-coverage half of
       `every_canonical_fixture_runs_through_every_layer` further asserts every emitted output byte is covered by at
       least one source-map span.
-- [ ] `yarn build` includes `cem-ml` / `cem-ml-cli` build plus fixture validation. Status: `nx build` / `nx test` /
+- [x] `yarn build` includes `cem-ml` / `cem-ml-cli` build plus fixture validation. `package.json` now runs
+      `nx run-many -t build && nx run cem_ml_cli:validate-fixtures`, so every full build also exercises the
+      parser pipeline against the canonical fixtures. Status historical note: `nx build` / `nx test` /
       `nx lint` targets are already wired through `cem_ml` / `cem_ml_cli` (see Package Direction block above), so the
       Rust build is part of `yarn build` once the workspace bundles those targets. The `validate-fixtures` Nx target
       that runs fixture validation end-to-end remains plan-gated to Phase 12 of

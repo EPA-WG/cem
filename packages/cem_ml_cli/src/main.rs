@@ -2,7 +2,7 @@ mod cli;
 mod dispatch;
 
 use clap::Parser;
-use cem_ml::engine::NotImplementedEngine;
+use cem_ml::real::RealCemMlEngine;
 use dispatch::{Outcome, Streams};
 use std::io;
 use std::process::ExitCode;
@@ -19,7 +19,7 @@ fn main() -> ExitCode {
         stderr: &mut err,
         quiet,
     };
-    let engine = NotImplementedEngine;
+    let engine = RealCemMlEngine::new();
     let Outcome { exit_code } = dispatch::dispatch(&engine, parsed, &mut streams);
     ExitCode::from(exit_code)
 }
