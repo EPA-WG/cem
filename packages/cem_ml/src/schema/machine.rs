@@ -145,6 +145,7 @@ impl<E: EventNormalizer> CemSchemaMachine<E> {
                     severity,
                     message: "tokenizer-reported error surfaced into schema stream".to_owned(),
                     node: None,
+                    source_map: None,
                 });
             }
         }
@@ -199,6 +200,7 @@ impl<E: EventNormalizer> CemSchemaMachine<E> {
                 severity: Severity::Error,
                 message: "close-scope event with no matching open frame".to_owned(),
                 node: None,
+                source_map: None,
             });
             return;
         }
@@ -223,6 +225,20 @@ impl<E: EventNormalizer> CemSchemaMachine<E> {
     }
 
     fn on_mode_switch(&mut self, content_type: String, mut handoff: HandoffRecord) {
+        // `@type="..."` only opens a content-type handoff on an anonymous
+        // scope per `cem-ml-syntax.md` §"Content-Type Handoffs Stay
+        // Schema-Owned". On a named element (`<input type="email">`) it's
+        // an ordinary HTML attribute and not a handoff. Detect by
+        // checking the active frame's `expected_close`: anonymous scopes
+        // have `None`.
+        let active_anonymous = self
+            .frames
+            .last()
+            .map(|f| f.expected_close.is_none())
+            .unwrap_or(false);
+        if !active_anonymous {
+            return;
+        }
         // Fill the inherited context from the active parent frame. The
         // parent close byte offset is the upper bound the child parser
         // must respect; in Tier A the frame's `source_span.end()` is the
@@ -245,6 +261,7 @@ impl<E: EventNormalizer> CemSchemaMachine<E> {
                     "content type `{content_type}` has no Tier A handoff; region is bounded but not interpreted"
                 ),
                 node: None,
+                source_map: None,
             });
         } else {
             self.diagnostics.push(Diagnostic {
@@ -258,6 +275,7 @@ impl<E: EventNormalizer> CemSchemaMachine<E> {
                     "child parser for `{content_type}` lands in Phase 11; region preserved as opaque text bounded by the parent scope's close"
                 ),
                 node: None,
+                source_map: None,
             });
         }
         self.handoffs.push(handoff);
@@ -321,6 +339,7 @@ impl<E: EventNormalizer> CemSchemaMachine<E> {
                     severity: Severity::Error,
                     message: format!("`cem:{}` is not part of the active CEM Core vocabulary", ann.local),
                     node: None,
+                    source_map: None,
                 });
                 return;
             }
@@ -344,6 +363,7 @@ impl<E: EventNormalizer> CemSchemaMachine<E> {
                             allowed.join(", ")
                         ),
                         node: None,
+                        source_map: None,
                     });
                 }
             }
@@ -367,6 +387,7 @@ impl<E: EventNormalizer> CemSchemaMachine<E> {
                     state.value
                 ),
                 node: None,
+                source_map: None,
             });
             return;
         }
@@ -391,6 +412,7 @@ impl<E: EventNormalizer> CemSchemaMachine<E> {
                     def.allowed_states.join(", ")
                 ),
                 node: None,
+                source_map: None,
             });
         }
     }
@@ -410,6 +432,7 @@ impl<E: EventNormalizer> CemSchemaMachine<E> {
                     None => "anonymous scope did not close before EOF".to_owned(),
                 },
                 node: None,
+                source_map: None,
             });
         }
         // Reject non-streamable constraints at finalize so the diagnostic
@@ -427,6 +450,7 @@ impl<E: EventNormalizer> CemSchemaMachine<E> {
                     c.annotation, c.reason, c.kind
                 ),
                 node: None,
+                source_map: None,
             });
         }
         self.finished = true;

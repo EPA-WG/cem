@@ -150,6 +150,7 @@ impl<S: ByteSource> Utf8Decoder<S> {
                 "encoding `{label}` is not decoded in Tier A; only UTF-8 is supported"
             ),
             node: None,
+            source_map: None,
         });
         let _ = len; // reserved for future range-bearing diagnostic projection.
     }
@@ -164,6 +165,7 @@ impl<S: ByteSource> Utf8Decoder<S> {
             severity: Severity::Error,
             message: "invalid UTF-8 byte sequence".to_owned(),
             node: None,
+            source_map: None,
         });
     }
 
@@ -184,6 +186,7 @@ impl<S: ByteSource> Utf8Decoder<S> {
                     scalar as u32
                 ),
                 node: None,
+                source_map: None,
             });
         }
     }
@@ -250,6 +253,7 @@ impl<S: ByteSource> EncodingDecoder for Utf8Decoder<S> {
                     severity: Severity::Fatal,
                     message: e.to_string(),
                     node: None,
+                    source_map: None,
                 });
                 return None;
             }

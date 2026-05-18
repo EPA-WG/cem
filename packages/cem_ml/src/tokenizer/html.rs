@@ -29,6 +29,7 @@ impl HtmlTokenizer {
                     "HTML parity tokenizer is reserved for Phase 11 (see cem-ml-cli-plan.md)."
                         .to_owned(),
                 node: None,
+                source_map: None,
             }],
         }
     }

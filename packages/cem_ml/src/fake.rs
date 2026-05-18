@@ -41,6 +41,7 @@ fn fake_diagnostic(uri: &str) -> Diagnostic {
         severity: Severity::Info,
         message: "fake engine: parser not yet implemented".to_owned(),
         node: None,
+        source_map: None,
     }
 }
 

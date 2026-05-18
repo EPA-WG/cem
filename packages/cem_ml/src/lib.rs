@@ -16,6 +16,7 @@ pub mod schema;
 pub mod source;
 pub mod source_map;
 pub mod tokenizer;
+pub mod validation;
 
 #[cfg(feature = "fake-engine")]
 pub mod fake;
@@ -37,6 +38,7 @@ mod tests {
             severity: sev,
             message: "x".into(),
             node: None,
+            source_map: None,
         }
     }
 

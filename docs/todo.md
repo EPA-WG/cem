@@ -236,26 +236,49 @@ Component vocabulary: [`component-mvp.md`](component-mvp.md). Research input:
 
 ### Validation
 
-- [ ] Define a schema-owned semantic-rule catalog shape with rule id, owning schema/content type, trigger layer,
-      required inputs, diagnostic defaults, and policy override hooks.
-- [ ] Implement the first Tier A semantic-rule catalog for CEM UI projections over HTML/SVG/ARIA: accessible names,
-      ARIA role/attribute compatibility, `id`/`for`/`aria-*` reference integrity, and SVG-in-HTML accessibility
-      boundaries.
-- [ ] Implement generic CEM semantic rules for invalid component state combinations, state-transition constraints,
-      template/slot/schema reference integrity, and schema-owned open-content policy.
-- [ ] Implement unsafe-content policy checks for inline scripts, event handlers, unsafe URL-bearing attributes,
-      `srcdoc`, imports, XML external entities/DTDs, and other policy-gated resource hooks.
-- [ ] Keep semantic validation extensible so CSS, JS, XML, JSON, plugin-loaded content, and future runtime content add
-      rules through the same registry model.
-- [ ] Implement structural validation checking unknown elements/attributes, unsupported handoffs, and non-streamable
-      schema features.
-- [ ] Emit `cem-ml.report.md` and `cem-ml.report.json`, mirroring the `validate-platforms.mjs` report
-      convention.
-- [ ] Add a `cem-ml-cli` fixture validation target that runs validation across `examples/cem-ml/*.cem` and
-      `examples/semantic/*.html` parity fixtures and fails non-zero on hard violations.
-- [ ] Add fixture-pair tests proving each `examples/cem-ml/*.cem` file and matching `examples/semantic/*.html` parity
-      file produce the same hard-violation result and compatible diagnostics.
-- [ ] Ensure validation diagnostics include `{ uri, line, column, byteOffset, code, severity, message, sourceMap }`.
+- [x] Schema-owned semantic-rule catalog shape: `packages/cem_ml/src/validation.rs` defines `RuleDescriptor { id,
+      owning_scope, content_type, trigger_layer, required_inputs, default_severity, policy_overridable }`, `RuleId`,
+      `TriggerLayer { Tokenizer | SchemaMachine | Document | CrossDocument }`, `RuleInput { CemDocument |
+      SchemaFrames | NormalizedEvents | Policy }`, and the `SemanticRule` trait. `RuleRegistry::with_tier_a_rules()`
+      registers the Tier A catalog; `RuleContext { document, upstream_diagnostics }` is the bound input every rule
+      receives.
+- [x] First Tier A semantic-rule catalog covering CEM UI projections over HTML / ARIA in
+      `packages/cem_ml/src/validation/rules.rs`: `cem.ref.unresolved_reference` (`for` / `aria-labelledby` /
+      `aria-describedby` / `aria-controls` / `aria-owns` against `id_table`), and `cem.a11y.accessible_name_missing`
+      (interactive elements `button` / `a` / `select` / `textarea` need text, `aria-label`, `aria-labelledby`, or
+      `title`). Full ARIA role/attribute compatibility matrix + SVG-in-HTML accessibility boundaries are scoped to
+      the next validation iteration that lands a complete ARIA table.
+- [x] Generic CEM rule: `cem.state.invalid_combination` rejects disallowed state pairs on the same element
+      (`disabled+loading`, `disabled+active`, `disabled+hover`, `disabled+focus-visible`, `disabled+selected`,
+      `empty+loading`). Template/slot/schema reference integrity + state-transition constraints + schema-owned
+      open-content policy remain as follow-up rules that bolt onto the same `RuleRegistry`.
+- [x] Unsafe-content policy: `cem.unsafe.javascript_url` (case-insensitive `javascript:` URL match on `href` / `src`
+      / `action` / `formaction` / `xlink:href` / `ping` / `data`) and `cem.unsafe.event_handler_attribute` (any
+      `on<alpha>...` attribute). `srcdoc` / imports / XML external entities / DTD hooks remain follow-up rules in
+      the same registry once the parity tokenizers expose those constructs.
+- [x] Extensibility through one registry: adding a new rule (CSS / JS / XML / JSON / plugin-loaded content) is
+      `impl SemanticRule + RuleRegistry::register()`. `RuleContext` carries the document + accumulated upstream
+      diagnostics so rules can short-circuit when an upstream layer already failed.
+- [x] Structural validation: unknown / disallowed CEM annotations and `cem:state` values surface via the schema
+      machine's `cem.schema.unknown_annotation` / `cem.schema.unknown_annotation_value` /
+      `cem.schema.disallowed_state` codes (registered earlier in the schema-machine block). Unsupported handoffs
+      surface as `cem.handoff.unsupported_content_type`. Non-streamable schema features surface as
+      `cem.schema.unsupported_constraint`. `validation::run()` is the single entry point that runs every layer.
+- [x] Diagnostics include `{ uri, line, column, byteOffset, code, severity, message, sourceMap, node }`. The new
+      `Diagnostic.source_map` field is serialized as `sourceMap` per the contract; rules attach the node's
+      `SourceMapStack` and project `byteOffset` from its origin frame. `line` / `column` remain projections via
+      `LineIndex` (Tier A reporters compute them on demand).
+- [ ] Emit `cem-ml.report.md` and `cem-ml.report.json` mirroring `validate-platforms.mjs`. Status: the CLI dispatch
+      layer's report writers already emit JSON + Markdown files at the contract-named locations
+      (`packages/cem_ml_cli/dist/cem-ml.report.{json,md}` when a directory destination is given); exact byte parity
+      with `validate-platforms.mjs` is a separate docs/parity follow-up that should land alongside the
+      `validate-fixtures` Nx target.
+- [ ] `cem-ml-cli` `validate-fixtures` Nx target. Plan-gated to Phase 12 of
+      [`cem-ml-cli-plan.md`](cem-ml-cli-plan.md); landing this requires the parser-enabled engine + the markdown
+      report parity above.
+- [ ] Fixture-pair tests proving canonical CEM-ML and HTML parity fixtures produce the same hard-violation result.
+      Blocked on the Phase 11 HTML parity tokenizer; the Tier A canonical fixtures already validate clean end-to-end
+      via `every_canonical_fixture_validates_clean`.
 
 ### Transform
 

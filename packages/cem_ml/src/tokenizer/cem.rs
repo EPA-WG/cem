@@ -791,6 +791,7 @@ impl CemTokenizer {
             severity,
             message,
             node: None,
+            source_map: None,
         });
     }
 }

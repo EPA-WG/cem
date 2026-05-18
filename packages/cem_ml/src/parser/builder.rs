@@ -181,6 +181,7 @@ impl<E: EventNormalizer> CemAstBuilder<E> {
                 severity: Severity::Error,
                 message: "close-scope event with no matching open element".to_owned(),
                 node: None,
+                source_map: None,
             });
             return;
         }
@@ -403,6 +404,7 @@ impl<E: EventNormalizer> CemAstBuilder<E> {
                     self.stack.len() - 1
                 ),
                 node: None,
+                source_map: None,
             });
         }
         // Emit a Warning for each unresolved name slot, per AC reference
@@ -425,6 +427,7 @@ impl<E: EventNormalizer> CemAstBuilder<E> {
                 severity: Severity::Warning,
                 message: format!("reference `{}` did not match any element id", slot.target_name),
                 node: None,
+                source_map: None,
             });
         }
         self.doc.unresolved_slots = unresolved;
