@@ -4,6 +4,7 @@
 //! Tier A vocab + machine live in submodules.
 
 pub mod machine;
+pub mod namespace;
 pub mod vocab;
 
 use crate::source::ByteRange;

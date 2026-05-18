@@ -123,10 +123,19 @@ Component vocabulary: [`component-mvp.md`](component-mvp.md). Research input:
       Status: the tokenizer surfaces the underlying `Directive` and node/attribute tokens; semantic interpretation
       lives in the schema-machine block (`docs/cem-ml-ac.md` §AC-F-2 details, `cem-ml-stack-design.md` §13.1) and
       lands with that layer.
-- [ ] Namespace binding rebinding for repeated prefix names and the blank/default binding. Status: tokens carry
-      lexical names (`cem:screen`) without expansion; rebinding/expansion is owned by `cem_ml::schema::namespace`
-      (`NsContext`, `NamespaceBinding`) in `cem-ml-stack-design-impl.md` §3.4.1 and tracked with the schema-machine
-      block.
+- [x] Namespace binding rebinding for repeated prefix names and the blank/default binding. Implemented in
+      `packages/cem_ml/src/schema/namespace.rs` (`NsContext`, `NamespaceBinding`, `ResolvedQName`) per
+      `cem-ml-stack-design-impl.md` §3.4.1. The schema machine maintains a scope-chain stack: every non-directive
+      `OpenScope` pushes a child context inheriting active bindings from the parent; `CloseScope` pops. `@ns prefix
+      = "uri"` and `@default <prefix-or-uri>` directives commit into the enclosing scope's `NsContext`. Repeated
+      prefix bindings shadow at the declaring scope; the parent scope's binding is restored on close. Verified by 8
+      unit tests in `schema::namespace::tests` (covering empty context, prefix resolution, default binding, child
+      inheritance, shadowing, rebinding-uses-latest, full HTML→SVG→HTML round trip, and `local_bindings` scope-only
+      listing) plus 3 integration-style tests in `schema::machine::tests`
+      (`at_ns_directive_populates_ns_context`, `at_default_directive_resolves_unprefixed_to_html`,
+      `login_fixture_resolves_cem_and_default_prefixes`). The AST-builder's lexical-prefix storage in
+      `ExpandedName.namespace_uri` is unchanged for Tier A; consumers needing the resolved URI call
+      `CemSchemaMachine::current_ns_context()`.
 - [ ] Schema-scoping fixtures (inline declarations, sibling/wrapping switches, host-node switches, src/select
       exclusivity, nested `cem:name` shadowing). Blocked on schema-scoping form support above.
 - [ ] Namespace rebinding fixtures (unprefixed HTML, unprefixed SVG, default-namespace rebinding back to HTML in one

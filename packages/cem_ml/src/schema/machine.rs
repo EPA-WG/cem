@@ -1,3 +1,5 @@
+#![allow(clippy::items_after_test_module)]
+
 //! `CemSchemaMachine` — Tier A streaming validator for the CEM Core vocab.
 //!
 //! Consumes a `NormalizedEvent` stream (Layer 3) and emits `SchemaFrame`
@@ -11,6 +13,7 @@
 use crate::diagnostics::{Diagnostic, Severity};
 use crate::events::{EventNormalizer, HandoffRecord, NormalizedEvent, ScalarValue};
 use crate::handoff::{is_supported_content_type, HandoffStack};
+use crate::schema::namespace::NsContext;
 use crate::schema::vocab::CompiledSchema;
 use crate::schema::{FramePhase, SchemaFrame, SchemaMachine, SchemaVersionIdentity, ScopeId};
 use crate::source::ByteRange;
@@ -20,6 +23,17 @@ pub struct CemSchemaMachine<E: EventNormalizer> {
     schema: CompiledSchema,
     events: E,
     frames: Vec<SchemaFrame>,
+    /// Scope-chain namespace contexts, one per non-directive open frame.
+    /// `ns_contexts[0]` is the document root. Directive scopes (`@doc`,
+    /// `@ns`, `@default`, `@schema`) do *not* push a context; their
+    /// bindings register into the enclosing scope's context.
+    ns_contexts: Vec<NsContext>,
+    /// Tracks the directive currently being consumed (e.g. `@ns`,
+    /// `@default`). Cleared on close. The value events between open and
+    /// close go into `pending_directive_body`.
+    active_directive: Option<DirectiveKind>,
+    pending_directive_body: String,
+    pending_directive_open: Option<ByteRange>,
     handoffs: HandoffStack,
     /// One entry per open frame: depth of `handoffs` when the frame opened,
     /// so close can pop any handoffs the frame owned without losing track
@@ -38,6 +52,15 @@ pub struct CemSchemaMachine<E: EventNormalizer> {
     /// Tracks the annotation currently being assembled on the open frame.
     pending_annotation: Option<PendingAnnotation>,
     finished: bool,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+enum DirectiveKind {
+    Ns,
+    Default,
+    Doc,
+    Schema,
+    Other,
 }
 
 #[derive(Debug, Clone)]
@@ -66,6 +89,10 @@ impl<E: EventNormalizer> CemSchemaMachine<E> {
             schema,
             events,
             frames: Vec::new(),
+            ns_contexts: vec![NsContext::new(0)],
+            active_directive: None,
+            pending_directive_body: String::new(),
+            pending_directive_open: None,
             handoffs: HandoffStack::default(),
             handoff_depths: Vec::new(),
             diagnostics: Vec::new(),
@@ -75,6 +102,12 @@ impl<E: EventNormalizer> CemSchemaMachine<E> {
             pending_annotation: None,
             finished: false,
         }
+    }
+
+    /// Returns the active `NsContext` (the top of the scope chain).
+    /// Available for downstream layers that need namespace resolution.
+    pub fn current_ns_context(&self) -> &NsContext {
+        self.ns_contexts.last().expect("ns_contexts has document root")
     }
 
     /// Drain the entire event stream. Returns the diagnostics produced;
@@ -187,6 +220,20 @@ impl<E: EventNormalizer> CemSchemaMachine<E> {
         self.pending_attr = None;
         self.pending_states.clear();
         self.pending_annotation = None;
+        // Push an NsContext for non-directive scopes; directives don't
+        // shift the namespace context, they declare into the enclosing
+        // scope.
+        if let Some(rest) = name.strip_prefix('@') {
+            self.active_directive = Some(directive_kind(rest));
+            self.pending_directive_body.clear();
+            self.pending_directive_open = Some(byte_range);
+        } else {
+            let child = match self.ns_contexts.last() {
+                Some(parent) => NsContext::child_of(parent, scope_id),
+                None => NsContext::new(scope_id),
+            };
+            self.ns_contexts.push(child);
+        }
     }
 
     fn on_close(&mut self, _name: &str) {
@@ -212,6 +259,22 @@ impl<E: EventNormalizer> CemSchemaMachine<E> {
             while self.handoffs.depth() > prior_depth {
                 self.handoffs.pop();
             }
+        }
+        // Namespace-context bookkeeping. A directive scope closes by
+        // committing its declaration into the surrounding scope's
+        // NsContext. A non-directive scope pops its own context.
+        let is_directive = frame
+            .expected_close
+            .as_deref()
+            .map(|n| n.starts_with('@'))
+            .unwrap_or(false);
+        if is_directive {
+            self.commit_directive(&frame);
+            self.active_directive = None;
+            self.pending_directive_body.clear();
+            self.pending_directive_open = None;
+        } else if self.ns_contexts.len() > 1 {
+            self.ns_contexts.pop();
         }
         // States collected for this scope are validated at close, against
         // the annotation seen on this same frame. (Annotation validation
@@ -282,6 +345,17 @@ impl<E: EventNormalizer> CemSchemaMachine<E> {
     }
 
     fn on_value(&mut self, value: ScalarValue, byte_range: ByteRange) {
+        // Directive bodies arrive as Value events; capture them for
+        // commit at directive-close time.
+        if self.active_directive.is_some() && self.pending_attr.is_none() {
+            if let ScalarValue::Text(t) = &value {
+                if !self.pending_directive_body.is_empty() {
+                    self.pending_directive_body.push(' ');
+                }
+                self.pending_directive_body.push_str(t);
+            }
+            return;
+        }
         let Some(attr) = self.pending_attr.take() else {
             // Values outside an attribute name → content text. Ignored at
             // schema layer; the parser layer keeps them on AST nodes.
@@ -414,6 +488,71 @@ impl<E: EventNormalizer> CemSchemaMachine<E> {
                 node: None,
                 source_map: None,
             });
+        }
+    }
+
+    fn commit_directive(&mut self, frame: &SchemaFrame) {
+        let kind = match self.active_directive {
+            Some(k) => k,
+            None => return,
+        };
+        let body = self.pending_directive_body.trim().to_owned();
+        if body.is_empty() {
+            return;
+        }
+        let declared_at = self.pending_directive_open.unwrap_or(frame.source_span);
+        let source_map = frame.source_map_stack.clone();
+        match kind {
+            DirectiveKind::Ns => {
+                // `prefix = "uri"` or `prefix = uri`
+                if let Some((prefix, uri)) = parse_ns_body(&body) {
+                    if let Some(ctx) = self.ns_contexts.last_mut() {
+                        ctx.declare(
+                            prefix,
+                            uri,
+                            declared_at,
+                            ByteRange::new(declared_at.end(), 0),
+                            source_map,
+                        );
+                    }
+                } else {
+                    self.diagnostics.push(Diagnostic {
+                        uri: None,
+                        line: None,
+                        column: None,
+                        byte_offset: Some(declared_at.start),
+                        code: "cem.ns.invalid_ns_directive".to_owned(),
+                        severity: Severity::Error,
+                        message: format!("`@ns` directive body could not be parsed: `{body}`"),
+                        node: None,
+                        source_map: None,
+                    });
+                }
+            }
+            DirectiveKind::Default => {
+                // `@default <prefix|uri>` — if the token is a known
+                // prefix in the current context, copy its URI; otherwise
+                // treat the token as a literal URI.
+                let token = body.trim_matches('"').trim().to_owned();
+                let uri = self
+                    .ns_contexts
+                    .last()
+                    .and_then(|ctx| ctx.binding(&token).map(|b| b.namespace_uri.clone()))
+                    .unwrap_or(token);
+                if let Some(ctx) = self.ns_contexts.last_mut() {
+                    ctx.declare(
+                        "",
+                        uri,
+                        declared_at,
+                        ByteRange::new(declared_at.end(), 0),
+                        source_map,
+                    );
+                }
+            }
+            DirectiveKind::Doc | DirectiveKind::Schema | DirectiveKind::Other => {
+                // Handled elsewhere (document-format identity, schema
+                // resolution, future directives).
+            }
         }
     }
 
@@ -774,6 +913,83 @@ mod tests {
     }
 
     #[test]
+    fn at_ns_directive_populates_ns_context() {
+        let input = r#"@ns cem = "https://cem.dev/ns/core/1"
+{button @cem:action=primary | Save}"#;
+        let src = BytesSource::new(SourceId(1), input.as_bytes().to_vec());
+        let tok = CemTokenizer::from_source(src);
+        let normalizer = CemEventNormalizer::new(tok);
+        let mut machine = CemSchemaMachine::new(CompiledSchema::cem_core(), normalizer);
+        // Step events until just before EOF so the ns_context still
+        // reflects the active state.
+        let mut last_ns_uri = None;
+        while let Some(ev) = machine.events.next_event() {
+            machine.consume(ev);
+            if let Some(b) = machine.current_ns_context().binding("cem") {
+                last_ns_uri = Some(b.namespace_uri.clone());
+            }
+        }
+        machine.finalize();
+        assert_eq!(
+            last_ns_uri.as_deref(),
+            Some("https://cem.dev/ns/core/1")
+        );
+    }
+
+    #[test]
+    fn at_default_directive_resolves_unprefixed_to_html() {
+        let input = r#"@ns html = "http://www.w3.org/1999/xhtml"
+@default html
+{button | Save}"#;
+        let src = BytesSource::new(SourceId(1), input.as_bytes().to_vec());
+        let tok = CemTokenizer::from_source(src);
+        let normalizer = CemEventNormalizer::new(tok);
+        let mut machine = CemSchemaMachine::new(CompiledSchema::cem_core(), normalizer);
+        let mut default_uri = None;
+        while let Some(ev) = machine.events.next_event() {
+            machine.consume(ev);
+            if let Some(b) = machine.current_ns_context().binding("") {
+                default_uri = Some(b.namespace_uri.clone());
+            }
+        }
+        machine.finalize();
+        assert_eq!(
+            default_uri.as_deref(),
+            Some("http://www.w3.org/1999/xhtml")
+        );
+    }
+
+    #[test]
+    fn login_fixture_resolves_cem_and_default_prefixes() {
+        let path = std::path::PathBuf::from(env!("CARGO_MANIFEST_DIR"))
+            .join("../../examples/cem-ml/login.cem");
+        let input = std::fs::read_to_string(&path).unwrap();
+        let src = BytesSource::new(SourceId(1), input.as_bytes().to_vec());
+        let tok = CemTokenizer::from_source(src);
+        let normalizer = CemEventNormalizer::new(tok);
+        let mut machine = CemSchemaMachine::new(CompiledSchema::cem_core(), normalizer);
+        let mut cem_uri = None;
+        let mut html_uri = None;
+        let mut default_uri = None;
+        while let Some(ev) = machine.events.next_event() {
+            machine.consume(ev);
+            if let Some(b) = machine.current_ns_context().binding("cem") {
+                cem_uri = Some(b.namespace_uri.clone());
+            }
+            if let Some(b) = machine.current_ns_context().binding("html") {
+                html_uri = Some(b.namespace_uri.clone());
+            }
+            if let Some(b) = machine.current_ns_context().binding("") {
+                default_uri = Some(b.namespace_uri.clone());
+            }
+        }
+        machine.finalize();
+        assert_eq!(cem_uri.as_deref(), Some("https://cem.dev/ns/core/1"));
+        assert_eq!(html_uri.as_deref(), Some("http://www.w3.org/1999/xhtml"));
+        assert_eq!(default_uri.as_deref(), Some("http://www.w3.org/1999/xhtml"));
+    }
+
+    #[test]
     fn non_streamable_constraints_emit_unsupported_constraint() {
         use crate::schema::vocab::{NonStreamableConstraint, NonStreamableKind};
         let mut schema = CompiledSchema::cem_core();
@@ -791,4 +1007,34 @@ mod tests {
             .iter()
             .any(|d| d.code == "cem.schema.unsupported_constraint"));
     }
+}
+
+fn directive_kind(name: &str) -> DirectiveKind {
+    match name {
+        "ns" => DirectiveKind::Ns,
+        "default" => DirectiveKind::Default,
+        "doc" => DirectiveKind::Doc,
+        "schema" => DirectiveKind::Schema,
+        _ => DirectiveKind::Other,
+    }
+}
+
+/// Parse a `@ns` directive body of the form `prefix = "uri"` or
+/// `prefix = uri`. Returns `(prefix, uri)` on success.
+fn parse_ns_body(body: &str) -> Option<(String, String)> {
+    let (left, right) = body.split_once('=')?;
+    let prefix = left.trim().to_owned();
+    if prefix.is_empty() {
+        return None;
+    }
+    let mut uri = right.trim().to_owned();
+    let is_double = uri.starts_with('"') && uri.ends_with('"') && uri.len() >= 2;
+    let is_single = uri.starts_with('\'') && uri.ends_with('\'') && uri.len() >= 2;
+    if is_double || is_single {
+        uri = uri[1..uri.len() - 1].to_owned();
+    }
+    if uri.is_empty() {
+        return None;
+    }
+    Some((prefix, uri))
 }
