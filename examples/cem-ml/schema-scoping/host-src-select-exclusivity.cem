@@ -1,0 +1,15 @@
+@doc cem-ml 1
+@ns cem = "https://cem.dev/ns/core/1"
+@ns html = "http://www.w3.org/1999/xhtml"
+@default html
+
+// Attribute-form invalid combination: `@cem:schema-src` and
+// `@cem:schema-select` on the same host element. Per AC-F-2 this is a
+// schema-compilation error; the schema machine emits
+// `cem.schema.scoping.exclusive_src_select` at the host attribute that
+// triggered the conflict.
+{main @cem:screen="example" |
+  {section @cem:schema-src="schema://x" @cem:schema-select=".schemas.active" |
+    {p | This combination is rejected}
+  }
+}

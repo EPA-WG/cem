@@ -148,10 +148,25 @@ Component vocabulary: [`component-mvp.md`](component-mvp.md). Research input:
       `login_fixture_resolves_cem_and_default_prefixes`). The AST-builder's lexical-prefix storage in
       `ExpandedName.namespace_uri` is unchanged for Tier A; consumers needing the resolved URI call
       `CemSchemaMachine::current_ns_context()`.
-- [ ] Schema-scoping fixtures (inline declarations, sibling/wrapping switches, host-node switches, src/select
-      exclusivity, nested `cem:name` shadowing). Blocked on schema-scoping form support above.
-- [ ] Namespace rebinding fixtures (unprefixed HTML, unprefixed SVG, default-namespace rebinding back to HTML in one
-      CEM-ML document with XML parity output). Blocked on namespace-binding support above.
+- [x] Schema-scoping fixtures authored at
+      [`../examples/cem-ml/schema-scoping/`](../examples/cem-ml/schema-scoping/) with one `.cem` per form
+      (`inline-declaration`, `wrapping-switch`, `select-switch`, `host-node-switch`, `src-select-exclusivity`,
+      `host-src-select-exclusivity`, `name-shadowing`) plus a README cross-referencing the schema-machine integration
+      tests. Driven by [`../packages/cem_ml/tests/schema_scoping_fixtures.rs`](../packages/cem_ml/tests/schema_scoping_fixtures.rs)
+      — 7 integration tests asserting expected `SchemaSource` transitions, `resolve_name` shadowing, and the
+      `cem.schema.scoping.exclusive_src_select` diagnostic on both element and host attribute forms. Uses the new
+      `CemSchemaMachine::run_with_observer` public API for mid-stream state inspection.
+- [x] Namespace-rebinding fixtures authored at
+      [`../examples/cem-ml/namespace-rebinding/`](../examples/cem-ml/namespace-rebinding/):
+      `default-html-svg-html.cem` exercises the AC-P-V-1 round trip (default binding HTML → SVG via
+      `@xmlns="..."` on the `{svg}` host → HTML again via `@xmlns="..."` on the `{form}` host) and
+      `default-html-svg-html.xml` records the matching XML parity rendering with `xmlns="..."` attributes for the
+      Phase 11 parity-tokenizer follow-up. `prefix-rebind.cem` covers prefix-name rebinding via document-level
+      `@ns x = "..."` outer + `@xmlns:x="..."` inner. The schema machine grew an `xmlns` / `xmlns:prefix`
+      attribute handler so mid-document namespace declarations flow into the `NsContext` from any host node. Driven
+      by [`../packages/cem_ml/tests/namespace_rebinding_fixtures.rs`](../packages/cem_ml/tests/namespace_rebinding_fixtures.rs)
+      — 3 integration tests asserting the HTML → SVG → HTML default-binding history, the outer → inner → outer
+      prefix-binding history, and the presence of the XML parity fixture.
 - [x] Fixtures proving canonical CEM-ML and HTML parity inputs normalize into the same CEM event model. Driven by
       `every_fixture_pair_shares_comparable_element_multiset` +
       `every_fixture_pair_has_balanced_event_streams` in

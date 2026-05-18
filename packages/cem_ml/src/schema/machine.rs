@@ -149,10 +149,23 @@ impl<E: EventNormalizer> CemSchemaMachine<E> {
 
     /// Drain the entire event stream. Returns the diagnostics produced;
     /// the final frame stack is available via [`frames`].
-    pub fn run(mut self) -> SchemaMachineOutcome {
+    pub fn run(self) -> SchemaMachineOutcome {
+        self.run_with_observer(|_| {})
+    }
+
+    /// Drain the event stream, invoking `observe` after every event is
+    /// consumed. Useful for integration tests that need to inspect
+    /// schema/namespace/scope state mid-stream.
+    pub fn run_with_observer<F>(mut self, mut observe: F) -> SchemaMachineOutcome
+    where
+        F: FnMut(&Self),
+    {
         while !self.finished {
             match self.events.next_event() {
-                Some(ev) => self.consume(ev),
+                Some(ev) => {
+                    self.consume(ev);
+                    observe(&self);
+                }
                 None => {
                     self.finalize();
                     break;
@@ -429,6 +442,34 @@ impl<E: EventNormalizer> CemSchemaMachine<E> {
     }
 
     fn handle_attribute(&mut self, attr: PendingAttr, value: String, value_range: ByteRange) {
+        // Namespace attribute forms: `xmlns="uri"` rebinds the default
+        // binding on the current scope; `xmlns:prefix="uri"` declares a
+        // prefix binding. Mirrors XML 1.0 §"Namespaces in XML" and the
+        // HTML5 foreign-content handling.
+        if attr.name == "xmlns" {
+            if let Some(ctx) = self.ns_contexts.last_mut() {
+                ctx.declare(
+                    "",
+                    value,
+                    attr.name_range,
+                    value_range,
+                    SourceMapStack::default(),
+                );
+            }
+            return;
+        }
+        if let Some(prefix) = attr.name.strip_prefix("xmlns:") {
+            if let Some(ctx) = self.ns_contexts.last_mut() {
+                ctx.declare(
+                    prefix.to_owned(),
+                    value,
+                    attr.name_range,
+                    value_range,
+                    SourceMapStack::default(),
+                );
+            }
+            return;
+        }
         // Host-node attribute-form schema switches: `cem:schema-src` /
         // `cem:schema-select`. These apply to the *current* scope (the
         // host element's scope, which was already opened) and are
@@ -486,8 +527,10 @@ impl<E: EventNormalizer> CemSchemaMachine<E> {
                     if let Some(p) = self.pending_schema_element.as_mut() {
                         p.cem_name = Some(value.clone());
                     }
-                    // Fall through so cem:name also flows through the
-                    // annotation/state path below.
+                    // `cem:name` is the schema-scoping declaration
+                    // identifier per AC-F-2 — not a CEM-Core annotation.
+                    // Don't route it through the annotation path.
+                    return;
                 }
                 _ => {}
             }

@@ -1,0 +1,38 @@
+@doc cem-ml 1
+@ns cem = "https://cem.dev/ns/core/1"
+@ns html = "http://www.w3.org/1999/xhtml"
+@ns svg = "http://www.w3.org/2000/svg"
+@default html
+
+// AC-P-V-1: default-namespace rebinding round trip.
+//
+// 1. The document opens with the HTML namespace as the default binding.
+//    Unprefixed elements resolve to HTML.
+// 2. Inside the SVG subtree, the default is rebound to SVG via the
+//    XML-style `xmlns="..."` attribute on the `{svg}` host. Unprefixed
+//    `{path}` inside resolves to SVG.
+// 3. After the SVG subtree closes, the default returns to HTML; the
+//    inner rebinding does not leak to the parent.
+// 4. A subsequent `{form}` subtree explicitly rebinds the default back
+//    to HTML to demonstrate that the binding name `""` may be reused
+//    for the same namespace at a later position.
+//
+// Previously resolved nodes retain their original expanded name even
+// when the binding name is later reused for a different namespace —
+// per AC-P-10.
+{main @cem:screen="namespace-demo" |
+  // (1) unprefixed HTML
+  {h1 | Namespace rebinding example}
+
+  // (2) rebound default → SVG, unprefixed path resolves to SVG
+  {svg @xmlns="http://www.w3.org/2000/svg" @viewBox="0 0 16 16" @aria-hidden=true |
+    {path @d="M2 8h12"}
+  }
+
+  // (3) default rebound back to HTML on a host node — round-trip
+  //     guarantee. Tier A confirms the binding history HTML → SVG → HTML.
+  {form @xmlns="http://www.w3.org/1999/xhtml" |
+    {label @for=email | Email}
+    {input @id=email @name=email @type=email @required}
+  }
+}

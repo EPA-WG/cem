@@ -1,0 +1,24 @@
+@doc cem-ml 1
+@ns cem = "https://cem.dev/ns/core/1"
+@ns html = "http://www.w3.org/1999/xhtml"
+@default html
+
+// Nested `cem:name` shadowing: outer declares `Item`, inner re-declares
+// `Item`. References in the outer scope resolve to the outer definition;
+// references inside the inner scope resolve to the inner one.
+// No duplicate-name diagnostic is emitted.
+{main @cem:screen="example" |
+  {cem:schema @cem:name="Item" |
+    // outer Item definition (placeholder)
+  }
+  // Reference under the outer scope → outer Item.
+  {p | Reference under outer scope}
+
+  {section |
+    {cem:schema @cem:name="Item" |
+      // inner Item definition (placeholder)
+    }
+    // Reference under the inner scope → inner Item.
+    {p | Reference under inner scope}
+  }
+}

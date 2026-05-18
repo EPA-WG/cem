@@ -611,7 +611,12 @@ impl CemTokenizer {
                 Some('`') if self.is_rich_open() => {
                     self.scan_rich_content();
                 }
-                Some('/') if self.peek_at(1) == Some('/') => self.consume_line_comment(),
+                // Block comments are recognized inside element content;
+                // line comments (`//`) are intentionally NOT — `//` is
+                // a common substring of URLs in attribute-free text and
+                // would otherwise consume the rest of a content line.
+                // Line comments remain valid at the document top level
+                // and between attributes.
                 Some('/') if self.peek_at(1) == Some('*') => self.consume_block_comment(),
                 _ => self.scan_content_text(),
             }
@@ -624,7 +629,9 @@ impl CemTokenizer {
             if c == '{' || c == '}' || c == '`' {
                 break;
             }
-            if c == '/' && (self.peek_at(1) == Some('/') || self.peek_at(1) == Some('*')) {
+            // Only block-comment opens stop content text; `//` is left
+            // as text so URL-bearing content survives.
+            if c == '/' && self.peek_at(1) == Some('*') {
                 break;
             }
             self.cursor += 1;

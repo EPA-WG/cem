@@ -1,0 +1,16 @@
+@doc cem-ml 1
+@ns cem = "https://cem.dev/ns/core/1"
+@ns html = "http://www.w3.org/1999/xhtml"
+@default html
+
+// Inline schema declaration: `cem:schema @cem:name="..."` registers an
+// inline schema in the parent scope. The declaration body is opaque to
+// the parent scope's active schema; descendants reference it by name.
+{section |
+  {cem:schema @cem:name="badge" |
+    // schema body — placeholder for an inline element definition
+  }
+  // Sibling that follows the declaration can resolve `badge` through
+  // the scope chain.
+  {span @cem:badge=info | New}
+}

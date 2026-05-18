@@ -1,0 +1,16 @@
+@doc cem-ml 1
+@ns cem = "https://cem.dev/ns/core/1"
+@ns html = "http://www.w3.org/1999/xhtml"
+@default html
+
+// Attribute-form switch: `@cem:schema-src="..."` on any element makes
+// that element a scope. The loaded schema applies inside; siblings of
+// the host element remain under the parent's schema.
+{main @cem:screen="example" |
+  {section @cem:schema-src="schema://host-node/profile/1" |
+    {p | This section is rendered against schema://host-node/profile/1}
+  }
+  {section |
+    {p | This sibling section is rendered against the parent's schema}
+  }
+}
