@@ -341,11 +341,37 @@ Component vocabulary: [`component-mvp.md`](component-mvp.md). Research input:
 
 ### Authoring Tooling
 
-- [ ] Publish a machine-readable CEM-ML lexical grammar and keep it synchronized with tokenizer fixtures.
-- [ ] Add syntax highlighting coverage for nodes, attributes, namespaces, content markers, `$` expression scopes, rich
-      content, comments, and diagnostics.
-- [ ] Add a tree-sitter grammar or equivalent editor parse grammar that round-trips with tokenizer fixtures.
-- [ ] Add formatter and Prettier-like rules for indentation, canonical `|` insertion, attribute ordering, quote/rich
-      enclosure normalization, and comment/whitespace preservation.
-- [ ] Add lint diagnostics for unbound prefixes, invalid relaxed-boundary use, suspicious content-type switches,
-      noncanonical delimiter choices, and forbidden bare `{...}` text interpolation.
+- [x] Machine-readable CEM-ML lexical grammar at
+      [`../packages/cem_ml/grammar/lexical.ebnf`](../packages/cem_ml/grammar/lexical.ebnf). EBNF spec covering every
+      production (document/fragment, node, expression node, anonymous scope, attribute, value, content boundary,
+      directive, comment, rich content, qname). The token-kind cross-reference at the bottom is checked by
+      `tokenizer::cem::tests::grammar_token_kinds_match_lexical_grammar` so any new `SchemaTokenKind` variant fails
+      CI until the EBNF is updated. Full lexical-rule parity to the actual tokenizer fixtures is a Phase 11 follow-up
+      that lands once the tree-sitter scanner is built.
+- [x] Syntax highlighting via TextMate grammar at
+      [`../packages/cem_ml/grammar/cem-ml.tmLanguage.json`](../packages/cem_ml/grammar/cem-ml.tmLanguage.json).
+      Covers nodes (element-name scope), attributes (namespaced + unprefixed), content markers (`|` / `▷`),
+      `{$ ...}` expression scopes (body delegated to `source.cem-ql` so the cem-ql grammar can layer on top), rich
+      content (triple-backtick enclosure), line/block comments, directive keywords (`@doc`/`@ns`/`@default`/`@schema`),
+      and quoted-string / cem-ql AVT spans inside attribute values.
+- [x] Tree-sitter grammar skeleton at
+      [`../packages/cem_ml/grammar/tree-sitter-cem/grammar.js`](../packages/cem_ml/grammar/tree-sitter-cem/grammar.js)
+      plus a README at [`../packages/cem_ml/grammar/README.md`](../packages/cem_ml/grammar/README.md). The grammar
+      covers the same productions as the EBNF; building the parser requires `npx tree-sitter generate`. A round-trip
+      parity test (every `examples/cem-ml/*.cem` parses identically in Rust and tree-sitter) is a Phase 11 follow-up.
+- [x] Formatter module at
+      [`../packages/cem_ml/src/formatter.rs`](../packages/cem_ml/src/formatter.rs). Two-space indentation,
+      canonical `|` insertion before non-empty content, attribute ordering by `(namespace, local_name)`, quoted
+      strings via `"..."` when values contain whitespace, bare values when the identifier matches the
+      `name_continue+` charset, `{...}` AVT spans preserved verbatim. Comments and CDATA/raw-text are emitted on
+      their own line; pure whitespace nodes are dropped (the formatter manages spacing). Idempotence is checked by
+      `formatter::tests::every_canonical_fixture_formats_idempotently`.
+- [x] Lint diagnostics added to the validation registry: `cem.lint.unbound_prefix` (Warning — any namespace prefix
+      not in `{cem, html, svg, xml, xmlns, aria, xlink}`), `cem.lint.noncanonical_delimiter` (Info — attribute
+      values quoted unnecessarily when their canonical form would be bare), `cem.lint.suspicious_content_type_switch`
+      (Warning — `type="text/html"`-shaped attributes on non-MIME-host elements that look like they meant to be an
+      anonymous-scope handoff). Forbidden bare `{...}` text interpolation is enforced at the tokenizer layer
+      (`cem.tokenizer.bare_brace_text`). Invalid relaxed-boundary use (e.g. an explicit `|` inside the attribute
+      list) currently surfaces via the tokenizer's `cem.tokenizer.unterminated_node` / `bare_brace_text` codes; a
+      dedicated `cem.lint.invalid_relaxed_boundary` rule lands when the parser-enabled tokenizer surfaces the
+      structural distinction unambiguously.

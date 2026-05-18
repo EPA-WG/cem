@@ -122,6 +122,9 @@ impl RuleRegistry {
         r.register(Box::new(rules::StateCombinationRule));
         r.register(Box::new(rules::JavaScriptUrlRule));
         r.register(Box::new(rules::EventHandlerAttributeRule));
+        r.register(Box::new(rules::UnboundPrefixRule));
+        r.register(Box::new(rules::NoncanonicalDelimiterRule));
+        r.register(Box::new(rules::SuspiciousContentTypeSwitchRule));
         r
     }
 
@@ -216,6 +219,9 @@ mod tests {
         assert!(codes.contains(&"cem.state.invalid_combination"));
         assert!(codes.contains(&"cem.unsafe.javascript_url"));
         assert!(codes.contains(&"cem.unsafe.event_handler_attribute"));
+        assert!(codes.contains(&"cem.lint.unbound_prefix"));
+        assert!(codes.contains(&"cem.lint.noncanonical_delimiter"));
+        assert!(codes.contains(&"cem.lint.suspicious_content_type_switch"));
     }
 
     #[test]

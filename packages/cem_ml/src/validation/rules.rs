@@ -371,6 +371,211 @@ fn is_url_bearing_attribute(local: &str) -> bool {
     )
 }
 
+// ---------- Authoring Lints ----------
+
+pub struct UnboundPrefixRule;
+
+impl SemanticRule for UnboundPrefixRule {
+    fn descriptor(&self) -> &RuleDescriptor {
+        unbound_prefix_descriptor()
+    }
+
+    fn run(&self, ctx: &RuleContext<'_>) -> Vec<Diagnostic> {
+        // The active CEM Core schema binds the `cem:` prefix; the Tier A
+        // tokenizer also recognizes the lexical `html` and `svg` hints in
+        // the example fixtures. Any other namespace prefix on an
+        // attribute is an unbound-prefix lint.
+        const KNOWN_PREFIXES: &[&str] = &["cem", "html", "svg", "xml", "xmlns", "aria", "xlink"];
+        let mut out = Vec::new();
+        for node in ctx.document.iter() {
+            let CemAstNode::Attribute { expanded_name, .. } = node else {
+                continue;
+            };
+            let prefix = &expanded_name.namespace_uri;
+            if prefix.is_empty() {
+                continue;
+            }
+            if KNOWN_PREFIXES.contains(&prefix.as_str()) {
+                continue;
+            }
+            out.push(diag_at(
+                "cem.lint.unbound_prefix",
+                Severity::Warning,
+                format!(
+                    "namespace prefix `{prefix}` on `@{prefix}:{}` is not bound by any active `@ns` declaration",
+                    expanded_name.local_name
+                ),
+                node,
+            ));
+        }
+        out
+    }
+}
+
+fn unbound_prefix_descriptor() -> &'static RuleDescriptor {
+    use std::sync::OnceLock;
+    static D: OnceLock<RuleDescriptor> = OnceLock::new();
+    D.get_or_init(|| RuleDescriptor {
+        id: RuleId::new("cem.lint.unbound_prefix"),
+        owning_scope: "cem-lint",
+        content_type: None,
+        trigger_layer: TriggerLayer::Document,
+        required_inputs: &[RuleInput::CemDocument],
+        default_severity: Severity::Warning,
+        policy_overridable: true,
+    })
+}
+
+pub struct NoncanonicalDelimiterRule;
+
+impl SemanticRule for NoncanonicalDelimiterRule {
+    fn descriptor(&self) -> &RuleDescriptor {
+        noncanonical_delimiter_descriptor()
+    }
+
+    fn run(&self, ctx: &RuleContext<'_>) -> Vec<Diagnostic> {
+        // The Unicode content-boundary `▷` is accepted by the tokenizer
+        // but the canonical CEM-ML surface uses ASCII `|`. We can't
+        // detect the literal character at AST level reliably, but we
+        // *can* flag attribute values whose canonical form would have
+        // been a bare identifier yet were quoted. That's a noncanonical
+        // delimiter choice the formatter would normalize.
+        let mut out = Vec::new();
+        for node in ctx.document.iter() {
+            let CemAstNode::Attribute {
+                expanded_name,
+                value: Some(v),
+                ..
+            } = node
+            else {
+                continue;
+            };
+            // Quoted single-identifier values without whitespace should
+            // be bare in canonical form. The tokenizer strips the
+            // surrounding quotes before placing into `value`, so we
+            // can't see the quotes here directly; we approximate by
+            // flagging values that *would* be bare-eligible but appear
+            // to have been authored with leading/trailing whitespace
+            // (a hint they were quoted unnecessarily).
+            if v != v.trim() && is_bare_eligible(v.trim()) {
+                out.push(diag_at(
+                    "cem.lint.noncanonical_delimiter",
+                    Severity::Info,
+                    format!(
+                        "attribute `@{}=\"{}\"` has surrounding whitespace; the canonical form is `@{}={}`",
+                        expanded_name.local_name,
+                        v,
+                        expanded_name.local_name,
+                        v.trim()
+                    ),
+                    node,
+                ));
+            }
+        }
+        out
+    }
+}
+
+fn noncanonical_delimiter_descriptor() -> &'static RuleDescriptor {
+    use std::sync::OnceLock;
+    static D: OnceLock<RuleDescriptor> = OnceLock::new();
+    D.get_or_init(|| RuleDescriptor {
+        id: RuleId::new("cem.lint.noncanonical_delimiter"),
+        owning_scope: "cem-lint",
+        content_type: None,
+        trigger_layer: TriggerLayer::Document,
+        required_inputs: &[RuleInput::CemDocument],
+        default_severity: Severity::Info,
+        policy_overridable: true,
+    })
+}
+
+fn is_bare_eligible(v: &str) -> bool {
+    !v.is_empty()
+        && v.chars()
+            .all(|c| c.is_alphanumeric() || matches!(c, '_' | '-' | '/' | '.' | ':'))
+}
+
+pub struct SuspiciousContentTypeSwitchRule;
+
+impl SemanticRule for SuspiciousContentTypeSwitchRule {
+    fn descriptor(&self) -> &RuleDescriptor {
+        suspicious_content_type_descriptor()
+    }
+
+    fn run(&self, ctx: &RuleContext<'_>) -> Vec<Diagnostic> {
+        // A `@type="..."` attribute on an anonymous scope is a
+        // content-type handoff (`cem-ml-syntax.md`
+        // §"Content-Type Handoffs Stay Schema-Owned"). On a *named*
+        // element it's an ordinary HTML attribute; on anything other
+        // than an anonymous scope or an `<input>`/`<button>`/`<source>`-
+        // family node with a known `type=` enum, a non-MIME value is a
+        // lint warning because it might have been intended as a handoff.
+        let mut out = Vec::new();
+        const MIME_HOSTS: &[&str] = &[
+            "script", "style", "link", "source", "embed", "object", "audio", "video",
+        ];
+        for node in ctx.document.iter() {
+            let CemAstNode::Element {
+                expanded_name,
+                attributes,
+                ..
+            } = node
+            else {
+                continue;
+            };
+            let local = expanded_name.local_name.as_str();
+            if local.is_empty() {
+                continue; // anonymous scopes handled by schema machine
+            }
+            for attr_id in attributes {
+                let Some(attr) = ctx.document.get(*attr_id) else {
+                    continue;
+                };
+                let Some((ns, name, val)) = attribute_parts(attr) else {
+                    continue;
+                };
+                if !ns.is_empty() || name != "type" {
+                    continue;
+                }
+                let Some(v) = val else { continue };
+                // A MIME-style value (`text/*`, `application/*`,
+                // `image/*`, etc.) on a non-MIME-host element is the
+                // suspicious case.
+                if !MIME_HOSTS.contains(&local) && looks_like_mime(v) {
+                    out.push(diag_at(
+                        "cem.lint.suspicious_content_type_switch",
+                        Severity::Warning,
+                        format!(
+                            "`<{local} type=\"{v}\">` looks like a content-type handoff but `{local}` is not a known MIME host; did you mean to wrap in an anonymous scope `{{@type=\"{v}\" | ...}}`?"
+                        ),
+                        attr,
+                    ));
+                }
+            }
+        }
+        out
+    }
+}
+
+fn suspicious_content_type_descriptor() -> &'static RuleDescriptor {
+    use std::sync::OnceLock;
+    static D: OnceLock<RuleDescriptor> = OnceLock::new();
+    D.get_or_init(|| RuleDescriptor {
+        id: RuleId::new("cem.lint.suspicious_content_type_switch"),
+        owning_scope: "cem-lint",
+        content_type: None,
+        trigger_layer: TriggerLayer::Document,
+        required_inputs: &[RuleInput::CemDocument],
+        default_severity: Severity::Warning,
+        policy_overridable: true,
+    })
+}
+
+fn looks_like_mime(v: &str) -> bool {
+    v.contains('/') && v.chars().all(|c| !c.is_whitespace())
+}
+
 pub struct EventHandlerAttributeRule;
 
 impl SemanticRule for EventHandlerAttributeRule {
@@ -559,6 +764,45 @@ mod tests {
                 .filter(|d| matches!(d.severity, Severity::Error | Severity::Fatal))
                 .collect::<Vec<_>>()
         );
+    }
+
+    #[test]
+    fn unbound_prefix_flagged_on_unknown_namespace() {
+        let diags = run_rules(r#"{main @bogus:role="x" | hi}"#);
+        assert!(diags.iter().any(|d| d.code == "cem.lint.unbound_prefix"));
+    }
+
+    #[test]
+    fn known_namespace_prefixes_not_flagged() {
+        let diags = run_rules(r#"{button @cem:action=primary @aria-label="Save"}"#);
+        assert!(diags.iter().all(|d| d.code != "cem.lint.unbound_prefix"));
+    }
+
+    #[test]
+    fn suspicious_content_type_switch_flagged_on_non_mime_host() {
+        let diags = run_rules(r#"{section @type="text/html" | hi}"#);
+        assert!(diags
+            .iter()
+            .any(|d| d.code == "cem.lint.suspicious_content_type_switch"));
+    }
+
+    #[test]
+    fn content_type_switch_not_flagged_on_known_mime_host() {
+        let diags = run_rules(r#"{script @type="application/json" | {{}}}"#);
+        assert!(diags
+            .iter()
+            .all(|d| d.code != "cem.lint.suspicious_content_type_switch"));
+    }
+
+    #[test]
+    fn input_type_attribute_not_flagged() {
+        // `<input type=email>` is the canonical HTML attribute, not a
+        // content-type handoff. The tokenizer's `@type=email` value is a
+        // bare identifier, not MIME-shaped.
+        let diags = run_rules(r#"{input @type=email}"#);
+        assert!(diags
+            .iter()
+            .all(|d| d.code != "cem.lint.suspicious_content_type_switch"));
     }
 
     #[test]

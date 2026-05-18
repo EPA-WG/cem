@@ -1097,6 +1097,35 @@ mod tests {
     }
 
     #[test]
+    fn grammar_token_kinds_match_lexical_grammar() {
+        // The lexical grammar (`grammar/lexical.ebnf`) carries a
+        // token-kind cross-reference comment block. Every variant of
+        // `SchemaTokenKind` must appear there.
+        let grammar_path = std::path::PathBuf::from(env!("CARGO_MANIFEST_DIR"))
+            .join("grammar/lexical.ebnf");
+        let grammar = std::fs::read_to_string(&grammar_path).unwrap();
+        for kind in [
+            "NodeStart",
+            "NodeEnd",
+            "Attribute",
+            "Text",
+            "Trivia",
+            "Comment",
+            "ProcessingInstruction",
+            "ExpressionNode",
+            "AnonymousScopeStart",
+            "Directive",
+            "RichContent",
+            "Error",
+        ] {
+            assert!(
+                grammar.contains(kind),
+                "lexical grammar must list token kind `{kind}` in its cross-reference"
+            );
+        }
+    }
+
+    #[test]
     fn login_fixture_tokenizes_clean() {
         let input = std::fs::read_to_string(
             std::path::PathBuf::from(env!("CARGO_MANIFEST_DIR"))

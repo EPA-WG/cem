@@ -1,0 +1,153 @@
+{
+  "$schema": "https://raw.githubusercontent.com/martinring/tmlanguage/master/tmlanguage.json",
+  "name": "CEM-ML",
+  "scopeName": "source.cem-ml",
+  "fileTypes": ["cem"],
+  "patterns": [
+    { "include": "#comment-line" },
+    { "include": "#comment-block" },
+    { "include": "#rich-content" },
+    { "include": "#directive" },
+    { "include": "#node" },
+    { "include": "#expression-node" },
+    { "include": "#anonymous-scope" }
+  ],
+  "repository": {
+    "comment-line": {
+      "name": "comment.line.double-slash.cem-ml",
+      "match": "//.*$"
+    },
+    "comment-block": {
+      "name": "comment.block.cem-ml",
+      "begin": "/\\*",
+      "end": "\\*/"
+    },
+    "rich-content": {
+      "name": "string.quoted.other.rich-content.cem-ml",
+      "begin": "```",
+      "end": "```",
+      "patterns": [
+        {
+          "match": ".",
+          "name": "string.quoted.other.rich-content.body.cem-ml"
+        }
+      ]
+    },
+    "directive": {
+      "match": "^\\s*(@(?:doc|ns|default|schema))\\b([^\\n]*)$",
+      "captures": {
+        "1": { "name": "keyword.control.directive.cem-ml" },
+        "2": { "name": "meta.directive.body.cem-ml" }
+      }
+    },
+    "node": {
+      "begin": "(\\{)\\s*([A-Za-z_][A-Za-z0-9_-]*(?::[A-Za-z_][A-Za-z0-9_-]*)?)",
+      "beginCaptures": {
+        "1": { "name": "punctuation.section.node.begin.cem-ml" },
+        "2": { "name": "entity.name.tag.cem-ml" }
+      },
+      "end": "(\\})",
+      "endCaptures": {
+        "1": { "name": "punctuation.section.node.end.cem-ml" }
+      },
+      "patterns": [
+        { "include": "#attribute" },
+        { "include": "#content-boundary" },
+        { "include": "#node" },
+        { "include": "#expression-node" },
+        { "include": "#comment-line" },
+        { "include": "#comment-block" },
+        { "include": "#rich-content" },
+        { "include": "#text" }
+      ]
+    },
+    "expression-node": {
+      "name": "meta.expression-node.cem-ml",
+      "begin": "(\\{)\\s*(\\$)",
+      "beginCaptures": {
+        "1": { "name": "punctuation.section.node.begin.cem-ml" },
+        "2": { "name": "keyword.operator.expression.cem-ml" }
+      },
+      "end": "(\\})",
+      "endCaptures": {
+        "1": { "name": "punctuation.section.node.end.cem-ml" }
+      },
+      "patterns": [
+        { "include": "#content-boundary" },
+        {
+          "match": ".",
+          "name": "source.cem-ql"
+        }
+      ]
+    },
+    "anonymous-scope": {
+      "begin": "(\\{)\\s*(?=@)",
+      "beginCaptures": {
+        "1": { "name": "punctuation.section.node.begin.cem-ml" }
+      },
+      "end": "(\\})",
+      "endCaptures": {
+        "1": { "name": "punctuation.section.node.end.cem-ml" }
+      },
+      "patterns": [
+        { "include": "#attribute" },
+        { "include": "#content-boundary" },
+        { "include": "#node" },
+        { "include": "#expression-node" },
+        { "include": "#text" }
+      ]
+    },
+    "attribute": {
+      "patterns": [
+        {
+          "match": "(@)([A-Za-z_][A-Za-z0-9_-]*)(:)([A-Za-z_][A-Za-z0-9_-]*)\\s*(=)?",
+          "captures": {
+            "1": { "name": "punctuation.definition.attribute.cem-ml" },
+            "2": { "name": "entity.name.namespace.cem-ml" },
+            "3": { "name": "punctuation.separator.namespace.cem-ml" },
+            "4": { "name": "entity.other.attribute-name.cem-ml" },
+            "5": { "name": "keyword.operator.assignment.cem-ml" }
+          }
+        },
+        {
+          "match": "(@)([A-Za-z_][A-Za-z0-9_-]*)\\s*(=)?",
+          "captures": {
+            "1": { "name": "punctuation.definition.attribute.cem-ml" },
+            "2": { "name": "entity.other.attribute-name.cem-ml" },
+            "3": { "name": "keyword.operator.assignment.cem-ml" }
+          }
+        },
+        {
+          "name": "string.quoted.double.cem-ml",
+          "begin": "\"",
+          "end": "\""
+        },
+        {
+          "name": "string.quoted.single.cem-ml",
+          "begin": "'",
+          "end": "'"
+        },
+        {
+          "name": "meta.cem-ql-span.cem-ml",
+          "begin": "(\\{)",
+          "beginCaptures": {
+            "1": { "name": "punctuation.section.cem-ql.begin.cem-ml" }
+          },
+          "end": "(\\})",
+          "endCaptures": {
+            "1": { "name": "punctuation.section.cem-ql.end.cem-ml" }
+          },
+          "patterns": [{ "match": ".", "name": "source.cem-ql" }]
+        }
+      ]
+    },
+    "content-boundary": {
+      "match": "(?<=\\s)(\\||▷)(?=\\s|$)",
+      "name": "keyword.operator.content-boundary.cem-ml"
+    },
+    "text": {
+      "match": "[^{}`]+",
+      "name": "string.unquoted.text.cem-ml"
+    }
+  }
+}

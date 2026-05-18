@@ -8,6 +8,7 @@ pub mod report;
 // here fix the public boundary used by downstream layers and `cem-ml-cli`.
 pub mod ast;
 pub mod events;
+pub mod formatter;
 pub mod handoff;
 pub mod interpreter;
 pub mod parser;
