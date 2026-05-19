@@ -8,9 +8,8 @@
   Per `packages/cem_ml/docs/cross-surface-conversion.md` §1–§2, this
   document and the matching `.cem` form lower into the same schema
   event stream after content-type-specific trivia is accounted for.
-  The Phase 11 XML 1.0 tokenizer (currently a stub at
-  `packages/cem_ml/src/tokenizer/xml.rs`) will exercise this parity in
-  the future test suite.
+  The XML 1.0 tokenizer at `packages/cem_ml/src/tokenizer/xml.rs`
+  exercises this parity in the namespace-rebinding integration suite.
 -->
 <main xmlns="http://www.w3.org/1999/xhtml"
       xmlns:cem="https://cem.dev/ns/core/1"

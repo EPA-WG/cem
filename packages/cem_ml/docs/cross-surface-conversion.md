@@ -1,9 +1,9 @@
 # CEM-ML ↔ XML / HTML Cross-Surface Conversion
 
-**Status:** Tier A normative for the CEM-ML → HTML projection direction;
-authored as a contract today. The HTML / XML → CEM-ML direction lands
-alongside the Phase 11 HTML/XML parity tokenizers in
-[`../../../docs/cem-ml-cli-plan.md`](../../../docs/cem-ml-cli-plan.md).
+**Status:** Tier A normative for the CEM-ML → HTML projection direction.
+Canonical CEM-ML plus HTML/XML parity tokenizers lower into the shared
+event model today; the reverse HTML/XML → CEM-ML serialization direction
+remains a follow-up in [`../../../docs/todo.md`](../../../docs/todo.md).
 
 This document fixes the *exact* per-construct conversion rules so all
 three surfaces lower into the same schema event stream and AST, with
@@ -158,12 +158,13 @@ renderer. The integration tests are:
 | `every_canonical_fixture_runs_through_every_layer` | `.cem` → events → AST → render | `packages/cem_ml/tests/end_to_end.rs` |
 | `canonical_cem_projection_preserves_schema_event_identity` | `.cem` → events → render → re-tokenize → events | `packages/cem_ml/tests/cross_surface_projection.rs` |
 
-The HTML → `.cem` direction is gated on the Phase 11 HTML tokenizer
-(`packages/cem_ml/src/tokenizer/html.rs` is a stub today). Once the
-real HTML tokenizer ships, the projection test in §10 picks up a
-mirror assertion: every `examples/semantic/*.html` parity fixture
-lowers to the *same* `NormalizedEvent` stream (modulo trivia byte
-ranges) as its `examples/cem-ml/*.cem` counterpart.
+HTML parity fixtures already lower through the shared event stream in
+`packages/cem_ml/tests/fixture_pair.rs`. XML parity currently covers the
+namespace-rebinding fixture in
+`packages/cem_ml/tests/namespace_rebinding_fixtures.rs`. The remaining
+follow-up is reverse serialization: HTML/XML inputs should produce
+canonical `.cem` output with byte-stable formatting and source-map
+preservation.
 
 ## 11. Non-Lossless Constructs
 

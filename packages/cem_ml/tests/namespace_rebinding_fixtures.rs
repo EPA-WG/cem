@@ -7,10 +7,16 @@
 
 use cem_ml::diagnostics::Severity;
 use cem_ml::events::cem::CemEventNormalizer;
+use cem_ml::interpreter::light_dom::LightDomInterpreter;
+use cem_ml::parser::builder::CemAstBuilder;
+use cem_ml::parser::CemAstNode;
 use cem_ml::schema::machine::CemSchemaMachine;
 use cem_ml::schema::vocab::CompiledSchema;
 use cem_ml::source::{BytesSource, SourceId};
 use cem_ml::tokenizer::cem::CemTokenizer;
+use cem_ml::tokenizer::xml::XmlTokenizer;
+use cem_ml::tokenizer::SchemaTokenizer;
+use cem_ml::validation::{RuleContext, RuleRegistry};
 
 fn fixture(name: &str) -> String {
     let path = std::path::PathBuf::from(env!("CARGO_MANIFEST_DIR"))
@@ -129,15 +135,86 @@ fn prefix_rebinding_uses_innermost_uri() {
 }
 
 #[test]
-fn xml_parity_fixture_is_present_and_parses_as_text() {
-    // The XML parity rendering currently cannot be tokenized (the XML
-    // tokenizer is a Phase 11 stub), but the fixture file must exist
-    // so the parity contract is documented alongside the CEM-ML form.
+fn xml_parity_fixture_runs_through_shared_pipeline() {
     let path = std::path::PathBuf::from(env!("CARGO_MANIFEST_DIR"))
         .join("../../examples/cem-ml/namespace-rebinding/default-html-svg-html.xml");
-    let text = std::fs::read_to_string(&path)
+    let input = std::fs::read_to_string(&path)
         .unwrap_or_else(|e| panic!("xml parity fixture missing: {path:?}: {e}"));
-    assert!(text.contains("xmlns=\"http://www.w3.org/1999/xhtml\""));
-    assert!(text.contains("xmlns=\"http://www.w3.org/2000/svg\""));
-    assert!(text.contains("cem:screen=\"namespace-demo\""));
+    let bytes = input.as_bytes().to_vec();
+
+    let mut token_count = 0usize;
+    {
+        let src = BytesSource::new(SourceId(1), bytes.clone());
+        let mut tok = XmlTokenizer::from_source(src);
+        while tok.next_token().is_some() {
+            token_count += 1;
+        }
+        let hard: Vec<_> = tok
+            .take_diagnostics()
+            .into_iter()
+            .filter(|d| matches!(d.severity, Severity::Error | Severity::Fatal))
+            .collect();
+        assert!(hard.is_empty(), "{hard:?}");
+    }
+    assert!(token_count > 0, "XML tokenizer emitted no tokens");
+
+    {
+        let src = BytesSource::new(SourceId(1), bytes.clone());
+        let tok = XmlTokenizer::from_source(src);
+        let normalizer = CemEventNormalizer::new(tok);
+        let machine = CemSchemaMachine::new(CompiledSchema::cem_core(), normalizer);
+        let mut default_history: Vec<String> = Vec::new();
+        let outcome = machine.run_with_observer(|m| {
+            if let Some(b) = m.current_ns_context().binding("") {
+                let uri = b.namespace_uri.clone();
+                if default_history.last() != Some(&uri) {
+                    default_history.push(uri);
+                }
+            }
+        });
+        let hard: Vec<_> = outcome
+            .diagnostics
+            .iter()
+            .filter(|d| {
+                matches!(d.severity, Severity::Error | Severity::Fatal)
+                    && (d.code.starts_with("cem.schema.") || d.code.starts_with("cem.ns."))
+            })
+            .collect();
+        assert!(hard.is_empty(), "{hard:?}");
+        assert!(
+            default_history.contains(&"http://www.w3.org/1999/xhtml".to_owned()),
+            "expected XML default namespace history to include HTML; got {default_history:?}"
+        );
+        assert!(
+            default_history.contains(&"http://www.w3.org/2000/svg".to_owned()),
+            "expected XML default namespace history to include SVG; got {default_history:?}"
+        );
+    }
+
+    let document = {
+        let src = BytesSource::new(SourceId(1), bytes);
+        let tok = XmlTokenizer::from_source(src);
+        let normalizer = CemEventNormalizer::new(tok);
+        CemAstBuilder::new(normalizer).build()
+    };
+    assert!(!document.nodes.is_empty(), "XML AST is empty");
+    assert!(matches!(document.nodes[0], CemAstNode::Document { .. }));
+
+    let registry = RuleRegistry::with_tier_a_rules();
+    let diagnostics = registry.run(&RuleContext {
+        document: &document,
+        upstream_diagnostics: &document.diagnostics,
+    });
+    let hard: Vec<_> = diagnostics
+        .iter()
+        .filter(|d| matches!(d.severity, Severity::Error | Severity::Fatal))
+        .collect();
+    assert!(hard.is_empty(), "{hard:?}");
+
+    let output = LightDomInterpreter::new().render(&document);
+    assert!(output.rendered.contains("<main"));
+    assert!(output.rendered.contains("<svg"));
+    assert!(output.rendered.contains("<form"));
+
+    assert_eq!(hard.len(), 0);
 }
