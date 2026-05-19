@@ -65,12 +65,10 @@ Deliverables:
 - iOS Swift output and Android XML/Kotlin output.
 - Validation for generated token modes, reports, native files, and package exports.
 
-Remaining gates:
-
-- Validate native Figma library variables in the CEM UI Kit.
-- Compile generated Swift with a supported Xcode toolchain.
-- Compile generated Kotlin/Compose with a supported Gradle toolchain.
-- Run a full token-change smoke test through CSS, JSON, Figma, Swift, and Android outputs.
+Remaining gates: none under Phase 1. Native toolchain compile gates (Swift, Kotlin/Compose) and the non-Figma
+token-change smoke test moved to [Phase 8 - Native Platform Packages](#phase-8---native-platform-packages) where the
+native artifacts they validate are owned. Figma-specific token validation moved to
+[Phase 5 - Figma UI Kit](#phase-5---figma-ui-kit) so the gate lands alongside the kit it validates.
 
 ## Phase 2 - Schema-Defined Parser And Document Runtime
 
@@ -155,6 +153,13 @@ Deliverables:
 - Handoff annotations mapping Figma components to CEM elements and attributes.
 - Governance rules for token updates, kit releases, and no write-back to source markdown.
 
+Token-validation gates (moved from Phase 1):
+
+- Validate native Figma library variables against the generated `figma/cem-*.tokens.json` files for every mode. The
+  gate ships with the UI Kit because the validation is meaningful only against a populated kit.
+- Extend the Phase 1 token-change smoke test to cover the Figma propagation path end to end (CSS / JSON / Swift /
+  Android already gated in Phase 1).
+
 Exit criteria:
 
 - Designers can mock the major CEM demo flows without inventing colors, spacing, or unsupported component states.
@@ -218,11 +223,13 @@ Deliverables:
 - CI/toolchain validation for Swift and Kotlin outputs.
 - Native visual parity checks against web/Figma references where practical.
 
-Native validation gates:
+Native validation gates (moved from Phase 1):
 
 - Generated Swift compiles with the supported Xcode/Swift toolchain.
 - Generated Kotlin/Compose compiles with the supported Gradle/Kotlin toolchain.
 - Generated iOS and Android reports show zero fail-hard violations before release.
+- Full token-change smoke test through CSS, JSON, Swift, and Android outputs. (The Figma propagation leg lives in
+  Phase 5.)
 
 Exit criteria:
 
