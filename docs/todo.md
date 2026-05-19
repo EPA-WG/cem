@@ -27,7 +27,7 @@ Component vocabulary: [`component-mvp.md`](component-mvp.md). Research input:
       budgets, lifecycle hooks, and verification fixtures.
 - [x] Add engine scheduling design and implementation for AC-A-4..AC-A-7 / AC-O-2: worker pools, bounded queues,
       external-I/O queue handling, cancellation, AbortSignal support, deterministic trace shape, and resource defaults.
-- [ ] Add scoped registry data structures and lookup algorithms for AC-R-*: inheritance, collision detection, and
+- [x] Add scoped registry data structures and lookup algorithms for AC-R-*: inheritance, collision detection, and
       DCE/custom-element integration contracts.
 - [ ] Add the performance benchmark harness and policy for AC-N-*: budget ownership, CI tolerance rules, and
       memory-limit proof fixtures.

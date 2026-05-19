@@ -17,6 +17,7 @@ pub mod plugin;
 pub mod projection;
 pub mod query;
 pub mod real;
+pub mod registry;
 pub mod scheduler;
 pub mod schema;
 pub mod source;
