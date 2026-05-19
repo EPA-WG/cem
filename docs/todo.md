@@ -10,10 +10,16 @@ Component vocabulary: [`component-mvp.md`](component-mvp.md). Research input:
 
 ### Remaining Execution Items
 
-- [ ] Add the performance benchmark harness and policy for AC-N-*: budget ownership, CI tolerance rules, and
-      memory-limit proof fixtures.
-- [ ] Add compatibility and distribution gates for AC-C-*: browser, Node, Rust, WASM, package artifacts, and release
-      checks.
-- [ ] Create `cem-ql-stack-design.md` and `cem-ql-stack-design-impl.md` before CEM-QL work moves beyond exploratory
-      tests. Cover grammar, parser architecture, evaluator IR, stdlib module layout, type checker, cost model, and
-      binary artifact layout.
+_No outstanding Phase 2 execution items. Phase-2 follow-up work is tracked through the design-document AC-alignment
+appendices (`cem-ml-stack-design.md §21`, `cem-ql-stack-design.md §21`)._
+
+### Recently Closed
+
+- AC-N-* perf benchmark harness and policy. Budget ownership in `cem_ml::benchmark::BenchmarkBudget`, CI tolerance via
+  `CEM_ML_PERF_TOLERANCE`, 10 MB and depth-200 proof fixtures in `packages/cem_ml/tests/perf_budgets.rs`, Nx entry
+  point `yarn nx run cem_ml:bench`. Documented in `cem-ml-stack-design.md §17`.
+- AC-C-* compatibility / distribution gates. Support matrix, crate surface, CLI boundary, and release checks documented
+  in `cem-ml-stack-design.md §18`.
+- CEM-QL stack design. `cem-ql-stack-design.md` (high-level: pipeline layers, grammar, evaluator IR, type system,
+  stdlib module layout, cost model, binary artifact layout) and `cem-ql-stack-design-impl.md` (concrete Rust module
+  map, surface AST, IR shapes, diagnostic table, stdlib function tables).

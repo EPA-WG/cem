@@ -60,6 +60,15 @@
             },
             "outputs": ["{workspaceRoot}/dist/target/wasm32-unknown-unknown"]
         },
+        "bench": {
+            "cache": false,
+            "executor": "nx:run-commands",
+            "options": {
+                "command": "cargo test --release --test perf_budgets --target-dir ../../dist/target/cem_ml -- --nocapture",
+                "cwd": "packages/cem_ml"
+            },
+            "outputs": ["{workspaceRoot}/dist/target/cem_ml/release"]
+        },
         "tree-sitter:generate": {
             "cache": true,
             "executor": "nx:run-commands",

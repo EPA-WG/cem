@@ -11,6 +11,10 @@ This index links the active project, release, and token workflow documents.
 - [CEM ML acceptance criteria](./cem-ml-ac.md) — testable AC for the parser, schema, mutations, and plugin runtime.
 - [CEM QL acceptance criteria](./cem-ql-ac.md) — testable AC for the CEM-ML query language consumed by templates and
   validation.
+- [CEM QL stack design](./cem-ql-stack-design.md) — high-level design: pipeline layers, grammar, evaluator IR, type
+  system, stdlib module layout, cost model, and binary artifact layout.
+- [CEM QL implementation design](./cem-ql-stack-design-impl.md) — concrete Rust module map, surface AST, IR shapes,
+  diagnostic table, and stdlib function tables.
 - [CEM ML / CEM QL AC design revalidation](./cem-ac-design-revalidation.md) — current AC-to-design match,
   corrections, and remaining non-matches.
 - [CEM ML CLI feature summary](./cem-ml-cli-contract.md) — planned CLI capabilities, options, reports, diagnostics,

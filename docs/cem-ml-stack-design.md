@@ -1411,7 +1411,7 @@ Status key:
 
 - **Design ready** — design is complete enough to implement; open sub-questions are
   refinements, not blockers.
-- **Design partial** — one or more open concerns in §17–18 must be resolved before
+- **Design partial** — one or more open concerns in §19–20 must be resolved before
   clean implementation can begin. Blocker references are noted.
 - **Deferred Tier B/C** — explicitly out of Tier A scope; interface stubs may be
   defined now for stability.
@@ -1483,26 +1483,215 @@ Status key:
 
 ---
 
-## 17. Open Ambiguities
+## 17. Performance Budgets And Verification
 
-No open ambiguity entries remain in this section. Previously assigned ambiguity IDs are
-omitted after resolution; related implementation concerns that still need details are
-tracked in §18.
+This section resolves DESIGN-FOLLOW-011 by mapping AC-N-1 / AC-N-2 / AC-N-3 to
+concrete budget ownership, CI tolerance policy, memory-limit proof fixtures, and a
+runnable Nx target. The acceptance criteria remain authoritative; this section names
+the data shapes, fixtures, and verification entry points that close the AC.
+
+### 17.1 Budget Ownership
+
+The wall-clock budget named in AC-N-1 is owned by `cem_ml::benchmark::BenchmarkBudget`.
+The constructor `BenchmarkBudget::default_ac_n_1()` returns the 150 ms budget on a
+developer-class machine, single-thread, cold cache. Future ACs that introduce other
+budgets MUST add a sibling constructor (e.g. `default_ac_i_5_hydration_batch`) so the
+budget set is enumerable from the same module and the tolerance policy stays in one
+place.
+
+The budget object carries:
+
+- `budget: Duration` — the AC-named wall-clock target,
+- `tolerance: f64` — multiplier applied before the assertion fires.
+
+`BenchmarkRun::within(&BenchmarkBudget)` compares the **median** of the measured
+samples against `budget × tolerance`. Median is the AC-aligned statistic: AC-N-1 names
+a per-fixture budget, not a distribution tail, so we accept run-to-run noise as long
+as the typical run lands inside the envelope. p95 / p99 are reported for trend
+inspection but are not assertion gates in Tier A.
+
+### 17.2 CI Tolerance Policy
+
+Wall-clock budgets are not portable across hosts. The harness applies a tolerance
+multiplier to absorb hardware variance:
+
+- Default tolerance: `3.0` — passes on a CI runner that is up to 3× slower than the
+  developer machine the budget was calibrated against.
+- Override: `CEM_ML_PERF_TOLERANCE=<float>` in the environment. Values below `1.0` are
+  clamped to `1.0` so the AC budget itself remains the hard floor.
+- Skip: `CEM_ML_PERF_SKIP=1` opts the suite out entirely. Reserved for constrained
+  virtualised runners (containers without performance counters, throttled shared-host
+  CI) where the wall-clock budget is meaningless. A skipped suite MUST still surface
+  in the test report so a release reviewer can confirm the run.
+- Build mode: AC-N-1 names release wall-clock budgets. The perf suite MUST run under
+  `--release`; debug builds skip automatically via `cfg!(debug_assertions)` so a
+  developer running the full test suite in debug does not see spurious failures.
+
+Tolerance is a CI ergonomics knob, not a substitute for the AC budget. A regression
+that pushes the median past `budget × 1.0` on the developer machine is a regression
+regardless of CI tolerance.
+
+### 17.3 Memory-Limit Proof Fixtures (AC-N-2)
+
+AC-N-2 requires bounded streaming accumulators: tokenizer memory scales with the
+current token and open-scope depth, not document byte length. The verification path is
+indirect — we cannot directly measure heap residency without instrumenting the
+allocator — so the proof is two fixtures whose only difference is byte length:
+
+- **10 MB synthetic fixture.** Built at test time from a repeated, balanced
+  `{span @class=cell | x}` unit inside one outer `{main | … }` scope. Depth stays at
+  2 throughout, so the tokenizer's depth-scaled state buffer is constant; only token
+  count varies. The proof condition is that the per-byte wall-clock rate stays within
+  10× of the small-fixture rate (with a 50 ns/byte floor on the small fixture so
+  fixed-cost overhead does not create an artificially strict ratio). Super-linear
+  accumulator scaling would push the 10 MB rate well past that envelope.
+- **Deep-nesting fixture.** Depth = 200 with one leaf token. This isolates the
+  depth-scaled component of accumulator memory and proves that the depth axis itself
+  is bounded by the active scope policy, not the document body.
+
+Both fixtures complete inside an Nx job budget (30 s envelope for the 10 MB fixture;
+the deep-nesting fixture lands inside AC-N-1 directly).
+
+Future work covered by DESIGN-FOLLOW-011 (limit-breach diagnostics): when scope-policy
+caps for depth, byte count, or fetch fan-out are surfaced as documented fields, this
+section MUST add a fixture per cap that exceeds it and asserts the corresponding
+`cem.limit.*` diagnostic.
+
+### 17.4 Benchmark Suite And Nx Target (AC-N-3)
+
+The benchmark suite is `packages/cem_ml/tests/perf_budgets.rs`. Each test:
+
+1. Skips early if `CEM_ML_PERF_SKIP=1` or `cfg!(debug_assertions)`.
+2. Loads (or synthesises) the fixture.
+3. Runs `cem_ml::benchmark::run_pipeline_iterations_bare` for a fixed iteration count.
+4. Asserts the resulting `BenchmarkRun` against the appropriate `BenchmarkBudget`.
+
+The Nx-reachable entry point is:
+
+```bash
+yarn nx run cem_ml:bench
+```
+
+which lifts to
+`cargo test --release --test perf_budgets --target-dir ../../dist/target/cem_ml`.
+CI invokes the same target. The target is `cache: false` because the inputs (host
+clock, runner shape) are not Nx-tracked; caching a perf pass would mask regressions.
+
+A regression that fails any test in this file MUST be triaged before merge: either
+the change is genuinely faster-on-paper but slower in measurement (revert or tune),
+or the budget itself needs to move (AC update first, then design follow-up here).
 
 ---
 
-## 18. Critical Review Questions And Concerns
+## 18. Compatibility And Distribution
+
+This section resolves DESIGN-FOLLOW-012 by naming the support matrix, package
+artifacts, and release checks that close AC-C-1 / AC-C-2 / AC-C-3. The acceptance
+criteria remain authoritative; this section pins ownership and verification entry
+points.
+
+### 18.1 Support Matrix (AC-C-1)
+
+AC-C-1 requires the public API to run identically in modern browsers and on Node ≥ 22:
+
+| Surface       | Targets                                                            | Verification path |
+|---------------|--------------------------------------------------------------------|-------------------|
+| Browser       | Latest 2 of Chromium, Firefox, Safari (auto-tracked: floor advances when a vendor ships a new major). | Playwright matrix gated on the WASM artifact in `packages/cem_ml`. |
+| Node          | Active LTS ≥ 22 (current floor: Node 22; raised when a Node LTS reaches EOL). | Node smoke runs the WASM artifact through the same `apply()` contract used by browsers. |
+| Rust (native) | Stable, MSRV pinned in `packages/cem_ml/Cargo.toml`.               | `nx run cem_ml:test` + `nx run cem_ml:lint`. |
+| Rust (WASM)   | `wasm32-unknown-unknown`.                                           | `nx run cem_ml:build:wasm`. |
+
+The same public API on browser and Node MUST mean the same observable behaviour for:
+
+- parse / validate / transform results,
+- diagnostic shapes (codes, severities, source-map projections per AC-O-3),
+- event stream shapes (`onParseEvent`, `onValidate`, `onTransform` per AC-O-1),
+- scope-policy enforcement, including resource ceilings per §3.1.
+
+Any surface-specific behaviour MUST be either (a) gated on an explicit host capability
+(e.g. `fetch` opt-in), or (b) recorded as a divergence waiver in this section with a
+target date and AC reference.
+
+### 18.2 Crate Surface (AC-C-2)
+
+AC-C-2 requires a Rust crate that exposes parser/validator/transform contracts and
+compiles to native and WASM targets. Ownership:
+
+- The crate is `cem-ml` in `packages/cem_ml/Cargo.toml`. `crate-type` is
+  `["cdylib", "rlib"]` so the same source tree produces both the native rlib for
+  downstream Rust callers and the cdylib used by the WASM build.
+- Public modules at the AC-F-10 layer boundary (`source`, `tokenizer`, `events`,
+  `schema`, `handoff`, `parser`, `ast`, `interpreter`, `observability`, `report`,
+  `diagnostics`) are the contract. A breaking change in any of those module paths is
+  a semver-major event.
+- The Tier A layered-contract test
+  (`lib.rs::tests::layered_runtime_contract_types_are_importable`) is the
+  compile-time gate that the AC-F-10 names still resolve at the published paths;
+  every release MUST run this test as part of `nx run cem_ml:test`.
+- WASM compilation is verified by `nx run cem_ml:build:wasm`. A change that breaks
+  WASM target compilation but passes the native build is still a release blocker.
+
+### 18.3 CLI And Package Boundaries (AC-C-3)
+
+AC-C-3 requires the Rust crate and CLI package boundaries to stay publishable, with
+any future npm/WASM wrapper consuming the Rust-owned contract instead of restoring
+the deprecated TypeScript package:
+
+- Crate: `cem-ml` (`packages/cem_ml`). Publish path is `cargo publish` from that
+  directory. `publish = true` in `Cargo.toml` is the affirmative gate.
+- CLI binary: `cem-ml` (`packages/cem_ml_cli`). The CLI MUST link against the
+  `cem-ml` crate by version, not by relative path, in published releases. Internal
+  workspace builds use a path dependency; the release script swaps it to a version
+  dependency before `cargo publish`.
+- Future npm/WASM wrapper: when added, the wrapper MUST re-export the same public
+  contracts (engine requests/responses, diagnostic shapes, event stream payloads).
+  A wrapper that introduces its own diagnostic or event shape is a violation of this
+  AC and MUST be reverted, not paved over with a translation layer.
+
+The deprecated TypeScript package MUST NOT be reintroduced. If a TS consumer needs a
+typed surface, the path is generated `.d.ts` from the Rust-owned schema/projection
+contracts (AC-S-6), not a parallel TypeScript implementation.
+
+### 18.4 Release Checks
+
+A release of `cem-ml` (or the CLI) MUST pass, in order:
+
+1. `nx run cem_ml:lint` — no Rust warnings or clippy errors.
+2. `nx run cem_ml:test` — full Rust test suite including the layered-contract import
+   test and all fixture-driven integration tests.
+3. `nx run cem_ml:build:wasm` — WASM target compiles.
+4. `nx run cem_ml:bench` — AC-N-* perf suite under release profile (skips honour
+   `CEM_ML_PERF_SKIP` only on documented constrained runners).
+5. Browser/Node smoke: Playwright + Node runners exercise the WASM artifact against
+   the canonical `examples/cem-ml/` and `examples/semantic/` fixtures.
+6. Manifest checks: `Cargo.toml` version bumped, CHANGELOG entry added, AC items
+   closed by this release named in the entry.
+
+A release that skips any of steps 1–4 is not a release. Steps 5–6 are required for
+public releases (`crates.io`, npm wrapper) and optional for pre-release tags.
+
+---
+
+## 19. Open Ambiguities
+
+No open ambiguity entries remain in this section. Previously assigned ambiguity IDs are
+omitted after resolution; related implementation concerns that still need details are
+tracked in §20.
+
+---
+
+## 20. Critical Review Questions And Concerns
 
 This section records unresolved issues found by reviewing this design against the
 primary AC and the architectural research. These are not decisions. They are follow-up
 questions and concerns to resolve before implementation. Other workspace documents may
 provide terminology, but they should not decide the answers here.
 
-### 18.5 Schema-Machine And Validation Questions
+### 20.5 Schema-Machine And Validation Questions
 
 ---
 
-## 19. Appendix: AC Alignment Follow-Up
+## 21. Appendix: AC Alignment Follow-Up
 
 Review date: 2026-05-12. The table below is the pre-alignment review that drove the
 current AC update. It is retained for provenance. The authoritative follow-up list is
@@ -1562,8 +1751,8 @@ remain open:
 | DESIGN-FOLLOW-008 | AC-PL-1 through AC-PL-20 | Add a plugin architecture section covering descriptor, chain, lifecycle, source-map stitching, budgets, and sandboxing. |
 | DESIGN-FOLLOW-009 | AC-A-4 through AC-A-7, AC-O-2 | Add worker-pool, bounded queue, cancellation, external-resource I/O queue, and scheduler trace design. |
 | DESIGN-FOLLOW-010 | AC-R-1 through AC-R-3 | Add scoped template/registry lookup and collision behavior for DCE/custom-element integration. |
-| DESIGN-FOLLOW-011 | AC-N-1 through AC-N-3 | Add performance budgets, memory-limit verification, and benchmark ownership. |
-| DESIGN-FOLLOW-012 | AC-C-1 through AC-C-3 | Add browser/Node/Rust/WASM compatibility and packaging gates. |
+| DESIGN-FOLLOW-011 | AC-N-1 through AC-N-3 | Resolved in §17. Budget ownership in `cem_ml::benchmark::BenchmarkBudget`; CI tolerance via `CEM_ML_PERF_TOLERANCE`; 10 MB and depth-200 proof fixtures live in `packages/cem_ml/tests/perf_budgets.rs`; Nx entry point `nx run cem_ml:bench`. |
+| DESIGN-FOLLOW-012 | AC-C-1 through AC-C-3 | Resolved in §18. Support matrix, crate surface, CLI boundary, and release checks named. Future npm/WASM wrapper MUST consume the Rust-owned contract per §18.3. |
 | DESIGN-FOLLOW-013 | AC-P-6 | Add deferred NVDL-style dispatch design for Tier C. |
 | DESIGN-FOLLOW-014 | AC-T-3, AC-T-7, cem-ql AC | Resolved at AC level: AC-T-7 owns host embedding and `cem-ql-ac.md` owns expression semantics. Remaining design work is the future cem-ql grammar/evaluator IR companion, not an open CEM-ML syntax question. |
 
