@@ -25,7 +25,7 @@ Component vocabulary: [`component-mvp.md`](component-mvp.md). Research input:
       Rust/WASM types, event payload schema, CLI report projection, and runnable projection tests.
 - [x] Design and implement the plugin runtime for AC-PL-* descriptors, chaining, sandboxing, source-map stitching,
       budgets, lifecycle hooks, and verification fixtures.
-- [ ] Add engine scheduling design and implementation for AC-A-4..AC-A-7 / AC-O-2: worker pools, bounded queues,
+- [x] Add engine scheduling design and implementation for AC-A-4..AC-A-7 / AC-O-2: worker pools, bounded queues,
       external-I/O queue handling, cancellation, AbortSignal support, deterministic trace shape, and resource defaults.
 - [ ] Add scoped registry data structures and lookup algorithms for AC-R-*: inheritance, collision detection, and
       DCE/custom-element integration contracts.
