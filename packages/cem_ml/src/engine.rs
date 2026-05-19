@@ -23,6 +23,7 @@ pub enum InputFormat {
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(rename_all = "kebab-case")]
 pub enum LayerFormat {
+    Cem,
     DomJson,
     Ast,
     Events,
@@ -303,10 +304,7 @@ impl CemMlEngine for NotImplementedEngine {
     fn bench(&self, _: BenchRequest) -> EngineResult<BenchResponse> {
         Err(EngineError::NotImplemented)
     }
-    fn fixture_validate(
-        &self,
-        _: FixtureValidateRequest,
-    ) -> EngineResult<FixtureValidateResponse> {
+    fn fixture_validate(&self, _: FixtureValidateRequest) -> EngineResult<FixtureValidateResponse> {
         Err(EngineError::NotImplemented)
     }
     fn fixture_roundtrip(

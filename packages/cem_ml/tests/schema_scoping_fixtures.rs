@@ -10,7 +10,7 @@ use cem_ml::events::cem::CemEventNormalizer;
 use cem_ml::schema::machine::CemSchemaMachine;
 use cem_ml::schema::scoping::SchemaSource;
 use cem_ml::schema::vocab::CompiledSchema;
-use cem_ml::source::{BytesSource, ByteRange, SourceId};
+use cem_ml::source::{ByteRange, BytesSource, SourceId};
 use cem_ml::tokenizer::cem::CemTokenizer;
 
 fn fixture_path(stem: &str) -> std::path::PathBuf {

@@ -4,13 +4,17 @@
 //! consumer-friendly shapes for `cem-ml parse --format dom-json|ast|events`
 //! and the same projections for `convert` / `inspect` views.
 
+use crate::engine::InputFormat;
 use crate::events::{
     cem::CemEventNormalizer, EventNormalizer, NormalizedEvent, ScalarValue, TriviaKind,
 };
 use crate::parser::document::CemDocument;
 use crate::parser::{AstNodeId, CemAstNode};
-use crate::source::{BytesSource, ByteRange, SourceId};
+use crate::source::{ByteRange, BytesSource, SourceId};
 use crate::tokenizer::cem::CemTokenizer;
+use crate::tokenizer::html::HtmlTokenizer;
+use crate::tokenizer::xml::XmlTokenizer;
+use crate::tokenizer::SchemaTokenizer;
 use serde_json::{json, Value};
 
 /// Project a built `CemDocument` to a DOM-JSON tree:
@@ -160,8 +164,19 @@ pub fn ast_json(doc: &CemDocument) -> Value {
 /// ]
 /// ```
 pub fn events_json(input: &[u8]) -> Value {
+    events_json_as(input, InputFormat::Cem)
+}
+
+pub fn events_json_as(input: &[u8], from_format: InputFormat) -> Value {
     let src = BytesSource::new(SourceId(1), input.to_vec());
-    let tok = CemTokenizer::from_source(src);
+    match from_format {
+        InputFormat::Cem => collect_events(CemTokenizer::from_source(src)),
+        InputFormat::Html => collect_events(HtmlTokenizer::from_source(src)),
+        InputFormat::Xml => collect_events(XmlTokenizer::from_source(src)),
+    }
+}
+
+fn collect_events<T: SchemaTokenizer>(tok: T) -> Value {
     let mut n = CemEventNormalizer::new(tok);
     let mut out: Vec<Value> = Vec::new();
     while let Some(ev) = n.next_event() {

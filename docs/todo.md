@@ -13,7 +13,7 @@ Component vocabulary: [`component-mvp.md`](component-mvp.md). Research input:
 - [x] Replace the XML tokenizer profile stub in `packages/cem_ml/src/tokenizer/xml.rs` with the Phase 11 XML 1.0
       tokenizer and wire XML parity fixtures through the same event-normalizer, schema, AST, validation, and transform
       checks used by the canonical CEM-ML and HTML parity fixtures.
-- [ ] Complete the reverse HTML/XML -> CEM-ML projection path described in
+- [x] Complete the reverse HTML/XML -> CEM-ML projection path described in
       [`../packages/cem_ml/docs/cross-surface-conversion.md`](../packages/cem_ml/docs/cross-surface-conversion.md),
       including byte-stable canonical formatter expectations and source-map preservation across the content-type
       transform boundary.

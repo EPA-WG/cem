@@ -234,9 +234,7 @@ fn decode_transform(tag: u16, payload: Option<String>) -> Result<TransformKind, 
         2 => TransformKind::CemTokenizer,
         3 => TransformKind::EventNormalizer,
         4 => TransformKind::SchemaValidation {
-            schema_id: payload
-                .and_then(|p| p.parse().ok())
-                .unwrap_or(0),
+            schema_id: payload.and_then(|p| p.parse().ok()).unwrap_or(0),
         },
         5 => TransformKind::CemAstBuilder,
         6 => TransformKind::HandoffBoundary {

@@ -248,8 +248,7 @@ mod tests {
 
     #[test]
     fn bytes_source_splits_into_configured_chunk_size() {
-        let chunks =
-            drain(BytesSource::new(SourceId(2), b"abcdefgh".to_vec()).with_chunk_size(3));
+        let chunks = drain(BytesSource::new(SourceId(2), b"abcdefgh".to_vec()).with_chunk_size(3));
         assert_eq!(chunks.len(), 3);
         assert_eq!(chunks[0].bytes, b"abc");
         assert_eq!(chunks[0].byte_range, ByteRange::new(0, 3));
@@ -277,9 +276,14 @@ mod tests {
         std::fs::create_dir_all(&dir).unwrap();
         let path = dir.join("hello.cem");
         std::fs::write(&path, b"file source test\n").unwrap();
-        let src = FileSource::open(SourceId(5), &path).unwrap().with_chunk_size(4);
+        let src = FileSource::open(SourceId(5), &path)
+            .unwrap()
+            .with_chunk_size(4);
         let chunks = drain(src);
-        let merged: Vec<u8> = chunks.iter().flat_map(|c| c.bytes.iter().copied()).collect();
+        let merged: Vec<u8> = chunks
+            .iter()
+            .flat_map(|c| c.bytes.iter().copied())
+            .collect();
         assert_eq!(merged, b"file source test\n");
         let total: u64 = chunks.iter().map(|c| c.byte_range.len as u64).sum();
         assert_eq!(total, merged.len() as u64);

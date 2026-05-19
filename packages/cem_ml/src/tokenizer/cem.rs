@@ -59,10 +59,7 @@ impl CemTokenizer {
             scalars.extend(c.scalars);
         }
         let diagnostics = decoder.take_diagnostics();
-        let end_offset = scalars
-            .last()
-            .map(|(_, r)| r.end())
-            .unwrap_or(0);
+        let end_offset = scalars.last().map(|(_, r)| r.end()).unwrap_or(0);
         let base_source_map = SourceMapStack {
             frames: vec![SourceMapFrame {
                 source_id,
@@ -563,7 +560,9 @@ impl CemTokenizer {
                         probe += 1;
                     }
                     let next = self.scalars.get(probe).map(|(c, _)| *c);
-                    if matches!(next, Some('@') | Some('$')) || matches!(next, Some(c) if is_name_start(c)) {
+                    if matches!(next, Some('@') | Some('$'))
+                        || matches!(next, Some(c) if is_name_start(c))
+                    {
                         self.scan_node();
                     } else if next == Some('}') {
                         // `{}` empty node.
@@ -873,13 +872,20 @@ mod tests {
         let (tokens, diags) = tokenize("{p | Hello}");
         assert!(diags.is_empty(), "{:?}", diags);
         let nt = non_trivia(&tokens);
-        assert_eq!(kinds(&nt.iter().cloned().cloned().collect::<Vec<_>>()), vec!["NodeStart", "Text", "NodeEnd"]);
+        assert_eq!(
+            kinds(&nt.iter().cloned().cloned().collect::<Vec<_>>()),
+            vec!["NodeStart", "Text", "NodeEnd"]
+        );
         if let SchemaTokenKind::NodeStart { name } = &nt[0].kind {
             assert_eq!(name, "p");
-        } else { panic!() }
+        } else {
+            panic!()
+        }
         if let SchemaTokenKind::Text(t) = &nt[1].kind {
             assert_eq!(t.trim(), "Hello");
-        } else { panic!() }
+        } else {
+            panic!()
+        }
     }
 
     #[test]
@@ -966,7 +972,9 @@ mod tests {
     fn anonymous_typed_scope() {
         let (tokens, diags) = tokenize(r#"{@type="text/html" | <p>hi</p>}"#);
         assert!(diags.is_empty(), "{:?}", diags);
-        assert!(tokens.iter().any(|t| matches!(t.kind, SchemaTokenKind::AnonymousScopeStart)));
+        assert!(tokens
+            .iter()
+            .any(|t| matches!(t.kind, SchemaTokenKind::AnonymousScopeStart)));
         let attr = tokens
             .iter()
             .find(|t| matches!(t.kind, SchemaTokenKind::Attribute { .. }))
@@ -1078,7 +1086,8 @@ mod tests {
 
     #[test]
     fn all_canonical_fixtures_tokenize_without_hard_violations() {
-        let dir = std::path::PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("../../examples/cem-ml");
+        let dir =
+            std::path::PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("../../examples/cem-ml");
         let mut at_least_one = false;
         for entry in std::fs::read_dir(&dir).unwrap() {
             let entry = entry.unwrap();
@@ -1098,7 +1107,11 @@ mod tests {
                 "fixture `{}` produced hard violations: {hard:?}",
                 path.display()
             );
-            assert!(!tokens.is_empty(), "fixture `{}` produced no tokens", path.display());
+            assert!(
+                !tokens.is_empty(),
+                "fixture `{}` produced no tokens",
+                path.display()
+            );
         }
         assert!(at_least_one, "no canonical .cem fixtures found");
     }
@@ -1108,8 +1121,8 @@ mod tests {
         // The lexical grammar (`grammar/lexical.ebnf`) carries a
         // token-kind cross-reference comment block. Every variant of
         // `SchemaTokenKind` must appear there.
-        let grammar_path = std::path::PathBuf::from(env!("CARGO_MANIFEST_DIR"))
-            .join("grammar/lexical.ebnf");
+        let grammar_path =
+            std::path::PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("grammar/lexical.ebnf");
         let grammar = std::fs::read_to_string(&grammar_path).unwrap();
         for kind in [
             "NodeStart",
@@ -1141,10 +1154,9 @@ mod tests {
         .unwrap();
         let (tokens, diags) = tokenize(&input);
         assert!(
-            diags.iter().all(|d| !matches!(
-                d.severity,
-                Severity::Error | Severity::Fatal
-            )),
+            diags
+                .iter()
+                .all(|d| !matches!(d.severity, Severity::Error | Severity::Fatal)),
             "expected no Error/Fatal diags, got: {diags:?}"
         );
         // Smoke-test: at least one NodeStart `main`, one Directive `doc`.

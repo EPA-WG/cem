@@ -1,8 +1,8 @@
 mod cli;
 mod dispatch;
 
-use clap::Parser;
 use cem_ml::real::RealCemMlEngine;
+use clap::Parser;
 use dispatch::{Outcome, Streams};
 use std::io;
 use std::process::ExitCode;

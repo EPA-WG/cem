@@ -56,10 +56,7 @@ fn engine_input(
     })
 }
 
-fn placeholder_input(
-    path: &Path,
-    from_format: Option<cli::InputFormat>,
-) -> eng::EngineInput {
+fn placeholder_input(path: &Path, from_format: Option<cli::InputFormat>) -> eng::EngineInput {
     eng::EngineInput {
         uri: path.display().to_string(),
         bytes: Vec::new(),
@@ -71,15 +68,10 @@ fn collect_inputs(
     paths: &[std::path::PathBuf],
     from_format: Option<cli::InputFormat>,
 ) -> Result<Vec<eng::EngineInput>, EngineError> {
-    paths
-        .iter()
-        .map(|p| engine_input(p, from_format))
-        .collect()
+    paths.iter().map(|p| engine_input(p, from_format)).collect()
 }
 
-fn collect_fixture_inputs(
-    paths: &[std::path::PathBuf],
-) -> Vec<eng::EngineInput> {
+fn collect_fixture_inputs(paths: &[std::path::PathBuf]) -> Vec<eng::EngineInput> {
     let resolved: Vec<&Path> = if paths.is_empty() {
         DEFAULT_FIXTURES.iter().map(Path::new).collect()
     } else {
@@ -114,6 +106,7 @@ fn to_engine_input_format(f: cli::InputFormat) -> eng::InputFormat {
 
 fn to_engine_layer_format(f: cli::LayerFormat) -> eng::LayerFormat {
     match f {
+        cli::LayerFormat::Cem => eng::LayerFormat::Cem,
         cli::LayerFormat::DomJson => eng::LayerFormat::DomJson,
         cli::LayerFormat::Ast => eng::LayerFormat::Ast,
         cli::LayerFormat::Events => eng::LayerFormat::Events,
@@ -328,10 +321,7 @@ fn render_report_markdown(report: &cem_ml::report::Report) -> String {
     out
 }
 
-fn fail_for_summary(
-    fail_level: cli::FailLevel,
-    report: &cem_ml::report::Report,
-) -> bool {
+fn fail_for_summary(fail_level: cli::FailLevel, report: &cem_ml::report::Report) -> bool {
     let s = &report.summary;
     match fail_level {
         cli::FailLevel::Strict => {
@@ -388,7 +378,8 @@ pub fn run_validate<E: CemMlEngine + ?Sized>(
     };
     match engine.validate(req) {
         Ok(resp) => {
-            if let Err(e) = write_report_files(&resp.report, &args.report, REPORT_BASENAME_VALIDATE) {
+            if let Err(e) = write_report_files(&resp.report, &args.report, REPORT_BASENAME_VALIDATE)
+            {
                 let _ = writeln!(s.stderr, "cem-ml: report write failure: {e}");
                 return Outcome::code(EXIT_IO);
             }
@@ -424,7 +415,8 @@ pub fn run_check<E: CemMlEngine + ?Sized>(
     };
     match engine.check(req) {
         Ok(resp) => {
-            if let Err(e) = write_report_files(&resp.report, &args.report, REPORT_BASENAME_VALIDATE) {
+            if let Err(e) = write_report_files(&resp.report, &args.report, REPORT_BASENAME_VALIDATE)
+            {
                 let _ = writeln!(s.stderr, "cem-ml: report write failure: {e}");
                 return Outcome::code(EXIT_IO);
             }
@@ -587,7 +579,8 @@ pub fn run_fixture_validate<E: CemMlEngine + ?Sized>(
     };
     match engine.fixture_validate(req) {
         Ok(resp) => {
-            if let Err(e) = write_report_files(&resp.report, &args.report, REPORT_BASENAME_VALIDATE) {
+            if let Err(e) = write_report_files(&resp.report, &args.report, REPORT_BASENAME_VALIDATE)
+            {
                 let _ = writeln!(s.stderr, "cem-ml: report write failure: {e}");
                 return Outcome::code(EXIT_IO);
             }
@@ -621,7 +614,9 @@ pub fn run_fixture_roundtrip<E: CemMlEngine + ?Sized>(
     };
     match engine.fixture_roundtrip(req) {
         Ok(resp) => {
-            if let Err(e) = write_report_files(&resp.report, &args.report, REPORT_BASENAME_ROUNDTRIP) {
+            if let Err(e) =
+                write_report_files(&resp.report, &args.report, REPORT_BASENAME_ROUNDTRIP)
+            {
                 let _ = writeln!(s.stderr, "cem-ml: report write failure: {e}");
                 return Outcome::code(EXIT_IO);
             }
@@ -719,10 +714,7 @@ mod tests {
     #[test]
     fn parse_with_not_implemented_engine_exits_zero_and_warns() {
         let p = write_fixture("parse-not-impl.cem", "{x}");
-        let (outcome, _, stderr) = run(
-            &NotImplementedEngine,
-            &["parse", p.to_str().unwrap()],
-        );
+        let (outcome, _, stderr) = run(&NotImplementedEngine, &["parse", p.to_str().unwrap()]);
         assert_eq!(outcome.exit_code, EXIT_OK);
         assert!(stderr.contains("parser engine not yet implemented"));
     }
@@ -754,10 +746,18 @@ mod tests {
         let _ = std::fs::remove_file(&out_path);
         let (outcome, stdout, _) = run(
             &FakeEngine,
-            &["parse", "--out", out_path.to_str().unwrap(), p.to_str().unwrap()],
+            &[
+                "parse",
+                "--out",
+                out_path.to_str().unwrap(),
+                p.to_str().unwrap(),
+            ],
         );
         assert_eq!(outcome.exit_code, EXIT_OK);
-        assert!(stdout.is_empty(), "stdout should be empty when --out is used");
+        assert!(
+            stdout.is_empty(),
+            "stdout should be empty when --out is used"
+        );
         let written = std::fs::read_to_string(&out_path).unwrap();
         let v: serde_json::Value = serde_json::from_str(&written).unwrap();
         assert_eq!(v["kind"], "fake-parse");
@@ -825,11 +825,7 @@ mod tests {
         let p = write_fixture("check-zhv.cem", "{x}");
         let (outcome, _, _) = run(
             &FakeEngine,
-            &[
-                "check",
-                "--zero-hard-violations",
-                p.to_str().unwrap(),
-            ],
+            &["check", "--zero-hard-violations", p.to_str().unwrap()],
         );
         assert_eq!(outcome.exit_code, EXIT_OK);
     }
@@ -874,7 +870,14 @@ mod tests {
         let p = write_fixture("bench.cem", "{x}");
         let (outcome, stdout, _) = run(
             &FakeEngine,
-            &["bench", "--format", "json", "--iterations", "3", p.to_str().unwrap()],
+            &[
+                "bench",
+                "--format",
+                "json",
+                "--iterations",
+                "3",
+                p.to_str().unwrap(),
+            ],
         );
         assert_eq!(outcome.exit_code, EXIT_OK);
         let v: serde_json::Value = serde_json::from_str(stdout.trim()).unwrap();
@@ -988,10 +991,7 @@ mod tests {
     #[test]
     fn quiet_suppresses_stdout_for_validate() {
         let p = write_fixture("validate-quiet.cem", "{x}");
-        let (outcome, stdout, _) = run(
-            &FakeEngine,
-            &["--quiet", "validate", p.to_str().unwrap()],
-        );
+        let (outcome, stdout, _) = run(&FakeEngine, &["--quiet", "validate", p.to_str().unwrap()]);
         assert_eq!(outcome.exit_code, EXIT_OK);
         assert!(stdout.is_empty());
     }

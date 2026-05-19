@@ -8,6 +8,7 @@
 use crate::diagnostics::Diagnostic;
 use crate::engine::*;
 use crate::events::cem::CemEventNormalizer;
+use crate::formatter;
 use crate::interpreter::light_dom::LightDomInterpreter;
 use crate::parser::builder::CemAstBuilder;
 use crate::parser::document::CemDocument;
@@ -17,6 +18,9 @@ use crate::schema::machine::CemSchemaMachine;
 use crate::schema::vocab::CompiledSchema;
 use crate::source::{BytesSource, SourceId};
 use crate::tokenizer::cem::CemTokenizer;
+use crate::tokenizer::html::HtmlTokenizer;
+use crate::tokenizer::xml::XmlTokenizer;
+use crate::tokenizer::SchemaTokenizer;
 use crate::validation::{RuleContext, RuleRegistry};
 use serde_json::{json, Value};
 use std::time::Instant;
@@ -38,10 +42,25 @@ struct PipelineRun {
 }
 
 fn run_pipeline(bytes: &[u8]) -> PipelineRun {
+    run_pipeline_as(bytes, InputFormat::Cem)
+}
+
+fn run_pipeline_as(bytes: &[u8], from_format: InputFormat) -> PipelineRun {
+    match from_format {
+        InputFormat::Cem => run_pipeline_with::<CemTokenizer>(bytes),
+        InputFormat::Html => run_pipeline_with::<HtmlTokenizer>(bytes),
+        InputFormat::Xml => run_pipeline_with::<XmlTokenizer>(bytes),
+    }
+}
+
+fn run_pipeline_with<T>(bytes: &[u8]) -> PipelineRun
+where
+    T: SchemaTokenizer + FromBytes,
+{
     // Schema-machine pass.
     let schema_outcome = {
         let src = BytesSource::new(SourceId(1), bytes.to_vec());
-        let tok = CemTokenizer::from_source(src);
+        let tok = T::from_bytes(src);
         let normalizer = CemEventNormalizer::new(tok);
         CemSchemaMachine::new(CompiledSchema::cem_core(), normalizer).run()
     };
@@ -49,7 +68,7 @@ fn run_pipeline(bytes: &[u8]) -> PipelineRun {
     // AST + tokenizer-diag fold (separate parse so token-diags surface).
     let mut document = {
         let src = BytesSource::new(SourceId(1), bytes.to_vec());
-        let mut tok = CemTokenizer::from_source(src);
+        let mut tok = T::from_bytes(src);
         let tok_diags = tok.take_diagnostics();
         let normalizer = CemEventNormalizer::new(tok);
         let mut doc = CemAstBuilder::new(normalizer).build();
@@ -67,7 +86,42 @@ fn run_pipeline(bytes: &[u8]) -> PipelineRun {
 
     let mut diagnostics = document.diagnostics.clone();
     diagnostics.extend(rule_diags);
-    PipelineRun { document, diagnostics }
+    PipelineRun {
+        document,
+        diagnostics,
+    }
+}
+
+trait FromBytes: Sized {
+    fn from_bytes(src: BytesSource) -> Self;
+    fn take_diagnostics(&mut self) -> Vec<Diagnostic>;
+}
+
+impl FromBytes for CemTokenizer {
+    fn from_bytes(src: BytesSource) -> Self {
+        CemTokenizer::from_source(src)
+    }
+    fn take_diagnostics(&mut self) -> Vec<Diagnostic> {
+        CemTokenizer::take_diagnostics(self)
+    }
+}
+
+impl FromBytes for HtmlTokenizer {
+    fn from_bytes(src: BytesSource) -> Self {
+        HtmlTokenizer::from_source(src)
+    }
+    fn take_diagnostics(&mut self) -> Vec<Diagnostic> {
+        HtmlTokenizer::take_diagnostics(self)
+    }
+}
+
+impl FromBytes for XmlTokenizer {
+    fn from_bytes(src: BytesSource) -> Self {
+        XmlTokenizer::from_source(src)
+    }
+    fn take_diagnostics(&mut self) -> Vec<Diagnostic> {
+        XmlTokenizer::take_diagnostics(self)
+    }
 }
 
 fn fail_level_to_report(level: FailLevel) -> FailLevel {
@@ -89,13 +143,14 @@ fn input_uris(inputs: &[EngineInput]) -> Vec<String> {
 
 impl CemMlEngine for RealCemMlEngine {
     fn parse(&self, request: ParseRequest) -> EngineResult<ParseResponse> {
-        let run = run_pipeline(&request.input.bytes);
+        let from_format = request.input.from_format.unwrap_or(InputFormat::Cem);
+        let run = run_pipeline_as(&request.input.bytes, from_format);
         let primary = match request.projection {
-            ParseProjection::DomJson | ParseProjection::Json => {
-                projection::dom_json(&run.document)
-            }
+            ParseProjection::DomJson | ParseProjection::Json => projection::dom_json(&run.document),
             ParseProjection::Ast => projection::ast_json(&run.document),
-            ParseProjection::Events => projection::events_json(&request.input.bytes),
+            ParseProjection::Events => {
+                projection::events_json_as(&request.input.bytes, from_format)
+            }
         };
         Ok(ParseResponse {
             primary,
@@ -107,7 +162,7 @@ impl CemMlEngine for RealCemMlEngine {
         let inputs = input_uris(&request.inputs);
         let mut all_diags: Vec<Diagnostic> = Vec::new();
         for input in &request.inputs {
-            let run = run_pipeline(&input.bytes);
+            let run = run_pipeline_as(&input.bytes, input.from_format.unwrap_or(InputFormat::Cem));
             all_diags.extend(run.diagnostics);
         }
         let report = Report::deterministic(
@@ -122,7 +177,7 @@ impl CemMlEngine for RealCemMlEngine {
         let inputs = input_uris(&request.inputs);
         let mut all_diags: Vec<Diagnostic> = Vec::new();
         for input in &request.inputs {
-            let run = run_pipeline(&input.bytes);
+            let run = run_pipeline_as(&input.bytes, input.from_format.unwrap_or(InputFormat::Cem));
             all_diags.extend(run.diagnostics);
         }
         let report = Report::deterministic(
@@ -138,7 +193,8 @@ impl CemMlEngine for RealCemMlEngine {
     }
 
     fn inspect(&self, request: InspectRequest) -> EngineResult<InspectResponse> {
-        let run = run_pipeline(&request.input.bytes);
+        let from_format = request.input.from_format.unwrap_or(InputFormat::Cem);
+        let run = run_pipeline_as(&request.input.bytes, from_format);
         let body = match request.show {
             InspectView::Summary => {
                 let elements = run
@@ -160,7 +216,7 @@ impl CemMlEngine for RealCemMlEngine {
                 })
             }
             InspectView::Ast => projection::ast_json(&run.document),
-            InspectView::Events => projection::events_json(&request.input.bytes),
+            InspectView::Events => projection::events_json_as(&request.input.bytes, from_format),
             InspectView::Diagnostics => json!({
                 "kind": "diagnostics",
                 "input": request.input.uri,
@@ -191,11 +247,31 @@ impl CemMlEngine for RealCemMlEngine {
     }
 
     fn convert(&self, request: ConvertRequest) -> EngineResult<ConvertResponse> {
-        let run = run_pipeline(&request.input.bytes);
+        let from_format = request.input.from_format.unwrap_or(InputFormat::Cem);
+        let run = run_pipeline_as(&request.input.bytes, from_format);
         let primary = match request.to_format {
+            LayerFormat::Cem => {
+                let formatted = formatter::format_transform(
+                    &run.document,
+                    match from_format {
+                        InputFormat::Cem => "application/cem",
+                        InputFormat::Html => "text/html",
+                        InputFormat::Xml => "application/xml",
+                    },
+                );
+                json!({
+                    "kind": "cem",
+                    "content": formatted.rendered,
+                    "sourceMap": formatted.source_map,
+                    "outputSpans": formatted.output_spans.iter().map(|span| json!({
+                        "outputRange": span.output_range,
+                        "origin": span.origin,
+                    })).collect::<Vec<_>>(),
+                })
+            }
             LayerFormat::DomJson => projection::dom_json(&run.document),
             LayerFormat::Ast => projection::ast_json(&run.document),
-            LayerFormat::Events => projection::events_json(&request.input.bytes),
+            LayerFormat::Events => projection::events_json_as(&request.input.bytes, from_format),
         };
         Ok(ConvertResponse {
             primary,
@@ -204,10 +280,11 @@ impl CemMlEngine for RealCemMlEngine {
     }
 
     fn trace(&self, request: TraceRequest) -> EngineResult<TraceResponse> {
+        let from_format = request.input.from_format.unwrap_or(InputFormat::Cem);
         let body = json!({
             "kind": "trace",
             "input": request.input.uri,
-            "events": projection::events_json(&request.input.bytes),
+            "events": projection::events_json_as(&request.input.bytes, from_format),
         });
         Ok(TraceResponse { body })
     }
@@ -273,7 +350,7 @@ impl CemMlEngine for RealCemMlEngine {
             } else {
                 input.bytes.clone()
             };
-            let run = run_pipeline(&bytes);
+            let run = run_pipeline_as(&bytes, input.from_format.unwrap_or(InputFormat::Cem));
             all_diags.extend(run.diagnostics);
         }
         let report = Report::deterministic(
@@ -305,7 +382,7 @@ impl CemMlEngine for RealCemMlEngine {
             } else {
                 input.bytes.clone()
             };
-            let run = run_pipeline(&bytes);
+            let run = run_pipeline_as(&bytes, input.from_format.unwrap_or(InputFormat::Cem));
             let rendered = LightDomInterpreter::new().render(&run.document);
             artifacts.push(json!({
                 "input": input.uri,
@@ -427,6 +504,84 @@ mod tests {
     }
 
     #[test]
+    fn convert_html_to_canonical_cem_ml_returns_source_map() {
+        let req = ConvertRequest {
+            input: EngineInput {
+                uri: "in.html".to_owned(),
+                bytes: br#"<button cem:action="primary" type="submit">Save</button>"#.to_vec(),
+                from_format: Some(InputFormat::Html),
+            },
+            to_format: LayerFormat::Cem,
+            preserve_source_offsets: true,
+            context: ctx(),
+        };
+        let resp = RealCemMlEngine::new().convert(req).unwrap();
+        assert_eq!(resp.primary["kind"], "cem");
+        assert_eq!(
+            resp.primary["content"].as_str().unwrap(),
+            "{button @type=submit @cem:action=primary | Save}\n"
+        );
+        assert!(resp.primary["outputSpans"]
+            .as_array()
+            .unwrap()
+            .iter()
+            .any(|span| {
+                span["origin"]["frames"]
+                    .as_array()
+                    .unwrap()
+                    .iter()
+                    .any(|frame| frame["transform"]["kind"] == "HtmlTokenizer")
+                    && span["origin"]["frames"]
+                        .as_array()
+                        .unwrap()
+                        .iter()
+                        .any(|frame| {
+                            frame["transform"]["kind"] == "ContentTypeTransform"
+                                && frame["transform"]["content_type"] == "text/html"
+                        })
+            }));
+    }
+
+    #[test]
+    fn convert_xml_to_canonical_cem_ml_returns_source_map() {
+        let req = ConvertRequest {
+            input: EngineInput {
+                uri: "in.xml".to_owned(),
+                bytes: br#"<button cem:action="primary" type="submit">Save</button>"#.to_vec(),
+                from_format: Some(InputFormat::Xml),
+            },
+            to_format: LayerFormat::Cem,
+            preserve_source_offsets: true,
+            context: ctx(),
+        };
+        let resp = RealCemMlEngine::new().convert(req).unwrap();
+        assert_eq!(resp.primary["kind"], "cem");
+        assert_eq!(
+            resp.primary["content"].as_str().unwrap(),
+            "{button @type=submit @cem:action=primary | Save}\n"
+        );
+        assert!(resp.primary["outputSpans"]
+            .as_array()
+            .unwrap()
+            .iter()
+            .any(|span| {
+                span["origin"]["frames"]
+                    .as_array()
+                    .unwrap()
+                    .iter()
+                    .any(|frame| frame["transform"]["kind"] == "XmlTokenizer")
+                    && span["origin"]["frames"]
+                        .as_array()
+                        .unwrap()
+                        .iter()
+                        .any(|frame| {
+                            frame["transform"]["kind"] == "ContentTypeTransform"
+                                && frame["transform"]["content_type"] == "application/xml"
+                        })
+            }));
+    }
+
+    #[test]
     fn bench_records_iteration_timings() {
         let req = BenchRequest {
             inputs: vec![input(b"{p Hi}", "in")],
@@ -446,14 +601,15 @@ mod tests {
     #[test]
     fn fixture_validate_reads_default_fixture_paths_from_disk() {
         let workspace = std::path::PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("../..");
-        let inputs: Vec<EngineInput> = vec!["examples/cem-ml/login.cem", "examples/cem-ml/profile.cem"]
-            .into_iter()
-            .map(|p| EngineInput {
-                uri: workspace.join(p).to_string_lossy().into_owned(),
-                bytes: Vec::new(),
-                from_format: None,
-            })
-            .collect();
+        let inputs: Vec<EngineInput> =
+            vec!["examples/cem-ml/login.cem", "examples/cem-ml/profile.cem"]
+                .into_iter()
+                .map(|p| EngineInput {
+                    uri: workspace.join(p).to_string_lossy().into_owned(),
+                    bytes: Vec::new(),
+                    from_format: None,
+                })
+                .collect();
         let req = FixtureValidateRequest {
             inputs,
             fail_level: FailLevel::Validate,

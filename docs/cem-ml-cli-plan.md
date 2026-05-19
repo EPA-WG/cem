@@ -169,7 +169,7 @@ These are data shapes only. Parser-filled content remains blocked until the pars
     - `--fail-level parse|validate|strict`
     - `--format text|html|json|xml|cem|markdown|dom-json|ast|events|tree`
     - `--from-format cem|html|xml`
-    - `--to-format dom-json|ast|events`
+    - `--to-format cem|dom-json|ast|events`
     - `--show summary|ast|events|diagnostics|source-offsets|tree`
     - `--iterations <n>`
     - `--budget-ms <n>`
@@ -254,7 +254,7 @@ These are data shapes only. Parser-filled content remains blocked until the pars
     - Benchmarking uses the engine boundary; parser performance work is deferred.
 9. `cem-ml fixture roundtrip [input...]`
     - Defaults to the canonical CEM-ML fixtures and HTML parity fixtures.
-    - Supports `--to-format dom-json|ast|events`.
+    - Supports `--to-format cem|dom-json|ast|events`.
     - Transform/render snapshots remain deferred.
 
 ## Phase 7 - File I/O And Reports

@@ -30,7 +30,7 @@ pub mod format;
 
 pub use decode::DebugBinaryDecoder;
 pub use encode::DebugBinaryEncoder;
-pub use format::{ChunkMetadata, BinaryAstPayload, MAGIC, VERSION};
+pub use format::{BinaryAstPayload, ChunkMetadata, MAGIC, VERSION};
 
 use crate::parser::CemAstNode;
 
@@ -100,7 +100,9 @@ mod tests {
 
     #[test]
     fn nested_attributes_round_trip() {
-        let doc = parse(r#"{form @method=post | {label @for=email | Email} {input @id=email @required}}"#);
+        let doc = parse(
+            r#"{form @method=post | {label @for=email | Email} {input @id=email @required}}"#,
+        );
         let (_, decoded) = round_trip(&doc);
         assert_documents_equivalent(&doc, &decoded);
         // id_table content survives the round trip.
@@ -123,7 +125,10 @@ mod tests {
         let idx = bytes.len() / 2;
         bytes[idx] ^= 0xFF;
         let err = DebugBinaryDecoder::new().decode(&bytes).unwrap_err();
-        assert!(matches!(err, crate::ast::decode::DecodeError::IntegrityMismatch { .. }));
+        assert!(matches!(
+            err,
+            crate::ast::decode::DecodeError::IntegrityMismatch { .. }
+        ));
     }
 
     #[test]
@@ -145,8 +150,8 @@ mod tests {
 
     #[test]
     fn every_canonical_fixture_round_trips() {
-        let dir = std::path::PathBuf::from(env!("CARGO_MANIFEST_DIR"))
-            .join("../../examples/cem-ml");
+        let dir =
+            std::path::PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("../../examples/cem-ml");
         let mut checked = 0;
         for entry in std::fs::read_dir(&dir).unwrap() {
             let path = entry.unwrap().path();

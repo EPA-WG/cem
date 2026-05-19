@@ -158,10 +158,7 @@ impl<E: EventNormalizer> CemAstBuilder<E> {
         self.doc.nodes.push(element);
         // Link into the parent's children.
         self.attach_child(node_id);
-        self.stack.push(Frame::Element {
-            id: node_id,
-            name,
-        });
+        self.stack.push(Frame::Element { id: node_id, name });
     }
 
     fn on_close(&mut self) {
@@ -415,17 +412,16 @@ impl<E: EventNormalizer> CemAstBuilder<E> {
                 uri: None,
                 line: None,
                 column: None,
-                byte_offset: slot
-                    .source
-                    .frames
-                    .last()
-                    .and_then(|f| match &f.span {
-                        FrameSpan::Single(r) => Some(r.start),
-                        FrameSpan::Multi(rs) => rs.first().map(|r| r.start),
-                    }),
+                byte_offset: slot.source.frames.last().and_then(|f| match &f.span {
+                    FrameSpan::Single(r) => Some(r.start),
+                    FrameSpan::Multi(rs) => rs.first().map(|r| r.start),
+                }),
                 code: "cem.ast.unresolved_reference".to_owned(),
                 severity: Severity::Warning,
-                message: format!("reference `{}` did not match any element id", slot.target_name),
+                message: format!(
+                    "reference `{}` did not match any element id",
+                    slot.target_name
+                ),
                 node: None,
                 source_map: None,
             });
@@ -452,7 +448,10 @@ mod tests {
     #[test]
     fn document_root_is_node_zero() {
         let doc = parse("{p Hello}");
-        assert!(matches!(doc.root(), Some(CemAstNode::Document { node_id: 0, .. })));
+        assert!(matches!(
+            doc.root(),
+            Some(CemAstNode::Document { node_id: 0, .. })
+        ));
     }
 
     #[test]
@@ -477,9 +476,11 @@ mod tests {
             CemAstNode::Element { attributes, .. } => attributes
                 .iter()
                 .filter_map(|a| match doc.get(*a) {
-                    Some(CemAstNode::Attribute { expanded_name, value, .. }) => {
-                        Some((expanded_name.local_name.clone(), value.clone()))
-                    }
+                    Some(CemAstNode::Attribute {
+                        expanded_name,
+                        value,
+                        ..
+                    }) => Some((expanded_name.local_name.clone(), value.clone())),
                     _ => None,
                 })
                 .collect(),
@@ -499,11 +500,11 @@ mod tests {
         let req = attributes
             .iter()
             .find_map(|a| match doc.get(*a) {
-                Some(CemAstNode::Attribute { expanded_name, value, .. })
-                    if expanded_name.local_name == "required" =>
-                {
-                    Some(value.clone())
-                }
+                Some(CemAstNode::Attribute {
+                    expanded_name,
+                    value,
+                    ..
+                }) if expanded_name.local_name == "required" => Some(value.clone()),
                 _ => None,
             })
             .unwrap();
@@ -570,7 +571,9 @@ mod tests {
         let button = query::find_by_local_name(&doc, "button").next().unwrap();
         let annotations: Vec<&str> = query::cem_annotations(&doc, button)
             .filter_map(|a| match a {
-                CemAstNode::Attribute { expanded_name, .. } => Some(expanded_name.local_name.as_str()),
+                CemAstNode::Attribute { expanded_name, .. } => {
+                    Some(expanded_name.local_name.as_str())
+                }
                 _ => None,
             })
             .collect();
@@ -588,16 +591,16 @@ mod tests {
         );
         let screens: Vec<&str> = query::elements_with_annotation(&doc, "screen")
             .filter_map(|n| match n {
-                CemAstNode::Element { attributes, .. } => attributes
-                    .iter()
-                    .find_map(|a| match doc.get(*a) {
-                        Some(CemAstNode::Attribute { expanded_name, value, .. })
-                            if expanded_name.local_name == "screen" =>
-                        {
-                            value.as_deref()
-                        }
+                CemAstNode::Element { attributes, .. } => {
+                    attributes.iter().find_map(|a| match doc.get(*a) {
+                        Some(CemAstNode::Attribute {
+                            expanded_name,
+                            value,
+                            ..
+                        }) if expanded_name.local_name == "screen" => value.as_deref(),
                         _ => None,
-                    }),
+                    })
+                }
                 _ => None,
             })
             .collect();
@@ -606,13 +609,16 @@ mod tests {
 
     #[test]
     fn fixture_login_cem_parses_into_expected_shape() {
-        let dir = std::path::PathBuf::from(env!("CARGO_MANIFEST_DIR"))
-            .join("../../examples/cem-ml");
+        let dir =
+            std::path::PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("../../examples/cem-ml");
         let input = std::fs::read_to_string(dir.join("login.cem")).unwrap();
         let doc = parse(&input);
         // Must have a main element with cem:screen="login".
         let logins: Vec<_> = query::elements_with_annotation(&doc, "screen").collect();
-        assert!(!logins.is_empty(), "expected at least one cem:screen element");
+        assert!(
+            !logins.is_empty(),
+            "expected at least one cem:screen element"
+        );
         // The login screen is wrapped in a `main`.
         let mains: Vec<_> = query::find_by_local_name(&doc, "main").collect();
         assert!(!mains.is_empty(), "expected at least one main element");
@@ -623,8 +629,8 @@ mod tests {
 
     #[test]
     fn every_canonical_fixture_parses_without_ast_hard_violations() {
-        let dir = std::path::PathBuf::from(env!("CARGO_MANIFEST_DIR"))
-            .join("../../examples/cem-ml");
+        let dir =
+            std::path::PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("../../examples/cem-ml");
         let mut checked = 0;
         for entry in std::fs::read_dir(&dir).unwrap() {
             let path = entry.unwrap().path();

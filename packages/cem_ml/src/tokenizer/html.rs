@@ -49,8 +49,8 @@ pub struct HtmlTokenizer {
 }
 
 const VOID_ELEMENTS: &[&str] = &[
-    "area", "base", "br", "col", "embed", "hr", "img", "input", "link", "meta", "param",
-    "source", "track", "wbr",
+    "area", "base", "br", "col", "embed", "hr", "img", "input", "link", "meta", "param", "source",
+    "track", "wbr",
 ];
 
 fn is_void(name: &str) -> bool {
@@ -188,7 +188,10 @@ impl HtmlTokenizer {
             .map(|(c, _)| c.to_ascii_lowercase())
             .collect();
         let head_range = self.range_from(open_start, self.cursor);
-        self.emit(SchemaTokenKind::NodeStart { name: name.clone() }, head_range);
+        self.emit(
+            SchemaTokenKind::NodeStart { name: name.clone() },
+            head_range,
+        );
 
         let mut self_closing = false;
         loop {
@@ -353,12 +356,7 @@ impl HtmlTokenizer {
             self.advance();
         }
         let range = self.range_from(open_start, self.cursor);
-        self.emit(
-            SchemaTokenKind::NodeEnd {
-                name: Some(name),
-            },
-            range,
-        );
+        self.emit(SchemaTokenKind::NodeEnd { name: Some(name) }, range);
     }
 
     fn scan_markup_declaration(&mut self, open_start: usize) {
@@ -791,8 +789,8 @@ mod tests {
 
     #[test]
     fn all_parity_fixtures_tokenize_without_hard_violations() {
-        let dir = std::path::PathBuf::from(env!("CARGO_MANIFEST_DIR"))
-            .join("../../examples/semantic");
+        let dir =
+            std::path::PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("../../examples/semantic");
         let mut checked = 0;
         for entry in std::fs::read_dir(&dir).unwrap() {
             let path = entry.unwrap().path();

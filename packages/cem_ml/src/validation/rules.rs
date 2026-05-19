@@ -17,12 +17,7 @@ use crate::validation::{
     RuleContext, RuleDescriptor, RuleId, RuleInput, SemanticRule, TriggerLayer,
 };
 
-fn diag_at(
-    code: &str,
-    severity: Severity,
-    message: String,
-    node: &CemAstNode,
-) -> Diagnostic {
+fn diag_at(code: &str, severity: Severity, message: String, node: &CemAstNode) -> Diagnostic {
     let stack = match node {
         CemAstNode::Document { source, .. }
         | CemAstNode::Element { source, .. }
@@ -35,13 +30,10 @@ fn diag_at(
         | CemAstNode::RawText { source, .. }
         | CemAstNode::Error { source, .. } => source,
     };
-    let byte_offset = stack
-        .frames
-        .first()
-        .and_then(|f| match &f.span {
-            FrameSpan::Single(r) => Some(r.start),
-            FrameSpan::Multi(rs) => rs.first().map(|r| r.start),
-        });
+    let byte_offset = stack.frames.first().and_then(|f| match &f.span {
+        FrameSpan::Single(r) => Some(r.start),
+        FrameSpan::Multi(rs) => rs.first().map(|r| r.start),
+    });
     Diagnostic {
         uri: None,
         line: None,
@@ -197,16 +189,10 @@ fn accessible_name_descriptor() -> &'static RuleDescriptor {
 }
 
 fn is_interactive_element(local: &str) -> bool {
-    matches!(
-        local,
-        "button" | "a" | "select" | "textarea"
-    )
+    matches!(local, "button" | "a" | "select" | "textarea")
 }
 
-fn has_accessible_name(
-    doc: &crate::parser::document::CemDocument,
-    element: &CemAstNode,
-) -> bool {
+fn has_accessible_name(doc: &crate::parser::document::CemDocument, element: &CemAstNode) -> bool {
     // ARIA labelling attributes.
     for attr in element_attributes(doc, element) {
         let Some((_, local, value)) = attribute_parts(attr) else {
@@ -222,19 +208,18 @@ fn has_accessible_name(
     has_visible_text(doc, element)
 }
 
-fn has_visible_text(
-    doc: &crate::parser::document::CemDocument,
-    node: &CemAstNode,
-) -> bool {
+fn has_visible_text(doc: &crate::parser::document::CemDocument, node: &CemAstNode) -> bool {
     match node {
         CemAstNode::Text { data, .. } => !data.trim().is_empty(),
-        CemAstNode::Element { children, .. } | CemAstNode::Document { root_children: children, .. } => {
-            children.iter().any(|c| {
-                doc.get(*c)
-                    .map(|n| has_visible_text(doc, n))
-                    .unwrap_or(false)
-            })
-        }
+        CemAstNode::Element { children, .. }
+        | CemAstNode::Document {
+            root_children: children,
+            ..
+        } => children.iter().any(|c| {
+            doc.get(*c)
+                .map(|n| has_visible_text(doc, n))
+                .unwrap_or(false)
+        }),
         _ => false,
     }
 }
@@ -591,7 +576,10 @@ impl SemanticRule for EventHandlerAttributeRule {
             };
             let local = &expanded_name.local_name;
             // DOM-style event handlers: `on*` with at least one trailing char.
-            if local.len() > 2 && local.starts_with("on") && local.chars().nth(2).unwrap().is_alphabetic() {
+            if local.len() > 2
+                && local.starts_with("on")
+                && local.chars().nth(2).unwrap().is_alphabetic()
+            {
                 out.push(diag_at(
                     "cem.unsafe.event_handler_attribute",
                     Severity::Error,
@@ -697,8 +685,7 @@ mod tests {
 
     #[test]
     fn state_combination_clean_when_single_state() {
-        let diags =
-            run_rules(r#"{button @cem:action=primary @cem:state="disabled" | Save}"#);
+        let diags = run_rules(r#"{button @cem:action=primary @cem:state="disabled" | Save}"#);
         assert!(diags
             .iter()
             .all(|d| d.code != "cem.state.invalid_combination"));
@@ -719,9 +706,7 @@ mod tests {
     #[test]
     fn safe_url_passes() {
         let diags = run_rules(r#"{a @href="/dashboard" | Dashboard}"#);
-        assert!(diags
-            .iter()
-            .all(|d| d.code != "cem.unsafe.javascript_url"));
+        assert!(diags.iter().all(|d| d.code != "cem.unsafe.javascript_url"));
     }
 
     #[test]

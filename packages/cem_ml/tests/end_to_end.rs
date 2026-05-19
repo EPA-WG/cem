@@ -33,8 +33,7 @@ use cem_ml::tokenizer::{SchemaToken, SchemaTokenizer};
 use cem_ml::validation;
 
 fn fixtures() -> Vec<std::path::PathBuf> {
-    let dir = std::path::PathBuf::from(env!("CARGO_MANIFEST_DIR"))
-        .join("../../examples/cem-ml");
+    let dir = std::path::PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("../../examples/cem-ml");
     let mut paths: Vec<_> = std::fs::read_dir(&dir)
         .unwrap()
         .filter_map(|e| e.ok())
@@ -93,7 +92,10 @@ fn every_canonical_fixture_runs_through_every_layer() {
                 hard.is_empty(),
                 "[{fixture_name}] tokenizer hard diags: {hard:?}"
             );
-            assert!(!tokens.is_empty(), "[{fixture_name}] tokenizer emitted no tokens");
+            assert!(
+                !tokens.is_empty(),
+                "[{fixture_name}] tokenizer emitted no tokens"
+            );
         }
 
         // 3. Event normalizer: open/close balance.
@@ -128,8 +130,7 @@ fn every_canonical_fixture_runs_through_every_layer() {
                 .iter()
                 .filter(|d| {
                     matches!(d.severity, Severity::Error | Severity::Fatal)
-                        && (d.code.starts_with("cem.schema.")
-                            || d.code.starts_with("cem.handoff."))
+                        && (d.code.starts_with("cem.schema.") || d.code.starts_with("cem.handoff."))
                 })
                 .collect();
             assert!(
@@ -145,10 +146,7 @@ fn every_canonical_fixture_runs_through_every_layer() {
             let n = CemEventNormalizer::new(tok);
             CemAstBuilder::new(n).build()
         };
-        assert!(
-            !document.nodes.is_empty(),
-            "[{fixture_name}] AST is empty"
-        );
+        assert!(!document.nodes.is_empty(), "[{fixture_name}] AST is empty");
         assert!(
             matches!(document.nodes[0], CemAstNode::Document { .. }),
             "[{fixture_name}] node[0] is not Document"
@@ -159,7 +157,8 @@ fn every_canonical_fixture_runs_through_every_layer() {
         let report = validation::run(input);
         let hard = report.hard_violations();
         assert_eq!(
-            hard, 0,
+            hard,
+            0,
             "[{fixture_name}] validation::run produced {hard} hard violation(s): {:?}",
             report
                 .diagnostics
@@ -243,7 +242,10 @@ fn pipeline_is_deterministic_across_re_runs() {
         let input = std::fs::read_to_string(&path).unwrap();
         let a = render_html(&input);
         let b = render_html(&input);
-        assert_eq!(a.rendered, b.rendered, "non-deterministic render for {path:?}");
+        assert_eq!(
+            a.rendered, b.rendered,
+            "non-deterministic render for {path:?}"
+        );
         let codes_a: Vec<&str> = a.diagnostics.iter().map(|d| d.code.as_str()).collect();
         let codes_b: Vec<&str> = b.diagnostics.iter().map(|d| d.code.as_str()).collect();
         assert_eq!(

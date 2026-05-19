@@ -231,13 +231,7 @@ mod tests {
     #[test]
     fn child_shadows_parent_binding_locally() {
         let mut parent = NsContext::new(1);
-        parent.declare(
-            "x",
-            "uri:outer",
-            range(0, 4),
-            range(4, 0),
-            smap(),
-        );
+        parent.declare("x", "uri:outer", range(0, 4), range(4, 0), smap());
         let mut child = NsContext::child_of(&parent, 2);
         child.declare("x", "uri:inner", range(10, 4), range(14, 0), smap());
         assert_eq!(
@@ -326,7 +320,11 @@ mod tests {
         parent.declare("cem", "uri:cem", range(0, 4), range(4, 0), smap());
         let mut child = NsContext::child_of(&parent, 2);
         child.declare("html", "uri:html", range(20, 5), range(25, 0), smap());
-        let names: Vec<&str> = child.local_bindings().iter().map(|b| b.name.as_str()).collect();
+        let names: Vec<&str> = child
+            .local_bindings()
+            .iter()
+            .map(|b| b.name.as_str())
+            .collect();
         assert_eq!(names, vec!["html"]);
     }
 }

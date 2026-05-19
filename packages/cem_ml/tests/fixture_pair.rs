@@ -171,8 +171,14 @@ fn every_fixture_pair_has_balanced_event_streams() {
         let html_input = std::fs::read_to_string(&html_path).unwrap();
         let (co, cc) = event_open_close_balance(&cem_input, false);
         let (ho, hc) = event_open_close_balance(&html_input, true);
-        assert_eq!(co, cc, "[{cem_path:?}] CEM event opens/closes unbalanced: {co} / {cc}");
-        assert_eq!(ho, hc, "[{html_path:?}] HTML event opens/closes unbalanced: {ho} / {hc}");
+        assert_eq!(
+            co, cc,
+            "[{cem_path:?}] CEM event opens/closes unbalanced: {co} / {cc}"
+        );
+        assert_eq!(
+            ho, hc,
+            "[{html_path:?}] HTML event opens/closes unbalanced: {ho} / {hc}"
+        );
     }
 }
 
@@ -208,7 +214,9 @@ fn every_fixture_pair_has_a_top_level_landmark_element() {
         let (html_tokens, _) = tokenize_html(&html_input);
         let cem_names = element_open_names(&cem_tokens);
         let html_names = element_open_names(&html_tokens);
-        let cem_has_landmark = LANDMARKS.iter().any(|l| cem_names.contains(&(*l).to_owned()));
+        let cem_has_landmark = LANDMARKS
+            .iter()
+            .any(|l| cem_names.contains(&(*l).to_owned()));
         let html_has_landmark = LANDMARKS
             .iter()
             .any(|l| html_names.contains(&(*l).to_owned()));
@@ -246,7 +254,8 @@ fn parity_diagnostic_codes_align_across_surfaces() {
             .filter(|d| matches!(d.severity, Severity::Error | Severity::Fatal))
             .count();
         assert_eq!(
-            cem_hard_count, html_hard_count,
+            cem_hard_count,
+            html_hard_count,
             "[{}] hard-violation counts differ: cem={cem_hard_count}, html={html_hard_count}",
             cem_path.file_stem().unwrap().to_string_lossy()
         );

@@ -143,7 +143,10 @@ impl XmlTokenizer {
             .map(|(c, _)| *c)
             .collect();
         let head_range = self.range_from(open_start, self.cursor);
-        self.emit(SchemaTokenKind::NodeStart { name: name.clone() }, head_range);
+        self.emit(
+            SchemaTokenKind::NodeStart { name: name.clone() },
+            head_range,
+        );
 
         loop {
             self.skip_xml_whitespace();
@@ -318,12 +321,7 @@ impl XmlTokenizer {
             }
         }
         let range = self.range_from(open_start, self.cursor);
-        self.emit(
-            SchemaTokenKind::NodeEnd {
-                name: Some(name),
-            },
-            range,
-        );
+        self.emit(SchemaTokenKind::NodeEnd { name: Some(name) }, range);
     }
 
     fn scan_declaration(&mut self, open_start: usize) {

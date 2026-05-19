@@ -22,8 +22,8 @@ use crate::source::ByteRange;
 use crate::source_map::{FrameSpan, SourceMapFrame, SourceMapStack, TransformKind};
 
 const VOID_ELEMENTS: &[&str] = &[
-    "area", "base", "br", "col", "embed", "hr", "img", "input", "link", "meta", "param",
-    "source", "track", "wbr",
+    "area", "base", "br", "col", "embed", "hr", "img", "input", "link", "meta", "param", "source",
+    "track", "wbr",
 ];
 
 fn is_void(local: &str) -> bool {
@@ -83,10 +83,7 @@ struct Renderer {
 impl Renderer {
     fn render_node(&mut self, doc: &CemDocument, node: &CemAstNode) {
         match node {
-            CemAstNode::Document {
-                root_children,
-                ..
-            } => {
+            CemAstNode::Document { root_children, .. } => {
                 // The Document is a virtual wrapper; it has no source
                 // origin of its own. Skip recording a Document-spanning
                 // OutputSpan — children record their own spans and
@@ -393,7 +390,10 @@ mod tests {
                 }
             }
         }
-        assert!(covered.iter().all(|c| *c), "every output byte must be covered by a span");
+        assert!(
+            covered.iter().all(|c| *c),
+            "every output byte must be covered by a span"
+        );
     }
 
     #[test]

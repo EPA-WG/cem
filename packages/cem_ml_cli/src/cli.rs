@@ -15,8 +15,12 @@ pub struct Cli {
     #[command(subcommand)]
     pub command: Command,
 
-    #[arg(long, global = true, conflicts_with = "verbose",
-          help = "Suppress success/info output (errors still surface)")]
+    #[arg(
+        long,
+        global = true,
+        conflicts_with = "verbose",
+        help = "Suppress success/info output (errors still surface)"
+    )]
     pub quiet: bool,
 
     #[arg(long, global = true, help = "Emit verbose progress and trace text")]
@@ -86,6 +90,7 @@ pub enum InputFormat {
 
 #[derive(ValueEnum, Copy, Clone, Debug, PartialEq, Eq)]
 pub enum LayerFormat {
+    Cem,
     DomJson,
     Ast,
     Events,
@@ -142,22 +147,42 @@ pub enum BenchProfile {
 
 #[derive(Args, Debug, Default, Clone)]
 pub struct ContextOptions {
-    #[arg(long, value_name = "URI-OR-FILE", help = "Schema URI or file to record on diagnostics/reports")]
+    #[arg(
+        long,
+        value_name = "URI-OR-FILE",
+        help = "Schema URI or file to record on diagnostics/reports"
+    )]
     pub schema: Option<String>,
 
-    #[arg(long, value_name = "TYPE", help = "Content type to record on diagnostics/reports")]
+    #[arg(
+        long,
+        value_name = "TYPE",
+        help = "Content type to record on diagnostics/reports"
+    )]
     pub content_type: Option<String>,
 
-    #[arg(long, value_name = "URI", help = "Base URI for diagnostic/report URI normalization")]
+    #[arg(
+        long,
+        value_name = "URI",
+        help = "Base URI for diagnostic/report URI normalization"
+    )]
     pub base_uri: Option<String>,
 }
 
 #[derive(Args, Debug, Default, Clone)]
 pub struct ReportOptions {
-    #[arg(long, value_name = "FILE-OR-DIR", help = "Write JSON report to file or default name in dir")]
+    #[arg(
+        long,
+        value_name = "FILE-OR-DIR",
+        help = "Write JSON report to file or default name in dir"
+    )]
     pub report_json: Option<PathBuf>,
 
-    #[arg(long, value_name = "FILE-OR-DIR", help = "Write Markdown report to file or default name in dir")]
+    #[arg(
+        long,
+        value_name = "FILE-OR-DIR",
+        help = "Write Markdown report to file or default name in dir"
+    )]
     pub report_md: Option<PathBuf>,
 }
 
@@ -170,13 +195,21 @@ pub struct ParseArgs {
           help = "Output projection (dom-json|json|ast|events)")]
     pub format: ParseFormat,
 
-    #[arg(long = "from-format", value_enum, help = "Override input format detection")]
+    #[arg(
+        long = "from-format",
+        value_enum,
+        help = "Override input format detection"
+    )]
     pub from_format: Option<InputFormat>,
 
     #[arg(long, value_enum, default_value_t = FailLevel::Parse)]
     pub fail_level: FailLevel,
 
-    #[arg(long, value_name = "FILE", help = "Write primary output to file (stdout if omitted)")]
+    #[arg(
+        long,
+        value_name = "FILE",
+        help = "Write primary output to file (stdout if omitted)"
+    )]
     pub out: Option<PathBuf>,
 
     #[arg(long, help = "Preserve absolute source byte offsets in output")]
@@ -260,7 +293,7 @@ pub struct ConvertArgs {
     pub from_format: Option<InputFormat>,
 
     #[arg(long = "to-format", value_enum, default_value_t = LayerFormat::DomJson,
-          help = "Output layer (dom-json|ast|events)")]
+          help = "Output layer (cem|dom-json|ast|events)")]
     pub to_format: LayerFormat,
 
     #[arg(long, value_name = "FILE")]
@@ -375,7 +408,10 @@ mod tests {
             try_parse(&["parse", "--format", fmt, "in.cem"]).expect(fmt);
         }
         for fmt in ["xml", "cem", "text", "html", "markdown", "tree"] {
-            assert!(try_parse(&["parse", "--format", fmt, "in.cem"]).is_err(), "rejected: {fmt}");
+            assert!(
+                try_parse(&["parse", "--format", fmt, "in.cem"]).is_err(),
+                "rejected: {fmt}"
+            );
         }
     }
 
@@ -385,7 +421,10 @@ mod tests {
             try_parse(&["validate", "--format", fmt, "in.cem"]).expect(fmt);
         }
         for fmt in ["dom-json", "ast", "events", "tree"] {
-            assert!(try_parse(&["validate", "--format", fmt, "in.cem"]).is_err(), "rejected: {fmt}");
+            assert!(
+                try_parse(&["validate", "--format", fmt, "in.cem"]).is_err(),
+                "rejected: {fmt}"
+            );
         }
     }
 
@@ -401,7 +440,10 @@ mod tests {
             try_parse(&["trace", "--format", fmt, "in.cem"]).expect(fmt);
         }
         for fmt in ["markdown", "dom-json", "ast", "events", "tree"] {
-            assert!(try_parse(&["trace", "--format", fmt, "in.cem"]).is_err(), "rejected: {fmt}");
+            assert!(
+                try_parse(&["trace", "--format", fmt, "in.cem"]).is_err(),
+                "rejected: {fmt}"
+            );
         }
     }
 
@@ -409,14 +451,26 @@ mod tests {
     fn bench_accepts_text_or_json_only() {
         try_parse(&["bench", "--format", "text", "in.cem"]).unwrap();
         try_parse(&["bench", "--format", "json", "in.cem"]).unwrap();
-        for fmt in ["xml", "cem", "html", "markdown", "dom-json", "ast", "events", "tree"] {
-            assert!(try_parse(&["bench", "--format", fmt, "in.cem"]).is_err(), "rejected: {fmt}");
+        for fmt in [
+            "xml", "cem", "html", "markdown", "dom-json", "ast", "events", "tree",
+        ] {
+            assert!(
+                try_parse(&["bench", "--format", fmt, "in.cem"]).is_err(),
+                "rejected: {fmt}"
+            );
         }
     }
 
     #[test]
     fn inspect_accepts_documented_views() {
-        for view in ["summary", "ast", "events", "diagnostics", "source-offsets", "tree"] {
+        for view in [
+            "summary",
+            "ast",
+            "events",
+            "diagnostics",
+            "source-offsets",
+            "tree",
+        ] {
             try_parse(&["inspect", "--show", view, "in.cem"]).expect(view);
         }
         assert!(try_parse(&["inspect", "--show", "scope", "in.cem"]).is_err());
@@ -424,11 +478,14 @@ mod tests {
 
     #[test]
     fn convert_to_format_restricted_to_layer_formats() {
-        for fmt in ["dom-json", "ast", "events"] {
+        for fmt in ["cem", "dom-json", "ast", "events"] {
             try_parse(&["convert", "--to-format", fmt, "in.cem"]).expect(fmt);
         }
-        for fmt in ["json", "xml", "cem", "text", "html"] {
-            assert!(try_parse(&["convert", "--to-format", fmt, "in.cem"]).is_err(), "rejected: {fmt}");
+        for fmt in ["json", "xml", "text", "html"] {
+            assert!(
+                try_parse(&["convert", "--to-format", fmt, "in.cem"]).is_err(),
+                "rejected: {fmt}"
+            );
         }
     }
 

@@ -127,8 +127,7 @@ fn prefix_rebinding_uses_innermost_uri() {
         .iter()
         .filter(|d| {
             matches!(d.severity, Severity::Error | Severity::Fatal)
-                && (d.code.starts_with("cem.schema.")
-                    || d.code.starts_with("cem.ns."))
+                && (d.code.starts_with("cem.schema.") || d.code.starts_with("cem.ns."))
         })
         .collect();
     assert!(hard.is_empty(), "{hard:?}");

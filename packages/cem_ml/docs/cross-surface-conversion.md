@@ -1,9 +1,10 @@
 # CEM-ML ↔ XML / HTML Cross-Surface Conversion
 
-**Status:** Tier A normative for the CEM-ML → HTML projection direction.
-Canonical CEM-ML plus HTML/XML parity tokenizers lower into the shared
-event model today; the reverse HTML/XML → CEM-ML serialization direction
-remains a follow-up in [`../../../docs/todo.md`](../../../docs/todo.md).
+**Status:** Tier A normative for the CEM-ML → HTML projection direction
+and for HTML/XML → canonical CEM-ML reverse serialization. Canonical
+CEM-ML plus HTML/XML parity tokenizers lower into the shared event model
+today; reverse serialization uses the canonical formatter and records a
+`ContentTypeTransform` source-map boundary.
 
 This document fixes the *exact* per-construct conversion rules so all
 three surfaces lower into the same schema event stream and AST, with
@@ -149,22 +150,24 @@ Every cross-surface conversion preserves source-map identity:
 
 ## 10. Conversion Test Matrix
 
-Tier A runs the projection direction CEM-ML → HTML via the light-DOM
-renderer. The integration tests are:
+Tier A runs both the projection direction CEM-ML → HTML via the
+light-DOM renderer and the reverse serialization direction HTML/XML →
+canonical CEM-ML via the formatter. The integration tests are:
 
 | Test | Direction | Location |
 | ---- | --------- | -------- |
 | `every_canonical_fixture_matches_snapshot` | `.cem` → light-DOM HTML byte-identical | `packages/cem_ml/tests/transform_snapshots.rs` |
 | `every_canonical_fixture_runs_through_every_layer` | `.cem` → events → AST → render | `packages/cem_ml/tests/end_to_end.rs` |
 | `canonical_cem_projection_preserves_schema_event_identity` | `.cem` → events → render → re-tokenize → events | `packages/cem_ml/tests/cross_surface_projection.rs` |
+| `every_html_parity_fixture_serializes_to_canonical_cem_ml` | HTML → canonical `.cem` byte-stable after reformat | `packages/cem_ml/tests/reverse_conversion.rs` |
+| `namespace_rebinding_xml_fixture_serializes_to_canonical_cem_ml` | XML → canonical `.cem` byte-stable after reformat | `packages/cem_ml/tests/reverse_conversion.rs` |
 
 HTML parity fixtures already lower through the shared event stream in
 `packages/cem_ml/tests/fixture_pair.rs`. XML parity currently covers the
 namespace-rebinding fixture in
-`packages/cem_ml/tests/namespace_rebinding_fixtures.rs`. The remaining
-follow-up is reverse serialization: HTML/XML inputs should produce
-canonical `.cem` output with byte-stable formatting and source-map
-preservation.
+`packages/cem_ml/tests/namespace_rebinding_fixtures.rs`. The CLI/library
+conversion surface exposes reverse serialization as `convert
+--from-format html|xml --to-format cem`.
 
 ## 11. Non-Lossless Constructs
 

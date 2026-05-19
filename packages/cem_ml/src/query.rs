@@ -132,13 +132,10 @@ pub fn origin_byte_range(node: &CemAstNode) -> Option<ByteRange> {
         | CemAstNode::RawText { source, .. }
         | CemAstNode::Error { source, .. } => source,
     };
-    stack
-        .frames
-        .first()
-        .and_then(|frame| match &frame.span {
-            FrameSpan::Single(r) => Some(*r),
-            FrameSpan::Multi(rs) => rs.first().copied(),
-        })
+    stack.frames.first().and_then(|frame| match &frame.span {
+        FrameSpan::Single(r) => Some(*r),
+        FrameSpan::Multi(rs) => rs.first().copied(),
+    })
 }
 
 /// Validation diagnostics on this document. Equivalent to `doc.diagnostics`,
@@ -151,7 +148,10 @@ pub fn validation_messages(doc: &CemDocument) -> &[Diagnostic] {
 /// document `id_table`. Returns the resolved target node or `None` if the
 /// reference is unresolved (which the AST builder already recorded as a
 /// `cem.ast.unresolved_reference` diagnostic).
-pub fn resolve_reference<'a>(doc: &'a CemDocument, attribute: &CemAstNode) -> Option<&'a CemAstNode> {
+pub fn resolve_reference<'a>(
+    doc: &'a CemDocument,
+    attribute: &CemAstNode,
+) -> Option<&'a CemAstNode> {
     let value = match attribute {
         CemAstNode::Attribute { value, .. } => value.as_deref()?,
         _ => return None,

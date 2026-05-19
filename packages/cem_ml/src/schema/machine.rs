@@ -137,7 +137,9 @@ impl<E: EventNormalizer> CemSchemaMachine<E> {
     /// Returns the active `NsContext` (the top of the scope chain).
     /// Available for downstream layers that need namespace resolution.
     pub fn current_ns_context(&self) -> &NsContext {
-        self.ns_contexts.last().expect("ns_contexts has document root")
+        self.ns_contexts
+            .last()
+            .expect("ns_contexts has document root")
     }
 
     /// Returns the active schema-scoping context (the top of the chain).
@@ -218,7 +220,11 @@ impl<E: EventNormalizer> CemSchemaMachine<E> {
                 content_type,
                 handoff,
             } => self.on_mode_switch(content_type, handoff),
-            NormalizedEvent::Error { code, byte_range, severity } => {
+            NormalizedEvent::Error {
+                code,
+                byte_range,
+                severity,
+            } => {
                 self.diagnostics.push(Diagnostic {
                     uri: None,
                     line: None,
@@ -349,7 +355,10 @@ impl<E: EventNormalizer> CemSchemaMachine<E> {
         // States collected for this scope are validated at close, against
         // the annotation seen on this same frame. (Annotation validation
         // already happened at value-time.)
-        let active_annotation = self.pending_annotation.as_ref().map(|ann| ann.local.clone());
+        let active_annotation = self
+            .pending_annotation
+            .as_ref()
+            .map(|ann| ann.local.clone());
         for state in std::mem::take(&mut self.pending_states) {
             self.validate_state(&state, active_annotation.as_deref());
         }
@@ -489,10 +498,8 @@ impl<E: EventNormalizer> CemSchemaMachine<E> {
         if self.pending_schema_element.is_some() {
             match attr.name.as_str() {
                 "src" => {
-                    let already_select = matches!(
-                        self.schema_scopes.current().active,
-                        SchemaSource::Select(_)
-                    );
+                    let already_select =
+                        matches!(self.schema_scopes.current().active, SchemaSource::Select(_));
                     if let Some(p) = self.pending_schema_element.as_mut() {
                         p.src = Some(value.clone());
                     }
@@ -507,10 +514,8 @@ impl<E: EventNormalizer> CemSchemaMachine<E> {
                     return;
                 }
                 "select" => {
-                    let already_uri = matches!(
-                        self.schema_scopes.current().active,
-                        SchemaSource::Uri(_)
-                    );
+                    let already_uri =
+                        matches!(self.schema_scopes.current().active, SchemaSource::Uri(_));
                     if let Some(p) = self.pending_schema_element.as_mut() {
                         p.select = Some(value.clone());
                     }
@@ -569,10 +574,8 @@ impl<E: EventNormalizer> CemSchemaMachine<E> {
     ) {
         // If a switch was already applied at this scope, the second one
         // is the mutual-exclusivity error.
-        let existing_is_select = matches!(
-            self.schema_scopes.current().active,
-            SchemaSource::Select(_)
-        );
+        let existing_is_select =
+            matches!(self.schema_scopes.current().active, SchemaSource::Select(_));
         let existing_is_uri = matches!(self.schema_scopes.current().active, SchemaSource::Uri(_));
         if (existing_is_select && !is_select) || (existing_is_uri && is_select) {
             self.diagnostics.push(Diagnostic {
@@ -593,11 +596,7 @@ impl<E: EventNormalizer> CemSchemaMachine<E> {
         self.schema_scopes.current_mut().set_active(source);
     }
 
-    fn commit_schema_element(
-        &mut self,
-        pending: PendingSchemaElement,
-        frame: &SchemaFrame,
-    ) {
+    fn commit_schema_element(&mut self, pending: PendingSchemaElement, frame: &SchemaFrame) {
         let _ = frame;
         // 1. Validate exclusivity: src and select cannot both appear.
         if pending.src.is_some() && pending.select.is_some() {
@@ -608,8 +607,7 @@ impl<E: EventNormalizer> CemSchemaMachine<E> {
                 byte_offset: Some(pending.open_byte_range.start),
                 code: "cem.schema.scoping.exclusive_src_select".to_owned(),
                 severity: Severity::Error,
-                message:
-                    "`cem:schema` element may carry `src` or `select`, not both".to_owned(),
+                message: "`cem:schema` element may carry `src` or `select`, not both".to_owned(),
                 node: None,
                 source_map: None,
             });
@@ -657,8 +655,8 @@ impl<E: EventNormalizer> CemSchemaMachine<E> {
                 byte_offset: Some(pending.open_byte_range.start),
                 code: "cem.schema.scoping.missing_source".to_owned(),
                 severity: Severity::Error,
-                message:
-                    "`cem:schema` element must declare `cem:name`, `src`, or `select`".to_owned(),
+                message: "`cem:schema` element must declare `cem:name`, `src`, or `select`"
+                    .to_owned(),
                 node: None,
                 source_map: None,
             });
@@ -699,7 +697,10 @@ impl<E: EventNormalizer> CemSchemaMachine<E> {
                     byte_offset: Some(ann.name_range.start),
                     code: "cem.schema.unknown_annotation".to_owned(),
                     severity: Severity::Error,
-                    message: format!("`cem:{}` is not part of the active CEM Core vocabulary", ann.local),
+                    message: format!(
+                        "`cem:{}` is not part of the active CEM Core vocabulary",
+                        ann.local
+                    ),
                     node: None,
                     source_map: None,
                 });
@@ -959,8 +960,7 @@ mod tests {
 
     #[test]
     fn allowed_state_validates() {
-        let out =
-            run_schema(r#"{button @cem:action=primary @cem:state="loading" | Save}"#);
+        let out = run_schema(r#"{button @cem:action=primary @cem:state="loading" | Save}"#);
         assert_eq!(out.hard_violations(), 0, "{:?}", out.diagnostics);
     }
 
@@ -976,8 +976,7 @@ mod tests {
     #[test]
     fn state_not_allowed_for_role_is_flagged() {
         // `selected` is in the matrix but not allowed on `cem:action`.
-        let out =
-            run_schema(r#"{button @cem:action=primary @cem:state="selected" | Save}"#);
+        let out = run_schema(r#"{button @cem:action=primary @cem:state="selected" | Save}"#);
         assert!(out
             .diagnostics
             .iter()
@@ -986,9 +985,7 @@ mod tests {
 
     #[test]
     fn multiple_states_in_one_attribute_are_validated_independently() {
-        let out = run_schema(
-            r#"{button @cem:action=primary @cem:state="loading hover" | Save}"#,
-        );
+        let out = run_schema(r#"{button @cem:action=primary @cem:state="loading hover" | Save}"#);
         assert_eq!(out.hard_violations(), 0, "{:?}", out.diagnostics);
     }
 
@@ -1009,13 +1006,17 @@ mod tests {
         // After running, the stack should be empty (all closes balanced).
         let out = run_schema("{a | {b | {c | x}}}");
         assert_eq!(out.hard_violations(), 0);
-        assert!(out.frames.is_empty(), "frames not drained: {:?}", out.frames);
+        assert!(
+            out.frames.is_empty(),
+            "frames not drained: {:?}",
+            out.frames
+        );
     }
 
     #[test]
     fn all_canonical_fixtures_schema_validate_clean() {
-        let dir = std::path::PathBuf::from(env!("CARGO_MANIFEST_DIR"))
-            .join("../../examples/cem-ml");
+        let dir =
+            std::path::PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("../../examples/cem-ml");
         let mut checked = 0;
         for entry in std::fs::read_dir(&dir).unwrap() {
             let path = entry.unwrap().path();
@@ -1165,9 +1166,7 @@ mod tests {
 
     #[test]
     fn child_parser_cannot_consume_past_parent_close() {
-        use crate::events::{
-            HandoffRecord, InheritedContext, ReturnCondition,
-        };
+        use crate::events::{HandoffRecord, InheritedContext, ReturnCondition};
         use crate::handoff::HandoffStack;
         let mut stack = HandoffStack::default();
         stack.push(HandoffRecord {
@@ -1182,7 +1181,10 @@ mod tests {
             return_condition: ReturnCondition::ParentScopeClose,
         });
         assert!(stack.within_bounds(39), "39 < 40 is inside the parent");
-        assert!(!stack.within_bounds(40), "40 is the close boundary; not consumable");
+        assert!(
+            !stack.within_bounds(40),
+            "40 is the close boundary; not consumable"
+        );
         assert!(!stack.within_bounds(41), "past the close is forbidden");
     }
 
@@ -1218,10 +1220,7 @@ mod tests {
             }
         }
         machine.finalize();
-        assert_eq!(
-            last_ns_uri.as_deref(),
-            Some("https://cem.dev/ns/core/1")
-        );
+        assert_eq!(last_ns_uri.as_deref(), Some("https://cem.dev/ns/core/1"));
     }
 
     #[test]
@@ -1241,10 +1240,7 @@ mod tests {
             }
         }
         machine.finalize();
-        assert_eq!(
-            default_uri.as_deref(),
-            Some("http://www.w3.org/1999/xhtml")
-        );
+        assert_eq!(default_uri.as_deref(), Some("http://www.w3.org/1999/xhtml"));
     }
 
     #[test]
@@ -1298,7 +1294,10 @@ mod tests {
             }
         }
         machine.finalize();
-        assert!(saw_uri, "cem:schema @src=... should switch the active source to Uri");
+        assert!(
+            saw_uri,
+            "cem:schema @src=... should switch the active source to Uri"
+        );
     }
 
     #[test]
@@ -1319,7 +1318,10 @@ mod tests {
             }
         }
         machine.finalize();
-        assert!(saw_select, "expected a Select source at some point during the parse");
+        assert!(
+            saw_select,
+            "expected a Select source at some point during the parse"
+        );
     }
 
     #[test]
@@ -1397,8 +1399,7 @@ mod tests {
 
     #[test]
     fn host_node_schema_src_and_select_together_is_an_error() {
-        let input =
-            r#"{section @cem:schema-src="x" @cem:schema-select=".p" | body}"#;
+        let input = r#"{section @cem:schema-src="x" @cem:schema-select=".p" | body}"#;
         let src = BytesSource::new(SourceId(1), input.as_bytes().to_vec());
         let tok = CemTokenizer::from_source(src);
         let normalizer = CemEventNormalizer::new(tok);
@@ -1413,11 +1414,13 @@ mod tests {
     fn non_streamable_constraints_emit_unsupported_constraint() {
         use crate::schema::vocab::{NonStreamableConstraint, NonStreamableKind};
         let mut schema = CompiledSchema::cem_core();
-        schema.non_streamable_constraints.push(NonStreamableConstraint {
-            annotation: "form",
-            kind: NonStreamableKind::FullDocumentBuffering,
-            reason: "synthetic test rule",
-        });
+        schema
+            .non_streamable_constraints
+            .push(NonStreamableConstraint {
+                annotation: "form",
+                kind: NonStreamableKind::FullDocumentBuffering,
+                reason: "synthetic test rule",
+            });
         let src = BytesSource::new(SourceId(1), b"{p x}".to_vec());
         let tok = CemTokenizer::from_source(src);
         let normalizer = CemEventNormalizer::new(tok);

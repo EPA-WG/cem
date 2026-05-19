@@ -132,13 +132,7 @@ impl CompiledSchema {
                 local_name: "row",
                 allowed_values: None,
                 known_values: vec!["asset", "result", "notification"],
-                allowed_states: vec![
-                    "default",
-                    "hover",
-                    "focus-visible",
-                    "selected",
-                    "disabled",
-                ],
+                allowed_states: vec!["default", "hover", "focus-visible", "selected", "disabled"],
             },
         );
         annotations.insert(

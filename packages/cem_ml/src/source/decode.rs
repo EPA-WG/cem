@@ -191,7 +191,11 @@ impl<S: ByteSource> Utf8Decoder<S> {
         }
     }
 
-    fn decode_utf8_chunk(&mut self, chunk_bytes: &[u8], chunk_start: u64) -> Vec<(char, ByteRange)> {
+    fn decode_utf8_chunk(
+        &mut self,
+        chunk_bytes: &[u8],
+        chunk_start: u64,
+    ) -> Vec<(char, ByteRange)> {
         let mut scalars = Vec::with_capacity(chunk_bytes.len());
         let mut i = 0;
         while i < chunk_bytes.len() {
@@ -340,7 +344,9 @@ mod tests {
     use super::*;
     use crate::source::{BytesSource, SourceId};
 
-    fn collect(decoder: &mut Utf8Decoder<BytesSource>) -> (Vec<(char, ByteRange)>, Vec<Diagnostic>) {
+    fn collect(
+        decoder: &mut Utf8Decoder<BytesSource>,
+    ) -> (Vec<(char, ByteRange)>, Vec<Diagnostic>) {
         let mut scalars = Vec::new();
         while let Some(c) = decoder.decode_next() {
             scalars.extend(c.scalars);
@@ -388,7 +394,9 @@ mod tests {
         let (scalars, diags) = collect(&mut d);
         assert_eq!(d.encoding(), Encoding::Utf16Le);
         assert!(scalars.is_empty(), "Tier A does not decode UTF-16 scalars");
-        assert!(diags.iter().any(|d| d.code == "cem.byte.unsupported_encoding"));
+        assert!(diags
+            .iter()
+            .any(|d| d.code == "cem.byte.unsupported_encoding"));
     }
 
     #[test]

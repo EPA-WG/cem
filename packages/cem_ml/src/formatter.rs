@@ -19,8 +19,13 @@
 //! `format(parse(input))`. The integration test asserts this for every
 //! canonical fixture.
 
+use crate::engine::InputFormat;
+use crate::interpreter::{OutputSpan, OutputTarget, TransformOutput};
 use crate::parser::document::CemDocument;
 use crate::parser::{AstNodeId, CemAstNode};
+use crate::source::ByteRange;
+use crate::source_map::{FrameSpan, SourceMapFrame, SourceMapStack, TransformKind};
+use crate::tokenizer::SchemaTokenizer;
 
 pub fn format(doc: &CemDocument) -> String {
     let mut out = String::new();
@@ -33,6 +38,46 @@ pub fn format(doc: &CemDocument) -> String {
     out
 }
 
+/// Format a built document as canonical CEM-ML and preserve a transform
+/// source-map boundary. Tier A records one whole-output span whose origin
+/// stack is rooted in the source tokenizer frame and capped by a
+/// `ContentTypeTransform` frame for the generated CEM-ML bytes.
+pub fn format_transform(doc: &CemDocument, source_content_type: &str) -> TransformOutput {
+    let rendered = format(doc);
+    let output_range = ByteRange::new(0, rendered.len() as u32);
+    let mut origin = first_source_stack(doc).unwrap_or_default();
+    let source_id = origin
+        .origin()
+        .map(|f| f.source_id)
+        .unwrap_or(crate::source::SourceId(0));
+    origin.push(SourceMapFrame {
+        source_id,
+        span: FrameSpan::Single(output_range),
+        transform: TransformKind::ContentTypeTransform {
+            content_type: source_content_type.to_owned(),
+        },
+    });
+    TransformOutput {
+        target: OutputTarget::CanonicalCemMl,
+        rendered,
+        diagnostics: Vec::new(),
+        source_map: origin.clone(),
+        output_spans: vec![OutputSpan {
+            output_range,
+            origin,
+        }],
+    }
+}
+
+/// Parse a CEM-ML, HTML, or XML source into the shared AST and emit
+/// canonical CEM-ML.
+pub fn format_source_as(input: &str, from_format: InputFormat) -> TransformOutput {
+    let doc = parse_source_as(input, from_format);
+    let mut output = format_transform(&doc, content_type_for(from_format));
+    ensure_source_tokenizer_frame(&mut output, from_format, input.len() as u32);
+    output
+}
+
 fn write_node(
     doc: &CemDocument,
     node: &CemAstNode,
@@ -41,9 +86,7 @@ fn write_node(
     at_block: bool,
 ) {
     match node {
-        CemAstNode::Document {
-            root_children, ..
-        } => {
+        CemAstNode::Document { root_children, .. } => {
             for id in root_children {
                 if let Some(child) = doc.get(*id) {
                     if !is_whitespace_node(child) {
@@ -147,8 +190,7 @@ fn write_node(
             }
             out.push_str("?>\n");
         }
-        CemAstNode::Cdata { data, .. }
-        | CemAstNode::RawText { data, .. } => {
+        CemAstNode::Cdata { data, .. } | CemAstNode::RawText { data, .. } => {
             push_indent(out, indent);
             out.push_str(data);
             out.push('\n');
@@ -175,7 +217,12 @@ fn write_directive(doc: &CemDocument, node: &CemAstNode, out: &mut String) {
         return;
     };
     out.push('@');
-    out.push_str(expanded_name.local_name.strip_prefix('@').unwrap_or(&expanded_name.local_name));
+    out.push_str(
+        expanded_name
+            .local_name
+            .strip_prefix('@')
+            .unwrap_or(&expanded_name.local_name),
+    );
     // Concatenate child text nodes as the directive body.
     let mut body = String::new();
     for id in children {
@@ -233,7 +280,8 @@ fn is_bare_value_ok(v: &str) -> bool {
     if v.is_empty() {
         return false;
     }
-    v.chars().all(|c| c.is_alphanumeric() || matches!(c, '_' | '-' | '/' | '.' | ':'))
+    v.chars()
+        .all(|c| c.is_alphanumeric() || matches!(c, '_' | '-' | '/' | '.' | ':'))
 }
 
 fn is_whitespace_node(node: &CemAstNode) -> bool {
@@ -291,15 +339,98 @@ fn key_of(doc: &CemDocument, id: AstNodeId) -> (String, String) {
 
 /// Parse + format in one call.
 pub fn format_source(input: &str) -> String {
-    use crate::events::cem::CemEventNormalizer;
-    use crate::parser::builder::CemAstBuilder;
+    format_source_as(input, InputFormat::Cem).rendered
+}
+
+fn parse_source_as(input: &str, from_format: InputFormat) -> CemDocument {
     use crate::source::{BytesSource, SourceId};
     use crate::tokenizer::cem::CemTokenizer;
+    use crate::tokenizer::html::HtmlTokenizer;
+    use crate::tokenizer::xml::XmlTokenizer;
     let src = BytesSource::new(SourceId(1), input.as_bytes().to_vec());
-    let tok = CemTokenizer::from_source(src);
+    match from_format {
+        InputFormat::Cem => {
+            let tok = CemTokenizer::from_source(src);
+            build_document(tok)
+        }
+        InputFormat::Html => {
+            let tok = HtmlTokenizer::from_source(src);
+            build_document(tok)
+        }
+        InputFormat::Xml => {
+            let tok = XmlTokenizer::from_source(src);
+            build_document(tok)
+        }
+    }
+}
+
+fn build_document<T: SchemaTokenizer>(tok: T) -> CemDocument {
+    use crate::events::cem::CemEventNormalizer;
+    use crate::parser::builder::CemAstBuilder;
     let normalizer = CemEventNormalizer::new(tok);
-    let doc = CemAstBuilder::new(normalizer).build();
-    format(&doc)
+    CemAstBuilder::new(normalizer).build()
+}
+
+fn content_type_for(format: InputFormat) -> &'static str {
+    match format {
+        InputFormat::Cem => "application/cem",
+        InputFormat::Html => "text/html",
+        InputFormat::Xml => "application/xml",
+    }
+}
+
+fn ensure_source_tokenizer_frame(
+    output: &mut TransformOutput,
+    from_format: InputFormat,
+    source_len: u32,
+) {
+    let expected = match from_format {
+        InputFormat::Cem => TransformKind::CemTokenizer,
+        InputFormat::Html => TransformKind::HtmlTokenizer,
+        InputFormat::Xml => TransformKind::XmlTokenizer,
+    };
+    let has_expected = output.output_spans.iter().any(|span| {
+        span.origin
+            .frames
+            .iter()
+            .any(|f| same_tokenizer_transform(&f.transform, &expected))
+    });
+    if has_expected {
+        return;
+    }
+    let frame = SourceMapFrame {
+        source_id: crate::source::SourceId(1),
+        span: FrameSpan::Single(ByteRange::new(0, source_len)),
+        transform: expected,
+    };
+    output.source_map.frames.insert(0, frame.clone());
+    for span in &mut output.output_spans {
+        span.origin.frames.insert(0, frame.clone());
+    }
+}
+
+fn same_tokenizer_transform(a: &TransformKind, b: &TransformKind) -> bool {
+    matches!(
+        (a, b),
+        (TransformKind::CemTokenizer, TransformKind::CemTokenizer)
+            | (TransformKind::HtmlTokenizer, TransformKind::HtmlTokenizer)
+            | (TransformKind::XmlTokenizer, TransformKind::XmlTokenizer)
+    )
+}
+
+fn first_source_stack(doc: &CemDocument) -> Option<SourceMapStack> {
+    doc.iter().find_map(|node| match node {
+        CemAstNode::Element { source, .. }
+        | CemAstNode::Text { source, .. }
+        | CemAstNode::Whitespace { source, .. }
+        | CemAstNode::Comment { source, .. }
+        | CemAstNode::ProcessingInstruction { source, .. }
+        | CemAstNode::Cdata { source, .. }
+        | CemAstNode::RawText { source, .. }
+        | CemAstNode::Attribute { source, .. }
+        | CemAstNode::Error { source, .. } => (!source.frames.is_empty()).then(|| source.clone()),
+        CemAstNode::Document { .. } => None,
+    })
 }
 
 #[cfg(test)]
@@ -315,10 +446,7 @@ mod tests {
     fn attributes_sort_alphabetically_by_namespace_then_local() {
         let out = format_source("{button @cem:action=primary @type=submit | Save}");
         // Empty namespace first → @type comes before @cem:action.
-        assert_eq!(
-            out,
-            "{button @type=submit @cem:action=primary | Save}\n"
-        );
+        assert_eq!(out, "{button @type=submit @cem:action=primary | Save}\n");
     }
 
     #[test]
@@ -371,8 +499,8 @@ mod tests {
 
     #[test]
     fn every_canonical_fixture_formats_idempotently() {
-        let dir = std::path::PathBuf::from(env!("CARGO_MANIFEST_DIR"))
-            .join("../../examples/cem-ml");
+        let dir =
+            std::path::PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("../../examples/cem-ml");
         let mut checked = 0;
         for entry in std::fs::read_dir(&dir).unwrap() {
             let path = entry.unwrap().path();
@@ -391,5 +519,55 @@ mod tests {
             checked += 1;
         }
         assert!(checked >= 5);
+    }
+
+    #[test]
+    fn html_source_formats_to_canonical_cem_ml() {
+        let out = format_source_as(
+            r#"<button cem:action="primary" type="submit">Save</button>"#,
+            InputFormat::Html,
+        );
+        assert_eq!(
+            out.rendered,
+            "{button @type=submit @cem:action=primary | Save}\n"
+        );
+        assert!(out.output_spans.iter().any(|span| {
+            span.origin
+                .frames
+                .iter()
+                .any(|f| matches!(f.transform, crate::source_map::TransformKind::HtmlTokenizer))
+                && span.origin.frames.iter().any(|f| {
+                    matches!(
+                        &f.transform,
+                        crate::source_map::TransformKind::ContentTypeTransform { content_type }
+                            if content_type == "text/html"
+                    )
+                })
+        }));
+    }
+
+    #[test]
+    fn xml_source_formats_to_canonical_cem_ml() {
+        let out = format_source_as(
+            r#"<button cem:action="primary" type="submit">Save</button>"#,
+            InputFormat::Xml,
+        );
+        assert_eq!(
+            out.rendered,
+            "{button @type=submit @cem:action=primary | Save}\n"
+        );
+        assert!(out.output_spans.iter().any(|span| {
+            span.origin
+                .frames
+                .iter()
+                .any(|f| matches!(f.transform, crate::source_map::TransformKind::XmlTokenizer))
+                && span.origin.frames.iter().any(|f| {
+                    matches!(
+                        &f.transform,
+                        crate::source_map::TransformKind::ContentTypeTransform { content_type }
+                            if content_type == "application/xml"
+                    )
+                })
+        }));
     }
 }

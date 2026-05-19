@@ -63,7 +63,12 @@ impl Report {
         diagnostics: Vec<Diagnostic>,
         options: ReportOptionsSnapshot,
     ) -> Self {
-        Self::new(inputs, diagnostics, options, DETERMINISTIC_TIMESTAMP.to_owned())
+        Self::new(
+            inputs,
+            diagnostics,
+            options,
+            DETERMINISTIC_TIMESTAMP.to_owned(),
+        )
     }
 }
 

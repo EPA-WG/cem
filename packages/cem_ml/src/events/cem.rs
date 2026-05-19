@@ -292,7 +292,9 @@ mod tests {
         let e = events_for("@doc cem-ml 1");
         // shapes filters trivia; directives produce Open + Value + Close.
         let mut iter = e.iter();
-        assert!(matches!(iter.next(), Some(NormalizedEvent::OpenScope { name, .. }) if name.lexical_name == "@doc"));
+        assert!(
+            matches!(iter.next(), Some(NormalizedEvent::OpenScope { name, .. }) if name.lexical_name == "@doc")
+        );
         assert!(matches!(
             iter.next(),
             Some(NormalizedEvent::Value {
@@ -325,8 +327,12 @@ mod tests {
     #[test]
     fn expression_node_emits_open_value_close() {
         let e = events_for("{$ .name}");
-        let mut iter = e.iter().filter(|e| !matches!(e, NormalizedEvent::Trivia { .. }));
-        assert!(matches!(iter.next(), Some(NormalizedEvent::OpenScope { name, .. }) if name.lexical_name == "$"));
+        let mut iter = e
+            .iter()
+            .filter(|e| !matches!(e, NormalizedEvent::Trivia { .. }));
+        assert!(
+            matches!(iter.next(), Some(NormalizedEvent::OpenScope { name, .. }) if name.lexical_name == "$")
+        );
         assert!(matches!(
             iter.next(),
             Some(NormalizedEvent::Value {

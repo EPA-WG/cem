@@ -270,7 +270,9 @@ fn encode_transform(t: &TransformKind) -> (u16, Option<String>) {
         TransformKind::EventNormalizer => (3, None),
         TransformKind::SchemaValidation { schema_id } => (4, Some(schema_id.to_string())),
         TransformKind::CemAstBuilder => (5, None),
-        TransformKind::HandoffBoundary { child_content_type } => (6, Some(child_content_type.clone())),
+        TransformKind::HandoffBoundary { child_content_type } => {
+            (6, Some(child_content_type.clone()))
+        }
         TransformKind::ContentTypeTransform { content_type } => (7, Some(content_type.clone())),
         TransformKind::InterpreterRender => (8, None),
     }
@@ -466,8 +468,7 @@ fn write_edges(out: &mut Vec<u8>, nodes: &[CemAstNode]) {
 
 fn write_id_table(out: &mut Vec<u8>, doc: &CemDocument, d: &Dictionaries) {
     // Sort by string-dict index for deterministic order.
-    let mut entries: Vec<(&String, u32)> =
-        doc.id_table.iter().map(|(k, v)| (k, *v)).collect();
+    let mut entries: Vec<(&String, u32)> = doc.id_table.iter().map(|(k, v)| (k, *v)).collect();
     entries.sort_by_key(|(k, _)| d.string_index.get(*k).copied().unwrap_or(u32::MAX));
     out.extend_from_slice(&(entries.len() as u32).to_le_bytes());
     for (name, target) in entries {
