@@ -995,6 +995,130 @@ mod tests {
         assert_eq!(outcome.exit_code, EXIT_OK);
         assert!(stdout.is_empty());
     }
+
+    #[test]
+    fn observe_events_flag_writes_jsonl_event_stream() {
+        let p = write_fixture("observe-events.cem", "{p | hi}");
+        let out_dir = std::env::temp_dir().join("cem-ml-cli-observe");
+        std::fs::create_dir_all(&out_dir).unwrap();
+        let out_path = out_dir.join("events.jsonl");
+        let _ = std::fs::remove_file(&out_path);
+        let (outcome, _, _) = run(
+            &FakeEngine,
+            &[
+                "--observe-events",
+                out_path.to_str().unwrap(),
+                "parse",
+                p.to_str().unwrap(),
+            ],
+        );
+        assert_eq!(outcome.exit_code, EXIT_OK);
+        assert!(out_path.is_file(), "observe-events should create the file");
+        let body = std::fs::read_to_string(&out_path).unwrap();
+        assert!(!body.is_empty(), "event stream must not be empty");
+        let mut channels = std::collections::HashSet::new();
+        for line in body.lines() {
+            let v: serde_json::Value = serde_json::from_str(line).expect("each line is JSON");
+            channels.insert(v["channel"].as_str().unwrap().to_owned());
+        }
+        // Tier A parse always crosses tokenizer + normalizer + AST builder,
+        // and emits at least one parse event for the `{p}` open.
+        assert!(channels.contains("parse"));
+        assert!(channels.contains("transform"));
+    }
+
+    #[test]
+    fn observe_events_dash_writes_jsonl_to_stdout() {
+        let p = write_fixture("observe-events-stdout.cem", "{p | hi}");
+        let (outcome, stdout, _) = run(
+            &FakeEngine,
+            &[
+                "--observe-events",
+                "-",
+                "parse",
+                p.to_str().unwrap(),
+            ],
+        );
+        assert_eq!(outcome.exit_code, EXIT_OK);
+        // Stdout carries the JSONL events stream plus the normal
+        // parse projection JSON. The first non-empty line should parse
+        // as a JSONL event.
+        let first = stdout.lines().next().expect("at least one output line");
+        let v: serde_json::Value =
+            serde_json::from_str(first).expect("first line of stdout is JSONL");
+        assert!(v.get("channel").is_some(), "channel field must be present");
+        assert!(v.get("sequence").is_some(), "sequence field must be present");
+    }
+}
+
+/// Pull the input paths that the chosen subcommand would feed through
+/// the pipeline. Subcommands that do not consume a CEM-ML document
+/// (`version`, `fixture roundtrip`'s metadata-only shape, `transform`)
+/// yield an empty slice, which suppresses event emission.
+fn observable_inputs(command: &cli::Command) -> Vec<(std::path::PathBuf, Option<cli::InputFormat>)> {
+    match command {
+        cli::Command::Parse(a) => vec![(a.input.clone(), a.from_format)],
+        cli::Command::Validate(a) => a
+            .inputs
+            .iter()
+            .map(|p| (p.clone(), a.from_format))
+            .collect(),
+        cli::Command::Check(a) => a
+            .inputs
+            .iter()
+            .map(|p| (p.clone(), a.from_format))
+            .collect(),
+        cli::Command::Inspect(a) => vec![(a.input.clone(), a.from_format)],
+        cli::Command::Convert(a) => vec![(a.input.clone(), None)],
+        cli::Command::Trace(a) => vec![(a.input.clone(), None)],
+        _ => Vec::new(),
+    }
+}
+
+fn emit_observability_events(
+    command: &cli::Command,
+    target: &Path,
+    s: &mut Streams<'_>,
+) -> io::Result<()> {
+    let inputs = observable_inputs(command);
+    if inputs.is_empty() {
+        return Ok(());
+    }
+
+    let mut all_events: Vec<cem_ml::observability::ReportEvent> = Vec::new();
+    for (path, from_format) in inputs {
+        let bytes = match fs::read(&path) {
+            Ok(b) => b,
+            Err(e) => {
+                let _ = writeln!(
+                    s.stderr,
+                    "cem-ml: --observe-events: cannot read {}: {e}",
+                    path.display()
+                );
+                continue;
+            }
+        };
+        let from = from_format
+            .map(to_engine_input_format)
+            .unwrap_or(cem_ml::engine::InputFormat::Cem);
+        let observer = cem_ml::observability::BufferingObserver::new();
+        let _ = cem_ml::real::observe_pipeline(&bytes, from, &observer);
+        all_events.extend(observer.drain());
+    }
+
+    let jsonl = cem_ml::observability::events_to_jsonl(&all_events);
+    if target.as_os_str() == "-" {
+        s.stdout.write_all(jsonl.as_bytes())?;
+        s.stdout.flush()?;
+    } else {
+        if let Some(parent) = target.parent() {
+            if !parent.as_os_str().is_empty() {
+                fs::create_dir_all(parent)?;
+            }
+        }
+        fs::write(target, jsonl.as_bytes())?;
+    }
+    Ok(())
 }
 
 pub fn dispatch<E: CemMlEngine + ?Sized>(
@@ -1002,6 +1126,11 @@ pub fn dispatch<E: CemMlEngine + ?Sized>(
     parsed: cli::Cli,
     s: &mut Streams<'_>,
 ) -> Outcome {
+    if let Some(observe_path) = parsed.observe_events.as_ref() {
+        if let Err(e) = emit_observability_events(&parsed.command, observe_path, s) {
+            let _ = writeln!(s.stderr, "cem-ml: --observe-events failed: {e}");
+        }
+    }
     match parsed.command {
         cli::Command::Parse(a) => run_parse(engine, a, s),
         cli::Command::Validate(a) => run_validate(engine, a, s),

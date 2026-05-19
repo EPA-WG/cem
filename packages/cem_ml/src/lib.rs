@@ -11,6 +11,7 @@ pub mod events;
 pub mod formatter;
 pub mod handoff;
 pub mod interpreter;
+pub mod observability;
 pub mod parser;
 pub mod projection;
 pub mod query;

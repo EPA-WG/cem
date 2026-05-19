@@ -28,6 +28,14 @@ pub struct Cli {
 
     #[arg(long, global = true, help = "Disable ANSI color in terminal output")]
     pub no_color: bool,
+
+    #[arg(
+        long = "observe-events",
+        global = true,
+        value_name = "PATH",
+        help = "Write the structured observability event stream (parse/validate/transform) to PATH as JSONL; use - for stdout"
+    )]
+    pub observe_events: Option<PathBuf>,
 }
 
 #[derive(Subcommand, Debug)]

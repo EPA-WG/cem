@@ -35,10 +35,11 @@ impl RealCemMlEngine {
 }
 
 /// Aggregate every layer's diagnostics for an input through the
-/// pipeline. Used by every parser-backed request.
-struct PipelineRun {
-    document: CemDocument,
-    diagnostics: Vec<Diagnostic>,
+/// pipeline. Used by every parser-backed request, and by the public
+/// observability entry point [`observe_pipeline`].
+pub struct PipelineRun {
+    pub document: CemDocument,
+    pub diagnostics: Vec<Diagnostic>,
 }
 
 fn run_pipeline(bytes: &[u8]) -> PipelineRun {
@@ -139,6 +140,203 @@ fn snapshot(level: FailLevel, ctx: &EngineContext) -> ReportOptionsSnapshot {
 
 fn input_uris(inputs: &[EngineInput]) -> Vec<String> {
     inputs.iter().map(|i| i.uri.clone()).collect()
+}
+
+/// Run the full Tier A pipeline (`tokenize → normalize → schema → AST →
+/// validation rules`) while routing every observable event through the
+/// supplied [`EngineObserver`].
+///
+/// AC-O-1 / AC-O-3: emits one `parse` event per [`crate::events::NormalizedEvent`],
+/// one `transform` event per layer boundary the pipeline crosses,
+/// and one `validate` event per emitted [`Diagnostic`]. Every event
+/// carries a monotonic sequence number, the originating byte offset
+/// (when known), and the source-map stack as it exists at emission.
+pub fn observe_pipeline(
+    bytes: &[u8],
+    from_format: InputFormat,
+    observer: &dyn crate::observability::EngineObserver,
+) -> PipelineRun {
+    use crate::events::{EventNormalizer, NormalizedEvent, ScalarValue};
+    use crate::observability::{EventEmitter, EventSequencer, ParseEventKind};
+    use crate::source_map::TransformKind;
+
+    let mut sequencer = EventSequencer::new();
+    let mut emit = EventEmitter::new(observer, &mut sequencer);
+
+    // Layer boundary: tokenizer started. Profile decides which
+    // TransformKind frames are pushed onto downstream source maps.
+    let tokenizer_kind = match from_format {
+        InputFormat::Cem => TransformKind::CemTokenizer,
+        InputFormat::Html => TransformKind::HtmlTokenizer,
+        InputFormat::Xml => TransformKind::XmlTokenizer,
+    };
+    emit.transform(
+        tokenizer_kind.clone(),
+        format!("tokenizer entered ({from_format:?})"),
+        None,
+        None,
+    );
+
+    // Event-normalizer pass — produces the `parse` channel feed.
+    let normalizer_diags: Vec<Diagnostic>;
+    {
+        match from_format {
+            InputFormat::Cem => {
+                let src = BytesSource::new(SourceId(1), bytes.to_vec());
+                let mut tok = CemTokenizer::from_source(src);
+                let tok_diags = tok.take_diagnostics();
+                let mut normalizer = CemEventNormalizer::new(tok);
+                while let Some(event) = normalizer.next_event() {
+                    emit_parse_event(&mut emit, &event);
+                }
+                normalizer_diags = tok_diags;
+            }
+            InputFormat::Html => {
+                let src = BytesSource::new(SourceId(1), bytes.to_vec());
+                let mut tok = HtmlTokenizer::from_source(src);
+                let tok_diags = tok.take_diagnostics();
+                let mut normalizer = CemEventNormalizer::new(tok);
+                while let Some(event) = normalizer.next_event() {
+                    emit_parse_event(&mut emit, &event);
+                }
+                normalizer_diags = tok_diags;
+            }
+            InputFormat::Xml => {
+                let src = BytesSource::new(SourceId(1), bytes.to_vec());
+                let mut tok = XmlTokenizer::from_source(src);
+                let tok_diags = tok.take_diagnostics();
+                let mut normalizer = CemEventNormalizer::new(tok);
+                while let Some(event) = normalizer.next_event() {
+                    emit_parse_event(&mut emit, &event);
+                }
+                normalizer_diags = tok_diags;
+            }
+        }
+    }
+
+    emit.transform(
+        TransformKind::EventNormalizer,
+        "event normalizer drained",
+        None,
+        None,
+    );
+
+    let run = run_pipeline_as(bytes, from_format);
+
+    emit.transform(
+        TransformKind::CemAstBuilder,
+        "AST built",
+        None,
+        None,
+    );
+
+    // Validate channel — every accumulated diagnostic, plus the
+    // normalizer's own diagnostics we collected above (they are also
+    // folded into `run.diagnostics` by run_pipeline_as).
+    let mut emitted_codes_offsets = std::collections::HashSet::<(String, Option<u64>)>::new();
+    for diag in run.diagnostics.iter().chain(normalizer_diags.iter()) {
+        let key = (diag.code.clone(), diag.byte_offset);
+        if emitted_codes_offsets.insert(key) {
+            emit.validate(diag);
+        }
+    }
+
+    fn emit_parse_event(emit: &mut EventEmitter<'_>, event: &NormalizedEvent) {
+        match event {
+            NormalizedEvent::OpenScope {
+                name,
+                byte_range,
+                source_map,
+            } => emit.parse(
+                ParseEventKind::OpenScope,
+                Some(name.lexical_name.clone()),
+                None,
+                Some(byte_range.start),
+                Some(source_map.clone()),
+            ),
+            NormalizedEvent::CloseScope {
+                name,
+                byte_range,
+                source_map,
+                ..
+            } => emit.parse(
+                ParseEventKind::CloseScope,
+                Some(name.lexical_name.clone()),
+                None,
+                Some(byte_range.start),
+                Some(source_map.clone()),
+            ),
+            NormalizedEvent::Name { name, byte_range } => emit.parse(
+                ParseEventKind::Name,
+                Some(name.lexical_name.clone()),
+                None,
+                Some(byte_range.start),
+                None,
+            ),
+            NormalizedEvent::Value { value, byte_range } => {
+                let v = match value {
+                    ScalarValue::Text(t) => t.clone(),
+                    ScalarValue::Int(i) => i.to_string(),
+                    ScalarValue::Float(f) => f.to_string(),
+                    ScalarValue::Bool(b) => b.to_string(),
+                    ScalarValue::Null => String::new(),
+                };
+                emit.parse(
+                    ParseEventKind::Value,
+                    None,
+                    Some(v),
+                    Some(byte_range.start),
+                    None,
+                );
+            }
+            NormalizedEvent::Trivia { kind, byte_range } => emit.parse(
+                ParseEventKind::Trivia,
+                Some(format!("{kind:?}")),
+                None,
+                Some(byte_range.start),
+                None,
+            ),
+            NormalizedEvent::Separator { kind, byte_range } => emit.parse(
+                ParseEventKind::Separator,
+                Some(format!("{kind:?}")),
+                None,
+                Some(byte_range.start),
+                None,
+            ),
+            NormalizedEvent::ModeSwitch {
+                content_type,
+                handoff,
+            } => emit.parse(
+                ParseEventKind::ModeSwitch,
+                Some(content_type.clone()),
+                None,
+                Some(handoff.source_span.start),
+                None,
+            ),
+            NormalizedEvent::ProcessingInstruction {
+                target,
+                data,
+                byte_range,
+            } => emit.parse(
+                ParseEventKind::ProcessingInstruction,
+                Some(target.clone()),
+                Some(data.clone()),
+                Some(byte_range.start),
+                None,
+            ),
+            NormalizedEvent::Error {
+                code, byte_range, ..
+            } => emit.parse(
+                ParseEventKind::Error,
+                Some(code.clone()),
+                None,
+                Some(byte_range.start),
+                None,
+            ),
+        }
+    }
+
+    run
 }
 
 impl CemMlEngine for RealCemMlEngine {
