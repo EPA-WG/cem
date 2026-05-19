@@ -19,7 +19,7 @@ Component vocabulary: [`component-mvp.md`](component-mvp.md). Research input:
       transform boundary.
 - [x] Build the tree-sitter scanner/parser and add the planned parity check that every `examples/cem-ml/*.cem` fixture
       parses equivalently in Rust and tree-sitter.
-- [ ] Add a dedicated relaxed-boundary lint once the parser surfaces the structural distinction unambiguously instead
+- [x] Add a dedicated relaxed-boundary lint once the parser surfaces the structural distinction unambiguously instead
       of relying on tokenizer diagnostics such as `cem.tokenizer.unterminated_node` / `bare_brace_text`.
 - [ ] Design and implement the public observability API for `onParseEvent`, `onValidate`, and `onTransform`, including
       Rust/WASM types, event payload schema, CLI report projection, and runnable projection tests.

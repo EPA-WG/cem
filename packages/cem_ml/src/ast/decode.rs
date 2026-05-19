@@ -273,6 +273,7 @@ fn read_nodes(
                 } else {
                     Some(schema_id_raw)
                 };
+                let has_explicit_boundary = r.read_u8()? != 0;
                 let source = read_source_map(r, frames)?;
                 CemAstNode::Element {
                     node_id,
@@ -283,6 +284,7 @@ fn read_nodes(
                     },
                     attributes: Vec::new(),
                     children: Vec::new(),
+                    has_explicit_boundary,
                     source,
                 }
             }

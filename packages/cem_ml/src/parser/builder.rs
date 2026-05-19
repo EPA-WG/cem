@@ -105,12 +105,18 @@ impl<E: EventNormalizer> CemAstBuilder<E> {
             NormalizedEvent::Trivia { kind, byte_range } => {
                 self.append_trivia(kind, byte_range);
             }
-            NormalizedEvent::Separator { .. } => {
+            NormalizedEvent::Separator { kind, .. } => {
                 // Content-boundary marker: finalize any unflushed pending
-                // boolean attribute (e.g. `{input @required | ...}`).
+                // boolean attribute (e.g. `{input @required | ...}`) and
+                // record that this element used an explicit `|` (or `▷`)
+                // boundary. The `cem.lint.relaxed_content_boundary` rule
+                // reads the flag from the AST.
                 if let Some(pending) = self.pending_attr.take() {
                     let range = pending.name_range;
                     self.flush_attr(pending, None, range);
+                }
+                if matches!(kind, crate::events::SeparatorKind::ElementBoundary) {
+                    self.mark_explicit_boundary();
                 }
             }
             NormalizedEvent::ProcessingInstruction {
@@ -153,6 +159,9 @@ impl<E: EventNormalizer> CemAstBuilder<E> {
             expanded_name: expanded,
             attributes: Vec::new(),
             children: Vec::new(),
+            // Set to `true` when a `Separator(ElementBoundary)` event
+            // arrives while this element is on top of the build stack.
+            has_explicit_boundary: false,
             source: combined,
         };
         self.doc.nodes.push(element);
@@ -328,6 +337,20 @@ impl<E: EventNormalizer> CemAstBuilder<E> {
             source,
         });
         self.attach_child(node_id);
+    }
+
+    fn mark_explicit_boundary(&mut self) {
+        let Some(Frame::Element { id, .. }) = self.stack.last() else {
+            return;
+        };
+        let parent_id = *id as usize;
+        if let Some(CemAstNode::Element {
+            has_explicit_boundary,
+            ..
+        }) = self.doc.nodes.get_mut(parent_id)
+        {
+            *has_explicit_boundary = true;
+        }
     }
 
     fn attach_child(&mut self, child: AstNodeId) {

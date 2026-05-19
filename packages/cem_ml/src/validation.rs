@@ -22,6 +22,8 @@
 //! - `cem.struct.unknown_annotation` — re-surface schema-machine "unknown
 //!   annotation" diagnostics so the validation layer is a single entry
 //!   point.
+//! - `cem.lint.relaxed_content_boundary` — recommend the explicit `|` /
+//!   `▷` content boundary on elements that carry content.
 
 pub mod rules;
 
@@ -125,6 +127,7 @@ impl RuleRegistry {
         r.register(Box::new(rules::UnboundPrefixRule));
         r.register(Box::new(rules::NoncanonicalDelimiterRule));
         r.register(Box::new(rules::SuspiciousContentTypeSwitchRule));
+        r.register(Box::new(rules::RelaxedBoundaryRule));
         r
     }
 
@@ -222,6 +225,7 @@ mod tests {
         assert!(codes.contains(&"cem.lint.unbound_prefix"));
         assert!(codes.contains(&"cem.lint.noncanonical_delimiter"));
         assert!(codes.contains(&"cem.lint.suspicious_content_type_switch"));
+        assert!(codes.contains(&"cem.lint.relaxed_content_boundary"));
     }
 
     #[test]

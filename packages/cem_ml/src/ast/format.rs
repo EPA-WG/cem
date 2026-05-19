@@ -3,7 +3,9 @@
 use crate::source_map::SourceMapFrame;
 
 pub const MAGIC: [u8; 4] = *b"CEMB";
-pub const VERSION: u16 = 1;
+/// Wire-format version. Bumped to `2` when the Element record gained a
+/// trailing `has_explicit_boundary` byte (cem.lint.relaxed_content_boundary).
+pub const VERSION: u16 = 2;
 pub const FLAGS_NONE: u16 = 0;
 
 /// Kind tag for every variant of `CemAstNode`. Stable across the lifetime

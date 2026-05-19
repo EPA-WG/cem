@@ -295,6 +295,7 @@ fn write_nodes(out: &mut Vec<u8>, nodes: &[CemAstNode], d: &Dictionaries) {
             CemAstNode::Element {
                 node_id,
                 expanded_name,
+                has_explicit_boundary,
                 source,
                 ..
             } => {
@@ -303,6 +304,7 @@ fn write_nodes(out: &mut Vec<u8>, nodes: &[CemAstNode], d: &Dictionaries) {
                 write_string_ref(out, d, &expanded_name.namespace_uri);
                 write_string_ref(out, d, &expanded_name.local_name);
                 out.extend_from_slice(&expanded_name.schema_id.unwrap_or(u32::MAX).to_le_bytes());
+                out.push(if *has_explicit_boundary { 1 } else { 0 });
                 write_source_map(out, d, source);
             }
             CemAstNode::Attribute {

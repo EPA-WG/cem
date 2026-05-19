@@ -608,6 +608,99 @@ fn event_handler_descriptor() -> &'static RuleDescriptor {
     })
 }
 
+// ---------- Relaxed Content Boundary ----------
+
+/// `cem.lint.relaxed_content_boundary` — recommend the explicit `|` /
+/// `▷` content-boundary marker on every element that carries content.
+///
+/// `cem-ml-syntax.md` §"Content Runs" allows the relaxed form (content
+/// begins at the first non-attribute token), but the canonical surface
+/// keeps `|` for clarity. This rule runs at the document layer and
+/// inspects the AST flag set by the parser (no reliance on tokenizer
+/// proxies like `cem.tokenizer.unterminated_node` or
+/// `cem.tokenizer.bare_brace_text`).
+pub struct RelaxedBoundaryRule;
+
+impl SemanticRule for RelaxedBoundaryRule {
+    fn descriptor(&self) -> &RuleDescriptor {
+        relaxed_boundary_descriptor()
+    }
+
+    fn run(&self, ctx: &RuleContext<'_>) -> Vec<Diagnostic> {
+        let mut out = Vec::new();
+        for node in ctx.document.iter() {
+            let CemAstNode::Element {
+                expanded_name,
+                children,
+                has_explicit_boundary,
+                ..
+            } = node
+            else {
+                continue;
+            };
+            if *has_explicit_boundary {
+                continue;
+            }
+            // Directives lower to `Element` with a leading `@`; expression
+            // nodes use `$`. Neither participates in the `|` content-
+            // boundary rule.
+            let local = expanded_name.local_name.as_str();
+            if local.starts_with('@') || local == "$" {
+                continue;
+            }
+            if !has_significant_content(ctx.document, children) {
+                continue;
+            }
+            out.push(diag_at(
+                "cem.lint.relaxed_content_boundary",
+                Severity::Warning,
+                format!(
+                    "element `{}` uses the relaxed content boundary; insert `|` (or `▷`) before the content for canonical CEM-ML",
+                    qualified_name(expanded_name),
+                ),
+                node,
+            ));
+        }
+        out
+    }
+}
+
+fn qualified_name(name: &crate::parser::ExpandedName) -> String {
+    if name.namespace_uri.is_empty() {
+        name.local_name.clone()
+    } else {
+        format!("{}:{}", name.namespace_uri, name.local_name)
+    }
+}
+
+fn has_significant_content(
+    doc: &crate::parser::document::CemDocument,
+    children: &[AstNodeId],
+) -> bool {
+    children.iter().any(|id| match doc.get(*id) {
+        Some(CemAstNode::Element { .. })
+        | Some(CemAstNode::Text { .. })
+        | Some(CemAstNode::Cdata { .. })
+        | Some(CemAstNode::RawText { .. })
+        | Some(CemAstNode::ProcessingInstruction { .. }) => true,
+        _ => false,
+    })
+}
+
+fn relaxed_boundary_descriptor() -> &'static RuleDescriptor {
+    use std::sync::OnceLock;
+    static D: OnceLock<RuleDescriptor> = OnceLock::new();
+    D.get_or_init(|| RuleDescriptor {
+        id: RuleId::new("cem.lint.relaxed_content_boundary"),
+        owning_scope: "cem-lint",
+        content_type: None,
+        trigger_layer: TriggerLayer::Document,
+        required_inputs: &[RuleInput::CemDocument],
+        default_severity: Severity::Warning,
+        policy_overridable: true,
+    })
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -788,6 +881,53 @@ mod tests {
         assert!(diags
             .iter()
             .all(|d| d.code != "cem.lint.suspicious_content_type_switch"));
+    }
+
+    #[test]
+    fn relaxed_boundary_flagged_when_marker_omitted_with_content() {
+        // `{p Hello}` is the relaxed form — content follows attributes
+        // (or, here, the name) without the canonical `|` marker.
+        let diags = run_rules("{p Hello}");
+        assert!(
+            diags
+                .iter()
+                .any(|d| d.code == "cem.lint.relaxed_content_boundary"),
+            "expected relaxed-boundary lint, got {diags:?}"
+        );
+    }
+
+    #[test]
+    fn relaxed_boundary_flagged_on_child_element_without_marker() {
+        let diags = run_rules("{section {p | hi}}");
+        assert!(diags
+            .iter()
+            .any(|d| d.code == "cem.lint.relaxed_content_boundary"));
+    }
+
+    #[test]
+    fn relaxed_boundary_clean_when_marker_present() {
+        let diags = run_rules("{p | Hello}");
+        assert!(diags
+            .iter()
+            .all(|d| d.code != "cem.lint.relaxed_content_boundary"));
+    }
+
+    #[test]
+    fn relaxed_boundary_clean_for_element_with_no_content() {
+        // No content children, so the boundary marker would be
+        // redundant. `{input @required}` must not fire the rule.
+        let diags = run_rules("{input @required}");
+        assert!(diags
+            .iter()
+            .all(|d| d.code != "cem.lint.relaxed_content_boundary"));
+    }
+
+    #[test]
+    fn relaxed_boundary_clean_for_unicode_marker() {
+        let diags = run_rules("{p ▷ Hello}");
+        assert!(diags
+            .iter()
+            .all(|d| d.code != "cem.lint.relaxed_content_boundary"));
     }
 
     #[test]

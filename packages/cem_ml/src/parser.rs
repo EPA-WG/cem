@@ -33,6 +33,15 @@ pub enum CemAstNode {
         /// `query::cem_annotations` to filter for the annotation subset.
         attributes: Vec<AstNodeId>,
         children: Vec<AstNodeId>,
+        /// `true` when the source carries an explicit `|` (or `▷`)
+        /// content boundary between the attribute list and the content
+        /// plane; `false` when the relaxed form was used (content
+        /// starts at the first non-attribute token). Drives the
+        /// `cem.lint.relaxed_content_boundary` rule in
+        /// `validation::rules`. Producers that don't have the
+        /// information (binary decode, programmatic construction)
+        /// default to `true` — canonical CEM-ML inserts `|`.
+        has_explicit_boundary: bool,
         source: SourceMapStack,
     },
     Attribute {
