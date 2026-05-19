@@ -13,6 +13,7 @@ pub mod handoff;
 pub mod interpreter;
 pub mod observability;
 pub mod parser;
+pub mod plugin;
 pub mod projection;
 pub mod query;
 pub mod real;

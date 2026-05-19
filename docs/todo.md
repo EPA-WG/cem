@@ -23,7 +23,7 @@ Component vocabulary: [`component-mvp.md`](component-mvp.md). Research input:
       of relying on tokenizer diagnostics such as `cem.tokenizer.unterminated_node` / `bare_brace_text`.
 - [x] Design and implement the public observability API for `onParseEvent`, `onValidate`, and `onTransform`, including
       Rust/WASM types, event payload schema, CLI report projection, and runnable projection tests.
-- [ ] Design and implement the plugin runtime for AC-PL-* descriptors, chaining, sandboxing, source-map stitching,
+- [x] Design and implement the plugin runtime for AC-PL-* descriptors, chaining, sandboxing, source-map stitching,
       budgets, lifecycle hooks, and verification fixtures.
 - [ ] Add engine scheduling design and implementation for AC-A-4..AC-A-7 / AC-O-2: worker pools, bounded queues,
       external-I/O queue handling, cancellation, AbortSignal support, deterministic trace shape, and resource defaults.
