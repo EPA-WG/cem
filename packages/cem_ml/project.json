@@ -59,6 +59,22 @@
                 "cwd": "packages/cem_ml"
             },
             "outputs": ["{workspaceRoot}/dist/target/wasm32-unknown-unknown"]
+        },
+        "tree-sitter:generate": {
+            "cache": true,
+            "executor": "nx:run-commands",
+            "options": {
+                "command": "tree-sitter generate",
+                "cwd": "packages/cem_ml/grammar/tree-sitter-cem"
+            },
+            "inputs": [
+                "{projectRoot}/grammar/tree-sitter-cem/grammar.js"
+            ],
+            "outputs": [
+                "{projectRoot}/grammar/tree-sitter-cem/src/parser.c",
+                "{projectRoot}/grammar/tree-sitter-cem/src/grammar.json",
+                "{projectRoot}/grammar/tree-sitter-cem/src/node-types.json"
+            ]
         }
     },
     "tags": ["scope:cem-ml", "type:lib", "lang:rust"]

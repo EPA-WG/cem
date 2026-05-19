@@ -1,41 +1,53 @@
-// CEM-ML tree-sitter grammar (skeleton).
+// CEM-ML tree-sitter grammar — Tier A.
 //
 // Source-of-truth lexical grammar: ../lexical.ebnf
 // Rust tokenizer mirror: ../../src/tokenizer/cem.rs
+// Document syntax reference: ../../../../docs/cem-ml-syntax.md
 //
-// Tier A scope: the production-level grammar that any editor parse
-// implementation should treat as authoritative. The Tier A goal is
-// editor highlighting + structural folding + best-effort error
-// recovery, not byte-identical parity with the Rust tokenizer. A
-// parity round-trip test (every `examples/cem-ml/*.cem` fixture parses
-// in both engines into structurally-equivalent trees) is a follow-up
-// once the tree-sitter scanner ships alongside the parser-enabled
-// milestone (`cem-ml-cli-plan.md` Phase 11).
+// Tier A goal: editor highlighting + structural folding + best-effort
+// error recovery, and a parity round-trip against the Rust tokenizer
+// for every canonical `examples/cem-ml/*.cem` fixture. The parity
+// projection lives in `packages/cem_ml/tests/tree_sitter_parity.rs`.
 
 module.exports = grammar({
   name: 'cem',
 
   extras: $ => [
-    /\s+/,
+    /[ \t\r\n]+/,
     $.line_comment,
     $.block_comment,
   ],
 
+  word: $ => $._name_token,
+
+  conflicts: $ => [],
+
   rules: {
     document: $ => seq(
-      repeat($._directive),
+      repeat($.directive),
       repeat($._item),
     ),
 
+    // Document directive: `@name body...` to end-of-line. Tier A
+    // canonical names are `doc`, `ns`, `default`, `schema`.
+    directive: $ => seq(
+      $._directive_head,
+      field('body', optional($._directive_body)),
+      optional(/\r?\n/),
+    ),
+
+    _directive_head: $ => token(seq('@', choice('doc', 'ns', 'default', 'schema'))),
+    _directive_body: $ => token.immediate(/[^\r\n]+/),
+
     _item: $ => choice(
-      $.node,
       $.expression_node,
+      $.node,
       $.anonymous_scope,
-      $._directive,
       $.rich_content,
       $.text,
     ),
 
+    // `{name @attr=value | content}` — the canonical CEM-ML scope.
     node: $ => seq(
       '{',
       field('name', $.qname),
@@ -45,19 +57,24 @@ module.exports = grammar({
       '}',
     ),
 
-    expression_node: $ => seq(
-      '{',
-      '$',
-      optional($.content_boundary),
-      field('body', $.expression_body),
-      '}',
-    ),
-
+    // `{@attr=value | content}` — a scope whose schema is given by the
+    // attributes (no element name). Disambiguated by lookahead: the
+    // first non-whitespace character after `{` is `@`.
     anonymous_scope: $ => seq(
       '{',
       repeat1($.attribute),
       optional($.content_boundary),
       repeat($._item),
+      '}',
+    ),
+
+    // `{$ ... }` — expression node. Body is delegated to a future
+    // cem-ql parser; Tier A captures it as an opaque balanced span.
+    expression_node: $ => seq(
+      '{',
+      '$',
+      optional($.content_boundary),
+      field('body', $.expression_body),
       '}',
     ),
 
@@ -76,16 +93,17 @@ module.exports = grammar({
       $.cem_ql_span,
     ),
 
-    bare_value: $ => /[A-Za-z0-9_\-./]+/,
+    bare_value: $ => /[A-Za-z0-9_\-.\/:]+/,
+
     quoted_string: $ => choice(
-      seq('"', /[^"]*/, '"'),
-      seq("'", /[^']*/, "'"),
+      seq('"', repeat(token.immediate(/[^"]+/)), token.immediate('"')),
+      seq("'", repeat(token.immediate(/[^']+/)), token.immediate("'")),
     ),
 
+    // cem-ql attribute span — opaque, balanced braces. The cem-ql
+    // grammar lands with the cem-ql crate.
     cem_ql_span: $ => seq(
       '{',
-      // Tier A: opaque body, balanced braces; cem-ql parsing is a
-      // separate grammar that lands with the cem-ql crate.
       repeat(choice(/[^{}]+/, $.cem_ql_span)),
       '}',
     ),
@@ -94,23 +112,37 @@ module.exports = grammar({
 
     content_boundary: $ => choice('|', '▷'),
 
-    qname: $ => /[A-Za-z_][A-Za-z0-9_\-]*(:[A-Za-z_][A-Za-z0-9_\-]*)?/,
+    // Qualified name: either `prefix:local` or `local` only.
+    qname: $ => /[A-Za-z_][A-Za-z0-9_-]*(:[A-Za-z_][A-Za-z0-9_-]*)?/,
 
-    _directive: $ => seq(
-      '@',
-      field('directive_name', /(doc|ns|default|schema)\b/),
-      field('body', /[^\n]*/),
-    ),
+    line_comment: $ => token(seq('//', /[^\r\n]*/)),
 
-    line_comment: $ => /\/\/[^\n]*/,
-    block_comment: $ => seq('/*', /[^*]*\*+([^/*][^*]*\*+)*/, '/'),
+    // C-style /* ... */ block comment, allowing `*` inside as long as
+    // it isn't followed by `/`.
+    block_comment: $ => token(seq(
+      '/*',
+      /[^*]*\*+([^/*][^*]*\*+)*/,
+      '/',
+    )),
 
-    rich_content: $ => seq(
+    rich_content: $ => token(seq(
       '```',
-      repeat(/[^`]|`[^`]|``[^`]/),
+      /([^`]|`[^`]|``[^`])*/,
       '```',
-    ),
+    )),
 
-    text: $ => /[^{}`@]+/,
+    // Free-form text content: anything that isn't a structural sigil.
+    // The first character excludes `@`, `/`, and `` ` `` so attributes,
+    // directives, comments, and rich-content enclosures win at the
+    // start of an item position. Subsequent characters allow `@`, `/`,
+    // and single `` ` `` so prose like `alex@example.test`,
+    // `https://example/path`, or inline `` `code` `` markers parse as
+    // one contiguous text run, matching the Rust tokenizer's behaviour
+    // in `scan_content_text` (only `/*` interrupts a text run; `//`
+    // and bare backticks stay in text).
+    text: $ => token(prec(-1, /[^{}@`\/][^{}]*/)),
+
+    // Internal token used as the `word` for keyword discrimination.
+    _name_token: $ => /[A-Za-z_][A-Za-z0-9_-]*/,
   },
 });

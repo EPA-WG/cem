@@ -17,7 +17,7 @@ Component vocabulary: [`component-mvp.md`](component-mvp.md). Research input:
       [`../packages/cem_ml/docs/cross-surface-conversion.md`](../packages/cem_ml/docs/cross-surface-conversion.md),
       including byte-stable canonical formatter expectations and source-map preservation across the content-type
       transform boundary.
-- [ ] Build the tree-sitter scanner/parser and add the planned parity check that every `examples/cem-ml/*.cem` fixture
+- [x] Build the tree-sitter scanner/parser and add the planned parity check that every `examples/cem-ml/*.cem` fixture
       parses equivalently in Rust and tree-sitter.
 - [ ] Add a dedicated relaxed-boundary lint once the parser surfaces the structural distinction unambiguously instead
       of relying on tokenizer diagnostics such as `cem.tokenizer.unterminated_node` / `bare_brace_text`.
