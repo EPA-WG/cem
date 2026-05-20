@@ -15,14 +15,14 @@ Acceptance criteria: [`cem-ml-ac.md`](cem-ml-ac.md), [`cem-ql-ac.md`](cem-ql-ac.
 The only remaining "Non-Match" row in [`cem-ac-design-revalidation.md`](cem-ac-design-revalidation.md): the design still
 lacks compiler output detail, and the implementation has no emitter for any release artifact.
 
-- [~] Design and document the schema-compiler output module (location: `packages/cem_ml/src/schema/compiler/`).
+- [x] Design and document the schema-compiler output module (location: `packages/cem_ml/src/schema/compiler/`).
       Cover the output struct shapes, file ownership, byte-stability rules, and verification fixtures. Update
       `cem-ml-stack-design.md` and `cem-ml-stack-design-impl.md` with the new section.
-      **Status (2026-05-19):** Design landed in `cem-ml-stack-design.md` §13.2 and
-      `cem-ml-stack-design-impl.md` §3.4.2. Implementation blocked on the open questions in
-      [`cem-ml-schema-compiler-open-questions.md`](cem-ml-schema-compiler-open-questions.md). All open
-      questions (OQ-SC-3, OQ-SC-5, OQ-SC-6, OQ-SC-7, OQ-SC-8) resolved 2026-05-19 — see
-      `cem-ml-stack-design.md` §13.2.9. Emitter PR work is unblocked.
+      **Closed (2026-05-19):** Design landed in `cem-ml-stack-design.md` §13.2 and
+      `cem-ml-stack-design-impl.md` §3.4.2. All open questions (OQ-SC-3, OQ-SC-5, OQ-SC-6, OQ-SC-7, OQ-SC-8)
+      resolved the same day — see `cem-ml-stack-design.md` §13.2.9 and
+      [`cem-ml-schema-compiler-open-questions.md`](cem-ml-schema-compiler-open-questions.md) (decision archive).
+      Emitter PR work is unblocked; see the implementation items below.
 - [ ] Extend `CompiledSchema` to the `cem-ml-stack-design-impl.md` §3.4 shape before emitter work (AC-S-7, AC-S-8).
       Add `SchemaVersionIdentity`, `CemNativeSchemaSource`, `StructuralSchemaIr`, `SemanticRule`,
       `OpenContentPolicy`, and transform-plan metadata; wire `CompiledSchema::cem_core()` to populate the richer IR.
