@@ -1571,8 +1571,6 @@ tracked in detail in
 no emitter lands until each item below has a resolution or an explicit
 deferral.
 
-- **OQ-SC-1** — Module location: subdirectory `schema/compiler/` vs single
-  file `schema/compiler.rs` (impl design §4 currently lists the latter).
 - **OQ-SC-2** — `CompiledSchema` field gap: the existing Tier A
   `vocab::CompiledSchema` is vocabulary-only; richer fields
   (`StructuralSchemaIr`, `SemanticRule`, `OpenContentPolicy`,
@@ -1972,7 +1970,7 @@ remain open:
 
 | ID | AC reference | Design follow-up |
 |----|--------------|------------------|
-| DESIGN-FOLLOW-001 | AC-S-2 through AC-S-6 | **Design landed (§13.2).** Schema-compiler output module, emitter inventory, byte-stability rules, on-disk layout, URI publication workflow, and verification-fixture roster are now specified. Implementation blocked on the open questions in [`cem-ml-schema-compiler-open-questions.md`](cem-ml-schema-compiler-open-questions.md) (OQ-SC-1..OQ-SC-8). |
+| DESIGN-FOLLOW-001 | AC-S-2 through AC-S-6 | **Design landed (§13.2).** Schema-compiler output module, emitter inventory, byte-stability rules, on-disk layout, URI publication workflow, and verification-fixture roster are now specified. Implementation blocked on the open questions in [`cem-ml-schema-compiler-open-questions.md`](cem-ml-schema-compiler-open-questions.md) (OQ-SC-2..OQ-SC-8). |
 | DESIGN-FOLLOW-002 | AC-V-2, AC-V-3 | AC rules are resolved in `cem-ml-ac.md` §3.1 and summarized in this design; implementation structs and tests still need to be added. |
 | DESIGN-FOLLOW-003 | AC-P-3, AC-O-1 | `byteOffset` and observer names are now sketched in design/impl; add concrete payload schemas, Rust/WASM API details, and tests. |
 | DESIGN-FOLLOW-004 | AC-V-6, AC-X-3 | Add concrete schema-owned semantic checks for accessibility, ARIA, invalid state combinations, and unsafe inline content. |
