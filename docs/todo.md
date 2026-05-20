@@ -44,8 +44,17 @@ lacks compiler output detail, and the implementation has no emitter for any rele
       `tests/schema_emit/rng_xml_oracle.rs` spawns `xmllint --relaxng` when available and skips with an info
       record under `CEM_ML_SCHEMA_ORACLE_SKIP=1` or when libxml2 is absent (OQ-SC-5 escape hatch).
       `blake3 = "1"` added to `Cargo.toml`. `yarn nx run cem_ml:test` green.
-- [ ] Emit TypeScript `.d.ts` headers from `CompiledSchema` (AC-S-3, AC-S-6). Structural by default; `Validated<T>`
+- [x] Emit TypeScript `.d.ts` headers from `CompiledSchema` (AC-S-3, AC-S-6). Structural by default; `Validated<T>`
       wrapper opt-in per `MEMORY.md` (`project_ts_emit_strategy.md`).
+      **Closed (2026-05-20):** `packages/cem_ml/src/schema/compiler/ts_dts.rs` lands the AC-S-3 / AC-S-6 emitter.
+      Header per OQ-SC-8 (URI + version only, no hash). `Validated<T>` / `asValidated` / `tryValidated` re-exported
+      from `@epa-wg/cem-ml/wasm` per OQ-SC-6; structural-by-default callers can drop the brand block via
+      `include_validated_brand = false`. One `export interface {Pascal(annotation)} extends HTMLElement` per
+      cem-core/1 annotation with a `readonly cem{Annotation}?` field (literal-union for enum-typed, `string` for
+      free-form) and a `readonly cemState?` field reflecting `AnnotationDef.allowed_states`. Per-version on-disk
+      path `core/1.0.0/cem-core.d.ts` (OQ-SC-7). 15 inline tests cover byte stability, header policy, brand-block
+      gating, every annotation interface, enum vs free-form value typing, per-annotation state union, kebab→Pascal
+      naming, and the LF/no-trailing-whitespace invariants. `yarn nx run cem_ml:test` green.
 - [ ] Emit Rust `.rs` headers from `CompiledSchema` (AC-S-4). Verify the generated module compiles with `cargo check`.
 - [ ] Publish schemas under stable URIs (AC-S-5). Define the URI scheme, byte-stability fixture, and the publication
       workflow (manifest, version, hash sidecar).

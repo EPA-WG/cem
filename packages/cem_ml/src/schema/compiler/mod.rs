@@ -12,6 +12,7 @@ pub mod error;
 pub mod output;
 pub mod rng_compact;
 pub mod rng_xml;
+pub mod ts_dts;
 
 use std::collections::BTreeMap;
 
@@ -88,10 +89,18 @@ impl SchemaCompiler {
             artifacts.push(artifact);
         }
 
-        // ts_dts.rs, rust_hdr.rs, uri_publish.rs land in follow-up PRs;
-        // their options gates are wired here already so future drops
-        // only need to add the trait-call block above.
-        let _ = options.emit_dts;
+        if options.emit_dts {
+            let mut cursor = EmissionCursor::new(schema);
+            let artifact = ts_dts::TsDtsEmitter.emit(schema, options, &mut cursor)?;
+            register_manifest(
+                &mut manifest_artifacts,
+                &artifact,
+                ts_dts::TsDtsEmitter::EMITTER_NAME,
+            );
+            artifacts.push(artifact);
+        }
+
+        // rust_hdr.rs and uri_publish.rs land in follow-up PRs.
         let _ = options.emit_rust;
 
         let manifest = PublicationManifest {
@@ -161,20 +170,22 @@ mod tests {
     }
 
     #[test]
-    fn emit_all_produces_two_artifacts_with_defaults() {
+    fn emit_all_produces_three_artifacts_with_defaults() {
         let schema = CompiledSchema::cem_core();
         let output = SchemaCompiler::emit_all(&schema, &CompilerOptions::default()).unwrap();
-        assert_eq!(output.artifacts.len(), 2);
-        assert!(output
-            .artifacts
-            .iter()
-            .any(|a| a.kind == ArtifactKind::RelaxNgXml));
-        assert!(output
-            .artifacts
-            .iter()
-            .any(|a| a.kind == ArtifactKind::RelaxNgCompact));
+        assert_eq!(output.artifacts.len(), 3);
+        for kind in [
+            ArtifactKind::RelaxNgXml,
+            ArtifactKind::RelaxNgCompact,
+            ArtifactKind::TypeScriptDts,
+        ] {
+            assert!(
+                output.artifacts.iter().any(|a| a.kind == kind),
+                "default emit_all missing artifact: {kind:?}"
+            );
+        }
         assert_eq!(output.manifest.hash_scheme, "cem-bin/1+blake3");
-        assert_eq!(output.manifest.artifacts.len(), 2);
+        assert_eq!(output.manifest.artifacts.len(), 3);
     }
 
     #[test]
@@ -182,11 +193,35 @@ mod tests {
         let schema = CompiledSchema::cem_core();
         let opts = CompilerOptions {
             emit_rng_compact: false,
+            emit_dts: false,
             ..Default::default()
         };
         let output = SchemaCompiler::emit_all(&schema, &opts).unwrap();
         assert_eq!(output.artifacts.len(), 1);
         assert_eq!(output.artifacts[0].kind, ArtifactKind::RelaxNgXml);
+    }
+
+    #[test]
+    fn emit_dts_default_on_and_can_be_disabled_independently() {
+        let schema = CompiledSchema::cem_core();
+        // Default-on.
+        let output = SchemaCompiler::emit_all(&schema, &CompilerOptions::default()).unwrap();
+        assert!(output
+            .manifest
+            .artifacts
+            .contains_key(&ArtifactKind::TypeScriptDts));
+
+        // Explicit off — only RNG outputs remain.
+        let opts = CompilerOptions {
+            emit_dts: false,
+            ..Default::default()
+        };
+        let output = SchemaCompiler::emit_all(&schema, &opts).unwrap();
+        assert_eq!(output.artifacts.len(), 2);
+        assert!(!output
+            .artifacts
+            .iter()
+            .any(|a| a.kind == ArtifactKind::TypeScriptDts));
     }
 
     #[test]
