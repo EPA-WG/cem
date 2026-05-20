@@ -29,12 +29,17 @@ if (!existsSync(sourceDir)) {
 }
 
 const ant = process.env.TRANG_ANT || (process.platform === 'win32' ? 'ant.bat' : 'ant');
-if (!commandExists(ant)) {
-  exitWith(127, `\`${ant}\` not on PATH; install Apache Ant to build trang.jar`);
+// TRANG_ANT may be an absolute path; commandExists is a PATH probe and
+// would reject it. Accept either an existing file path or a PATH name.
+if (!(path.isAbsolute(ant) && existsSync(ant)) && !commandExists(ant)) {
+  exitWith(127, `\`${ant}\` not on PATH (and not an existing absolute path); install Apache Ant to build trang.jar`);
 }
 
+// `ant-jar` is jing-trang's default target — it compiles all modules
+// (jing.jar, trang.jar, dtdinst.jar) into ${build.dir}. The legacy
+// `trang.jar` target name does not exist in V20241231.
 console.log(`[trang-native] running ant from ${sourceDir}`);
-const result = spawnSync(ant, ['trang.jar'], { cwd: sourceDir, stdio: 'inherit' });
+const result = spawnSync(ant, ['ant-jar'], { cwd: sourceDir, stdio: 'inherit' });
 if (result.status !== 0) {
   exitWith(result.status ?? 1, `ant trang.jar failed (exit ${result.status})`);
 }
@@ -47,6 +52,19 @@ if (!existsSync(upstreamJar)) {
 mkdirSync(outDir, { recursive: true });
 copyFileSync(upstreamJar, outJar);
 console.log(`[trang-native] wrote ${outJar}`);
+
+// resolver.jar is declared in trang.jar's manifest as Class-Path
+// (Apache xml-resolver). `java -jar` looks it up next to trang.jar; we
+// need it on disk in the same place so native-image's classpath build
+// can pick it up.
+const upstreamResolver = path.join(sourceDir, 'lib', 'resolver.jar');
+if (existsSync(upstreamResolver)) {
+  const outResolver = path.join(outDir, 'resolver.jar');
+  copyFileSync(upstreamResolver, outResolver);
+  console.log(`[trang-native] wrote ${outResolver}`);
+} else {
+  console.warn(`[trang-native] warning: ${upstreamResolver} not found; native-image build may fail to resolve xml-resolver classes`);
+}
 
 function commandExists(name) {
   const probe = process.platform === 'win32'

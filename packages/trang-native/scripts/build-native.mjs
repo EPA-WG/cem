@@ -82,8 +82,18 @@ if (existsSync(reflectConfigDir)) {
   niArgs.push(`-H:ConfigurationFileDirectories=${reflectConfigDir}`);
 }
 
-niArgs.push('-jar', jarPath);
-niArgs.push('trang');
+// Classic mode (not `-jar`): trang.jar's manifest writes Main-Class
+// with `/` separators ("com/thaiopensource/.../Driver"), which
+// native-image rejects in -jar mode. Pass classpath + main class
+// explicitly. resolver.jar (declared as Class-Path in the manifest)
+// must be included for xml-resolver classes to link.
+const cpSep = process.platform === 'win32' ? ';' : ':';
+const resolverJar = path.join(packageRoot, 'build', 'resolver.jar');
+const classpath = existsSync(resolverJar)
+  ? `${jarPath}${cpSep}${resolverJar}`
+  : jarPath;
+niArgs.push('-cp', classpath);
+niArgs.push('com.thaiopensource.relaxng.translate.Driver');
 
 console.log(`[trang-native] native-image build for ${target}`);
 console.log(`[trang-native] command: ${nativeImage} ${niArgs.join(' ')}`);
@@ -111,9 +121,10 @@ if (!existsSync(outBinary)) {
 console.log(`[trang-native] wrote ${outBinary}`);
 
 function captureReflectionMetadata({ nativeImage, jarPath, packageRoot }) {
-  // Run Trang under the agent against a representative input — the
-  // canonical CEM-emitted .rng + .rnc pair if present; otherwise a
-  // minimal smoke fixture.
+  // Run Trang under the agent across every conversion direction so the
+  // resulting reflect-/resource-config.json covers the full CLI surface.
+  // Uses `config-merge-dir` so each successive run extends the same
+  // config files rather than overwriting them.
   const java = resolveJava();
   if (!java) {
     exitWith(127, 'java not found on PATH; cannot run native-image-agent');
@@ -121,42 +132,80 @@ function captureReflectionMetadata({ nativeImage, jarPath, packageRoot }) {
   const agentDir = path.join(packageRoot, 'reflect-config', '.agent-scratch');
   mkdirSync(agentDir, { recursive: true });
 
-  const fixture = resolveFixture(packageRoot);
-  console.log(`[trang-native] capturing reflection with fixture: ${fixture.join(' ')}`);
-  const result = spawnSync(
-    java,
-    [
-      `-agentlib:native-image-agent=config-output-dir=${agentDir}`,
-      '-jar',
-      jarPath,
-      ...fixture,
-    ],
-    { stdio: 'inherit' },
-  );
-  if (result.status !== 0) {
-    exitWith(result.status ?? 1, `native-image-agent run failed (exit ${result.status})`);
+  // resolver.jar sits next to trang.jar in build/; trang.jar's manifest
+  // Class-Path picks it up automatically when invoked via -jar.
+  const conversions = prepareConversionFixtures(packageRoot);
+  for (const [index, conversion] of conversions.entries()) {
+    const firstRun = index === 0;
+    const agentOpt = firstRun
+      ? `config-output-dir=${agentDir}`
+      : `config-merge-dir=${agentDir}`;
+    console.log(
+      `[trang-native] capture ${index + 1}/${conversions.length}: ${conversion.label}`,
+    );
+    const result = spawnSync(
+      java,
+      [`-agentlib:native-image-agent=${agentOpt}`, '-jar', jarPath, ...conversion.args],
+      { stdio: 'inherit' },
+    );
+    if (result.status !== 0) {
+      exitWith(
+        result.status ?? 1,
+        `native-image-agent run failed for ${conversion.label} (exit ${result.status})`,
+      );
+    }
   }
   console.log(
-    `[trang-native] wrote agent config to ${agentDir}.\n` +
-      `[trang-native] Review and merge into reflect-config/reflect-config.json before committing.`,
+    `[trang-native] wrote merged agent config to ${agentDir}.\n` +
+      `[trang-native] Review and move into reflect-config/ (drop .agent-scratch/) before committing.`,
   );
   process.exit(0);
 }
 
-function resolveFixture(packageRoot) {
-  // Minimal smoke: convert this README's snippet via a tiny inline .rnc.
-  // The CI fixture-generation step replaces this with the
-  // cem-ml-emitted canonical fixture.
+function prepareConversionFixtures(packageRoot) {
+  // Lay out a representative pair of schemas covering the conversion
+  // graph. The .rnc seed is the source of truth; we let Trang produce
+  // the other formats on disk first, then exercise every direction.
   const fixtureDir = path.join(packageRoot, 'build', 'agent-fixture');
   mkdirSync(fixtureDir, { recursive: true });
-  const rncPath = path.join(fixtureDir, 'smoke.rnc');
-  const rngPath = path.join(fixtureDir, 'smoke.rng');
+  const rncPath = path.join(fixtureDir, 'fixture.rnc');
+  const rngPath = path.join(fixtureDir, 'fixture.rng');
+  const xsdPath = path.join(fixtureDir, 'fixture.xsd');
+  const dtdPath = path.join(fixtureDir, 'fixture.dtd');
+  const rncOut = path.join(fixtureDir, 'fixture.out.rnc');
+  const rngOut = path.join(fixtureDir, 'fixture.out.rng');
+
   if (!existsSync(rncPath)) {
-    // Write a minimal .rnc on demand.
-    const rnc = 'default namespace = "https://example.com/ns"\nstart = element root { empty }\n';
+    // Schema deliberately exercises elements, attributes, repetition,
+    // optional groups, and a typed datatype so the agent observes the
+    // datatype-library and resolver code paths.
+    const rnc = [
+      'default namespace = "https://example.com/ns"',
+      'datatypes xsd = "http://www.w3.org/2001/XMLSchema-datatypes"',
+      '',
+      'start = element root {',
+      '  attribute id { xsd:ID },',
+      '  attribute version { xsd:string }?,',
+      '  element child {',
+      '    attribute name { text },',
+      '    text',
+      '  }*',
+      '}',
+      '',
+    ].join('\n');
     writeFileSync(rncPath, rnc, 'utf8');
   }
-  return [rncPath, rngPath];
+
+  return [
+    { label: 'rnc → rng', args: [rncPath, rngPath] },
+    { label: 'rng → rnc', args: [rngPath, rncOut] },
+    { label: 'rnc → xsd', args: [rncPath, xsdPath] },
+    { label: 'rng → xsd', args: [rngPath, xsdPath] },
+    { label: 'rnc → dtd', args: [rncPath, dtdPath] },
+    { label: 'rng → dtd', args: [rngPath, dtdPath] },
+    // Trang accepts rng|rnc|dtd|xml as input formats — XSD is output-only.
+    { label: 'dtd → rng', args: [dtdPath, rngOut] },
+  ];
 }
 
 function pickArg(argv, flag) {

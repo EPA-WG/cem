@@ -97,19 +97,27 @@ async function createTarGzArchive(outPath, entries) {
     for (const entry of entries) {
       copyToStage(entry.absPath, path.join(stagedDir, entry.archivePath));
     }
-    const tarArgs = [
-      '--owner=0',
-      '--group=0',
-      '--numeric-owner',
-      // Reproducible mtime so the archive bytes are stable across
-      // builds of the same source.
-      '--mtime=2026-01-01T00:00:00Z',
-      '-czf',
-      outPath,
-      '-C',
-      stagedDir,
-      '.',
-    ];
+    // macOS ships BSD tar, which doesn't accept --owner=/--group=/--mtime=.
+    // Use GNU-tar flags on Linux only; on macOS settle for default
+    // ownership/mtime (the archive is built fresh on a clean stage dir,
+    // so reproducibility is mostly preserved by the deterministic
+    // contents).
+    const isLinux = process.platform === 'linux';
+    const tarArgs = isLinux
+      ? [
+          '--owner=0',
+          '--group=0',
+          '--numeric-owner',
+          // Reproducible mtime so the archive bytes are stable across
+          // builds of the same source.
+          '--mtime=2026-01-01T00:00:00Z',
+          '-czf',
+          outPath,
+          '-C',
+          stagedDir,
+          '.',
+        ]
+      : ['-czf', outPath, '-C', stagedDir, '.'];
     const result = spawnSync('tar', tarArgs, { stdio: 'inherit' });
     if (result.status !== 0) {
       exitWith(result.status ?? 1, `tar failed (exit ${result.status})`);
