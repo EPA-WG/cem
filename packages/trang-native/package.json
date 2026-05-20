@@ -1,6 +1,6 @@
 {
   "name": "@epa-wg/trang-native",
-  "version": "0.0.0",
+  "version": "0.1.0",
   "description": "Native (GraalVM-compiled) Trang binary for RELAX NG / XSD / DTD conversion. Used by cem-ml schema-emit verification fixtures and any consumer that wants Trang without a JRE.",
   "license": "BSD-2-Clause",
   "repository": {
