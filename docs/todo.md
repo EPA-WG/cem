@@ -33,8 +33,17 @@ lacks compiler output detail, and the implementation has no emitter for any rele
       all 15 `OpenContentDefaults` branches, one `SchemaStateDef` per annotation, and a `SemanticRule` entry
       for each `RuleRegistry::with_tier_a_rules` registration. Coverage: `schema::ir::tests` (13 tests);
       full workspace `yarn nx run cem_ml:test` green.
-- [ ] Emit RELAX NG XML mirror (`*.rng`) and RELAX NG compact (`*.rnc`) from `CompiledSchema` (AC-S-2). Add round-trip
+- [x] Emit RELAX NG XML mirror (`*.rng`) and RELAX NG compact (`*.rnc`) from `CompiledSchema` (AC-S-2). Add round-trip
       fixtures that read the emitted mirror back through an external validator.
+      **Closed (2026-05-20):** `packages/cem_ml/src/schema/compiler/` lands the §3.4.2 module layout
+      (`mod.rs`, `output.rs`, `emitter.rs`, `byte_stability.rs`, `error.rs`, `rng_xml.rs`, `rng_compact.rs`).
+      `SchemaCompiler::emit_all` produces both artifacts under `core/<version>/cem-core.{rng,rnc}` via the
+      shared `DeterministicWriter` (UTF-8, LF, no trailing whitespace, blake3 hash sink). 35 inline unit
+      tests cover byte stability, deterministic ordering, namespace-tail derivation, header policy (OQ-SC-8),
+      enum vs. free-form annotations, and the cem:state matrix. AC-S-2 oracle fixture
+      `tests/schema_emit/rng_xml_oracle.rs` spawns `xmllint --relaxng` when available and skips with an info
+      record under `CEM_ML_SCHEMA_ORACLE_SKIP=1` or when libxml2 is absent (OQ-SC-5 escape hatch).
+      `blake3 = "1"` added to `Cargo.toml`. `yarn nx run cem_ml:test` green.
 - [ ] Emit TypeScript `.d.ts` headers from `CompiledSchema` (AC-S-3, AC-S-6). Structural by default; `Validated<T>`
       wrapper opt-in per `MEMORY.md` (`project_ts_emit_strategy.md`).
 - [ ] Emit Rust `.rs` headers from `CompiledSchema` (AC-S-4). Verify the generated module compiles with `cargo check`.

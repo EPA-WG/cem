@@ -3,6 +3,7 @@
 //! Public contract per AC-F-10 / `cem-ml-stack-design-impl.md` §3.4.
 //! Tier A vocab + machine live in submodules.
 
+pub mod compiler;
 pub mod ir;
 pub mod machine;
 pub mod namespace;
