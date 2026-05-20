@@ -1410,10 +1410,10 @@ authoring CEM-native schema source.
 
 | Emitter           | Output extension   | AC reference  | Tier | Status of external validator                              |
 |-------------------|--------------------|---------------|------|-----------------------------------------------------------|
-| `rng_xml`         | `.rng`             | AC-S-2        | A    | Jing / libxml `xmllint --relaxng` oracle (see Open Question 5) |
-| `rng_compact`     | `.rnc`             | AC-S-2        | A    | Trang round-trip (compact ↔ XML) cross-check              |
+| `rng_xml`         | `.rng`             | AC-S-2        | A    | `xmllint --relaxng` (libxml2) oracle                      |
+| `rng_compact`     | `.rnc`             | AC-S-2        | A    | Trang round-trip (compact → XML) cross-check; Trang is used as a format converter only, validation still goes through `xmllint --relaxng` on the converted `.rng` |
 | `ts_dts`          | `.d.ts`            | AC-S-3, AC-S-6 | A   | `tsc --noEmit` against fixture call sites                 |
-| `rust_hdr`        | `.rs`              | AC-S-4        | B    | `cargo check` against a generated stub crate              |
+| `rust_hdr`        | `.rs`              | AC-S-4        | A code / B gate | Code lands in Tier A but is gated off by `CompilerOptions.emit_rust = false` (default). `cargo check` against a generated stub crate runs only when the flag is on; Tier B opens by flipping the default. |
 | `uri_publish`     | `manifest.json` (+ `*.hash` sidecars) | AC-S-5 | A | Round-trip resolution against `cem_ml::loader`            |
 
 Emitter inputs and outputs are typed; no emitter consumes raw `CompiledSchema`
@@ -1538,11 +1538,11 @@ fixture name encodes the AC it pins:
 | Fixture file                          | AC pinned                          | What it asserts                                                          |
 |---------------------------------------|------------------------------------|--------------------------------------------------------------------------|
 | `byte_stability.rs`                   | AC-S-2 byte-stable requirement     | Emitting twice yields identical bytes and identical content hashes.      |
-| `rng_xml_oracle.rs`                   | AC-S-2 RELAX NG XML mirror         | Emit `.rng`, validate canonical fixtures against it through the chosen RELAX NG oracle. Skipped (not failed) when the oracle toolchain is absent, with skip recorded in the report. |
-| `rng_compact_roundtrip.rs`            | AC-S-2 compact mirror              | Emit `.rnc`, convert to `.rng` via the oracle, diff against the emitter's `.rng`. |
+| `rng_xml_oracle.rs`                   | AC-S-2 RELAX NG XML mirror         | Emit `.rng`, validate canonical fixtures against it through `xmllint --relaxng` (libxml2). Skipped (not failed) when `xmllint` is absent, with skip recorded in the report. |
+| `rng_compact_roundtrip.rs`            | AC-S-2 compact mirror              | Emit `.rnc`, convert to `.rng` via Trang, validate the converted `.rng` through `xmllint --relaxng`, then diff against the emitter's `.rng`. Skipped (not failed) when Trang is absent. |
 | `ts_dts_structural.rs`                | AC-S-V-1, AC-S-V-3                  | Compile a fixture that assigns an emitted `Badge` to `HTMLElement`.      |
 | `ts_dts_validated_brand.rs`           | AC-S-V-2, AC-S-V-4, AC-S-V-5        | `// @ts-expect-error` brand fixtures + version-identity discrimination.  |
-| `rust_hdr_compiles.rs`                | AC-S-4                              | Run `cargo check` against an auto-generated stub crate that imports the emitted `.rs`. |
+| `rust_hdr_compiles.rs`                | AC-S-4                              | Run `cargo check` against an auto-generated stub crate that imports the emitted `.rs`. Runs only when `CompilerOptions.emit_rust = true` (Tier B gate); in Tier A this fixture is skipped by default and the skip is recorded in the report. |
 | `uri_manifest_resolution.rs`          | AC-S-5, AC-V-10                     | Resolve `/1`, `/1.2`, `/1.2.3`, prerelease-exact URIs through the loader; assert manifest match-rule diagnostics per AC-V-13. |
 
 The `rng_xml_oracle.rs` and `rng_compact_roundtrip.rs` fixtures honor a
@@ -1571,11 +1571,6 @@ tracked in detail in
 no emitter lands until each item below has a resolution or an explicit
 deferral.
 
-- **OQ-SC-3** — Tier of `rust_hdr`: AC-S-4 is `[B] SHOULD`. Confirm whether
-  the emitter ships in the Tier A release bundle (gated off by default) or
-  is held back entirely until Tier B closes.
-- **OQ-SC-5** — External RELAX NG oracle choice: Jing (Java toolchain),
-  `xmllint --relaxng` (libxml2 C toolchain), or a pure-Rust validator.
 - **OQ-SC-6** — `Validated<T>` source-map frames in TS: AC-S-V-5 requires
   diagnostic frames derived from the caller's invocation site, which
   implies a TS-side runtime shim. Owner module unclear.
@@ -1587,6 +1582,41 @@ deferral.
   with a CEM-native source URI + embedded version + content hash. Whether
   the header is part of the byte-stability surface (it is deterministic) or
   excluded from the AC-CC-1 hash (because it embeds the hash recursively).
+
+Resolved open questions (closed; design text above reflects the decision):
+
+- **OQ-SC-3** — *Resolved 2026-05-19.* Option 2 (Tier A code, Tier B gate).
+  `rust_hdr.rs` lands in the Tier A code drop but is gated by
+  `CompilerOptions.emit_rust` (default `false`); `rust_hdr_compiles.rs`
+  runs only when the flag is on. Tier B opens by flipping the default with
+  no re-release of the emitter itself.
+- **OQ-SC-5** — *Resolved 2026-05-19.* Option 2 (`xmllint --relaxng` via
+  libxml2) is the primary RELAX NG oracle. Trang remains required as a
+  format converter for the `.rnc` → `.rng` compact-syntax round-trip
+  fixture; validation still goes through `xmllint` on the converted bytes.
+  The `CEM_ML_SCHEMA_ORACLE_SKIP=1` escape hatch from §13.2.7 stays for
+  local dev. A pure-Rust RELAX NG validator is recorded in §13.2.10 as a
+  wishlist item, out of the phased roadmap.
+
+#### 13.2.10 Wishlist (Out of Phased Roadmap)
+
+Items in this list are explicitly **not** scheduled against any Tier (A,
+B, or C). They are recorded so that contributors who pick them up know
+where the integration point would land. The roadmap (Tier A → B → C) is
+not blocked on any of them, and adoption is at most an *opportunistic
+replacement* of an existing path.
+
+- **Pure-Rust RELAX NG validator (replaces `xmllint`/Trang in the AC-S-2
+  oracle).** When a production-quality pure-Rust RELAX NG crate exists
+  (no current candidate per [`cem-ml-parser-schema-adr.md`](./cem-ml-parser-schema-adr.md) §"Pure
+  Rust RELAX NG crates"), the `rng_xml_oracle.rs` and
+  `rng_compact_roundtrip.rs` fixtures can swap their external-toolchain
+  invocations for an in-process validator. Acceptance criteria for the
+  swap: (a) the crate accepts the full RELAX NG XML subset emitted by
+  `rng_xml`; (b) byte-stable equivalence with `xmllint` over the existing
+  fixture set; (c) compact-syntax parsing parity with Trang, removing the
+  Java dependency from the compact round-trip. No deadline. Re-evaluate
+  whenever a new crate appears.
 
 ---
 
@@ -1962,7 +1992,7 @@ remain open:
 
 | ID | AC reference | Design follow-up |
 |----|--------------|------------------|
-| DESIGN-FOLLOW-001 | AC-S-2 through AC-S-6 | **Design landed (§13.2).** Schema-compiler output module, emitter inventory, byte-stability rules, on-disk layout, URI publication workflow, and verification-fixture roster are now specified. Implementation blocked on the open questions in [`cem-ml-schema-compiler-open-questions.md`](cem-ml-schema-compiler-open-questions.md) (OQ-SC-3, OQ-SC-5..OQ-SC-8). |
+| DESIGN-FOLLOW-001 | AC-S-2 through AC-S-6 | **Design landed (§13.2).** Schema-compiler output module, emitter inventory, byte-stability rules, on-disk layout, URI publication workflow, and verification-fixture roster are now specified. OQ-SC-3 and OQ-SC-5 resolved 2026-05-19 (see §13.2.9). Implementation blocked on the remaining open questions in [`cem-ml-schema-compiler-open-questions.md`](cem-ml-schema-compiler-open-questions.md) (OQ-SC-6, OQ-SC-7, OQ-SC-8). |
 | DESIGN-FOLLOW-002 | AC-V-2, AC-V-3 | AC rules are resolved in `cem-ml-ac.md` §3.1 and summarized in this design; implementation structs and tests still need to be added. |
 | DESIGN-FOLLOW-003 | AC-P-3, AC-O-1 | `byteOffset` and observer names are now sketched in design/impl; add concrete payload schemas, Rust/WASM API details, and tests. |
 | DESIGN-FOLLOW-004 | AC-V-6, AC-X-3 | Add concrete schema-owned semantic checks for accessibility, ARIA, invalid state combinations, and unsafe inline content. |
