@@ -20,9 +20,9 @@ lacks compiler output detail, and the implementation has no emitter for any rele
       `cem-ml-stack-design.md` and `cem-ml-stack-design-impl.md` with the new section.
       **Status (2026-05-19):** Design landed in `cem-ml-stack-design.md` §13.2 and
       `cem-ml-stack-design-impl.md` §3.4.2. Implementation blocked on the open questions in
-      [`cem-ml-schema-compiler-open-questions.md`](cem-ml-schema-compiler-open-questions.md). OQ-SC-3 and
-      OQ-SC-5 resolved 2026-05-19 (see `cem-ml-stack-design.md` §13.2.9); OQ-SC-6, OQ-SC-7, and OQ-SC-8 remain.
-      No emitter PR lands until those resolve.
+      [`cem-ml-schema-compiler-open-questions.md`](cem-ml-schema-compiler-open-questions.md). All open
+      questions (OQ-SC-3, OQ-SC-5, OQ-SC-6, OQ-SC-7, OQ-SC-8) resolved 2026-05-19 — see
+      `cem-ml-stack-design.md` §13.2.9. Emitter PR work is unblocked.
 - [ ] Extend `CompiledSchema` to the `cem-ml-stack-design-impl.md` §3.4 shape before emitter work (AC-S-7, AC-S-8).
       Add `SchemaVersionIdentity`, `CemNativeSchemaSource`, `StructuralSchemaIr`, `SemanticRule`,
       `OpenContentPolicy`, and transform-plan metadata; wire `CompiledSchema::cem_core()` to populate the richer IR.

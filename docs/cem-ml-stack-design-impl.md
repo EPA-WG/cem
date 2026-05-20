@@ -903,7 +903,7 @@ pub struct CompilerOptions {
     pub emit_rng_xml: bool,                 // default true (AC-S-2)
     pub emit_rng_compact: bool,             // default true (AC-S-2)
     pub include_validated_brand: bool,      // default true (AC-S-6)
-    pub embed_source_header: bool,          // gated by OQ-SC-8
+    pub embed_source_header: bool,          // default true; emits schema URI + embedded version preamble per OQ-SC-8 (resolved). Content hash is NEVER in the header — it lives in the .hash sidecar only.
 }
 
 pub struct CompilerOutput {
@@ -1021,30 +1021,52 @@ the byte-stability test (`rng_compact_roundtrip.rs`).
 
 ```ts
 // AUTO-GENERATED. CEM-native source: <schema-uri> @<embedded-version>
-// Content hash (this file): cem-bin/1+blake3:<hex>
+export type { Validated } from "@epa-wg/cem-ml/wasm";
+export { asValidated, tryValidated } from "@epa-wg/cem-ml/wasm";
+
 export interface Badge extends HTMLElement {
   readonly cemAction?: "primary" | "secondary";
   readonly cemState?: "default";
 }
-export type Validated<T> = T & { readonly __cemValidated: unique symbol };
-export declare function asValidated<T>(input: T): Validated<T>;
-export declare function tryValidated<T>(input: T): Validated<T> | ValidationError;
 ```
+
+Header carries exactly two fields — schema URI and embedded version —
+per OQ-SC-8 (resolved). The content hash is **not** in the header; it
+lives in the `cem-core.d.ts.hash` sidecar.
 
 Structural interfaces inherit from the appropriate `lib.dom.d.ts` base
 (`HTMLElement`, `SVGElement`, `XMLDocument`) per AC-S-V-1. `Validated<T>`
 uses `unique symbol` brand inside an intersection so the brand carries
 through DOM-typed call sites unchanged (AC-S-V-3). Version-identity
 parameterization (AC-S-V-4) is encoded as a type parameter on `Validated`
-keyed by the embedded SemVer at emit time. The runtime side of
-`asValidated` / `tryValidated` is host-provided; the emitter writes only
-the type declarations.
+keyed by the embedded SemVer at emit time.
+
+Per OQ-SC-6 (resolved), the runtime side of `asValidated` /
+`tryValidated` lives in the WASM build of `cem-ml` and is exposed at the
+TS subpath `@epa-wg/cem-ml/wasm`. The emitter writes **re-exports** of
+those symbols from that subpath, not local `declare function` stubs and
+not a generated `.js` sibling. AC-S-V-5 (validation-failure diagnostics
+carry an AC-V-1-shaped code/severity and a source-map frame from the
+caller) is satisfied at the WASM layer because that is where the inline
+validation diagnostic and source-map stitching already live (AC-V-1);
+re-exporting keeps the schema artifact aligned with that single
+diagnostic surface instead of duplicating the runtime per schema.
+
+Per OQ-SC-7 (resolved), each embedded schema version emits its own
+`.d.ts` under the per-version on-disk path. Cross-version
+discrimination (AC-S-V-4) is the *combination* of two mechanisms: the
+brand parameterization above gives the type system two distinct
+`Validated<Badge@x.y.z>` instantiations, and the package export subpath
+convention `@epa-wg/cem-ml/schema/<tail>/<version>/<stem>` (see
+`cem-ml-stack-design.md` §13.2.5) is what makes the two `Badge` symbols
+reachable in the same TS project at once. The emitter does not write a
+combined or re-export `.d.ts`; subpath isolation comes from the
+package's `exports` field, written by the release tooling.
 
 **`rust_hdr.rs`** — emits one module per schema:
 
 ```rust
 //! AUTO-GENERATED. CEM-native source: <schema-uri> @<embedded-version>
-//! Content hash (this file): cem-bin/1+blake3:<hex>
 #![allow(non_camel_case_types, dead_code)]
 
 pub mod schema {
@@ -1089,7 +1111,7 @@ Fixture root: `packages/cem_ml/tests/schema_emit/`.
 | `rng_xml_oracle.rs`           | AC-S-2 RELAX NG mirror              | Validate canonical `examples/cem-ml/*.cem` projections against the emitted `.rng` through the chosen oracle. Skip under `CEM_ML_SCHEMA_ORACLE_SKIP=1`. |
 | `rng_compact_roundtrip.rs`    | AC-S-2 compact mirror               | Convert emitted `.rnc` to `.rng` through the oracle; diff against `rng_xml`'s output.   |
 | `ts_dts_structural.rs`        | AC-S-V-1, AC-S-V-3                   | `tsc --noEmit` against a fixture `accepts(el: HTMLElement)` call site.                  |
-| `ts_dts_validated_brand.rs`   | AC-S-V-2, AC-S-V-4, AC-S-V-5         | `// @ts-expect-error` fixtures for plain-literal-to-`Validated<T>` and cross-version assignment. |
+| `ts_dts_validated_brand.rs`   | AC-S-V-2, AC-S-V-4, AC-S-V-5 (declaration shape) | `// @ts-expect-error` fixtures for plain-literal-to-`Validated<T>` and cross-version assignment, plus an assertion that the emitted `.d.ts` re-exports `asValidated`/`tryValidated`/`Validated` from `@epa-wg/cem-ml/wasm` (no host-stub `declare function` lines). AC-S-V-5 runtime-diagnostic verification lives with the WASM build's AC-V-1 fixtures (one source of truth). |
 | `rust_hdr_compiles.rs`        | AC-S-4                              | `cargo check -p cem_ml_schema_stub` against a generated stub crate that imports the emitted `.rs`. |
 | `uri_manifest_resolution.rs`  | AC-S-5, AC-V-10, AC-V-13             | Resolve `/1`, `/1.2`, `/1.2.3`, prerelease URIs through `cem_ml::loader`; assert manifest match-rule events. |
 
@@ -1832,7 +1854,7 @@ implementation shapes remain open:
 
 | ID | AC reference | Implementation follow-up |
 |----|--------------|--------------------------|
-| IMPL-FOLLOW-001 | AC-S-2 through AC-S-6 | **Design landed (§3.4.2).** Compiler output module, emitters, byte-stability rules, URI publication, and verification harness are specified. OQ-SC-3 and OQ-SC-5 resolved 2026-05-19 (see `cem-ml-stack-design.md` §13.2.9). Implementation blocked on the remaining open questions in [`cem-ml-schema-compiler-open-questions.md`](cem-ml-schema-compiler-open-questions.md) (OQ-SC-6, OQ-SC-7, OQ-SC-8). |
+| IMPL-FOLLOW-001 | AC-S-2 through AC-S-6 | **Design landed (§3.4.2); all open questions resolved 2026-05-19 (OQ-SC-3, OQ-SC-5, OQ-SC-6, OQ-SC-7, OQ-SC-8 — see `cem-ml-stack-design.md` §13.2.9).** Compiler output module, emitters, byte-stability rules, URI publication, and verification harness are fully specified. Emitter implementation is unblocked; [`cem-ml-schema-compiler-open-questions.md`](cem-ml-schema-compiler-open-questions.md) is kept as the decision archive. |
 | IMPL-FOLLOW-001A | AC-F-9, AC-P-1, AC-P-8 | Add concrete CEM-native tokenizer lowering tests for `{name @attributes \| content...}`, `$` expression nodes, anonymous scopes, comments, rich-content enclosures, and rejection of bare `{...}` text interpolation. |
 | IMPL-FOLLOW-001B | AC-F-8 | Add `@doc` document-format identity parsing, SemVer constraint resolution, required top-level directive rejection, and AC-F-V-6 diagnostics before schema loading. |
 | IMPL-FOLLOW-002 | AC-V-2, AC-V-3, AC-V-9..AC-V-13 | Schema-version structs are sketched in §3.4; add parser/comparison implementation and compatibility severity tests. |

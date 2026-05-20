@@ -1485,6 +1485,15 @@ These rules apply to every artifact and to the manifest:
    apply. Emitting the same `CompiledSchema` twice (same crate version, same
    options) MUST yield identical bytes and identical content hashes; this is
    the runnable verification surface for AC-S-2 byte stability.
+9. **Source-comment headers (no hash).** Every emitter that writes a
+   text-format artifact (`.rng`, `.rnc`, `.d.ts`, `.rs`) prepends a header
+   with exactly two fields — the CEM-native source URI and the embedded
+   SemVer — in the format comment style of the target language. The header
+   is part of the byte-stable surface (deterministic, no timestamps, no
+   build numbers). The header **never** carries the content hash; the
+   hash lives in the `.hash` sidecar only (rule 7). This avoids the
+   recursive-hash problem and keeps the byte-stability proof one-pass.
+   See OQ-SC-8 in §13.2.9 (resolved) for the alternatives considered.
 
 #### 13.2.5 File Ownership And On-Disk Layout
 
@@ -1515,6 +1524,43 @@ The compiler module owns every file under this tree. No other module may
 write to `dist/lib/schema/`. The CLI consumes the manifest read-only at
 schema-load time.
 
+The package's `package.json` `exports` field maps each on-disk
+`<namespace-tail>/<embedded-version>/` directory to a stable consumer
+subpath. The pattern is:
+
+```
+@epa-wg/cem-ml/schema/<namespace-tail>/<embedded-version>/<artifact-stem>
+```
+
+For `https://cem.dev/ns/core/1.2.3` with stem `cem-core` the TS-side
+imports look like:
+
+```ts
+import type { Badge } from "@epa-wg/cem-ml/schema/core/1.2.3/cem-core";
+```
+
+Per-version subpaths (rather than a single combined `.d.ts`) are the
+public TypeScript surface for AC-S-V-4: a consumer that loads two schema
+versions in the same TS project imports from two subpaths, so the type
+system sees two distinct `Badge` symbols and `Validated<Badge@1.2.3>` is
+non-assignable to `Validated<Badge@2.0.0>`. The brand discrimination
+itself is carried by the `Validated<T>` version parameterization
+(§3.4.2.4 in the impl doc); the subpath mapping is what makes the two
+symbols reachable at the same time. See OQ-SC-7 in §13.2.9 (resolved)
+for the alternatives considered.
+
+The runtime side of `asValidated` / `tryValidated` lives in the WASM
+build of `cem-ml` and is exposed to TS consumers at the subpath
+`@epa-wg/cem-ml/wasm`. The per-schema `.d.ts` re-exports those functions
+and the `Validated<T>` brand from that subpath rather than declaring
+host-provided stubs. AC-S-V-5 (`asValidated` rejection emits an
+AC-V-1-shaped diagnostic with a source-map frame from the caller) is
+satisfied directly by the WASM build because that is where the inline
+validation diagnostic and source-map surfaces already live (AC-V-1).
+The schema-compiler emitter does not write any JS sibling. See OQ-SC-6
+in §13.2.9 (resolved) for the alternatives considered (separate runtime
+package; generated JS sibling; WASM shim — chose the third).
+
 #### 13.2.6 URI Publication Workflow (AC-S-5)
 
 1. The compiler computes the artifact bytes and content hashes in-process.
@@ -1541,7 +1587,7 @@ fixture name encodes the AC it pins:
 | `rng_xml_oracle.rs`                   | AC-S-2 RELAX NG XML mirror         | Emit `.rng`, validate canonical fixtures against it through `xmllint --relaxng` (libxml2). Skipped (not failed) when `xmllint` is absent, with skip recorded in the report. |
 | `rng_compact_roundtrip.rs`            | AC-S-2 compact mirror              | Emit `.rnc`, convert to `.rng` via Trang, validate the converted `.rng` through `xmllint --relaxng`, then diff against the emitter's `.rng`. Skipped (not failed) when Trang is absent. |
 | `ts_dts_structural.rs`                | AC-S-V-1, AC-S-V-3                  | Compile a fixture that assigns an emitted `Badge` to `HTMLElement`.      |
-| `ts_dts_validated_brand.rs`           | AC-S-V-2, AC-S-V-4, AC-S-V-5        | `// @ts-expect-error` brand fixtures + version-identity discrimination.  |
+| `ts_dts_validated_brand.rs`           | AC-S-V-2, AC-S-V-4, AC-S-V-5 (declaration shape) | `// @ts-expect-error` brand fixtures + version-identity discrimination + assert the `.d.ts` re-exports `asValidated`/`tryValidated`/`Validated` from `@epa-wg/cem-ml/wasm` (no host-stub declarations). |
 | `rust_hdr_compiles.rs`                | AC-S-4                              | Run `cargo check` against an auto-generated stub crate that imports the emitted `.rs`. Runs only when `CompilerOptions.emit_rust = true` (Tier B gate); in Tier A this fixture is skipped by default and the skip is recorded in the report. |
 | `uri_manifest_resolution.rs`          | AC-S-5, AC-V-10                     | Resolve `/1`, `/1.2`, `/1.2.3`, prerelease-exact URIs through the loader; assert manifest match-rule diagnostics per AC-V-13. |
 
@@ -1549,6 +1595,15 @@ The `rng_xml_oracle.rs` and `rng_compact_roundtrip.rs` fixtures honor a
 `CEM_ML_SCHEMA_ORACLE_SKIP=1` escape hatch that mirrors the
 `CEM_ML_PERF_SKIP` policy in §17 — skips are recorded as `info` events in
 the report, not silent passes.
+
+The *runtime* side of AC-S-V-5 — that `asValidated` rejection on
+schema-invalid input emits an AC-V-1-shaped diagnostic with a source-map
+frame from the caller — is verified by the WASM build's existing AC-V-1
+fixtures, not by the schema-compiler harness. This is the direct
+consequence of OQ-SC-6 (resolved, §13.2.9): the runtime is the WASM
+build's inline-validation surface, so the diagnostic identity, code
+table, and source-map stack are exercised once at that layer rather than
+re-stubbed per emitted schema.
 
 #### 13.2.8 Nx Target
 
@@ -1571,19 +1626,20 @@ tracked in detail in
 no emitter lands until each item below has a resolution or an explicit
 deferral.
 
-- **OQ-SC-6** — `Validated<T>` source-map frames in TS: AC-S-V-5 requires
-  diagnostic frames derived from the caller's invocation site, which
-  implies a TS-side runtime shim. Owner module unclear.
-- **OQ-SC-7** — Cross-version `.d.ts` strategy: AC-S-V-4 requires
-  `Validated<Badge@1.0>` and `Validated<Badge@2.0>` to be nominally
-  distinct when both schemas are loaded in the same TS project. Single
-  combined `.d.ts` vs per-version `.d.ts` plus a re-export shim.
-- **OQ-SC-8** — Header-comment policy: every emitter can prefix its file
-  with a CEM-native source URI + embedded version + content hash. Whether
-  the header is part of the byte-stability surface (it is deterministic) or
-  excluded from the AC-CC-1 hash (because it embeds the hash recursively).
+All open questions in this section are now resolved; the design text
+above reflects the decisions. Emitter implementation is unblocked.
 
 Resolved open questions (closed; design text above reflects the decision):
+
+- **OQ-SC-6** — *Resolved 2026-05-19.* Option 3 (WASM shim). The
+  per-schema `.d.ts` re-exports `asValidated`, `tryValidated`, and the
+  `Validated<T>` brand from `@epa-wg/cem-ml/wasm` rather than declaring
+  host-provided stubs or shipping a separate `@epa-wg/cem-ml-runtime`
+  package. AC-S-V-5 runtime-diagnostic verification is exercised by the
+  WASM build's existing AC-V-1 fixtures (one source of truth for the
+  diagnostic identity, code surface, and source-map stack); the
+  schema-compiler harness verifies only the declaration shape and the
+  import path. No `.js` sibling is emitted next to the `.d.ts`.
 
 - **OQ-SC-3** — *Resolved 2026-05-19.* Option 2 (Tier A code, Tier B gate).
   `rust_hdr.rs` lands in the Tier A code drop but is gated by
@@ -1597,6 +1653,22 @@ Resolved open questions (closed; design text above reflects the decision):
   The `CEM_ML_SCHEMA_ORACLE_SKIP=1` escape hatch from §13.2.7 stays for
   local dev. A pure-Rust RELAX NG validator is recorded in §13.2.10 as a
   wishlist item, out of the phased roadmap.
+- **OQ-SC-7** — *Resolved 2026-05-19.* Option 1 (per-version `.d.ts` via
+  export subpath). Each embedded schema version emits its own `.d.ts`
+  under `<namespace-tail>/<embedded-version>/` (§13.2.5), and the
+  `package.json` `exports` field maps that directory to a stable consumer
+  subpath of the form `@epa-wg/cem-ml/schema/<tail>/<version>/<stem>`.
+  Consumers that load two schema versions in the same TS project import
+  from two subpaths and see two distinct `Badge` symbols; AC-S-V-4
+  nominal discrimination is then carried by the `Validated<T>` version
+  parameterization.
+- **OQ-SC-8** — *Resolved 2026-05-19.* Option 1 (no hash in header).
+  Every text-format emitter prefixes its output with a deterministic
+  source-comment header containing exactly the CEM-native source URI and
+  the embedded SemVer. The content hash is **not** in the header — it
+  lives only in the `.hash` sidecar (§13.2.4 rule 7). Avoids the
+  recursive-hash trap of self-referential headers and keeps the
+  byte-stability proof one-pass.
 
 #### 13.2.10 Wishlist (Out of Phased Roadmap)
 
@@ -1992,7 +2064,7 @@ remain open:
 
 | ID | AC reference | Design follow-up |
 |----|--------------|------------------|
-| DESIGN-FOLLOW-001 | AC-S-2 through AC-S-6 | **Design landed (§13.2).** Schema-compiler output module, emitter inventory, byte-stability rules, on-disk layout, URI publication workflow, and verification-fixture roster are now specified. OQ-SC-3 and OQ-SC-5 resolved 2026-05-19 (see §13.2.9). Implementation blocked on the remaining open questions in [`cem-ml-schema-compiler-open-questions.md`](cem-ml-schema-compiler-open-questions.md) (OQ-SC-6, OQ-SC-7, OQ-SC-8). |
+| DESIGN-FOLLOW-001 | AC-S-2 through AC-S-6 | **Design landed (§13.2); all open questions resolved 2026-05-19 (OQ-SC-3, OQ-SC-5, OQ-SC-6, OQ-SC-7, OQ-SC-8 — see §13.2.9).** Schema-compiler output module, emitter inventory, byte-stability rules, on-disk layout, URI publication workflow, and verification-fixture roster are fully specified. Emitter implementation is unblocked; [`cem-ml-schema-compiler-open-questions.md`](cem-ml-schema-compiler-open-questions.md) is kept as the decision archive. |
 | DESIGN-FOLLOW-002 | AC-V-2, AC-V-3 | AC rules are resolved in `cem-ml-ac.md` §3.1 and summarized in this design; implementation structs and tests still need to be added. |
 | DESIGN-FOLLOW-003 | AC-P-3, AC-O-1 | `byteOffset` and observer names are now sketched in design/impl; add concrete payload schemas, Rust/WASM API details, and tests. |
 | DESIGN-FOLLOW-004 | AC-V-6, AC-X-3 | Add concrete schema-owned semantic checks for accessibility, ARIA, invalid state combinations, and unsafe inline content. |
