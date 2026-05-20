@@ -87,7 +87,11 @@ jobs:
         uses: actions/setup-node@v4
         with:
           node-version: 24
-          cache: yarn
+          # No `cache: yarn` — setup-node runs `yarn cache dir` with the
+          # runner's bundled yarn 1.x before Corepack flips us to yarn
+          # 4.x, which fails on the `packageManager` mismatch. The
+          # install step is short relative to native-image, so the
+          # cache miss is cheap.
 
       - name: Enable Corepack
         run: corepack enable
