@@ -1507,7 +1507,7 @@ packages/cem_ml/dist/lib/schema/
 `https://cem.dev/ns/` prefix, with `/` segments preserved as directories.
 For `https://cem.dev/ns/core/1` the tail is `core` (the `/1` MAJOR
 constraint is recorded in the URI metadata but does **not** become a
-directory — see Open Question 4 for the publication-side aliasing).
+directory; URI-tail matching is loader-side against manifests).
 `<embedded-major.minor.patch>` is the full SemVer of the loaded schema per
 AC-V-9; pre-release and build-metadata suffixes are included literally.
 
@@ -1574,9 +1574,6 @@ deferral.
 - **OQ-SC-3** — Tier of `rust_hdr`: AC-S-4 is `[B] SHOULD`. Confirm whether
   the emitter ships in the Tier A release bundle (gated off by default) or
   is held back entirely until Tier B closes.
-- **OQ-SC-4** — URI-tail publication aliasing: whether the on-disk tree
-  carries alias directories for partial URI tails (`/1`, `/1.2`) or
-  resolves them at load time from the manifest set.
 - **OQ-SC-5** — External RELAX NG oracle choice: Jing (Java toolchain),
   `xmllint --relaxng` (libxml2 C toolchain), or a pure-Rust validator.
 - **OQ-SC-6** — `Validated<T>` source-map frames in TS: AC-S-V-5 requires
@@ -1965,7 +1962,7 @@ remain open:
 
 | ID | AC reference | Design follow-up |
 |----|--------------|------------------|
-| DESIGN-FOLLOW-001 | AC-S-2 through AC-S-6 | **Design landed (§13.2).** Schema-compiler output module, emitter inventory, byte-stability rules, on-disk layout, URI publication workflow, and verification-fixture roster are now specified. Implementation blocked on the open questions in [`cem-ml-schema-compiler-open-questions.md`](cem-ml-schema-compiler-open-questions.md) (OQ-SC-3..OQ-SC-8). |
+| DESIGN-FOLLOW-001 | AC-S-2 through AC-S-6 | **Design landed (§13.2).** Schema-compiler output module, emitter inventory, byte-stability rules, on-disk layout, URI publication workflow, and verification-fixture roster are now specified. Implementation blocked on the open questions in [`cem-ml-schema-compiler-open-questions.md`](cem-ml-schema-compiler-open-questions.md) (OQ-SC-3, OQ-SC-5..OQ-SC-8). |
 | DESIGN-FOLLOW-002 | AC-V-2, AC-V-3 | AC rules are resolved in `cem-ml-ac.md` §3.1 and summarized in this design; implementation structs and tests still need to be added. |
 | DESIGN-FOLLOW-003 | AC-P-3, AC-O-1 | `byteOffset` and observer names are now sketched in design/impl; add concrete payload schemas, Rust/WASM API details, and tests. |
 | DESIGN-FOLLOW-004 | AC-V-6, AC-X-3 | Add concrete schema-owned semantic checks for accessibility, ARIA, invalid state combinations, and unsafe inline content. |

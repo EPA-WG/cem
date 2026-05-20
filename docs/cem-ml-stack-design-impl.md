@@ -1832,7 +1832,7 @@ implementation shapes remain open:
 
 | ID | AC reference | Implementation follow-up |
 |----|--------------|--------------------------|
-| IMPL-FOLLOW-001 | AC-S-2 through AC-S-6 | **Design landed (§3.4.2).** Compiler output module, emitters, byte-stability rules, URI publication, and verification harness are specified. Implementation blocked on the open questions in [`cem-ml-schema-compiler-open-questions.md`](cem-ml-schema-compiler-open-questions.md) (OQ-SC-3..OQ-SC-8). |
+| IMPL-FOLLOW-001 | AC-S-2 through AC-S-6 | **Design landed (§3.4.2).** Compiler output module, emitters, byte-stability rules, URI publication, and verification harness are specified. Implementation blocked on the open questions in [`cem-ml-schema-compiler-open-questions.md`](cem-ml-schema-compiler-open-questions.md) (OQ-SC-3, OQ-SC-5..OQ-SC-8). |
 | IMPL-FOLLOW-001A | AC-F-9, AC-P-1, AC-P-8 | Add concrete CEM-native tokenizer lowering tests for `{name @attributes \| content...}`, `$` expression nodes, anonymous scopes, comments, rich-content enclosures, and rejection of bare `{...}` text interpolation. |
 | IMPL-FOLLOW-001B | AC-F-8 | Add `@doc` document-format identity parsing, SemVer constraint resolution, required top-level directive rejection, and AC-F-V-6 diagnostics before schema loading. |
 | IMPL-FOLLOW-002 | AC-V-2, AC-V-3, AC-V-9..AC-V-13 | Schema-version structs are sketched in §3.4; add parser/comparison implementation and compatibility severity tests. |
