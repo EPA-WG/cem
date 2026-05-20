@@ -1,0 +1,7 @@
+{
+  "$comment": "Pinned upstream Trang source. The fetch-source script clones this ref into build/source/. Update `ref` to bump the Trang version; bump package.json/version + cut a new release tag to ship new binaries.",
+  "repository": "https://github.com/relaxng/jing-trang.git",
+  "ref": "V20241231",
+  "license": "BSD-2-Clause",
+  "license_path": "copying.txt"
+}

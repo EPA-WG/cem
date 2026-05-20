@@ -1399,6 +1399,14 @@ __metadata:
   languageName: node
   linkType: hard
 
+"@epa-wg/trang-native@workspace:packages/trang-native":
+  version: 0.0.0-use.local
+  resolution: "@epa-wg/trang-native@workspace:packages/trang-native"
+  bin:
+    trang: ./bin/trang.mjs
+  languageName: unknown
+  linkType: soft
+
 "@eslint-community/eslint-utils@npm:^4.8.0, @eslint-community/eslint-utils@npm:^4.9.1":
   version: 4.9.1
   resolution: "@eslint-community/eslint-utils@npm:4.9.1"
