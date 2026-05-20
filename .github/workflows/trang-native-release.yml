@@ -58,7 +58,8 @@ jobs:
           java-version: ${{ env.GRAALVM_JAVA_VERSION }}
           distribution: graalvm
           github-token: ${{ secrets.GITHUB_TOKEN }}
-          cache: maven
+          # No `cache:` — Trang is Ant-built, not Maven; the action's
+          # `cache: maven` mode fails fast when no pom.xml is present.
 
       - name: Set up Apache Ant
         if: runner.os != 'Windows'
