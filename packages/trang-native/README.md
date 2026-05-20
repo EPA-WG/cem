@@ -9,6 +9,53 @@ and ships per-platform binaries built by GitHub Actions. Used by the
 round-trip) and available to any consumer that wants Trang without
 installing Java.
 
+## Purpose
+
+Trang is the reference RELAX NG converter (RNG ↔ RNC ↔ XSD ↔ DTD), but it
+ships as a Java tool — invoking it normally requires a JDK or JRE on every
+developer machine and CI runner. For the `cem_ml` test suite, Trang is the
+**parity oracle**: the schema emitter writes `*.rng` / `*.rnc` and a
+round-trip through Trang proves the two forms agree. Forcing every
+contributor (and every CI job) to install a JDK just to run that one check
+is heavyweight and fragile.
+
+`@epa-wg/trang-native` solves that by shipping Trang as a self-contained,
+ahead-of-time-compiled (GraalVM `native-image`) executable. Consumers get a
+single binary that starts in milliseconds and has no Java runtime
+dependency.
+
+## Principles
+
+1. **No JDK on the consumer side.** The binary is fully self-contained.
+   Building it from source needs GraalVM + Ant; using it does not.
+2. **Only the host platform's binary is installed.** The npm package
+   itself contains no native code — at install time, `postinstall` detects
+   `process.platform` × `process.arch` and downloads exactly one archive.
+   No fat package, no multi-platform tarball.
+3. **Per-platform binaries live in GitHub Releases, not in npm.** Each
+   `trang-native-v<version>` GitHub Release carries one archive per
+   supported target plus a `SHA256SUMS` manifest. This keeps the npm tarball
+   tiny and lets us re-cut binaries (e.g. for a new architecture) without
+   republishing to npm.
+4. **Integrity is verified.** The postinstaller checks the downloaded
+   archive's SHA-256 against the manifest before extracting.
+5. **Opt-out is always available.** `TRANG_NATIVE_SKIP_DOWNLOAD=1`,
+   `TRANG_NATIVE_BINARY=/abs/path`, and pre-staged binaries (for
+   air-gapped builds) all bypass the network step.
+6. **Pinned upstream.** `upstream.json` records the exact `jing-trang`
+   commit each release was built from; rebuilds are reproducible.
+
+## Role in `cem_ml`
+
+`cem_ml`'s schema-emit verification fixtures (AC-S-2) use Trang to validate
+that the emitter's RELAX NG XML and compact outputs are semantically
+equivalent to each other and to a known-good oracle. The cem-ml test
+harness depends on `@epa-wg/trang-native` as a dev-dependency, so the moment
+`yarn install` finishes on a developer or CI machine, the platform-correct
+`trang` binary is already on disk and the parity tests run with no further
+setup. Only one binary — the host's — is fetched, so the install cost is a
+few MB rather than tens of MB.
+
 ## Supported platforms
 
 | Platform        | Target triple        | Status |
