@@ -1367,6 +1367,237 @@ dispatch (AC-P-6) remains the orthogonal mechanism for namespace-driven switchin
 when both fire on the same boundary, NVDL applies first and the explicit form layers
 on top within its scope.
 
+### 13.2 Schema Compiler Output Module
+
+This subsection closes DESIGN-FOLLOW-001 / AC-ALIGN-010 by giving the
+compiler explicit *release-artifact* responsibilities in addition to the
+SchemaMachine-side IR it already owns. AC mapping is direct:
+
+| AC                         | Output                                              |
+|----------------------------|-----------------------------------------------------|
+| AC-S-2 [A]                 | RELAX NG XML (`*.rng`) and compact (`*.rnc`) mirror |
+| AC-S-3 [A] + AC-S-6 [A]    | TypeScript `.d.ts` headers (structural + `Validated<T>`) |
+| AC-S-4 [B]                 | Rust `.rs` headers for native consumers             |
+| AC-S-5 [A]                 | Stable URI publication manifest + hash sidecars     |
+
+The compiler's existing in-process output (the `CompiledSchema` consumed by
+the SchemaMachine in §8) is unchanged. The new module is a *projection layer*
+that takes that `CompiledSchema` and writes byte-stable artifacts under
+`packages/cem_ml/dist/lib/schema/`. Concrete Rust shapes, file layout, and
+test harness are in
+[`cem-ml-stack-design-impl.md`](cem-ml-stack-design-impl.md#342-schema-compiler-output-module-cem_mlschemacompiler).
+
+#### 13.2.1 Pipeline
+
+```
+CompiledSchema (in-process IR)
+  -> CompilerOutput (collected EmittedArtifact set + manifest)
+  -> on-disk publication tree under packages/cem_ml/dist/lib/schema/<namespace-tail>/<embedded-version>/
+```
+
+`CompiledSchema` is the single input. The output module is *pure*: it takes
+the IR plus a `CompilerOptions` flag bag and returns `CompilerOutput`. The
+filesystem writer is a thin shell that copies `EmittedArtifact.bytes` to
+disk in the locations declared by the embedded manifest.
+
+#### 13.2.2 Emitter Roster
+
+Each emitter is one trait implementation. Emitters share the same
+deterministic-encoding contract (§13.2.4) and the same source-map provenance
+contract: every emitted artifact carries a `SourceMapStack` frame for each
+declaration so diagnostics raised against the artifact map back to the
+authoring CEM-native schema source.
+
+| Emitter           | Output extension   | AC reference  | Tier | Status of external validator                              |
+|-------------------|--------------------|---------------|------|-----------------------------------------------------------|
+| `rng_xml`         | `.rng`             | AC-S-2        | A    | Jing / libxml `xmllint --relaxng` oracle (see Open Question 5) |
+| `rng_compact`     | `.rnc`             | AC-S-2        | A    | Trang round-trip (compact ↔ XML) cross-check              |
+| `ts_dts`          | `.d.ts`            | AC-S-3, AC-S-6 | A   | `tsc --noEmit` against fixture call sites                 |
+| `rust_hdr`        | `.rs`              | AC-S-4        | B    | `cargo check` against a generated stub crate              |
+| `uri_publish`     | `manifest.json` (+ `*.hash` sidecars) | AC-S-5 | A | Round-trip resolution against `cem_ml::loader`            |
+
+Emitter inputs and outputs are typed; no emitter consumes raw `CompiledSchema`
+fields directly. The shared `SchemaEmitter` trait normalizes the IR into a
+deterministic `EmissionCursor` that walks elements, attributes, semantic
+rules, open-content rules, and the schema-version identity in a fixed order.
+
+#### 13.2.3 Output Struct Shapes (logical)
+
+```
+CompilerOutput:
+  schema_id        : SchemaId
+  embedded_version : SemVer            full SemVer 2.0; AC-V-9 authoritative
+  schema_uri       : String            AC-S-5 stable URI
+  artifacts        : Vec<EmittedArtifact>
+  manifest         : PublicationManifest
+  diagnostics      : Vec<Diagnostic>   compile-time diagnostics raised during emission
+
+EmittedArtifact:
+  kind             : ArtifactKind      RelaxNgXml | RelaxNgCompact | TypeScriptDts | RustHeader | Manifest
+  relative_path    : String            under dist/lib/schema/
+  bytes            : Vec<u8>           UTF-8, LF-only, final newline mandatory
+  content_hash     : ContentHash       AC-CC-1 cem-bin/1+blake3 over bytes
+  source_map       : SourceMapStack    frame chain back to CEM-native source
+
+PublicationManifest:
+  schema_uri       : String
+  embedded_version : SemVer
+  artifacts        : BTreeMap<ArtifactKind, ArtifactDescriptor>   stable key order
+  hash_scheme      : "cem-bin/1+blake3"  matches AC-CC-1
+
+ArtifactDescriptor:
+  relative_path    : String
+  content_hash     : ContentHash
+  byte_length      : u64
+  emitted_by       : EmitterTag        crate version + emitter name; not part of stability hash
+  validated_by     : Option<ValidatorTag>  recorded only after verification passes
+```
+
+Field ordering above is the **wire order** for the JSON projection of
+`PublicationManifest`; the JSON encoder writes keys in this exact order so
+the manifest is itself byte-stable.
+
+#### 13.2.4 Byte-Stability Rules
+
+These rules apply to every artifact and to the manifest:
+
+1. **Encoding.** UTF-8, no BOM, LF line endings, no trailing whitespace on
+   any line, single trailing newline at EOF.
+2. **Indentation.** Two spaces for XML, TS, Rust, and JSON outputs.
+3. **No timestamps.** No emitter writes wall-clock dates, build numbers, or
+   nondeterministic identifiers. `EmitterTag` is written to the manifest
+   only and is excluded from the AC-CC-1 hash input.
+4. **Stable ordering.** All collections traversed by emitters use the
+   declaration order recorded on `CompiledSchema`, with a `BTreeMap`/
+   `BTreeSet` final sort on any name-keyed projection (annotations, allowed
+   values, allowed states, namespace bindings, open-content rules).
+5. **Numeric formatting.** Integer multiplicities written as base-10 with no
+   leading zeros; floats are disallowed in Tier A emit output.
+6. **XML attribute order.** Fixed alphabetical sort within each element
+   except for a normative preamble (`xmlns`, `xmlns:cem`, `ns`, `name`) per
+   RELAX NG XML §4. The same rule applies to the manifest's JSON object
+   members (preamble keys first, declared field order second).
+7. **Content hash.** `cem-bin/1+blake3` over the artifact bytes. The hash
+   sidecar lives next to its artifact (`cem-core.rng.hash`,
+   `cem-core.d.ts.hash`, …) so independent consumers can verify a single
+   artifact without parsing the manifest.
+8. **Hash input is the bytes.** The hash is computed *after* all rules above
+   apply. Emitting the same `CompiledSchema` twice (same crate version, same
+   options) MUST yield identical bytes and identical content hashes; this is
+   the runnable verification surface for AC-S-2 byte stability.
+
+#### 13.2.5 File Ownership And On-Disk Layout
+
+```
+packages/cem_ml/dist/lib/schema/
+  <namespace-tail>/<embedded-major.minor.patch>/
+    cem-core.rng                  (RelaxNgXml)
+    cem-core.rng.hash             (sidecar; content_hash of cem-core.rng)
+    cem-core.rnc                  (RelaxNgCompact)
+    cem-core.rnc.hash
+    cem-core.d.ts                 (TypeScriptDts)
+    cem-core.d.ts.hash
+    cem-core.rs                   (RustHeader; tier-B, gated by CompilerOptions.emit_rust)
+    cem-core.rs.hash
+    manifest.json                 (PublicationManifest; ArtifactKind::Manifest)
+    manifest.json.hash
+```
+
+`<namespace-tail>` is the schema URI's path component after the well-known
+`https://cem.dev/ns/` prefix, with `/` segments preserved as directories.
+For `https://cem.dev/ns/core/1` the tail is `core` (the `/1` MAJOR
+constraint is recorded in the URI metadata but does **not** become a
+directory — see Open Question 4 for the publication-side aliasing).
+`<embedded-major.minor.patch>` is the full SemVer of the loaded schema per
+AC-V-9; pre-release and build-metadata suffixes are included literally.
+
+The compiler module owns every file under this tree. No other module may
+write to `dist/lib/schema/`. The CLI consumes the manifest read-only at
+schema-load time.
+
+#### 13.2.6 URI Publication Workflow (AC-S-5)
+
+1. The compiler computes the artifact bytes and content hashes in-process.
+2. `uri_publish` writes the manifest and sidecars **after** all artifacts
+   have been hashed; a partial emit leaves the previous manifest in place.
+3. The CLI's schema loader resolves `<schema-uri>` against
+   `dist/lib/schema/` first, then against registered remote resolvers. The
+   loader rejects an artifact whose recomputed hash does not match its
+   sidecar with `cem.schema.artifact_hash_mismatch`.
+4. AC-V-10 URI-tail matching is performed against the **manifest**, not the
+   directory tree: the loader scans manifests under the namespace tail, then
+   picks the embedded version that satisfies the URI tail per AC-V-10.
+5. Release tooling tags the bundle in CHANGELOG and pins the manifest hash
+   in `Cargo.toml` metadata so a release reproduces the same artifacts.
+
+#### 13.2.7 Verification Fixtures
+
+Verification fixtures land under `packages/cem_ml/tests/schema_emit/`. Each
+fixture name encodes the AC it pins:
+
+| Fixture file                          | AC pinned                          | What it asserts                                                          |
+|---------------------------------------|------------------------------------|--------------------------------------------------------------------------|
+| `byte_stability.rs`                   | AC-S-2 byte-stable requirement     | Emitting twice yields identical bytes and identical content hashes.      |
+| `rng_xml_oracle.rs`                   | AC-S-2 RELAX NG XML mirror         | Emit `.rng`, validate canonical fixtures against it through the chosen RELAX NG oracle. Skipped (not failed) when the oracle toolchain is absent, with skip recorded in the report. |
+| `rng_compact_roundtrip.rs`            | AC-S-2 compact mirror              | Emit `.rnc`, convert to `.rng` via the oracle, diff against the emitter's `.rng`. |
+| `ts_dts_structural.rs`                | AC-S-V-1, AC-S-V-3                  | Compile a fixture that assigns an emitted `Badge` to `HTMLElement`.      |
+| `ts_dts_validated_brand.rs`           | AC-S-V-2, AC-S-V-4, AC-S-V-5        | `// @ts-expect-error` brand fixtures + version-identity discrimination.  |
+| `rust_hdr_compiles.rs`                | AC-S-4                              | Run `cargo check` against an auto-generated stub crate that imports the emitted `.rs`. |
+| `uri_manifest_resolution.rs`          | AC-S-5, AC-V-10                     | Resolve `/1`, `/1.2`, `/1.2.3`, prerelease-exact URIs through the loader; assert manifest match-rule diagnostics per AC-V-13. |
+
+The `rng_xml_oracle.rs` and `rng_compact_roundtrip.rs` fixtures honor a
+`CEM_ML_SCHEMA_ORACLE_SKIP=1` escape hatch that mirrors the
+`CEM_ML_PERF_SKIP` policy in §17 — skips are recorded as `info` events in
+the report, not silent passes.
+
+#### 13.2.8 Nx Target
+
+```
+nx run cem_ml:build:schema-artifacts
+```
+
+writes every emitter's output for every registered Tier A schema into
+`packages/cem_ml/dist/lib/schema/`. The target is cacheable and its inputs
+are the CEM-native schema source files plus the emitter module sources.
+Outputs are exactly the directory tree above. Release sequencing places
+`build:schema-artifacts` after `build:docs` (so the CEM-native source is
+already lowered to XHTML) and before the lint/test gates in §18.4.
+
+#### 13.2.9 Open Questions
+
+This section lists decisions that block emitter implementation. They are
+tracked in detail in
+[`cem-ml-schema-compiler-open-questions.md`](cem-ml-schema-compiler-open-questions.md);
+no emitter lands until each item below has a resolution or an explicit
+deferral.
+
+- **OQ-SC-1** — Module location: subdirectory `schema/compiler/` vs single
+  file `schema/compiler.rs` (impl design §4 currently lists the latter).
+- **OQ-SC-2** — `CompiledSchema` field gap: the existing Tier A
+  `vocab::CompiledSchema` is vocabulary-only; richer fields
+  (`StructuralSchemaIr`, `SemanticRule`, `OpenContentPolicy`,
+  `SchemaVersionIdentity`) are designed in §3.4 but unimplemented. The
+  compiler-output module can only emit what the IR carries.
+- **OQ-SC-3** — Tier of `rust_hdr`: AC-S-4 is `[B] SHOULD`. Confirm whether
+  the emitter ships in the Tier A release bundle (gated off by default) or
+  is held back entirely until Tier B closes.
+- **OQ-SC-4** — URI-tail publication aliasing: whether the on-disk tree
+  carries alias directories for partial URI tails (`/1`, `/1.2`) or
+  resolves them at load time from the manifest set.
+- **OQ-SC-5** — External RELAX NG oracle choice: Jing (Java toolchain),
+  `xmllint --relaxng` (libxml2 C toolchain), or a pure-Rust validator.
+- **OQ-SC-6** — `Validated<T>` source-map frames in TS: AC-S-V-5 requires
+  diagnostic frames derived from the caller's invocation site, which
+  implies a TS-side runtime shim. Owner module unclear.
+- **OQ-SC-7** — Cross-version `.d.ts` strategy: AC-S-V-4 requires
+  `Validated<Badge@1.0>` and `Validated<Badge@2.0>` to be nominally
+  distinct when both schemas are loaded in the same TS project. Single
+  combined `.d.ts` vs per-version `.d.ts` plus a re-export shim.
+- **OQ-SC-8** — Header-comment policy: every emitter can prefix its file
+  with a CEM-native source URI + embedded version + content hash. Whether
+  the header is part of the byte-stability surface (it is deterministic) or
+  excluded from the AC-CC-1 hash (because it embeds the hash recursively).
+
 ---
 
 ## 14. Rust Module Map
@@ -1741,7 +1972,7 @@ remain open:
 
 | ID | AC reference | Design follow-up |
 |----|--------------|------------------|
-| DESIGN-FOLLOW-001 | AC-S-2 through AC-S-6 | Add release artifact details for RELAX NG XML/compact mirrors, TypeScript `.d.ts`, Rust `.rs`, stable schema URIs, and TS type strategy. |
+| DESIGN-FOLLOW-001 | AC-S-2 through AC-S-6 | **Design landed (§13.2).** Schema-compiler output module, emitter inventory, byte-stability rules, on-disk layout, URI publication workflow, and verification-fixture roster are now specified. Implementation blocked on the open questions in [`cem-ml-schema-compiler-open-questions.md`](cem-ml-schema-compiler-open-questions.md) (OQ-SC-1..OQ-SC-8). |
 | DESIGN-FOLLOW-002 | AC-V-2, AC-V-3 | AC rules are resolved in `cem-ml-ac.md` §3.1 and summarized in this design; implementation structs and tests still need to be added. |
 | DESIGN-FOLLOW-003 | AC-P-3, AC-O-1 | `byteOffset` and observer names are now sketched in design/impl; add concrete payload schemas, Rust/WASM API details, and tests. |
 | DESIGN-FOLLOW-004 | AC-V-6, AC-X-3 | Add concrete schema-owned semantic checks for accessibility, ARIA, invalid state combinations, and unsafe inline content. |
