@@ -18,7 +18,7 @@ use crate::schema::scoping::{
     inline_cache_identity, InlineSchemaDeclaration, SchemaScopeContext, SchemaSource,
 };
 use crate::schema::vocab::CompiledSchema;
-use crate::schema::{FramePhase, SchemaFrame, SchemaMachine, SchemaVersionIdentity, ScopeId};
+use crate::schema::{FramePhase, SchemaFrame, SchemaMachine, ScopeId};
 use crate::source::ByteRange;
 use crate::source_map::SourceMapStack;
 
@@ -255,12 +255,7 @@ impl<E: EventNormalizer> CemSchemaMachine<E> {
         let frame = SchemaFrame {
             scope_id,
             schema_id: self.schema.schema_id,
-            schema_version: SchemaVersionIdentity {
-                schema_id: self.schema.schema_id,
-                major: 1,
-                minor: 0,
-                patch: 0,
-            },
+            schema_version: self.schema.version_identity.clone(),
             language_id,
             phase: FramePhase::Attribute,
             source_span: byte_range,

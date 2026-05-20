@@ -3,6 +3,7 @@
 //! Public contract per AC-F-10 / `cem-ml-stack-design-impl.md` §3.4.
 //! Tier A vocab + machine live in submodules.
 
+pub mod ir;
 pub mod machine;
 pub mod namespace;
 pub mod scoping;
@@ -22,13 +23,7 @@ pub enum FramePhase {
     Closed,
 }
 
-#[derive(Debug, Clone)]
-pub struct SchemaVersionIdentity {
-    pub schema_id: SchemaId,
-    pub major: u32,
-    pub minor: u32,
-    pub patch: u32,
-}
+pub use ir::SchemaVersionIdentity;
 
 /// One schema frame on the validation stack. Diagnostics emitted inside the
 /// frame bubble to the nearest schema-declared boundary per AC-P-4.

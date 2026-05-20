@@ -23,10 +23,16 @@ lacks compiler output detail, and the implementation has no emitter for any rele
       resolved the same day — see `cem-ml-stack-design.md` §13.2.9 and
       [`cem-ml-schema-compiler-open-questions.md`](cem-ml-schema-compiler-open-questions.md) (decision archive).
       Emitter PR work is unblocked; see the implementation items below.
-- [ ] Extend `CompiledSchema` to the `cem-ml-stack-design-impl.md` §3.4 shape before emitter work (AC-S-7, AC-S-8).
+- [x] Extend `CompiledSchema` to the `cem-ml-stack-design-impl.md` §3.4 shape before emitter work (AC-S-7, AC-S-8).
       Add `SchemaVersionIdentity`, `CemNativeSchemaSource`, `StructuralSchemaIr`, `SemanticRule`,
       `OpenContentPolicy`, and transform-plan metadata; wire `CompiledSchema::cem_core()` to populate the richer IR.
       This is the first schema-artifact implementation PR, and no emitter PR lands before it.
+      **Closed (2026-05-19):** Types live in `packages/cem_ml/src/schema/ir.rs` per the §4 module map;
+      `schema/vocab.rs` re-exports for back-compat; `SchemaVersionIdentity` in `schema.rs` replaced with the §3.4
+      shape (uri / embedded_version / constraint / match_rule / fingerprint_input). `cem_core()` populates
+      all 15 `OpenContentDefaults` branches, one `SchemaStateDef` per annotation, and a `SemanticRule` entry
+      for each `RuleRegistry::with_tier_a_rules` registration. Coverage: `schema::ir::tests` (13 tests);
+      full workspace `yarn nx run cem_ml:test` green.
 - [ ] Emit RELAX NG XML mirror (`*.rng`) and RELAX NG compact (`*.rnc`) from `CompiledSchema` (AC-S-2). Add round-trip
       fixtures that read the emitted mirror back through an external validator.
 - [ ] Emit TypeScript `.d.ts` headers from `CompiledSchema` (AC-S-3, AC-S-6). Structural by default; `Validated<T>`
