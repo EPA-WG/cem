@@ -12,6 +12,7 @@ pub mod error;
 pub mod output;
 pub mod rng_compact;
 pub mod rng_xml;
+pub mod rust_hdr;
 pub mod ts_dts;
 
 use std::collections::BTreeMap;
@@ -100,8 +101,21 @@ impl SchemaCompiler {
             artifacts.push(artifact);
         }
 
-        // rust_hdr.rs and uri_publish.rs land in follow-up PRs.
-        let _ = options.emit_rust;
+        // Tier B gate — OQ-SC-3 (resolved). Default `false`; consumers
+        // (or the `rust_hdr_compiles.rs` fixture) flip this on when
+        // they want the .rs artifact + `cargo check` verification.
+        if options.emit_rust {
+            let mut cursor = EmissionCursor::new(schema);
+            let artifact = rust_hdr::RustHdrEmitter.emit(schema, options, &mut cursor)?;
+            register_manifest(
+                &mut manifest_artifacts,
+                &artifact,
+                rust_hdr::RustHdrEmitter::EMITTER_NAME,
+            );
+            artifacts.push(artifact);
+        }
+
+        // uri_publish.rs lands in the next emitter PR.
 
         let manifest = PublicationManifest {
             schema_uri: schema.version_identity.uri.clone(),
@@ -233,5 +247,48 @@ mod tests {
         assert_eq!(rng_desc.emitted_by.crate_version, env!("CARGO_PKG_VERSION"));
         assert_eq!(rng_desc.emitted_by.emitter_name, "rng_xml");
         assert!(rng_desc.validated_by.is_none());
+    }
+
+    #[test]
+    fn emit_rust_default_off_per_oq_sc_3() {
+        // Tier A code, Tier B gate — OQ-SC-3 (resolved).
+        let schema = CompiledSchema::cem_core();
+        let output = SchemaCompiler::emit_all(&schema, &CompilerOptions::default()).unwrap();
+        assert!(
+            !output
+                .artifacts
+                .iter()
+                .any(|a| a.kind == ArtifactKind::RustHeader),
+            "rust_hdr must be off by default; the Tier B gate flips it on"
+        );
+        assert!(!output
+            .manifest
+            .artifacts
+            .contains_key(&ArtifactKind::RustHeader));
+    }
+
+    #[test]
+    fn emit_rust_true_produces_four_artifacts() {
+        let schema = CompiledSchema::cem_core();
+        let opts = CompilerOptions {
+            emit_rust: true,
+            ..Default::default()
+        };
+        let output = SchemaCompiler::emit_all(&schema, &opts).unwrap();
+        assert_eq!(output.artifacts.len(), 4);
+        for kind in [
+            ArtifactKind::RelaxNgXml,
+            ArtifactKind::RelaxNgCompact,
+            ArtifactKind::TypeScriptDts,
+            ArtifactKind::RustHeader,
+        ] {
+            assert!(
+                output.artifacts.iter().any(|a| a.kind == kind),
+                "emit_all with emit_rust=true missing artifact: {kind:?}"
+            );
+        }
+        let rust_desc = &output.manifest.artifacts[&ArtifactKind::RustHeader];
+        assert_eq!(rust_desc.emitted_by.emitter_name, "rust_hdr");
+        assert_eq!(rust_desc.relative_path, "core/1.0.0/cem-core.rs");
     }
 }

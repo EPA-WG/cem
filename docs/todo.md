@@ -55,7 +55,20 @@ lacks compiler output detail, and the implementation has no emitter for any rele
       path `core/1.0.0/cem-core.d.ts` (OQ-SC-7). 15 inline tests cover byte stability, header policy, brand-block
       gating, every annotation interface, enum vs free-form value typing, per-annotation state union, kebab→Pascal
       naming, and the LF/no-trailing-whitespace invariants. `yarn nx run cem_ml:test` green.
-- [ ] Emit Rust `.rs` headers from `CompiledSchema` (AC-S-4). Verify the generated module compiles with `cargo check`.
+- [x] Emit Rust `.rs` headers from `CompiledSchema` (AC-S-4). Verify the generated module compiles with `cargo check`.
+      **Closed (2026-05-20):** `packages/cem_ml/src/schema/compiler/rust_hdr.rs` ships per OQ-SC-3 (Tier A code,
+      Tier B gate): `emit_all` invokes it only when `CompilerOptions.emit_rust = true` (default `false`). Output
+      is a `pub mod schema { ... }` block with `SCHEMA_URI` / `EMBEDDED_VERSION` consts, one
+      `#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)] pub enum {Pascal(annotation)}` per enum-typed annotation
+      (`Action`, `Badge`, `Message` for cem-core/1), and a `pub enum CemState` carrying the schema-wide state
+      matrix. Free-form annotations emit no enum (call-site type is `&str`). Header policy per OQ-SC-8 (URI +
+      version, no hash); per-version path `core/1.0.0/cem-core.rs` per OQ-SC-7. 16 inline tests cover byte
+      stability, header policy, per-annotation enum shapes, no-enum-for-free-form, CemState variants, brace
+      balance, and the LF / no-trailing-whitespace invariants. Verification fixture
+      `tests/schema_emit/rust_hdr_compiles.rs` writes a stub `cem_ml_schema_stub` crate, includes the emitted
+      `.rs`, and spawns `cargo check --offline`; gated by `CEM_ML_EMIT_RUST=1` per OQ-SC-3 (skipped with `info`
+      in Tier A CI; exercised locally — `cargo check` succeeds against the emitted module). Full
+      `yarn nx run cem_ml:test` green.
 - [ ] Publish schemas under stable URIs (AC-S-5). Define the URI scheme, byte-stability fixture, and the publication
       workflow (manifest, version, hash sidecar).
 - [ ] Add `nx run cem_ml:build:schema-artifacts` Nx target that runs all four emitters and writes outputs under

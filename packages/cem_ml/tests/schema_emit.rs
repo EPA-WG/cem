@@ -7,4 +7,5 @@
 
 mod schema_emit {
     pub mod rng_xml_oracle;
+    pub mod rust_hdr_compiles;
 }
