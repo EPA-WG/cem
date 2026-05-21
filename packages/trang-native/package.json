@@ -21,6 +21,7 @@
     "bin/",
     "scripts/postinstall.mjs",
     "scripts/verify-checksum.mjs",
+    "scripts/lib/",
     "src/",
     "LICENSE",
     "NOTICE",

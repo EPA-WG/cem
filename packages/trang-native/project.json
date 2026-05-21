@@ -38,6 +38,27 @@
         },
         "build": {
             "executor": "nx:run-commands",
+            "cache": true,
+            "inputs": [
+                "{projectRoot}/package.json",
+                "{projectRoot}/scripts/acquire-binary.mjs",
+                "{projectRoot}/scripts/lib/native-binary.mjs",
+                "{projectRoot}/scripts/fetch-source.mjs",
+                "{projectRoot}/scripts/build-jar.mjs",
+                "{projectRoot}/scripts/build-native.mjs",
+                "{projectRoot}/upstream.json",
+                "{projectRoot}/reflect-config/**/*"
+            ],
+            "outputs": [
+                "{projectRoot}/build/native"
+            ],
+            "options": {
+                "command": "node scripts/acquire-binary.mjs",
+                "cwd": "packages/trang-native"
+            }
+        },
+        "build-from-source": {
+            "executor": "nx:run-commands",
             "dependsOn": ["build-jar"],
             "cache": true,
             "inputs": [
@@ -46,7 +67,7 @@
                 "{projectRoot}/reflect-config/**/*"
             ],
             "outputs": [
-                "{projectRoot}/build/native/<host-target>/trang"
+                "{projectRoot}/build/native"
             ],
             "options": {
                 "command": "node scripts/build-native.mjs",

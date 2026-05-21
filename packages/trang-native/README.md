@@ -126,10 +126,50 @@ The shim simply `execFile`s the native binary with the arguments
 forwarded verbatim. Trang's own CLI documentation applies — see
 [upstream docs](https://relaxng.org/jclark/trang.html).
 
+## How `nx build` resolves the binary
+
+`nx run @epa-wg/trang-native:build` is the **smart** entry point. A
+GraalVM `native-image` compile takes minutes, so it is avoided
+whenever a prebuilt binary can be obtained. `scripts/acquire-binary.mjs`
+resolves a host-platform binary in this order:
+
+1. **Local** — if `build/native/<triple>/` already holds a binary
+   whose `metadata.json` records the current `package.json` version,
+   it is reused as-is. Zero work.
+2. **Release** — otherwise the matching `trang-native-v<version>`
+   GitHub Release archive is downloaded, SHA-256 verified against its
+   sidecar, and extracted. This is the *same* artifact a published-npm
+   consumer's `postinstall` pulls — "npm release" and "git release"
+   are the one Release.
+3. **From source** — only if neither of the above yields a binary does
+   it run the full `fetch-source → build-jar → build-native` chain,
+   which requires GraalVM + Ant on the host.
+
+A `native-image` rebuild therefore happens **only** when:
+
+- the package **version was bumped** — no Release exists for the new
+  version yet, so step 2 misses and the source build runs (you then
+  cut the release, after which every machine resolves via step 1/2); or
+- a **force** is requested — `TRANG_NATIVE_FORCE_BUILD=1` or passing
+  `--force` to the script. Pair force with `--skip-nx-cache` so Nx
+  does not replay a cached result:
+
+  ```bash
+  TRANG_NATIVE_FORCE_BUILD=1 yarn nx run @epa-wg/trang-native:build --skip-nx-cache
+  ```
+
+Nx caching reinforces this: `package.json` is a `build` input, so a
+version bump invalidates the cache; an unchanged version replays the
+cached output without re-running the resolver at all.
+
+To compile unconditionally regardless of any available binary, use the
+explicit `build-from-source` target (see below).
+
 ## Building from source
 
-You only need this section if you're cutting a new release or hacking
-on the native-image config.
+You only need this section if you're cutting a new release, hacking on
+the native-image config, or running on a platform with no prebuilt
+binary.
 
 Prerequisites:
 
@@ -145,8 +185,10 @@ yarn nx run @epa-wg/trang-native:fetch-source
 # 2. Build trang.jar via Ant.
 yarn nx run @epa-wg/trang-native:build-jar
 
-# 3. Build the native binary for the current host.
-yarn nx run @epa-wg/trang-native:build
+# 3. Compile the native binary for the current host. Unlike `build`,
+#    `build-from-source` always invokes native-image — it never
+#    consults a local or released binary.
+yarn nx run @epa-wg/trang-native:build-from-source
 
 # 4. Package into a release archive.
 yarn nx run @epa-wg/trang-native:package
