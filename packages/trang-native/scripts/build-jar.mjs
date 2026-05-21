@@ -28,7 +28,11 @@ if (!existsSync(sourceDir)) {
   );
 }
 
-const ant = process.env.TRANG_ANT || (process.platform === 'win32' ? 'ant.bat' : 'ant');
+// Use `ant` on both Unix and Windows — `where ant` on Windows resolves
+// PATHEXT, finding ant.exe / ant.cmd / ant.bat as installed. The
+// Chocolatey shim is `ant.exe`, not `ant.bat`, so an explicit `.bat`
+// here would miss the choco-installed Ant on GitHub Windows runners.
+const ant = process.env.TRANG_ANT || 'ant';
 // TRANG_ANT may be an absolute path; commandExists is a PATH probe and
 // would reject it. Accept either an existing file path or a PATH name.
 if (!(path.isAbsolute(ant) && existsSync(ant)) && !commandExists(ant)) {
