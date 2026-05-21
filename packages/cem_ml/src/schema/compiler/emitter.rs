@@ -69,6 +69,19 @@ pub trait SchemaEmitter {
     ) -> Result<EmittedArtifact, EmitError>;
 }
 
+/// Emitters must not publish a weakened structural mirror. A schema carrying
+/// non-streamable constraints is rejected before any artifact bytes are built,
+/// both through `SchemaCompiler::emit_all` and through direct emitter calls.
+pub(crate) fn reject_non_streamable_constraints(schema: &CompiledSchema) -> Result<(), EmitError> {
+    if let Some(constraint) = schema.non_streamable_constraints.first() {
+        return Err(EmitError::UnsupportedConstraint {
+            kind: format!("{:?}", constraint.kind),
+            schema_uri: schema.version_identity.uri.clone(),
+        });
+    }
+    Ok(())
+}
+
 /// Compute the on-disk relative path for an artifact under
 /// `dist/lib/schema/<namespace-tail>/<embedded-version>/<stem>.<ext>`.
 ///
@@ -87,9 +100,15 @@ pub fn relative_path(schema: &CompiledSchema, kind: ArtifactKind) -> Result<Stri
     let tail = namespace_tail(uri).ok_or(EmitError::MissingIrField {
         field: "version_identity.uri (not a cem.dev/ns/* URI)",
     })?;
-    let version = schema.version_identity.embedded_version.to_canonical_string();
+    let version = schema
+        .version_identity
+        .embedded_version
+        .to_canonical_string();
     let stem = artifact_stem_from_tail(&tail);
-    Ok(format!("{tail}/{version}/{stem}.{ext}", ext = kind.extension()))
+    Ok(format!(
+        "{tail}/{version}/{stem}.{ext}",
+        ext = kind.extension()
+    ))
 }
 
 /// Strip the well-known prefix and drop the trailing major-version

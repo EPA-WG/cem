@@ -37,7 +37,9 @@
 //!   `rustfmt --check` is on the Tier B roadmap (vendored config).
 
 use super::byte_stability::DeterministicWriter;
-use super::emitter::{relative_path, EmissionCursor, SchemaEmitter};
+use super::emitter::{
+    reject_non_streamable_constraints, relative_path, EmissionCursor, SchemaEmitter,
+};
 use super::error::EmitError;
 use super::output::{ArtifactKind, EmittedArtifact};
 use super::CompilerOptions;
@@ -61,6 +63,7 @@ impl SchemaEmitter for RustHdrEmitter {
                 field: "version_identity.uri",
             });
         }
+        reject_non_streamable_constraints(schema)?;
 
         let mut w = DeterministicWriter::new();
 
@@ -68,7 +71,10 @@ impl SchemaEmitter for RustHdrEmitter {
             w.line(&format!(
                 "//! AUTO-GENERATED. CEM-native source: {uri} @{ver}",
                 uri = schema.version_identity.uri,
-                ver = schema.version_identity.embedded_version.to_canonical_string(),
+                ver = schema
+                    .version_identity
+                    .embedded_version
+                    .to_canonical_string(),
             ))?;
         }
         w.line("#![allow(non_camel_case_types, dead_code)]")?;
@@ -83,7 +89,12 @@ impl SchemaEmitter for RustHdrEmitter {
         ))?;
         w.line(&format!(
             r#"pub const EMBEDDED_VERSION: &str = "{}";"#,
-            escape_rust_string_literal(&schema.version_identity.embedded_version.to_canonical_string())
+            escape_rust_string_literal(
+                &schema
+                    .version_identity
+                    .embedded_version
+                    .to_canonical_string()
+            )
         ))?;
 
         // One enum per enum-typed annotation. Free-form annotations
@@ -131,7 +142,10 @@ fn emit_annotation_enum(
     Ok(())
 }
 
-fn emit_state_enum(w: &mut DeterministicWriter, state_matrix: &[&'static str]) -> Result<(), EmitError> {
+fn emit_state_enum(
+    w: &mut DeterministicWriter,
+    state_matrix: &[&'static str],
+) -> Result<(), EmitError> {
     w.line("#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]")?;
     w.line("pub enum CemState {")?;
     w.indent();
@@ -360,10 +374,7 @@ mod tests {
         let body = body_of(&emit_cem_core());
         let opens = body.matches('{').count();
         let closes = body.matches('}').count();
-        assert_eq!(
-            opens, closes,
-            "unbalanced braces in emitted .rs:\n{body}"
-        );
+        assert_eq!(opens, closes, "unbalanced braces in emitted .rs:\n{body}");
     }
 
     /// The annotation `def: AnnotationDef` arg path also handles an
@@ -379,8 +390,7 @@ mod tests {
             allowed_states: Vec::new(),
         };
         let mut w = DeterministicWriter::new();
-        emit_annotation_enum(&mut w, def.local_name, def.allowed_values.as_ref().unwrap())
-            .unwrap();
+        emit_annotation_enum(&mut w, def.local_name, def.allowed_values.as_ref().unwrap()).unwrap();
         let (bytes, _) = w.finalize().unwrap();
         let s = String::from_utf8(bytes).unwrap();
         assert!(s.contains("pub enum Synthetic {"));

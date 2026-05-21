@@ -65,6 +65,8 @@ impl SchemaCompiler {
         schema: &CompiledSchema,
         options: &CompilerOptions,
     ) -> Result<CompilerOutput, EmitError> {
+        emitter::reject_non_streamable_constraints(schema)?;
+
         let mut artifacts: Vec<EmittedArtifact> = Vec::new();
         let mut manifest_artifacts: BTreeMap<ArtifactKind, ArtifactDescriptor> = BTreeMap::new();
 
@@ -290,5 +292,23 @@ mod tests {
         let rust_desc = &output.manifest.artifacts[&ArtifactKind::RustHeader];
         assert_eq!(rust_desc.emitted_by.emitter_name, "rust_hdr");
         assert_eq!(rust_desc.relative_path, "core/1.0.0/cem-core.rs");
+    }
+
+    #[test]
+    fn emit_all_rejects_non_streamable_constraints() {
+        let mut schema = CompiledSchema::cem_core();
+        schema
+            .non_streamable_constraints
+            .push(crate::schema::ir::NonStreamableConstraint {
+                annotation: "screen",
+                kind: crate::schema::ir::NonStreamableKind::FullDocumentBuffering,
+                reason: "requires a whole-document pass",
+            });
+
+        let err = SchemaCompiler::emit_all(&schema, &CompilerOptions::default()).unwrap_err();
+        assert!(
+            matches!(err, EmitError::UnsupportedConstraint { .. }),
+            "expected unsupported constraint error, got {err:?}"
+        );
     }
 }

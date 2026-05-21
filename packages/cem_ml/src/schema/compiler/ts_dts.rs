@@ -3,9 +3,10 @@
 //! Reference: `cem-ml-stack-design-impl.md` §3.4.2.4 and AC-S-V-1..AC-S-V-5
 //! in `cem-ml-ac.md`. Resolutions threaded through:
 //!
-//! - OQ-SC-6: runtime `asValidated` / `tryValidated` / `Validated<T>` come
-//!   from `@epa-wg/cem-ml/wasm` via re-export. No `.js` sibling is emitted;
-//!   no host-stub `declare function` lines.
+//! - OQ-SC-6: runtime `asValidated` / `tryValidated` come from
+//!   `@epa-wg/cem-ml/wasm` via re-export. The local `Validated<T>` type
+//!   wraps the WASM brand with a per-schema-version nominal brand. No
+//!   `.js` sibling is emitted; no host-stub `declare function` lines.
 //! - OQ-SC-7: per-version `.d.ts` under the per-version on-disk path
 //!   (see `emitter::relative_path`); the `package.json` `exports` field
 //!   maps that path to `@epa-wg/cem-ml/schema/<tail>/<version>/<stem>`.
@@ -19,7 +20,9 @@
 //!   is `BTreeMap` iteration (alphabetical by local name).
 
 use super::byte_stability::DeterministicWriter;
-use super::emitter::{relative_path, EmissionCursor, SchemaEmitter};
+use super::emitter::{
+    reject_non_streamable_constraints, relative_path, EmissionCursor, SchemaEmitter,
+};
 use super::error::EmitError;
 use super::output::{ArtifactKind, EmittedArtifact};
 use super::CompilerOptions;
@@ -45,6 +48,7 @@ impl SchemaEmitter for TsDtsEmitter {
                 field: "version_identity.uri",
             });
         }
+        reject_non_streamable_constraints(schema)?;
 
         let mut w = DeterministicWriter::new();
 
@@ -52,19 +56,42 @@ impl SchemaEmitter for TsDtsEmitter {
             w.line(&format!(
                 "// AUTO-GENERATED. CEM-native source: {uri} @{ver}",
                 uri = schema.version_identity.uri,
-                ver = schema.version_identity.embedded_version.to_canonical_string(),
+                ver = schema
+                    .version_identity
+                    .embedded_version
+                    .to_canonical_string(),
             ))?;
         }
 
-        // `Validated<T>` brand and constructors come from the WASM
+        // `Validated<T>` remains assignable to `T`, but includes a
+        // per-generated-module unique-symbol brand so schema-versioned
+        // subpaths are not mutually assignable in TypeScript's
+        // structural type system. Constructors still come from the WASM
         // build per OQ-SC-6. Structural-by-default consumers can skip
-        // the import block entirely by setting
+        // the brand block entirely by setting
         // `CompilerOptions.include_validated_brand = false` (AC-S-6).
         if options.include_validated_brand {
-            w.line(&format!(r#"export type {{ Validated }} from "{WASM_SUBPATH}";"#))?;
+            w.line(&format!(
+                r#"import type {{ Validated as RuntimeValidated }} from "{WASM_SUBPATH}";"#
+            ))?;
             w.line(&format!(
                 r#"export {{ asValidated, tryValidated }} from "{WASM_SUBPATH}";"#
             ))?;
+            w.line("declare const cemSchemaVersionBrand: unique symbol;")?;
+            w.line("export type Validated<T> = RuntimeValidated<T> & {")?;
+            w.indent();
+            w.line(&format!(
+                r#"readonly [cemSchemaVersionBrand]: "{}@{}";"#,
+                escape_double_quoted_ts(&schema.version_identity.uri),
+                escape_double_quoted_ts(
+                    &schema
+                        .version_identity
+                        .embedded_version
+                        .to_canonical_string()
+                ),
+            ))?;
+            w.dedent();
+            w.line("};")?;
             w.blank();
         }
 
@@ -206,9 +233,8 @@ mod tests {
     fn header_carries_uri_and_version_no_hash() {
         let a = emit_cem_core();
         let body = body_of(&a);
-        assert!(body.starts_with(
-            "// AUTO-GENERATED. CEM-native source: https://cem.dev/ns/core/1 @1.0.0"
-        ));
+        assert!(body
+            .starts_with("// AUTO-GENERATED. CEM-native source: https://cem.dev/ns/core/1 @1.0.0"));
         // OQ-SC-8 (resolved): no content hash in header.
         assert!(!body.contains("Content hash"));
     }
@@ -223,15 +249,22 @@ mod tests {
         let mut cursor = EmissionCursor::new(&schema);
         let body = body_of(&TsDtsEmitter.emit(&schema, &opts, &mut cursor).unwrap());
         assert!(!body.contains("AUTO-GENERATED"));
-        assert!(body.starts_with("export type { Validated }"));
+        assert!(body.starts_with("import type { Validated as RuntimeValidated }"));
     }
 
     #[test]
-    fn validated_brand_re_exports_come_from_wasm_subpath() {
+    fn validated_brand_wraps_wasm_brand_with_schema_version() {
         let body = body_of(&emit_cem_core());
-        assert!(body.contains(r#"export type { Validated } from "@epa-wg/cem-ml/wasm";"#));
+        assert!(body.contains(
+            r#"import type { Validated as RuntimeValidated } from "@epa-wg/cem-ml/wasm";"#
+        ));
+        assert!(
+            body.contains(r#"export { asValidated, tryValidated } from "@epa-wg/cem-ml/wasm";"#)
+        );
+        assert!(body.contains("declare const cemSchemaVersionBrand: unique symbol;"));
+        assert!(body.contains("export type Validated<T> = RuntimeValidated<T> & {"));
         assert!(body
-            .contains(r#"export { asValidated, tryValidated } from "@epa-wg/cem-ml/wasm";"#));
+            .contains(r#"readonly [cemSchemaVersionBrand]: "https://cem.dev/ns/core/1@1.0.0";"#));
         // OQ-SC-6 (resolved): no host stubs declared.
         assert!(!body.contains("declare function asValidated"));
         assert!(!body.contains("declare function tryValidated"));
@@ -281,9 +314,7 @@ mod tests {
         // cem:action — primary | secondary
         assert!(body.contains(r#"readonly cemAction?: "primary" | "secondary";"#));
         // cem:badge — success | info | warning | error
-        assert!(
-            body.contains(r#"readonly cemBadge?: "success" | "info" | "warning" | "error";"#)
-        );
+        assert!(body.contains(r#"readonly cemBadge?: "success" | "info" | "warning" | "error";"#));
         // cem:message — sent | received
         assert!(body.contains(r#"readonly cemMessage?: "sent" | "received";"#));
     }
@@ -309,7 +340,8 @@ mod tests {
             "badge state union should be exactly \"default\":\n{badge_block}"
         );
         // action — allowed_states = ["default","hover","focus-visible","active","disabled","loading"]
-        let action_block = extract_interface_block(&body, "Action").expect("Action interface block");
+        let action_block =
+            extract_interface_block(&body, "Action").expect("Action interface block");
         assert!(action_block.contains(
             r#"readonly cemState?: "default" | "hover" | "focus-visible" | "active" | "disabled" | "loading";"#
         ));

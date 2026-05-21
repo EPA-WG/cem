@@ -3,13 +3,15 @@
 //! Produces a single `<grammar>` document for the active CEM-native
 //! schema. For cem-core/1 the grammar describes:
 //!
-//! - `cem-host` — any element accepting interleaved CEM annotations
-//!   and child `cem-host` elements (RELAX NG `<anyName/>`).
+//! - `cem-host` — any element accepting pass-through non-CEM attributes,
+//!   known CEM annotations, annotation-scoped `cem:state` lists, and
+//!   child `cem-host` elements (RELAX NG `<anyName/>`).
 //! - One `<define name="cem-attr-{annotation}"/>` per annotation, with
 //!   `<choice>` over `<value>` literals for enum-valued annotations and
 //!   `<text/>` for free-form annotations.
-//! - `<define name="cem-attr-state"/>` mapped to the schema's state
-//!   matrix (`<choice>` over every state name).
+//! - `<define name="cem-attr-state-{annotation}"/>` mapped to that
+//!   annotation's allowed state list; `<define name="cem-attr-state"/>`
+//!   remains the schema-wide state-only fallback.
 //!
 //! Determinism notes (§13.2.4):
 //! - UTF-8, LF, single trailing newline, no trailing whitespace.
@@ -19,7 +21,9 @@
 //!   leaves further sort policy to the schema source).
 
 use super::byte_stability::{xml_escape, DeterministicWriter};
-use super::emitter::{relative_path, EmissionCursor, SchemaEmitter};
+use super::emitter::{
+    reject_non_streamable_constraints, relative_path, EmissionCursor, SchemaEmitter,
+};
 use super::error::EmitError;
 use super::output::{ArtifactKind, EmittedArtifact};
 use super::CompilerOptions;
@@ -43,6 +47,7 @@ impl SchemaEmitter for RngXmlEmitter {
                 field: "version_identity.uri",
             });
         }
+        reject_non_streamable_constraints(schema)?;
 
         let mut w = DeterministicWriter::new();
 
@@ -52,7 +57,12 @@ impl SchemaEmitter for RngXmlEmitter {
             let header = format!(
                 "<!-- AUTO-GENERATED. CEM-native source: {uri} @{ver} -->",
                 uri = xml_escape(&schema.version_identity.uri),
-                ver = xml_escape(&schema.version_identity.embedded_version.to_canonical_string()),
+                ver = xml_escape(
+                    &schema
+                        .version_identity
+                        .embedded_version
+                        .to_canonical_string()
+                ),
             );
             w.line(&header)?;
         }
@@ -74,14 +84,35 @@ impl SchemaEmitter for RngXmlEmitter {
         w.dedent();
         w.line(r#"</start>"#)?;
 
-        // `cem-host` — any element, CEM annotations interleaved with
-        // recursive child hosts and free text.
+        // `cem-host` — choice of an unannotated host, or a host anchored
+        // by each known CEM annotation. Anchored variants validate
+        // `cem:state` against that annotation's allowed state set while
+        // still permitting other known CEM annotations on the same host.
         w.line(r#"<define name="cem-host">"#)?;
         w.indent();
-        w.line(r#"<element>"#)?;
+        w.line(r#"<choice>"#)?;
         w.indent();
-        w.line(r#"<anyName/>"#)?;
-        w.line(r#"<ref name="cem-annotations"/>"#)?;
+        w.line(r#"<ref name="cem-host-unannotated"/>"#)?;
+        for local in cursor.annotations().keys() {
+            w.line(&format!(r#"<ref name="cem-host-{local}"/>"#))?;
+        }
+        w.dedent();
+        w.line(r#"</choice>"#)?;
+        w.dedent();
+        w.line(r#"</define>"#)?;
+
+        emit_host_variant(&mut w, "cem-host-unannotated", None, cursor)?;
+        for (local, def) in cursor.annotations() {
+            emit_host_variant(&mut w, &format!("cem-host-{local}"), Some(local), cursor)?;
+            emit_state_attr_define(
+                &mut w,
+                &format!("cem-attr-state-{local}"),
+                &def.allowed_states,
+            )?;
+        }
+
+        w.line(r#"<define name="cem-host-children">"#)?;
+        w.indent();
         w.line(r#"<zeroOrMore>"#)?;
         w.indent();
         w.line(r#"<choice>"#)?;
@@ -93,26 +124,36 @@ impl SchemaEmitter for RngXmlEmitter {
         w.dedent();
         w.line(r#"</zeroOrMore>"#)?;
         w.dedent();
-        w.line(r#"</element>"#)?;
+        w.line(r#"</define>"#)?;
+
+        // Non-CEM attributes are pass-through. Unknown active-CEM
+        // namespace attributes are intentionally excluded and therefore
+        // rejected unless a known `cem-attr-*` pattern consumes them.
+        w.line(r#"<define name="host-pass-through-attrs">"#)?;
+        w.indent();
+        w.line(r#"<zeroOrMore><ref name="host-pass-through-attr"/></zeroOrMore>"#)?;
         w.dedent();
         w.line(r#"</define>"#)?;
 
-        // `cem-annotations` — interleave of every optional annotation.
-        w.line(r#"<define name="cem-annotations">"#)?;
+        w.line(r#"<define name="host-pass-through-attr">"#)?;
         w.indent();
-        w.line(r#"<interleave>"#)?;
+        w.line(r#"<attribute>"#)?;
         w.indent();
-        for local in cursor.annotations().keys() {
-            w.line(&format!(
-                r#"<optional><ref name="cem-attr-{local}"/></optional>"#
-            ))?;
-        }
-        // The `cem:state` attribute is owned by the state matrix, not
-        // the annotation map; emit it after the annotation set in a
-        // stable position.
-        w.line(r#"<optional><ref name="cem-attr-state"/></optional>"#)?;
+        w.line(r#"<anyName>"#)?;
+        w.indent();
+        w.line(r#"<except>"#)?;
+        w.indent();
+        w.line(&format!(
+            r#"<nsName ns="{}"/>"#,
+            xml_escape(&schema.version_identity.uri)
+        ))?;
         w.dedent();
-        w.line(r#"</interleave>"#)?;
+        w.line(r#"</except>"#)?;
+        w.dedent();
+        w.line(r#"</anyName>"#)?;
+        w.line(r#"<text/>"#)?;
+        w.dedent();
+        w.line(r#"</attribute>"#)?;
         w.dedent();
         w.line(r#"</define>"#)?;
 
@@ -142,23 +183,10 @@ impl SchemaEmitter for RngXmlEmitter {
             w.line(r#"</define>"#)?;
         }
 
-        // `cem:state` define — derived from the schema-wide state
-        // matrix, not from the per-annotation `allowed_states` lists.
-        w.line(r#"<define name="cem-attr-state">"#)?;
-        w.indent();
-        w.line(r#"<attribute name="cem:state">"#)?;
-        w.indent();
-        w.line(r#"<choice>"#)?;
-        w.indent();
-        for state in cursor.state_matrix() {
-            w.line(&format!(r#"<value>{}</value>"#, xml_escape(state)))?;
-        }
-        w.dedent();
-        w.line(r#"</choice>"#)?;
-        w.dedent();
-        w.line(r#"</attribute>"#)?;
-        w.dedent();
-        w.line(r#"</define>"#)?;
+        // State-only host fallback mirrors the native machine's current
+        // behavior: `cem:state` with no active annotation is checked only
+        // against the global state matrix.
+        emit_state_attr_define(&mut w, "cem-attr-state", cursor.state_matrix())?;
 
         w.dedent();
         w.line(r#"</grammar>"#)?;
@@ -172,6 +200,74 @@ impl SchemaEmitter for RngXmlEmitter {
             source_map: Default::default(),
         })
     }
+}
+
+fn emit_host_variant(
+    w: &mut DeterministicWriter,
+    define_name: &str,
+    required_annotation: Option<&str>,
+    cursor: &EmissionCursor<'_>,
+) -> Result<(), EmitError> {
+    w.line(&format!(r#"<define name="{define_name}">"#))?;
+    w.indent();
+    w.line(r#"<element>"#)?;
+    w.indent();
+    w.line(r#"<anyName/>"#)?;
+    w.line(r#"<interleave>"#)?;
+    w.indent();
+    w.line(r#"<ref name="host-pass-through-attrs"/>"#)?;
+    if let Some(local) = required_annotation {
+        w.line(&format!(r#"<ref name="cem-attr-{local}"/>"#))?;
+        for other in cursor.annotations().keys().filter(|other| **other != local) {
+            w.line(&format!(
+                r#"<optional><ref name="cem-attr-{other}"/></optional>"#
+            ))?;
+        }
+        w.line(&format!(
+            r#"<optional><ref name="cem-attr-state-{local}"/></optional>"#
+        ))?;
+    } else {
+        w.line(r#"<optional><ref name="cem-attr-state"/></optional>"#)?;
+    }
+    w.dedent();
+    w.line(r#"</interleave>"#)?;
+    w.line(r#"<ref name="cem-host-children"/>"#)?;
+    w.dedent();
+    w.line(r#"</element>"#)?;
+    w.dedent();
+    w.line(r#"</define>"#)?;
+    Ok(())
+}
+
+fn emit_state_attr_define(
+    w: &mut DeterministicWriter,
+    define_name: &str,
+    states: &[&'static str],
+) -> Result<(), EmitError> {
+    w.line(&format!(r#"<define name="{define_name}">"#))?;
+    w.indent();
+    w.line(r#"<attribute name="cem:state">"#)?;
+    w.indent();
+    w.line(r#"<list>"#)?;
+    w.indent();
+    w.line(r#"<oneOrMore>"#)?;
+    w.indent();
+    w.line(r#"<choice>"#)?;
+    w.indent();
+    for state in states {
+        w.line(&format!(r#"<value>{}</value>"#, xml_escape(state)))?;
+    }
+    w.dedent();
+    w.line(r#"</choice>"#)?;
+    w.dedent();
+    w.line(r#"</oneOrMore>"#)?;
+    w.dedent();
+    w.line(r#"</list>"#)?;
+    w.dedent();
+    w.line(r#"</attribute>"#)?;
+    w.dedent();
+    w.line(r#"</define>"#)?;
+    Ok(())
 }
 
 #[cfg(test)]
@@ -190,7 +286,9 @@ mod tests {
         let a = emit_cem_core();
         let body = std::str::from_utf8(&a.bytes).unwrap();
         assert!(body.starts_with(r#"<?xml version="1.0" encoding="UTF-8"?>"#));
-        assert!(body.contains("AUTO-GENERATED. CEM-native source: https://cem.dev/ns/core/1 @1.0.0"));
+        assert!(
+            body.contains("AUTO-GENERATED. CEM-native source: https://cem.dev/ns/core/1 @1.0.0")
+        );
         // No content-hash line — OQ-SC-8 (resolved).
         assert!(!body.contains("Content hash"));
     }
@@ -280,6 +378,57 @@ mod tests {
     }
 
     #[test]
+    fn pass_through_attrs_exclude_active_cem_namespace() {
+        let body = String::from_utf8(emit_cem_core().bytes).unwrap();
+        let pass_through = extract_define_block(&body, "host-pass-through-attr")
+            .expect("host-pass-through-attr define");
+        assert!(pass_through.contains(r#"<anyName>"#));
+        assert!(pass_through.contains(r#"<except>"#));
+        assert!(pass_through.contains(r#"<nsName ns="https://cem.dev/ns/core/1"/>"#));
+        assert!(pass_through.contains(r#"<text/>"#));
+    }
+
+    #[test]
+    fn state_attributes_are_annotation_scoped_lists() {
+        let body = String::from_utf8(emit_cem_core().bytes).unwrap();
+
+        let badge_state =
+            extract_define_block(&body, "cem-attr-state-badge").expect("badge state define");
+        assert!(badge_state.contains("<list>"));
+        assert!(badge_state.contains("<oneOrMore>"));
+        assert!(badge_state.contains("<value>default</value>"));
+        assert!(
+            !badge_state.contains("<value>loading</value>"),
+            "badge must not accept loading state:\n{badge_state}"
+        );
+
+        let action_state =
+            extract_define_block(&body, "cem-attr-state-action").expect("action state define");
+        assert!(action_state.contains("<value>loading</value>"));
+        assert!(action_state.contains("<value>hover</value>"));
+        assert!(
+            !action_state.contains("<value>selected</value>"),
+            "action must not accept selected state:\n{action_state}"
+        );
+    }
+
+    #[test]
+    fn host_variants_anchor_state_to_present_annotation() {
+        let body = String::from_utf8(emit_cem_core().bytes).unwrap();
+        let action_host =
+            extract_define_block(&body, "cem-host-action").expect("cem-host-action define");
+        assert!(action_host.contains(r#"<ref name="host-pass-through-attrs"/>"#));
+        assert!(action_host.contains(r#"<ref name="cem-attr-action"/>"#));
+        assert!(action_host.contains(r#"<ref name="cem-attr-state-action"/>"#));
+        assert!(action_host.contains(r#"<optional><ref name="cem-attr-badge"/></optional>"#));
+
+        let unannotated = extract_define_block(&body, "cem-host-unannotated")
+            .expect("cem-host-unannotated define");
+        assert!(unannotated.contains(r#"<ref name="cem-attr-state"/>"#));
+        assert!(!unannotated.contains(r#"<ref name="cem-attr-action"/>"#));
+    }
+
+    #[test]
     fn byte_stability_two_emits_equal() {
         let a = emit_cem_core();
         let b = emit_cem_core();
@@ -308,5 +457,19 @@ mod tests {
     fn relative_path_points_under_per_version_directory() {
         let a = emit_cem_core();
         assert_eq!(a.relative_path, "core/1.0.0/cem-core.rng");
+    }
+
+    fn extract_define_block<'a>(body: &'a str, name: &str) -> Option<&'a str> {
+        let head = format!(r#"<define name="{name}">"#);
+        let start = body.find(&head)?;
+        let after_head = start + head.len();
+        let next = body[after_head..].find("\n  <define name=");
+        let end = next.map(|i| after_head + i).unwrap_or_else(|| {
+            body[start..]
+                .find("\n</grammar>")
+                .map(|i| start + i)
+                .unwrap_or(body.len())
+        });
+        Some(&body[start..end])
     }
 }

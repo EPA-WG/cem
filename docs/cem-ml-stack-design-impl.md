@@ -1007,9 +1007,14 @@ ordered output; ad-hoc `HashMap` iteration is forbidden.
 annotation host, one `<attribute>` per CEM annotation in the active
 namespace, and `<choice>` for enum-valued annotations. The XML preamble is
 fixed (`<?xml version="1.0" encoding="UTF-8"?>`); namespace declarations
-are alphabetized after the well-known `xmlns`/`xmlns:cem` preamble. State
-matrices lower to `<choice>` over `<value>` per state name. Non-streamable
-constraint markers from `CompiledSchema.non_streamable_constraints` raise
+are alphabetized after the well-known `xmlns`/`xmlns:cem` preamble. Host
+patterns accept pass-through non-CEM attributes while excluding unknown
+attributes in the active CEM namespace. State attributes lower to RELAX NG
+`list` patterns so a single `cem:state` value can carry a space-separated
+state list; annotation-anchored host variants use the active annotation's
+`allowed_states`, while the state-only fallback uses the global state
+matrix. Non-streamable constraint markers from
+`CompiledSchema.non_streamable_constraints` raise
 `EmitError::UnsupportedConstraint` at emit time, mirroring the
 `cem.schema.unsupported_constraint` diagnostic from the SchemaMachine.
 
@@ -1021,11 +1026,15 @@ the byte-stability test (`rng_compact_roundtrip.rs`).
 
 ```ts
 // AUTO-GENERATED. CEM-native source: <schema-uri> @<embedded-version>
-export type { Validated } from "@epa-wg/cem-ml/wasm";
+import type { Validated as RuntimeValidated } from "@epa-wg/cem-ml/wasm";
 export { asValidated, tryValidated } from "@epa-wg/cem-ml/wasm";
+declare const cemSchemaVersionBrand: unique symbol;
+export type Validated<T> = RuntimeValidated<T> & {
+  readonly [cemSchemaVersionBrand]: "<schema-uri>@<embedded-version>";
+};
 
 export interface Badge extends HTMLElement {
-  readonly cemAction?: "primary" | "secondary";
+  readonly cemBadge?: "success" | "info" | "warning" | "error";
   readonly cemState?: "default";
 }
 ```
@@ -1036,16 +1045,18 @@ lives in the `cem-core.d.ts.hash` sidecar.
 
 Structural interfaces inherit from the appropriate `lib.dom.d.ts` base
 (`HTMLElement`, `SVGElement`, `XMLDocument`) per AC-S-V-1. `Validated<T>`
-uses `unique symbol` brand inside an intersection so the brand carries
+uses a `unique symbol` brand inside an intersection so the brand carries
 through DOM-typed call sites unchanged (AC-S-V-3). Version-identity
-parameterization (AC-S-V-4) is encoded as a type parameter on `Validated`
-keyed by the embedded SemVer at emit time.
+discrimination (AC-S-V-4) is encoded as a per-generated-module brand keyed
+by the schema URI and embedded SemVer at emit time.
 
 Per OQ-SC-6 (resolved), the runtime side of `asValidated` /
 `tryValidated` lives in the WASM build of `cem-ml` and is exposed at the
 TS subpath `@epa-wg/cem-ml/wasm`. The emitter writes **re-exports** of
-those symbols from that subpath, not local `declare function` stubs and
-not a generated `.js` sibling. AC-S-V-5 (validation-failure diagnostics
+those runtime functions from that subpath, not local `declare function`
+stubs and not a generated `.js` sibling. The local `Validated<T>` type
+imports the WASM brand as `RuntimeValidated<T>` and intersects it with the
+schema-version brand. AC-S-V-5 (validation-failure diagnostics
 carry an AC-V-1-shaped code/severity and a source-map frame from the
 caller) is satisfied at the WASM layer because that is where the inline
 validation diagnostic and source-map stitching already live (AC-V-1);
@@ -1054,10 +1065,10 @@ diagnostic surface instead of duplicating the runtime per schema.
 
 Per OQ-SC-7 (resolved), each embedded schema version emits its own
 `.d.ts` under the per-version on-disk path. Cross-version
-discrimination (AC-S-V-4) is the *combination* of two mechanisms: the
-brand parameterization above gives the type system two distinct
-`Validated<Badge@x.y.z>` instantiations, and the package export subpath
-convention `@epa-wg/cem-ml/schema/<tail>/<version>/<stem>` (see
+discrimination (AC-S-V-4) is the *combination* of two mechanisms: each
+generated `.d.ts` declares its own schema-version `unique symbol` brand,
+and the package export subpath convention
+`@epa-wg/cem-ml/schema/<tail>/<version>/<stem>` (see
 `cem-ml-stack-design.md` §13.2.5) is what makes the two `Badge` symbols
 reachable in the same TS project at once. The emitter does not write a
 combined or re-export `.d.ts`; subpath isolation comes from the
@@ -1074,16 +1085,21 @@ pub mod schema {
     pub const EMBEDDED_VERSION: &str = "<semver>";
 
     #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
-    pub enum BadgeTone { Success, Info, Warning, Error }
-    // ... one type per annotation enum, one struct per host-bound element
+    pub enum Badge { Success, Info, Warning, Error }
+
+    #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
+    pub enum CemState { Default, Hover, /* ... */ }
 }
 ```
 
-Output goes through `rustfmt` *inside the emitter* (vendored format
-options pinned to `rustfmt.toml` checked into the workspace) so external
-`cargo check` and `cargo fmt --check` agree byte-for-byte. The emitter
-fails if `rustfmt` produces a non-empty diff against its own output —
-that is the byte-stability guard.
+The AC-S-4 implementation is Tier A code behind the OQ-SC-3 Tier B gate.
+The current emitted surface is constants, one enum per enum-valued
+annotation, and `CemState`; free-form annotations remain `&str` at call
+sites and do not emit host-bound structs. The verification fixture runs
+`cargo check --offline` against a generated stub crate when the Rust gate
+is enabled. `rustfmt --check` integration remains a Tier B hardening item;
+the Tier A byte-stability guard is the deterministic writer plus compile
+fixture.
 
 **`uri_publish.rs`** — orders artifact descriptors by
 `ArtifactKind` ordinal (the enum declaration order is the canonical

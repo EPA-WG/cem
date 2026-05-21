@@ -12,21 +12,34 @@ use std::env;
 use std::fs;
 use std::process::Command;
 
-use cem_ml::schema::compiler::{
-    rng_xml::RngXmlEmitter, EmissionCursor, SchemaEmitter,
-};
 use cem_ml::schema::compiler::CompilerOptions;
+use cem_ml::schema::compiler::{rng_xml::RngXmlEmitter, EmissionCursor, SchemaEmitter};
 use cem_ml::schema::ir::CompiledSchema;
 
-/// CEM-annotated fixture document. Element names are unprefixed (so
+/// CEM-annotated fixture documents. Element names are unprefixed (so
 /// matched by the grammar's `<anyName/>`); the cem-namespaced
 /// attributes carry enum values from the cem-core/1 vocabulary.
-const CEM_ANNOTATED_FIXTURE_XML: &str = concat!(
+const BASIC_CEM_ANNOTATED_FIXTURE_XML: &str = concat!(
     "<?xml version=\"1.0\" encoding=\"UTF-8\"?>\n",
     "<root xmlns:cem=\"https://cem.dev/ns/core/1\" cem:badge=\"success\">\n",
     "  <child cem:action=\"primary\" cem:state=\"hover\"/>\n",
     "  <child cem:message=\"sent\"/>\n",
     "</root>\n",
+);
+
+const PASS_THROUGH_ATTRS_FIXTURE_XML: &str = concat!(
+    "<?xml version=\"1.0\" encoding=\"UTF-8\"?>\n",
+    "<button xmlns:cem=\"https://cem.dev/ns/core/1\" id=\"save\" class=\"primary\" role=\"button\" aria-label=\"Save\" data-track=\"save\" cem:action=\"primary\" cem:state=\"loading hover\">Save</button>\n",
+);
+
+const INVALID_STATE_PAIR_FIXTURE_XML: &str = concat!(
+    "<?xml version=\"1.0\" encoding=\"UTF-8\"?>\n",
+    "<span xmlns:cem=\"https://cem.dev/ns/core/1\" cem:badge=\"success\" cem:state=\"loading\">Done</span>\n",
+);
+
+const UNKNOWN_CEM_ATTR_FIXTURE_XML: &str = concat!(
+    "<?xml version=\"1.0\" encoding=\"UTF-8\"?>\n",
+    "<span xmlns:cem=\"https://cem.dev/ns/core/1\" cem:made-up=\"x\">Done</span>\n",
 );
 
 #[test]
@@ -55,17 +68,56 @@ fn cem_core_rng_validates_canonical_fixture_through_xmllint() {
         .emit(&schema, &opts, &mut cursor)
         .expect("rng_xml emitter produced an artifact");
 
-    // Write both files into a temp dir so xmllint can read them.
+    // Write files into a temp dir so xmllint can read them.
     let tmp = env::temp_dir().join("cem_ml_rng_xml_oracle");
     fs::create_dir_all(&tmp).expect("tmp dir");
     let rng_path = tmp.join("cem-core.rng");
-    let xml_path = tmp.join("fixture.xml");
     fs::write(&rng_path, &artifact.bytes).expect("write rng");
-    fs::write(&xml_path, CEM_ANNOTATED_FIXTURE_XML).expect("write fixture xml");
 
-    // Run xmllint --relaxng. `--noout` suppresses the echoed parse
-    // tree on success.
-    let output = Command::new(&xmllint)
+    assert_validation(
+        &xmllint,
+        &rng_path,
+        &tmp.join("basic.xml"),
+        BASIC_CEM_ANNOTATED_FIXTURE_XML,
+        true,
+        "basic CEM annotated fixture",
+    );
+    assert_validation(
+        &xmllint,
+        &rng_path,
+        &tmp.join("pass-through.xml"),
+        PASS_THROUGH_ATTRS_FIXTURE_XML,
+        true,
+        "pass-through attributes and multi-state list",
+    );
+    assert_validation(
+        &xmllint,
+        &rng_path,
+        &tmp.join("invalid-state-pair.xml"),
+        INVALID_STATE_PAIR_FIXTURE_XML,
+        false,
+        "state disallowed for active annotation",
+    );
+    assert_validation(
+        &xmllint,
+        &rng_path,
+        &tmp.join("unknown-cem-attr.xml"),
+        UNKNOWN_CEM_ATTR_FIXTURE_XML,
+        false,
+        "unknown active-CEM namespace attribute",
+    );
+}
+
+fn assert_validation(
+    xmllint: &std::path::Path,
+    rng_path: &std::path::Path,
+    xml_path: &std::path::Path,
+    xml: &str,
+    expect_valid: bool,
+    label: &str,
+) {
+    fs::write(xml_path, xml).expect("write fixture xml");
+    let output = Command::new(xmllint)
         .args([
             "--noout",
             "--relaxng",
@@ -74,10 +126,9 @@ fn cem_core_rng_validates_canonical_fixture_through_xmllint() {
         ])
         .output()
         .expect("invoke xmllint");
-
     assert!(
-        output.status.success(),
-        "xmllint rejected the cem-core/1 fixture against the emitted RELAX NG:\n\
+        output.status.success() == expect_valid,
+        "xmllint validation mismatch for {label}; expected valid={expect_valid}:\n\
          --- stderr ---\n{}\n--- stdout ---\n{}",
         String::from_utf8_lossy(&output.stderr),
         String::from_utf8_lossy(&output.stdout),

@@ -1543,17 +1543,18 @@ Per-version subpaths (rather than a single combined `.d.ts`) are the
 public TypeScript surface for AC-S-V-4: a consumer that loads two schema
 versions in the same TS project imports from two subpaths, so the type
 system sees two distinct `Badge` symbols and `Validated<Badge@1.2.3>` is
-non-assignable to `Validated<Badge@2.0.0>`. The brand discrimination
-itself is carried by the `Validated<T>` version parameterization
-(§3.4.2.4 in the impl doc); the subpath mapping is what makes the two
-symbols reachable at the same time. See OQ-SC-7 in §13.2.9 (resolved)
-for the alternatives considered.
+non-assignable to `Validated<Badge@2.0.0>`. The brand discrimination is
+carried by a per-generated-module `unique symbol` intersection layered on
+top of the WASM `Validated<T>` brand (§3.4.2.4 in the impl doc); the
+subpath mapping is what makes the two symbols reachable at the same time.
+See OQ-SC-7 in §13.2.9 (resolved) for the alternatives considered.
 
 The runtime side of `asValidated` / `tryValidated` lives in the WASM
 build of `cem-ml` and is exposed to TS consumers at the subpath
 `@epa-wg/cem-ml/wasm`. The per-schema `.d.ts` re-exports those functions
-and the `Validated<T>` brand from that subpath rather than declaring
-host-provided stubs. AC-S-V-5 (`asValidated` rejection emits an
+from that subpath and imports the WASM `Validated<T>` brand as the base
+for the local schema-versioned `Validated<T>` type rather than declaring
+host-provided function stubs. AC-S-V-5 (`asValidated` rejection emits an
 AC-V-1-shaped diagnostic with a source-map frame from the caller) is
 satisfied directly by the WASM build because that is where the inline
 validation diagnostic and source-map surfaces already live (AC-V-1).

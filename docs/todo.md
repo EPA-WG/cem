@@ -38,23 +38,29 @@ lacks compiler output detail, and the implementation has no emitter for any rele
       **Closed (2026-05-20):** `packages/cem_ml/src/schema/compiler/` lands the §3.4.2 module layout
       (`mod.rs`, `output.rs`, `emitter.rs`, `byte_stability.rs`, `error.rs`, `rng_xml.rs`, `rng_compact.rs`).
       `SchemaCompiler::emit_all` produces both artifacts under `core/<version>/cem-core.{rng,rnc}` via the
-      shared `DeterministicWriter` (UTF-8, LF, no trailing whitespace, blake3 hash sink). 35 inline unit
-      tests cover byte stability, deterministic ordering, namespace-tail derivation, header policy (OQ-SC-8),
-      enum vs. free-form annotations, and the cem:state matrix. AC-S-2 oracle fixture
-      `tests/schema_emit/rng_xml_oracle.rs` spawns `xmllint --relaxng` when available and skips with an info
-      record under `CEM_ML_SCHEMA_ORACLE_SKIP=1` or when libxml2 is absent (OQ-SC-5 escape hatch).
-      `blake3 = "1"` added to `Cargo.toml`. `yarn nx run cem_ml:test` green.
+      shared `DeterministicWriter` (UTF-8, LF, no trailing whitespace, blake3 hash sink). Inline unit tests cover
+      byte stability, deterministic ordering, namespace-tail derivation, header policy (OQ-SC-8), enum vs.
+      free-form annotations, pass-through host attributes, unknown active-CEM namespace rejection, annotation-scoped
+      state lists, and the cem:state matrix. AC-S-2 oracle fixtures `tests/schema_emit/rng_xml_oracle.rs` and
+      `tests/schema_emit/rng_compact_roundtrip.rs` spawn `xmllint --relaxng` / Trang when available and skip with an
+      info record under `CEM_ML_SCHEMA_ORACLE_SKIP=1` or when the external tools are absent (OQ-SC-5 escape hatch).
+      Non-streamable constraints now raise `EmitError::UnsupportedConstraint` before emitter output. `blake3 = "1"`
+      added to `Cargo.toml`. `yarn nx run cem_ml:test` green.
 - [x] Emit TypeScript `.d.ts` headers from `CompiledSchema` (AC-S-3, AC-S-6). Structural by default; `Validated<T>`
       wrapper opt-in per `MEMORY.md` (`project_ts_emit_strategy.md`).
       **Closed (2026-05-20):** `packages/cem_ml/src/schema/compiler/ts_dts.rs` lands the AC-S-3 / AC-S-6 emitter.
-      Header per OQ-SC-8 (URI + version only, no hash). `Validated<T>` / `asValidated` / `tryValidated` re-exported
-      from `@epa-wg/cem-ml/wasm` per OQ-SC-6; structural-by-default callers can drop the brand block via
-      `include_validated_brand = false`. One `export interface {Pascal(annotation)} extends HTMLElement` per
-      cem-core/1 annotation with a `readonly cem{Annotation}?` field (literal-union for enum-typed, `string` for
-      free-form) and a `readonly cemState?` field reflecting `AnnotationDef.allowed_states`. Per-version on-disk
-      path `core/1.0.0/cem-core.d.ts` (OQ-SC-7). 15 inline tests cover byte stability, header policy, brand-block
-      gating, every annotation interface, enum vs free-form value typing, per-annotation state union, kebab→Pascal
-      naming, and the LF/no-trailing-whitespace invariants. `yarn nx run cem_ml:test` green.
+      Header per OQ-SC-8 (URI + version only, no hash). `asValidated` / `tryValidated` are re-exported from
+      `@epa-wg/cem-ml/wasm` per OQ-SC-6; local `Validated<T>` imports the WASM brand and intersects it with a
+      per-schema-version `unique symbol` brand so `Validated<Badge@1.0.0>` is not assignable to
+      `Validated<Badge@2.0.0>` while still flowing as `Badge` / `HTMLElement`. Structural-by-default callers can drop
+      the brand block via `include_validated_brand = false`. One `export interface {Pascal(annotation)} extends
+      HTMLElement` per cem-core/1 annotation with a `readonly cem{Annotation}?` field (literal-union for enum-typed,
+      `string` for free-form) and a `readonly cemState?` field reflecting `AnnotationDef.allowed_states`.
+      Per-version on-disk path `core/1.0.0/cem-core.d.ts` (OQ-SC-7). Inline tests cover byte stability, header policy,
+      brand-block gating, every annotation interface, enum vs free-form value typing, per-annotation state union,
+      kebab→Pascal naming, and the LF/no-trailing-whitespace invariants. `tests/schema_emit/ts_dts_structural.rs` and
+      `tests/schema_emit/ts_dts_validated_brand.rs` compile real `tsc --noEmit` fixtures. `yarn nx run cem_ml:test`
+      green.
 - [x] Emit Rust `.rs` headers from `CompiledSchema` (AC-S-4). Verify the generated module compiles with `cargo check`.
       **Closed (2026-05-20):** `packages/cem_ml/src/schema/compiler/rust_hdr.rs` ships per OQ-SC-3 (Tier A code,
       Tier B gate): `emit_all` invokes it only when `CompilerOptions.emit_rust = true` (default `false`). Output
@@ -64,7 +70,8 @@ lacks compiler output detail, and the implementation has no emitter for any rele
       matrix. Free-form annotations emit no enum (call-site type is `&str`). Header policy per OQ-SC-8 (URI +
       version, no hash); per-version path `core/1.0.0/cem-core.rs` per OQ-SC-7. 16 inline tests cover byte
       stability, header policy, per-annotation enum shapes, no-enum-for-free-form, CemState variants, brace
-      balance, and the LF / no-trailing-whitespace invariants. Verification fixture
+      balance, and the LF / no-trailing-whitespace invariants. The implementation intentionally does not emit
+      host-bound structs in the Tier A gated subset; that surface remains a Tier B expansion. Verification fixture
       `tests/schema_emit/rust_hdr_compiles.rs` writes a stub `cem_ml_schema_stub` crate, includes the emitted
       `.rs`, and spawns `cargo check --offline`; gated by `CEM_ML_EMIT_RUST=1` per OQ-SC-3 (skipped with `info`
       in Tier A CI; exercised locally — `cargo check` succeeds against the emitted module). Full
