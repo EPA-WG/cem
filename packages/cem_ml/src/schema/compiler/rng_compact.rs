@@ -3,6 +3,14 @@
 //! Structurally equivalent to `rng_xml.rs`; the surface form is
 //! RELAX NG compact (`.rnc`). The two emitters share the same
 //! `EmissionCursor`, so the same annotation/state ordering applies.
+//!
+//! `cem-host` is a single `element *` pattern with every CEM
+//! annotation as an optional attribute and `cem:state` validated
+//! against the schema-wide state matrix. See `rng_xml.rs` for the
+//! AC-S-2 vs AC-S-8 scope boundary (per-annotation state narrowing is
+//! a semantic rule, not a structural one) and the single-host
+//! rationale (libxml2 cannot disambiguate a choice of `element *`
+//! variants).
 
 use super::byte_stability::{rnc_escape, DeterministicWriter};
 use super::emitter::{
@@ -63,28 +71,24 @@ impl SchemaEmitter for RngCompactEmitter {
         w.line("start = cem-host")?;
         w.blank();
 
-        // `cem-host` — choice of unannotated host or annotation-anchored
-        // variants whose `cem:state` pattern is scoped to that
-        // annotation's allowed states.
-        let mut variants = vec!["cem-host-unannotated".to_owned()];
-        variants.extend(
+        // `cem-host` — a single `element *` pattern. Attributes in a
+        // compact-syntax group (`,`) are order-independent, so no `&`
+        // (interleave) is needed; using `,` also keeps the converted
+        // grammar inside libxml2's validator subset.
+        let mut host_parts = vec!["host-pass-through-attrs".to_owned()];
+        host_parts.extend(
             cursor
                 .annotations()
                 .keys()
-                .map(|local| format!("cem-host-{local}")),
+                .map(|local| format!("cem-attr-{local}?")),
         );
-        w.line(&format!("cem-host = {}", variants.join(" | ")))?;
+        host_parts.push("cem-attr-state?".to_owned());
+        host_parts.push("cem-host-children".to_owned());
+        w.line(&format!(
+            "cem-host = element * {{ {} }}",
+            host_parts.join(", ")
+        ))?;
         w.blank();
-
-        emit_host_variant(&mut w, "cem-host-unannotated", None, cursor)?;
-        for (local, def) in cursor.annotations() {
-            emit_host_variant(&mut w, &format!("cem-host-{local}"), Some(local), cursor)?;
-            emit_state_attr_define(
-                &mut w,
-                &format!("cem-attr-state-{local}"),
-                &def.allowed_states,
-            )?;
-        }
 
         w.line("cem-host-children = (cem-host | text)*")?;
         w.line("host-pass-through-attrs = host-pass-through-attr*")?;
@@ -112,9 +116,9 @@ impl SchemaEmitter for RngCompactEmitter {
             }
         }
 
-        // State-only host fallback mirrors the native machine's current
-        // behavior: `cem:state` with no active annotation is checked only
-        // against the global state matrix.
+        // `cem:state` is a whitespace-separated token list; each token
+        // must be a known state from the schema-wide matrix.
+        // Per-annotation narrowing is an AC-S-8 semantic rule.
         emit_state_attr_define(&mut w, "cem-attr-state", cursor.state_matrix())?;
 
         let (bytes, content_hash) = w.finalize()?;
@@ -126,36 +130,6 @@ impl SchemaEmitter for RngCompactEmitter {
             source_map: Default::default(),
         })
     }
-}
-
-fn emit_host_variant(
-    w: &mut DeterministicWriter,
-    define_name: &str,
-    required_annotation: Option<&str>,
-    cursor: &EmissionCursor<'_>,
-) -> Result<(), EmitError> {
-    let attrs = if let Some(local) = required_annotation {
-        let mut parts = vec![
-            "host-pass-through-attrs".to_owned(),
-            format!("cem-attr-{local}"),
-        ];
-        parts.extend(
-            cursor
-                .annotations()
-                .keys()
-                .filter(|other| **other != local)
-                .map(|other| format!("cem-attr-{other}?")),
-        );
-        parts.push(format!("cem-attr-state-{local}?"));
-        parts.join(", ")
-    } else {
-        "host-pass-through-attrs, cem-attr-state?".to_owned()
-    };
-
-    w.line(&format!(
-        "{define_name} = element * {{ {attrs}, cem-host-children }}"
-    ))?;
-    Ok(())
 }
 
 fn emit_state_attr_define(
@@ -221,12 +195,28 @@ mod tests {
     }
 
     #[test]
-    fn entry_pattern_and_host_definition_present() {
+    fn host_is_a_single_element_pattern_with_optional_annotations() {
         let body = String::from_utf8(emit_cem_core().bytes).unwrap();
         assert!(body.contains("start = cem-host"));
-        assert!(body.contains("cem-host = cem-host-unannotated | cem-host-action"));
-        assert!(body.contains("cem-host-action = element * {"));
-        assert!(body.contains("(cem-host | text)*"));
+        // No per-annotation `cem-host-{x}` variants — single host.
+        assert!(!body.contains("cem-host-unannotated"));
+        assert!(!body.contains("cem-host-badge ="));
+
+        let host = body
+            .lines()
+            .find(|l| l.starts_with("cem-host = "))
+            .expect("cem-host define line");
+        assert!(host.starts_with("cem-host = element * {"));
+        assert!(host.contains("host-pass-through-attrs"));
+        for local in ["action", "badge", "message", "screen"] {
+            assert!(
+                host.contains(&format!("cem-attr-{local}?")),
+                "cem-host missing optional cem-attr-{local}: {host}"
+            );
+        }
+        assert!(host.contains("cem-attr-state?"));
+        assert!(host.contains("cem-host-children"));
+        assert!(body.contains("cem-host-children = (cem-host | text)*"));
     }
 
     #[test]
@@ -250,7 +240,6 @@ mod tests {
     #[test]
     fn cem_state_define_lists_full_state_matrix() {
         let body = String::from_utf8(emit_cem_core().bytes).unwrap();
-        // Look for every state name in the cem-attr-state pattern.
         let define = body
             .lines()
             .find(|l| l.starts_with("cem-attr-state = "))
@@ -272,6 +261,15 @@ mod tests {
                 "cem-attr-state line missing state {s}: {define}"
             );
         }
+        assert!(define.contains("list {"));
+    }
+
+    #[test]
+    fn no_annotation_scoped_state_defines_are_emitted() {
+        // Per-annotation state narrowing is an AC-S-8 semantic rule.
+        let body = String::from_utf8(emit_cem_core().bytes).unwrap();
+        assert!(!body.contains("cem-attr-state-badge"));
+        assert!(!body.contains("cem-attr-state-action"));
     }
 
     #[test]
@@ -279,52 +277,6 @@ mod tests {
         let body = String::from_utf8(emit_cem_core().bytes).unwrap();
         assert!(body.contains("host-pass-through-attrs = host-pass-through-attr*"));
         assert!(body.contains("host-pass-through-attr = attribute (* - cem:*) { text }"));
-    }
-
-    #[test]
-    fn state_attributes_are_annotation_scoped_lists() {
-        let body = String::from_utf8(emit_cem_core().bytes).unwrap();
-        let badge_state = body
-            .lines()
-            .find(|line| line.starts_with("cem-attr-state-badge = "))
-            .expect("badge state define");
-        assert!(badge_state.contains("list {"));
-        assert!(badge_state.contains(r#""default""#));
-        assert!(
-            !badge_state.contains(r#""loading""#),
-            "badge must not accept loading state: {badge_state}"
-        );
-
-        let action_state = body
-            .lines()
-            .find(|line| line.starts_with("cem-attr-state-action = "))
-            .expect("action state define");
-        assert!(action_state.contains(r#""loading""#));
-        assert!(action_state.contains(r#""hover""#));
-        assert!(
-            !action_state.contains(r#""selected""#),
-            "action must not accept selected state: {action_state}"
-        );
-    }
-
-    #[test]
-    fn host_variants_anchor_state_to_present_annotation() {
-        let body = String::from_utf8(emit_cem_core().bytes).unwrap();
-        let action_host = body
-            .lines()
-            .find(|line| line.starts_with("cem-host-action = "))
-            .expect("cem-host-action define");
-        assert!(action_host.contains("host-pass-through-attrs"));
-        assert!(action_host.contains("cem-attr-action"));
-        assert!(action_host.contains("cem-attr-state-action?"));
-        assert!(action_host.contains("cem-attr-badge?"));
-
-        let unannotated = body
-            .lines()
-            .find(|line| line.starts_with("cem-host-unannotated = "))
-            .expect("cem-host-unannotated define");
-        assert!(unannotated.contains("cem-attr-state?"));
-        assert!(!unannotated.contains("cem-attr-action"));
     }
 
     #[test]

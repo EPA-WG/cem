@@ -61,7 +61,7 @@ const outDir = path.join(packageRoot, 'build', 'native', target);
 mkdirSync(outDir, { recursive: true });
 
 if (captureReflect) {
-  captureReflectionMetadata({ nativeImage, jarPath, packageRoot });
+  captureReflectionMetadata({ jarPath, packageRoot });
   process.exit(0);
 }
 
@@ -127,7 +127,7 @@ if (!existsSync(outBinary)) {
 }
 console.log(`[trang-native] wrote ${outBinary}`);
 
-function captureReflectionMetadata({ nativeImage, jarPath, packageRoot }) {
+function captureReflectionMetadata({ jarPath, packageRoot }) {
   // Run Trang under the agent across every conversion direction so the
   // resulting reflect-/resource-config.json covers the full CLI surface.
   // Uses `config-merge-dir` so each successive run extends the same

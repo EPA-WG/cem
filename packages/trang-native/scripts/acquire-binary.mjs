@@ -19,9 +19,11 @@
  *     step 2 misses), or
  *   - a force is requested via `--force` or `TRANG_NATIVE_FORCE_BUILD=1`.
  *
- * Otherwise the expensive compile is skipped entirely. To compile
- * unconditionally regardless of available binaries, call the explicit
- * `build-from-source` target instead.
+ * Otherwise the expensive compile is skipped entirely. CI/release
+ * validation sets `TRANG_NATIVE_REQUIRE_PREBUILT=1` to fail instead of
+ * taking the source-build fallback. To compile unconditionally
+ * regardless of available binaries, call the explicit `build-from-source`
+ * target instead.
  */
 import { existsSync, mkdirSync, readFileSync, writeFileSync } from 'node:fs';
 import { spawnSync } from 'node:child_process';
@@ -40,6 +42,7 @@ const releaseBase = process.env.TRANG_NATIVE_RELEASE_BASE || DEFAULT_RELEASE_BAS
 const force =
   process.argv.includes('--force') ||
   process.env.TRANG_NATIVE_FORCE_BUILD === '1';
+const requirePrebuilt = process.env.TRANG_NATIVE_REQUIRE_PREBUILT === '1';
 
 const pkg = JSON.parse(readFileSync(path.join(packageRoot, 'package.json'), 'utf8'));
 const version = pkg.version;
@@ -53,6 +56,13 @@ const metadataPath = path.join(nativeDir, 'metadata.json');
 await main();
 
 async function main() {
+  if (force && requirePrebuilt) {
+    fail(
+      'TRANG_NATIVE_REQUIRE_PREBUILT=1 conflicts with a forced source build; ' +
+        'unset TRANG_NATIVE_FORCE_BUILD/--force or unset TRANG_NATIVE_REQUIRE_PREBUILT',
+    );
+  }
+
   if (force) {
     log(`force requested — rebuilding v${version} from source`);
     buildFromSource();
@@ -80,12 +90,25 @@ async function main() {
       log(`installed prebuilt v${version} binary into build/native/${triple}/`);
       return;
     } catch (err) {
+      if (requirePrebuilt) {
+        fail(
+          `no usable prebuilt binary for v${version}/${triple} and ` +
+            'TRANG_NATIVE_REQUIRE_PREBUILT=1 is set; refusing to build from source. ' +
+            `Release probe failed with: ${err.message || err}`,
+        );
+      }
       log(
         `no usable release binary (${err.message || err}) — ` +
           `falling back to a source build`,
       );
     }
   } else {
+    if (requirePrebuilt) {
+      fail(
+        `host triple ${triple} is outside the shipped matrix and ` +
+          'TRANG_NATIVE_REQUIRE_PREBUILT=1 is set; refusing to build from source',
+      );
+    }
     log(`host triple ${triple} is outside the shipped matrix — building from source`);
   }
 
@@ -129,4 +152,9 @@ function buildFromSource() {
 
 function log(msg) {
   console.log(`[trang-native] ${msg}`);
+}
+
+function fail(msg) {
+  console.error(`[trang-native] ${msg}`);
+  process.exit(1);
 }

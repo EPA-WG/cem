@@ -19,9 +19,14 @@ const VALID_MULTI_STATE_XML: &str = concat!(
     "<button xmlns:cem=\"https://cem.dev/ns/core/1\" id=\"save\" class=\"primary\" role=\"button\" aria-label=\"Save\" data-track=\"save\" cem:action=\"primary\" cem:state=\"loading hover\">Save</button>\n",
 );
 
-const INVALID_BADGE_LOADING_XML: &str = concat!(
+// Structural negative: a `cem:state` token outside the schema-wide
+// state matrix. Per-annotation state narrowing (e.g. `cem:badge` ⇒
+// state ∈ {default}) is an AC-S-8 semantic rule, not a structural
+// RELAX NG constraint — the mirror checks state tokens against the
+// global matrix only (see rng_xml.rs module header).
+const UNKNOWN_STATE_TOKEN_XML: &str = concat!(
     "<?xml version=\"1.0\" encoding=\"UTF-8\"?>\n",
-    "<span xmlns:cem=\"https://cem.dev/ns/core/1\" cem:badge=\"success\" cem:state=\"loading\">Done</span>\n",
+    "<span xmlns:cem=\"https://cem.dev/ns/core/1\" cem:state=\"not-a-real-state\">Done</span>\n",
 );
 
 #[test]
@@ -33,6 +38,11 @@ fn cem_core_rnc_round_trips_through_trang_and_xmllint() {
     let trang = match resolve_trang() {
         Some(path) => path,
         None => {
+            if schema_oracle_required() {
+                panic!(
+                    "trang binary not found while schema oracle is required; run `yarn nx run @epa-wg/trang-native:build` or set CEM_ML_TRANG"
+                );
+            }
             eprintln!(
                 "info: trang binary not found (set CEM_ML_TRANG, run `nx run @epa-wg/trang-native:build`, or install Trang on PATH) — skipping AC-S-2 compact round-trip oracle",
             );
@@ -73,6 +83,11 @@ fn cem_core_rnc_round_trips_through_trang_and_xmllint() {
     );
 
     let Some(xmllint) = xmllint else {
+        if schema_oracle_required() {
+            panic!(
+                "`xmllint` not on PATH while schema oracle is required; install libxml2-utils or set CEM_ML_XMLLINT"
+            );
+        }
         eprintln!(
             "info: `xmllint` not on PATH — Trang round-trip OK, skipping xmllint validation",
         );
@@ -90,10 +105,10 @@ fn cem_core_rnc_round_trips_through_trang_and_xmllint() {
     assert_validation(
         &xmllint,
         &rng_path,
-        &tmp.join("invalid-badge-loading.xml"),
-        INVALID_BADGE_LOADING_XML,
+        &tmp.join("unknown-state-token.xml"),
+        UNKNOWN_STATE_TOKEN_XML,
         false,
-        "state disallowed for badge",
+        "cem:state token outside the schema-wide state matrix",
     );
 }
 
@@ -199,4 +214,8 @@ fn resolve_on_path(name: &str, env_var: &str) -> Option<std::path::PathBuf> {
     } else {
         Some(std::path::PathBuf::from(first_line))
     }
+}
+
+fn schema_oracle_required() -> bool {
+    env::var_os("CEM_ML_SCHEMA_ORACLE_REQUIRED").is_some() || env::var_os("CI").is_some()
 }

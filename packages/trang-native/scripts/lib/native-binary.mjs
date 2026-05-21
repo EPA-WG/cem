@@ -79,7 +79,7 @@ export async function downloadRelease({
   triple,
   destDir,
   releaseBase = DEFAULT_RELEASE_BASE,
-  log = () => {},
+  log = () => undefined,
 }) {
   const isWindows = triple.startsWith('windows-');
   const archiveName = archiveNameFor(triple);

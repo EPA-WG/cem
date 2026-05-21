@@ -91,6 +91,7 @@ entry points to a tiny Node shim (`bin/trang.mjs`) so consumers can call
 | ------------------------------- | ---------------------------------------------------------------------- |
 | `TRANG_NATIVE_SKIP_DOWNLOAD=1`  | Postinstall is a no-op. Use when the binary is provided out-of-band.    |
 | `TRANG_NATIVE_BINARY=/abs/path` | Shim invokes this path instead of `bin/native/`. Use for system Trang.  |
+| `TRANG_NATIVE_REQUIRE_PREBUILT=1` | `nx run @epa-wg/trang-native:build` fails instead of compiling from source when no local/release binary is available. Use in CI. |
 | Workspace dev install           | Postinstall auto-skips when the script is not under `node_modules/`.    |
 
 ### Offline / air-gapped use
@@ -143,7 +144,9 @@ resolves a host-platform binary in this order:
    are the one Release.
 3. **From source** — only if neither of the above yields a binary does
    it run the full `fetch-source → build-jar → build-native` chain,
-   which requires GraalVM + Ant on the host.
+   which requires GraalVM + Ant on the host. CI should set
+   `TRANG_NATIVE_REQUIRE_PREBUILT=1` so this path is never taken by
+   ordinary validation jobs.
 
 A `native-image` rebuild therefore happens **only** when:
 

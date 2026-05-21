@@ -32,9 +32,14 @@ const PASS_THROUGH_ATTRS_FIXTURE_XML: &str = concat!(
     "<button xmlns:cem=\"https://cem.dev/ns/core/1\" id=\"save\" class=\"primary\" role=\"button\" aria-label=\"Save\" data-track=\"save\" cem:action=\"primary\" cem:state=\"loading hover\">Save</button>\n",
 );
 
-const INVALID_STATE_PAIR_FIXTURE_XML: &str = concat!(
+// Structural negative: a `cem:state` token outside the schema-wide
+// state matrix. Per-annotation state narrowing (e.g. `cem:badge` ⇒
+// state ∈ {default}) is an AC-S-8 semantic rule, NOT a structural
+// RELAX NG constraint — the mirror validates state tokens against the
+// global matrix only (see rng_xml.rs module header).
+const UNKNOWN_STATE_TOKEN_FIXTURE_XML: &str = concat!(
     "<?xml version=\"1.0\" encoding=\"UTF-8\"?>\n",
-    "<span xmlns:cem=\"https://cem.dev/ns/core/1\" cem:badge=\"success\" cem:state=\"loading\">Done</span>\n",
+    "<span xmlns:cem=\"https://cem.dev/ns/core/1\" cem:state=\"not-a-real-state\">Done</span>\n",
 );
 
 const UNKNOWN_CEM_ATTR_FIXTURE_XML: &str = concat!(
@@ -53,6 +58,11 @@ fn cem_core_rng_validates_canonical_fixture_through_xmllint() {
     let xmllint = match resolve_xmllint() {
         Some(path) => path,
         None => {
+            if schema_oracle_required() {
+                panic!(
+                    "`xmllint` not on PATH while schema oracle is required; install libxml2-utils or set CEM_ML_XMLLINT"
+                );
+            }
             eprintln!(
                 "info: `xmllint` not on PATH — skipping AC-S-2 xmllint oracle (OQ-SC-5; install libxml2 to exercise)"
             );
@@ -93,10 +103,10 @@ fn cem_core_rng_validates_canonical_fixture_through_xmllint() {
     assert_validation(
         &xmllint,
         &rng_path,
-        &tmp.join("invalid-state-pair.xml"),
-        INVALID_STATE_PAIR_FIXTURE_XML,
+        &tmp.join("unknown-state-token.xml"),
+        UNKNOWN_STATE_TOKEN_FIXTURE_XML,
         false,
-        "state disallowed for active annotation",
+        "cem:state token outside the schema-wide state matrix",
     );
     assert_validation(
         &xmllint,
@@ -164,4 +174,8 @@ fn resolve_xmllint() -> Option<std::path::PathBuf> {
     } else {
         Some(std::path::PathBuf::from(first_line))
     }
+}
+
+fn schema_oracle_required() -> bool {
+    env::var_os("CEM_ML_SCHEMA_ORACLE_REQUIRED").is_some() || env::var_os("CI").is_some()
 }

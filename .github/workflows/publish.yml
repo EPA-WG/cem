@@ -7,6 +7,7 @@ on:
 
 env:
   FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: true
+  TRANG_NATIVE_REQUIRE_PREBUILT: '1'
 
 jobs:
   publish:
@@ -45,6 +46,9 @@ jobs:
 
       - name: Install Playwright Chromium
         run: npx playwright install --with-deps chromium
+
+      - name: Resolve native Trang
+        run: yarn nx run @epa-wg/trang-native:build
 
       - name: Build packages
         run: yarn nx run-many -t build

@@ -9,6 +9,8 @@ on:
 
 env:
   FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: true
+  CEM_ML_SCHEMA_ORACLE_REQUIRED: '1'
+  TRANG_NATIVE_REQUIRE_PREBUILT: '1'
 
 jobs:
   ci:
@@ -38,6 +40,12 @@ jobs:
 
       - name: Install dependencies
         run: yarn install --immutable
+
+      - name: Install xmllint
+        run: sudo apt-get update && sudo apt-get install -y --no-install-recommends libxml2-utils
+
+      - name: Resolve native Trang
+        run: yarn nx run @epa-wg/trang-native:build
 
       - name: Install Playwright Chromium
         run: npx playwright install --with-deps chromium
