@@ -31,20 +31,27 @@ const UNKNOWN_STATE_TOKEN_XML: &str = concat!(
 
 #[test]
 fn cem_core_rnc_round_trips_through_trang_and_xmllint() {
-    if env::var_os("CEM_ML_SCHEMA_ORACLE_SKIP").is_some() {
-        eprintln!("info: CEM_ML_SCHEMA_ORACLE_SKIP set — skipping AC-S-2 Trang/xmllint oracle");
+    if schema_parity_skip_requested() {
+        if schema_parity_required() {
+            panic!(
+                "CEM_ML_SCHEMA_PARITY_SKIP cannot be used when schema parity validation is required"
+            );
+        }
+        eprintln!(
+            "info: CEM_ML_SCHEMA_PARITY_SKIP set — skipping AC-S-2 Trang/xmllint parity validation"
+        );
         return;
     }
     let trang = match resolve_trang() {
         Some(path) => path,
         None => {
-            if schema_oracle_required() {
+            if schema_parity_required() {
                 panic!(
-                    "trang binary not found while schema oracle is required; run `yarn nx run @epa-wg/trang-native:build` or set CEM_ML_TRANG"
+                    "trang binary not found while schema parity validation is required; run `yarn nx run @epa-wg/trang-native:build` or set CEM_ML_TRANG"
                 );
             }
             eprintln!(
-                "info: trang binary not found (set CEM_ML_TRANG, run `nx run @epa-wg/trang-native:build`, or install Trang on PATH) — skipping AC-S-2 compact round-trip oracle",
+                "info: trang binary not found (set CEM_ML_TRANG, run `nx run @epa-wg/trang-native:build`, or install Trang on PATH) — skipping AC-S-2 compact round-trip parity validation",
             );
             return;
         }
@@ -83,9 +90,9 @@ fn cem_core_rnc_round_trips_through_trang_and_xmllint() {
     );
 
     let Some(xmllint) = xmllint else {
-        if schema_oracle_required() {
+        if schema_parity_required() {
             panic!(
-                "`xmllint` not on PATH while schema oracle is required; install libxml2-utils or set CEM_ML_XMLLINT"
+                "`xmllint` not on PATH while schema parity validation is required; install libxml2-utils or set CEM_ML_XMLLINT"
             );
         }
         eprintln!(
@@ -216,6 +223,10 @@ fn resolve_on_path(name: &str, env_var: &str) -> Option<std::path::PathBuf> {
     }
 }
 
-fn schema_oracle_required() -> bool {
-    env::var_os("CEM_ML_SCHEMA_ORACLE_REQUIRED").is_some() || env::var_os("CI").is_some()
+fn schema_parity_required() -> bool {
+    env::var_os("CEM_ML_SCHEMA_PARITY_REQUIRED").is_some() || env::var_os("CI").is_some()
+}
+
+fn schema_parity_skip_requested() -> bool {
+    env::var_os("CEM_ML_SCHEMA_PARITY_SKIP").is_some()
 }

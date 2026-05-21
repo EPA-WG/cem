@@ -16,8 +16,8 @@ constraints before parser-backed command work starts.
 
 Surface update: canonical authoring input is now curly-brace CEM-ML as defined in
 [`cem-ml-syntax.md`](./cem-ml-syntax.md). The XML/HTML parser inventory remains
-relevant as secondary parity input support, schema mirror generation, and conformance
-oracle work; it is not the canonical source-syntax decision.
+relevant as secondary parity input support, schema mirror generation, and external
+conformance work; it is not the canonical source-syntax decision.
 
 The required diagnostic shape remains:
 
@@ -37,7 +37,7 @@ third-party DOM or parser API is allowed to become the public `cem-ml` data surf
 | StAX                         | `XMLInputFactory` exposes pull parsing and DTD/entity resolver properties. `Location` can expose line, column, and byte-or-character offset.     | This is the closest Java precedent for a Rust pull-event engine. Treat offset semantics carefully because StAX offset meaning depends on byte vs character input. |
 | Xerces-style parser behavior | Feature flags control namespaces, validation, disallowing doctypes, and external DTD loading.                                                    | Keep parser features explicit and testable. Disable external entity and DTD resolution unless an explicit resolver is configured.                                 |
 | Saxon-style XPath/XSLT       | Saxon s9api uses a `Processor` as the shared configuration root, then compiler/executable stages for XPath, XSLT, and schema processing.         | Preserve the staged boundary pattern for future transform work. Do not put XPath/XSLT inside the parser crate boundary yet.                                       |
-| Jing/Trang RELAX NG          | Jing validates RELAX NG XML and compact syntax and is built around SAX2. Trang converts schema syntaxes.                                         | Use Jing/Trang as Java oracle tooling for schema mirror tests, not as the runtime implementation for `cem-ml`.                                                    |
+| Jing/Trang RELAX NG          | Jing validates RELAX NG XML and compact syntax and is built around SAX2. Trang converts schema syntaxes.                                         | Use Jing/Trang as Java-runtime conformance tooling for schema mirror tests, not as the runtime implementation for `cem-ml`.                                       |
 | Validator.nu HTML parser     | Java HTML5 parser supports SAX, DOM, and XOM. True streaming SAX is available, but some HTML recovery is not streamable.                         | HTML input may need a parser-specific recovery model. Preserve deterministic diagnostics, and mark unsupported streaming recovery cases explicitly.               |
 | XML Catalogs                 | OASIS XML Catalogs map external identifiers and URI references. JAXP catalog support spans SAX, DOM, StAX, validation, and transformation.       | Implement a CEM resolver policy before schema-backed parsing. Catalog-backed resolution should be allowlisted and offline by default.                             |
 
@@ -50,12 +50,12 @@ third-party DOM or parser API is allowed to become the public `cem-ml` data surf
 | `markup5ever_rcdom`            | Useful for tests and examples around `html5ever`.                                                                                                       | Its own docs say it is not production quality and not fuzzed for arbitrary input. Do not use as CEM runtime DOM.                                 |
 | `roxmltree`                    | Good read-only XML tree for simple inspection and tests.                                                                                                | It materializes a full tree and is not a streaming parser boundary.                                                                              |
 | `xot`                          | Modern XML tree candidate with mutable XML documents and span information.                                                                              | More promising for an internal tree than as the first parser boundary. Evaluate after the event model is stable.                                 |
-| `libxml` crate and libxml2     | Offers XML/HTML parsing, schema validation, DOM, and XPath via libxml2.                                                                                 | Native C dependency and poor WASM fit. Keep as conformance oracle or escape hatch, not the default engine.                                       |
+| `libxml` crate and libxml2     | Offers XML/HTML parsing, schema validation, DOM, and XPath via libxml2.                                                                                 | Native C dependency and poor WASM fit. Keep as conformance tooling or escape hatch, not the default engine.                                      |
 | `xsd_parser`                   | Good XSD-to-Rust code generation and schema introspection candidate.                                                                                    | Its own roadmap lists schema-based validation as planned. Use for XSD adapter experiments, not runtime validation.                               |
 | `fastxml`                      | Claims pure-Rust DOM, XPath, and streaming XSD validation.                                                                                              | Early crate surface and domain-specific claims need independent verification before adopting. Track as research only.                            |
 | `sxd-document` and `sxd-xpath` | Mature-ish pure-Rust XPath 1.0 path for simple XML trees.                                                                                               | XPath 1.0 only, limited relationship to future CEM transform needs.                                                                              |
 | `xrust`                        | Ambitious pure-Rust XPath/XSLT direction with WASM-oriented external resource closures.                                                                 | Docs warn the library has not been extensively tested. Do not depend on it for planned CLI feature work yet.                                     |
-| Pure Rust RELAX NG crates      | No clearly mature, primary RELAX NG validator emerged from the inventory.                                                                               | This is the largest schema runtime gap. Prefer generated CEM-specific validation or Java/libxml oracle checks until a Rust option is proven.     |
+| Pure Rust RELAX NG crates      | No clearly mature, primary RELAX NG validator emerged from the inventory.                                                                               | This is the largest schema runtime gap. Prefer generated CEM-specific validation or Java-runtime/libxml conformance checks until a Rust option is proven. |
 
 ## Decision
 
@@ -73,7 +73,7 @@ third-party DOM or parser API is allowed to become the public `cem-ml` data surf
 3. **Runtime validation recommendation:** do not require a general RELAX NG runtime validator in `cem-ml` until a Rust
    implementation is proven.
     - Use generated CEM-specific validators for Rust behavior where practical.
-    - Use Jing/Trang and, if needed, libxml2 as external conformance oracles in tests and release tooling.
+    - Use Jing/Trang and, if needed, libxml2 as external conformance tools in tests and release tooling.
 4. **XPath/XSLT recommendation:** defer XPath/XSLT engine selection.
     - Follow Saxon's staged `Processor`/compiler/executable pattern for future architecture.
     - Do not add `sxd-xpath`, `xrust`, Saxon, or libxslt bindings for Phase 2-8 CLI feature work.
@@ -100,7 +100,7 @@ third-party DOM or parser API is allowed to become the public `cem-ml` data surf
    before accepting untrusted files.
 6. Parse HTML inertly. Scripts are never executed; unsafe script, event-handler, `javascript:` URL, and `srcdoc`
    patterns remain validation diagnostics.
-7. If Java oracle tools are used, run them as explicit tooling steps with fixed classpaths, no plugin loading, no
+7. If Java-runtime conformance tools are used, run them as explicit tooling steps with fixed classpaths, no plugin loading, no
    network access, and resource limits.
 8. WASM builds must not depend on Java processes, libxml2, filesystem catalog lookup, or host network access.
 
@@ -114,7 +114,7 @@ third-party DOM or parser API is allowed to become the public `cem-ml` data surf
 | Stable event model                | `quick-xml` and `html5ever` can feed a CEM event model. The CEM event model remains the only stable boundary.                |
 | Canonical source syntax           | Curly CEM-ML is implemented as the primary source tokenizer; XML/HTML inputs are parity adapters into the same event model.  |
 | Schema mirror generation          | RELAX NG mirrors fit CEM's mixed, extensible document model better than XSD as the primary mirror.                           |
-| WASM feasibility                  | Pure Rust XML/HTML parser paths remain feasible. Java and libxml2 paths are oracle or native-only escape hatches.            |
+| WASM feasibility                  | Pure Rust XML/HTML parser paths remain feasible. Java and libxml2 paths are external-tooling or native-only escape hatches.  |
 
 ## Unresolved Gaps
 
@@ -134,7 +134,7 @@ third-party DOM or parser API is allowed to become the public `cem-ml` data surf
 3. Phase 4-8 can use a fake engine for CLI feature tests.
 4. Parser implementation must start with the canonical CEM-ML tokenizer prototype, then measure source-span fidelity for
    the `quick-xml` and `html5ever` parity paths.
-5. Schema implementation must start with CEM-native-to-RELAX-NG mirror generation and Java-oracle conformance tests.
+5. Schema implementation must start with CEM-native-to-RELAX-NG mirror generation and Java-runtime conformance tests.
 
 ## References
 

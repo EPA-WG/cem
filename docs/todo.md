@@ -41,9 +41,9 @@ lacks compiler output detail, and the implementation has no emitter for any rele
       shared `DeterministicWriter` (UTF-8, LF, no trailing whitespace, blake3 hash sink). Inline unit tests cover
       byte stability, deterministic ordering, namespace-tail derivation, header policy (OQ-SC-8), enum vs.
       free-form annotations, pass-through host attributes, unknown active-CEM namespace rejection, annotation-scoped
-      state lists, and the cem:state matrix. AC-S-2 oracle fixtures `tests/schema_emit/rng_xml_oracle.rs` and
+      state lists, and the cem:state matrix. AC-S-2 parity fixtures `tests/schema_emit/rng_xml_parity.rs` and
       `tests/schema_emit/rng_compact_roundtrip.rs` spawn `xmllint --relaxng` / Trang when available and skip with an
-      info record under `CEM_ML_SCHEMA_ORACLE_SKIP=1` or when the external tools are absent (OQ-SC-5 escape hatch).
+      info record under `CEM_ML_SCHEMA_PARITY_SKIP=1` or when the external tools are absent (OQ-SC-5 escape hatch).
       Non-streamable constraints now raise `EmitError::UnsupportedConstraint` before emitter output. `blake3 = "1"`
       added to `Cargo.toml`. `yarn nx run cem_ml:test` green.
 - [x] Emit TypeScript `.d.ts` headers from `CompiledSchema` (AC-S-3, AC-S-6). Structural by default; `Validated<T>`

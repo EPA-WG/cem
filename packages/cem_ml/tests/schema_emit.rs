@@ -7,7 +7,7 @@
 
 mod schema_emit {
     pub mod rng_compact_roundtrip;
-    pub mod rng_xml_oracle;
+    pub mod rng_xml_parity;
     pub mod rust_hdr_compiles;
     pub mod ts_dts_structural;
     pub mod ts_dts_validated_brand;

@@ -22,7 +22,7 @@
 //! `SchemaMachine`. A single host pattern is also the only shape
 //! libxml2's non-backtracking RELAX NG validator can check — a
 //! `<choice>` of `<anyName/>` element variants is rejected outright
-//! (OQ-SC-5 fixed the oracle to libxml2 / `xmllint`).
+//! (OQ-SC-5 fixed parity validation to libxml2 / `xmllint`).
 //!
 //! Determinism notes (§13.2.4):
 //! - UTF-8, LF, single trailing newline, no trailing whitespace.

@@ -1019,7 +1019,7 @@ matrix. Non-streamable constraint markers from
 `cem.schema.unsupported_constraint` diagnostic from the SchemaMachine.
 
 **`rng_compact.rs`** — emits the compact syntax derived from the same
-emission cursor. Round-trip with `rng_xml` through the external oracle is
+emission cursor. Round-trip with `rng_xml` through native RELAX NG tooling is
 the byte-stability test (`rng_compact_roundtrip.rs`).
 
 **`ts_dts.rs`** — emits:
@@ -1124,8 +1124,8 @@ Fixture root: `packages/cem_ml/tests/schema_emit/`.
 | File                          | AC                                  | What runs                                                                               |
 |-------------------------------|-------------------------------------|-----------------------------------------------------------------------------------------|
 | `byte_stability.rs`           | AC-S-2                              | `emit_all` twice over the same `CompiledSchema`; assert byte-identical artifacts and identical content hashes. |
-| `rng_xml_oracle.rs`           | AC-S-2 RELAX NG mirror              | Validate canonical `examples/cem-ml/*.cem` projections against the emitted `.rng` through the chosen oracle. Skip under `CEM_ML_SCHEMA_ORACLE_SKIP=1`. |
-| `rng_compact_roundtrip.rs`    | AC-S-2 compact mirror               | Convert emitted `.rnc` to `.rng` through the oracle; diff against `rng_xml`'s output.   |
+| `rng_xml_parity.rs`           | AC-S-2 RELAX NG mirror              | Validate canonical `examples/cem-ml/*.cem` projections against the emitted `.rng` through `xmllint --relaxng`. Skip under `CEM_ML_SCHEMA_PARITY_SKIP=1`. |
+| `rng_compact_roundtrip.rs`    | AC-S-2 compact mirror               | Convert emitted `.rnc` to `.rng` through Trang; diff against `rng_xml`'s output.        |
 | `ts_dts_structural.rs`        | AC-S-V-1, AC-S-V-3                   | `tsc --noEmit` against a fixture `accepts(el: HTMLElement)` call site.                  |
 | `ts_dts_validated_brand.rs`   | AC-S-V-2, AC-S-V-4, AC-S-V-5 (declaration shape) | `// @ts-expect-error` fixtures for plain-literal-to-`Validated<T>` and cross-version assignment, plus an assertion that the emitted `.d.ts` re-exports `asValidated`/`tryValidated`/`Validated` from `@epa-wg/cem-ml/wasm` (no host-stub `declare function` lines). AC-S-V-5 runtime-diagnostic verification lives with the WASM build's AC-V-1 fixtures (one source of truth). |
 | `rust_hdr_compiles.rs`        | AC-S-4                              | `cargo check -p cem_ml_schema_stub` against a generated stub crate that imports the emitted `.rs`. |

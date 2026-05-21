@@ -1410,7 +1410,7 @@ authoring CEM-native schema source.
 
 | Emitter           | Output extension   | AC reference  | Tier | Status of external validator                              |
 |-------------------|--------------------|---------------|------|-----------------------------------------------------------|
-| `rng_xml`         | `.rng`             | AC-S-2        | A    | `xmllint --relaxng` (libxml2) oracle                      |
+| `rng_xml`         | `.rng`             | AC-S-2        | A    | `xmllint --relaxng` (libxml2) parity validation           |
 | `rng_compact`     | `.rnc`             | AC-S-2        | A    | Trang round-trip (compact → XML) cross-check; Trang is used as a format converter only, validation still goes through `xmllint --relaxng` on the converted `.rng` |
 | `ts_dts`          | `.d.ts`            | AC-S-3, AC-S-6 | A   | `tsc --noEmit` against fixture call sites                 |
 | `rust_hdr`        | `.rs`              | AC-S-4        | A code / B gate | Code lands in Tier A but is gated off by `CompilerOptions.emit_rust = false` (default). `cargo check` against a generated stub crate runs only when the flag is on; Tier B opens by flipping the default. |
@@ -1585,15 +1585,15 @@ fixture name encodes the AC it pins:
 | Fixture file                          | AC pinned                          | What it asserts                                                          |
 |---------------------------------------|------------------------------------|--------------------------------------------------------------------------|
 | `byte_stability.rs`                   | AC-S-2 byte-stable requirement     | Emitting twice yields identical bytes and identical content hashes.      |
-| `rng_xml_oracle.rs`                   | AC-S-2 RELAX NG XML mirror         | Emit `.rng`, validate canonical fixtures against it through `xmllint --relaxng` (libxml2). Skipped (not failed) when `xmllint` is absent, with skip recorded in the report. |
+| `rng_xml_parity.rs`                   | AC-S-2 RELAX NG XML mirror         | Emit `.rng`, validate canonical fixtures against it through `xmllint --relaxng` (libxml2). Skipped (not failed) when `xmllint` is absent, with skip recorded in the report. |
 | `rng_compact_roundtrip.rs`            | AC-S-2 compact mirror              | Emit `.rnc`, convert to `.rng` via Trang, validate the converted `.rng` through `xmllint --relaxng`, then diff against the emitter's `.rng`. Skipped (not failed) when Trang is absent. |
 | `ts_dts_structural.rs`                | AC-S-V-1, AC-S-V-3                  | Compile a fixture that assigns an emitted `Badge` to `HTMLElement`.      |
 | `ts_dts_validated_brand.rs`           | AC-S-V-2, AC-S-V-4, AC-S-V-5 (declaration shape) | `// @ts-expect-error` brand fixtures + version-identity discrimination + assert the `.d.ts` re-exports `asValidated`/`tryValidated`/`Validated` from `@epa-wg/cem-ml/wasm` (no host-stub declarations). |
 | `rust_hdr_compiles.rs`                | AC-S-4                              | Run `cargo check` against an auto-generated stub crate that imports the emitted `.rs`. Runs only when `CompilerOptions.emit_rust = true` (Tier B gate); in Tier A this fixture is skipped by default and the skip is recorded in the report. |
 | `uri_manifest_resolution.rs`          | AC-S-5, AC-V-10                     | Resolve `/1`, `/1.2`, `/1.2.3`, prerelease-exact URIs through the loader; assert manifest match-rule diagnostics per AC-V-13. |
 
-The `rng_xml_oracle.rs` and `rng_compact_roundtrip.rs` fixtures honor a
-`CEM_ML_SCHEMA_ORACLE_SKIP=1` escape hatch that mirrors the
+The `rng_xml_parity.rs` and `rng_compact_roundtrip.rs` fixtures honor a
+`CEM_ML_SCHEMA_PARITY_SKIP=1` escape hatch that mirrors the
 `CEM_ML_PERF_SKIP` policy in §17 — skips are recorded as `info` events in
 the report, not silent passes.
 
@@ -1648,10 +1648,10 @@ Resolved open questions (closed; design text above reflects the decision):
   runs only when the flag is on. Tier B opens by flipping the default with
   no re-release of the emitter itself.
 - **OQ-SC-5** — *Resolved 2026-05-19.* Option 2 (`xmllint --relaxng` via
-  libxml2) is the primary RELAX NG oracle. Trang remains required as a
+  libxml2) is the primary RELAX NG parity validator. Trang remains required as a
   format converter for the `.rnc` → `.rng` compact-syntax round-trip
   fixture; validation still goes through `xmllint` on the converted bytes.
-  The `CEM_ML_SCHEMA_ORACLE_SKIP=1` escape hatch from §13.2.7 stays for
+  The `CEM_ML_SCHEMA_PARITY_SKIP=1` escape hatch from §13.2.7 stays for
   local dev. A pure-Rust RELAX NG validator is recorded in §13.2.10 as a
   wishlist item, out of the phased roadmap.
 - **OQ-SC-7** — *Resolved 2026-05-19.* Option 1 (per-version `.d.ts` via
@@ -1680,9 +1680,9 @@ not blocked on any of them, and adoption is at most an *opportunistic
 replacement* of an existing path.
 
 - **Pure-Rust RELAX NG validator (replaces `xmllint`/Trang in the AC-S-2
-  oracle).** When a production-quality pure-Rust RELAX NG crate exists
+  parity checks).** When a production-quality pure-Rust RELAX NG crate exists
   (no current candidate per [`cem-ml-parser-schema-adr.md`](./cem-ml-parser-schema-adr.md) §"Pure
-  Rust RELAX NG crates"), the `rng_xml_oracle.rs` and
+  Rust RELAX NG crates"), the `rng_xml_parity.rs` and
   `rng_compact_roundtrip.rs` fixtures can swap their external-toolchain
   invocations for an in-process validator. Acceptance criteria for the
   swap: (a) the crate accepts the full RELAX NG XML subset emitted by

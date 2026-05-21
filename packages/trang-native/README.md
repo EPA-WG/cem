@@ -14,7 +14,7 @@ installing Java.
 Trang is the reference RELAX NG converter (RNG ↔ RNC ↔ XSD ↔ DTD), but it
 ships as a Java tool — invoking it normally requires a JDK or JRE on every
 developer machine and CI runner. For the `cem_ml` test suite, Trang is the
-**parity oracle**: the schema emitter writes `*.rng` / `*.rnc` and a
+**parity converter**: the schema emitter writes `*.rng` / `*.rnc` and a
 round-trip through Trang proves the two forms agree. Forcing every
 contributor (and every CI job) to install a JDK just to run that one check
 is heavyweight and fragile.
@@ -49,7 +49,7 @@ dependency.
 
 `cem_ml`'s schema-emit verification fixtures (AC-S-2) use Trang to validate
 that the emitter's RELAX NG XML and compact outputs are semantically
-equivalent to each other and to a known-good oracle. The cem-ml test
+equivalent to each other under native RELAX NG tooling. The cem-ml test
 harness depends on `@epa-wg/trang-native` as a dev-dependency, so the moment
 `yarn install` finishes on a developer or CI machine, the platform-correct
 `trang` binary is already on disk and the parity tests run with no further
