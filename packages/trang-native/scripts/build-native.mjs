@@ -97,7 +97,14 @@ niArgs.push('com.thaiopensource.relaxng.translate.Driver');
 
 console.log(`[trang-native] native-image build for ${target}`);
 console.log(`[trang-native] command: ${nativeImage} ${niArgs.join(' ')}`);
-const result = spawnSync(nativeImage, niArgs, { cwd: outDir, stdio: 'inherit' });
+// On Windows, GraalVM ships `native-image.cmd` (a batch shim).
+// spawnSync can't execute .cmd/.bat directly — it returns status:null
+// immediately. Route through cmd.exe explicitly (safer than shell:true
+// since args bypass shell parsing).
+const isCmdShim = process.platform === 'win32' && /\.(cmd|bat)$/i.test(nativeImage);
+const result = isCmdShim
+  ? spawnSync('cmd.exe', ['/c', nativeImage, ...niArgs], { cwd: outDir, stdio: 'inherit' })
+  : spawnSync(nativeImage, niArgs, { cwd: outDir, stdio: 'inherit' });
 if (result.status !== 0) {
   exitWith(result.status ?? 1, `native-image failed (exit ${result.status})`);
 }
