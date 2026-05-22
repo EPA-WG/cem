@@ -12,14 +12,9 @@ Acceptance criteria: [`cem-ml-ac.md`](cem-ml-ac.md), [`cem-ql-ac.md`](cem-ql-ac.
 
 ### CEM-QL Tier A Implementation (`packages/cem_ql`)
 
-Two design docs landed; no Rust crate exists yet. Crate boundary, module map, and AC mapping live in
+The Rust crate is bootstrapped; layer implementations remain. Crate boundary, module map, and AC mapping live in
 [`cem-ql-stack-design-impl.md`](cem-ql-stack-design-impl.md) §3.
 
-- [ ] Bootstrap `packages/cem_ql` crate (`Cargo.toml`, `project.json`, `src/lib.rs` with layered-contract import test
-      per impl design §3.2). Nx targets: `build`, `test`, `lint`, `build:wasm`, `bench`, `test:xpath-parity`,
-      `test:fixtures`. Reuse `cem_ml::benchmark::BenchmarkBudget` for the bench target.
-- [ ] Implement L1 lexer (`cem_ql::lexer`) per impl §4 — token table, DFA-style scanner, `&&` / `||` reserved-form
-      diagnostic emission. Tests: `parser_recovery.rs` covers lexer surface.
 - [ ] Implement L2 parser (`cem_ql::parser`) per impl §5 — hand-written recursive descent for module/declare/import,
       Pratt expression sub-grammar, three-point recovery synchronization (statement, pipeline step, bracket).
 - [ ] Implement L3 name resolver (`cem_ql::resolve`) per impl §6 — `BindingSet` chain, per-scope stdlib overlay,

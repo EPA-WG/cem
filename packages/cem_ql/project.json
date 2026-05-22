@@ -1,0 +1,93 @@
+{
+    "name": "cem_ql",
+    "$schema": "../../node_modules/nx/schemas/project-schema.json",
+    "projectType": "library",
+    "sourceRoot": "packages/cem_ql/src",
+    "targets": {
+        "build": {
+            "cache": true,
+            "executor": "@monodon/rust:check",
+            "outputs": ["{options.target-dir}"],
+            "options": {
+                "package": "cem-ql",
+                "target-dir": "dist/target/cem_ql"
+            }
+        },
+        "test": {
+            "cache": true,
+            "executor": "@monodon/rust:test",
+            "outputs": ["{options.target-dir}"],
+            "options": {
+                "package": "cem-ql",
+                "target-dir": "dist/target/cem_ql"
+            },
+            "configurations": {
+                "production": {
+                    "release": true
+                }
+            }
+        },
+        "lint": {
+            "cache": true,
+            "executor": "@monodon/rust:lint",
+            "outputs": ["{options.target-dir}"],
+            "options": {
+                "package": "cem-ql",
+                "target-dir": "dist/target/cem_ql"
+            }
+        },
+        "build:wasm": {
+            "cache": true,
+            "executor": "nx:run-commands",
+            "options": {
+                "command": "cargo build --package cem-ql --lib --target wasm32-unknown-unknown --target-dir dist/target/cem_ql",
+                "cwd": "{workspaceRoot}"
+            },
+            "outputs": ["{workspaceRoot}/dist/target/cem_ql/wasm32-unknown-unknown"]
+        },
+        "bench": {
+            "cache": false,
+            "executor": "nx:run-commands",
+            "options": {
+                "command": "cargo test --release --package cem-ql --test perf_budgets --target-dir dist/target/cem_ql -- --nocapture",
+                "cwd": "{workspaceRoot}"
+            },
+            "outputs": ["{workspaceRoot}/dist/target/cem_ql/release"]
+        },
+        "test:xpath-parity": {
+            "cache": true,
+            "executor": "nx:run-commands",
+            "options": {
+                "command": "cargo test --package cem-ql --test xpath_parity --target-dir dist/target/cem_ql",
+                "cwd": "{workspaceRoot}"
+            },
+            "inputs": [
+                "{projectRoot}/src/**/*.rs",
+                "{projectRoot}/tests/xpath_parity.rs",
+                "{projectRoot}/Cargo.toml",
+                "{workspaceRoot}/packages/cem_ml/src/**/*.rs",
+                "{workspaceRoot}/packages/cem_ml/Cargo.toml"
+            ],
+            "outputs": ["{workspaceRoot}/dist/target/cem_ql"]
+        },
+        "test:fixtures": {
+            "cache": true,
+            "executor": "nx:run-commands",
+            "options": {
+                "command": "cargo test --package cem-ql --test fixtures_snapshot --target-dir dist/target/cem_ql",
+                "cwd": "{workspaceRoot}"
+            },
+            "inputs": [
+                "{projectRoot}/src/**/*.rs",
+                "{projectRoot}/tests/fixtures_snapshot.rs",
+                "{projectRoot}/Cargo.toml",
+                "{workspaceRoot}/examples/cem-ml/**/*.cem",
+                "{workspaceRoot}/examples/semantic/**/*.html",
+                "{workspaceRoot}/packages/cem_ml/src/**/*.rs",
+                "{workspaceRoot}/packages/cem_ml/Cargo.toml"
+            ],
+            "outputs": ["{workspaceRoot}/dist/target/cem_ql"]
+        }
+    },
+    "tags": ["scope:cem-ql", "type:lib", "lang:rust"]
+}
