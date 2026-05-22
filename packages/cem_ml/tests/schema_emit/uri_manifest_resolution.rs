@@ -39,6 +39,16 @@ fn prerelease(major: u64, minor: u64, patch: u64, pre: &str) -> SemVer {
     }
 }
 
+fn build(major: u64, minor: u64, patch: u64, build: &str) -> SemVer {
+    SemVer {
+        major,
+        minor,
+        patch,
+        prerelease: None,
+        build: Some(build.to_owned()),
+    }
+}
+
 /// A manifest carrying only the fields resolution reads — the schema
 /// URI and the embedded version. `artifacts` is irrelevant to URI-tail
 /// matching, so it is left empty here.
@@ -121,6 +131,38 @@ fn prerelease_uri_resolves_to_the_named_prerelease_only() {
 }
 
 #[test]
+fn buildless_uri_prefers_the_unbuilt_release_when_build_variants_tie() {
+    let corpus = vec![
+        manifest_for("https://cem.dev/ns/core/1", build(1, 2, 3, "sha.a")),
+        manifest_for("https://cem.dev/ns/core/1", semver(1, 2, 3)),
+        manifest_for("https://cem.dev/ns/core/1", build(1, 2, 3, "sha.b")),
+    ];
+    let (_, resolution) =
+        resolve_uri("https://cem.dev/ns/core/1.2.3", &corpus).expect("buildless URI resolves");
+    assert_eq!(resolution.embedded_version, semver(1, 2, 3));
+}
+
+#[test]
+fn buildless_uri_rejects_ambiguous_build_only_ties() {
+    let corpus = vec![
+        manifest_for("https://cem.dev/ns/core/1", build(1, 2, 3, "sha.a")),
+        manifest_for("https://cem.dev/ns/core/1", build(1, 2, 3, "sha.b")),
+    ];
+    assert!(resolve_uri("https://cem.dev/ns/core/1.2.3", &corpus).is_err());
+}
+
+#[test]
+fn explicit_build_uri_resolves_the_named_build() {
+    let corpus = vec![
+        manifest_for("https://cem.dev/ns/core/1", build(1, 2, 3, "sha.a")),
+        manifest_for("https://cem.dev/ns/core/1", build(1, 2, 3, "sha.b")),
+    ];
+    let (_, resolution) =
+        resolve_uri("https://cem.dev/ns/core/1.2.3+sha.b", &corpus).expect("+build resolves");
+    assert_eq!(resolution.embedded_version, build(1, 2, 3, "sha.b"));
+}
+
+#[test]
 fn unmatched_prerelease_uri_does_not_resolve() {
     let corpus = corpus();
     // No `rc.9` is published — a pre-release tail matches exactly only.
@@ -199,6 +241,22 @@ fn write_to_disk_lays_the_publication_tree_with_sidecars() {
     }
 
     let _ = fs::remove_dir_all(&root);
+}
+
+#[test]
+fn write_to_disk_rejects_artifact_paths_that_escape_the_root() {
+    let schema = CompiledSchema::cem_core();
+    let mut output =
+        SchemaCompiler::emit_all(&schema, &CompilerOptions::default()).expect("emit_all");
+    output.artifacts[0].relative_path = "../escape.rng".to_owned();
+
+    let root = unique_temp_dir("cem_ml_uri_publish_escape");
+    let _ = fs::remove_dir_all(&root);
+    let err = SchemaCompiler::write_to_disk(&output, &root).unwrap_err();
+    assert!(
+        err.to_string().contains("invalid artifact path"),
+        "unexpected error: {err}"
+    );
 }
 
 #[test]

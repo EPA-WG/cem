@@ -28,6 +28,23 @@
                 "{projectRoot}/dist/**/*.xhtml"
             ]
         },
+        "build:schema-artifacts": {
+            "executor": "nx:run-commands",
+            "dependsOn": ["build:docs"],
+            "cache": true,
+            "options": {
+                "command": "cargo run --package cem-ml --bin cem-ml-schema-emit --target-dir dist/target/cem_ml -- --out packages/cem_ml/dist/lib/schema",
+                "cwd": "{workspaceRoot}"
+            },
+            "inputs": [
+                "{projectRoot}/schema/**/*.md",
+                "{projectRoot}/src/schema/compiler/**/*.rs",
+                "{projectRoot}/src/bin/cem-ml-schema-emit.rs"
+            ],
+            "outputs": [
+                "{projectRoot}/dist/lib/schema/**"
+            ]
+        },
         "test": {
             "cache": true,
             "executor": "@monodon/rust:test",

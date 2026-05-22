@@ -94,8 +94,17 @@ lacks compiler output detail, and the implementation has no emitter for any rele
       full resolution table plus `write_to_disk` on-disk-tree and sidecar-digest checks), with 13 inline `uri_publish`
       unit tests. `cem_ml::loader` — the document-loading caller named in §13.2.6 — does not exist yet; `resolve_uri`
       is the runnable AC-S-5 resolution surface per impl §3.4.2.1. The last `cem-ac-design-revalidation.md` "Non-Match"
-      row is now resolved. `yarn nx run cem_ml:test` green (347 lib + 20 schema_emit).
-- [ ] Add `nx run cem_ml:build:schema-artifacts` Nx target that runs all four emitters and writes outputs under
+      row is now resolved. `yarn nx run cem_ml:test` green (350 lib + 24 schema_emit).
+- [x] Harden AC-S-5 stable-URI publication before committing the closeout.
+      **Closed (2026-05-22):** URI parsing is now shared by resolution and artifact paths; unsafe namespace path
+      segments and malformed version-looking URI tails are rejected instead of silently becoming namespace text; nested
+      namespace artifact stems are path-safe (`ui/core` → `cem-ui-core.*`); build-metadata tie cases prefer an unbuilt
+      release and otherwise require an explicit `+build`; `write_to_disk` rejects artifact paths that escape the root;
+      `cem_ml:build:schema-artifacts` and the `cem-ml-schema-emit` binary write all four content emitters plus
+      `manifest.json`; docs now state the real per-file temp-then-rename + sidecar-verification guarantee rather than
+      whole-publication atomicity. `yarn nx run cem_ml:test --skip-nx-cache` and
+      `yarn nx run cem_ml:build:schema-artifacts --skip-nx-cache` green.
+- [x] Add `nx run cem_ml:build:schema-artifacts` Nx target that runs all four emitters and writes outputs under
       `packages/cem_ml/dist/lib/schema/`.
 
 ### CEM-QL Tier A Implementation (`packages/cem_ql`)

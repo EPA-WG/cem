@@ -1565,8 +1565,8 @@ package; generated JS sibling; WASM shim — chose the third).
 #### 13.2.6 URI Publication Workflow (AC-S-5)
 
 1. The compiler computes the artifact bytes and content hashes in-process.
-2. `uri_publish` writes the manifest and sidecars **after** all artifacts
-   have been hashed; a partial emit leaves the previous manifest in place.
+2. `uri_publish` writes content artifacts first, then the manifest; every
+   individual file lands through temp-then-rename and has a hash sidecar.
 3. The CLI's schema loader resolves `<schema-uri>` against
    `dist/lib/schema/` first, then against registered remote resolvers. The
    loader rejects an artifact whose recomputed hash does not match its
@@ -1592,8 +1592,10 @@ embedded version by SemVer 2.0 §11 precedence.
 
 `SchemaCompiler::write_to_disk` writes into the `dist/lib/schema/`
 build-output tree and overwrites freely; each file lands through a
-temp-then-rename so a crash never exposes a truncated artifact. Treating
-a *published* version as immutable is release tooling's responsibility
+temp-then-rename so a crash never exposes a truncated individual file.
+The manifest and `manifest.json.hash` are not a transactional pair, so
+loaders must verify sidecars before trusting artifacts. Treating a
+*published* version as immutable is release tooling's responsibility
 (step 5), not the writer's.
 
 #### 13.2.7 Verification Fixtures

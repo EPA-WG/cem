@@ -18,7 +18,7 @@ pub mod uri_publish;
 
 use std::collections::BTreeMap;
 use std::fs;
-use std::path::{Path, PathBuf};
+use std::path::{Component, Path, PathBuf};
 
 pub use emitter::{EmissionCursor, SchemaEmitter};
 pub use error::EmitError;
@@ -174,7 +174,7 @@ impl SchemaCompiler {
 
 /// Write one artifact plus its `.hash` sidecar under `root_dir`.
 fn write_artifact(root_dir: &Path, artifact: &EmittedArtifact) -> Result<(), EmitError> {
-    let target = root_dir.join(&artifact.relative_path);
+    let target = artifact_target_path(root_dir, &artifact.relative_path)?;
     if let Some(parent) = target.parent() {
         fs::create_dir_all(parent)?;
     }
@@ -182,6 +182,29 @@ fn write_artifact(root_dir: &Path, artifact: &EmittedArtifact) -> Result<(), Emi
     let sidecar = append_extension(&target, "hash");
     write_atomic(&sidecar, artifact.content_hash.to_sidecar_string().as_bytes())?;
     Ok(())
+}
+
+fn artifact_target_path(root_dir: &Path, relative_path: &str) -> Result<PathBuf, EmitError> {
+    let relative = Path::new(relative_path);
+    let mut normalized = PathBuf::new();
+    for component in relative.components() {
+        match component {
+            Component::Normal(segment) => normalized.push(segment),
+            _ => {
+                return Err(EmitError::InvalidArtifactPath {
+                    path: relative_path.to_owned(),
+                    reason: "artifact path must be a relative normal path",
+                })
+            }
+        }
+    }
+    if normalized.as_os_str().is_empty() {
+        return Err(EmitError::InvalidArtifactPath {
+            path: relative_path.to_owned(),
+            reason: "artifact path cannot be empty",
+        });
+    }
+    Ok(root_dir.join(normalized))
 }
 
 /// Write `bytes` to `target` through a sibling temp file + rename, so a

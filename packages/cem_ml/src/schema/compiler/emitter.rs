@@ -14,6 +14,7 @@ use crate::schema::ir::{AnnotationDef, CompiledSchema, SchemaStateDef, SemanticR
 
 use super::error::EmitError;
 use super::output::{ArtifactKind, EmittedArtifact};
+use super::uri_publish;
 use super::CompilerOptions;
 
 pub struct EmissionCursor<'a> {
@@ -91,61 +92,7 @@ pub(crate) fn reject_non_streamable_constraints(schema: &CompiledSchema) -> Resu
 /// the `/1` MAJOR constraint is recorded in URI metadata but is **not**
 /// a directory.
 pub fn relative_path(schema: &CompiledSchema, kind: ArtifactKind) -> Result<String, EmitError> {
-    let uri = schema.version_identity.uri.as_str();
-    if uri.is_empty() {
-        return Err(EmitError::MissingIrField {
-            field: "version_identity.uri",
-        });
-    }
-    let tail = namespace_tail(uri).ok_or(EmitError::MissingIrField {
-        field: "version_identity.uri (not a cem.dev/ns/* URI)",
-    })?;
-    let version = schema
-        .version_identity
-        .embedded_version
-        .to_canonical_string();
-    // The manifest is always `manifest.json`; every other artifact is
-    // `<stem>.<ext>` (§13.2.5).
-    let file_name = match kind {
-        ArtifactKind::Manifest => "manifest.json".to_owned(),
-        _ => format!(
-            "{stem}.{ext}",
-            stem = artifact_stem_from_tail(&tail),
-            ext = kind.extension()
-        ),
-    };
-    Ok(format!("{tail}/{version}/{file_name}"))
-}
-
-/// Strip the well-known prefix and drop the trailing major-version
-/// segment. `https://cem.dev/ns/core/1` → `Some("core")`,
-/// `https://cem.dev/ns/component-mvp/2` → `Some("component-mvp")`,
-/// `https://other.example/ns/core/1` → `None`.
-pub(crate) fn namespace_tail(uri: &str) -> Option<String> {
-    const PREFIX: &str = "https://cem.dev/ns/";
-    let rest = uri.strip_prefix(PREFIX)?;
-    // Drop the final `/<digits>` MAJOR-version segment, if any.
-    let trimmed = match rest.rsplit_once('/') {
-        Some((head, tail)) if tail.chars().all(|c| c.is_ascii_digit()) && !tail.is_empty() => {
-            head.to_owned()
-        }
-        _ => rest.to_owned(),
-    };
-    if trimmed.is_empty() {
-        None
-    } else {
-        Some(trimmed)
-    }
-}
-
-/// `cem-core` for tail `core`, `cem-{tail}` otherwise. Keeps the stem
-/// short and consistent with §13.2.5's `cem-core.rng` examples.
-pub(crate) fn artifact_stem_from_tail(tail: &str) -> String {
-    if tail == "core" {
-        "cem-core".to_owned()
-    } else {
-        format!("cem-{tail}")
-    }
+    uri_publish::artifact_relative_path(schema, kind)
 }
 
 #[cfg(test)]
@@ -163,16 +110,19 @@ mod tests {
     }
 
     #[test]
-    fn namespace_tail_strips_well_known_prefix_and_major() {
-        assert_eq!(
-            namespace_tail("https://cem.dev/ns/core/1"),
-            Some("core".to_owned())
-        );
-        assert_eq!(
-            namespace_tail("https://cem.dev/ns/component-mvp/2"),
-            Some("component-mvp".to_owned())
-        );
-        assert_eq!(namespace_tail("https://other.example/ns/core/1"), None);
+    fn relative_path_uses_the_shared_schema_uri_parser() {
+        let mut schema = CompiledSchema::cem_core();
+        schema.version_identity.uri = "https://cem.dev/ns/component-mvp/1.2.3-rc.1".to_owned();
+        let path = relative_path(&schema, ArtifactKind::RelaxNgXml).unwrap();
+        assert_eq!(path, "component-mvp/1.0.0/cem-component-mvp.rng");
+    }
+
+    #[test]
+    fn nested_namespace_tail_uses_directories_but_not_nested_file_stems() {
+        let mut schema = CompiledSchema::cem_core();
+        schema.version_identity.uri = "https://cem.dev/ns/ui/core/1.2".to_owned();
+        let path = relative_path(&schema, ArtifactKind::TypeScriptDts).unwrap();
+        assert_eq!(path, "ui/core/1.0.0/cem-ui-core.d.ts");
     }
 
     #[test]
@@ -180,6 +130,6 @@ mod tests {
         let mut schema = CompiledSchema::cem_core();
         schema.version_identity.uri = "ftp://nope/whatever".to_owned();
         let err = relative_path(&schema, ArtifactKind::RelaxNgXml).unwrap_err();
-        assert!(matches!(err, EmitError::MissingIrField { .. }));
+        assert!(matches!(err, EmitError::UnresolvableUri { .. }));
     }
 }

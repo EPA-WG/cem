@@ -19,7 +19,6 @@ use crate::schema::ir::{
 };
 
 use super::byte_stability::DeterministicWriter;
-use super::emitter::relative_path;
 use super::error::EmitError;
 use super::output::{ArtifactKind, ContentHash, EmittedArtifact, PublicationManifest};
 
@@ -27,6 +26,60 @@ use super::output::{ArtifactKind, ContentHash, EmittedArtifact, PublicationManif
 /// with this; the remainder is the namespace tail plus an optional
 /// version segment (§13.2.5).
 pub const WELL_KNOWN_PREFIX: &str = "https://cem.dev/ns/";
+
+/// Compute the on-disk relative path for an artifact under
+/// `dist/lib/schema/<namespace-tail>/<embedded-version>/<stem>.<ext>`.
+/// This shares the exact URI-tail parser used by `resolve_uri`, so
+/// `/1`, `/1.2`, full SemVer, prerelease, and build-metadata tails all
+/// agree about which portion is the namespace tail.
+pub(crate) fn artifact_relative_path(
+    schema: &CompiledSchema,
+    kind: ArtifactKind,
+) -> Result<String, EmitError> {
+    let uri = schema.version_identity.uri.as_str();
+    if uri.is_empty() {
+        return Err(EmitError::MissingIrField {
+            field: "version_identity.uri",
+        });
+    }
+    let parsed = parse_schema_uri_checked(uri)?;
+    let version = embedded_version_path_segment(&schema.version_identity.embedded_version)?;
+    let file_name = match kind {
+        ArtifactKind::Manifest => "manifest.json".to_owned(),
+        _ => format!(
+            "{stem}.{ext}",
+            stem = artifact_stem_from_tail(&parsed.namespace_tail),
+            ext = kind.extension()
+        ),
+    };
+    Ok(format!("{}/{version}/{file_name}", parsed.namespace_tail))
+}
+
+fn artifact_stem_from_tail(tail: &str) -> String {
+    if tail == "core" {
+        "cem-core".to_owned()
+    } else {
+        format!("cem-{}", tail.split('/').collect::<Vec<_>>().join("-"))
+    }
+}
+
+fn embedded_version_path_segment(version: &SemVer) -> Result<String, EmitError> {
+    if let Some(pre) = &version.prerelease {
+        if !validate_semver_identifiers(pre, IdentifierKind::Prerelease) {
+            return Err(EmitError::MissingIrField {
+                field: "version_identity.embedded_version.prerelease",
+            });
+        }
+    }
+    if let Some(build) = &version.build {
+        if !validate_semver_identifiers(build, IdentifierKind::Build) {
+            return Err(EmitError::MissingIrField {
+                field: "version_identity.embedded_version.build",
+            });
+        }
+    }
+    Ok(version.to_canonical_string())
+}
 
 // ---------------------------------------------------------------------------
 // Manifest JSON serialization (byte-stable; §13.2.11)
@@ -45,7 +98,7 @@ pub fn emit_manifest_artifact(
     let (bytes, content_hash) = writer.finalize()?;
     Ok(EmittedArtifact {
         kind: ArtifactKind::Manifest,
-        relative_path: relative_path(schema, ArtifactKind::Manifest)?,
+        relative_path: artifact_relative_path(schema, ArtifactKind::Manifest)?,
         bytes,
         content_hash,
         source_map: Default::default(),
@@ -205,64 +258,131 @@ pub struct UriResolution {
 /// version-tail constraint. Returns `None` for URIs outside the
 /// `https://cem.dev/ns/` scheme or with no namespace segment.
 pub fn parse_schema_uri(uri: &str) -> Option<SchemaUriRef> {
-    let rest = uri.strip_prefix(WELL_KNOWN_PREFIX)?;
-    let segments: Vec<&str> = rest.split('/').filter(|s| !s.is_empty()).collect();
-    if segments.is_empty() {
-        return None;
+    parse_schema_uri_checked(uri).ok()
+}
+
+fn parse_schema_uri_checked(uri: &str) -> Result<SchemaUriRef, EmitError> {
+    let rest = uri.strip_prefix(WELL_KNOWN_PREFIX).ok_or_else(|| {
+        unresolvable_uri(uri, "not a well-known https://cem.dev/ns/ schema URI")
+    })?;
+    if rest.is_empty() {
+        return Err(unresolvable_uri(uri, "schema URI has no namespace tail"));
     }
-    if let Some((constraint, match_rule)) =
-        parse_version_segment(segments[segments.len() - 1])
-    {
-        let tail = &segments[..segments.len() - 1];
-        if tail.is_empty() {
-            return None; // a version with no namespace, e.g. `.../ns/1`
+    let segments: Vec<&str> = rest.split('/').collect();
+    if segments.iter().any(|s| s.is_empty()) {
+        return Err(unresolvable_uri(
+            uri,
+            "schema URI contains an empty namespace segment",
+        ));
+    }
+    let last = segments[segments.len() - 1];
+    match parse_version_segment(last) {
+        VersionSegment::Version(constraint, match_rule) => {
+            let tail = &segments[..segments.len() - 1];
+            if tail.is_empty() {
+                return Err(unresolvable_uri(
+                    uri,
+                    "schema URI version tail has no namespace",
+                ));
+            }
+            validate_namespace_tail(uri, tail)?;
+            Ok(SchemaUriRef {
+                namespace_tail: tail.join("/"),
+                constraint,
+                match_rule,
+            })
         }
-        Some(SchemaUriRef {
-            namespace_tail: tail.join("/"),
-            constraint,
-            match_rule,
-        })
-    } else {
-        Some(SchemaUriRef {
-            namespace_tail: segments.join("/"),
-            constraint: SchemaVersionConstraint::Unconstrained,
-            match_rule: SchemaVersionMatchRule::Unconstrained,
-        })
+        VersionSegment::NotVersion => {
+            validate_namespace_tail(uri, &segments)?;
+            Ok(SchemaUriRef {
+                namespace_tail: segments.join("/"),
+                constraint: SchemaVersionConstraint::Unconstrained,
+                match_rule: SchemaVersionMatchRule::Unconstrained,
+            })
+        }
+        VersionSegment::Invalid(reason) => Err(unresolvable_uri(uri, reason)),
     }
 }
 
-/// Recognise a trailing URI segment as a version constraint. Returns
-/// `None` when the segment is a namespace component rather than a
-/// version, so `.../ns/3d/1` keeps `3d` in the namespace tail.
-fn parse_version_segment(
-    segment: &str,
-) -> Option<(SchemaVersionConstraint, SchemaVersionMatchRule)> {
+fn unresolvable_uri(uri: &str, reason: &'static str) -> EmitError {
+    EmitError::UnresolvableUri {
+        uri: uri.to_owned(),
+        reason,
+    }
+}
+
+fn validate_namespace_tail(uri: &str, segments: &[&str]) -> Result<(), EmitError> {
+    for segment in segments {
+        if !is_safe_namespace_segment(segment) {
+            return Err(unresolvable_uri(uri, "schema URI namespace segment is not safe"));
+        }
+    }
+    Ok(())
+}
+
+fn is_safe_namespace_segment(segment: &str) -> bool {
+    if segment == "." || segment == ".." {
+        return false;
+    }
+    let mut chars = segment.chars();
+    let Some(first) = chars.next() else {
+        return false;
+    };
+    if !first.is_ascii_alphanumeric() {
+        return false;
+    }
+    chars.all(|c| c.is_ascii_alphanumeric() || c == '-' || c == '_' || c == '.')
+}
+
+/// Recognise a trailing URI segment as a version constraint. Separates
+/// ordinary namespace segments from malformed version-looking tails, so
+/// `.../ns/3d/1` keeps `3d` in the namespace tail while `.../core/01`
+/// is rejected.
+fn parse_version_segment(segment: &str) -> VersionSegment {
     if !segment.starts_with(|c: char| c.is_ascii_digit()) {
-        return None;
+        return VersionSegment::NotVersion;
     }
     // Peel a `+build` tail, then a `-prerelease` tail, off the numeric core.
     let (without_build, build) = match segment.split_once('+') {
-        Some((core, meta)) => (core, Some(meta.to_owned())),
+        Some((core, meta)) => {
+            if meta.contains('+') {
+                return VersionSegment::Invalid("schema URI version has multiple build separators");
+            }
+            if !validate_semver_identifiers(meta, IdentifierKind::Build) {
+                return VersionSegment::Invalid("schema URI version has invalid build metadata");
+            }
+            (core, Some(meta.to_owned()))
+        }
         None => (segment, None),
     };
     let (numeric, prerelease) = match without_build.split_once('-') {
-        Some((core, pre)) => (core, Some(pre.to_owned())),
+        Some((core, pre)) => {
+            if !validate_semver_identifiers(pre, IdentifierKind::Prerelease) {
+                return VersionSegment::Invalid("schema URI version has invalid prerelease metadata");
+            }
+            (core, Some(pre.to_owned()))
+        }
         None => (without_build, None),
     };
     let parts: Option<Vec<u64>> =
         numeric.split('.').map(parse_version_number).collect();
-    let parts = parts?;
+    let Some(parts) = parts else {
+        return VersionSegment::Invalid("schema URI version has invalid numeric fields");
+    };
     match parts.as_slice() {
         // `/1` — MAJOR. A bare major never carries prerelease/build.
-        [major] if prerelease.is_none() && build.is_none() => Some((
+        [major] if prerelease.is_none() && build.is_none() => VersionSegment::Version(
             SchemaVersionConstraint::Major(*major),
             SchemaVersionMatchRule::Major,
-        )),
+        ),
         // `/1.2` — MAJOR.MINOR.
-        [major, minor] if prerelease.is_none() && build.is_none() => Some((
+        [major, minor] if prerelease.is_none() && build.is_none() => VersionSegment::Version(
             SchemaVersionConstraint::MajorMinor(*major, *minor),
             SchemaVersionMatchRule::MajorMinor,
-        )),
+        ),
+        [_] | [_, _] => VersionSegment::Invalid(
+            "schema URI partial version cannot include prerelease or build metadata",
+        ),
         // `/1.2.3`, `/1.2.3-rc.1`, `/1.2.3+sha.abc` — full SemVer.
         [major, minor, patch] => {
             let match_rule = if prerelease.is_some() {
@@ -270,7 +390,7 @@ fn parse_version_segment(
             } else {
                 SchemaVersionMatchRule::Full
             };
-            Some((
+            VersionSegment::Version(
                 SchemaVersionConstraint::Full(SemVer {
                     major: *major,
                     minor: *minor,
@@ -279,10 +399,43 @@ fn parse_version_segment(
                     build,
                 }),
                 match_rule,
-            ))
+            )
         }
-        _ => None,
+        _ => VersionSegment::Invalid("schema URI version has too many numeric fields"),
     }
+}
+
+enum VersionSegment {
+    Version(SchemaVersionConstraint, SchemaVersionMatchRule),
+    NotVersion,
+    Invalid(&'static str),
+}
+
+#[derive(Clone, Copy)]
+enum IdentifierKind {
+    Prerelease,
+    Build,
+}
+
+fn validate_semver_identifiers(raw: &str, kind: IdentifierKind) -> bool {
+    if raw.is_empty() {
+        return false;
+    }
+    raw.split('.').all(|ident| validate_semver_identifier(ident, kind))
+}
+
+fn validate_semver_identifier(ident: &str, kind: IdentifierKind) -> bool {
+    if ident.is_empty() || !ident.bytes().all(|b| b.is_ascii_alphanumeric() || b == b'-') {
+        return false;
+    }
+    if matches!(kind, IdentifierKind::Prerelease)
+        && ident.len() > 1
+        && ident.bytes().all(|b| b.is_ascii_digit())
+        && ident.starts_with('0')
+    {
+        return false;
+    }
+    true
 }
 
 /// Parse one numeric SemVer field. Rejects leading zeros per SemVer
@@ -309,34 +462,67 @@ pub fn resolve_uri<'m>(
     declared_uri: &str,
     manifests: &'m [PublicationManifest],
 ) -> Result<(&'m PublicationManifest, UriResolution), EmitError> {
-    let uri_ref =
-        parse_schema_uri(declared_uri).ok_or_else(|| EmitError::UnresolvableUri {
-            uri: declared_uri.to_owned(),
-            reason: "not a well-known https://cem.dev/ns/ schema URI",
-        })?;
-    let winner = manifests
+    let uri_ref = parse_schema_uri_checked(declared_uri)?;
+    let candidates: Vec<&PublicationManifest> = manifests
         .iter()
         .filter(|m| {
             manifest_namespace_tail(m).as_deref()
                 == Some(uri_ref.namespace_tail.as_str())
         })
         .filter(|m| constraint_matches(&uri_ref.constraint, &m.embedded_version))
-        .max_by(|a, b| cmp_precedence(&a.embedded_version, &b.embedded_version));
-    match winner {
-        Some(manifest) => Ok((
-            manifest,
-            UriResolution {
-                declared_uri: declared_uri.to_owned(),
-                schema_uri: manifest.schema_uri.clone(),
-                embedded_version: manifest.embedded_version.clone(),
-                match_rule: uri_ref.match_rule,
-            },
-        )),
-        None => Err(EmitError::UnresolvableUri {
-            uri: declared_uri.to_owned(),
-            reason: "no published embedded version satisfies the URI",
-        }),
+        .collect();
+    let winner = select_winning_manifest(declared_uri, &uri_ref.constraint, candidates)?;
+    Ok((
+        winner,
+        UriResolution {
+            declared_uri: declared_uri.to_owned(),
+            schema_uri: winner.schema_uri.clone(),
+            embedded_version: winner.embedded_version.clone(),
+            match_rule: uri_ref.match_rule,
+        },
+    ))
+}
+
+fn select_winning_manifest<'m>(
+    declared_uri: &str,
+    constraint: &SchemaVersionConstraint,
+    candidates: Vec<&'m PublicationManifest>,
+) -> Result<&'m PublicationManifest, EmitError> {
+    let Some(max_version) = candidates
+        .iter()
+        .map(|m| m.embedded_version.clone())
+        .max_by(cmp_precedence)
+    else {
+        return Err(unresolvable_uri(
+            declared_uri,
+            "no published embedded version satisfies the URI",
+        ));
+    };
+    let highest: Vec<&PublicationManifest> = candidates
+        .into_iter()
+        .filter(|m| cmp_precedence(&m.embedded_version, &max_version) == Ordering::Equal)
+        .collect();
+    if uri_build_is_explicit(constraint) {
+        return Ok(highest[0]);
     }
+    if let Some(unbuilt) = highest.iter().copied().find(|m| m.embedded_version.build.is_none()) {
+        return Ok(unbuilt);
+    }
+    let first_build = highest[0].embedded_version.build.as_deref();
+    let distinct_builds = highest
+        .iter()
+        .any(|m| m.embedded_version.build.as_deref() != first_build);
+    if distinct_builds {
+        return Err(unresolvable_uri(
+            declared_uri,
+            "multiple build metadata variants satisfy the URI; name +build explicitly",
+        ));
+    }
+    Ok(highest[0])
+}
+
+fn uri_build_is_explicit(constraint: &SchemaVersionConstraint) -> bool {
+    matches!(constraint, SchemaVersionConstraint::Full(version) if version.build.is_some())
 }
 
 fn manifest_namespace_tail(manifest: &PublicationManifest) -> Option<String> {
@@ -466,6 +652,16 @@ mod tests {
         }
     }
 
+    fn with_build(major: u64, minor: u64, patch: u64, build: &str) -> SemVer {
+        SemVer {
+            major,
+            minor,
+            patch,
+            prerelease: None,
+            build: Some(build.to_owned()),
+        }
+    }
+
     fn manifest_for(schema_uri: &str, version: SemVer) -> PublicationManifest {
         PublicationManifest {
             schema_uri: schema_uri.to_owned(),
@@ -510,6 +706,13 @@ mod tests {
             SchemaVersionConstraint::Full(prerelease(1, 2, 3, "rc.1"))
         );
         assert_eq!(pre.match_rule, SchemaVersionMatchRule::PrereleaseExact);
+
+        let build = parse_schema_uri("https://cem.dev/ns/core/1.2.3+sha.abc").unwrap();
+        assert_eq!(
+            build.constraint,
+            SchemaVersionConstraint::Full(with_build(1, 2, 3, "sha.abc"))
+        );
+        assert_eq!(build.match_rule, SchemaVersionMatchRule::Full);
     }
 
     #[test]
@@ -525,6 +728,33 @@ mod tests {
         assert!(parse_schema_uri("https://example.com/ns/core").is_none());
         assert!(parse_schema_uri("https://cem.dev/ns/").is_none());
         assert!(parse_schema_uri("https://cem.dev/ns/1").is_none());
+        assert!(parse_schema_uri("https://cem.dev/ns/core//1").is_none());
+        assert!(parse_schema_uri("https://cem.dev/ns/core/../1").is_none());
+    }
+
+    #[test]
+    fn parse_schema_uri_rejects_malformed_version_tails() {
+        for uri in [
+            "https://cem.dev/ns/core/01",
+            "https://cem.dev/ns/core/1.02",
+            "https://cem.dev/ns/core/1.2.03",
+            "https://cem.dev/ns/core/1.2.3-",
+            "https://cem.dev/ns/core/1.2.3+",
+            "https://cem.dev/ns/core/1.2.3-rc..1",
+            "https://cem.dev/ns/core/1.2.3-01",
+            "https://cem.dev/ns/core/1.2.3+sha+extra",
+            "https://cem.dev/ns/core/1.2.3+bad/extra",
+        ] {
+            assert!(parse_schema_uri(uri).is_none(), "{uri} should be rejected");
+        }
+    }
+
+    #[test]
+    fn artifact_relative_path_is_path_safe_for_nested_namespaces() {
+        let mut schema = CompiledSchema::cem_core();
+        schema.version_identity.uri = "https://cem.dev/ns/ui/core/1.2.3".to_owned();
+        let path = artifact_relative_path(&schema, ArtifactKind::RelaxNgCompact).unwrap();
+        assert_eq!(path, "ui/core/1.0.0/cem-ui-core.rnc");
     }
 
     #[test]

@@ -1156,7 +1156,7 @@ captures the exit code; its stub crate skeleton lives under
   "dependsOn": ["build:docs"],
   "cache": true,
   "options": {
-    "command": "cargo run --release --bin cem-ml-schema-emit --target-dir ../../dist/target/cem_ml -- --out packages/cem_ml/dist/lib/schema",
+    "command": "cargo run --package cem-ml --bin cem-ml-schema-emit --target-dir dist/target/cem_ml -- --out packages/cem_ml/dist/lib/schema",
     "cwd": "{workspaceRoot}"
   },
   "inputs": [
@@ -1180,8 +1180,10 @@ between `lint` and `test`:
 5. nx run cem_ml:bench
 ```
 
-`build:schema-artifacts` MUST run before `test` so the schema-loader and
-URI-resolution tests find the on-disk manifest.
+`build:schema-artifacts` produces the on-disk publication tree used by
+release packaging. The current URI-resolution fixture drives
+`write_to_disk` directly in a temp directory; once `cem_ml::loader`
+lands, loader fixtures should consume this target's manifest output.
 
 ### 3.5 Report Event Model (`cem_ml::report`)
 

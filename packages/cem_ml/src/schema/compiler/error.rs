@@ -23,6 +23,9 @@ pub enum EmitError {
     /// `https://cem.dev/ns/` scheme, or no published embedded version
     /// satisfies its version-tail constraint (AC-S-5 / AC-V-10).
     UnresolvableUri { uri: String, reason: &'static str },
+    /// An artifact relative path would escape the publication root or
+    /// otherwise violate the stable publication-tree path grammar.
+    InvalidArtifactPath { path: String, reason: &'static str },
 }
 
 impl fmt::Display for EmitError {
@@ -42,6 +45,10 @@ impl fmt::Display for EmitError {
             EmitError::UnresolvableUri { uri, reason } => write!(
                 f,
                 "schema emitter: cannot resolve schema URI `{uri}` ({reason})"
+            ),
+            EmitError::InvalidArtifactPath { path, reason } => write!(
+                f,
+                "schema emitter: invalid artifact path `{path}` ({reason})"
             ),
         }
     }
