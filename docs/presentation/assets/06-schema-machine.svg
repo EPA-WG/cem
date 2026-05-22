@@ -1,0 +1,47 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1200" height="300" viewBox="0 0 1200 300" font-family="'Segoe UI',system-ui,-apple-system,sans-serif">
+  <defs>
+    <marker id="ar" markerWidth="10" markerHeight="10" refX="7.5" refY="4" orient="auto" markerUnits="userSpaceOnUse">
+      <path d="M0,0 L9,4 L0,8 Z" fill="#475569"/>
+    </marker>
+  </defs>
+  <rect width="1200" height="300" fill="#f8fafc"/>
+  <rect x="0.5" y="0.5" width="1199" height="299" fill="none" stroke="#e2e8f0"/>
+  <rect x="28" y="26" width="32" height="25" rx="5" fill="#2563eb"/>
+  <text x="44" y="44" font-size="14" font-weight="700" fill="#ffffff" text-anchor="middle">06</text>
+  <text x="70" y="45" font-size="19" font-weight="700" fill="#0f172a">Schema Machine</text>
+  <text x="252" y="45" font-size="13" fill="#64748b">— Layer 4: events validated against the compiled schema</text>
+
+  <!-- CompiledSchema (top, the rulebook) -->
+  <rect x="378" y="66" width="444" height="42" rx="8" fill="#7c3aed"/>
+  <text x="600" y="92" font-size="13" font-weight="700" fill="#ffffff" text-anchor="middle">CompiledSchema — structural validation IR</text>
+  <line x1="600" y1="108" x2="600" y2="128" stroke="#475569" stroke-width="2.5" marker-end="url(#ar)"/>
+
+  <!-- input -->
+  <rect x="44" y="146" width="168" height="88" rx="9" fill="#dbeafe"/>
+  <text x="128" y="183" font-size="13" font-weight="700" fill="#1e3a5f" text-anchor="middle">Normalized</text>
+  <text x="128" y="201" font-size="13" font-weight="700" fill="#1e3a5f" text-anchor="middle">events</text>
+  <text x="128" y="220" font-size="10.5" fill="#475569" text-anchor="middle">from Layer 3</text>
+  <line x1="212" y1="190" x2="424" y2="190" stroke="#475569" stroke-width="2.5" marker-end="url(#ar)"/>
+
+  <!-- machine -->
+  <rect x="432" y="132" width="336" height="118" rx="10" fill="#1e3a5f"/>
+  <text x="456" y="160" font-size="15" font-weight="700" fill="#ffffff">SchemaMachine</text>
+  <text x="640" y="160" font-size="11" fill="#94a3b8" font-family="ui-monospace,monospace">cem_ml::schema</text>
+  <text x="456" y="186" font-size="12" fill="#cbd5e1">· schema-frame stack (validation context)</text>
+  <text x="456" y="208" font-size="12" fill="#cbd5e1">· namespace resolution for tags &amp; attributes</text>
+  <text x="456" y="230" font-size="12" fill="#cbd5e1">· CEM vocabulary &amp; open-content policy</text>
+
+  <!-- outputs -->
+  <path d="M768 168 C 800 168, 808 150, 840 150" fill="none" stroke="#475569" stroke-width="2.5" marker-end="url(#ar)"/>
+  <path d="M768 214 C 800 214, 808 232, 840 232" fill="none" stroke="#475569" stroke-width="2.5" marker-end="url(#ar)"/>
+  <rect x="850" y="124" width="300" height="52" rx="9" fill="#dcfce7"/>
+  <rect x="850" y="124" width="5" height="52" fill="#16a34a"/>
+  <text x="868" y="148" font-size="13" font-weight="700" fill="#14532d">Validated AST frames</text>
+  <text x="868" y="166" font-size="11" fill="#475569">typed, schema-checked structure</text>
+  <rect x="850" y="206" width="300" height="52" rx="9" fill="#fef3c7"/>
+  <rect x="850" y="206" width="5" height="52" fill="#d97706"/>
+  <text x="868" y="230" font-size="13" font-weight="700" fill="#78350f">Diagnostics</text>
+  <text x="868" y="248" font-size="11" fill="#475569">into the AST-associated report tree</text>
+
+  <text x="600" y="282" font-size="11.5" fill="#94a3b8" text-anchor="middle" font-style="italic">The machine streams: it never materializes the whole document before validating.</text>
+</svg>

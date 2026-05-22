@@ -1,0 +1,68 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1200" height="300" viewBox="0 0 1200 300" font-family="'Segoe UI',system-ui,-apple-system,sans-serif">
+  <defs>
+    <marker id="ar" markerWidth="9" markerHeight="9" refX="6.5" refY="3.5" orient="auto" markerUnits="userSpaceOnUse">
+      <path d="M0,0 L8,3.5 L0,7 Z" fill="#475569"/>
+    </marker>
+  </defs>
+  <rect width="1200" height="300" fill="#f8fafc"/>
+  <rect x="0.5" y="0.5" width="1199" height="299" fill="none" stroke="#e2e8f0"/>
+  <rect x="28" y="26" width="32" height="25" rx="5" fill="#2563eb"/>
+  <text x="44" y="44" font-size="14" font-weight="700" fill="#ffffff" text-anchor="middle">09</text>
+  <text x="70" y="45" font-size="19" font-weight="700" fill="#0f172a">Schema Artifacts</text>
+  <text x="252" y="45" font-size="13" fill="#64748b">— one IR, five byte-stable release outputs</text>
+
+  <!-- CompiledSchema source -->
+  <rect x="40" y="122" width="158" height="80" rx="10" fill="#1e3a5f"/>
+  <text x="119" y="156" font-size="13" font-weight="700" fill="#ffffff" text-anchor="middle">CompiledSchema</text>
+  <text x="119" y="176" font-size="10.5" fill="#94a3b8" text-anchor="middle">validation IR</text>
+
+  <!-- emitters -->
+  <g font-size="11.5">
+    <rect x="244" y="70" width="296" height="30" rx="6" fill="#dbeafe"/>
+    <text x="258" y="89" font-weight="700" fill="#1e3a5f">rng_xml</text>
+    <text x="420" y="89" fill="#475569" font-family="ui-monospace,monospace">cem-core.rng</text>
+    <rect x="244" y="108" width="296" height="30" rx="6" fill="#dbeafe"/>
+    <text x="258" y="127" font-weight="700" fill="#1e3a5f">rng_compact</text>
+    <text x="420" y="127" fill="#475569" font-family="ui-monospace,monospace">cem-core.rnc</text>
+    <rect x="244" y="146" width="296" height="30" rx="6" fill="#dbeafe"/>
+    <text x="258" y="165" font-weight="700" fill="#1e3a5f">ts_dts</text>
+    <text x="420" y="165" fill="#475569" font-family="ui-monospace,monospace">cem-core.d.ts</text>
+    <rect x="244" y="184" width="296" height="30" rx="6" fill="#dbeafe"/>
+    <text x="258" y="203" font-weight="700" fill="#1e3a5f">rust_hdr</text>
+    <text x="420" y="203" fill="#475569" font-family="ui-monospace,monospace">cem-core.rs</text>
+    <rect x="244" y="222" width="296" height="30" rx="6" fill="#ede9fe"/>
+    <text x="258" y="241" font-weight="700" fill="#4c1d95">uri_publish</text>
+    <text x="420" y="241" fill="#6d28d9" font-family="ui-monospace,monospace">manifest.json</text>
+  </g>
+
+  <!-- fan arrows from CompiledSchema to each emitter -->
+  <path d="M198 150 C 218 150, 220 85 , 240 85"  fill="none" stroke="#475569" stroke-width="1.8" marker-end="url(#ar)"/>
+  <path d="M198 156 C 218 156, 220 123, 240 123" fill="none" stroke="#475569" stroke-width="1.8" marker-end="url(#ar)"/>
+  <path d="M198 162 L 240 161" fill="none" stroke="#475569" stroke-width="1.8" marker-end="url(#ar)"/>
+  <path d="M198 168 C 218 168, 220 199, 240 199" fill="none" stroke="#475569" stroke-width="1.8" marker-end="url(#ar)"/>
+  <path d="M198 174 C 218 174, 220 237, 240 237" fill="none" stroke="#475569" stroke-width="1.8" marker-end="url(#ar)"/>
+
+  <line x1="540" y1="161" x2="598" y2="161" stroke="#475569" stroke-width="2.5" marker-end="url(#ar)"/>
+
+  <!-- publication tree -->
+  <rect x="608" y="64" width="552" height="196" rx="10" fill="#ffffff" stroke="#cbd5e1"/>
+  <rect x="608" y="64" width="552" height="30" rx="10" fill="#1e3a5f"/>
+  <rect x="608" y="80" width="552" height="14" fill="#1e3a5f"/>
+  <text x="626" y="84" font-size="11.5" font-weight="700" fill="#ffffff" font-family="ui-monospace,monospace">dist/lib/schema/core/1.0.0/</text>
+  <g font-size="11.5" font-family="ui-monospace,monospace">
+    <text x="640" y="118" fill="#0f172a">cem-core.rng</text>
+    <text x="640" y="142" fill="#0f172a">cem-core.rnc</text>
+    <text x="640" y="166" fill="#0f172a">cem-core.d.ts</text>
+    <text x="640" y="190" fill="#0f172a">cem-core.rs</text>
+    <rect x="624" y="204" width="520" height="26" rx="5" fill="#ede9fe"/>
+    <text x="640" y="221" fill="#4c1d95" font-weight="700">manifest.json</text>
+    <text x="980" y="118" fill="#94a3b8">+ .rng.hash</text>
+    <text x="980" y="142" fill="#94a3b8">+ .rnc.hash</text>
+    <text x="980" y="166" fill="#94a3b8">+ .d.ts.hash</text>
+    <text x="980" y="190" fill="#94a3b8">+ .rs.hash</text>
+    <text x="980" y="221" fill="#6d28d9">+ manifest.json.hash</text>
+  </g>
+  <text x="884" y="250" font-size="10.5" fill="#64748b" text-anchor="middle">blake3 .hash sidecar beside every artifact</text>
+
+  <text x="600" y="282" font-size="11.5" fill="#94a3b8" text-anchor="middle" font-style="italic">Deterministic, byte-stable output — published under a stable URI so document namespace declarations resolve (AC-S-5).</text>
+</svg>

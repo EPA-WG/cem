@@ -1,0 +1,62 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1200" height="300" viewBox="0 0 1200 300" font-family="'Segoe UI',system-ui,-apple-system,sans-serif">
+  <defs>
+    <marker id="ar" markerWidth="10" markerHeight="10" refX="7.5" refY="4" orient="auto" markerUnits="userSpaceOnUse">
+      <path d="M0,0 L9,4 L0,8 Z" fill="#475569"/>
+    </marker>
+  </defs>
+  <rect width="1200" height="300" fill="#f8fafc"/>
+  <rect x="0.5" y="0.5" width="1199" height="299" fill="none" stroke="#e2e8f0"/>
+  <rect x="28" y="26" width="32" height="25" rx="5" fill="#2563eb"/>
+  <text x="44" y="44" font-size="14" font-weight="700" fill="#ffffff" text-anchor="middle">10</text>
+  <text x="70" y="45" font-size="19" font-weight="700" fill="#0f172a">The CLI</text>
+  <text x="156" y="45" font-size="13" fill="#64748b">— cem-ml: the schema stack as a command-line tool</text>
+
+  <!-- input -->
+  <rect x="40" y="116" width="166" height="84" rx="9" fill="#f1f5f9" stroke="#cbd5e1"/>
+  <text x="123" y="150" font-size="13" font-weight="700" fill="#0f172a" text-anchor="middle">Input documents</text>
+  <text x="123" y="172" font-size="11" fill="#64748b" text-anchor="middle">.cem · .xml · .html</text>
+  <text x="123" y="188" font-size="10" fill="#94a3b8" text-anchor="middle">CEM-native is default</text>
+  <line x1="206" y1="158" x2="252" y2="158" stroke="#475569" stroke-width="2.5" marker-end="url(#ar)"/>
+
+  <!-- cem-ml CLI box -->
+  <rect x="262" y="66" width="430" height="184" rx="11" fill="#1e3a5f"/>
+  <text x="286" y="98" font-size="16" font-weight="700" fill="#ffffff" font-family="ui-monospace,monospace">cem-ml</text>
+  <text x="360" y="98" font-size="11" fill="#94a3b8">binary of @epa-wg/cem-ml-cli</text>
+  <g font-size="11.5" font-weight="700">
+    <rect x="284" y="116" width="92" height="30" rx="6" fill="#2563eb"/>
+    <text x="330" y="135" fill="#ffffff" text-anchor="middle">parse</text>
+    <rect x="384" y="116" width="92" height="30" rx="6" fill="#2563eb"/>
+    <text x="430" y="135" fill="#ffffff" text-anchor="middle">validate</text>
+    <rect x="484" y="116" width="92" height="30" rx="6" fill="#2563eb"/>
+    <text x="530" y="135" fill="#ffffff" text-anchor="middle">inspect</text>
+    <rect x="584" y="116" width="92" height="30" rx="6" fill="#2563eb"/>
+    <text x="630" y="135" fill="#ffffff" text-anchor="middle">convert</text>
+    <rect x="284" y="154" width="92" height="30" rx="6" fill="#2563eb"/>
+    <text x="330" y="173" fill="#ffffff" text-anchor="middle">trace</text>
+    <rect x="384" y="154" width="92" height="30" rx="6" fill="#2563eb"/>
+    <text x="430" y="173" fill="#ffffff" text-anchor="middle">bench</text>
+    <rect x="484" y="154" width="192" height="30" rx="6" fill="#2563eb"/>
+    <text x="580" y="173" fill="#ffffff" text-anchor="middle">validate-fixtures</text>
+  </g>
+  <text x="477" y="214" font-size="11" fill="#cbd5e1" text-anchor="middle">fail levels:  parse  /  validate  /  strict</text>
+  <text x="477" y="232" font-size="11" fill="#94a3b8" text-anchor="middle">transform · schema · plugin commands reserved</text>
+
+  <line x1="692" y1="158" x2="738" y2="158" stroke="#475569" stroke-width="2.5" marker-end="url(#ar)"/>
+
+  <!-- outputs -->
+  <rect x="748" y="80" width="412" height="50" rx="9" fill="#dbeafe"/>
+  <rect x="748" y="80" width="5" height="50" fill="#2563eb"/>
+  <text x="768" y="100" font-size="12.5" font-weight="700" fill="#1e3a5f">Reports</text>
+  <text x="768" y="119" font-size="10.5" fill="#475569">JSON · Markdown · text — from the AST report tree</text>
+
+  <rect x="748" y="138" width="412" height="56" rx="9" fill="#fef3c7"/>
+  <rect x="748" y="138" width="5" height="56" fill="#d97706"/>
+  <text x="768" y="159" font-size="12.5" font-weight="700" fill="#78350f">Diagnostics</text>
+  <text x="768" y="178" font-size="9.5" fill="#475569" font-family="ui-monospace,monospace">{uri,line,column,byteOffset,code,severity,message}</text>
+
+  <rect x="748" y="202" width="412" height="50" rx="9" fill="#f1f5f9" stroke="#cbd5e1"/>
+  <text x="768" y="222" font-size="12.5" font-weight="700" fill="#0f172a">Exit codes</text>
+  <text x="768" y="241" font-size="10.5" fill="#475569">0 success · 1 fail · 2 usage · 6 I/O · others reserved</text>
+
+  <text x="600" y="280" font-size="11.5" fill="#94a3b8" text-anchor="middle" font-style="italic">Deterministic text or JSON output makes every command CI-friendly.</text>
+</svg>

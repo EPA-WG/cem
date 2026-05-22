@@ -1,0 +1,54 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1200" height="300" viewBox="0 0 1200 300" font-family="'Segoe UI',system-ui,-apple-system,sans-serif">
+  <defs>
+    <marker id="ar" markerWidth="10" markerHeight="10" refX="7.5" refY="4" orient="auto" markerUnits="userSpaceOnUse">
+      <path d="M0,0 L9,4 L0,8 Z" fill="#475569"/>
+    </marker>
+  </defs>
+  <rect width="1200" height="300" fill="#f8fafc"/>
+  <rect x="0.5" y="0.5" width="1199" height="299" fill="none" stroke="#e2e8f0"/>
+  <rect x="28" y="26" width="32" height="25" rx="5" fill="#2563eb"/>
+  <text x="44" y="44" font-size="14" font-weight="700" fill="#ffffff" text-anchor="middle">05</text>
+  <text x="70" y="45" font-size="19" font-weight="700" fill="#0f172a">Parsing Pipeline</text>
+  <text x="262" y="45" font-size="13" fill="#64748b">— Layers 1-3: bytes become a normalized event stream</text>
+
+  <!-- box 1: input -->
+  <rect x="60" y="96" width="184" height="86" rx="9" fill="#f1f5f9" stroke="#cbd5e1"/>
+  <text x="152" y="132" font-size="13" font-weight="700" fill="#0f172a" text-anchor="middle">Source bytes</text>
+  <text x="152" y="154" font-size="11" fill="#64748b" text-anchor="middle">.cem · .xml · .html</text>
+
+  <!-- box 2: L1 -->
+  <rect x="284" y="96" width="184" height="86" rx="9" fill="#1e3a5f"/>
+  <text x="376" y="121" font-size="10" font-weight="700" fill="#7dd3fc" text-anchor="middle">LAYER 1</text>
+  <text x="376" y="142" font-size="13" font-weight="700" fill="#ffffff" text-anchor="middle">ByteSource &amp;</text>
+  <text x="376" y="158" font-size="13" font-weight="700" fill="#ffffff" text-anchor="middle">EncodingDecoder</text>
+  <text x="376" y="174" font-size="10" fill="#94a3b8" text-anchor="middle" font-family="ui-monospace,monospace">cem_ml::source</text>
+
+  <!-- box 3: L2 -->
+  <rect x="508" y="96" width="184" height="86" rx="9" fill="#1e3a5f"/>
+  <text x="600" y="121" font-size="10" font-weight="700" fill="#7dd3fc" text-anchor="middle">LAYER 2</text>
+  <text x="600" y="148" font-size="13" font-weight="700" fill="#ffffff" text-anchor="middle">SchemaTokenizer</text>
+  <text x="600" y="174" font-size="10" fill="#94a3b8" text-anchor="middle" font-family="ui-monospace,monospace">cem_ml::tokenizer</text>
+
+  <!-- box 4: L3 -->
+  <rect x="732" y="96" width="184" height="86" rx="9" fill="#1e3a5f"/>
+  <text x="824" y="121" font-size="10" font-weight="700" fill="#7dd3fc" text-anchor="middle">LAYER 3</text>
+  <text x="824" y="148" font-size="13" font-weight="700" fill="#ffffff" text-anchor="middle">EventNormalizer</text>
+  <text x="824" y="174" font-size="10" fill="#94a3b8" text-anchor="middle" font-family="ui-monospace,monospace">cem_ml::events</text>
+
+  <!-- box 5: L4 teaser -->
+  <rect x="956" y="96" width="184" height="86" rx="9" fill="#7c3aed"/>
+  <text x="1048" y="121" font-size="10" font-weight="700" fill="#ddd6fe" text-anchor="middle">LAYER 4</text>
+  <text x="1048" y="148" font-size="13" font-weight="700" fill="#ffffff" text-anchor="middle">Schema Machine</text>
+  <text x="1048" y="174" font-size="10" fill="#ddd6fe" text-anchor="middle">see section 6</text>
+
+  <!-- arrows -->
+  <line x1="244" y1="139" x2="276" y2="139" stroke="#475569" stroke-width="2.5" marker-end="url(#ar)"/>
+  <line x1="468" y1="139" x2="500" y2="139" stroke="#475569" stroke-width="2.5" marker-end="url(#ar)"/>
+  <line x1="692" y1="139" x2="724" y2="139" stroke="#475569" stroke-width="2.5" marker-end="url(#ar)"/>
+  <line x1="916" y1="139" x2="948" y2="139" stroke="#475569" stroke-width="2.5" marker-end="url(#ar)"/>
+
+  <!-- source-map rail -->
+  <rect x="60" y="216" width="1080" height="40" rx="8" fill="#eef2ff" stroke="#c7d2fe"/>
+  <text x="600" y="241" font-size="12.5" fill="#3730a3" text-anchor="middle">Byte offsets are ground truth — a source-map stack threads through every layer (line / column are derived).</text>
+  <text x="600" y="282" font-size="11.5" fill="#94a3b8" text-anchor="middle" font-style="italic">Downstream: Layer 5 embedded-content handoff, Layer 6 AST builder, Layer 9 interpreter.</text>
+</svg>
