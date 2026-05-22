@@ -14,14 +14,20 @@ pub mod rng_compact;
 pub mod rng_xml;
 pub mod rust_hdr;
 pub mod ts_dts;
+pub mod uri_publish;
 
 use std::collections::BTreeMap;
+use std::fs;
+use std::path::{Path, PathBuf};
 
 pub use emitter::{EmissionCursor, SchemaEmitter};
 pub use error::EmitError;
 pub use output::{
     ArtifactDescriptor, ArtifactKind, CompilerOutput, ContentHash, EmittedArtifact, EmitterTag,
     PublicationManifest, ValidatorTag,
+};
+pub use uri_publish::{
+    match_rule_label, parse_schema_uri, resolve_uri, SchemaUriRef, UriResolution,
 };
 
 use crate::schema::ir::CompiledSchema;
@@ -117,14 +123,18 @@ impl SchemaCompiler {
             artifacts.push(artifact);
         }
 
-        // uri_publish.rs lands in the next emitter PR.
-
         let manifest = PublicationManifest {
             schema_uri: schema.version_identity.uri.clone(),
             embedded_version: schema.version_identity.embedded_version.clone(),
             hash_scheme: ContentHash::SCHEME,
             artifacts: manifest_artifacts,
         };
+
+        // The manifest records every content artifact's hash, so it is
+        // built last and pushed as the final artifact; `write_to_disk`
+        // relies on that ordering (AC-S-5; §13.2.6 step 2).
+        let manifest_artifact = uri_publish::emit_manifest_artifact(schema, &manifest)?;
+        artifacts.push(manifest_artifact);
 
         Ok(CompilerOutput {
             schema_id: schema.schema_id,
@@ -136,18 +146,60 @@ impl SchemaCompiler {
         })
     }
 
-    /// Write a previously-emitted output tree to disk. Stub for the
-    /// URI publication PR; the rng emitter PR exercises emit_all only
-    /// (in-memory). Returns `Ok(())` for a no-op write so callers can
-    /// integrate progressively.
-    pub fn write_to_disk(
-        _output: &CompilerOutput,
-        _root_dir: &std::path::Path,
-    ) -> Result<(), EmitError> {
-        // The `uri_publish.rs` emitter PR fills this in (AC-S-5,
-        // manifest + sidecars + TempThenRename adapter per §3.4.2.5).
+    /// Write an emitted output tree to disk under `root_dir`
+    /// (`packages/cem_ml/dist/lib/schema/`). Every content artifact and
+    /// its `.hash` sidecar is written first; the manifest and its
+    /// sidecar are written last, so a crash mid-publish leaves the
+    /// previous manifest pointing at intact files (AC-S-5; §13.2.6
+    /// step 2). Each file goes through a temp-then-rename so a partial
+    /// write never leaves a truncated artifact (§3.4.2.5).
+    ///
+    /// `root_dir` is a build-output tree: `write_to_disk` overwrites
+    /// freely. Treating a *published* version as immutable is release
+    /// tooling's job (§13.2.6 step 5), not this writer's.
+    pub fn write_to_disk(output: &CompilerOutput, root_dir: &Path) -> Result<(), EmitError> {
+        for artifact in &output.artifacts {
+            if artifact.kind != ArtifactKind::Manifest {
+                write_artifact(root_dir, artifact)?;
+            }
+        }
+        for artifact in &output.artifacts {
+            if artifact.kind == ArtifactKind::Manifest {
+                write_artifact(root_dir, artifact)?;
+            }
+        }
         Ok(())
     }
+}
+
+/// Write one artifact plus its `.hash` sidecar under `root_dir`.
+fn write_artifact(root_dir: &Path, artifact: &EmittedArtifact) -> Result<(), EmitError> {
+    let target = root_dir.join(&artifact.relative_path);
+    if let Some(parent) = target.parent() {
+        fs::create_dir_all(parent)?;
+    }
+    write_atomic(&target, &artifact.bytes)?;
+    let sidecar = append_extension(&target, "hash");
+    write_atomic(&sidecar, artifact.content_hash.to_sidecar_string().as_bytes())?;
+    Ok(())
+}
+
+/// Write `bytes` to `target` through a sibling temp file + rename, so a
+/// partial write never leaves a truncated file in place (§3.4.2.5).
+fn write_atomic(target: &Path, bytes: &[u8]) -> Result<(), EmitError> {
+    let tmp = append_extension(target, "tmp");
+    fs::write(&tmp, bytes)?;
+    fs::rename(&tmp, target)?;
+    Ok(())
+}
+
+/// Append `.{suffix}` to a path without disturbing its existing
+/// extension — `cem-core.rng` + `hash` → `cem-core.rng.hash`.
+fn append_extension(path: &Path, suffix: &str) -> PathBuf {
+    let mut name = path.as_os_str().to_owned();
+    name.push(".");
+    name.push(suffix);
+    PathBuf::from(name)
 }
 
 fn register_manifest(
@@ -186,22 +238,34 @@ mod tests {
     }
 
     #[test]
-    fn emit_all_produces_three_artifacts_with_defaults() {
+    fn emit_all_produces_three_content_artifacts_plus_manifest() {
         let schema = CompiledSchema::cem_core();
         let output = SchemaCompiler::emit_all(&schema, &CompilerOptions::default()).unwrap();
-        assert_eq!(output.artifacts.len(), 3);
+        assert_eq!(output.artifacts.len(), 4);
         for kind in [
             ArtifactKind::RelaxNgXml,
             ArtifactKind::RelaxNgCompact,
             ArtifactKind::TypeScriptDts,
+            ArtifactKind::Manifest,
         ] {
             assert!(
                 output.artifacts.iter().any(|a| a.kind == kind),
                 "default emit_all missing artifact: {kind:?}"
             );
         }
+        // The manifest is the final artifact (written last on disk).
+        assert_eq!(
+            output.artifacts.last().map(|a| a.kind),
+            Some(ArtifactKind::Manifest)
+        );
         assert_eq!(output.manifest.hash_scheme, "cem-bin/1+blake3");
+        // The manifest describes the three content artifacts and never
+        // itself.
         assert_eq!(output.manifest.artifacts.len(), 3);
+        assert!(!output
+            .manifest
+            .artifacts
+            .contains_key(&ArtifactKind::Manifest));
     }
 
     #[test]
@@ -213,8 +277,11 @@ mod tests {
             ..Default::default()
         };
         let output = SchemaCompiler::emit_all(&schema, &opts).unwrap();
-        assert_eq!(output.artifacts.len(), 1);
+        // One content artifact (rng_xml) plus the always-present manifest.
+        assert_eq!(output.artifacts.len(), 2);
         assert_eq!(output.artifacts[0].kind, ArtifactKind::RelaxNgXml);
+        assert_eq!(output.artifacts[1].kind, ArtifactKind::Manifest);
+        assert_eq!(output.manifest.artifacts.len(), 1);
     }
 
     #[test]
@@ -227,13 +294,13 @@ mod tests {
             .artifacts
             .contains_key(&ArtifactKind::TypeScriptDts));
 
-        // Explicit off — only RNG outputs remain.
+        // Explicit off — the two RNG mirrors and the manifest remain.
         let opts = CompilerOptions {
             emit_dts: false,
             ..Default::default()
         };
         let output = SchemaCompiler::emit_all(&schema, &opts).unwrap();
-        assert_eq!(output.artifacts.len(), 2);
+        assert_eq!(output.artifacts.len(), 3);
         assert!(!output
             .artifacts
             .iter()
@@ -270,28 +337,34 @@ mod tests {
     }
 
     #[test]
-    fn emit_rust_true_produces_four_artifacts() {
+    fn emit_rust_true_produces_four_content_artifacts_plus_manifest() {
         let schema = CompiledSchema::cem_core();
         let opts = CompilerOptions {
             emit_rust: true,
             ..Default::default()
         };
         let output = SchemaCompiler::emit_all(&schema, &opts).unwrap();
-        assert_eq!(output.artifacts.len(), 4);
+        assert_eq!(output.artifacts.len(), 5);
         for kind in [
             ArtifactKind::RelaxNgXml,
             ArtifactKind::RelaxNgCompact,
             ArtifactKind::TypeScriptDts,
             ArtifactKind::RustHeader,
+            ArtifactKind::Manifest,
         ] {
             assert!(
                 output.artifacts.iter().any(|a| a.kind == kind),
                 "emit_all with emit_rust=true missing artifact: {kind:?}"
             );
         }
+        assert_eq!(
+            output.artifacts.last().map(|a| a.kind),
+            Some(ArtifactKind::Manifest)
+        );
         let rust_desc = &output.manifest.artifacts[&ArtifactKind::RustHeader];
         assert_eq!(rust_desc.emitted_by.emitter_name, "rust_hdr");
         assert_eq!(rust_desc.relative_path, "core/1.0.0/cem-core.rs");
+        assert_eq!(output.manifest.artifacts.len(), 4);
     }
 
     #[test]

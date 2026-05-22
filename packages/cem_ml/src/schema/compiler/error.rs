@@ -18,6 +18,11 @@ pub enum EmitError {
     /// `DeterministicWriter` reject path: CR byte, trailing whitespace,
     /// or missing final newline detected at release time.
     NonDeterministicWrite { reason: &'static str },
+    /// A schema URI could not be resolved against the published
+    /// manifests — either it is outside the well-known
+    /// `https://cem.dev/ns/` scheme, or no published embedded version
+    /// satisfies its version-tail constraint (AC-S-5 / AC-V-10).
+    UnresolvableUri { uri: String, reason: &'static str },
 }
 
 impl fmt::Display for EmitError {
@@ -34,6 +39,10 @@ impl fmt::Display for EmitError {
             EmitError::NonDeterministicWrite { reason } => {
                 write!(f, "schema emitter: non-deterministic write rejected ({reason})")
             }
+            EmitError::UnresolvableUri { uri, reason } => write!(
+                f,
+                "schema emitter: cannot resolve schema URI `{uri}` ({reason})"
+            ),
         }
     }
 }

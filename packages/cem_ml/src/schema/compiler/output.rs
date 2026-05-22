@@ -56,6 +56,20 @@ impl ArtifactKind {
             ArtifactKind::Manifest => "json",
         }
     }
+
+    /// Stable kebab-case token used as the object key for this kind in
+    /// the `manifest.json` `artifacts` map (§13.2.11). The token is a
+    /// wire-format identity — never derive it from the enum name at
+    /// runtime, so a future variant rename cannot shift the manifest.
+    pub fn manifest_key(self) -> &'static str {
+        match self {
+            ArtifactKind::RelaxNgXml => "relaxng-xml",
+            ArtifactKind::RelaxNgCompact => "relaxng-compact",
+            ArtifactKind::TypeScriptDts => "typescript-dts",
+            ArtifactKind::RustHeader => "rust-header",
+            ArtifactKind::Manifest => "manifest",
+        }
+    }
 }
 
 #[derive(Debug, Clone)]

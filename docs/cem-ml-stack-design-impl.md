@@ -1101,12 +1101,22 @@ is enabled. `rustfmt --check` integration remains a Tier B hardening item;
 the Tier A byte-stability guard is the deterministic writer plus compile
 fixture.
 
-**`uri_publish.rs`** — orders artifact descriptors by
-`ArtifactKind` ordinal (the enum declaration order is the canonical
-write order), then serializes the manifest with a stable JSON writer
-(see `byte_stability.rs`). Hash sidecars are
-`{relative_path}.hash` files whose body is exactly
-`cem-bin/1+blake3:<hex>\n`.
+**`uri_publish.rs`** — serializes `PublicationManifest` to a byte-stable
+`manifest.json` through `DeterministicWriter` (encoding fixed by
+`cem-ml-stack-design.md` §13.2.11: §13.2.3 member order, `artifacts`
+keyed by `ArtifactKind` ordinal). `emit_manifest_artifact` returns the
+`Manifest`-kind `EmittedArtifact`; `SchemaCompiler::emit_all` appends it
+last so `write_to_disk` can write it after every content artifact. Hash
+sidecars are `{relative_path}.hash` files whose body is exactly
+`cem-bin/1+blake3:<hex>\n`. The module also carries the AC-S-5
+resolution surface: `parse_schema_uri` splits a well-known URI into its
+namespace tail + version-tail constraint, and `resolve_uri` matches a
+declared URI against a manifest set per AC-V-10 — excluding pre-releases
+from loose matches — returning a `UriResolution` (declared URI, schema
+URI, chosen embedded version, fired match rule) that carries everything
+an AC-V-13 `cem.v.semver_resolved` event needs. A document-loading
+`cem_ml::loader` is the eventual caller; until it exists, `resolve_uri`
+is the runnable AC-S-5 resolution surface.
 
 #### 3.4.2.5 Filesystem Writer
 

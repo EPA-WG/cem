@@ -104,11 +104,17 @@ pub fn relative_path(schema: &CompiledSchema, kind: ArtifactKind) -> Result<Stri
         .version_identity
         .embedded_version
         .to_canonical_string();
-    let stem = artifact_stem_from_tail(&tail);
-    Ok(format!(
-        "{tail}/{version}/{stem}.{ext}",
-        ext = kind.extension()
-    ))
+    // The manifest is always `manifest.json`; every other artifact is
+    // `<stem>.<ext>` (§13.2.5).
+    let file_name = match kind {
+        ArtifactKind::Manifest => "manifest.json".to_owned(),
+        _ => format!(
+            "{stem}.{ext}",
+            stem = artifact_stem_from_tail(&tail),
+            ext = kind.extension()
+        ),
+    };
+    Ok(format!("{tail}/{version}/{file_name}"))
 }
 
 /// Strip the well-known prefix and drop the trailing major-version

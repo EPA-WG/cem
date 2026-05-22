@@ -76,8 +76,25 @@ lacks compiler output detail, and the implementation has no emitter for any rele
       `.rs`, and spawns `cargo check --offline`; gated by `CEM_ML_EMIT_RUST=1` per OQ-SC-3 (skipped with `info`
       in Tier A CI; exercised locally — `cargo check` succeeds against the emitted module). Full
       `yarn nx run cem_ml:test` green.
-- [ ] Publish schemas under stable URIs (AC-S-5). Define the URI scheme, byte-stability fixture, and the publication
+- [x] Publish schemas under stable URIs (AC-S-5). Define the URI scheme, byte-stability fixture, and the publication
       workflow (manifest, version, hash sidecar).
+      **Closed (2026-05-21):** `packages/cem_ml/src/schema/compiler/uri_publish.rs` lands the AC-S-5 surface.
+      `emit_manifest_artifact` projects `PublicationManifest` into a byte-stable `manifest.json` through the shared
+      `DeterministicWriter` — encoding fixed by the new `cem-ml-stack-design.md` §13.2.11 (§13.2.3 wire order;
+      `artifacts` keyed by `ArtifactKind` ordinal in kebab-case; `content_hash` as `{scheme}:{hex}`); `emit_all`
+      appends it as the final artifact. `SchemaCompiler::write_to_disk` now writes the §13.2.5 tree — every artifact, a
+      `<path>.hash` sidecar (body `cem-bin/1+blake3:<hex>\n`), and `manifest.json` last — each through a
+      temp-then-rename adapter. `parse_schema_uri` / `resolve_uri` implement AC-V-10 URI-tail matching against
+      published manifests and return a `UriResolution` carrying the fired match rule for an AC-V-13
+      `cem.v.semver_resolved` event. Per the resolved semver decision (design §13.2.6; AC-V-10 unversioned bullet
+      clarified), pre-release embedded versions are excluded from `unconstrained` / `major` / `major-minor` / `full`
+      matches — reachable only through a `prerelease-exact` URI. Verification fixtures
+      `tests/schema_emit/byte_stability.rs` (AC-S-2 — emit twice, byte- and hash-identical across every artifact incl.
+      the manifest; LF/encoding invariants) and `tests/schema_emit/uri_manifest_resolution.rs` (AC-S-5 / AC-V-10 — the
+      full resolution table plus `write_to_disk` on-disk-tree and sidecar-digest checks), with 13 inline `uri_publish`
+      unit tests. `cem_ml::loader` — the document-loading caller named in §13.2.6 — does not exist yet; `resolve_uri`
+      is the runnable AC-S-5 resolution surface per impl §3.4.2.1. The last `cem-ac-design-revalidation.md` "Non-Match"
+      row is now resolved. `yarn nx run cem_ml:test` green (347 lib + 20 schema_emit).
 - [ ] Add `nx run cem_ml:build:schema-artifacts` Nx target that runs all four emitters and writes outputs under
       `packages/cem_ml/dist/lib/schema/`.
 

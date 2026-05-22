@@ -434,7 +434,10 @@ for the same document.
 
 - **AC-V-10 [A] MUST** define how URI-tail constraints match
   embedded versions during schema resolution:
-  - URI without version segment matches any embedded version.
+  - URI without version segment matches any embedded **stable**
+    version (pre-releases require an explicitly pre-release-named
+    URI — see the pre-release rule below — so an unversioned URI
+    never resolves to a pre-release).
   - URI ending in `MAJOR` matches any embedded `MAJOR.*.*`.
   - URI ending in `MAJOR.MINOR` matches any embedded
     `MAJOR.MINOR.*`.

@@ -6,10 +6,12 @@
 //! `tests/schema_emit/` and pins a specific AC.
 
 mod schema_emit {
+    pub mod byte_stability;
     pub mod rng_compact_roundtrip;
     pub mod rng_xml_parity;
     pub mod rust_hdr_compiles;
     pub mod ts_dts_structural;
     pub mod ts_dts_validated_brand;
     pub mod ts_fixture_support;
+    pub mod uri_manifest_resolution;
 }

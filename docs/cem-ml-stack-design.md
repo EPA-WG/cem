@@ -1577,6 +1577,25 @@ package; generated JS sibling; WASM shim — chose the third).
 5. Release tooling tags the bundle in CHANGELOG and pins the manifest hash
    in `Cargo.toml` metadata so a release reproduces the same artifacts.
 
+The `resolve_uri` helper in `uri_publish` is the in-crate AC-V-10
+matching surface (a document-loading `cem_ml::loader` consumes it).
+Resolution **excludes pre-release embedded versions** from
+`unconstrained`, `major`, `major-minor`, and non-pre-release `full`
+URIs: a pre-release is reachable only through a URI whose tail names it
+exactly (the `prerelease-exact` rule). This reconciles AC-V-10's two
+clauses — "a URI without a version segment matches any version" and
+"pre-releases satisfy a non-pre-release URI segment only when explicitly
+named" — in favour of the latter, matching npm range semantics and
+AC-V-10's stated "avoid surprising rc-into-stable matches" rationale.
+Among the candidates that satisfy the URI, resolution picks the highest
+embedded version by SemVer 2.0 §11 precedence.
+
+`SchemaCompiler::write_to_disk` writes into the `dist/lib/schema/`
+build-output tree and overwrites freely; each file lands through a
+temp-then-rename so a crash never exposes a truncated artifact. Treating
+a *published* version as immutable is release tooling's responsibility
+(step 5), not the writer's.
+
 #### 13.2.7 Verification Fixtures
 
 Verification fixtures land under `packages/cem_ml/tests/schema_emit/`. Each
@@ -1690,6 +1709,40 @@ replacement* of an existing path.
   fixture set; (c) compact-syntax parsing parity with Trang, removing the
   Java dependency from the compact round-trip. No deadline. Re-evaluate
   whenever a new crate appears.
+
+#### 13.2.11 Manifest JSON Encoding
+
+`uri_publish` serializes `PublicationManifest` to `manifest.json`
+through the same `DeterministicWriter` the text emitters use, so the
+manifest obeys every §13.2.4 rule (UTF-8, no BOM, LF, two-space indent,
+single trailing newline). The encoding is fixed so the manifest is
+itself byte-stable:
+
+- **Member order** is the §13.2.3 wire order: `schema_uri`,
+  `embedded_version`, `artifacts`, `hash_scheme`.
+- **`artifacts`** is a JSON object whose keys are stable kebab-case
+  tokens — `relaxng-xml`, `relaxng-compact`, `typescript-dts`,
+  `rust-header` — written in `ArtifactKind` ordinal order (the
+  `BTreeMap` traversal order). The token is a wire-format identity, never
+  derived from the Rust enum name at runtime, so a variant rename cannot
+  shift the manifest. The manifest never lists a `manifest` entry: it
+  does not describe itself.
+- Each artifact entry carries `relative_path`, `content_hash` (the
+  `{scheme}:{hex}` string — the `.hash` sidecar body minus its newline),
+  `byte_length`, `emitted_by` (`{crate_version, emitter_name}`), and
+  `validated_by` (`null` until a verification fixture records a
+  `ValidatorTag`).
+- **`emitted_by.crate_version`** is the one field that is not stable
+  across crate releases. The manifest is therefore byte-stable *for a
+  fixed crate version* — which is exactly what `byte_stability.rs`
+  verifies (a double emit in one process). The content artifacts
+  (`.rng`, `.rnc`, `.d.ts`, `.rs`) carry no crate version and are
+  byte-stable unconditionally; §13.2.6 step 5 pins the manifest hash per
+  release.
+- `manifest.json` gets a `manifest.json.hash` sidecar like every other
+  artifact. The manifest cannot embed its own hash (it would be
+  self-referential), which is why every per-artifact hash lives in a
+  sidecar (§13.2.4 rule 7).
 
 ---
 
