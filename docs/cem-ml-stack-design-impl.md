@@ -1724,9 +1724,9 @@ machine-readable form of the table above. The integration fixture
 `packages/cem_ml/tests/observability_byte_offset.rs` is the runnable
 verification surface for the AC-P-3 `byte_offset` projection rules.
 
-WASM-facing bindings (Item 1 of IMPL-FOLLOW-003) re-export the same payload
-shape through `cem_ml::api::wasm` so JS callers see exactly the wire-form table
-above, serialized to `JsValue` by the `wasm-bindgen` registration adapters.
+WASM-facing bindings re-export the same payload shape through
+`cem_ml::api::wasm` so JS callers see exactly the wire-form table above,
+serialized to `JsValue` by the `wasm-bindgen` registration adapters.
 
 ### 3.13 Gate Status
 
