@@ -43,14 +43,6 @@ on `Diagnostic`. What's missing is the cross-host public surface and projection 
 - [ ] Document the public observer payload schema in `cem-ml-stack-design-impl.md §3.12`; add JSON schema fixtures
       under `packages/cem_ml/schema/observability/`.
 
-### Tokenizer Lowering Test Coverage (AC-F-9, AC-P-1, AC-P-8, IMPL-FOLLOW-001A)
-
-Canonical curly tokenizer exists; concrete lowering coverage per the AC list is incomplete.
-
-- [ ] Add tokenizer-lowering tests for: `{name @attributes | content...}`, `$` expression nodes, anonymous typed
-      scopes, comments (line and block), rich-content enclosures, and rejection of bare `{...}` text interpolation.
-      File location: `packages/cem_ml/tests/tokenizer_lowering.rs` (new).
-
 ### Inline Schema And Mid-Document Schema Switch (AC-F-2, IMPL-FOLLOW-004)
 
 Schema scoping is resolved at the AC level (`MEMORY.md` `project_schema_scoping.md`); parser/schema-frame lowering for
