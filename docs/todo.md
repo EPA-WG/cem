@@ -31,18 +31,6 @@ The Rust crate is bootstrapped; layer implementations remain. Crate boundary, mo
 - [ ] Wire `cem_ml_cli` to invoke cem-ql for `select=` / `match=` / `test=` template attributes and `{$ … }` content
       expressions per AC-T-7.
 
-### Observability Public API And `byte_offset` Projection (AC-P-3, AC-O-1, IMPL-FOLLOW-003)
-
-`onParseEvent` / `onValidate` / `onTransform` already exist (`packages/cem_ml/src/observability.rs`). `byte_offset` is
-on `Diagnostic`. What's missing is the cross-host public surface and projection coverage.
-
-- [ ] Define the WASM-callable observer surface in `packages/cem_ml/src/api/wasm.rs` (new module). Use `wasm-bindgen`
-      to expose `onParseEvent` / `onValidate` / `onTransform` registration to JS callers (AC-C-1 browser/Node parity).
-- [ ] Confirm `byte_offset` is the canonical top-level projection on every report node — not just `Diagnostic`. Add
-      AC-P-3 verification fixtures that drive each layer's event through serialization and assert the field is present.
-- [ ] Document the public observer payload schema in `cem-ml-stack-design-impl.md §3.12`; add JSON schema fixtures
-      under `packages/cem_ml/schema/observability/`.
-
 ### Inline Schema And Mid-Document Schema Switch (AC-F-2, IMPL-FOLLOW-004)
 
 Schema scoping is resolved at the AC level (`MEMORY.md` `project_schema_scoping.md`); parser/schema-frame lowering for

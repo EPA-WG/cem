@@ -7,6 +7,7 @@ pub mod report;
 
 // Tier A layered runtime contract (AC-F-10). Bodies arrive in Phase 11; types
 // here fix the public boundary used by downstream layers and `cem-ml-cli`.
+pub mod api;
 pub mod ast;
 pub mod events;
 pub mod formatter;

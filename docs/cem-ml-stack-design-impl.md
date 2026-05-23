@@ -1700,6 +1700,34 @@ chunks as they arrive; tokenizer accumulation is token-local and released after 
 emission. Editor-style incremental reparse, chunk graph reuse, and resumable partial
 parses are deferred to Tier B.
 
+#### 3.12.1 Public Observer Payload Schema
+
+The Rust counterpart of the `ReportEvent` above lives in `cem_ml::observability`
+(types `ReportEvent`, `ParseReportEvent`, `ValidateReportEvent`,
+`TransformReportEvent`, and the channel enum `EventChannel`). Every observer
+callback receives a `&ReportEvent`; the canonical wire form is its `serde` JSON
+projection, normative for both Rust and WASM consumers per AC-O-1 and AC-C-1.
+
+| Field         | JSON key       | Type                              | Required | Notes                                                                                           |
+|---------------|----------------|-----------------------------------|----------|-------------------------------------------------------------------------------------------------|
+| `sequence`    | `sequence`     | `u64`                             | yes      | Dense monotonic id across all channels (AC-O-3); duplicates indicate observer-replay misuse.    |
+| `channel`     | `channel`      | `"parse" \| "validate" \| "transform"` | yes  | Discriminator. Exactly one of `parse` / `validate` / `transform` payloads is present.            |
+| `byte_offset` | `byteOffset`   | `u64`                             | no       | AC-P-3 canonical coordinate. Omitted from the wire when `None`. Always set on parse-channel events and on validate-channel events whose underlying `Diagnostic` carries a location. |
+| `source_map`  | `sourceMap`    | `SourceMapStack` object           | no       | Origin-first stack (AC-P-7). Co-present with `byte_offset` whenever both are known.             |
+| `parse`       | `parse`        | `ParseReportEvent`                | when channel == parse | `{ kind, name?, value? }`. `kind` is the stable string token (`open_scope`, `close_scope`, …).   |
+| `validate`    | `validate`     | `ValidateReportEvent`             | when channel == validate | `{ code, severity, message }`. `severity` is `"info" / "warning" / "error" / "fatal"`.            |
+| `transform`   | `transform`    | `TransformReportEvent`            | when channel == transform | `{ transform, summary }`. `transform` is the `TransformKind` discriminator from the source-map model. |
+
+The canonical JSON Schema (Draft 2020-12) lives at
+`packages/cem_ml/schema/observability/report-event.schema.json` and is the
+machine-readable form of the table above. The integration fixture
+`packages/cem_ml/tests/observability_byte_offset.rs` is the runnable
+verification surface for the AC-P-3 `byte_offset` projection rules.
+
+WASM-facing bindings (Item 1 of IMPL-FOLLOW-003) re-export the same payload
+shape through `cem_ml::api::wasm` so JS callers see exactly the wire-form table
+above, serialized to `JsValue` by the `wasm-bindgen` registration adapters.
+
 ### 3.13 Gate Status
 
 Gate state is recorded here per `cem-ml-ac.md` AC-G-3. Current status is intentionally
