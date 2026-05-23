@@ -21,13 +21,19 @@ The Rust crate is bootstrapped; layer implementations remain. Crate boundary, mo
 - [x] Implement Tier A stdlib modules per impl §11: `cem:stdlib/sequence`, `strings`, `numbers`, `datetime`, `dom`,
       `report`, `state`, `template`, `cemml`. Each function listed in the §11 tables.
 - [x] Diagnostic table (`cem_ql::diagnostics`) per impl §8 — all Tier A codes plumbed through `cem_ml::report`.
-- [ ] Verification scripts per AC §13:
-      - [ ] `cem_ql:test` — unit coverage for L1..L6 + stdlib.
-      - [ ] `cem_ql:test:xpath-parity` — XPath 3.1 conformance subset (AC-QX-1).
-      - [ ] `cem_ql:test:fixtures` — Tier A query corpus against canonical CEM-ML fixtures.
-      - [ ] `cem_ql:bench` — selector benchmark sharing `cem_ml::benchmark::BenchmarkBudget`.
-      - [ ] AC-QO-V-1 — set-operator identity test (node/structured, strict-typed atom, explicit-conversion uniformity,
-            cross-type comparison warning).
+- [x] Verification scripts per AC §13:
+      - [x] `cem_ql:test` — unit coverage for L1..L6 + stdlib lands across `packages/cem_ql/tests/{parser_recovery,
+            name_resolution,type_checking,ir_lowering,eval_runtime,stdlib_runtime}.rs`.
+      - [x] `cem_ql:test:xpath-parity` — table-driven AC-QX-1 subset in `packages/cem_ql/tests/xpath_parity.rs`;
+            out-of-subset rows are skipped per AC-QX-1.
+      - [x] `cem_ql:test:fixtures` — Tier A query corpus over the `examples/cem-ml/*.cem` ×
+            `examples/semantic/*.html` fixture pairs in `packages/cem_ql/tests/fixtures_snapshot.rs`.
+      - [x] `cem_ql:bench` — selector benchmarks sharing `cem_ml::benchmark::BenchmarkBudget` in
+            `packages/cem_ql/tests/perf_budgets.rs`; honors `CEM_ML_PERF_SKIP` / `CEM_ML_PERF_TOLERANCE`.
+      - [x] AC-QO-V-1 — set-operator identity fixture in `packages/cem_ql/tests/set_operator_identity.rs` covers
+            node/record identity, typed-atom distinctness (NaN, signed zero, NFC/NFD, dateTime offsets), explicit-
+            conversion collapse, and the AC-QO-8 `cem.ql.cross_type_compare` warning. Runtime enforcement of strict-
+            typed `eq` is still pending (the warning fires statically; runtime currently coerces via f64).
 - [ ] Wire `cem_ml_cli` to invoke cem-ql for `select=` / `match=` / `test=` template attributes and `{$ … }` content
       expressions per AC-T-7.
 
