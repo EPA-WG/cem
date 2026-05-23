@@ -5,6 +5,7 @@
 //! attributes and children reference into the same arena.
 
 use crate::diagnostics::Diagnostic;
+use crate::parser::format::DocumentFormatIdentity;
 use crate::parser::{AstNodeId, CemAstNode, NameSlot};
 use std::collections::HashMap;
 
@@ -23,6 +24,12 @@ pub struct CemDocument {
     /// Diagnostics accumulated from every layer below (decoder, tokenizer,
     /// schema machine) plus AST-builder diagnostics.
     pub diagnostics: Vec<Diagnostic>,
+    /// Resolved canonical document-format identity (AC-F-8). Populated
+    /// on the document root scope when a top-level builder successfully
+    /// resolves `@doc cem-ml <version>`; `None` for fragments parsed
+    /// inside an already-established CEM-ML scope (those inherit the
+    /// parent identity).
+    pub format_identity: Option<DocumentFormatIdentity>,
 }
 
 impl CemDocument {

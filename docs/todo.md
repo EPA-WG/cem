@@ -43,17 +43,6 @@ on `Diagnostic`. What's missing is the cross-host public surface and projection 
 - [ ] Document the public observer payload schema in `cem-ml-stack-design-impl.md §3.12`; add JSON schema fixtures
       under `packages/cem_ml/schema/observability/`.
 
-### Document-Format Directive `@doc` Hardening (AC-F-8, IMPL-FOLLOW-001B)
-
-`@doc cem-ml 1` parsing is implemented. The SemVer constraint resolution, required-directive enforcement, and
-AC-F-V-6 diagnostic coverage are not yet wired through.
-
-- [ ] Add SemVer constraint resolution for `@doc cem-ml <constraint>` per AC-F-8. Reject unsupported majors with a hard
-      diagnostic.
-- [ ] Enforce required top-level `@doc` directive on every CEM-ML root document; emit `cem.doc.missing_directive` on
-      omission. Embedded fragments inherit format identity per AC-F-8.
-- [ ] Land AC-F-V-6 diagnostic fixtures covering missing, malformed, and version-mismatched directives.
-
 ### Tokenizer Lowering Test Coverage (AC-F-9, AC-P-1, AC-P-8, IMPL-FOLLOW-001A)
 
 Canonical curly tokenizer exists; concrete lowering coverage per the AC list is incomplete.
@@ -123,20 +112,6 @@ Shared between `cem-ml` and `cem-ql`. The protocol is normative in `cem-ml-ac.md
 - [ ] Implement independently content-addressed source-map sidecars per AC-CC-5.
 - [ ] Implement `CEM-Hash` / `If-CEM-Hash` HTTP transport protocol per AC-CC-6 / AC-CC-7.
 - [ ] Bind cem-ql's `AC-QC-*` artifact path to the same loader (cem-ql-stack-design-impl.md §12).
-
-## Phase 2 — Documentation And AC Cleanup
-
-[`cem-ml-syntax-alignment-report.md`](cem-ml-syntax-alignment-report.md) has four outstanding items.
-
-- [ ] **M-1** Add a `Template Elements` subsection to `cem-ml-syntax.md` showing the Tier A CEM-ML forms for
-      `cem:value-of`, `cem:for-each`, `cem:if`, `cem:choose` / `cem:when`, and `cem:variable`. Cross-reference AC-T-7
-      and `cem-ql-ac.md`.
-- [ ] **M-2** Add AC text in `cem-ml-ac.md` covering CEM-ML, XML, and HTML comment delimiters; whether comments are
-      AST-preserved by default; and the policy hook that can strip or retain them. Update AC-P-9.
-- [ ] **M-3** Add tier tags (`[A]` / `[B]` / `[C]`) to syntax sections and table rows in `cem-ml-syntax.md`. Keep them
-      in sync with `cem-ml-ac.md`.
-- [ ] **M-4** Decide on Unicode-profile delimiters: either land them in an AC with tier tags and tokenizer tests, or
-      mark them explicitly experimental / non-AC syntax in `cem-ml-syntax.md`.
 
 ## Phase 2 — CLI Fixture Parity And Validation Catalog
 

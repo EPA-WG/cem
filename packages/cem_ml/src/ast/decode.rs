@@ -97,6 +97,12 @@ impl DebugBinaryDecoder {
             id_table,
             unresolved_slots,
             diagnostics: Vec::new(),
+            // Binary AST round-trip is Tier A scope-only; the
+            // document-format identity is recorded at parse time
+            // (AC-F-8) and not yet serialized through the binary form.
+            // A Tier B follow-up can extend AC-CC-* / AC-F-8 to carry
+            // it on the binary header.
+            format_identity: None,
         })
     }
 }

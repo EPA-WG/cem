@@ -35,7 +35,7 @@ Core goals:
 - Treat XML, HTML, SVG, CSS, JavaScript, JSON, and other formats as scoped
   content types, not opaque blobs unless the active schema says so.
 
-## Visual Planes
+## Visual Planes [A]
 
 | Plane                | CEM-ML proposal              | XML convention                                         | Meaning                                                   |
 |----------------------|------------------------------|--------------------------------------------------------|-----------------------------------------------------------|
@@ -51,7 +51,18 @@ Core goals:
 | Expression scope     | `{$ \| ...}`                 | `<cem:expr>...</cem:expr>`                             | Reserved cem-ql expression node.                          |
 | Directive            | `@ns`, `@default`, `@schema` | `xmlns`, `xsi:schemaLocation`, processing instructions | Parser/schema control.                                    |
 
-## ASCII And Unicode Profiles
+## ASCII And Unicode Profiles [A]
+
+> **Status.** The **ASCII** delimiter set in this section is the canonical Tier A
+> surface — every AC item that references curly CEM-ML expects it, the
+> tokenizer in `cem_ml::tokenizer::cem` lowers it, and every fixture under
+> `examples/cem-ml/*.cem` is authored in it. The **Unicode** delimiter set is
+> **experimental and non-AC**: no acceptance criterion mandates it, no
+> tokenizer profile recognizes it today, and it carries no Tier A / B / C tier
+> tag. It is recorded here as a future-direction sketch so the syntax doc and
+> implementation can be revisited together if a Unicode profile is later
+> proposed as an AC. See [`cem-ml-syntax-alignment-report.md`](cem-ml-syntax-alignment-report.md)
+> M-4 for the decision record.
 
 CEM-ML may allow ASCII and Unicode surface symbols as equivalent lexical
 choices. This is similar to allowing both single-quoted and double-quoted string
@@ -130,7 +141,7 @@ Profile rules:
 - Canonical CEM-ML should select one output profile, likely ASCII, unless a
   Unicode profile is explicitly requested.
 
-## Core Rules
+## Core Rules [A]
 
 ### Nodes
 
@@ -316,7 +327,7 @@ Template-embedding rules:
 - Attribute values do not need the `$` node because the attribute-value scanner
   already owns `{...}` spans.
 
-## Document Format Directive
+## Document Format Directive [A]
 
 Top-level canonical CEM-ML documents begin with a required document-format
 directive:
@@ -478,7 +489,7 @@ XML convention:
 Use anonymous typed scopes when the wrapper would only select a parser. Use
 named nodes when the name itself has semantic or runtime meaning.
 
-## Namespaces
+## Namespaces [A]
 
 CEM-ML uses prefix declarations with `@ns`. Prefixes are local aliases. The
 canonical identity is `{ namespaceUri, localName }`.
@@ -567,7 +578,7 @@ In the example, `{label}` and `{input}` resolve under the HTML namespace, while
 binding name is used for both schemas. The source-map namespace frame records
 which default binding was active at each source position.
 
-## Schema Scoping
+## Schema Scoping [A]
 
 CEM-ML keeps schema scoping explicit. The CEM-ML syntax differs from XML, but
 the scope behavior maps to the same parser/schema model as AC-F-2 and
@@ -733,6 +744,88 @@ Schema-scope rules:
 - When NVDL-style namespace dispatch and an explicit schema switch both apply,
   namespace dispatch applies first and the explicit switch layers within that scope.
 
+## Template Elements [A]
+
+Tier A template elements are the structural template vocabulary in the `cem:`
+namespace. They drive the AC-T-* transform path, mirror XSLT-style instructions,
+and consume `cem-ql` (the in-process selector / expression language) in their
+whole-expression attributes — `@select`, `@test`, `@match`, `@use`, `@group-by`.
+
+For attribute-value `{...}` template embedding inside content templates see
+[`Template Embedding`](#template-embedding); the elements below are the
+structural side of the same transform contract. The normative host contract is
+[`cem-ml-ac.md`](cem-ml-ac.md) **AC-T-7**; the embedded language and its
+context-item / sequence semantics live in
+[`cem-ql-ac.md`](cem-ql-ac.md) (AC-QS-6 and the AC-QD-* selector AC items).
+
+### `cem:value-of` — emit an expression value [A]
+
+| Plane   | CEM-ML                                            | XML convention                                  |
+|---------|---------------------------------------------------|-------------------------------------------------|
+| Element | `{cem:value-of @select="cem-ql-expression"}`      | `<cem:value-of select="cem-ql-expression"/>`    |
+
+Evaluates the cem-ql expression in `@select` and emits its serialized string
+into the output. `@select` is a whole-expression attribute, so the value carries
+cem-ql source directly — no surrounding `{...}`.
+
+### `cem:for-each` — iterate over a sequence [A]
+
+| Plane   | CEM-ML                                                         | XML convention                                                |
+|---------|----------------------------------------------------------------|---------------------------------------------------------------|
+| Element | `{cem:for-each @select="cem-ql-expression" \| <body>}`         | `<cem:for-each select="cem-ql-expression">…</cem:for-each>`   |
+
+Iterates the cem-ql expression's item sequence and instantiates `<body>` once
+per item. Inside the body, the iteration item is the cem-ql context item;
+reference it through `$` expression nodes (`{$ .name}`) or template-aware
+attribute spans (`{.name}`).
+
+### `cem:if` — conditional emission [A]
+
+| Plane   | CEM-ML                                              | XML convention                                  |
+|---------|-----------------------------------------------------|-------------------------------------------------|
+| Element | `{cem:if @test="cem-ql-expression" \| <body>}`      | `<cem:if test="cem-ql-expression">…</cem:if>`   |
+
+Emits `<body>` only when the cem-ql expression in `@test` is truthy (per the
+cem-ql truthiness rules in [`cem-ql-ac.md`](cem-ql-ac.md)). There is no `else`
+branch on `cem:if`; use `cem:choose` for that.
+
+### `cem:choose` / `cem:when` / `cem:otherwise` — case branching [A]
+
+| Plane     | CEM-ML                                                | XML convention                                            |
+|-----------|-------------------------------------------------------|-----------------------------------------------------------|
+| Container | `{cem:choose \| <branches>}`                          | `<cem:choose>…</cem:choose>`                              |
+| Case      | `{cem:when @test="cem-ql-expression" \| <body>}`      | `<cem:when test="cem-ql-expression">…</cem:when>`         |
+| Fallback  | `{cem:otherwise \| <body>}`                           | `<cem:otherwise>…</cem:otherwise>`                        |
+
+Evaluates each `cem:when` in document order, emits the first branch whose
+`@test` is truthy, and falls back to `cem:otherwise` if no `cem:when` matched
+(`cem:otherwise` is optional). At most one branch contributes to the output.
+
+### `cem:variable` — bind an expression to a name [A]
+
+| Plane   | CEM-ML                                                          | XML convention                                            |
+|---------|-----------------------------------------------------------------|-----------------------------------------------------------|
+| Element | `{cem:variable @name="x" @select="cem-ql-expression"}`          | `<cem:variable name="x" select="cem-ql-expression"/>`     |
+
+Binds the value of `@select` to `@name` in the surrounding scope's
+template-variable table. Subsequent template content reads it through cem-ql —
+e.g. `{$ $x}` in content or `{$x}` in a template-aware attribute span.
+
+### Notes
+
+- All five elements use the canonical CEM-ML curly surface; the XML convention
+  rows are parity equivalents per AC-F-9.
+- Whole-expression attributes (`@select`, `@test`, `@match`, `@use`,
+  `@group-by`) carry the unwrapped cem-ql source. Literal `{` and `}` inside
+  other attribute values still escape as `{{` / `}}` per AC-T-7's
+  template-aware-attribute rule.
+- Content interpolation MUST use the explicit `{$ … }` expression node (see
+  [`Reserved cem-ql Node`](#reserved-cem-ql-node)) — bare `{.name}` in
+  content is rejected by the tokenizer (AC-T-7).
+- The active schema declares which attributes are template-aware (`{...}` spans)
+  and which are whole-expression; the parser uses that declaration to choose
+  the embedding mode per attribute.
+
 ## Document Example
 
 CEM-ML:
@@ -812,7 +905,7 @@ XML convention:
 </cem:screen>
 ```
 
-## Draft Grammar Sketch
+## Draft Grammar Sketch [non-normative]
 
 This sketch is intentionally incomplete. It captures the current shape only.
 The grammar names token kinds using ASCII spellings for readability; the

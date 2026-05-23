@@ -305,6 +305,22 @@ are deferred.
   instructions, CDATA/raw-text nodes where supported by content type, and recovered
   error nodes in the initial input DOM/AST unless the effective scope policy strips them
   through a transform that preserves report/source-map references.
+  - **Comment delimiters per surface.** Canonical CEM-ML recognises `// …` line
+    comments (terminated by end-of-line) and `/* … */` block comments per
+    [`cem-ml-syntax.md`](cem-ml-syntax.md). XML and HTML parity surfaces
+    recognise `<!-- … -->` per the XML 1.0 / WHATWG HTML specifications. The
+    Unicode-profile comment delimiters described in `cem-ml-syntax.md`
+    (`※`, `⸨…⸩`, `﴾…﴿`) are experimental and not in scope for this AC.
+  - **AST preservation is the default.** Each recognised comment lowers into a
+    `Comment` node (CEM AST) and the matching `CharacterData(Comment)` in any
+    WHATWG-DOM projection, with its source-map frame intact, so
+    reverse-conversion and report diagnostics can address it by byte range.
+  - **Strip / retain policy hook.** The effective scope policy MAY install a
+    transform that removes `Comment` nodes from the AST after parse-time. The
+    transform MUST preserve every report event and source-map reference that
+    points at the stripped span — the comment is gone from the AST, but its
+    diagnostic surface remains addressable. Policies that wish to retain
+    comments take no action: preservation is the default.
 - **AC-P-10 [A] MUST** support scoped namespace rebinding for the same namespace binding
   name, including the empty/default binding. Unprefixed tags resolve against the active
   binding at their source position; previously resolved nodes keep their expanded

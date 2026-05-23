@@ -11,6 +11,7 @@
 use crate::diagnostics::{Diagnostic, Severity};
 use crate::events::{EventNormalizer, NormalizedEvent, ScalarValue, TriviaKind};
 use crate::parser::document::CemDocument;
+use crate::parser::format;
 use crate::parser::{AstNodeId, CemAstNode, ExpandedName, NameSlot};
 use crate::source::ByteRange;
 use crate::source_map::{FrameSpan, SourceMapFrame, SourceMapStack, TransformKind};
@@ -36,6 +37,14 @@ pub struct CemAstBuilder<E: EventNormalizer> {
     /// `Name` arrives (last-writer-wins per `cem-ml-stack-design-impl.md`
     /// §3.4 attribute semantics).
     pending_attr: Option<PendingAttr>,
+    /// When `true`, this builder is parsing a persisted top-level
+    /// canonical CEM-ML document and `finalize` enforces the AC-F-8
+    /// `@doc cem-ml <version>` requirement. When `false` (the default),
+    /// the builder is parsing an embedded fragment that inherits the
+    /// parent's document-format identity, so no `cem.doc.*` diagnostic
+    /// is emitted. Toggle with `top_level(true)` at the call site that
+    /// knows it owns a persisted document.
+    is_top_level: bool,
 }
 
 #[derive(Debug)]
@@ -59,7 +68,18 @@ impl<E: EventNormalizer> CemAstBuilder<E> {
             doc,
             stack: vec![Frame::Document],
             pending_attr: None,
+            is_top_level: false,
         }
+    }
+
+    /// Mark this build as a persisted top-level canonical document so
+    /// `finalize` enforces the AC-F-8 `@doc cem-ml <version>` directive
+    /// and records the resolved format identity on the document root.
+    /// Fragments parsed inside an established CEM-ML scope leave the
+    /// default (`false`) so they inherit the parent's identity.
+    pub fn top_level(mut self, yes: bool) -> Self {
+        self.is_top_level = yes;
+        self
     }
 
     pub fn build(mut self) -> CemDocument {
@@ -450,6 +470,117 @@ impl<E: EventNormalizer> CemAstBuilder<E> {
             });
         }
         self.doc.unresolved_slots = unresolved;
+        // AC-F-8: a persisted top-level document MUST begin with
+        // `@doc cem-ml <version>` before any non-trivia item. Fragments
+        // (the default mode) inherit the parent identity and are not
+        // checked here.
+        if self.is_top_level {
+            self.resolve_top_level_format_identity();
+        }
+    }
+
+    /// Walk the document root for the leading `@doc cem-ml <version>`
+    /// directive, resolve it, and emit either `cem.doc.version_resolved`
+    /// (Info) on success or the documented `cem.doc.*` Error per
+    /// AC-F-8 on failure. Missing entirely → `cem.doc.version_missing`.
+    fn resolve_top_level_format_identity(&mut self) {
+        let root_children: Vec<AstNodeId> = match self.doc.nodes.first() {
+            Some(CemAstNode::Document { root_children, .. }) => root_children.clone(),
+            _ => return,
+        };
+        let mut directive_id: Option<AstNodeId> = None;
+        for child in root_children {
+            match self.doc.nodes.get(child as usize) {
+                // Trivia is allowed before `@doc`.
+                Some(CemAstNode::Whitespace { .. }) | Some(CemAstNode::Comment { .. }) => continue,
+                // The first non-trivia node MUST be the `@doc` element.
+                Some(CemAstNode::Element { expanded_name, .. })
+                    if expanded_name.local_name == "@doc" =>
+                {
+                    directive_id = Some(child);
+                    break;
+                }
+                _ => break,
+            }
+        }
+
+        let Some(directive_id) = directive_id else {
+            self.doc.diagnostics.push(Diagnostic {
+                uri: None,
+                line: None,
+                column: None,
+                byte_offset: Some(0),
+                code: format::VERSION_MISSING_CODE.to_owned(),
+                severity: Severity::Error,
+                message:
+                    "persisted top-level CEM-ML document must begin with `@doc cem-ml <version>`"
+                        .to_owned(),
+                node: None,
+                source_map: None,
+            });
+            return;
+        };
+
+        let (text, source_map) = self.collect_directive_text(directive_id);
+        let byte_offset = source_map.frames.last().and_then(|f| match &f.span {
+            FrameSpan::Single(r) => Some(r.start),
+            FrameSpan::Multi(rs) => rs.first().map(|r| r.start),
+        });
+        match format::resolve_doc_directive(&text) {
+            Ok(identity) => {
+                let message = format!(
+                    "resolved @doc {} {} -> embedded {}",
+                    identity.format_id, identity.content_type, identity.format_version
+                );
+                self.doc.format_identity = Some(identity);
+                self.doc.diagnostics.push(Diagnostic {
+                    uri: None,
+                    line: None,
+                    column: None,
+                    byte_offset,
+                    code: format::VERSION_RESOLVED_CODE.to_owned(),
+                    severity: Severity::Info,
+                    message,
+                    node: None,
+                    source_map: Some(source_map),
+                });
+            }
+            Err(err) => {
+                self.doc.diagnostics.push(Diagnostic {
+                    uri: None,
+                    line: None,
+                    column: None,
+                    byte_offset,
+                    code: err.code().to_owned(),
+                    severity: Severity::Error,
+                    message: err.message(),
+                    node: None,
+                    source_map: Some(source_map),
+                });
+            }
+        }
+    }
+
+    /// Concatenate the directive element's text children — the tokenizer
+    /// emits the value as a single `Value(Text("cem-ml 1"))`, but this
+    /// also handles fragmented value events (e.g. trivia interleaving).
+    fn collect_directive_text(&self, directive_id: AstNodeId) -> (String, SourceMapStack) {
+        let (children, source_map) = match self.doc.nodes.get(directive_id as usize) {
+            Some(CemAstNode::Element {
+                children, source, ..
+            }) => (children.clone(), source.clone()),
+            _ => return (String::new(), SourceMapStack::default()),
+        };
+        let mut text = String::new();
+        for child in children {
+            if let Some(CemAstNode::Text { data, .. }) = self.doc.nodes.get(child as usize) {
+                if !text.is_empty() {
+                    text.push(' ');
+                }
+                text.push_str(data);
+            }
+        }
+        (text, source_map)
     }
 }
 

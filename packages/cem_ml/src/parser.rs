@@ -6,6 +6,7 @@
 
 pub mod builder;
 pub mod document;
+pub mod format;
 
 use crate::source_map::SourceMapStack;
 
