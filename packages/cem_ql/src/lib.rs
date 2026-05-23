@@ -37,7 +37,9 @@ mod tests {
         };
         use crate::artifact::{CompiledArtifact, QueryArtifactFormat};
         use crate::diagnostics::{DiagnosticCode, QueryDiagnostic};
-        use crate::eval::{Evaluator, Item, ItemStream, QueryContextScope};
+        use crate::eval::{
+            AtomValue, BudgetAxis, EvalError, Evaluator, Item, ItemStream, QueryContextScope,
+        };
         use crate::ir::lower::{IrLowerer, LowerResult};
         use crate::ir::{CompiledQuery, IrId, IrNode, IrStep, IrTree};
         use crate::lexer::{Lexer, Token, TokenKind};
@@ -72,7 +74,10 @@ mod tests {
         _accept::<QueryDiagnostic>();
         _accept::<Evaluator>();
         _accept::<Item>();
+        _accept::<AtomValue>();
         _accept::<ItemStream>();
+        _accept::<BudgetAxis>();
+        _accept::<EvalError>();
         _accept::<QueryContextScope>();
         _accept::<CompiledQuery>();
         _accept::<IrId>();

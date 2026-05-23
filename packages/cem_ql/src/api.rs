@@ -6,7 +6,7 @@ use cem_ml::schema::compiler::ContentHash;
 use cem_ml::schema::SchemaFrame;
 use cem_ml::source_map::SourceMapStack;
 
-use crate::eval::{ItemStream, QueryContextScope};
+use crate::eval::{Evaluator, ItemStream, QueryContextScope};
 use crate::ir::lower::IrLowerer;
 use crate::ir::CompiledQuery;
 use crate::parser::{Parser, SurfaceModule};
@@ -34,8 +34,8 @@ pub fn compile(source: &str, _context: &CompileContext) -> Result<CompiledQuery,
 }
 
 /// Evaluate a compiled query against a query context scope.
-pub fn evaluate(_query: &CompiledQuery, _ctx: &EvaluationContext) -> ItemStream {
-    ItemStream::empty()
+pub fn evaluate(query: &CompiledQuery, ctx: &EvaluationContext) -> ItemStream {
+    Evaluator::evaluate(query, ctx)
 }
 
 /// Parse-only entry point for tooling.

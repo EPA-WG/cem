@@ -15,7 +15,7 @@ Acceptance criteria: [`cem-ml-ac.md`](cem-ml-ac.md), [`cem-ql-ac.md`](cem-ql-ac.
 The Rust crate is bootstrapped; layer implementations remain. Crate boundary, module map, and AC mapping live in
 [`cem-ql-stack-design-impl.md`](cem-ql-stack-design-impl.md) §3.
 
-- [ ] Implement L6 evaluator (`cem_ql::eval`) per impl §10 — pull-based `ItemStream`, pipeline iterator chains,
+- [x] Implement L6 evaluator (`cem_ql::eval`) per impl §10 — pull-based `ItemStream`, pipeline iterator chains,
       streaming `Union` and bounded-buffer `Intersect`/`Difference`/`SymmetricDifference`, budget charging
       (AC-QR-1 / AC-QR-2).
 - [ ] Implement Tier A stdlib modules per impl §11: `cem:stdlib/sequence`, `strings`, `numbers`, `datetime`, `dom`,
