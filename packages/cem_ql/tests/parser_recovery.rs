@@ -1,4 +1,8 @@
+use cem_ql::api::parse;
 use cem_ql::lexer::{CookedTokenPayload, Lexer, TokenKind};
+use cem_ql::parser::{
+    BinaryOp, Expression, LiteralValue, PipelineStep, QuantifierKind, SurfaceNode,
+};
 
 fn kinds(source: &str) -> Vec<TokenKind> {
     Lexer::new(source)
@@ -122,4 +126,154 @@ fn lexer_returns_invalid_tokens_for_unclosed_or_malformed_spans() {
         kinds("(* unterminated"),
         vec![TokenKind::Invalid, TokenKind::EndOfInput]
     );
+}
+
+fn first_expr(source: &str) -> Expression {
+    let result = parse(source);
+    assert!(result.diagnostics.is_empty(), "{:?}", result.diagnostics);
+    match result.module.nodes.into_iter().next().expect("node") {
+        SurfaceNode::Expression(expr) => expr,
+        other => panic!("expected expression, got {other:?}"),
+    }
+}
+
+#[test]
+fn parser_recognises_module_import_and_declarations() {
+    let result = parse(
+        r#"module "urn:demo"
+           import "cem:stdlib/strings" as str
+           declare variable answer := 42
+           declare function local:greet(name as string) { str:concat("hi", name) }"#,
+    );
+    assert!(result.diagnostics.is_empty(), "{:?}", result.diagnostics);
+    assert_eq!(result.module.nodes.len(), 4);
+    assert!(matches!(
+        &result.module.nodes[0],
+        SurfaceNode::Module(module) if module.uri == "urn:demo"
+    ));
+    assert!(matches!(
+        &result.module.nodes[1],
+        SurfaceNode::Import(import) if import.uri == "cem:stdlib/strings" && import.alias.as_deref() == Some("str")
+    ));
+    assert!(matches!(
+        &result.module.nodes[2],
+        SurfaceNode::DeclareVariable(var)
+            if var.name.local == "answer"
+                && matches!(var.value, Expression::Literal(LiteralValue::Integer(42), _))
+    ));
+    assert!(matches!(
+        &result.module.nodes[3],
+        SurfaceNode::DeclareFunction(fun)
+            if fun.name.prefix.as_deref() == Some("local")
+                && fun.name.local == "greet"
+                && fun.params.len() == 1
+    ));
+}
+
+#[test]
+fn parser_applies_pratt_precedence_for_boolean_and_arithmetic_ops() {
+    let expr = first_expr("a or b and c + d * e");
+    let Expression::BinaryOp {
+        op: BinaryOp::Or,
+        rhs,
+        ..
+    } = expr
+    else {
+        panic!("expected top-level or expression");
+    };
+    let Expression::BinaryOp {
+        op: BinaryOp::And,
+        rhs,
+        ..
+    } = *rhs
+    else {
+        panic!("expected and to bind under or");
+    };
+    let Expression::BinaryOp {
+        op: BinaryOp::Plus,
+        rhs,
+        ..
+    } = *rhs
+    else {
+        panic!("expected plus to bind under and");
+    };
+    assert!(matches!(
+        *rhs,
+        Expression::BinaryOp {
+            op: BinaryOp::Star,
+            ..
+        }
+    ));
+}
+
+#[test]
+fn parser_builds_pipeline_call_and_path_shapes() {
+    let expr = first_expr(r#"items.filter(true).map("x")"#);
+    let Expression::Pipeline { source, steps, .. } = expr else {
+        panic!("expected pipeline");
+    };
+    assert!(matches!(*source, Expression::Name(_, _)));
+    assert_eq!(steps.len(), 2);
+    assert!(matches!(
+        &steps[0],
+        PipelineStep::Named { name, args, .. } if name.local == "filter" && args.len() == 1
+    ));
+    assert!(matches!(
+        &steps[1],
+        PipelineStep::Named { name, args, .. } if name.local == "map" && args.len() == 1
+    ));
+
+    let path = first_expr("root/child[true]/..");
+    assert!(matches!(path, Expression::Path { ref steps, .. } if steps.len() == 3));
+}
+
+#[test]
+fn parser_builds_control_flow_record_sequence_and_quantified_forms() {
+    assert!(matches!(
+        first_expr(r#"if ok then {"name": "x"} else (1, 2)"#),
+        Expression::If { .. }
+    ));
+    assert!(matches!(
+        first_expr("let item := source in item"),
+        Expression::Let { .. }
+    ));
+    assert!(matches!(
+        first_expr("for item in source return item"),
+        Expression::For { .. }
+    ));
+    assert!(matches!(
+        first_expr("some item in source satisfies true"),
+        Expression::Quantified {
+            kind: QuantifierKind::Some,
+            ..
+        }
+    ));
+}
+
+#[test]
+fn parser_recovers_to_top_level_anchors_after_errors() {
+    let result = parse(r#"declare variable := 1 import "cem:stdlib/strings" as str"#);
+    assert!(
+        result
+            .diagnostics
+            .iter()
+            .any(|diag| diag.code == "cem.ql.parse_error"),
+        "{:?}",
+        result.diagnostics
+    );
+    assert!(matches!(
+        result.module.nodes.last(),
+        Some(SurfaceNode::Import(import)) if import.alias.as_deref() == Some("str")
+    ));
+}
+
+#[test]
+fn parser_reports_reserved_c_family_boolean_operators() {
+    let result = parse("a && b || c");
+    let use_and_or = result
+        .diagnostics
+        .iter()
+        .filter(|diag| diag.code == "cem.ql.use_and_or")
+        .count();
+    assert_eq!(use_and_or, 2, "{:?}", result.diagnostics);
 }

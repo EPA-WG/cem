@@ -15,8 +15,6 @@ Acceptance criteria: [`cem-ml-ac.md`](cem-ml-ac.md), [`cem-ql-ac.md`](cem-ql-ac.
 The Rust crate is bootstrapped; layer implementations remain. Crate boundary, module map, and AC mapping live in
 [`cem-ql-stack-design-impl.md`](cem-ql-stack-design-impl.md) §3.
 
-- [ ] Implement L2 parser (`cem_ql::parser`) per impl §5 — hand-written recursive descent for module/declare/import,
-      Pratt expression sub-grammar, three-point recovery synchronization (statement, pipeline step, bracket).
 - [ ] Implement L3 name resolver (`cem_ql::resolve`) per impl §6 — `BindingSet` chain, per-scope stdlib overlay,
       reserved-scheme guard, resolution-trace events for AC-QV-V-1.
 - [ ] Implement L4 type checker (`cem_ml::types`) per impl §7 — bidirectional inference, structural subtype walk,

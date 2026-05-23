@@ -40,7 +40,12 @@ mod tests {
         use crate::eval::{Evaluator, Item, ItemStream, QueryContextScope};
         use crate::ir::{CompiledQuery, IrId, IrNode};
         use crate::lexer::{Lexer, Token, TokenKind};
-        use crate::parser::{ParseError, Parser, SurfaceModule};
+        use crate::parser::{
+            Axis, BinaryOp, Expression, FunctionDecl, FunctionParam, ImportDecl, LiteralValue,
+            ModuleDecl, NameTest, ParseError, Parser, PathStep, PipelineStep, QName,
+            QuantifierKind, RecordEntry, SetOp, SurfaceModule, SurfaceNode, TypeExpr, UnaryOp,
+            VariableDecl,
+        };
         use crate::resolve::{BindingId, BindingSet, NameResolver};
         use crate::stdlib::ModuleRegistry;
         use crate::types::{Type, TypeChecker};
@@ -68,6 +73,25 @@ mod tests {
         _accept::<ParseError>();
         _accept::<Parser<'static>>();
         _accept::<SurfaceModule>();
+        _accept::<SurfaceNode>();
+        _accept::<ModuleDecl>();
+        _accept::<ImportDecl>();
+        _accept::<VariableDecl>();
+        _accept::<FunctionDecl>();
+        _accept::<FunctionParam>();
+        _accept::<Expression>();
+        _accept::<RecordEntry>();
+        _accept::<LiteralValue>();
+        _accept::<PathStep>();
+        _accept::<PipelineStep>();
+        _accept::<SetOp>();
+        _accept::<BinaryOp>();
+        _accept::<UnaryOp>();
+        _accept::<QuantifierKind>();
+        _accept::<QName>();
+        _accept::<NameTest>();
+        _accept::<Axis>();
+        _accept::<TypeExpr>();
         _accept::<BindingId>();
         _accept::<BindingSet>();
         _accept::<NameResolver>();
