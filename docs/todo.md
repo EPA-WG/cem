@@ -15,8 +15,6 @@ Acceptance criteria: [`cem-ml-ac.md`](cem-ml-ac.md), [`cem-ql-ac.md`](cem-ql-ac.
 The Rust crate is bootstrapped; layer implementations remain. Crate boundary, module map, and AC mapping live in
 [`cem-ql-stack-design-impl.md`](cem-ql-stack-design-impl.md) §3.
 
-- [ ] Implement L4 type checker (`cem_ml::types`) per impl §7 — bidirectional inference, structural subtype walk,
-      cross-type comparison warning, strict-default + dev-profile failure contract (AC-QT-3).
 - [ ] Implement L5 IR lowerer (`cem_ql::ir`) per impl §9 — typed `IrNode` enum, closure-detachment pass.
 - [ ] Implement L6 evaluator (`cem_ql::eval`) per impl §10 — pull-based `ItemStream`, pipeline iterator chains,
       streaming `Union` and bounded-buffer `Intersect`/`Difference`/`SymmetricDifference`, budget charging

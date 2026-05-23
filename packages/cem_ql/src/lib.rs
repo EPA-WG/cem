@@ -53,7 +53,11 @@ mod tests {
             ResolutionTraceEvent, SchemaTypeId, StateSlotId, StdlibOverlay, TemplateRefId,
         };
         use crate::stdlib::ModuleRegistry;
-        use crate::types::{Type, TypeChecker};
+        use crate::types::{
+            AtomType, ContentType, FunctionSignature, FunctionSignatureKey, NodeKind, RecordField,
+            SchemaTypeInfo, SchemaTypeRegistry, SubtypeChecker, TyConfig, Type, TypeChecker,
+            TypeLattice, TypeReport,
+        };
 
         _accept::<CompileContext>();
         _accept::<CompileError>();
@@ -121,6 +125,18 @@ mod tests {
         _accept::<OverlayMap>();
         _accept::<StdlibOverlay>();
         _accept::<ModuleRegistry>();
+        _accept::<AtomType>();
+        _accept::<NodeKind>();
+        _accept::<RecordField>();
+        _accept::<ContentType>();
+        _accept::<SchemaTypeInfo>();
+        _accept::<SchemaTypeRegistry>();
+        _accept::<FunctionSignatureKey>();
+        _accept::<FunctionSignature>();
+        _accept::<TyConfig>();
+        _accept::<TypeReport>();
+        _accept::<TypeLattice<'static>>();
+        _accept::<SubtypeChecker<'static>>();
         _accept::<Type>();
         _accept::<TypeChecker>();
 
