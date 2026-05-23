@@ -275,6 +275,8 @@ fn encode_transform(t: &TransformKind) -> (u16, Option<String>) {
         }
         TransformKind::ContentTypeTransform { content_type } => (7, Some(content_type.clone())),
         TransformKind::InterpreterRender => (8, None),
+        TransformKind::Query => (9, None),
+        TransformKind::QueryStep => (10, None),
     }
 }
 

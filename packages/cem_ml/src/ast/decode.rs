@@ -244,6 +244,8 @@ fn decode_transform(tag: u16, payload: Option<String>) -> Result<TransformKind, 
             content_type: payload.unwrap_or_default(),
         },
         8 => TransformKind::InterpreterRender,
+        9 => TransformKind::Query,
+        10 => TransformKind::QueryStep,
         _ => return Err(DecodeError::UnknownTransformTag(tag)),
     })
 }

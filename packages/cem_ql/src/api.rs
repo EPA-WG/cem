@@ -7,15 +7,30 @@ use cem_ml::schema::SchemaFrame;
 use cem_ml::source_map::SourceMapStack;
 
 use crate::eval::{ItemStream, QueryContextScope};
+use crate::ir::lower::IrLowerer;
 use crate::ir::CompiledQuery;
 use crate::parser::{Parser, SurfaceModule};
 use crate::resolve::overlay::OverlayMap;
 
 /// Compile a CEM-QL query module source string into a typed IR.
-pub fn compile(_source: &str, _context: &CompileContext) -> Result<CompiledQuery, CompileError> {
-    Err(CompileError::unsupported(
-        "CEM-QL compilation is not implemented yet",
-    ))
+pub fn compile(source: &str, _context: &CompileContext) -> Result<CompiledQuery, CompileError> {
+    let parsed = parse(source);
+    if let Some(diagnostic) = parsed
+        .diagnostics
+        .iter()
+        .find(|diagnostic| diagnostic.severity.is_hard_violation())
+    {
+        return Err(CompileError::diagnostic(diagnostic));
+    }
+    let lowered = IrLowerer::new().lower_module(&parsed.module);
+    if let Some(diagnostic) = lowered
+        .diagnostics
+        .iter()
+        .find(|diagnostic| diagnostic.severity.is_hard_violation())
+    {
+        return Err(CompileError::diagnostic(diagnostic));
+    }
+    Ok(lowered.query)
 }
 
 /// Evaluate a compiled query against a query context scope.
@@ -54,6 +69,13 @@ impl CompileError {
         Self {
             code: "cem.ql.unsupported",
             message: message.into(),
+        }
+    }
+
+    pub fn diagnostic(diagnostic: &Diagnostic) -> Self {
+        Self {
+            code: "cem.ql.compile_failed",
+            message: format!("{}: {}", diagnostic.code, diagnostic.message),
         }
     }
 }

@@ -38,7 +38,8 @@ mod tests {
         use crate::artifact::{CompiledArtifact, QueryArtifactFormat};
         use crate::diagnostics::{DiagnosticCode, QueryDiagnostic};
         use crate::eval::{Evaluator, Item, ItemStream, QueryContextScope};
-        use crate::ir::{CompiledQuery, IrId, IrNode};
+        use crate::ir::lower::{IrLowerer, LowerResult};
+        use crate::ir::{CompiledQuery, IrId, IrNode, IrStep, IrTree};
         use crate::lexer::{Lexer, Token, TokenKind};
         use crate::parser::{
             Axis, BinaryOp, Expression, FunctionDecl, FunctionParam, ImportDecl, LiteralValue,
@@ -76,6 +77,10 @@ mod tests {
         _accept::<CompiledQuery>();
         _accept::<IrId>();
         _accept::<IrNode>();
+        _accept::<IrTree>();
+        _accept::<IrStep>();
+        _accept::<IrLowerer>();
+        _accept::<LowerResult>();
         _accept::<Lexer<'static>>();
         _accept::<Token>();
         _accept::<TokenKind>();

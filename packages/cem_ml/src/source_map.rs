@@ -12,6 +12,8 @@ pub enum TransformKind {
     EventNormalizer,
     SchemaValidation { schema_id: u32 },
     CemAstBuilder,
+    Query,
+    QueryStep,
     HandoffBoundary { child_content_type: String },
     ContentTypeTransform { content_type: String },
     InterpreterRender,
