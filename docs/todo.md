@@ -21,7 +21,7 @@ The Rust crate is bootstrapped; layer implementations remain. Crate boundary, mo
 - [x] Implement Tier A stdlib modules per impl §11: `cem:stdlib/sequence`, `strings`, `numbers`, `datetime`, `dom`,
       `report`, `state`, `template`, `cemml`. Each function listed in the §11 tables.
 - [x] Diagnostic table (`cem_ql::diagnostics`) per impl §8 — all Tier A codes plumbed through `cem_ml::report`.
-- [x] Verification scripts per AC §13:
+- [ ] Verification scripts per AC §13:
       - [x] `cem_ql:test` — unit coverage for L1..L6 + stdlib lands across `packages/cem_ql/tests/{parser_recovery,
             name_resolution,type_checking,ir_lowering,eval_runtime,stdlib_runtime}.rs`.
       - [x] `cem_ql:test:xpath-parity` — table-driven AC-QX-1 subset in `packages/cem_ql/tests/xpath_parity.rs`;
@@ -34,6 +34,11 @@ The Rust crate is bootstrapped; layer implementations remain. Crate boundary, mo
             node/record identity, typed-atom distinctness (NaN, signed zero, NFC/NFD, dateTime offsets), explicit-
             conversion collapse, and the AC-QO-8 `cem.ql.cross_type_compare` warning. Runtime enforcement of strict-
             typed `eq` is still pending (the warning fires statically; runtime currently coerces via f64).
+      - [ ] AC-QA-V-1 — `read()` content-negotiation test (Tier B policy fixture).
+      - [ ] AC-QD-V-1 — reference-resolution test for `.target` and `aria-labelledby` validation.
+      - [ ] AC-QV-V-2 — policy-hook test for `$scope` record/resource access.
+      - [ ] AC-QC-V-1 — compiled artifact reload verification (serialize corpus -> evict -> reload -> assert identity).
+      - [ ] AC-QC-V-2 — transport protocol verification (`If-CEM-Hash` E2E test).
 - [ ] Wire `cem_ml_cli` to invoke cem-ql for `select=` / `match=` / `test=` template attributes and `{$ … }` content
       expressions per AC-T-7.
 
