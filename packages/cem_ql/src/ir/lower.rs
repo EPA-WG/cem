@@ -6,6 +6,7 @@ use cem_ml::diagnostics::{Diagnostic, Severity};
 use cem_ml::source::{ByteRange, SourceId};
 use cem_ml::source_map::{FrameSpan, SourceMapFrame, SourceMapStack, TransformKind};
 
+use crate::diagnostics::{DiagnosticCode, CLOSURE_DETACHED, UNKNOWN_TYPE, UNKNOWN_VARIABLE};
 use crate::ir::{CompiledQuery, IrId, IrNode, IrStep, IrTree};
 use crate::parser::{
     BinaryOp, Expression, FunctionDecl, LiteralValue, PathStep, PipelineStep, QName, SurfaceModule,
@@ -212,7 +213,7 @@ impl IrLowerer {
             Expression::Name(name, range) => {
                 let binding = self.lookup_variable_id(name).or_else(|| {
                     self.emit(
-                        "cem.ql.unknown_variable",
+                        UNKNOWN_VARIABLE,
                         format!(
                             "unknown variable `{}`",
                             QNameKey::from_qname(name).display()
@@ -609,7 +610,7 @@ impl IrLowerer {
         let captures: Vec<BindingId> = frame.captures.into_iter().collect();
         if self.detach_captures && !captures.is_empty() {
             self.emit(
-                "cem.ql.closure_detached",
+                CLOSURE_DETACHED,
                 "closure capture detached from host scope",
                 expr.range(),
                 Severity::Info,
@@ -797,7 +798,7 @@ impl IrLowerer {
             return Type::SchemaElement(schema_id);
         }
         self.emit(
-            "cem.ql.unknown_type",
+            UNKNOWN_TYPE,
             format!("unknown type `{}`", key.display()),
             ty.range,
             Severity::Error,
@@ -807,7 +808,7 @@ impl IrLowerer {
 
     fn emit(
         &mut self,
-        code: &'static str,
+        code: DiagnosticCode,
         message: impl Into<String>,
         range: ByteRange,
         severity: Severity,
@@ -817,7 +818,7 @@ impl IrLowerer {
             line: None,
             column: None,
             byte_offset: Some(range.start),
-            code: code.to_owned(),
+            code: code.into(),
             severity,
             message: message.into(),
             node: None,

@@ -5,6 +5,10 @@ use std::collections::HashMap;
 use cem_ml::diagnostics::{Diagnostic, Severity};
 use cem_ml::source::ByteRange;
 
+use crate::diagnostics::{
+    self as ql_diagnostics, DiagnosticCode, CROSS_TYPE_COMPARE, TYPE_ERROR, UNKNOWN_FUNCTION,
+    UNKNOWN_TYPE, UNKNOWN_VARIABLE,
+};
 use crate::parser::{
     BinaryOp, Expression, FunctionDecl, FunctionParam, LiteralValue, PathStep, PipelineStep, QName,
     SurfaceModule, SurfaceNode, TypeExpr, UnaryOp, VariableDecl,
@@ -188,15 +192,17 @@ impl TyConfig {
         }
     }
 
-    fn severity_for(&self, code: &str) -> Option<Severity> {
-        match code {
-            "cem.ql.type_error" => Some(self.type_error_severity),
-            "cem.ql.unknown_type" | "cem.ql.unknown_function" | "cem.ql.unknown_variable" => {
-                Some(self.resolution_error_severity)
-            }
-            "cem.ql.cross_type_compare" if self.emit_cross_type_compare => Some(Severity::Warning),
-            "cem.ql.cross_type_compare" => None,
-            _ => Some(Severity::Error),
+    fn severity_for(&self, code: DiagnosticCode) -> Option<Severity> {
+        if code == TYPE_ERROR {
+            Some(self.type_error_severity)
+        } else if matches!(code, UNKNOWN_TYPE | UNKNOWN_FUNCTION | UNKNOWN_VARIABLE) {
+            Some(self.resolution_error_severity)
+        } else if code == CROSS_TYPE_COMPARE && self.emit_cross_type_compare {
+            Some(Severity::Warning)
+        } else if code == CROSS_TYPE_COMPARE {
+            None
+        } else {
+            Some(Severity::Error)
         }
     }
 }
@@ -362,7 +368,7 @@ impl TypeChecker {
             Expression::Literal(value, _) => self.infer_literal(value),
             Expression::Name(name, range) => self.lookup_variable(name).unwrap_or_else(|| {
                 self.emit(
-                    "cem.ql.unknown_variable",
+                    UNKNOWN_VARIABLE,
                     format!(
                         "unknown variable `{}`",
                         QNameKey::from_qname(name).display()
@@ -396,7 +402,7 @@ impl TypeChecker {
                 let else_ty = self.infer_expression(else_branch);
                 self.common_type(&then_ty, &else_ty).unwrap_or_else(|| {
                     self.emit(
-                        "cem.ql.type_error",
+                        TYPE_ERROR,
                         format!(
                             "if branches have incompatible types `{then_ty:?}` and `{else_ty:?}`"
                         ),
@@ -478,7 +484,7 @@ impl TypeChecker {
                 let target = self.resolve_type_expr(ty);
                 if !value_ty.is_any() && !target.is_any() && !can_cast(&value_ty, &target) {
                     self.emit(
-                        "cem.ql.type_error",
+                        TYPE_ERROR,
                         format!("cannot cast `{value_ty:?}` as `{target:?}`"),
                         *range,
                     );
@@ -586,7 +592,7 @@ impl TypeChecker {
                 .unwrap_or(Type::atom(AtomType::Double));
         }
         self.emit(
-            "cem.ql.type_error",
+            TYPE_ERROR,
             format!("numeric operator cannot be applied to `{lhs:?}` and `{rhs:?}`"),
             range,
         );
@@ -605,7 +611,7 @@ impl TypeChecker {
                     operand_ty
                 } else {
                     self.emit(
-                        "cem.ql.type_error",
+                        TYPE_ERROR,
                         format!("numeric negation cannot be applied to `{operand_ty:?}`"),
                         range,
                     );
@@ -630,7 +636,7 @@ impl TypeChecker {
             _ if lhs_ty.is_any() || rhs_ty.is_any() => Type::Any,
             _ => {
                 self.emit(
-                    "cem.ql.type_error",
+                    TYPE_ERROR,
                     format!("set operators require streams, got `{lhs_ty:?}` and `{rhs_ty:?}`"),
                     range,
                 );
@@ -653,7 +659,7 @@ impl TypeChecker {
             Type::Any => Type::Any,
             other => {
                 self.emit(
-                    "cem.ql.type_error",
+                    TYPE_ERROR,
                     format!("callee is not callable: `{other:?}`"),
                     range,
                 );
@@ -669,7 +675,7 @@ impl TypeChecker {
         };
         let Some(signature) = self.functions.get(&key).cloned() else {
             self.emit(
-                "cem.ql.unknown_function",
+                UNKNOWN_FUNCTION,
                 format!(
                     "unknown function `{}` with arity {}",
                     QNameKey::from_qname(name).display(),
@@ -698,7 +704,7 @@ impl TypeChecker {
             return Type::SchemaElement(schema_id);
         }
         self.emit(
-            "cem.ql.unknown_type",
+            UNKNOWN_TYPE,
             format!("unknown type `{}`", key.display()),
             ty.range,
         );
@@ -718,7 +724,7 @@ impl TypeChecker {
             return true;
         }
         self.emit(
-            "cem.ql.type_error",
+            TYPE_ERROR,
             format!("type `{actual:?}` is not a subtype of `{expected:?}`"),
             range,
         );
@@ -740,7 +746,7 @@ impl TypeChecker {
             return;
         }
         self.emit(
-            "cem.ql.cross_type_compare",
+            CROSS_TYPE_COMPARE,
             format!("comparison between distinct static types `{left:?}` and `{right:?}`"),
             range,
         );
@@ -763,7 +769,7 @@ impl TypeChecker {
         self.scopes.last_mut().expect("scope stack is not empty")
     }
 
-    fn emit(&mut self, code: &'static str, message: impl Into<String>, range: ByteRange) {
+    fn emit(&mut self, code: DiagnosticCode, message: impl Into<String>, range: ByteRange) {
         let Some(severity) = self.config.severity_for(code) else {
             return;
         };
@@ -827,20 +833,10 @@ fn cross_type_compare(left: &Type, right: &Type) -> bool {
 }
 
 fn diagnostic(
-    code: &'static str,
+    code: DiagnosticCode,
     message: impl Into<String>,
     range: ByteRange,
     severity: Severity,
 ) -> Diagnostic {
-    Diagnostic {
-        uri: None,
-        line: None,
-        column: None,
-        byte_offset: Some(range.start),
-        code: code.to_owned(),
-        severity,
-        message: message.into(),
-        node: None,
-        source_map: None,
-    }
+    ql_diagnostics::spanned(code, message, range, severity)
 }

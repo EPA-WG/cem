@@ -36,7 +36,7 @@ mod tests {
             LoadContext, LoadError, ParseResult,
         };
         use crate::artifact::{CompiledArtifact, QueryArtifactFormat};
-        use crate::diagnostics::{DiagnosticCode, QueryDiagnostic};
+        use crate::diagnostics::{DiagnosticCode, DiagnosticSpec, QueryDiagnostic};
         use crate::eval::{
             AtomValue, BudgetAxis, EvalError, Evaluator, Item, ItemStream, QueryContextScope,
         };
@@ -55,7 +55,7 @@ mod tests {
             OverlayFingerprint, OverlayKey, OverlayMap, QNameKey, Resolution, ResolutionReport,
             ResolutionTraceEvent, SchemaTypeId, StateSlotId, StdlibOverlay, TemplateRefId,
         };
-        use crate::stdlib::ModuleRegistry;
+        use crate::stdlib::{ModuleRegistry, StdlibFunction, StdlibImplKind, Tier};
         use crate::types::{
             AtomType, ContentType, FunctionSignature, FunctionSignatureKey, NodeKind, RecordField,
             SchemaTypeInfo, SchemaTypeRegistry, SubtypeChecker, TyConfig, Type, TypeChecker,
@@ -71,6 +71,7 @@ mod tests {
         _accept::<CompiledArtifact>();
         _accept::<QueryArtifactFormat>();
         _accept::<DiagnosticCode>();
+        _accept::<DiagnosticSpec>();
         _accept::<QueryDiagnostic>();
         _accept::<Evaluator>();
         _accept::<Item>();
@@ -135,6 +136,9 @@ mod tests {
         _accept::<OverlayMap>();
         _accept::<StdlibOverlay>();
         _accept::<ModuleRegistry>();
+        _accept::<StdlibFunction>();
+        _accept::<StdlibImplKind>();
+        _accept::<Tier>();
         _accept::<AtomType>();
         _accept::<NodeKind>();
         _accept::<RecordField>();

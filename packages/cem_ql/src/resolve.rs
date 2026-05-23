@@ -6,6 +6,10 @@ use cem_ml::diagnostics::{Diagnostic, Severity};
 use cem_ml::schema::ScopeId;
 use cem_ml::source::ByteRange;
 
+use crate::diagnostics::{
+    self as ql_diagnostics, DiagnosticCode, IMPORT_DENIED, IMPORT_UNRESOLVED, RESERVED_SCHEME,
+    UNKNOWN_FUNCTION, UNKNOWN_TYPE, UNKNOWN_VARIABLE,
+};
 use crate::parser::{
     Expression, FunctionDecl, FunctionParam, ImportDecl, PipelineStep, QName, SurfaceModule,
     SurfaceNode, TypeExpr, VariableDecl,
@@ -551,7 +555,7 @@ impl NameResolver {
             }
         }
         self.diagnostics.push(diagnostic(
-            "cem.ql.unknown_variable",
+            UNKNOWN_VARIABLE,
             format!(
                 "unknown variable `{}`",
                 QNameKey::from_qname(name).display()
@@ -575,7 +579,7 @@ impl NameResolver {
             }
         }
         self.diagnostics.push(diagnostic(
-            "cem.ql.unknown_function",
+            UNKNOWN_FUNCTION,
             format!(
                 "unknown function `{}` with arity {}",
                 QNameKey::from_qname(name).display(),
@@ -595,7 +599,7 @@ impl NameResolver {
             }
         }
         self.diagnostics.push(diagnostic(
-            "cem.ql.unknown_type",
+            UNKNOWN_TYPE,
             format!(
                 "unknown type `{}`",
                 QNameKey::from_qname(&ty.name).display()
@@ -670,7 +674,7 @@ impl ImportPolicy {
                 });
             }
             return Err(Box::new(diagnostic(
-                "cem.ql.import_unresolved",
+                IMPORT_UNRESOLVED,
                 format!("import `{}` is not registered", import.uri),
                 import.range,
                 Severity::Error,
@@ -678,7 +682,7 @@ impl ImportPolicy {
         }
         let Some(scheme) = scheme_of(&import.uri) else {
             return Err(Box::new(diagnostic(
-                "cem.ql.import_denied",
+                IMPORT_DENIED,
                 format!("import `{}` has no URI scheme grant", import.uri),
                 import.range,
                 Severity::Warning,
@@ -691,7 +695,7 @@ impl ImportPolicy {
             })
         } else {
             Err(Box::new(diagnostic(
-                "cem.ql.import_denied",
+                IMPORT_DENIED,
                 format!("import `{}` denied by scope policy", import.uri),
                 import.range,
                 Severity::Warning,
@@ -723,7 +727,7 @@ fn is_reserved_grant(scheme: &str) -> bool {
 
 fn reserved_scheme_diagnostic(scheme: &str, range: ByteRange) -> Diagnostic {
     diagnostic(
-        "cem.ql.reserved_scheme",
+        RESERVED_SCHEME,
         format!("scope policy cannot grant reserved scheme `{scheme}`"),
         range,
         Severity::Error,
@@ -731,20 +735,10 @@ fn reserved_scheme_diagnostic(scheme: &str, range: ByteRange) -> Diagnostic {
 }
 
 fn diagnostic(
-    code: &'static str,
+    code: DiagnosticCode,
     message: impl Into<String>,
     range: ByteRange,
     severity: Severity,
 ) -> Diagnostic {
-    Diagnostic {
-        uri: None,
-        line: None,
-        column: None,
-        byte_offset: Some(range.start),
-        code: code.to_owned(),
-        severity,
-        message: message.into(),
-        node: None,
-        source_map: None,
-    }
+    ql_diagnostics::spanned(code, message, range, severity)
 }

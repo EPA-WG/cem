@@ -7,6 +7,7 @@ use cem_ml::diagnostics::{Diagnostic, Severity};
 use cem_ml::source::ByteRange;
 
 use crate::api::ParseResult;
+use crate::diagnostics::{self as ql_diagnostics, DiagnosticCode, PARSE_ERROR, USE_AND_OR};
 use crate::lexer::{CookedTokenPayload, Lexer, Token, TokenKind};
 use pratt::{
     infix_operator, InfixOperator, PREC_CALL, PREC_DOT, PREC_PATH, PREC_TYPE, PREC_UNARY_MINUS,
@@ -27,11 +28,9 @@ impl<'src> Parser<'src> {
         for token in Lexer::new(source).scan_all() {
             match token.kind {
                 TokenKind::Whitespace | TokenKind::LineComment | TokenKind::BlockComment => {}
-                TokenKind::Invalid => diagnostics.push(diagnostic(
-                    "cem.ql.parse_error",
-                    "invalid token",
-                    token.range,
-                )),
+                TokenKind::Invalid => {
+                    diagnostics.push(diagnostic(PARSE_ERROR, "invalid token", token.range))
+                }
                 _ => tokens.push(token),
             }
         }
@@ -266,14 +265,14 @@ impl<'src> Parser<'src> {
             }
             TokenKind::AmpAmpReserved | TokenKind::PipePipeReserved => {
                 self.error_at(
-                    "cem.ql.use_and_or",
+                    USE_AND_OR,
                     "use `and` / `or` instead of `&&` / `||`",
                     token.range,
                 );
                 self.parse_expression(pratt::PREC_AND + 1)
             }
             _ => {
-                self.error_at("cem.ql.parse_error", "expected expression", token.range);
+                self.error_at(PARSE_ERROR, "expected expression", token.range);
                 None
             }
         }
@@ -596,7 +595,7 @@ impl<'src> Parser<'src> {
                 }
             }
             _ => {
-                self.error_at("cem.ql.parse_error", "expected path step", token.range);
+                self.error_at(PARSE_ERROR, "expected path step", token.range);
                 return None;
             }
         };
@@ -621,11 +620,7 @@ impl<'src> Parser<'src> {
             }),
             Expression::LeadingDot(range) => Some(PathStep::Self_(*range)),
             _ => {
-                self.error_at(
-                    "cem.ql.parse_error",
-                    "left side cannot start a path",
-                    expr.range(),
-                );
+                self.error_at(PARSE_ERROR, "left side cannot start a path", expr.range());
                 None
             }
         }
@@ -636,7 +631,7 @@ impl<'src> Parser<'src> {
         match token.kind {
             TokenKind::Ident | TokenKind::PrefixedName => qname_from_token(&token),
             _ => {
-                self.error_at("cem.ql.parse_error", "expected name", token.range);
+                self.error_at(PARSE_ERROR, "expected name", token.range);
                 None
             }
         }
@@ -659,7 +654,7 @@ impl<'src> Parser<'src> {
         }
         let token = self.bump();
         self.error_at(
-            "cem.ql.use_and_or",
+            USE_AND_OR,
             "use `and` / `or` instead of `&&` / `||`",
             token.range,
         );
@@ -686,7 +681,7 @@ impl<'src> Parser<'src> {
         } else if self.cursor > before {
             let end = self.previous().range;
             self.diagnostics.push(diagnostic(
-                "cem.ql.parse_error",
+                PARSE_ERROR,
                 "recovered at parser synchronization point",
                 join_ranges(start, end),
             ));
@@ -731,11 +726,7 @@ impl<'src> Parser<'src> {
         if token.kind == TokenKind::StringLit {
             Some(token)
         } else {
-            self.error_at(
-                "cem.ql.parse_error",
-                format!("expected {label}"),
-                token.range,
-            );
+            self.error_at(PARSE_ERROR, format!("expected {label}"), token.range);
             None
         }
     }
@@ -745,11 +736,7 @@ impl<'src> Parser<'src> {
         if token.kind == kind {
             Some(token)
         } else {
-            self.error_at(
-                "cem.ql.parse_error",
-                format!("expected {label}"),
-                token.range,
-            );
+            self.error_at(PARSE_ERROR, format!("expected {label}"), token.range);
             None
         }
     }
@@ -784,10 +771,10 @@ impl<'src> Parser<'src> {
 
     fn error_current(&mut self, message: impl Into<String>) {
         let range = self.current().range;
-        self.error_at("cem.ql.parse_error", message, range);
+        self.error_at(PARSE_ERROR, message, range);
     }
 
-    fn error_at(&mut self, code: &'static str, message: impl Into<String>, range: ByteRange) {
+    fn error_at(&mut self, code: DiagnosticCode, message: impl Into<String>, range: ByteRange) {
         self.diagnostics.push(diagnostic(code, message, range));
     }
 }
@@ -1140,16 +1127,6 @@ fn join_ranges(a: ByteRange, b: ByteRange) -> ByteRange {
     ByteRange::new(start, (end - start).try_into().unwrap_or(u32::MAX))
 }
 
-fn diagnostic(code: &'static str, message: impl Into<String>, range: ByteRange) -> Diagnostic {
-    Diagnostic {
-        uri: None,
-        line: None,
-        column: None,
-        byte_offset: Some(range.start),
-        code: code.to_owned(),
-        severity: Severity::Error,
-        message: message.into(),
-        node: None,
-        source_map: None,
-    }
+fn diagnostic(code: DiagnosticCode, message: impl Into<String>, range: ByteRange) -> Diagnostic {
+    ql_diagnostics::spanned(code, message, range, Severity::Error)
 }

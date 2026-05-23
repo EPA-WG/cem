@@ -18,9 +18,9 @@ The Rust crate is bootstrapped; layer implementations remain. Crate boundary, mo
 - [x] Implement L6 evaluator (`cem_ql::eval`) per impl §10 — pull-based `ItemStream`, pipeline iterator chains,
       streaming `Union` and bounded-buffer `Intersect`/`Difference`/`SymmetricDifference`, budget charging
       (AC-QR-1 / AC-QR-2).
-- [ ] Implement Tier A stdlib modules per impl §11: `cem:stdlib/sequence`, `strings`, `numbers`, `datetime`, `dom`,
+- [x] Implement Tier A stdlib modules per impl §11: `cem:stdlib/sequence`, `strings`, `numbers`, `datetime`, `dom`,
       `report`, `state`, `template`, `cemml`. Each function listed in the §11 tables.
-- [ ] Diagnostic table (`cem_ql::diagnostics`) per impl §8 — all Tier A codes plumbed through `cem_ml::report`.
+- [x] Diagnostic table (`cem_ql::diagnostics`) per impl §8 — all Tier A codes plumbed through `cem_ml::report`.
 - [ ] Verification scripts per AC §13:
       - [ ] `cem_ql:test` — unit coverage for L1..L6 + stdlib.
       - [ ] `cem_ql:test:xpath-parity` — XPath 3.1 conformance subset (AC-QX-1).

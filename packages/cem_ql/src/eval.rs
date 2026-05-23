@@ -7,6 +7,7 @@ use cem_ml::scheduler::ScopePolicy;
 use cem_ml::source_map::SourceMapStack;
 
 use crate::api::EvaluationContext;
+use crate::diagnostics::{BUDGET_EXCEEDED, TYPE_ERROR, UNKNOWN_FUNCTION, UNKNOWN_VARIABLE};
 use crate::ir::{CompiledQuery, IrId, IrNode};
 use crate::parser::{BinaryOp, QuantifierKind, UnaryOp};
 use crate::resolve::BindingId;
@@ -228,7 +229,7 @@ impl<'a> EvalCtx<'a> {
                 .get(&binding)
                 .copied()
                 .map(|lambda| ItemStream::once(Item::Lambda(lambda)))
-                .unwrap_or_else(|| self.unsupported(id, "unbound function reference")),
+                .unwrap_or_else(|| self.unknown_function(id, "unbound function reference")),
             IrNode::SchemaType(_) | IrNode::TemplateRef(_) => self.unsupported(
                 id,
                 "schema/template references are not evaluable values yet",
@@ -394,7 +395,7 @@ impl<'a> EvalCtx<'a> {
             .get(&binding)
             .copied()
             .map(|lambda| self.invoke_lambda(lambda, args))
-            .unwrap_or_else(|| self.unsupported(source, "unbound function call"))
+            .unwrap_or_else(|| self.unknown_function(source, "unbound function call"))
     }
 
     pub(crate) fn eval_arg_streams(&mut self, args: &[IrId]) -> Vec<ItemStream> {
@@ -417,7 +418,7 @@ impl<'a> EvalCtx<'a> {
     }
 
     pub(crate) fn unsupported(&mut self, source: IrId, message: &'static str) -> ItemStream {
-        let diagnostic = self.diagnostic(source, "cem.ql.unsupported", message, Severity::Error);
+        let diagnostic = self.diagnostic(source, TYPE_ERROR, message, Severity::Error);
         let error = EvalError::Unsupported(message);
         self.diagnostics.push(diagnostic.clone());
         self.error = Some(error.clone());
@@ -425,11 +426,41 @@ impl<'a> EvalCtx<'a> {
     }
 
     pub(crate) fn type_error(&mut self, source: IrId, message: &'static str) -> ItemStream {
-        let diagnostic = self.diagnostic(source, "cem.ql.type_error", message, Severity::Error);
+        let diagnostic = self.diagnostic(source, TYPE_ERROR, message, Severity::Error);
         let error = EvalError::TypeError(message);
         self.diagnostics.push(diagnostic.clone());
         self.error = Some(error.clone());
         ItemStream::failed(error, diagnostic)
+    }
+
+    pub(crate) fn unknown_function(&mut self, source: IrId, message: &'static str) -> ItemStream {
+        let diagnostic = self.diagnostic(source, UNKNOWN_FUNCTION, message, Severity::Error);
+        let error = EvalError::Unsupported(message);
+        self.diagnostics.push(diagnostic.clone());
+        self.error = Some(error.clone());
+        ItemStream::failed(error, diagnostic)
+    }
+
+    fn unknown_variable(&mut self, source: IrId, message: &'static str) -> ItemStream {
+        let diagnostic = self.diagnostic(source, UNKNOWN_VARIABLE, message, Severity::Error);
+        let error = EvalError::Unsupported(message);
+        self.diagnostics.push(diagnostic.clone());
+        self.error = Some(error.clone());
+        ItemStream::failed(error, diagnostic)
+    }
+
+    pub(crate) fn emit_diagnostic(
+        &mut self,
+        source: IrId,
+        code: impl Into<String>,
+        message: impl Into<String>,
+        severity: Severity,
+    ) -> ItemStream {
+        let diagnostic = self.diagnostic(source, code, message, severity);
+        self.diagnostics.push(diagnostic.clone());
+        let mut out = ItemStream::empty();
+        out.diagnostics.push(diagnostic);
+        out
     }
 
     fn eval_call(&mut self, source: IrId, callee: IrId, args: &[IrId]) -> ItemStream {
@@ -578,7 +609,7 @@ impl<'a> EvalCtx<'a> {
                 return self.eval_id(value);
             }
         }
-        self.unsupported(self.query.tree.root, "unbound local variable")
+        self.unknown_variable(self.query.tree.root, "unbound local variable")
     }
 
     fn bind(&mut self, binding: BindingId, value: ItemStream) {
@@ -618,8 +649,7 @@ impl<'a> EvalCtx<'a> {
         let limit = self.limits.get(&axis).copied().unwrap_or(u64::MAX);
         if next > limit {
             let message = format!("cem-ql budget exceeded: {}", axis.as_str());
-            let diagnostic =
-                self.diagnostic(source, "cem.ql.budget_exceeded", message, Severity::Error);
+            let diagnostic = self.diagnostic(source, BUDGET_EXCEEDED, message, Severity::Error);
             let error = EvalError::BudgetExceeded(axis);
             self.diagnostics.push(diagnostic.clone());
             self.error = Some(error.clone());
@@ -639,7 +669,7 @@ impl<'a> EvalCtx<'a> {
     fn diagnostic(
         &self,
         source: IrId,
-        code: &'static str,
+        code: impl Into<String>,
         message: impl Into<String>,
         severity: Severity,
     ) -> Diagnostic {
@@ -658,7 +688,7 @@ impl<'a> EvalCtx<'a> {
             line: None,
             column: None,
             byte_offset,
-            code: code.to_owned(),
+            code: code.into(),
             severity,
             message: message.into(),
             node: None,
