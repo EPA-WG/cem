@@ -74,7 +74,7 @@ pub struct BenchmarkRun {
 impl BenchmarkRun {
     pub fn within(&self, budget: &BenchmarkBudget) -> bool {
         let limit = budget.effective_budget().as_nanos();
-        (self.median_ns as u128) <= limit
+        self.median_ns <= limit
     }
 }
 

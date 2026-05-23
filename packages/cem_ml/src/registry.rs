@@ -9,14 +9,14 @@
 //!
 //! Layout:
 //! - [`template_ref`] — the `TemplateRef` enum and supporting types.
-//! - [`registry`] — `TemplateRegistry` (per-scope name → entry table).
+//! - [`template_registry`] — `TemplateRegistry` (per-scope name → entry table).
 //! - [`tree`] — `ScopedRegistryTree` with inherited lookup and
 //!   collision diagnostics.
 
-pub mod registry;
 pub mod template_ref;
+pub mod template_registry;
 pub mod tree;
 
-pub use registry::{CollisionDiagnostic, RegistryEntry, TemplateRegistry};
 pub use template_ref::{RegistryId, SchemaId, SourceId, TemplateRef};
+pub use template_registry::{CollisionDiagnostic, RegistryEntry, TemplateRegistry};
 pub use tree::{LookupResult, RegistryScopeId, ScopedRegistryTree};

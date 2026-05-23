@@ -106,7 +106,7 @@ impl PluginChain {
         let push = |target: &mut Vec<Arc<PluginDescriptor>>, plugin: &Arc<PluginDescriptor>| {
             target.push(plugin.clone());
         };
-        for registry in ancestors_outer_first.iter().copied() {
+        for registry in ancestors_outer_first {
             for plugin in registry.iter() {
                 if !plugin.matches_input(content_type) {
                     continue;

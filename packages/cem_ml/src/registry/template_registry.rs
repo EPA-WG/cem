@@ -19,7 +19,11 @@ impl TemplateRegistry {
         Self::default()
     }
 
-    pub fn insert(&mut self, name: impl Into<String>, template_ref: TemplateRef) -> Option<TemplateRef> {
+    pub fn insert(
+        &mut self,
+        name: impl Into<String>,
+        template_ref: TemplateRef,
+    ) -> Option<TemplateRef> {
         self.entries.insert(name.into(), template_ref)
     }
 

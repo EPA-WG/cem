@@ -3,23 +3,18 @@
 use serde::{Deserialize, Serialize};
 
 /// Behaviour when a bounded queue is full (AC-A-5).
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+#[derive(Debug, Clone, Copy, Default, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(rename_all = "kebab-case")]
 pub enum OverflowPolicy {
     /// Block the caller until a slot is available.
     Block,
     /// Reject the new work with a `QueueError::Overflow`.
+    #[default]
     Reject,
     /// Forward the new work to the parent scope's queue. The parent's
     /// overflow policy then applies; if no parent exists the policy
     /// degrades to `Reject`.
     SpillToParent,
-}
-
-impl Default for OverflowPolicy {
-    fn default() -> Self {
-        OverflowPolicy::Reject
-    }
 }
 
 /// One bounded resource the scheduler accounts for.
@@ -132,7 +127,7 @@ fn default_cpu_workers() -> u32 {
         let raw = std::thread::available_parallelism()
             .map(|n| n.get() as u32)
             .unwrap_or(1);
-        raw.min(8).max(1)
+        raw.clamp(1, 8)
     }
 }
 

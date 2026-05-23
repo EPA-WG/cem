@@ -239,7 +239,7 @@ impl EventSequencer {
         Self::default()
     }
 
-    pub fn next(&mut self) -> u64 {
+    pub fn next_sequence(&mut self) -> u64 {
         let id = self.next;
         self.next += 1;
         id
@@ -271,7 +271,7 @@ impl<'a> EventEmitter<'a> {
         source_map: Option<SourceMapStack>,
     ) {
         let event = ReportEvent {
-            sequence: self.sequencer.next(),
+            sequence: self.sequencer.next_sequence(),
             channel: EventChannel::Parse,
             byte_offset,
             source_map,
@@ -284,7 +284,7 @@ impl<'a> EventEmitter<'a> {
 
     pub fn validate(&mut self, diag: &Diagnostic) {
         let event = ReportEvent {
-            sequence: self.sequencer.next(),
+            sequence: self.sequencer.next_sequence(),
             channel: EventChannel::Validate,
             byte_offset: diag.byte_offset,
             source_map: diag.source_map.clone(),
@@ -307,7 +307,7 @@ impl<'a> EventEmitter<'a> {
         source_map: Option<SourceMapStack>,
     ) {
         let event = ReportEvent {
-            sequence: self.sequencer.next(),
+            sequence: self.sequencer.next_sequence(),
             channel: EventChannel::Transform,
             byte_offset,
             source_map,

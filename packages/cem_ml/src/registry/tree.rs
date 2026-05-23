@@ -1,8 +1,8 @@
 //! `ScopedRegistryTree` — inherited lookup + collision detection
 //! (AC-R-2, AC-R-3).
 
-use crate::registry::registry::{CollisionDiagnostic, TemplateRegistry};
 use crate::registry::template_ref::TemplateRef;
+use crate::registry::template_registry::{CollisionDiagnostic, TemplateRegistry};
 use std::collections::HashMap;
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, PartialOrd, Ord)]
@@ -76,9 +76,7 @@ impl ScopedRegistryTree {
         let name = name.into();
         // Walk ancestors first to capture the prior owner (if any).
         let ancestor_hit = self.find_ancestor_owner(scope, &name);
-        let Some(node) = self.nodes.get_mut(&scope) else {
-            return None;
-        };
+        let node = self.nodes.get_mut(&scope)?;
         node.registry.insert(name.clone(), template_ref.clone());
         ancestor_hit.map(|(ancestor_scope, ancestor_ref)| CollisionDiagnostic {
             name,

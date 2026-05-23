@@ -677,13 +677,15 @@ fn has_significant_content(
     doc: &crate::parser::document::CemDocument,
     children: &[AstNodeId],
 ) -> bool {
-    children.iter().any(|id| match doc.get(*id) {
-        Some(CemAstNode::Element { .. })
-        | Some(CemAstNode::Text { .. })
-        | Some(CemAstNode::Cdata { .. })
-        | Some(CemAstNode::RawText { .. })
-        | Some(CemAstNode::ProcessingInstruction { .. }) => true,
-        _ => false,
+    children.iter().any(|id| {
+        matches!(
+            doc.get(*id),
+            Some(CemAstNode::Element { .. })
+                | Some(CemAstNode::Text { .. })
+                | Some(CemAstNode::Cdata { .. })
+                | Some(CemAstNode::RawText { .. })
+                | Some(CemAstNode::ProcessingInstruction { .. })
+        )
     })
 }
 
