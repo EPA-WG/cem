@@ -46,7 +46,12 @@ mod tests {
             QuantifierKind, RecordEntry, SetOp, SurfaceModule, SurfaceNode, TypeExpr, UnaryOp,
             VariableDecl,
         };
-        use crate::resolve::{BindingId, BindingSet, NameResolver};
+        use crate::resolve::{
+            Arity, BindingEntry, BindingId, BindingKind, BindingSet, BindingTable, FunctionKey,
+            ImportKind, ImportPolicy, ImportResolution, ModuleUri, NameResolver,
+            OverlayFingerprint, OverlayKey, OverlayMap, QNameKey, Resolution, ResolutionReport,
+            ResolutionTraceEvent, SchemaTypeId, StateSlotId, StdlibOverlay, TemplateRefId,
+        };
         use crate::stdlib::ModuleRegistry;
         use crate::types::{Type, TypeChecker};
 
@@ -93,8 +98,28 @@ mod tests {
         _accept::<Axis>();
         _accept::<TypeExpr>();
         _accept::<BindingId>();
+        _accept::<Arity>();
+        _accept::<SchemaTypeId>();
+        _accept::<TemplateRefId>();
+        _accept::<StateSlotId>();
+        _accept::<QNameKey>();
+        _accept::<FunctionKey>();
+        _accept::<BindingKind>();
+        _accept::<BindingEntry>();
+        _accept::<BindingTable>();
         _accept::<BindingSet>();
         _accept::<NameResolver>();
+        _accept::<ResolutionTraceEvent>();
+        _accept::<Resolution>();
+        _accept::<ResolutionReport>();
+        _accept::<ImportPolicy>();
+        _accept::<ImportResolution>();
+        _accept::<ImportKind>();
+        _accept::<ModuleUri>();
+        _accept::<OverlayFingerprint>();
+        _accept::<OverlayKey>();
+        _accept::<OverlayMap>();
+        _accept::<StdlibOverlay>();
         _accept::<ModuleRegistry>();
         _accept::<Type>();
         _accept::<TypeChecker>();

@@ -15,8 +15,6 @@ Acceptance criteria: [`cem-ml-ac.md`](cem-ml-ac.md), [`cem-ql-ac.md`](cem-ql-ac.
 The Rust crate is bootstrapped; layer implementations remain. Crate boundary, module map, and AC mapping live in
 [`cem-ql-stack-design-impl.md`](cem-ql-stack-design-impl.md) §3.
 
-- [ ] Implement L3 name resolver (`cem_ql::resolve`) per impl §6 — `BindingSet` chain, per-scope stdlib overlay,
-      reserved-scheme guard, resolution-trace events for AC-QV-V-1.
 - [ ] Implement L4 type checker (`cem_ml::types`) per impl §7 — bidirectional inference, structural subtype walk,
       cross-type comparison warning, strict-default + dev-profile failure contract (AC-QT-3).
 - [ ] Implement L5 IR lowerer (`cem_ql::ir`) per impl §9 — typed `IrNode` enum, closure-detachment pass.
@@ -31,10 +29,8 @@ The Rust crate is bootstrapped; layer implementations remain. Crate boundary, mo
       - [ ] `cem_ql:test:xpath-parity` — XPath 3.1 conformance subset (AC-QX-1).
       - [ ] `cem_ql:test:fixtures` — Tier A query corpus against canonical CEM-ML fixtures.
       - [ ] `cem_ql:bench` — selector benchmark sharing `cem_ml::benchmark::BenchmarkBudget`.
-      - [ ] AC-QV-V-1 — three-case scope-inheritance/overlay test.
       - [ ] AC-QO-V-1 — set-operator identity test (node/structured, strict-typed atom, explicit-conversion uniformity,
             cross-type comparison warning).
-      - [ ] AC-QI-V-1 — import-gating test (one case per scheme tier).
 - [ ] Wire `cem_ml_cli` to invoke cem-ql for `select=` / `match=` / `test=` template attributes and `{$ … }` content
       expressions per AC-T-7.
 
