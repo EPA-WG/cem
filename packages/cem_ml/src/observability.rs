@@ -467,6 +467,54 @@ mod tests {
     }
 
     #[test]
+    fn event_emitter_sets_only_the_matching_channel_payload() {
+        let observer = BufferingObserver::new();
+        let mut seq = EventSequencer::new();
+        {
+            let mut emit = EventEmitter::new(&observer, &mut seq);
+            emit.parse(ParseEventKind::OpenScope, None, None, Some(0), None);
+            emit.validate(&crate::diagnostics::Diagnostic {
+                uri: None,
+                line: None,
+                column: None,
+                byte_offset: Some(4),
+                code: "cem.schema.scoping.exclusive_src_select".into(),
+                severity: Severity::Error,
+                message: "exclusive selectors conflict".into(),
+                node: None,
+                source_map: None,
+            });
+            emit.transform(
+                TransformKind::SchemaValidation { schema_id: 7 },
+                "validated",
+                None,
+                None,
+            );
+        }
+
+        let captured = observer.snapshot();
+        assert_eq!(captured.len(), 3);
+
+        let parse = &captured[0];
+        assert_eq!(parse.channel, EventChannel::Parse);
+        assert!(parse.parse.is_some());
+        assert!(parse.validate.is_none());
+        assert!(parse.transform.is_none());
+
+        let validate = &captured[1];
+        assert_eq!(validate.channel, EventChannel::Validate);
+        assert!(validate.parse.is_none());
+        assert!(validate.validate.is_some());
+        assert!(validate.transform.is_none());
+
+        let transform = &captured[2];
+        assert_eq!(transform.channel, EventChannel::Transform);
+        assert!(transform.parse.is_none());
+        assert!(transform.validate.is_none());
+        assert!(transform.transform.is_some());
+    }
+
+    #[test]
     fn events_round_trip_through_serde_json() {
         let originals = vec![sample_parse(0), sample_validate(1), sample_transform(2)];
         for original in originals {
@@ -480,6 +528,54 @@ mod tests {
             assert_eq!(round.sequence, original.sequence);
             assert_eq!(round.channel, original.channel);
         }
+    }
+
+    #[test]
+    fn serde_wire_form_keeps_nullable_parse_fields_and_transform_objects() {
+        let parse_json = serde_json::to_value(ReportEvent {
+            sequence: 0,
+            channel: EventChannel::Parse,
+            byte_offset: Some(1),
+            source_map: None,
+            parse: Some(ParseReportEvent {
+                kind: ParseEventKind::Trivia,
+                name: None,
+                value: None,
+            }),
+            validate: None,
+            transform: None,
+        })
+        .unwrap();
+        assert!(parse_json
+            .pointer("/parse/name")
+            .is_some_and(|v| v.is_null()));
+        assert!(parse_json
+            .pointer("/parse/value")
+            .is_some_and(|v| v.is_null()));
+
+        let transform_json = serde_json::to_value(ReportEvent {
+            sequence: 1,
+            channel: EventChannel::Transform,
+            byte_offset: None,
+            source_map: None,
+            parse: None,
+            validate: None,
+            transform: Some(TransformReportEvent {
+                transform: TransformKind::SchemaValidation { schema_id: 42 },
+                summary: "validated".to_owned(),
+            }),
+        })
+        .unwrap();
+        assert_eq!(
+            transform_json.pointer("/transform/transform/kind"),
+            Some(&serde_json::Value::String("SchemaValidation".to_owned()))
+        );
+        assert_eq!(
+            transform_json
+                .pointer("/transform/transform/schema_id")
+                .and_then(|v| v.as_u64()),
+            Some(42)
+        );
     }
 
     #[test]

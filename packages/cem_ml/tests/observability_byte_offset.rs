@@ -23,7 +23,8 @@ use cem_ml::observability::{
     events_to_jsonl, BufferingObserver, EventChannel, ReportEvent,
 };
 use cem_ml::real::observe_pipeline;
-use cem_ml::source_map::FrameSpan;
+use cem_ml::source::{ByteRange, SourceId};
+use cem_ml::source_map::{FrameSpan, SourceMapFrame, SourceMapStack, TransformKind};
 
 fn canonical_fixture_paths() -> Vec<std::path::PathBuf> {
     let root =
@@ -59,11 +60,37 @@ fn byte_offset_inside_any_frame(event: &ReportEvent, byte_offset: u64) -> bool {
         return false;
     };
     stack.frames.iter().any(|f| match &f.span {
-        FrameSpan::Single(r) => byte_offset >= r.start && byte_offset <= r.end(),
+        FrameSpan::Single(r) => byte_offset >= r.start && byte_offset < r.end(),
         FrameSpan::Multi(rs) => rs
             .iter()
-            .any(|r| byte_offset >= r.start && byte_offset <= r.end()),
+            .any(|r| byte_offset >= r.start && byte_offset < r.end()),
     })
+}
+
+#[test]
+fn byte_offset_inside_any_frame_treats_range_end_as_exclusive() {
+    let event = ReportEvent {
+        sequence: 0,
+        channel: EventChannel::Transform,
+        byte_offset: Some(10),
+        source_map: Some(SourceMapStack {
+            frames: vec![SourceMapFrame {
+                source_id: SourceId(0),
+                span: FrameSpan::Single(ByteRange::new(10, 5)),
+                transform: TransformKind::CemTokenizer,
+            }],
+        }),
+        parse: None,
+        validate: None,
+        transform: Some(cem_ml::observability::TransformReportEvent {
+            transform: TransformKind::CemTokenizer,
+            summary: "tokenized".to_owned(),
+        }),
+    };
+
+    assert!(byte_offset_inside_any_frame(&event, 10));
+    assert!(byte_offset_inside_any_frame(&event, 14));
+    assert!(!byte_offset_inside_any_frame(&event, 15));
 }
 
 // ---------------------------------------------------------------------------

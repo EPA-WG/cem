@@ -1914,7 +1914,7 @@ implementation shapes remain open:
 | IMPL-FOLLOW-001A | AC-F-9, AC-P-1, AC-P-8 | Add concrete CEM-native tokenizer lowering tests for `{name @attributes \| content...}`, `$` expression nodes, anonymous scopes, comments, rich-content enclosures, and rejection of bare `{...}` text interpolation. |
 | IMPL-FOLLOW-001B | AC-F-8 | Add `@doc` document-format identity parsing, SemVer constraint resolution, required top-level directive rejection, and AC-F-V-6 diagnostics before schema loading. |
 | IMPL-FOLLOW-002 | AC-V-2, AC-V-3, AC-V-9..AC-V-13 | Schema-version structs are sketched in §3.4; add parser/comparison implementation and compatibility severity tests. |
-| IMPL-FOLLOW-003 | AC-P-3, AC-O-1 | Event observer and `byte_offset` shapes are sketched in §2.5 / §3.12; add concrete Rust/WASM APIs and report projections. |
+| IMPL-FOLLOW-003 | AC-P-3, AC-O-1 | Resolved. `cem_ml::observability` owns the concrete `ReportEvent` / channel payload Rust types, `cem_ml::api::wasm` registers the JS callbacks against the same JSON wire form, `packages/cem_ml/schema/observability/report-event.schema.json` is the machine-readable contract, and `nx run cem_ml:test:observability-schema` plus the observability Rust tests verify it. |
 | IMPL-FOLLOW-004 | AC-F-2 | Add parser and schema-frame lowering for inline schema declarations and mid-document schema switch forms from AC-F-2 / design §13.1. |
 | IMPL-FOLLOW-005 | AC-I-1, AC-M-1 through AC-M-14 | Do not add a Tier A public DOM mutation module; design it as a Tier C runtime module later. |
 | IMPL-FOLLOW-006 | AC-PL-1 through AC-PL-20 | Add plugin module, descriptors, chain execution, source-map stitching, lifecycle, budgets, and sandbox types. |

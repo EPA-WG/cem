@@ -1378,6 +1378,7 @@ __metadata:
     "@swc/helpers": "npm:0.5.21"
     "@types/node": "npm:25.6.0"
     "@vitest/coverage-v8": "npm:4.1.5"
+    ajv: "npm:8.18.0"
     eslint: "npm:10.2.1"
     eslint-config-prettier: "npm:10.1.8"
     jsonc-eslint-parser: "npm:3.1.0"

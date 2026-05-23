@@ -88,15 +88,18 @@ impl EngineObserver for JsObserver {
 }
 
 fn dispatch_parse(event: &ReportEvent) {
-    PARSE_OBSERVER.with(|cell| invoke(cell.borrow().as_ref(), event));
+    let callback = PARSE_OBSERVER.with(|cell| cell.borrow().clone());
+    invoke(callback.as_ref(), event);
 }
 
 fn dispatch_validate(event: &ReportEvent) {
-    VALIDATE_OBSERVER.with(|cell| invoke(cell.borrow().as_ref(), event));
+    let callback = VALIDATE_OBSERVER.with(|cell| cell.borrow().clone());
+    invoke(callback.as_ref(), event);
 }
 
 fn dispatch_transform(event: &ReportEvent) {
-    TRANSFORM_OBSERVER.with(|cell| invoke(cell.borrow().as_ref(), event));
+    let callback = TRANSFORM_OBSERVER.with(|cell| cell.borrow().clone());
+    invoke(callback.as_ref(), event);
 }
 
 fn invoke(callback: Option<&Function>, event: &ReportEvent) {

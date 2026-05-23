@@ -2122,7 +2122,7 @@ remain open:
 |----|--------------|------------------|
 | DESIGN-FOLLOW-001 | AC-S-2 through AC-S-6 | **Design landed (§13.2); all open questions resolved 2026-05-19 (OQ-SC-3, OQ-SC-5, OQ-SC-6, OQ-SC-7, OQ-SC-8 — see §13.2.9).** Schema-compiler output module, emitter inventory, byte-stability rules, on-disk layout, URI publication workflow, and verification-fixture roster are fully specified. Emitter implementation is unblocked; [`cem-ml-schema-compiler-open-questions.md`](cem-ml-schema-compiler-open-questions.md) is kept as the decision archive. |
 | DESIGN-FOLLOW-002 | AC-V-2, AC-V-3 | AC rules are resolved in `cem-ml-ac.md` §3.1 and summarized in this design; implementation structs and tests still need to be added. |
-| DESIGN-FOLLOW-003 | AC-P-3, AC-O-1 | `byteOffset` and observer names are now sketched in design/impl; add concrete payload schemas, Rust/WASM API details, and tests. |
+| DESIGN-FOLLOW-003 | AC-P-3, AC-O-1 | Resolved. Concrete observer payload schemas live in `packages/cem_ml/schema/observability/report-event.schema.json`; Rust event types and observer APIs live in `cem_ml::observability`; WASM registration adapters live in `cem_ml::api::wasm`; verification is covered by `nx run cem_ml:test:observability-schema` and the `cem_ml` observability tests. |
 | DESIGN-FOLLOW-004 | AC-V-6, AC-X-3 | Add concrete schema-owned semantic checks for accessibility, ARIA, invalid state combinations, and unsafe inline content. |
 | DESIGN-FOLLOW-005 | AC-F-2 | Resolved in §13.1; keep implementation follow-up for concrete parser/schema-frame lowering. |
 | DESIGN-FOLLOW-006 | AC-I-1 | Design the later runtime `apply(transform)` API shape, or keep it explicitly open until the runtime phase. |

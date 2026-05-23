@@ -35,18 +35,27 @@
       "$ref": "#/$defs/TransformReportEvent"
     }
   },
-  "allOf": [
+  "oneOf": [
     {
-      "if": { "properties": { "channel": { "const": "parse" } }, "required": ["channel"] },
-      "then": { "required": ["parse", "byteOffset"] }
+      "properties": { "channel": { "const": "parse" } },
+      "required": ["parse", "byteOffset"],
+      "not": {
+        "anyOf": [{ "required": ["validate"] }, { "required": ["transform"] }]
+      }
     },
     {
-      "if": { "properties": { "channel": { "const": "validate" } }, "required": ["channel"] },
-      "then": { "required": ["validate"] }
+      "properties": { "channel": { "const": "validate" } },
+      "required": ["validate"],
+      "not": {
+        "anyOf": [{ "required": ["parse"] }, { "required": ["transform"] }]
+      }
     },
     {
-      "if": { "properties": { "channel": { "const": "transform" } }, "required": ["channel"] },
-      "then": { "required": ["transform"] }
+      "properties": { "channel": { "const": "transform" } },
+      "required": ["transform"],
+      "not": {
+        "anyOf": [{ "required": ["parse"] }, { "required": ["validate"] }]
+      }
     }
   ],
   "$defs": {
@@ -71,11 +80,11 @@
           "description": "Stable lowercase token drawn from `ParseEventKind`. New kinds are additive only."
         },
         "name": {
-          "type": "string",
+          "type": ["string", "null"],
           "description": "Lexical name when the event names one (open_scope, close_scope, name, mode_switch's content type, processing_instruction target)."
         },
         "value": {
-          "type": "string",
+          "type": ["string", "null"],
           "description": "Stringified scalar value when the event carries one (value events, processing-instruction data)."
         }
       }
@@ -87,7 +96,7 @@
       "properties": {
         "code": {
           "type": "string",
-          "pattern": "^cem\\.[a-z_]+\\.[a-z_]+$",
+          "pattern": "^cem(?:\\.[a-z0-9_]+)+$",
           "description": "Stable diagnostic identifier, e.g. `cem.tokenizer.bare_brace_text` or `cem.doc.version_missing`."
         },
         "severity": {
@@ -105,7 +114,7 @@
       "required": ["transform", "summary"],
       "properties": {
         "transform": {
-          "type": "string",
+          "$ref": "#/$defs/TransformKind",
           "description": "TransformKind discriminator from the source-map model (e.g. `CemTokenizer`, `EventNormalizer`, `CemAstBuilder`). Names follow the Rust enum variants."
         },
         "summary": {
@@ -113,6 +122,95 @@
           "description": "Free-form human-readable phase summary; not load-bearing for routing."
         }
       }
+    },
+    "TransformKind": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["kind"],
+      "properties": {
+        "kind": {
+          "type": "string",
+          "enum": [
+            "HtmlTokenizer",
+            "XmlTokenizer",
+            "CemTokenizer",
+            "EventNormalizer",
+            "SchemaValidation",
+            "CemAstBuilder",
+            "Query",
+            "QueryStep",
+            "HandoffBoundary",
+            "ContentTypeTransform",
+            "InterpreterRender"
+          ]
+        },
+        "schema_id": {
+          "type": "integer",
+          "minimum": 0,
+          "maximum": 4294967295
+        },
+        "child_content_type": {
+          "type": "string"
+        },
+        "content_type": {
+          "type": "string"
+        }
+      },
+      "oneOf": [
+        {
+          "properties": {
+            "kind": {
+              "enum": [
+                "HtmlTokenizer",
+                "XmlTokenizer",
+                "CemTokenizer",
+                "EventNormalizer",
+                "CemAstBuilder",
+                "Query",
+                "QueryStep",
+                "InterpreterRender"
+              ]
+            }
+          },
+          "not": {
+            "anyOf": [
+              { "required": ["schema_id"] },
+              { "required": ["child_content_type"] },
+              { "required": ["content_type"] }
+            ]
+          }
+        },
+        {
+          "properties": { "kind": { "const": "SchemaValidation" } },
+          "required": ["schema_id"],
+          "not": {
+            "anyOf": [
+              { "required": ["child_content_type"] },
+              { "required": ["content_type"] }
+            ]
+          }
+        },
+        {
+          "properties": { "kind": { "const": "HandoffBoundary" } },
+          "required": ["child_content_type"],
+          "not": {
+            "anyOf": [
+              { "required": ["schema_id"] },
+              { "required": ["content_type"] }
+            ]
+          }
+        },
+        {
+          "properties": { "kind": { "const": "ContentTypeTransform" } },
+          "required": ["content_type"],
+          "not": {
+            "anyOf": [
+              { "required": ["schema_id"] },
+              { "required": ["child_content_type"] }
+            ]
+          }
+        }
+      ]
     },
     "SourceMapStack": {
       "type": "object",

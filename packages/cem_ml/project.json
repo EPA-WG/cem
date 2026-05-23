@@ -48,6 +48,7 @@
         "test": {
             "cache": true,
             "executor": "@monodon/rust:test",
+            "dependsOn": ["test:observability-schema"],
             "outputs": ["{options.target-dir}"],
             "options": {
                 "package": "cem-ml",
@@ -58,6 +59,20 @@
                     "release": true
                 }
             }
+        },
+        "test:observability-schema": {
+            "cache": true,
+            "executor": "nx:run-commands",
+            "options": {
+                "command": "node tools/scripts/validate-observability-schema.mjs",
+                "cwd": "{workspaceRoot}"
+            },
+            "inputs": [
+                "{projectRoot}/schema/observability/report-event.schema.json",
+                "{projectRoot}/src/observability.rs",
+                "{projectRoot}/src/source_map.rs",
+                "{workspaceRoot}/tools/scripts/validate-observability-schema.mjs"
+            ]
         },
         "lint": {
             "cache": true,
