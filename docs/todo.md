@@ -49,7 +49,12 @@ The Rust crate is bootstrapped; layer implementations remain. Crate boundary, mo
             `packages/cem_ql/tests/compiled_artifact_reload.rs` serializes a Tier A corpus, verifies
             `cem-bin/1+blake3` artifact hashes, reloads from bytes after evicting the source query, and asserts
             stream/diagnostic identity.
-      - [ ] AC-QC-V-2 — transport protocol verification (`If-CEM-Hash` E2E test).
+      - [x] `cem_ql:test:transport-protocol` — AC-QC-V-2 transport-protocol fixture in
+            `packages/cem_ql/tests/transport_protocol.rs` drives the `cem_ql::transport`
+            loader through an in-memory mock server: pass 1 returns `200` + `CEM-Hash`
+            (parser entered, artifact cached), pass 2 returns `304` to the `If-CEM-Hash`
+            request (parser bypassed, cache hit), and a deliberately mismatched server
+            hash fails closed with `cem.cc.hash_mismatch`.
 - [ ] Wire `cem_ml_cli` to invoke cem-ql for `select=` / `match=` / `test=` template attributes and `{$ … }` content
       expressions per AC-T-7.
 
