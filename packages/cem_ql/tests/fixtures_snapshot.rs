@@ -41,8 +41,7 @@ fn cem_fixture(name: &str) -> String {
         .join("examples")
         .join("cem-ml")
         .join(format!("{name}.cem"));
-    fs::read_to_string(&path)
-        .unwrap_or_else(|err| panic!("read {}: {err}", path.display()))
+    fs::read_to_string(&path).unwrap_or_else(|err| panic!("read {}: {err}", path.display()))
 }
 
 fn html_fixture(name: &str) -> String {
@@ -50,8 +49,7 @@ fn html_fixture(name: &str) -> String {
         .join("examples")
         .join("semantic")
         .join(format!("{name}.html"));
-    fs::read_to_string(&path)
-        .unwrap_or_else(|err| panic!("read {}: {err}", path.display()))
+    fs::read_to_string(&path).unwrap_or_else(|err| panic!("read {}: {err}", path.display()))
 }
 
 fn run(source: &str) -> ItemStream {
@@ -139,10 +137,7 @@ fn capture(name: &'static str) -> FixtureSnapshot {
 
     // cemml:parse round-trip — verifies the cem-ml stdlib hook is wired
     // and the resulting node carries the fixture text.
-    let parsed = run(&format!(
-        r#"cemml:parse("{}")"#,
-        escape_query_string(&cem)
-    ));
+    let parsed = run(&format!(r#"cemml:parse("{}")"#, escape_query_string(&cem)));
     let cem_parses_to_node = matches!(parsed.items.first(), Some(Item::Node(node)) if node.contains(name) || !node.is_empty());
 
     let leading_tag_lower = first_string(&run(&format!(
@@ -166,10 +161,7 @@ fn capture(name: &'static str) -> FixtureSnapshot {
 
 fn leading_tag(cem: &str) -> &str {
     // Scan past the `@doc` / `@ns` header to the first `{tag`.
-    let after_brace = cem
-        .find('{')
-        .map(|idx| &cem[idx + 1..])
-        .unwrap_or(cem);
+    let after_brace = cem.find('{').map(|idx| &cem[idx + 1..]).unwrap_or(cem);
     let end = after_brace
         .find(|c: char| c.is_whitespace() || c == '|' || c == '@')
         .unwrap_or(after_brace.len());

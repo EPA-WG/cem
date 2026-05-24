@@ -3,7 +3,14 @@
 use std::collections::BTreeMap;
 
 use cem_ml::diagnostics::Severity;
+use cem_ml::events::cem::CemEventNormalizer;
+use cem_ml::parser::builder::CemAstBuilder;
+use cem_ml::parser::document::CemDocument;
+use cem_ml::parser::CemAstNode;
+use cem_ml::source::{BytesSource, SourceId};
+use cem_ml::tokenizer::cem::CemTokenizer;
 
+use crate::diagnostics::UNRESOLVED_REFERENCE;
 use crate::eval::{effective_boolean, first_integer, AtomValue, EvalCtx, Item, ItemStream};
 use crate::ir::{IrId, IrStep};
 use crate::resolve::ModuleUri;
@@ -84,6 +91,7 @@ fn apply_builtin_step(
         "take" => take(input, ctx.eval_arg_streams(args).first()),
         "drop" => drop(input, ctx.eval_arg_streams(args).first()),
         "nth" => nth(input, ctx.eval_arg_streams(args).first()),
+        "target" => resolve_ref(input, ctx, args.first().copied().unwrap_or(IrId(0))),
         "where" => where_step(input, args.first().copied(), ctx),
         _ => ctx.unknown_function(
             args.first().copied().unwrap_or(IrId(0)),
@@ -218,11 +226,15 @@ pub(crate) fn apply_stdlib_call(
         | ("cem:stdlib/dom", "descendants")
         | ("cem:stdlib/dom", "parent")
         | ("cem:stdlib/dom", "attribute")
-        | ("cem:stdlib/dom", "resolve_ref")
         | ("cem:stdlib/state", "read")
         | ("cem:stdlib/state", "keys")
         | ("cem:stdlib/template", "lookup")
         | ("cem:stdlib/template", "names") => ItemStream::empty(),
+        ("cem:stdlib/dom", "resolve_ref") => resolve_ref(
+            arg_streams.into_iter().next().unwrap_or_default(),
+            ctx,
+            source,
+        ),
         ("cem:stdlib/report", "emit") => report_emit(arg_streams, ctx, source),
         ("cem:stdlib/report", "severity_floor") => ItemStream::empty(),
         ("cem:stdlib/cemml", "parse") => cemml_parse(arg_streams),
@@ -266,6 +278,107 @@ fn nth(mut input: ItemStream, n: Option<&ItemStream>) -> ItemStream {
         .into_iter()
         .collect();
     input
+}
+
+fn resolve_ref(input: ItemStream, ctx: &mut EvalCtx<'_>, source: IrId) -> ItemStream {
+    let mut out = ItemStream::empty();
+    out.diagnostics.extend(input.diagnostics);
+    out.error = input.error;
+    for item in input.items {
+        match resolve_first_reference(&item) {
+            ReferenceResolution::Resolved(target) => out.items.push(Item::Node(target)),
+            ReferenceResolution::Unresolved(target_name) => {
+                let diagnostic = ctx.emit_diagnostic(
+                    source,
+                    UNRESOLVED_REFERENCE,
+                    format!("reference `{target_name}` did not match any element id"),
+                    Severity::Warning,
+                );
+                out.extend_diagnostics(diagnostic);
+            }
+            ReferenceResolution::NoReference => {}
+        }
+    }
+    out
+}
+
+enum ReferenceResolution {
+    Resolved(String),
+    Unresolved(String),
+    NoReference,
+}
+
+fn resolve_first_reference(item: &Item) -> ReferenceResolution {
+    let Some(source) = item_node_text(item) else {
+        return ReferenceResolution::NoReference;
+    };
+    let doc = parse_cem_fragment(source);
+    for node in doc.iter() {
+        let CemAstNode::Element { attributes, .. } = node else {
+            continue;
+        };
+        for attr_id in attributes {
+            let Some(CemAstNode::Attribute {
+                expanded_name,
+                value: Some(target_name),
+                ..
+            }) = doc.get(*attr_id)
+            else {
+                continue;
+            };
+            if !matches!(
+                expanded_name.local_name.as_str(),
+                "for" | "aria-labelledby" | "aria-describedby" | "aria-controls"
+            ) {
+                continue;
+            }
+            return cem_ml::query::find_by_id(&doc, target_name)
+                .map(|target| describe_node(&doc, target))
+                .map(ReferenceResolution::Resolved)
+                .unwrap_or_else(|| ReferenceResolution::Unresolved(target_name.clone()));
+        }
+    }
+    ReferenceResolution::NoReference
+}
+
+fn item_node_text(item: &Item) -> Option<&str> {
+    match item {
+        Item::Node(value) => Some(value.as_str()),
+        Item::Atomic(AtomValue::String(value)) => Some(value.as_str()),
+        _ => None,
+    }
+}
+
+fn parse_cem_fragment(source: &str) -> CemDocument {
+    let src = BytesSource::new(SourceId(1), source.as_bytes().to_vec());
+    let tokenizer = CemTokenizer::from_source(src);
+    let normalizer = CemEventNormalizer::new(tokenizer);
+    CemAstBuilder::new(normalizer).build()
+}
+
+fn describe_node(doc: &CemDocument, node: &CemAstNode) -> String {
+    let CemAstNode::Element {
+        expanded_name,
+        attributes,
+        ..
+    } = node
+    else {
+        return format!("{node:?}");
+    };
+    let id = attributes
+        .iter()
+        .find_map(|attr_id| match doc.get(*attr_id) {
+            Some(CemAstNode::Attribute {
+                expanded_name,
+                value: Some(value),
+                ..
+            }) if expanded_name.local_name == "id" => Some(value.clone()),
+            _ => None,
+        });
+    match id {
+        Some(id) => format!("{}#{id}", expanded_name.local_name),
+        None => expanded_name.local_name.clone(),
+    }
 }
 
 fn where_step(input: ItemStream, predicate: Option<IrId>, ctx: &mut EvalCtx<'_>) -> ItemStream {

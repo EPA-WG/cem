@@ -32,10 +32,12 @@ The Rust crate is bootstrapped; layer implementations remain. Crate boundary, mo
             `packages/cem_ql/tests/perf_budgets.rs`; honors `CEM_ML_PERF_SKIP` / `CEM_ML_PERF_TOLERANCE`.
       - [x] AC-QO-V-1 — set-operator identity fixture in `packages/cem_ql/tests/set_operator_identity.rs` covers
             node/record identity, typed-atom distinctness (NaN, signed zero, NFC/NFD, dateTime offsets), explicit-
-            conversion collapse, and the AC-QO-8 `cem.ql.cross_type_compare` warning. Runtime enforcement of strict-
-            typed `eq` is still pending (the warning fires statically; runtime currently coerces via f64).
+            conversion collapse, and the AC-QO-8 `cem.ql.cross_type_compare` warning plus strict-typed runtime
+            `eq` / `ne` behavior.
       - [ ] AC-QA-V-1 — `read()` content-negotiation test (Tier B policy fixture).
-      - [ ] AC-QD-V-1 — reference-resolution test for `.target` and `aria-labelledby` validation.
+      - [x] `cem_ql:test:reference-resolution` — AC-QD-V-1 reference-resolution fixture in
+            `packages/cem_ql/tests/reference_resolution.rs` covers `.target`, `dom:resolve_ref`, `for=`,
+            `aria-labelledby=`, and `cem.ql.unresolved_reference`.
       - [ ] AC-QV-V-2 — policy-hook test for `$scope` record/resource access.
       - [ ] AC-QC-V-1 — compiled artifact reload verification (serialize corpus -> evict -> reload -> assert identity).
       - [ ] AC-QC-V-2 — transport protocol verification (`If-CEM-Hash` E2E test).

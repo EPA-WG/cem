@@ -111,9 +111,7 @@ fn ac_qo_v_1_a_node_identity_dedups_under_set_operators() {
 #[test]
 fn ac_qo_v_1_a_record_identity_uses_structural_deep_equality() {
     // Records compare by structural deep equality of keys and values.
-    let union = eval(
-        r#"({ "k": 1 }, { "k": 2 }) | ({ "k": 2 }, { "k": 3 })"#,
-    );
+    let union = eval(r#"({ "k": 1 }, { "k": 2 }) | ({ "k": 2 }, { "k": 3 })"#);
     let expected = vec![
         record(&[("k", Item::Atomic(AtomValue::Integer(1)))]),
         record(&[("k", Item::Atomic(AtomValue::Integer(2)))]),
@@ -121,9 +119,7 @@ fn ac_qo_v_1_a_record_identity_uses_structural_deep_equality() {
     ];
     assert_eq!(union.items, expected);
 
-    let intersect = eval(
-        r#"({ "k": 1 }, { "k": 2 }) & ({ "k": 2 }, { "k": 3 })"#,
-    );
+    let intersect = eval(r#"({ "k": 1 }, { "k": 2 }) & ({ "k": 2 }, { "k": 3 })"#);
     assert_eq!(
         intersect.items,
         vec![record(&[("k", Item::Atomic(AtomValue::Integer(2)))])]
@@ -159,7 +155,12 @@ fn ac_qo_v_1_b_double_nan_collapses_under_union() {
     // two NaNs collapse to one item under `|`. Build NaNs via `0/0`
     // so the queries stay inside the parser's literal grammar.
     let union = eval("(0.0e0 div 0.0e0) | (0.0e0 div 0.0e0)");
-    assert_eq!(union.items.len(), 1, "NaN should collapse, got {:?}", union.items);
+    assert_eq!(
+        union.items.len(),
+        1,
+        "NaN should collapse, got {:?}",
+        union.items
+    );
     let Item::Atomic(AtomValue::Double(value)) = &union.items[0] else {
         panic!("expected double NaN, got {:?}", union.items);
     };
@@ -171,7 +172,12 @@ fn ac_qo_v_1_b_signed_zero_remains_distinct() {
     // Per AC-QO-3 `+0` and `-0` are distinct items (sign preserved).
     // `0.0e0` is +0; the unary negate path produces -0.
     let union = eval("(0.0e0) | (-(0.0e0))");
-    assert_eq!(union.items.len(), 2, "+0 and -0 must stay distinct: {:?}", union.items);
+    assert_eq!(
+        union.items.len(),
+        2,
+        "+0 and -0 must stay distinct: {:?}",
+        union.items
+    );
     let bits: Vec<u64> = union
         .items
         .iter()
@@ -205,9 +211,7 @@ fn ac_qo_v_1_b_datetime_offsets_remain_distinct() {
     // Per AC-QO-3 the timezone offset is part of the canonical form,
     // so the two strings denote the same instant but remain distinct
     // atoms. Authors call `to_utc(.)` to collapse.
-    let union = eval(
-        r#"("2026-05-13T12:00:00Z") | ("2026-05-13T08:00:00-04:00")"#,
-    );
+    let union = eval(r#"("2026-05-13T12:00:00Z") | ("2026-05-13T08:00:00-04:00")"#);
     assert_eq!(union.items.len(), 2);
 }
 
@@ -218,9 +222,8 @@ fn ac_qo_v_1_c_explicit_double_cast_collapses_numeric_atoms() {
     // Same `1`-shaped inputs as (b), pre-mapped through `num:double(.)`
     // so they share the `(double, 1.0-bits)` identity tuple and collapse
     // to a single item under `|`.
-    let collapsed = eval(
-        r#"(num:double(1)) | (num:double(1.0)) | (num:double(1.0e0)) | (num:double("1"))"#,
-    );
+    let collapsed =
+        eval(r#"(num:double(1)) | (num:double(1.0)) | (num:double(1.0e0)) | (num:double("1"))"#);
     assert_eq!(
         collapsed.items,
         vec![Item::Atomic(AtomValue::Double(1.0))],
@@ -234,9 +237,8 @@ fn ac_qo_v_1_c_explicit_to_utc_collapses_datetime_offsets() {
     // The current normalizer only appends `Z` when one is missing, so we
     // demonstrate the contract using two already-Z forms that share a
     // canonical representation after normalization.
-    let collapsed = eval(
-        r#"(dt:to_utc("2026-05-13T12:00:00Z")) | (dt:to_utc("2026-05-13T12:00:00Z"))"#,
-    );
+    let collapsed =
+        eval(r#"(dt:to_utc("2026-05-13T12:00:00Z")) | (dt:to_utc("2026-05-13T12:00:00Z"))"#);
     assert_eq!(
         collapsed.items,
         vec![Item::Atomic(AtomValue::String(
@@ -252,9 +254,7 @@ fn ac_qo_v_1_d_cross_atom_type_eq_emits_cross_type_compare_warning() {
     // Per AC-QO-8 the static checker emits `cem.ql.cross_type_compare`
     // at warning severity when atoms of different XPath types are
     // compared via `eq` / `=`. The runtime answer is "false" per the
-    // strict-typed identity rule; the runtime path currently relies on
-    // f64 coercion (a known gap tracked alongside AC-QO-3 enforcement),
-    // so this fixture asserts only the diagnostic contract.
+    // strict-typed identity rule; no numeric promotion is applied.
     let parsed = parse("1 eq 1.0e0");
     assert!(parsed.diagnostics.is_empty(), "{:?}", parsed.diagnostics);
     let mut checker = TypeChecker::new();
@@ -268,4 +268,10 @@ fn ac_qo_v_1_d_cross_atom_type_eq_emits_cross_type_compare_warning() {
         "expected cem.ql.cross_type_compare warning, got {:?}",
         report.diagnostics
     );
+
+    let eq = eval("1 eq 1.0e0");
+    assert_eq!(eq.items, vec![Item::Atomic(AtomValue::Boolean(false))]);
+
+    let ne = eval("1 ne 1.0e0");
+    assert_eq!(ne.items, vec![Item::Atomic(AtomValue::Boolean(true))]);
 }

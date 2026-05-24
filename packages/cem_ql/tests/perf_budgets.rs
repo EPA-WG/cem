@@ -43,8 +43,7 @@ fn load_fixture(dir: &str, name: &str, ext: &str) -> String {
         .join("examples")
         .join(dir)
         .join(format!("{name}.{ext}"));
-    fs::read_to_string(&path)
-        .unwrap_or_else(|err| panic!("read {}: {err}", path.display()))
+    fs::read_to_string(&path).unwrap_or_else(|err| panic!("read {}: {err}", path.display()))
 }
 
 fn evaluate_once(source: &str) -> ItemStream {
@@ -157,9 +156,7 @@ fn string_pipeline_selector_runs_under_ac_n_1_budget_across_fixtures() {
     let run = run_selector(
         |fixture| {
             let escaped = escape_query_string(fixture);
-            format!(
-                r#"str:length(str:lower(str:slice("{escaped}", 0, 64)))"#
-            )
+            format!(r#"str:length(str:lower(str:slice("{escaped}", 0, 64)))"#)
         },
         ITERATIONS,
     );

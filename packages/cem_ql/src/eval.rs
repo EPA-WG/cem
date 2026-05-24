@@ -819,9 +819,27 @@ fn numeric_unary(item: &Item, f: impl FnOnce(f64) -> f64) -> Item {
 }
 
 fn atom_cmp(lhs: &Item, rhs: &Item) -> Option<std::cmp::Ordering> {
-    match (item_to_f64(lhs), item_to_f64(rhs)) {
-        (Some(lhs), Some(rhs)) => lhs.partial_cmp(&rhs),
-        _ => item_to_string(lhs)?.partial_cmp(&item_to_string(rhs)?),
+    match (lhs, rhs) {
+        (Item::Atomic(lhs), Item::Atomic(rhs)) => atom_value_cmp(lhs, rhs),
+        (Item::Node(lhs), Item::Node(rhs)) => lhs.partial_cmp(rhs),
+        _ => None,
+    }
+}
+
+fn atom_value_cmp(lhs: &AtomValue, rhs: &AtomValue) -> Option<std::cmp::Ordering> {
+    match (lhs, rhs) {
+        (AtomValue::String(lhs), AtomValue::String(rhs))
+        | (AtomValue::AnyUri(lhs), AtomValue::AnyUri(rhs)) => lhs.partial_cmp(rhs),
+        (AtomValue::Integer(lhs), AtomValue::Integer(rhs)) => lhs.partial_cmp(rhs),
+        (AtomValue::Decimal(lhs), AtomValue::Decimal(rhs)) => {
+            let lhs = lhs.parse::<f64>().ok()?;
+            let rhs = rhs.parse::<f64>().ok()?;
+            lhs.partial_cmp(&rhs)
+        }
+        (AtomValue::Double(lhs), AtomValue::Double(rhs)) => lhs.partial_cmp(rhs),
+        (AtomValue::Boolean(lhs), AtomValue::Boolean(rhs)) => lhs.partial_cmp(rhs),
+        (AtomValue::Null, AtomValue::Null) => Some(std::cmp::Ordering::Equal),
+        _ => None,
     }
 }
 
