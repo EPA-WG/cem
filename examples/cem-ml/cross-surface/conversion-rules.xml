@@ -1,0 +1,12 @@
+<?xml version="1.0"?>
+<!DOCTYPE main>
+<main xmlns="http://www.w3.org/1999/xhtml" xmlns:cem="https://cem.dev/ns/core/1" cem:screen="conversion" aria-labelledby="title">
+  <!-- conversion fixture -->
+  <h1 id="title">Conversion fixture</h1>
+  <svg xmlns="http://www.w3.org/2000/svg">
+    <path d="M2 8h12"/>
+  </svg>
+  <cem:scope type="application/json"><![CDATA[{"name":"{$.user}","ok":true}]]></cem:scope>
+  <cem:expr>.items[0].name</cem:expr>
+  <button disabled="{.busy}" aria-label="Hello {.name}">Save</button>
+</main>

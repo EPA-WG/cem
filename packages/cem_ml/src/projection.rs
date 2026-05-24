@@ -220,9 +220,14 @@ fn event_to_json(ev: &NormalizedEvent) -> Value {
                 "byteRange": project_byte_range(Some(*byte_range)),
             })
         }
-        NormalizedEvent::Trivia { kind, byte_range } => json!({
+        NormalizedEvent::Trivia {
+            kind,
+            data,
+            byte_range,
+        } => json!({
             "kind": "trivia",
             "trivia": match kind { TriviaKind::Whitespace => "whitespace", TriviaKind::Comment => "comment" },
+            "data": data,
             "byteRange": project_byte_range(Some(*byte_range)),
         }),
         NormalizedEvent::ProcessingInstruction {

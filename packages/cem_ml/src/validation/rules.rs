@@ -5,9 +5,14 @@
 //! - `ReferenceIntegrityRule`: `id` / `for` / `aria-*` integrity.
 //! - `AccessibleNameRule`: interactive elements (button, a, input,
 //!   textarea, select) must have accessible name material.
+//! - `AriaCompatibilityRule`: role/ARIA attribute compatibility.
+//! - `SvgAccessibilityRule`: SVG-in-HTML naming and focus boundaries.
 //! - `StateCombinationRule`: disallow incompatible `cem:state` combos.
+//! - `StateTransitionRule`: disallow impossible static state transitions.
+//! - `OpenContentPolicyRule`: schema-owned unknown-name policy checks.
 //! - `JavaScriptUrlRule`: `href` / `src` / `action` / `formaction` /
 //!   `xlink:href` values starting with `javascript:`.
+//! - `UnsafeInlineContentRule`: inline script/srcdoc/external-DTD hooks.
 //! - `EventHandlerAttributeRule`: `on*` event handler attributes.
 
 use crate::diagnostics::{Diagnostic, Severity};
@@ -65,6 +70,13 @@ fn element_local_name(node: &CemAstNode) -> Option<&str> {
     }
 }
 
+fn element_node_id(node: &CemAstNode) -> Option<AstNodeId> {
+    match node {
+        CemAstNode::Element { node_id, .. } => Some(*node_id),
+        _ => None,
+    }
+}
+
 fn attribute_parts(node: &CemAstNode) -> Option<(&str, &str, Option<&str>)> {
     if let CemAstNode::Attribute {
         expanded_name,
@@ -80,6 +92,17 @@ fn attribute_parts(node: &CemAstNode) -> Option<(&str, &str, Option<&str>)> {
     } else {
         None
     }
+}
+
+fn attr_value<'a>(
+    doc: &'a crate::parser::document::CemDocument,
+    element: &'a CemAstNode,
+    name: &str,
+) -> Option<&'a str> {
+    element_attributes(doc, element).find_map(|attr| {
+        let (_, local, value) = attribute_parts(attr)?;
+        (local == name).then_some(value).flatten()
+    })
 }
 
 // ---------- Reference Integrity ----------
@@ -112,11 +135,19 @@ impl SemanticRule for ReferenceIntegrityRule {
                 if !is_reference {
                     continue;
                 }
-                if !ctx.document.id_table.contains_key(value) {
+                let targets: Vec<&str> = if local == "for" {
+                    vec![value]
+                } else {
+                    value.split_whitespace().collect()
+                };
+                for target in targets {
+                    if target.is_empty() || ctx.document.id_table.contains_key(target) {
+                        continue;
+                    }
                     out.push(diag_at(
                         "cem.ref.unresolved_reference",
                         Severity::Warning,
-                        format!("`{local}=\"{value}\"` does not match any element id"),
+                        format!("`{local}` reference `{target}` does not match any element id"),
                         attr,
                     ));
                 }
@@ -189,7 +220,10 @@ fn accessible_name_descriptor() -> &'static RuleDescriptor {
 }
 
 fn is_interactive_element(local: &str) -> bool {
-    matches!(local, "button" | "a" | "select" | "textarea")
+    matches!(
+        local,
+        "button" | "a" | "input" | "select" | "textarea" | "summary"
+    )
 }
 
 fn has_accessible_name(doc: &crate::parser::document::CemDocument, element: &CemAstNode) -> bool {
@@ -201,6 +235,24 @@ fn has_accessible_name(doc: &crate::parser::document::CemDocument, element: &Cem
         if matches!(local, "aria-label" | "aria-labelledby" | "title")
             && value.map(|v| !v.trim().is_empty()).unwrap_or(false)
         {
+            return true;
+        }
+    }
+    if let Some(id) = attr_value(doc, element, "id") {
+        if doc.iter().any(|node| {
+            element_local_name(node) == Some("label")
+                && attr_value(doc, node, "for")
+                    .map(|value| value.split_whitespace().any(|target| target == id))
+                    .unwrap_or(false)
+                && has_visible_text(doc, node)
+        }) {
+            return true;
+        }
+    }
+    if let Some(id) = element_node_id(element) {
+        if doc.iter().any(|node| {
+            element_local_name(node) == Some("label") && label_wraps_node_with_text(doc, node, id)
+        }) {
             return true;
         }
     }
@@ -222,6 +274,252 @@ fn has_visible_text(doc: &crate::parser::document::CemDocument, node: &CemAstNod
         }),
         _ => false,
     }
+}
+
+fn label_wraps_node_with_text(
+    doc: &crate::parser::document::CemDocument,
+    label: &CemAstNode,
+    target: AstNodeId,
+) -> bool {
+    let CemAstNode::Element { children, .. } = label else {
+        return false;
+    };
+    children.iter().any(|id| {
+        *id == target
+            || doc
+                .get(*id)
+                .map(|n| contains_node(doc, n, target))
+                .unwrap_or(false)
+    }) && has_visible_text(doc, label)
+}
+
+fn contains_node(
+    doc: &crate::parser::document::CemDocument,
+    node: &CemAstNode,
+    target: AstNodeId,
+) -> bool {
+    match node {
+        CemAstNode::Element {
+            node_id, children, ..
+        } => {
+            *node_id == target
+                || children.iter().any(|id| {
+                    doc.get(*id)
+                        .map(|n| contains_node(doc, n, target))
+                        .unwrap_or(false)
+                })
+        }
+        _ => false,
+    }
+}
+
+// ---------- ARIA Compatibility ----------
+
+pub struct AriaCompatibilityRule;
+
+impl SemanticRule for AriaCompatibilityRule {
+    fn descriptor(&self) -> &RuleDescriptor {
+        aria_compat_descriptor()
+    }
+
+    fn run(&self, ctx: &RuleContext<'_>) -> Vec<Diagnostic> {
+        let mut out = Vec::new();
+        for node in ctx.document.iter() {
+            let Some(local) = element_local_name(node) else {
+                continue;
+            };
+            let role = attr_value(ctx.document, node, "role");
+            if let Some(role) = role {
+                if !KNOWN_ROLES.contains(&role) {
+                    out.push(diag_at(
+                        "cem.a11y.aria_incompatible",
+                        Severity::Warning,
+                        format!("ARIA role `{role}` is not in the Tier A compatibility table"),
+                        node,
+                    ));
+                }
+            }
+            for attr in element_attributes(ctx.document, node) {
+                let Some((_, attr_name, _)) = attribute_parts(attr) else {
+                    continue;
+                };
+                let Some(allowed_roles) = aria_role_requirements(attr_name) else {
+                    continue;
+                };
+                if role.map(|r| allowed_roles.contains(&r)).unwrap_or(false)
+                    || native_allows_aria(local, attr_name, ctx.document, node)
+                {
+                    continue;
+                }
+                out.push(diag_at(
+                    "cem.a11y.aria_incompatible",
+                    Severity::Warning,
+                    format!(
+                        "`{attr_name}` is not compatible with `{local}` without one of roles: {}",
+                        allowed_roles.join(", ")
+                    ),
+                    attr,
+                ));
+            }
+        }
+        out
+    }
+}
+
+fn aria_compat_descriptor() -> &'static RuleDescriptor {
+    use std::sync::OnceLock;
+    static D: OnceLock<RuleDescriptor> = OnceLock::new();
+    D.get_or_init(|| RuleDescriptor {
+        id: RuleId::new("cem.a11y.aria_incompatible"),
+        owning_scope: "cem-a11y",
+        content_type: Some("text/html"),
+        trigger_layer: TriggerLayer::Document,
+        required_inputs: &[RuleInput::CemDocument],
+        default_severity: Severity::Warning,
+        policy_overridable: true,
+    })
+}
+
+const KNOWN_ROLES: &[&str] = &[
+    "alert",
+    "button",
+    "checkbox",
+    "combobox",
+    "dialog",
+    "gridcell",
+    "link",
+    "listbox",
+    "menuitem",
+    "menuitemcheckbox",
+    "menuitemradio",
+    "option",
+    "progressbar",
+    "radio",
+    "row",
+    "scrollbar",
+    "search",
+    "slider",
+    "spinbutton",
+    "status",
+    "switch",
+    "tab",
+    "tabpanel",
+    "treeitem",
+];
+
+fn aria_role_requirements(attr: &str) -> Option<&'static [&'static str]> {
+    match attr {
+        "aria-checked" => Some(&[
+            "checkbox",
+            "menuitemcheckbox",
+            "menuitemradio",
+            "radio",
+            "switch",
+        ]),
+        "aria-selected" => Some(&["gridcell", "option", "row", "tab"]),
+        "aria-valuenow" | "aria-valuemin" | "aria-valuemax" => {
+            Some(&["progressbar", "scrollbar", "slider", "spinbutton"])
+        }
+        "aria-expanded" => Some(&["button", "combobox", "link", "menuitem", "treeitem"]),
+        _ => None,
+    }
+}
+
+fn native_allows_aria(
+    local: &str,
+    attr: &str,
+    doc: &crate::parser::document::CemDocument,
+    node: &CemAstNode,
+) -> bool {
+    match (local, attr) {
+        ("button" | "summary", "aria-expanded") => true,
+        ("a", "aria-expanded") => attr_value(doc, node, "href").is_some(),
+        ("input", "aria-checked") => {
+            matches!(attr_value(doc, node, "type"), Some("checkbox" | "radio"))
+        }
+        _ => false,
+    }
+}
+
+// ---------- SVG Accessibility ----------
+
+pub struct SvgAccessibilityRule;
+
+impl SemanticRule for SvgAccessibilityRule {
+    fn descriptor(&self) -> &RuleDescriptor {
+        svg_accessibility_descriptor()
+    }
+
+    fn run(&self, ctx: &RuleContext<'_>) -> Vec<Diagnostic> {
+        let mut out = Vec::new();
+        for node in ctx.document.iter() {
+            if element_local_name(node) != Some("svg") {
+                continue;
+            }
+            let hidden = attr_value(ctx.document, node, "aria-hidden")
+                .map(|v| v.eq_ignore_ascii_case("true"))
+                .unwrap_or(false);
+            let focusable = attr_value(ctx.document, node, "focusable")
+                .map(|v| v.eq_ignore_ascii_case("true"))
+                .unwrap_or(false);
+            if hidden && focusable {
+                out.push(diag_at(
+                    "cem.a11y.svg_focusable_hidden",
+                    Severity::Warning,
+                    "`svg` is both `aria-hidden=true` and focusable".to_owned(),
+                    node,
+                ));
+            }
+            if hidden || svg_has_accessible_name(ctx.document, node) {
+                continue;
+            }
+            out.push(diag_at(
+                "cem.a11y.svg_accessible_name_missing",
+                Severity::Warning,
+                "`svg` content must be `aria-hidden=true` or provide title/desc/ARIA name material"
+                    .to_owned(),
+                node,
+            ));
+        }
+        out
+    }
+}
+
+fn svg_accessibility_descriptor() -> &'static RuleDescriptor {
+    use std::sync::OnceLock;
+    static D: OnceLock<RuleDescriptor> = OnceLock::new();
+    D.get_or_init(|| RuleDescriptor {
+        id: RuleId::new("cem.a11y.svg_accessible_name_missing"),
+        owning_scope: "cem-a11y",
+        content_type: Some("image/svg+xml"),
+        trigger_layer: TriggerLayer::Document,
+        required_inputs: &[RuleInput::CemDocument],
+        default_severity: Severity::Warning,
+        policy_overridable: true,
+    })
+}
+
+fn svg_has_accessible_name(doc: &crate::parser::document::CemDocument, node: &CemAstNode) -> bool {
+    if attr_value(doc, node, "aria-label")
+        .map(|v| !v.trim().is_empty())
+        .unwrap_or(false)
+        || attr_value(doc, node, "aria-labelledby")
+            .map(|v| !v.trim().is_empty())
+            .unwrap_or(false)
+    {
+        return true;
+    }
+    let CemAstNode::Element { children, .. } = node else {
+        return false;
+    };
+    children.iter().any(|id| {
+        doc.get(*id)
+            .map(|child| {
+                matches!(element_local_name(child), Some("title" | "desc"))
+                    && has_visible_text(doc, child)
+            })
+            .unwrap_or(false)
+    })
 }
 
 // ---------- State Combination ----------
@@ -293,7 +591,90 @@ const DISALLOWED_PAIRS: &[(&str, &str)] = &[
     ("disabled", "focus-visible"),
     ("disabled", "selected"),
     ("empty", "loading"),
+    ("default", "hover"),
+    ("default", "focus-visible"),
+    ("default", "active"),
+    ("default", "selected"),
+    ("default", "disabled"),
+    ("default", "invalid"),
+    ("default", "required"),
+    ("default", "loading"),
+    ("default", "empty"),
 ];
+
+pub struct StateTransitionRule;
+
+impl SemanticRule for StateTransitionRule {
+    fn descriptor(&self) -> &RuleDescriptor {
+        state_transition_descriptor()
+    }
+
+    fn run(&self, ctx: &RuleContext<'_>) -> Vec<Diagnostic> {
+        let mut out = Vec::new();
+        for node in ctx.document.iter() {
+            let CemAstNode::Element { .. } = node else {
+                continue;
+            };
+            let Some(local) = element_local_name(node) else {
+                continue;
+            };
+            let Some(states) = cem_state_tokens(ctx.document, node) else {
+                continue;
+            };
+            for state in states {
+                if matches!(state, "required" | "invalid") && !is_form_state_host(local) {
+                    out.push(diag_at(
+                        "cem.state.invalid_transition",
+                        Severity::Warning,
+                        format!("state `{state}` is only valid on form-associated host elements"),
+                        node,
+                    ));
+                }
+            }
+        }
+        out
+    }
+}
+
+fn state_transition_descriptor() -> &'static RuleDescriptor {
+    use std::sync::OnceLock;
+    static D: OnceLock<RuleDescriptor> = OnceLock::new();
+    D.get_or_init(|| RuleDescriptor {
+        id: RuleId::new("cem.state.invalid_transition"),
+        owning_scope: "cem-core",
+        content_type: None,
+        trigger_layer: TriggerLayer::Document,
+        required_inputs: &[RuleInput::CemDocument],
+        default_severity: Severity::Warning,
+        policy_overridable: true,
+    })
+}
+
+fn cem_state_tokens<'a>(
+    doc: &'a crate::parser::document::CemDocument,
+    node: &'a CemAstNode,
+) -> Option<Vec<&'a str>> {
+    element_attributes(doc, node).find_map(|attr| {
+        let (ns, local, value) = attribute_parts(attr)?;
+        (ns == "cem" && local == "state").then(|| value.unwrap_or("").split_whitespace().collect())
+    })
+}
+
+fn is_form_state_host(local: &str) -> bool {
+    matches!(
+        local,
+        "button"
+            | "fieldset"
+            | "form"
+            | "input"
+            | "meter"
+            | "option"
+            | "output"
+            | "progress"
+            | "select"
+            | "textarea"
+    )
+}
 
 // ---------- Unsafe Content ----------
 
@@ -608,6 +989,240 @@ fn event_handler_descriptor() -> &'static RuleDescriptor {
     })
 }
 
+pub struct UnsafeInlineContentRule;
+
+impl SemanticRule for UnsafeInlineContentRule {
+    fn descriptor(&self) -> &RuleDescriptor {
+        unsafe_inline_descriptor()
+    }
+
+    fn run(&self, ctx: &RuleContext<'_>) -> Vec<Diagnostic> {
+        let mut out = Vec::new();
+        for node in ctx.document.iter() {
+            match node {
+                CemAstNode::Element {
+                    expanded_name,
+                    children,
+                    ..
+                } if expanded_name.local_name == "script"
+                    && has_significant_content(ctx.document, children) =>
+                {
+                    out.push(diag_at(
+                        "cem.unsafe.inline_script",
+                        Severity::Error,
+                        "inline `script` content is policy-rejected in Tier A semantic documents"
+                            .to_owned(),
+                        node,
+                    ));
+                }
+                CemAstNode::Attribute { expanded_name, .. }
+                    if expanded_name.local_name == "srcdoc" =>
+                {
+                    out.push(diag_at(
+                        "cem.unsafe.srcdoc",
+                        Severity::Error,
+                        "`srcdoc` embeds an inline HTML document and is policy-gated".to_owned(),
+                        node,
+                    ));
+                }
+                CemAstNode::ProcessingInstruction { target, data, .. }
+                    if target.eq_ignore_ascii_case("DOCTYPE")
+                        && (data.contains("SYSTEM") || data.contains("PUBLIC")) =>
+                {
+                    out.push(diag_at(
+                        "cem.unsafe.external_dtd",
+                        Severity::Error,
+                        "external DTD declarations are policy-rejected".to_owned(),
+                        node,
+                    ));
+                }
+                _ => {}
+            }
+        }
+        out
+    }
+}
+
+fn unsafe_inline_descriptor() -> &'static RuleDescriptor {
+    use std::sync::OnceLock;
+    static D: OnceLock<RuleDescriptor> = OnceLock::new();
+    D.get_or_init(|| RuleDescriptor {
+        id: RuleId::new("cem.unsafe.inline_content"),
+        owning_scope: "cem-policy",
+        content_type: None,
+        trigger_layer: TriggerLayer::Document,
+        required_inputs: &[RuleInput::CemDocument],
+        default_severity: Severity::Error,
+        policy_overridable: false,
+    })
+}
+
+// ---------- Open Content / Unknown Names ----------
+
+pub struct OpenContentPolicyRule;
+
+impl SemanticRule for OpenContentPolicyRule {
+    fn descriptor(&self) -> &RuleDescriptor {
+        open_content_descriptor()
+    }
+
+    fn run(&self, ctx: &RuleContext<'_>) -> Vec<Diagnostic> {
+        let mut out = Vec::new();
+        for node in ctx.document.iter() {
+            match node {
+                CemAstNode::Element { expanded_name, .. } => {
+                    let ns = expanded_name.namespace_uri.as_str();
+                    let local = expanded_name.local_name.as_str();
+                    if local.is_empty() || local == "$" || local.starts_with('@') {
+                        continue;
+                    }
+                    if ns == "cem" {
+                        if !KNOWN_CEM_ELEMENTS.contains(&local) {
+                            out.push(diag_at(
+                                "cem.schema.unknown_cem_element",
+                                Severity::Error,
+                                format!("CEM schema element `{local}` is not declared by the active schema"),
+                                node,
+                            ));
+                        }
+                    } else if !is_custom_element_name(local)
+                        && !KNOWN_HTML_SVG_ELEMENTS.contains(&local)
+                    {
+                        out.push(diag_at(
+                            "cem.schema.unknown_html_element",
+                            Severity::Error,
+                            format!("element `{local}` is not accepted by the Tier A HTML/SVG open-content policy"),
+                            node,
+                        ));
+                    }
+                }
+                CemAstNode::Attribute { expanded_name, .. } => {
+                    let ns = expanded_name.namespace_uri.as_str();
+                    let local = expanded_name.local_name.as_str();
+                    if ns == "cem" {
+                        if !KNOWN_CEM_ATTRIBUTES.contains(&local) {
+                            out.push(diag_at(
+                                "cem.schema.unknown_cem_attribute",
+                                Severity::Error,
+                                format!("CEM annotation `cem:{local}` is not declared by the active schema"),
+                                node,
+                            ));
+                        }
+                    } else if !known_open_attribute(ns, local) {
+                        out.push(diag_at(
+                            "cem.schema.unknown_html_attribute",
+                            Severity::Warning,
+                            format!("attribute `{local}` is not declared by the Tier A HTML/SVG open-content policy"),
+                            node,
+                        ));
+                    }
+                }
+                _ => {}
+            }
+        }
+        out
+    }
+}
+
+fn open_content_descriptor() -> &'static RuleDescriptor {
+    use std::sync::OnceLock;
+    static D: OnceLock<RuleDescriptor> = OnceLock::new();
+    D.get_or_init(|| RuleDescriptor {
+        id: RuleId::new("cem.schema.open_content_policy"),
+        owning_scope: "cem-core",
+        content_type: None,
+        trigger_layer: TriggerLayer::Document,
+        required_inputs: &[RuleInput::CemDocument, RuleInput::Policy],
+        default_severity: Severity::Warning,
+        policy_overridable: true,
+    })
+}
+
+const KNOWN_CEM_ELEMENTS: &[&str] = &[
+    "schema",
+    "for-each",
+    "if",
+    "choose",
+    "when",
+    "otherwise",
+    "variable",
+];
+
+const KNOWN_CEM_ATTRIBUTES: &[&str] = &[
+    "screen",
+    "form",
+    "action",
+    "badge",
+    "card",
+    "list",
+    "row",
+    "thread",
+    "message",
+    "state",
+    "name",
+    "schema",
+    "schema-src",
+    "schema-select",
+    "for-each",
+    "if",
+    "choose",
+    "when",
+    "otherwise",
+    "variable",
+];
+
+const KNOWN_HTML_SVG_ELEMENTS: &[&str] = &[
+    "a", "article", "aside", "button", "dd", "desc", "dialog", "div", "dl", "dt", "fieldset",
+    "footer", "form", "h1", "h2", "h3", "h4", "h5", "h6", "header", "html", "iframe", "img",
+    "input", "label", "legend", "li", "main", "mark", "nav", "ol", "option", "p", "path", "script",
+    "section", "select", "small", "span", "strong", "svg", "textarea", "title", "ul",
+];
+
+const KNOWN_HTML_SVG_ATTRIBUTES: &[&str] = &[
+    "action",
+    "alt",
+    "aria-hidden",
+    "aria-label",
+    "aria-labelledby",
+    "aria-describedby",
+    "aria-controls",
+    "aria-owns",
+    "autocomplete",
+    "checked",
+    "class",
+    "d",
+    "disabled",
+    "for",
+    "height",
+    "href",
+    "id",
+    "method",
+    "name",
+    "required",
+    "role",
+    "rows",
+    "src",
+    "srcdoc",
+    "title",
+    "type",
+    "value",
+    "viewBox",
+    "width",
+    "xmlns",
+];
+
+fn known_open_attribute(ns: &str, local: &str) -> bool {
+    ns == "xmlns"
+        || ns == "xlink"
+        || local.starts_with("data-")
+        || local.starts_with("aria-")
+        || KNOWN_HTML_SVG_ATTRIBUTES.contains(&local)
+}
+
+fn is_custom_element_name(local: &str) -> bool {
+    local.contains('-')
+}
+
 // ---------- Relaxed Content Boundary ----------
 
 /// `cem.lint.relaxed_content_boundary` — recommend the explicit `|` /
@@ -746,6 +1361,15 @@ mod tests {
     }
 
     #[test]
+    fn reference_integrity_splits_aria_idrefs() {
+        let diags =
+            run_rules(r#"{main @aria-labelledby="title missing" | {h1 @id=title | Title}}"#);
+        assert!(diags
+            .iter()
+            .any(|d| d.code == "cem.ref.unresolved_reference" && d.message.contains("missing")));
+    }
+
+    #[test]
     fn accessible_name_flags_button_without_label_or_text() {
         let diags = run_rules("{button @type=submit}");
         assert!(diags
@@ -770,6 +1394,54 @@ mod tests {
     }
 
     #[test]
+    fn input_accessible_name_resolves_label_for() {
+        let diags = run_rules(r#"{form | {label @for=email | Email} {input @id=email}}"#);
+        assert!(diags
+            .iter()
+            .all(|d| d.code != "cem.a11y.accessible_name_missing"));
+    }
+
+    #[test]
+    fn input_accessible_name_resolves_wrapping_label() {
+        let diags = run_rules(r#"{label | {input @type=checkbox} Email updates}"#);
+        assert!(diags
+            .iter()
+            .all(|d| d.code != "cem.a11y.accessible_name_missing"));
+    }
+
+    #[test]
+    fn aria_role_attribute_compatibility_flags_mismatch() {
+        let diags = run_rules(r#"{div @aria-checked=true | Toggle}"#);
+        assert!(diags.iter().any(|d| d.code == "cem.a11y.aria_incompatible"));
+    }
+
+    #[test]
+    fn aria_role_attribute_compatibility_accepts_matching_role() {
+        let diags = run_rules(r#"{div @role=checkbox @aria-checked=true | Toggle}"#);
+        assert!(diags.iter().all(|d| d.code != "cem.a11y.aria_incompatible"));
+    }
+
+    #[test]
+    fn svg_requires_name_when_visible() {
+        let diags = run_rules(r#"{svg | {path @d="M0 0h1"}}"#);
+        assert!(diags
+            .iter()
+            .any(|d| d.code == "cem.a11y.svg_accessible_name_missing"));
+    }
+
+    #[test]
+    fn svg_hidden_or_titled_is_clean() {
+        let hidden = run_rules(r#"{svg @aria-hidden=true | {path @d="M0 0h1"}}"#);
+        assert!(hidden
+            .iter()
+            .all(|d| d.code != "cem.a11y.svg_accessible_name_missing"));
+        let titled = run_rules(r#"{svg | {title | Download} {path @d="M0 0h1"}}"#);
+        assert!(titled
+            .iter()
+            .all(|d| d.code != "cem.a11y.svg_accessible_name_missing"));
+    }
+
+    #[test]
     fn state_combination_flags_disabled_plus_loading() {
         let diags =
             run_rules(r#"{button @cem:action=primary @cem:state="disabled loading" | Save}"#);
@@ -784,6 +1456,22 @@ mod tests {
         assert!(diags
             .iter()
             .all(|d| d.code != "cem.state.invalid_combination"));
+    }
+
+    #[test]
+    fn state_default_cannot_combine_with_transient_state() {
+        let diags = run_rules(r#"{button @cem:state="default active" | Save}"#);
+        assert!(diags
+            .iter()
+            .any(|d| d.code == "cem.state.invalid_combination"));
+    }
+
+    #[test]
+    fn state_transition_flags_form_state_on_non_form_host() {
+        let diags = run_rules(r#"{span @cem:state=invalid | Bad}"#);
+        assert!(diags
+            .iter()
+            .any(|d| d.code == "cem.state.invalid_transition"));
     }
 
     #[test]
@@ -810,6 +1498,14 @@ mod tests {
         assert!(diags
             .iter()
             .any(|d| d.code == "cem.unsafe.event_handler_attribute"));
+    }
+
+    #[test]
+    fn unsafe_inline_script_and_srcdoc_are_flagged() {
+        let script = run_rules(r#"{script | ```alert(1)```}"#);
+        assert!(script.iter().any(|d| d.code == "cem.unsafe.inline_script"));
+        let srcdoc = run_rules(r#"{iframe @srcdoc="<p>x</p>"}"#);
+        assert!(srcdoc.iter().any(|d| d.code == "cem.unsafe.srcdoc"));
     }
 
     #[test]
@@ -856,6 +1552,27 @@ mod tests {
     fn known_namespace_prefixes_not_flagged() {
         let diags = run_rules(r#"{button @cem:action=primary @aria-label="Save"}"#);
         assert!(diags.iter().all(|d| d.code != "cem.lint.unbound_prefix"));
+    }
+
+    #[test]
+    fn open_content_policy_flags_unknown_names() {
+        let element_diags = run_rules(r#"{nothtml | hi}"#);
+        assert!(element_diags
+            .iter()
+            .any(|d| d.code == "cem.schema.unknown_html_element"));
+        let attr_diags = run_rules(r#"{button @madeup=value | Save}"#);
+        assert!(attr_diags
+            .iter()
+            .any(|d| d.code == "cem.schema.unknown_html_attribute"));
+    }
+
+    #[test]
+    fn open_content_policy_accepts_custom_elements_data_and_aria() {
+        let diags = run_rules(r#"{my-widget @data-track=x @aria-label="Widget"}"#);
+        assert!(diags.iter().all(|d| {
+            d.code != "cem.schema.unknown_html_element"
+                && d.code != "cem.schema.unknown_html_attribute"
+        }));
     }
 
     #[test]

@@ -99,7 +99,10 @@
             "options": {
                 "commands": [
                     "./dist/target/cem_ml_cli/debug/cem-ml fixture validate --zero-hard-violations --quiet --report-json packages/cem_ml_cli/dist --report-md packages/cem_ml_cli/dist",
-                    "./dist/target/cem_ml_cli/debug/cem-ml fixture roundtrip --quiet --report-json packages/cem_ml_cli/dist --report-md packages/cem_ml_cli/dist"
+                    "./dist/target/cem_ml_cli/debug/cem-ml fixture roundtrip --quiet --report-json packages/cem_ml_cli/dist --report-md packages/cem_ml_cli/dist",
+                    "./dist/target/cem_ml_cli/debug/cem-ml convert --from-format cem --to-format cem --out packages/cem_ml_cli/dist/cem-ml.cross-surface.cem.cem examples/cem-ml/cross-surface/conversion-rules.cem",
+                    "./dist/target/cem_ml_cli/debug/cem-ml convert --from-format xml --to-format cem --out packages/cem_ml_cli/dist/cem-ml.cross-surface.xml.cem examples/cem-ml/cross-surface/conversion-rules.xml",
+                    "./dist/target/cem_ml_cli/debug/cem-ml convert --from-format html --to-format cem --out packages/cem_ml_cli/dist/cem-ml.cross-surface.html.cem examples/cem-ml/cross-surface/conversion-rules.html"
                 ],
                 "parallel": false,
                 "cwd": "{workspaceRoot}"
@@ -111,13 +114,18 @@
                 "{workspaceRoot}/packages/cem_ml/Cargo.toml",
                 "{workspaceRoot}/examples/cem-ml/fixture-manifest.json",
                 "{workspaceRoot}/examples/cem-ml/**/*.cem",
+                "{workspaceRoot}/examples/cem-ml/**/*.xml",
+                "{workspaceRoot}/examples/cem-ml/**/*.html",
                 "{workspaceRoot}/examples/semantic/**/*.html"
             ],
             "outputs": [
                 "{projectRoot}/dist/cem-ml.report.json",
                 "{projectRoot}/dist/cem-ml.report.md",
                 "{projectRoot}/dist/cem-ml.roundtrip.report.json",
-                "{projectRoot}/dist/cem-ml.roundtrip.report.md"
+                "{projectRoot}/dist/cem-ml.roundtrip.report.md",
+                "{projectRoot}/dist/cem-ml.cross-surface.cem.cem",
+                "{projectRoot}/dist/cem-ml.cross-surface.xml.cem",
+                "{projectRoot}/dist/cem-ml.cross-surface.html.cem"
             ]
         }
     },

@@ -135,14 +135,15 @@ impl<T: SchemaTokenizer> CemEventNormalizer<T> {
                 } else {
                     self.pending.push_back(NormalizedEvent::Trivia {
                         kind: TriviaKind::Whitespace,
+                        data,
                         byte_range,
                     });
                 }
-                let _ = data;
             }
-            SchemaTokenKind::Comment(_) => {
+            SchemaTokenKind::Comment(data) => {
                 self.pending.push_back(NormalizedEvent::Trivia {
                     kind: TriviaKind::Comment,
+                    data,
                     byte_range,
                 });
             }

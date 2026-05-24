@@ -122,8 +122,20 @@ impl<E: EventNormalizer> CemAstBuilder<E> {
                     self.append_text(text, byte_range);
                 }
             }
-            NormalizedEvent::Trivia { kind, byte_range } => {
-                self.append_trivia(kind, byte_range);
+            NormalizedEvent::Trivia {
+                kind,
+                data,
+                byte_range,
+            } => {
+                // Tokenizer-level whitespace is syntax trivia. Keep the
+                // node for source-map continuity, but leave rendering
+                // semantics to actual Value events.
+                let data = if matches!(kind, TriviaKind::Whitespace) {
+                    String::new()
+                } else {
+                    data
+                };
+                self.append_trivia_kind(kind, byte_range, data);
             }
             NormalizedEvent::Separator { kind, .. } => {
                 // Content-boundary marker: finalize any unflushed pending
@@ -311,10 +323,6 @@ impl<E: EventNormalizer> CemAstBuilder<E> {
             source,
         });
         self.attach_child(node_id);
-    }
-
-    fn append_trivia(&mut self, kind: TriviaKind, byte_range: ByteRange) {
-        self.append_trivia_kind(kind, byte_range, String::new());
     }
 
     fn append_trivia_kind(&mut self, kind: TriviaKind, byte_range: ByteRange, data: String) {

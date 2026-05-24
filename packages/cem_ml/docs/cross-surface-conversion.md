@@ -161,6 +161,7 @@ canonical CEM-ML via the formatter. The integration tests are:
 | `canonical_cem_projection_preserves_schema_event_identity` | `.cem` → events → render → re-tokenize → events | `packages/cem_ml/tests/cross_surface_projection.rs` |
 | `every_html_parity_fixture_serializes_to_canonical_cem_ml` | HTML → canonical `.cem` byte-stable after reformat | `packages/cem_ml/tests/reverse_conversion.rs` |
 | `namespace_rebinding_xml_fixture_serializes_to_canonical_cem_ml` | XML → canonical `.cem` byte-stable after reformat | `packages/cem_ml/tests/reverse_conversion.rs` |
+| `cross_surface_conversion_rules` | CEM/XML/HTML construct fixtures from Phase 12 §6 | `packages/cem_ml/tests/cross_surface_conversion_rules.rs` |
 
 HTML parity fixtures already lower through the shared event stream in
 `packages/cem_ml/tests/fixture_pair.rs`. XML parity currently covers the

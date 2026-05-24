@@ -143,10 +143,7 @@ impl XmlTokenizer {
             .map(|(c, _)| *c)
             .collect();
         let head_range = self.range_from(open_start, self.cursor);
-        self.emit(
-            SchemaTokenKind::NodeStart { name: name.clone() },
-            head_range,
-        );
+        self.emit(parity_start_kind(&name), head_range);
 
         loop {
             self.skip_xml_whitespace();
@@ -171,7 +168,7 @@ impl XmlTokenizer {
                     let close_range = self.range_from(close_start, self.cursor);
                     self.emit(
                         SchemaTokenKind::NodeEnd {
-                            name: Some(name.clone()),
+                            name: parity_end_name(&name),
                         },
                         close_range,
                     );
@@ -321,7 +318,12 @@ impl XmlTokenizer {
             }
         }
         let range = self.range_from(open_start, self.cursor);
-        self.emit(SchemaTokenKind::NodeEnd { name: Some(name) }, range);
+        self.emit(
+            SchemaTokenKind::NodeEnd {
+                name: parity_end_name(&name),
+            },
+            range,
+        );
     }
 
     fn scan_declaration(&mut self, open_start: usize) {
@@ -631,6 +633,26 @@ impl XmlTokenizer {
 
 fn is_xml_name_start(c: char) -> bool {
     c.is_ascii_alphabetic() || matches!(c, '_' | ':')
+}
+
+fn parity_start_kind(name: &str) -> SchemaTokenKind {
+    match name {
+        "cem:scope" => SchemaTokenKind::AnonymousScopeStart,
+        "cem:expr" => SchemaTokenKind::NodeStart {
+            name: "$".to_owned(),
+        },
+        _ => SchemaTokenKind::NodeStart {
+            name: name.to_owned(),
+        },
+    }
+}
+
+fn parity_end_name(name: &str) -> Option<String> {
+    match name {
+        "cem:scope" => None,
+        "cem:expr" => Some("$".to_owned()),
+        _ => Some(name.to_owned()),
+    }
 }
 
 fn is_xml_name_char(c: char) -> bool {

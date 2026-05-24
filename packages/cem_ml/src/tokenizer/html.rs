@@ -188,10 +188,7 @@ impl HtmlTokenizer {
             .map(|(c, _)| c.to_ascii_lowercase())
             .collect();
         let head_range = self.range_from(open_start, self.cursor);
-        self.emit(
-            SchemaTokenKind::NodeStart { name: name.clone() },
-            head_range,
-        );
+        self.emit(parity_start_kind(&name), head_range);
 
         let mut self_closing = false;
         loop {
@@ -213,7 +210,7 @@ impl HtmlTokenizer {
                         let close_range = self.range_from(close_start, self.cursor);
                         self.emit(
                             SchemaTokenKind::NodeEnd {
-                                name: Some(name.clone()),
+                                name: parity_end_name(&name),
                             },
                             close_range,
                         );
@@ -356,7 +353,12 @@ impl HtmlTokenizer {
             self.advance();
         }
         let range = self.range_from(open_start, self.cursor);
-        self.emit(SchemaTokenKind::NodeEnd { name: Some(name) }, range);
+        self.emit(
+            SchemaTokenKind::NodeEnd {
+                name: parity_end_name(&name),
+            },
+            range,
+        );
     }
 
     fn scan_markup_declaration(&mut self, open_start: usize) {
@@ -532,6 +534,26 @@ impl HtmlTokenizer {
 
 fn is_tag_name_char(c: char) -> bool {
     c.is_ascii_alphanumeric() || matches!(c, '-' | '_' | ':')
+}
+
+fn parity_start_kind(name: &str) -> SchemaTokenKind {
+    match name {
+        "cem:scope" => SchemaTokenKind::AnonymousScopeStart,
+        "cem:expr" => SchemaTokenKind::NodeStart {
+            name: "$".to_owned(),
+        },
+        _ => SchemaTokenKind::NodeStart {
+            name: name.to_owned(),
+        },
+    }
+}
+
+fn parity_end_name(name: &str) -> Option<String> {
+    match name {
+        "cem:scope" => None,
+        "cem:expr" => Some("$".to_owned()),
+        _ => Some(name.to_owned()),
+    }
 }
 
 impl SchemaTokenizer for HtmlTokenizer {

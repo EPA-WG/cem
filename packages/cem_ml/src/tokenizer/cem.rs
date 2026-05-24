@@ -213,6 +213,11 @@ impl CemTokenizer {
                 None => break,
                 Some('@') => self.scan_directive(),
                 Some('{') => self.scan_node(),
+                Some('<') if self.peek_at(1) == Some('?') => {
+                    let open_start = self.cursor;
+                    self.cursor += 2;
+                    self.scan_processing_instruction(open_start);
+                }
                 Some('`') if self.is_rich_open() => self.scan_rich_content(),
                 Some(_) => self.scan_top_text(),
             }
@@ -224,7 +229,10 @@ impl CemTokenizer {
         // sigil.
         let start = self.cursor;
         while let Some(c) = self.peek() {
-            if c == '{' || c == '@' || c == '`' {
+            if c == '{' || c == '@' || (c == '`' && self.is_rich_open()) {
+                break;
+            }
+            if c == '<' && self.peek_at(1) == Some('?') {
                 break;
             }
             self.cursor += 1;
@@ -610,6 +618,11 @@ impl CemTokenizer {
                 Some('`') if self.is_rich_open() => {
                     self.scan_rich_content();
                 }
+                Some('<') if self.peek_at(1) == Some('?') => {
+                    let open_start = self.cursor;
+                    self.cursor += 2;
+                    self.scan_processing_instruction(open_start);
+                }
                 // Block comments are recognized inside element content;
                 // line comments (`//`) are intentionally NOT — `//` is
                 // a common substring of URLs in attribute-free text and
@@ -625,7 +638,10 @@ impl CemTokenizer {
     fn scan_content_text(&mut self) {
         let start = self.cursor;
         while let Some(c) = self.peek() {
-            if c == '{' || c == '}' || c == '`' {
+            if c == '{' || c == '}' || (c == '`' && self.is_rich_open()) {
+                break;
+            }
+            if c == '<' && self.peek_at(1) == Some('?') {
                 break;
             }
             // Only block-comment opens stop content text; `//` is left
@@ -645,6 +661,76 @@ impl CemTokenizer {
         } else {
             // Safety net: avoid infinite loop on unexpected input.
             self.advance();
+        }
+    }
+
+    fn scan_processing_instruction(&mut self, open_start: usize) {
+        let target_start = self.cursor;
+        if !matches!(self.peek(), Some(c) if is_name_start(c)) {
+            self.diagnostic(
+                "cem.tokenizer.invalid_processing_instruction",
+                Severity::Error,
+                "processing instruction is missing a target name".into(),
+                self.current_offset(),
+            );
+        } else {
+            self.cursor += 1;
+            while let Some(c) = self.peek() {
+                if is_name_continue(c) || matches!(c, '-' | ':' | '.') {
+                    self.cursor += 1;
+                } else {
+                    break;
+                }
+            }
+        }
+        let target: String = self.scalars[target_start..self.cursor]
+            .iter()
+            .map(|(c, _)| *c)
+            .collect();
+        self.skip_horiz_ws();
+        let data_start = self.cursor;
+        loop {
+            match (self.peek(), self.peek_at(1)) {
+                (Some('?'), Some('>')) => {
+                    let data_end = self.cursor;
+                    self.cursor += 2;
+                    let data: String = self.scalars[data_start..data_end]
+                        .iter()
+                        .map(|(c, _)| *c)
+                        .collect();
+                    let range = self.range_from(open_start, self.cursor);
+                    self.emit(
+                        SchemaTokenKind::ProcessingInstruction {
+                            target,
+                            data: data.trim().to_owned(),
+                        },
+                        range,
+                    );
+                    return;
+                }
+                (None, _) => {
+                    self.diagnostic(
+                        "cem.tokenizer.unterminated_processing_instruction",
+                        Severity::Error,
+                        "processing instruction is missing its closing `?>`".into(),
+                        self.current_offset(),
+                    );
+                    let data: String = self.scalars[data_start..self.cursor]
+                        .iter()
+                        .map(|(c, _)| *c)
+                        .collect();
+                    let range = self.range_from(open_start, self.cursor);
+                    self.emit(
+                        SchemaTokenKind::ProcessingInstruction {
+                            target,
+                            data: data.trim().to_owned(),
+                        },
+                        range,
+                    );
+                    return;
+                }
+                _ => self.cursor += 1,
+            }
         }
     }
 
@@ -1026,6 +1112,34 @@ mod tests {
         if let SchemaTokenKind::RichContent { data } = &rich.kind {
             assert_eq!(data, "<div>{x}</div>");
         }
+    }
+
+    #[test]
+    fn processing_instruction_is_preserved() {
+        let (tokens, diags) = tokenize("<?xml version=\"1.0\"?>\n{p | ok}");
+        assert!(diags.is_empty(), "{:?}", diags);
+        let pi = tokens
+            .iter()
+            .find(|t| matches!(t.kind, SchemaTokenKind::ProcessingInstruction { .. }))
+            .unwrap();
+        if let SchemaTokenKind::ProcessingInstruction { target, data } = &pi.kind {
+            assert_eq!(target, "xml");
+            assert_eq!(data, "version=\"1.0\"");
+        }
+    }
+
+    #[test]
+    fn single_backticks_are_text_not_rich_boundaries() {
+        let (tokens, diags) = tokenize("{p | Use `code` here}");
+        assert!(diags.is_empty(), "{:?}", diags);
+        let text = tokens
+            .iter()
+            .find_map(|t| match &t.kind {
+                SchemaTokenKind::Text(data) if data.contains("`code`") => Some(data),
+                _ => None,
+            })
+            .expect("text token with single backticks");
+        assert_eq!(text, "Use `code` here");
     }
 
     #[test]

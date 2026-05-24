@@ -23,10 +23,10 @@ and deterministic trace report projection are implemented.
 
 - [x] Build the fixture manifest pairing every `examples/cem-ml/*.cem` with its `examples/semantic/*.html` parity
       fixture. Wire `nx run cem_ml_cli:validate-fixtures` and `cem_ml_cli:e2e`.
-- [ ] Add the cross-surface conversion fixtures CLI plan Phase 12 §6 — namespace bindings, comments / whitespace /
+- [x] Add the cross-surface conversion fixtures CLI plan Phase 12 §6 — namespace bindings, comments / whitespace /
       doctypes / PIs / CDATA, anonymous typed scopes, rich-content enclosures, `$` expression nodes, attribute-value
       cem-ql spans, source-map frame preservation.
-- [ ] Land the Tier A semantic-validation rule catalog per CLI plan Phase 13: accessible-name requirements, ARIA
+- [x] Land the Tier A semantic-validation rule catalog per CLI plan Phase 13: accessible-name requirements, ARIA
       role/attribute compatibility, `id` / `for` / `aria-*` resolution, SVG-in-HTML accessibility boundaries, invalid
       component state combinations, required/forbidden state transitions, reference integrity, schema-owned
       open-content policy, unsafe-content rules.

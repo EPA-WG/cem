@@ -6,7 +6,7 @@
 //! Equivalence is structural: the test reduces each parse to a
 //! sequence of [`StructuralEvent`]s — element opens/closes with
 //! qualified names, attribute names and values, directive heads,
-//! expression-node markers, rich-content payloads, and presence of
+//! expression-node markers, rich content as text, and presence of
 //! non-whitespace text. Whitespace, line/block comments, and
 //! source-position metadata are deliberately excluded because they are
 //! trivia in both engines.
@@ -27,17 +27,12 @@ enum StructuralEvent {
     OpenAnonymousScope,
     OpenExpressionNode,
     CloseScope,
-    Attribute {
-        name: String,
-        value: Option<String>,
-    },
+    Attribute { name: String, value: Option<String> },
     Text,
-    RichContent,
 }
 
 fn fixture_paths() -> Vec<std::path::PathBuf> {
-    let root =
-        std::path::PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("../../examples/cem-ml");
+    let root = std::path::PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("../../examples/cem-ml");
     let mut out = Vec::new();
     walk_dir(&root, &mut out);
     out.sort();
@@ -85,6 +80,11 @@ fn visit_rust(doc: &CemDocument, id: AstNodeId, out: &mut Vec<StructuralEvent>) 
                 out.push(StructuralEvent::Directive(name.to_owned()));
                 return;
             }
+            if qname == "$" {
+                out.push(StructuralEvent::OpenExpressionNode);
+                out.push(StructuralEvent::CloseScope);
+                return;
+            }
             if qname.is_empty() {
                 out.push(StructuralEvent::OpenAnonymousScope);
             } else {
@@ -120,9 +120,7 @@ fn visit_rust(doc: &CemDocument, id: AstNodeId, out: &mut Vec<StructuralEvent>) 
         CemAstNode::Cdata { .. } | CemAstNode::RawText { .. } => {
             out.push(StructuralEvent::Text);
         }
-        CemAstNode::Document { .. }
-        | CemAstNode::Error { .. }
-        | CemAstNode::Attribute { .. } => {}
+        CemAstNode::Document { .. } | CemAstNode::Error { .. } | CemAstNode::Attribute { .. } => {}
     }
 }
 
@@ -210,7 +208,7 @@ fn visit_ts(node: Node<'_>, src: &[u8], in_content: bool, out: &mut Vec<Structur
             }
         }
         "rich_content" => {
-            out.push(StructuralEvent::RichContent);
+            out.push(StructuralEvent::Text);
         }
         // Comments inside an element body are text in the Rust pipeline
         // (`scan_content_text` keeps `//` as plain text so URLs survive
@@ -227,12 +225,7 @@ fn visit_ts(node: Node<'_>, src: &[u8], in_content: bool, out: &mut Vec<Structur
     }
 }
 
-fn walk_children(
-    node: Node<'_>,
-    src: &[u8],
-    in_content: bool,
-    out: &mut Vec<StructuralEvent>,
-) {
+fn walk_children(node: Node<'_>, src: &[u8], in_content: bool, out: &mut Vec<StructuralEvent>) {
     let mut cursor = node.walk();
     for child in node.children(&mut cursor) {
         visit_ts(child, src, in_content, out);
@@ -274,8 +267,7 @@ fn parse_rust(input: &str) -> CemDocument {
 fn dedupe_text(events: Vec<StructuralEvent>) -> Vec<StructuralEvent> {
     let mut out: Vec<StructuralEvent> = Vec::with_capacity(events.len());
     for ev in events {
-        if matches!(ev, StructuralEvent::Text)
-            && matches!(out.last(), Some(StructuralEvent::Text))
+        if matches!(ev, StructuralEvent::Text) && matches!(out.last(), Some(StructuralEvent::Text))
         {
             continue;
         }

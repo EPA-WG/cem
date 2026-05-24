@@ -223,12 +223,7 @@ pub fn observe_pipeline(
 
     let run = run_pipeline_as(bytes, from_format);
 
-    emit.transform(
-        TransformKind::CemAstBuilder,
-        "AST built",
-        None,
-        None,
-    );
+    emit.transform(TransformKind::CemAstBuilder, "AST built", None, None);
 
     // Validate channel — every accumulated diagnostic, plus the
     // normalizer's own diagnostics we collected above (they are also
@@ -289,10 +284,14 @@ pub fn observe_pipeline(
                     None,
                 );
             }
-            NormalizedEvent::Trivia { kind, byte_range } => emit.parse(
+            NormalizedEvent::Trivia {
+                kind,
+                data,
+                byte_range,
+            } => emit.parse(
                 ParseEventKind::Trivia,
                 Some(format!("{kind:?}")),
-                None,
+                Some(data.clone()),
                 Some(byte_range.start),
                 None,
             ),

@@ -13,12 +13,17 @@
 //!   integrity.
 //! - `cem.a11y.accessible_name_missing` — interactive elements must carry
 //!   text content or `aria-label` / `aria-labelledby`.
+//! - `cem.a11y.aria_incompatible` — ARIA role/attribute compatibility.
+//! - `cem.a11y.svg_accessible_name_missing` — visible SVG requires name material.
 //! - `cem.state.invalid_combination` — disallowed state combinations on
 //!   the active CEM annotation (e.g. `disabled` + `loading`).
+//! - `cem.state.invalid_transition` — impossible static CEM state transitions.
 //! - `cem.unsafe.javascript_url` — `href` / `src` / `action` attributes
 //!   carrying a `javascript:` URL.
 //! - `cem.unsafe.event_handler_attribute` — `on*` / DOM-style event
 //!   handler attributes.
+//! - `cem.unsafe.inline_content` — inline script/srcdoc/external-DTD policy hooks.
+//! - `cem.schema.open_content_policy` — schema-owned unknown-name checks.
 //! - `cem.struct.unknown_annotation` — re-surface schema-machine "unknown
 //!   annotation" diagnostics so the validation layer is a single entry
 //!   point.
@@ -121,9 +126,14 @@ impl RuleRegistry {
         let mut r = Self::new();
         r.register(Box::new(rules::ReferenceIntegrityRule));
         r.register(Box::new(rules::AccessibleNameRule));
+        r.register(Box::new(rules::AriaCompatibilityRule));
+        r.register(Box::new(rules::SvgAccessibilityRule));
         r.register(Box::new(rules::StateCombinationRule));
+        r.register(Box::new(rules::StateTransitionRule));
         r.register(Box::new(rules::JavaScriptUrlRule));
         r.register(Box::new(rules::EventHandlerAttributeRule));
+        r.register(Box::new(rules::UnsafeInlineContentRule));
+        r.register(Box::new(rules::OpenContentPolicyRule));
         r.register(Box::new(rules::UnboundPrefixRule));
         r.register(Box::new(rules::NoncanonicalDelimiterRule));
         r.register(Box::new(rules::SuspiciousContentTypeSwitchRule));
@@ -219,9 +229,14 @@ mod tests {
         let codes: Vec<&str> = r.descriptors().iter().map(|d| d.id.as_str()).collect();
         assert!(codes.contains(&"cem.ref.unresolved_reference"));
         assert!(codes.contains(&"cem.a11y.accessible_name_missing"));
+        assert!(codes.contains(&"cem.a11y.aria_incompatible"));
+        assert!(codes.contains(&"cem.a11y.svg_accessible_name_missing"));
         assert!(codes.contains(&"cem.state.invalid_combination"));
+        assert!(codes.contains(&"cem.state.invalid_transition"));
         assert!(codes.contains(&"cem.unsafe.javascript_url"));
         assert!(codes.contains(&"cem.unsafe.event_handler_attribute"));
+        assert!(codes.contains(&"cem.unsafe.inline_content"));
+        assert!(codes.contains(&"cem.schema.open_content_policy"));
         assert!(codes.contains(&"cem.lint.unbound_prefix"));
         assert!(codes.contains(&"cem.lint.noncanonical_delimiter"));
         assert!(codes.contains(&"cem.lint.suspicious_content_type_switch"));

@@ -105,6 +105,7 @@ pub enum NormalizedEvent {
     },
     Trivia {
         kind: TriviaKind,
+        data: String,
         byte_range: ByteRange,
     },
     ProcessingInstruction {

@@ -165,10 +165,10 @@ fn write_node(
         CemAstNode::Text { data, .. } => {
             if at_block {
                 push_indent(out, indent);
-                out.push_str(data.trim());
+                write_text(data, out);
                 out.push('\n');
             } else {
-                out.push_str(data.trim());
+                write_text(data, out);
             }
         }
         CemAstNode::Whitespace { .. } => {
@@ -270,6 +270,21 @@ fn write_attribute(attr: &CemAstNode, out: &mut String) {
             out.push('"');
         }
     }
+}
+
+fn write_text(data: &str, out: &mut String) {
+    let trimmed = data.trim();
+    if needs_rich_content_enclosure(trimmed) {
+        out.push_str("```");
+        out.push_str(trimmed);
+        out.push_str("```");
+    } else {
+        out.push_str(trimmed);
+    }
+}
+
+fn needs_rich_content_enclosure(data: &str) -> bool {
+    (data.contains('{') || data.contains('}')) && !data.contains("```")
 }
 
 fn is_avt_span(v: &str) -> bool {
@@ -495,6 +510,14 @@ mod tests {
             let twice = format_source(&once);
             assert_eq!(once, twice, "formatter not idempotent for: {input}");
         }
+    }
+
+    #[test]
+    fn brace_bearing_text_formats_as_rich_content() {
+        let once = format_source(r#"{@type="application/json" | ```{"ok":true}```}"#);
+        let twice = format_source(&once);
+        assert_eq!(once, twice);
+        assert!(once.contains(r#"```{"ok":true}```"#));
     }
 
     #[test]
