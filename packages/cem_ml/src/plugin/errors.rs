@@ -13,6 +13,8 @@ pub enum PluginError {
         plugin: String,
         missing: Vec<String>,
     },
+    /// Static Rust capability scan failed before registration.
+    CapabilityScan { message: String },
     /// Registration rejected because a `mutate`-mode plugin failed
     /// to set `supports_source_map = true` (AC-PL-4).
     SourceMapRequired { plugin: String },
@@ -46,10 +48,11 @@ impl PluginError {
     pub fn code(&self) -> &'static str {
         match self {
             PluginError::Capability { .. } => "cem.plugin.capability_error",
+            PluginError::CapabilityScan { .. } => "cem.plugin.capability_error",
             PluginError::SourceMapRequired { .. } => "cem.plugin.source_map_required",
             PluginError::Inheritance { .. } => "cem.plugin.inheritance_error",
             PluginError::ObserverViolation { .. } => "cem.plugin.observer_violation",
-            PluginError::Budget { .. } => "cem.plugin.budget_error",
+            PluginError::Budget { .. } => "cem.plugin.budget_exceeded",
             PluginError::Cancelled { .. } => "cem.plugin.cancelled",
             PluginError::Invoke { .. } => "cem.plugin.invoke_error",
             PluginError::ContentTypeMismatch { .. } => "cem.plugin.content_type_mismatch",
@@ -67,6 +70,7 @@ impl PluginError {
             | PluginError::Cancelled { plugin }
             | PluginError::Invoke { plugin, .. }
             | PluginError::ContentTypeMismatch { plugin, .. } => plugin,
+            PluginError::CapabilityScan { .. } => "<capability-scan>",
         }
     }
 }
@@ -78,6 +82,9 @@ impl fmt::Display for PluginError {
                 f,
                 "plugin `{plugin}` declares no permission for {missing:?}; declare them in `requires` or remove the AST reference"
             ),
+            PluginError::CapabilityScan { message } => {
+                write!(f, "plugin Rust capability scan failed: {message}")
+            }
             PluginError::SourceMapRequired { plugin } => write!(
                 f,
                 "plugin `{plugin}` is mode=mutate but did not set supports_source_map=true (AC-PL-4)"

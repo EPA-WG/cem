@@ -9,6 +9,7 @@
 use crate::scheduler::abort::AbortSignal;
 use crate::scheduler::policy::OverflowPolicy;
 use crate::scheduler::trace::{SchedulerEventKind, SchedulerTrace};
+use crate::source_map::SourceMapStack;
 use std::collections::VecDeque;
 use std::sync::{Arc, Mutex};
 
@@ -22,6 +23,7 @@ pub enum QueueError {
     Cancelled {
         scope: u32,
         task: String,
+        source_map: Option<SourceMapStack>,
     },
     IoExhausted {
         scope: u32,
@@ -33,8 +35,8 @@ pub enum QueueError {
 impl QueueError {
     pub fn code(&self) -> &'static str {
         match self {
-            QueueError::Overflow { .. } => "cem.a.queue_overflow",
-            QueueError::Cancelled { .. } => "cem.a.cancelled",
+            QueueError::Overflow { .. } => "cem.scheduler.queue_full",
+            QueueError::Cancelled { .. } => "cem.scheduler.aborted",
             QueueError::IoExhausted { .. } => "cem.a.io_exhausted",
         }
     }
@@ -43,14 +45,22 @@ impl QueueError {
 impl std::fmt::Display for QueueError {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         match self {
-            QueueError::Overflow { scope, task, capacity } => write!(
+            QueueError::Overflow {
+                scope,
+                task,
+                capacity,
+            } => write!(
                 f,
                 "scope {scope} cpu queue full (capacity {capacity}); rejected task `{task}`"
             ),
-            QueueError::Cancelled { scope, task } => {
+            QueueError::Cancelled { scope, task, .. } => {
                 write!(f, "scope {scope} task `{task}` cancelled by AbortSignal")
             }
-            QueueError::IoExhausted { scope, task, capacity } => write!(
+            QueueError::IoExhausted {
+                scope,
+                task,
+                capacity,
+            } => write!(
                 f,
                 "scope {scope} io queue exhausted (capacity {capacity}); rejected task `{task}`"
             ),
@@ -101,7 +111,11 @@ impl BoundedQueue {
     }
 
     pub fn len(&self) -> usize {
-        self.inner.lock().expect("poisoned cpu-queue mutex").tasks.len()
+        self.inner
+            .lock()
+            .expect("poisoned cpu-queue mutex")
+            .tasks
+            .len()
     }
 
     pub fn is_empty(&self) -> bool {
@@ -122,6 +136,7 @@ impl BoundedQueue {
             return Err(QueueError::Cancelled {
                 scope: self.scope,
                 task,
+                source_map: abort.source_map(),
             });
         }
         let mut inner = self.inner.lock().expect("poisoned cpu-queue mutex");
@@ -131,7 +146,8 @@ impl BoundedQueue {
         }
         inner.tasks.push_back(task.clone());
         drop(inner);
-        self.trace.record(self.scope, SchedulerEventKind::Enqueue, task);
+        self.trace
+            .record(self.scope, SchedulerEventKind::Enqueue, task);
         Ok(())
     }
 
@@ -214,7 +230,11 @@ impl IoQueue {
     /// Acquire a permit. Returns an [`IoPermit`] guard that releases
     /// the slot on drop; surfaces [`QueueError::IoExhausted`] when
     /// the cap is reached.
-    pub fn acquire(&self, task: impl Into<String>, abort: &AbortSignal) -> Result<IoPermit, QueueError> {
+    pub fn acquire(
+        &self,
+        task: impl Into<String>,
+        abort: &AbortSignal,
+    ) -> Result<IoPermit, QueueError> {
         let task: String = task.into();
         if abort.is_aborted() {
             self.trace
@@ -222,6 +242,7 @@ impl IoQueue {
             return Err(QueueError::Cancelled {
                 scope: self.scope,
                 task,
+                source_map: abort.source_map(),
             });
         }
         let mut inflight = self.inflight.lock().expect("poisoned io mutex");
@@ -290,7 +311,7 @@ mod tests {
         let abort = AbortSignal::new();
         q.enqueue("a", &abort).unwrap();
         let err = q.enqueue("b", &abort).unwrap_err();
-        assert_eq!(err.code(), "cem.a.queue_overflow");
+        assert_eq!(err.code(), "cem.scheduler.queue_full");
     }
 
     #[test]

@@ -214,6 +214,7 @@ mod tests {
             queue_size: queue,
             io_streams: io,
             memory_bytes: mem,
+            plugin_time_budget_ms: None,
             overflow: OverflowPolicy::Reject,
         }
     }

@@ -9,6 +9,7 @@ use crate::plugin::descriptor::{
     AbortSignal, PluginContext, PluginDescriptor, PluginInput, PluginOutput, ScopeId,
 };
 use crate::plugin::errors::PluginError;
+use crate::scheduler::policy::ScopePolicy;
 use crate::source::ByteRange;
 use crate::source_map::{FrameSpan, SourceMapFrame, SourceMapStack, TransformKind};
 use std::time::{Duration, Instant};
@@ -25,6 +26,12 @@ impl PluginBudget {
     pub fn time_ms(ms: u64) -> Self {
         Self {
             time: Some(Duration::from_millis(ms)),
+        }
+    }
+
+    pub fn from_scope_policy(policy: &ScopePolicy) -> Self {
+        Self {
+            time: policy.plugin_time_budget_ms.map(Duration::from_millis),
         }
     }
 }
@@ -131,7 +138,8 @@ impl PluginRuntime {
             // AC-PL-12 / AC-PL-13: stitch the plugin's emitted frame on
             // top of the inbound source map so a resolver can walk
             // back from the final output to the original source.
-            output.source_map = stitched_source_map(&inbound_map, &output.source_map, plugin);
+            output.source_map =
+                stitched_source_map_for_scope(&inbound_map, &output.source_map, plugin, scope);
             current = output;
             executed.push(plugin.name.clone());
         }
@@ -141,6 +149,25 @@ impl PluginRuntime {
             executed,
             diagnostics,
         })
+    }
+
+    /// Run a chain with the plugin budget inherited from the active
+    /// scope policy (AC-A-4 / AC-PL-17).
+    pub fn invoke_chain_with_policy(
+        &self,
+        chain: &PluginChain,
+        input: PluginInput,
+        scope: ScopeId,
+        abort: AbortSignal,
+        policy: &ScopePolicy,
+    ) -> Result<PluginRunReport, PluginError> {
+        self.invoke_chain(
+            chain,
+            input,
+            scope,
+            abort,
+            PluginBudget::from_scope_policy(policy),
+        )
     }
 }
 
@@ -210,6 +237,24 @@ pub fn stitched_source_map(
     emitted: &SourceMapStack,
     plugin: &PluginDescriptor,
 ) -> SourceMapStack {
+    stitched_source_map_inner(inbound, emitted, plugin, None)
+}
+
+pub fn stitched_source_map_for_scope(
+    inbound: &SourceMapStack,
+    emitted: &SourceMapStack,
+    plugin: &PluginDescriptor,
+    scope: ScopeId,
+) -> SourceMapStack {
+    stitched_source_map_inner(inbound, emitted, plugin, Some(scope))
+}
+
+fn stitched_source_map_inner(
+    inbound: &SourceMapStack,
+    emitted: &SourceMapStack,
+    plugin: &PluginDescriptor,
+    scope: Option<ScopeId>,
+) -> SourceMapStack {
     let mut stack = inbound.clone();
     // Boundary marker so observers can identify the plugin layer in
     // the trace. AC-PL-14 recommends recording the originating scope;
@@ -224,11 +269,15 @@ pub fn stitched_source_map(
         source_id: boundary_source_id,
         span: FrameSpan::Single(ByteRange::new(0, 0)),
         transform: TransformKind::ContentTypeTransform {
-            content_type: format!(
-                "{}#{}",
-                plugin.output_content_type.as_str(),
-                plugin.name
-            ),
+            content_type: match scope {
+                Some(scope) => format!(
+                    "{}#{}@scope:{}",
+                    plugin.output_content_type.as_str(),
+                    plugin.name,
+                    scope.0
+                ),
+                None => format!("{}#{}", plugin.output_content_type.as_str(), plugin.name),
+            },
         },
     });
     for frame in &emitted.frames {

@@ -5,11 +5,13 @@
 //! inheritance), worker pool / bounded queue / io queue, abort
 //! propagation, and a deterministic trace.
 
-use cem_ml::scheduler::{
-    AbortSignal, BoundedQueue, IoQueue, OverflowPolicy, ScopePolicy, ScopePolicyTree,
-    SchedulerTrace, WorkerPool,
-};
 use cem_ml::scheduler::tree::{PolicyScopeId, ScopePolicyTreeError};
+use cem_ml::scheduler::{
+    AbortSignal, BoundedQueue, IoQueue, OverflowPolicy, SchedulerTrace, ScopePolicy,
+    ScopePolicyTree, WorkerPool,
+};
+use cem_ml::source::{ByteRange, SourceId};
+use cem_ml::source_map::{FrameSpan, SourceMapFrame, SourceMapStack, TransformKind};
 
 fn policy(cpu: u32, queue: u32, io: u32, mem: u64, overflow: OverflowPolicy) -> ScopePolicy {
     ScopePolicy {
@@ -17,6 +19,7 @@ fn policy(cpu: u32, queue: u32, io: u32, mem: u64, overflow: OverflowPolicy) -> 
         queue_size: queue,
         io_streams: io,
         memory_bytes: mem,
+        plugin_time_budget_ms: None,
         overflow,
     }
 }
@@ -109,6 +112,20 @@ fn io_queue_is_independent_from_cpu_pool() {
 }
 
 #[test]
+fn bounded_cpu_queue_overflow_carries_scope_id() {
+    let trace = SchedulerTrace::new();
+    let queue = BoundedQueue::new(12, 1, OverflowPolicy::Reject, trace);
+    let abort = AbortSignal::new();
+    queue.enqueue("first", &abort).unwrap();
+    let err = queue.enqueue("second", &abort).unwrap_err();
+    assert_eq!(err.code(), "cem.scheduler.queue_full");
+    match err {
+        cem_ml::scheduler::QueueError::Overflow { scope, .. } => assert_eq!(scope, 12),
+        other => panic!("expected overflow queue error, got {other:?}"),
+    }
+}
+
+#[test]
 fn abort_signal_cancels_pool_and_io_queue() {
     let trace = SchedulerTrace::new();
     let pool = WorkerPool::new(
@@ -120,6 +137,31 @@ fn abort_signal_cancels_pool_and_io_queue() {
     let abort = AbortSignal::new();
     abort.abort();
 
-    assert!(pool.submit("late", &abort).is_err());
-    assert!(io.acquire("late-io", &abort).is_err());
+    let cpu_err = pool.submit("late", &abort).unwrap_err();
+    assert_eq!(cpu_err.code(), "cem.scheduler.aborted");
+    let io_err = io.acquire("late-io", &abort).unwrap_err();
+    assert_eq!(io_err.code(), "cem.scheduler.aborted");
+}
+
+#[test]
+fn abort_signal_carries_cancel_site_source_map() {
+    let trace = SchedulerTrace::new();
+    let pool = WorkerPool::new(3, policy(1, 4, 2, 1024, OverflowPolicy::Reject), trace);
+    let abort = AbortSignal::new();
+    let mut stack = SourceMapStack::default();
+    stack.push(SourceMapFrame {
+        source_id: SourceId(9),
+        span: FrameSpan::Single(ByteRange::new(20, 5)),
+        transform: TransformKind::CemTokenizer,
+    });
+    abort.abort_with_source_map(stack.clone());
+
+    let err = pool.submit("cancelled-task", &abort).unwrap_err();
+    assert_eq!(err.code(), "cem.scheduler.aborted");
+    match err {
+        cem_ml::scheduler::QueueError::Cancelled { source_map, .. } => {
+            assert_eq!(source_map, Some(stack));
+        }
+        other => panic!("expected cancelled queue error, got {other:?}"),
+    }
 }

@@ -111,6 +111,7 @@ dependencies = [
  "js-sys",
  "serde",
  "serde_json",
+ "syn",
  "tree-sitter",
  "tree-sitter-cem",
  "wasm-bindgen",

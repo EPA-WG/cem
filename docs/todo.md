@@ -26,24 +26,24 @@ the in-document forms is now covered by fixtures and schema-machine tests.
 host-trusted + Rust AST capability validator model (`MEMORY.md` `project_plugin_sandboxing.md`) need to be plumbed
 through.
 
-- [ ] Implement plugin descriptor, chain composition, install/uninstall lifecycle, observe/mutate mode separation, and
+- [x] Implement plugin descriptor, chain composition, install/uninstall lifecycle, observe/mutate mode separation, and
       priority ordering.
-- [ ] Implement source-map stitching across plugin boundaries (host-frame inheritance + plugin-introduced frame).
-- [ ] Implement Rust AST capability validator at load time per the resolved sandboxing model.
-- [ ] Add plugin-budget enforcement against the scope policy. Emit `cem.plugin.budget_exceeded` on breach.
-- [ ] Plugin runtime AC verification tests: `tests/plugin_runtime.rs` already exists — extend it with descriptor /
+- [x] Implement source-map stitching across plugin boundaries (host-frame inheritance + plugin-introduced frame).
+- [x] Implement Rust AST capability validator at load time per the resolved sandboxing model.
+- [x] Add plugin-budget enforcement against the scope policy. Emit `cem.plugin.budget_exceeded` on breach.
+- [x] Plugin runtime AC verification tests: `tests/plugin_runtime.rs` already exists — extend it with descriptor /
       chain / source-map-stitching / sandbox cases.
 
 ### Scheduler Completion (AC-A-2..AC-A-7, AC-O-2, IMPL-FOLLOW-007)
 
-`packages/cem_ml/src/scheduler/` module exists with six submodules. Worker pool / bounded queue / cancellation /
-deterministic trace still pending.
+`packages/cem_ml/src/scheduler/` module exists with six submodules. Worker pool, bounded queue, cancellation, and I/O
+queue are implemented; deterministic trace report projection is still pending.
 
-- [ ] Implement per-scope thread pool and bounded queue per AC-A-4 / AC-A-5. Queue overflow emits
+- [x] Implement per-scope thread pool and bounded queue per AC-A-4 / AC-A-5. Queue overflow emits
       `cem.scheduler.queue_full`; the diagnostic carries the overflowing scope id.
-- [ ] Implement end-to-end `AbortSignal` propagation per AC-A-7. Cancellation halts in-flight work at the next
+- [x] Implement end-to-end `AbortSignal` propagation per AC-A-7. Cancellation halts in-flight work at the next
       safe-point and surfaces `cem.scheduler.aborted` with the originating cancel-site source-map stack.
-- [ ] Implement external-resource I/O queue per AC-A-6 (separate from compute queue).
+- [x] Implement external-resource I/O queue per AC-A-6 (separate from compute queue).
 - [ ] Implement deterministic scheduling trace per AC-O-2. Trace projection is part of the report AST per AC-O-4.
 
 ### Registry Runtime Scoped Lookup (AC-R-1..AC-R-3, IMPL-FOLLOW-008)

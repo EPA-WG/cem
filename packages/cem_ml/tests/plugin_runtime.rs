@@ -15,6 +15,7 @@ use cem_ml::plugin::{
     runtime::{stitched_source_map, PluginBudget, PluginRunReport, PluginRuntime},
     PluginChain, PluginRegistry,
 };
+use cem_ml::scheduler::{OverflowPolicy, ScopePolicy};
 use cem_ml::source_map::TransformKind;
 use std::collections::BTreeSet;
 use std::sync::Arc;
@@ -153,10 +154,7 @@ impl PluginInvoke for ClickTracker {
         let mut i = 0;
         while i < src.len() {
             if src[i..].starts_with("<button") {
-                let end = src[i..]
-                    .find('>')
-                    .map(|x| i + x)
-                    .unwrap_or(src.len());
+                let end = src[i..].find('>').map(|x| i + x).unwrap_or(src.len());
                 let head = &src[i..end];
                 out.push_str(head);
                 out.push_str(&format!(" data-track-id=\"btn-{counter}\""));
@@ -271,7 +269,8 @@ fn ac_pl_v_2_observer_security_checker_does_not_mutate() {
 
 #[test]
 fn ac_pl_v_3_click_tracker_attaches_track_ids() {
-    let html = b"<form><button type=submit>Send</button><button type=button>Cancel</button></form>".to_vec();
+    let html = b"<form><button type=submit>Send</button><button type=button>Cancel</button></form>"
+        .to_vec();
     let plugin = descriptor(
         "click-tracker",
         &["text/html"],
@@ -283,10 +282,18 @@ fn ac_pl_v_3_click_tracker_attaches_track_ids() {
     let mut local = PluginRegistry::new();
     local.install(plugin).unwrap();
     let chain = PluginChain::merged(&[], &local, &ContentType::from("text/html"));
-    let report = run_one(chain, PluginInput::new("text/html", html), AbortSignal::new()).unwrap();
+    let report = run_one(
+        chain,
+        PluginInput::new("text/html", html),
+        AbortSignal::new(),
+    )
+    .unwrap();
     let out = String::from_utf8(report.output.bytes.clone()).unwrap();
     let count = out.matches("data-track-id=").count();
-    assert_eq!(count, 2, "expected one tracking attribute per button: {out}");
+    assert_eq!(
+        count, 2,
+        "expected one tracking attribute per button: {out}"
+    );
     assert!(report
         .output
         .source_map
@@ -320,7 +327,9 @@ fn ac_pl_v_4_descendant_sees_ancestor_plugin_and_cannot_remove_it() {
     // collapse on `name`, but presence is what AC-PL-V-4 checks.
     assert!(chain.observe.iter().any(|p| p.name == "css-security"));
 
-    let err = descendant.uninstall("css-security", ScopeId(42)).unwrap_err();
+    let err = descendant
+        .uninstall("css-security", ScopeId(42))
+        .unwrap_err();
     assert!(matches!(err, PluginError::Inheritance { scope: 42, .. }));
 }
 
@@ -358,7 +367,10 @@ fn ac_pl_v_5_source_map_stitches_across_scss_css_click_tracker() {
     // boundary frame is present.
     let report = run_one(
         chain,
-        PluginInput::new("text/scss", b"$brand: red;\nbody { color: $brand; }\n".to_vec()),
+        PluginInput::new(
+            "text/scss",
+            b"$brand: red;\nbody { color: $brand; }\n".to_vec(),
+        ),
         AbortSignal::new(),
     )
     .unwrap();
@@ -431,7 +443,11 @@ fn ac_pl_v_7_capability_validator_rejects_undeclared_capabilities() {
     let mut local = PluginRegistry::new();
     let err = local.install(leaky).unwrap_err();
     assert_eq!(err.code(), "cem.plugin.capability_error");
-    assert_eq!(local.plugin_names().len(), 0, "leaky plugin must not enter the registry");
+    assert_eq!(
+        local.plugin_names().len(),
+        0,
+        "leaky plugin must not enter the registry"
+    );
 
     // Now declare the capability and confirm registration succeeds.
     let invoke: Arc<dyn PluginInvoke> = Arc::new(ScssToCss);
@@ -458,7 +474,7 @@ fn ac_pl_v_7_capability_validator_rejects_undeclared_capabilities() {
 // ---- AC-PL-17 budget overrun ----
 
 #[test]
-fn ac_pl_17_budget_overrun_emits_plugin_budget_error() {
+fn ac_pl_17_budget_overrun_emits_plugin_budget_exceeded() {
     struct Slow;
     impl PluginInvoke for Slow {
         fn invoke(
@@ -494,7 +510,97 @@ fn ac_pl_17_budget_overrun_emits_plugin_budget_error() {
             PluginBudget::time_ms(1),
         )
         .unwrap_err();
-    assert_eq!(err.code(), "cem.plugin.budget_error");
+    assert_eq!(err.code(), "cem.plugin.budget_exceeded");
+}
+
+#[test]
+fn ac_pl_17_budget_can_be_inherited_from_scope_policy() {
+    struct Slow;
+    impl PluginInvoke for Slow {
+        fn invoke(
+            &self,
+            input: &PluginInput,
+            ctx: &mut PluginContext<'_>,
+        ) -> Result<PluginOutput, PluginError> {
+            std::thread::sleep(std::time::Duration::from_millis(25));
+            Ok(PluginOutput {
+                content_type: input.content_type.clone(),
+                bytes: input.bytes.clone(),
+                source_map: ctx.inbound_source_map.clone(),
+            })
+        }
+    }
+    let plugin = descriptor(
+        "slow-policy-observer",
+        &["text/css"],
+        "text/css",
+        PluginMode::Observe,
+        false,
+        Arc::new(Slow),
+    );
+    let mut local = PluginRegistry::new();
+    local.install(plugin).unwrap();
+    let chain = PluginChain::merged(&[], &local, &ContentType::from("text/css"));
+    let policy = ScopePolicy {
+        cpu_workers: 1,
+        queue_size: 8,
+        io_streams: 1,
+        memory_bytes: 1024,
+        plugin_time_budget_ms: Some(1),
+        overflow: OverflowPolicy::Reject,
+    };
+    let err = PluginRuntime::new()
+        .invoke_chain_with_policy(
+            &chain,
+            PluginInput::new("text/css", b"body{}".to_vec()),
+            ScopeId(1),
+            AbortSignal::new(),
+            &policy,
+        )
+        .unwrap_err();
+    assert_eq!(err.code(), "cem.plugin.budget_exceeded");
+}
+
+#[test]
+fn ac_pl_20_rust_ast_capability_scan_feeds_registration_gate() {
+    let evidence = PluginEvidence::from_rust_source(
+        r#"
+        extern crate outside_host_allowlist;
+        use std::{fs::write, net::TcpStream};
+
+        pub fn invoke() {
+            let _ = std::fs::read("secret.txt");
+            let _ = write("secret.txt", "value");
+            unsafe { core::ptr::read_volatile(&0); }
+        }
+        "#,
+        ["serde"],
+    )
+    .unwrap();
+    assert!(evidence.needs.contains(&PluginCapability::FilesystemRead));
+    assert!(evidence.needs.contains(&PluginCapability::FilesystemWrite));
+    assert!(evidence.needs.contains(&PluginCapability::Network));
+    assert!(evidence.needs.contains(&PluginCapability::UnsafeRust));
+    assert!(evidence.needs.contains(&PluginCapability::ExternalCrate(
+        "outside_host_allowlist".into()
+    )));
+
+    let leaky = Arc::new(PluginDescriptor {
+        name: "ast-leaky".into(),
+        version: "0.1".into(),
+        input_content_types: vec![ContentType::from("text/scss")],
+        output_content_type: ContentType::from("text/css"),
+        mode: PluginMode::Mutate,
+        supports_source_map: true,
+        priority: 0,
+        requires: BTreeSet::new(),
+        evidence,
+        invoke: Arc::new(ScssToCss),
+    });
+    let mut local = PluginRegistry::new();
+    let err = local.install(leaky).unwrap_err();
+    assert_eq!(err.code(), "cem.plugin.capability_error");
+    assert!(local.plugin_names().is_empty());
 }
 
 // ---- AC-PL-13 stitched-map ordering check ----
@@ -523,7 +629,10 @@ fn stitched_source_map_records_plugin_layer_after_inbound_frames() {
         stitched.frames.first().map(|f| &f.transform),
         Some(TransformKind::CemTokenizer)
     ));
-    let last = stitched.frames.last().expect("stitched stack must have a frame");
+    let last = stitched
+        .frames
+        .last()
+        .expect("stitched stack must have a frame");
     if let TransformKind::ContentTypeTransform { content_type } = &last.transform {
         assert!(content_type.contains("scss-to-css"));
     } else {

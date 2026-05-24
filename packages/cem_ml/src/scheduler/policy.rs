@@ -45,6 +45,9 @@ pub struct ScopePolicy {
     /// Memory cap in bytes (informational; the runtime is responsible
     /// for enforcing it where possible).
     pub memory_bytes: u64,
+    /// Optional per-plugin wall-clock budget inherited by the plugin
+    /// runtime (AC-A-4 / AC-PL-17).
+    pub plugin_time_budget_ms: Option<u64>,
     /// Behaviour when the CPU queue is full.
     pub overflow: OverflowPolicy,
 }
@@ -59,6 +62,7 @@ impl ScopePolicy {
             queue_size: 64,
             io_streams: 16,
             memory_bytes: 256 * 1024 * 1024, // 256 MiB
+            plugin_time_budget_ms: None,
             overflow: OverflowPolicy::Reject,
         }
     }
@@ -77,6 +81,10 @@ impl ScopePolicy {
     }
     pub fn with_memory_bytes(mut self, n: u64) -> Self {
         self.memory_bytes = n;
+        self
+    }
+    pub fn with_plugin_time_budget_ms(mut self, n: Option<u64>) -> Self {
+        self.plugin_time_budget_ms = n;
         self
     }
     pub fn with_overflow(mut self, o: OverflowPolicy) -> Self {
@@ -146,7 +154,9 @@ mod tests {
 
     #[test]
     fn with_setters_apply_the_floor() {
-        let p = ScopePolicy::host_root().with_cpu_workers(0).with_queue_size(0);
+        let p = ScopePolicy::host_root()
+            .with_cpu_workers(0)
+            .with_queue_size(0);
         assert_eq!(p.cpu_workers, 1);
         assert_eq!(p.queue_size, 1);
     }

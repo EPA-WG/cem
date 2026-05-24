@@ -3,28 +3,36 @@
 use crate::source::{ByteRange, SourceId};
 use serde::{Deserialize, Serialize};
 
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(tag = "kind")]
 pub enum TransformKind {
     HtmlTokenizer,
     XmlTokenizer,
     CemTokenizer,
     EventNormalizer,
-    SchemaValidation { schema_id: u32 },
+    SchemaValidation {
+        schema_id: u32,
+    },
     CemAstBuilder,
     Query,
     QueryStep,
-    HandoffBoundary { child_content_type: String },
-    ContentTypeTransform { content_type: String },
+    HandoffBoundary {
+        child_content_type: String,
+    },
+    ContentTypeTransform {
+        content_type: String,
+    },
     InterpreterRender,
     /// Host → cem-ql embedding boundary per AC-T-7. `host` is the byte
     /// range the host parser owned (whole attribute value, `{...}` AVT
     /// span, or `{$ ... }` expression-node body); the next frame the
     /// cem-ql parser pushes carries the sub-span inside that range.
-    TemplateEmbedding { host: ByteRange },
+    TemplateEmbedding {
+        host: ByteRange,
+    },
 }
 
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(tag = "kind", content = "ranges")]
 pub enum FrameSpan {
     Single(ByteRange),
@@ -34,14 +42,14 @@ pub enum FrameSpan {
 /// One frame of the origin-first source-map stack. `byte_range` (via
 /// `FrameSpan`) is the durable location identity; `line`/`column` are
 /// projections derived on demand from a `LineIndex` and never stored here.
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub struct SourceMapFrame {
     pub source_id: SourceId,
     pub span: FrameSpan,
     pub transform: TransformKind,
 }
 
-#[derive(Debug, Clone, Default, Serialize, Deserialize)]
+#[derive(Debug, Clone, Default, PartialEq, Eq, Serialize, Deserialize)]
 pub struct SourceMapStack {
     /// Ordered origin-first; the current frame is last (AC-P-7).
     pub frames: Vec<SourceMapFrame>,

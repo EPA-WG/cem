@@ -116,6 +116,7 @@ mod tests {
             queue_size: cap,
             io_streams: 4,
             memory_bytes: 1024,
+            plugin_time_budget_ms: None,
             overflow: OverflowPolicy::Reject,
         };
         WorkerPool::new(0, policy, SchedulerTrace::new())

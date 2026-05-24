@@ -29,4 +29,7 @@ pub use descriptor::{
     PluginInput, PluginInvoke, PluginMode, PluginOutput, ScopeId,
 };
 pub use errors::PluginError;
-pub use runtime::{stitched_source_map, PluginBudget, PluginRuntime, PluginRunReport};
+pub use runtime::{
+    stitched_source_map, stitched_source_map_for_scope, PluginBudget, PluginRunReport,
+    PluginRuntime,
+};

@@ -9,8 +9,9 @@
 
 use crate::source_map::SourceMapStack;
 use std::collections::BTreeSet;
-use std::sync::Arc;
 use std::sync::atomic::{AtomicBool, Ordering};
+use std::sync::Arc;
+use syn::visit::Visit;
 
 /// Stable identifier of a CEM scope that hosts plugins. Plugins
 /// installed on the scope (and inherited from ancestors) execute
@@ -103,6 +104,147 @@ impl PluginEvidence {
             needs: needs.into_iter().collect(),
         }
     }
+
+    /// Build static capability evidence by parsing Rust source and
+    /// walking the syntax tree before the plugin is compiled or
+    /// invoked (AC-PL-20). CEM is expected to call this at load time
+    /// for plugin Rust emitted by its own AST pipeline.
+    pub fn from_rust_source(
+        rust_source: &str,
+        external_crate_allowlist: impl IntoIterator<Item = impl Into<String>>,
+    ) -> Result<Self, crate::plugin::errors::PluginError> {
+        let syntax = syn::parse_file(rust_source).map_err(|err| {
+            crate::plugin::errors::PluginError::CapabilityScan {
+                message: err.to_string(),
+            }
+        })?;
+        let allowlist: BTreeSet<String> = external_crate_allowlist
+            .into_iter()
+            .map(Into::into)
+            .collect();
+        let mut visitor = RustCapabilityVisitor {
+            allowlist: &allowlist,
+            needs: BTreeSet::new(),
+        };
+        visitor.visit_file(&syntax);
+        Ok(Self {
+            needs: visitor.needs,
+        })
+    }
+}
+
+struct RustCapabilityVisitor<'a> {
+    allowlist: &'a BTreeSet<String>,
+    needs: BTreeSet<PluginCapability>,
+}
+
+impl RustCapabilityVisitor<'_> {
+    fn record_path(&mut self, path: &syn::Path) {
+        let Some(first) = path.segments.first().map(|s| s.ident.to_string()) else {
+            return;
+        };
+        let second = path.segments.iter().nth(1).map(|s| s.ident.to_string());
+        let third = path.segments.iter().nth(2).map(|s| s.ident.to_string());
+        match (first.as_str(), second.as_deref(), third.as_deref()) {
+            ("std", Some("fs"), Some("write")) => {
+                self.needs.insert(PluginCapability::FilesystemWrite);
+            }
+            ("std", Some("fs"), _) => {
+                self.needs.insert(PluginCapability::FilesystemRead);
+            }
+            ("std", Some("net"), _) => {
+                self.needs.insert(PluginCapability::Network);
+            }
+            ("std", Some("process"), _) => {
+                self.needs.insert(PluginCapability::Process);
+            }
+            _ => {}
+        }
+    }
+}
+
+impl<'ast> Visit<'ast> for RustCapabilityVisitor<'_> {
+    fn visit_expr_path(&mut self, node: &'ast syn::ExprPath) {
+        self.record_path(&node.path);
+        syn::visit::visit_expr_path(self, node);
+    }
+
+    fn visit_use_tree(&mut self, node: &'ast syn::UseTree) {
+        fn walk_use_tree(
+            tree: &syn::UseTree,
+            prefix: &mut Vec<String>,
+            needs: &mut BTreeSet<PluginCapability>,
+        ) {
+            match tree {
+                syn::UseTree::Path(path) => {
+                    prefix.push(path.ident.to_string());
+                    walk_use_tree(&path.tree, prefix, needs);
+                    prefix.pop();
+                }
+                syn::UseTree::Name(name) => {
+                    let mut full = prefix.clone();
+                    full.push(name.ident.to_string());
+                    record_path_parts(&full, needs);
+                }
+                syn::UseTree::Rename(rename) => {
+                    let mut full = prefix.clone();
+                    full.push(rename.ident.to_string());
+                    record_path_parts(&full, needs);
+                }
+                syn::UseTree::Glob(_) => record_path_parts(prefix, needs),
+                syn::UseTree::Group(group) => {
+                    for item in group.items.iter() {
+                        walk_use_tree(item, prefix, needs);
+                    }
+                }
+            }
+        }
+
+        fn record_path_parts(parts: &[String], needs: &mut BTreeSet<PluginCapability>) {
+            match (
+                parts.first().map(String::as_str),
+                parts.get(1).map(String::as_str),
+                parts.get(2).map(String::as_str),
+            ) {
+                (Some("std"), Some("fs"), Some("write")) => {
+                    needs.insert(PluginCapability::FilesystemWrite);
+                }
+                (Some("std"), Some("fs"), _) => {
+                    needs.insert(PluginCapability::FilesystemRead);
+                }
+                (Some("std"), Some("net"), _) => {
+                    needs.insert(PluginCapability::Network);
+                }
+                (Some("std"), Some("process"), _) => {
+                    needs.insert(PluginCapability::Process);
+                }
+                _ => {}
+            }
+        }
+
+        let mut prefix = Vec::new();
+        walk_use_tree(node, &mut prefix, &mut self.needs);
+        syn::visit::visit_use_tree(self, node);
+    }
+
+    fn visit_expr_unsafe(&mut self, node: &'ast syn::ExprUnsafe) {
+        self.needs.insert(PluginCapability::UnsafeRust);
+        syn::visit::visit_expr_unsafe(self, node);
+    }
+
+    fn visit_item_foreign_mod(&mut self, node: &'ast syn::ItemForeignMod) {
+        self.needs.insert(PluginCapability::UnsafeRust);
+        syn::visit::visit_item_foreign_mod(self, node);
+    }
+
+    fn visit_item_extern_crate(&mut self, node: &'ast syn::ItemExternCrate) {
+        let crate_name = node.ident.to_string();
+        if !self.allowlist.contains(&crate_name) {
+            self.needs
+                .insert(PluginCapability::ExternalCrate(crate_name));
+        }
+        syn::visit::visit_item_extern_crate(self, node);
+    }
 }
 
 /// Cooperative cancellation primitive (AC-PL-19, AC-A-7). Plugins poll
@@ -183,7 +325,11 @@ impl PluginOutput {
 /// [`PluginDescriptor`] objects, not by side-effecting imports
 /// (AC-PL-18).
 pub trait PluginInvoke: Send + Sync {
-    fn invoke(&self, input: &PluginInput, ctx: &mut PluginContext<'_>) -> Result<PluginOutput, crate::plugin::errors::PluginError>;
+    fn invoke(
+        &self,
+        input: &PluginInput,
+        ctx: &mut PluginContext<'_>,
+    ) -> Result<PluginOutput, crate::plugin::errors::PluginError>;
 }
 
 /// Descriptor that registers a plugin. AC-PL-1.
