@@ -690,6 +690,9 @@ impl IrLowerer {
     }
 
     fn stdlib_module_for(&self, name: &QName) -> Option<ModuleUri> {
+        if name.prefix.is_none() && name.local == "read" {
+            return Some(ModuleUri("cem:stdlib/content-types".to_owned()));
+        }
         name.prefix
             .as_ref()
             .and_then(|prefix| self.aliases.get(prefix).cloned())
@@ -932,6 +935,7 @@ fn stdlib_aliases() -> HashMap<String, ModuleUri> {
         ("state", "cem:stdlib/state"),
         ("tpl", "cem:stdlib/template"),
         ("cemml", "cem:stdlib/cemml"),
+        ("ct", "cem:stdlib/content-types"),
     ]
     .into_iter()
     .map(|(prefix, uri)| (prefix.to_owned(), ModuleUri(uri.to_owned())))

@@ -34,7 +34,10 @@ The Rust crate is bootstrapped; layer implementations remain. Crate boundary, mo
             node/record identity, typed-atom distinctness (NaN, signed zero, NFC/NFD, dateTime offsets), explicit-
             conversion collapse, and the AC-QO-8 `cem.ql.cross_type_compare` warning plus strict-typed runtime
             `eq` / `ne` behavior.
-      - [ ] AC-QA-V-1 — `read()` content-negotiation test (Tier B policy fixture).
+      - [x] `cem_ql:test:read-content-negotiation` — AC-QA-V-1 `read()` fixture in
+            `packages/cem_ql/tests/read_content_negotiation.rs` covers omitted accepts, header-string accepts,
+            collection accepts via `ct:*`, alias normalization, YAML→JSON transform selection, and
+            `cem.ql.read_unsatisfiable`.
       - [x] `cem_ql:test:reference-resolution` — AC-QD-V-1 reference-resolution fixture in
             `packages/cem_ql/tests/reference_resolution.rs` covers `.target`, `dom:resolve_ref`, `for=`,
             `aria-labelledby=`, and `cem.ql.unresolved_reference`.

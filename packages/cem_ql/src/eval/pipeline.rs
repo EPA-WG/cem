@@ -1,6 +1,7 @@
 //! Pipeline iterator-chain adapters.
 
 use std::collections::BTreeMap;
+use std::path::Path;
 
 use cem_ml::diagnostics::Severity;
 use cem_ml::events::cem::CemEventNormalizer;
@@ -10,7 +11,7 @@ use cem_ml::parser::CemAstNode;
 use cem_ml::source::{BytesSource, SourceId};
 use cem_ml::tokenizer::cem::CemTokenizer;
 
-use crate::diagnostics::UNRESOLVED_REFERENCE;
+use crate::diagnostics::{READ_DENIED, READ_UNSATISFIABLE, UNRESOLVED_REFERENCE};
 use crate::eval::{effective_boolean, first_integer, AtomValue, EvalCtx, Item, ItemStream};
 use crate::ir::{IrId, IrStep};
 use crate::resolve::ModuleUri;
@@ -124,7 +125,7 @@ pub(crate) fn apply_stdlib_call(
 ) -> ItemStream {
     let arg_streams = ctx.eval_arg_streams(args);
     let source = args.first().copied().unwrap_or(IrId(0));
-    if stdlib::ModuleRegistry::tier_a()
+    if stdlib::ModuleRegistry::with_all_known()
         .resolve(&module.0, &name.local, args.len())
         .is_none()
     {
@@ -241,8 +242,48 @@ pub(crate) fn apply_stdlib_call(
         ("cem:stdlib/cemml", "format") => {
             ItemStream::once(Item::Atomic(AtomValue::String(first_string(&arg_streams))))
         }
+        ("cem:stdlib/content-types", "read") => read_resource(arg_streams, ctx, source),
+        ("cem:stdlib/content-types", "html") => content_type("text/html"),
+        ("cem:stdlib/content-types", "xml") => content_type("application/xml"),
+        ("cem:stdlib/content-types", "svg") => content_type("image/svg+xml"),
+        ("cem:stdlib/content-types", "mathml") => content_type("application/mathml+xml"),
+        ("cem:stdlib/content-types", "css") => content_type("text/css"),
+        ("cem:stdlib/content-types", "scss") => content_type("text/x-scss"),
+        ("cem:stdlib/content-types", "json") => content_type("application/json"),
+        ("cem:stdlib/content-types", "yaml") => content_type("application/yaml"),
+        ("cem:stdlib/content-types", "csv") => content_type("text/csv"),
+        ("cem:stdlib/content-types", "js") => content_type("application/javascript"),
+        ("cem:stdlib/content-types", "ts") => content_type("application/typescript"),
+        ("cem:stdlib/content-types", "cemml") => content_type("application/cem+xml"),
+        ("cem:stdlib/content-types", "floor") | ("cem:stdlib/content-types", "default_accepts") => {
+            ItemStream::from_items(
+                CONTENT_TYPE_FLOOR
+                    .iter()
+                    .map(|media_type| Item::Atomic(AtomValue::String((*media_type).to_owned())))
+                    .collect(),
+            )
+        }
         _ => ctx.unknown_function(source, "unknown stdlib call"),
     }
+}
+
+const CONTENT_TYPE_FLOOR: &[&str] = &[
+    "text/html",
+    "application/xml",
+    "image/svg+xml",
+    "application/mathml+xml",
+    "text/css",
+    "text/x-scss",
+    "application/json",
+    "application/yaml",
+    "text/csv",
+    "application/javascript",
+    "application/typescript",
+    "application/cem+xml",
+];
+
+fn content_type(value: &str) -> ItemStream {
+    ItemStream::once(Item::Atomic(AtomValue::String(value.to_owned())))
 }
 
 fn first(mut input: ItemStream) -> ItemStream {
@@ -278,6 +319,176 @@ fn nth(mut input: ItemStream, n: Option<&ItemStream>) -> ItemStream {
         .into_iter()
         .collect();
     input
+}
+
+fn read_resource(
+    mut arg_streams: Vec<ItemStream>,
+    ctx: &mut EvalCtx<'_>,
+    source: IrId,
+) -> ItemStream {
+    let uri = first_string(&arg_streams);
+    if !uri.starts_with("file://") {
+        return ctx.fail_diagnostic(
+            source,
+            READ_DENIED,
+            format!("read `{uri}` denied by scope policy"),
+            "read denied",
+        );
+    }
+
+    let path = &uri["file://".len()..];
+    let wire_type = content_type_from_path(path);
+    let accepts = arg_streams
+        .get_mut(1)
+        .map(resolve_accepts)
+        .unwrap_or_else(|| {
+            CONTENT_TYPE_FLOOR
+                .iter()
+                .map(|value| (*value).to_owned())
+                .collect()
+        });
+    let Some(selected) = accepts
+        .iter()
+        .find(|accept| transform_reachable(&wire_type, accept))
+        .cloned()
+    else {
+        return ctx.fail_diagnostic(
+            source,
+            READ_UNSATISFIABLE,
+            format!(
+                "read `{uri}` wire type `{wire_type}` cannot satisfy accepts [{}]",
+                accepts.join(", ")
+            ),
+            "read unsatisfiable",
+        );
+    };
+
+    let path_display = Path::new(path)
+        .file_name()
+        .and_then(|name| name.to_str())
+        .unwrap_or(path);
+    ItemStream::once(Item::Node(format!("{selected}:{path_display}")))
+}
+
+fn resolve_accepts(stream: &mut ItemStream) -> Vec<String> {
+    if stream.items.is_empty()
+        || matches!(stream.items.first(), Some(Item::Atomic(AtomValue::Null)))
+    {
+        return CONTENT_TYPE_FLOOR
+            .iter()
+            .map(|value| (*value).to_owned())
+            .collect();
+    }
+
+    if stream.items.len() == 1 {
+        if let Some(header) = stream.items.first().and_then(item_string) {
+            if header.contains(',') || header.contains(";q=") || header.contains('*') {
+                return parse_accept_header(&header);
+            }
+        }
+    }
+
+    let accepts = stream
+        .items
+        .iter()
+        .filter_map(item_string)
+        .flat_map(|value| expand_accept_range(&normalize_content_type(&value)))
+        .collect::<Vec<_>>();
+    if accepts.is_empty() {
+        CONTENT_TYPE_FLOOR
+            .iter()
+            .map(|value| (*value).to_owned())
+            .collect()
+    } else {
+        accepts
+    }
+}
+
+fn parse_accept_header(header: &str) -> Vec<String> {
+    let mut entries = header
+        .split(',')
+        .enumerate()
+        .filter_map(|(index, part)| {
+            let mut segments = part.split(';').map(str::trim);
+            let media_range = normalize_content_type(segments.next()?);
+            let mut q = 1.0;
+            for segment in segments {
+                if let Some(raw) = segment.strip_prefix("q=") {
+                    q = raw.parse::<f64>().unwrap_or(0.0);
+                }
+            }
+            Some((index, q, media_range))
+        })
+        .collect::<Vec<_>>();
+    entries.sort_by(|(left_index, left_q, _), (right_index, right_q, _)| {
+        right_q
+            .partial_cmp(left_q)
+            .unwrap_or(std::cmp::Ordering::Equal)
+            .then_with(|| left_index.cmp(right_index))
+    });
+    entries
+        .into_iter()
+        .flat_map(|(_, _, media_range)| expand_accept_range(&media_range))
+        .collect()
+}
+
+fn expand_accept_range(media_range: &str) -> Vec<String> {
+    match media_range {
+        "*/*" => CONTENT_TYPE_FLOOR
+            .iter()
+            .map(|value| (*value).to_owned())
+            .collect(),
+        range if range.ends_with("/*") => {
+            let prefix = range.trim_end_matches('*');
+            CONTENT_TYPE_FLOOR
+                .iter()
+                .filter(|value| value.starts_with(prefix))
+                .map(|value| (*value).to_owned())
+                .collect()
+        }
+        value => vec![value.to_owned()],
+    }
+}
+
+fn content_type_from_path(path: &str) -> String {
+    let extension = Path::new(path)
+        .extension()
+        .and_then(|extension| extension.to_str())
+        .unwrap_or_default()
+        .to_ascii_lowercase();
+    match extension.as_str() {
+        "html" | "htm" => "text/html",
+        "xml" => "application/xml",
+        "svg" => "image/svg+xml",
+        "mml" | "mathml" => "application/mathml+xml",
+        "css" => "text/css",
+        "scss" => "text/x-scss",
+        "json" => "application/json",
+        "yaml" | "yml" => "application/yaml",
+        "csv" => "text/csv",
+        "js" | "mjs" => "application/javascript",
+        "ts" => "application/typescript",
+        "cem" | "cemml" => "application/cem+xml",
+        _ => "application/octet-stream",
+    }
+    .to_owned()
+}
+
+fn normalize_content_type(value: &str) -> String {
+    match value.trim().to_ascii_lowercase().as_str() {
+        "text/xml" => "application/xml",
+        "text/json" => "application/json",
+        "text/yaml" | "application/x-yaml" => "application/yaml",
+        "text/scss" => "text/x-scss",
+        "text/javascript" => "application/javascript",
+        "text/typescript" | "application/x-typescript" => "application/typescript",
+        other => other,
+    }
+    .to_owned()
+}
+
+fn transform_reachable(wire_type: &str, accept: &str) -> bool {
+    wire_type == accept || (wire_type == "application/yaml" && accept == "application/json")
 }
 
 fn resolve_ref(input: ItemStream, ctx: &mut EvalCtx<'_>, source: IrId) -> ItemStream {

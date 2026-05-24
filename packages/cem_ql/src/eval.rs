@@ -7,7 +7,9 @@ use cem_ml::scheduler::ScopePolicy;
 use cem_ml::source_map::SourceMapStack;
 
 use crate::api::EvaluationContext;
-use crate::diagnostics::{BUDGET_EXCEEDED, TYPE_ERROR, UNKNOWN_FUNCTION, UNKNOWN_VARIABLE};
+use crate::diagnostics::{
+    DiagnosticCode, BUDGET_EXCEEDED, TYPE_ERROR, UNKNOWN_FUNCTION, UNKNOWN_VARIABLE,
+};
 use crate::ir::{CompiledQuery, IrId, IrNode};
 use crate::parser::{BinaryOp, QuantifierKind, UnaryOp};
 use crate::resolve::BindingId;
@@ -461,6 +463,20 @@ impl<'a> EvalCtx<'a> {
         let mut out = ItemStream::empty();
         out.diagnostics.push(diagnostic);
         out
+    }
+
+    pub(crate) fn fail_diagnostic(
+        &mut self,
+        source: IrId,
+        code: DiagnosticCode,
+        message: impl Into<String>,
+        error_message: &'static str,
+    ) -> ItemStream {
+        let diagnostic = self.diagnostic(source, code, message, Severity::Error);
+        let error = EvalError::Unsupported(error_message);
+        self.diagnostics.push(diagnostic.clone());
+        self.error = Some(error.clone());
+        ItemStream::failed(error, diagnostic)
     }
 
     fn eval_call(&mut self, source: IrId, callee: IrId, args: &[IrId]) -> ItemStream {
