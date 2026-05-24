@@ -6,7 +6,8 @@ the curly-brace syntax from `docs/cem-ml-syntax.md`.
 The existing `examples/semantic/*.html` files remain the secondary HTML parity surface.
 Parser, validation, transform, and snapshot tests should keep both fixture sets aligned:
 the CEM-ML fixture is the source-shape canonical, while the HTML fixture proves adapter
-parity.
+parity. [`fixture-manifest.json`](./fixture-manifest.json) is the executable pairing
+used by `cem-ml fixture validate` defaults and Nx fixture targets.
 
 Fixture pairs:
 

@@ -479,10 +479,36 @@ impl CemMlEngine for RealCemMlEngine {
 
     fn trace(&self, request: TraceRequest) -> EngineResult<TraceResponse> {
         let from_format = request.input.from_format.unwrap_or(InputFormat::Cem);
+        let scheduler_trace = crate::scheduler::SchedulerTrace::new();
+        let policy = crate::scheduler::ScopePolicy {
+            cpu_workers: 1,
+            queue_size: 8,
+            io_streams: 4,
+            memory_bytes: 8 * 1024 * 1024,
+            plugin_time_budget_ms: None,
+            overflow: crate::scheduler::OverflowPolicy::Reject,
+        };
+        let pool = crate::scheduler::WorkerPool::new(0, policy, scheduler_trace.clone());
+        let abort = crate::scheduler::AbortSignal::new();
+        for task in ["tokenize", "normalize", "schema", "ast", "validate"] {
+            pool.submit(task, &abort).map_err(|err| {
+                EngineError::Internal(format!("scheduler trace setup failed: {err}"))
+            })?;
+        }
+        let run = run_pipeline_as(&request.input.bytes, from_format);
+        pool.run_to_completion(&abort, |_| {});
+        let report = Report::deterministic(
+            vec![request.input.uri.clone()],
+            run.diagnostics,
+            snapshot(FailLevel::Validate, &request.context),
+        )
+        .with_scheduler_trace(&scheduler_trace);
         let body = json!({
             "kind": "trace",
             "input": request.input.uri,
+            "projection": request.projection,
             "events": projection::events_json_as(&request.input.bytes, from_format),
+            "report": report,
         });
         Ok(TraceResponse { body })
     }
@@ -777,6 +803,24 @@ mod tests {
                                 && frame["transform"]["content_type"] == "application/xml"
                         })
             }));
+    }
+
+    #[test]
+    fn trace_response_embeds_scheduler_projection_in_report_ast() {
+        let req = TraceRequest {
+            input: input(b"{p Hi}", "in.cem"),
+            projection: TraceProjection::Json,
+            context: ctx(),
+        };
+        let resp = RealCemMlEngine::new().trace(req).unwrap();
+        let scheduler_trace = &resp.body["report"]["reportAst"]["schedulerTrace"];
+        assert_eq!(scheduler_trace["eventCount"], 15);
+        assert_eq!(
+            scheduler_trace["events"][0]["kind"],
+            serde_json::Value::String("enqueue".to_owned())
+        );
+        assert_eq!(scheduler_trace["events"][0]["scopeId"], 0);
+        assert_eq!(scheduler_trace["events"][0]["task"], "tokenize");
     }
 
     #[test]

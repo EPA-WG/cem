@@ -10,7 +10,7 @@ use crate::template_pass;
 use cem_ml::engine::{self as eng, CemMlEngine, EngineError};
 use std::fs;
 use std::io::{self, Write};
-use std::path::Path;
+use std::path::{Path, PathBuf};
 
 pub const EXIT_OK: u8 = 0;
 pub const EXIT_HARD_FAILURE: u8 = 1;
@@ -72,30 +72,61 @@ fn collect_inputs(
     paths.iter().map(|p| engine_input(p, from_format)).collect()
 }
 
-fn collect_fixture_inputs(paths: &[std::path::PathBuf]) -> Vec<eng::EngineInput> {
-    let resolved: Vec<&Path> = if paths.is_empty() {
-        DEFAULT_FIXTURES.iter().map(Path::new).collect()
+fn collect_fixture_inputs(paths: &[PathBuf]) -> Vec<eng::EngineInput> {
+    if paths.is_empty() {
+        default_fixture_inputs()
     } else {
-        paths.iter().map(|p| p.as_path()).collect()
-    };
-    resolved
+        paths
+            .iter()
+            .map(|p| placeholder_input(p, None))
+            .collect()
+    }
+}
+
+const FIXTURE_MANIFEST_JSON: &str = include_str!("../../../examples/cem-ml/fixture-manifest.json");
+
+fn default_fixture_inputs() -> Vec<eng::EngineInput> {
+    fixture_manifest_pairs()
         .into_iter()
-        .map(|p| placeholder_input(p, None))
+        .flat_map(|pair| {
+            [
+                placeholder_input(Path::new(&pair.cem), Some(cli::InputFormat::Cem)),
+                placeholder_input(Path::new(&pair.html), Some(cli::InputFormat::Html)),
+            ]
+        })
         .collect()
 }
 
-const DEFAULT_FIXTURES: &[&str] = &[
-    "examples/cem-ml/login.cem",
-    "examples/cem-ml/registration.cem",
-    "examples/cem-ml/profile.cem",
-    "examples/cem-ml/assets-list.cem",
-    "examples/cem-ml/message-thread.cem",
-    "examples/semantic/login.html",
-    "examples/semantic/registration.html",
-    "examples/semantic/profile.html",
-    "examples/semantic/assets-list.html",
-    "examples/semantic/message-thread.html",
-];
+#[derive(Debug, Clone, PartialEq, Eq)]
+struct FixturePair {
+    id: String,
+    cem: String,
+    html: String,
+}
+
+fn fixture_manifest_pairs() -> Vec<FixturePair> {
+    let manifest: serde_json::Value =
+        serde_json::from_str(FIXTURE_MANIFEST_JSON).expect("fixture manifest JSON must parse");
+    let pairs = manifest
+        .get("pairs")
+        .and_then(|v| v.as_array())
+        .expect("fixture manifest must contain a `pairs` array");
+    pairs
+        .iter()
+        .map(|pair| FixturePair {
+            id: manifest_string(pair, "id"),
+            cem: manifest_string(pair, "cem"),
+            html: manifest_string(pair, "html"),
+        })
+        .collect()
+}
+
+fn manifest_string(pair: &serde_json::Value, key: &str) -> String {
+    pair.get(key)
+        .and_then(|v| v.as_str())
+        .unwrap_or_else(|| panic!("fixture manifest pair must contain string `{key}`"))
+        .to_owned()
+}
 
 fn to_engine_input_format(f: cli::InputFormat) -> eng::InputFormat {
     match f {
@@ -907,7 +938,40 @@ mod tests {
         assert_eq!(outcome.exit_code, EXIT_OK);
         let v: serde_json::Value = serde_json::from_str(stdout.trim()).unwrap();
         let count = v["summary"]["inputCount"].as_u64().unwrap();
-        assert!(count >= 10, "expected default fixture set, got {count}");
+        assert_eq!(count, (fixture_manifest_pairs().len() * 2) as u64);
+    }
+
+    #[test]
+    fn fixture_manifest_pairs_every_top_level_cem_fixture_with_html_parity() {
+        let workspace = PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("../..");
+        let pairs = fixture_manifest_pairs();
+        assert!(!pairs.is_empty(), "fixture manifest must not be empty");
+
+        let manifest_cem: std::collections::BTreeSet<String> =
+            pairs.iter().map(|p| p.cem.clone()).collect();
+        let disk_cem: std::collections::BTreeSet<String> =
+            std::fs::read_dir(workspace.join("examples/cem-ml"))
+                .unwrap()
+                .filter_map(|entry| {
+                    let path = entry.unwrap().path();
+                    (path.extension().and_then(|e| e.to_str()) == Some("cem")).then(|| {
+                        format!(
+                            "examples/cem-ml/{}",
+                            path.file_name().unwrap().to_string_lossy()
+                        )
+                    })
+                })
+                .collect();
+        assert_eq!(manifest_cem, disk_cem);
+
+        for pair in pairs {
+            assert!(workspace.join(&pair.cem).is_file(), "missing {}", pair.cem);
+            assert!(
+                workspace.join(&pair.html).is_file(),
+                "missing {}",
+                pair.html
+            );
+        }
     }
 
     #[test]

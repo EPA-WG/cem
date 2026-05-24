@@ -145,5 +145,11 @@ mod tests {
         for k in ["failLevel", "schema", "contentType", "baseUri"] {
             assert!(opts.get(k).is_some(), "missing options.{k}");
         }
+        assert!(v.pointer("/reportAst/schedulerTrace/events").is_some());
+        assert_eq!(
+            v.pointer("/reportAst/schedulerTrace/eventCount")
+                .and_then(|v| v.as_u64()),
+            Some(0)
+        );
     }
 }

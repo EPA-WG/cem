@@ -10,73 +10,18 @@ Acceptance criteria: [`cem-ml-ac.md`](cem-ml-ac.md), [`cem-ql-ac.md`](cem-ql-ac.
 [`cem-ql-stack-design.md`](cem-ql-stack-design.md),
 [`cem-ql-stack-design-impl.md`](cem-ql-stack-design-impl.md).
 
-### Inline Schema And Mid-Document Schema Switch (AC-F-2, IMPL-FOLLOW-004)
+### Scheduler Completion (AC-O-2, IMPL-FOLLOW-007)
 
-Schema scoping is resolved at the AC level (`MEMORY.md` `project_schema_scoping.md`); parser/schema-frame lowering for
-the in-document forms is now covered by fixtures and schema-machine tests.
+`packages/cem_ml/src/scheduler/` module exists with six submodules. Worker pool, bounded queue, cancellation, I/O queue,
+and deterministic trace report projection are implemented.
 
-- [x] Implement parser and schema-frame lowering for inline `{cem:schema @cem:name | ... }` declarations.
-- [x] Implement `cem:schema-src` / `cem:schema-select` host-attribute switches.
-- [x] Implement scope-chain `cem:name` shadowing per `cem-ml-stack-design.md §13.1`. Add fixtures covering shadowing,
-      sibling isolation, and override boundaries.
-
-### Plugin Runtime (AC-PL-1..AC-PL-20, IMPL-FOLLOW-006)
-
-`packages/cem_ml/src/plugin/` module exists; descriptor, chain, lifecycle, and sandboxing per the resolved
-host-trusted + Rust AST capability validator model (`MEMORY.md` `project_plugin_sandboxing.md`) need to be plumbed
-through.
-
-- [x] Implement plugin descriptor, chain composition, install/uninstall lifecycle, observe/mutate mode separation, and
-      priority ordering.
-- [x] Implement source-map stitching across plugin boundaries (host-frame inheritance + plugin-introduced frame).
-- [x] Implement Rust AST capability validator at load time per the resolved sandboxing model.
-- [x] Add plugin-budget enforcement against the scope policy. Emit `cem.plugin.budget_exceeded` on breach.
-- [x] Plugin runtime AC verification tests: `tests/plugin_runtime.rs` already exists — extend it with descriptor /
-      chain / source-map-stitching / sandbox cases.
-
-### Scheduler Completion (AC-A-2..AC-A-7, AC-O-2, IMPL-FOLLOW-007)
-
-`packages/cem_ml/src/scheduler/` module exists with six submodules. Worker pool, bounded queue, cancellation, and I/O
-queue are implemented; deterministic trace report projection is still pending.
-
-- [x] Implement per-scope thread pool and bounded queue per AC-A-4 / AC-A-5. Queue overflow emits
-      `cem.scheduler.queue_full`; the diagnostic carries the overflowing scope id.
-- [x] Implement end-to-end `AbortSignal` propagation per AC-A-7. Cancellation halts in-flight work at the next
-      safe-point and surfaces `cem.scheduler.aborted` with the originating cancel-site source-map stack.
-- [x] Implement external-resource I/O queue per AC-A-6 (separate from compute queue).
-- [ ] Implement deterministic scheduling trace per AC-O-2. Trace projection is part of the report AST per AC-O-4.
-
-### Registry Runtime Scoped Lookup (AC-R-1..AC-R-3, IMPL-FOLLOW-008)
-
-`packages/cem_ml/src/registry/` module exists with three submodules. Scoped lookup and collision diagnostics are
-implemented.
-
-- [x] Implement scoped DCE / custom-element registry lookup with parent-scope fallback per AC-R-1 / AC-R-2.
-- [x] Implement collision detection across nested scopes per AC-R-3. Emit `cem.registry.collision` at the policy-
-      controlled severity (default warning).
-- [x] Registry runtime AC verification tests: extend `tests/registry_runtime.rs` with inheritance / shadowing /
-      collision cases.
-
-### Content-Addressed Cache And Transport (AC-CC-1..AC-CC-9, Tier B)
-
-Shared between `cem-ml` and `cem-ql`. The protocol is normative in `cem-ml-ac.md §14`; implementation is Tier B.
-
-- [x] Implement deterministic content hashing for parsed top-level artifacts (cem-ml documents, schemas, transform
-      plans, cem-ql modules) per AC-CC-1. Hash scheme `cem-bin/1+blake3`.
-- [x] Implement portable binary serialization keyed by AC-CC-1 hash (AC-CC-2). Loader skips parsing when the hash
-      matches an in-process or on-disk cache entry.
-- [x] Implement policy stamps (declared schema URIs, plugin imports, external reads, scope-policy fingerprint) per
-      AC-CC-3. Mismatch path emits `cem.cc.policy_mismatch`.
-- [x] Implement `dev` / `prod` cache mode axis (AC-CC-4). Dev mode preserves source-map sidecars; prod mode omits them.
-- [x] Implement independently content-addressed source-map sidecars per AC-CC-5.
-- [x] Implement `CEM-Hash` / `If-CEM-Hash` HTTP transport protocol per AC-CC-6 / AC-CC-7.
-- [x] Bind cem-ql's `AC-QC-*` artifact path to the same loader (cem-ql-stack-design-impl.md §12).
+- [x] Implement deterministic scheduling trace per AC-O-2. Trace projection is part of the report AST per AC-O-4.
 
 ## Phase 2 — CLI Fixture Parity And Validation Catalog
 
 [`cem-ml-cli-plan.md`](cem-ml-cli-plan.md) Phase 12 / Phase 13.
 
-- [ ] Build the fixture manifest pairing every `examples/cem-ml/*.cem` with its `examples/semantic/*.html` parity
+- [x] Build the fixture manifest pairing every `examples/cem-ml/*.cem` with its `examples/semantic/*.html` parity
       fixture. Wire `nx run cem_ml_cli:validate-fixtures` and `cem_ml_cli:e2e`.
 - [ ] Add the cross-surface conversion fixtures CLI plan Phase 12 §6 — namespace bindings, comments / whitespace /
       doctypes / PIs / CDATA, anonymous typed scopes, rich-content enclosures, `$` expression nodes, attribute-value

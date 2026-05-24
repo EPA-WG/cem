@@ -12,6 +12,10 @@ use cem_ml::scheduler::{
 };
 use cem_ml::source::{ByteRange, SourceId};
 use cem_ml::source_map::{FrameSpan, SourceMapFrame, SourceMapStack, TransformKind};
+use cem_ml::{
+    engine::FailLevel,
+    report::{Report, ReportOptionsSnapshot},
+};
 
 fn policy(cpu: u32, queue: u32, io: u32, mem: u64, overflow: OverflowPolicy) -> ScopePolicy {
     ScopePolicy {
@@ -90,6 +94,55 @@ fn end_to_end_pool_run_emits_deterministic_trace() {
             (7, cem_ml::scheduler::SchedulerEventKind::Dispatch, "ast-build".into()),
             (7, cem_ml::scheduler::SchedulerEventKind::Finish, "ast-build".into()),
         ]
+    );
+}
+
+#[test]
+fn deterministic_trace_projects_into_report_ast() {
+    let trace = SchedulerTrace::new();
+    let pool = WorkerPool::new(
+        5,
+        policy(1, 4, 2, 1024, OverflowPolicy::Reject),
+        trace.clone(),
+    );
+    let abort = AbortSignal::new();
+    for task in ["parse", "validate"] {
+        pool.submit(task, &abort).unwrap();
+    }
+    pool.run_to_completion(&abort, |_| {});
+
+    let report = Report::deterministic(
+        vec!["input.cem".to_owned()],
+        vec![],
+        ReportOptionsSnapshot {
+            fail_level: FailLevel::Validate,
+            schema: None,
+            content_type: Some("application/cem".to_owned()),
+            base_uri: None,
+        },
+    )
+    .with_scheduler_trace(&trace);
+
+    let projected = &report.report_ast.scheduler_trace;
+    assert_eq!(projected.event_count, 6);
+    assert_eq!(projected.events[0].sequence, 0);
+    assert_eq!(projected.events[0].scope_id, 5);
+    assert_eq!(
+        projected.events[0].kind,
+        cem_ml::scheduler::SchedulerEventKind::Enqueue
+    );
+    assert_eq!(projected.events[0].task, "parse");
+
+    let json = serde_json::to_value(&report).unwrap();
+    assert_eq!(
+        json.pointer("/reportAst/schedulerTrace/eventCount")
+            .and_then(|v| v.as_u64()),
+        Some(6)
+    );
+    assert_eq!(
+        json.pointer("/reportAst/schedulerTrace/events/0/scopeId")
+            .and_then(|v| v.as_u64()),
+        Some(5)
     );
 }
 

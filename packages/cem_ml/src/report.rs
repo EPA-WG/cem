@@ -1,5 +1,6 @@
 use crate::diagnostics::Diagnostic;
 use crate::engine::FailLevel;
+use crate::scheduler::trace::{SchedulerEvent, SchedulerEventKind, SchedulerTrace};
 use serde::{Deserialize, Serialize};
 
 pub const DETERMINISTIC_TIMESTAMP: &str = "1970-01-01T00:00:00.000Z";
@@ -31,6 +32,60 @@ pub struct ReportOptionsSnapshot {
     pub base_uri: Option<String>,
 }
 
+#[derive(Debug, Clone, Default, Serialize, Deserialize)]
+pub struct ReportAst {
+    #[serde(rename = "schedulerTrace", default)]
+    pub scheduler_trace: SchedulerTraceReport,
+}
+
+#[derive(Debug, Clone, Default, Serialize, Deserialize)]
+pub struct SchedulerTraceReport {
+    #[serde(rename = "eventCount")]
+    pub event_count: u64,
+    pub events: Vec<SchedulerTraceReportEvent>,
+}
+
+impl SchedulerTraceReport {
+    pub fn from_trace(trace: &SchedulerTrace) -> Self {
+        Self::from_events(trace.snapshot())
+    }
+
+    pub fn from_events(events: Vec<SchedulerEvent>) -> Self {
+        let events: Vec<SchedulerTraceReportEvent> = events
+            .into_iter()
+            .map(SchedulerTraceReportEvent::from)
+            .collect();
+        Self {
+            event_count: events.len() as u64,
+            events,
+        }
+    }
+
+    pub fn is_empty(&self) -> bool {
+        self.events.is_empty()
+    }
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
+pub struct SchedulerTraceReportEvent {
+    pub sequence: u64,
+    #[serde(rename = "scopeId")]
+    pub scope_id: u32,
+    pub kind: SchedulerEventKind,
+    pub task: String,
+}
+
+impl From<SchedulerEvent> for SchedulerTraceReportEvent {
+    fn from(event: SchedulerEvent) -> Self {
+        Self {
+            sequence: event.sequence,
+            scope_id: event.scope,
+            kind: event.kind,
+            task: event.task,
+        }
+    }
+}
+
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct Report {
     #[serde(rename = "generatedAt")]
@@ -39,6 +94,8 @@ pub struct Report {
     pub summary: ReportSummary,
     pub options: ReportOptionsSnapshot,
     pub diagnostics: Vec<Diagnostic>,
+    #[serde(rename = "reportAst", default)]
+    pub report_ast: ReportAst,
 }
 
 impl Report {
@@ -55,6 +112,7 @@ impl Report {
             summary,
             options,
             diagnostics,
+            report_ast: ReportAst::default(),
         }
     }
 
@@ -69,6 +127,15 @@ impl Report {
             options,
             DETERMINISTIC_TIMESTAMP.to_owned(),
         )
+    }
+
+    pub fn with_scheduler_trace(mut self, trace: &SchedulerTrace) -> Self {
+        self.set_scheduler_trace(trace);
+        self
+    }
+
+    pub fn set_scheduler_trace(&mut self, trace: &SchedulerTrace) {
+        self.report_ast.scheduler_trace = SchedulerTraceReport::from_trace(trace);
     }
 }
 
