@@ -65,11 +65,12 @@ set (item 5) MUST satisfy.
 
 ### 2.1 Attribute is the source of truth
 
-Components are declarative: the rendered output is a pure function of attributes and
-slotted children. The attribute is canonical. A property setter, when provided, MUST
-mirror through to the attribute so that the source-of-truth invariant holds across
-reads, serialization, and re-hydration. This mirrors the contract `@epa-wg/custom-element`
-already provides for `attribute name="..."` declarations.
+Components are declarative: the rendered output is a pure function of attributes,
+captured payload, slices, and the static template. The attribute is canonical. A
+property setter, when provided, MUST mirror through to the attribute so that the
+source-of-truth invariant holds across reads, serialization, and re-hydration. This
+mirrors the contract `@epa-wg/custom-element` already provides for
+`attribute name="..."` declarations.
 
 ### 2.2 Declared vs. host attributes
 
@@ -138,8 +139,9 @@ A component MUST NOT set `class` to track state.
 ### 3.3 No imperative-only events
 
 Every event a component dispatches MUST be observable from a declarative
-`@epa-wg/custom-element` `slice-event="..."` binding. If a behavior cannot be
-expressed through a documented event, it does not belong in a component.
+`<cem-element>` `slice-event="..."` binding, and during the bridge window from the
+compatible `@epa-wg/custom-element` binding. If a behavior cannot be expressed
+through a documented event, it does not belong in a component.
 
 ## 4. Form Participation
 
@@ -216,12 +218,14 @@ async work directly.
 Every component MUST degrade gracefully when its custom element is not upgraded yet
 (JS not loaded, polyfill blocked, or transform/render is server-side only):
 
-- The light-DOM children that the author wrote are the **fallback rendering**. The
-  page MUST remain readable, navigable, and form-submittable without the upgrade
-  running.
-- A component MUST NOT remove or replace its author-supplied children until upgrade
-  runs. `@epa-wg/custom-element` keeps author children in light DOM by default; the
-  cem-components contract is the same.
+- The light-DOM children that the author wrote are the **fallback rendering** before
+  upgrade. The page MUST remain readable, navigable, and form-submittable without
+  the upgrade running.
+- During upgrade, the substrate captures author-supplied children into the
+  component instance's `<template data-cem-island="instance">` and replaces the
+  visible content with the rendered projection. The raw payload remains associated
+  with the component scope as data and MUST NOT affect layout, selectors, form
+  submission, or accessibility directly after upgrade.
 - A `cem-` prefix on an element is a signal to the styling layer that the element
   exists; cem-theme CSS uses element selectors (`cem-button { … }`) so unstyled
   fallback still picks up theme tokens.
@@ -237,14 +241,16 @@ Every component MUST degrade gracefully when its custom element is not upgraded 
 
 - `@epa-wg/cem-elements` (the `<cem-element>` substrate) is the host runtime.
   Components rely on its declarative template, data island, and slice-event binding.
-  Templates use cem-ml syntax with cem-ql expressions; the data island sits inside
-  the substrate's `<template>` wrapper so author content is inert until upgrade.
+  Templates use cem-ml syntax with cem-ql expressions; declaration data and upgraded
+  instance payload sit inside `<template>` data islands so they are inert to the
+  browser rendering engine.
   Imperative state machines that bypass the declarative slice surface are forbidden
   in this package.
 - The legacy `<custom-element>` surface from `@epa-wg/custom-element` remains
-  consumable through the bridge-window compat (see §0 / cem-element-design §6.2)
+  consumable through the bridge-window compat (see Scope and cem-element-design §6.2)
   but new primitives MUST author directly against `<cem-element>`. After the major
-  cutover, `<custom-element>` is removed and only `<cem-element>` remains.
+  substrate adoption, `<custom-element>` remains the published
+  `@epa-wg/custom-element` tag and inherits the `cem-element` implementation.
 - Tokens come from `@epa-wg/cem-theme`. Components MUST NOT define their own color
   or spacing literals; they reference CEM token CSS custom properties.
 - AST-to-light-DOM transforms are owned by `cem_ml` and produce output that already

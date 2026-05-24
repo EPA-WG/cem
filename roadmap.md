@@ -14,7 +14,7 @@ This roadmap is intentionally higher level than `docs/todo.md`. Use this file to
 | Native platform adapters | iOS Swift and Android Kotlin/Compose outputs generated from the same token spine. | `packages/cem-theme/dist/lib/token-platforms` |
 | CEM parser/runtime foundation | Schema-defined streaming parser layers: byte decoding, tokenization, normalized events, validation, AST/source maps, binary AST chunks, and implementation handoff. | `packages/cem_ml` |
 | CEM XML/HTML/XSLT CLI | CEM document schemas, XML/HTML profiles, Invisible XML/CSF profile experiments, DOM helpers, transforms, validation, and reports over the parser foundation. | `packages/cem_ml_cli` |
-| CEM custom-element runtime | Declarative no-JS web component primitives built on `@epa-wg/custom-element` and fed by validated light-DOM transform output. | `packages/cem-components` |
+| CEM custom-element substrate | Declarative no-JS runtime centered on `<cem-element>`: scoped data islands, event-to-data wiring, and light-DOM re-render from CEM-ML/CEM-QL templates. Staged in `@epa-wg/cem-elements`, then used as the inherited implementation base for `<custom-element>` in the next major of `@epa-wg/custom-element`. | `packages/cem-elements`, future `packages/custom-element` |
 | CEM component set | Material-style UI coverage expressed in CEM semantics: buttons, fields, lists, nav, cards, dialogs, tables, tabs, etc. | `packages/cem-components` |
 | Figma UI Kit | Designer-facing components, variants, variables, usage examples, and governance workflow. | `examples/figma`, future design artifacts |
 | CEM site | Public docs, token/component gallery, interactive examples, and release documentation wired from the repo root. | future `apps/cem-site` or static docs app |
@@ -118,28 +118,35 @@ Deliverables:
 - New `<cem-element>` declarative authoring tag, functional successor to `<custom-element>` from
   `@epa-wg/custom-element`. Same concept (data island, event-to-data wiring, data-to-template re-render); template
   surface lowers through `cem_ml` and expressions use CEM-QL instead of XPath.
-- WHATWG `<template>`-wrapped data island so inner author content is inert in the page and only the rendered output
-  is visible.
+- WHATWG `<template>`-wrapped declaration and instance data islands. Declaration content, captured author payload,
+  slices, event payloads, and validation state stay associated with the component scope but are inert to the browser
+  rendering engine; only the rendered projection is visible after upgrade.
 - Monorepo migration of `@epa-wg/custom-element` from `~/aWork/custom-element/` into `packages/custom-element/`,
-  preserving published npm identity and history. The legacy `<custom-element>` tag continues to ship from this
-  monorepo until the major cutover.
+  preserving published npm identity and history. The `<custom-element>` tag continues to ship from this monorepo and,
+  in the next major, inherits the `cem-element` substrate. `@epa-wg/cem-elements/cem-element` remains the staging
+  entrypoint until parity is production-ready.
 - Bridge-window compatibility surface: legacy `<custom-element>` templates remain supported via an opt-in
   `lang="custom-element-v0"` annotation while authors migrate.
 
-Exit criteria (production-ready trigger for the major cutover):
+Exit criteria (production-ready trigger for the `@epa-wg/custom-element` implementation adoption):
 
 - Functional parity with `<custom-element>` proven by fixtures under
   `packages/cem-elements/tests/parity/legacy/`.
+- Data-island isolation proven in browser fixtures: raw declaration/instance data inside `<template>` does not affect
+  layout, selectors, form data, accessibility, or visible UI directly.
 - Material parity with every component in `~/aWork/custom-element-dist/src/material/` (action, autocomplete, badge,
-  dropdown, icon, icon-link, input, menu) proven by fixtures under `packages/cem-elements/tests/parity/material/`.
+  dropdown, icon, icon-link, input, menu) proven by fixtures under `packages/cem-elements/tests/parity/material/`,
+  including local/external `src`, hidden declarations, nested elements, slot projection, scoped styles, attribute
+  `select`, namespaced `xhtml:*` elements, boolean attribute helper semantics, `module-url` resource slices,
+  `data`/`option` payloads, slice events, and `slice-value`.
 - Phase 2 verification suite (`nx run cem_ml_cli:validate-fixtures`, `cem_ml_cli:e2e`, `cem_ml:bench`) is green on
   every parity fixture.
 - Accessibility contract in [`packages/cem-components/docs/accessibility.md`](packages/cem-components/docs/accessibility.md)
   passes end-to-end on the material parity set.
 
-When the substrate hits the production-ready trigger, `cem-element` is adopted as the canonical authoring tag in the
-next major of `@epa-wg/custom-element`, the legacy `<custom-element>` tag is removed, and `@epa-wg/cem-elements` is
-archived.
+When the substrate hits the production-ready trigger, `<custom-element>` remains the published tag in
+`@epa-wg/custom-element`, and its next-major implementation inherits the `cem-element` substrate.
+`@epa-wg/cem-elements` stops being the staging migration target once that adoption lands.
 
 ### 3.2 Primitives — `@epa-wg/cem-components`
 
@@ -298,7 +305,7 @@ Exit criteria:
 | M1 | Root docs spine and token/native validation gates | Current work is valuable but not yet easy to discover or verify end to end. |
 | M2 | Schema-defined parser runtime and fixture pipeline | It gives components, docs, and demos a shared semantic input model with source maps, validation, embedded-language handoffs, and an AST boundary. |
 | M3a | `<cem-element>` substrate + `@epa-wg/custom-element` monorepo migration | The declarative substrate must reach legacy + material parity before primitives commit to it. See [`docs/cem-element-design.md`](docs/cem-element-design.md). |
-| M3b | Custom-element runtime primitives | Components need stable behavior conventions before broad catalog work; they consume the substrate from M3a. |
+| M3b | Custom-element runtime primitives | Components need stable behavior conventions before broad catalog work; they consume the parity-proven substrate from M3a. |
 | M4 | Component set MVP | Unlocks real screens and validates token semantics in UI. |
 | M5 | Figma UI Kit MVP | Designers need the same semantics once component names and states stabilize. |
 | M6 | CEM site | Public documentation should be generated from stable package and component contracts. |

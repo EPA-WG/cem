@@ -12,33 +12,61 @@ declarative concept that POC introduced.
 
 ## 1. Goal
 
-`cem-element` keeps the `@epa-wg/custom-element` concept — a declarative element that
-holds a **data island**, wires DOM events to data-change updates, and re-renders the
-host's light-DOM children from a template + data — and replaces the template engine
-with CEM-native syntax:
+`cem-element` keeps the `@epa-wg/custom-element` concept — a declaration registers a
+custom element whose instances hold a **data island**, wire DOM events to data-change
+updates, and re-render visible light-DOM output from template + data — and replaces
+the template engine with CEM-native syntax:
 
-- Template markup uses canonical **CEM-ML** (curly-brace) or its XML/HTML parity
-  surface; both lower into the same event/AST model owned by `cem_ml`.
+- The `<cem-element>` declaration carries its template source in one associated
+  WHATWG `<template>` child. That template is authored in canonical **CEM-ML**
+  (curly-brace) or its XML/HTML parity surface; both lower into the same event/AST
+  model owned by `cem_ml`.
 - Expressions inside templates and attribute-value spans use **CEM-QL**, replacing
   XPath as the data-access language.
-- The data island is wrapped in a WHATWG `<template>` element so its contents sit in
-  the inert `template.content` DocumentFragment and never reach the live render
-  tree. Only the rendered output (driven from the data island) is visible.
+- A produced custom element instance owns the mutable data island. That instance data
+  island is also wrapped in a WHATWG `<template>` so its contents sit in an inert
+  `template.content` DocumentFragment and never reach the live render tree. Only the
+  rendered output driven from that instance data island is visible.
 
-`cem-element` is **not** a fork of `<custom-element>`. It is its functional successor.
-The end state of this work is that `@epa-wg/custom-element` next major adopts
-`cem-element` as its authoring tag and the legacy `<custom-element>` tag is removed.
+`cem-element` is **not** a fork of `<custom-element>`. It is the new substrate that
+`<custom-element>` will inherit from. The end state is that `@epa-wg/custom-element`
+continues to publish the `<custom-element>` tag, but its implementation is rebuilt on
+the `cem-element` substrate. The public attributes will be revised during that major
+version. `@epa-wg/custom-element` will be published from this monorepo as its new
+home, and https://github.com/EPA-WG/custom-element will be deprecated.
 
 ## 2. Packages
 
-| Package | Status | Role |
-| --- | --- | --- |
-| `@epa-wg/cem-elements` | Planned, this design | Houses the `<cem-element>` runtime and its declarative authoring surface. Plural ("elements") distinguishes the substrate from `@epa-wg/cem-components` (the primitive library that consumes it). |
-| `@epa-wg/cem-components` | Phase 3, contract docs landed | Declarative component primitives (`cem-button`, `cem-text-field`, …) authored with `<cem-element>` and the conventions in [`packages/cem-components/docs/conventions.md`](../packages/cem-components/docs/conventions.md). |
-| `@epa-wg/custom-element` | External today, scheduled for monorepo migration | Existing POC at `~/aWork/custom-element/`. Source moves into `packages/custom-element/`; future major adopts `cem-element` and retires the legacy `<custom-element>` tag. |
-| `custom-element-dist` (reference) | External | Material-style sample components at `~/aWork/custom-element-dist/src/material/` (`action`, `autocomplete`, `badge`, `dropdown`, `icon`, `icon-link`, `input`, `menu`). Used as the parity benchmark for `cem-element` (see §7). |
+| Package                           | Status                                           | Role                                                                                                                                                                                                                            |
+|-----------------------------------|--------------------------------------------------|---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|
+| `@epa-wg/cem-elements`            | Planned, this design                             | Houses the `<cem-element>` runtime and its declarative authoring surface. Plural ("elements") refers the functional components as opposite to `@epa-wg/cem-components` UI library that consumes it.                             |
+| `@epa-wg/cem-components`          | Phase 3, contract docs landed                    | Declarative component primitives (`cem-button`, `cem-input`, …) authored with `<cem-element>` and the conventions in [`packages/cem-components/docs/conventions.md`](../packages/cem-components/docs/conventions.md).           |
+| `@epa-wg/custom-element`          | External today, scheduled for monorepo migration | Existing POC at `~/aWork/custom-element/`. Source moves into `packages/custom-element/`; future major keeps publishing `<custom-element>` and implements it by inheriting the `cem-element` substrate. XSLT syntax preservation TBD. |
+| `custom-element-dist` (reference) | External                                         | Material-style sample components at `~/aWork/custom-element-dist/src/material/` (`action`, `autocomplete`, `badge`, `dropdown`, `icon`, `icon-link`, `input`, `menu`). Used as the parity benchmark for `cem-element` (see §7). |
 
 ## 3. Authoring surface
+
+Terminology used below:
+
+- **Declaration element** means `<cem-element>`. It declares/registers a custom
+  element tag and owns the CEM-ML template source. The (scoped) custom elements registry use TBD. The use of unique tag names is TBD.
+- **Declaration template** means the single direct-child WHATWG `<template>` inside
+  `<cem-element>`. It is inert browser content, but it is not the mutable runtime
+  data island.
+- **Produced custom element instance** means an instance of the declared tag, such as
+  `<cem-button>` or `<cem-menu>`. This is not the legacy `<custom-element>` tag.
+- **Instance data island** means the produced custom element instance's inert
+  `<template data-cem-island="instance">`, which stores mutable attributes, payload,
+  slices, validation state, and event payloads.
+
+A `<cem-element>` declaration has one direct child: the WHATWG `<template>` that
+contains the declaration's CEM-ML template source. This declaration template is not
+the mutable runtime data island. The custom element instances produced by the
+declaration (`<cem-button>`, `<cem-menu>`, etc.) own the data island.
+
+Before upgrade, a produced custom element instance may contain author fallback
+payload. On upgrade, that payload is captured into the instance's inert data-island
+`<template>`, and only the rendered projection remains visible.
 
 ```html
 <cem-element tag="cem-button">
@@ -70,74 +98,97 @@ Or the XML/HTML parity form (lowered to the same AST):
 </cem-element>
 ```
 
-### 3.1 The `<template>` wrapper IS the data island
+### 3.1 Declaration template vs. instance data island
 
-- Every direct child of `<cem-element>` MUST sit inside a single WHATWG `<template>`
-  element. The browser parks `<template>` content in `template.content` (a
-  `DocumentFragment`) and does not render it, so:
+- Every `<cem-element>` declaration MUST contain exactly one direct-child WHATWG
+  `<template>` element. Declaration content outside that wrapper is invalid, because
+  it would be live page content instead of declaration template source.
+- The browser parks `<template>` content in `template.content` (a `DocumentFragment`)
+  and does not render it. For the declaration template this means:
   - inner text never bleeds into the live page;
   - inner elements never affect layout;
   - inner attributes never reach selectors;
-  - the data island is **inert by default** without any author opt-in.
-- The cem-element runtime reads `template.content` at upgrade time, lowers it to the
-  same `NormalizedEvent` stream `cem_ml` already produces, and runs it through the
-  configured schema/scope policy.
+  - the declaration source is **inert by default** without any author opt-in.
+- The cem-element runtime reads the declaration template's `template.content` at
+  upgrade time, lowers it to the same `NormalizedEvent` stream `cem_ml` already
+  produces, and runs it through the configured schema/scope policy.
 - Multiple top-level concerns (attribute declarations, slices, named render templates,
   inline styles, plugin descriptors) coexist inside the single `<template>` — they are
   distinguished by element name, not by sibling position.
-- The host element's own children outside the `<template>` are the **author-supplied
-  light-DOM input** (slots, default text). They remain visible exactly as the author
-  wrote them and provide the progressive-enhancement fallback.
+- For each produced custom element instance, the runtime creates or reuses a separate
+  instance data island as `<template data-cem-island="instance">`. Host attributes,
+  dataset, captured author payload, slice state, validation state, and event payloads
+  live there. Its content is the mutable data host for that instance and MUST NOT
+  participate in rendering directly.
+- Author payload on the produced custom element instance (`<cem-button>Save</cem-button>`)
+  is a progressive-enhancement fallback only until upgrade. During upgrade it is
+  moved or cloned into the instance data-island template before the rendered output
+  is installed, so the page never shows both the raw payload and rendered projection.
 
 ### 3.2 Template engine
 
-| Concern | `<custom-element>` legacy | `<cem-element>` |
-| --- | --- | --- |
-| Template syntax | XSLT-shaped HTML with `<for-each>`, `<if>`, `<choose>` | CEM-ML curly surface or XML/HTML parity; `cem-ql` template embedding (AC-T-7) |
-| Expression language | XPath 1.0, `$var` and `//path` | CEM-QL (see [`cem-ql-stack-design.md`](./cem-ql-stack-design.md)); `$var` for declared attributes, dotted/path forms for slices |
-| Text interpolation | `{ … }` in text and attribute values | `{ $expr }` in attributes (AVT spans); `${ $expr }` in text. Bare `{ … }` text is rejected per `cem-ml-syntax.md` Tier A. |
-| Attribute declarations | `<attribute name="…">default</attribute>` | Same shape, lowered to the same AST. Default text or `@select="{$expr}"` attribute. |
-| Slices and slice events | `slice="x"` + `slice-event="…"` + `slice-value="{ … }"` | Same surface, but `slice-value` carries a CEM-QL expression. |
-| Validation / open-content | Implicit per the POC engine | Schema-governed; the cem-element substrate participates in `cem_ml` scope policy and Tier A semantic-validation catalog. |
+| Concern                   | `<custom-element>` legacy                               | `<cem-element>`                                                                                                                 |
+|---------------------------|---------------------------------------------------------|---------------------------------------------------------------------------------------------------------------------------------|
+| Template syntax           | XSLT-shaped HTML with `<for-each>`, `<if>`, `<choose>`  | CEM-ML curly surface or XML/HTML parity; `cem-ql` template embedding (AC-T-7)                                                   |
+| Expression language       | XPath 1.0, `$var` and `//path`                          | CEM-QL (see [`cem-ql-stack-design.md`](./cem-ql-stack-design.md)); `$var` for declared attributes, dotted/path forms for slices |
+| Text interpolation        | `{ … }` in text and attribute values                    | `{ $expr }` in attributes (AVT spans); `${ $expr }` in text. Bare `{ … }` text is rejected per `cem-ml-syntax.md` Tier A.       |
+| Attribute declarations    | `<attribute name="…">default</attribute>`               | Same shape, lowered to the same AST. Default text or `@select="{$expr}"` attribute.                                             |
+| Slices and slice events   | `slice="x"` + `slice-event="…"` + `slice-value="{ … }"` | Same surface, but `slice-value` carries a CEM-QL expression.                                                                    |
+| Validation / open-content | Implicit per the POC engine                             | Schema-governed; the cem-element substrate participates in `cem_ml` scope policy and Tier A semantic-validation catalog.        |
 
 ## 4. Runtime model
 
-1. **Upgrade.** When the browser upgrades `<cem-element tag="X">`, the runtime:
-   - looks up the single child `<template>`;
-   - hands `template.content` to `cem_ml` for tokenization, schema scoping, and AST
-     construction;
-   - extracts declared attributes (becomes the host's `observedAttributes`);
-   - extracts slices (becomes the data island's mutable state);
+1. **Declaration upgrade.** When the browser upgrades `<cem-element tag="X">`, the
+   runtime:
+   - looks up the single child declaration `<template>`;
+   - hands the declaration template's `template.content` to `cem_ml` for tokenization,
+     schema scoping, and AST construction;
+   - extracts declared attributes (becomes the produced custom element class's
+     `observedAttributes`);
+   - extracts slice declarations and event bindings (becomes the instance data-island
+     state contract);
    - extracts the render template (a CEM AST projected to WHATWG light DOM via
      `cem_ml`'s `OutputTarget::LightDomCustomElements`, AC-I-6);
    - registers `tag="X"` with `customElements.define` if not already defined.
-2. **Render.** On connect and on every data-island change, the runtime re-renders the
-   host's light-DOM children from the cached AST + the current data-island state.
-   The render path goes through the same `cem_ml::interpreter::light_dom` pipeline
-   as the build-time transform, so dev/runtime output is byte-identical.
-3. **Events.** Declarative `slice-event="…"` bindings install DOM listeners on the
+2. **Instance initialization.** When an instance of `X` connects, the runtime:
+   - captures host attributes, dataset, and author child payload into
+     `<template data-cem-island="instance">`;
+   - records slot names, default payload, slices, validation state, and event payloads
+     under that instance data island;
+   - removes the captured raw payload from the live render tree before first render.
+3. **Render.** On connect and on every data-island change, the runtime re-renders the
+   instance's visible light-DOM output from the cached AST + the current instance
+   data-island state. The data-island template itself is excluded from the diff. The
+   render path goes through the same `cem_ml::interpreter::light_dom` pipeline as the
+   build-time transform, so dev/runtime output is byte-identical.
+4. **Events.** Declarative `slice-event="…"` bindings install DOM listeners on the
    rendered children. Listener payloads write back to the data island, which
    triggers the next render. There are no JS event handlers in the authoring
    surface.
-4. **Source maps.** Every rendered node carries the AC-P-7 source-map stack back to
-   its position inside `template.content`, so dev tools can trace any node in the
-   live DOM to its author byte offset.
+5. **Source maps.** Every rendered node carries the AC-P-7 source-map stack back to
+   its position inside the declaration template, so dev tools can trace any node in
+   the live DOM to its author byte offset.
 
 ## 5. Data-island isolation guarantees
 
-The `<template>` wrapper exists to make the following true without author effort:
+The declaration `<template>` wrapper makes template source inert. The produced
+custom element instance's data-island `<template>` wrapper makes mutable runtime data
+inert. Together they make the following true without author effort:
 
-- **Render isolation.** No child of `<template>` participates in CSS selector
-  matching, layout, painting, accessibility tree, or `getElementsByTagName` on the
-  document.
-- **Form isolation.** Form-associated descendants inside `<template>` are not part
-  of the page's form data; only the rendered (cloned) form controls submit.
-- **Mutation isolation.** Author writes to the data island go through the runtime's
-  scope-policy mutation API (AC-M-*); direct DOM mutations of `template.content`
-  are allowed (it is a real `DocumentFragment`) and trigger a render diff.
+- **Render isolation.** No child of the declaration template or instance data-island
+  template participates in CSS selector matching, layout, painting, accessibility
+  tree, or `getElementsByTagName` on the document.
+- **Form isolation.** Form-associated descendants inside a data-island `<template>`
+  are not part of the page's form data; only the rendered form controls submit.
+- **Mutation isolation.** Author writes to the instance data island go through the
+  runtime's scope-policy mutation API (AC-M-*); direct DOM mutations of the instance
+  data-island `template.content` are allowed (it is a real `DocumentFragment`) and
+  trigger a render diff.
 - **Polyfill story.** When the browser does not upgrade `cem-element` (no JS, JS
-  failed, lazy load pending), the page still renders the author's light-DOM input
-  exactly as written; nothing inside `<template>` was visible to begin with.
+  failed, lazy load pending), declaration template source remains inert. Produced
+  custom element instances may show author fallback payload until upgrade; after
+  upgrade that payload is captured into the instance data-island template and stops
+  affecting the UI directly.
 
 ## 6. Compatibility & migration
 
@@ -147,14 +198,18 @@ The `<template>` wrapper exists to make the following true without author effort
   `packages/custom-element/` inside this monorepo. The migration preserves history
   and the published npm package identity.
 - Until parity is reached (§7) the existing `<custom-element>` authoring tag remains
-  the production surface. The package continues to publish from this monorepo.
-- The next major of `@epa-wg/custom-element` ships `cem-element` as the canonical
-  authoring tag. `<custom-element>` is removed in that major. Cem-components and
-  external consumers cut over at that boundary.
+  the production surface. The package continues to publish from this monorepo, while
+  `@epa-wg/cem-elements/cem-element` is the staging substrate entrypoint.
+- The next major of `@epa-wg/custom-element` keeps `<custom-element>` as the
+  package's public tag and rebuilds its implementation by inheriting the
+  `cem-element` substrate. Existing consumers keep importing
+  `@epa-wg/custom-element`; the implementation contract changes, not the package
+  identity.
 
 ### 6.2 Co-existence window
 
-During the bridge period (between this design landing and the major cutover):
+During the bridge period (between this design landing and the
+`@epa-wg/custom-element` implementation adoption):
 
 - Both tags MAY appear in the same document. They share `customElements` registry
   state; tag names MUST NOT collide.
@@ -179,25 +234,36 @@ when **all** of the following hold:
    documents (`~/aWork/custom-element/docs/attributes.md`,
    `~/aWork/custom-element/docs/rendering.md`) reproduces under `<cem-element>` with
    a one-to-one fixture in `packages/cem-elements/tests/parity/legacy/`.
-2. **Material parity.** Every component in
+2. **Template and data-island isolation.** Fixtures assert that declaration template
+   source and instance data-island contents are backed by `<template>` content. Raw
+   declaration or data-island descendants do not render, match document selectors,
+   submit form data, or enter the accessibility tree, and only the rendered
+   projection affects the UI.
+3. **Material parity.** Every component in
    `~/aWork/custom-element-dist/src/material/` — `action.html`, `autocomplete.html`,
    `badge.html`, `dropdown.html`, `icon.html`, `icon-link.html`, `input.html`,
    `menu.html` — is rebuilt under `<cem-element>` with a paired fixture in
    `packages/cem-elements/tests/parity/material/`. The rendered DOM, accessibility
    tree, and keyboard behavior match the legacy versions on a documented browser
-   matrix.
-3. **Cem-ml integration.** All `<cem-element>` templates parse cleanly through
+   matrix. The fixture set MUST cover local/external `src`, hidden declarations,
+   nested components, declarative slot projection, inline styles scoped to the host,
+   `attribute select`, `if`/`choose` bridge constructs, namespaced `xhtml:*`
+   elements, boolean attribute helper semantics, `module-url` resource slices,
+   `data`/`option` payloads, slice events, and `slice-value`.
+4. **Cem-ml integration.** All `<cem-element>` templates parse cleanly through
    `nx run cem_ml_cli:validate-fixtures` and round-trip through
    `nx run cem_ml_cli:e2e` cross-surface conversion. The Phase 2 semantic-validation
    catalog applies without exceptions.
-4. **Performance.** AC-N-1 first-paint budgets hold on the material parity fixtures
+5. **Performance.** AC-N-1 first-paint budgets hold on the material parity fixtures
    under the same `nx run cem_ml:bench` discipline.
-5. **A11y.** The accessibility contract from
+6. **A11y.** The accessibility contract from
    [`packages/cem-components/docs/accessibility.md`](../packages/cem-components/docs/accessibility.md)
    is verified end-to-end on the material parity fixtures.
 
-When (1)–(5) are green, `cem-element` is folded into the next major of
-`@epa-wg/custom-element` and `@epa-wg/cem-elements` is archived.
+When (1)–(6) are green, the `cem-element` substrate becomes the implementation base
+for the next major of `@epa-wg/custom-element`. The `<custom-element>` tag remains
+published by that package; `@epa-wg/cem-elements` stops being the staging migration
+target once the package adopts the substrate.
 
 ## 8. References
 

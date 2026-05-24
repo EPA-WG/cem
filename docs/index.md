@@ -23,6 +23,8 @@ This index links the active project, release, and token workflow documents.
 - [CEM ML syntax](./cem-ml-syntax.md) — canonical `{name @attributes | content...}` syntax and XML convention
   parity examples.
 - [CEM component MVP](./component-mvp.md) — first component list and state matrix.
+- [`cem-element` design](./cem-element-design.md) — custom-element successor substrate, `<template>` data islands,
+  event-to-data wiring, render loop, migration path, and parity gates.
 - [CEM UI Kit plan](./figma-ui-kit-plan.md) — Figma page, token, component, and QA mapping.
 - [Token pipeline smoke](./token-pipeline-smoke.md) — full propagation check for a one-token source change.
 
@@ -42,6 +44,12 @@ This index links the active project, release, and token workflow documents.
 ## Components
 
 - [CEM components package](../packages/cem-components/README.md) — package-level build and test notes.
+- [Component conventions](../packages/cem-components/docs/conventions.md) — host API, attributes, events, forms,
+  validation, loading, and progressive enhancement.
+- [Light-DOM rendering rules](../packages/cem-components/docs/light-dom-rendering.md) — no shadow DOM, data-island
+  isolation, slot projection, render lifecycle, and substrate compatibility.
+- [Accessibility contract](../packages/cem-components/docs/accessibility.md) — names, ARIA, focus, keyboard behavior,
+  live regions, unsafe content, and verification.
 
 ## Parser Runtime
 

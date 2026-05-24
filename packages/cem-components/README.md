@@ -6,8 +6,9 @@ light DOM, authored against the `<cem-element>` substrate from `@epa-wg/cem-elem
 
 > **Status: shell.** The package currently re-exports the theme entry point. Component implementations land in
 > Phase 3.2 of the [roadmap](../../roadmap.md), after the `cem-ml` / `cem-ml-cli` schema/parser/transform pipeline
-> (Phase 2) and the `<cem-element>` substrate (Phase 3.1) are in place. The component surface is defined ahead of time
-> in [component MVP](../../docs/component-mvp.md).
+> (Phase 2) and the `<cem-element>` substrate (Phase 3.1) are in place. The substrate must first match the
+> `@epa-wg/custom-element` lifecycle and the material samples in `~/aWork/custom-element-dist/src/material/`. The
+> component surface is defined ahead of time in [component MVP](../../docs/component-mvp.md).
 
 ## Install
 
@@ -44,7 +45,7 @@ Phase 3 contract docs (landed; pre-implementation):
 - [Conventions](./docs/conventions.md) — naming, attributes, events, form participation, validation, loading states,
   progressive enhancement.
 - [Light-DOM rendering rules](./docs/light-dom-rendering.md) — `@epa-wg/custom-element` compatibility, no shadow DOM,
-  host-attribute forwarding, render lifecycle.
+  inert data islands, declarative slot projection, host-attribute forwarding, render lifecycle.
 - [Accessibility contract](./docs/accessibility.md) — accessible names, ARIA wiring, focus, keyboard patterns, live
   regions; mirrors the Tier A semantic-validation catalog enforced by `cem_ml`.
 

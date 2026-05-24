@@ -12,18 +12,19 @@ unupgraded fallback. Substrate design lives in
 
 ## 1. No shadow DOM
 
-- Components MUST NOT call `attachShadow`. The host element's children, after upgrade,
-  are visible in the page's document tree; they participate in selector matching,
-  global CSS, accessibility tree, form-data submission, and DOM queries from the
-  outside.
-- Author-supplied children (slotted content, default text) are PRESERVED in place
-  when the component upgrades. The component decorates them; it does not replace
-  them. This matches the `<cem-element>` substrate's default light-DOM behavior
-  (inherited from `@epa-wg/custom-element` and refined by the inert
-  `<template>`-wrapped data island; see
-  [`docs/cem-element-design.md §3`](../../../docs/cem-element-design.md)) and
-  preserves the progressive-enhancement fallback documented in
-  [`conventions.md §7`](./conventions.md).
+- Components MUST NOT call `attachShadow`. The rendered output children, after
+  upgrade, are visible in the page's document tree; they participate in selector
+  matching, global CSS, accessibility tree, form-data submission, and DOM queries
+  from the outside. Data-island `<template>` contents remain inert and are excluded
+  from that visible surface.
+- Author-supplied children (slot payload, default text, inline payload templates) are
+  visible fallback only before upgrade. When the component upgrades, the
+  `<cem-element>` substrate captures that payload into an associated
+  `<template data-cem-island="instance">` and renders a light-DOM projection from the
+  template + data island. The original payload is preserved as scoped data, not as
+  live UI, so the page never shows both raw payload and rendered output. This keeps
+  parity with `@epa-wg/custom-element`, where instance content is transformed from
+  `/datadom/payload` and then replaced by rendered output.
 - A component MAY append additional light-DOM children for decoration (icons,
   carets, status indicators). Those decorative children:
   - MUST be unambiguously distinguishable from author content (a documented
@@ -41,12 +42,17 @@ are the ones the cem-components package commits to.
 
 ### 2.1 The `<template>` wrapper
 
-- Every `<cem-element>` body MUST sit inside a single direct-child `<template>`
-  element. This is the data island; the browser parks its content in
-  `template.content` and never renders it directly. Only the rendered output
-  (driven from the data island) is visible.
+- Every `<cem-element>` declaration body MUST sit inside a single direct-child
+  `<template>` element. This is the declaration data island; the browser parks its
+  content in `template.content` and never renders it directly. Only the rendered
+  output (driven from the data island) is visible.
 - A component MUST NOT place declarations, slices, or render templates outside the
-  `<template>` wrapper. The substrate ignores anything outside the wrapper.
+  declaration `<template>` wrapper. Content outside it would be live DOM and is
+  invalid for declarations.
+- Every upgraded component instance gets an associated instance data island
+  (`<template data-cem-island="instance">`) containing captured payload, attributes,
+  dataset, slice state, validation state, and event payloads. Component rendering
+  MUST treat this template as data only and exclude it from visible-output diffs.
 - For the bridge-window only, a legacy POC body may be opted into via
   `<template lang="custom-element-v0">`; the substrate then accepts the
   XSLT/XPath surface as a compatibility path. New primitives MUST NOT use this
@@ -117,9 +123,10 @@ component output MUST be valid WHATWG HTML:
 - ID uniqueness within a document is the author's responsibility, but components
   MUST NOT generate duplicate IDs from a single template invocation. Decorative
   children that need IDs MUST use a per-instance suffix (`${host.id}-icon`).
-- Whitespace around author children is preserved verbatim. Components MUST NOT
-  collapse text nodes; the `cem_ml` transform AST already encodes the canonical
-  whitespace and feeds it through.
+- Whitespace around captured author payload is preserved verbatim in the instance
+  data island and in any rendered slot projection. Components MUST NOT collapse text
+  nodes; the `cem_ml` transform AST already encodes the canonical whitespace and
+  feeds it through.
 - A component's rendered output, fed back through `cem-ml convert --from-format html
   --to-format cem`, MUST round-trip to a canonical CEM-ML form. This is the
   cross-surface conversion contract from Phase 2.
@@ -141,24 +148,30 @@ Because there is no shadow DOM, styles affect — and are affected by — the pa
 
 ## 6. Slot semantics
 
-`@epa-wg/custom-element` does not use shadow-DOM `<slot>`. Cem-components use
-**named author children** instead:
+`@epa-wg/custom-element` does not use shadow-DOM slots, but it does use declarative
+`<slot>` instructions in the template to project captured light-DOM payload.
+`cem-element` keeps that functional model:
 
-- A component documents which child element names it consumes (e.g. `cem-button`
-  consumes a leading `cem-icon` child as a "leading icon").
-- Author children that don't match any documented role render in place, untouched.
-- A `slot="..."` attribute on an author child is preserved verbatim for downstream
-  tools (e.g. design-system inspectors). The component itself does not consult
-  `slot` for layout decisions; layout comes from the documented child-name roles.
+- A `<slot name="leading">fallback</slot>` instruction projects captured payload
+  nodes whose `slot` attribute is `"leading"` from the instance data island.
+- A `<slot>` or `<slot name="">` instruction projects default captured payload:
+  text nodes and elements without a `slot` attribute.
+- If no matching payload exists, the slot instruction renders its fallback content.
+- The `slot="..."` attribute on author payload is preserved inside the instance data
+  island for parity, source maps, and downstream tools.
+- Component docs may also describe child-name roles (`cem-icon` as a leading icon),
+  but the substrate MUST support `slot` projection because the material parity set
+  relies on it.
 
-This keeps the cem-components contract aligned with WHATWG light-DOM rendering and
-with the way `cem_ml`'s transform emits author content.
+This is a light-DOM projection mechanism. It MUST NOT call `attachShadow`, and the
+rendered projection is normal document DOM.
 
 ## 7. Render lifecycle and idempotence
 
-- A render MUST be a pure function of: (a) declared attributes, (b) `datadom`
-  state (slices, slots), and (c) the static template. Given the same inputs, two
-  renders MUST produce byte-identical light-DOM output.
+- A render MUST be a pure function of: (a) declared attributes, (b) instance
+  data-island state (captured payload, dataset, slices, validation/event payloads),
+  and (c) the static template. Given the same inputs, two renders MUST produce
+  byte-identical light-DOM output.
 - Re-render MUST be safe to call repeatedly. The runtime detects no-op renders by
   diffing the produced DOM against the current children of the host.
 - A component MUST guard against the recursive render loop documented in
@@ -171,18 +184,20 @@ with the way `cem_ml`'s transform emits author content.
 
 The components in this package commit to the following substrate behaviors:
 
-| Behavior | Required commitment |
-| --- | --- |
-| Single direct-child `<template>` wrapping the data island | Yes; no declarations outside `<template>`. |
-| `attribute` declarations as `observedAttributes` | Yes; defaults from text node or cem-ql `select="…"`. |
-| `slice` data model | Yes; sole source of dynamic state inside a template. |
-| `slice-event` declarative event bindings | Yes; no programmatic event handlers in components. |
-| `${…}` cem-ql text interpolation and `{…}` AVT spans in attributes | Yes; XPath/XSLT interpolation is not used. |
-| Bridge-window legacy authoring via `<template lang="custom-element-v0">` | NOT used by cem-components; new primitives go straight to cem-ql. |
-| Light-DOM rendering with author children preserved | Yes; no `attachShadow`. |
-| `<text>` wrapper to escape `{}` inside CSS blocks | Yes; CSS in templates follows this rule. |
-| Shadow / closed / named-root rendering surfaces | NOT used by cem-components. |
-| `customElements` registry interaction | Handled by `<cem-element>` runtime; components MUST NOT call `customElements.define` themselves. |
+| Behavior                                                                 | Required commitment                                                                              |
+|--------------------------------------------------------------------------|--------------------------------------------------------------------------------------------------|
+| Single direct-child `<template>` wrapping the declaration data island    | Yes; no declarations outside `<template>`.                                                       |
+| Instance payload captured into `<template data-cem-island="instance">`   | Yes; raw payload is data, not live UI after upgrade.                                             |
+| `attribute` declarations as `observedAttributes`                         | Yes; defaults from text node or cem-ql `select="…"`.                                             |
+| `slice` data model                                                       | Yes; sole source of dynamic state inside a template.                                             |
+| `slice-event` declarative event bindings                                 | Yes; no programmatic event handlers in components.                                               |
+| `${…}` cem-ql text interpolation and `{…}` AVT spans in attributes       | Yes; XPath/XSLT interpolation is not used.                                                       |
+| Bridge-window legacy authoring via `<template lang="custom-element-v0">` | NOT used by cem-components; new primitives go straight to cem-ql.                                |
+| Light-DOM rendering from captured author payload                         | Yes; no `attachShadow`, no raw payload left visible after upgrade.                               |
+| Declarative slot projection from captured payload                        | Yes; compatible with legacy material samples.                                                    |
+| `<text>` wrapper to escape `{}` inside CSS blocks                        | Yes; CSS in templates follows this rule.                                                         |
+| Shadow / closed / named-root rendering surfaces                          | NOT used by cem-components.                                                                      |
+| `customElements` registry interaction                                    | Handled by `<cem-element>` runtime; components MUST NOT call `customElements.define` themselves. |
 
 If `@epa-wg/cem-elements` adds a feature outside this list, components MAY adopt it
 only when the AC or substrate-design entry exists in this repo's docs and a fixture

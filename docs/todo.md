@@ -14,23 +14,32 @@ Design home: [`cem-element-design.md`](cem-element-design.md). Substrate work ga
 
 - [x] Draft `cem-element` design: `<template>`-wrapped data island, cem-ml templates, cem-ql expressions, monorepo
       migration plan, parity criteria. Landed in [`cem-element-design.md`](cem-element-design.md).
-- [ ] review/rewise the `cem-element` design.
+- [x] Review and revise the `cem-element` design against the legacy data-island lifecycle, instance payload capture,
+      and material parity requirements.
 - [ ] Migrate `@epa-wg/custom-element` from `~/aWork/custom-element/` into `packages/custom-element/`. Preserve
       published npm identity and history.
 - [ ] Scaffold `packages/cem-elements/` (new package). Wire `nx run cem-elements:build/test/lint`.
-- [ ] Implement the `<cem-element>` runtime: `<template>` discovery, cem-ml lowering, data-island event wiring,
-      light-DOM render loop, source-map carry-through.
+- [ ] Implement the `<cem-element>` runtime: declaration `<template>` discovery, per-instance
+      `<template data-cem-island="instance">` capture, cem-ml lowering, data-island event wiring, light-DOM render
+      loop, source-map carry-through.
+- [ ] Add browser fixtures proving data-island isolation: declaration and instance template contents do not affect
+      layout, selectors, form submission, accessibility, or visible UI directly.
 - [ ] Land legacy parity fixtures under `packages/cem-elements/tests/parity/legacy/` covering every behavior in
       `~/aWork/custom-element/docs/{attributes,rendering}.md`.
 - [ ] Land material parity fixtures under `packages/cem-elements/tests/parity/material/` for every component in
       `~/aWork/custom-element-dist/src/material/` (action, autocomplete, badge, dropdown, icon, icon-link, input,
       menu).
+- [ ] Build a material parity inventory from `~/aWork/custom-element-dist/src/material/components/*.html` covering
+      local/external `src`, hidden declarations, nested custom elements, declarative slots, scoped styles,
+      `attribute select`, `if`/`choose` bridge constructs, namespaced `xhtml:*` elements, boolean attribute helper
+      semantics, `module-url` resource slices, `data`/`option` payloads, slice events, and `slice-value`.
 - [ ] Wire `cem-element` through `nx run cem_ml_cli:validate-fixtures` and `cem_ml_cli:e2e` so substrate templates
       ride the same Phase 2 verification.
-- [ ] Production-ready gate: parity (1)–(5) from [`cem-element-design.md` §7](cem-element-design.md). When green,
-      fold `cem-element` into the next major of `@epa-wg/custom-element` and archive `@epa-wg/cem-elements`.
+- [ ] Production-ready gate: parity (1)–(6) from [`cem-element-design.md` §7](cem-element-design.md). When green,
+      make the next major of `@epa-wg/custom-element` keep publishing `<custom-element>` with an implementation that
+      inherits the `cem-element` substrate.
 - [ ] Bridge support: `<template lang="custom-element-v0">` compat path for legacy authoring during the migration
-      window; remove at the major cutover.
+      window; keep only if needed after the `@epa-wg/custom-element` substrate adoption.
 
 ### 3.2 Primitives — `@epa-wg/cem-components`
 

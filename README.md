@@ -36,6 +36,8 @@ artifacts as the CSS generator pages.
 - [Documentation index](docs/index.md) — canonical map of every CEM doc, report, and example.
 - [Roadmap](roadmap.md) — product/module sequencing and delivery phases.
 - [Todo](docs/todo.md) — current execution checklist.
+- [`cem-element` design](docs/cem-element-design.md) — successor substrate for `@epa-wg/custom-element`: data
+  islands, event wiring, render loop, migration, and parity gates.
 - [Token export architecture](packages/cem-theme/docs/token-export.md)
 - [CEM ML parser/runtime acceptance criteria](docs/cem-ml-ac.md)
 - [CEM ML CLI feature summary](docs/cem-ml-cli-contract.md)
@@ -46,7 +48,9 @@ artifacts as the CSS generator pages.
 | Package                                                       | Status            | Purpose                                                                                                                         |
 |---------------------------------------------------------------|-------------------|---------------------------------------------------------------------------------------------------------------------------------|
 | [`@epa-wg/cem-theme`](packages/cem-theme/README.md)           | published         | Canonical token specs, generated CSS, DTCG JSON, TypeScript metadata, native (iOS/Android) outputs, and Figma library files.    |
+| `@epa-wg/cem-elements`                                        | planned substrate | Staging package for `<cem-element>` until it reaches custom-element and material parity, then becomes the inherited implementation base for `<custom-element>`. |
 | [`@epa-wg/cem-components`](packages/cem-components/README.md) | shell             | Declarative custom-element primitives that consume the theme. Component implementations land in Phase 3.                        |
+| `@epa-wg/custom-element`                                      | migration planned | Current production custom-element package; source moves into this monorepo and keeps publishing `<custom-element>` with a `cem-element`-based implementation. |
 | [`@epa-wg/cem-ml`](packages/cem_ml/Cargo.toml)                | active scaffold   | Active Rust parser/runtime library (Cargo: `cem-ml`) for canonical CEM-ML plus XML/HTML parity inputs.                          |
 | [`@epa-wg/cem-ml-cli`](packages/cem_ml_cli/Cargo.toml)        | active scaffold   | Active Rust CLI (Cargo: `cem-ml-cli`, binary: `cem-ml`) for CEM parsing, validation, reports, fixtures, and migration workflows. |
 
