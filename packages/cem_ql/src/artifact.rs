@@ -1,6 +1,6 @@
 //! Compiled CEM-QL artifact shell.
 
-use cem_ml::schema::compiler::ContentHash;
+use cem_ml::content_cache::ContentHash;
 
 use crate::ir::deserialize::IrDeserializer;
 use crate::ir::serialize::IrSerializer;

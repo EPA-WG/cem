@@ -11,7 +11,9 @@
 use std::collections::BTreeMap;
 use std::sync::atomic::{AtomicUsize, Ordering};
 
-use cem_ml::schema::compiler::ContentHash;
+use cem_ml::content_cache::{
+    ArtifactContentType, CemHashRequest, CemHashResponse, ContentHash, InMemoryCemHashTransport,
+};
 
 use crate::api::{compile, compile_artifact, reload_artifact, CompileContext, CompileError};
 use crate::artifact::CompiledArtifact;
@@ -31,8 +33,13 @@ pub struct LoaderRequest {
 /// MUST recompute and compare against per AC-CC-6.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum LoaderResponse {
-    NotModified { cem_hash: ContentHash },
-    Body { cem_hash: ContentHash, body: Vec<u8> },
+    NotModified {
+        cem_hash: ContentHash,
+    },
+    Body {
+        cem_hash: ContentHash,
+        body: Vec<u8>,
+    },
 }
 
 /// Transport boundary. The future `cem-ml-cli` HTTP(S) loader and any
@@ -234,14 +241,8 @@ impl LoaderError {
 /// header the loader sent.
 #[derive(Debug, Default)]
 pub struct InMemoryTransport {
-    entries: BTreeMap<String, TransportEntry>,
+    shared: InMemoryCemHashTransport,
     request_log: std::sync::Mutex<Vec<LoaderRequest>>,
-}
-
-#[derive(Debug, Clone)]
-struct TransportEntry {
-    body: Vec<u8>,
-    cem_hash: ContentHash,
 }
 
 impl InMemoryTransport {
@@ -254,8 +255,12 @@ impl InMemoryTransport {
     /// when its source text round-trips through `compile_artifact`. The
     /// build pipeline would compute this hash up front.
     pub fn publish(&mut self, uri: &str, body: Vec<u8>, cem_hash: ContentHash) {
-        self.entries
-            .insert(uri.to_owned(), TransportEntry { body, cem_hash });
+        self.shared.publish_with_hash(
+            uri.to_owned(),
+            ArtifactContentType::CemQlModule,
+            body,
+            cem_hash,
+        );
     }
 
     pub fn requests(&self) -> Vec<LoaderRequest> {
@@ -269,20 +274,20 @@ impl Transport for InMemoryTransport {
             .lock()
             .expect("request log")
             .push(request.clone());
-        let entry = self
-            .entries
-            .get(&request.uri)
-            .ok_or_else(|| TransportError::not_found(request.uri.clone()))?;
-        if let Some(if_hash) = &request.if_cem_hash {
-            if *if_hash == entry.cem_hash {
-                return Ok(LoaderResponse::NotModified {
-                    cem_hash: entry.cem_hash.clone(),
-                });
+        match self.shared.fetch(&CemHashRequest {
+            uri: request.uri.clone(),
+            if_cem_hash: request.if_cem_hash.clone(),
+        }) {
+            Ok(CemHashResponse::NotModified { cem_hash, .. }) => {
+                Ok(LoaderResponse::NotModified { cem_hash })
             }
+            Ok(CemHashResponse::Body { cem_hash, body, .. }) => {
+                Ok(LoaderResponse::Body { cem_hash, body })
+            }
+            Err(err) => Err(TransportError {
+                code: err.code,
+                message: err.message,
+            }),
         }
-        Ok(LoaderResponse::Body {
-            cem_hash: entry.cem_hash.clone(),
-            body: entry.body.clone(),
-        })
     }
 }

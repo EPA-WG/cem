@@ -1,5 +1,6 @@
 //! Per-scope `TemplateRegistry` (AC-R-1).
 
+use crate::diagnostics::Severity;
 use crate::registry::template_ref::TemplateRef;
 use std::collections::BTreeMap;
 
@@ -58,7 +59,7 @@ impl TemplateRegistry {
 
 /// Diagnostic emitted by the registry tree when a scope shadows an
 /// ancestor's entry (AC-R-3). Stable code:
-/// `cem.registry.shadowed_entry`.
+/// `cem.registry.collision`.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct CollisionDiagnostic {
     pub name: String,
@@ -66,10 +67,11 @@ pub struct CollisionDiagnostic {
     pub ancestor_scope: u32,
     pub child_ref: TemplateRef,
     pub ancestor_ref: TemplateRef,
+    pub severity: Severity,
 }
 
 impl CollisionDiagnostic {
-    pub const CODE: &'static str = "cem.registry.shadowed_entry";
+    pub const CODE: &'static str = "cem.registry.collision";
     pub fn code(&self) -> &'static str {
         Self::CODE
     }
@@ -79,8 +81,13 @@ impl std::fmt::Display for CollisionDiagnostic {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         write!(
             f,
-            "scope {} shadows ancestor scope {} for template name `{}` ({:?} ↦ {:?})",
-            self.child_scope, self.ancestor_scope, self.name, self.ancestor_ref, self.child_ref
+            "scope {} shadows ancestor scope {} for template name `{}` ({:?} ↦ {:?}, {:?})",
+            self.child_scope,
+            self.ancestor_scope,
+            self.name,
+            self.ancestor_ref,
+            self.child_ref,
+            self.severity
         )
     }
 }

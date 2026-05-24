@@ -1,8 +1,7 @@
 //! Scoped template-registry integration smoke (AC-R-1, AC-R-2, AC-R-3).
 
-use cem_ml::registry::{
-    CollisionDiagnostic, RegistryScopeId, ScopedRegistryTree, TemplateRef,
-};
+use cem_ml::diagnostics::Severity;
+use cem_ml::registry::{CollisionDiagnostic, RegistryScopeId, ScopedRegistryTree, TemplateRef};
 
 fn dce(tag: &str) -> TemplateRef {
     TemplateRef::DceTagName {
@@ -42,12 +41,30 @@ fn ac_r_3_shadowing_install_surfaces_warning_diagnostic() {
         .install(RegistryScopeId(1), "x-card", dce("x-card-v2"))
         .expect("shadowing must emit a diagnostic");
     assert_eq!(diag.code(), CollisionDiagnostic::CODE);
+    assert_eq!(diag.severity, Severity::Warning);
     assert_eq!(diag.child_scope, 1);
     assert_eq!(diag.ancestor_scope, 0);
 }
 
 #[test]
-fn sibling_scopes_can_register_same_name_without_collision_against_each_other() {
+fn ac_r_3_policy_can_raise_collision_severity() {
+    let mut tree = ScopedRegistryTree::new(RegistryScopeId(0));
+    tree.install(RegistryScopeId(0), "x-card", dce("x-card"));
+    tree.add_scope(RegistryScopeId(1), RegistryScopeId(0));
+    let diag = tree
+        .install_with_collision_severity(
+            RegistryScopeId(1),
+            "x-card",
+            dce("x-card-v2"),
+            Severity::Error,
+        )
+        .expect("shadowing must emit a diagnostic");
+    assert_eq!(diag.code(), "cem.registry.collision");
+    assert_eq!(diag.severity, Severity::Error);
+}
+
+#[test]
+fn ac_r_3_sibling_scopes_can_register_same_name_without_collision_against_each_other() {
     let mut tree = ScopedRegistryTree::new(RegistryScopeId(0));
     tree.add_scope(RegistryScopeId(1), RegistryScopeId(0));
     tree.add_scope(RegistryScopeId(2), RegistryScopeId(0));
@@ -67,4 +84,23 @@ fn sibling_scopes_can_register_same_name_without_collision_against_each_other() 
         tree.resolve(RegistryScopeId(2), "x-card").unwrap().scope,
         RegistryScopeId(2)
     );
+}
+
+#[test]
+fn ac_r_2_shadowed_child_does_not_change_grandchild_fallback() {
+    let mut tree = ScopedRegistryTree::new(RegistryScopeId(0));
+    tree.install(RegistryScopeId(0), "x-card", dce("root-card"));
+    tree.add_scope(RegistryScopeId(1), RegistryScopeId(0));
+    tree.add_scope(RegistryScopeId(2), RegistryScopeId(1));
+    tree.install(RegistryScopeId(1), "x-card", dce("child-card"));
+
+    let child_hit = tree.resolve(RegistryScopeId(1), "x-card").unwrap();
+    assert_eq!(child_hit.scope, RegistryScopeId(1));
+    assert!(matches!(
+        child_hit.template_ref,
+        TemplateRef::DceTagName { tag_name } if tag_name == "child-card"
+    ));
+
+    let grandchild_hit = tree.resolve(RegistryScopeId(2), "x-card").unwrap();
+    assert_eq!(grandchild_hit.scope, RegistryScopeId(1));
 }

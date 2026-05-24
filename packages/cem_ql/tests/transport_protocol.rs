@@ -13,8 +13,8 @@
 use std::fs;
 use std::path::PathBuf;
 
+use cem_ml::content_cache::ContentHash;
 use cem_ml::scheduler::ScopePolicy;
-use cem_ml::schema::compiler::ContentHash;
 use cem_ql::api::{compile_artifact, evaluate, CompileContext, EvaluationContext};
 use cem_ql::eval::{ItemStream, QueryContextScope};
 use cem_ql::transport::{ArtifactLoader, InMemoryTransport, LoadOutcome};
@@ -41,7 +41,11 @@ fn diagnostic_codes(stream: &ItemStream) -> Vec<&str> {
 fn publish_source(transport: &mut InMemoryTransport, source: &str) -> ContentHash {
     let artifact = compile_artifact(source, &CompileContext::default())
         .unwrap_or_else(|err| panic!("artifact precompile failed: {err}"));
-    transport.publish(URI, source.as_bytes().to_vec(), artifact.content_hash.clone());
+    transport.publish(
+        URI,
+        source.as_bytes().to_vec(),
+        artifact.content_hash.clone(),
+    );
     artifact.content_hash
 }
 

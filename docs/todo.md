@@ -48,29 +48,29 @@ queue are implemented; deterministic trace report projection is still pending.
 
 ### Registry Runtime Scoped Lookup (AC-R-1..AC-R-3, IMPL-FOLLOW-008)
 
-`packages/cem_ml/src/registry/` module exists with three submodules. Scoped lookup and collision diagnostics still
-pending.
+`packages/cem_ml/src/registry/` module exists with three submodules. Scoped lookup and collision diagnostics are
+implemented.
 
-- [ ] Implement scoped DCE / custom-element registry lookup with parent-scope fallback per AC-R-1 / AC-R-2.
-- [ ] Implement collision detection across nested scopes per AC-R-3. Emit `cem.registry.collision` at the policy-
+- [x] Implement scoped DCE / custom-element registry lookup with parent-scope fallback per AC-R-1 / AC-R-2.
+- [x] Implement collision detection across nested scopes per AC-R-3. Emit `cem.registry.collision` at the policy-
       controlled severity (default warning).
-- [ ] Registry runtime AC verification tests: extend `tests/registry_runtime.rs` with inheritance / shadowing /
+- [x] Registry runtime AC verification tests: extend `tests/registry_runtime.rs` with inheritance / shadowing /
       collision cases.
 
 ### Content-Addressed Cache And Transport (AC-CC-1..AC-CC-9, Tier B)
 
 Shared between `cem-ml` and `cem-ql`. The protocol is normative in `cem-ml-ac.md §14`; implementation is Tier B.
 
-- [ ] Implement deterministic content hashing for parsed top-level artifacts (cem-ml documents, schemas, transform
+- [x] Implement deterministic content hashing for parsed top-level artifacts (cem-ml documents, schemas, transform
       plans, cem-ql modules) per AC-CC-1. Hash scheme `cem-bin/1+blake3`.
-- [ ] Implement portable binary serialization keyed by AC-CC-1 hash (AC-CC-2). Loader skips parsing when the hash
+- [x] Implement portable binary serialization keyed by AC-CC-1 hash (AC-CC-2). Loader skips parsing when the hash
       matches an in-process or on-disk cache entry.
-- [ ] Implement policy stamps (declared schema URIs, plugin imports, external reads, scope-policy fingerprint) per
+- [x] Implement policy stamps (declared schema URIs, plugin imports, external reads, scope-policy fingerprint) per
       AC-CC-3. Mismatch path emits `cem.cc.policy_mismatch`.
-- [ ] Implement `dev` / `prod` cache mode axis (AC-CC-4). Dev mode preserves source-map sidecars; prod mode omits them.
-- [ ] Implement independently content-addressed source-map sidecars per AC-CC-5.
-- [ ] Implement `CEM-Hash` / `If-CEM-Hash` HTTP transport protocol per AC-CC-6 / AC-CC-7.
-- [ ] Bind cem-ql's `AC-QC-*` artifact path to the same loader (cem-ql-stack-design-impl.md §12).
+- [x] Implement `dev` / `prod` cache mode axis (AC-CC-4). Dev mode preserves source-map sidecars; prod mode omits them.
+- [x] Implement independently content-addressed source-map sidecars per AC-CC-5.
+- [x] Implement `CEM-Hash` / `If-CEM-Hash` HTTP transport protocol per AC-CC-6 / AC-CC-7.
+- [x] Bind cem-ql's `AC-QC-*` artifact path to the same loader (cem-ql-stack-design-impl.md §12).
 
 ## Phase 2 — CLI Fixture Parity And Validation Catalog
 

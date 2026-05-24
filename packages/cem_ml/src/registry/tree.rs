@@ -1,6 +1,7 @@
 //! `ScopedRegistryTree` — inherited lookup + collision detection
 //! (AC-R-2, AC-R-3).
 
+use crate::diagnostics::Severity;
 use crate::registry::template_ref::TemplateRef;
 use crate::registry::template_registry::{CollisionDiagnostic, TemplateRegistry};
 use std::collections::HashMap;
@@ -73,6 +74,18 @@ impl ScopedRegistryTree {
         name: impl Into<String>,
         template_ref: TemplateRef,
     ) -> Option<CollisionDiagnostic> {
+        self.install_with_collision_severity(scope, name, template_ref, Severity::Warning)
+    }
+
+    /// Install a template in `scope` and use the caller's effective
+    /// scope-policy severity for any nested-scope collision.
+    pub fn install_with_collision_severity(
+        &mut self,
+        scope: RegistryScopeId,
+        name: impl Into<String>,
+        template_ref: TemplateRef,
+        severity: Severity,
+    ) -> Option<CollisionDiagnostic> {
         let name = name.into();
         // Walk ancestors first to capture the prior owner (if any).
         let ancestor_hit = self.find_ancestor_owner(scope, &name);
@@ -84,6 +97,7 @@ impl ScopedRegistryTree {
             ancestor_scope: ancestor_scope.0,
             child_ref: template_ref,
             ancestor_ref,
+            severity,
         })
     }
 
@@ -141,7 +155,9 @@ mod tests {
     #[test]
     fn local_install_resolves_locally() {
         let mut tree = ScopedRegistryTree::new(RegistryScopeId(0));
-        assert!(tree.install(RegistryScopeId(0), "x-card", dce("x-card")).is_none());
+        assert!(tree
+            .install(RegistryScopeId(0), "x-card", dce("x-card"))
+            .is_none());
         let hit = tree.resolve(RegistryScopeId(0), "x-card").unwrap();
         assert_eq!(hit.scope, RegistryScopeId(0));
         assert_eq!(*hit.template_ref, dce("x-card"));
@@ -180,9 +196,14 @@ mod tests {
         tree.install(RegistryScopeId(0), "x-card", dce("x-card"));
         tree.add_scope(RegistryScopeId(1), RegistryScopeId(0));
         let collision = tree
-            .install(RegistryScopeId(1), "x-card", registry_entry("custom-x-card"))
+            .install(
+                RegistryScopeId(1),
+                "x-card",
+                registry_entry("custom-x-card"),
+            )
             .expect("expected collision diagnostic");
         assert_eq!(collision.code(), CollisionDiagnostic::CODE);
+        assert_eq!(collision.severity, Severity::Warning);
         assert_eq!(collision.child_scope, 1);
         assert_eq!(collision.ancestor_scope, 0);
         // Subsequent lookup at the child scope resolves to the child entry (shadowing).
@@ -199,7 +220,26 @@ mod tests {
         let mut tree = ScopedRegistryTree::new(RegistryScopeId(0));
         tree.add_scope(RegistryScopeId(1), RegistryScopeId(0));
         // Parent has no entry for `x-card`; install in child is fine.
-        assert!(tree.install(RegistryScopeId(1), "x-card", dce("x-card")).is_none());
+        assert!(tree
+            .install(RegistryScopeId(1), "x-card", dce("x-card"))
+            .is_none());
+    }
+
+    #[test]
+    fn collision_severity_comes_from_effective_policy() {
+        let mut tree = ScopedRegistryTree::new(RegistryScopeId(0));
+        tree.install(RegistryScopeId(0), "x-card", dce("x-card"));
+        tree.add_scope(RegistryScopeId(1), RegistryScopeId(0));
+        let collision = tree
+            .install_with_collision_severity(
+                RegistryScopeId(1),
+                "x-card",
+                registry_entry("custom-x-card"),
+                Severity::Error,
+            )
+            .unwrap();
+        assert_eq!(collision.code(), "cem.registry.collision");
+        assert_eq!(collision.severity, Severity::Error);
     }
 
     #[test]

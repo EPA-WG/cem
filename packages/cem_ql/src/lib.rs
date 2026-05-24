@@ -160,7 +160,7 @@ mod tests {
         let _evaluate: fn(&CompiledQuery, &EvaluationContext) -> ItemStream = evaluate;
         let _parse: fn(&str) -> ParseResult = parse;
         let _load: fn(
-            cem_ml::schema::compiler::ContentHash,
+            cem_ml::content_cache::ContentHash,
             &LoadContext,
         ) -> Result<CompiledQuery, LoadError> = load;
     }

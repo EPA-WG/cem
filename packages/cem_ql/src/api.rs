@@ -2,9 +2,9 @@
 
 use std::collections::BTreeMap;
 
+use cem_ml::content_cache::ContentHash;
 use cem_ml::diagnostics::Diagnostic;
 use cem_ml::scheduler::ScopePolicy;
-use cem_ml::schema::compiler::ContentHash;
 use cem_ml::schema::SchemaFrame;
 use cem_ml::source_map::SourceMapStack;
 
