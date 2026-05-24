@@ -11,7 +11,9 @@ use cem_ml::parser::CemAstNode;
 use cem_ml::source::{BytesSource, SourceId};
 use cem_ml::tokenizer::cem::CemTokenizer;
 
-use crate::diagnostics::{READ_DENIED, READ_UNSATISFIABLE, UNRESOLVED_REFERENCE};
+use crate::diagnostics::{
+    POLICY_ACCESSOR_FAILED, READ_DENIED, READ_UNSATISFIABLE, UNRESOLVED_REFERENCE,
+};
 use crate::eval::{effective_boolean, first_integer, AtomValue, EvalCtx, Item, ItemStream};
 use crate::ir::{IrId, IrStep};
 use crate::resolve::ModuleUri;
@@ -94,10 +96,12 @@ fn apply_builtin_step(
         "nth" => nth(input, ctx.eval_arg_streams(args).first()),
         "target" => resolve_ref(input, ctx, args.first().copied().unwrap_or(IrId(0))),
         "where" => where_step(input, args.first().copied(), ctx),
-        _ => ctx.unknown_function(
-            args.first().copied().unwrap_or(IrId(0)),
-            "unknown pipeline step",
-        ),
+        _ => record_field(input, &name.local).unwrap_or_else(|| {
+            ctx.unknown_function(
+                args.first().copied().unwrap_or(IrId(0)),
+                "unknown pipeline step",
+            )
+        }),
     }
 }
 
@@ -263,6 +267,7 @@ pub(crate) fn apply_stdlib_call(
                     .collect(),
             )
         }
+        ("cem:stdlib/user", "has_role") => user_has_role(arg_streams, ctx, source),
         _ => ctx.unknown_function(source, "unknown stdlib call"),
     }
 }
@@ -319,6 +324,51 @@ fn nth(mut input: ItemStream, n: Option<&ItemStream>) -> ItemStream {
         .into_iter()
         .collect();
     input
+}
+
+fn record_field(input: ItemStream, field: &str) -> Option<ItemStream> {
+    if !input
+        .items
+        .iter()
+        .any(|item| matches!(item, Item::Record(_)))
+    {
+        return None;
+    }
+    let mut out = ItemStream::empty();
+    out.diagnostics.extend(input.diagnostics);
+    out.error = input.error;
+    for item in input.items {
+        if let Item::Record(record) = item {
+            if let Some(values) = record.get(field) {
+                out.items.extend(values.clone());
+            }
+        }
+    }
+    Some(out)
+}
+
+fn user_has_role(arg_streams: Vec<ItemStream>, ctx: &mut EvalCtx<'_>, source: IrId) -> ItemStream {
+    let Some(Item::Resource(resource)) =
+        arg_streams.first().and_then(|stream| stream.items.first())
+    else {
+        return ItemStream::once(Item::Atomic(AtomValue::Boolean(false)));
+    };
+    if resource.fail_accessor {
+        return ctx.fail_diagnostic(
+            source,
+            POLICY_ACCESSOR_FAILED,
+            format!("policy accessor failed for resource `{}`", resource.id),
+            "policy accessor failed",
+        );
+    }
+    let role = arg_streams
+        .get(1)
+        .and_then(|stream| stream.items.first())
+        .and_then(item_string)
+        .unwrap_or_default();
+    ItemStream::once(Item::Atomic(AtomValue::Boolean(
+        resource.roles.iter().any(|candidate| candidate == &role),
+    )))
 }
 
 fn read_resource(

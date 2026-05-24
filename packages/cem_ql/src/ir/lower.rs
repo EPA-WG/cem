@@ -27,6 +27,8 @@ pub struct IrLowerer {
     lambda_frames: Vec<LambdaFrame>,
     detach_captures: bool,
     schemas: SchemaTypeRegistry,
+    policy_bindings: HashMap<BindingId, String>,
+    declared_policy_binding_names: Vec<String>,
 }
 
 impl Default for IrLowerer {
@@ -42,6 +44,8 @@ impl Default for IrLowerer {
             lambda_frames: Vec::new(),
             detach_captures: false,
             schemas: SchemaTypeRegistry::default(),
+            policy_bindings: HashMap::new(),
+            declared_policy_binding_names: Vec::new(),
         }
     }
 }
@@ -63,6 +67,11 @@ impl IrLowerer {
 
     pub fn with_schema_registry(mut self, schemas: SchemaTypeRegistry) -> Self {
         self.schemas = schemas;
+        self
+    }
+
+    pub fn with_policy_bindings(mut self, names: impl IntoIterator<Item = String>) -> Self {
+        self.declared_policy_binding_names = names.into_iter().collect();
         self
     }
 
@@ -114,6 +123,7 @@ impl IrLowerer {
         LowerResult {
             query: CompiledQuery {
                 tree: self.tree.finish(root),
+                policy_bindings: self.policy_bindings,
             },
             diagnostics: self.diagnostics,
         }
@@ -124,12 +134,22 @@ impl IrLowerer {
         LowerResult {
             query: CompiledQuery {
                 tree: self.tree.finish(root),
+                policy_bindings: self.policy_bindings,
             },
             diagnostics: self.diagnostics,
         }
     }
 
     fn predeclare_module_bindings(&mut self, module: &SurfaceModule) {
+        let policy_names = self.declared_policy_binding_names.clone();
+        for name in policy_names {
+            let id = self.allocate_binding_id();
+            self.current_scope_mut()
+                .variables
+                .insert(QNameKey::new(None, name.clone()), id);
+            self.policy_bindings.insert(id, name);
+        }
+
         for node in &module.nodes {
             match node {
                 SurfaceNode::DeclareVariable(var) => {
@@ -936,6 +956,7 @@ fn stdlib_aliases() -> HashMap<String, ModuleUri> {
         ("tpl", "cem:stdlib/template"),
         ("cemml", "cem:stdlib/cemml"),
         ("ct", "cem:stdlib/content-types"),
+        ("user", "cem:stdlib/user"),
     ]
     .into_iter()
     .map(|(prefix, uri)| (prefix.to_owned(), ModuleUri(uri.to_owned())))

@@ -1,5 +1,7 @@
 //! Public CEM-QL entry points.
 
+use std::collections::BTreeMap;
+
 use cem_ml::diagnostics::Diagnostic;
 use cem_ml::scheduler::ScopePolicy;
 use cem_ml::schema::compiler::ContentHash;
@@ -13,7 +15,7 @@ use crate::parser::{Parser, SurfaceModule};
 use crate::resolve::overlay::OverlayMap;
 
 /// Compile a CEM-QL query module source string into a typed IR.
-pub fn compile(source: &str, _context: &CompileContext) -> Result<CompiledQuery, CompileError> {
+pub fn compile(source: &str, context: &CompileContext) -> Result<CompiledQuery, CompileError> {
     let parsed = parse(source);
     if let Some(diagnostic) = parsed
         .diagnostics
@@ -22,7 +24,9 @@ pub fn compile(source: &str, _context: &CompileContext) -> Result<CompiledQuery,
     {
         return Err(CompileError::diagnostic(diagnostic));
     }
-    let lowered = IrLowerer::new().lower_module(&parsed.module);
+    let lowered = IrLowerer::new()
+        .with_policy_bindings(context.policy_bindings.keys().cloned())
+        .lower_module(&parsed.module);
     if let Some(diagnostic) = lowered
         .diagnostics
         .iter()
@@ -56,6 +60,7 @@ pub struct CompileContext {
     pub overlay: OverlayMap,
     pub diagnostics: Vec<Diagnostic>,
     pub source_map_base: SourceMapStack,
+    pub policy_bindings: BTreeMap<String, ItemStream>,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -93,6 +98,7 @@ pub struct EvaluationContext {
     pub scope: QueryContextScope,
     pub scope_policy: ScopePolicy,
     pub diagnostics: Vec<Diagnostic>,
+    pub policy_bindings: BTreeMap<String, ItemStream>,
 }
 
 #[derive(Debug, Clone)]

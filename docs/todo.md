@@ -41,7 +41,10 @@ The Rust crate is bootstrapped; layer implementations remain. Crate boundary, mo
       - [x] `cem_ql:test:reference-resolution` — AC-QD-V-1 reference-resolution fixture in
             `packages/cem_ql/tests/reference_resolution.rs` covers `.target`, `dom:resolve_ref`, `for=`,
             `aria-labelledby=`, and `cem.ql.unresolved_reference`.
-      - [ ] AC-QV-V-2 — policy-hook test for `$scope` record/resource access.
+      - [x] `cem_ql:test:policy-hooks` — AC-QV-V-2 policy-hook fixture in
+            `packages/cem_ql/tests/policy_hooks.rs` covers injected `scope` bindings, record-style field access,
+            `user:has_role` resource access, stable inherited resource identity, and
+            `cem.ql.policy_accessor_failed`.
       - [ ] AC-QC-V-1 — compiled artifact reload verification (serialize corpus -> evict -> reload -> assert identity).
       - [ ] AC-QC-V-2 — transport protocol verification (`If-CEM-Hash` E2E test).
 - [ ] Wire `cem_ml_cli` to invoke cem-ql for `select=` / `match=` / `test=` template attributes and `{$ … }` content

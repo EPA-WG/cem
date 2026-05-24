@@ -29,6 +29,16 @@ pub enum Item {
     Record(BTreeMap<String, Vec<Item>>),
     Array(Vec<Item>),
     Lambda(IrId),
+    Resource(ResourceHandle),
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct ResourceHandle {
+    pub id: String,
+    pub content_type: String,
+    pub schema: Option<String>,
+    pub roles: Vec<String>,
+    pub fail_accessor: bool,
 }
 
 #[derive(Debug, Clone, PartialEq)]
@@ -194,6 +204,7 @@ impl<'a> EvalCtx<'a> {
             error: None,
         };
         ctx.index_bindings();
+        ctx.bind_policy_bindings(context);
         ctx
     }
 
@@ -210,6 +221,17 @@ impl<'a> EvalCtx<'a> {
                     }
                     _ => {}
                 }
+            }
+        }
+    }
+
+    fn bind_policy_bindings(&mut self, context: &EvaluationContext) {
+        for (binding, name) in &self.query.policy_bindings {
+            if let Some(value) = context.policy_bindings.get(name).cloned() {
+                self.scopes
+                    .first_mut()
+                    .expect("evaluator always has a root scope")
+                    .insert(*binding, value);
             }
         }
     }
@@ -720,6 +742,7 @@ pub(crate) fn item_identity(item: &Item) -> String {
         Item::Record(entries) => format!("record:{entries:?}"),
         Item::Array(items) => format!("array:{items:?}"),
         Item::Lambda(id) => format!("lambda:{}", id.0),
+        Item::Resource(handle) => format!("resource:{}:{}", handle.content_type, handle.id),
     }
 }
 

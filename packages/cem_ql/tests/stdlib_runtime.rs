@@ -12,6 +12,7 @@ fn eval(source: &str) -> cem_ql::eval::ItemStream {
             scope: QueryContextScope(0),
             scope_policy: ScopePolicy::host_root().with_queue_size(128),
             diagnostics: Vec::new(),
+            policy_bindings: Default::default(),
         },
     )
 }

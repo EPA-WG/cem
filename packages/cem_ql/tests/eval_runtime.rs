@@ -10,6 +10,7 @@ fn eval(source: &str, policy: ScopePolicy) -> cem_ql::eval::ItemStream {
             scope: QueryContextScope(0),
             scope_policy: policy,
             diagnostics: Vec::new(),
+            policy_bindings: Default::default(),
         },
     )
 }

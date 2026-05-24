@@ -135,6 +135,22 @@
                 "{workspaceRoot}/packages/cem_ml/Cargo.toml"
             ],
             "outputs": ["{workspaceRoot}/dist/target/cem_ql"]
+        },
+        "test:policy-hooks": {
+            "cache": true,
+            "executor": "nx:run-commands",
+            "options": {
+                "command": "cargo test --package cem-ql --test policy_hooks --target-dir dist/target/cem_ql",
+                "cwd": "{workspaceRoot}"
+            },
+            "inputs": [
+                "{projectRoot}/src/**/*.rs",
+                "{projectRoot}/tests/policy_hooks.rs",
+                "{projectRoot}/Cargo.toml",
+                "{workspaceRoot}/packages/cem_ml/src/**/*.rs",
+                "{workspaceRoot}/packages/cem_ml/Cargo.toml"
+            ],
+            "outputs": ["{workspaceRoot}/dist/target/cem_ql"]
         }
     },
     "tags": ["scope:cem-ql", "type:lib", "lang:rust"]

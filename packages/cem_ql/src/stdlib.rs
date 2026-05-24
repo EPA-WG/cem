@@ -10,6 +10,7 @@ pub mod sequence;
 pub mod state;
 pub mod strings;
 pub mod template;
+pub mod user;
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum Tier {
@@ -194,5 +195,6 @@ pub fn tier_a_functions() -> Vec<StdlibFunction> {
 pub fn all_known_functions() -> Vec<StdlibFunction> {
     let mut functions = tier_a_functions();
     functions.extend_from_slice(content_types::FUNCTIONS);
+    functions.extend_from_slice(user::FUNCTIONS);
     functions
 }

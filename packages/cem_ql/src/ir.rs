@@ -1,5 +1,7 @@
 //! Layer 5: typed query IR.
 
+use std::collections::HashMap;
+
 use cem_ml::source_map::SourceMapStack;
 
 use crate::parser::{Axis, BinaryOp, NameTest, QName, QuantifierKind, SetOp, UnaryOp};
@@ -146,4 +148,5 @@ pub enum IrStep {
 #[derive(Debug, Clone)]
 pub struct CompiledQuery {
     pub tree: IrTree,
+    pub policy_bindings: HashMap<BindingId, String>,
 }
