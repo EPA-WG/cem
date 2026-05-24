@@ -37,10 +37,14 @@ pub struct CemSchemaMachine<E: EventNormalizer> {
     /// §13.1. Pushed/popped alongside `ns_contexts` for non-directive
     /// scopes.
     schema_scopes: SchemaScopeContext,
-    /// While processing a `cem:schema` element, accumulates the
-    /// declared attributes so we can validate src/select exclusivity
-    /// and commit the inline declaration on close.
-    pending_schema_element: Option<PendingSchemaElement>,
+    /// While processing `cem:schema` elements, accumulates declared
+    /// attributes per open frame so nested declarations do not overwrite
+    /// their parent frame's pending state.
+    pending_schema_elements: Vec<Option<PendingSchemaElement>>,
+    /// Host-node `cem:schema-src` / `cem:schema-select` state per open
+    /// frame. Exclusivity is host-local; inherited active sources must
+    /// not make a child host look invalid.
+    pending_host_switches: Vec<PendingHostSwitch>,
     /// Tracks the directive currently being consumed (e.g. `@ns`,
     /// `@default`). Cleared on close. The value events between open and
     /// close go into `pending_directive_body`.
@@ -104,6 +108,21 @@ struct PendingSchemaElement {
 }
 
 #[derive(Debug, Clone)]
+struct PendingHostSwitch {
+    src: Option<String>,
+    select: Option<String>,
+}
+
+impl PendingHostSwitch {
+    fn empty() -> Self {
+        Self {
+            src: None,
+            select: None,
+        }
+    }
+}
+
+#[derive(Debug, Clone)]
 struct PendingAnnotation {
     local: String,
     value: Option<String>,
@@ -119,7 +138,8 @@ impl<E: EventNormalizer> CemSchemaMachine<E> {
             frames: Vec::new(),
             ns_contexts: vec![NsContext::new(0)],
             schema_scopes: SchemaScopeContext::new(),
-            pending_schema_element: None,
+            pending_schema_elements: Vec::new(),
+            pending_host_switches: Vec::new(),
             active_directive: None,
             pending_directive_body: String::new(),
             pending_directive_open: None,
@@ -207,6 +227,7 @@ impl<E: EventNormalizer> CemSchemaMachine<E> {
             }
             NormalizedEvent::Separator { .. } => {
                 self.commit_pending_annotation();
+                self.mark_current_schema_element_has_body();
                 if let Some(frame) = self.frames.last_mut() {
                     if frame.phase == FramePhase::Attribute || frame.phase == FramePhase::Header {
                         frame.phase = FramePhase::Content;
@@ -241,6 +262,7 @@ impl<E: EventNormalizer> CemSchemaMachine<E> {
     }
 
     fn on_open(&mut self, name: &str, byte_range: ByteRange, source_map: SourceMapStack) {
+        self.mark_current_schema_element_has_body();
         let scope_id = self.next_scope_id;
         self.next_scope_id += 1;
         // Tier A applies the active CEM Core schema universally; one schema
@@ -268,6 +290,19 @@ impl<E: EventNormalizer> CemSchemaMachine<E> {
         };
         self.frames.push(frame);
         self.handoff_depths.push(self.handoffs.depth());
+        self.pending_host_switches.push(PendingHostSwitch::empty());
+        let pending_schema = if !name.starts_with('@') && name == "cem:schema" {
+            Some(PendingSchemaElement {
+                open_byte_range: byte_range,
+                cem_name: None,
+                src: None,
+                select: None,
+                is_self_closing: true,
+            })
+        } else {
+            None
+        };
+        self.pending_schema_elements.push(pending_schema);
         self.pending_attr = None;
         self.pending_states.clear();
         self.pending_annotation = None;
@@ -285,15 +320,6 @@ impl<E: EventNormalizer> CemSchemaMachine<E> {
             };
             self.ns_contexts.push(child);
             self.schema_scopes.push(scope_id);
-            if name == "cem:schema" {
-                self.pending_schema_element = Some(PendingSchemaElement {
-                    open_byte_range: byte_range,
-                    cem_name: None,
-                    src: None,
-                    select: None,
-                    is_self_closing: true,
-                });
-            }
         }
     }
 
@@ -313,6 +339,8 @@ impl<E: EventNormalizer> CemSchemaMachine<E> {
             return;
         }
         let frame = self.frames.pop().expect("frames non-empty");
+        let pending_schema_element = self.pending_schema_elements.pop().unwrap_or(None);
+        let _pending_host_switch = self.pending_host_switches.pop();
         // Pop every handoff owned by the frame that's closing. A child
         // parser cannot consume past the parent's close — this enforces
         // that bound at the schema layer.
@@ -339,7 +367,7 @@ impl<E: EventNormalizer> CemSchemaMachine<E> {
             // this scope. The pending element's effects apply to the
             // surrounding scope (declaration / src / select switches);
             // the schema-scoping context is then popped.
-            if let Some(pending) = self.pending_schema_element.take() {
+            if let Some(pending) = pending_schema_element {
                 self.commit_schema_element(pending, &frame);
             }
             if self.ns_contexts.len() > 1 {
@@ -433,6 +461,7 @@ impl<E: EventNormalizer> CemSchemaMachine<E> {
         let Some(attr) = self.pending_attr.take() else {
             // Values outside an attribute name → content text. Ignored at
             // schema layer; the parser layer keeps them on AST nodes.
+            self.mark_current_schema_element_has_body();
             return;
         };
         let text = match value {
@@ -490,12 +519,21 @@ impl<E: EventNormalizer> CemSchemaMachine<E> {
         // (so we can validate exclusivity + missing-source at the
         // element boundary) AND apply the switch to the current scope
         // immediately so the element's body sees the new active source.
-        if self.pending_schema_element.is_some() {
+        if self
+            .pending_schema_elements
+            .last()
+            .and_then(|p| p.as_ref())
+            .is_some()
+        {
             match attr.name.as_str() {
                 "src" => {
-                    let already_select =
-                        matches!(self.schema_scopes.current().active, SchemaSource::Select(_));
-                    if let Some(p) = self.pending_schema_element.as_mut() {
+                    let already_select = self
+                        .pending_schema_elements
+                        .last()
+                        .and_then(|p| p.as_ref())
+                        .and_then(|p| p.select.as_ref())
+                        .is_some();
+                    if let Some(Some(p)) = self.pending_schema_elements.last_mut() {
                         p.src = Some(value.clone());
                     }
                     if already_select {
@@ -509,9 +547,13 @@ impl<E: EventNormalizer> CemSchemaMachine<E> {
                     return;
                 }
                 "select" => {
-                    let already_uri =
-                        matches!(self.schema_scopes.current().active, SchemaSource::Uri(_));
-                    if let Some(p) = self.pending_schema_element.as_mut() {
+                    let already_uri = self
+                        .pending_schema_elements
+                        .last()
+                        .and_then(|p| p.as_ref())
+                        .and_then(|p| p.src.as_ref())
+                        .is_some();
+                    if let Some(Some(p)) = self.pending_schema_elements.last_mut() {
                         p.select = Some(value.clone());
                     }
                     if already_uri {
@@ -524,7 +566,7 @@ impl<E: EventNormalizer> CemSchemaMachine<E> {
                     return;
                 }
                 "cem:name" => {
-                    if let Some(p) = self.pending_schema_element.as_mut() {
+                    if let Some(Some(p)) = self.pending_schema_elements.last_mut() {
                         p.cem_name = Some(value.clone());
                     }
                     // `cem:name` is the schema-scoping declaration
@@ -569,9 +611,11 @@ impl<E: EventNormalizer> CemSchemaMachine<E> {
     ) {
         // If a switch was already applied at this scope, the second one
         // is the mutual-exclusivity error.
-        let existing_is_select =
-            matches!(self.schema_scopes.current().active, SchemaSource::Select(_));
-        let existing_is_uri = matches!(self.schema_scopes.current().active, SchemaSource::Uri(_));
+        let Some(host) = self.pending_host_switches.last_mut() else {
+            return;
+        };
+        let existing_is_select = host.select.is_some();
+        let existing_is_uri = host.src.is_some();
         if (existing_is_select && !is_select) || (existing_is_uri && is_select) {
             self.diagnostics.push(Diagnostic {
                 uri: None,
@@ -587,6 +631,11 @@ impl<E: EventNormalizer> CemSchemaMachine<E> {
                 source_map: None,
             });
             return;
+        }
+        match &source {
+            SchemaSource::Uri(value) => host.src = Some(value.clone()),
+            SchemaSource::Select(value) => host.select = Some(value.clone()),
+            _ => {}
         }
         self.schema_scopes.current_mut().set_active(source);
     }
@@ -608,6 +657,11 @@ impl<E: EventNormalizer> CemSchemaMachine<E> {
             });
             return;
         }
+        let switch_source = match (&pending.src, &pending.select) {
+            (Some(uri), None) => Some(SchemaSource::Uri(uri.clone())),
+            (None, Some(expr)) => Some(SchemaSource::Select(expr.clone())),
+            _ => None,
+        };
         // 2. Inline declaration form: `cem:schema cem:name="..."`. The
         // declaration registers into the *parent* scope so descendants
         // can reference it. We pop the schema scope on close after this
@@ -637,7 +691,19 @@ impl<E: EventNormalizer> CemSchemaMachine<E> {
         // 3. The src/select switch was already applied to the current
         // scope in `handle_attribute` when the attribute value arrived.
         // The wrapping-form behavior follows naturally from `on_close`
-        // popping the schema scope.
+        // popping the schema scope. The no-body form is the sibling
+        // switch: apply the same source to the parent scope before this
+        // frame pops so subsequent siblings inherit it until parent close.
+        if pending.is_self_closing {
+            if let Some(source) = switch_source {
+                if self.schema_scopes.depth() >= 2 {
+                    let parent_idx = self.schema_scopes.depth() - 2;
+                    self.set_active_at(parent_idx, source);
+                } else {
+                    self.schema_scopes.current_mut().set_active(source);
+                }
+            }
+        }
         //
         // 4. Missing-source error: a `cem:schema` element with no `src`,
         // `select`, *or* `cem:name` is a schema-compilation error per
@@ -658,6 +724,12 @@ impl<E: EventNormalizer> CemSchemaMachine<E> {
         }
     }
 
+    fn mark_current_schema_element_has_body(&mut self) {
+        if let Some(Some(pending)) = self.pending_schema_elements.last_mut() {
+            pending.is_self_closing = false;
+        }
+    }
+
     fn declare_inline_at(&mut self, idx: usize, decl: InlineSchemaDeclaration) {
         // The SchemaScopeContext doesn't expose per-index mutation;
         // implement it via a swap-and-rebuild pattern. For Tier A we
@@ -674,6 +746,20 @@ impl<E: EventNormalizer> CemSchemaMachine<E> {
         for frame in popped.into_iter().rev() {
             self.schema_scopes.push(frame.scope_id);
             // Reapply the frame's state (best-effort restore).
+            *self.schema_scopes.current_mut() = frame;
+        }
+    }
+
+    fn set_active_at(&mut self, idx: usize, source: SchemaSource) {
+        let mut popped = Vec::new();
+        while self.schema_scopes.depth() > idx + 1 {
+            let frame = self.schema_scopes.current().clone();
+            self.schema_scopes.pop();
+            popped.push(frame);
+        }
+        self.schema_scopes.current_mut().set_active(source);
+        for frame in popped.into_iter().rev() {
+            self.schema_scopes.push(frame.scope_id);
             *self.schema_scopes.current_mut() = frame;
         }
     }
@@ -833,9 +919,39 @@ impl<E: EventNormalizer> CemSchemaMachine<E> {
                     );
                 }
             }
-            DirectiveKind::Doc | DirectiveKind::Schema | DirectiveKind::Other => {
-                // Handled elsewhere (document-format identity, schema
-                // resolution, future directives).
+            DirectiveKind::Schema => match parse_schema_source_body(&body) {
+                Ok(source) => self.schema_scopes.current_mut().set_active(source),
+                Err(SchemaDirectiveError::ExclusiveSrcSelect) => {
+                    self.diagnostics.push(Diagnostic {
+                        uri: None,
+                        line: None,
+                        column: None,
+                        byte_offset: Some(declared_at.start),
+                        code: "cem.schema.scoping.exclusive_src_select".to_owned(),
+                        severity: Severity::Error,
+                        message: "`@schema` directive may carry `src` or `select`, not both"
+                            .to_owned(),
+                        node: None,
+                        source_map: None,
+                    });
+                }
+                Err(SchemaDirectiveError::MissingSource) => {
+                    self.diagnostics.push(Diagnostic {
+                        uri: None,
+                        line: None,
+                        column: None,
+                        byte_offset: Some(declared_at.start),
+                        code: "cem.schema.scoping.missing_source".to_owned(),
+                        severity: Severity::Error,
+                        message: "`@schema` directive must declare `src` or `select`".to_owned(),
+                        node: None,
+                        source_map: None,
+                    });
+                }
+            },
+            DirectiveKind::Doc | DirectiveKind::Other => {
+                // Handled elsewhere (document-format identity, future
+                // directives).
             }
         }
     }
@@ -1296,6 +1412,32 @@ mod tests {
     }
 
     #[test]
+    fn cem_schema_no_body_switch_applies_to_following_sibling_scope() {
+        let input = r#"{section | {cem:schema @src="schema://x"} {p Hi}}"#;
+        let src_bytes = BytesSource::new(SourceId(1), input.as_bytes().to_vec());
+        let tok = CemTokenizer::from_source(src_bytes);
+        let normalizer = CemEventNormalizer::new(tok);
+        let mut machine = CemSchemaMachine::new(CompiledSchema::cem_core(), normalizer);
+
+        let mut saw_sibling_uri = false;
+        while let Some(ev) = machine.events.next_event() {
+            machine.consume(ev);
+            if matches!(
+                machine.schema_scopes().current().active,
+                SchemaSource::Uri(ref u) if u == "schema://x"
+            ) && machine.schema_scopes().depth() >= 3
+            {
+                saw_sibling_uri = true;
+            }
+        }
+        machine.finalize();
+        assert!(
+            saw_sibling_uri,
+            "no-body cem:schema @src=... should switch following sibling scope to Uri"
+        );
+    }
+
+    #[test]
     fn cem_schema_element_with_select_records_select_source() {
         let input = r#"{section | {cem:schema @select=".pred" | {p Hi}}}"#;
         let src = BytesSource::new(SourceId(1), input.as_bytes().to_vec());
@@ -1406,6 +1548,55 @@ mod tests {
     }
 
     #[test]
+    fn host_node_switch_exclusivity_is_not_triggered_by_inherited_active_source() {
+        let input =
+            r#"{cem:schema @src="schema://outer" | {section @cem:schema-select=".local" | body}}"#;
+        let src = BytesSource::new(SourceId(1), input.as_bytes().to_vec());
+        let tok = CemTokenizer::from_source(src);
+        let normalizer = CemEventNormalizer::new(tok);
+        let outcome = CemSchemaMachine::new(CompiledSchema::cem_core(), normalizer).run();
+        assert!(
+            outcome
+                .diagnostics
+                .iter()
+                .all(|d| d.code != "cem.schema.scoping.exclusive_src_select"),
+            "inherited URI source must not conflict with host-local schema-select: {:?}",
+            outcome.diagnostics
+        );
+    }
+
+    #[test]
+    fn schema_directive_with_src_sets_document_scope_active_source() {
+        let input = r#"@schema src="schema://document/default/1"
+{section | body}"#;
+        let src = BytesSource::new(SourceId(1), input.as_bytes().to_vec());
+        let tok = CemTokenizer::from_source(src);
+        let normalizer = CemEventNormalizer::new(tok);
+        let mut saw_document_uri = false;
+        let outcome = CemSchemaMachine::new(CompiledSchema::cem_core(), normalizer)
+            .run_with_observer(|m| {
+                if matches!(
+                    m.schema_scopes().current().active,
+                    SchemaSource::Uri(ref u) if u == "schema://document/default/1"
+                ) {
+                    saw_document_uri = true;
+                }
+            });
+        assert!(
+            saw_document_uri,
+            "@schema src should set the active source on the document scope"
+        );
+        assert!(
+            outcome
+                .diagnostics
+                .iter()
+                .all(|d| d.code != "cem.schema.scoping.missing_source"),
+            "unexpected missing-source diagnostic: {:?}",
+            outcome.diagnostics
+        );
+    }
+
+    #[test]
     fn non_streamable_constraints_emit_unsupported_constraint() {
         use crate::schema::vocab::{NonStreamableConstraint, NonStreamableKind};
         let mut schema = CompiledSchema::cem_core();
@@ -1455,4 +1646,100 @@ fn parse_ns_body(body: &str) -> Option<(String, String)> {
         return None;
     }
     Some((prefix, uri))
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+enum SchemaDirectiveError {
+    ExclusiveSrcSelect,
+    MissingSource,
+}
+
+fn parse_schema_source_body(body: &str) -> Result<SchemaSource, SchemaDirectiveError> {
+    let mut src: Option<String> = None;
+    let mut select: Option<String> = None;
+    for (key, value) in parse_directive_attrs(body) {
+        match key.as_str() {
+            "src" => src = Some(value),
+            "select" => select = Some(value),
+            _ => {}
+        }
+    }
+    match (src, select) {
+        (Some(_), Some(_)) => Err(SchemaDirectiveError::ExclusiveSrcSelect),
+        (Some(uri), None) => Ok(SchemaSource::Uri(uri)),
+        (None, Some(expr)) => Ok(SchemaSource::Select(expr)),
+        (None, None) => {
+            let fallback = trim_directive_value(body);
+            if fallback.is_empty() {
+                Err(SchemaDirectiveError::MissingSource)
+            } else {
+                Ok(SchemaSource::Uri(fallback))
+            }
+        }
+    }
+}
+
+fn parse_directive_attrs(body: &str) -> Vec<(String, String)> {
+    let chars: Vec<char> = body.chars().collect();
+    let mut out = Vec::new();
+    let mut i = 0;
+    while i < chars.len() {
+        while i < chars.len() && chars[i].is_whitespace() {
+            i += 1;
+        }
+        let key_start = i;
+        while i < chars.len()
+            && !chars[i].is_whitespace()
+            && chars[i] != '='
+            && chars[i] != '"'
+            && chars[i] != '\''
+        {
+            i += 1;
+        }
+        let key: String = chars[key_start..i].iter().collect();
+        while i < chars.len() && chars[i].is_whitespace() {
+            i += 1;
+        }
+        if key.is_empty() || i >= chars.len() || chars[i] != '=' {
+            while i < chars.len() && !chars[i].is_whitespace() {
+                i += 1;
+            }
+            continue;
+        }
+        i += 1;
+        while i < chars.len() && chars[i].is_whitespace() {
+            i += 1;
+        }
+        let value = if i < chars.len() && (chars[i] == '"' || chars[i] == '\'') {
+            let quote = chars[i];
+            i += 1;
+            let value_start = i;
+            while i < chars.len() && chars[i] != quote {
+                i += 1;
+            }
+            let value: String = chars[value_start..i].iter().collect();
+            if i < chars.len() {
+                i += 1;
+            }
+            value
+        } else {
+            let value_start = i;
+            while i < chars.len() && !chars[i].is_whitespace() {
+                i += 1;
+            }
+            chars[value_start..i].iter().collect()
+        };
+        out.push((key, value));
+    }
+    out
+}
+
+fn trim_directive_value(body: &str) -> String {
+    let mut value = body.trim().to_owned();
+    let is_double = value.starts_with('"') && value.ends_with('"') && value.len() >= 2;
+    let is_single = value.starts_with('\'') && value.ends_with('\'') && value.len() >= 2;
+    if is_double || is_single {
+        value = value[1..value.len() - 1].to_owned();
+    }
+    value
 }

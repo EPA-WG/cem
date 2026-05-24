@@ -645,6 +645,39 @@ mod tests {
     }
 
     #[test]
+    fn expanded_names_carry_cem_core_schema_id() {
+        let doc = parse(r#"{button @cem:action=primary | Save}"#);
+        let button = query::find_by_local_name(&doc, "button").next().unwrap();
+        let CemAstNode::Element {
+            expanded_name,
+            attributes,
+            ..
+        } = button
+        else {
+            panic!()
+        };
+        assert_eq!(
+            expanded_name.schema_id,
+            Some(crate::schema::ir::CEM_CORE_SCHEMA_ID)
+        );
+        let action = attributes
+            .iter()
+            .find_map(|id| match doc.get(*id) {
+                Some(CemAstNode::Attribute { expanded_name, .. })
+                    if expanded_name.local_name == "action" =>
+                {
+                    Some(expanded_name)
+                }
+                _ => None,
+            })
+            .expect("action attribute");
+        assert_eq!(
+            action.schema_id,
+            Some(crate::schema::ir::CEM_CORE_SCHEMA_ID)
+        );
+    }
+
+    #[test]
     fn boolean_attribute_has_no_value() {
         let doc = parse("{input @required}");
         let input = query::find_by_local_name(&doc, "input").next().unwrap();
@@ -842,14 +875,14 @@ fn expand_name(raw: &str) -> ExpandedName {
         Some((p, l)) => (Some(p), l),
         None => (None, raw),
     };
-    // The tokenizer emits namespace prefixes lexically; full namespace-URI
-    // expansion lives in `cem_ml::schema::namespace` and lands with the
-    // namespace-rebinding work. Tier A AST records the lexical namespace
-    // hint so query helpers and downstream layers can filter `cem:*`
-    // without doing their own splitting.
+    // The tokenizer emits namespace prefixes lexically; namespace-URI
+    // rebinding is tracked by `cem_ml::schema::namespace`. The parser
+    // records the active Tier A schema id so downstream schema-frame
+    // consumers can distinguish unvalidated decoded names from parsed
+    // CEM-Core names.
     ExpandedName {
         namespace_uri: prefix.map(|p| p.to_owned()).unwrap_or_default(),
         local_name: local.to_owned(),
-        schema_id: None,
+        schema_id: Some(crate::schema::ir::CEM_CORE_SCHEMA_ID),
     }
 }

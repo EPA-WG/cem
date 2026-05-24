@@ -13,11 +13,11 @@ Acceptance criteria: [`cem-ml-ac.md`](cem-ml-ac.md), [`cem-ql-ac.md`](cem-ql-ac.
 ### Inline Schema And Mid-Document Schema Switch (AC-F-2, IMPL-FOLLOW-004)
 
 Schema scoping is resolved at the AC level (`MEMORY.md` `project_schema_scoping.md`); parser/schema-frame lowering for
-the in-document forms still needs implementation.
+the in-document forms is now covered by fixtures and schema-machine tests.
 
-- [ ] Implement parser and schema-frame lowering for inline `{cem:schema @cem:name | ... }` declarations.
-- [ ] Implement `cem:schema-src` / `cem:schema-select` host-attribute switches.
-- [ ] Implement scope-chain `cem:name` shadowing per `cem-ml-stack-design.md §13.1`. Add fixtures covering shadowing,
+- [x] Implement parser and schema-frame lowering for inline `{cem:schema @cem:name | ... }` declarations.
+- [x] Implement `cem:schema-src` / `cem:schema-select` host-attribute switches.
+- [x] Implement scope-chain `cem:name` shadowing per `cem-ml-stack-design.md §13.1`. Add fixtures covering shadowing,
       sibling isolation, and override boundaries.
 
 ### Plugin Runtime (AC-PL-1..AC-PL-20, IMPL-FOLLOW-006)

@@ -110,6 +110,20 @@ fn select_switch_records_select_source() {
 }
 
 #[test]
+fn self_closing_sibling_switch_activates_for_following_siblings() {
+    let input = read("self-closing-sibling-switch");
+    let (diags, actives) = run_collecting_active_sources(&input);
+    assert!(
+        actives
+            .iter()
+            .any(|a| matches!(a, SchemaSource::Uri(u) if u == "schema://sibling/example/1")),
+        "expected no-body cem:schema switch to activate Uri for sibling scope; got {actives:?}"
+    );
+    let hard = hard_scoping_violations(&diags);
+    assert!(hard.is_empty(), "unexpected hard diagnostics: {hard:?}");
+}
+
+#[test]
 fn host_node_switch_activates_only_inside_host() {
     let input = read("host-node-switch");
     let (diags, actives) = run_collecting_active_sources(&input);
@@ -148,6 +162,39 @@ fn host_form_src_and_select_together_emits_exclusivity_error() {
 }
 
 #[test]
+fn inline_declaration_does_not_leak_to_sibling_scope() {
+    let input = read("sibling-isolation");
+    let src = BytesSource::new(SourceId(1), input.as_bytes().to_vec());
+    let tok = CemTokenizer::from_source(src);
+    let normalizer = CemEventNormalizer::new(tok);
+    let machine = CemSchemaMachine::new(CompiledSchema::cem_core(), normalizer);
+    let mut saw_local = false;
+    let mut leaked_to_aside = false;
+    let outcome = machine.run_with_observer(|m| {
+        if m.schema_scopes().resolve_name("Local").is_some() {
+            saw_local = true;
+        }
+        if matches!(
+            m.schema_scopes().current().active,
+            SchemaSource::Uri(ref u) if u == "schema://sibling-isolation/aside/1"
+        ) && m.schema_scopes().resolve_name("Local").is_some()
+        {
+            leaked_to_aside = true;
+        }
+    });
+    assert!(
+        saw_local,
+        "Local declaration was never visible in its own scope"
+    );
+    assert!(
+        !leaked_to_aside,
+        "Local declaration leaked into sibling aside scope"
+    );
+    let hard = hard_scoping_violations(&outcome.diagnostics);
+    assert!(hard.is_empty(), "unexpected hard diagnostics: {hard:?}");
+}
+
+#[test]
 fn nested_cem_name_shadows_outer_definition() {
     let input = read("name-shadowing");
     let src = BytesSource::new(SourceId(1), input.as_bytes().to_vec());
@@ -156,12 +203,19 @@ fn nested_cem_name_shadows_outer_definition() {
     let machine = CemSchemaMachine::new(CompiledSchema::cem_core(), normalizer);
     let mut outer_body: Option<ByteRange> = None;
     let mut inner_body: Option<ByteRange> = None;
+    let mut after_inner_body: Option<ByteRange> = None;
     let outcome = machine.run_with_observer(|m| {
         if let Some(decl) = m.schema_scopes().resolve_name("Item") {
             if outer_body.is_none() {
                 outer_body = Some(decl.body_byte_range);
             } else if Some(decl.body_byte_range) != outer_body {
                 inner_body = Some(decl.body_byte_range);
+            }
+            if matches!(
+                m.schema_scopes().current().active,
+                SchemaSource::Uri(ref u) if u == "schema://name-shadowing/after-inner/1"
+            ) {
+                after_inner_body = Some(decl.body_byte_range);
             }
         }
     });
@@ -173,6 +227,10 @@ fn nested_cem_name_shadows_outer_definition() {
     assert_ne!(
         outer_body, inner_body,
         "inner Item should have a distinct body byte range"
+    );
+    assert_eq!(
+        after_inner_body, outer_body,
+        "after nested scope closes, Item should resolve back to outer declaration"
     );
     assert!(
         outcome

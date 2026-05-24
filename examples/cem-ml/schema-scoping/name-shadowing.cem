@@ -21,4 +21,8 @@
     // Reference under the inner scope → inner Item.
     {p | Reference under inner scope}
   }
+
+  // After the nested scope closes, Item resolves back to the outer
+  // declaration.
+  {p @cem:schema-src="schema://name-shadowing/after-inner/1" | Reference after inner scope}
 }

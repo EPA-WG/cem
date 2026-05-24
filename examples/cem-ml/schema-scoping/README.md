@@ -11,8 +11,10 @@ schema-machine integration tests in
 | -------------------------------------- | ------------------------------------------------------- | ---------------- |
 | `inline-declaration.cem`               | `{cem:schema @cem:name="..." \| body}` inline           | Declaration resolvable in the parent scope's descendants. |
 | `wrapping-switch.cem`                  | `{cem:schema @src="..." \| body}` element form          | Active schema switches inside the body; parent unaffected. |
+| `self-closing-sibling-switch.cem`      | `{cem:schema @src="..."}` no-body element form          | Active schema switches for following siblings until parent close. |
 | `select-switch.cem`                    | `{cem:schema @select="..." \| body}` cem-ql variant     | Active source recorded as `SchemaSource::Select`. |
 | `host-node-switch.cem`                 | `{element @cem:schema-src="..." \| body}` host form     | Active schema switches on the host element only. |
 | `src-select-exclusivity.cem`           | Element form with both `@src` and `@select`             | Emits `cem.schema.scoping.exclusive_src_select`. |
 | `host-src-select-exclusivity.cem`      | Host form with both `@cem:schema-src` and `@cem:schema-select` | Emits `cem.schema.scoping.exclusive_src_select`. |
 | `name-shadowing.cem`                   | Nested `cem:name="X"` declarations                      | Outer references resolve to outer; inner references resolve to inner. |
+| `sibling-isolation.cem`                | Inline declaration in one child scope                   | Inline name is not visible in a sibling scope. |

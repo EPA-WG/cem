@@ -1,0 +1,18 @@
+@doc cem-ml 1
+@ns cem = "https://cem.dev/ns/core/1"
+@ns html = "http://www.w3.org/1999/xhtml"
+@default html
+
+// Inline declarations are visible to the declaring scope's descendants
+// but do not leak sideways into sibling scopes.
+{main @cem:screen="example" |
+  {section |
+    {cem:schema @cem:name="Local" |
+      // section-local inline schema
+    }
+    {p | Local is visible here}
+  }
+  {aside @cem:schema-src="schema://sibling-isolation/aside/1" |
+    {p | Local is not visible here}
+  }
+}
