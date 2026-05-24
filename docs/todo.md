@@ -10,62 +10,6 @@ Acceptance criteria: [`cem-ml-ac.md`](cem-ml-ac.md), [`cem-ql-ac.md`](cem-ql-ac.
 [`cem-ql-stack-design.md`](cem-ql-stack-design.md),
 [`cem-ql-stack-design-impl.md`](cem-ql-stack-design-impl.md).
 
-### CEM-QL Tier A Implementation (`packages/cem_ql`)
-
-The Rust crate is bootstrapped; layer implementations remain. Crate boundary, module map, and AC mapping live in
-[`cem-ql-stack-design-impl.md`](cem-ql-stack-design-impl.md) §3.
-
-- [x] Implement L6 evaluator (`cem_ql::eval`) per impl §10 — pull-based `ItemStream`, pipeline iterator chains,
-      streaming `Union` and bounded-buffer `Intersect`/`Difference`/`SymmetricDifference`, budget charging
-      (AC-QR-1 / AC-QR-2).
-- [x] Implement Tier A stdlib modules per impl §11: `cem:stdlib/sequence`, `strings`, `numbers`, `datetime`, `dom`,
-      `report`, `state`, `template`, `cemml`. Each function listed in the §11 tables.
-- [x] Diagnostic table (`cem_ql::diagnostics`) per impl §8 — all Tier A codes plumbed through `cem_ml::report`.
-- [x] Verification scripts per AC §13:
-      - [x] `cem_ql:test` — unit coverage for L1..L6 + stdlib lands across `packages/cem_ql/tests/{parser_recovery,
-            name_resolution,type_checking,ir_lowering,eval_runtime,stdlib_runtime}.rs`.
-      - [x] `cem_ql:test:xpath-parity` — table-driven AC-QX-1 subset in `packages/cem_ql/tests/xpath_parity.rs`;
-            out-of-subset rows are skipped per AC-QX-1.
-      - [x] `cem_ql:test:fixtures` — Tier A query corpus over the `examples/cem-ml/*.cem` ×
-            `examples/semantic/*.html` fixture pairs in `packages/cem_ql/tests/fixtures_snapshot.rs`.
-      - [x] `cem_ql:bench` — selector benchmarks sharing `cem_ml::benchmark::BenchmarkBudget` in
-            `packages/cem_ql/tests/perf_budgets.rs`; honors `CEM_ML_PERF_SKIP` / `CEM_ML_PERF_TOLERANCE`.
-      - [x] AC-QO-V-1 — set-operator identity fixture in `packages/cem_ql/tests/set_operator_identity.rs` covers
-            node/record identity, typed-atom distinctness (NaN, signed zero, NFC/NFD, dateTime offsets), explicit-
-            conversion collapse, and the AC-QO-8 `cem.ql.cross_type_compare` warning plus strict-typed runtime
-            `eq` / `ne` behavior.
-      - [x] `cem_ql:test:read-content-negotiation` — AC-QA-V-1 `read()` fixture in
-            `packages/cem_ql/tests/read_content_negotiation.rs` covers omitted accepts, header-string accepts,
-            collection accepts via `ct:*`, alias normalization, YAML→JSON transform selection, and
-            `cem.ql.read_unsatisfiable`.
-      - [x] `cem_ql:test:reference-resolution` — AC-QD-V-1 reference-resolution fixture in
-            `packages/cem_ql/tests/reference_resolution.rs` covers `.target`, `dom:resolve_ref`, `for=`,
-            `aria-labelledby=`, and `cem.ql.unresolved_reference`.
-      - [x] `cem_ql:test:policy-hooks` — AC-QV-V-2 policy-hook fixture in
-            `packages/cem_ql/tests/policy_hooks.rs` covers injected `scope` bindings, record-style field access,
-            `user:has_role` resource access, stable inherited resource identity, and
-            `cem.ql.policy_accessor_failed`.
-      - [x] `cem_ql:test:compiled-artifact-reload` — AC-QC-V-1 compiled artifact fixture in
-            `packages/cem_ql/tests/compiled_artifact_reload.rs` serializes a Tier A corpus, verifies
-            `cem-bin/1+blake3` artifact hashes, reloads from bytes after evicting the source query, and asserts
-            stream/diagnostic identity.
-      - [x] `cem_ql:test:transport-protocol` — AC-QC-V-2 transport-protocol fixture in
-            `packages/cem_ql/tests/transport_protocol.rs` drives the `cem_ql::transport`
-            loader through an in-memory mock server: pass 1 returns `200` + `CEM-Hash`
-            (parser entered, artifact cached), pass 2 returns `304` to the `If-CEM-Hash`
-            request (parser bypassed, cache hit), and a deliberately mismatched server
-            hash fails closed with `cem.cc.hash_mismatch`.
-- [x] Wire `cem_ml_cli` to invoke cem-ql for `select=` / `match=` / `test=` template attributes and `{$ … }` content
-      expressions per AC-T-7. `TransformKind::TemplateEmbedding { host }` lands in
-      `packages/cem_ml/src/source_map.rs`; the `cem_ql::template` module
-      (`packages/cem_ql/src/template.rs`) classifies whole-expression attributes (`select` / `match` /
-      `test` / `use` / `group-by` / `cem:schema-select`), extracts `{...}` AVT spans (with `{{` / `}}`
-      unescape), and lifts `ExpressionNode` bodies; `cem-ml-cli` depends on `cem-ql` and runs the
-      template pass (`packages/cem_ml_cli/src/template_pass.rs`) inside parse/validate/check, merging
-      cem-ql diagnostics into the report. AC-T-7 fixture lives in
-      `packages/cem_ml_cli/tests/template_embedding.rs` and registers
-      `cem_ml_cli:test:template-embedding`.
-
 ### Inline Schema And Mid-Document Schema Switch (AC-F-2, IMPL-FOLLOW-004)
 
 Schema scoping is resolved at the AC level (`MEMORY.md` `project_schema_scoping.md`); parser/schema-frame lowering for
