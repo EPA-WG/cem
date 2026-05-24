@@ -3,43 +3,47 @@
 This file tracks remaining execution tasks only. Product/module sequencing lives in [`../roadmap.md`](../roadmap.md).
 Each item names the AC reference and design home so the closing change ship with a citation.
 
-## Phase 2 — Implementation Tasks (`@epa-wg/cem-ml` / `@epa-wg/cem-ml-cli` / `@epa-wg/cem-ql`)
-
-Acceptance criteria: [`cem-ml-ac.md`](cem-ml-ac.md), [`cem-ql-ac.md`](cem-ql-ac.md). Design homes:
-[`cem-ml-stack-design.md`](cem-ml-stack-design.md), [`cem-ml-stack-design-impl.md`](cem-ml-stack-design-impl.md),
-[`cem-ql-stack-design.md`](cem-ql-stack-design.md),
-[`cem-ql-stack-design-impl.md`](cem-ql-stack-design-impl.md).
-
-### Scheduler Completion (AC-O-2, IMPL-FOLLOW-007)
-
-`packages/cem_ml/src/scheduler/` module exists with six submodules. Worker pool, bounded queue, cancellation, I/O queue,
-and deterministic trace report projection are implemented.
-
-- [x] Implement deterministic scheduling trace per AC-O-2. Trace projection is part of the report AST per AC-O-4.
-
-## Phase 2 — CLI Fixture Parity And Validation Catalog
-
-[`cem-ml-cli-plan.md`](cem-ml-cli-plan.md) Phase 12 / Phase 13.
-
-- [x] Build the fixture manifest pairing every `examples/cem-ml/*.cem` with its `examples/semantic/*.html` parity
-      fixture. Wire `nx run cem_ml_cli:validate-fixtures` and `cem_ml_cli:e2e`.
-- [x] Add the cross-surface conversion fixtures CLI plan Phase 12 §6 — namespace bindings, comments / whitespace /
-      doctypes / PIs / CDATA, anonymous typed scopes, rich-content enclosures, `$` expression nodes, attribute-value
-      cem-ql spans, source-map frame preservation.
-- [x] Land the Tier A semantic-validation rule catalog per CLI plan Phase 13: accessible-name requirements, ARIA
-      role/attribute compatibility, `id` / `for` / `aria-*` resolution, SVG-in-HTML accessibility boundaries, invalid
-      component state combinations, required/forbidden state transitions, reference integrity, schema-owned
-      open-content policy, unsafe-content rules.
-
-## Phase 3 — Custom-Element Runtime Preparation (`@epa-wg/cem-components`)
+## Phase 3 — Custom-Element Runtime Preparation
 
 Roadmap: [`../roadmap.md` §Phase 3](../roadmap.md). Component vocabulary: [`component-mvp.md`](component-mvp.md).
 Start only when Phase 2 Tier A surfaces are stable enough to consume.
 
-- [ ] Define base CEM custom-element conventions: naming, attributes, events, form participation, validation, loading
-      states, progressive enhancement. Land in `packages/cem-components/docs/conventions.md`.
-- [ ] Define light-DOM rendering rules and compatibility expectations with `@epa-wg/custom-element` (no shadow DOM).
-- [ ] Define the accessibility contract: labels, descriptions, focus, keyboard behavior, roles, live regions.
+### 3.1 Substrate — `@epa-wg/cem-elements`
+
+Design home: [`cem-element-design.md`](cem-element-design.md). Substrate work gates 3.2 primitive implementation.
+
+- [x] Draft `cem-element` design: `<template>`-wrapped data island, cem-ml templates, cem-ql expressions, monorepo
+      migration plan, parity criteria. Landed in [`cem-element-design.md`](cem-element-design.md).
+- [ ] review/rewise the `cem-element` design.
+- [ ] Migrate `@epa-wg/custom-element` from `~/aWork/custom-element/` into `packages/custom-element/`. Preserve
+      published npm identity and history.
+- [ ] Scaffold `packages/cem-elements/` (new package). Wire `nx run cem-elements:build/test/lint`.
+- [ ] Implement the `<cem-element>` runtime: `<template>` discovery, cem-ml lowering, data-island event wiring,
+      light-DOM render loop, source-map carry-through.
+- [ ] Land legacy parity fixtures under `packages/cem-elements/tests/parity/legacy/` covering every behavior in
+      `~/aWork/custom-element/docs/{attributes,rendering}.md`.
+- [ ] Land material parity fixtures under `packages/cem-elements/tests/parity/material/` for every component in
+      `~/aWork/custom-element-dist/src/material/` (action, autocomplete, badge, dropdown, icon, icon-link, input,
+      menu).
+- [ ] Wire `cem-element` through `nx run cem_ml_cli:validate-fixtures` and `cem_ml_cli:e2e` so substrate templates
+      ride the same Phase 2 verification.
+- [ ] Production-ready gate: parity (1)–(5) from [`cem-element-design.md` §7](cem-element-design.md). When green,
+      fold `cem-element` into the next major of `@epa-wg/custom-element` and archive `@epa-wg/cem-elements`.
+- [ ] Bridge support: `<template lang="custom-element-v0">` compat path for legacy authoring during the migration
+      window; remove at the major cutover.
+
+### 3.2 Primitives — `@epa-wg/cem-components`
+
+Authored exclusively against `<cem-element>` (3.1). The contract docs below name `<cem-element>` and `cem-ql` as the
+authoring surface.
+
+- [x] Define base CEM custom-element conventions: naming, attributes, events, form participation, validation, loading
+      states, progressive enhancement. Landed in
+      [`packages/cem-components/docs/conventions.md`](../packages/cem-components/docs/conventions.md).
+- [x] Define light-DOM rendering rules and compatibility expectations with `<cem-element>` (no shadow DOM). Landed in
+      [`packages/cem-components/docs/light-dom-rendering.md`](../packages/cem-components/docs/light-dom-rendering.md).
+- [x] Define the accessibility contract: labels, descriptions, focus, keyboard behavior, roles, live regions. Landed
+      in [`packages/cem-components/docs/accessibility.md`](../packages/cem-components/docs/accessibility.md).
 - [ ] Build the test harness for DOM rendering, events, accessibility assertions, and visual snapshots.
 - [ ] Implement minimal primitives: action, field, surface, text, icon, stack, grid, list, nav, dialog shell.
 

@@ -143,4 +143,12 @@ el.closest('.cem-theme-dark');
 - DON'T USE for: basic generator syntax (`nx g @nx/react:app`), standard commands, things you already know
 - The `nx-generate` skill handles generator discovery internally - don't call nx_docs just to look up generator syntax
 
+## custom-element legacy info
+
+The custom-element POC sources reside in `~/aWork/custom-element/` folder. 
+Use the sources, demo, and docs from the POC only as a functional reference, 
+not as a decision point for syntax or semantics.
+
+custom-element POC material components reside in `~/aWork/custom-element-dist/src/material/` folder.
+
 <!-- nx configuration end-->

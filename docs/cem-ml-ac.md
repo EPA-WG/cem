@@ -1105,6 +1105,18 @@ A release is acceptance-tested by running:
 
 Each section above contributes a concrete check to one of these scripts; AC items missing a check are not closeable.
 
+### Closure criteria
+
+An AC item is closeable only when:
+
+1. its tier (`[A]`, `[B]`, `[C]`) or gate (`G-EXT`, `G-PLUG`, `G-NVDL`, `G-MUT`, `G-HYD`) is clear;
+2. the stack-design or impl-design doc maps it to concrete data shapes or algorithms;
+3. the verification plan above names a runnable check; and
+4. the relevant `yarn nx run ...` target exists, or the missing target is tracked as an implementation blocker in
+   [`todo.md`](todo.md).
+
+Mention in a design document is not closure. Sections 13 and 16 are the authoritative gates.
+
 ---
 
 ## Open Questions

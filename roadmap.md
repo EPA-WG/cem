@@ -106,19 +106,59 @@ Exit criteria:
 
 ## Phase 3 - Custom-Element Runtime
 
-Goal: establish the reusable declarative web runtime before building the full component catalog.
+Goal: establish the reusable declarative web runtime before building the full component catalog. Phase 3 has two
+linked tracks: the **substrate** (`@epa-wg/cem-elements`) that delivers the `<cem-element>` declarative authoring tag,
+and the **primitives** (`@epa-wg/cem-components`) that consume it. Design home for the substrate is
+[`docs/cem-element-design.md`](docs/cem-element-design.md).
+
+### 3.1 Substrate — `@epa-wg/cem-elements`
+
+Deliverables:
+
+- New `<cem-element>` declarative authoring tag, functional successor to `<custom-element>` from
+  `@epa-wg/custom-element`. Same concept (data island, event-to-data wiring, data-to-template re-render); template
+  surface lowers through `cem_ml` and expressions use CEM-QL instead of XPath.
+- WHATWG `<template>`-wrapped data island so inner author content is inert in the page and only the rendered output
+  is visible.
+- Monorepo migration of `@epa-wg/custom-element` from `~/aWork/custom-element/` into `packages/custom-element/`,
+  preserving published npm identity and history. The legacy `<custom-element>` tag continues to ship from this
+  monorepo until the major cutover.
+- Bridge-window compatibility surface: legacy `<custom-element>` templates remain supported via an opt-in
+  `lang="custom-element-v0"` annotation while authors migrate.
+
+Exit criteria (production-ready trigger for the major cutover):
+
+- Functional parity with `<custom-element>` proven by fixtures under
+  `packages/cem-elements/tests/parity/legacy/`.
+- Material parity with every component in `~/aWork/custom-element-dist/src/material/` (action, autocomplete, badge,
+  dropdown, icon, icon-link, input, menu) proven by fixtures under `packages/cem-elements/tests/parity/material/`.
+- Phase 2 verification suite (`nx run cem_ml_cli:validate-fixtures`, `cem_ml_cli:e2e`, `cem_ml:bench`) is green on
+  every parity fixture.
+- Accessibility contract in [`packages/cem-components/docs/accessibility.md`](packages/cem-components/docs/accessibility.md)
+  passes end-to-end on the material parity set.
+
+When the substrate hits the production-ready trigger, `cem-element` is adopted as the canonical authoring tag in the
+next major of `@epa-wg/custom-element`, the legacy `<custom-element>` tag is removed, and `@epa-wg/cem-elements` is
+archived.
+
+### 3.2 Primitives — `@epa-wg/cem-components`
 
 Deliverables:
 
 - Base CEM custom-element conventions: naming, attributes, events, form participation, validation, loading states, and
-  progressive enhancement.
-- Light-DOM rendering rules and compatibility with `@epa-wg/custom-element`.
-- Accessibility contract for labels, descriptions, focus, keyboard behavior, roles, and live regions.
+  progressive enhancement. Landed in
+  [`packages/cem-components/docs/conventions.md`](packages/cem-components/docs/conventions.md).
+- Light-DOM rendering rules and compatibility with the `cem-element` substrate (no shadow DOM). Landed in
+  [`packages/cem-components/docs/light-dom-rendering.md`](packages/cem-components/docs/light-dom-rendering.md).
+- Accessibility contract for labels, descriptions, focus, keyboard behavior, roles, and live regions. Landed in
+  [`packages/cem-components/docs/accessibility.md`](packages/cem-components/docs/accessibility.md).
 - Test harness for DOM rendering, events, accessibility assertions, and visual snapshots.
 - Minimal primitives: action, field, surface, text, icon, stack, grid, list, nav, dialog shell.
 
 Exit criteria:
 
+- Primitives are authored exclusively with `<cem-element>`; no primitive depends on the legacy `<custom-element>`
+  surface.
 - Components can be used declaratively with no app JavaScript for common static and form flows.
 - The runtime can consume validated light-DOM output from the parser/document transform layer.
 
@@ -257,7 +297,8 @@ Exit criteria:
 | --------- | ----- | ------- |
 | M1 | Root docs spine and token/native validation gates | Current work is valuable but not yet easy to discover or verify end to end. |
 | M2 | Schema-defined parser runtime and fixture pipeline | It gives components, docs, and demos a shared semantic input model with source maps, validation, embedded-language handoffs, and an AST boundary. |
-| M3 | Custom-element runtime primitives | Components need stable behavior conventions before broad catalog work. |
+| M3a | `<cem-element>` substrate + `@epa-wg/custom-element` monorepo migration | The declarative substrate must reach legacy + material parity before primitives commit to it. See [`docs/cem-element-design.md`](docs/cem-element-design.md). |
+| M3b | Custom-element runtime primitives | Components need stable behavior conventions before broad catalog work; they consume the substrate from M3a. |
 | M4 | Component set MVP | Unlocks real screens and validates token semantics in UI. |
 | M5 | Figma UI Kit MVP | Designers need the same semantics once component names and states stabilize. |
 | M6 | CEM site | Public documentation should be generated from stable package and component contracts. |

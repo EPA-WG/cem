@@ -61,8 +61,7 @@ Core goals:
 > tokenizer profile recognizes it today, and it carries no Tier A / B / C tier
 > tag. It is recorded here as a future-direction sketch so the syntax doc and
 > implementation can be revisited together if a Unicode profile is later
-> proposed as an AC. See [`cem-ml-syntax-alignment-report.md`](cem-ml-syntax-alignment-report.md)
-> M-4 for the decision record.
+> proposed as an AC.
 
 CEM-ML may allow ASCII and Unicode surface symbols as equivalent lexical
 choices. This is similar to allowing both single-quoted and double-quoted string

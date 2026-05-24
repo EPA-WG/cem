@@ -15,8 +15,6 @@ This index links the active project, release, and token workflow documents.
   system, stdlib module layout, cost model, and binary artifact layout.
 - [CEM QL implementation design](./cem-ql-stack-design-impl.md) — concrete Rust module map, surface AST, IR shapes,
   diagnostic table, and stdlib function tables.
-- [CEM ML / CEM QL AC design revalidation](./cem-ac-design-revalidation.md) — current AC-to-design match,
-  corrections, and remaining non-matches.
 - [CEM ML CLI feature summary](./cem-ml-cli-contract.md) — planned CLI capabilities, options, reports, diagnostics,
   fixture workflows, and exit codes.
 - [CEM ML CLI plan](./cem-ml-cli-plan.md) — Rust `cem-ml` CLI implementation plan with `cem-ml` library separation.

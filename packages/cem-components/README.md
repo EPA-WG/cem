@@ -1,11 +1,13 @@
 # `@epa-wg/cem-components`
 
-Declarative custom-element primitives that consume the CEM theme. No shadow DOM — every component renders in the
-light DOM via [`@epa-wg/custom-element`](https://www.npmjs.com/package/@epa-wg/custom-element).
+Declarative component primitives that consume the CEM theme. No shadow DOM — every component renders in the
+light DOM, authored against the `<cem-element>` substrate from `@epa-wg/cem-elements` (functional successor to
+`@epa-wg/custom-element`; design home: [`docs/cem-element-design.md`](../../docs/cem-element-design.md)).
 
 > **Status: shell.** The package currently re-exports the theme entry point. Component implementations land in
-> Phase 3 of the [roadmap](../../roadmap.md), after the `cem-ml` / `cem-ml-cli` schema/parser/transform pipeline (Phase 2)
-> is in place. The component surface is defined ahead of time in [component MVP](../../docs/component-mvp.md).
+> Phase 3.2 of the [roadmap](../../roadmap.md), after the `cem-ml` / `cem-ml-cli` schema/parser/transform pipeline
+> (Phase 2) and the `<cem-element>` substrate (Phase 3.1) are in place. The component surface is defined ahead of time
+> in [component MVP](../../docs/component-mvp.md).
 
 ## Install
 
@@ -34,6 +36,17 @@ nx run @epa-wg/cem-components:lint
 | Package source | `src/` |
 | Current shell entry | `src/lib/cem-components.ts` |
 | Built output | `dist/` |
+
+## Component contracts
+
+Phase 3 contract docs (landed; pre-implementation):
+
+- [Conventions](./docs/conventions.md) — naming, attributes, events, form participation, validation, loading states,
+  progressive enhancement.
+- [Light-DOM rendering rules](./docs/light-dom-rendering.md) — `@epa-wg/custom-element` compatibility, no shadow DOM,
+  host-attribute forwarding, render lifecycle.
+- [Accessibility contract](./docs/accessibility.md) — accessible names, ARIA wiring, focus, keyboard patterns, live
+  regions; mirrors the Tier A semantic-validation catalog enforced by `cem_ml`.
 
 ## Related docs
 
