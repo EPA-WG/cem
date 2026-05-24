@@ -8,6 +8,7 @@ use cem_ml::schema::compiler::ContentHash;
 use cem_ml::schema::SchemaFrame;
 use cem_ml::source_map::SourceMapStack;
 
+use crate::artifact::CompiledArtifact;
 use crate::eval::{Evaluator, ItemStream, QueryContextScope};
 use crate::ir::lower::IrLowerer;
 use crate::ir::CompiledQuery;
@@ -40,6 +41,17 @@ pub fn compile(source: &str, context: &CompileContext) -> Result<CompiledQuery, 
 /// Evaluate a compiled query against a query context scope.
 pub fn evaluate(query: &CompiledQuery, ctx: &EvaluationContext) -> ItemStream {
     Evaluator::evaluate(query, ctx)
+}
+
+pub fn compile_artifact(
+    source: &str,
+    context: &CompileContext,
+) -> Result<CompiledArtifact, CompileError> {
+    compile(source, context).map(|query| CompiledArtifact::from_query(&query))
+}
+
+pub fn reload_artifact(artifact: &CompiledArtifact) -> Result<CompiledQuery, LoadError> {
+    artifact.reload().map_err(LoadError::unsupported)
 }
 
 /// Parse-only entry point for tooling.

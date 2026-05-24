@@ -149,4 +149,5 @@ pub enum IrStep {
 pub struct CompiledQuery {
     pub tree: IrTree,
     pub policy_bindings: HashMap<BindingId, String>,
+    pub source: String,
 }

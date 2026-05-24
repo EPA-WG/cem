@@ -151,6 +151,22 @@
                 "{workspaceRoot}/packages/cem_ml/Cargo.toml"
             ],
             "outputs": ["{workspaceRoot}/dist/target/cem_ql"]
+        },
+        "test:compiled-artifact-reload": {
+            "cache": true,
+            "executor": "nx:run-commands",
+            "options": {
+                "command": "cargo test --package cem-ql --test compiled_artifact_reload --target-dir dist/target/cem_ql",
+                "cwd": "{workspaceRoot}"
+            },
+            "inputs": [
+                "{projectRoot}/src/**/*.rs",
+                "{projectRoot}/tests/compiled_artifact_reload.rs",
+                "{projectRoot}/Cargo.toml",
+                "{workspaceRoot}/packages/cem_ml/src/**/*.rs",
+                "{workspaceRoot}/packages/cem_ml/Cargo.toml"
+            ],
+            "outputs": ["{workspaceRoot}/dist/target/cem_ql"]
         }
     },
     "tags": ["scope:cem-ql", "type:lib", "lang:rust"]

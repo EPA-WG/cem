@@ -124,6 +124,7 @@ impl IrLowerer {
             query: CompiledQuery {
                 tree: self.tree.finish(root),
                 policy_bindings: self.policy_bindings,
+                source: module.source.clone(),
             },
             diagnostics: self.diagnostics,
         }
@@ -135,6 +136,7 @@ impl IrLowerer {
             query: CompiledQuery {
                 tree: self.tree.finish(root),
                 policy_bindings: self.policy_bindings,
+                source: String::new(),
             },
             diagnostics: self.diagnostics,
         }

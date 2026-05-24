@@ -45,7 +45,10 @@ The Rust crate is bootstrapped; layer implementations remain. Crate boundary, mo
             `packages/cem_ql/tests/policy_hooks.rs` covers injected `scope` bindings, record-style field access,
             `user:has_role` resource access, stable inherited resource identity, and
             `cem.ql.policy_accessor_failed`.
-      - [ ] AC-QC-V-1 — compiled artifact reload verification (serialize corpus -> evict -> reload -> assert identity).
+      - [x] `cem_ql:test:compiled-artifact-reload` — AC-QC-V-1 compiled artifact fixture in
+            `packages/cem_ql/tests/compiled_artifact_reload.rs` serializes a Tier A corpus, verifies
+            `cem-bin/1+blake3` artifact hashes, reloads from bytes after evicting the source query, and asserts
+            stream/diagnostic identity.
       - [ ] AC-QC-V-2 — transport protocol verification (`If-CEM-Hash` E2E test).
 - [ ] Wire `cem_ml_cli` to invoke cem-ql for `select=` / `match=` / `test=` template attributes and `{$ … }` content
       expressions per AC-T-7.
