@@ -127,6 +127,25 @@
                 "{projectRoot}/dist/cem-ml.cross-surface.xml.cem",
                 "{projectRoot}/dist/cem-ml.cross-surface.html.cem"
             ]
+        },
+        "bench": {
+            "cache": false,
+            "executor": "nx:run-commands",
+            "dependsOn": ["build"],
+            "options": {
+                "command": "./dist/target/cem_ml_cli/debug/cem-ml bench --format json --iterations 5 --quiet --report-json packages/cem_ml_cli/dist examples/cem-ml/assets-list.cem examples/cem-ml/login.cem examples/cem-ml/message-thread.cem examples/cem-ml/profile.cem examples/cem-ml/registration.cem",
+                "cwd": "{workspaceRoot}"
+            },
+            "inputs": [
+                "{projectRoot}/src/**/*.rs",
+                "{projectRoot}/Cargo.toml",
+                "{workspaceRoot}/packages/cem_ml/src/**/*.rs",
+                "{workspaceRoot}/packages/cem_ml/Cargo.toml",
+                "{workspaceRoot}/examples/cem-ml/**/*.cem"
+            ],
+            "outputs": [
+                "{projectRoot}/dist/cem-ml.bench.report.json"
+            ]
         }
     },
     "tags": ["scope:cem-ml", "type:app", "lang:rust"]
