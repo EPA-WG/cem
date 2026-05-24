@@ -121,6 +121,7 @@ name = "cem-ml-cli"
 version = "0.1.0"
 dependencies = [
  "cem-ml",
+ "cem-ql",
  "clap",
  "serde_json",
 ]

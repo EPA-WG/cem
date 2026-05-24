@@ -252,8 +252,20 @@ fn decode_transform(tag: u16, payload: Option<String>) -> Result<TransformKind, 
         8 => TransformKind::InterpreterRender,
         9 => TransformKind::Query,
         10 => TransformKind::QueryStep,
+        11 => TransformKind::TemplateEmbedding {
+            host: decode_byte_range(payload.as_deref()),
+        },
         _ => return Err(DecodeError::UnknownTransformTag(tag)),
     })
+}
+
+fn decode_byte_range(payload: Option<&str>) -> crate::source::ByteRange {
+    let raw = payload.unwrap_or("0,0");
+    let (start, len) = raw.split_once(',').unwrap_or(("0", "0"));
+    crate::source::ByteRange::new(
+        start.parse().unwrap_or(0),
+        len.parse().unwrap_or(0),
+    )
 }
 
 fn read_nodes(

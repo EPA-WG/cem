@@ -16,6 +16,7 @@ pub mod lexer;
 pub mod parser;
 pub mod resolve;
 pub mod stdlib;
+pub mod template;
 pub mod transport;
 pub mod types;
 

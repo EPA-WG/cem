@@ -17,6 +17,11 @@ pub enum TransformKind {
     HandoffBoundary { child_content_type: String },
     ContentTypeTransform { content_type: String },
     InterpreterRender,
+    /// Host → cem-ql embedding boundary per AC-T-7. `host` is the byte
+    /// range the host parser owned (whole attribute value, `{...}` AVT
+    /// span, or `{$ ... }` expression-node body); the next frame the
+    /// cem-ql parser pushes carries the sub-span inside that range.
+    TemplateEmbedding { host: ByteRange },
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]

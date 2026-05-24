@@ -277,6 +277,9 @@ fn encode_transform(t: &TransformKind) -> (u16, Option<String>) {
         TransformKind::InterpreterRender => (8, None),
         TransformKind::Query => (9, None),
         TransformKind::QueryStep => (10, None),
+        TransformKind::TemplateEmbedding { host } => {
+            (11, Some(format!("{},{}", host.start, host.len)))
+        }
     }
 }
 

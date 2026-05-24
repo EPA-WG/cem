@@ -1,5 +1,6 @@
 mod cli;
 mod dispatch;
+mod template_pass;
 
 use cem_ml::real::RealCemMlEngine;
 use clap::Parser;

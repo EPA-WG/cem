@@ -6,6 +6,7 @@
 #![allow(clippy::items_after_test_module)]
 
 use crate::cli;
+use crate::template_pass;
 use cem_ml::engine::{self as eng, CemMlEngine, EngineError};
 use std::fs;
 use std::io::{self, Write};
@@ -236,6 +237,39 @@ fn write_primary(
     Ok(())
 }
 
+/// Tokenize each input and run the cem-ql template embedding pass
+/// (AC-T-7). Returns the cem-ql diagnostics that must be merged into
+/// the engine's report. HTML / XML inputs short-circuit to empty.
+fn collect_embedding_diagnostics(inputs: &[eng::EngineInput]) -> Vec<cem_ml::diagnostics::Diagnostic> {
+    let mut diagnostics = Vec::new();
+    for input in inputs {
+        let from = input.from_format.unwrap_or(eng::InputFormat::Cem);
+        diagnostics.extend(template_pass::run(&input.bytes, from, Some(&input.uri)));
+    }
+    diagnostics
+}
+
+fn merge_embedding_diagnostics(
+    report: &mut cem_ml::report::Report,
+    embedding: Vec<cem_ml::diagnostics::Diagnostic>,
+) {
+    if embedding.is_empty() {
+        return;
+    }
+    for diagnostic in &embedding {
+        match diagnostic.severity {
+            cem_ml::diagnostics::Severity::Info => report.summary.info_count += 1,
+            cem_ml::diagnostics::Severity::Warning => report.summary.warning_count += 1,
+            cem_ml::diagnostics::Severity::Error => report.summary.error_count += 1,
+            cem_ml::diagnostics::Severity::Fatal => report.summary.fatal_count += 1,
+        }
+        if diagnostic.severity.is_hard_violation() {
+            report.summary.hard_violation_count += 1;
+        }
+    }
+    report.diagnostics.extend(embedding);
+}
+
 fn write_diagnostics(diags: &[cem_ml::diagnostics::Diagnostic], s: &mut Streams<'_>) {
     if s.quiet {
         return;
@@ -341,6 +375,11 @@ pub fn run_parse<E: CemMlEngine + ?Sized>(
         Ok(i) => i,
         Err(e) => return handle_engine_error(e, s),
     };
+    let embedding_diags = template_pass::run(
+        &input.bytes,
+        input.from_format.unwrap_or(eng::InputFormat::Cem),
+        Some(input.uri.as_str()),
+    );
     let req = eng::ParseRequest {
         input,
         projection: to_engine_parse_projection(args.format),
@@ -349,11 +388,12 @@ pub fn run_parse<E: CemMlEngine + ?Sized>(
         context: context(&args.context),
     };
     match engine.parse(req) {
-        Ok(resp) => {
+        Ok(mut resp) => {
             if let Err(e) = write_primary(&resp.primary, args.out.as_deref(), s) {
                 let _ = writeln!(s.stderr, "cem-ml: write failure: {e}");
                 return Outcome::code(EXIT_IO);
             }
+            resp.diagnostics.extend(embedding_diags);
             write_diagnostics(&resp.diagnostics, s);
             Outcome::ok()
         }
@@ -370,6 +410,7 @@ pub fn run_validate<E: CemMlEngine + ?Sized>(
         Ok(v) => v,
         Err(e) => return handle_engine_error(e, s),
     };
+    let embedding_diags = collect_embedding_diagnostics(&inputs);
     let req = eng::ValidateRequest {
         inputs,
         projection: to_engine_validate_projection(args.format),
@@ -377,7 +418,8 @@ pub fn run_validate<E: CemMlEngine + ?Sized>(
         context: context(&args.context),
     };
     match engine.validate(req) {
-        Ok(resp) => {
+        Ok(mut resp) => {
+            merge_embedding_diagnostics(&mut resp.report, embedding_diags);
             if let Err(e) = write_report_files(&resp.report, &args.report, REPORT_BASENAME_VALIDATE)
             {
                 let _ = writeln!(s.stderr, "cem-ml: report write failure: {e}");
@@ -406,6 +448,7 @@ pub fn run_check<E: CemMlEngine + ?Sized>(
         Ok(v) => v,
         Err(e) => return handle_engine_error(e, s),
     };
+    let embedding_diags = collect_embedding_diagnostics(&inputs);
     let req = eng::CheckRequest {
         inputs,
         projection: to_engine_validate_projection(args.format),
@@ -414,7 +457,9 @@ pub fn run_check<E: CemMlEngine + ?Sized>(
         context: context(&args.context),
     };
     match engine.check(req) {
-        Ok(resp) => {
+        Ok(mut resp) => {
+            merge_embedding_diagnostics(&mut resp.report, embedding_diags);
+            resp.hard_violation_count = resp.report.summary.hard_violation_count;
             if let Err(e) = write_report_files(&resp.report, &args.report, REPORT_BASENAME_VALIDATE)
             {
                 let _ = writeln!(s.stderr, "cem-ml: report write failure: {e}");
