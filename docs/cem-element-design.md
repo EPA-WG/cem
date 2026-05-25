@@ -6,7 +6,7 @@ the query/template surface in [`cem-ql-stack-design.md`](./cem-ql-stack-design.m
 component contracts in [`packages/cem-components/docs/`](../packages/cem-components/docs/).
 
 This document is the source of truth for the `cem-element` substrate that
-`@epa-wg/cem-components` builds on. It supersedes the
+`@epa-wg/cem-components` builds on. It defines the successor substrate for the
 `<custom-element>` authoring tag from `@epa-wg/custom-element` while preserving the
 declarative concept that POC introduced.
 
@@ -28,12 +28,12 @@ the template engine with CEM-native syntax:
   `template.content` DocumentFragment and never reach the live render tree. Only the
   rendered output driven from that instance data island is visible.
 
-`cem-element` is **not** a fork of `<custom-element>`. It is the new substrate that
-`<custom-element>` will inherit from. The end state is that `@epa-wg/custom-element`
-continues to publish the `<custom-element>` tag, but its implementation is rebuilt on
-the `cem-element` substrate. The public attributes will be revised during that major
-version. `@epa-wg/custom-element` will be published from this monorepo as its new
-home, and https://github.com/EPA-WG/custom-element will be deprecated.
+`cem-element` is **not** a fork of `<custom-element>`. It is the new substrate that a
+later `@epa-wg/custom-element` adoption phase can inherit from after the browser
+substrate and Edge/SSR follow-up phase are stable. In that later phase,
+`@epa-wg/custom-element` continues publishing the `<custom-element>` tag, but its
+implementation is rebuilt on the `cem-element` substrate and published from this
+monorepo.
 
 ## 2. Packages
 
@@ -41,7 +41,7 @@ home, and https://github.com/EPA-WG/custom-element will be deprecated.
 |-----------------------------------|--------------------------------------------------|---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|
 | `@epa-wg/cem-elements`            | Planned, this design                             | Houses the `<cem-element>` runtime and its declarative authoring surface. Plural ("elements") refers the functional components as opposite to `@epa-wg/cem-components` UI library that consumes it.                             |
 | `@epa-wg/cem-components`          | Phase 3, contract docs landed                    | Declarative component primitives (`cem-button`, `cem-input`, …) authored with `<cem-element>` and the conventions in [`packages/cem-components/docs/conventions.md`](../packages/cem-components/docs/conventions.md).           |
-| `@epa-wg/custom-element`          | External today, scheduled for monorepo migration | Existing POC at `~/aWork/custom-element/`. Source moves into `packages/custom-element/`; future major keeps publishing `<custom-element>` and implements it by inheriting the `cem-element` substrate. XSLT syntax preservation TBD. |
+| `@epa-wg/custom-element`          | External today, post-Edge/SSR adoption phase     | Existing POC at `~/aWork/custom-element/`. Source moves into `packages/custom-element/` only after the Edge/SSR follow-up phase; future major keeps publishing `<custom-element>` and implements it by inheriting the `cem-element` substrate. XSLT syntax preservation TBD. |
 | `custom-element-dist` (reference) | External                                         | Material-style sample components at `~/aWork/custom-element-dist/src/material/` (`action`, `autocomplete`, `badge`, `dropdown`, `icon`, `icon-link`, `input`, `menu`). Used as the parity benchmark for `cem-element` (see §7). |
 
 ## 3. Authoring surface
@@ -236,11 +236,13 @@ CEM template/data engine run in different hosts.
   internals.
 
 The processing layer may run in-process, in a browser WASM worker, in a pool of workers,
-on an edge/compute worker, or in a server-side rendering host. The UI adapter still owns
-the browser integration in every client-side mode. Remote or server processing may
-produce rendered HTML, render plans, or patch frames, but it cannot directly mutate
-browser DOM or observe browser-only state. Focus, selection, transient input state,
-MutationObserver timing, and event-to-data writes remain client UI-adapter concerns.
+on an edge/compute worker, or in a server-side rendering host. Phase 3 implements the
+browser worker substrate first; edge and SSR execution are follow-up hosts that reuse
+the same serializable boundary. The UI adapter still owns the browser integration in
+every client-side mode. Remote or server processing may produce rendered HTML, render
+plans, or patch frames, but it cannot directly mutate browser DOM or observe
+browser-only state. Focus, selection, transient input state, MutationObserver timing,
+and event-to-data writes remain client UI-adapter concerns.
 
 This makes these deployment modes valid without changing the declaration model:
 
@@ -452,6 +454,18 @@ interface RenderPlanIdentity {
   renderEngineVersion: string;
   sourceMapMode: SourceMapMode;
 }
+
+interface ArtifactRegistryNamespace {
+  namespace: "cem-template-artifacts";
+  registryContractVersion: "cem-artifact-registry-v1";
+  artifactFormatVersion: string;
+}
+
+interface SourceMapRegistryKey {
+  payloadKey: TemplateArtifactPayloadKey;
+  fidelity: SourceMapFidelity;
+  sourceMapHash: ContentHash;
+}
 ```
 
 `sourceHash` is the CEM content hash for the canonical template source or compiled
@@ -469,6 +483,43 @@ specifier, URL, or fragment could resolve to different canonical source bytes.
 privacy export, or patch-generation policy changes. A payload whose load identity does
 not match the active resolver and scope policy MUST NOT be reused for rendering, even
 when the payload hash matches.
+
+Phase 3 defines a service-worker-compatible registry contract, but it does not implement
+a service-worker template/artifact registry. The actual registry is deferred until after
+component parity. Any later registry, whether owned by the CEM site, docs, playgrounds,
+or another host, must treat artifact bytes as immutable records addressed by
+`TemplateArtifactPayloadKey` plus `ArtifactRegistryNamespace`. Host-specific permission
+to use those bytes is still determined by `TemplateArtifactIdentity`. Source-map
+sidecars are keyed by the same payload key plus source-map mode, fidelity, and
+source-map hash. Registry namespace/version fields are eviction and migration metadata;
+they do not change the portable payload identity.
+
+The Phase 3 runtime support layer may expose optional artifact-registry hooks for tests
+and future hosts, but it MUST work when no hooks are supplied and MUST NOT depend on
+service-worker install, activate, fetch interception, or Cache Storage lifecycle:
+
+```ts
+interface ArtifactRegistryHooks {
+  getArtifact?(
+    namespace: ArtifactRegistryNamespace,
+    key: TemplateArtifactPayloadKey,
+  ): Promise<ArtifactBinaryTransfer | undefined>;
+  putArtifact?(
+    namespace: ArtifactRegistryNamespace,
+    artifact: ArtifactBinaryTransfer,
+  ): Promise<void>;
+  getSourceMap?(
+    namespace: ArtifactRegistryNamespace,
+    key: SourceMapRegistryKey,
+  ): Promise<SourceMapBinaryTransfer | undefined>;
+  putSourceMap?(
+    namespace: ArtifactRegistryNamespace,
+    key: SourceMapRegistryKey,
+    sourceMap: SourceMapBinaryTransfer,
+  ): Promise<void>;
+  invalidateNamespace?(namespace: ArtifactRegistryNamespace): Promise<void>;
+}
+```
 
 Render plans are keyed by template artifact identity plus `RenderRevision`, source-map
 mode, and render engine version. A render plan compiled from a matching payload under a
@@ -619,11 +670,13 @@ main-thread flush.
 
 The MVP does not require edge/SSR execution, threaded WASM with `SharedArrayBuffer`,
 precompiled template artifacts, service-worker artifact registries, or a production
-multi-worker cache. Those paths remain valid deployment targets after the browser-worker
-contract is stable. `SharedArrayBuffer` availability MUST NOT affect Phase 3A behavior:
-when it is unavailable, the runtime uses the same non-threaded dedicated worker path;
-when workers are unavailable or fail startup, the runtime falls back to main-thread WASM.
-Worker-backed and main-thread fallback modes MUST share the same observable behavior.
+multi-worker cache. It does require cache identities and optional registry hooks to stay
+compatible with a later service-worker registry. Those paths remain valid deployment
+targets after the browser-worker contract is stable. `SharedArrayBuffer` availability
+MUST NOT affect Phase 3A behavior: when it is unavailable, the runtime uses the same
+non-threaded dedicated worker path; when workers are unavailable or fail startup, the
+runtime falls back to main-thread WASM. Worker-backed and main-thread fallback modes
+MUST share the same observable behavior.
 
 ## 5. Data-island isolation guarantees
 
@@ -648,23 +701,21 @@ inert. Together they make the following true without author effort:
 
 ## 6. Compatibility & migration
 
-### 6.1 `@epa-wg/custom-element` monorepo migration
+### 6.1 `@epa-wg/custom-element` adoption sequencing
 
-- The package is migrated from its current home (`~/aWork/custom-element/`) into
-  `packages/custom-element/` inside this monorepo. The migration preserves history
-  and the published npm package identity.
-- Until parity is reached (§7) the existing `<custom-element>` authoring tag remains
-  the production surface. The package continues to publish from this monorepo, while
-  `@epa-wg/cem-elements/cem-element` is the staging substrate entrypoint.
-- The next major of `@epa-wg/custom-element` keeps `<custom-element>` as the
-  package's public tag and rebuilds its implementation by inheriting the
-  `cem-element` substrate. Existing consumers keep importing
-  `@epa-wg/custom-element`; the implementation contract changes, not the package
-  identity.
+- Phase 3 does not migrate `@epa-wg/custom-element` into this monorepo and does not
+  make `<custom-element>` inherit the `cem-element` substrate.
+- The existing external `<custom-element>` authoring tag remains the production surface
+  until the browser substrate is parity-proven, the Edge/SSR follow-up phase is green,
+  and the explicit adoption phase starts.
+- In the later adoption phase, `@epa-wg/custom-element` moves from
+  `~/aWork/custom-element/` into `packages/custom-element/`, preserving history and
+  published npm identity. Its next major keeps `<custom-element>` as the public tag and
+  rebuilds the implementation on the `cem-element` substrate.
 
 ### 6.2 Co-existence window
 
-During the bridge period (between this design landing and the
+During the bridge period (between this design landing and the post-Edge/SSR
 `@epa-wg/custom-element` implementation adoption):
 
 - Both tags MAY appear in the same document. They share `customElements` registry
@@ -716,10 +767,9 @@ when **all** of the following hold:
    [`packages/cem-components/docs/accessibility.md`](../packages/cem-components/docs/accessibility.md)
    is verified end-to-end on the material parity fixtures.
 
-When (1)–(6) are green, the `cem-element` substrate becomes the implementation base
-for the next major of `@epa-wg/custom-element`. The `<custom-element>` tag remains
-published by that package; `@epa-wg/cem-elements` stops being the staging migration
-target once the package adopts the substrate.
+When (1)–(6) are green, the `cem-element` browser substrate is ready for the separate
+Edge/SSR follow-up phase. The next-major `@epa-wg/custom-element` adoption waits until
+that follow-up phase is complete.
 
 ## 8. References
 

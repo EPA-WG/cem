@@ -14,7 +14,7 @@ This roadmap is intentionally higher level than `docs/todo.md`. Use this file to
 | Native platform adapters | iOS Swift and Android Kotlin/Compose outputs generated from the same token spine. | `packages/cem-theme/dist/lib/token-platforms` |
 | CEM parser/runtime foundation | Schema-defined streaming parser layers: byte decoding, tokenization, normalized events, validation, AST/source maps, binary AST chunks, and implementation handoff. | `packages/cem_ml` |
 | CEM XML/HTML/XSLT CLI | CEM document schemas, XML/HTML profiles, Invisible XML/CSF profile experiments, DOM helpers, transforms, validation, and reports over the parser foundation. | `packages/cem_ml_cli` |
-| CEM custom-element substrate | Declarative no-JS runtime centered on `<cem-element>`: scoped data islands, event-to-data wiring, and light-DOM re-render from CEM-ML/CEM-QL templates. Staged in `@epa-wg/cem-elements`, then used as the inherited implementation base for `<custom-element>` in the next major of `@epa-wg/custom-element`. | `packages/cem-elements`, future `packages/custom-element` |
+| CEM custom-element substrate | Declarative no-JS runtime centered on `<cem-element>`: scoped data islands, event-to-data wiring, and light-DOM re-render from CEM-ML/CEM-QL templates. Staged in `@epa-wg/cem-elements`; edge/SSR and `@epa-wg/custom-element` adoption are follow-up phases after the browser substrate is stable. | `packages/cem-elements`, future `packages/custom-element` |
 | CEM component set | Material-style UI coverage expressed in CEM semantics: buttons, fields, lists, nav, cards, dialogs, tables, tabs, etc. | `packages/cem-components` |
 | Figma UI Kit | Designer-facing components, variants, variables, usage examples, and governance workflow. | `examples/figma`, future design artifacts |
 | CEM site | Public docs, token/component gallery, interactive examples, and release documentation wired from the repo root. | future `apps/cem-site` or static docs app |
@@ -110,8 +110,8 @@ Goal: establish the reusable declarative web runtime before building the full co
 linked tracks: the **substrate** (`@epa-wg/cem-elements`) that delivers the `<cem-element>` declarative authoring tag,
 and the **primitives** (`@epa-wg/cem-components`) that consume it. Design home for the substrate is
 [`docs/cem-element-design.md`](docs/cem-element-design.md). WASM integration options for CEM-ML/CEM-QL template
-compilation, inline and URI declaration sources, streaming, worker-pool scheduling, edge processing, and SSR are
-proposed in
+compilation, inline and URI declaration sources, streaming, worker-pool scheduling, and post-Phase-3 edge/SSR
+processing boundaries are proposed in
 [`docs/cem-element-wasm-proposal.md`](docs/cem-element-wasm-proposal.md).
 
 ### 3.1 Substrate — `@epa-wg/cem-elements`
@@ -124,18 +124,18 @@ Deliverables:
 - WHATWG `<template>`-wrapped declaration and instance data islands. Declaration content, captured author payload,
   slices, event payloads, and validation state stay associated with the component scope but are inert to the browser
   rendering engine; only the rendered projection is visible after upgrade.
-- Monorepo migration of `@epa-wg/custom-element` from `~/aWork/custom-element/` into `packages/custom-element/`,
-  preserving published npm identity and history. The `<custom-element>` tag continues to ship from this monorepo and,
-  in the next major, inherits the `cem-element` substrate. `@epa-wg/cem-elements/cem-element` remains the staging
-  entrypoint until parity is production-ready.
+- Migration-readiness contract for the future `@epa-wg/custom-element` adoption phase. Phase 3 proves the
+  `cem-element` substrate and compatibility fixtures, but it does not move `@epa-wg/custom-element` into this
+  monorepo or make `<custom-element>` inherit the substrate.
 - Bridge-window compatibility surface: legacy `<custom-element>` templates remain supported via an opt-in
   `lang="custom-element-v0"` annotation while authors migrate.
 - WASM-backed template processing path selected from
   [`docs/cem-element-wasm-proposal.md`](docs/cem-element-wasm-proposal.md), covering inline declaration templates,
   URI/module-map resolution, remote source streaming, local parser streaming, reusable host runtime support,
-  patch-frame streams, worker-pool scheduling, optional edge/SSR processing hosts, and main-thread DOM patch ownership.
+  patch-frame streams, worker-pool scheduling, service-worker-compatible artifact identity/hooks,
+  post-Phase-3 edge/SSR boundaries, and main-thread DOM patch ownership.
 
-Exit criteria (production-ready trigger for the `@epa-wg/custom-element` implementation adoption):
+Exit criteria (browser substrate production-ready trigger, not `@epa-wg/custom-element` adoption):
 
 - Functional parity with `<custom-element>` proven by fixtures under
   `packages/cem-elements/tests/parity/legacy/`.
@@ -151,9 +151,9 @@ Exit criteria (production-ready trigger for the `@epa-wg/custom-element` impleme
 - Accessibility contract in [`packages/cem-components/docs/accessibility.md`](packages/cem-components/docs/accessibility.md)
   passes end-to-end on the material parity set.
 
-When the substrate hits the production-ready trigger, `<custom-element>` remains the published tag in
-`@epa-wg/custom-element`, and its next-major implementation inherits the `cem-element` substrate.
-`@epa-wg/cem-elements` stops being the staging migration target once that adoption lands.
+When the substrate hits this production-ready trigger, it is eligible for the Edge/SSR follow-up phase. The
+`@epa-wg/custom-element` monorepo migration and next-major implementation adoption happen only after that follow-up
+phase.
 
 ### 3.2 Primitives — `@epa-wg/cem-components`
 
@@ -175,6 +175,48 @@ Exit criteria:
   surface.
 - Components can be used declaratively with no app JavaScript for common static and form flows.
 - The runtime can consume validated light-DOM output from the parser/document transform layer.
+
+## Phase 3.5 - Edge/SSR Processing Follow-Up
+
+Goal: prove server and edge processing against the same serializable boundary after the browser worker substrate is
+stable, without changing `<cem-element>` semantics.
+
+Deliverables:
+
+- SSR host fixture that emits initial HTML plus hydration metadata from a serialized `DataIslandSnapshot` and validates
+  hydration against template artifact identity, `RenderRevision`, source-map mode, and retained render-plan identity.
+- Edge processing fixture that accepts a serialized snapshot plus previous render-plan identity and produces a
+  patch-frame stream without access to live browser DOM.
+- Privacy/export policy fixtures proving that denied data-island fields are omitted or redacted before leaving the
+  browser context.
+- First render-state storage decision for edge processing: content-addressed cache only, revisioned KV/document
+  records, or both.
+
+Exit criteria:
+
+- Edge/SSR fixtures prove the processing boundary outside the browser.
+- No server or edge host can mutate live browser DOM, observe focus/selection/composition state, or bypass the
+  data-export policy.
+- Browser worker and main-thread fallback behavior remain the reference runtime semantics.
+
+## Phase 3.6 - `@epa-wg/custom-element` Monorepo Adoption
+
+Goal: move the published `@epa-wg/custom-element` package into this repository and rebuild its next-major
+implementation on the parity-proven `cem-element` substrate after the Edge/SSR follow-up phase.
+
+Deliverables:
+
+- Migrate `@epa-wg/custom-element` from `~/aWork/custom-element/` into `packages/custom-element/`, preserving
+  published npm identity and history.
+- Keep `<custom-element>` as the public tag shipped by `@epa-wg/custom-element`.
+- Make the next major of `@epa-wg/custom-element` inherit the `cem-element` substrate instead of maintaining a
+  separate parser/render engine.
+- Keep or retire `<template lang="custom-element-v0">` bridge support based on fixture evidence from the migration.
+
+Exit criteria:
+
+- Legacy parity, material parity, Edge/SSR follow-up fixtures, and custom-element package fixtures are green.
+- `@epa-wg/cem-elements` is no longer the staging migration target once `@epa-wg/custom-element` adopts the substrate.
 
 ## Phase 4 - CEM Component Set
 
@@ -228,6 +270,8 @@ Deliverables:
 - Root-wired docs site with guides, token browser, component gallery, examples, API/reference, and release notes.
 - Generated docs imported from package markdown and token reports.
 - Interactive examples for tokens, components, XML fixtures, and native output snippets.
+- Optional service-worker template/artifact registry for site/docs/playground caching, built from the Phase 3 artifact
+  identity and registry-hook contract after component parity.
 - Search and stable deep links.
 - Optional Angular Material comparison page showing coverage and migration mapping.
 
@@ -311,8 +355,10 @@ Exit criteria:
 | --------- | ----- | ------- |
 | M1 | Root docs spine and token/native validation gates | Current work is valuable but not yet easy to discover or verify end to end. |
 | M2 | Schema-defined parser runtime and fixture pipeline | It gives components, docs, and demos a shared semantic input model with source maps, validation, embedded-language handoffs, and an AST boundary. |
-| M3a | `<cem-element>` substrate + `@epa-wg/custom-element` monorepo migration | The declarative substrate must reach legacy + material parity before primitives commit to it. See [`docs/cem-element-design.md`](docs/cem-element-design.md). |
-| M3b | Custom-element runtime primitives | Components need stable behavior conventions before broad catalog work; they consume the parity-proven substrate from M3a. |
+| M3a | `<cem-element>` browser substrate | The declarative substrate must reach legacy + material parity before primitives commit to it. See [`docs/cem-element-design.md`](docs/cem-element-design.md). |
+| M3b | Edge/SSR processing follow-up | Server/edge processing should prove the serializable boundary after the browser substrate is stable, not during Phase 3. |
+| M3c | `@epa-wg/custom-element` monorepo adoption | The published package adopts the substrate only after browser parity and the Edge/SSR follow-up are green. |
+| M3d | Custom-element runtime primitives | Components need stable behavior conventions before broad catalog work; they consume the parity-proven substrate from M3a. |
 | M4 | Component set MVP | Unlocks real screens and validates token semantics in UI. |
 | M5 | Figma UI Kit MVP | Designers need the same semantics once component names and states stabilize. |
 | M6 | CEM site | Public documentation should be generated from stable package and component contracts. |

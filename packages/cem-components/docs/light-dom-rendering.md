@@ -219,7 +219,7 @@ criteria in [`docs/cem-element-design.md §7`](../../../docs/cem-element-design.
   template text, AVT, and `select=` declarations.
 - Cross-surface conversion fixtures (Phase 2) — round-trip target for rendered output.
 - `@epa-wg/custom-element` POC (`~/aWork/custom-element/`) — functional reference,
-  scheduled for monorepo migration to `packages/custom-element/`; not a syntax
-  decision point per [`CLAUDE.md`](../../../CLAUDE.md).
+  with monorepo migration deferred until after the Edge/SSR follow-up phase; not a
+  syntax decision point per [`CLAUDE.md`](../../../CLAUDE.md).
 - `~/aWork/custom-element-dist/src/material/` — material parity benchmark for
   `<cem-element>`.

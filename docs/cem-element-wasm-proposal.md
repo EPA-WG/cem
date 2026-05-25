@@ -19,9 +19,9 @@ not a replacement for the `cem-element` design. The core model stays unchanged:
 - DOM events update the instance data island. Data changes invalidate render scopes.
   The runtime re-renders visible light DOM from the compiled template plus current
   data.
-- `<custom-element>` remains the published tag under `@epa-wg/custom-element`. In the
-  next major, its implementation inherits the same `cem-element` substrate while the
-  tag continues to be published.
+- `<custom-element>` remains the published tag under `@epa-wg/custom-element`. Its
+  monorepo migration and next-major implementation adoption happen in a follow-up
+  adoption phase after the browser substrate and Edge/SSR follow-up phase are stable.
 
 ## 1. Existing Capabilities To Reuse
 
@@ -288,15 +288,16 @@ Packaging follows the staged Option D path:
 - `@epa-wg/cem-elements` remains the only package that consumes this module during
   Phase 3A, except for local tests and fixtures.
 - Extraction to a separate reusable package is deferred until material parity passes,
-  the `<custom-element>` adapter begins consuming the substrate, patch/cache/source-map
-  worker contracts have fixture coverage, and SSR/edge work moves beyond design-only
-  fixtures.
+  patch/cache/source-map worker contracts have fixture coverage, the Edge/SSR
+  follow-up phase is green, and the later `<custom-element>` adoption phase begins
+  consuming the substrate.
 - When extracted, the package name is reserved as `@epa-wg/cem-runtime-support`.
 
 ## 7. Deployment Topologies Enabled By The Split
 
-The UI/processing split should be designed as a serializable host boundary. That makes
-browser worker execution the first target, but not the only useful target.
+The UI/processing split should be designed as a serializable host boundary. Browser
+worker execution is the Phase 3 target. Edge and SSR processing are follow-up
+topologies that reuse this boundary after the browser substrate is stable.
 
 ### 7.1 Browser WASM Worker Or Worker Pool
 
@@ -350,10 +351,13 @@ The same processing layer can run in a server host to emit:
 - optional initial data-island content wrapped in inert `<template>` form for the
   browser UI adapter.
 
-SSR must remain a bootstrap path, not a separate runtime semantics. After hydration, the
-browser UI adapter owns event-to-data writes and DOM patching. The browser may continue
-using local worker processing or ask an edge/server host for later render plans, but
-that is a deployment choice behind the same processing contract.
+SSR is out of Phase 3 execution scope. It remains a follow-up processing-host phase
+built on the same serializable boundary after the browser worker substrate is stable.
+In that follow-up phase, SSR remains a bootstrap path, not a separate runtime
+semantics. After hydration, the browser UI adapter owns event-to-data writes and DOM
+patching. The browser may continue using local worker processing or ask an edge/server
+host for later render plans, but that is a deployment choice behind the same processing
+contract.
 
 ## 8. Patch-Frame Stream And Flush Policy
 
@@ -597,7 +601,9 @@ Cons:
 - not available in all embedding contexts;
 - compiled artifact storage must be versioned and policy-aware.
 
-Best use: optional application-level cache strategy, not core substrate behavior.
+Best use: optional application-level cache strategy after component parity, not core
+Phase 3 substrate behavior. Phase 3 only defines the compatible cache identity and
+artifact-registry hook contract.
 
 ### Option G - Edge/SSR Processing Host
 
@@ -639,10 +645,13 @@ options stay post-MVP unless a later task explicitly promotes them.
    the source-driven path is stable.
 4. **Later performance tier:** add Option D only for deployments that can guarantee
    cross-origin isolation. Keep Option A/B fallback permanently.
-5. **SSR/edge tier:** add Option G only after the browser-worker processing boundary,
-   artifact identities, data snapshot shape, and patch-frame protocol are stable.
-6. **Application cache tier:** consider Option F for the CEM site or demos after the
-   core substrate has stable cache keys.
+5. **Edge/SSR follow-up phase:** move Option G out of Phase 3. Add it only after the
+   browser-worker processing boundary, artifact identities, data snapshot shape, and
+   patch-frame protocol are stable.
+6. **Post-component-parity application cache tier:** consider Option F for the CEM
+   site, docs, playgrounds, or demos after the component set has proven parity. Phase 3
+   keeps only the service-worker-compatible artifact identity and optional registry
+   hooks.
 
 This sequence uses the CEM-ML streaming and scheduling model early, but does not block
 functional parity on browser shared-memory deployment constraints.
@@ -652,13 +661,13 @@ functional parity on browser shared-memory deployment constraints.
 The WASM substrate should serve both declaration surfaces:
 
 - New code uses `<cem-element>` with CEM-ML/CEM-QL declaration templates.
-- The migrated `@epa-wg/custom-element` package keeps publishing `<custom-element>`.
-  In its next major, `<custom-element>` adapts its legacy public attributes and
-  optional `lang="custom-element-v0"` template body into the same internal
-  declaration record used by `cem-element`.
+- The external `@epa-wg/custom-element` package keeps publishing `<custom-element>`
+  until the post-Edge/SSR adoption phase. In that later phase, `<custom-element>`
+  adapts its legacy public attributes and optional `lang="custom-element-v0"` template
+  body into the same internal declaration record used by `cem-element`.
 
-The adapter must not give legacy `<custom-element>` a separate parser/render engine.
-Functional parity is achieved when both public tags share the same data-island
+The future adapter must not give legacy `<custom-element>` a separate parser/render
+engine. Functional parity is achieved when both public tags share the same data-island
 lifecycle, event-to-data wiring, invalidation model, and light-DOM patching path.
 
 ## 13. Verification Gates
@@ -688,11 +697,12 @@ The selected MVP should add fixtures for:
 - batched main-thread flush across multiple ready instance transactions;
 - assertion that patch transport uses internal worker/stream/message frames and never
   browser `EventTarget` / DOM `Event` dispatch;
-- SSR fixture that renders initial HTML plus hydration metadata, then hydrates into the
-  same client-side data-island and render-plan identity;
-- edge-processing fixture using serialized data snapshot + previous render-plan identity
-  to produce a patch-frame stream without access to live browser DOM;
-- `<custom-element>` compatibility adapter inheriting the same artifact/render path.
+- assertion that Phase 3 runs correctly with no service worker or Cache Storage
+  registry, while artifact cache identities and optional registry hooks remain stable;
+- assertion that Phase 3 does not require SSR/edge processing hosts; those fixtures
+  move to the Edge/SSR follow-up phase;
+- assertion that Phase 3 does not migrate or adopt `@epa-wg/custom-element`; that work
+  moves to the post-Edge/SSR adoption phase.
 
 Performance gates should measure:
 
@@ -703,8 +713,6 @@ Performance gates should measure:
 - worker-pool queue depth and cancellation behavior;
 - worker-message/frame count per render and per batch;
 - DOM mutation/layout cost per batched flush;
-- serialized snapshot and render-plan payload size for edge/SSR hosts;
-- edge/server round-trip budget for server-assisted updates;
 - memory retained per compiled template artifact.
 
 ## 14. Open Decisions
@@ -752,11 +760,28 @@ Performance gates should measure:
   Resolved: Phase 3A starts with an internal package-private
   `@epa-wg/cem-elements/internal/runtime-support` module authored for later extraction
   to `@epa-wg/cem-runtime-support`. Extraction waits until material parity passes,
-  `<custom-element>` adapter consumption begins, worker/cache/source-map contracts have
-  fixture coverage, and SSR/edge moves beyond design-only fixtures.
-- Which data-island fields are allowed to leave the browser for edge processing, and how
-  is that policy expressed per scope?
-- Which storage model is supported first for edge render state: content-addressed cache
-  only, revisioned KV/document records, or both?
-- Should the CEM site use a service-worker registry, or should that stay outside the
-  core substrate until after component parity?
+  worker/cache/source-map contracts have fixture coverage, the Edge/SSR follow-up
+  phase is green, and the later `<custom-element>` adoption phase begins consuming the
+  substrate.
+- ~~Is Phase 3 responsible for edge/SSR runtime delivery or SSR verification
+  fixtures?~~ Resolved: no. Phase 3 keeps the serializable boundary and topology notes,
+  but SSR/edge fixtures and runtime delivery move to a separate Edge/SSR follow-up
+  phase after the browser worker substrate is stable.
+- ~~When does `@epa-wg/custom-element` move into this monorepo and adopt the
+  substrate?~~ Resolved: after the Edge/SSR follow-up phase. Phase 3 proves the browser
+  `cem-element` substrate and compatibility path, but the `@epa-wg/custom-element`
+  monorepo migration and next-major substrate adoption are a later adoption phase.
+- ~~Which data-island fields are allowed to leave the browser for edge processing, and
+  how is that policy expressed per scope?~~ Deferred: Phase 3 keeps the redaction and
+  omission requirement in the serializable boundary, but the concrete field policy is
+  a Phase 3.5 Edge/SSR follow-up verification fixture.
+- ~~Which storage model is supported first for edge render state: content-addressed
+  cache only, revisioned KV/document records, or both?~~ Deferred: the first edge
+  render-state storage choice is a Phase 3.5 Edge/SSR follow-up decision, not a Phase 3
+  browser-substrate gate.
+- ~~Should the CEM site use a service-worker registry, or should that stay outside the
+  core substrate until after component parity?~~ Resolved: Phase 3 uses Option C. It
+  defines service-worker-compatible artifact identity, namespace/version metadata, and
+  optional registry hooks, but does not implement a service-worker template/artifact
+  registry. A concrete registry is deferred until after component parity, most likely
+  in the CEM site, docs, playgrounds, or demos.

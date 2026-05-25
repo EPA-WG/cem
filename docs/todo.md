@@ -64,16 +64,19 @@ Design home: [`cem-element-design.md`](cem-element-design.md). WASM proposal:
 - [x] Decide host runtime support packaging: internal module inside `@epa-wg/cem-elements` first, or separate
       reusable package/module for `<custom-element>`, docs/playgrounds, tests, SSR, and edge hosts. Resolved as
       Option D: internal `@epa-wg/cem-elements/internal/runtime-support` for Phase 3A, authored for later extraction
-      to reserved package name `@epa-wg/cem-runtime-support` after material parity, `<custom-element>` adapter
-      consumption, worker/cache/source-map fixture coverage, and non-design-only SSR/edge work. Landed in
+      to reserved package name `@epa-wg/cem-runtime-support` after material parity, worker/cache/source-map fixture
+      coverage, the Edge/SSR follow-up phase, and adoption-phase `<custom-element>` consumption. Landed in
       [`cem-element-wasm-proposal.md` §6/§14](cem-element-wasm-proposal.md).
-- [ ] Decide Phase 3 edge/SSR scope: design-only boundary, verification fixtures, or hard runtime deliverable.
-- [ ] Decide the first edge render-state storage model if edge processing is in scope: content-addressed cache only,
-      revisioned KV/document records, or both.
-- [ ] Decide whether service-worker template/artifact registry is Phase 3 scope or deferred until after component
-      parity.
-- [ ] Migrate `@epa-wg/custom-element` from `~/aWork/custom-element/` into `packages/custom-element/`. Preserve
-      published npm identity and history.
+- [x] Decide Phase 3 edge/SSR scope: design-only boundary, verification fixtures, or hard runtime deliverable.
+      Resolved: Phase 3 keeps only the serializable boundary and topology notes. Edge/SSR fixtures, SSR bootstrap,
+      edge patch streams, privacy/export verification, and render-state storage decisions move to the separate
+      Phase 3.5 follow-up. Landed in [`cem-element-wasm-proposal.md` §7.3/§11/§14](cem-element-wasm-proposal.md)
+      and [`../roadmap.md` §Phase 3.5](../roadmap.md).
+- [x] Decide whether service-worker template/artifact registry is Phase 3 scope or deferred until after component
+      parity. Resolved as Option C: Phase 3 defines service-worker-compatible artifact identity,
+      namespace/version metadata, and optional registry hooks, but the concrete service-worker registry is deferred
+      until after component parity. Landed in [`cem-element-design.md` §4.2](cem-element-design.md) and
+      [`cem-element-wasm-proposal.md` §10/§11/§13/§14](cem-element-wasm-proposal.md).
 - [ ] Scaffold `packages/cem-elements/` (new package). Wire `nx run cem-elements:build/test/lint`.
 - [ ] Implement the `<cem-element>` runtime: declaration `<template>` discovery, per-instance
       `<template data-cem-island="instance">` capture, cem-ml lowering, data-island event wiring, light-DOM render
@@ -92,8 +95,8 @@ Design home: [`cem-element-design.md`](cem-element-design.md). WASM proposal:
 - [ ] Wire `cem-element` through `nx run cem_ml_cli:validate-fixtures` and `cem_ml_cli:e2e` so substrate templates
       ride the same Phase 2 verification.
 - [ ] Production-ready gate: parity (1)–(6) from [`cem-element-design.md` §7](cem-element-design.md). When green,
-      make the next major of `@epa-wg/custom-element` keep publishing `<custom-element>` with an implementation that
-      inherits the `cem-element` substrate.
+      the browser substrate is eligible for Phase 3.5 Edge/SSR follow-up; `@epa-wg/custom-element` adoption remains
+      deferred until after that follow-up phase.
 - [ ] Bridge support: `<template lang="custom-element-v0">` compat path for legacy authoring during the migration
       window; keep only if needed after the `@epa-wg/custom-element` substrate adoption.
 
@@ -111,6 +114,30 @@ authoring surface.
       in [`packages/cem-components/docs/accessibility.md`](../packages/cem-components/docs/accessibility.md).
 - [ ] Build the test harness for DOM rendering, events, accessibility assertions, and visual snapshots.
 - [ ] Implement minimal primitives: action, field, surface, text, icon, stack, grid, list, nav, dialog shell.
+
+## Phase 3.5 — Edge/SSR Processing Follow-Up
+
+Roadmap: [`../roadmap.md` §Phase 3.5](../roadmap.md). Starts after the Phase 3 browser substrate production-ready
+gate is green.
+
+- [ ] Add SSR fixture that renders initial HTML plus hydration metadata from a serialized `DataIslandSnapshot`, then
+      hydrates into the same client-side data-island and render-plan identity.
+- [ ] Add edge-processing fixture using serialized data snapshot plus previous render-plan identity to produce a
+      patch-frame stream without access to live browser DOM.
+- [ ] Verify privacy/export policy for browser-to-edge snapshots: denied fields are omitted or redacted before
+      leaving the browser context.
+- [ ] Decide the first edge render-state storage model: content-addressed cache only, revisioned KV/document records,
+      or both.
+
+## Phase 3.6 — `@epa-wg/custom-element` Monorepo Adoption
+
+Roadmap: [`../roadmap.md` §Phase 3.6](../roadmap.md). Starts after Phase 3.5 is green.
+
+- [ ] Migrate `@epa-wg/custom-element` from `~/aWork/custom-element/` into `packages/custom-element/`. Preserve
+      published npm identity and history.
+- [ ] Make the next major of `@epa-wg/custom-element` keep publishing `<custom-element>` with an implementation that
+      inherits the `cem-element` substrate.
+- [ ] Verify the migrated package against legacy parity, material parity, and Phase 3.5 Edge/SSR follow-up fixtures.
 
 ## Phase 5 — Figma UI Kit Token Validation (`examples/figma`)
 

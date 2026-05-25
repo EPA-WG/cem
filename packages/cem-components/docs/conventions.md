@@ -248,9 +248,10 @@ Every component MUST degrade gracefully when its custom element is not upgraded 
   in this package.
 - The legacy `<custom-element>` surface from `@epa-wg/custom-element` remains
   consumable through the bridge-window compat (see Scope and cem-element-design §6.2)
-  but new primitives MUST author directly against `<cem-element>`. After the major
-  substrate adoption, `<custom-element>` remains the published
-  `@epa-wg/custom-element` tag and inherits the `cem-element` implementation.
+  but new primitives MUST author directly against `<cem-element>`. The major
+  `@epa-wg/custom-element` substrate adoption is deferred until after the Edge/SSR
+  follow-up phase; after that adoption, `<custom-element>` remains the published tag
+  and inherits the `cem-element` implementation.
 - Tokens come from `@epa-wg/cem-theme`. Components MUST NOT define their own color
   or spacing literals; they reference CEM token CSS custom properties.
 - AST-to-light-DOM transforms are owned by `cem_ml` and produce output that already
@@ -270,10 +271,10 @@ Every component MUST degrade gracefully when its custom element is not upgraded 
 - [`docs/roadmap.md`](../../../roadmap.md) §Phase 3 — runtime preparation goals,
   split into 3.1 substrate (`@epa-wg/cem-elements`) and 3.2 primitives.
 - `@epa-wg/custom-element` POC (`~/aWork/custom-element/`) — functional reference
-  for declarative templating, attribute declarations, and `slice` events. Scheduled
-  for monorepo migration to `packages/custom-element/`; treat as functional
-  reference per [`CLAUDE.md`](../../../CLAUDE.md) §custom-element legacy info, not
-  as a decision authority for component syntax.
+  for declarative templating, attribute declarations, and `slice` events. Monorepo
+  migration is deferred until after the Edge/SSR follow-up phase; treat as functional
+  reference per [`CLAUDE.md`](../../../CLAUDE.md) §custom-element legacy info, not as
+  a decision authority for component syntax.
 - `~/aWork/custom-element-dist/src/material/` — material-style sample components
   used as the parity benchmark for the `<cem-element>` substrate (action,
   autocomplete, badge, dropdown, icon, icon-link, input, menu).
