@@ -276,6 +276,23 @@ Yes, the support layer is useful beyond `cem-element`. It can also serve:
 This boundary prevents `cem_ml` from becoming browser-lifecycle code and prevents
 `cem-element` from becoming the only owner of the generic worker/cache/patch protocol.
 
+Packaging follows the staged Option D path:
+
+- Phase 3A implements the support layer as an internal package-private module inside
+  `@epa-wg/cem-elements`, for example
+  `@epa-wg/cem-elements/internal/runtime-support`.
+- The internal module MUST be authored as if it will later become
+  `@epa-wg/cem-runtime-support`: no declaration discovery, no `customElements`
+  registry ownership, no produced-element lifecycle ownership, and no direct assumption
+  that the caller is `<cem-element>`.
+- `@epa-wg/cem-elements` remains the only package that consumes this module during
+  Phase 3A, except for local tests and fixtures.
+- Extraction to a separate reusable package is deferred until material parity passes,
+  the `<custom-element>` adapter begins consuming the substrate, patch/cache/source-map
+  worker contracts have fixture coverage, and SSR/edge work moves beyond design-only
+  fixtures.
+- When extracted, the package name is reserved as `@epa-wg/cem-runtime-support`.
+
 ## 7. Deployment Topologies Enabled By The Split
 
 The UI/processing split should be designed as a serializable host boundary. That makes
@@ -730,8 +747,13 @@ Performance gates should measure:
   `TemplateArtifactIdentity` adds source ref, resolver identity, and
   `scopePolicyStamp` for host-specific use. Render plans are keyed by template
   artifact identity, `RenderRevision`, render engine version, and source-map mode.
-- Does the host runtime support layer start as an internal package-private module or as
-  a separately published package once `<custom-element>` begins consuming it?
+- ~~Does the host runtime support layer start as an internal package-private module or
+  as a separately published package once `<custom-element>` begins consuming it?~~
+  Resolved: Phase 3A starts with an internal package-private
+  `@epa-wg/cem-elements/internal/runtime-support` module authored for later extraction
+  to `@epa-wg/cem-runtime-support`. Extraction waits until material parity passes,
+  `<custom-element>` adapter consumption begins, worker/cache/source-map contracts have
+  fixture coverage, and SSR/edge moves beyond design-only fixtures.
 - Which data-island fields are allowed to leave the browser for edge processing, and how
   is that policy expressed per scope?
 - Which storage model is supported first for edge render state: content-addressed cache

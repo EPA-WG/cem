@@ -61,8 +61,12 @@ Design home: [`cem-element-design.md`](cem-element-design.md). WASM proposal:
       `dom-canonical`; exact author bytes remain required for external, fetched, and raw text sources.
       `declaration-only` is fallback-only. Landed in [`cem-element-design.md` §4.2](cem-element-design.md) and
       [`cem-element-wasm-proposal.md` §4.2/§14](cem-element-wasm-proposal.md).
-- [ ] Decide host runtime support packaging: internal module inside `@epa-wg/cem-elements` first, or separate
-      reusable package/module for `<custom-element>`, docs/playgrounds, tests, SSR, and edge hosts.
+- [x] Decide host runtime support packaging: internal module inside `@epa-wg/cem-elements` first, or separate
+      reusable package/module for `<custom-element>`, docs/playgrounds, tests, SSR, and edge hosts. Resolved as
+      Option D: internal `@epa-wg/cem-elements/internal/runtime-support` for Phase 3A, authored for later extraction
+      to reserved package name `@epa-wg/cem-runtime-support` after material parity, `<custom-element>` adapter
+      consumption, worker/cache/source-map fixture coverage, and non-design-only SSR/edge work. Landed in
+      [`cem-element-wasm-proposal.md` §6/§14](cem-element-wasm-proposal.md).
 - [ ] Decide Phase 3 edge/SSR scope: design-only boundary, verification fixtures, or hard runtime deliverable.
 - [ ] Decide the first edge render-state storage model if edge processing is in scope: content-addressed cache only,
       revisioned KV/document records, or both.
