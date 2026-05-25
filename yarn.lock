@@ -1348,6 +1348,12 @@ __metadata:
   languageName: unknown
   linkType: soft
 
+"@epa-wg/cem-elements@workspace:packages/cem-elements":
+  version: 0.0.0-use.local
+  resolution: "@epa-wg/cem-elements@workspace:packages/cem-elements"
+  languageName: unknown
+  linkType: soft
+
 "@epa-wg/cem-theme@npm:^0.0.14, @epa-wg/cem-theme@workspace:packages/cem-theme":
   version: 0.0.0-use.local
   resolution: "@epa-wg/cem-theme@workspace:packages/cem-theme"

@@ -1,0 +1,6 @@
+{
+    "name": "cem-elements",
+    "$schema": "../../node_modules/nx/schemas/project-schema.json",
+    "sourceRoot": "packages/cem-elements/src",
+    "projectType": "library"
+}

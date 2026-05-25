@@ -77,7 +77,7 @@ Design home: [`cem-element-design.md`](cem-element-design.md). WASM proposal:
       namespace/version metadata, and optional registry hooks, but the concrete service-worker registry is deferred
       until after component parity. Landed in [`cem-element-design.md` §4.2](cem-element-design.md) and
       [`cem-element-wasm-proposal.md` §10/§11/§13/§14](cem-element-wasm-proposal.md).
-- [ ] Scaffold `packages/cem-elements/` (new package). Wire `nx run cem-elements:build/test/lint`.
+- [x] Scaffold `packages/cem-elements/` (new package). Wire `nx run cem-elements:build/test/lint`.
 - [ ] Implement the `<cem-element>` runtime: declaration `<template>` discovery, per-instance
       `<template data-cem-island="instance">` capture, cem-ml lowering, data-island event wiring, light-DOM render
       loop, source-map carry-through.
