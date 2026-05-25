@@ -55,8 +55,12 @@ Design home: [`cem-element-design.md`](cem-element-design.md). WASM proposal:
       `TemplateArtifactIdentity`, with render plans keyed by template artifact identity, `RenderRevision`, render
       engine version, and source-map mode. Landed in [`cem-element-design.md` §4.2](cem-element-design.md) and
       [`cem-element-wasm-proposal.md` §14](cem-element-wasm-proposal.md).
-- [ ] Set the accepted source-map fidelity for DOM-parsed inline XML/HTML parity templates where original browser
-      source bytes are unrecoverable.
+- [x] Set the accepted source-map fidelity for DOM-parsed inline XML/HTML parity templates where original browser
+      source bytes are unrecoverable. Resolved with `SourceMapFidelity` markers:
+      `author-byte-exact`, `dom-canonical`, and `declaration-only`. DOM-parsed inline XML/HTML parity may pass with
+      `dom-canonical`; exact author bytes remain required for external, fetched, and raw text sources.
+      `declaration-only` is fallback-only. Landed in [`cem-element-design.md` §4.2](cem-element-design.md) and
+      [`cem-element-wasm-proposal.md` §4.2/§14](cem-element-wasm-proposal.md).
 - [ ] Decide host runtime support packaging: internal module inside `@epa-wg/cem-elements` first, or separate
       reusable package/module for `<custom-element>`, docs/playgrounds, tests, SSR, and edge hosts.
 - [ ] Decide Phase 3 edge/SSR scope: design-only boundary, verification fixtures, or hard runtime deliverable.

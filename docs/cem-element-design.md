@@ -328,7 +328,9 @@ binary-first format later without changing the semantic worker API:
   snapshots, and future large patch-op batches.
 - Diagnostics remain structured and JSON-compatible permanently. They may carry the
   relevant `SourceMapStack` inline for author reporting, but bulk source-map tables
-  cross as references or sidecars.
+  cross as references or sidecars. Source-map refs and sidecars carry `fidelity` so
+  devtools and parity fixtures can distinguish exact author bytes from canonicalized
+  DOM or declaration-only mapping.
 
 This is Option D from the Phase 3 wire-format options. It is intentionally Option
 C-compatible: the envelope shape is the stable API, while each heavy payload can be
@@ -362,13 +364,20 @@ interface ArtifactBinaryTransfer {
 interface SourceMapRef {
   hash: ContentHash;
   sourceMapMode: "dev" | "prod";
+  fidelity: SourceMapFidelity;
   frameCount?: number;
 }
+
+type SourceMapFidelity =
+  | "author-byte-exact"
+  | "dom-canonical"
+  | "declaration-only";
 
 interface SourceMapSidecarTransfer {
   kind: "source-map-sidecar";
   hash: ContentHash;
   formatVersion: string;
+  fidelity: SourceMapFidelity;
   bytes: ArrayBuffer;
 }
 

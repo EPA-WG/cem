@@ -178,6 +178,28 @@ This distinction matters for devtools: external and raw-text CEM-ML can trace re
 DOM to original byte offsets; DOM-parsed inline HTML parity may only trace to a
 canonicalized inline source frame.
 
+Phase 3 source-map references carry an explicit fidelity marker:
+
+```ts
+type SourceMapFidelity =
+  | "author-byte-exact"
+  | "dom-canonical"
+  | "declaration-only";
+```
+
+- `author-byte-exact` is required for external `.cem` resources, fetched resources, and
+  raw text inline forms where the original source bytes enter the CEM parser.
+- `dom-canonical` is the accepted fidelity for DOM-parsed inline XML/HTML parity
+  templates. Ranges point into a canonical serialization of `template.content`, not the
+  author's original file bytes.
+- `declaration-only` is a fallback for diagnostics that can only identify the owning
+  declaration element or template node. It is not sufficient for material parity when a
+  canonicalized DOM source frame can be produced.
+
+Material parity fixtures MAY pass with `dom-canonical` source-map fidelity for
+DOM-parsed inline XML/HTML templates. They MUST NOT claim `author-byte-exact` unless the
+original source bytes were available to the CEM parser.
+
 ## 5. WASM Runtime Boundary
 
 The current WASM observer surface exposes parse/validate/transform events. `cem-element`
@@ -685,8 +707,14 @@ Performance gates should measure:
   C-compatible so template artifacts, source-map sidecars, render-plan snapshots, and
   future patch-op batches can move to binary payloads without changing the semantic
   worker API.
-- Which source-map fidelity level is required for DOM-parsed inline HTML parity
-  templates before material parity can pass?
+- ~~Which source-map fidelity level is required for DOM-parsed inline HTML parity
+  templates before material parity can pass?~~ Resolved: source maps carry
+  `SourceMapFidelity = "author-byte-exact" | "dom-canonical" | "declaration-only"`.
+  Material parity may pass with `dom-canonical` fidelity for DOM-parsed inline XML/HTML
+  templates whose original browser source bytes are unrecoverable. `author-byte-exact`
+  remains required for external `.cem`, fetched resources, and raw text inline forms;
+  `declaration-only` is fallback-only and is not sufficient when a canonical DOM frame
+  can be produced.
 - ~~Does the first worker-backed implementation run one worker or a small pool by
   default?~~ Resolved: Phase 3A uses one dedicated worker by default, with
   main-thread WASM fallback when workers are unavailable or fail startup. A
