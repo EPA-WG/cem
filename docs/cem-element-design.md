@@ -261,8 +261,8 @@ This makes these deployment modes valid without changing the declaration model:
 ### 4.2 Serializable processing boundary
 
 The UI adapter and processing layer communicate through serializable records. These
-records are the semantic contract; the concrete wire encoding (structured clone, JSON,
-binary AST buffers, or a hybrid) is a Phase 3 implementation decision.
+records are the semantic contract. The concrete Phase 3 wire encoding is the hybrid
+format selected below.
 
 `DataIslandSnapshot` is the complete processing input for one produced custom element
 instance at one render sequence:
@@ -292,6 +292,84 @@ from the inert instance data-island `<template>` and normalized before it crosse
 processing boundary. The UI adapter owns the conversion between live browser state and
 this snapshot.
 
+#### Phase 3 wire encoding decision
+
+Phase 3 uses a **hybrid wire format** designed so the heavy payloads can migrate to a
+binary-first format later without changing the semantic worker API:
+
+- Worker messages use structured-clone plain-record envelopes for control flow,
+  request correlation, artifact handles, render-plan identities, diagnostics, and
+  small patch frames.
+- Structured-clone payloads are restricted to a JSON-compatible subset: plain objects,
+  arrays, strings, numbers, booleans, `null`, and explicitly declared transferable
+  `ArrayBuffer` fields. They do not contain DOM nodes, functions, class instances,
+  `Map`, `Set`, `Date`, `RegExp`, or browser handles.
+- Template artifacts and full render plans stay retained in worker/WASM memory by
+  default. Hosts exchange stable identities and handles rather than deep JS object
+  graphs.
+- Cacheable or large payloads cross as versioned transferable `ArrayBuffer` blobs:
+  compiled template/cache artifacts, source-map sidecars, optional render-plan
+  snapshots, and future large patch-op batches.
+- Diagnostics remain structured and JSON-compatible permanently. They may carry the
+  relevant `SourceMapStack` inline for author reporting, but bulk source-map tables
+  cross as references or sidecars.
+
+This is Option D from the Phase 3 wire-format options. It is intentionally Option
+C-compatible: the envelope shape is the stable API, while each heavy payload can be
+replaced section-by-section with the eventual binary AST/render-plan/patch-op payload
+format.
+
+The worker-crossing shapes are:
+
+```ts
+interface TemplateArtifactRef {
+  artifactId: string;
+  cacheKey: CacheKey;
+  sourceMapMode: "dev" | "prod";
+  policyStamp: string;
+  declaredAttributes: string[];
+  observedAttributes: string[];
+  invalidationScopes: string[];
+  sourceMapRef?: SourceMapRef;
+  diagnostics: Diagnostic[];
+}
+
+interface ArtifactBinaryTransfer {
+  kind: "template-artifact" | "query-artifact" | "cache-artifact";
+  cacheKey: CacheKey;
+  formatVersion: string;
+  policyStamp: string;
+  bytes: ArrayBuffer;
+  sourceMapSidecarHash?: ContentHash;
+}
+
+interface SourceMapRef {
+  hash: ContentHash;
+  sourceMapMode: "dev" | "prod";
+  frameCount?: number;
+}
+
+interface SourceMapSidecarTransfer {
+  kind: "source-map-sidecar";
+  hash: ContentHash;
+  formatVersion: string;
+  bytes: ArrayBuffer;
+}
+
+interface RenderPlanBinaryTransfer {
+  kind: "render-plan";
+  identity: RenderPlanIdentity;
+  formatVersion: string;
+  bytes: ArrayBuffer;
+}
+```
+
+`TemplateArtifactRef` is the normal compile result across the browser worker boundary.
+`ArtifactBinaryTransfer` is used only when an artifact must leave retained
+worker/WASM memory: cache import/export, worker migration, build-pipeline prewarm, or a
+future service-worker/package artifact registry. The full template artifact MUST NOT be
+exposed as a deep structured-clone object.
+
 `RenderPlanIdentity` names a retained previous output that a worker, server, or edge
 host can diff against without receiving the live browser DOM:
 
@@ -311,6 +389,10 @@ interface RenderPlanIdentity {
 The processing layer may retain the full render plan in WASM memory, worker memory,
 server memory, or a content-addressed cache. Hosts exchange the identity and only send
 the full plan when the cache/retained state is missing or policy-invalid.
+When the full render plan must cross the boundary, it crosses as
+`RenderPlanBinaryTransfer`, not as a deep JS object graph. Small diagnostic summaries or
+debug metadata may remain structured-clone records, but the runtime plan payload is
+binary-versioned from the first Phase 3 implementation.
 
 `scopePolicyStamp` is an opaque, deterministic identity for the effective scope policy
 that governed parsing, resource loading, render planning, privacy export, and patch
@@ -350,6 +432,9 @@ Frames are ordered per `{ instanceId, renderSeq }`. The UI adapter buffers frame
 sequence, and applies committed patches synchronously during the next batched
 main-thread flush. Browser `EventTarget` / DOM `Event` dispatch is reserved for real
 user and browser events, not patch transport.
+Phase 3 sends small `DomPatchOp[]` batches as structured-clone records. Large batches
+MAY later replace the `ops` payload with a transferable binary patch-op section while
+preserving the same `begin` / `ops` / `commit` / `abort` frame lifecycle.
 
 ### 4.3 Phase 3 MVP topology
 

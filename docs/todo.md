@@ -29,9 +29,11 @@ Design home: [`cem-element-design.md`](cem-element-design.md). WASM proposal:
       `<cem-element template-src="…">` are rejected. Landed in
       [`cem-element-design.md` §3.2](cem-element-design.md) and
       [`cem-element-wasm-proposal.md` §2.2–2.3](cem-element-wasm-proposal.md).
-- [ ] Define the JS/WASM artifact wire format for Phase 3: structured-clone objects, JSON, transferable
+- [x] Define the JS/WASM artifact wire format for Phase 3: structured-clone objects, JSON, transferable
       `ArrayBuffer`/binary AST, or a hybrid. Document which shapes cross worker boundaries for template artifacts,
-      render plans, diagnostics, and source maps.
+      render plans, diagnostics, and source maps. Resolved as the hybrid Option D format designed for later Option C
+      binary payload migration. Landed in [`cem-element-design.md` §4.2](cem-element-design.md) and
+      [`cem-element-wasm-proposal.md` §14](cem-element-wasm-proposal.md).
 - [ ] Define the patch transport contract: `PatchFrame`, `DomPatchOp`, `DomPatchPlan`, render sequence handling,
       stale-frame dropping, abort/commit frames, and the host-neutral `PatchApplier` interface.
 - [x] Define the serializable processing boundary for UI/worker/edge/SSR hosts: `DataIslandSnapshot`, render-plan

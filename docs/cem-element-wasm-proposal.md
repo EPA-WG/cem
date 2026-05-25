@@ -637,8 +637,16 @@ Performance gates should measure:
   Resolved: URI lives on `<cem-element src="…">`, matching the legacy
   `<custom-element src="…">` shape. See §2.2 / §2.3 and
   [`cem-element-design.md` §3.2](./cem-element-design.md).
-- What is the exact JS/WASM artifact wire format: JSON, binary AST, transferable
-  `ArrayBuffer`, or a hybrid?
+- ~~What is the exact JS/WASM artifact wire format: JSON, binary AST, transferable
+  `ArrayBuffer`, or a hybrid?~~ Resolved: Phase 3 uses the hybrid Option D wire
+  format from
+  [`cem-element-design.md` §4.2](./cem-element-design.md#42-serializable-processing-boundary):
+  structured-clone plain-record envelopes for control, retained worker/WASM handles
+  by default, JSON-compatible diagnostics, and transferable `ArrayBuffer` payloads
+  for cacheable or large artifacts. The envelope is designed to be Option
+  C-compatible so template artifacts, source-map sidecars, render-plan snapshots, and
+  future patch-op batches can move to binary payloads without changing the semantic
+  worker API.
 - Which source-map fidelity level is required for DOM-parsed inline HTML parity
   templates before material parity can pass?
 - Does the first worker-backed implementation run one worker or a small pool by
