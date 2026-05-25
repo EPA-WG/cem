@@ -100,9 +100,14 @@ Or the XML/HTML parity form (lowered to the same AST):
 
 ### 3.1 Declaration template vs. instance data island
 
-- Every `<cem-element>` declaration MUST contain exactly one direct-child WHATWG
-  `<template>` element. Declaration content outside that wrapper is invalid, because
-  it would be live page content instead of declaration template source.
+- Every `<cem-element>` declaration with **inline** template source MUST contain
+  exactly one direct-child WHATWG `<template>` element. Declaration content outside
+  that wrapper is invalid, because it would be live page content instead of
+  declaration template source.
+- A `<cem-element>` declaration MAY instead carry a `src="…"` attribute pointing at
+  an external or in-document template (see §3.2). When `src` is set, the declaration
+  MUST NOT also contain an inline `<template>` child; the URI form supplies the
+  template source.
 - The browser parks `<template>` content in `template.content` (a `DocumentFragment`)
   and does not render it. For the declaration template this means:
   - inner text never bleeds into the live page;
@@ -125,7 +130,53 @@ Or the XML/HTML parity form (lowered to the same AST):
   moved or cloned into the instance data-island template before the rendered output
   is installed, so the page never shows both the raw payload and rendered projection.
 
-### 3.2 Template engine
+### 3.2 URI declaration syntax
+
+URI-backed declarations use the `src` attribute on `<cem-element>` itself, matching
+the legacy `<custom-element src="…">` shape. This keeps authoring parity with the
+existing POC and with the material parity benchmark (which uses
+`<custom-element src="./icon-link.html#cem-icon-link" tag="cem-icon-link">` and
+`<custom-element hidden src="#cem-icon" tag="cem-icon">` patterns).
+
+```html
+<!-- External resource with fragment identifier -->
+<cem-element tag="cem-icon" src="./icon-link.html#cem-icon-link"></cem-element>
+
+<!-- Same-document fragment -->
+<cem-element tag="cem-icon" hidden src="#cem-icon-template"></cem-element>
+
+<!-- Module-map specifier resolved by the cem-element resolver (§3 of the WASM proposal) -->
+<cem-element tag="cem-button" src="@epa-wg/cem-components/button.cem#button"></cem-element>
+```
+
+Rules:
+
+- `src` on `<cem-element>` is the **only** URI declaration form. The previously
+  considered alternates — `<template src="…">` on the inner template, and
+  `<cem-element template-src="…">` — are **rejected**. Keeping URI on the
+  declaration element preserves one-to-one parity with `<custom-element>` and avoids
+  splitting source identity across two elements.
+- When `src` is present, the declaration MUST NOT carry an inline `<template>`
+  child. The runtime fetches and parses the resource, then treats the resolved
+  fragment (or whole resource, when no fragment is given) as the declaration
+  template body.
+- `src` resolves through the `cem-element` module-map resolver and scope-URL policy
+  documented in [`cem-element-wasm-proposal.md` §3](./cem-element-wasm-proposal.md).
+  Supported forms include absolute URLs, document-relative URLs, fragment-only
+  references (`#name`), and module-map specifiers (`@scope/pkg/path#fragment`).
+- A `src` without a fragment loads the whole resource as the declaration template.
+  A `src` with a fragment selects the named template/region inside the resolved
+  resource after parse.
+- `src` MAY appear on both declaration and instance usages, mirroring the legacy
+  POC (`<custom-element src="../index.html#nav-head">`). On a declaration, `src`
+  supplies the template body. On an instance with no matching `tag` registration
+  yet, `src` is treated as an inline declaration of an anonymous tag (legacy
+  behavior); the formal rules for that case land with the migration work in §6.1.
+- All other declaration semantics (data-island isolation, scope policy, source
+  maps, render pipeline, patch transport) are identical to the inline form. `src`
+  is purely a source-acquisition shape.
+
+### 3.3 Template engine
 
 | Concern                   | `<custom-element>` legacy                               | `<cem-element>`                                                                                                                 |
 |---------------------------|---------------------------------------------------------|---------------------------------------------------------------------------------------------------------------------------------|

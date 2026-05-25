@@ -24,9 +24,11 @@ Design home: [`cem-element-design.md`](cem-element-design.md). WASM proposal:
 - [x] Lock Phase 3 MVP topology from [`cem-element-wasm-proposal.md`](cem-element-wasm-proposal.md): primary
       worker-backed WASM with stream inputs, main-thread WASM fallback, and edge/SSR/threaded/precompiled/service-worker
       paths deferred unless explicitly promoted. Landed in [`cem-element-design.md` §4.3](cem-element-design.md).
-- [ ] Decide URI declaration syntax: use only associated `<template src="...">`, or also accept
-      `<cem-element template-src="...">` as a legacy/ergonomic alias. Fold the decision into
-      [`cem-element-design.md`](cem-element-design.md).
+- [x] Decide URI declaration syntax: URI lives on `<cem-element src="…">`, matching the legacy
+      `<custom-element src="…">` shape. Both `<template src="…">` and
+      `<cem-element template-src="…">` are rejected. Landed in
+      [`cem-element-design.md` §3.2](cem-element-design.md) and
+      [`cem-element-wasm-proposal.md` §2.2–2.3](cem-element-wasm-proposal.md).
 - [ ] Define the JS/WASM artifact wire format for Phase 3: structured-clone objects, JSON, transferable
       `ArrayBuffer`/binary AST, or a hybrid. Document which shapes cross worker boundaries for template artifacts,
       render plans, diagnostics, and source maps.

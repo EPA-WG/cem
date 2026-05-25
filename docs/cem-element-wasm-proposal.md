@@ -49,9 +49,11 @@ rather than rebuild:
 
 ## 2. Source Declaration Forms
 
-The declaration source can be inline or URI-backed. To preserve the current design's
-"associated WHATWG template" invariant, the preferred syntax keeps one direct
-`<template>` child in both cases.
+The declaration source can be inline or URI-backed. Inline declarations keep one
+direct-child `<template>` per the "associated WHATWG template" invariant.
+URI-backed declarations use `src` on `<cem-element>` itself, matching the legacy
+`<custom-element src="…">` shape — see
+[`cem-element-design.md` §3.2](./cem-element-design.md) for the normative rules.
 
 ### 2.1 Inline Declaration Template
 
@@ -75,36 +77,35 @@ the runtime sees them.
 ### 2.2 URI-Backed Declaration Template
 
 ```html
-<cem-element tag="cem-button">
-  <template
-    type="text/cem-ml"
-    src="@epa-wg/cem-components/button.cem#button">
-  </template>
-</cem-element>
+<cem-element tag="cem-button" src="@epa-wg/cem-components/button.cem#button"></cem-element>
 ```
 
 The `src` value is a template specifier, not browser-rendered content. It resolves
 through the active `cem-element` module-map resolver and scope URL policy. The fragment
 part identifies a named template or resource-defined fragment after the resource is
-parsed.
+parsed. When `src` is set, the declaration MUST NOT contain an inline `<template>`
+child; the URI form supplies the template body.
 
-This form keeps declaration source associated with the `<cem-element>` scope while
-letting the browser avoid parsing large template bodies as inline HTML.
+This shape preserves one-to-one parity with the legacy
+`<custom-element src="…" tag="…">` declarations used in
+`~/aWork/custom-element-dist/src/material/` (for example
+`<custom-element hidden src="#cem-icon" tag="cem-icon">` and
+`<custom-element src="./icon-link.html#cem-icon-link" tag="cem-icon-link">`),
+which makes material-parity migration mechanical.
 
-### 2.3 Alternate Source Attribute
+### 2.3 Rejected Alternates
 
-An alternate shape is possible:
+Two alternate shapes were considered and rejected:
 
-```html
-<cem-element tag="cem-button" template-src="@epa-wg/cem-components/button.cem#button">
-  <template></template>
-</cem-element>
-```
+- `<template src="…">` on the inner template. Rejected because the legacy POC puts
+  URI on the declaration element, and putting it on the inner template would force
+  authors to wrap every URI-backed declaration in an empty `<template></template>`
+  for no benefit.
+- `<cem-element template-src="…">`. Rejected because it splits source identity
+  across two attribute names (`src` vs. `template-src`) for the same concept and
+  does not match any legacy POC usage.
 
-This is less attractive because it splits source identity across the declaration element
-and an empty associated template. It can be kept as a compatibility alias if material
-parity with the legacy POC needs it, but the primary authoring shape should keep source
-metadata on the associated `<template>`.
+`src` on `<cem-element>` is the single URI declaration form.
 
 ## 3. Module-Map And URI Resolution
 
@@ -631,8 +632,11 @@ Performance gates should measure:
 
 ## 14. Open Decisions
 
-- Should URI source live only on the associated `<template src="...">`, or should
-  `template-src` on `<cem-element>` be accepted as an alias for legacy ergonomics?
+- ~~Should URI source live only on the associated `<template src="...">`, or should
+  `template-src` on `<cem-element>` be accepted as an alias for legacy ergonomics?~~
+  Resolved: URI lives on `<cem-element src="…">`, matching the legacy
+  `<custom-element src="…">` shape. See §2.2 / §2.3 and
+  [`cem-element-design.md` §3.2](./cem-element-design.md).
 - What is the exact JS/WASM artifact wire format: JSON, binary AST, transferable
   `ArrayBuffer`, or a hybrid?
 - Which source-map fidelity level is required for DOM-parsed inline HTML parity
