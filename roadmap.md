@@ -109,7 +109,10 @@ Exit criteria:
 Goal: establish the reusable declarative web runtime before building the full component catalog. Phase 3 has two
 linked tracks: the **substrate** (`@epa-wg/cem-elements`) that delivers the `<cem-element>` declarative authoring tag,
 and the **primitives** (`@epa-wg/cem-components`) that consume it. Design home for the substrate is
-[`docs/cem-element-design.md`](docs/cem-element-design.md).
+[`docs/cem-element-design.md`](docs/cem-element-design.md). WASM integration options for CEM-ML/CEM-QL template
+compilation, inline and URI declaration sources, streaming, worker-pool scheduling, edge processing, and SSR are
+proposed in
+[`docs/cem-element-wasm-proposal.md`](docs/cem-element-wasm-proposal.md).
 
 ### 3.1 Substrate — `@epa-wg/cem-elements`
 
@@ -127,6 +130,10 @@ Deliverables:
   entrypoint until parity is production-ready.
 - Bridge-window compatibility surface: legacy `<custom-element>` templates remain supported via an opt-in
   `lang="custom-element-v0"` annotation while authors migrate.
+- WASM-backed template processing path selected from
+  [`docs/cem-element-wasm-proposal.md`](docs/cem-element-wasm-proposal.md), covering inline declaration templates,
+  URI/module-map resolution, remote source streaming, local parser streaming, reusable host runtime support,
+  patch-frame streams, worker-pool scheduling, optional edge/SSR processing hosts, and main-thread DOM patch ownership.
 
 Exit criteria (production-ready trigger for the `@epa-wg/custom-element` implementation adoption):
 

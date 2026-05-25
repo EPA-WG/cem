@@ -24,7 +24,10 @@ This index links the active project, release, and token workflow documents.
   parity examples.
 - [CEM component MVP](./component-mvp.md) — first component list and state matrix.
 - [`cem-element` design](./cem-element-design.md) — custom-element successor substrate, `<template>` data islands,
-  event-to-data wiring, render loop, migration path, and parity gates.
+  event-to-data wiring, render loop, UI/processing split, migration path, and parity gates.
+- [`cem-element` WASM proposal](./cem-element-wasm-proposal.md) — options for using `cem_ml` WASM, inline and URI
+  declaration templates, module-map resolution, streaming source adapters, host runtime support, patch-frame streams,
+  worker-pool scheduling, edge processing, and server-side rendering.
 - [CEM UI Kit plan](./figma-ui-kit-plan.md) — Figma page, token, component, and QA mapping.
 - [Token pipeline smoke](./token-pipeline-smoke.md) — full propagation check for a one-token source change.
 
