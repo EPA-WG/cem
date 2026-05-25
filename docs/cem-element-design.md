@@ -169,6 +169,44 @@ Or the XML/HTML parity form (lowered to the same AST):
    its position inside the declaration template, so dev tools can trace any node in
    the live DOM to its author byte offset.
 
+### 4.1 UI and processing layer split
+
+The runtime MUST keep browser UI responsibilities separate from template processing.
+That split is not just an implementation detail; it is the boundary that lets the same
+CEM template/data engine run in different hosts.
+
+- **UI adapter layer (`cem-element`).** Owns custom-element declaration discovery,
+  produced element lifecycle, data-island capture, browser event listeners, form/focus
+  behavior, target DOM roots, and final light-DOM patch application.
+- **Processing layer.** Owns CEM-ML/CEM-QL parsing, template artifacts, data snapshots,
+  render-plan generation, render-plan diffing, diagnostics, source maps, and patch
+  frames. Its inputs and outputs are serializable. It MUST NOT depend on live browser
+  DOM nodes, `customElements`, browser event dispatch, focus state, or form control
+  internals.
+
+The processing layer may run in-process, in a browser WASM worker, in a pool of workers,
+on an edge/compute worker, or in a server-side rendering host. The UI adapter still owns
+the browser integration in every client-side mode. Remote or server processing may
+produce rendered HTML, render plans, or patch frames, but it cannot directly mutate
+browser DOM or observe browser-only state. Focus, selection, transient input state,
+MutationObserver timing, and event-to-data writes remain client UI-adapter concerns.
+
+This makes these deployment modes valid without changing the declaration model:
+
+- **Browser worker mode.** The processing layer runs in WASM workers for parallel
+  compile/render/diff work; the main thread applies committed patch transactions.
+- **Edge processing mode.** A compute-CDN/edge-worker host can render from a
+  serialized data-island snapshot and a stored template/render-plan artifact. A nearby
+  KV/document store may hold data snapshots and virtual/render-plan state by version,
+  but not live DOM. This mode is useful for first render, precomputation, or
+  server-assisted updates; it is not the default for high-frequency local interactions
+  because network latency, consistency, privacy, and conflict handling become part of
+  the contract.
+- **Server-side rendering mode.** The processing layer can emit HTML plus hydration
+  metadata and source-map markers. On hydration, the browser UI adapter reconstructs or
+  validates the instance data island and retained render-plan identity before taking
+  over local event-to-data updates.
+
 ## 5. Data-island isolation guarantees
 
 The declaration `<template>` wrapper makes template source inert. The produced
@@ -267,6 +305,9 @@ target once the package adopts the substrate.
 
 ## 8. References
 
+- [`docs/cem-element-wasm-proposal.md`](./cem-element-wasm-proposal.md) — host
+  runtime support layer, WASM worker processing, patch-frame transport, edge
+  processing, and SSR options.
 - [`docs/cem-ml-syntax.md`](./cem-ml-syntax.md) — CEM-ML canonical curly surface.
 - [`docs/cem-ml-ac.md`](./cem-ml-ac.md) — AC-F-2 (schema scoping), AC-F-5
   (reference slots), AC-I-6 (WHATWG DOM compliance), AC-M-* (mutation), AC-P-7

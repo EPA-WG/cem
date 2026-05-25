@@ -10,12 +10,21 @@ Start only when Phase 2 Tier A surfaces are stable enough to consume.
 
 ### 3.1 Substrate — `@epa-wg/cem-elements`
 
-Design home: [`cem-element-design.md`](cem-element-design.md). Substrate work gates 3.2 primitive implementation.
+Design home: [`cem-element-design.md`](cem-element-design.md). WASM proposal:
+[`cem-element-wasm-proposal.md`](cem-element-wasm-proposal.md). Substrate work gates 3.2 primitive implementation.
 
 - [x] Draft `cem-element` design: `<template>`-wrapped data island, cem-ml templates, cem-ql expressions, monorepo
       migration plan, parity criteria. Landed in [`cem-element-design.md`](cem-element-design.md).
 - [x] Review and revise the `cem-element` design against the legacy data-island lifecycle, instance payload capture,
       and material parity requirements.
+- [x] Draft `cem-element` WASM integration proposal: inline and URI declaration templates, module-map resolution,
+      remote source streaming, local parser streaming, reusable host runtime support, patch-frame streams,
+      worker-pool options, edge/SSR processing topologies, and runtime fallback strategy. Landed in
+      [`cem-element-wasm-proposal.md`](cem-element-wasm-proposal.md).
+- [ ] Select the Phase 3 MVP WASM option from [`cem-element-wasm-proposal.md`](cem-element-wasm-proposal.md) and fold
+      the chosen API shape back into [`cem-element-design.md`](cem-element-design.md) before runtime implementation.
+- [ ] Define the serializable processing boundary for UI/worker/edge/SSR hosts: `DataIslandSnapshot`, render-plan
+      identity, patch-frame transport, scope policy, and privacy rules for data leaving the browser.
 - [ ] Migrate `@epa-wg/custom-element` from `~/aWork/custom-element/` into `packages/custom-element/`. Preserve
       published npm identity and history.
 - [ ] Scaffold `packages/cem-elements/` (new package). Wire `nx run cem-elements:build/test/lint`.
