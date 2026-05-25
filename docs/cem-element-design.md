@@ -300,6 +300,36 @@ sequence, and applies committed patches synchronously during the next batched
 main-thread flush. Browser `EventTarget` / DOM `Event` dispatch is reserved for real
 user and browser events, not patch transport.
 
+### 4.3 Phase 3 MVP topology
+
+The Phase 3 MVP topology is browser-local processing with a worker-backed primary path
+and a main-thread fallback:
+
+- **Primary path:** the host runtime support layer runs `cem_ml` WASM in a browser
+  worker or worker pool. Declaration sources and `DataIslandSnapshot` records cross the
+  serializable boundary; template artifacts and retained render plans stay in
+  worker/WASM memory when possible. The worker returns diagnostics, source maps,
+  `DomPatchPlan` objects, or `PatchFrame` streams.
+- **Fallback path:** the same host runtime API can run `cem_ml` WASM on the main thread
+  when workers are unavailable, disabled by policy, or not useful in a test host. This
+  fallback is a compatibility path, not the performance target, and MUST preserve the
+  same template, data, render, diff, and patch semantics as the worker-backed path.
+- **UI ownership:** the main-thread `cem-element` adapter always owns custom-element
+  lifecycle, browser events, instance data-island capture, focus/form behavior, and
+  final browser DOM patch application.
+
+The MVP includes the serializable processing boundary, local parser streaming, remote
+source streaming where the platform provides stream bodies, retained render-plan
+identity, patch-frame transport, and per-instance patch transactions with batched
+main-thread flush.
+
+The MVP does not require edge/SSR execution, threaded WASM with `SharedArrayBuffer`,
+precompiled template artifacts, service-worker artifact registries, or a production
+multi-worker cache. Those paths remain valid deployment targets after the browser-worker
+contract is stable. The initial worker-pool size is a separate Phase 3 decision; this
+topology only requires that worker-backed and main-thread fallback modes share the same
+observable behavior.
+
 ## 5. Data-island isolation guarantees
 
 The declaration `<template>` wrapper makes template source inert. The produced

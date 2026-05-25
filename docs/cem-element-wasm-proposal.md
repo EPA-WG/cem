@@ -551,7 +551,10 @@ Best use: optional deployment topology after the browser-worker contract is stab
 
 ## 11. Recommendation
 
-Adopt a staged path:
+Adopt a staged path. The Phase 3 MVP topology is now locked in
+[`cem-element-design.md` §4.3](./cem-element-design.md#43-phase-3-mvp-topology):
+Option B is the primary path and Option A is the required fallback. The remaining
+options stay post-MVP unless a later task explicitly promotes them.
 
 1. **Phase 3A:** implement Option B as the primary architecture and Option A as the
    fallback. This proves CEM-ML/CEM-QL compilation in WASM, local parser streaming,

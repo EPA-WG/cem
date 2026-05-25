@@ -21,9 +21,9 @@ Design home: [`cem-element-design.md`](cem-element-design.md). WASM proposal:
       remote source streaming, local parser streaming, reusable host runtime support, patch-frame streams,
       worker-pool options, edge/SSR processing topologies, and runtime fallback strategy. Landed in
       [`cem-element-wasm-proposal.md`](cem-element-wasm-proposal.md).
-- [ ] Lock Phase 3 MVP topology from [`cem-element-wasm-proposal.md`](cem-element-wasm-proposal.md): primary
+- [x] Lock Phase 3 MVP topology from [`cem-element-wasm-proposal.md`](cem-element-wasm-proposal.md): primary
       worker-backed WASM with stream inputs, main-thread WASM fallback, and edge/SSR/threaded/precompiled/service-worker
-      paths deferred unless explicitly promoted.
+      paths deferred unless explicitly promoted. Landed in [`cem-element-design.md` §4.3](cem-element-design.md).
 - [ ] Decide URI declaration syntax: use only associated `<template src="...">`, or also accept
       `<cem-element template-src="...">` as a legacy/ergonomic alias. Fold the decision into
       [`cem-element-design.md`](cem-element-design.md).
