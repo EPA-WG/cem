@@ -21,10 +21,33 @@ Design home: [`cem-element-design.md`](cem-element-design.md). WASM proposal:
       remote source streaming, local parser streaming, reusable host runtime support, patch-frame streams,
       worker-pool options, edge/SSR processing topologies, and runtime fallback strategy. Landed in
       [`cem-element-wasm-proposal.md`](cem-element-wasm-proposal.md).
-- [ ] Select the Phase 3 MVP WASM option from [`cem-element-wasm-proposal.md`](cem-element-wasm-proposal.md) and fold
-      the chosen API shape back into [`cem-element-design.md`](cem-element-design.md) before runtime implementation.
-- [ ] Define the serializable processing boundary for UI/worker/edge/SSR hosts: `DataIslandSnapshot`, render-plan
-      identity, patch-frame transport, scope policy, and privacy rules for data leaving the browser.
+- [ ] Lock Phase 3 MVP topology from [`cem-element-wasm-proposal.md`](cem-element-wasm-proposal.md): primary
+      worker-backed WASM with stream inputs, main-thread WASM fallback, and edge/SSR/threaded/precompiled/service-worker
+      paths deferred unless explicitly promoted.
+- [ ] Decide URI declaration syntax: use only associated `<template src="...">`, or also accept
+      `<cem-element template-src="...">` as a legacy/ergonomic alias. Fold the decision into
+      [`cem-element-design.md`](cem-element-design.md).
+- [ ] Define the JS/WASM artifact wire format for Phase 3: structured-clone objects, JSON, transferable
+      `ArrayBuffer`/binary AST, or a hybrid. Document which shapes cross worker boundaries for template artifacts,
+      render plans, diagnostics, and source maps.
+- [ ] Define the patch transport contract: `PatchFrame`, `DomPatchOp`, `DomPatchPlan`, render sequence handling,
+      stale-frame dropping, abort/commit frames, and the host-neutral `PatchApplier` interface.
+- [x] Define the serializable processing boundary for UI/worker/edge/SSR hosts: `DataIslandSnapshot`, render-plan
+      identity, scope policy stamp, resolver identity, cache identity, patch-frame transport, and privacy rules for
+      data leaving the browser. Landed in [`cem-element-design.md` §4.2](cem-element-design.md).
+- [ ] Decide the initial worker-pool default: single worker first or small pool by scope policy. Document fallback
+      behavior when workers or `SharedArrayBuffer` are unavailable.
+- [ ] Define Phase 3 cache identity fields for template artifacts and render plans: source hash, URL/specifier,
+      resolver identity, scope policy stamp, `cem_ml` version, `cem_ql` version, and dev/prod source-map mode.
+- [ ] Set the accepted source-map fidelity for DOM-parsed inline XML/HTML parity templates where original browser
+      source bytes are unrecoverable.
+- [ ] Decide host runtime support packaging: internal module inside `@epa-wg/cem-elements` first, or separate
+      reusable package/module for `<custom-element>`, docs/playgrounds, tests, SSR, and edge hosts.
+- [ ] Decide Phase 3 edge/SSR scope: design-only boundary, verification fixtures, or hard runtime deliverable.
+- [ ] Decide the first edge render-state storage model if edge processing is in scope: content-addressed cache only,
+      revisioned KV/document records, or both.
+- [ ] Decide whether service-worker template/artifact registry is Phase 3 scope or deferred until after component
+      parity.
 - [ ] Migrate `@epa-wg/custom-element` from `~/aWork/custom-element/` into `packages/custom-element/`. Preserve
       published npm identity and history.
 - [ ] Scaffold `packages/cem-elements/` (new package). Wire `nx run cem-elements:build/test/lint`.

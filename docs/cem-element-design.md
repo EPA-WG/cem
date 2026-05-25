@@ -207,6 +207,99 @@ This makes these deployment modes valid without changing the declaration model:
   validates the instance data island and retained render-plan identity before taking
   over local event-to-data updates.
 
+### 4.2 Serializable processing boundary
+
+The UI adapter and processing layer communicate through serializable records. These
+records are the semantic contract; the concrete wire encoding (structured clone, JSON,
+binary AST buffers, or a hybrid) is a Phase 3 implementation decision.
+
+`DataIslandSnapshot` is the complete processing input for one produced custom element
+instance at one render sequence:
+
+```ts
+interface DataIslandSnapshot {
+  instanceId: string;
+  producedTag: string;
+  declarationTag: string;
+  templateArtifactId: string;
+  renderSeq: number;
+  dataRevision: string;
+  scopePolicyStamp: string;
+  privacyPolicyStamp: string;
+  hostAttributes: Record<string, string | boolean | null>;
+  dataset: Record<string, string>;
+  payload: SerializedPayload;
+  slices: Record<string, unknown>;
+  validationState: Record<string, unknown>;
+  eventPayloads: Record<string, unknown>;
+}
+```
+
+The snapshot MUST NOT contain live `Node`, `Event`, `Element`, `DocumentFragment`,
+function, class instance, or browser handle references. Payload content is serialized
+from the inert instance data-island `<template>` and normalized before it crosses the
+processing boundary. The UI adapter owns the conversion between live browser state and
+this snapshot.
+
+`RenderPlanIdentity` names a retained previous output that a worker, server, or edge
+host can diff against without receiving the live browser DOM:
+
+```ts
+interface RenderPlanIdentity {
+  renderPlanId: string;
+  instanceId: string;
+  templateArtifactId: string;
+  dataRevision: string;
+  renderSeq: number;
+  outputTarget: "light-dom";
+  scopePolicyStamp: string;
+  sourceMapMode: "dev" | "prod";
+}
+```
+
+The processing layer may retain the full render plan in WASM memory, worker memory,
+server memory, or a content-addressed cache. Hosts exchange the identity and only send
+the full plan when the cache/retained state is missing or policy-invalid.
+
+`scopePolicyStamp` is an opaque, deterministic identity for the effective scope policy
+that governed parsing, resource loading, render planning, privacy export, and patch
+generation. It MUST change when any of those effective rules change. Cache keys and
+render-plan identities MUST include it so artifacts created under one policy are not
+reused under another.
+
+Resolver and cache identity are part of the same boundary:
+
+- template artifacts are keyed by source/content hash, URL or specifier, resolver
+  identity, `cem_ml` version, `cem_ql` version, source-map mode, and
+  `scopePolicyStamp`;
+- render plans are keyed by template artifact identity, `dataRevision`,
+  `scopePolicyStamp`, output target, and render engine version;
+- URI resolution and module-map state are represented by identity stamps, not by live
+  resolver functions crossing the boundary.
+
+Data privacy is fail-closed. A `DataIslandSnapshot` MAY leave the browser only when the
+effective scope policy allows the relevant fields to be exported to the selected host.
+By default, snapshots are local-only. Sensitive fields, transient input composition,
+focus/selection state, raw browser events, credentials, and policy-denied payloads MUST
+remain in the UI adapter. Edge/server hosts receive redacted or omitted fields rather
+than implicit access.
+
+Patch transport uses internal frames, never browser DOM events:
+
+```ts
+type PatchFrame =
+  | { type: "begin"; instanceId: string; renderSeq: number }
+  | { type: "ops"; instanceId: string; renderSeq: number; ops: DomPatchOp[] }
+  | { type: "commit"; instanceId: string; renderSeq: number }
+  | { type: "abort"; instanceId: string; renderSeq: number; diagnostic: Diagnostic };
+```
+
+Frames are ordered per `{ instanceId, renderSeq }`. The UI adapter buffers frames until
+`commit`, drops stale frames whose `renderSeq` is older than the instance's current
+sequence, and applies committed patches synchronously during the next batched
+main-thread flush. Browser `EventTarget` / DOM `Event` dispatch is reserved for real
+user and browser events, not patch transport.
+
 ## 5. Data-island isolation guarantees
 
 The declaration `<template>` wrapper makes template source inert. The produced

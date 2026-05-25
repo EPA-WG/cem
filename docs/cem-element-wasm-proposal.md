@@ -215,7 +215,9 @@ Template artifacts should include:
 
 The implementation should insert a JS/TS host-runtime support layer between `cem_ml`
 and `cem-element`. This layer keeps the reusable browser/worker runtime separate from
-the custom-element authoring surface.
+the custom-element authoring surface. The normative serializable processing boundary is
+defined in [`cem-element-design.md` §4.2](./cem-element-design.md#42-serializable-processing-boundary);
+this proposal keeps the remaining transport and deployment tradeoffs.
 
 Responsibilities should split as follows:
 
@@ -638,8 +640,6 @@ Performance gates should measure:
   plus resolver identity, scope policy stamp, `cem_ml` version, and `cem_ql` version?
 - Does the host runtime support layer start as an internal package-private module or as
   a separately published package once `<custom-element>` begins consuming it?
-- What is the minimum serializable `DataIslandSnapshot` and `RenderPlan` identity shape
-  required for SSR and edge-processing hosts?
 - Which data-island fields are allowed to leave the browser for edge processing, and how
   is that policy expressed per scope?
 - Which storage model is supported first for edge render state: content-addressed cache
