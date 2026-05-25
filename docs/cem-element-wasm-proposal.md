@@ -693,8 +693,15 @@ Performance gates should measure:
   scope-policy worker pool is deferred to Phase 3B. `SharedArrayBuffer` is optional;
   threaded WASM falls back to non-threaded worker message passing and then to
   main-thread WASM if workers are unavailable.
-- Which cache identities are mandatory for Phase 3: source hash only, or source hash
-  plus resolver identity, scope policy stamp, `cem_ml` version, and `cem_ql` version?
+- ~~Which cache identities are mandatory for Phase 3: source hash only, or source hash
+  plus resolver identity, scope policy stamp, `cem_ml` version, and `cem_ql`
+  version?~~ Resolved: Phase 3 uses the two-level Option C identity from
+  [`cem-element-design.md` §4.2](./cem-element-design.md#42-serializable-processing-boundary).
+  `TemplateArtifactPayloadKey` identifies portable bytes by content type, source hash,
+  `cem_ml` version, `cem_ql` version, and dev/prod source-map mode.
+  `TemplateArtifactIdentity` adds source ref, resolver identity, and
+  `scopePolicyStamp` for host-specific use. Render plans are keyed by template
+  artifact identity, `RenderRevision`, render engine version, and source-map mode.
 - Does the host runtime support layer start as an internal package-private module or as
   a separately published package once `<custom-element>` begins consuming it?
 - Which data-island fields are allowed to leave the browser for edge processing, and how

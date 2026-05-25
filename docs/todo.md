@@ -49,8 +49,12 @@ Design home: [`cem-element-design.md`](cem-element-design.md). WASM proposal:
       or are unavailable. `SharedArrayBuffer` is optional; threaded WASM falls back to non-threaded worker message
       passing, then main-thread WASM. Landed in [`cem-element-design.md` §4.3](cem-element-design.md) and
       [`cem-element-wasm-proposal.md` §9/§14](cem-element-wasm-proposal.md).
-- [ ] Define Phase 3 cache identity fields for template artifacts and render plans: source hash, URL/specifier,
+- [x] Define Phase 3 cache identity fields for template artifacts and render plans: source hash, URL/specifier,
       resolver identity, scope policy stamp, `cem_ml` version, `cem_ql` version, and dev/prod source-map mode.
+      Resolved as the two-level Option C identity: portable `TemplateArtifactPayloadKey` plus host-specific
+      `TemplateArtifactIdentity`, with render plans keyed by template artifact identity, `RenderRevision`, render
+      engine version, and source-map mode. Landed in [`cem-element-design.md` §4.2](cem-element-design.md) and
+      [`cem-element-wasm-proposal.md` §14](cem-element-wasm-proposal.md).
 - [ ] Set the accepted source-map fidelity for DOM-parsed inline XML/HTML parity templates where original browser
       source bytes are unrecoverable.
 - [ ] Decide host runtime support packaging: internal module inside `@epa-wg/cem-elements` first, or separate

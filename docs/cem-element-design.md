@@ -386,16 +386,9 @@ worker/WASM memory: cache import/export, worker migration, build-pipeline prewar
 future service-worker/package artifact registry. The full template artifact MUST NOT be
 exposed as a deep structured-clone object.
 
-`RenderPlanIdentity` names a retained previous output that a worker, server, or edge
-host can diff against without receiving the live browser DOM:
-
-```ts
-interface RenderPlanIdentity {
-  renderPlanId: string;
-  revision: RenderRevision;
-  sourceMapMode: "dev" | "prod";
-}
-```
+`RenderPlanIdentity`, defined below with the cache identity fields, names a retained
+previous output that a worker, server, or edge host can diff against without receiving
+the live browser DOM.
 
 The processing layer may retain the full render plan in WASM memory, worker memory,
 server memory, or a content-addressed cache. Hosts exchange the identity and only send
@@ -411,15 +404,67 @@ generation. It MUST change when any of those effective rules change. Cache keys 
 render-plan identities MUST include it so artifacts created under one policy are not
 reused under another.
 
-Resolver and cache identity are part of the same boundary:
+Resolver and cache identity are part of the same boundary. URI resolution and
+module-map state are represented by identity stamps, not by live resolver functions
+crossing the boundary.
 
-- template artifacts are keyed by source/content hash, URL or specifier, resolver
-  identity, `cem_ml` version, `cem_ql` version, source-map mode, and
-  `scopePolicyStamp`;
-- render plans are keyed by template artifact identity, `RenderRevision`, source-map
-  mode, and render engine version;
-- URI resolution and module-map state are represented by identity stamps, not by live
-  resolver functions crossing the boundary.
+Phase 3 uses a two-level cache identity. The portable payload key identifies reusable
+artifact bytes. The load identity records how this host resolved and is allowed to use
+those bytes.
+
+```ts
+type SourceMapMode = "dev" | "prod";
+
+interface SourceRef {
+  kind: "inline" | "url" | "specifier" | "fragment";
+  value: string;
+}
+
+interface TemplateArtifactPayloadKey {
+  contentType: "cem-template-artifact";
+  sourceHash: ContentHash;
+  cemMlVersion: string;
+  cemQlVersion: string;
+  sourceMapMode: SourceMapMode;
+}
+
+interface TemplateArtifactIdentity {
+  artifactId: string;
+  payloadKey: TemplateArtifactPayloadKey;
+  sourceRef: SourceRef;
+  resolverIdentity: string;
+  scopePolicyStamp: string;
+}
+
+interface RenderPlanIdentity {
+  renderPlanId: string;
+  templateArtifactId: string;
+  revision: RenderRevision;
+  renderEngineVersion: string;
+  sourceMapMode: SourceMapMode;
+}
+```
+
+`sourceHash` is the CEM content hash for the canonical template source or compiled
+template payload, following the shared `CEM-Hash`/`cem-bin/1+blake3` transport model.
+`sourceRef` is provenance and invalidation context: it records the inline slot, URL,
+module-map specifier, or fragment that led to the source, but it is not the portable
+payload hash. Two source refs that resolve to identical canonical bytes may share the
+same `TemplateArtifactPayloadKey`, but they produce distinct `TemplateArtifactIdentity`
+values when resolver identity or scope policy differs.
+
+`resolverIdentity` is an opaque deterministic stamp for the effective module map,
+base-URL rules, URL policy, and fragment selection behavior. It MUST change when a
+specifier, URL, or fragment could resolve to different canonical source bytes.
+`scopePolicyStamp` MUST change when parsing, resource loading, query evaluation,
+privacy export, or patch-generation policy changes. A payload whose load identity does
+not match the active resolver and scope policy MUST NOT be reused for rendering, even
+when the payload hash matches.
+
+Render plans are keyed by template artifact identity plus `RenderRevision`, source-map
+mode, and render engine version. A render plan compiled from a matching payload under a
+different resolver identity or scope policy is not reusable unless a later migration
+defines an explicit policy-equivalence check.
 
 Data privacy is fail-closed. A `DataIslandSnapshot` MAY leave the browser only when the
 effective scope policy allows the relevant fields to be exported to the selected host.
