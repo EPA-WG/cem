@@ -409,6 +409,26 @@ The browser implementation can use two levels of parallelism:
 External resource streams use the I/O queue and do not occupy CPU slots. CPU-bound
 parse, validate, query compile, and render-plan work use the scope's worker-pool cap.
 
+Phase 3A starts with a **single dedicated worker** as the default worker-backed mode.
+The worker owns one WASM instance plus retained template artifacts and render plans.
+This proves the worker/stream/cache/patch contract without introducing pool scheduling
+or multi-worker artifact coherency. A scope-policy worker pool is deferred to Phase 3B
+and remains an optimization behind the same host runtime API.
+
+Fallback behavior is deterministic:
+
+- If `Worker` is unavailable, blocked by policy, or fails during startup, the host
+  runtime aborts pending worker jobs, emits a diagnostic, and retries through the
+  main-thread WASM fallback.
+- If `SharedArrayBuffer` is unavailable because the page is not cross-origin isolated
+  or the target lacks support, Phase 3A behavior does not change; the runtime uses the
+  non-threaded dedicated worker path.
+- If a later threaded-WASM mode is requested but `SharedArrayBuffer` is unavailable,
+  the runtime falls back to non-threaded worker message passing. If that worker path is
+  also unavailable, it falls back to main-thread WASM.
+- Main-thread fallback MUST preserve the same template, data, render-plan, diagnostic,
+  source-map, and patch-frame semantics as the worker path.
+
 ## 10. Options
 
 ### Option A - Main-Thread WASM, Inline-First MVP
@@ -667,8 +687,12 @@ Performance gates should measure:
   worker API.
 - Which source-map fidelity level is required for DOM-parsed inline HTML parity
   templates before material parity can pass?
-- Does the first worker-backed implementation run one worker or a small pool by
-  default?
+- ~~Does the first worker-backed implementation run one worker or a small pool by
+  default?~~ Resolved: Phase 3A uses one dedicated worker by default, with
+  main-thread WASM fallback when workers are unavailable or fail startup. A
+  scope-policy worker pool is deferred to Phase 3B. `SharedArrayBuffer` is optional;
+  threaded WASM falls back to non-threaded worker message passing and then to
+  main-thread WASM if workers are unavailable.
 - Which cache identities are mandatory for Phase 3: source hash only, or source hash
   plus resolver identity, scope policy stamp, `cem_ml` version, and `cem_ql` version?
 - Does the host runtime support layer start as an internal package-private module or as

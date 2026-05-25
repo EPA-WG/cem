@@ -43,8 +43,12 @@ Design home: [`cem-element-design.md`](cem-element-design.md). WASM proposal:
 - [x] Define the serializable processing boundary for UI/worker/edge/SSR hosts: `DataIslandSnapshot`, render-plan
       identity, scope policy stamp, resolver identity, cache identity, patch-frame transport, and privacy rules for
       data leaving the browser. Landed in [`cem-element-design.md` §4.2](cem-element-design.md).
-- [ ] Decide the initial worker-pool default: single worker first or small pool by scope policy. Document fallback
-      behavior when workers or `SharedArrayBuffer` are unavailable.
+- [x] Decide the initial worker-pool default: single worker first or small pool by scope policy. Document fallback
+      behavior when workers or `SharedArrayBuffer` are unavailable. Resolved as one dedicated worker by default for
+      Phase 3A, with scope-policy worker pools deferred to Phase 3B and main-thread WASM fallback when workers fail
+      or are unavailable. `SharedArrayBuffer` is optional; threaded WASM falls back to non-threaded worker message
+      passing, then main-thread WASM. Landed in [`cem-element-design.md` §4.3](cem-element-design.md) and
+      [`cem-element-wasm-proposal.md` §9/§14](cem-element-wasm-proposal.md).
 - [ ] Define Phase 3 cache identity fields for template artifacts and render plans: source hash, URL/specifier,
       resolver identity, scope policy stamp, `cem_ml` version, `cem_ql` version, and dev/prod source-map mode.
 - [ ] Set the accepted source-map fidelity for DOM-parsed inline XML/HTML parity templates where original browser
