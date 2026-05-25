@@ -282,7 +282,7 @@ store. The host can combine:
 - a template artifact or source URI;
 - a serialized `DataIslandSnapshot`;
 - a stored previous `RenderPlan` or virtual DOM snapshot;
-- scope policy, resolver identity, cache identity, and render sequence metadata.
+- scope policy, resolver identity, cache identity, and `RenderRevision` metadata.
 
 The edge worker can return rendered HTML for first paint, a fresh `RenderPlan`, or a
 patch-frame stream for the browser UI adapter to apply. A provider-adjacent KV/document
@@ -294,8 +294,8 @@ fragments, collaborative/shared state, and low-latency data-adjacent rendering. 
 not a universal replacement for local browser processing:
 
 - every update pays network latency and serialization cost;
-- edge data stores may be eventually consistent, so render sequences and data revisions
-  must be explicit;
+- edge data stores may be eventually consistent, so `RenderRevision` and data revision
+  identities must be explicit;
 - sensitive data-island contents require a clear policy before leaving the browser;
 - transient browser state such as focus, selection, in-progress text composition, and
   form control internals cannot be reconstructed reliably at the edge;
@@ -323,29 +323,41 @@ patch frames. The stream is an implementation protocol, not browser event dispat
 
 ```ts
 type PatchFrame =
-  | { type: "begin"; instanceId: string; renderSeq: number }
-  | { type: "ops"; instanceId: string; renderSeq: number; ops: DomPatchOp[] }
-  | { type: "commit"; instanceId: string; renderSeq: number }
-  | { type: "abort"; instanceId: string; renderSeq: number; diagnostic: Diagnostic };
+  | { type: "begin"; transactionId: string; revision: RenderRevision }
+  | { type: "ops"; transactionId: string; batchIndex: number; ops: DomPatchOp[] }
+  | { type: "commit"; transactionId: string; nextRenderPlan: RenderPlanIdentity }
+  | { type: "abort"; transactionId: string; diagnostic: Diagnostic };
 ```
 
 The default policy is **per-instance patch transactions with a batched main-thread
 flush**:
 
-- Each produced custom element instance owns its render sequence, previous render plan,
-  pending patch transaction, and target root.
+- Each produced custom element instance owns its latest requested `RenderRevision`,
+  previous render plan, pending patch transaction, and target root.
 - WASM/worker code may stream `ops` frames for large templates or return one complete
   `DomPatchPlan` for small components.
-- The main thread buffers frames by `{ instanceId, renderSeq }` until `commit`.
-- Stale frames whose `renderSeq` is older than the instance's current sequence are
-  dropped.
+- The main thread buffers frames by `transactionId` until `commit`.
+- Stale frames whose `revision` does not equal the instance's latest requested revision
+  are dropped.
+- `ops` frames carry zero-based `batchIndex` values; duplicate, missing, or
+  out-of-order batches abort the transaction.
 - `commit` makes the instance transaction ready for the next host flush; it does not
   require immediate DOM mutation.
-- The host flush batches ready instance transactions on a microtask or
-  `requestAnimationFrame` boundary, then applies each instance transaction
+- The host flush batches ready instance transactions on a host-selected microtask or
+  `requestAnimationFrame` policy boundary, then applies each instance transaction
   synchronously and atomically to browser DOM.
-- A failed transaction aborts only that instance's pending render unless an ancestor
-  scope policy explicitly escalates the failure.
+- Normal diffs target stable render-node ids. `replaceScope` is allowed only for first
+  render, fallback mode, explicit policy replacement, or recovery after target
+  mismatch.
+- A failed or mismatched transaction aborts only that instance's pending render unless
+  an ancestor scope policy explicitly escalates the failure. A target mismatch emits a
+  diagnostic and permits a `replaceScope` recovery transaction; individual failed ops
+  are not skipped.
+
+`DomPatchPlan` is the one-shot equivalent of `begin + ops + commit`. The host-neutral
+`PatchApplier` receives streamed frames or a one-shot plan, buffers until commit,
+returns `applied`, `stale`, `aborted`, or `mismatch`, and owns the target-root-specific
+node table used to map stable render-node ids to host DOM nodes.
 
 Browser `EventTarget` / DOM `Event` dispatch MUST NOT be used as the patch transport.
 Reasons:
@@ -607,7 +619,13 @@ The selected MVP should add fixtures for:
 - shared-memory unavailable fallback from threaded WASM to worker message passing;
 - patch-frame streaming for a large render and one-shot `DomPatchPlan` delivery for a
   small render;
-- per-instance patch transactions with stale `renderSeq` frame dropping;
+- per-instance patch transactions with stale `RenderRevision` frame dropping;
+- indexed `ops` batches rejecting duplicate, missing, or out-of-order frames;
+- `moveBefore` preserving DOM node identity across list reorders;
+- target mismatch aborting the transaction, emitting a diagnostic, and recovering
+  through constrained `replaceScope`;
+- assertion that normal data-island mutation uses render-node-id ops rather than
+  `replaceScope`;
 - batched main-thread flush across multiple ready instance transactions;
 - assertion that patch transport uses internal worker/stream/message frames and never
   browser `EventTarget` / DOM `Event` dispatch;

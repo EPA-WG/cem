@@ -34,8 +34,12 @@ Design home: [`cem-element-design.md`](cem-element-design.md). WASM proposal:
       render plans, diagnostics, and source maps. Resolved as the hybrid Option D format designed for later Option C
       binary payload migration. Landed in [`cem-element-design.md` §4.2](cem-element-design.md) and
       [`cem-element-wasm-proposal.md` §14](cem-element-wasm-proposal.md).
-- [ ] Define the patch transport contract: `PatchFrame`, `DomPatchOp`, `DomPatchPlan`, render sequence handling,
-      stale-frame dropping, abort/commit frames, and the host-neutral `PatchApplier` interface.
+- [x] Define the patch transport contract: `PatchFrame`, `DomPatchOp`, `DomPatchPlan`, render sequence handling,
+      stale-frame dropping, abort/commit frames, and the host-neutral `PatchApplier` interface. Resolved with
+      `RenderRevision` ordering, stable render-node-id ops, constrained `replaceScope` fallback, buffered
+      transactions, indexed op batches, and a host-neutral `PatchApplier`. Landed in
+      [`cem-element-design.md` §4.2](cem-element-design.md) and
+      [`cem-element-wasm-proposal.md` §8](cem-element-wasm-proposal.md).
 - [x] Define the serializable processing boundary for UI/worker/edge/SSR hosts: `DataIslandSnapshot`, render-plan
       identity, scope policy stamp, resolver identity, cache identity, patch-frame transport, and privacy rules for
       data leaving the browser. Landed in [`cem-element-design.md` §4.2](cem-element-design.md).

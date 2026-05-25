@@ -265,16 +265,26 @@ records are the semantic contract. The concrete Phase 3 wire encoding is the hyb
 format selected below.
 
 `DataIslandSnapshot` is the complete processing input for one produced custom element
-instance at one render sequence:
+instance at one render revision:
 
 ```ts
+interface RenderRevision {
+  instanceId: string;
+  dataRevision: string;
+  templateArtifactId: string;
+  scopePolicyStamp: string;
+  outputTarget: "light-dom";
+  renderAttempt?: number;
+}
+
 interface DataIslandSnapshot {
   instanceId: string;
   producedTag: string;
   declarationTag: string;
   templateArtifactId: string;
-  renderSeq: number;
   dataRevision: string;
+  outputTarget: "light-dom";
+  renderAttempt?: number;
   scopePolicyStamp: string;
   privacyPolicyStamp: string;
   hostAttributes: Record<string, string | boolean | null>;
@@ -291,6 +301,12 @@ function, class instance, or browser handle references. Payload content is seria
 from the inert instance data-island `<template>` and normalized before it crosses the
 processing boundary. The UI adapter owns the conversion between live browser state and
 this snapshot.
+
+The render revision for a snapshot is the tuple `{ instanceId, dataRevision,
+templateArtifactId, scopePolicyStamp, outputTarget, renderAttempt? }`. The UI adapter
+owns the latest requested revision for each instance and workers echo that revision in
+render plans and patch frames. `renderAttempt` is used only for retries of the same
+data/template/policy revision; it is not the primary ordering model.
 
 #### Phase 3 wire encoding decision
 
@@ -376,12 +392,7 @@ host can diff against without receiving the live browser DOM:
 ```ts
 interface RenderPlanIdentity {
   renderPlanId: string;
-  instanceId: string;
-  templateArtifactId: string;
-  dataRevision: string;
-  renderSeq: number;
-  outputTarget: "light-dom";
-  scopePolicyStamp: string;
+  revision: RenderRevision;
   sourceMapMode: "dev" | "prod";
 }
 ```
@@ -405,8 +416,8 @@ Resolver and cache identity are part of the same boundary:
 - template artifacts are keyed by source/content hash, URL or specifier, resolver
   identity, `cem_ml` version, `cem_ql` version, source-map mode, and
   `scopePolicyStamp`;
-- render plans are keyed by template artifact identity, `dataRevision`,
-  `scopePolicyStamp`, output target, and render engine version;
+- render plans are keyed by template artifact identity, `RenderRevision`, source-map
+  mode, and render engine version;
 - URI resolution and module-map state are represented by identity stamps, not by live
   resolver functions crossing the boundary.
 
@@ -417,24 +428,114 @@ focus/selection state, raw browser events, credentials, and policy-denied payloa
 remain in the UI adapter. Edge/server hosts receive redacted or omitted fields rather
 than implicit access.
 
-Patch transport uses internal frames, never browser DOM events:
+Patch transport uses internal frames, never browser DOM events. The normative Phase 3
+contract is stable render-node-id patching with a constrained scope-replacement
+fallback. Normal diffs target `renderNodeId` values from the retained render plan.
+`replaceScope` is allowed only for first render, fallback mode, explicit policy
+replacement, or recovery after a target mismatch.
 
 ```ts
+type DomPatchTarget = { kind: "render-node"; id: string };
+
+type PatchNodePayload =
+  | { encoding: "structured-node-v1"; node: SerializedNode }
+  | { encoding: "binary-node-v1"; formatVersion: string; bytes: ArrayBuffer };
+
+interface SerializedNode {
+  renderNodeId: string;
+  kind: "element" | "text" | "comment";
+  tagName?: string;
+  text?: string;
+  attributes?: Record<string, string>;
+  children?: SerializedNode[];
+  sourceMapRef?: SourceMapRef;
+}
+
+type DomPatchOp =
+  | {
+      op: "insertBefore";
+      parent: DomPatchTarget;
+      before?: DomPatchTarget;
+      node: PatchNodePayload;
+    }
+  | { op: "remove"; target: DomPatchTarget }
+  | { op: "replace"; target: DomPatchTarget; node: PatchNodePayload }
+  | {
+      op: "moveBefore";
+      target: DomPatchTarget;
+      parent: DomPatchTarget;
+      before?: DomPatchTarget;
+    }
+  | { op: "setText"; target: DomPatchTarget; value: string }
+  | {
+      op: "setAttribute";
+      target: DomPatchTarget;
+      name: string;
+      value: string | null;
+    }
+  | {
+      op: "replaceScope";
+      scopeId: string;
+      node: PatchNodePayload;
+      reason: "first-render" | "fallback" | "policy" | "recovery";
+    };
+
 type PatchFrame =
-  | { type: "begin"; instanceId: string; renderSeq: number }
-  | { type: "ops"; instanceId: string; renderSeq: number; ops: DomPatchOp[] }
-  | { type: "commit"; instanceId: string; renderSeq: number }
-  | { type: "abort"; instanceId: string; renderSeq: number; diagnostic: Diagnostic };
+  | { type: "begin"; transactionId: string; revision: RenderRevision }
+  | { type: "ops"; transactionId: string; batchIndex: number; ops: DomPatchOp[] }
+  | { type: "commit"; transactionId: string; nextRenderPlan: RenderPlanIdentity }
+  | { type: "abort"; transactionId: string; diagnostic: Diagnostic };
+
+interface DomPatchPlan {
+  transactionId: string;
+  revision: RenderRevision;
+  ops: DomPatchOp[];
+  nextRenderPlan: RenderPlanIdentity;
+}
+
+type PatchApplyResult =
+  | { status: "applied"; transactionId: string; revision: RenderRevision }
+  | { status: "stale"; transactionId: string; latestRevision: RenderRevision }
+  | { status: "aborted"; transactionId: string; diagnostic: Diagnostic }
+  | { status: "mismatch"; transactionId: string; diagnostic: Diagnostic };
+
+interface PatchApplier<TTargetRoot> {
+  begin(
+    frame: Extract<PatchFrame, { type: "begin" }>,
+    root: TTargetRoot
+  ): PatchApplyResult;
+  append(frame: Extract<PatchFrame, { type: "ops" }>): PatchApplyResult;
+  commit(frame: Extract<PatchFrame, { type: "commit" }>): PatchApplyResult;
+  abort(frame: Extract<PatchFrame, { type: "abort" }>): PatchApplyResult;
+  applyPlan(plan: DomPatchPlan, root: TTargetRoot): PatchApplyResult;
+}
 ```
 
-Frames are ordered per `{ instanceId, renderSeq }`. The UI adapter buffers frames until
-`commit`, drops stale frames whose `renderSeq` is older than the instance's current
-sequence, and applies committed patches synchronously during the next batched
-main-thread flush. Browser `EventTarget` / DOM `Event` dispatch is reserved for real
-user and browser events, not patch transport.
-Phase 3 sends small `DomPatchOp[]` batches as structured-clone records. Large batches
-MAY later replace the `ops` payload with a transferable binary patch-op section while
-preserving the same `begin` / `ops` / `commit` / `abort` frame lifecycle.
+`DomPatchPlan` is the one-shot equivalent of `begin + ops + commit`. Streamed `ops`
+frames carry zero-based `batchIndex` values; duplicate, missing, or out-of-order
+batches abort the transaction. The UI adapter buffers frames until `commit`, drops a
+transaction as stale when its `revision` does not equal the latest requested revision
+for that instance, and applies committed transactions synchronously and atomically
+during the next host-scheduled main-thread flush.
+
+`transactionId` is unique per render attempt. `insertBefore` and `moveBefore` append
+when `before` is omitted. `setAttribute` with `value: null` removes the attribute.
+`replace` preserves the target's parent position while replacing the target subtree.
+`replaceScope` replaces the rendered subtree for `scopeId` and MUST NOT be emitted for
+normal data-island mutation once fine-grained render-node-id diffing can represent the
+change.
+
+`PatchApplier` is host-neutral. A browser implementation owns the target root, the
+`renderNodeId -> Node` table, focus/selection preservation, and DOM mutation. It MUST
+not mutate DOM before `commit`; for `begin` and `append`, an `applied` result means
+accepted into the pending transaction buffer. If a target cannot be found or validated,
+it returns `mismatch`, emits a diagnostic, aborts that transaction, and requests or
+permits a `replaceScope` recovery transaction. Failed ops are not skipped.
+
+Phase 3 sends small `DomPatchOp[]` batches and `structured-node-v1` payloads as
+structured-clone records. Large batches MAY later replace node or op payloads with
+transferable binary sections while preserving the same `PatchFrame`, `DomPatchPlan`,
+and `PatchApplier` lifecycle.
 
 ### 4.3 Phase 3 MVP topology
 
