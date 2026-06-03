@@ -2,5 +2,38 @@
     "name": "cem-elements",
     "$schema": "../../node_modules/nx/schemas/project-schema.json",
     "sourceRoot": "packages/cem-elements/src",
-    "projectType": "library"
+    "projectType": "library",
+    "targets": {
+        "storybook": {
+            "executor": "nx:run-commands",
+            "options": {
+                "command": "yarn storybook dev --config-dir packages/cem-elements/.storybook --host 127.0.0.1 --port 4400 --no-open",
+                "cwd": "{workspaceRoot}"
+            }
+        },
+        "build-storybook": {
+            "executor": "nx:run-commands",
+            "outputs": ["{projectRoot}/storybook-static"],
+            "options": {
+                "command": "yarn storybook build --config-dir packages/cem-elements/.storybook --output-dir packages/cem-elements/storybook-static",
+                "cwd": "{workspaceRoot}"
+            }
+        },
+        "test": {
+            "executor": "nx:run-commands",
+            "options": {
+                "command": "yarn vitest --config packages/cem-elements/vitest.config.mts --project=storybook --run",
+                "cwd": "{workspaceRoot}"
+            },
+            "inputs": [
+                "{projectRoot}/.storybook/**/*",
+                "{projectRoot}/src/**/*.ts",
+                "{projectRoot}/vitest.config.mts",
+                "{projectRoot}/package.json",
+                "{workspaceRoot}/package.json",
+                "{workspaceRoot}/yarn.lock"
+            ],
+            "outputs": []
+        }
+    }
 }

@@ -6,6 +6,7 @@
         "tsBuildInfoFile": "dist/tsconfig.lib.tsbuildinfo",
         "emitDeclarationOnly": false,
         "forceConsistentCasingInFileNames": true,
+        "lib": ["es2022", "dom", "dom.iterable"],
         "types": ["node"]
     },
     "include": ["src/**/*.ts"],
@@ -22,6 +23,10 @@
         "src/**/*.test.js",
         "src/**/*.spec.js",
         "src/**/*.test.jsx",
-        "src/**/*.spec.jsx"
+        "src/**/*.spec.jsx",
+        "src/**/*.stories.ts",
+        "src/**/*.stories.tsx",
+        "src/**/*.stories.js",
+        "src/**/*.stories.jsx"
     ]
 }

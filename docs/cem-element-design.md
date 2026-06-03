@@ -737,10 +737,26 @@ which substrate hosts them and remain authoritative.
 `@epa-wg/cem-elements` is **production-ready** (and the bridge window closes) only
 when **all** of the following hold:
 
-1. **Functional parity with `<custom-element>`.** Every public behavior the POC
-   documents (`~/aWork/custom-element/docs/attributes.md`,
-   `~/aWork/custom-element/docs/rendering.md`) reproduces under `<cem-element>` with
-   a one-to-one fixture in `packages/cem-elements/tests/parity/legacy/`.
+Storybook is the primary browser/runtime verification surface for Phase 3. Runtime
+stories under `packages/cem-elements/` are executable fixtures: each story presents a
+declaration, produced instances, data-island state, rendered light DOM, and focused
+interaction or mutation scenario. CI runs those stories through Storybook Test
+(`@storybook/addon-vitest`) in browser mode, with assertions for DOM output,
+accessibility, events, focus/form behavior, and data-island isolation. Vitest remains
+available for pure helper tests, but browser behavior is accepted or rejected through
+Storybook.
+
+The old `@epa-wg/custom-element` suite is a parity source, not the primary runner. Its
+tests and docs (`~/aWork/custom-element/docs/attributes.md`,
+`~/aWork/custom-element/docs/rendering.md`, and the legacy test files) are mined into
+a functional feature inventory. Each legacy behavior that remains in scope becomes a
+named Storybook parity story for `<cem-element>` with equivalent assertions. Behaviors
+that are intentionally replaced by CEM-ML/CEM-QL are recorded as migration decisions,
+not silently dropped.
+
+1. **Functional parity with `<custom-element>`.** Every in-scope public behavior from
+   the old `<custom-element>` functional suite and docs reproduces under
+   `<cem-element>` with a one-to-one Storybook parity story.
 2. **Template and data-island isolation.** Fixtures assert that declaration template
    source and instance data-island contents are backed by `<template>` content. Raw
    declaration or data-island descendants do not render, match document selectors,
@@ -749,10 +765,10 @@ when **all** of the following hold:
 3. **Material parity.** Every component in
    `~/aWork/custom-element-dist/src/material/` — `action.html`, `autocomplete.html`,
    `badge.html`, `dropdown.html`, `icon.html`, `icon-link.html`, `input.html`,
-   `menu.html` — is rebuilt under `<cem-element>` with a paired fixture in
-   `packages/cem-elements/tests/parity/material/`. The rendered DOM, accessibility
-   tree, and keyboard behavior match the legacy versions on a documented browser
-   matrix. The fixture set MUST cover local/external `src`, hidden declarations,
+   `menu.html` — is rebuilt under `<cem-element>` with paired Storybook material
+   parity stories. The rendered DOM, accessibility tree, and keyboard behavior match
+   the legacy versions on a documented browser matrix. The story set MUST cover
+   local/external `src`, hidden declarations,
    nested components, declarative slot projection, inline styles scoped to the host,
    `attribute select`, `if`/`choose` bridge constructs, namespaced `xhtml:*`
    elements, boolean attribute helper semantics, `module-url` resource slices,

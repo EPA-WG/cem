@@ -78,16 +78,28 @@ Design home: [`cem-element-design.md`](cem-element-design.md). WASM proposal:
       until after component parity. Landed in [`cem-element-design.md` §4.2](cem-element-design.md) and
       [`cem-element-wasm-proposal.md` §10/§11/§13/§14](cem-element-wasm-proposal.md).
 - [x] Scaffold `packages/cem-elements/` (new package). Wire `nx run cem-elements:build/test/lint`.
-- [ ] Implement the `<cem-element>` runtime: declaration `<template>` discovery, per-instance
-      `<template data-cem-island="instance">` capture, cem-ml lowering, data-island event wiring, light-DOM render
-      loop, source-map carry-through.
-- [ ] Add browser fixtures proving data-island isolation: declaration and instance template contents do not affect
-      layout, selectors, form submission, accessibility, or visible UI directly.
-- [ ] Land legacy parity fixtures under `packages/cem-elements/tests/parity/legacy/` covering every behavior in
-      `~/aWork/custom-element/docs/{attributes,rendering}.md`.
-- [ ] Land material parity fixtures under `packages/cem-elements/tests/parity/material/` for every component in
-      `~/aWork/custom-element-dist/src/material/` (action, autocomplete, badge, dropdown, icon, icon-link, input,
-      menu).
+- [ ] Implement the `<cem-element>` runtime in execution slices from
+      [`cem-element-design.md` §3–§5](cem-element-design.md):
+  - [x] Runtime slice A: define `<cem-element>`, validate inline declaration shape, reject `src`+inline template
+        conflicts, and register produced custom-element tags from `tag`.
+  - [x] Runtime slice B: initialize produced instances, create/reuse
+        `<template data-cem-island="instance">`, capture host attributes/dataset/fallback payload, and remove raw
+        fallback payload before first render.
+  - [ ] Runtime slice C: lower inline CEM-ML/XML/HTML declaration templates through the available parser/projection
+        boundary and install a minimal light-DOM render loop.
+  - [ ] Runtime slice D: wire attribute changes and declarative data-island/event updates to render invalidation.
+  - [ ] Runtime slice E: carry source-map/render identity metadata through rendered nodes and expose diagnostics for
+        declaration, parsing, and render failures.
+- [x] Add Storybook as the primary browser/runtime test runner for `packages/cem-elements`, with Nx targets for
+      interactive Storybook and CI Storybook Test execution through `@storybook/addon-vitest`.
+- [ ] Add Storybook browser stories proving data-island isolation: declaration and instance template contents do not
+      affect layout, selectors, form submission, accessibility, or visible UI directly.
+- [ ] Build the legacy parity feature inventory from the old `@epa-wg/custom-element` suite and docs
+      (`~/aWork/custom-element/docs/{attributes,rendering}.md` plus legacy test files). Convert every in-scope
+      behavior into a named `<cem-element>` Storybook parity story; record intentional CEM-ML/CEM-QL replacements as
+      migration decisions.
+- [ ] Land material parity stories for every component in `~/aWork/custom-element-dist/src/material/` (action,
+      autocomplete, badge, dropdown, icon, icon-link, input, menu).
 - [ ] Build a material parity inventory from `~/aWork/custom-element-dist/src/material/components/*.html` covering
       local/external `src`, hidden declarations, nested custom elements, declarative slots, scoped styles,
       `attribute select`, `if`/`choose` bridge constructs, namespaced `xhtml:*` elements, boolean attribute helper

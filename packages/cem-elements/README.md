@@ -6,6 +6,8 @@ This library was generated with [Nx](https://nx.dev).
 
 Run `yarn nx run cem-elements:build` to build the library.
 
-## Running unit tests
+## Running tests
 
-Run `yarn nx run cem-elements:test` to execute the unit tests via [Vitest](https://vitest.dev/).
+Run `yarn nx run cem-elements:test` to execute the runtime stories through Storybook Test.
+
+Run `yarn nx run cem-elements:storybook` to open the interactive Storybook runtime fixture surface.

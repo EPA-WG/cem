@@ -672,7 +672,17 @@ lifecycle, event-to-data wiring, invalidation model, and light-DOM patching path
 
 ## 13. Verification Gates
 
-The selected MVP should add fixtures for:
+The selected MVP should add Storybook stories as the primary browser fixtures. Each
+story is an executable verification case for Storybook Test and may include
+browser assertions over rendered DOM, data-island templates, event writes, focus/form
+behavior, source-map metadata, and diagnostics. Pure Rust/TypeScript unit tests can
+cover helpers and serialization, but user-visible runtime behavior is accepted through
+Storybook. The old `@epa-wg/custom-element` test suite is used to build the parity
+feature inventory: every in-scope legacy behavior becomes a named Storybook parity
+story, while intentional CEM-ML/CEM-QL replacements are documented as migration
+decisions.
+
+The selected MVP should add Storybook verification cases for:
 
 - inline `type="text/cem-ml"` declaration template compiling through WASM;
 - inline XML/HTML parity declaration template with documented source-map limitations;
