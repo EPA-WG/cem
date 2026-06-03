@@ -4,9 +4,18 @@ import {
     analyzeDeclarationShape,
     cemElements,
     isValidCustomElementName,
+    type CemElementDiagnostic,
     type DataIslandSnapshot,
 } from './cem-elements.js';
-import { projectTemplate, readTemplateSource, type TemplateSourceNode } from './projection.js';
+import {
+    materializeRenderPlan,
+    projectTemplate,
+    readTemplateSource,
+    type RenderPlan,
+    type RenderPlanNode,
+    type TemplateSourceNode,
+} from './projection.js';
+import { parseCemMlTemplateSource } from './runtime-support/cem-ml-template.js';
 
 const meta: Meta = {
     title: 'CEM Elements/Runtime',
@@ -465,6 +474,447 @@ export const SliceEventInvalidationRerenders: Story = {
     },
 };
 
+// ---------------------------------------------------------------------------
+// Runtime slice E — source-map / render identity metadata + diagnostics surface.
+// ---------------------------------------------------------------------------
+
+export const RenderMetadataPropagatesToNestedDomNodes: Story = {
+    render: () =>
+        renderInstanceStory({
+            declarationTag: 'cem-element-story-meta-dom',
+            producedTag: 'story-meta-card',
+            ariaLabel: 'render metadata propagation story',
+            innerHTML:
+                '<attribute name="label">Hi</attribute>' +
+                '<section class="card"><button type="button"><span>${$label}</span></button></section>',
+            attributes: { label: 'Tokens' },
+        }),
+    play: async ({ canvasElement }) => {
+        await nextFrame();
+
+        const instance = requiredElement(canvasElement, 'story-meta-card');
+        const section = requiredElement(instance, 'section.card');
+        const button = requiredElement(instance, 'button');
+        const span = requiredElement(instance, 'span');
+
+        const artifactId = section.getAttribute('data-cem-template-artifact-id');
+        assert(artifactId !== null && artifactId.length > 0, 'rendered nodes carry a template artifact id');
+
+        assertEqual(
+            section.getAttribute('data-cem-render-node-id'),
+            'story-meta-card-1',
+            'root render-node id is deterministic and producedTag-scoped'
+        );
+        assertEqual(
+            button.getAttribute('data-cem-render-node-id'),
+            'story-meta-card-2',
+            'nested render-node ids increment in pre-order'
+        );
+        assertEqual(
+            span.getAttribute('data-cem-render-node-id'),
+            'story-meta-card-3',
+            'deepest render-node id continues the sequence'
+        );
+
+        for (const el of [section, button, span]) {
+            assertEqual(
+                el.getAttribute('data-cem-template-artifact-id'),
+                artifactId,
+                'every rendered node shares the declaration artifact id'
+            );
+            assertEqual(el.getAttribute('data-cem-data-revision'), '1', 'every rendered node carries the first data revision');
+            assertEqual(
+                el.getAttribute('data-cem-source-fidelity'),
+                'dom-canonical',
+                'DOM parity nodes mark dom-canonical fidelity'
+            );
+        }
+
+        assertEqual(section.getAttribute('data-cem-source-frame'), 'dom:1', 'root frame follows declaration child order');
+        assertEqual(button.getAttribute('data-cem-source-frame'), 'dom:1/0', 'nested frame extends the parent frame');
+        assertEqual(span.getAttribute('data-cem-source-frame'), 'dom:1/0/0', 'deepest frame extends the full path');
+
+        assertEqual(span.textContent, 'Tokens', 'interpolated leaf still renders content alongside metadata');
+    },
+};
+
+export const RenderMetadataAdvancesDataRevisionOnRerender: Story = {
+    render: () =>
+        renderInstanceStory({
+            declarationTag: 'cem-element-story-meta-revision',
+            producedTag: 'story-meta-revision',
+            ariaLabel: 'render metadata revision story',
+            innerHTML: '<attribute name="label">Save</attribute><button type="button">${$label}</button>',
+        }),
+    play: async ({ canvasElement }) => {
+        await nextFrame();
+
+        const instance = requiredElement(canvasElement, 'story-meta-revision');
+        const first = requiredElement(instance, 'button');
+        const nodeId = first.getAttribute('data-cem-render-node-id');
+        const frame = first.getAttribute('data-cem-source-frame');
+        assertEqual(first.getAttribute('data-cem-data-revision'), '1', 'first render carries data revision 1');
+
+        instance.setAttribute('label', 'Updated');
+        await nextFrame();
+
+        const second = requiredElement(instance, 'button');
+        assertEqual(second.getAttribute('data-cem-data-revision'), '2', 'rerender advances the data revision');
+        assertEqual(
+            second.getAttribute('data-cem-render-node-id'),
+            nodeId,
+            'render-node identity stays stable across rerenders'
+        );
+        assertEqual(second.getAttribute('data-cem-source-frame'), frame, 'source frame stays stable across rerenders');
+
+        instance.setAttribute('label', 'Third');
+        await nextFrame();
+        assertEqual(
+            requiredElement(instance, 'button').getAttribute('data-cem-data-revision'),
+            '3',
+            'each invalidation advances the data revision'
+        );
+    },
+};
+
+export const CemMlRenderMetadataCarriesAuthorByteFrames: Story = {
+    render: () =>
+        renderInstanceStory({
+            declarationTag: 'cem-element-story-meta-cem',
+            producedTag: 'story-meta-cem',
+            ariaLabel: 'CEM-ML render metadata story',
+            type: 'text/cem-ml',
+            text: '{section @class=card | {button @type=button | ${$label}}}',
+            attributes: { label: 'Submit' },
+        }),
+    play: async ({ canvasElement }) => {
+        await nextFrame();
+
+        const instance = requiredElement(canvasElement, 'story-meta-cem');
+        const section = requiredElement(instance, 'section');
+        const button = requiredElement(instance, 'button');
+
+        for (const el of [section, button]) {
+            assert(el.hasAttribute('data-cem-render-node-id'), 'CEM-ML nodes carry render-node identity');
+            assert(el.hasAttribute('data-cem-template-artifact-id'), 'CEM-ML nodes carry template artifact identity');
+            assertEqual(el.getAttribute('data-cem-data-revision'), '1', 'CEM-ML nodes carry data revision');
+            assertEqual(
+                el.getAttribute('data-cem-source-fidelity'),
+                'author-byte-exact',
+                'raw-text CEM-ML subset nodes mark author-byte-exact fidelity'
+            );
+        }
+
+        assertEqual(section.getAttribute('data-cem-source-frame'), 'cem:0', 'CEM-ML root frame is the source byte offset');
+        const buttonFrame = button.getAttribute('data-cem-source-frame') ?? '';
+        assert(/^cem:\d+$/.test(buttonFrame), 'CEM-ML nested frame is a source byte offset');
+        assert(buttonFrame !== 'cem:0', 'nested CEM-ML frame differs from the root offset');
+
+        assertEqual(
+            section.getAttribute('data-cem-render-node-id'),
+            'story-meta-cem-1',
+            'CEM-ML render-node ids are deterministic'
+        );
+        assertEqual(
+            button.getAttribute('data-cem-render-node-id'),
+            'story-meta-cem-2',
+            'CEM-ML nested render-node ids increment'
+        );
+        assertEqual(button.textContent?.trim(), 'Submit', 'CEM-ML leaf interpolation renders alongside metadata');
+    },
+};
+
+export const TemplateArtifactIdentityIsStablePerDeclaration: Story = {
+    render: () => {
+        const root = document.createElement('section');
+        root.setAttribute('aria-label', 'template artifact identity story');
+
+        registerInlineDeclaration({
+            declarationTag: 'cem-element-story-artifact-a',
+            producedTag: 'story-artifact-a',
+            innerHTML: '<button type="button">A</button>',
+        });
+        registerInlineDeclaration({
+            declarationTag: 'cem-element-story-artifact-b',
+            producedTag: 'story-artifact-b',
+            innerHTML: '<button type="button">B</button>',
+        });
+
+        root.append(
+            document.createElement('story-artifact-a'),
+            document.createElement('story-artifact-a'),
+            document.createElement('story-artifact-b')
+        );
+        return root;
+    },
+    play: async ({ canvasElement }) => {
+        await nextFrame();
+
+        const aInstances = Array.from(canvasElement.querySelectorAll('story-artifact-a'));
+        assertEqual(aInstances.length, 2, 'both instances of the shared declaration mount');
+        const a1 = requiredElement(aInstances[0], 'button');
+        const a2 = requiredElement(aInstances[1], 'button');
+        const b = requiredElement(requiredElement(canvasElement, 'story-artifact-b'), 'button');
+
+        const a1Id = a1.getAttribute('data-cem-template-artifact-id');
+        const a2Id = a2.getAttribute('data-cem-template-artifact-id');
+        const bId = b.getAttribute('data-cem-template-artifact-id');
+        assert(a1Id !== null && a2Id !== null && bId !== null, 'all rendered buttons carry an artifact id');
+
+        assertEqual(a1Id, a2Id, 'instances of one declaration share its template artifact identity');
+        assert(a1Id !== bId, 'distinct declarations get distinct template artifact identities');
+        assertEqual(
+            a1.getAttribute('data-cem-render-node-id'),
+            a2.getAttribute('data-cem-render-node-id'),
+            'render-node ids are template-scoped and identical across instances'
+        );
+    },
+};
+
+export const RenderPlanMaterializationCarriesSourceMetadata: Story = {
+    render: () => storyPanel('Materialize metadata', 'render plan nodes → light DOM with identity attributes'),
+    play: () => {
+        const plan: RenderPlan = {
+            producedTag: 'cem-mat',
+            instanceId: 'mat-instance-1',
+            templateArtifactId: 'mat-artifact-7',
+            dataRevision: '7',
+            outputTarget: 'light-dom',
+            scopePolicyStamp: 'mat-scope',
+            nodes: [
+                {
+                    kind: 'element',
+                    namespace: null,
+                    tag: 'button',
+                    attributes: [{ name: 'type', value: 'button' }],
+                    renderNodeId: 'cem-mat-1',
+                    children: [{ kind: 'text', text: 'Save' }],
+                    sourceMapRef: { fidelity: 'declaration-only', frame: 'decl:0' },
+                },
+                {
+                    kind: 'element',
+                    namespace: null,
+                    tag: 'span',
+                    attributes: [],
+                    renderNodeId: 'cem-mat-2',
+                    children: [],
+                },
+            ],
+        };
+
+        const fragment = materializeRenderPlan(plan, document);
+        const button = fragment.querySelector('button');
+        const span = fragment.querySelector('span');
+        assert(button !== null && span !== null, 'plan elements materialize into light DOM');
+
+        assertEqual(button.getAttribute('data-cem-render-node-id'), 'cem-mat-1', 'render-node id is written from the plan');
+        assertEqual(
+            button.getAttribute('data-cem-template-artifact-id'),
+            'mat-artifact-7',
+            'template artifact id is written from the plan'
+        );
+        assertEqual(button.getAttribute('data-cem-data-revision'), '7', 'data revision is written from the plan');
+        assertEqual(
+            button.getAttribute('data-cem-source-fidelity'),
+            'declaration-only',
+            'the declaration-only fidelity marker is carried verbatim'
+        );
+        assertEqual(button.getAttribute('data-cem-source-frame'), 'decl:0', 'source frame is carried verbatim');
+        assertEqual(button.getAttribute('type'), 'button', 'authored attributes survive alongside metadata');
+        assertEqual(button.textContent, 'Save', 'text children materialize');
+
+        assert(span.hasAttribute('data-cem-render-node-id'), 'nodes without a source map still carry render identity');
+        assert(!span.hasAttribute('data-cem-source-fidelity'), 'nodes without a source map omit fidelity metadata');
+        assert(!span.hasAttribute('data-cem-source-frame'), 'nodes without a source map omit frame metadata');
+    },
+};
+
+export const RenderNodeIdentityIsDeterministic: Story = {
+    render: () => storyPanel('Deterministic identity', 'repeated projection yields identical render-node ids'),
+    play: () => {
+        const source: TemplateSourceNode[] = [
+            {
+                kind: 'element',
+                namespace: null,
+                tag: 'ul',
+                attributes: [],
+                children: [
+                    { kind: 'element', namespace: null, tag: 'li', attributes: [], children: [] },
+                    { kind: 'element', namespace: null, tag: 'li', attributes: [], children: [] },
+                ],
+            },
+        ];
+        const snapshot = projectionSnapshot('cem-list', {});
+        const first = projectTemplate(source, { snapshot, values: {} });
+        const second = projectTemplate(source, { snapshot, values: {} });
+
+        const collectIds = (plan: RenderPlan): string[] => {
+            const ids: string[] = [];
+            const walk = (node: RenderPlanNode): void => {
+                if (node.kind === 'element') {
+                    ids.push(node.renderNodeId);
+                    node.children.forEach(walk);
+                }
+            };
+            plan.nodes.forEach(walk);
+            return ids;
+        };
+
+        const firstIds = collectIds(first);
+        assertEqual(
+            firstIds.join(','),
+            'cem-list-1,cem-list-2,cem-list-3',
+            'render-node ids follow a deterministic pre-order sequence'
+        );
+        assertEqual(collectIds(second).join(','), firstIds.join(','), 'identical source projects to identical render-node ids');
+        assertEqual(new Set(firstIds).size, firstIds.length, 'render-node ids are unique within a plan');
+    },
+};
+
+export const DeclarationDiagnosticsAreExposed: Story = {
+    render: () => storyPanel('Declaration diagnostics', 'invalid declaration shapes surface through diagnosticsFor'),
+    play: () => {
+        const runtime = new CemElementRuntime({ declarationTag: 'cem-element-story-decl-diagnostic' });
+
+        const invalidTag = buildDeclaration({ tag: 'Bad-Tag', templates: [{ html: '<button>x</button>' }] });
+        runtime.registerDeclaration(invalidTag);
+        const tagDiagnostic = findDiagnostic(runtime.diagnosticsFor(invalidTag), 'cem-element.tag_invalid');
+        assertEqual(tagDiagnostic.source, 'declaration', 'tag diagnostics are declaration-sourced');
+        assertEqual(tagDiagnostic.severity, 'error', 'an invalid tag is an error-severity diagnostic');
+
+        const missingTag = buildDeclaration({ templates: [{ html: '<button>x</button>' }] });
+        runtime.registerDeclaration(missingTag);
+        assertDiagnostic(runtime.diagnosticsFor(missingTag), 'cem-element.tag_missing');
+
+        const conflict = buildDeclaration({
+            tag: 'story-decl-conflict',
+            src: './x.cem#x',
+            templates: [{ html: '<button>x</button>' }],
+        });
+        runtime.registerDeclaration(conflict);
+        assertDiagnostic(runtime.diagnosticsFor(conflict), 'cem-element.src_inline_template_conflict');
+
+        const srcOnly = buildDeclaration({ tag: 'story-decl-src', src: './x.cem#x' });
+        runtime.registerDeclaration(srcOnly);
+        assertDiagnostic(runtime.diagnosticsFor(srcOnly), 'cem-element.src_not_implemented');
+
+        const noTemplate = buildDeclaration({ tag: 'story-decl-empty' });
+        runtime.registerDeclaration(noTemplate);
+        assertDiagnostic(runtime.diagnosticsFor(noTemplate), 'cem-element.inline_template_count');
+
+        const liveContent = buildDeclaration({
+            tag: 'story-decl-live',
+            templates: [{ html: '<button>x</button>' }],
+            liveContent: true,
+        });
+        runtime.registerDeclaration(liveContent);
+        assertDiagnostic(runtime.diagnosticsFor(liveContent), 'cem-element.declaration_live_content');
+
+        const legacy = buildDeclaration({
+            tag: 'story-decl-legacy',
+            templates: [{ lang: 'custom-element-v0', html: '<button>x</button>' }],
+        });
+        runtime.registerDeclaration(legacy);
+        assertDiagnostic(runtime.diagnosticsFor(legacy), 'cem-element.legacy_template_not_implemented');
+
+        const firstDefine = buildDeclaration({
+            tag: 'story-decl-duplicate',
+            templates: [{ html: '<button>first</button>' }],
+        });
+        runtime.registerDeclaration(firstDefine);
+        assertEqual(runtime.diagnosticsFor(firstDefine).length, 0, 'a valid declaration registers without diagnostics');
+        const secondDefine = buildDeclaration({
+            tag: 'story-decl-duplicate',
+            templates: [{ html: '<button>second</button>' }],
+        });
+        runtime.registerDeclaration(secondDefine);
+        assertDiagnostic(runtime.diagnosticsFor(secondDefine), 'cem-element.tag_already_defined');
+    },
+};
+
+export const CemMlParseDiagnosticsAreExposed: Story = {
+    render: () => storyPanel('CEM-ML parse diagnostics', 'malformed CEM-ML surfaces parser diagnostics'),
+    play: () => {
+        const cases: Array<[string, string]> = [
+            ['{ | orphan}', 'cem-element.cem_ml.node_name_missing'],
+            ['{button @ | x}', 'cem-element.cem_ml.attribute_name_missing'],
+            ['{button bogus}', 'cem-element.cem_ml.unexpected_token'],
+            ['{button @type=button | x', 'cem-element.cem_ml.node_unterminated'],
+            ['{button @type={oops', 'cem-element.cem_ml.attribute_value_unterminated'],
+        ];
+
+        cases.forEach(([template, code], index) => {
+            const runtime = new CemElementRuntime({ declarationTag: `cem-element-story-parse-${index}` });
+            const declaration = buildDeclaration({
+                tag: `story-parse-case-${index}`,
+                templates: [{ type: 'text/cem-ml', text: template }],
+            });
+            runtime.registerDeclaration(declaration);
+            const diagnostic = findDiagnostic(runtime.diagnosticsFor(declaration), code);
+            assertEqual(diagnostic.source, 'declaration', 'parse diagnostics are declaration-sourced');
+        });
+
+        // Parser-level source frames are what feed slice E author-byte-exact render metadata.
+        const parsed = parseCemMlTemplateSource('{button @type=button | Save}');
+        assertEqual(parsed.diagnostics.length, 0, 'well-formed CEM-ML parses without diagnostics');
+        const [node] = parsed.source;
+        assert(node.kind === 'element', 'CEM-ML parses into an element source node');
+        assertEqual(node.sourceMapRef?.fidelity, 'author-byte-exact', 'parser marks author-byte-exact fidelity');
+        assertEqual(node.sourceMapRef?.frame, 'cem:0', 'parser frame is the source byte offset');
+    },
+};
+
+export const RenderFailureDiagnosticsAreExposed: Story = {
+    render: () => storyPanel('Render diagnostics', 'render-time failures surface through diagnosticsFor'),
+    play: async ({ canvasElement }) => {
+        const root = document.createElement('section');
+        canvasElement.appendChild(root);
+
+        // A healthy render leaves the instance free of diagnostics.
+        const cleanRuntime = new CemElementRuntime({ declarationTag: 'cem-element-story-render-clean' });
+        const cleanDeclaration = buildDeclaration({
+            tag: 'story-render-clean',
+            templates: [{ html: '<button type="button">ok</button>' }],
+        });
+        cleanRuntime.registerDeclaration(cleanDeclaration);
+        const cleanInstance = document.createElement('story-render-clean');
+        root.appendChild(cleanInstance);
+        await nextFrame();
+        assertEqual(cleanRuntime.diagnosticsFor(cleanInstance).length, 0, 'a healthy render emits no instance diagnostics');
+
+        // An invalid produced tag in the plan fails materialization and reports a render diagnostic.
+        const failRuntime = new CemElementRuntime({ declarationTag: 'cem-element-story-render-fail' });
+        const failDeclaration = buildDeclaration({
+            tag: 'story-render-fail',
+            templates: [{ type: 'text/cem-ml', text: '{$ | name}' }],
+        });
+        failRuntime.registerDeclaration(failDeclaration);
+        const failInstance = document.createElement('story-render-fail');
+        root.appendChild(failInstance);
+        await nextFrame();
+        const renderFailure = findDiagnostic(failRuntime.diagnosticsFor(failInstance), 'cem-element.render_failed');
+        assertEqual(renderFailure.source, 'render', 'render failures are render-sourced');
+        assertEqual(renderFailure.severity, 'error', 'render failures are error-severity diagnostics');
+
+        // Legacy bridge templates report both a declaration diagnostic and an instance render diagnostic.
+        const legacyRuntime = new CemElementRuntime({ declarationTag: 'cem-element-story-render-legacy' });
+        const legacyDeclaration = buildDeclaration({
+            tag: 'story-render-legacy',
+            templates: [{ lang: 'custom-element-v0', html: '<button>x</button>' }],
+        });
+        legacyRuntime.registerDeclaration(legacyDeclaration);
+        assertDiagnostic(legacyRuntime.diagnosticsFor(legacyDeclaration), 'cem-element.legacy_template_not_implemented');
+        const legacyInstance = document.createElement('story-render-legacy');
+        root.appendChild(legacyInstance);
+        await nextFrame();
+        const legacyRender = findDiagnostic(
+            legacyRuntime.diagnosticsFor(legacyInstance),
+            'cem-element.legacy_template_not_implemented'
+        );
+        assertEqual(legacyRender.source, 'render', 'legacy bridge templates report a render diagnostic on the instance');
+    },
+};
+
 function storyPanel(title: string, body: string): HTMLElement {
     const section = document.createElement('section');
     const heading = document.createElement('h2');
@@ -487,11 +937,116 @@ function assertEqual(actual: unknown, expected: unknown, label: string): void {
     }
 }
 
-function assertDiagnostic(diagnostics: Array<{ code: string }>, code: string): void {
+function assertDiagnostic(diagnostics: readonly { code: string }[], code: string): void {
     assert(
         diagnostics.some((diagnostic) => diagnostic.code === code),
         `expected diagnostic ${code}`
     );
+}
+
+function findDiagnostic(diagnostics: readonly CemElementDiagnostic[], code: string): CemElementDiagnostic {
+    const diagnostic = diagnostics.find((entry) => entry.code === code);
+    assert(diagnostic, `expected diagnostic ${code}`);
+    return diagnostic;
+}
+
+interface InlineDeclarationOptions {
+    declarationTag: string;
+    producedTag: string;
+    ariaLabel?: string;
+    innerHTML?: string;
+    text?: string;
+    type?: string;
+    attributes?: Record<string, string>;
+}
+
+/**
+ * Register an inline declaration directly (no install / no auto-registration) so the
+ * produced custom element is defined and ready to upgrade. The declaration host is a
+ * plain element, which keeps `registerDeclaration` from running twice on connect.
+ */
+function registerInlineDeclaration(options: InlineDeclarationOptions): CemElementRuntime {
+    const runtime = new CemElementRuntime({ declarationTag: options.declarationTag });
+    const declaration = document.createElement('div');
+    declaration.setAttribute('tag', options.producedTag);
+    const template = document.createElement('template');
+    if (options.type) {
+        template.setAttribute('type', options.type);
+    }
+    if (options.innerHTML !== undefined) {
+        template.innerHTML = options.innerHTML;
+    }
+    if (options.text !== undefined) {
+        template.textContent = options.text;
+    }
+    declaration.appendChild(template);
+    runtime.registerDeclaration(declaration);
+    return runtime;
+}
+
+/**
+ * Build a detached, mounted instance story: register the declaration, create the
+ * instance, and return a root the harness will connect (driving the render loop).
+ */
+function renderInstanceStory(options: InlineDeclarationOptions): HTMLElement {
+    const root = document.createElement('section');
+    if (options.ariaLabel) {
+        root.setAttribute('aria-label', options.ariaLabel);
+    }
+    registerInlineDeclaration(options);
+    const instance = document.createElement(options.producedTag);
+    for (const [name, value] of Object.entries(options.attributes ?? {})) {
+        instance.setAttribute(name, value);
+    }
+    root.appendChild(instance);
+    return root;
+}
+
+interface DeclarationTemplateSpec {
+    type?: string;
+    lang?: string;
+    html?: string;
+    text?: string;
+}
+
+interface DeclarationSpec {
+    tag?: string;
+    src?: string;
+    templates?: DeclarationTemplateSpec[];
+    liveContent?: boolean;
+}
+
+/** Assemble a declaration host element to feed `registerDeclaration` for diagnostics checks. */
+function buildDeclaration(spec: DeclarationSpec): HTMLElement {
+    const declaration = document.createElement('div');
+    if (spec.tag !== undefined) {
+        declaration.setAttribute('tag', spec.tag);
+    }
+    if (spec.src !== undefined) {
+        declaration.setAttribute('src', spec.src);
+    }
+    for (const templateSpec of spec.templates ?? []) {
+        const template = document.createElement('template');
+        if (templateSpec.type) {
+            template.setAttribute('type', templateSpec.type);
+        }
+        if (templateSpec.lang) {
+            template.setAttribute('lang', templateSpec.lang);
+        }
+        if (templateSpec.html !== undefined) {
+            template.innerHTML = templateSpec.html;
+        }
+        if (templateSpec.text !== undefined) {
+            template.textContent = templateSpec.text;
+        }
+        declaration.appendChild(template);
+    }
+    if (spec.liveContent) {
+        const live = document.createElement('p');
+        live.textContent = 'live page content';
+        declaration.appendChild(live);
+    }
+    return declaration;
 }
 
 function requiredElement(root: ParentNode, selector: string): Element {
