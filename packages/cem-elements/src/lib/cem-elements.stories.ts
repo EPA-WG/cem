@@ -274,6 +274,9 @@ export const RenderLoopNestedAndDynamic: Story = {
         assertEqual(button.getAttribute('data-state'), 'open', 'AVT attribute should resolve to host value');
         assert(!button.hasAttribute('hidden'), 'whole-expression attribute with absent value should be removed');
         assert(button.hasAttribute('data-cem-render-node-id'), 'rendered nodes carry render-node identity');
+        assert(button.hasAttribute('data-cem-template-artifact-id'), 'rendered nodes carry template artifact identity');
+        assertEqual(button.getAttribute('data-cem-data-revision'), '1', 'rendered nodes carry data revision');
+        assertEqual(button.getAttribute('data-cem-source-fidelity'), 'dom-canonical', 'DOM templates carry source fidelity');
     },
 };
 
@@ -314,6 +317,52 @@ export const CanonicalCemMlRenderLoop: Story = {
         assertEqual(button.textContent?.trim(), 'Submit', 'canonical CEM-ML text projection should use host value');
         assertEqual(button.getAttribute('type'), 'button', 'canonical CEM-ML bare attribute values should render');
         assertEqual(button.getAttribute('aria-busy'), '', 'canonical CEM-ML braced attribute values should render');
+        assertEqual(
+            button.getAttribute('data-cem-source-fidelity'),
+            'author-byte-exact',
+            'canonical CEM-ML templates carry source fidelity'
+        );
+    },
+};
+
+export const RuntimeDiagnosticsSurface: Story = {
+    render: () => storyPanel('Runtime diagnostics', 'declaration and render diagnostics remain queryable'),
+    play: async ({ canvasElement }) => {
+        const root = document.createElement('section');
+        canvasElement.appendChild(root);
+
+        const parserRuntime = new CemElementRuntime({ declarationTag: 'cem-element-story-parser-diagnostic' });
+        parserRuntime.install(window);
+        const parserDeclaration = document.createElement('cem-element-story-parser-diagnostic');
+        parserDeclaration.setAttribute('tag', 'story-parser-diagnostic');
+        const parserTemplate = document.createElement('template');
+        parserTemplate.setAttribute('type', 'text/cem-ml');
+        parserTemplate.textContent = '{button @ | Broken}';
+        parserDeclaration.appendChild(parserTemplate);
+        root.appendChild(parserDeclaration);
+        parserRuntime.registerDeclaration(parserDeclaration);
+
+        assertDiagnostic(
+            parserRuntime.diagnosticsFor(parserDeclaration),
+            'cem-element.cem_ml.attribute_name_missing'
+        );
+
+        const renderRuntime = new CemElementRuntime({ declarationTag: 'cem-element-story-render-diagnostic' });
+        renderRuntime.install(window);
+        const renderDeclaration = document.createElement('cem-element-story-render-diagnostic');
+        renderDeclaration.setAttribute('tag', 'story-render-diagnostic');
+        const renderTemplate = document.createElement('template');
+        renderTemplate.setAttribute('type', 'text/cem-ml');
+        renderTemplate.textContent = '{$ | .name}';
+        renderDeclaration.appendChild(renderTemplate);
+        root.appendChild(renderDeclaration);
+        renderRuntime.registerDeclaration(renderDeclaration);
+
+        const instance = document.createElement('story-render-diagnostic');
+        root.appendChild(instance);
+        await nextFrame();
+
+        assertDiagnostic(renderRuntime.diagnosticsFor(instance), 'cem-element.render_failed');
     },
 };
 

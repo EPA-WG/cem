@@ -362,9 +362,20 @@ export class CemElementRuntime {
         // UI adapter → processing layer → UI adapter: project the serializable template
         // source against a serializable data-island snapshot, then materialize the plan
         // into live light DOM.
-        const values = templateValues(snapshot, compiled.declaredAttributes);
-        const plan = projectTemplate(compiled.templateSource, { snapshot, values });
-        return materializeRenderPlan(plan, instance.ownerDocument);
+        try {
+            const values = templateValues(snapshot, compiled.declaredAttributes);
+            const plan = projectTemplate(compiled.templateSource, { snapshot, values });
+            return materializeRenderPlan(plan, instance.ownerDocument);
+        } catch (error) {
+            this.recordDiagnostics(instance, [
+                renderDiagnostic(
+                    'cem-element.render_failed',
+                    error instanceof Error ? error.message : 'render failed',
+                    compiled.producedTag
+                ),
+            ]);
+            return instance.ownerDocument.createDocumentFragment();
+        }
     }
 
     private ensureDataIsland(instance: HTMLElement): HTMLTemplateElement {
@@ -703,6 +714,16 @@ function declarationDiagnostic(code: string, message: string, tag?: string): Cem
         code,
         severity: 'error',
         source: 'declaration',
+        message,
+        tag,
+    };
+}
+
+function renderDiagnostic(code: string, message: string, tag?: string): CemElementDiagnostic {
+    return {
+        code,
+        severity: 'error',
+        source: 'render',
         message,
         tag,
     };

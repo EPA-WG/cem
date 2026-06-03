@@ -23,8 +23,19 @@
 const XHTML_NAMESPACE = 'http://www.w3.org/1999/xhtml';
 const ATTRIBUTE_DECLARATION_TAG = 'attribute';
 const SLICE_DECLARATION_TAG = 'slice';
+const RENDER_NODE_ID_ATTR = 'data-cem-render-node-id';
+const TEMPLATE_ARTIFACT_ID_ATTR = 'data-cem-template-artifact-id';
+const DATA_REVISION_ATTR = 'data-cem-data-revision';
+const SOURCE_FIDELITY_ATTR = 'data-cem-source-fidelity';
+const SOURCE_FRAME_ATTR = 'data-cem-source-frame';
 
 export type TemplateValue = string | boolean | null;
+export type SourceMapFidelity = 'author-byte-exact' | 'dom-canonical' | 'declaration-only';
+
+export interface SourceMapRef {
+    fidelity: SourceMapFidelity;
+    frame: string;
+}
 
 export interface TemplateSourceAttribute {
     name: string;
@@ -32,14 +43,15 @@ export interface TemplateSourceAttribute {
 }
 
 export type TemplateSourceNode =
-    | { kind: 'text'; text: string }
-    | { kind: 'comment'; text: string }
+    | { kind: 'text'; text: string; sourceMapRef?: SourceMapRef }
+    | { kind: 'comment'; text: string; sourceMapRef?: SourceMapRef }
     | {
           kind: 'element';
           namespace: string | null;
           tag: string;
           attributes: TemplateSourceAttribute[];
           children: TemplateSourceNode[];
+          sourceMapRef?: SourceMapRef;
       };
 
 export interface RenderPlanAttribute {
@@ -48,8 +60,8 @@ export interface RenderPlanAttribute {
 }
 
 export type RenderPlanNode =
-    | { kind: 'text'; text: string }
-    | { kind: 'comment'; text: string }
+    | { kind: 'text'; text: string; sourceMapRef?: SourceMapRef }
+    | { kind: 'comment'; text: string; sourceMapRef?: SourceMapRef }
     | {
           kind: 'element';
           namespace: string | null;
@@ -57,6 +69,7 @@ export type RenderPlanNode =
           attributes: RenderPlanAttribute[];
           renderNodeId: string;
           children: RenderPlanNode[];
+          sourceMapRef?: SourceMapRef;
       };
 
 export interface RenderPlan {
@@ -95,8 +108,8 @@ export interface TemplateProjectionInput {
  */
 export function readTemplateSource(content: ParentNode): TemplateSourceNode[] {
     const nodes: TemplateSourceNode[] = [];
-    for (const child of Array.from(content.childNodes)) {
-        const node = readSourceNode(child);
+    for (const [index, child] of Array.from(content.childNodes).entries()) {
+        const node = readSourceNode(child, `dom:${index}`);
         if (node) {
             nodes.push(node);
         }
@@ -104,12 +117,13 @@ export function readTemplateSource(content: ParentNode): TemplateSourceNode[] {
     return nodes;
 }
 
-function readSourceNode(source: Node): TemplateSourceNode | undefined {
+function readSourceNode(source: Node, frame: string): TemplateSourceNode | undefined {
+    const sourceMapRef: SourceMapRef = { fidelity: 'dom-canonical', frame };
     if (source.nodeType === 3) {
-        return { kind: 'text', text: source.textContent ?? '' };
+        return { kind: 'text', text: source.textContent ?? '', sourceMapRef };
     }
     if (source.nodeType === 8) {
-        return { kind: 'comment', text: source.textContent ?? '' };
+        return { kind: 'comment', text: source.textContent ?? '', sourceMapRef };
     }
     if (source.nodeType !== 1) {
         return undefined;
@@ -125,8 +139,9 @@ function readSourceNode(source: Node): TemplateSourceNode | undefined {
             value: attribute.value,
         })),
         children: Array.from(element.childNodes)
-            .map((child) => readSourceNode(child))
+            .map((child, index) => readSourceNode(child, `${frame}/${index}`))
             .filter((node): node is TemplateSourceNode => node !== undefined),
+        sourceMapRef,
     };
 }
 
@@ -174,10 +189,10 @@ function projectNode(
     nextRenderNodeId: () => string
 ): RenderPlanNode | undefined {
     if (source.kind === 'text') {
-        return { kind: 'text', text: interpolateText(source.text, values) };
+        return { kind: 'text', text: interpolateText(source.text, values), sourceMapRef: source.sourceMapRef };
     }
     if (source.kind === 'comment') {
-        return { kind: 'comment', text: source.text };
+        return { kind: 'comment', text: source.text, sourceMapRef: source.sourceMapRef };
     }
 
     const attributes: RenderPlanAttribute[] = [];
@@ -197,6 +212,7 @@ function projectNode(
         children: source.children
             .map((child) => projectNode(child, values, nextRenderNodeId))
             .filter((node): node is RenderPlanNode => node !== undefined),
+        sourceMapRef: source.sourceMapRef,
     };
 }
 
@@ -207,14 +223,12 @@ function projectNode(
 export function materializeRenderPlan(plan: RenderPlan, document: Document): DocumentFragment {
     const fragment = document.createDocumentFragment();
     for (const node of plan.nodes) {
-        fragment.appendChild(materializeNode(node, document));
+        fragment.appendChild(materializeNode(node, plan, document));
     }
     return fragment;
 }
 
-const RENDER_NODE_ID_ATTR = 'data-cem-render-node-id';
-
-function materializeNode(node: RenderPlanNode, document: Document): Node {
+function materializeNode(node: RenderPlanNode, plan: RenderPlan, document: Document): Node {
     if (node.kind === 'text') {
         return document.createTextNode(node.text);
     }
@@ -229,8 +243,14 @@ function materializeNode(node: RenderPlanNode, document: Document): Node {
         element.setAttribute(attribute.name, attribute.value);
     }
     element.setAttribute(RENDER_NODE_ID_ATTR, node.renderNodeId);
+    element.setAttribute(TEMPLATE_ARTIFACT_ID_ATTR, plan.templateArtifactId);
+    element.setAttribute(DATA_REVISION_ATTR, plan.dataRevision);
+    if (node.sourceMapRef) {
+        element.setAttribute(SOURCE_FIDELITY_ATTR, node.sourceMapRef.fidelity);
+        element.setAttribute(SOURCE_FRAME_ATTR, node.sourceMapRef.frame);
+    }
     for (const child of node.children) {
-        element.appendChild(materializeNode(child, document));
+        element.appendChild(materializeNode(child, plan, document));
     }
     return element;
 }

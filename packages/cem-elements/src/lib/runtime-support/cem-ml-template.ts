@@ -1,4 +1,4 @@
-import type { TemplateSourceAttribute, TemplateSourceNode } from '../projection.js';
+import type { SourceMapRef, TemplateSourceAttribute, TemplateSourceNode } from '../projection.js';
 
 export interface CemMlTemplateDiagnostic {
     code: string;
@@ -31,7 +31,7 @@ class CemMlTemplateParser {
             if (this.peek() !== '{') {
                 const text = this.readTextUntilNodeStart();
                 if (text.trim().length > 0) {
-                    source.push({ kind: 'text', text });
+                    source.push({ kind: 'text', text, sourceMapRef: this.sourceMapRef(this.offset - text.length) });
                 }
                 continue;
             }
@@ -99,6 +99,7 @@ class CemMlTemplateParser {
             tag,
             attributes,
             children,
+            sourceMapRef: this.sourceMapRef(nodeStart),
         };
     }
 
@@ -172,7 +173,7 @@ class CemMlTemplateParser {
             }
             const text = this.input.slice(textStart, end);
             if (text.length > 0) {
-                children.push({ kind: 'text', text });
+                children.push({ kind: 'text', text, sourceMapRef: this.sourceMapRef(textStart) });
             }
         };
 
@@ -189,14 +190,16 @@ class CemMlTemplateParser {
 
             if (this.startsWith('//')) {
                 flushText();
-                children.push({ kind: 'comment', text: this.readLineComment() });
+                const commentStart = this.offset;
+                children.push({ kind: 'comment', text: this.readLineComment(), sourceMapRef: this.sourceMapRef(commentStart) });
                 textStart = this.offset;
                 continue;
             }
 
             if (this.startsWith('/*')) {
                 flushText();
-                children.push({ kind: 'comment', text: this.readBlockComment() });
+                const commentStart = this.offset;
+                children.push({ kind: 'comment', text: this.readBlockComment(), sourceMapRef: this.sourceMapRef(commentStart) });
                 textStart = this.offset;
                 continue;
             }
@@ -325,5 +328,12 @@ class CemMlTemplateParser {
 
     private diagnostic(code: string, message: string): void {
         this.diagnostics.push({ code, message });
+    }
+
+    private sourceMapRef(offset: number): SourceMapRef {
+        return {
+            fidelity: 'author-byte-exact',
+            frame: `cem:${offset}`,
+        };
     }
 }

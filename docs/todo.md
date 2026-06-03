@@ -99,8 +99,11 @@ Design home: [`cem-element-design.md`](cem-element-design.md). WASM proposal:
         Observed declaration attributes rerender produced instances; rendered `slice`/`slice-event`/`slice-value`
         bindings update package-local slice state and rerender through the same `DataIslandSnapshot` path; inert
         data-island template content is observed for mutation-driven invalidation.
-  - [ ] Runtime slice E: carry source-map/render identity metadata through rendered nodes and expose diagnostics for
-        declaration, parsing, and render failures.
+  - [x] Runtime slice E: carry source-map/render identity metadata through rendered nodes and expose diagnostics for
+        declaration, parsing, and render failures. Rendered elements carry render-node id, template artifact id, data
+        revision, and source-fidelity/source-frame attributes. DOM parity templates use `dom-canonical`; temporary
+        raw-text CEM-ML subset templates use `author-byte-exact`. Declaration parse diagnostics and render failures
+        are exposed through `diagnosticsFor`.
 - [x] Add Storybook as the primary browser/runtime test runner for `packages/cem-elements`, with Nx targets for
       interactive Storybook and CI Storybook Test execution through `@storybook/addon-vitest`.
 - [ ] Add Storybook browser stories proving data-island isolation: declaration and instance template contents do not
