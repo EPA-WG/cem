@@ -317,6 +317,105 @@ export const CanonicalCemMlRenderLoop: Story = {
     },
 };
 
+export const AttributeInvalidationRerenders: Story = {
+    render: () => {
+        const root = document.createElement('section');
+        root.setAttribute('aria-label', 'attribute invalidation story');
+
+        const runtime = new CemElementRuntime({ declarationTag: 'cem-element-story-attr' });
+        runtime.install(window);
+
+        const declaration = document.createElement('cem-element-story-attr');
+        declaration.setAttribute('tag', 'story-attr-label');
+        const template = document.createElement('template');
+        template.innerHTML = `
+            <attribute name="label">Save</attribute>
+            <span>${'${$label}'}</span>
+        `;
+        declaration.appendChild(template);
+        root.appendChild(declaration);
+        runtime.registerDeclaration(declaration);
+
+        const instance = document.createElement('story-attr-label');
+        root.appendChild(instance);
+
+        return root;
+    },
+    play: async ({ canvasElement }) => {
+        await nextFrame();
+
+        const instance = requiredElement(canvasElement, 'story-attr-label');
+        assertEqual(requiredElement(instance, 'span').textContent, 'Save', 'default attribute value renders first');
+
+        instance.setAttribute('label', 'Updated');
+        await nextFrame();
+
+        assertEqual(
+            requiredElement(instance, 'span').textContent,
+            'Updated',
+            'observed host attribute changes trigger rerender'
+        );
+    },
+};
+
+export const SliceEventInvalidationRerenders: Story = {
+    render: () => {
+        const root = document.createElement('section');
+        root.setAttribute('aria-label', 'slice event invalidation story');
+
+        const runtime = new CemElementRuntime({ declarationTag: 'cem-element-story-slice' });
+        runtime.install(window);
+
+        const declaration = document.createElement('cem-element-story-slice');
+        declaration.setAttribute('tag', 'story-slice-field');
+        const template = document.createElement('template');
+        template.innerHTML = `
+            <slice name="query"></slice>
+            <label>
+                Query
+                <input
+                    type="text"
+                    value="{$query}"
+                    slice="query"
+                    slice-event="input"
+                    slice-value="{$target.value}"
+                />
+            </label>
+            <output>${'${$query}'}</output>
+        `;
+        declaration.appendChild(template);
+        root.appendChild(declaration);
+        runtime.registerDeclaration(declaration);
+
+        const instance = document.createElement('story-slice-field');
+        root.appendChild(instance);
+
+        return root;
+    },
+    play: async ({ canvasElement }) => {
+        await nextFrame();
+
+        const instance = requiredElement(canvasElement, 'story-slice-field');
+        const input = requiredElement(instance, 'input') as HTMLInputElement;
+        assert(!input.hasAttribute('slice-event'), 'slice-event binding metadata should not remain visible');
+
+        input.value = 'Tokens';
+        input.dispatchEvent(new Event('input', { bubbles: true }));
+        await nextFrame();
+
+        assertEqual(
+            requiredElement(instance, 'output').textContent,
+            'Tokens',
+            'slice-event updates data-island state and triggers rerender'
+        );
+        assertEqual(
+            (requiredElement(instance, 'input') as HTMLInputElement).getAttribute('value'),
+            'Tokens',
+            'rerendered controls receive the updated slice value'
+        );
+    },
+};
+
 function storyPanel(title: string, body: string): HTMLElement {
     const section = document.createElement('section');
     const heading = document.createElement('h2');

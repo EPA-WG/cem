@@ -95,7 +95,10 @@ Design home: [`cem-element-design.md`](cem-element-design.md). WASM proposal:
         WASM/runtime-support boundary into the same render-plan shape. Current runtime recognizes CEM-ML and
         renders the supported C1.5 subset through the temporary TypeScript adapter; the production `cem_ml`
         WASM/runtime-support boundary remains open.
-  - [ ] Runtime slice D: wire attribute changes and declarative data-island/event updates to render invalidation.
+  - [x] Runtime slice D: wire attribute changes and declarative data-island/event updates to render invalidation.
+        Observed declaration attributes rerender produced instances; rendered `slice`/`slice-event`/`slice-value`
+        bindings update package-local slice state and rerender through the same `DataIslandSnapshot` path; inert
+        data-island template content is observed for mutation-driven invalidation.
   - [ ] Runtime slice E: carry source-map/render identity metadata through rendered nodes and expose diagnostics for
         declaration, parsing, and render failures.
 - [x] Add Storybook as the primary browser/runtime test runner for `packages/cem-elements`, with Nx targets for

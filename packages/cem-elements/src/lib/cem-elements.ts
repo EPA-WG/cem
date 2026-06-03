@@ -71,6 +71,11 @@ interface AttributeDeclaration {
     defaultValue: TemplateValue;
 }
 
+interface SliceDeclaration {
+    name: string;
+    defaultValue: TemplateValue;
+}
+
 interface CompiledDeclaration {
     declarationElement: HTMLElement;
     declarationTag: string;
@@ -80,6 +85,7 @@ interface CompiledDeclaration {
     templateSource: TemplateSourceNode[];
     mode: 'dom' | 'cem-ml' | 'legacy-v0';
     declaredAttributes: AttributeDeclaration[];
+    declaredSlices: SliceDeclaration[];
     observedAttributes: string[];
     diagnostics: CemElementDiagnostic[];
 }
@@ -87,6 +93,12 @@ interface CompiledDeclaration {
 interface RenderBounds {
     start: Comment;
     end: Comment;
+}
+
+interface InstanceState {
+    slices: Record<string, TemplateValue>;
+    eventPayloads: Record<string, unknown>;
+    observer?: MutationObserver;
 }
 
 const DEFAULT_DECLARATION_TAG = 'cem-element';
@@ -191,6 +203,7 @@ export class CemElementRuntime {
     private readonly instanceIds = new WeakMap<HTMLElement, string>();
     private readonly dataRevisions = new WeakMap<HTMLElement, number>();
     private readonly renderBounds = new WeakMap<HTMLElement, RenderBounds>();
+    private readonly instanceStates = new WeakMap<HTMLElement, InstanceState>();
     private instanceSequence = 0;
 
     constructor(options: CemElementRuntimeOptions = {}) {
@@ -307,7 +320,8 @@ export class CemElementRuntime {
     }
 
     private connectProducedInstance(instance: HTMLElement, compiled: CompiledDeclaration): void {
-        this.ensureDataIsland(instance);
+        const island = this.ensureDataIsland(instance);
+        this.ensureInstanceState(instance, compiled, island);
         this.renderInstance(instance, compiled);
     }
 
@@ -320,8 +334,10 @@ export class CemElementRuntime {
 
     private renderInstance(instance: HTMLElement, compiled: CompiledDeclaration): void {
         const island = this.ensureDataIsland(instance);
+        this.ensureInstanceState(instance, compiled, island);
         const snapshot = this.createSnapshot(instance, compiled, island);
         const rendered = this.renderFromDeclaration(instance, compiled, snapshot);
+        this.bindRenderedSliceEvents(instance, compiled, rendered);
         this.replaceRenderedContent(instance, island, rendered);
     }
 
@@ -375,6 +391,73 @@ export class CemElementRuntime {
         return island;
     }
 
+    private ensureInstanceState(
+        instance: HTMLElement,
+        compiled: CompiledDeclaration,
+        island: HTMLTemplateElement
+    ): InstanceState {
+        const existing = this.instanceStates.get(instance);
+        if (existing) {
+            return existing;
+        }
+
+        const state: InstanceState = {
+            slices: Object.fromEntries(
+                compiled.declaredSlices.map((slice) => [slice.name, slice.defaultValue])
+            ),
+            eventPayloads: {},
+        };
+        const observer = island.ownerDocument.defaultView?.MutationObserver;
+        if (observer) {
+            state.observer = new observer(() => this.invalidateProducedInstance(instance, compiled));
+            state.observer.observe(island.content, {
+                childList: true,
+                subtree: true,
+                characterData: true,
+                attributes: true,
+            });
+        }
+        this.instanceStates.set(instance, state);
+        return state;
+    }
+
+    private bindRenderedSliceEvents(
+        instance: HTMLElement,
+        compiled: CompiledDeclaration,
+        rendered: DocumentFragment
+    ): void {
+        for (const element of Array.from(rendered.querySelectorAll('[slice][slice-event]'))) {
+            const sliceName = element.getAttribute('slice')?.trim();
+            const eventName = element.getAttribute('slice-event')?.trim();
+            if (!sliceName || !eventName) {
+                continue;
+            }
+            const expression = element.getAttribute('slice-value') ?? '{$target.value}';
+            element.removeAttribute('slice');
+            element.removeAttribute('slice-event');
+            element.removeAttribute('slice-value');
+            element.addEventListener(eventName, (event) => {
+                this.writeSliceFromEvent(instance, compiled, sliceName, expression, event);
+            });
+        }
+    }
+
+    private writeSliceFromEvent(
+        instance: HTMLElement,
+        compiled: CompiledDeclaration,
+        sliceName: string,
+        expression: string,
+        event: Event
+    ): void {
+        const island = this.ensureDataIsland(instance);
+        const state = this.ensureInstanceState(instance, compiled, island);
+        state.eventPayloads[sliceName] = {
+            type: event.type,
+        };
+        state.slices[sliceName] = evaluateSliceValue(expression, event, state.slices);
+        this.renderInstance(instance, compiled);
+    }
+
     private replaceRenderedContent(instance: HTMLElement, island: HTMLTemplateElement, rendered: DocumentFragment): void {
         const bounds = this.ensureRenderBounds(instance, island);
         let current = bounds.start.nextSibling;
@@ -419,9 +502,9 @@ export class CemElementRuntime {
             hostAttributes: hostAttributes(instance),
             dataset: datasetEntries(instance),
             payload: serializePayload(island),
-            slices: {},
+            slices: { ...(this.instanceStates.get(instance)?.slices ?? {}) },
             validationState: {},
-            eventPayloads: {},
+            eventPayloads: { ...(this.instanceStates.get(instance)?.eventPayloads ?? {}) },
         };
     }
 
@@ -493,6 +576,7 @@ function compileInlineDeclaration(
     const templateSource = readInlineTemplateSource(template, mode, producedTag, diagnostics);
     const declaredAttributes =
         mode === 'legacy-v0' ? [] : extractAttributeDeclarationsFromSource(templateSource);
+    const declaredSlices = mode === 'legacy-v0' ? [] : extractSliceDeclarationsFromSource(templateSource);
     return {
         declarationElement,
         declarationTag,
@@ -502,6 +586,7 @@ function compileInlineDeclaration(
         templateSource,
         mode,
         declaredAttributes,
+        declaredSlices,
         observedAttributes: declaredAttributes.map((attribute) => attribute.name),
         diagnostics,
     };
@@ -566,6 +651,28 @@ function extractAttributeDeclarationsFromSource(source: readonly TemplateSourceN
     return declarations;
 }
 
+function extractSliceDeclarationsFromSource(source: readonly TemplateSourceNode[]): SliceDeclaration[] {
+    const declarations: SliceDeclaration[] = [];
+    for (const child of source) {
+        if (child.kind !== 'element' || child.tag !== 'slice') {
+            continue;
+        }
+        const name = child.attributes.find((attribute) => attribute.name === 'name')?.value.trim();
+        if (!name) {
+            continue;
+        }
+        const text = child.children
+            .map((node) => (node.kind === 'text' ? node.text : ''))
+            .join('')
+            .trim();
+        declarations.push({
+            name,
+            defaultValue: parseLiteralValue(text),
+        });
+    }
+    return declarations;
+}
+
 function directTemplateChildren(element: Element): HTMLTemplateElement[] {
     return Array.from(element.children).filter(
         (child): child is HTMLTemplateElement => child.localName === 'template'
@@ -612,7 +719,70 @@ function templateValues(
     for (const [name, value] of Object.entries(snapshot.hostAttributes)) {
         values[name] = value;
     }
+    for (const [name, value] of Object.entries(snapshot.slices)) {
+        values[name] = toTemplateValue(value);
+    }
     return values;
+}
+
+function evaluateSliceValue(
+    expression: string,
+    event: Event,
+    slices: Record<string, TemplateValue>
+): TemplateValue {
+    const body = unwrapExpression(expression);
+    const target = event.target;
+    if (body === '$event.type') {
+        return event.type;
+    }
+    if (body === '$target.checked') {
+        return target instanceof HTMLInputElement ? target.checked : null;
+    }
+    if (body === '$target.value') {
+        return target instanceof HTMLInputElement ||
+            target instanceof HTMLTextAreaElement ||
+            target instanceof HTMLSelectElement
+            ? target.value
+            : null;
+    }
+    if (/^\$[A-Za-z_][\w.-]*$/.test(body)) {
+        return slices[body.slice(1)] ?? null;
+    }
+    return parseLiteralValue(body);
+}
+
+function unwrapExpression(expression: string): string {
+    const trimmed = expression.trim();
+    const wrapped = trimmed.match(/^\{\s*(.*?)\s*\}$/);
+    return (wrapped?.[1] ?? trimmed).trim();
+}
+
+function parseLiteralValue(value: string): TemplateValue {
+    const trimmed = value.trim();
+    if (trimmed === '') {
+        return null;
+    }
+    if (trimmed === 'true') {
+        return true;
+    }
+    if (trimmed === 'false') {
+        return false;
+    }
+    const quoted = trimmed.match(/^(['"])(.*)\1$/);
+    if (quoted) {
+        return quoted[2];
+    }
+    return trimmed;
+}
+
+function toTemplateValue(value: unknown): TemplateValue {
+    if (value === null || typeof value === 'string' || typeof value === 'boolean') {
+        return value;
+    }
+    if (value === undefined) {
+        return null;
+    }
+    return String(value);
 }
 
 function hostAttributes(instance: HTMLElement): Record<string, string | boolean | null> {

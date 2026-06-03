@@ -22,6 +22,7 @@
 
 const XHTML_NAMESPACE = 'http://www.w3.org/1999/xhtml';
 const ATTRIBUTE_DECLARATION_TAG = 'attribute';
+const SLICE_DECLARATION_TAG = 'slice';
 
 export type TemplateValue = string | boolean | null;
 
@@ -264,7 +265,7 @@ function valueToText(value: TemplateValue): string {
 
 function isTopLevelNonOutputNode(node: TemplateSourceNode): boolean {
     if (node.kind === 'element') {
-        return node.tag === ATTRIBUTE_DECLARATION_TAG;
+        return node.tag === ATTRIBUTE_DECLARATION_TAG || node.tag === SLICE_DECLARATION_TAG;
     }
     return node.kind === 'text' && node.text.trim().length === 0;
 }
