@@ -5,6 +5,7 @@ import {
     type TemplateSourceNode,
     type TemplateValue,
 } from './projection.js';
+import { parseCemMlTemplateSource } from './runtime-support/cem-ml-template.js';
 
 export type CemElementDiagnosticSeverity = 'info' | 'warning' | 'error' | 'fatal';
 
@@ -329,20 +330,14 @@ export class CemElementRuntime {
         compiled: CompiledDeclaration,
         snapshot: DataIslandSnapshot
     ): DocumentFragment {
-        if (compiled.mode !== 'dom') {
+        if (compiled.mode === 'legacy-v0') {
             this.recordDiagnostics(instance, [
                 {
-                    code:
-                        compiled.mode === 'legacy-v0'
-                            ? 'cem-element.legacy_template_not_implemented'
-                            : 'cem-element.cem_ml_lowering_not_implemented',
+                    code: 'cem-element.legacy_template_not_implemented',
                     severity: 'error',
                     source: 'render',
                     tag: compiled.producedTag,
-                    message:
-                        compiled.mode === 'legacy-v0'
-                            ? '`custom-element-v0` bridge templates are reserved for the bridge-support slice'
-                            : 'CEM-ML lowering requires the cem_ml WASM/runtime-support boundary',
+                    message: '`custom-element-v0` bridge templates are reserved for the bridge-support slice',
                 },
             ]);
             return instance.ownerDocument.createDocumentFragment();
@@ -485,15 +480,7 @@ function compileInlineDeclaration(
 ): CompiledDeclaration {
     const mode = templateMode(template);
     const diagnostics: CemElementDiagnostic[] = [];
-    if (mode === 'cem-ml') {
-        diagnostics.push(
-            declarationDiagnostic(
-                'cem-element.cem_ml_lowering_not_implemented',
-                'inline CEM-ML templates are recognized but require the cem_ml WASM/runtime-support boundary',
-                producedTag
-            )
-        );
-    } else if (mode === 'legacy-v0') {
+    if (mode === 'legacy-v0') {
         diagnostics.push(
             declarationDiagnostic(
                 'cem-element.legacy_template_not_implemented',
@@ -503,8 +490,9 @@ function compileInlineDeclaration(
         );
     }
 
-    const declaredAttributes = mode === 'dom' ? extractAttributeDeclarations(template) : [];
-    const templateSource = mode === 'dom' ? readTemplateSource(template.content) : [];
+    const templateSource = readInlineTemplateSource(template, mode, producedTag, diagnostics);
+    const declaredAttributes =
+        mode === 'legacy-v0' ? [] : extractAttributeDeclarationsFromSource(templateSource);
     return {
         declarationElement,
         declarationTag,
@@ -517,6 +505,28 @@ function compileInlineDeclaration(
         observedAttributes: declaredAttributes.map((attribute) => attribute.name),
         diagnostics,
     };
+}
+
+function readInlineTemplateSource(
+    template: HTMLTemplateElement,
+    mode: CompiledDeclaration['mode'],
+    producedTag: string,
+    diagnostics: CemElementDiagnostic[]
+): TemplateSourceNode[] {
+    if (mode === 'dom') {
+        return readTemplateSource(template.content);
+    }
+    if (mode === 'legacy-v0') {
+        return [];
+    }
+
+    const parsed = parseCemMlTemplateSource(template.textContent ?? '');
+    diagnostics.push(
+        ...parsed.diagnostics.map((diagnostic) =>
+            declarationDiagnostic(diagnostic.code, diagnostic.message, producedTag)
+        )
+    );
+    return parsed.source;
 }
 
 function templateMode(template: HTMLTemplateElement): CompiledDeclaration['mode'] {
@@ -534,17 +544,20 @@ function templateMode(template: HTMLTemplateElement): CompiledDeclaration['mode'
     return 'dom';
 }
 
-function extractAttributeDeclarations(template: HTMLTemplateElement): AttributeDeclaration[] {
+function extractAttributeDeclarationsFromSource(source: readonly TemplateSourceNode[]): AttributeDeclaration[] {
     const declarations: AttributeDeclaration[] = [];
-    for (const child of Array.from(template.content.children)) {
-        if (child.localName !== 'attribute') {
+    for (const child of source) {
+        if (child.kind !== 'element' || child.tag !== 'attribute') {
             continue;
         }
-        const name = child.getAttribute('name')?.trim();
+        const name = child.attributes.find((attribute) => attribute.name === 'name')?.value.trim();
         if (!name) {
             continue;
         }
-        const text = child.textContent?.trim() ?? '';
+        const text = child.children
+            .map((node) => (node.kind === 'text' ? node.text : ''))
+            .join('')
+            .trim();
         declarations.push({
             name,
             defaultValue: text.length > 0 ? text : null,

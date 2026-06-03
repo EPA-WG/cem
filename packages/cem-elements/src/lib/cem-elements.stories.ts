@@ -277,6 +277,46 @@ export const RenderLoopNestedAndDynamic: Story = {
     },
 };
 
+export const CanonicalCemMlRenderLoop: Story = {
+    render: () => {
+        const root = document.createElement('section');
+        root.setAttribute('aria-label', 'canonical CEM-ML render story');
+
+        const runtime = new CemElementRuntime({ declarationTag: 'cem-element-story-cem' });
+        runtime.install(window);
+
+        const declaration = document.createElement('cem-element-story-cem');
+        declaration.setAttribute('tag', 'story-cem-button');
+        const template = document.createElement('template');
+        template.setAttribute('type', 'text/cem-ml');
+        template.textContent = `
+            {attribute @name="label" | Save}
+            {attribute @name="busy"}
+            {button @type=button @aria-busy={$busy} | \${$label}}
+        `;
+        declaration.appendChild(template);
+        root.appendChild(declaration);
+        runtime.registerDeclaration(declaration);
+
+        const instance = document.createElement('story-cem-button');
+        instance.setAttribute('label', 'Submit');
+        instance.setAttribute('busy', '');
+        root.appendChild(instance);
+
+        return root;
+    },
+    play: async ({ canvasElement }) => {
+        await nextFrame();
+
+        const instance = requiredElement(canvasElement, 'story-cem-button');
+        const button = requiredElement(instance, 'button');
+
+        assertEqual(button.textContent?.trim(), 'Submit', 'canonical CEM-ML text projection should use host value');
+        assertEqual(button.getAttribute('type'), 'button', 'canonical CEM-ML bare attribute values should render');
+        assertEqual(button.getAttribute('aria-busy'), '', 'canonical CEM-ML braced attribute values should render');
+    },
+};
+
 function storyPanel(title: string, body: string): HTMLElement {
     const section = document.createElement('section');
     const heading = document.createElement('h2');

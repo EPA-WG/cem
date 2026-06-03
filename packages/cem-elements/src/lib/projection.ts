@@ -15,8 +15,9 @@
  *   3. {@link materializeRenderPlan} — the UI adapter again: turns the render plan into a
  *      live light-DOM `DocumentFragment` for the runtime to commit.
  *
- * CEM-ML curly templates lower through the same `projectTemplate` shape once the cem_ml
- * WASM boundary is wired; Phase 3A only ships the XML/HTML parity (DOM) parser here.
+ * CEM-ML curly templates lower through the same `projectTemplate` shape. Phase 3A uses
+ * a package-private TypeScript subset adapter until the final cem_ml WASM
+ * compile/render-plan API is exposed.
  */
 
 const XHTML_NAMESPACE = 'http://www.w3.org/1999/xhtml';

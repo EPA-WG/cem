@@ -89,9 +89,12 @@ Design home: [`cem-element-design.md`](cem-element-design.md). WASM proposal:
         parser/projection boundary and install a minimal light-DOM render loop. The package-private
         `projection.ts` boundary reads parsed template content into serializable source records, projects against a
         `DataIslandSnapshot`-based input, and materializes the render plan back into light DOM.
+  - [x] Runtime slice C1.5: add package-private canonical CEM-ML subset lowering for `{name @attr=value | ...}`
+        templates so the browser runtime can exercise the same render-plan path before the final WASM API exists.
   - [ ] Runtime slice C2: lower canonical inline CEM-ML declaration templates through the `cem_ml`
         WASM/runtime-support boundary into the same render-plan shape. Current runtime recognizes CEM-ML and
-        `custom-element-v0` templates and emits deferred-boundary diagnostics rather than claiming support.
+        renders the supported C1.5 subset through the temporary TypeScript adapter; the production `cem_ml`
+        WASM/runtime-support boundary remains open.
   - [ ] Runtime slice D: wire attribute changes and declarative data-island/event updates to render invalidation.
   - [ ] Runtime slice E: carry source-map/render identity metadata through rendered nodes and expose diagnostics for
         declaration, parsing, and render failures.
