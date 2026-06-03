@@ -106,8 +106,11 @@ Design home: [`cem-element-design.md`](cem-element-design.md). WASM proposal:
         are exposed through `diagnosticsFor`.
 - [x] Add Storybook as the primary browser/runtime test runner for `packages/cem-elements`, with Nx targets for
       interactive Storybook and CI Storybook Test execution through `@storybook/addon-vitest`.
-- [ ] Add Storybook browser stories proving data-island isolation: declaration and instance template contents do not
-      affect layout, selectors, form submission, accessibility, or visible UI directly.
+- [x] Add Storybook browser stories proving data-island isolation: declaration and instance template contents do not
+      affect layout, selectors, form submission, accessibility, or visible UI directly. Landed in
+      [`packages/cem-elements/src/lib/data-island-isolation.stories.ts`](../packages/cem-elements/src/lib/data-island-isolation.stories.ts):
+      selectors do not pierce the island, bulky island content does not inflate layout, island controls stay out of
+      form submission and the accessibility/focus tree, and the declaration host renders no visible content of its own.
 - [ ] Build the legacy parity feature inventory from the old `@epa-wg/custom-element` suite and docs
       (`~/aWork/custom-element/docs/{attributes,rendering}.md` plus legacy test files). Convert every in-scope
       behavior into a named `<cem-element>` Storybook parity story; record intentional CEM-ML/CEM-QL replacements as
