@@ -1,3 +1,11 @@
+import {
+    materializeRenderPlan,
+    projectTemplate,
+    readTemplateSource,
+    type TemplateSourceNode,
+    type TemplateValue,
+} from './projection.js';
+
 export type CemElementDiagnosticSeverity = 'info' | 'warning' | 'error' | 'fatal';
 
 export interface CemElementDiagnostic {
@@ -57,8 +65,6 @@ type CemElementWindow = Window &
         customElements: CustomElementRegistry;
     };
 
-type TemplateValue = string | boolean | null;
-
 interface AttributeDeclaration {
     name: string;
     defaultValue: TemplateValue;
@@ -70,6 +76,7 @@ interface CompiledDeclaration {
     producedTag: string;
     artifactId: string;
     template: HTMLTemplateElement;
+    templateSource: TemplateSourceNode[];
     mode: 'dom' | 'cem-ml' | 'legacy-v0';
     declaredAttributes: AttributeDeclaration[];
     observedAttributes: string[];
@@ -86,7 +93,6 @@ const DEFAULT_SCOPE_POLICY_STAMP = 'phase-3a-local-default';
 const DEFAULT_PRIVACY_POLICY_STAMP = 'local-only';
 const DATA_ISLAND_ATTR = 'data-cem-island';
 const DATA_ISLAND_VALUE = 'instance';
-const RENDER_NODE_ID_ATTR = 'data-cem-render-node-id';
 const RESERVED_CUSTOM_ELEMENT_NAMES = new Set([
     'annotation-xml',
     'color-profile',
@@ -313,13 +319,16 @@ export class CemElementRuntime {
 
     private renderInstance(instance: HTMLElement, compiled: CompiledDeclaration): void {
         const island = this.ensureDataIsland(instance);
-        this.createSnapshot(instance, compiled, island);
-        const rendered = this.renderFromDeclaration(instance, compiled);
+        const snapshot = this.createSnapshot(instance, compiled, island);
+        const rendered = this.renderFromDeclaration(instance, compiled, snapshot);
         this.replaceRenderedContent(instance, island, rendered);
     }
 
-    private renderFromDeclaration(instance: HTMLElement, compiled: CompiledDeclaration): DocumentFragment {
-        const fragment = instance.ownerDocument.createDocumentFragment();
+    private renderFromDeclaration(
+        instance: HTMLElement,
+        compiled: CompiledDeclaration,
+        snapshot: DataIslandSnapshot
+    ): DocumentFragment {
         if (compiled.mode !== 'dom') {
             this.recordDiagnostics(instance, [
                 {
@@ -336,24 +345,15 @@ export class CemElementRuntime {
                             : 'CEM-ML lowering requires the cem_ml WASM/runtime-support boundary',
                 },
             ]);
-            return fragment;
+            return instance.ownerDocument.createDocumentFragment();
         }
 
-        const values = templateValues(instance, compiled.declaredAttributes);
-        let renderNodeSequence = 0;
-        for (const child of Array.from(compiled.template.content.childNodes)) {
-            if (isTopLevelDeclarationNode(child)) {
-                continue;
-            }
-            const clone = renderNode(child, instance.ownerDocument, values, compiled.producedTag, () => {
-                renderNodeSequence += 1;
-                return renderNodeSequence;
-            });
-            if (clone) {
-                fragment.appendChild(clone);
-            }
-        }
-        return fragment;
+        // UI adapter → processing layer → UI adapter: project the serializable template
+        // source against a serializable data-island snapshot, then materialize the plan
+        // into live light DOM.
+        const values = templateValues(snapshot, compiled.declaredAttributes);
+        const plan = projectTemplate(compiled.templateSource, { snapshot, values });
+        return materializeRenderPlan(plan, instance.ownerDocument);
     }
 
     private ensureDataIsland(instance: HTMLElement): HTMLTemplateElement {
@@ -504,12 +504,14 @@ function compileInlineDeclaration(
     }
 
     const declaredAttributes = mode === 'dom' ? extractAttributeDeclarations(template) : [];
+    const templateSource = mode === 'dom' ? readTemplateSource(template.content) : [];
     return {
         declarationElement,
         declarationTag,
         producedTag,
         artifactId: `template-artifact-${++artifactSequence}`,
         template,
+        templateSource,
         mode,
         declaredAttributes,
         observedAttributes: declaredAttributes.map((attribute) => attribute.name),
@@ -586,96 +588,18 @@ function declarationDiagnostic(code: string, message: string, tag?: string): Cem
     };
 }
 
-function templateValues(instance: HTMLElement, declarations: AttributeDeclaration[]): Record<string, TemplateValue> {
+function templateValues(
+    snapshot: DataIslandSnapshot,
+    declarations: AttributeDeclaration[]
+): Record<string, TemplateValue> {
     const values: Record<string, TemplateValue> = {};
     for (const declaration of declarations) {
         values[declaration.name] = declaration.defaultValue;
     }
-    for (const attribute of Array.from(instance.attributes)) {
-        values[attribute.name] = attribute.value === '' ? true : attribute.value;
+    for (const [name, value] of Object.entries(snapshot.hostAttributes)) {
+        values[name] = value;
     }
     return values;
-}
-
-function renderNode(
-    source: Node,
-    document: Document,
-    values: Record<string, TemplateValue>,
-    producedTag: string,
-    nextRenderNodeSequence: () => number
-): Node | undefined {
-    if (source.nodeType === 3) {
-        return document.createTextNode(interpolateText(source.textContent ?? '', values));
-    }
-    if (source.nodeType === 8) {
-        return document.createComment(source.textContent ?? '');
-    }
-    if (source.nodeType !== 1) {
-        return undefined;
-    }
-
-    const sourceElement = source as Element;
-    const clone = createRenderElement(document, sourceElement);
-    for (const attribute of Array.from(sourceElement.attributes)) {
-        applyRenderedAttribute(clone, attribute.name, attribute.value, values);
-    }
-    if (!clone.hasAttribute(RENDER_NODE_ID_ATTR)) {
-        clone.setAttribute(RENDER_NODE_ID_ATTR, `${producedTag}-${nextRenderNodeSequence()}`);
-    }
-    for (const child of Array.from(sourceElement.childNodes)) {
-        const renderedChild = renderNode(child, document, values, producedTag, nextRenderNodeSequence);
-        if (renderedChild) {
-            clone.appendChild(renderedChild);
-        }
-    }
-    return clone;
-}
-
-function createRenderElement(document: Document, source: Element): Element {
-    if (source.namespaceURI && source.namespaceURI !== 'http://www.w3.org/1999/xhtml') {
-        return document.createElementNS(source.namespaceURI, source.localName);
-    }
-    return document.createElement(source.localName);
-}
-
-function applyRenderedAttribute(
-    target: Element,
-    name: string,
-    value: string,
-    values: Record<string, TemplateValue>
-): void {
-    const wholeExpression = value.match(/^\{\s*\$([A-Za-z_][\w.-]*)\s*\}$/);
-    if (wholeExpression) {
-        const resolved = values[wholeExpression[1]] ?? null;
-        if (resolved === null || resolved === false) {
-            target.removeAttribute(name);
-        } else if (resolved === true) {
-            target.setAttribute(name, '');
-        } else {
-            target.setAttribute(name, resolved);
-        }
-        return;
-    }
-    target.setAttribute(name, interpolateAttribute(value, values));
-}
-
-function interpolateText(text: string, values: Record<string, TemplateValue>): string {
-    return text.replace(/\$\{\s*\$([A-Za-z_][\w.-]*)\s*\}/g, (_, name: string) =>
-        valueToText(values[name] ?? null)
-    );
-}
-
-function interpolateAttribute(value: string, values: Record<string, TemplateValue>): string {
-    return value.replace(/\{\s*\$([A-Za-z_][\w.-]*)\s*\}/g, (_, name: string) =>
-        valueToText(values[name] ?? null)
-    );
-}
-
-function valueToText(value: TemplateValue): string {
-    if (value === null) {
-        return '';
-    }
-    return String(value);
 }
 
 function hostAttributes(instance: HTMLElement): Record<string, string | boolean | null> {
@@ -701,10 +625,6 @@ function serializePayload(island: HTMLTemplateElement): SerializedPayload {
         text: island.content.textContent ?? '',
         childCount: island.content.childNodes.length,
     };
-}
-
-function isTopLevelDeclarationNode(node: Node): boolean {
-    return node.nodeType === 1 && (node as Element).localName === 'attribute';
 }
 
 function isRenderBoundary(node: Node): boolean {

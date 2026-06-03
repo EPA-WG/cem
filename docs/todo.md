@@ -85,8 +85,13 @@ Design home: [`cem-element-design.md`](cem-element-design.md). WASM proposal:
   - [x] Runtime slice B: initialize produced instances, create/reuse
         `<template data-cem-island="instance">`, capture host attributes/dataset/fallback payload, and remove raw
         fallback payload before first render.
-  - [ ] Runtime slice C: lower inline CEM-ML/XML/HTML declaration templates through the available parser/projection
-        boundary and install a minimal light-DOM render loop.
+  - [x] Runtime slice C1: lower inline XML/HTML parity declaration templates through the available DOM
+        parser/projection boundary and install a minimal light-DOM render loop. The package-private
+        `projection.ts` boundary reads parsed template content into serializable source records, projects against a
+        `DataIslandSnapshot`-based input, and materializes the render plan back into light DOM.
+  - [ ] Runtime slice C2: lower canonical inline CEM-ML declaration templates through the `cem_ml`
+        WASM/runtime-support boundary into the same render-plan shape. Current runtime recognizes CEM-ML and
+        `custom-element-v0` templates and emits deferred-boundary diagnostics rather than claiming support.
   - [ ] Runtime slice D: wire attribute changes and declarative data-island/event updates to render invalidation.
   - [ ] Runtime slice E: carry source-map/render identity metadata through rendered nodes and expose diagnostics for
         declaration, parsing, and render failures.

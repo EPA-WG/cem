@@ -4,7 +4,9 @@ import {
     analyzeDeclarationShape,
     cemElements,
     isValidCustomElementName,
+    type DataIslandSnapshot,
 } from './cem-elements.js';
+import { projectTemplate, readTemplateSource, type TemplateSourceNode } from './projection.js';
 
 const meta: Meta = {
     title: 'CEM Elements/Runtime',
@@ -141,6 +143,140 @@ export const DataIslandCaptureAndRender: Story = {
     },
 };
 
+export const ProjectionBoundaryPlan: Story = {
+    render: () => storyPanel('Projection boundary', 'serializable source + values → render plan (no live DOM)'),
+    play: () => {
+        const source: TemplateSourceNode[] = [
+            {
+                kind: 'element',
+                namespace: null,
+                tag: 'attribute',
+                attributes: [{ name: 'name', value: 'label' }],
+                children: [{ kind: 'text', text: 'Save' }],
+            },
+            {
+                kind: 'element',
+                namespace: null,
+                tag: 'button',
+                attributes: [
+                    { name: 'type', value: 'button' },
+                    { name: 'aria-label', value: '{ $label }' },
+                    { name: 'disabled', value: '{ $busy }' },
+                ],
+                children: [{ kind: 'text', text: '${ $label }' }],
+            },
+        ];
+
+        const snapshot = projectionSnapshot('cem-projection-button', {
+            label: 'Submit',
+            busy: null,
+        });
+        const plan = projectTemplate(source, {
+            snapshot,
+            values: { label: 'Submit', busy: null },
+        });
+
+        assertEqual(plan.instanceId, 'story-instance-1', 'projection carries snapshot instance identity');
+        assertEqual(plan.dataRevision, '1', 'projection carries snapshot data revision');
+        assertEqual(plan.nodes.length, 1, 'top-level `attribute` declaration nodes are dropped from output');
+        const [button] = plan.nodes;
+        assert(button.kind === 'element', 'projected node should be an element');
+        assertEqual(button.tag, 'button', 'element tag should be preserved');
+        assertEqual(button.renderNodeId, 'cem-projection-button-1', 'projection assigns deterministic render-node ids');
+        const ariaLabel = button.attributes.find((attribute) => attribute.name === 'aria-label');
+        assertEqual(ariaLabel?.value, 'Submit', 'whole-expression attribute resolves to the host value');
+        assert(
+            !button.attributes.some((attribute) => attribute.name === 'disabled'),
+            'whole-expression attribute resolving to null is dropped'
+        );
+        assertEqual(button.children.length, 1, 'text child should be projected');
+        assert(button.children[0].kind === 'text', 'child should be a text node');
+        assertEqual(button.children[0].text, 'Submit', 'text interpolation resolves against values');
+    },
+};
+
+export const FormattedDomTemplateProjection: Story = {
+    render: () => storyPanel('Formatted DOM template', 'DOM parser source → snapshot projection'),
+    play: () => {
+        const template = document.createElement('template');
+        template.innerHTML = `
+            <attribute name="label">Save</attribute>
+            <article class="card">
+                <h3>\${$label}</h3>
+                <button type="button" data-state="{$state}">Toggle</button>
+            </article>
+        `;
+
+        const source = readTemplateSource(template.content);
+        const snapshot = projectionSnapshot('cem-formatted-card', {
+            label: 'Tokens',
+            state: 'open',
+        });
+        const plan = projectTemplate(source, {
+            snapshot,
+            values: { label: 'Tokens', state: 'open' },
+        });
+
+        assertEqual(plan.nodes.length, 1, 'top-level declaration and indentation whitespace should not render');
+        const [article] = plan.nodes;
+        assert(article.kind === 'element', 'formatted template should project the article element');
+        assertEqual(article.tag, 'article', 'formatted DOM parser source preserves the render root');
+        const heading = article.children.find((child) => child.kind === 'element' && child.tag === 'h3');
+        assert(heading?.kind === 'element', 'formatted template should keep nested heading');
+        assertEqual(heading.children[0]?.kind === 'text' ? heading.children[0].text.trim() : '', 'Tokens', 'heading text resolves through projection');
+        const button = article.children.find((child) => child.kind === 'element' && child.tag === 'button');
+        assert(button?.kind === 'element', 'formatted template should keep nested button');
+        assertEqual(
+            button.attributes.find((attribute) => attribute.name === 'data-state')?.value,
+            'open',
+            'formatted template attribute interpolation resolves through projection'
+        );
+    },
+};
+
+export const RenderLoopNestedAndDynamic: Story = {
+    render: () => {
+        const root = document.createElement('section');
+        root.setAttribute('aria-label', 'render loop story');
+
+        const runtime = new CemElementRuntime({ declarationTag: 'cem-element-story-render' });
+        runtime.install(window);
+
+        const declaration = document.createElement('cem-element-story-render');
+        declaration.setAttribute('tag', 'story-render-card');
+        const template = document.createElement('template');
+        template.innerHTML = `
+            <attribute name="title">Untitled</attribute>
+            <article class="card">
+                <h3>\${$title}</h3>
+                <button type="button" data-state="{$state}" hidden="{$collapsed}">Toggle</button>
+            </article>
+        `;
+        declaration.appendChild(template);
+        root.appendChild(declaration);
+        runtime.registerDeclaration(declaration);
+
+        const instance = document.createElement('story-render-card');
+        instance.setAttribute('title', 'Tokens');
+        instance.setAttribute('state', 'open');
+        root.appendChild(instance);
+
+        return root;
+    },
+    play: async ({ canvasElement }) => {
+        await nextFrame();
+
+        const instance = requiredElement(canvasElement, 'story-render-card');
+        const heading = requiredElement(instance, 'article.card h3');
+        const button = requiredElement(instance, 'article.card button') as HTMLButtonElement;
+
+        assertEqual(heading.textContent, 'Tokens', 'nested text interpolation should use host attribute value');
+        assertEqual(button.getAttribute('data-state'), 'open', 'AVT attribute should resolve to host value');
+        assert(!button.hasAttribute('hidden'), 'whole-expression attribute with absent value should be removed');
+        assert(button.hasAttribute('data-cem-render-node-id'), 'rendered nodes carry render-node identity');
+    },
+};
+
 function storyPanel(title: string, body: string): HTMLElement {
     const section = document.createElement('section');
     const heading = document.createElement('h2');
@@ -178,4 +314,26 @@ function requiredElement(root: ParentNode, selector: string): Element {
 
 function nextFrame(): Promise<void> {
     return new Promise((resolve) => requestAnimationFrame(() => resolve()));
+}
+
+function projectionSnapshot(
+    producedTag: string,
+    hostAttributes: Record<string, string | boolean | null>
+): DataIslandSnapshot {
+    return {
+        instanceId: 'story-instance-1',
+        producedTag,
+        declarationTag: 'cem-element-story-projection',
+        templateArtifactId: 'story-template-artifact-1',
+        dataRevision: '1',
+        outputTarget: 'light-dom',
+        scopePolicyStamp: 'story-scope',
+        privacyPolicyStamp: 'story-privacy',
+        hostAttributes,
+        dataset: {},
+        payload: { text: '', childCount: 0 },
+        slices: {},
+        validationState: {},
+        eventPayloads: {},
+    };
 }
