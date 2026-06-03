@@ -1172,10 +1172,11 @@ const KNOWN_CEM_ATTRIBUTES: &[&str] = &[
 ];
 
 const KNOWN_HTML_SVG_ELEMENTS: &[&str] = &[
-    "a", "article", "aside", "button", "dd", "desc", "dialog", "div", "dl", "dt", "fieldset",
-    "footer", "form", "h1", "h2", "h3", "h4", "h5", "h6", "header", "html", "iframe", "img",
-    "input", "label", "legend", "li", "main", "mark", "nav", "ol", "option", "p", "path", "script",
-    "section", "select", "small", "span", "strong", "svg", "textarea", "title", "ul",
+    "a", "article", "aside", "body", "button", "dd", "desc", "dialog", "div", "dl", "dt",
+    "fieldset", "footer", "form", "h1", "h2", "h3", "h4", "h5", "h6", "head", "header", "html",
+    "iframe", "img", "input", "label", "legend", "li", "main", "mark", "meta", "nav", "ol",
+    "option", "p", "path", "script", "section", "select", "small", "span", "strong", "svg",
+    "textarea", "title", "ul",
 ];
 
 const KNOWN_HTML_SVG_ATTRIBUTES: &[&str] = &[
@@ -1188,6 +1189,7 @@ const KNOWN_HTML_SVG_ATTRIBUTES: &[&str] = &[
     "aria-controls",
     "aria-owns",
     "autocomplete",
+    "charset",
     "checked",
     "class",
     "d",
@@ -1196,6 +1198,7 @@ const KNOWN_HTML_SVG_ATTRIBUTES: &[&str] = &[
     "height",
     "href",
     "id",
+    "lang",
     "method",
     "name",
     "required",
@@ -1569,6 +1572,17 @@ mod tests {
     #[test]
     fn open_content_policy_accepts_custom_elements_data_and_aria() {
         let diags = run_rules(r#"{my-widget @data-track=x @aria-label="Widget"}"#);
+        assert!(diags.iter().all(|d| {
+            d.code != "cem.schema.unknown_html_element"
+                && d.code != "cem.schema.unknown_html_attribute"
+        }));
+    }
+
+    #[test]
+    fn open_content_policy_accepts_html_parity_document_wrapper() {
+        let diags = run_rules(
+            r#"{html @lang=en | {head | {meta @charset=utf-8} {title | Demo}} {body | {main | Hi}}}"#,
+        );
         assert!(diags.iter().all(|d| {
             d.code != "cem.schema.unknown_html_element"
                 && d.code != "cem.schema.unknown_html_attribute"

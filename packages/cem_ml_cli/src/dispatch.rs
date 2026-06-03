@@ -78,8 +78,17 @@ fn collect_fixture_inputs(paths: &[PathBuf]) -> Vec<eng::EngineInput> {
     } else {
         paths
             .iter()
-            .map(|p| placeholder_input(p, None))
+            .map(|p| placeholder_input(p, infer_input_format(p)))
             .collect()
+    }
+}
+
+fn infer_input_format(path: &Path) -> Option<cli::InputFormat> {
+    match path.extension().and_then(|ext| ext.to_str()) {
+        Some("cem") => Some(cli::InputFormat::Cem),
+        Some("html") | Some("htm") => Some(cli::InputFormat::Html),
+        Some("xml") => Some(cli::InputFormat::Xml),
+        _ => None,
     }
 }
 
@@ -271,13 +280,49 @@ fn write_primary(
 /// Tokenize each input and run the cem-ql template embedding pass
 /// (AC-T-7). Returns the cem-ql diagnostics that must be merged into
 /// the engine's report. HTML / XML inputs short-circuit to empty.
-fn collect_embedding_diagnostics(inputs: &[eng::EngineInput]) -> Vec<cem_ml::diagnostics::Diagnostic> {
+fn collect_embedding_diagnostics(
+    inputs: &[eng::EngineInput],
+) -> Vec<cem_ml::diagnostics::Diagnostic> {
     let mut diagnostics = Vec::new();
     for input in inputs {
         let from = input.from_format.unwrap_or(eng::InputFormat::Cem);
         diagnostics.extend(template_pass::run(&input.bytes, from, Some(&input.uri)));
     }
     diagnostics
+}
+
+fn collect_fixture_embedding_diagnostics(
+    inputs: &[eng::EngineInput],
+) -> Result<Vec<cem_ml::diagnostics::Diagnostic>, EngineError> {
+    let mut diagnostics = Vec::new();
+    for input in inputs {
+        let from = input.from_format.unwrap_or(eng::InputFormat::Cem);
+        if !matches!(from, eng::InputFormat::Cem) {
+            continue;
+        }
+        let bytes = if input.bytes.is_empty() {
+            let path = resolve_fixture_input_path(&input.uri);
+            read_input(&path).map_err(|e| EngineError::Io {
+                path: input.uri.clone().into(),
+                source: e,
+            })?
+        } else {
+            input.bytes.clone()
+        };
+        diagnostics.extend(template_pass::run(&bytes, from, Some(&input.uri)));
+    }
+    Ok(diagnostics)
+}
+
+fn resolve_fixture_input_path(uri: &str) -> PathBuf {
+    let path = Path::new(uri);
+    if path.is_absolute() || path.exists() {
+        path.to_path_buf()
+    } else {
+        PathBuf::from(env!("CARGO_MANIFEST_DIR"))
+            .join("../..")
+            .join(path)
+    }
 }
 
 fn merge_embedding_diagnostics(
@@ -647,6 +692,10 @@ pub fn run_fixture_validate<E: CemMlEngine + ?Sized>(
     s: &mut Streams<'_>,
 ) -> Outcome {
     let inputs = collect_fixture_inputs(&args.inputs);
+    let embedding_diags = match collect_fixture_embedding_diagnostics(&inputs) {
+        Ok(v) => v,
+        Err(e) => return handle_engine_error(e, s),
+    };
     let req = eng::FixtureValidateRequest {
         inputs,
         fail_level: to_engine_fail_level(args.fail_level),
@@ -654,7 +703,8 @@ pub fn run_fixture_validate<E: CemMlEngine + ?Sized>(
         context: context(&args.context),
     };
     match engine.fixture_validate(req) {
-        Ok(resp) => {
+        Ok(mut resp) => {
+            merge_embedding_diagnostics(&mut resp.report, embedding_diags);
             if let Err(e) = write_report_files(&resp.report, &args.report, REPORT_BASENAME_VALIDATE)
             {
                 let _ = writeln!(s.stderr, "cem-ml: report write failure: {e}");
@@ -939,6 +989,43 @@ mod tests {
         let v: serde_json::Value = serde_json::from_str(stdout.trim()).unwrap();
         let count = v["summary"]["inputCount"].as_u64().unwrap();
         assert_eq!(count, (fixture_manifest_pairs().len() * 2) as u64);
+    }
+
+    #[test]
+    fn fixture_inputs_infer_format_from_extension() {
+        let inputs = collect_fixture_inputs(&[
+            PathBuf::from("examples/cem-ml/login.cem"),
+            PathBuf::from("examples/semantic/login.html"),
+            PathBuf::from("examples/cem-ml/namespace-rebinding/default-html-svg-html.xml"),
+        ]);
+        assert_eq!(inputs[0].from_format, Some(eng::InputFormat::Cem));
+        assert_eq!(inputs[1].from_format, Some(eng::InputFormat::Html));
+        assert_eq!(inputs[2].from_format, Some(eng::InputFormat::Xml));
+    }
+
+    #[test]
+    fn fixture_validate_merges_template_embedding_diagnostics() {
+        let p = write_fixture("fixture-broken-template.cem", "{p | {$ 1 + }}");
+        let (outcome, stdout, _) = run(
+            &FakeEngine,
+            &[
+                "fixture",
+                "validate",
+                "--zero-hard-violations",
+                p.to_str().unwrap(),
+            ],
+        );
+        assert_eq!(outcome.exit_code, EXIT_HARD_FAILURE);
+        let v: serde_json::Value = serde_json::from_str(stdout.trim()).unwrap();
+        assert!(
+            v["diagnostics"]
+                .as_array()
+                .unwrap()
+                .iter()
+                .any(|d| d["code"].as_str().unwrap_or("").starts_with("cem.ql.")),
+            "fixture validate must surface cem-ql template diagnostics"
+        );
+        assert!(v["summary"]["hardViolationCount"].as_u64().unwrap() > 0);
     }
 
     #[test]
