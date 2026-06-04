@@ -768,6 +768,53 @@ export const SlotProjectionRenderLoop: Story = {
     },
 };
 
+export const SlotProjectionRepeatedNames: Story = {
+    render: () => {
+        const root = document.createElement('section');
+        root.setAttribute('aria-label', 'repeated slot name story');
+
+        const runtime = new CemElementRuntime({ declarationTag: 'cem-element-story-slot-dup' });
+        runtime.install(window);
+
+        const declaration = document.createElement('cem-element-story-slot-dup');
+        declaration.setAttribute('tag', 'story-slot-dup');
+        const template = document.createElement('template');
+        // Two slots share the name `a`; a slottable is assigned to the first match only.
+        template.innerHTML = [
+            '<div class="card">',
+            '<slot name="a"><em class="f1">f1</em></slot>',
+            '<slot name="a"><em class="f2">f2</em></slot>',
+            '</div>',
+        ].join('');
+        declaration.appendChild(template);
+        root.appendChild(declaration);
+        runtime.registerDeclaration(declaration);
+
+        const instance = document.createElement('story-slot-dup');
+        instance.innerHTML = '<span slot="a">X</span>';
+        root.appendChild(instance);
+
+        return root;
+    },
+    play: async ({ canvasElement }) => {
+        await nextFrame();
+
+        const card = requiredElement(canvasElement, 'story-slot-dup div.card');
+        assert(card.querySelector('slot') === null, 'all repeated slots resolve away');
+        assertEqual(
+            card.querySelector('[slot="a"]')?.textContent,
+            'X',
+            'the first matching slot receives the single payload'
+        );
+        assert(card.querySelector('.f1') === null, 'the first slot drops its fallback once filled');
+        assertEqual(
+            card.querySelector('.f2')?.textContent,
+            'f2',
+            'a repeated same-name slot falls back when the payload is already consumed'
+        );
+    },
+};
+
 export const SlotProjectionWasmRenderLoop: Story = {
     render: () => {
         const root = document.createElement('section');

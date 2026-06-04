@@ -390,3 +390,45 @@ fn render_template_reports_invalid_choose_structure() {
         .iter()
         .any(|diagnostic| diagnostic.code == "cem.ql.render.choose_multiple_otherwise"));
 }
+
+#[test]
+fn render_template_supports_nested_conditionals() {
+    // `cem:if` wrapping a `cem:choose` whose `cem:otherwise` nests another `cem:if`.
+    let template = concat!(
+        r#"{cem:if @test="outer" | "#,
+        r#"{cem:choose | "#,
+        r#"{cem:when @test="a" | {span | A}}"#,
+        r#"{cem:otherwise | {cem:if @test="b" | {span | B}}}}}"#,
+    );
+
+    // outer true, when `a` false, nested `b` true -> the nested if in `otherwise` emits B.
+    let nested_b = render_template(
+        template,
+        &TemplateData::default()
+            .with_binding("outer", bool_value(true))
+            .with_binding("a", bool_value(false))
+            .with_binding("b", bool_value(true)),
+    );
+    assert_eq!(nested_b.rendered, "<span>B</span>");
+    assert!(nested_b.diagnostics.is_empty(), "{:?}", nested_b.diagnostics);
+
+    // outer false -> the whole subtree is skipped regardless of inner tests.
+    let skipped = render_template(
+        template,
+        &TemplateData::default()
+            .with_binding("outer", bool_value(false))
+            .with_binding("a", bool_value(true))
+            .with_binding("b", bool_value(true)),
+    );
+    assert_eq!(skipped.rendered, "");
+
+    // outer true, when `a` true -> the matching `when` wins; `otherwise`/nested-if is not taken.
+    let when_a = render_template(
+        template,
+        &TemplateData::default()
+            .with_binding("outer", bool_value(true))
+            .with_binding("a", bool_value(true))
+            .with_binding("b", bool_value(false)),
+    );
+    assert_eq!(when_a.rendered, "<span>A</span>");
+}

@@ -94,9 +94,10 @@ Design home: [`cem-element-design.md`](cem-element-design.md). WASM proposal:
   - [ ] Runtime slice C2: lower canonical inline CEM-ML declaration templates through the `cem_ml`
         WASM/runtime-support boundary into the same render-plan shape. Canonical-subset CEM-ML now renders through
         the `cem_ql` WASM boundary (C2.1–C2.3) with functional `/datadom` data-document selection + `??` (C2.4) and
-        `cem:if`/`cem:choose` conditionals + declarative slot projection (C2.5); the C1.5 TypeScript adapter remains
-        the fallback for bespoke constructs and WASM-unavailable hosts. Remaining: the rest of C2.5
-        (`<data>`/`<option>`, `module-url`) and the verification gate before retiring the C1.5 fallback (C2.6).
+        `cem:if`/`cem:choose` conditionals, `<data>`/`<option>` payloads, and declarative slot projection (C2.5); the
+        C1.5 TypeScript adapter remains the fallback for bespoke constructs and WASM-unavailable hosts. Remaining:
+        `module-url` (deferred to the `src`-loading slice) and the verification gate before retiring the C1.5
+        fallback (C2.6).
     - [x] C2.1: Add a `cem_ql` data-bound render boundary for canonical CEM-ML templates. Split the production
           shape into `compileTemplate(source, options) -> TemplateArtifact` and
           `renderTemplate(artifact, DataIslandSnapshot) -> RenderPlan`; internally this may reuse
@@ -147,8 +148,11 @@ Design home: [`cem-element-design.md`](cem-element-design.md). WASM proposal:
           [`cem-elements.stories.ts`](../packages/cem-elements/src/lib/cem-elements.stories.ts); 32 stories green.
           Note: `datadom.dataset`/`datadom.slices` subtrees and structured snapshot passing are a natural extension;
           the C1.5 TS adapter still can't parse canonical cem-ql (`??` trips its declaration parse), resolved at C2.6.
-    - [ ] C2.5: Add material-parity constructs that depend on full data-bound rendering: `if`/`choose`/`when`,
-          `<data>`, `<option>`, `module-url`, and declarative slots.
+    - [x] C2.5: Add material-parity constructs that depend on full data-bound rendering: `if`/`choose`/`when`,
+          `<data>`, `<option>`, `module-url`, and declarative slots. Landed the in-scope constructs — conditionals
+          (+ malformed-conditional diagnostics), `<data>`/`<option>` payloads, declarative slot projection, and
+          edge-case coverage. `module-url` is deferred to the `src`-loading slice (shared module-map resolver); see
+          the sub-item below.
       - [x] Conditional constructs `cem:if` / `cem:choose` / `cem:when` / `cem:otherwise` (also accepting the
             bare legacy `if`/`choose`/`when`/`otherwise` spellings): recognized in the `cem_ql` template compiler,
             evaluating the `@test` cem-ql expression (built on the C2.4 functional `/datadom`) to an effective
@@ -175,8 +179,10 @@ Design home: [`cem-element-design.md`](cem-element-design.md). WASM proposal:
               of rebuilding them. The TS fallback consumes primitive `datadom.*` paths flattened from the same
               snapshot for its temporary `${}` interpolation path. The concrete `<data>`/`<option>` payload mapping is
               now defined by value plus ordered arrays as above.
-      - [ ] `module-url` resource slices — async resource resolution + slice exposure (overlaps the deferred
-            `src`-loading slice and Phase 3.5).
+      - [ ] `module-url` resource slices — **deferred to the `src`-loading slice** (decision 2026-06-04). It shares
+            the `cem-element` module-map resolver with `src` (design §3.2, [`cem-element-wasm-proposal.md` §3](cem-element-wasm-proposal.md)),
+            so resolution is implemented once there rather than as a divergent minimal resolver here. Tracked with the
+            external/local `src` declaration-loading work (material parity, line ~138; production-gate item).
       - [x] Declarative slot projection — project the produced instance's payload into `<slot>` positions in the
             light DOM (named + unnamed, slot default content as fallback). Landed as a render-plan lowering step in
             [`packages/cem-elements/src/lib/projection.ts`](../packages/cem-elements/src/lib/projection.ts), with both
@@ -191,11 +197,15 @@ Design home: [`cem-element-design.md`](cem-element-design.md). WASM proposal:
               of the live data-island template; the WASM data document exposes slottables under `datadom.payload` and
               `datadom.slots`. Lowering now happens from serialized payload in the render plan before materialization;
               no post-materialization DOM slot query/replacement is needed.
-        - [ ] Add C2.5 edge-case coverage: nested conditionals, repeated same-name slots, mixed unslotted elements plus
+        - [x] Add C2.5 edge-case coverage: nested conditionals, repeated same-name slots, mixed unslotted elements plus
               text ordering, slot fallback cloning, rerender after payload mutation, and serialized-payload projection
-              on the WASM path. Started: mixed default-slot text/element ordering, fallback cloning, and payload
-              mutation rerender are covered by `SlotProjectionRenderLoop`; serialized-payload projection on the WASM
-              path is covered by `SlotProjectionWasmRenderLoop`.
+              on the WASM path. Mixed default-slot text/element ordering, fallback cloning, and payload-mutation
+              rerender are covered by `SlotProjectionRenderLoop`; serialized-payload projection on the WASM path by
+              `SlotProjectionWasmRenderLoop`; nested `cem:if`/`cem:choose`/`cem:when`/`cem:otherwise` by
+              `render_template_supports_nested_conditionals` in
+              [`template_render.rs`](../packages/cem_ql/tests/template_render.rs) (first-match wins, skipped subtree,
+              nested-if in `otherwise`); repeated same-name slots (first match consumes the payload, later same-name
+              slots fall back) by the `SlotProjectionRepeatedNames` story. 38 stories + 18 render tests green.
     - [ ] C2.6: Wire the verification gate through `cem_ml_cli:validate-fixtures`, `cem_ml_cli:e2e`, and Storybook
           parity stories before retiring the C1.5 fallback.
   - [x] Runtime slice D: wire attribute changes and declarative data-island/event updates to render invalidation.
