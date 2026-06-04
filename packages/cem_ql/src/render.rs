@@ -182,10 +182,12 @@ pub fn compile_template(source: &str, options: &CompileTemplateOptions) -> Templ
 
 pub fn render_compiled_template(artifact: &TemplateArtifact, data: &TemplateData) -> RenderPlan {
     let mut policy_bindings = data.bindings.clone();
-    policy_bindings.insert(
-        DATA_DOCUMENT_BINDING.to_owned(),
-        build_data_document(&data.bindings),
-    );
+    let datadom = data
+        .bindings
+        .get(DATA_DOCUMENT_BINDING)
+        .cloned()
+        .unwrap_or_else(|| build_data_document(&data.bindings));
+    policy_bindings.insert(DATA_DOCUMENT_BINDING.to_owned(), datadom);
     let mut renderer = PlanRenderer {
         evaluation_context: EvaluationContext {
             scope: QueryContextScope(0),
@@ -225,6 +227,7 @@ pub fn render_template(source: &str, data: &TemplateData) -> RenderedTemplate {
 fn build_data_document(bindings: &BTreeMap<String, ItemStream>) -> ItemStream {
     let attributes: BTreeMap<String, Vec<Item>> = bindings
         .iter()
+        .filter(|(name, _)| name.as_str() != DATA_DOCUMENT_BINDING)
         .map(|(name, stream)| (name.clone(), stream.items.clone()))
         .collect();
     let mut datadom = BTreeMap::new();

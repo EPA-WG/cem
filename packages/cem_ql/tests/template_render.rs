@@ -4,6 +4,7 @@ use cem_ql::render::{
     TemplateData,
 };
 use cem_ql::render::{render_plan_to_html, render_template};
+use std::collections::BTreeMap;
 
 fn string_value(value: &str) -> ItemStream {
     ItemStream::once(Item::Atomic(AtomValue::String(value.to_owned())))
@@ -11,6 +12,15 @@ fn string_value(value: &str) -> ItemStream {
 
 fn bool_value(value: bool) -> ItemStream {
     ItemStream::once(Item::Atomic(AtomValue::Boolean(value)))
+}
+
+fn record(fields: impl IntoIterator<Item = (&'static str, Vec<Item>)>) -> Item {
+    Item::Record(
+        fields
+            .into_iter()
+            .map(|(name, value)| (name.to_owned(), value))
+            .collect::<BTreeMap<_, _>>(),
+    )
 }
 
 #[test]
@@ -147,6 +157,66 @@ fn render_template_selects_from_data_document() {
     let rendered = render_template("{span | {$datadom.attributes.label}}", &data);
 
     assert_eq!(rendered.rendered, "<span>Email</span>");
+    assert!(
+        rendered.diagnostics.is_empty(),
+        "{:?}",
+        rendered.diagnostics
+    );
+}
+
+#[test]
+fn render_template_uses_explicit_structured_data_document() {
+    let datadom = record([
+        (
+            "attributes",
+            vec![record([(
+                "label",
+                vec![Item::Atomic(AtomValue::String("Email".to_owned()))],
+            )])],
+        ),
+        (
+            "dataset",
+            vec![record([(
+                "variant",
+                vec![Item::Atomic(AtomValue::String("compact".to_owned()))],
+            )])],
+        ),
+        (
+            "slices",
+            vec![record([(
+                "open",
+                vec![Item::Atomic(AtomValue::Boolean(true))],
+            )])],
+        ),
+        (
+            "payload",
+            vec![record([(
+                "text",
+                vec![Item::Atomic(AtomValue::String("Payload".to_owned()))],
+            )])],
+        ),
+        (
+            "slots",
+            vec![record([(
+                "leading",
+                vec![Item::Array(vec![record([(
+                    "text",
+                    vec![Item::Atomic(AtomValue::String("Lead".to_owned()))],
+                )])])],
+            )])],
+        ),
+    ]);
+    let data = TemplateData::default().with_binding("datadom", ItemStream::once(datadom));
+
+    let rendered = render_template(
+        "{span | {$datadom.attributes.label}-{$datadom.dataset.variant}-{$datadom.slices.open}-{$datadom.payload.text}-{$datadom.slots.leading}}",
+        &data,
+    );
+
+    assert_eq!(
+        rendered.rendered,
+        "<span>Email-compact-true-Payload-</span>"
+    );
     assert!(
         rendered.diagnostics.is_empty(),
         "{:?}",

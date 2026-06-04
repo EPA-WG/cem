@@ -165,9 +165,12 @@ Design home: [`cem-element-design.md`](cem-element-design.md). WASM proposal:
       - [ ] `<data>` / `<option>` instance payloads — serialize the data-island payload into the snapshot and
             expose it under `/datadom` (needs snapshot-payload serialization).
         - [ ] Review finding: the data-document contract should be unified before adding `<data>`/`<option>`.
-              Define `DataIslandSnapshot -> TemplateData` mapping for `attributes`, `dataset`, `payload`, `slots`,
-              `slices`, `validationState`, and `eventPayloads`, then make both the WASM path and TS fallback consume
-              that same shape.
+              Started: the WASM path now passes a structured `datadom` object derived from `DataIslandSnapshot`
+              (`attributes`, `dataset`, `payload`, `slots`, `slices`, `validationState`, `eventPayloads`) while keeping
+              flat host bindings for `$name` compatibility, and `cem_ql` preserves explicit `datadom` bindings instead
+              of rebuilding them. The TS fallback consumes primitive `datadom.*` paths flattened from the same
+              snapshot for its temporary `${}` interpolation path. Remaining: define the concrete `<data>`/`<option>`
+              payload mapping.
       - [ ] `module-url` resource slices — async resource resolution + slice exposure (overlaps the deferred
             `src`-loading slice and Phase 3.5).
       - [x] Declarative slot projection — project the produced instance's payload into `<slot>` positions in the
@@ -181,9 +184,10 @@ Design home: [`cem-element-design.md`](cem-element-design.md). WASM proposal:
         - [ ] Review finding: slot projection currently reads live island DOM after WASM materialization, so it is not
               reproducible in worker/SSR/edge hosts from the serialized snapshot. Started: slot payload serialization
               moved into `DataIslandSnapshot`, and browser projection now reads `DataIslandSnapshot.payload` instead
-              of the live data-island template. Remaining: expose slottables under `datadom.payload`/`datadom.slots`
-              and lower `<slot>` from serialized payload before or during render-plan materialization; keep DOM
-              projection only as a temporary browser fallback while the render-plan slot node is designed.
+              of the live data-island template; the WASM data document exposes slottables under `datadom.payload` and
+              `datadom.slots`. Remaining: lower `<slot>` from serialized payload before or during render-plan
+              materialization; keep DOM projection only as a temporary browser fallback while the render-plan slot node
+              is designed.
         - [ ] Add C2.5 edge-case coverage: nested conditionals, repeated same-name slots, mixed unslotted elements plus
               text ordering, slot fallback cloning, rerender after payload mutation, and serialized-payload projection
               on the WASM path. Started: mixed default-slot text/element ordering, fallback cloning, and payload

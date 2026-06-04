@@ -410,7 +410,7 @@ export class CemElementRuntime {
     ): Promise<void> {
         const source = compiled.cemMlSource ?? '';
         try {
-            const data = templateValues(snapshot, compiled.declaredAttributes);
+            const data = wasmTemplateData(snapshot, compiled.declaredAttributes);
             const result = await renderCemMlTemplate(source, data, {
                 renderNodeIdPrefix: compiled.producedTag,
             });
@@ -924,7 +924,50 @@ function templateValues(
     for (const [name, value] of Object.entries(snapshot.slices)) {
         values[name] = toTemplateValue(value);
     }
+    addTemplateValuePaths(values, 'datadom', dataDocumentFromSnapshot(snapshot));
     return values;
+}
+
+function wasmTemplateData(snapshot: DataIslandSnapshot, declarations: AttributeDeclaration[]): Record<string, unknown> {
+    return {
+        ...templateValues(snapshot, declarations),
+        datadom: dataDocumentFromSnapshot(snapshot),
+    };
+}
+
+function dataDocumentFromSnapshot(snapshot: DataIslandSnapshot): Record<string, unknown> {
+    return {
+        attributes: snapshot.hostAttributes,
+        dataset: snapshot.dataset,
+        payload: snapshot.payload,
+        slots: snapshot.payload.slots,
+        slices: snapshot.slices,
+        validationState: snapshot.validationState,
+        eventPayloads: snapshot.eventPayloads,
+    };
+}
+
+function addTemplateValuePaths(values: Record<string, TemplateValue>, prefix: string, value: unknown): void {
+    if (
+        value === null ||
+        typeof value === 'string' ||
+        typeof value === 'boolean' ||
+        typeof value === 'number' ||
+        typeof value === 'undefined'
+    ) {
+        values[prefix] = toTemplateValue(value);
+        return;
+    }
+    if (Array.isArray(value)) {
+        return;
+    }
+    if (typeof value !== 'object') {
+        values[prefix] = toTemplateValue(value);
+        return;
+    }
+    for (const [name, child] of Object.entries(value)) {
+        addTemplateValuePaths(values, `${prefix}.${name}`, child);
+    }
 }
 
 /** Wrap WASM-produced render-plan nodes in a render plan carrying snapshot identity. */

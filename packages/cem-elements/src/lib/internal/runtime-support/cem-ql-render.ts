@@ -20,7 +20,7 @@ import initCemQlWasm, {
     renderTemplateSource,
     version as cemQlVersion,
 } from '../../../../../cem_ql/dist/wasm/cem_ql.js';
-import type { RenderPlanNode, SourceMapRef, TemplateValue } from '../../projection.js';
+import type { RenderPlanNode, SourceMapRef } from '../../projection.js';
 
 export interface RuntimeSupportDiagnostic {
     code: string;
@@ -74,7 +74,7 @@ export function runtimeVersion(): string {
  */
 export async function renderCemMlTemplate(
     source: string,
-    data: Record<string, TemplateValue>,
+    data: Record<string, unknown>,
     options: CemQlRenderOptions = {}
 ): Promise<CemQlRenderResult> {
     await ensureRuntimeReady();

@@ -462,6 +462,28 @@ export const CemQlDataDocumentBoundary: Story = {
         );
         assertEqual(absent.diagnostics.length, 0, 'absent selection coalesces without diagnostics');
         assertEqual(textOfNodes(absent.nodes), 'Anonymous', 'absent selection falls back through `??`');
+
+        const structured = await renderCemMlTemplate(
+            '{button | {$datadom.dataset.variant}-{$datadom.payload.text}-{$datadom.slots.leading}}',
+            {
+                datadom: {
+                    attributes: {},
+                    dataset: { variant: 'compact' },
+                    payload: { text: 'Payload', childCount: 1, nodes: [], slots: { leading: [{ text: 'Lead' }] } },
+                    slots: { leading: [{ text: 'Lead' }] },
+                    slices: {},
+                    validationState: {},
+                    eventPayloads: {},
+                },
+            },
+            { renderNodeIdPrefix: 'cem-dd-structured' }
+        );
+        assertEqual(structured.diagnostics.length, 0, 'structured datadom renders without diagnostics');
+        assertEqual(
+            textOfNodes(structured.nodes),
+            'compact-Payload-',
+            'structured datadom exposes dataset, payload, and slot buckets'
+        );
     },
 };
 
@@ -478,13 +500,16 @@ export const CemQlDataDocumentRenderLoop: Story = {
         const template = document.createElement('template');
         template.setAttribute('type', 'text/cem-ml');
         // Functional data-document selection, lowered through cem_ql at render time.
-        template.textContent = '{button @type=button | {$datadom.attributes.label}}';
+        template.textContent =
+            '{button @type=button | {$datadom.attributes.label}-{$datadom.dataset.variant}-{$datadom.payload.text}}';
         declaration.appendChild(template);
         root.appendChild(declaration);
         runtime.registerDeclaration(declaration);
 
         const instance = document.createElement('story-datadom-button');
         instance.setAttribute('label', 'Tokens');
+        instance.setAttribute('data-variant', 'compact');
+        instance.textContent = 'Payload';
         root.appendChild(instance);
 
         return root;
@@ -495,10 +520,50 @@ export const CemQlDataDocumentRenderLoop: Story = {
 
         assertEqual(
             button.textContent?.trim(),
-            'Tokens',
-            'data-document selection resolves the host attribute through the runtime'
+            'Tokens-compact-Payload',
+            'data-document selection resolves snapshot attributes, dataset, and payload through the runtime'
         );
         assertEqual(button.getAttribute('type'), 'button', 'sibling canonical attributes still render');
+    },
+};
+
+export const CemQlDataDocumentFallbackRenderLoop: Story = {
+    render: () => {
+        const root = document.createElement('section');
+        root.setAttribute('aria-label', 'cem_ql data-document fallback story');
+
+        const runtime = new CemElementRuntime({ declarationTag: 'cem-element-story-datadom-fallback' });
+        runtime.install(window);
+
+        const declaration = document.createElement('cem-element-story-datadom-fallback');
+        declaration.setAttribute('tag', 'story-datadom-fallback');
+        const template = document.createElement('template');
+        template.setAttribute('type', 'text/cem-ml');
+        // `${}` text interpolation intentionally routes this CEM-ML template through
+        // the temporary C1.5 fallback instead of the canonical WASM renderer.
+        template.textContent =
+            '{button @type=button | ${$datadom.attributes.label}-${$datadom.dataset.variant}-${$datadom.payload.text}}';
+        declaration.appendChild(template);
+        root.appendChild(declaration);
+        runtime.registerDeclaration(declaration);
+
+        const instance = document.createElement('story-datadom-fallback');
+        instance.setAttribute('label', 'Tokens');
+        instance.setAttribute('data-variant', 'compact');
+        instance.textContent = 'Payload';
+        root.appendChild(instance);
+
+        return root;
+    },
+    play: async ({ canvasElement }) => {
+        const instance = requiredElement(canvasElement, 'story-datadom-fallback');
+        const button = await waitForElement(instance, 'button');
+
+        assertEqual(
+            button.textContent?.trim(),
+            'Tokens-compact-Payload',
+            'C1.5 fallback reads flattened datadom paths from the same snapshot'
+        );
     },
 };
 
