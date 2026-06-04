@@ -157,8 +157,17 @@ Design home: [`cem-element-design.md`](cem-element-design.md). WASM proposal:
             (`TemplateNode::If`/`Choose`, `render_into` flattening, `test_is_truthy`) with coverage in
             [`template_render.rs`](../packages/cem_ql/tests/template_render.rs) and the cem-elements
             `CemQlConditionalRenderLoop` story; flows through the WASM boundary automatically. 33 stories green.
+        - [x] Review finding: malformed conditional structure must diagnose instead of silently rendering false/empty.
+              Add compile diagnostics for missing `@test` on `cem:if`/`cem:when`, `@test` on `cem:otherwise`, non-branch
+              direct children under `cem:choose`, and multiple `cem:otherwise` branches; keep valid conditional output
+              unchanged. Landed in [`packages/cem_ql/src/render.rs`](../packages/cem_ql/src/render.rs) with regression
+              coverage in [`template_render.rs`](../packages/cem_ql/tests/template_render.rs).
       - [ ] `<data>` / `<option>` instance payloads — serialize the data-island payload into the snapshot and
             expose it under `/datadom` (needs snapshot-payload serialization).
+        - [ ] Review finding: the data-document contract should be unified before adding `<data>`/`<option>`.
+              Define `DataIslandSnapshot -> TemplateData` mapping for `attributes`, `dataset`, `payload`, `slots`,
+              `slices`, `validationState`, and `eventPayloads`, then make both the WASM path and TS fallback consume
+              that same shape.
       - [ ] `module-url` resource slices — async resource resolution + slice exposure (overlaps the deferred
             `src`-loading slice and Phase 3.5).
       - [x] Declarative slot projection — project the produced instance's payload into `<slot>` positions in the
@@ -169,6 +178,16 @@ Design home: [`cem-element-design.md`](cem-element-design.md). WASM proposal:
             default slot takes unslotted payload plus non-empty text) or its own fallback children when unfilled.
             Cloning keeps the inert island as the durable source across rerenders. Coverage: the
             `SlotProjectionRenderLoop` story; 34 stories green.
+        - [ ] Review finding: slot projection currently reads live island DOM after WASM materialization, so it is not
+              reproducible in worker/SSR/edge hosts from the serialized snapshot. Started: slot payload serialization
+              moved into `DataIslandSnapshot`, and browser projection now reads `DataIslandSnapshot.payload` instead
+              of the live data-island template. Remaining: expose slottables under `datadom.payload`/`datadom.slots`
+              and lower `<slot>` from serialized payload before or during render-plan materialization; keep DOM
+              projection only as a temporary browser fallback while the render-plan slot node is designed.
+        - [ ] Add C2.5 edge-case coverage: nested conditionals, repeated same-name slots, mixed unslotted elements plus
+              text ordering, slot fallback cloning, rerender after payload mutation, and serialized-payload projection
+              on the WASM path. Started: mixed default-slot text/element ordering, fallback cloning, and payload
+              mutation rerender are covered by `SlotProjectionRenderLoop`.
     - [ ] C2.6: Wire the verification gate through `cem_ml_cli:validate-fixtures`, `cem_ml_cli:e2e`, and Storybook
           parity stories before retiring the C1.5 fallback.
   - [x] Runtime slice D: wire attribute changes and declarative data-island/event updates to render invalidation.
