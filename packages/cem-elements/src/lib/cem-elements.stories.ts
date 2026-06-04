@@ -436,6 +436,72 @@ export const CemQlWasmRenderLoopUpgrade: Story = {
     },
 };
 
+// ---------------------------------------------------------------------------
+// Runtime slice C2.4 — functional /datadom data-document selection + `??`
+// coalescing through the cem_ql render boundary (no XPath engine).
+// ---------------------------------------------------------------------------
+
+export const CemQlDataDocumentBoundary: Story = {
+    render: () =>
+        storyPanel('cem_ql data-document boundary', 'functional /datadom selection + `??` default via the WASM boundary'),
+    play: async () => {
+        // `datadom.attributes.<name>` is the functional-parity equivalent of the legacy
+        // `/datadom/attributes/<name>` XPath selection; `??` supplies an absent default.
+        const present = await renderCemMlTemplate(
+            '{button | {$datadom.attributes.label ?? "Anonymous"}}',
+            { label: 'Sasha' },
+            { renderNodeIdPrefix: 'cem-dd' }
+        );
+        assertEqual(present.diagnostics.length, 0, 'present selection renders without diagnostics');
+        assertEqual(textOfNodes(present.nodes), 'Sasha', 'datadom.attributes selection resolves the host binding');
+
+        const absent = await renderCemMlTemplate(
+            '{button | {$datadom.attributes.label ?? "Anonymous"}}',
+            {},
+            { renderNodeIdPrefix: 'cem-dd' }
+        );
+        assertEqual(absent.diagnostics.length, 0, 'absent selection coalesces without diagnostics');
+        assertEqual(textOfNodes(absent.nodes), 'Anonymous', 'absent selection falls back through `??`');
+    },
+};
+
+export const CemQlDataDocumentRenderLoop: Story = {
+    render: () => {
+        const root = document.createElement('section');
+        root.setAttribute('aria-label', 'cem_ql data-document render loop story');
+
+        const runtime = new CemElementRuntime({ declarationTag: 'cem-element-story-datadom' });
+        runtime.install(window);
+
+        const declaration = document.createElement('cem-element-story-datadom');
+        declaration.setAttribute('tag', 'story-datadom-button');
+        const template = document.createElement('template');
+        template.setAttribute('type', 'text/cem-ml');
+        // Functional data-document selection, lowered through cem_ql at render time.
+        template.textContent = '{button @type=button | {$datadom.attributes.label}}';
+        declaration.appendChild(template);
+        root.appendChild(declaration);
+        runtime.registerDeclaration(declaration);
+
+        const instance = document.createElement('story-datadom-button');
+        instance.setAttribute('label', 'Tokens');
+        root.appendChild(instance);
+
+        return root;
+    },
+    play: async ({ canvasElement }) => {
+        const instance = requiredElement(canvasElement, 'story-datadom-button');
+        const button = await waitForElement(instance, 'button');
+
+        assertEqual(
+            button.textContent?.trim(),
+            'Tokens',
+            'data-document selection resolves the host attribute through the runtime'
+        );
+        assertEqual(button.getAttribute('type'), 'button', 'sibling canonical attributes still render');
+    },
+};
+
 export const RuntimeDiagnosticsSurface: Story = {
     render: () => storyPanel('Runtime diagnostics', 'declaration and render diagnostics remain queryable'),
     play: async ({ canvasElement }) => {
@@ -1159,6 +1225,19 @@ function requiredElement(root: ParentNode, selector: string): Element {
 
 function nextFrame(): Promise<void> {
     return new Promise((resolve) => requestAnimationFrame(() => resolve()));
+}
+
+/** Concatenated, trimmed text content of a render-plan node list (for WASM-boundary assertions). */
+function textOfNodes(nodes: readonly RenderPlanNode[]): string {
+    return nodes
+        .map((node) => {
+            if (node.kind === 'text') {
+                return node.text;
+            }
+            return node.kind === 'element' ? textOfNodes(node.children) : '';
+        })
+        .join('')
+        .trim();
 }
 
 /** Poll animation frames until a selector resolves — used for the async WASM render path. */

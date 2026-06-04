@@ -19,6 +19,9 @@ use crate::api::{compile, evaluate, CompileContext, EvaluationContext};
 use crate::eval::{AtomValue, Item, ItemStream, QueryContextScope};
 use crate::ir::CompiledQuery;
 
+/// Binding name under which the `/datadom` data document is exposed to expressions.
+const DATA_DOCUMENT_BINDING: &str = "datadom";
+
 #[derive(Debug, Clone, Default)]
 pub struct TemplateData {
     pub bindings: BTreeMap<String, ItemStream>,
@@ -134,12 +137,16 @@ pub fn compile_template(source: &str, options: &CompileTemplateOptions) -> Templ
         tokens.push(token);
     }
 
+    let mut declared_bindings: BTreeMap<String, ItemStream> = options
+        .host_bindings
+        .iter()
+        .map(|name| (name.clone(), ItemStream::empty()))
+        .collect();
+    // The `/datadom` data document is always available to expressions for functional
+    // selection (e.g. `datadom.attributes.label`), so declare it at compile time.
+    declared_bindings.insert(DATA_DOCUMENT_BINDING.to_owned(), ItemStream::empty());
     let compile_context = CompileContext {
-        policy_bindings: options
-            .host_bindings
-            .iter()
-            .map(|name| (name.clone(), ItemStream::empty()))
-            .collect(),
+        policy_bindings: declared_bindings,
         ..CompileContext::default()
     };
     let mut compiler = TemplateCompiler {
@@ -156,12 +163,17 @@ pub fn compile_template(source: &str, options: &CompileTemplateOptions) -> Templ
 }
 
 pub fn render_compiled_template(artifact: &TemplateArtifact, data: &TemplateData) -> RenderPlan {
+    let mut policy_bindings = data.bindings.clone();
+    policy_bindings.insert(
+        DATA_DOCUMENT_BINDING.to_owned(),
+        build_data_document(&data.bindings),
+    );
     let mut renderer = PlanRenderer {
         evaluation_context: EvaluationContext {
             scope: QueryContextScope(0),
             scope_policy: ScopePolicy::host_root().with_queue_size(128),
             diagnostics: Vec::new(),
-            policy_bindings: data.bindings.clone(),
+            policy_bindings,
         },
         diagnostics: artifact.diagnostics.clone(),
     };
@@ -186,6 +198,21 @@ pub fn render_template(source: &str, data: &TemplateData) -> RenderedTemplate {
         rendered: render_plan_to_html(&plan),
         diagnostics: plan.diagnostics,
     }
+}
+
+/// Build the `/datadom` data document exposed to cem-ql expressions for functional
+/// data selection. Host bindings (the attributes/slices the runtime supplies) become
+/// `datadom.attributes.<name>`, the functional-parity equivalent of the legacy
+/// `/datadom/attributes` XPath model — navigated with cem-ql record/pipeline access
+/// (`record_field`) rather than an XPath engine.
+fn build_data_document(bindings: &BTreeMap<String, ItemStream>) -> ItemStream {
+    let attributes: BTreeMap<String, Vec<Item>> = bindings
+        .iter()
+        .map(|(name, stream)| (name.clone(), stream.items.clone()))
+        .collect();
+    let mut datadom = BTreeMap::new();
+    datadom.insert("attributes".to_owned(), vec![Item::Record(attributes)]);
+    ItemStream::once(Item::Record(datadom))
 }
 
 pub fn render_plan_to_html(plan: &RenderPlan) -> String {

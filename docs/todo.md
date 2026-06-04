@@ -92,9 +92,10 @@ Design home: [`cem-element-design.md`](cem-element-design.md). WASM proposal:
   - [x] Runtime slice C1.5: add package-private canonical CEM-ML subset lowering for `{name @attr=value | ...}`
         templates so the browser runtime can exercise the same render-plan path before the final WASM API exists.
   - [ ] Runtime slice C2: lower canonical inline CEM-ML declaration templates through the `cem_ml`
-        WASM/runtime-support boundary into the same render-plan shape. Current runtime recognizes CEM-ML and
-        renders the supported C1.5 subset through the temporary TypeScript adapter; the production `cem_ml`
-        WASM/runtime-support boundary remains open.
+        WASM/runtime-support boundary into the same render-plan shape. Canonical-subset CEM-ML now renders through
+        the `cem_ql` WASM boundary (C2.1–C2.3) with functional `/datadom` data-document selection + `??` (C2.4); the
+        C1.5 TypeScript adapter remains the fallback for bespoke constructs and WASM-unavailable hosts. Remaining:
+        material-parity constructs (C2.5) and the verification gate before retiring the C1.5 fallback (C2.6).
     - [x] C2.1: Add a `cem_ql` data-bound render boundary for canonical CEM-ML templates. Split the production
           shape into `compileTemplate(source, options) -> TemplateArtifact` and
           `renderTemplate(artifact, DataIslandSnapshot) -> RenderPlan`; internally this may reuse
@@ -110,11 +111,41 @@ Design home: [`cem-element-design.md`](cem-element-design.md). WASM proposal:
           `renderTemplateSource`, and `disposeTemplate`; `nx run cem_ql:build:wasm` now emits
           `packages/cem_ql/dist/wasm/{cem_ql.js,cem_ql.d.ts,cem_ql_bg.wasm}` through the pinned
           `wasm-bindgen-cli 0.2.122` build script.
-    - [ ] C2.3: Replace the C1.5 TypeScript CEM-ML adapter in `@epa-wg/cem-elements` with an async runtime-support
+    - [x] C2.3: Replace the C1.5 TypeScript CEM-ML adapter in `@epa-wg/cem-elements` with an async runtime-support
           call into the `cem_ql` WASM render boundary, keeping `materializeRenderPlan`, diagnostics, frame
-          attributes, and the TS adapter as a temporary fallback only.
-    - [ ] C2.4: Add the data-document evaluation slice for XPath, `select`, `/datadom`, and `??` by extending the
-          evaluator context from the serialized `DataIslandSnapshot`.
+          attributes, and the TS adapter as a temporary fallback only. Landed as the extraction-ready host
+          runtime-support layer
+          [`packages/cem-elements/src/lib/internal/runtime-support/cem-ql-render.ts`](../packages/cem-elements/src/lib/internal/runtime-support/cem-ql-render.ts)
+          (lazy main-thread WASM init, async `renderCemMlTemplate(source, data) -> RenderPlanNode[]+diagnostics`;
+          worker-backed primary path deferred). `cem-elements.ts` routes canonical-subset CEM-ML (`{$x}` content,
+          `{…}` AVT, no `<attribute>`/`<slice>` decls, no `${}` text) through the WASM boundary with a per-instance
+          render token, reusing `materializeRenderPlan` and the slice-E frame attributes; the C1.5 adapter
+          ([`cem-ml-template.ts`](../packages/cem-elements/src/lib/runtime-support/cem-ml-template.ts)) is now the
+          fallback only (declaration diagnostics, declared-attribute/slice extraction, bespoke constructs deferred to
+          C2.4/C2.5, and WASM-unavailable hosts). `cem_ql` `render.rs` now carries real per-node author-byte-exact
+          source frames (was whole-document) and `api/wasm.rs` emits per-node `byteOffset`; `build:wasm` writes a
+          `{"type":"module"}` ESM marker into `dist/wasm`. Proven by new Storybook stories
+          `CemQlWasmRenderBoundary` (direct render-plan/frames/diagnostics mapping) and `CemQlWasmRenderLoopUpgrade`
+          (lifecycle upgrade) in
+          [`cem-elements.stories.ts`](../packages/cem-elements/src/lib/cem-elements.stories.ts); all 30 stories green.
+    - [x] C2.4: Add the data-document evaluation slice for XPath, `select`, `/datadom`, and `??` by extending the
+          evaluator context from the serialized `DataIslandSnapshot`. Per direction, this is **functional parity in
+          cem-ql, not an XPath engine**: the `/datadom` data document is exposed as a cem-ql `Record` and navigated
+          with native record/pipeline access (`datadom.attributes.<name>`, the functional equivalent of the legacy
+          `/datadom/attributes/<name>` selection), so `select` is just a cem-ql expression over it. Landed in
+          [`packages/cem_ql/src/render.rs`](../packages/cem_ql/src/render.rs) (`build_data_document` seeds
+          `datadom.attributes.*` from the host bindings and binds `datadom`; flows through the WASM
+          `renderTemplateSource` path automatically) and the `??` null/empty-sequence coalescing operator across
+          [`lexer.rs`](../packages/cem_ql/src/lexer.rs) (`Coalesce` token), [`parser/pratt.rs`](../packages/cem_ql/src/parser/pratt.rs)
+          (`PREC_COALESCE`), [`parser.rs`](../packages/cem_ql/src/parser.rs) (`BinaryOp::Coalesce`),
+          [`types.rs`](../packages/cem_ql/src/types.rs) (union type), and [`eval.rs`](../packages/cem_ql/src/eval.rs)
+          (short-circuit). Coverage: functional-parity tests in
+          [`template_render.rs`](../packages/cem_ql/tests/template_render.rs) (select, coalesce-absent/present/chained)
+          and cem-elements stories `CemQlDataDocumentBoundary` (direct `??`+`datadom` mapping) and
+          `CemQlDataDocumentRenderLoop` (lifecycle select) in
+          [`cem-elements.stories.ts`](../packages/cem-elements/src/lib/cem-elements.stories.ts); 32 stories green.
+          Note: `datadom.dataset`/`datadom.slices` subtrees and structured snapshot passing are a natural extension;
+          the C1.5 TS adapter still can't parse canonical cem-ql (`??` trips its declaration parse), resolved at C2.6.
     - [ ] C2.5: Add material-parity constructs that depend on full data-bound rendering: `if`/`choose`/`when`,
           `<data>`, `<option>`, `module-url`, and declarative slots.
     - [ ] C2.6: Wire the verification gate through `cem_ml_cli:validate-fixtures`, `cem_ml_cli:e2e`, and Storybook

@@ -135,3 +135,52 @@ fn render_plan_preserves_structured_nodes_and_source_maps() {
     assert_eq!(children.len(), 1);
     assert!(!source_map.frames.is_empty(), "element carries source map");
 }
+
+// --- C2.4: functional data-document selection (no XPath engine) + `??` --------
+
+#[test]
+fn render_template_selects_from_data_document() {
+    let data = TemplateData::default().with_binding("label", string_value("Email"));
+
+    // Functional parity with the legacy `/datadom/attributes/label` XPath selection,
+    // expressed through cem-ql record navigation.
+    let rendered = render_template("{span | {$datadom.attributes.label}}", &data);
+
+    assert_eq!(rendered.rendered, "<span>Email</span>");
+    assert!(rendered.diagnostics.is_empty(), "{:?}", rendered.diagnostics);
+}
+
+#[test]
+fn render_template_coalesces_absent_selection_to_default() {
+    let rendered = render_template(
+        r#"{span | {$datadom.attributes.missing ?? "fallback"}}"#,
+        &TemplateData::default(),
+    );
+
+    assert_eq!(rendered.rendered, "<span>fallback</span>");
+    assert!(rendered.diagnostics.is_empty(), "{:?}", rendered.diagnostics);
+}
+
+#[test]
+fn render_template_coalesce_prefers_present_selection() {
+    let data = TemplateData::default().with_binding("label", string_value("Email"));
+
+    let rendered = render_template(r#"{span | {$datadom.attributes.label ?? "fallback"}}"#, &data);
+
+    assert_eq!(rendered.rendered, "<span>Email</span>");
+    assert!(rendered.diagnostics.is_empty(), "{:?}", rendered.diagnostics);
+}
+
+#[test]
+fn render_template_coalesces_chained_selections() {
+    let data = TemplateData::default().with_binding("alt", string_value("Alt"));
+
+    // `a ?? b ?? c`: first present wins left-to-right.
+    let rendered = render_template(
+        r#"{span | {$datadom.attributes.missing ?? datadom.attributes.alt ?? "fallback"}}"#,
+        &data,
+    );
+
+    assert_eq!(rendered.rendered, "<span>Alt</span>");
+    assert!(rendered.diagnostics.is_empty(), "{:?}", rendered.diagnostics);
+}

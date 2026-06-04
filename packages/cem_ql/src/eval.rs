@@ -519,6 +519,25 @@ impl<'a> EvalCtx<'a> {
     }
 
     fn eval_binary(&mut self, source: IrId, op: BinaryOp, lhs: IrId, rhs: IrId) -> ItemStream {
+        if op == BinaryOp::Coalesce {
+            // Null/empty-sequence coalescing: short-circuit to the left operand unless
+            // it is empty or its first item is `null`, otherwise evaluate the right.
+            let lhs = self.eval_id(lhs);
+            self.merge_stream_status(&lhs);
+            if lhs.error.is_some() {
+                return lhs;
+            }
+            let present = lhs
+                .items
+                .first()
+                .is_some_and(|item| !matches!(item, Item::Atomic(AtomValue::Null)));
+            if present {
+                return lhs;
+            }
+            let mut out = self.eval_id(rhs);
+            out.extend_diagnostics(lhs);
+            return out;
+        }
         if op == BinaryOp::And {
             let lhs = self.eval_id(lhs);
             self.merge_stream_status(&lhs);

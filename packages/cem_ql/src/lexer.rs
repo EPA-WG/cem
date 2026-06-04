@@ -43,6 +43,7 @@ pub enum TokenKind {
     NotKw,
     AmpAmpReserved,
     PipePipeReserved,
+    Coalesce,
     Slash,
     DotDot,
     Let,
@@ -160,6 +161,7 @@ impl<'src> Lexer<'src> {
                 self.token(TokenKind::AmpAmpReserved, start, self.cursor, None)
             }
             '&' => self.token(TokenKind::Amp, start, self.cursor, None),
+            '?' if self.consume_if('?') => self.token(TokenKind::Coalesce, start, self.cursor, None),
             '-' => self.token(TokenKind::Minus, start, self.cursor, None),
             '^' => self.token(TokenKind::Caret, start, self.cursor, None),
             ':' if self.consume_if('=') => self.token(TokenKind::Assign, start, self.cursor, None),

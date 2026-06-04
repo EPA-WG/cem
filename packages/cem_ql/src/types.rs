@@ -568,6 +568,10 @@ impl TypeChecker {
                 self.expect_subtype(&rhs_ty, &Type::Node(NodeKind::Node), rhs.range());
                 boolean_type()
             }
+            BinaryOp::Coalesce => {
+                // `lhs ?? rhs` yields either operand, so the static type is their union.
+                self.common_type(&lhs_ty, &rhs_ty).unwrap_or(Type::Any)
+            }
             BinaryOp::Eq
             | BinaryOp::Ne
             | BinaryOp::Lt

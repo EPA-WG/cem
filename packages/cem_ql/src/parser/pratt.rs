@@ -4,19 +4,20 @@ use crate::lexer::TokenKind;
 
 use super::{BinaryOp, SetOp};
 
-pub(crate) const PREC_OR: u8 = 1;
-pub(crate) const PREC_AND: u8 = 2;
-pub(crate) const PREC_NOT: u8 = 3;
-const PREC_COMPARE: u8 = 4;
-const PREC_SET_UNION: u8 = 5;
-const PREC_SET_INTERSECT: u8 = 6;
-const PREC_ADD: u8 = 7;
-const PREC_MUL: u8 = 8;
-pub(crate) const PREC_UNARY_MINUS: u8 = 9;
-pub(crate) const PREC_TYPE: u8 = 10;
-pub(crate) const PREC_DOT: u8 = 11;
-pub(crate) const PREC_PATH: u8 = 12;
-pub(crate) const PREC_CALL: u8 = 13;
+pub(crate) const PREC_COALESCE: u8 = 1;
+pub(crate) const PREC_OR: u8 = 2;
+pub(crate) const PREC_AND: u8 = 3;
+pub(crate) const PREC_NOT: u8 = 4;
+const PREC_COMPARE: u8 = 5;
+const PREC_SET_UNION: u8 = 6;
+const PREC_SET_INTERSECT: u8 = 7;
+const PREC_ADD: u8 = 8;
+const PREC_MUL: u8 = 9;
+pub(crate) const PREC_UNARY_MINUS: u8 = 10;
+pub(crate) const PREC_TYPE: u8 = 11;
+pub(crate) const PREC_DOT: u8 = 12;
+pub(crate) const PREC_PATH: u8 = 13;
+pub(crate) const PREC_CALL: u8 = 14;
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub(crate) enum InfixOperator {
@@ -26,6 +27,7 @@ pub(crate) enum InfixOperator {
 
 pub(crate) fn infix_operator(kind: TokenKind) -> Option<(u8, InfixOperator)> {
     let op = match kind {
+        TokenKind::Coalesce => (PREC_COALESCE, InfixOperator::Binary(BinaryOp::Coalesce)),
         TokenKind::OrKw => (PREC_OR, InfixOperator::Binary(BinaryOp::Or)),
         TokenKind::AndKw => (PREC_AND, InfixOperator::Binary(BinaryOp::And)),
         TokenKind::Eq => (PREC_COMPARE, InfixOperator::Binary(BinaryOp::Eq)),

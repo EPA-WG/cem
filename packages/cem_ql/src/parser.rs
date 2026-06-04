@@ -1034,6 +1034,9 @@ pub enum BinaryOp {
     Mod,
     And,
     Or,
+    /// `??` — null/empty-sequence coalescing: the left operand unless it is empty
+    /// or its first item is `null`, otherwise the right operand.
+    Coalesce,
     Is,
 }
 
