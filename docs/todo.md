@@ -104,9 +104,12 @@ Design home: [`cem-element-design.md`](cem-element-design.md). WASM proposal:
           [`packages/cem_ql/src/render.rs`](../packages/cem_ql/src/render.rs) with coverage in
           [`packages/cem_ql/tests/template_render.rs`](../packages/cem_ql/tests/template_render.rs); the browser
           snapshot/WASM transport wrapper remains C2.2/C2.3.
-    - [ ] C2.2: Add the `cem_ql` WASM entrypoint and build tooling. Export version plus compile/render functions,
+    - [x] C2.2: Add the `cem_ql` WASM entrypoint and build tooling. Export version plus compile/render functions,
           pin the wasm-bindgen toolchain, and make the Nx `cem_ql:build:wasm` target emit JS bindings usable by
-          Vite/Storybook.
+          Vite/Storybook. Landed with wasm exports for `version`, `compileTemplate`, `renderTemplate`,
+          `renderTemplateSource`, and `disposeTemplate`; `nx run cem_ql:build:wasm` now emits
+          `packages/cem_ql/dist/wasm/{cem_ql.js,cem_ql.d.ts,cem_ql_bg.wasm}` through the pinned
+          `wasm-bindgen-cli 0.2.122` build script.
     - [ ] C2.3: Replace the C1.5 TypeScript CEM-ML adapter in `@epa-wg/cem-elements` with an async runtime-support
           call into the `cem_ql` WASM render boundary, keeping `materializeRenderPlan`, diagnostics, frame
           attributes, and the TS adapter as a temporary fallback only.

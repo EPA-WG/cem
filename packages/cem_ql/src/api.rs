@@ -15,6 +15,9 @@ use crate::ir::CompiledQuery;
 use crate::parser::{Parser, SurfaceModule};
 use crate::resolve::overlay::OverlayMap;
 
+#[cfg(target_arch = "wasm32")]
+pub mod wasm;
+
 /// Compile a CEM-QL query module source string into a typed IR.
 pub fn compile(source: &str, context: &CompileContext) -> Result<CompiledQuery, CompileError> {
     let parsed = parse(source);

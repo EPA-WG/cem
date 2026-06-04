@@ -132,6 +132,8 @@ name = "cem-ql"
 version = "0.1.0"
 dependencies = [
  "cem-ml",
+ "serde_json",
+ "wasm-bindgen",
 ]
 
 [[package]]

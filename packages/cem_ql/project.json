@@ -40,10 +40,13 @@
             "cache": true,
             "executor": "nx:run-commands",
             "options": {
-                "command": "cargo build --package cem-ql --lib --target wasm32-unknown-unknown --target-dir dist/target/cem_ql",
+                "command": "node tools/scripts/build-cem-ql-wasm.mjs",
                 "cwd": "{workspaceRoot}"
             },
-            "outputs": ["{workspaceRoot}/dist/target/cem_ql/wasm32-unknown-unknown"]
+            "outputs": [
+                "{workspaceRoot}/dist/target/cem_ql/wasm32-unknown-unknown",
+                "{projectRoot}/dist/wasm"
+            ]
         },
         "bench": {
             "cache": false,
