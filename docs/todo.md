@@ -95,6 +95,23 @@ Design home: [`cem-element-design.md`](cem-element-design.md). WASM proposal:
         WASM/runtime-support boundary into the same render-plan shape. Current runtime recognizes CEM-ML and
         renders the supported C1.5 subset through the temporary TypeScript adapter; the production `cem_ml`
         WASM/runtime-support boundary remains open.
+    - [ ] C2.1: Add a `cem_ql` data-bound render boundary for canonical CEM-ML templates. Split the production
+          shape into `compileTemplate(source, options) -> TemplateArtifact` and
+          `renderTemplate(artifact, DataIslandSnapshot) -> RenderPlan`; internally this may reuse
+          `CompileContext.policy_bindings`, but the public boundary names the browser data as host/data bindings.
+          Start with `$variable` content and AVT interpolation only, preserving structured source-map frames.
+    - [ ] C2.2: Add the `cem_ql` WASM entrypoint and build tooling. Export version plus compile/render functions,
+          pin the wasm-bindgen toolchain, and make the Nx `cem_ql:build:wasm` target emit JS bindings usable by
+          Vite/Storybook.
+    - [ ] C2.3: Replace the C1.5 TypeScript CEM-ML adapter in `@epa-wg/cem-elements` with an async runtime-support
+          call into the `cem_ql` WASM render boundary, keeping `materializeRenderPlan`, diagnostics, frame
+          attributes, and the TS adapter as a temporary fallback only.
+    - [ ] C2.4: Add the data-document evaluation slice for XPath, `select`, `/datadom`, and `??` by extending the
+          evaluator context from the serialized `DataIslandSnapshot`.
+    - [ ] C2.5: Add material-parity constructs that depend on full data-bound rendering: `if`/`choose`/`when`,
+          `<data>`, `<option>`, `module-url`, and declarative slots.
+    - [ ] C2.6: Wire the verification gate through `cem_ml_cli:validate-fixtures`, `cem_ml_cli:e2e`, and Storybook
+          parity stories before retiring the C1.5 fallback.
   - [x] Runtime slice D: wire attribute changes and declarative data-island/event updates to render invalidation.
         Observed declaration attributes rerender produced instances; rendered `slice`/`slice-event`/`slice-value`
         bindings update package-local slice state and rerender through the same `DataIslandSnapshot` path; inert
@@ -117,10 +134,14 @@ Design home: [`cem-element-design.md`](cem-element-design.md). WASM proposal:
       migration decisions.
 - [ ] Land material parity stories for every component in `~/aWork/custom-element-dist/src/material/` (action,
       autocomplete, badge, dropdown, icon, icon-link, input, menu).
-- [ ] Build a material parity inventory from `~/aWork/custom-element-dist/src/material/components/*.html` covering
+- [x] Build a material parity inventory from `~/aWork/custom-element-dist/src/material/components/*.html` covering
       local/external `src`, hidden declarations, nested custom elements, declarative slots, scoped styles,
       `attribute select`, `if`/`choose` bridge constructs, namespaced `xhtml:*` elements, boolean attribute helper
-      semantics, `module-url` resource slices, `data`/`option` payloads, slice events, and `slice-value`.
+      semantics, `module-url` resource slices, `data`/`option` payloads, slice events, and `slice-value`. Landed in
+      [`packages/cem-elements/docs/material-parity-inventory.md`](../packages/cem-elements/docs/material-parity-inventory.md):
+      per-component feature usage plus a 22-row feature→runtime-support matrix. Key finding — external/local `src`
+      declaration loading is the hard blocker (all 8 components compose via `src` imports), and the
+      conditional/expression/slot/`data`-payload features gate behind slice C2 (cem-ml/cem-ql).
 - [ ] Wire `cem-element` through `nx run cem_ml_cli:validate-fixtures` and `cem_ml_cli:e2e` so substrate templates
       ride the same Phase 2 verification.
 - [ ] Production-ready gate: parity (1)–(6) from [`cem-element-design.md` §7](cem-element-design.md). When green,
