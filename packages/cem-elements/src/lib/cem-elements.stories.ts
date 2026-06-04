@@ -502,6 +502,70 @@ export const CemQlDataDocumentRenderLoop: Story = {
     },
 };
 
+// ---------------------------------------------------------------------------
+// Runtime slice C2.5 — conditional constructs (cem:if / cem:choose / cem:when /
+// cem:otherwise) lowered through the cem_ql render boundary.
+// ---------------------------------------------------------------------------
+
+export const CemQlConditionalRenderLoop: Story = {
+    render: () => {
+        const root = document.createElement('section');
+        root.setAttribute('aria-label', 'cem_ql conditional render story');
+
+        const runtime = new CemElementRuntime({ declarationTag: 'cem-element-story-cond' });
+        runtime.install(window);
+
+        const declaration = document.createElement('cem-element-story-cond');
+        declaration.setAttribute('tag', 'story-cond-card');
+        const template = document.createElement('template');
+        template.setAttribute('type', 'text/cem-ml');
+        // `cem:if` gated on a data-document selection, plus a `cem:choose`/`cem:when`/
+        // `cem:otherwise` case branch — both evaluate cem-ql `@test` expressions.
+        template.textContent =
+            '{div @class=card |' +
+            ' {cem:if @test="datadom.attributes.label" | {h3 | {$datadom.attributes.label}}}' +
+            ' {cem:choose |' +
+            ' {cem:when @test="datadom.attributes.kind" | {span @class=kind | {$datadom.attributes.kind}}}' +
+            ' {cem:otherwise | {span @class=kind | default}}}}';
+        declaration.appendChild(template);
+        root.appendChild(declaration);
+        runtime.registerDeclaration(declaration);
+
+        const full = document.createElement('story-cond-card');
+        full.setAttribute('label', 'Card');
+        full.setAttribute('kind', 'primary');
+        const empty = document.createElement('story-cond-card');
+        root.append(full, empty);
+
+        return root;
+    },
+    play: async ({ canvasElement }) => {
+        const instances = canvasElement.querySelectorAll('story-cond-card');
+        const fullCard = await waitForElement(instances[0], 'div.card');
+        const emptyCard = await waitForElement(instances[1], 'div.card');
+
+        // Truthy `cem:if` test emits its body; matching `cem:when` wins the choose.
+        assertEqual(
+            requiredElement(fullCard, 'h3').textContent?.trim(),
+            'Card',
+            'cem:if emits its body when the @test is truthy'
+        );
+        assertEqual(
+            requiredElement(fullCard, 'span.kind').textContent?.trim(),
+            'primary',
+            'cem:choose selects the matching cem:when branch'
+        );
+
+        // Falsey `cem:if` test emits nothing; choose falls back to `cem:otherwise`.
+        assert(emptyCard.querySelector('h3') === null, 'cem:if omits its body when the @test is falsey');
+        assertEqual(
+            requiredElement(emptyCard, 'span.kind').textContent?.trim(),
+            'default',
+            'cem:choose falls back to cem:otherwise when no cem:when matches'
+        );
+    },
+};
+
 export const RuntimeDiagnosticsSurface: Story = {
     render: () => storyPanel('Runtime diagnostics', 'declaration and render diagnostics remain queryable'),
     play: async ({ canvasElement }) => {

@@ -16,7 +16,7 @@ use cem_ml::tokenizer::cem::CemTokenizer;
 use cem_ml::tokenizer::{SchemaToken, SchemaTokenKind, SchemaTokenizer};
 
 use crate::api::{compile, evaluate, CompileContext, EvaluationContext};
-use crate::eval::{AtomValue, Item, ItemStream, QueryContextScope};
+use crate::eval::{effective_boolean, AtomValue, Item, ItemStream, QueryContextScope};
 use crate::ir::CompiledQuery;
 
 /// Binding name under which the `/datadom` data document is exposed to expressions.
@@ -62,6 +62,24 @@ pub enum TemplateNode {
         source_map: SourceMapStack,
     },
     Expression(CompiledTemplateExpression),
+    /// `cem:if` — emits its children only when `test` is truthy.
+    If {
+        test: Option<CompiledTemplateExpression>,
+        children: Vec<TemplateNode>,
+        source_map: SourceMapStack,
+    },
+    /// `cem:choose` — emits the children of the first branch whose `test` is truthy
+    /// (a branch with `test: None` is `cem:otherwise`); at most one branch contributes.
+    Choose {
+        branches: Vec<ChooseBranch>,
+        source_map: SourceMapStack,
+    },
+}
+
+#[derive(Debug, Clone)]
+pub struct ChooseBranch {
+    pub test: Option<CompiledTemplateExpression>,
+    pub children: Vec<TemplateNode>,
 }
 
 #[derive(Debug, Clone)]
@@ -177,11 +195,10 @@ pub fn render_compiled_template(artifact: &TemplateArtifact, data: &TemplateData
         },
         diagnostics: artifact.diagnostics.clone(),
     };
-    let nodes = artifact
-        .nodes
-        .iter()
-        .filter_map(|node| renderer.render_node(node))
-        .collect();
+    let mut nodes = Vec::new();
+    for node in &artifact.nodes {
+        renderer.render_into(node, &mut nodes);
+    }
     RenderPlan {
         nodes,
         diagnostics: renderer.diagnostics,
@@ -234,41 +251,73 @@ impl TemplateCompiler<'_> {
     fn compile_all(&mut self) -> Vec<TemplateNode> {
         let mut nodes = Vec::new();
         while self.index < self.tokens.len() {
-            match &self.tokens[self.index].kind {
-                SchemaTokenKind::NodeStart { name } if name == "$" => {
-                    nodes.push(TemplateNode::Expression(self.compile_expression_node()));
-                }
-                SchemaTokenKind::NodeStart { .. } => nodes.push(self.compile_element()),
-                SchemaTokenKind::Text(text) | SchemaTokenKind::Trivia(text) => {
-                    let token = self.tokens[self.index].clone();
-                    nodes.push(TemplateNode::Text {
-                        text: text.clone(),
-                        source_map: frame_for(&token),
-                    });
-                    self.index += 1;
-                }
-                SchemaTokenKind::Comment(text) => {
-                    let token = self.tokens[self.index].clone();
-                    nodes.push(TemplateNode::Comment {
-                        text: text.clone(),
-                        source_map: frame_for(&token),
-                    });
-                    self.index += 1;
-                }
-                _ => self.index += 1,
+            if matches!(self.tokens[self.index].kind, SchemaTokenKind::NodeEnd { .. }) {
+                self.index += 1;
+                continue;
+            }
+            if let Some(node) = self.compile_node() {
+                nodes.push(node);
             }
         }
         nodes
     }
 
-    fn compile_element(&mut self) -> TemplateNode {
-        let start = self.tokens[self.index].clone();
-        let SchemaTokenKind::NodeStart { name } = &start.kind else {
-            unreachable!("compile_element is called only at NodeStart");
-        };
-        let tag = name.clone();
-        self.index += 1;
+    /// Parse the node at the cursor (advancing it), or skip a stray token (returns `None`).
+    fn compile_node(&mut self) -> Option<TemplateNode> {
+        match &self.tokens[self.index].kind {
+            SchemaTokenKind::NodeStart { name } if name == "$" => {
+                Some(TemplateNode::Expression(self.compile_expression_node()))
+            }
+            SchemaTokenKind::NodeStart { name } if is_if_name(name) => Some(self.compile_if()),
+            SchemaTokenKind::NodeStart { name } if is_choose_name(name) => {
+                Some(self.compile_choose())
+            }
+            SchemaTokenKind::NodeStart { .. } => Some(self.compile_element()),
+            SchemaTokenKind::Text(text) | SchemaTokenKind::Trivia(text) => {
+                let text = text.clone();
+                let token = self.tokens[self.index].clone();
+                self.index += 1;
+                Some(TemplateNode::Text {
+                    text,
+                    source_map: frame_for(&token),
+                })
+            }
+            SchemaTokenKind::Comment(text) => {
+                let text = text.clone();
+                let token = self.tokens[self.index].clone();
+                self.index += 1;
+                Some(TemplateNode::Comment {
+                    text,
+                    source_map: frame_for(&token),
+                })
+            }
+            _ => {
+                self.index += 1;
+                None
+            }
+        }
+    }
 
+    /// Parse children until the `NodeEnd` matching `tag` (or an unnamed close `}`).
+    fn parse_children(&mut self, tag: &str) -> Vec<TemplateNode> {
+        let mut children = Vec::new();
+        while self.index < self.tokens.len() {
+            if let SchemaTokenKind::NodeEnd { name: end } = &self.tokens[self.index].kind {
+                let closes = end.as_deref().map(|end| end == tag).unwrap_or(true);
+                self.index += 1;
+                if closes {
+                    break;
+                }
+                continue;
+            }
+            if let Some(node) = self.compile_node() {
+                children.push(node);
+            }
+        }
+        children
+    }
+
+    fn parse_attributes(&mut self) -> Vec<TemplateAttribute> {
         let mut attributes = Vec::new();
         while self.index < self.tokens.len() {
             match &self.tokens[self.index].kind {
@@ -287,8 +336,45 @@ impl TemplateCompiler<'_> {
                 _ => break,
             }
         }
+        attributes
+    }
 
-        let mut children = Vec::new();
+    fn compile_element(&mut self) -> TemplateNode {
+        let start = self.tokens[self.index].clone();
+        let SchemaTokenKind::NodeStart { name } = &start.kind else {
+            unreachable!("compile_element is called only at NodeStart");
+        };
+        let tag = name.clone();
+        self.index += 1;
+        let attributes = self.parse_attributes();
+        let children = self.parse_children(&tag);
+        TemplateNode::Element {
+            tag,
+            attributes,
+            children,
+            source_map: frame_for(&start),
+        }
+    }
+
+    fn compile_if(&mut self) -> TemplateNode {
+        let start = self.tokens[self.index].clone();
+        let tag = node_start_name(&start);
+        self.index += 1;
+        let test = self.parse_test_attribute();
+        let children = self.parse_children(&tag);
+        TemplateNode::If {
+            test,
+            children,
+            source_map: frame_for(&start),
+        }
+    }
+
+    fn compile_choose(&mut self) -> TemplateNode {
+        let start = self.tokens[self.index].clone();
+        let tag = node_start_name(&start);
+        self.index += 1;
+        self.skip_attributes();
+        let mut branches = Vec::new();
         while self.index < self.tokens.len() {
             match &self.tokens[self.index].kind {
                 SchemaTokenKind::NodeEnd { name: end }
@@ -297,35 +383,66 @@ impl TemplateCompiler<'_> {
                     self.index += 1;
                     break;
                 }
-                SchemaTokenKind::NodeStart { name } if name == "$" => {
-                    children.push(TemplateNode::Expression(self.compile_expression_node()));
+                SchemaTokenKind::NodeStart { name } if is_when_name(name) => {
+                    branches.push(self.compile_branch(true));
                 }
-                SchemaTokenKind::NodeStart { .. } => children.push(self.compile_element()),
-                SchemaTokenKind::Text(text) | SchemaTokenKind::Trivia(text) => {
-                    let token = self.tokens[self.index].clone();
-                    children.push(TemplateNode::Text {
-                        text: text.clone(),
-                        source_map: frame_for(&token),
-                    });
-                    self.index += 1;
+                SchemaTokenKind::NodeStart { name } if is_otherwise_name(name) => {
+                    branches.push(self.compile_branch(false));
                 }
-                SchemaTokenKind::Comment(text) => {
-                    let token = self.tokens[self.index].clone();
-                    children.push(TemplateNode::Comment {
-                        text: text.clone(),
-                        source_map: frame_for(&token),
-                    });
-                    self.index += 1;
+                // Stray content between branches (other elements) is ignored.
+                SchemaTokenKind::NodeStart { .. } => {
+                    let _ = self.compile_element();
                 }
                 _ => self.index += 1,
             }
         }
-
-        TemplateNode::Element {
-            tag,
-            attributes,
-            children,
+        TemplateNode::Choose {
+            branches,
             source_map: frame_for(&start),
+        }
+    }
+
+    fn compile_branch(&mut self, is_when: bool) -> ChooseBranch {
+        let start = self.tokens[self.index].clone();
+        let tag = node_start_name(&start);
+        self.index += 1;
+        let test = if is_when {
+            self.parse_test_attribute()
+        } else {
+            self.skip_attributes();
+            None
+        };
+        let children = self.parse_children(&tag);
+        ChooseBranch { test, children }
+    }
+
+    /// Compile the `@test` whole-expression attribute of a conditional, ignoring others.
+    fn parse_test_attribute(&mut self) -> Option<CompiledTemplateExpression> {
+        let mut test = None;
+        while self.index < self.tokens.len() {
+            match &self.tokens[self.index].kind {
+                SchemaTokenKind::Attribute { name, value, .. } => {
+                    let is_test = name == "test";
+                    let raw = value.clone().unwrap_or_default();
+                    let token = self.tokens[self.index].clone();
+                    self.index += 1;
+                    if is_test {
+                        test = Some(self.compile_expression(&raw, &token));
+                    }
+                }
+                SchemaTokenKind::Trivia(_) => self.index += 1,
+                _ => break,
+            }
+        }
+        test
+    }
+
+    fn skip_attributes(&mut self) {
+        while self.index < self.tokens.len() {
+            match &self.tokens[self.index].kind {
+                SchemaTokenKind::Attribute { .. } | SchemaTokenKind::Trivia(_) => self.index += 1,
+                _ => break,
+            }
         }
     }
 
@@ -411,38 +528,88 @@ struct PlanRenderer {
 }
 
 impl PlanRenderer {
-    fn render_node(&mut self, node: &TemplateNode) -> Option<RenderPlanNode> {
+    /// Render a template node, appending zero or more plan nodes to `out`. Conditionals
+    /// (`cem:if`/`cem:choose`) contribute the children of the selected branch (or none),
+    /// so they flatten into the surrounding sequence rather than emitting a wrapper.
+    fn render_into(&mut self, node: &TemplateNode, out: &mut Vec<RenderPlanNode>) {
         match node {
             TemplateNode::Element {
                 tag,
                 attributes,
                 children,
                 source_map,
-            } => Some(RenderPlanNode::Element {
-                tag: tag.clone(),
-                attributes: attributes
+            } => {
+                let attributes = attributes
                     .iter()
                     .filter_map(|attribute| self.render_attribute(attribute))
-                    .collect(),
-                children: children
-                    .iter()
-                    .filter_map(|child| self.render_node(child))
-                    .collect(),
-                source_map: source_map.clone(),
-            }),
-            TemplateNode::Text { text, source_map } => Some(RenderPlanNode::Text {
+                    .collect();
+                let mut child_nodes = Vec::new();
+                for child in children {
+                    self.render_into(child, &mut child_nodes);
+                }
+                out.push(RenderPlanNode::Element {
+                    tag: tag.clone(),
+                    attributes,
+                    children: child_nodes,
+                    source_map: source_map.clone(),
+                });
+            }
+            TemplateNode::Text { text, source_map } => out.push(RenderPlanNode::Text {
                 text: text.clone(),
                 source_map: source_map.clone(),
             }),
-            TemplateNode::Comment { text, source_map } => Some(RenderPlanNode::Comment {
+            TemplateNode::Comment { text, source_map } => out.push(RenderPlanNode::Comment {
                 text: text.clone(),
                 source_map: source_map.clone(),
             }),
-            TemplateNode::Expression(expression) => Some(RenderPlanNode::Text {
+            TemplateNode::Expression(expression) => out.push(RenderPlanNode::Text {
                 text: self.evaluate_to_string(expression),
                 source_map: expression.source_map.clone(),
             }),
+            TemplateNode::If { test, children, .. } => {
+                if self.test_is_truthy(test.as_ref()) {
+                    for child in children {
+                        self.render_into(child, out);
+                    }
+                }
+            }
+            TemplateNode::Choose { branches, .. } => {
+                for branch in branches {
+                    let matched = match &branch.test {
+                        None => true,
+                        Some(test) => self.test_is_truthy(Some(test)),
+                    };
+                    if matched {
+                        for child in &branch.children {
+                            self.render_into(child, out);
+                        }
+                        break;
+                    }
+                }
+            }
         }
+    }
+
+    /// Evaluate a conditional `@test` expression to a cem-ql effective-boolean.
+    fn test_is_truthy(&mut self, test: Option<&CompiledTemplateExpression>) -> bool {
+        let Some(test) = test else {
+            return false;
+        };
+        let Some(query) = &test.query else {
+            return false;
+        };
+        let stream = evaluate(query, &self.evaluation_context);
+        self.diagnostics.extend(stream.diagnostics.clone());
+        if let Some(error) = stream.error {
+            self.diagnostics.push(render_diagnostic(
+                "cem.ql.render.test_failed",
+                format!("conditional test `{}` failed: {error:?}", test.source),
+                test.byte_offset,
+                test.source_map.clone(),
+            ));
+            return false;
+        }
+        effective_boolean(&stream.items)
     }
 
     fn render_attribute(&mut self, attribute: &TemplateAttribute) -> Option<RenderPlanAttribute> {
@@ -606,6 +773,35 @@ fn whole_avt_expression(value: &str) -> Option<&str> {
     } else {
         None
     }
+}
+
+fn node_start_name(token: &SchemaToken) -> String {
+    match &token.kind {
+        SchemaTokenKind::NodeStart { name } => name.clone(),
+        _ => String::new(),
+    }
+}
+
+/// Local name of a (possibly `cem:`-prefixed) conditional element, so both the canonical
+/// `cem:if`/`cem:choose`/... and the legacy bare `if`/`choose`/... spellings are accepted.
+fn conditional_local_name(name: &str) -> &str {
+    name.strip_prefix("cem:").unwrap_or(name)
+}
+
+fn is_if_name(name: &str) -> bool {
+    conditional_local_name(name) == "if"
+}
+
+fn is_choose_name(name: &str) -> bool {
+    conditional_local_name(name) == "choose"
+}
+
+fn is_when_name(name: &str) -> bool {
+    conditional_local_name(name) == "when"
+}
+
+fn is_otherwise_name(name: &str) -> bool {
+    conditional_local_name(name) == "otherwise"
 }
 
 /// Build a per-node source-map stack from a token's real absolute `byte_range`.

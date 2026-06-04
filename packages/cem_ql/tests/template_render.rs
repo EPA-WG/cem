@@ -184,3 +184,77 @@ fn render_template_coalesces_chained_selections() {
     assert_eq!(rendered.rendered, "<span>Alt</span>");
     assert!(rendered.diagnostics.is_empty(), "{:?}", rendered.diagnostics);
 }
+
+// --- C2.5: conditional constructs (cem:if / cem:choose / cem:when / cem:otherwise) ---
+
+#[test]
+fn render_template_if_emits_body_only_when_test_is_truthy() {
+    let template = r#"{cem:if @test="show" | {span | yes}}"#;
+
+    let shown = render_template(template, &TemplateData::default().with_binding("show", bool_value(true)));
+    assert_eq!(shown.rendered, "<span>yes</span>");
+    assert!(shown.diagnostics.is_empty(), "{:?}", shown.diagnostics);
+
+    let hidden = render_template(template, &TemplateData::default().with_binding("show", bool_value(false)));
+    assert_eq!(hidden.rendered, "");
+    assert!(hidden.diagnostics.is_empty(), "{:?}", hidden.diagnostics);
+}
+
+#[test]
+fn render_template_choose_selects_first_truthy_branch_else_otherwise() {
+    let template = concat!(
+        r#"{cem:choose | "#,
+        r#"{cem:when @test="a" | {b | A}}"#,
+        r#"{cem:when @test="c" | {b | C}}"#,
+        r#"{cem:otherwise | {b | none}}}"#
+    );
+
+    let pick_c = render_template(
+        template,
+        &TemplateData::default()
+            .with_binding("a", bool_value(false))
+            .with_binding("c", bool_value(true)),
+    );
+    assert_eq!(pick_c.rendered, "<b>C</b>");
+
+    let pick_a = render_template(
+        template,
+        &TemplateData::default()
+            .with_binding("a", bool_value(true))
+            .with_binding("c", bool_value(true)),
+    );
+    assert_eq!(pick_a.rendered, "<b>A</b>", "first truthy branch wins");
+
+    let pick_otherwise = render_template(
+        template,
+        &TemplateData::default()
+            .with_binding("a", bool_value(false))
+            .with_binding("c", bool_value(false)),
+    );
+    assert_eq!(pick_otherwise.rendered, "<b>none</b>");
+}
+
+#[test]
+fn render_template_accepts_bare_conditional_names() {
+    let shown = render_template(
+        r#"{if @test="show" | {span | yes}}"#,
+        &TemplateData::default().with_binding("show", bool_value(true)),
+    );
+    assert_eq!(shown.rendered, "<span>yes</span>");
+}
+
+#[test]
+fn render_template_if_tests_data_document_selection() {
+    let shown = render_template(
+        r#"{cem:if @test="datadom.attributes.label" | {span | {$datadom.attributes.label}}}"#,
+        &TemplateData::default().with_binding("label", string_value("Email")),
+    );
+    assert_eq!(shown.rendered, "<span>Email</span>");
+
+    let hidden = render_template(
+        r#"{cem:if @test="datadom.attributes.label" | {span | x}}"#,
+        &TemplateData::default(),
+    );
+    assert_eq!(hidden.rendered, "");
+    assert!(hidden.diagnostics.is_empty(), "{:?}", hidden.diagnostics);
+}
