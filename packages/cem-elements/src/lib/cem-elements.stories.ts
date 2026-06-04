@@ -675,6 +675,166 @@ export const AttributeObserverRerendersOnUndeclaredAttribute: Story = {
 };
 
 // ---------------------------------------------------------------------------
+// Legacy custom-element parity stories — named coverage for behaviors inventoried
+// from /home/suns/aWork/custom-element docs and demos.
+// ---------------------------------------------------------------------------
+
+export const LegacyAttributeDefaultsAndHostOverridesParity: Story = {
+    render: () => {
+        const root = document.createElement('section');
+        root.setAttribute('aria-label', 'legacy attribute parity story');
+
+        registerInlineDeclaration({
+            declarationTag: 'cem-element-story-legacy-attr',
+            producedTag: 'story-legacy-attr',
+            innerHTML:
+                '<attribute name="label">Default</attribute><button type="button" data-label="{$label}">${$label}</button>',
+        });
+
+        const fallback = document.createElement('story-legacy-attr');
+        const override = document.createElement('story-legacy-attr');
+        override.setAttribute('label', 'Override');
+        root.append(fallback, override);
+        return root;
+    },
+    play: async ({ canvasElement }) => {
+        await nextFrame();
+        const instances = Array.from(canvasElement.querySelectorAll('story-legacy-attr'));
+        assertEqual(instances.length, 2, 'legacy attribute parity story renders two instances');
+
+        const fallbackButton = requiredElement(instances[0], 'button');
+        const overrideButton = requiredElement(instances[1], 'button');
+        assertEqual(fallbackButton.textContent, 'Default', 'declared attribute text is used as the default');
+        assertEqual(fallbackButton.getAttribute('data-label'), 'Default', 'default attribute resolves in AVT output');
+        assertEqual(overrideButton.textContent, 'Override', 'host attribute overrides the declared default');
+        assertEqual(overrideButton.getAttribute('data-label'), 'Override', 'host override resolves in AVT output');
+    },
+};
+
+export const LegacyDatadomAccessMigrationParity: Story = {
+    render: () => {
+        const root = document.createElement('section');
+        root.setAttribute('aria-label', 'legacy datadom migration story');
+
+        registerInlineDeclaration({
+            declarationTag: 'cem-element-story-legacy-datadom',
+            producedTag: 'story-legacy-datadom',
+            type: 'text/cem-ml',
+            text: [
+                '{attribute @name="label" | Default}',
+                '{button @type=button @data-label={datadom.attributes.label ?? "Default"} | {$datadom.attributes.label ?? "Default"}}',
+            ].join(''),
+        });
+
+        const instance = document.createElement('story-legacy-datadom');
+        instance.setAttribute('label', 'Datadom');
+        root.appendChild(instance);
+        return root;
+    },
+    play: async ({ canvasElement }) => {
+        const instance = requiredElement(canvasElement, 'story-legacy-datadom');
+        const button = await waitForElement(instance, 'button');
+        assertEqual(button.textContent?.trim(), 'Datadom', 'cem-ql datadom access replaces legacy XPath attributes');
+        assertEqual(button.getAttribute('data-label'), 'Datadom', 'structured datadom resolves in CEM-ML AVT output');
+    },
+};
+
+export const LegacyNamedSlotPayloadParity: Story = {
+    render: () => {
+        const root = document.createElement('section');
+        root.setAttribute('aria-label', 'legacy slot parity story');
+
+        registerInlineDeclaration({
+            declarationTag: 'cem-element-story-legacy-slot',
+            producedTag: 'story-legacy-slot',
+            innerHTML:
+                '<article><h3><slot name="title">Untitled</slot></h3><div class="body"><slot>Empty</slot></div></article>',
+        });
+
+        const filled = document.createElement('story-legacy-slot');
+        const title = document.createElement('span');
+        title.setAttribute('slot', 'title');
+        title.textContent = 'Legacy title';
+        filled.append(title, document.createTextNode('Body payload'));
+
+        const fallback = document.createElement('story-legacy-slot');
+        root.append(filled, fallback);
+        return root;
+    },
+    play: async ({ canvasElement }) => {
+        await nextFrame();
+        const instances = Array.from(canvasElement.querySelectorAll('story-legacy-slot'));
+        assertEqual(instances.length, 2, 'legacy slot parity story renders two instances');
+
+        assertEqual(
+            requiredElement(instances[0], 'h3').textContent?.trim(),
+            'Legacy title',
+            'named slot projects matching payload'
+        );
+        assertEqual(
+            requiredElement(instances[0], '.body').textContent?.trim(),
+            'Body payload',
+            'default slot projects unslotted payload'
+        );
+        assertEqual(requiredElement(instances[1], 'h3').textContent?.trim(), 'Untitled', 'named slot fallback renders');
+        assertEqual(requiredElement(instances[1], '.body').textContent?.trim(), 'Empty', 'default slot fallback renders');
+    },
+};
+
+export const LegacySliceInputEventParity: Story = {
+    render: () =>
+        renderInstanceStory({
+            declarationTag: 'cem-element-story-legacy-slice',
+            producedTag: 'story-legacy-slice',
+            ariaLabel: 'legacy slice event parity story',
+            innerHTML:
+                '<slice name="typed"></slice><label>Type <input slice="typed" slice-event="input" slice-value="{$target.value}" /></label><output>${$typed}</output>',
+        }),
+    play: async ({ canvasElement }) => {
+        await nextFrame();
+        const instance = requiredElement(canvasElement, 'story-legacy-slice');
+        const input = requiredElement(instance, 'input') as HTMLInputElement;
+
+        input.value = 'typed value';
+        input.dispatchEvent(new Event('input', { bubbles: true }));
+        await waitForCondition(
+            () => requiredElement(instance, 'output').textContent === 'typed value',
+            'legacy slice input event rerenders output'
+        );
+    },
+};
+
+export const LegacySrcDeclarationLoadingIsTrackedAsBlocked: Story = {
+    render: () => storyPanel('Legacy src loading', 'tracked as the shared module-map resolver slice'),
+    play: () => {
+        const runtime = new CemElementRuntime({ declarationTag: 'cem-element-story-legacy-src' });
+        const declaration = buildDeclaration({
+            tag: 'story-legacy-src',
+            src: '#legacy-template',
+            templates: [],
+        });
+
+        const registered = runtime.registerDeclaration(declaration);
+        assert(!registered, 'src-only declarations are intentionally blocked until the resolver slice');
+        assertDiagnostic(runtime.diagnosticsFor(declaration), 'cem-element.src_not_implemented');
+    },
+};
+
+export const LegacyBridgeTemplateBlockedParity: Story = {
+    render: () => storyPanel('Legacy bridge template', 'custom-element-v0 bridge remains a separate migration slice'),
+    play: () => {
+        const runtime = new CemElementRuntime({ declarationTag: 'cem-element-story-legacy-bridge' });
+        const declaration = buildDeclaration({
+            tag: 'story-legacy-bridge',
+            templates: [{ lang: 'custom-element-v0', html: '<button type="button">legacy</button>' }],
+        });
+        runtime.registerDeclaration(declaration);
+
+        assertDiagnostic(runtime.diagnosticsFor(declaration), 'cem-element.legacy_template_not_implemented');
+    },
+};
+
+// ---------------------------------------------------------------------------
 // Runtime slice C2.5 — conditional constructs (cem:if / cem:choose / cem:when /
 // cem:otherwise) lowered through the cem_ql render boundary.
 // ---------------------------------------------------------------------------

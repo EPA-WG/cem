@@ -259,10 +259,17 @@ Design home: [`cem-element-design.md`](cem-element-design.md). WASM proposal:
       [`packages/cem-elements/src/lib/data-island-isolation.stories.ts`](../packages/cem-elements/src/lib/data-island-isolation.stories.ts):
       selectors do not pierce the island, bulky island content does not inflate layout, island controls stay out of
       form submission and the accessibility/focus tree, and the declaration host renders no visible content of its own.
-- [ ] Build the legacy parity feature inventory from the old `@epa-wg/custom-element` suite and docs
+- [x] Build the legacy parity feature inventory from the old `@epa-wg/custom-element` suite and docs
       (`~/aWork/custom-element/docs/{attributes,rendering}.md` plus legacy test files). Convert every in-scope
       behavior into a named `<cem-element>` Storybook parity story; record intentional CEM-ML/CEM-QL replacements as
-      migration decisions.
+      migration decisions. Landed in
+      [`packages/cem-elements/docs/legacy-parity-inventory.md`](../packages/cem-elements/docs/legacy-parity-inventory.md):
+      `/home/suns/aWork/custom-element` had docs/demos/implementation references but no dedicated test/spec files,
+      so the matrix maps each legacy behavior to existing stories, new named stories
+      (`LegacyAttributeDefaultsAndHostOverridesParity`, `LegacyDatadomAccessMigrationParity`,
+      `LegacyNamedSlotPayloadParity`, `LegacySliceInputEventParity`, `LegacySrcDeclarationLoadingIsTrackedAsBlocked`,
+      `LegacyBridgeTemplateBlockedParity`), or an explicit migration/blocker decision (`src`, inline no-`tag`,
+      XSLT `for-each`/`variable`, scoped CSS, resource primitives). Storybook coverage is now 45 passing stories.
 - [ ] Land material parity stories for every component in `~/aWork/custom-element-dist/src/material/` (action,
       autocomplete, badge, dropdown, icon, icon-link, input, menu).
 - [x] Build a material parity inventory from `~/aWork/custom-element-dist/src/material/components/*.html` covering
