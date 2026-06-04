@@ -768,6 +768,55 @@ export const SlotProjectionRenderLoop: Story = {
     },
 };
 
+export const SlotProjectionWasmRenderLoop: Story = {
+    render: () => {
+        const root = document.createElement('section');
+        root.setAttribute('aria-label', 'wasm slot projection story');
+
+        const runtime = new CemElementRuntime({ declarationTag: 'cem-element-story-slot-wasm' });
+        runtime.install(window);
+
+        const declaration = document.createElement('cem-element-story-slot-wasm');
+        declaration.setAttribute('tag', 'story-slot-wasm-card');
+        const template = document.createElement('template');
+        template.setAttribute('type', 'text/cem-ml');
+        template.textContent =
+            '{div @class=card | {slot @name=leading | {em @class=fallback | none}}{div @class=body | {slot | empty}}}';
+        declaration.appendChild(template);
+        root.appendChild(declaration);
+        runtime.registerDeclaration(declaration);
+
+        const full = document.createElement('story-slot-wasm-card');
+        full.innerHTML = '<span slot="leading">L</span>Body text';
+        const empty = document.createElement('story-slot-wasm-card');
+        root.append(full, empty);
+
+        return root;
+    },
+    play: async ({ canvasElement }) => {
+        const instances = canvasElement.querySelectorAll('story-slot-wasm-card');
+        const fullCard = await waitForElement(instances[0], 'div.card');
+        const emptyCard = await waitForElement(instances[1], 'div.card');
+
+        assert(instances[0].querySelector('slot') === null, 'WASM-rendered slots are projected out of the plan');
+        assertEqual(
+            fullCard.querySelector('[slot="leading"]')?.textContent,
+            'L',
+            'WASM path projects named payload from the serialized snapshot'
+        );
+        assertEqual(
+            requiredElement(fullCard, '.body').textContent?.trim(),
+            'Body text',
+            'WASM path projects default payload from the serialized snapshot'
+        );
+        assertEqual(
+            emptyCard.querySelector('.fallback')?.textContent,
+            'none',
+            'WASM path keeps slot fallback when no payload is assigned'
+        );
+    },
+};
+
 export const RuntimeDiagnosticsSurface: Story = {
     render: () => storyPanel('Runtime diagnostics', 'declaration and render diagnostics remain queryable'),
     play: async ({ canvasElement }) => {

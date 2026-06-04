@@ -1,6 +1,7 @@
 import {
     materializeRenderPlan,
     projectTemplate,
+    projectSlotsInRenderPlan,
     readTemplateSource,
     type RenderPlan,
     type RenderPlanNode,
@@ -410,7 +411,6 @@ export class CemElementRuntime {
         // DOM parity, the C1.5 bespoke CEM-ML subset, and legacy bridge templates render
         // synchronously through the projection / TS-adapter path.
         const rendered = this.renderFromDeclaration(instance, compiled, snapshot);
-        this.projectSlots(snapshot, rendered, instance.ownerDocument);
         this.bindRenderedSliceEvents(instance, compiled, rendered);
         this.replaceRenderedContent(instance, island, rendered);
         this.renderSettled.set(instance, Promise.resolve());
@@ -439,10 +439,9 @@ export class CemElementRuntime {
                     )
                 );
             }
-            const plan = planFromNodes(result.nodes, snapshot, compiled);
+            const plan = projectSlotsInRenderPlan(planFromNodes(result.nodes, snapshot, compiled), snapshot.payload);
             const fragment = materializeRenderPlan(plan, instance.ownerDocument);
             const island = this.ensureDataIsland(instance);
-            this.projectSlots(snapshot, fragment, instance.ownerDocument);
             this.bindRenderedSliceEvents(instance, compiled, fragment);
             this.replaceRenderedContent(instance, island, fragment);
         } catch (error) {
@@ -463,44 +462,6 @@ export class CemElementRuntime {
         const token = (this.renderTokens.get(instance) ?? 0) + 1;
         this.renderTokens.set(instance, token);
         return token;
-    }
-
-    /**
-     * Project the produced instance's serialized payload into the `<slot>` positions of a
-     * rendered fragment. The live data island is not consulted here; browser, worker, SSR,
-     * and edge hosts can reproduce the same projection from `DataIslandSnapshot.payload`.
-     */
-    private projectSlots(snapshot: DataIslandSnapshot, fragment: DocumentFragment, document: Document): void {
-        const slots = Array.from(fragment.querySelectorAll('slot'));
-        if (slots.length === 0) {
-            return;
-        }
-        const consumed = new Set<string>();
-        for (const slot of slots) {
-            const name = slot.getAttribute('name') ?? '';
-            const projected = this.collectSlotPayload(snapshot.payload, name, consumed);
-            const replacement =
-                projected.length > 0
-                    ? projected.map((node) => materializePayloadNode(node, document))
-                    : Array.from(slot.childNodes).map((node) => node.cloneNode(true));
-            slot.replaceWith(...replacement);
-        }
-    }
-
-    private collectSlotPayload(
-        payload: SerializedPayload,
-        name: string,
-        consumed: Set<string>
-    ): SerializedPayloadNode[] {
-        const projected: SerializedPayloadNode[] = [];
-        for (const node of payload.slots[name] ?? []) {
-            if (consumed.has(node.key)) {
-                continue;
-            }
-            projected.push(node);
-            consumed.add(node.key);
-        }
-        return projected;
     }
 
     private renderFromDeclaration(
@@ -1202,24 +1163,6 @@ function nodeText(node: SerializedPayloadNode): string {
         return node.text;
     }
     return node.children.map(nodeText).join('');
-}
-
-function materializePayloadNode(node: SerializedPayloadNode, document: Document): Node {
-    if (node.kind === 'text') {
-        return document.createTextNode(node.text);
-    }
-    if (node.kind === 'comment') {
-        return document.createComment(node.text);
-    }
-
-    const element = node.namespace ? document.createElementNS(node.namespace, node.tag) : document.createElement(node.tag);
-    for (const [name, value] of Object.entries(node.attributes)) {
-        element.setAttribute(name, value);
-    }
-    for (const child of node.children) {
-        element.appendChild(materializePayloadNode(child, document));
-    }
-    return element;
 }
 
 function isRenderBoundary(node: Node): boolean {

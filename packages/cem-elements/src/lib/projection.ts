@@ -82,6 +82,22 @@ export interface RenderPlan {
     nodes: RenderPlanNode[];
 }
 
+export interface ProjectionPayload {
+    slots?: Record<string, ProjectionPayloadNode[]>;
+}
+
+export type ProjectionPayloadNode =
+    | { kind: 'text'; key: string; text: string }
+    | { kind: 'comment'; key: string; text: string }
+    | {
+          kind: 'element';
+          key: string;
+          tag: string;
+          namespace: string | null;
+          attributes: Record<string, string>;
+          children: ProjectionPayloadNode[];
+      };
+
 export interface TemplateProjectionSnapshot {
     instanceId: string;
     producedTag: string;
@@ -172,7 +188,7 @@ export function projectTemplate(
             nodes.push(planned);
         }
     }
-    return {
+    const plan: RenderPlan = {
         producedTag: input.snapshot.producedTag,
         instanceId: input.snapshot.instanceId,
         templateArtifactId: input.snapshot.templateArtifactId,
@@ -181,6 +197,7 @@ export function projectTemplate(
         scopePolicyStamp: input.snapshot.scopePolicyStamp,
         nodes,
     };
+    return projectSlotsInRenderPlan(plan, input.snapshot.payload);
 }
 
 function projectNode(
@@ -214,6 +231,89 @@ function projectNode(
             .filter((node): node is RenderPlanNode => node !== undefined),
         sourceMapRef: source.sourceMapRef,
     };
+}
+
+/**
+ * Pure render-plan lowering for declarative slots. It replaces rendered `<slot>`
+ * elements with serialized payload nodes assigned to that slot, or with the
+ * slot's already-rendered fallback children when no payload is assigned.
+ */
+export function projectSlotsInRenderPlan(plan: RenderPlan, payload: unknown): RenderPlan {
+    const slotPayload = coerceProjectionPayload(payload);
+    if (!slotPayload) {
+        return plan;
+    }
+    const consumed = new Set<string>();
+    return {
+        ...plan,
+        nodes: projectSlotNodes(plan.nodes, slotPayload, consumed),
+    };
+}
+
+function projectSlotNodes(
+    nodes: readonly RenderPlanNode[],
+    payload: ProjectionPayload,
+    consumed: Set<string>
+): RenderPlanNode[] {
+    const out: RenderPlanNode[] = [];
+    for (const node of nodes) {
+        if (node.kind !== 'element') {
+            out.push(node);
+            continue;
+        }
+        if (node.tag === 'slot') {
+            const name = node.attributes.find((attribute) => attribute.name === 'name')?.value ?? '';
+            const projected = collectProjectedSlotPayload(payload, name, consumed);
+            out.push(...(projected.length > 0 ? projected : node.children));
+            continue;
+        }
+        out.push({
+            ...node,
+            children: projectSlotNodes(node.children, payload, consumed),
+        });
+    }
+    return out;
+}
+
+function collectProjectedSlotPayload(
+    payload: ProjectionPayload,
+    name: string,
+    consumed: Set<string>
+): RenderPlanNode[] {
+    const projected: RenderPlanNode[] = [];
+    for (const node of payload.slots?.[name] ?? []) {
+        if (consumed.has(node.key)) {
+            continue;
+        }
+        projected.push(payloadNodeToRenderNode(node));
+        consumed.add(node.key);
+    }
+    return projected;
+}
+
+function payloadNodeToRenderNode(node: ProjectionPayloadNode): RenderPlanNode {
+    if (node.kind === 'text') {
+        return { kind: 'text', text: node.text };
+    }
+    if (node.kind === 'comment') {
+        return { kind: 'comment', text: node.text };
+    }
+    return {
+        kind: 'element',
+        namespace: node.namespace,
+        tag: node.tag,
+        attributes: Object.entries(node.attributes).map(([name, value]) => ({ name, value })),
+        renderNodeId: `payload-${node.key}`,
+        children: node.children.map(payloadNodeToRenderNode),
+    };
+}
+
+function coerceProjectionPayload(payload: unknown): ProjectionPayload | null {
+    if (!payload || typeof payload !== 'object') {
+        return null;
+    }
+    const slots = (payload as ProjectionPayload).slots;
+    return slots && typeof slots === 'object' ? { slots } : null;
 }
 
 /**
