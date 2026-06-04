@@ -2,9 +2,16 @@ import {
     materializeRenderPlan,
     projectTemplate,
     readTemplateSource,
+    type RenderPlan,
+    type RenderPlanNode,
     type TemplateSourceNode,
     type TemplateValue,
 } from './projection.js';
+import {
+    ensureRuntimeReady,
+    renderCemMlTemplate,
+    type RuntimeSupportDiagnostic,
+} from './internal/runtime-support/cem-ql-render.js';
 import { parseCemMlTemplateSource } from './runtime-support/cem-ml-template.js';
 
 export type CemElementDiagnosticSeverity = 'info' | 'warning' | 'error' | 'fatal';
@@ -84,6 +91,15 @@ interface CompiledDeclaration {
     template: HTMLTemplateElement;
     templateSource: TemplateSourceNode[];
     mode: 'dom' | 'cem-ml' | 'legacy-v0';
+    /** Raw canonical CEM-ML source text, retained for the `cem_ql` WASM render boundary. */
+    cemMlSource: string | null;
+    /**
+     * Whether this declaration's template is within the canonical CEM-ML subset the
+     * `cem_ql` WASM engine renders today (no `<attribute>`/`<slice>` declarations, no
+     * `${}` C1.5 text interpolation, at least one renderable element). When false, the
+     * C1.5 TypeScript adapter remains the renderer until later C2 slices extend WASM.
+     */
+    wasmEligible: boolean;
     declaredAttributes: AttributeDeclaration[];
     declaredSlices: SliceDeclaration[];
     observedAttributes: string[];
@@ -204,6 +220,8 @@ export class CemElementRuntime {
     private readonly dataRevisions = new WeakMap<HTMLElement, number>();
     private readonly renderBounds = new WeakMap<HTMLElement, RenderBounds>();
     private readonly instanceStates = new WeakMap<HTMLElement, InstanceState>();
+    private readonly renderTokens = new WeakMap<HTMLElement, number>();
+    private readonly renderSettled = new WeakMap<HTMLElement, Promise<void>>();
     private instanceSequence = 0;
 
     constructor(options: CemElementRuntimeOptions = {}) {
@@ -211,6 +229,19 @@ export class CemElementRuntime {
         this.scopePolicyStamp = options.scopePolicyStamp ?? DEFAULT_SCOPE_POLICY_STAMP;
         this.privacyPolicyStamp = options.privacyPolicyStamp ?? DEFAULT_PRIVACY_POLICY_STAMP;
         this.logger = options.logger;
+        // Eagerly warm the cem_ql WASM engine so canonical CEM-ML instances can upgrade
+        // to the authoritative render boundary as soon as possible. Failures fall back
+        // to the C1.5 path and surface per-instance at render time.
+        void ensureRuntimeReady().catch(() => undefined);
+    }
+
+    /**
+     * Resolves once the most recent render for an instance has settled, including the
+     * asynchronous `cem_ql` WASM render boundary for canonical CEM-ML. Synchronous
+     * (DOM / C1.5 / legacy) renders resolve immediately.
+     */
+    whenRenderSettled(instance: HTMLElement): Promise<void> {
+        return this.renderSettled.get(instance) ?? Promise.resolve();
     }
 
     install(host: CemElementWindow): void {
@@ -336,9 +367,70 @@ export class CemElementRuntime {
         const island = this.ensureDataIsland(instance);
         this.ensureInstanceState(instance, compiled, island);
         const snapshot = this.createSnapshot(instance, compiled, island);
+        const token = this.nextRenderToken(instance);
+
+        if (compiled.wasmEligible && compiled.cemMlSource !== null) {
+            // Canonical CEM-ML renders through the authoritative `cem_ql` WASM boundary.
+            // The C1.5 TypeScript adapter cannot lower canonical `{$x}` content, so here it
+            // is only the unavailability fallback; the async WASM render owns this output.
+            this.renderSettled.set(instance, this.renderViaWasm(instance, compiled, snapshot, token));
+            return;
+        }
+
+        // DOM parity, the C1.5 bespoke CEM-ML subset, and legacy bridge templates render
+        // synchronously through the projection / TS-adapter path.
         const rendered = this.renderFromDeclaration(instance, compiled, snapshot);
         this.bindRenderedSliceEvents(instance, compiled, rendered);
         this.replaceRenderedContent(instance, island, rendered);
+        this.renderSettled.set(instance, Promise.resolve());
+    }
+
+    private async renderViaWasm(
+        instance: HTMLElement,
+        compiled: CompiledDeclaration,
+        snapshot: DataIslandSnapshot,
+        token: number
+    ): Promise<void> {
+        const source = compiled.cemMlSource ?? '';
+        try {
+            const data = templateValues(snapshot, compiled.declaredAttributes);
+            const result = await renderCemMlTemplate(source, data, {
+                renderNodeIdPrefix: compiled.producedTag,
+            });
+            if (this.renderTokens.get(instance) !== token) {
+                return; // a newer render superseded this one mid-flight
+            }
+            if (result.diagnostics.length > 0) {
+                this.recordDiagnostics(
+                    instance,
+                    result.diagnostics.map((diagnostic) =>
+                        runtimeSupportDiagnostic(diagnostic, compiled.producedTag)
+                    )
+                );
+            }
+            const plan = planFromNodes(result.nodes, snapshot, compiled);
+            const fragment = materializeRenderPlan(plan, instance.ownerDocument);
+            this.bindRenderedSliceEvents(instance, compiled, fragment);
+            const island = this.ensureDataIsland(instance);
+            this.replaceRenderedContent(instance, island, fragment);
+        } catch (error) {
+            if (this.renderTokens.get(instance) !== token) {
+                return;
+            }
+            this.recordDiagnostics(instance, [
+                renderDiagnostic(
+                    'cem-element.wasm_render_failed',
+                    error instanceof Error ? error.message : 'cem_ql WASM render failed',
+                    compiled.producedTag
+                ),
+            ]);
+        }
+    }
+
+    private nextRenderToken(instance: HTMLElement): number {
+        const token = (this.renderTokens.get(instance) ?? 0) + 1;
+        this.renderTokens.set(instance, token);
+        return token;
     }
 
     private renderFromDeclaration(
@@ -588,6 +680,7 @@ function compileInlineDeclaration(
     const declaredAttributes =
         mode === 'legacy-v0' ? [] : extractAttributeDeclarationsFromSource(templateSource);
     const declaredSlices = mode === 'legacy-v0' ? [] : extractSliceDeclarationsFromSource(templateSource);
+    const cemMlSource = mode === 'cem-ml' ? template.textContent ?? '' : null;
     return {
         declarationElement,
         declarationTag,
@@ -596,11 +689,43 @@ function compileInlineDeclaration(
         template,
         templateSource,
         mode,
+        cemMlSource,
+        wasmEligible: isCanonicalWasmSubset(mode, cemMlSource, templateSource, declaredAttributes, declaredSlices),
         declaredAttributes,
         declaredSlices,
         observedAttributes: declaredAttributes.map((attribute) => attribute.name),
         diagnostics,
     };
+}
+
+/**
+ * Whether a CEM-ML declaration falls inside the canonical subset the `cem_ql` WASM
+ * engine renders today. It must be CEM-ML mode with no `<attribute>`/`<slice>`
+ * declarations (deferred to a later C2 slice), no `${}` C1.5 text interpolation, and
+ * at least one renderable element (so degenerate expression-only templates such as
+ * `{$ | name}` stay on the C1.5 failure path the diagnostics surface relies on).
+ */
+function isCanonicalWasmSubset(
+    mode: CompiledDeclaration['mode'],
+    cemMlSource: string | null,
+    templateSource: readonly TemplateSourceNode[],
+    declaredAttributes: AttributeDeclaration[],
+    declaredSlices: SliceDeclaration[]
+): boolean {
+    return (
+        mode === 'cem-ml' &&
+        cemMlSource !== null &&
+        declaredAttributes.length === 0 &&
+        declaredSlices.length === 0 &&
+        !cemMlSource.includes('${') &&
+        templateSource.some(
+            (node) =>
+                node.kind === 'element' &&
+                node.tag !== 'attribute' &&
+                node.tag !== 'slice' &&
+                /^[a-z][a-z0-9]*(-[a-z0-9]+)*$/.test(node.tag)
+        )
+    );
 }
 
 function readInlineTemplateSource(
@@ -744,6 +869,33 @@ function templateValues(
         values[name] = toTemplateValue(value);
     }
     return values;
+}
+
+/** Wrap WASM-produced render-plan nodes in a render plan carrying snapshot identity. */
+function planFromNodes(
+    nodes: RenderPlanNode[],
+    snapshot: DataIslandSnapshot,
+    compiled: CompiledDeclaration
+): RenderPlan {
+    return {
+        producedTag: compiled.producedTag,
+        instanceId: snapshot.instanceId,
+        templateArtifactId: compiled.artifactId,
+        dataRevision: snapshot.dataRevision,
+        outputTarget: 'light-dom',
+        scopePolicyStamp: snapshot.scopePolicyStamp,
+        nodes,
+    };
+}
+
+function runtimeSupportDiagnostic(diagnostic: RuntimeSupportDiagnostic, tag: string): CemElementDiagnostic {
+    return {
+        code: diagnostic.code,
+        severity: diagnostic.severity,
+        source: 'render',
+        message: diagnostic.message,
+        tag,
+    };
 }
 
 function evaluateSliceValue(

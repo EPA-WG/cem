@@ -16,6 +16,7 @@ import {
     type TemplateSourceNode,
 } from './projection.js';
 import { parseCemMlTemplateSource } from './runtime-support/cem-ml-template.js';
+import { renderCemMlTemplate, runtimeVersion } from './internal/runtime-support/cem-ql-render.js';
 
 const meta: Meta = {
     title: 'CEM Elements/Runtime',
@@ -331,6 +332,107 @@ export const CanonicalCemMlRenderLoop: Story = {
             'author-byte-exact',
             'canonical CEM-ML templates carry source fidelity'
         );
+    },
+};
+
+// ---------------------------------------------------------------------------
+// Runtime slice C2.3 — canonical CEM-ML lowered through the cem_ql WASM render
+// boundary (host runtime-support layer), with the C1.5 adapter as fallback only.
+// ---------------------------------------------------------------------------
+
+export const CemQlWasmRenderBoundary: Story = {
+    render: () =>
+        storyPanel('cem_ql WASM render boundary', 'canonical CEM-ML source + host bindings → render plan via WASM'),
+    play: async () => {
+        const result = await renderCemMlTemplate(
+            '{button @type=button @class="tone {$tone}" | {$label}}',
+            { label: 'Save', tone: 'primary' },
+            { renderNodeIdPrefix: 'cem-wasm' }
+        );
+
+        assertEqual(runtimeVersion(), '0.1.0', 'cem_ql WASM engine version is exposed once initialized');
+        assertEqual(result.diagnostics.length, 0, 'a well-formed canonical template renders without diagnostics');
+        assertEqual(result.nodes.length, 1, 'render plan has a single root element');
+
+        const [button] = result.nodes;
+        assert(button.kind === 'element', 'root render-plan node is an element');
+        assertEqual(button.tag, 'button', 'WASM render preserves the element tag');
+        assertEqual(button.renderNodeId, 'cem-wasm-1', 'render-node ids use the supplied prefix in pre-order');
+        assertEqual(
+            button.attributes.find((attribute) => attribute.name === 'type')?.value,
+            'button',
+            'bare canonical attribute renders through WASM'
+        );
+        assertEqual(
+            button.attributes.find((attribute) => attribute.name === 'class')?.value,
+            'tone primary',
+            'AVT attribute interpolation resolves host bindings through WASM'
+        );
+        const text = button.children
+            .map((child) => (child.kind === 'text' ? child.text : ''))
+            .join('');
+        assertEqual(text, 'Save', 'content expression resolves the host binding through WASM');
+        assertEqual(
+            button.sourceMapRef?.fidelity,
+            'author-byte-exact',
+            'WASM render carries author-byte-exact fidelity'
+        );
+        assertEqual(button.sourceMapRef?.frame, 'cem:0', 'root frame is the source byte offset');
+
+        // Diagnostics flow through the same boundary: an unknown binding compiles to a
+        // mapped render diagnostic rather than throwing.
+        const missing = await renderCemMlTemplate('{button | {$missing}}', {}, { renderNodeIdPrefix: 'cem-missing' });
+        assertDiagnostic(missing.diagnostics, 'cem.ql.render.compile_failed');
+    },
+};
+
+export const CemQlWasmRenderLoopUpgrade: Story = {
+    render: () => {
+        const root = document.createElement('section');
+        root.setAttribute('aria-label', 'cem_ql WASM render loop story');
+
+        const runtime = new CemElementRuntime({ declarationTag: 'cem-element-story-wasm' });
+        runtime.install(window);
+
+        const declaration = document.createElement('cem-element-story-wasm');
+        declaration.setAttribute('tag', 'story-wasm-button');
+        const template = document.createElement('template');
+        template.setAttribute('type', 'text/cem-ml');
+        template.textContent = '{button @type=button @class="tone {$tone}" | {$label}}';
+        declaration.appendChild(template);
+        root.appendChild(declaration);
+        runtime.registerDeclaration(declaration);
+
+        const instance = document.createElement('story-wasm-button');
+        instance.setAttribute('label', 'Submit');
+        instance.setAttribute('tone', 'primary');
+        root.appendChild(instance);
+
+        return root;
+    },
+    play: async ({ canvasElement }) => {
+        const instance = requiredElement(canvasElement, 'story-wasm-button');
+        // The canonical render is asynchronous (WASM init + render), so poll until the
+        // authoritative cem_ql output commits rather than assuming one frame.
+        const button = await waitForElement(instance, 'button');
+
+        assertEqual(button.getAttribute('type'), 'button', 'canonical bare attribute renders through WASM');
+        assertEqual(button.getAttribute('class'), 'tone primary', 'AVT attribute resolves host attribute through WASM');
+        assertEqual(button.textContent?.trim(), 'Submit', 'content expression resolves the host attribute through WASM');
+
+        assertEqual(
+            button.getAttribute('data-cem-render-node-id'),
+            'story-wasm-button-1',
+            'WASM render-node ids are produced-tag scoped'
+        );
+        assertEqual(button.getAttribute('data-cem-data-revision'), '1', 'WASM render carries the first data revision');
+        assert(button.hasAttribute('data-cem-template-artifact-id'), 'WASM nodes carry template artifact identity');
+        assertEqual(
+            button.getAttribute('data-cem-source-fidelity'),
+            'author-byte-exact',
+            'WASM nodes mark author-byte-exact fidelity'
+        );
+        assertEqual(button.getAttribute('data-cem-source-frame'), 'cem:0', 'WASM root frame is the source byte offset');
     },
 };
 
@@ -1057,6 +1159,18 @@ function requiredElement(root: ParentNode, selector: string): Element {
 
 function nextFrame(): Promise<void> {
     return new Promise((resolve) => requestAnimationFrame(() => resolve()));
+}
+
+/** Poll animation frames until a selector resolves — used for the async WASM render path. */
+async function waitForElement(root: ParentNode, selector: string, frames = 120): Promise<Element> {
+    for (let attempt = 0; attempt < frames; attempt += 1) {
+        const found = root.querySelector(selector);
+        if (found) {
+            return found;
+        }
+        await nextFrame();
+    }
+    throw new Error(`expected ${selector} to appear within ${frames} frames`);
 }
 
 function projectionSnapshot(

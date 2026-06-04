@@ -174,22 +174,36 @@ fn node_json(node: &RenderPlanNode) -> Value {
             "attributes": attributes.iter().map(|attribute| json!({
                 "name": attribute.name,
                 "value": attribute.value,
+                "byteOffset": source_map_offset(&attribute.source_map),
                 "sourceMap": source_map_json(&attribute.source_map)
             })).collect::<Vec<_>>(),
             "children": children.iter().map(node_json).collect::<Vec<_>>(),
+            "byteOffset": source_map_offset(source_map),
             "sourceMap": source_map_json(source_map)
         }),
         RenderPlanNode::Text { text, source_map } => json!({
             "kind": "text",
             "text": text,
+            "byteOffset": source_map_offset(source_map),
             "sourceMap": source_map_json(source_map)
         }),
         RenderPlanNode::Comment { text, source_map } => json!({
             "kind": "comment",
             "text": text,
+            "byteOffset": source_map_offset(source_map),
             "sourceMap": source_map_json(source_map)
         }),
     }
+}
+
+/// The current (most specific) frame's absolute byte offset, for host
+/// `cem:<offset>` source-frame attributes. `None` when no frame is present.
+fn source_map_offset(source_map: &cem_ml::source_map::SourceMapStack) -> Option<u64> {
+    use cem_ml::source_map::FrameSpan;
+    source_map.current().map(|frame| match &frame.span {
+        FrameSpan::Single(range) => range.start,
+        FrameSpan::Multi(ranges) => ranges.first().map(|range| range.start).unwrap_or(0),
+    })
 }
 
 fn diagnostics_json(diagnostics: &[cem_ml::diagnostics::Diagnostic]) -> Value {

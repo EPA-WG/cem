@@ -1,7 +1,7 @@
 #!/usr/bin/env node
 
 import { spawnSync } from 'node:child_process';
-import { mkdirSync, rmSync } from 'node:fs';
+import { mkdirSync, rmSync, writeFileSync } from 'node:fs';
 import { dirname, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
 
@@ -48,6 +48,11 @@ run('wasm-bindgen', [
     '--out-name',
     'cem_ql',
 ]);
+
+// wasm-bindgen `--target web` emits ESM, but the out dir has no package.json, so
+// Node/TypeScript `nodenext` resolution would infer CommonJS from the repo root and
+// the default `init` import becomes non-callable. Mark the artifact as ESM.
+writeFileSync(resolve(repoRoot, outDir, 'package.json'), `${JSON.stringify({ type: 'module' }, null, 2)}\n`);
 
 function run(command, args) {
     const result = spawnSync(command, args, {

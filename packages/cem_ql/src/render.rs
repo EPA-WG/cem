@@ -11,7 +11,7 @@ use std::collections::BTreeMap;
 use cem_ml::diagnostics::{Diagnostic, Severity};
 use cem_ml::scheduler::ScopePolicy;
 use cem_ml::source::{BytesSource, SourceId};
-use cem_ml::source_map::SourceMapStack;
+use cem_ml::source_map::{FrameSpan, SourceMapFrame, SourceMapStack, TransformKind};
 use cem_ml::tokenizer::cem::CemTokenizer;
 use cem_ml::tokenizer::{SchemaToken, SchemaTokenKind, SchemaTokenizer};
 
@@ -216,7 +216,7 @@ impl TemplateCompiler<'_> {
                     let token = self.tokens[self.index].clone();
                     nodes.push(TemplateNode::Text {
                         text: text.clone(),
-                        source_map: token.source_map,
+                        source_map: frame_for(&token),
                     });
                     self.index += 1;
                 }
@@ -224,7 +224,7 @@ impl TemplateCompiler<'_> {
                     let token = self.tokens[self.index].clone();
                     nodes.push(TemplateNode::Comment {
                         text: text.clone(),
-                        source_map: token.source_map,
+                        source_map: frame_for(&token),
                     });
                     self.index += 1;
                 }
@@ -252,7 +252,7 @@ impl TemplateCompiler<'_> {
                         value: value
                             .as_ref()
                             .map(|value| self.compile_attribute_value(value, &token)),
-                        source_map: token.source_map,
+                        source_map: frame_for(&token),
                     });
                     self.index += 1;
                 }
@@ -278,7 +278,7 @@ impl TemplateCompiler<'_> {
                     let token = self.tokens[self.index].clone();
                     children.push(TemplateNode::Text {
                         text: text.clone(),
-                        source_map: token.source_map,
+                        source_map: frame_for(&token),
                     });
                     self.index += 1;
                 }
@@ -286,7 +286,7 @@ impl TemplateCompiler<'_> {
                     let token = self.tokens[self.index].clone();
                     children.push(TemplateNode::Comment {
                         text: text.clone(),
-                        source_map: token.source_map,
+                        source_map: frame_for(&token),
                     });
                     self.index += 1;
                 }
@@ -298,7 +298,7 @@ impl TemplateCompiler<'_> {
             tag,
             attributes,
             children,
-            source_map: start.source_map,
+            source_map: frame_for(&start),
         }
     }
 
@@ -372,7 +372,7 @@ impl TemplateCompiler<'_> {
         CompiledTemplateExpression {
             source,
             query,
-            source_map: host.source_map.clone(),
+            source_map: frame_for(host),
             byte_offset: host.byte_range.start,
         }
     }
@@ -578,6 +578,27 @@ fn whole_avt_expression(value: &str) -> Option<&str> {
         Some(trimmed[1..trimmed.len() - 1].trim())
     } else {
         None
+    }
+}
+
+/// Build a per-node source-map stack from a token's real absolute `byte_range`.
+///
+/// The CEM tokenizer stamps every token's `source_map` with the whole-document
+/// base frame, so cloning it loses per-node offsets. The accurate location lives
+/// on `token.byte_range`; this rebuilds a single-frame stack from it so render
+/// plans (and the WASM `byteOffset`) carry author-byte-exact per-node frames.
+fn frame_for(token: &SchemaToken) -> SourceMapStack {
+    let source_id = token
+        .source_map
+        .origin()
+        .map(|frame| frame.source_id)
+        .unwrap_or(SourceId(1));
+    SourceMapStack {
+        frames: vec![SourceMapFrame {
+            source_id,
+            span: FrameSpan::Single(token.byte_range),
+            transform: TransformKind::CemTokenizer,
+        }],
     }
 }
 
