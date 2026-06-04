@@ -673,6 +673,49 @@ export const DeclaredAttributeWasmRenderLoop: Story = {
     },
 };
 
+export const AttributeObserverRerendersOnUndeclaredAttribute: Story = {
+    render: () => {
+        const root = document.createElement('section');
+        root.setAttribute('aria-label', 'attribute observer story');
+
+        const runtime = new CemElementRuntime({ declarationTag: 'cem-element-story-attr-observer' });
+        runtime.install(window);
+
+        const declaration = document.createElement('cem-element-story-attr-observer');
+        declaration.setAttribute('tag', 'story-attr-observer');
+        const template = document.createElement('template');
+        template.setAttribute('type', 'text/cem-ml');
+        // `tone` is read from the data document but is NOT a declared `<attribute>`, so the
+        // old `observedAttributes` path would never observe it; the per-instance
+        // MutationObserver re-renders on any host attribute change.
+        template.textContent = '{button @type=button | {$datadom.attributes.tone}}';
+        declaration.appendChild(template);
+        root.appendChild(declaration);
+        runtime.registerDeclaration(declaration);
+
+        const instance = document.createElement('story-attr-observer');
+        root.appendChild(instance);
+
+        return root;
+    },
+    play: async ({ canvasElement }) => {
+        const instance = requiredElement(canvasElement, 'story-attr-observer');
+        const button = await waitForElement(instance, 'button');
+        assertEqual(button.textContent?.trim(), '', 'with no `tone` attribute the data selection is empty');
+
+        instance.setAttribute('tone', 'primary');
+        await waitForCondition(
+            () => requiredElement(instance, 'button').textContent?.trim() === 'primary',
+            'changing an undeclared host attribute should re-render through the MutationObserver'
+        );
+        assertEqual(
+            requiredElement(instance, 'button').textContent?.trim(),
+            'primary',
+            'an undeclared host attribute change re-renders via the per-instance MutationObserver'
+        );
+    },
+};
+
 // ---------------------------------------------------------------------------
 // Runtime slice C2.5 — conditional constructs (cem:if / cem:choose / cem:when /
 // cem:otherwise) lowered through the cem_ql render boundary.
@@ -1665,6 +1708,17 @@ async function waitForElement(root: ParentNode, selector: string, frames = 120):
         await nextFrame();
     }
     throw new Error(`expected ${selector} to appear within ${frames} frames`);
+}
+
+/** Poll animation frames until a predicate holds — used for async re-render assertions. */
+async function waitForCondition(predicate: () => boolean, message: string, frames = 120): Promise<void> {
+    for (let attempt = 0; attempt < frames; attempt += 1) {
+        if (predicate()) {
+            return;
+        }
+        await nextFrame();
+    }
+    throw new Error(`${message} within ${frames} frames`);
 }
 
 function projectionSnapshot(

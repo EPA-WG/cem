@@ -132,7 +132,6 @@ interface CompiledDeclaration {
     wasmEligible: boolean;
     declaredAttributes: AttributeDeclaration[];
     declaredSlices: SliceDeclaration[];
-    observedAttributes: string[];
     diagnostics: CemElementDiagnostic[];
 }
 
@@ -363,18 +362,20 @@ export class CemElementRuntime {
         }
 
         const connectProducedInstance = this.connectProducedInstance.bind(this);
-        const invalidateProducedInstance = this.invalidateProducedInstance.bind(this);
+        const disconnectProducedInstance = this.disconnectProducedInstance.bind(this);
+        // No `observedAttributes`/`attributeChangedCallback`: the declared-attribute list
+        // is only known after the async WASM compile, but `observedAttributes` is read once
+        // at definition time. Instead a per-instance MutationObserver (set up on connect)
+        // watches every host attribute and schedules an async re-render — see
+        // `observeInstance`. This keeps the element defined synchronously and observes
+        // attributes the synchronous path could not have known.
         class ProducedCemElement extends baseElement {
-            static get observedAttributes(): string[] {
-                return compiled.observedAttributes;
-            }
-
             connectedCallback(): void {
                 connectProducedInstance(this, compiled);
             }
 
-            attributeChangedCallback(): void {
-                invalidateProducedInstance(this, compiled);
+            disconnectedCallback(): void {
+                disconnectProducedInstance(this);
             }
         }
 
@@ -383,12 +384,47 @@ export class CemElementRuntime {
 
     private connectProducedInstance(instance: HTMLElement, compiled: CompiledDeclaration): void {
         const island = this.ensureDataIsland(instance);
-        this.ensureInstanceState(instance, compiled, island);
+        const state = this.ensureInstanceState(instance, compiled, island);
+        this.observeInstance(instance, island, state);
         this.renderInstance(instance, compiled);
     }
 
+    private disconnectProducedInstance(instance: HTMLElement): void {
+        this.instanceStates.get(instance)?.observer?.disconnect();
+    }
+
+    /**
+     * Establish per-instance mutation observation. The single observer watches two
+     * targets: the host element's attributes (replacing `observedAttributes` /
+     * `attributeChangedCallback`) and the inert data-island content. Either kind of
+     * mutation invalidates the instance and schedules an async re-render that reads the
+     * live attributes/state fresh. Observing every attribute means a change to any
+     * attribute — declared or not, even ones only resolvable after the async render —
+     * reliably re-renders. Idempotent, so it also re-attaches on reconnect.
+     *
+     * Re-entrancy is structurally precluded: the runtime never mutates an observed target
+     * during render (render output is written to the light DOM between render-boundary
+     * comments, not to host attributes or to `island.content`), so a render cannot
+     * self-trigger this observer. A future host-attribute write would need to drain its
+     * own record via `observer.takeRecords()`.
+     */
+    private observeInstance(instance: HTMLElement, island: HTMLTemplateElement, state: InstanceState): void {
+        const observer = state.observer;
+        if (!observer) {
+            return;
+        }
+        observer.disconnect();
+        observer.observe(instance, { attributes: true });
+        observer.observe(island.content, {
+            childList: true,
+            subtree: true,
+            characterData: true,
+            attributes: true,
+        });
+    }
+
     private invalidateProducedInstance(instance: HTMLElement, compiled: CompiledDeclaration): void {
-        if (!this.initializedInstances.has(instance)) {
+        if (!this.initializedInstances.has(instance) || !instance.isConnected) {
             return;
         }
         this.renderInstance(instance, compiled);
@@ -543,13 +579,9 @@ export class CemElementRuntime {
         };
         const observer = island.ownerDocument.defaultView?.MutationObserver;
         if (observer) {
+            // Observation targets are attached in `observeInstance` (on connect), so the
+            // observer can be torn down on disconnect and re-attached on reconnect.
             state.observer = new observer(() => this.invalidateProducedInstance(instance, compiled));
-            state.observer.observe(island.content, {
-                childList: true,
-                subtree: true,
-                characterData: true,
-                attributes: true,
-            });
         }
         this.instanceStates.set(instance, state);
         return state;
@@ -724,7 +756,6 @@ function compileInlineDeclaration(
         wasmEligible: isCanonicalWasmSubset(mode, cemMlSource, templateSource),
         declaredAttributes,
         declaredSlices,
-        observedAttributes: declaredAttributes.map((attribute) => attribute.name),
         diagnostics,
     };
 }

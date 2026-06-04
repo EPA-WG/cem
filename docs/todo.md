@@ -97,9 +97,11 @@ Design home: [`cem-element-design.md`](cem-element-design.md). WASM proposal:
         `cem:if`/`cem:choose` conditionals, `<data>`/`<option>` payloads, and declarative slot projection (C2.5), and
         the C2.6 verification gate (`nx run cem-elements:verify`) is wired and green. The C1.5 TypeScript adapter is
         now narrowed (C2.6): the WASM render plan drops `<attribute>`/`<slice>` declarations so declaration-bearing
-        canonical templates render through WASM, leaving C1.5 only for `${}` text interpolation, WASM-unavailable
-        hosts, and the synchronous declaration scan. Remaining: `module-url` (deferred to the `src`-loading slice) and
-        full C1.5 removal (deferred, blocked on a synchronous WASM declaration-metadata surface).
+        canonical templates render through WASM, and attribute observation moved to a per-instance `MutationObserver`
+        (Option A) so `observedAttributes` is no longer a synchronous blocker. C1.5 now covers only `${}` text
+        interpolation, WASM-unavailable hosts, and the declaration scan (defaults/diagnostics). Remaining: `module-url`
+        (deferred to the `src`-loading slice) and full C1.5 removal (move defaults/diagnostics to WASM + migrate `${}`
+        stories).
     - [x] C2.1: Add a `cem_ql` data-bound render boundary for canonical CEM-ML templates. Split the production
           shape into `compileTemplate(source, options) -> TemplateArtifact` and
           `renderTemplate(artifact, DataIslandSnapshot) -> RenderPlan`; internally this may reuse
@@ -230,11 +232,21 @@ Design home: [`cem-element-design.md`](cem-element-design.md). WASM proposal:
             hosts. Coverage: `render_template_drops_top_level_attribute_and_slice_declarations` in
             [`template_render.rs`](../packages/cem_ql/tests/template_render.rs) and the `DeclaredAttributeWasmRenderLoop`
             story; 39 stories + 19 render tests green.
-      - [ ] Full C1.5 removal (deferred): blocked on a synchronous declaration-metadata surface from the `cem_ql` WASM
-            compile boundary (declared `<attribute>`/`<slice>` + diagnostics) so `observedAttributes` can be resolved at
-            `customElements.define` time without the TS scan — likely via sync WASM init or a per-instance attribute
-            `MutationObserver`. Also requires migrating the bespoke `${}` stories to canonical `{$…}` and reconciling the
-            TS-specific `cem-element.cem_ml.*` diagnostic codes with the WASM `cem.ql.*`/`cem.schema.*` codes.
+      - [x] Async attribute observation (Option A — chosen for reliability): replace synchronous
+            `observedAttributes` / `attributeChangedCallback` with a per-instance `MutationObserver` over host
+            attributes (and the inert data-island), so produced elements stay **defined synchronously** while host
+            attribute changes schedule an **async** re-render that reads the live attributes fresh. Observing every
+            attribute also re-renders on *undeclared* attributes (reachable via `datadom.attributes.<x>`) that
+            `observedAttributes` could never observe. Landed in
+            [`cem-elements.ts`](../packages/cem-elements/src/lib/cem-elements.ts) (`observeInstance`,
+            `disconnectProducedInstance`, `isConnected` guard; re-entrancy is structurally precluded since render
+            never mutates an observed target). Coverage: `AttributeObserverRerendersOnUndeclaredAttribute`; 40 stories
+            green. This removes the hard synchronous blocker for full C1.5 removal.
+      - [ ] Full C1.5 removal (remaining): with `observedAttributes` no longer needed synchronously, move the last
+            declaration-metadata uses off the TS scan — have the WASM render apply `<attribute>` defaults internally
+            (or expose them asynchronously) and source declaration diagnostics from the async WASM compile — then
+            migrate the bespoke `${}` stories to canonical `{$…}`, reconcile the `cem-element.cem_ml.*` diagnostic
+            codes with the WASM `cem.ql.*`/`cem.schema.*` codes, and delete `cem-ml-template.ts`.
   - [x] Runtime slice D: wire attribute changes and declarative data-island/event updates to render invalidation.
         Observed declaration attributes rerender produced instances; rendered `slice`/`slice-event`/`slice-value`
         bindings update package-local slice state and rerender through the same `DataIslandSnapshot` path; inert
