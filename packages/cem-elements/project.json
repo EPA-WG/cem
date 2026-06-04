@@ -34,6 +34,37 @@
                 "{workspaceRoot}/yarn.lock"
             ],
             "outputs": []
+        },
+        "verify-substrate": {
+            "cache": true,
+            "executor": "nx:run-commands",
+            "dependsOn": [{ "projects": ["cem_ml_cli"], "target": "build" }],
+            "options": {
+                "command": "node tools/scripts/verify-cem-elements-substrate.mjs",
+                "cwd": "{workspaceRoot}"
+            },
+            "inputs": [
+                "{workspaceRoot}/tools/scripts/verify-cem-elements-substrate.mjs",
+                "{workspaceRoot}/examples/cem-elements/**/*.cem",
+                "{workspaceRoot}/packages/cem_ml_cli/src/**/*.rs",
+                "{workspaceRoot}/packages/cem_ml/src/**/*.rs",
+                "{workspaceRoot}/packages/cem_ql/src/**/*.rs"
+            ],
+            "outputs": []
+        },
+        "verify": {
+            "executor": "nx:run-commands",
+            "dependsOn": [
+                { "projects": ["cem_ml_cli"], "target": "validate-fixtures" },
+                { "projects": ["cem_ml_cli"], "target": "e2e" },
+                "verify-substrate",
+                "test"
+            ],
+            "options": {
+                "command": "echo \"C2.6 verification gate green: cem_ml_cli validate-fixtures + e2e, cem-element substrate roundtrip, and Storybook parity stories all passed.\"",
+                "cwd": "{workspaceRoot}"
+            },
+            "outputs": []
         }
     }
 }

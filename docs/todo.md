@@ -94,10 +94,11 @@ Design home: [`cem-element-design.md`](cem-element-design.md). WASM proposal:
   - [ ] Runtime slice C2: lower canonical inline CEM-ML declaration templates through the `cem_ml`
         WASM/runtime-support boundary into the same render-plan shape. Canonical-subset CEM-ML now renders through
         the `cem_ql` WASM boundary (C2.1–C2.3) with functional `/datadom` data-document selection + `??` (C2.4) and
-        `cem:if`/`cem:choose` conditionals, `<data>`/`<option>` payloads, and declarative slot projection (C2.5); the
-        C1.5 TypeScript adapter remains the fallback for bespoke constructs and WASM-unavailable hosts. Remaining:
-        `module-url` (deferred to the `src`-loading slice) and the verification gate before retiring the C1.5
-        fallback (C2.6).
+        `cem:if`/`cem:choose` conditionals, `<data>`/`<option>` payloads, and declarative slot projection (C2.5), and
+        the C2.6 verification gate (`nx run cem-elements:verify`) is wired and green. The C1.5 TypeScript adapter
+        remains the fallback for bespoke constructs and WASM-unavailable hosts. Remaining: `module-url` (deferred to
+        the `src`-loading slice) and retiring the C1.5 fallback (follow-on, gated on the `cem_ql` WASM compile
+        boundary exposing declaration metadata).
     - [x] C2.1: Add a `cem_ql` data-bound render boundary for canonical CEM-ML templates. Split the production
           shape into `compileTemplate(source, options) -> TemplateArtifact` and
           `renderTemplate(artifact, DataIslandSnapshot) -> RenderPlan`; internally this may reuse
@@ -206,8 +207,21 @@ Design home: [`cem-element-design.md`](cem-element-design.md). WASM proposal:
               [`template_render.rs`](../packages/cem_ql/tests/template_render.rs) (first-match wins, skipped subtree,
               nested-if in `otherwise`); repeated same-name slots (first match consumes the payload, later same-name
               slots fall back) by the `SlotProjectionRepeatedNames` story. 38 stories + 18 render tests green.
-    - [ ] C2.6: Wire the verification gate through `cem_ml_cli:validate-fixtures`, `cem_ml_cli:e2e`, and Storybook
-          parity stories before retiring the C1.5 fallback.
+    - [x] C2.6: Wire the verification gate through `cem_ml_cli:validate-fixtures`, `cem_ml_cli:e2e`, and Storybook
+          parity stories before retiring the C1.5 fallback. Decision (2026-06-04): cem-element substrate templates use
+          a vocabulary that is not Tier-A HTML/SVG and whose host bindings resolve only at render time, so the semantic
+          `validate` gate intentionally rejects them; they ride a **structural parse + roundtrip** leg instead. Landed:
+          substrate fixtures in [`examples/cem-elements/`](../examples/cem-elements/) (conditionals, data-document,
+          slots/data/option) verified by [`tools/scripts/verify-cem-elements-substrate.mjs`](../tools/scripts/verify-cem-elements-substrate.mjs)
+          (real `cem-ml convert cem->cem` structural success + canonical-roundtrip idempotence) through the new
+          `nx run cem-elements:verify-substrate` target; and a composite `nx run cem-elements:verify` gate that runs
+          `cem_ml_cli:validate-fixtures` + `cem_ml_cli:e2e` + `verify-substrate` + the Storybook `test` (38 stories) —
+          all 7 gate tasks green.
+      - [ ] Retire the C1.5 fallback (follow-on, gate now green): extend the `cem_ql` WASM compile boundary to expose
+            declaration metadata (declared `<attribute>`/`<slice>` + parse diagnostics) so `cem-elements.ts` no longer
+            needs `parseCemMlTemplateSource`, then remove the TS adapter. Currently the C1.5 adapter still supplies
+            declaration-time diagnostics, declared-attribute/slice extraction, and the WASM-eligibility structural
+            analysis, so retirement is gated on that WASM metadata surface, not on the verification gate alone.
   - [x] Runtime slice D: wire attribute changes and declarative data-island/event updates to render invalidation.
         Observed declaration attributes rerender produced instances; rendered `slice`/`slice-event`/`slice-value`
         bindings update package-local slice state and rerender through the same `DataIslandSnapshot` path; inert
@@ -238,8 +252,10 @@ Design home: [`cem-element-design.md`](cem-element-design.md). WASM proposal:
       per-component feature usage plus a 22-row feature→runtime-support matrix. Key finding — external/local `src`
       declaration loading is the hard blocker (all 8 components compose via `src` imports), and the
       conditional/expression/slot/`data`-payload features gate behind slice C2 (cem-ml/cem-ql).
-- [ ] Wire `cem-element` through `nx run cem_ml_cli:validate-fixtures` and `cem_ml_cli:e2e` so substrate templates
-      ride the same Phase 2 verification.
+- [x] Wire `cem-element` through `nx run cem_ml_cli:validate-fixtures` and `cem_ml_cli:e2e` so substrate templates
+      ride the same Phase 2 verification. Landed via the C2.6 gate: `nx run cem-elements:verify` composes
+      `cem_ml_cli:validate-fixtures` + `cem_ml_cli:e2e` with the `cem-elements:verify-substrate` structural
+      parse+roundtrip leg over [`examples/cem-elements/`](../examples/cem-elements/) and the Storybook `test`.
 - [ ] Production-ready gate: parity (1)–(6) from [`cem-element-design.md` §7](cem-element-design.md). When green,
       the browser substrate is eligible for Phase 3.5 Edge/SSR follow-up; `@epa-wg/custom-element` adoption remains
       deferred until after that follow-up phase.

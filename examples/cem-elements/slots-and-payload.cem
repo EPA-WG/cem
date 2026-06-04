@@ -1,0 +1,21 @@
+@doc cem-ml 1
+@ns cem = "https://cem.dev/ns/core/1"
+@ns html = "http://www.w3.org/1999/xhtml"
+@default html
+
+// `<cem-element>` substrate parity sample: declarative slots (C2.5) plus
+// `<data>` / `<option>` payload carriers (C2.5). Slots are projected from
+// the instance payload at render time; `<data>`/`<option>` are exposed under
+// `/datadom` for cem-ql functional selection.
+{div @class=field |
+  {slot @name="leading" | {span @class=placeholder | leading}}
+  {div @class=body |
+    {slot}
+  }
+  {slot @name="trailing"}
+  {data @value="kinds" |
+    {option @value="text" | text}
+    {option @value="email" | email}
+    {option @value="number" | number}
+  }
+}

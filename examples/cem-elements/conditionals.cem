@@ -1,0 +1,22 @@
+@doc cem-ml 1
+@ns cem = "https://cem.dev/ns/core/1"
+@ns html = "http://www.w3.org/1999/xhtml"
+@default html
+
+// `<cem-element>` substrate parity sample: conditional constructs (C2.5)
+// rendered through the cem_ql boundary. Rides the cem_ml CLI structural
+// verification (parse + cem->cem roundtrip); host bindings (`datadom`)
+// resolve at render time, not at static validate time.
+{div @class=card |
+  {cem:if @test="datadom.attributes.label" |
+    {h3 | {$datadom.attributes.label}}
+  }
+  {cem:choose |
+    {cem:when @test="datadom.attributes.kind" |
+      {span @class="kind {$datadom.attributes.kind}" | {$datadom.attributes.kind}}
+    }
+    {cem:otherwise |
+      {span @class=kind | default}
+    }
+  }
+}

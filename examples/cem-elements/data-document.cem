@@ -1,0 +1,15 @@
+@doc cem-ml 1
+@ns cem = "https://cem.dev/ns/core/1"
+@ns html = "http://www.w3.org/1999/xhtml"
+@default html
+
+// `<cem-element>` substrate parity sample: functional `/datadom` selection
+// and `??` coalescing (C2.4), plus `<attribute>` declarations and AVT
+// interpolation. `<attribute>` configures the produced element and is
+// dropped from output at render time.
+{attribute @name="label" | Save}
+{attribute @name="tone"}
+
+{button @type=button @class="action {$datadom.attributes.tone}" @aria-label="{$datadom.attributes.label}" |
+  {$datadom.attributes.label ?? "Submit"}
+}
