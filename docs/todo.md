@@ -95,11 +95,15 @@ Design home: [`cem-element-design.md`](cem-element-design.md). WASM proposal:
         WASM/runtime-support boundary into the same render-plan shape. Current runtime recognizes CEM-ML and
         renders the supported C1.5 subset through the temporary TypeScript adapter; the production `cem_ml`
         WASM/runtime-support boundary remains open.
-    - [ ] C2.1: Add a `cem_ql` data-bound render boundary for canonical CEM-ML templates. Split the production
+    - [x] C2.1: Add a `cem_ql` data-bound render boundary for canonical CEM-ML templates. Split the production
           shape into `compileTemplate(source, options) -> TemplateArtifact` and
           `renderTemplate(artifact, DataIslandSnapshot) -> RenderPlan`; internally this may reuse
           `CompileContext.policy_bindings`, but the public boundary names the browser data as host/data bindings.
-          Start with `$variable` content and AVT interpolation only, preserving structured source-map frames.
+          Start with `$variable` content and AVT interpolation only, preserving structured source-map frames. Landed
+          as the Rust-side compile-once/render-many boundary in
+          [`packages/cem_ql/src/render.rs`](../packages/cem_ql/src/render.rs) with coverage in
+          [`packages/cem_ql/tests/template_render.rs`](../packages/cem_ql/tests/template_render.rs); the browser
+          snapshot/WASM transport wrapper remains C2.2/C2.3.
     - [ ] C2.2: Add the `cem_ql` WASM entrypoint and build tooling. Export version plus compile/render functions,
           pin the wasm-bindgen toolchain, and make the Nx `cem_ql:build:wasm` target emit JS bindings usable by
           Vite/Storybook.

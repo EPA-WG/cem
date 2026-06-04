@@ -1,5 +1,9 @@
 use cem_ql::eval::{AtomValue, Item, ItemStream};
-use cem_ql::render::{render_template, TemplateData};
+use cem_ql::render::{
+    compile_template, render_compiled_template, CompileTemplateOptions, RenderPlanNode,
+    TemplateData,
+};
+use cem_ql::render::{render_plan_to_html, render_template};
 
 fn string_value(value: &str) -> ItemStream {
     ItemStream::once(Item::Atomic(AtomValue::String(value.to_owned())))
@@ -71,4 +75,63 @@ fn render_template_reports_unknown_host_binding() {
         .diagnostics
         .iter()
         .any(|diagnostic| diagnostic.code == "cem.ql.render.compile_failed"));
+}
+
+#[test]
+fn compiled_template_renders_multiple_snapshots_without_recompile() {
+    let artifact = compile_template(
+        "{span | {$label}}",
+        &CompileTemplateOptions {
+            host_bindings: vec!["label".to_owned()],
+        },
+    );
+    assert!(
+        artifact.diagnostics.is_empty(),
+        "{:?}",
+        artifact.diagnostics
+    );
+
+    let first = render_compiled_template(
+        &artifact,
+        &TemplateData::default().with_binding("label", string_value("Email")),
+    );
+    let second = render_compiled_template(
+        &artifact,
+        &TemplateData::default().with_binding("label", string_value("Phone")),
+    );
+
+    assert_eq!(render_plan_to_html(&first), "<span>Email</span>");
+    assert_eq!(render_plan_to_html(&second), "<span>Phone</span>");
+}
+
+#[test]
+fn render_plan_preserves_structured_nodes_and_source_maps() {
+    let artifact = compile_template(
+        r#"{button @class="action {$tone}" | {$label}}"#,
+        &CompileTemplateOptions {
+            host_bindings: vec!["tone".to_owned(), "label".to_owned()],
+        },
+    );
+    let plan = render_compiled_template(
+        &artifact,
+        &TemplateData::default()
+            .with_binding("tone", string_value("primary"))
+            .with_binding("label", string_value("Save")),
+    );
+
+    let [RenderPlanNode::Element {
+        tag,
+        attributes,
+        children,
+        source_map,
+    }] = plan.nodes.as_slice()
+    else {
+        panic!("expected one rendered element");
+    };
+
+    assert_eq!(tag, "button");
+    assert_eq!(attributes[0].name, "class");
+    assert_eq!(attributes[0].value, "action primary");
+    assert_eq!(children.len(), 1);
+    assert!(!source_map.frames.is_empty(), "element carries source map");
 }
