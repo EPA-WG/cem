@@ -392,6 +392,20 @@ fn render_template_reports_invalid_choose_structure() {
 }
 
 #[test]
+fn render_template_drops_top_level_attribute_and_slice_declarations() {
+    // `<attribute>`/`<slice>` declarations configure the produced element and must not
+    // appear in render output; only the `<button>` (with its resolved `$label`) renders.
+    let data = TemplateData::default().with_binding("label", string_value("Save"));
+    let rendered = render_template(
+        r#"{attribute @name="label" | Save}{slice @name="open"}{button @type=button | {$label}}"#,
+        &data,
+    );
+
+    assert_eq!(rendered.rendered, r#"<button type="button">Save</button>"#);
+    assert!(rendered.diagnostics.is_empty(), "{:?}", rendered.diagnostics);
+}
+
+#[test]
 fn render_template_supports_nested_conditionals() {
     // `cem:if` wrapping a `cem:choose` whose `cem:otherwise` nests another `cem:if`.
     let template = concat!(

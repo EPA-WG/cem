@@ -621,6 +621,59 @@ export const DataOptionPayloadRenderLoop: Story = {
 };
 
 // ---------------------------------------------------------------------------
+// Runtime slice C2.6 — narrowing the C1.5 fallback: declaration-bearing
+// canonical templates (with `<attribute>` decls) now render through the WASM
+// boundary, which drops the declaration nodes. C1.5 keeps only `${}` text +
+// WASM-unavailable hosts.
+// ---------------------------------------------------------------------------
+
+export const DeclaredAttributeWasmRenderLoop: Story = {
+    render: () => {
+        const root = document.createElement('section');
+        root.setAttribute('aria-label', 'declared attribute WASM render story');
+
+        const runtime = new CemElementRuntime({ declarationTag: 'cem-element-story-decl-attr' });
+        runtime.install(window);
+
+        const declaration = document.createElement('cem-element-story-decl-attr');
+        declaration.setAttribute('tag', 'story-decl-attr-button');
+        const template = document.createElement('template');
+        template.setAttribute('type', 'text/cem-ml');
+        // Declares an attribute (with a default) and renders it through canonical
+        // `{$label}` — previously C1.5-only because of the `<attribute>` declaration.
+        template.textContent = '{attribute @name="label" | Save}{button @type=button | {$label}}';
+        declaration.appendChild(template);
+        root.appendChild(declaration);
+        runtime.registerDeclaration(declaration);
+
+        const named = document.createElement('story-decl-attr-button');
+        named.setAttribute('label', 'Submit');
+        const fallbackDefault = document.createElement('story-decl-attr-button');
+        root.append(named, fallbackDefault);
+
+        return root;
+    },
+    play: async ({ canvasElement }) => {
+        const instances = canvasElement.querySelectorAll('story-decl-attr-button');
+        const named = await waitForElement(instances[0], 'button');
+        const def = await waitForElement(instances[1], 'button');
+
+        assertEqual(named.textContent?.trim(), 'Submit', 'declared attribute resolves the host value through WASM');
+        assertEqual(
+            def.textContent?.trim(),
+            'Save',
+            'declared attribute default renders when the host attribute is absent'
+        );
+        assert(instances[0].querySelector('attribute') === null, 'the `<attribute>` declaration is dropped from output');
+        assert(
+            named.hasAttribute('data-cem-template-artifact-id'),
+            'a declaration-bearing template renders through the WASM boundary'
+        );
+        assertEqual(named.getAttribute('type'), 'button', 'sibling canonical attributes still render');
+    },
+};
+
+// ---------------------------------------------------------------------------
 // Runtime slice C2.5 — conditional constructs (cem:if / cem:choose / cem:when /
 // cem:otherwise) lowered through the cem_ql render boundary.
 // ---------------------------------------------------------------------------

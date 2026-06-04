@@ -1,12 +1,15 @@
 /**
- * C1.5 bespoke CEM-ML subset parser — a **temporary fallback only** (slice C2.3).
+ * C1.5 bespoke CEM-ML subset parser — a **narrowed fallback** (slices C2.3 / C2.6).
  *
- * Canonical CEM-ML now renders through the `cem_ql` WASM boundary
- * ({@link ../internal/runtime-support/cem-ql-render.js}). This TypeScript parser is
- * retained for (1) declaration-time parse diagnostics, (2) declared `<attribute>` /
- * `<slice>` and fallback source extraction, and (3) rendering the bespoke constructs the
- * canonical engine does not handle yet (top-level `<attribute>`/`<slice>` declarations,
- * `${}` text interpolation), pending C2.4/C2.5. It is scheduled for retirement at C2.6.
+ * Canonical CEM-ML renders through the `cem_ql` WASM boundary
+ * ({@link ../internal/runtime-support/cem-ql-render.js}). As of C2.6 the WASM render plan
+ * also drops top-level `<attribute>`/`<slice>` declaration nodes, so declaration-bearing
+ * canonical templates render through WASM too. This TypeScript parser is now retained only
+ * for: (1) the synchronous declaration scan — parse diagnostics and declared
+ * `<attribute>`/`<slice>` extraction needed at `customElements.define` time (before the
+ * async WASM module is ready); and (2) rendering the one construct the canonical engine
+ * still does not handle — `${}` C1.5 text interpolation — plus WASM-unavailable hosts.
+ * Full removal stays blocked on a synchronous declaration-metadata surface from WASM.
  */
 
 import type { SourceMapRef, TemplateSourceAttribute, TemplateSourceNode } from '../projection.js';

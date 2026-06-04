@@ -95,10 +95,11 @@ Design home: [`cem-element-design.md`](cem-element-design.md). WASM proposal:
         WASM/runtime-support boundary into the same render-plan shape. Canonical-subset CEM-ML now renders through
         the `cem_ql` WASM boundary (C2.1–C2.3) with functional `/datadom` data-document selection + `??` (C2.4) and
         `cem:if`/`cem:choose` conditionals, `<data>`/`<option>` payloads, and declarative slot projection (C2.5), and
-        the C2.6 verification gate (`nx run cem-elements:verify`) is wired and green. The C1.5 TypeScript adapter
-        remains the fallback for bespoke constructs and WASM-unavailable hosts. Remaining: `module-url` (deferred to
-        the `src`-loading slice) and retiring the C1.5 fallback (follow-on, gated on the `cem_ql` WASM compile
-        boundary exposing declaration metadata).
+        the C2.6 verification gate (`nx run cem-elements:verify`) is wired and green. The C1.5 TypeScript adapter is
+        now narrowed (C2.6): the WASM render plan drops `<attribute>`/`<slice>` declarations so declaration-bearing
+        canonical templates render through WASM, leaving C1.5 only for `${}` text interpolation, WASM-unavailable
+        hosts, and the synchronous declaration scan. Remaining: `module-url` (deferred to the `src`-loading slice) and
+        full C1.5 removal (deferred, blocked on a synchronous WASM declaration-metadata surface).
     - [x] C2.1: Add a `cem_ql` data-bound render boundary for canonical CEM-ML templates. Split the production
           shape into `compileTemplate(source, options) -> TemplateArtifact` and
           `renderTemplate(artifact, DataIslandSnapshot) -> RenderPlan`; internally this may reuse
@@ -217,11 +218,23 @@ Design home: [`cem-element-design.md`](cem-element-design.md). WASM proposal:
           `nx run cem-elements:verify-substrate` target; and a composite `nx run cem-elements:verify` gate that runs
           `cem_ml_cli:validate-fixtures` + `cem_ml_cli:e2e` + `verify-substrate` + the Storybook `test` (38 stories) —
           all 7 gate tasks green.
-      - [ ] Retire the C1.5 fallback (follow-on, gate now green): extend the `cem_ql` WASM compile boundary to expose
-            declaration metadata (declared `<attribute>`/`<slice>` + parse diagnostics) so `cem-elements.ts` no longer
-            needs `parseCemMlTemplateSource`, then remove the TS adapter. Currently the C1.5 adapter still supplies
-            declaration-time diagnostics, declared-attribute/slice extraction, and the WASM-eligibility structural
-            analysis, so retirement is gated on that WASM metadata surface, not on the verification gate alone.
+      - [x] Narrow the C1.5 fallback (decision 2026-06-04: **narrow, not fully retire** — `observedAttributes` must be
+            known synchronously at `customElements.define`, but WASM is async, so full removal is blocked on a
+            synchronous WASM declaration-metadata surface). The `cem_ql` render plan now drops top-level
+            `<attribute>`/`<slice>` declaration nodes ([`render.rs`](../packages/cem_ql/src/render.rs)
+            `is_top_level_declaration`), and the cem-elements WASM-eligibility gate no longer excludes declaration-bearing
+            templates ([`cem-elements.ts`](../packages/cem-elements/src/lib/cem-elements.ts) `isCanonicalWasmSubset`), so
+            declaration-bearing canonical templates (`<attribute>`/`<slice>` + `{$…}` content) now render through WASM.
+            The C1.5 adapter is narrowed to (a) the synchronous declaration scan — parse diagnostics + declared
+            `<attribute>`/`<slice>` for `observedAttributes` — and (b) `${}` C1.5 text interpolation + WASM-unavailable
+            hosts. Coverage: `render_template_drops_top_level_attribute_and_slice_declarations` in
+            [`template_render.rs`](../packages/cem_ql/tests/template_render.rs) and the `DeclaredAttributeWasmRenderLoop`
+            story; 39 stories + 19 render tests green.
+      - [ ] Full C1.5 removal (deferred): blocked on a synchronous declaration-metadata surface from the `cem_ql` WASM
+            compile boundary (declared `<attribute>`/`<slice>` + diagnostics) so `observedAttributes` can be resolved at
+            `customElements.define` time without the TS scan — likely via sync WASM init or a per-instance attribute
+            `MutationObserver`. Also requires migrating the bespoke `${}` stories to canonical `{$…}` and reconciling the
+            TS-specific `cem-element.cem_ml.*` diagnostic codes with the WASM `cem.ql.*`/`cem.schema.*` codes.
   - [x] Runtime slice D: wire attribute changes and declarative data-island/event updates to render invalidation.
         Observed declaration attributes rerender produced instances; rendered `slice`/`slice-event`/`slice-value`
         bindings update package-local slice state and rerender through the same `DataIslandSnapshot` path; inert

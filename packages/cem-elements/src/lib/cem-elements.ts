@@ -721,7 +721,7 @@ function compileInlineDeclaration(
         templateSource,
         mode,
         cemMlSource,
-        wasmEligible: isCanonicalWasmSubset(mode, cemMlSource, templateSource, declaredAttributes, declaredSlices),
+        wasmEligible: isCanonicalWasmSubset(mode, cemMlSource, templateSource),
         declaredAttributes,
         declaredSlices,
         observedAttributes: declaredAttributes.map((attribute) => attribute.name),
@@ -730,24 +730,24 @@ function compileInlineDeclaration(
 }
 
 /**
- * Whether a CEM-ML declaration falls inside the canonical subset the `cem_ql` WASM
- * engine renders today. It must be CEM-ML mode with no `<attribute>`/`<slice>`
- * declarations (deferred to a later C2 slice), no `${}` C1.5 text interpolation, and
- * at least one renderable element (so degenerate expression-only templates such as
- * `{$ | name}` stay on the C1.5 failure path the diagnostics surface relies on).
+ * Whether a CEM-ML declaration falls inside the subset the `cem_ql` WASM engine renders
+ * today. It must be CEM-ML mode, use no `${}` C1.5 text interpolation (the one construct
+ * still owned by the C1.5 fallback — the canonical form is the `{$…}` content node), and
+ * contain at least one renderable element so degenerate expression-only templates such as
+ * `{$ | name}` stay on the C1.5 failure path the diagnostics surface relies on.
+ *
+ * Declared `<attribute>`/`<slice>` nodes no longer disqualify a template: the WASM render
+ * boundary drops them from output (the cem_ql render plan), so declaration-bearing
+ * canonical templates render through WASM and only their `${}` cousins fall back to C1.5.
  */
 function isCanonicalWasmSubset(
     mode: CompiledDeclaration['mode'],
     cemMlSource: string | null,
-    templateSource: readonly TemplateSourceNode[],
-    declaredAttributes: AttributeDeclaration[],
-    declaredSlices: SliceDeclaration[]
+    templateSource: readonly TemplateSourceNode[]
 ): boolean {
     return (
         mode === 'cem-ml' &&
         cemMlSource !== null &&
-        declaredAttributes.length === 0 &&
-        declaredSlices.length === 0 &&
         !cemMlSource.includes('${') &&
         templateSource.some(
             (node) =>

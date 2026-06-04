@@ -199,6 +199,9 @@ pub fn render_compiled_template(artifact: &TemplateArtifact, data: &TemplateData
     };
     let mut nodes = Vec::new();
     for node in &artifact.nodes {
+        if is_top_level_declaration(node) {
+            continue;
+        }
         renderer.render_into(node, &mut nodes);
     }
     RenderPlan {
@@ -840,6 +843,13 @@ fn whole_avt_expression(value: &str) -> Option<&str> {
     } else {
         None
     }
+}
+
+/// Top-level `<attribute>` / `<slice>` declarations configure the produced element
+/// (declared attributes, slice state) rather than producing visible output, so they are
+/// dropped from the render plan — matching the cem-elements projection boundary.
+fn is_top_level_declaration(node: &TemplateNode) -> bool {
+    matches!(node, TemplateNode::Element { tag, .. } if tag == "attribute" || tag == "slice")
 }
 
 fn node_start_name(token: &SchemaToken) -> String {
