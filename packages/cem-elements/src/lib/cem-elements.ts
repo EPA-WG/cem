@@ -43,6 +43,20 @@ export interface SerializedPayload {
     childCount: number;
     nodes: SerializedPayloadNode[];
     slots: Record<string, SerializedPayloadNode[]>;
+    data: SerializedPayloadChoice[];
+    options: SerializedPayloadChoice[];
+    dataByValue: Record<string, SerializedPayloadChoice>;
+    optionsByValue: Record<string, SerializedPayloadChoice>;
+}
+
+export interface SerializedPayloadChoice {
+    kind: 'data' | 'option';
+    key: string;
+    value: string;
+    label: string;
+    text: string;
+    attributes: Record<string, string>;
+    group: string | null;
 }
 
 export type SerializedPayloadNode =
@@ -941,6 +955,10 @@ function dataDocumentFromSnapshot(snapshot: DataIslandSnapshot): Record<string, 
         dataset: snapshot.dataset,
         payload: snapshot.payload,
         slots: snapshot.payload.slots,
+        data: snapshot.payload.dataByValue,
+        options: snapshot.payload.optionsByValue,
+        dataItems: snapshot.payload.data,
+        optionItems: snapshot.payload.options,
         slices: snapshot.slices,
         validationState: snapshot.validationState,
         eventPayloads: snapshot.eventPayloads,
@@ -1087,11 +1105,17 @@ function serializePayload(island: HTMLTemplateElement): SerializedPayload {
         }
         slots[slot] = [...(slots[slot] ?? []), node];
     }
+    const data = collectPayloadChoices(nodes, 'data');
+    const options = collectPayloadChoices(nodes, 'option');
     return {
         text: island.content.textContent ?? '',
         childCount: island.content.childNodes.length,
         nodes,
         slots,
+        data,
+        options,
+        dataByValue: choicesByValue(data),
+        optionsByValue: choicesByValue(options),
     };
 }
 
@@ -1129,6 +1153,55 @@ function payloadSlotName(node: SerializedPayloadNode): string | null {
         return '';
     }
     return null;
+}
+
+function collectPayloadChoices(
+    nodes: readonly SerializedPayloadNode[],
+    kind: SerializedPayloadChoice['kind'],
+    group: string | null = null
+): SerializedPayloadChoice[] {
+    const choices: SerializedPayloadChoice[] = [];
+    for (const node of nodes) {
+        if (node.kind !== 'element') {
+            continue;
+        }
+        const nextGroup = node.tag === 'optgroup' ? node.attributes.label ?? null : group;
+        if (node.tag === kind) {
+            const text = nodeText(node).trim();
+            choices.push({
+                kind,
+                key: node.key,
+                value: node.attributes.value ?? text,
+                label: node.attributes.label ?? text,
+                text,
+                attributes: node.attributes,
+                group,
+            });
+        }
+        choices.push(...collectPayloadChoices(node.children, kind, nextGroup));
+    }
+    return choices;
+}
+
+function choicesByValue(choices: readonly SerializedPayloadChoice[]): Record<string, SerializedPayloadChoice> {
+    const byValue: Record<string, SerializedPayloadChoice> = {};
+    for (const choice of choices) {
+        if (isTemplatePathSegment(choice.value)) {
+            byValue[choice.value] = choice;
+        }
+    }
+    return byValue;
+}
+
+function isTemplatePathSegment(value: string): boolean {
+    return /^[A-Za-z_][\w.-]*$/.test(value);
+}
+
+function nodeText(node: SerializedPayloadNode): string {
+    if (node.kind === 'text' || node.kind === 'comment') {
+        return node.text;
+    }
+    return node.children.map(nodeText).join('');
 }
 
 function materializePayloadNode(node: SerializedPayloadNode, document: Document): Node {

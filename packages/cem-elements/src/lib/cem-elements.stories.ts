@@ -469,7 +469,16 @@ export const CemQlDataDocumentBoundary: Story = {
                 datadom: {
                     attributes: {},
                     dataset: { variant: 'compact' },
-                    payload: { text: 'Payload', childCount: 1, nodes: [], slots: { leading: [{ text: 'Lead' }] } },
+                    payload: {
+                        text: 'Payload',
+                        childCount: 1,
+                        nodes: [],
+                        slots: { leading: [{ text: 'Lead' }] },
+                        data: [],
+                        options: [],
+                        dataByValue: {},
+                        optionsByValue: {},
+                    },
                     slots: { leading: [{ text: 'Lead' }] },
                     slices: {},
                     validationState: {},
@@ -563,6 +572,50 @@ export const CemQlDataDocumentFallbackRenderLoop: Story = {
             button.textContent?.trim(),
             'Tokens-compact-Payload',
             'C1.5 fallback reads flattened datadom paths from the same snapshot'
+        );
+    },
+};
+
+export const DataOptionPayloadRenderLoop: Story = {
+    render: () => {
+        const root = document.createElement('section');
+        root.setAttribute('aria-label', 'data and option payload story');
+
+        const runtime = new CemElementRuntime({ declarationTag: 'cem-element-story-choice-payload' });
+        runtime.install(window);
+
+        const declaration = document.createElement('cem-element-story-choice-payload');
+        declaration.setAttribute('tag', 'story-choice-payload');
+        const template = document.createElement('template');
+        template.setAttribute('type', 'text/cem-ml');
+        template.textContent =
+            '{button @type=button | {$datadom.data.apple.label}/{$datadom.options.date.label}/{$datadom.options.checkbox.group}}';
+        declaration.appendChild(template);
+        root.appendChild(declaration);
+        runtime.registerDeclaration(declaration);
+
+        const instance = document.createElement('story-choice-payload');
+        instance.innerHTML = [
+            '<data value="apple">Apple</data>',
+            '<select>',
+            '<option value="date">Date</option>',
+            '<optgroup label="Other">',
+            '<option value="checkbox">Checkbox</option>',
+            '</optgroup>',
+            '</select>',
+        ].join('');
+        root.appendChild(instance);
+
+        return root;
+    },
+    play: async ({ canvasElement }) => {
+        const instance = requiredElement(canvasElement, 'story-choice-payload');
+        const button = await waitForElement(instance, 'button');
+
+        assertEqual(
+            button.textContent?.trim(),
+            'Apple/Date/Other',
+            '<data> and <option> payloads are exposed under datadom by value'
         );
     },
 };
@@ -1480,9 +1533,22 @@ function projectionSnapshot(
         privacyPolicyStamp: 'story-privacy',
         hostAttributes,
         dataset: {},
-        payload: { text: '', childCount: 0, nodes: [], slots: {} },
+        payload: emptySerializedPayload(),
         slices: {},
         validationState: {},
         eventPayloads: {},
+    };
+}
+
+function emptySerializedPayload(): DataIslandSnapshot['payload'] {
+    return {
+        text: '',
+        childCount: 0,
+        nodes: [],
+        slots: {},
+        data: [],
+        options: [],
+        dataByValue: {},
+        optionsByValue: {},
     };
 }
