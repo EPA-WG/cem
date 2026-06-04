@@ -251,7 +251,10 @@ impl TemplateCompiler<'_> {
     fn compile_all(&mut self) -> Vec<TemplateNode> {
         let mut nodes = Vec::new();
         while self.index < self.tokens.len() {
-            if matches!(self.tokens[self.index].kind, SchemaTokenKind::NodeEnd { .. }) {
+            if matches!(
+                self.tokens[self.index].kind,
+                SchemaTokenKind::NodeEnd { .. }
+            ) {
                 self.index += 1;
                 continue;
             }
@@ -360,7 +363,8 @@ impl TemplateCompiler<'_> {
         let start = self.tokens[self.index].clone();
         let tag = node_start_name(&start);
         self.index += 1;
-        let test = self.parse_test_attribute();
+        let parsed_test = self.parse_test_attribute();
+        let test = self.require_test_attribute(parsed_test, &start, &tag);
         let children = self.parse_children(&tag);
         TemplateNode::If {
             test,
@@ -375,6 +379,7 @@ impl TemplateCompiler<'_> {
         self.index += 1;
         self.skip_attributes();
         let mut branches = Vec::new();
+        let mut has_otherwise = false;
         while self.index < self.tokens.len() {
             match &self.tokens[self.index].kind {
                 SchemaTokenKind::NodeEnd { name: end }
@@ -387,10 +392,30 @@ impl TemplateCompiler<'_> {
                     branches.push(self.compile_branch(true));
                 }
                 SchemaTokenKind::NodeStart { name } if is_otherwise_name(name) => {
+                    let otherwise = self.tokens[self.index].clone();
+                    if has_otherwise {
+                        self.diagnostics.push(render_diagnostic(
+                            "cem.ql.render.choose_multiple_otherwise",
+                            "`cem:choose` must not contain more than one `cem:otherwise` branch"
+                                .to_owned(),
+                            otherwise.byte_range.start,
+                            frame_for(&otherwise),
+                        ));
+                    }
+                    has_otherwise = true;
                     branches.push(self.compile_branch(false));
                 }
-                // Stray content between branches (other elements) is ignored.
                 SchemaTokenKind::NodeStart { .. } => {
+                    let token = self.tokens[self.index].clone();
+                    let name = node_start_name(&token);
+                    self.diagnostics.push(render_diagnostic(
+                        "cem.ql.render.choose_invalid_child",
+                        format!(
+                            "`cem:choose` direct children must be `cem:when` or `cem:otherwise`; found `{name}`"
+                        ),
+                        token.byte_range.start,
+                        frame_for(&token),
+                    ));
                     let _ = self.compile_element();
                 }
                 _ => self.index += 1,
@@ -407,9 +432,10 @@ impl TemplateCompiler<'_> {
         let tag = node_start_name(&start);
         self.index += 1;
         let test = if is_when {
-            self.parse_test_attribute()
+            let parsed_test = self.parse_test_attribute();
+            self.require_test_attribute(parsed_test, &start, &tag)
         } else {
-            self.skip_attributes();
+            self.skip_otherwise_attributes();
             None
         };
         let children = self.parse_children(&tag);
@@ -435,6 +461,44 @@ impl TemplateCompiler<'_> {
             }
         }
         test
+    }
+
+    fn require_test_attribute(
+        &mut self,
+        test: Option<CompiledTemplateExpression>,
+        token: &SchemaToken,
+        conditional_name: &str,
+    ) -> Option<CompiledTemplateExpression> {
+        if test.is_none() {
+            self.diagnostics.push(render_diagnostic(
+                "cem.ql.render.conditional_test_missing",
+                format!("`{conditional_name}` requires a `@test` attribute"),
+                token.byte_range.start,
+                frame_for(token),
+            ));
+        }
+        test
+    }
+
+    fn skip_otherwise_attributes(&mut self) {
+        while self.index < self.tokens.len() {
+            match &self.tokens[self.index].kind {
+                SchemaTokenKind::Attribute { name, .. } => {
+                    let token = self.tokens[self.index].clone();
+                    if name == "test" {
+                        self.diagnostics.push(render_diagnostic(
+                            "cem.ql.render.otherwise_test_not_allowed",
+                            "`cem:otherwise` must not declare a `@test` attribute".to_owned(),
+                            token.byte_range.start,
+                            frame_for(&token),
+                        ));
+                    }
+                    self.index += 1;
+                }
+                SchemaTokenKind::Trivia(_) => self.index += 1,
+                _ => break,
+            }
+        }
     }
 
     fn skip_attributes(&mut self) {

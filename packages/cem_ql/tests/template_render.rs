@@ -147,7 +147,11 @@ fn render_template_selects_from_data_document() {
     let rendered = render_template("{span | {$datadom.attributes.label}}", &data);
 
     assert_eq!(rendered.rendered, "<span>Email</span>");
-    assert!(rendered.diagnostics.is_empty(), "{:?}", rendered.diagnostics);
+    assert!(
+        rendered.diagnostics.is_empty(),
+        "{:?}",
+        rendered.diagnostics
+    );
 }
 
 #[test]
@@ -158,17 +162,28 @@ fn render_template_coalesces_absent_selection_to_default() {
     );
 
     assert_eq!(rendered.rendered, "<span>fallback</span>");
-    assert!(rendered.diagnostics.is_empty(), "{:?}", rendered.diagnostics);
+    assert!(
+        rendered.diagnostics.is_empty(),
+        "{:?}",
+        rendered.diagnostics
+    );
 }
 
 #[test]
 fn render_template_coalesce_prefers_present_selection() {
     let data = TemplateData::default().with_binding("label", string_value("Email"));
 
-    let rendered = render_template(r#"{span | {$datadom.attributes.label ?? "fallback"}}"#, &data);
+    let rendered = render_template(
+        r#"{span | {$datadom.attributes.label ?? "fallback"}}"#,
+        &data,
+    );
 
     assert_eq!(rendered.rendered, "<span>Email</span>");
-    assert!(rendered.diagnostics.is_empty(), "{:?}", rendered.diagnostics);
+    assert!(
+        rendered.diagnostics.is_empty(),
+        "{:?}",
+        rendered.diagnostics
+    );
 }
 
 #[test]
@@ -182,7 +197,11 @@ fn render_template_coalesces_chained_selections() {
     );
 
     assert_eq!(rendered.rendered, "<span>Alt</span>");
-    assert!(rendered.diagnostics.is_empty(), "{:?}", rendered.diagnostics);
+    assert!(
+        rendered.diagnostics.is_empty(),
+        "{:?}",
+        rendered.diagnostics
+    );
 }
 
 // --- C2.5: conditional constructs (cem:if / cem:choose / cem:when / cem:otherwise) ---
@@ -191,11 +210,17 @@ fn render_template_coalesces_chained_selections() {
 fn render_template_if_emits_body_only_when_test_is_truthy() {
     let template = r#"{cem:if @test="show" | {span | yes}}"#;
 
-    let shown = render_template(template, &TemplateData::default().with_binding("show", bool_value(true)));
+    let shown = render_template(
+        template,
+        &TemplateData::default().with_binding("show", bool_value(true)),
+    );
     assert_eq!(shown.rendered, "<span>yes</span>");
     assert!(shown.diagnostics.is_empty(), "{:?}", shown.diagnostics);
 
-    let hidden = render_template(template, &TemplateData::default().with_binding("show", bool_value(false)));
+    let hidden = render_template(
+        template,
+        &TemplateData::default().with_binding("show", bool_value(false)),
+    );
     assert_eq!(hidden.rendered, "");
     assert!(hidden.diagnostics.is_empty(), "{:?}", hidden.diagnostics);
 }
@@ -257,4 +282,41 @@ fn render_template_if_tests_data_document_selection() {
     );
     assert_eq!(hidden.rendered, "");
     assert!(hidden.diagnostics.is_empty(), "{:?}", hidden.diagnostics);
+}
+
+#[test]
+fn render_template_reports_missing_conditional_tests() {
+    let rendered = render_template(
+        r#"{cem:choose | {cem:when | {span | yes}}}{cem:if | {span | no}}"#,
+        &TemplateData::default(),
+    );
+
+    let missing_test_count = rendered
+        .diagnostics
+        .iter()
+        .filter(|diagnostic| diagnostic.code == "cem.ql.render.conditional_test_missing")
+        .count();
+    assert_eq!(missing_test_count, 2, "{:?}", rendered.diagnostics);
+}
+
+#[test]
+fn render_template_reports_invalid_choose_structure() {
+    let rendered = render_template(
+        r#"{cem:choose | {span | stray}{cem:otherwise @test="false" | {b | first}}{cem:otherwise | {b | second}}}"#,
+        &TemplateData::default(),
+    );
+
+    assert_eq!(rendered.rendered, "<b>first</b>");
+    assert!(rendered
+        .diagnostics
+        .iter()
+        .any(|diagnostic| diagnostic.code == "cem.ql.render.choose_invalid_child"));
+    assert!(rendered
+        .diagnostics
+        .iter()
+        .any(|diagnostic| diagnostic.code == "cem.ql.render.otherwise_test_not_allowed"));
+    assert!(rendered
+        .diagnostics
+        .iter()
+        .any(|diagnostic| diagnostic.code == "cem.ql.render.choose_multiple_otherwise"));
 }

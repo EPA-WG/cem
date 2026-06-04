@@ -594,7 +594,7 @@ export const SlotProjectionRenderLoop: Story = {
         runtime.registerDeclaration(declaration);
 
         const full = document.createElement('story-slot-card');
-        full.innerHTML = '<span slot="leading">L</span>Body text<span slot="trailing">T</span>';
+        full.innerHTML = '<span slot="leading">L</span>Body text<strong>Body node</strong><span slot="trailing">T</span>';
         const empty = document.createElement('story-slot-card');
         root.append(full, empty);
 
@@ -618,8 +618,8 @@ export const SlotProjectionRenderLoop: Story = {
         );
         assertEqual(
             requiredElement(fullCard, '.body').textContent?.trim(),
-            'Body text',
-            'default slot receives the unslotted text payload'
+            'Body textBody node',
+            'default slot receives unslotted text and element payload in source order'
         );
         assertEqual(
             fullCard.querySelector('[slot="trailing"]')?.textContent,
@@ -634,6 +634,18 @@ export const SlotProjectionRenderLoop: Story = {
             emptyCard.querySelector('.fallback')?.textContent,
             'none',
             'an unfilled named slot shows its fallback content'
+        );
+
+        const island = requiredElement(full, 'template[data-cem-island="instance"]') as HTMLTemplateElement;
+        const leadingPayload = island.content.querySelector('[slot="leading"]');
+        assert(leadingPayload !== null, 'serialized slot source remains in the inert island');
+        leadingPayload.textContent = 'L2';
+        await nextFrame();
+        await nextFrame();
+        assertEqual(
+            requiredElement(full, 'div.card').querySelector('[slot="leading"]')?.textContent,
+            'L2',
+            'slot projection rerenders from the serialized payload after island mutation'
         );
     },
 };
@@ -1403,7 +1415,7 @@ function projectionSnapshot(
         privacyPolicyStamp: 'story-privacy',
         hostAttributes,
         dataset: {},
-        payload: { text: '', childCount: 0 },
+        payload: { text: '', childCount: 0, nodes: [], slots: {} },
         slices: {},
         validationState: {},
         eventPayloads: {},
