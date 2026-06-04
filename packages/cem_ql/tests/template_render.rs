@@ -406,6 +406,24 @@ fn render_template_drops_top_level_attribute_and_slice_declarations() {
 }
 
 #[test]
+fn render_template_applies_declaration_defaults() {
+    let template = r#"{attribute @name="label" | Save}{button @type=button | {$label}}"#;
+
+    // No host data → the declared default seeds `$label` (the render engine owns defaults).
+    let default_render = render_template(template, &TemplateData::default());
+    assert_eq!(default_render.rendered, r#"<button type="button">Save</button>"#);
+    assert!(default_render.diagnostics.is_empty(), "{:?}", default_render.diagnostics);
+
+    // A host-provided value overrides the declared default.
+    let override_render = render_template(
+        template,
+        &TemplateData::default().with_binding("label", string_value("Submit")),
+    );
+    assert_eq!(override_render.rendered, r#"<button type="button">Submit</button>"#);
+    assert!(override_render.diagnostics.is_empty(), "{:?}", override_render.diagnostics);
+}
+
+#[test]
 fn render_template_supports_nested_conditionals() {
     // `cem:if` wrapping a `cem:choose` whose `cem:otherwise` nests another `cem:if`.
     let template = concat!(

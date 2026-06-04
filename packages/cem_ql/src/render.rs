@@ -163,6 +163,12 @@ pub fn compile_template(source: &str, options: &CompileTemplateOptions) -> Templ
     // The `/datadom` data document is always available to expressions for functional
     // selection (e.g. `datadom.attributes.label`), so declare it at compile time.
     declared_bindings.insert(DATA_DOCUMENT_BINDING.to_owned(), ItemStream::empty());
+    // `{attribute @name=X}` / `{slice @name=X}` declarations introduce `$X` bindings, so
+    // declare them too — the render engine owns declaration metadata, so the host runtime
+    // no longer needs to scan the template to make `{$X}` compile.
+    for name in scan_declaration_names(&tokens) {
+        declared_bindings.entry(name).or_insert_with(ItemStream::empty);
+    }
     let compile_context = CompileContext {
         policy_bindings: declared_bindings,
         ..CompileContext::default()
@@ -188,6 +194,7 @@ pub fn render_compiled_template(artifact: &TemplateArtifact, data: &TemplateData
         .cloned()
         .unwrap_or_else(|| build_data_document(&data.bindings));
     policy_bindings.insert(DATA_DOCUMENT_BINDING.to_owned(), datadom);
+    seed_declaration_defaults(&artifact.nodes, &mut policy_bindings);
     let mut renderer = PlanRenderer {
         evaluation_context: EvaluationContext {
             scope: QueryContextScope(0),
@@ -850,6 +857,92 @@ fn whole_avt_expression(value: &str) -> Option<&str> {
 /// dropped from the render plan — matching the cem-elements projection boundary.
 fn is_top_level_declaration(node: &TemplateNode) -> bool {
     matches!(node, TemplateNode::Element { tag, .. } if tag == "attribute" || tag == "slice")
+}
+
+/// Seed binding values from top-level `{attribute @name=X | default}` / `{slice @name=X | default}`
+/// declarations: the declaration's text content is the default for `$X` when the host data
+/// omits it (host-provided values win). Applying defaults in the render engine means the
+/// browser runtime no longer needs to scan declarations to know them.
+fn seed_declaration_defaults(nodes: &[TemplateNode], bindings: &mut BTreeMap<String, ItemStream>) {
+    for node in nodes {
+        let TemplateNode::Element {
+            tag,
+            attributes,
+            children,
+            ..
+        } = node
+        else {
+            continue;
+        };
+        if tag != "attribute" && tag != "slice" {
+            continue;
+        }
+        let Some(name) = declaration_name(attributes) else {
+            continue;
+        };
+        if bindings.contains_key(&name) {
+            continue; // a host-provided value overrides the declared default
+        }
+        let default = declaration_default_text(children);
+        if !default.is_empty() {
+            bindings.insert(name, ItemStream::once(Item::Atomic(AtomValue::String(default))));
+        }
+    }
+}
+
+/// Collect the `@name` of every `{attribute …}` / `{slice …}` declaration token, so their
+/// `$name` bindings can be declared at compile time (otherwise embedded `{$name}` would fail
+/// to compile with `unknown_variable`).
+fn scan_declaration_names(tokens: &[SchemaToken]) -> Vec<String> {
+    let mut names = Vec::new();
+    let mut index = 0;
+    while index < tokens.len() {
+        let SchemaTokenKind::NodeStart { name } = &tokens[index].kind else {
+            index += 1;
+            continue;
+        };
+        if name != "attribute" && name != "slice" {
+            index += 1;
+            continue;
+        }
+        let mut cursor = index + 1;
+        while cursor < tokens.len() {
+            match &tokens[cursor].kind {
+                SchemaTokenKind::Attribute { name, value, .. } => {
+                    if name == "name" {
+                        if let Some(value) = value {
+                            names.push(value.clone());
+                        }
+                    }
+                    cursor += 1;
+                }
+                SchemaTokenKind::Trivia(_) => cursor += 1,
+                _ => break,
+            }
+        }
+        index = cursor;
+    }
+    names
+}
+
+fn declaration_name(attributes: &[TemplateAttribute]) -> Option<String> {
+    attributes
+        .iter()
+        .find(|attribute| attribute.name == "name")
+        .and_then(|attribute| match &attribute.value {
+            Some(TemplateAttributeValue::Literal(value)) => Some(value.clone()),
+            _ => None,
+        })
+}
+
+fn declaration_default_text(children: &[TemplateNode]) -> String {
+    let mut text = String::new();
+    for child in children {
+        if let TemplateNode::Text { text: chunk, .. } = child {
+            text.push_str(chunk);
+        }
+    }
+    text.trim().to_owned()
 }
 
 fn node_start_name(token: &SchemaToken) -> String {

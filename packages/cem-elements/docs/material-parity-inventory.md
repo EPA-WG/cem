@@ -9,14 +9,14 @@ can be scoped against real gaps rather than guesses.
 - **Source:** `~/aWork/custom-element-dist/src/material/components/*.html` (read-only POC reference).
 - **Components in scope (8):** action, autocomplete, badge, dropdown, icon, icon-link, input, menu.
 - **Method:** static read of each component HTML; line citations are `file:line` against the POC sources.
-- **Runtime baseline:** `<cem-element>` runtime slices A, B, C1, C1.5, D, E (C2 and bridge support open).
+- **Runtime baseline:** `<cem-element>` runtime slices A, B, C1, C2.1–C2.6, D, E (bridge support open).
   See [`../../../docs/cem-element-design.md`](../../../docs/cem-element-design.md).
 
 ## Support legend
 
 | Mark | Meaning                                                                                          |
 | ---- | ----------------------------------------------------------------------------------------------- |
-| ✅   | Supported — the runtime renders this faithfully today (slices A/B/C1/C1.5/D/E).                  |
+| ✅   | Supported — the runtime renders this faithfully today (slices A/B/C1/C2/D/E).                    |
 | 🟡   | Partial — renders, but the parity semantics are degraded or only coincidentally correct.        |
 | ❌   | Not yet — unimplemented; the construct renders wrong, renders inert, or is rejected.             |
 
@@ -66,7 +66,7 @@ current `<cem-element>` runtime renders it faithfully.
 | 15 | `hasBoolAttribute()` helper in expressions              | `input.html:224-228`                                                            | ❌     | No expression-function support.                                                                                  |
 | 16 | `class="{//bend}"` XPath in attribute value             | `action.html:148`                                                               | ❌     | Only `{$name}` resolves; `{//xpath}` is not evaluated.                                                           |
 | 17 | Namespaced `xhtml:*` elements                           | `input.html:218`                                                                | 🟡     | `readTemplateSource` flattens the xhtml namespace, so `xhtml:input` renders as `<input>` — coincidental parity.  |
-| 18 | Declarative `<slot>` / named slots                      | `icon.html:85`, `input.html:206`, `autocomplete.html:85`                         | ✅     | Named/default slots lower from serialized payload in the render plan before light-DOM materialization, including DOM/C1.5 and WASM paths. |
+| 18 | Declarative `<slot>` / named slots                      | `icon.html:85`, `input.html:206`, `autocomplete.html:85`                         | ✅     | Named/default slots lower from serialized payload in the render plan before light-DOM materialization, including DOM and WASM paths. |
 | 19 | Scoped `<style>` inside a template                      | `input.html` (×6), `menu.html` (×6)                                              | 🟡     | Emitted as a literal, page-global `<style>` into light DOM; no scoping/containment.                             |
 | 20 | Nested custom elements in render output                 | `action.html:127` (`cem-icon` in `cem-action`)                                   | 🟡     | Upgrades only if the nested tag is registered; registration depends on `src` loading (#7), so blocked in practice. |
 | 21 | `<data>` / `<option>` instance payloads                 | `autocomplete.html:112`, `input.html:275`                                        | 🟡     | Captured inert into the data island and serialized into `datadom.data.<value>` / `datadom.options.<value>` plus ordered arrays; legacy XPath `//data`/`//option` lowering remains deferred. |
@@ -82,7 +82,7 @@ material-parity *stories* (todo line 118) cannot pass against the unmodified POC
 **Authoring features that gate parity behind cem-ml/cem-ql (slice C2 and friends):** `attribute select` (#10),
 the XPath data model (#11), `??` (#12), `if`/`choose` (#13/#14), `hasBoolAttribute()` (#15), `{//xpath}` attribute
 expressions (#16), `<data>`/`<option>` consumption (#21), and `module-url` slices (#22). These are the dominant
-content of input/autocomplete/icon/icon-link/badge and are not reachable through the current TypeScript C1.5 adapter.
+content of input/autocomplete/icon/icon-link/badge and depend on the canonical CEM-ML/cem-ql path.
 
 **What can be exercised today (✅ rows 1–6):** inline DOM-parity declarations, `<attribute>` defaults, attribute
 `{$x}` interpolation, and slice event bindings. Note the text-interpolation syntax divergence (#3b): legacy text

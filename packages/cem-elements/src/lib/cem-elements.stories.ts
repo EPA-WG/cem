@@ -15,7 +15,6 @@ import {
     type RenderPlanNode,
     type TemplateSourceNode,
 } from './projection.js';
-import { parseCemMlTemplateSource } from './runtime-support/cem-ml-template.js';
 import { renderCemMlTemplate, runtimeVersion } from './internal/runtime-support/cem-ql-render.js';
 
 const meta: Meta = {
@@ -305,7 +304,7 @@ export const CanonicalCemMlRenderLoop: Story = {
         template.textContent = `
             {attribute @name="label" | Save}
             {attribute @name="busy"}
-            {button @type=button @aria-busy={$busy} | \${$label}}
+            {button @type=button @aria-busy={$busy} | {$label}}
         `;
         declaration.appendChild(template);
         root.appendChild(declaration);
@@ -326,7 +325,7 @@ export const CanonicalCemMlRenderLoop: Story = {
 
         assertEqual(button.textContent?.trim(), 'Submit', 'canonical CEM-ML text projection should use host value');
         assertEqual(button.getAttribute('type'), 'button', 'canonical CEM-ML bare attribute values should render');
-        assertEqual(button.getAttribute('aria-busy'), '', 'canonical CEM-ML braced attribute values should render');
+        assertEqual(button.getAttribute('aria-busy'), 'true', 'canonical CEM-ML braced attribute values should render');
         assertEqual(
             button.getAttribute('data-cem-source-fidelity'),
             'author-byte-exact',
@@ -337,7 +336,7 @@ export const CanonicalCemMlRenderLoop: Story = {
 
 // ---------------------------------------------------------------------------
 // Runtime slice C2.3 — canonical CEM-ML lowered through the cem_ql WASM render
-// boundary (host runtime-support layer), with the C1.5 adapter as fallback only.
+// boundary (host runtime-support layer).
 // ---------------------------------------------------------------------------
 
 export const CemQlWasmRenderBoundary: Story = {
@@ -536,46 +535,6 @@ export const CemQlDataDocumentRenderLoop: Story = {
     },
 };
 
-export const CemQlDataDocumentFallbackRenderLoop: Story = {
-    render: () => {
-        const root = document.createElement('section');
-        root.setAttribute('aria-label', 'cem_ql data-document fallback story');
-
-        const runtime = new CemElementRuntime({ declarationTag: 'cem-element-story-datadom-fallback' });
-        runtime.install(window);
-
-        const declaration = document.createElement('cem-element-story-datadom-fallback');
-        declaration.setAttribute('tag', 'story-datadom-fallback');
-        const template = document.createElement('template');
-        template.setAttribute('type', 'text/cem-ml');
-        // `${}` text interpolation intentionally routes this CEM-ML template through
-        // the temporary C1.5 fallback instead of the canonical WASM renderer.
-        template.textContent =
-            '{button @type=button | ${$datadom.attributes.label}-${$datadom.dataset.variant}-${$datadom.payload.text}}';
-        declaration.appendChild(template);
-        root.appendChild(declaration);
-        runtime.registerDeclaration(declaration);
-
-        const instance = document.createElement('story-datadom-fallback');
-        instance.setAttribute('label', 'Tokens');
-        instance.setAttribute('data-variant', 'compact');
-        instance.textContent = 'Payload';
-        root.appendChild(instance);
-
-        return root;
-    },
-    play: async ({ canvasElement }) => {
-        const instance = requiredElement(canvasElement, 'story-datadom-fallback');
-        const button = await waitForElement(instance, 'button');
-
-        assertEqual(
-            button.textContent?.trim(),
-            'Tokens-compact-Payload',
-            'C1.5 fallback reads flattened datadom paths from the same snapshot'
-        );
-    },
-};
-
 export const DataOptionPayloadRenderLoop: Story = {
     render: () => {
         const root = document.createElement('section');
@@ -621,10 +580,9 @@ export const DataOptionPayloadRenderLoop: Story = {
 };
 
 // ---------------------------------------------------------------------------
-// Runtime slice C2.6 — narrowing the C1.5 fallback: declaration-bearing
-// canonical templates (with `<attribute>` decls) now render through the WASM
-// boundary, which drops the declaration nodes. C1.5 keeps only `${}` text +
-// WASM-unavailable hosts.
+// Runtime slice C2.6 — declaration-bearing canonical templates (with
+// `<attribute>` decls) render through the WASM boundary, which drops declaration
+// nodes and applies defaults. The C1.5 render fallback is removed.
 // ---------------------------------------------------------------------------
 
 export const DeclaredAttributeWasmRenderLoop: Story = {
@@ -972,15 +930,13 @@ export const RuntimeDiagnosticsSurface: Story = {
         parserDeclaration.setAttribute('tag', 'story-parser-diagnostic');
         const parserTemplate = document.createElement('template');
         parserTemplate.setAttribute('type', 'text/cem-ml');
-        parserTemplate.textContent = '{button @ | Broken}';
+        parserTemplate.textContent = '{p Hello {.name}}';
         parserDeclaration.appendChild(parserTemplate);
         root.appendChild(parserDeclaration);
         parserRuntime.registerDeclaration(parserDeclaration);
 
-        assertDiagnostic(
-            parserRuntime.diagnosticsFor(parserDeclaration),
-            'cem-element.cem_ml.attribute_name_missing'
-        );
+        await parserRuntime.whenDeclarationSettled(parserDeclaration);
+        assertDiagnostic(parserRuntime.diagnosticsFor(parserDeclaration), 'cem.tokenizer.bare_brace_text');
 
         const renderRuntime = new CemElementRuntime({ declarationTag: 'cem-element-story-render-diagnostic' });
         renderRuntime.install(window);
@@ -988,16 +944,16 @@ export const RuntimeDiagnosticsSurface: Story = {
         renderDeclaration.setAttribute('tag', 'story-render-diagnostic');
         const renderTemplate = document.createElement('template');
         renderTemplate.setAttribute('type', 'text/cem-ml');
-        renderTemplate.textContent = '{$ | .name}';
+        renderTemplate.textContent = '{$ | name}';
         renderDeclaration.appendChild(renderTemplate);
         root.appendChild(renderDeclaration);
         renderRuntime.registerDeclaration(renderDeclaration);
 
         const instance = document.createElement('story-render-diagnostic');
         root.appendChild(instance);
-        await nextFrame();
+        await renderRuntime.whenRenderSettled(instance);
 
-        assertDiagnostic(renderRuntime.diagnosticsFor(instance), 'cem-element.render_failed');
+        assertDiagnostic(renderRuntime.diagnosticsFor(instance), 'cem.ql.render.compile_failed');
     },
 };
 
@@ -1210,7 +1166,7 @@ export const CemMlRenderMetadataCarriesAuthorByteFrames: Story = {
             producedTag: 'story-meta-cem',
             ariaLabel: 'CEM-ML render metadata story',
             type: 'text/cem-ml',
-            text: '{section @class=card | {button @type=button | ${$label}}}',
+            text: '{section @class=card | {button @type=button | {$label}}}',
             attributes: { label: 'Submit' },
         }),
     play: async ({ canvasElement }) => {
@@ -1460,33 +1416,24 @@ export const DeclarationDiagnosticsAreExposed: Story = {
 
 export const CemMlParseDiagnosticsAreExposed: Story = {
     render: () => storyPanel('CEM-ML parse diagnostics', 'malformed CEM-ML surfaces parser diagnostics'),
-    play: () => {
+    play: async () => {
         const cases: Array<[string, string]> = [
-            ['{ | orphan}', 'cem-element.cem_ml.node_name_missing'],
-            ['{button @ | x}', 'cem-element.cem_ml.attribute_name_missing'],
-            ['{button bogus}', 'cem-element.cem_ml.unexpected_token'],
-            ['{button @type=button | x', 'cem-element.cem_ml.node_unterminated'],
-            ['{button @type={oops', 'cem-element.cem_ml.attribute_value_unterminated'],
+            ['{p Hello {.name}}', 'cem.tokenizer.bare_brace_text'],
+            ['{button @type=button | x', 'cem.tokenizer.unterminated_node'],
+            ['{button @title={oops', 'cem.tokenizer.unterminated_avt_span'],
         ];
 
-        cases.forEach(([template, code], index) => {
+        for (const [index, [template, code]] of cases.entries()) {
             const runtime = new CemElementRuntime({ declarationTag: `cem-element-story-parse-${index}` });
             const declaration = buildDeclaration({
                 tag: `story-parse-case-${index}`,
                 templates: [{ type: 'text/cem-ml', text: template }],
             });
             runtime.registerDeclaration(declaration);
+            await runtime.whenDeclarationSettled(declaration);
             const diagnostic = findDiagnostic(runtime.diagnosticsFor(declaration), code);
             assertEqual(diagnostic.source, 'declaration', 'parse diagnostics are declaration-sourced');
-        });
-
-        // Parser-level source frames are what feed slice E author-byte-exact render metadata.
-        const parsed = parseCemMlTemplateSource('{button @type=button | Save}');
-        assertEqual(parsed.diagnostics.length, 0, 'well-formed CEM-ML parses without diagnostics');
-        const [node] = parsed.source;
-        assert(node.kind === 'element', 'CEM-ML parses into an element source node');
-        assertEqual(node.sourceMapRef?.fidelity, 'author-byte-exact', 'parser marks author-byte-exact fidelity');
-        assertEqual(node.sourceMapRef?.frame, 'cem:0', 'parser frame is the source byte offset');
+        }
     },
 };
 
@@ -1508,7 +1455,7 @@ export const RenderFailureDiagnosticsAreExposed: Story = {
         await nextFrame();
         assertEqual(cleanRuntime.diagnosticsFor(cleanInstance).length, 0, 'a healthy render emits no instance diagnostics');
 
-        // An invalid produced tag in the plan fails materialization and reports a render diagnostic.
+        // Malformed CEM-ML reports compile diagnostics through the async WASM render path.
         const failRuntime = new CemElementRuntime({ declarationTag: 'cem-element-story-render-fail' });
         const failDeclaration = buildDeclaration({
             tag: 'story-render-fail',
@@ -1517,8 +1464,8 @@ export const RenderFailureDiagnosticsAreExposed: Story = {
         failRuntime.registerDeclaration(failDeclaration);
         const failInstance = document.createElement('story-render-fail');
         root.appendChild(failInstance);
-        await nextFrame();
-        const renderFailure = findDiagnostic(failRuntime.diagnosticsFor(failInstance), 'cem-element.render_failed');
+        await failRuntime.whenRenderSettled(failInstance);
+        const renderFailure = findDiagnostic(failRuntime.diagnosticsFor(failInstance), 'cem.ql.render.compile_failed');
         assertEqual(renderFailure.source, 'render', 'render failures are render-sourced');
         assertEqual(renderFailure.severity, 'error', 'render failures are error-severity diagnostics');
 

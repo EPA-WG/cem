@@ -17,6 +17,7 @@
  */
 
 import initCemQlWasm, {
+    compileTemplate,
     renderTemplateSource,
     version as cemQlVersion,
 } from '../../../../../cem_ql/dist/wasm/cem_ql.js';
@@ -65,6 +66,21 @@ export function isRuntimeReady(): boolean {
 /** The `cem_ql` engine version; only meaningful after {@link ensureRuntimeReady}. */
 export function runtimeVersion(): string {
     return cemQlVersion();
+}
+
+/**
+ * Compile a CEM-ML template through the `cem_ql` WASM boundary to surface
+ * **declaration-time** diagnostics, returning only structural (`cem.tokenizer.*`)
+ * well-formedness errors. cem-ql expression diagnostics (`cem.ql.*`) are intentionally
+ * dropped here: host bindings are unknown at declaration time, so every `{$x}` would
+ * otherwise report `unknown_variable`. Those surface at render instead. Awaits WASM init.
+ */
+export async function compileCemMlTemplate(source: string): Promise<RuntimeSupportDiagnostic[]> {
+    await ensureRuntimeReady();
+    const result = JSON.parse(compileTemplate(source, '[]')) as { diagnostics?: WasmDiagnostic[] };
+    return (result.diagnostics ?? [])
+        .filter((diagnostic) => (diagnostic.code ?? '').startsWith('cem.tokenizer.'))
+        .map(mapDiagnostic);
 }
 
 /**

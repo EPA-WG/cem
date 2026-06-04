@@ -9,11 +9,11 @@ import {
     type TemplateValue,
 } from './projection.js';
 import {
+    compileCemMlTemplate,
     ensureRuntimeReady,
     renderCemMlTemplate,
     type RuntimeSupportDiagnostic,
 } from './internal/runtime-support/cem-ql-render.js';
-import { parseCemMlTemplateSource } from './runtime-support/cem-ml-template.js';
 
 export type CemElementDiagnosticSeverity = 'info' | 'warning' | 'error' | 'fatal';
 
@@ -123,12 +123,7 @@ interface CompiledDeclaration {
     mode: 'dom' | 'cem-ml' | 'legacy-v0';
     /** Raw canonical CEM-ML source text, retained for the `cem_ql` WASM render boundary. */
     cemMlSource: string | null;
-    /**
-     * Whether this declaration's template is within the canonical CEM-ML subset the
-     * `cem_ql` WASM engine renders today (no `<attribute>`/`<slice>` declarations, no
-     * `${}` C1.5 text interpolation, at least one renderable element). When false, the
-     * C1.5 TypeScript adapter remains the renderer until later C2 slices extend WASM.
-     */
+    /** Whether this declaration renders through the canonical CEM-ML WASM boundary. */
     wasmEligible: boolean;
     declaredAttributes: AttributeDeclaration[];
     declaredSlices: SliceDeclaration[];
@@ -252,6 +247,7 @@ export class CemElementRuntime {
     private readonly instanceStates = new WeakMap<HTMLElement, InstanceState>();
     private readonly renderTokens = new WeakMap<HTMLElement, number>();
     private readonly renderSettled = new WeakMap<HTMLElement, Promise<void>>();
+    private readonly declarationSettled = new WeakMap<object, Promise<void>>();
     private instanceSequence = 0;
 
     constructor(options: CemElementRuntimeOptions = {}) {
@@ -259,16 +255,16 @@ export class CemElementRuntime {
         this.scopePolicyStamp = options.scopePolicyStamp ?? DEFAULT_SCOPE_POLICY_STAMP;
         this.privacyPolicyStamp = options.privacyPolicyStamp ?? DEFAULT_PRIVACY_POLICY_STAMP;
         this.logger = options.logger;
-        // Eagerly warm the cem_ql WASM engine so canonical CEM-ML instances can upgrade
-        // to the authoritative render boundary as soon as possible. Failures fall back
-        // to the C1.5 path and surface per-instance at render time.
+        // Eagerly warm the cem_ql WASM engine so canonical CEM-ML instances can render
+        // through the authoritative boundary as soon as possible. Failures surface
+        // per-instance at render time.
         void ensureRuntimeReady().catch(() => undefined);
     }
 
     /**
      * Resolves once the most recent render for an instance has settled, including the
      * asynchronous `cem_ql` WASM render boundary for canonical CEM-ML. Synchronous
-     * (DOM / C1.5 / legacy) renders resolve immediately.
+     * (DOM / legacy) renders resolve immediately.
      */
     whenRenderSettled(instance: HTMLElement): Promise<void> {
         return this.renderSettled.get(instance) ?? Promise.resolve();
@@ -320,11 +316,51 @@ export class CemElementRuntime {
         this.recordDiagnostics(declarationElement, [...shape.diagnostics, ...compiled.diagnostics]);
         this.declarations.set(shape.tag, compiled);
         this.defineProducedElement(declarationElement, compiled);
+        // CEM-ML declaration parse diagnostics (structural well-formedness) come from the
+        // async cem_ql WASM compile; cem-ql expression errors surface at render instead.
+        if (compiled.mode === 'cem-ml' && compiled.cemMlSource !== null) {
+            this.declarationSettled.set(
+                declarationElement,
+                this.surfaceDeclarationDiagnostics(declarationElement, compiled)
+            );
+        }
         return true;
     }
 
     diagnosticsFor(target: object): readonly CemElementDiagnostic[] {
         return this.diagnostics.get(target) ?? [];
+    }
+
+    /**
+     * Resolves once a declaration's asynchronous parse diagnostics (from the cem_ql WASM
+     * compile) have been recorded. Synchronous (DOM / legacy) declarations resolve
+     * immediately.
+     */
+    whenDeclarationSettled(declaration: object): Promise<void> {
+        return this.declarationSettled.get(declaration) ?? Promise.resolve();
+    }
+
+    private async surfaceDeclarationDiagnostics(
+        declarationElement: HTMLElement,
+        compiled: CompiledDeclaration
+    ): Promise<void> {
+        try {
+            const diagnostics = await compileCemMlTemplate(compiled.cemMlSource ?? '');
+            if (diagnostics.length > 0) {
+                this.recordDiagnostics(
+                    declarationElement,
+                    diagnostics.map((diagnostic) => ({
+                        code: diagnostic.code,
+                        severity: diagnostic.severity,
+                        source: 'declaration' as const,
+                        message: diagnostic.message,
+                        tag: compiled.producedTag,
+                    }))
+                );
+            }
+        } catch {
+            // WASM unavailable — declaration diagnostics are best-effort.
+        }
     }
 
     snapshotInstance(instance: HTMLElement): DataIslandSnapshot {
@@ -438,14 +474,12 @@ export class CemElementRuntime {
 
         if (compiled.wasmEligible && compiled.cemMlSource !== null) {
             // Canonical CEM-ML renders through the authoritative `cem_ql` WASM boundary.
-            // The C1.5 TypeScript adapter cannot lower canonical `{$x}` content, so here it
-            // is only the unavailability fallback; the async WASM render owns this output.
             this.renderSettled.set(instance, this.renderViaWasm(instance, compiled, snapshot, token));
             return;
         }
 
-        // DOM parity, the C1.5 bespoke CEM-ML subset, and legacy bridge templates render
-        // synchronously through the projection / TS-adapter path.
+        // DOM parity and legacy bridge templates render synchronously through the
+        // projection path.
         const rendered = this.renderFromDeclaration(instance, compiled, snapshot);
         this.bindRenderedSliceEvents(instance, compiled, rendered);
         this.replaceRenderedContent(instance, island, rendered);
@@ -739,10 +773,12 @@ function compileInlineDeclaration(
         );
     }
 
-    const templateSource = readInlineTemplateSource(template, mode, producedTag, diagnostics);
-    const declaredAttributes =
-        mode === 'legacy-v0' ? [] : extractAttributeDeclarationsFromSource(templateSource);
-    const declaredSlices = mode === 'legacy-v0' ? [] : extractSliceDeclarationsFromSource(templateSource);
+    const templateSource = readInlineTemplateSource(template, mode);
+    // DOM-parity templates extract their declarations here for the synchronous projection
+    // path. CEM-ML templates render through the cem_ql WASM boundary, which owns declared
+    // attributes/slices and their defaults, so nothing is scanned synchronously for them.
+    const declaredAttributes = mode === 'dom' ? extractAttributeDeclarationsFromSource(templateSource) : [];
+    const declaredSlices = mode === 'dom' ? extractSliceDeclarationsFromSource(templateSource) : [];
     const cemMlSource = mode === 'cem-ml' ? template.textContent ?? '' : null;
     return {
         declarationElement,
@@ -753,7 +789,7 @@ function compileInlineDeclaration(
         templateSource,
         mode,
         cemMlSource,
-        wasmEligible: isCanonicalWasmSubset(mode, cemMlSource, templateSource),
+        wasmEligible: mode === 'cem-ml',
         declaredAttributes,
         declaredSlices,
         diagnostics,
@@ -761,55 +797,17 @@ function compileInlineDeclaration(
 }
 
 /**
- * Whether a CEM-ML declaration falls inside the subset the `cem_ql` WASM engine renders
- * today. It must be CEM-ML mode, use no `${}` C1.5 text interpolation (the one construct
- * still owned by the C1.5 fallback — the canonical form is the `{$…}` content node), and
- * contain at least one renderable element so degenerate expression-only templates such as
- * `{$ | name}` stay on the C1.5 failure path the diagnostics surface relies on.
- *
- * Declared `<attribute>`/`<slice>` nodes no longer disqualify a template: the WASM render
- * boundary drops them from output (the cem_ql render plan), so declaration-bearing
- * canonical templates render through WASM and only their `${}` cousins fall back to C1.5.
+ * Read the synchronous template source for a declaration. DOM-parity templates lower
+ * through the browser DOM parser into a serializable source tree. CEM-ML templates render
+ * through the cem_ql WASM boundary — which owns parsing, declaration metadata, defaults,
+ * and diagnostics — so no synchronous source is read for them. Legacy bridge templates are
+ * inert until the bridge-support slice.
  */
-function isCanonicalWasmSubset(
-    mode: CompiledDeclaration['mode'],
-    cemMlSource: string | null,
-    templateSource: readonly TemplateSourceNode[]
-): boolean {
-    return (
-        mode === 'cem-ml' &&
-        cemMlSource !== null &&
-        !cemMlSource.includes('${') &&
-        templateSource.some(
-            (node) =>
-                node.kind === 'element' &&
-                node.tag !== 'attribute' &&
-                node.tag !== 'slice' &&
-                /^[a-z][a-z0-9]*(-[a-z0-9]+)*$/.test(node.tag)
-        )
-    );
-}
-
 function readInlineTemplateSource(
     template: HTMLTemplateElement,
-    mode: CompiledDeclaration['mode'],
-    producedTag: string,
-    diagnostics: CemElementDiagnostic[]
+    mode: CompiledDeclaration['mode']
 ): TemplateSourceNode[] {
-    if (mode === 'dom') {
-        return readTemplateSource(template.content);
-    }
-    if (mode === 'legacy-v0') {
-        return [];
-    }
-
-    const parsed = parseCemMlTemplateSource(template.textContent ?? '');
-    diagnostics.push(
-        ...parsed.diagnostics.map((diagnostic) =>
-            declarationDiagnostic(diagnostic.code, diagnostic.message, producedTag)
-        )
-    );
-    return parsed.source;
+    return mode === 'dom' ? readTemplateSource(template.content) : [];
 }
 
 function templateMode(template: HTMLTemplateElement): CompiledDeclaration['mode'] {
