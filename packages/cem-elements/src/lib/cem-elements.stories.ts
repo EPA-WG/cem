@@ -566,6 +566,78 @@ export const CemQlConditionalRenderLoop: Story = {
     },
 };
 
+// ---------------------------------------------------------------------------
+// Runtime slice C2.5 — declarative slot projection: the produced instance's
+// payload is distributed into <slot> positions in the light DOM.
+// ---------------------------------------------------------------------------
+
+export const SlotProjectionRenderLoop: Story = {
+    render: () => {
+        const root = document.createElement('section');
+        root.setAttribute('aria-label', 'slot projection story');
+
+        const runtime = new CemElementRuntime({ declarationTag: 'cem-element-story-slot' });
+        runtime.install(window);
+
+        const declaration = document.createElement('cem-element-story-slot');
+        declaration.setAttribute('tag', 'story-slot-card');
+        const template = document.createElement('template');
+        template.innerHTML = [
+            '<div class="card">',
+            '<slot name="leading"><em class="fallback">none</em></slot>',
+            '<div class="body"><slot></slot></div>',
+            '<slot name="trailing"></slot>',
+            '</div>',
+        ].join('');
+        declaration.appendChild(template);
+        root.appendChild(declaration);
+        runtime.registerDeclaration(declaration);
+
+        const full = document.createElement('story-slot-card');
+        full.innerHTML = '<span slot="leading">L</span>Body text<span slot="trailing">T</span>';
+        const empty = document.createElement('story-slot-card');
+        root.append(full, empty);
+
+        return root;
+    },
+    play: async ({ canvasElement }) => {
+        await nextFrame();
+
+        const instances = canvasElement.querySelectorAll('story-slot-card');
+        const full = instances[0];
+        const empty = instances[1];
+
+        // Every <slot> is resolved away in light DOM (replaced by payload or fallback).
+        assert(full.querySelector('slot') === null, 'slots are projected away in light DOM');
+
+        const fullCard = requiredElement(full, 'div.card');
+        assertEqual(
+            fullCard.querySelector('[slot="leading"]')?.textContent,
+            'L',
+            'named leading slot receives the matching payload'
+        );
+        assertEqual(
+            requiredElement(fullCard, '.body').textContent?.trim(),
+            'Body text',
+            'default slot receives the unslotted text payload'
+        );
+        assertEqual(
+            fullCard.querySelector('[slot="trailing"]')?.textContent,
+            'T',
+            'named trailing slot receives the matching payload'
+        );
+
+        // With no payload, each slot falls back to its own default content.
+        const emptyCard = requiredElement(empty, 'div.card');
+        assert(emptyCard.querySelector('slot') === null, 'unfilled instance slots are also resolved');
+        assertEqual(
+            emptyCard.querySelector('.fallback')?.textContent,
+            'none',
+            'an unfilled named slot shows its fallback content'
+        );
+    },
+};
+
 export const RuntimeDiagnosticsSurface: Story = {
     render: () => storyPanel('Runtime diagnostics', 'declaration and render diagnostics remain queryable'),
     play: async ({ canvasElement }) => {

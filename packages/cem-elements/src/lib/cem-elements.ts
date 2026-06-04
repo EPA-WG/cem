@@ -380,6 +380,7 @@ export class CemElementRuntime {
         // DOM parity, the C1.5 bespoke CEM-ML subset, and legacy bridge templates render
         // synchronously through the projection / TS-adapter path.
         const rendered = this.renderFromDeclaration(instance, compiled, snapshot);
+        this.projectSlots(island, rendered);
         this.bindRenderedSliceEvents(instance, compiled, rendered);
         this.replaceRenderedContent(instance, island, rendered);
         this.renderSettled.set(instance, Promise.resolve());
@@ -410,8 +411,9 @@ export class CemElementRuntime {
             }
             const plan = planFromNodes(result.nodes, snapshot, compiled);
             const fragment = materializeRenderPlan(plan, instance.ownerDocument);
-            this.bindRenderedSliceEvents(instance, compiled, fragment);
             const island = this.ensureDataIsland(instance);
+            this.projectSlots(island, fragment);
+            this.bindRenderedSliceEvents(instance, compiled, fragment);
             this.replaceRenderedContent(instance, island, fragment);
         } catch (error) {
             if (this.renderTokens.get(instance) !== token) {
@@ -431,6 +433,51 @@ export class CemElementRuntime {
         const token = (this.renderTokens.get(instance) ?? 0) + 1;
         this.renderTokens.set(instance, token);
         return token;
+    }
+
+    /**
+     * Project the produced instance's captured payload (the data-island content) into the
+     * `<slot>` positions of a rendered fragment, emulating slot distribution in light DOM.
+     * Each `<slot>` is replaced by clones of the payload assigned to it — named slots match
+     * `slot="<name>"`; the default slot takes payload without a `slot` attribute plus
+     * non-empty text — or by its own fallback children when nothing is assigned. Cloning
+     * keeps the inert data island as the durable payload source across rerenders.
+     */
+    private projectSlots(island: HTMLTemplateElement, fragment: DocumentFragment): void {
+        const slots = Array.from(fragment.querySelectorAll('slot'));
+        if (slots.length === 0) {
+            return;
+        }
+        const consumed = new Set<Node>();
+        for (const slot of slots) {
+            const name = slot.getAttribute('name') ?? '';
+            const projected = this.collectSlotPayload(island, name, consumed);
+            const replacement =
+                projected.length > 0
+                    ? projected.map((node) => node.cloneNode(true))
+                    : Array.from(slot.childNodes);
+            slot.replaceWith(...replacement);
+        }
+    }
+
+    private collectSlotPayload(island: HTMLTemplateElement, name: string, consumed: Set<Node>): Node[] {
+        const projected: Node[] = [];
+        for (const node of Array.from(island.content.childNodes)) {
+            if (consumed.has(node)) {
+                continue;
+            }
+            if (node.nodeType === 1) {
+                const slotName = (node as Element).getAttribute('slot') ?? '';
+                if (slotName === name) {
+                    projected.push(node);
+                    consumed.add(node);
+                }
+            } else if (name === '' && node.nodeType === 3 && (node.textContent ?? '').trim().length > 0) {
+                projected.push(node);
+                consumed.add(node);
+            }
+        }
+        return projected;
     }
 
     private renderFromDeclaration(
