@@ -804,19 +804,67 @@ export const LegacySliceInputEventParity: Story = {
     },
 };
 
-export const LegacySrcDeclarationLoadingIsTrackedAsBlocked: Story = {
-    render: () => storyPanel('Legacy src loading', 'tracked as the shared module-map resolver slice'),
+export const ExternalSrcDeclarationLoadingIsTrackedAsBlocked: Story = {
+    render: () => storyPanel('External src loading', 'external src is the source-streaming follow-up'),
     play: () => {
-        const runtime = new CemElementRuntime({ declarationTag: 'cem-element-story-legacy-src' });
-        const declaration = buildDeclaration({
-            tag: 'story-legacy-src',
-            src: '#legacy-template',
+        const runtime = new CemElementRuntime({ declarationTag: 'cem-element-story-external-src' });
+
+        // External `src="./file#tag"` loading is still deferred to the async fetch follow-on.
+        const external = buildDeclaration({
+            tag: 'story-external-src',
+            src: './icon-link.html#cem-icon-link',
             templates: [],
         });
+        assert(!runtime.registerDeclaration(external), 'external src declarations are blocked until the fetch slice');
+        assertDiagnostic(runtime.diagnosticsFor(external), 'cem-element.src_external_not_implemented');
 
-        const registered = runtime.registerDeclaration(declaration);
-        assert(!registered, 'src-only declarations are intentionally blocked until the resolver slice');
-        assertDiagnostic(runtime.diagnosticsFor(declaration), 'cem-element.src_not_implemented');
+        // A local `src="#id"` whose same-document target is missing reports it.
+        const missing = buildDeclaration({
+            tag: 'story-missing-src',
+            src: '#no-such-template',
+            templates: [],
+        });
+        assert(!runtime.registerDeclaration(missing), 'a missing local src target does not register');
+        assertDiagnostic(runtime.diagnosticsFor(missing), 'cem-element.src_local_target_missing');
+    },
+};
+
+export const LocalSrcDeclarationLoadingParity: Story = {
+    render: () => {
+        const root = document.createElement('section');
+        root.setAttribute('aria-label', 'local src declaration loading story');
+
+        const runtime = new CemElementRuntime({ declarationTag: 'cem-element-story-local-src' });
+        runtime.install(window);
+
+        // Legacy pattern: a top-level `<template id>` holds the definition; a separate
+        // src-referencing `<cem-element>` registers the produced tag from it.
+        const template = document.createElement('template');
+        template.id = 'story-local-src-template';
+        template.setAttribute('type', 'text/cem-ml');
+        template.textContent = '{button @type=button | {$datadom.attributes.label}}';
+        root.appendChild(template);
+
+        const declaration = document.createElement('cem-element-story-local-src');
+        declaration.setAttribute('tag', 'story-local-src-button');
+        declaration.setAttribute('src', '#story-local-src-template');
+        root.appendChild(declaration);
+
+        const instance = document.createElement('story-local-src-button');
+        instance.setAttribute('label', 'Loaded');
+        root.appendChild(instance);
+
+        return root;
+    },
+    play: async ({ canvasElement }) => {
+        const instance = requiredElement(canvasElement, 'story-local-src-button');
+        const button = await waitForElement(instance, 'button');
+        assertEqual(
+            button.textContent?.trim(),
+            'Loaded',
+            'a same-document src="#id" template registers and renders the produced element'
+        );
+        assertEqual(button.getAttribute('type'), 'button', 'the loaded template renders its attributes');
     },
 };
 
@@ -1538,7 +1586,7 @@ export const DeclarationDiagnosticsAreExposed: Story = {
 
         const srcOnly = buildDeclaration({ tag: 'story-decl-src', src: './x.cem#x' });
         runtime.registerDeclaration(srcOnly);
-        assertDiagnostic(runtime.diagnosticsFor(srcOnly), 'cem-element.src_not_implemented');
+        assertDiagnostic(runtime.diagnosticsFor(srcOnly), 'cem-element.src_external_not_implemented');
 
         const noTemplate = buildDeclaration({ tag: 'story-decl-empty' });
         runtime.registerDeclaration(noTemplate);

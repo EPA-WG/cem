@@ -271,7 +271,21 @@ Design home: [`cem-element-design.md`](cem-element-design.md). WASM proposal:
       `LegacyBridgeTemplateBlockedParity`), or an explicit migration/blocker decision (`src`, inline no-`tag`,
       XSLT `for-each`/`variable`, scoped CSS, resource primitives). Storybook coverage is now 45 passing stories.
 - [ ] Land material parity stories for every component in `~/aWork/custom-element-dist/src/material/` (action,
-      autocomplete, badge, dropdown, icon, icon-link, input, menu).
+      autocomplete, badge, dropdown, icon, icon-link, input, menu). Blocked on `src` declaration loading (all 8
+      components compose via `src` imports); the cem-ml/cem-ql features they also needed landed in C2.
+  - [x] `src` declaration loading — local `src="#id"` (same-document `<template id>` / declaration resolution).
+        Landed in [`cem-elements.ts`](../packages/cem-elements/src/lib/cem-elements.ts) (`resolveSrcTemplate`,
+        `parseSrcReference`, `templateFromTarget`): a `<cem-element src="#id" tag="…">` resolves the same-document
+        template and registers the produced tag from it; external `src="./file#tag"` and missing local targets are
+        diagnosed (`cem-element.src_external_not_implemented` / `src_local_target_missing`). Coverage:
+        `LocalSrcDeclarationLoadingParity` and `ExternalSrcDeclarationLoadingIsTrackedAsBlocked`; 46 stories green.
+  - [ ] `src` external / module-map loading — async fetch of `./file.html#tag` and `@scope/pkg/path#tag` through the
+        shared `cem-element` module-map resolver (also unblocks `module-url`); parse the fetched document and register
+        the referenced declaration. This is the remaining blocker for federated cross-file material composition.
+  - [ ] Per-component parity stories — with local `src` loading + the C2 feature set, each component's inline
+        behavior (attribute defaults, datadom selection, conditionals, slots, `<data>`/`<option>`, slice events) and
+        same-document composition can land now; full federated composition (nested components via external `src`)
+        waits on the external-fetch increment above.
 - [x] Build a material parity inventory from `~/aWork/custom-element-dist/src/material/components/*.html` covering
       local/external `src`, hidden declarations, nested custom elements, declarative slots, scoped styles,
       `attribute select`, `if`/`choose` bridge constructs, namespaced `xhtml:*` elements, boolean attribute helper

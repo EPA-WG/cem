@@ -293,20 +293,9 @@ export class CemElementRuntime {
             return false;
         }
 
-        if (shape.src) {
-            const diagnostics = [
-                ...shape.diagnostics,
-                declarationDiagnostic(
-                    'cem-element.src_not_implemented',
-                    '`src` declaration loading is reserved for the URI/source-streaming slice',
-                    shape.tag
-                ),
-            ];
-            this.recordDiagnostics(declarationElement, diagnostics);
-            return false;
-        }
-
-        const template = directTemplateChildren(declarationElement)[0];
+        const template = shape.src
+            ? this.resolveSrcTemplate(declarationElement, shape.src, shape.tag)
+            : directTemplateChildren(declarationElement)[0];
         if (!template) {
             this.recordDiagnostics(declarationElement, shape.diagnostics);
             return false;
@@ -325,6 +314,43 @@ export class CemElementRuntime {
             );
         }
         return true;
+    }
+
+    /**
+     * Resolve a `src` declaration reference to the `<template>` it loads. Same-document
+     * `src="#id"` references resolve synchronously to the matching element's template;
+     * external `src="./file#tag"` loading is the next `src` increment (async fetch through
+     * the module-map resolver) and is reported as not-yet-implemented for now.
+     */
+    private resolveSrcTemplate(
+        declarationElement: HTMLElement,
+        src: string,
+        tag: string
+    ): HTMLTemplateElement | undefined {
+        const reference = parseSrcReference(src);
+        if (!reference.local) {
+            this.recordDiagnostics(declarationElement, [
+                declarationDiagnostic(
+                    'cem-element.src_external_not_implemented',
+                    `external \`src\` declaration loading (\`${src}\`) is reserved for the source-streaming follow-up`,
+                    tag
+                ),
+            ]);
+            return undefined;
+        }
+        const target = declarationElement.ownerDocument.getElementById(reference.id);
+        const template = templateFromTarget(target);
+        if (!template) {
+            this.recordDiagnostics(declarationElement, [
+                declarationDiagnostic(
+                    'cem-element.src_local_target_missing',
+                    `local \`src\` reference \`${src}\` did not resolve to a same-document <template>`,
+                    tag
+                ),
+            ]);
+            return undefined;
+        }
+        return template;
     }
 
     diagnosticsFor(target: object): readonly CemElementDiagnostic[] {
@@ -873,6 +899,31 @@ function directTemplateChildren(element: Element): HTMLTemplateElement[] {
     return Array.from(element.children).filter(
         (child): child is HTMLTemplateElement => child.localName === 'template'
     );
+}
+
+/**
+ * Split a declaration `src` into its document path and fragment id. A reference with an
+ * empty path (`src="#id"`) targets the same document; anything else (`./file.html#tag`)
+ * is an external reference.
+ */
+function parseSrcReference(src: string): { local: boolean; path: string; id: string } {
+    const hashIndex = src.indexOf('#');
+    if (hashIndex < 0) {
+        return { local: false, path: src, id: '' };
+    }
+    const path = src.slice(0, hashIndex);
+    return { local: path === '', path, id: src.slice(hashIndex + 1) };
+}
+
+/** The `<template>` a local `src` reference loads: the target itself, or its first template child. */
+function templateFromTarget(target: Element | null): HTMLTemplateElement | undefined {
+    if (!target) {
+        return undefined;
+    }
+    if (target.localName === 'template') {
+        return target as HTMLTemplateElement;
+    }
+    return directTemplateChildren(target)[0];
 }
 
 function directDataIsland(element: Element): HTMLTemplateElement | undefined {
