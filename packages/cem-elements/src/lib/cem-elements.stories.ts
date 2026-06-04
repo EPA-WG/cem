@@ -804,28 +804,66 @@ export const LegacySliceInputEventParity: Story = {
     },
 };
 
-export const ExternalSrcDeclarationLoadingIsTrackedAsBlocked: Story = {
-    render: () => storyPanel('External src loading', 'external src is the source-streaming follow-up'),
-    play: () => {
-        const runtime = new CemElementRuntime({ declarationTag: 'cem-element-story-external-src' });
+export const ExternalSrcDeclarationLoadingParity: Story = {
+    render: () => {
+        const root = document.createElement('section');
+        root.setAttribute('aria-label', 'external src declaration loading story');
 
-        // External `src="./file#tag"` loading is still deferred to the async fetch follow-on.
-        const external = buildDeclaration({
-            tag: 'story-external-src',
-            src: './icon-link.html#cem-icon-link',
-            templates: [],
+        // The host `loadSrcDocument` resolves + fetches the referenced document (here a
+        // fixture); the runtime parses it and resolves the `#fragment` to its template.
+        const runtime = new CemElementRuntime({
+            declarationTag: 'cem-element-story-ext-src',
+            loadSrcDocument: async (path) => {
+                assertEqual(path, './remote-button.html', 'the loader receives the src path (fragment stripped)');
+                return '<template id="remote-button" type="text/cem-ml">{button @type=button | {$datadom.attributes.label}}</template>';
+            },
         });
-        assert(!runtime.registerDeclaration(external), 'external src declarations are blocked until the fetch slice');
-        assertDiagnostic(runtime.diagnosticsFor(external), 'cem-element.src_external_not_implemented');
+        runtime.install(window);
 
-        // A local `src="#id"` whose same-document target is missing reports it.
-        const missing = buildDeclaration({
-            tag: 'story-missing-src',
-            src: '#no-such-template',
-            templates: [],
+        const declaration = document.createElement('cem-element-story-ext-src');
+        declaration.setAttribute('tag', 'story-ext-src-button');
+        declaration.setAttribute('src', './remote-button.html#remote-button');
+        root.appendChild(declaration);
+
+        const instance = document.createElement('story-ext-src-button');
+        instance.setAttribute('label', 'Remote');
+        root.appendChild(instance);
+
+        return root;
+    },
+    play: async ({ canvasElement }) => {
+        const instance = requiredElement(canvasElement, 'story-ext-src-button');
+        // The produced tag is defined only after the async fetch + parse completes.
+        const button = await waitForElement(instance, 'button');
+        assertEqual(
+            button.textContent?.trim(),
+            'Remote',
+            'an external src declaration fetches, parses, and renders the produced element'
+        );
+        assertEqual(button.getAttribute('type'), 'button', 'the fetched template renders its attributes');
+    },
+};
+
+export const SrcDeclarationLoadingDiagnostics: Story = {
+    render: () => storyPanel('src loading diagnostics', 'missing local target + external load failure'),
+    play: async () => {
+        // A local `src="#id"` whose same-document target is missing reports synchronously.
+        const localRuntime = new CemElementRuntime({ declarationTag: 'cem-element-story-src-missing' });
+        const missing = buildDeclaration({ tag: 'story-src-missing', src: '#no-such-template', templates: [] });
+        assert(!localRuntime.registerDeclaration(missing), 'a missing local src target does not register');
+        assertDiagnostic(localRuntime.diagnosticsFor(missing), 'cem-element.src_local_target_missing');
+
+        // An external `src` whose document fails to load reports asynchronously.
+        const failRuntime = new CemElementRuntime({
+            declarationTag: 'cem-element-story-src-fail',
+            loadSrcDocument: async () => {
+                throw new Error('offline');
+            },
         });
-        assert(!runtime.registerDeclaration(missing), 'a missing local src target does not register');
-        assertDiagnostic(runtime.diagnosticsFor(missing), 'cem-element.src_local_target_missing');
+        const failing = buildDeclaration({ tag: 'story-src-fail', src: './missing.html#x', templates: [] });
+        failRuntime.registerDeclaration(failing);
+        await failRuntime.whenDeclarationSettled(failing);
+        assertDiagnostic(failRuntime.diagnosticsFor(failing), 'cem-element.src_load_failed');
     },
 };
 
@@ -1584,9 +1622,9 @@ export const DeclarationDiagnosticsAreExposed: Story = {
         runtime.registerDeclaration(conflict);
         assertDiagnostic(runtime.diagnosticsFor(conflict), 'cem-element.src_inline_template_conflict');
 
-        const srcOnly = buildDeclaration({ tag: 'story-decl-src', src: './x.cem#x' });
-        runtime.registerDeclaration(srcOnly);
-        assertDiagnostic(runtime.diagnosticsFor(srcOnly), 'cem-element.src_external_not_implemented');
+        const srcMissing = buildDeclaration({ tag: 'story-decl-src', src: '#no-such-template' });
+        runtime.registerDeclaration(srcMissing);
+        assertDiagnostic(runtime.diagnosticsFor(srcMissing), 'cem-element.src_local_target_missing');
 
         const noTemplate = buildDeclaration({ tag: 'story-decl-empty' });
         runtime.registerDeclaration(noTemplate);

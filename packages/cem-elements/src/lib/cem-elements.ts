@@ -95,6 +95,13 @@ export interface CemElementRuntimeOptions {
     scopePolicyStamp?: string;
     privacyPolicyStamp?: string;
     logger?: Pick<Console, 'warn' | 'error'>;
+    /**
+     * Load the HTML document an external `src` declaration references, given the `src`
+     * path (the part before `#`) and the declaring document. Lets a host control module-map
+     * resolution, fetching, and scope-URL policy (and makes external `src` testable). The
+     * default resolves the path against the declaring document's base URL and `fetch`es it.
+     */
+    loadSrcDocument?: (specifier: string, baseDocument: Document) => Promise<string>;
 }
 
 type CemElementWindow = Window &
@@ -248,6 +255,8 @@ export class CemElementRuntime {
     private readonly renderTokens = new WeakMap<HTMLElement, number>();
     private readonly renderSettled = new WeakMap<HTMLElement, Promise<void>>();
     private readonly declarationSettled = new WeakMap<object, Promise<void>>();
+    private readonly srcDocuments = new Map<string, Promise<Document>>();
+    private readonly loadSrcDocumentOption?: CemElementRuntimeOptions['loadSrcDocument'];
     private instanceSequence = 0;
 
     constructor(options: CemElementRuntimeOptions = {}) {
@@ -255,6 +264,7 @@ export class CemElementRuntime {
         this.scopePolicyStamp = options.scopePolicyStamp ?? DEFAULT_SCOPE_POLICY_STAMP;
         this.privacyPolicyStamp = options.privacyPolicyStamp ?? DEFAULT_PRIVACY_POLICY_STAMP;
         this.logger = options.logger;
+        this.loadSrcDocumentOption = options.loadSrcDocument;
         // Eagerly warm the cem_ql WASM engine so canonical CEM-ML instances can render
         // through the authoritative boundary as soon as possible. Failures surface
         // per-instance at render time.
@@ -293,53 +303,105 @@ export class CemElementRuntime {
             return false;
         }
 
-        const template = shape.src
-            ? this.resolveSrcTemplate(declarationElement, shape.src, shape.tag)
-            : directTemplateChildren(declarationElement)[0];
+        if (shape.src) {
+            const reference = parseSrcReference(shape.src);
+            if (!reference.local) {
+                // External `src="./file#tag"`: fetch, parse, and register asynchronously.
+                this.declarationSettled.set(
+                    declarationElement,
+                    this.registerExternalDeclaration(declarationElement, shape.tag, shape.src, reference)
+                );
+                return true;
+            }
+            const localTemplate = this.resolveLocalSrcTemplate(declarationElement, shape.src, reference, shape.tag);
+            if (!localTemplate) {
+                return false;
+            }
+            this.declarationSettled.set(
+                declarationElement,
+                this.registerResolvedDeclaration(declarationElement, shape.tag, localTemplate, shape.diagnostics)
+            );
+            return true;
+        }
+
+        const template = directTemplateChildren(declarationElement)[0];
         if (!template) {
             this.recordDiagnostics(declarationElement, shape.diagnostics);
             return false;
         }
+        this.declarationSettled.set(
+            declarationElement,
+            this.registerResolvedDeclaration(declarationElement, shape.tag, template, shape.diagnostics)
+        );
+        return true;
+    }
 
-        const compiled = compileInlineDeclaration(declarationElement, shape.tag, template, this.declarationTag);
-        this.recordDiagnostics(declarationElement, [...shape.diagnostics, ...compiled.diagnostics]);
-        this.declarations.set(shape.tag, compiled);
+    /** Compile a resolved template, register the produced tag, and surface declaration diagnostics. */
+    private registerResolvedDeclaration(
+        declarationElement: HTMLElement,
+        tag: string,
+        template: HTMLTemplateElement,
+        shapeDiagnostics: CemElementDiagnostic[]
+    ): Promise<void> {
+        const compiled = compileInlineDeclaration(declarationElement, tag, template, this.declarationTag);
+        this.recordDiagnostics(declarationElement, [...shapeDiagnostics, ...compiled.diagnostics]);
+        this.declarations.set(tag, compiled);
         this.defineProducedElement(declarationElement, compiled);
         // CEM-ML declaration parse diagnostics (structural well-formedness) come from the
         // async cem_ql WASM compile; cem-ql expression errors surface at render instead.
         if (compiled.mode === 'cem-ml' && compiled.cemMlSource !== null) {
-            this.declarationSettled.set(
-                declarationElement,
-                this.surfaceDeclarationDiagnostics(declarationElement, compiled)
-            );
+            return this.surfaceDeclarationDiagnostics(declarationElement, compiled);
         }
-        return true;
+        return Promise.resolve();
     }
 
     /**
-     * Resolve a `src` declaration reference to the `<template>` it loads. Same-document
-     * `src="#id"` references resolve synchronously to the matching element's template;
-     * external `src="./file#tag"` loading is the next `src` increment (async fetch through
-     * the module-map resolver) and is reported as not-yet-implemented for now.
+     * Load and register an external `src="./file#tag"` declaration: fetch the referenced
+     * document (through the host loader / module-map resolver), parse it, resolve the
+     * `#fragment` to its `<template>`, and register the produced tag from it.
      */
-    private resolveSrcTemplate(
+    private async registerExternalDeclaration(
         declarationElement: HTMLElement,
+        tag: string,
         src: string,
-        tag: string
-    ): HTMLTemplateElement | undefined {
-        const reference = parseSrcReference(src);
-        if (!reference.local) {
+        reference: SrcReference
+    ): Promise<void> {
+        let document: Document;
+        try {
+            document = await this.loadSrcDocumentParsed(declarationElement, reference.path);
+        } catch (error) {
             this.recordDiagnostics(declarationElement, [
                 declarationDiagnostic(
-                    'cem-element.src_external_not_implemented',
-                    `external \`src\` declaration loading (\`${src}\`) is reserved for the source-streaming follow-up`,
+                    'cem-element.src_load_failed',
+                    `loading \`${src}\` failed: ${error instanceof Error ? error.message : String(error)}`,
                     tag
                 ),
             ]);
-            return undefined;
+            return;
         }
-        const target = declarationElement.ownerDocument.getElementById(reference.id);
-        const template = templateFromTarget(target);
+        const sourceTemplate = templateFromTarget(document.getElementById(reference.id));
+        if (!sourceTemplate) {
+            this.recordDiagnostics(declarationElement, [
+                declarationDiagnostic(
+                    'cem-element.src_target_missing',
+                    `external \`src\` reference \`${src}\` did not resolve to a <template> for \`#${reference.id}\``,
+                    tag
+                ),
+            ]);
+            return;
+        }
+        const template = declarationElement.ownerDocument.importNode(sourceTemplate, true) as HTMLTemplateElement;
+        await this.registerResolvedDeclaration(declarationElement, tag, template, []);
+    }
+
+    /** Resolve a same-document `src="#id"` reference to its `<template>`, or diagnose a miss. */
+    private resolveLocalSrcTemplate(
+        declarationElement: HTMLElement,
+        src: string,
+        reference: SrcReference,
+        tag: string
+    ): HTMLTemplateElement | undefined {
+        const template = templateFromTarget(declarationElement.ownerDocument.getElementById(reference.id));
         if (!template) {
             this.recordDiagnostics(declarationElement, [
                 declarationDiagnostic(
@@ -348,9 +410,28 @@ export class CemElementRuntime {
                     tag
                 ),
             ]);
-            return undefined;
         }
         return template;
+    }
+
+    /** Fetch + parse the document an external `src` references, cached per resolved path. */
+    private loadSrcDocumentParsed(declarationElement: HTMLElement, path: string): Promise<Document> {
+        const cached = this.srcDocuments.get(path);
+        if (cached) {
+            return cached;
+        }
+        const baseDocument = declarationElement.ownerDocument;
+        const parsed = this.loadSrcDocument(path, baseDocument).then((html) =>
+            new DOMParser().parseFromString(html, 'text/html')
+        );
+        this.srcDocuments.set(path, parsed);
+        return parsed;
+    }
+
+    private loadSrcDocument(path: string, baseDocument: Document): Promise<string> {
+        return this.loadSrcDocumentOption
+            ? this.loadSrcDocumentOption(path, baseDocument)
+            : defaultLoadSrcDocument(path, baseDocument);
     }
 
     diagnosticsFor(target: object): readonly CemElementDiagnostic[] {
@@ -805,7 +886,7 @@ function compileInlineDeclaration(
     // attributes/slices and their defaults, so nothing is scanned synchronously for them.
     const declaredAttributes = mode === 'dom' ? extractAttributeDeclarationsFromSource(templateSource) : [];
     const declaredSlices = mode === 'dom' ? extractSliceDeclarationsFromSource(templateSource) : [];
-    const cemMlSource = mode === 'cem-ml' ? template.textContent ?? '' : null;
+    const cemMlSource = mode === 'cem-ml' ? templateSourceText(template) : null;
     return {
         declarationElement,
         declarationTag,
@@ -844,11 +925,21 @@ function templateMode(template: HTMLTemplateElement): CompiledDeclaration['mode'
     if (type === 'text/cem-ml' || type === 'application/cem-ml') {
         return 'cem-ml';
     }
-    const source = template.textContent?.trim() ?? '';
+    const source = templateSourceText(template).trim();
     if (source.startsWith('@doc') || source.startsWith('{')) {
         return 'cem-ml';
     }
     return 'dom';
+}
+
+/**
+ * The raw CEM-ML source text of a template. Inline templates carry it as set `textContent`;
+ * templates parsed via the DOM/DOMParser (e.g. external `src` documents) hold it in
+ * `.content`, where `textContent` is empty.
+ */
+function templateSourceText(template: HTMLTemplateElement): string {
+    const content = template.content.textContent ?? '';
+    return content.length > 0 ? content : template.textContent ?? '';
 }
 
 function extractAttributeDeclarationsFromSource(source: readonly TemplateSourceNode[]): AttributeDeclaration[] {
@@ -901,18 +992,46 @@ function directTemplateChildren(element: Element): HTMLTemplateElement[] {
     );
 }
 
+interface SrcReference {
+    local: boolean;
+    path: string;
+    id: string;
+}
+
 /**
  * Split a declaration `src` into its document path and fragment id. A reference with an
  * empty path (`src="#id"`) targets the same document; anything else (`./file.html#tag`)
  * is an external reference.
  */
-function parseSrcReference(src: string): { local: boolean; path: string; id: string } {
+function parseSrcReference(src: string): SrcReference {
     const hashIndex = src.indexOf('#');
     if (hashIndex < 0) {
         return { local: false, path: src, id: '' };
     }
     const path = src.slice(0, hashIndex);
     return { local: path === '', path, id: src.slice(hashIndex + 1) };
+}
+
+/**
+ * Default external `src` loader: resolve the path against the declaring document's base URL
+ * and `fetch` it. Bare module specifiers (`@scope/pkg`) require a host `loadSrcDocument`
+ * (the shared module-map resolver).
+ */
+function defaultLoadSrcDocument(path: string, baseDocument: Document): Promise<string> {
+    let url: string;
+    try {
+        url = new URL(path, baseDocument.baseURI).href;
+    } catch {
+        return Promise.reject(
+            new Error(`cannot resolve \`${path}\`; bare module specifiers need a host \`loadSrcDocument\``)
+        );
+    }
+    return fetch(url).then((response) => {
+        if (!response.ok) {
+            throw new Error(`HTTP ${response.status} for ${url}`);
+        }
+        return response.text();
+    });
 }
 
 /** The `<template>` a local `src` reference loads: the target itself, or its first template child. */

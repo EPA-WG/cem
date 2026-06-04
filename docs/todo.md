@@ -279,13 +279,24 @@ Design home: [`cem-element-design.md`](cem-element-design.md). WASM proposal:
         template and registers the produced tag from it; external `src="./file#tag"` and missing local targets are
         diagnosed (`cem-element.src_external_not_implemented` / `src_local_target_missing`). Coverage:
         `LocalSrcDeclarationLoadingParity` and `ExternalSrcDeclarationLoadingIsTrackedAsBlocked`; 46 stories green.
-  - [ ] `src` external / module-map loading — async fetch of `./file.html#tag` and `@scope/pkg/path#tag` through the
-        shared `cem-element` module-map resolver (also unblocks `module-url`); parse the fetched document and register
-        the referenced declaration. This is the remaining blocker for federated cross-file material composition.
-  - [ ] Per-component parity stories — with local `src` loading + the C2 feature set, each component's inline
-        behavior (attribute defaults, datadom selection, conditionals, slots, `<data>`/`<option>`, slice events) and
-        same-document composition can land now; full federated composition (nested components via external `src`)
-        waits on the external-fetch increment above.
+  - [x] `src` external / module-map loading — async fetch + parse of an external declaration document, then register
+        the produced tag from its `#fragment` template. Landed in
+        [`cem-elements.ts`](../packages/cem-elements/src/lib/cem-elements.ts): `registerExternalDeclaration` loads the
+        referenced document (cached per path via `loadSrcDocumentParsed`), `DOMParser`-parses it, resolves the
+        `#fragment` through `templateFromTarget`, `importNode`s the `<template>`, and registers asynchronously; a host
+        `loadSrcDocument(specifier, baseDocument)` option controls module-map resolution / fetching / scope policy
+        (default resolves the path against the document base URL and `fetch`es; bare `@scope/pkg` specifiers require a
+        host loader). A content-aware `templateSourceText` reads the cem-ml source from parsed templates' `.content`.
+        Load failures / missing fragments are diagnosed (`src_load_failed` / `src_target_missing`). Coverage:
+        `ExternalSrcDeclarationLoadingParity` (injected loader → fetch/parse/register/render) and
+        `SrcDeclarationLoadingDiagnostics`; 47 stories green. NB the default `fetch` path is exercised in real browsers;
+        the injectable `loadSrcDocument` is the tested boundary. `module-url` resource slices can now reuse this
+        module-map resolver hook.
+  - [ ] Per-component parity stories — `src` loading (local + external) and the full C2 feature set are now in place,
+        so each component's behavior and federated cross-file composition can be exercised. Remaining caveats: bare
+        `@scope/pkg` module specifiers need a host `loadSrcDocument`, `module-url` resource slices are still deferred,
+        and the legacy material templates author conditionals/`{$x}` content in DOM-mode templates (need `text/cem-ml`
+        authoring or DOM-mode conditional support) — record these as migration decisions per component.
 - [x] Build a material parity inventory from `~/aWork/custom-element-dist/src/material/components/*.html` covering
       local/external `src`, hidden declarations, nested custom elements, declarative slots, scoped styles,
       `attribute select`, `if`/`choose` bridge constructs, namespaced `xhtml:*` elements, boolean attribute helper
