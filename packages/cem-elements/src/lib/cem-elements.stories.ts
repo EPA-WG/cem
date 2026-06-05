@@ -2085,6 +2085,32 @@ export const EdgeRenderStateHybridStorageModel: Story = {
             'contents helper preserves an explicit null sanitized snapshot'
         );
         assertEqual(explicitContents.contents.renderedHtml, '', 'contents helper preserves empty rendered HTML');
+        const missingHtmlContents = readEdgeRenderStateContents(
+            new ContentOverrideStore(store, explicitEmptyWrite.record.currentHtml, 'missing'),
+            explicitEmptyWrite.record
+        );
+        assert(!missingHtmlContents.ok, 'contents helper fails closed when addressed HTML is missing');
+        assertEqual(missingHtmlContents.reason, 'missing-content', 'missing HTML reports missing content');
+        assertEqual(
+            missingHtmlContents.reason === 'missing-content' ? missingHtmlContents.field : '',
+            'currentHtml',
+            'missing HTML content reports the failed pointer field'
+        );
+        const corruptSnapshotContents = readEdgeRenderStateContents(
+            new ContentOverrideStore(store, explicitEmptyWrite.record.currentSnapshot, 'replace', { redacted: false }),
+            explicitEmptyWrite.record
+        );
+        assert(!corruptSnapshotContents.ok, 'contents helper fails closed when addressed snapshot content is corrupt');
+        assertEqual(
+            corruptSnapshotContents.reason,
+            'content-address-mismatch',
+            'corrupt snapshot content reports an address mismatch'
+        );
+        assertEqual(
+            corruptSnapshotContents.reason === 'content-address-mismatch' ? corruptSnapshotContents.field : '',
+            'currentSnapshot',
+            'corrupt snapshot content reports the failed pointer field'
+        );
 
         const helperStore = new InMemoryEdgeRenderStateStore();
         const helperInitial = helperStore.writeRenderState({
@@ -2523,6 +2549,41 @@ class RevisionMismatchStore implements EdgeRenderStateStore {
                 dataRevision: 'stale-pointer-revision',
             },
         };
+    }
+
+    writeRecord(
+        record: EdgeRenderStateRecord,
+        options?: EdgeRenderStateWriteOptions
+    ): EdgeRenderStateWriteResult {
+        return this.source.writeRecord(record, options);
+    }
+
+    writeRenderState(input: Parameters<EdgeRenderStateStore['writeRenderState']>[0]): EdgeRenderStateWriteResult {
+        return this.source.writeRenderState(input);
+    }
+}
+
+class ContentOverrideStore implements EdgeRenderStateStore {
+    constructor(
+        private readonly source: EdgeRenderStateStore,
+        private readonly targetAddress: EdgeContentAddress,
+        private readonly mode: 'missing' | 'replace',
+        private readonly replacement?: unknown
+    ) {}
+
+    putContent(kind: EdgeContentKind, value: unknown): EdgeContentAddress {
+        return this.source.putContent(kind, value);
+    }
+
+    getContent<T = unknown>(address: EdgeContentAddress): T | undefined {
+        if (address.key !== this.targetAddress.key) {
+            return this.source.getContent<T>(address);
+        }
+        return this.mode === 'missing' ? undefined : this.replacement as T;
+    }
+
+    readRecord(stateKey: string): EdgeRenderStateRecord | undefined {
+        return this.source.readRecord(stateKey);
     }
 
     writeRecord(
