@@ -1,0 +1,22 @@
+html
+{   font-family: -apple-system,BlinkMacSystemFont,Segoe UI,Roboto,Oxygen,Ubuntu,Cantarell,Fira Sans,Droid Sans,Helvetica Neue,sans-serif;
+    font-weight: 400; font-style: normal; -webkit-font-smoothing: antialiased;
+}
+body,nav{ display: flex; flex-wrap: wrap; align-content: stretch; gap: 1rem; }
+body>*{flex: auto;}
+nav
+{   flex-direction: column;
+    dce-root{ box-shadow:none; padding: 0;}
+}
+
+html-demo-element *:has(>dce-root){ box-shadow: 0 0 0.5rem lime; padding: 1rem;  flex:1; display: block; }
+script{ display:none !important; }
+dd{ padding: 1rem;}
+p{ margin: 0;}
+code{ font-weight: bold; color: green; text-wrap: nowrap; }
+
+html-demo-element h3
+{   text-shadow: 0 0 0.25em white;
+    letter-spacing: 0.1rem;
+}
+*[slot="demo"]{ display: flex; gap: 1rem; flex-wrap: wrap; }

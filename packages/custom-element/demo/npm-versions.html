@@ -1,0 +1,94 @@
+<!DOCTYPE html>
+<html lang="en" xmlns:xsl="http://www.w3.org/1999/XSL/Transform" xmlns:xhtml="http://www.w3.org/1999/xhtml">
+<head>
+    <meta http-equiv="Content-Type" content="text/html; charset=utf-8"/>
+    <title>npm-version template</title>
+    <link rel="icon" href="./wc-square.svg"/>
+
+</head>
+<body>
+
+<h1><code>npm-version</code> template</h1>
+<a href="./npm-versions-demo.html">docs</a>
+<template id="npm-version">
+    <attribute name="package-name"></attribute>
+    <attribute name="current-version" aria-description="version to select"></attribute>
+    <attribute name="show-date" aria-description="set to 'true' to append the date to the version"></attribute>
+    <attribute name="value" select="//selected-version"></attribute>
+    <http-request
+            url="https://registry.npmjs.org/{$package-name}"
+            method="GET"
+            header-accept="application/json"
+            slice="versions-ajax"></http-request>
+
+    <label>
+        <slot name="label"><var>{$package-name}</var> version:</slot>
+        <xhtml:select slice="selected-version" autocomplete="off" name="version">
+            <for-each select="//versions/*">
+                <option value="{./@version}">
+                    <variable name="item-version">{./@version}</variable>
+                    { $item-version }<if test="$show-date = 'true' "> - { substring( //time/*[@dce-object-name = $item-version ], 1,10)}</if>
+                </option>
+            </for-each>
+            <for-each select="//versions/*">
+                <if test="./@version = $current-version">
+                    <option selected value="{./@version}">
+                        <variable name="item-version">{./@version}</variable>
+                        { $item-version }<if test="$show-date = 'true' "> - { substring( //time/*[@dce-object-name = $item-version ], 1,10)}</if>
+                    </option>
+                </if>
+            </for-each>
+        </xhtml:select>
+    </label>
+</template>
+
+<template id="npm-version-to-url">
+    <attribute name="package-name"></attribute>
+    <attribute name="value" select="//selected-version"></attribute>
+    <variable name="url" select="//window-location/value/@href"></variable>
+
+    <variable name="url-version">0{
+            substring-before(substring-after(substring($url, string-length(substring-before($url, '/')) -
+            string-length(substring-before(substring-before($url, '/'), '@0')) + 2), '@0'), '/')
+        }</variable>
+
+    <location-element slice="window-location" live>
+        <if test="//selected-version">
+            <if test=" not(//url-version = //selected-version ) ">
+                <attribute name="src">{ concat( substring-before($url, $url-version),
+                    //selected-version,
+                    substring-after($url, $url-version) ) }
+                </attribute>
+                <attribute name="method">location.href</attribute>
+            </if>
+        </if>
+    </location-element>
+
+    <http-request
+            url="https://registry.npmjs.org/{$package-name}"
+            method="GET"
+            header-accept="application/json"
+            slice="versions-ajax"></http-request>
+
+    <label>
+        <slot name="label">{$package-name} version:</slot>
+        <xhtml:select slice="selected-version" autocomplete="off" name="version">
+            <for-each select="//versions/*">
+                <option value="{./@version}">
+                    <variable name="item-version">{./@version}</variable>
+                    { $item-version } - { substring( //time/*[@dce-object-name = $item-version ], 1,10)}
+                </option>
+            </for-each>
+            <for-each select="//versions/*">
+                <if test="./@version = $url-version">
+                    <option selected value="{./@version}">
+                        <variable name="item-version">{./@version}</variable>
+                        { $item-version } - { substring( //time/*[@dce-object-name = $item-version ], 1,10)}
+                    </option>
+                </if>
+            </for-each>
+        </xhtml:select>
+    </label>
+</template>
+</body>
+</html>

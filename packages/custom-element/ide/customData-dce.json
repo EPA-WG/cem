@@ -1,0 +1,338 @@
+{
+  "version": 1.1,
+  "globalAttributes": [
+    {
+      "name": "slice",
+      "description": {
+        "kind": "markdown",
+        "value": "Defines the name of data slice in DCE where the data from `value` will be propagated on `change` or by `slice-event` event\n\nOn: any component with `value` and associated change event"
+      },
+      "references": [
+        {
+          "name": "Demo",
+          "url": "https://unpkg.com/@epa-wg/custom-element/demo/dom-merge.html"
+        }
+      ]
+    },
+    {
+      "name": "slice-event",
+      "description": {
+        "kind": "markdown",
+        "value": "Defines the event name on which `value` would be synchronized with DCE slice\n\nOn: any component with `value` and associated change event"
+      },
+      "references": [
+        {
+          "name": "Demo",
+          "url": "https://unpkg.com/@epa-wg/custom-element/demo/dom-merge.html"
+        }
+      ]
+    },
+    {
+      "name": "custom-validity",
+      "description": {
+        "kind": "markdown",
+        "value": "XPath expression to return either boolean or error string to be shown by browser native UI on form validation event. Unless value is true, prevents the form submission."
+      },
+      "references": [
+        {
+          "name": "Demo",
+          "url": "https://unpkg.com/@epa-wg/custom-element/demo/form.html"
+        }
+      ]
+    },
+    {
+      "name": "slice-value",
+      "description": {
+        "kind": "markdown",
+        "value": "XPath expression to populate into the slice"
+      },
+      "references": [
+        {
+          "name": "Demo",
+          "url": "https://unpkg.com/@epa-wg/custom-element/demo/data-slices.html"
+        }
+      ]
+    }
+  ],
+  "tags": [
+    {
+      "name": "custom-element",
+      "description": "Declarative Custom Element (DCE). `<custom-element tag='my-element'></custom-element>`.",
+      "attributes": [
+        {
+          "name": "hidden",
+          "description": "hides DCE definition to prevent visual appearance of content. Wrap the payload into template tag to prevent applying the inline CSS in global scope.",
+          "type": "boolean"
+        },
+        {
+          "name": "tag",
+          "description": "HTML tag for Custom Element. Used for window.customElements.define(). If not set, would be generated and DCE instance rendered inline.",
+          "type": "string"
+        },
+        {
+          "name": "src",
+          "description": "full, relative, or hash URL to DCE template",
+          "type": "string",
+          "references": [
+            {
+              "name": "example",
+              "url": "https://unpkg.com/@epa-wg/custom-element/demo/external-template.html"
+            }
+          ]
+        }
+      ],
+      "references": [
+        {
+          "name": "custom-element",
+          "url": "https://github.com/EPA-WG/custom-element"
+        }
+      ]
+    },
+    {
+      "name": "for-each",
+      "description": "The <xsl:for-each> element selects a set of nodes and processes each of them in the same way. It is often used to iterate through a set of nodes or to change the current node. If one or more <xsl:sort> elements appear as the children of this element, sorting occurs before processing. Otherwise, nodes are processed in document order.",
+      "attributes": [
+        {
+          "name": "select",
+          "description": "Uses an XPath expression to select nodes to be processed.",
+          "type": "string",
+          "references": [
+            {
+              "name": "MDN docs",
+              "url": "https://developer.mozilla.org/en-US/docs/Web/XSLT/Element/for-each#select"
+            }
+          ]
+        }
+      ],
+      "references": [
+        {
+          "name": "for-each",
+          "url": "https://developer.mozilla.org/en-US/docs/Web/XSLT/Element/for-each"
+        }
+      ]
+    },
+    {
+      "name": "slice",
+      "description": "Synthetic element for defining the slice-attributed when more then one slice/event/value associated with parent element",
+      "references": [
+        {
+          "name": "README",
+          "url": "https://github.com/EPA-WG/custom-element/tree/develop?tab=readme-ov-file#interactivity-via-data-slice-triggered-by-events"
+        }
+      ]
+    },
+    {
+      "name": "location-element",
+      "description": "get/set window URL parts or from SRC URL",
+      "attributes": [
+        {
+          "name": "href",
+          "description": "url to be parsed. When omitted window.location is used.",
+          "type": "string",
+          "references": [
+            {
+              "name": "MDN docs",
+              "url": "https://developer.mozilla.org/en-US/docs/Web/API/Location/href"
+            }
+          ]
+        },
+        {
+          "name": "live",
+          "description": "monitors history change, applicable only when href is omitted.",
+          "type": "string",
+          "references": [
+            {
+              "name": "docs",
+              "url": "https://unpkg.com/@epa-wg/custom-element@0/demo/location-element.html"
+            }
+          ]
+        },
+        {
+          "name": "src",
+          "description": "sets the window URL",
+          "type": "string",
+          "references": [
+            {
+              "name": "docs",
+              "url": "https://unpkg.com/@epa-wg/custom-element@0/demo/set-url.html"
+            }
+          ]
+        },
+        {
+          "name": "method",
+          "description": "when defined, changes URL by one of predefined methods.",
+          "type": "string",
+          "references": [
+            {
+              "name": "docs",
+              "url": "https://unpkg.com/@epa-wg/custom-element@0/demo/set-url.html"
+            }
+          ]
+        }
+      ],
+      "references": [
+        {
+          "name": "docs",
+          "url": "https://unpkg.com/@epa-wg/custom-element@0/demo/location-element.html"
+        }
+      ]
+    },
+    {
+      "name": "module-url",
+      "description": "get module URL into slice from SRC according to web page importmap",
+      "attributes": [
+        {
+          "name": "src",
+          "description": "path to module resource, If omitted, it would match the window.location.href",
+          "type": "string",
+          "references": [
+            {
+              "name": "docs",
+              "url": "https://unpkg.com/@epa-wg/custom-element@0/demo/module-url.html"
+            }
+          ]
+        },
+        {
+          "name": "slice",
+          "description": "slice name where resolved URL would be propagated",
+          "type": "string",
+          "references": [
+            {
+              "name": "docs",
+              "url": "https://unpkg.com/@epa-wg/custom-element@0/demo/data-slices.html"
+            }
+          ]
+        }
+      ],
+      "references": [
+        {
+          "name": "docs",
+          "url": "https://unpkg.com/@epa-wg/custom-element@0/demo/module-url.html"
+        }
+      ]
+    },
+    {
+      "name": "http-request",
+      "description": "Fetches data from a URL and exposes request, response, and parsed data via the value property. Supports JSON and XML response parsing.",
+      "attributes": [
+        {
+          "name": "url",
+          "description": "The URL to fetch data from. When changed, triggers a new fetch request.",
+          "type": "string",
+          "references": [
+            {
+              "name": "docs",
+              "url": "https://unpkg.com/@epa-wg/custom-element@0/demo/http-request.html"
+            }
+          ]
+        },
+        {
+          "name": "method",
+          "description": "HTTP method for the request (GET, POST, etc.)",
+          "type": "string",
+          "references": [
+            {
+              "name": "MDN docs",
+              "url": "https://developer.mozilla.org/en-US/docs/Web/HTTP/Methods"
+            }
+          ]
+        },
+        {
+          "name": "header-accept",
+          "description": "Sets the Accept header for the request. Use header-* pattern for other headers.",
+          "type": "string",
+          "references": [
+            {
+              "name": "MDN docs",
+              "url": "https://developer.mozilla.org/en-US/docs/Web/HTTP/Headers/Accept"
+            }
+          ]
+        },
+        {
+          "name": "slice",
+          "description": "slice name where the fetched data would be propagated",
+          "type": "string",
+          "references": [
+            {
+              "name": "docs",
+              "url": "https://unpkg.com/@epa-wg/custom-element@0/demo/data-slices.html"
+            }
+          ]
+        }
+      ],
+      "references": [
+        {
+          "name": "docs",
+          "url": "https://unpkg.com/@epa-wg/custom-element@0/demo/http-request.html"
+        }
+      ]
+    },
+    {
+      "name": "local-storage",
+      "description": "Provides access to localStorage with reactive updates. Reads and writes values to localStorage by key.",
+      "attributes": [
+        {
+          "name": "key",
+          "description": "The localStorage key to read/write",
+          "type": "string",
+          "references": [
+            {
+              "name": "MDN docs",
+              "url": "https://developer.mozilla.org/en-US/docs/Web/API/Window/localStorage"
+            }
+          ]
+        },
+        {
+          "name": "type",
+          "description": "Value type: text, json, or input types (number, date). Defaults to text.",
+          "type": "string",
+          "references": [
+            {
+              "name": "docs",
+              "url": "https://unpkg.com/@epa-wg/custom-element@0/demo/local-storage.html"
+            }
+          ]
+        },
+        {
+          "name": "value",
+          "description": "Initial value to set in localStorage. If omitted, reads existing value.",
+          "type": "string",
+          "references": [
+            {
+              "name": "docs",
+              "url": "https://unpkg.com/@epa-wg/custom-element@0/demo/local-storage.html"
+            }
+          ]
+        },
+        {
+          "name": "live",
+          "description": "When present, monitors localStorage changes and updates reactively",
+          "type": "boolean",
+          "references": [
+            {
+              "name": "docs",
+              "url": "https://unpkg.com/@epa-wg/custom-element@0/demo/local-storage.html"
+            }
+          ]
+        },
+        {
+          "name": "slice",
+          "description": "slice name where the localStorage value would be propagated",
+          "type": "string",
+          "references": [
+            {
+              "name": "docs",
+              "url": "https://unpkg.com/@epa-wg/custom-element@0/demo/data-slices.html"
+            }
+          ]
+        }
+      ],
+      "references": [
+        {
+          "name": "docs",
+          "url": "https://unpkg.com/@epa-wg/custom-element@0/demo/local-storage.html"
+        }
+      ]
+    }
+  ]
+}

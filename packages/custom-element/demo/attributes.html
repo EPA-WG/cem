@@ -1,0 +1,153 @@
+<!DOCTYPE html>
+<html lang="en" xmlns:xsl="http://www.w3.org/1999/XSL/Transform"
+      xmlns:xhtml="http://www.w3.org/1999/xhtml">
+<head>
+    <meta http-equiv="Content-Type" content="text/html; charset=utf-8"/>
+    <title>parameters - custom-element Declarative Custom Element implementation demo</title>
+    <link rel="icon" href="./wc-square.svg" />
+    <script type="module" src="../location-element.js"></script>
+    <script type="module" src="../custom-element.js"></script>
+    <style>
+        @import "./demo.css";
+
+        button{ background: forestgreen; }
+        table{ min-width: 16rem; }
+        td{ border-bottom: 1px solid silver; }
+        tfoot td{ border-bottom: none; }
+        td,th{text-align: right; }
+        caption{ padding: 1rem; font-weight: bolder; font-family: sans-serif; }
+    </style>
+</head>
+<body>
+<nav>
+    <a href="../index.html"><h3><code>custom-element</code> demo</h3></a>
+</nav>
+<main>
+    <p><code>attribute</code> is used for DCE attributes declaration and track the attributes changes. It also be used by IDE and validation.</p>
+    <p>The attribute can be changed by component itself and used as output to the container.
+        Usual case is when <code>value</code> attribute is updated from inside.</p>
+    <p>Initial value of attribute is available on the <code>attributes</code> node attribute as in <code>/datadom/attributes/@attr1</code></p>
+    <p>The current, i.e. including the changes by component itself, attribute value is a child node of <code>attributes</code> as in <code>/datadom/attributes/attr1</code>.</p>
+    <p>To define the attribute which is modified from within,  the 3 parts are usually used as in <code>//s[//s/event] ?? //attributes/@v ?? 'def' </code>
+    <ol>
+    <li><code>//s[//s/event]</code> the slice <code>s</code> with event gives the slice value which was modified by user event like input</li>
+    <li><code>//attributes/@v</code> the attribute passed by container</li>
+    <li><code>'def' </code> the default value which used when no user input or attribute set by container</li>
+</ol>
+    </p>
+</main>
+<html-demo-element legend="attributes definition" >
+    <p slot="description">
+    <code>attribute</code> is used for DCE attributes declaration and track the attributes changes. It also be used by IDE and validation.
+
+</p>
+    <template>
+        <custom-element tag="dce-link" hidden>
+            <attribute name="p1" >default_P1                </attribute>
+            <attribute name="p2" select="'always_p2'"       ></attribute>
+            <attribute name="p3" select="//attributes/@p3 ?? 'def_P3' " ></attribute>
+            p1:{$p1} <br/> p2: {$p2} <br/> p3: {$p3}
+        </custom-element>
+        <dce-link id="dce1" ></dce-link>
+        <section>
+            <dce-link id="dce2" p1="123" p2="override ignored as select is defined"></dce-link> <br/>
+            <div><input id="i1" value="p1" />  <button onclick="dce2.setAttribute('p1',i1.value)"> set p1</button> </div>
+            <div><input id="i2" value="p2" />  <button onclick="dce2.setAttribute('p2',i2.value)"> set p2</button> </div>
+            <div><input id="i3" value="p3" />  <button onclick="dce2.setAttribute('p3',i3.value)"> set p3</button> </div>
+        </section>
+        <dce-link id="dce3" p1="123" p3="qwe"></dce-link> |
+
+    </template>
+</html-demo-element>
+
+<html-demo-element legend="attribute from slice">
+    <p slot="description">
+When slice value points to attribute, it would be populated on slice change.<br/>
+    Type in the input field to see the variable $title change. <br/>
+    Hover the mouse to see the title attribute text popup.<br/>
+    Inspect DCE node in dev tools to see `title` attribute updated while typing.
+
+</p>
+
+    <template>
+        <custom-element>
+            <template>
+                <attribute name="title" select="//title ?? '😃'" ></attribute>
+                <input slice="/datadom/attributes/title" slice-event="keyup"/>
+                title attribute: {$title}
+            </template>
+        </custom-element>
+    </template>
+</html-demo-element>
+
+
+<html-demo-element legend="V attribute matches input value" description="
+    Type in the input field and observe in DevTools the V attribute changed.
+">
+    <template>
+<custom-element tag="x-input" >
+    <template>
+        <attribute name="is-changed" select="count(//s/event) &gt; 0"></attribute>
+        <attribute name="v" select="//s[//s/event] ?? //attributes/@v ?? 'def' "></attribute>
+        /datadom/attributes/v='{/datadom/attributes/v}'<br/>
+        same as v='{v}'<br/>
+        same as $v='{$v}'<br/>
+        //attributes/@v='{//attributes/@v}'<br/>
+        //s='{//s}'<br/>
+        is-changed ={ is-changed }<br/>
+        <input slice="s" slice-event="input" value="{//attributes/v}"/>
+    </template>
+</custom-element>
+<x-input></x-input>
+<x-input v="V1"></x-input>
+    </template>
+</html-demo-element>
+
+<html-demo-element legend="attribute defaults, from container, and from slice" description="
+    Type in the input field and observe in DevTools the V attribute changed.
+">
+    <template>
+<custom-element tag="attr-demo">
+    <template>
+        <variable name="has-input" select="count(//s/*) &gt; 0"></variable>
+        <attribute name="v" select="//s[//s/event] ?? //attributes/@v ?? 'def' "></attribute>
+        //attributes/v='{//attributes/v}'<br/>
+        //attributes/@v='{//attributes/@v}'<br/>
+        $v='{$v}'<br/>
+        //s='{//s}'<br/>
+        A='{//s[//s/event] | //attributes/v[not(//s/event)]}'<br/>
+        has-input ={ $has-input }<br/>
+        <input slice="s" slice-event="input" />
+    </template>
+</custom-element>
+
+<attr-demo></attr-demo>
+<attr-demo v="From Container"></attr-demo>
+    </template>
+</html-demo-element>
+
+<details>
+    <summary>Attributes processing</summary>
+    To be available in template, <code>custom-element</code> attributes should be
+    defined by <code>attribute</code> markup as shown above.
+    The value is taken from attribute text content or from <code>select</code> XPath expression<br/>
+
+    Declared in such way, attributes are exposed via <code><a
+        href="https://developer.mozilla.org/en-US/docs/Web/API/Web_components/Using_custom_elements#responding_to_attribute_changes"
+        >observedAttributes</a></code>. <br/>
+    The template exposes those attributes as <code>xsl:param</code> which makes the attribute value available as
+    xsl variable (as attribute name prefixed with $). <br/>
+    After transformation the attributes values are read from CE root and copied into DCE component. <br/>
+    The DCE attribute change from outside invokes <code>attributeChangedCallback</code> which triggers DCE re-render.
+    <p>
+        The <code>value</code> attribute is usual case to be propagated from within of <code>custom-element</code>.
+        See the <a href="./form.html#sample-5">using custom-element as form input</a> example.
+    </p>
+    &bull; <a href="https://github.com/EPA-WG/custom-element/blob/main/docs/attributes.md">Design docs</a>
+</details>
+
+
+<script type="module" src="https://unpkg.com/html-demo-element@1/html-demo-element.js"></script>
+
+</body>
+</html>

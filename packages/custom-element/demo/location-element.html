@@ -1,0 +1,168 @@
+<!DOCTYPE html>
+<html lang="en" xmlns:xsl="http://www.w3.org/1999/XSL/Transform"
+      xmlns:xhtml="http://www.w3.org/1999/xhtml">
+<head>
+    <meta http-equiv="Content-Type" content="text/html; charset=utf-8"/>
+    <title>custom-element Declarative Custom Element implementation demo</title>
+    <link rel="icon" href="./wc-square.svg" />
+    <script type="module" src="../location-element.js"></script>
+    <script type="module" src="../custom-element.js"></script>
+    <style>
+        @import "./demo.css";
+
+        button{ background: forestgreen; }
+        table{ min-width: 16rem; }
+        td{ border-bottom: 1px solid silver; }
+        tfoot td{ border-bottom: none; }
+        td,th{text-align: right; }
+        caption{ padding: 1rem; font-weight: bolder; font-family: sans-serif; }
+    </style>
+</head>
+<body>
+<nav>
+    <a href="../index.html"><h3><code>custom-element</code> demo</h3></a>
+</nav>
+<main>
+    <h3>How to get the page URL by location-element?</h3>
+    Answer: by defining following attributes:
+    <ol>
+        <li><code>slice</code> to one of values provided bellow</li>
+        <li><code>src</code> optionally with URL, If omitted, it would match the <code>window.location.href</code> </li>
+    </ol>
+    URL properties would be a part of slice data.
+    <p><a href="./set-url.html">Set page URL demo</a> </p>
+</main>
+<html-demo-element legend="Change window URL"
+                    description="use browser URL bar or those controls to change the page URL"
+                   >
+    <template>
+        <a href="#dce2">#dce2</a>
+        <form method="get">
+            <input name="p1" value="abc"/>
+            <input name="p2" value="def"/>
+            <input type="submit" value="params"/>
+        </form>
+        <button onclick="history.pushState( {},'', 'location-element.html?pushstate')"
+                >history.pushState</button>
+        <button onclick="history.replaceState( {},'', 'location-element.html?replaceState#dce1')"
+                >history.replaceState</button>
+
+    </template>
+</html-demo-element>
+
+
+<html-demo-element legend="1. window.location live update"
+                   description="Change the window URL via link or history change by controls in #1.
+                    Observe the changes detected by location-element slice."
+                   id="dce2"
+    >
+    <p>Has to produce URL properties</p>
+    <template>
+        <custom-element tag="dce-2" hidden>
+            <template>
+
+                <location-element slice="window-url" live method="" src=""></location-element>
+
+                <xhtml:table>
+                    <xhtml:tbody>
+                        <xhtml:tr>
+                            <xhtml:th><h3> URL properties </h3></xhtml:th>
+                            <xhtml:td>{count(//value/@*)}</xhtml:td>
+                        </xhtml:tr>
+                        <apply-templates mode="attrs"  select="//value/@*"></apply-templates>
+                    </xhtml:tbody>
+                </xhtml:table>
+                <xhtml:table>
+                        <tr><th><h3> URL parameters </h3></th></tr>
+                        <apply-templates mode="attrs"  select="//params/*/*"></apply-templates>
+                </xhtml:table>
+                <xsl:template mode="attrs" match="*|@*">
+                    <xhtml:tr>
+                        <xhtml:th>{name()}</xhtml:th>
+                        <xhtml:td>{.}</xhtml:td>
+                    </xhtml:tr>
+                </xsl:template>
+            </template>
+        </custom-element>
+        <dce-2>?</dce-2>
+    </template>
+</html-demo-element>
+
+
+<html-demo-element legend="2. window.location simplest"
+                   description="location read only during initial and only render, does not track the changes."
+                   id="dce1">
+    <p>Has to produce URL properties</p>
+    <template>
+        <custom-element tag="dce-1" hidden>
+            <template>
+
+                <location-element slice="window-url"></location-element>
+
+                <xhtml:table>
+                    <xhtml:tbody>
+                        <xhtml:tr><xhtml:th><h3>URL properties</h3></xhtml:th></xhtml:tr>
+                        <for-each select="//slice/window-url/value/@*">
+                            <xhtml:tr>
+                                <xhtml:th>{name()}</xhtml:th>
+                                <xhtml:td>{.}</xhtml:td>
+                            </xhtml:tr>
+                        </for-each>
+                    </xhtml:tbody>
+                    <xhtml:tbody>
+                        <xhtml:tr><xhtml:th><h3>URL parameters</h3></xhtml:th></xhtml:tr>
+                        <for-each select="//slice/window-url/value/params/*">
+                            <xhtml:tr>
+                                <xhtml:th>{name()}</xhtml:th>
+                                <xhtml:td>{.}</xhtml:td>
+                            </xhtml:tr>
+                        </for-each>
+                    </xhtml:tbody>
+                </xhtml:table>
+            </template>
+        </custom-element>
+        <dce-1>?</dce-1>
+    </template>
+</html-demo-element>
+
+
+<html-demo-element legend="3. External URL as HREF attribute"
+                   description="url parsed and populated into slice."
+                   id="dce3">
+    <p>Has to produce URL properties</p>
+    <template>
+        <custom-element tag="dce-3" hidden>
+            <template>
+
+                <location-element slice="href-url" href="https://my.example?a=1&b=2#3" ></location-element>
+
+                <xhtml:table>
+                    <xhtml:tbody>
+                        <xhtml:tr><xhtml:th><h3>URL properties</h3></xhtml:th></xhtml:tr>
+                        <for-each select="//slice/href-url/value/@*">
+                            <xhtml:tr>
+                                <xhtml:th>{name()}</xhtml:th>
+                                <xhtml:td>{.}</xhtml:td>
+                            </xhtml:tr>
+                        </for-each>
+                    </xhtml:tbody>
+                    <xhtml:tbody>
+                        <xhtml:tr><xhtml:th><h3>URL parameters</h3></xhtml:th></xhtml:tr>
+                        <for-each select="//slice/href-url/value/params/*">
+                            <xhtml:tr>
+                                <xhtml:th>{name()}</xhtml:th>
+                                <xhtml:td>{.}</xhtml:td>
+                            </xhtml:tr>
+                        </for-each>
+                    </xhtml:tbody>
+                </xhtml:table>
+            </template>
+        </custom-element>
+        <dce-3>?</dce-3>
+    </template>
+</html-demo-element>
+
+<script type="module" src="https://unpkg.com/html-demo-element@1/html-demo-element.js"></script>
+
+</body>
+</html>

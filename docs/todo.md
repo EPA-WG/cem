@@ -448,9 +448,14 @@ Roadmap: [`../roadmap.md` §Phase 3.6](../roadmap.md). Starts after Phase 3.5 is
       the published `0.0.39` browser fixes that must be preserved; companion modules register custom elements as
       import side effects; `module-url.js` ships as a browser file but is not re-exported from `index.js`; and the
       root/package plus `cem-theme` node_modules references are inventoried for the consumer-rewire phase.
-- [ ] Import the legacy source into `packages/custom-element/` with history-preserving mechanics where practical.
+- [x] Import the legacy source into `packages/custom-element/` with history-preserving mechanics where practical.
       Keep the POC as a functional reference only; do not let its XSLT/XPath implementation become the new
-      architecture decision point.
+      architecture decision point. Landed as a published `0.0.39` source snapshot in
+      [`../packages/custom-element/`](../packages/custom-element/) with editor/cache directories omitted; added
+      [`IMPORT.md`](../packages/custom-element/IMPORT.md) to record the local `0.0.37` history source, the published
+      `0.0.39` behavior baseline, and the branch-level history-graft strategy from
+      [`custom-element-migration-scope.md`](custom-element-migration-scope.md). A true non-squashed history graft
+      remains a dedicated clean-branch/import-commit operation rather than a hidden mixed-change side effect.
 - [ ] Scaffold the workspace package as the future `@epa-wg/custom-element` publish unit: package name, Nx targets,
       TypeScript/build output, package exports, browser module paths, IDE assets, README/docs, and release metadata
       must preserve the published npm identity while allowing a next-major implementation.
