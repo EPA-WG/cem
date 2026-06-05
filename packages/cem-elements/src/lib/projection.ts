@@ -224,6 +224,12 @@ export type EdgeRenderStateAdvanceResult =
           current: EdgeRenderStateRecord;
           expected: EdgeContentAddress;
           actual: EdgeContentAddress;
+      }
+    | {
+          ok: false;
+          reason: 'render-revision-mismatch';
+          current: EdgeRenderStateRecord;
+          actual: RenderPlanIdentity;
       };
 
 export interface ProjectionPayload {
@@ -442,6 +448,15 @@ export function advanceEdgeRenderState(
                 current,
                 expected: storedPreviousPlan.expected,
                 actual: storedPreviousPlan.actual,
+            };
+        }
+        const actualRevision = renderPlanIdentity(storedPreviousPlan.value);
+        if (renderRevisionKey(actualRevision) !== renderRevisionKey(current.renderRevision)) {
+            return {
+                ok: false,
+                reason: 'render-revision-mismatch',
+                current,
+                actual: actualRevision,
             };
         }
         previousRenderPlan = storedPreviousPlan.value;

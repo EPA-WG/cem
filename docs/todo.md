@@ -424,7 +424,7 @@ gate is green.
       content-addressed writes, ETag compare-and-swap, stale-write rejection, sanitized snapshot retrieval, and
       store-backed patch-frame generation from the previous content-addressed render plan, projection from serialized
       source/snapshot input, first-render replacement frames, and fail-closed missing-content plus content-address
-      mismatch handling.
+      mismatch and render-revision mismatch handling.
 
 ## Phase 3.6 — `@epa-wg/custom-element` Monorepo Adoption
 

@@ -2173,6 +2173,28 @@ export const EdgeRenderStateHybridStorageModel: Story = {
             missingAddress.key,
             'corrupt previous content reports the expected content address'
         );
+
+        const revisionMismatchStore = new RevisionMismatchStore(helperStore, helperInitial.record.stateKey);
+        const revisionMismatch = advanceEdgeRenderState(
+            revisionMismatchStore,
+            {
+                renderPlan: nextPlan,
+                privacyPolicyStamp: 'edge-export-policy-v1',
+                sanitizedSnapshot,
+                stateKey: helperInitial.record.stateKey,
+            }
+        );
+        assert(!revisionMismatch.ok, 'edge advance fails closed when pointer revision metadata mismatches content');
+        assertEqual(
+            revisionMismatch.reason,
+            'render-revision-mismatch',
+            'mismatched pointer metadata reports a render revision mismatch'
+        );
+        assertEqual(
+            revisionMismatch.reason === 'render-revision-mismatch' ? revisionMismatch.actual.dataRevision : '',
+            '22',
+            'revision mismatch reports the render-plan revision found in content'
+        );
     },
 };
 
@@ -2402,6 +2424,46 @@ class CorruptRenderPlanStore implements EdgeRenderStateStore {
 
     writeRenderState(input: Parameters<EdgeRenderStateStore['writeRenderState']>[0]): EdgeRenderStateWriteResult {
         return this.fallback.writeRenderState(input);
+    }
+}
+
+class RevisionMismatchStore implements EdgeRenderStateStore {
+    constructor(
+        private readonly source: EdgeRenderStateStore,
+        private readonly mismatchStateKey: string
+    ) {}
+
+    putContent(kind: EdgeContentKind, value: unknown): EdgeContentAddress {
+        return this.source.putContent(kind, value);
+    }
+
+    getContent<T = unknown>(address: EdgeContentAddress): T | undefined {
+        return this.source.getContent<T>(address);
+    }
+
+    readRecord(stateKey: string): EdgeRenderStateRecord | undefined {
+        const record = this.source.readRecord(stateKey);
+        if (!record || stateKey !== this.mismatchStateKey) {
+            return record;
+        }
+        return {
+            ...record,
+            renderRevision: {
+                ...record.renderRevision,
+                dataRevision: 'stale-pointer-revision',
+            },
+        };
+    }
+
+    writeRecord(
+        record: EdgeRenderStateRecord,
+        options?: EdgeRenderStateWriteOptions
+    ): EdgeRenderStateWriteResult {
+        return this.source.writeRecord(record, options);
+    }
+
+    writeRenderState(input: Parameters<EdgeRenderStateStore['writeRenderState']>[0]): EdgeRenderStateWriteResult {
+        return this.source.writeRenderState(input);
     }
 }
 
