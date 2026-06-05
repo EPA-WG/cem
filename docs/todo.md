@@ -417,8 +417,10 @@ gate is green.
       full snapshot storage remains opt-in by export policy, and live/browser-only state remains out of scope. Landed
       in [`cem-element-design.md`](cem-element-design.md),
       [`cem-element-wasm-proposal.md`](cem-element-wasm-proposal.md),
-      [`projection.ts`](../packages/cem-elements/src/lib/projection.ts), and
-      [`EdgeRenderStateHybridStorageModel`](../packages/cem-elements/src/lib/cem-elements.stories.ts).
+      [`projection.ts`](../packages/cem-elements/src/lib/projection.ts) (`EdgeRenderStateRecord`,
+      `InMemoryEdgeRenderStateStore`), and
+      [`EdgeRenderStateHybridStorageModel`](../packages/cem-elements/src/lib/cem-elements.stories.ts), including
+      content-addressed writes, ETag compare-and-swap, stale-write rejection, and sanitized snapshot retrieval.
 
 ## Phase 3.6 — `@epa-wg/custom-element` Monorepo Adoption
 

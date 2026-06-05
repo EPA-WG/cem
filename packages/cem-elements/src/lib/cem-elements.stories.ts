@@ -9,6 +9,7 @@ import {
     type DataIslandSnapshot,
 } from './cem-elements.js';
 import {
+    InMemoryEdgeRenderStateStore,
     createEdgeRenderStateRecord,
     diffRenderPlansToPatchFrames,
     edgeRenderStateRevisionMatches,
@@ -1947,6 +1948,61 @@ export const EdgeRenderStateHybridStorageModel: Story = {
         assert(
             !edgeRenderStateRevisionMatches(previousRecord, renderPlanIdentity(nextPlan)),
             'stale revision comparison prevents blind edge-state overwrites'
+        );
+
+        const store = new InMemoryEdgeRenderStateStore();
+        const initialWrite = store.writeRenderState({
+            renderPlan: previousPlan,
+            privacyPolicyStamp: 'edge-export-policy-v1',
+            sanitizedSnapshot: exportDataIslandSnapshotForEdge(previousSnapshot, {
+                privacyPolicyStamp: 'edge-export-policy-v1',
+                fields: { hostAttributes: 'allow', payload: 'redact' },
+            }),
+        });
+        assert(initialWrite.ok, 'initial edge render state write succeeds');
+        const storedPreviousPlan = store.getContent<typeof previousPlan>(initialWrite.record.currentRenderPlan);
+        assertEqual(
+            storedPreviousPlan?.dataRevision,
+            '21',
+            'content-addressed cache stores the previous render plan by address'
+        );
+
+        const staleWrite = store.writeRenderState(
+            {
+                renderPlan: nextPlan,
+                privacyPolicyStamp: 'edge-export-policy-v1',
+                sanitizedSnapshot,
+                stateKey: initialWrite.record.stateKey,
+            },
+            { expectedEtag: 'stale-etag' }
+        );
+        assert(!staleWrite.ok, 'edge render state rejects writes with a stale ETag');
+        assertEqual(
+            staleWrite.current?.etag,
+            initialWrite.record.etag,
+            'stale write returns the current pointer record for retry decisions'
+        );
+
+        const acceptedWrite = store.writeRenderState(
+            {
+                renderPlan: nextPlan,
+                privacyPolicyStamp: 'edge-export-policy-v1',
+                sanitizedSnapshot,
+                stateKey: initialWrite.record.stateKey,
+            },
+            { expectedEtag: initialWrite.record.etag }
+        );
+        assert(acceptedWrite.ok, 'edge render state advances when the expected ETag matches');
+        assertEqual(
+            store.readRecord(initialWrite.record.stateKey)?.renderRevision.dataRevision,
+            '22',
+            'revision pointer advances to the accepted render revision'
+        );
+        assert(acceptedWrite.record.currentSnapshot, 'accepted edge state stores a sanitized snapshot address');
+        assertEqual(
+            store.getContent<typeof sanitizedSnapshot>(acceptedWrite.record.currentSnapshot)?.payload?.text,
+            '',
+            'stored snapshots are policy-sanitized before content addressing'
         );
     },
 };

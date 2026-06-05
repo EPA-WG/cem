@@ -165,6 +165,22 @@ export interface EdgeRenderStateInput {
     stateKey?: string;
 }
 
+export type EdgeRenderStateWriteResult =
+    | { ok: true; record: EdgeRenderStateRecord }
+    | { ok: false; reason: 'etag-mismatch'; current: EdgeRenderStateRecord | undefined };
+
+export interface EdgeRenderStateWriteOptions {
+    expectedEtag?: string;
+}
+
+export interface EdgeRenderStateStore {
+    putContent(kind: EdgeContentKind, value: unknown): EdgeContentAddress;
+    getContent<T = unknown>(address: EdgeContentAddress): T | undefined;
+    readRecord(stateKey: string): EdgeRenderStateRecord | undefined;
+    writeRecord(record: EdgeRenderStateRecord, options?: EdgeRenderStateWriteOptions): EdgeRenderStateWriteResult;
+    writeRenderState(input: EdgeRenderStateInput, options?: EdgeRenderStateWriteOptions): EdgeRenderStateWriteResult;
+}
+
 export interface ProjectionPayload {
     slots?: Record<string, ProjectionPayloadNode[]>;
 }
@@ -339,6 +355,58 @@ export function edgeRenderStateRevisionMatches(
     expectedRevision: RenderRevision
 ): boolean {
     return renderRevisionKey(record.renderRevision) === renderRevisionKey(expectedRevision);
+}
+
+export class InMemoryEdgeRenderStateStore implements EdgeRenderStateStore {
+    private readonly contents = new Map<string, unknown>();
+    private readonly records = new Map<string, EdgeRenderStateRecord>();
+
+    putContent(kind: EdgeContentKind, value: unknown): EdgeContentAddress {
+        const address = edgeContentAddress(kind, value);
+        this.contents.set(address.key, cloneStableJsonValue(value));
+        return address;
+    }
+
+    getContent<T = unknown>(address: EdgeContentAddress): T | undefined {
+        const value = this.contents.get(address.key);
+        return value === undefined ? undefined : cloneStableJsonValue(value) as T;
+    }
+
+    readRecord(stateKey: string): EdgeRenderStateRecord | undefined {
+        const record = this.records.get(stateKey);
+        return record ? cloneStableJsonValue(record) as EdgeRenderStateRecord : undefined;
+    }
+
+    writeRecord(
+        record: EdgeRenderStateRecord,
+        options: EdgeRenderStateWriteOptions = {}
+    ): EdgeRenderStateWriteResult {
+        const current = this.records.get(record.stateKey);
+        if (options.expectedEtag !== undefined && current?.etag !== options.expectedEtag) {
+            return {
+                ok: false,
+                reason: 'etag-mismatch',
+                current: current ? cloneStableJsonValue(current) as EdgeRenderStateRecord : undefined,
+            };
+        }
+        const stored = cloneStableJsonValue(record) as EdgeRenderStateRecord;
+        this.records.set(record.stateKey, stored);
+        return { ok: true, record: cloneStableJsonValue(stored) as EdgeRenderStateRecord };
+    }
+
+    writeRenderState(
+        input: EdgeRenderStateInput,
+        options: EdgeRenderStateWriteOptions = {}
+    ): EdgeRenderStateWriteResult {
+        this.putContent('render-plan', input.renderPlan);
+        if (input.sanitizedSnapshot !== undefined) {
+            this.putContent('sanitized-snapshot', input.sanitizedSnapshot);
+        }
+        if (input.renderedHtml !== undefined) {
+            this.putContent('rendered-html', input.renderedHtml);
+        }
+        return this.writeRecord(createEdgeRenderStateRecord(input), options);
+    }
 }
 
 function projectTemplateWith(
@@ -762,6 +830,10 @@ function stableJsonDigest(value: unknown): string {
         hash = (hash * prime) & mask;
     }
     return hash.toString(16).padStart(16, '0');
+}
+
+function cloneStableJsonValue(value: unknown): unknown {
+    return JSON.parse(stableJsonStringify(value)) as unknown;
 }
 
 function stableJsonStringify(value: unknown): string {
