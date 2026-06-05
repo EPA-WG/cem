@@ -516,6 +516,11 @@ Roadmap: [`../roadmap.md` §Phase 3.6](../roadmap.md). Starts after Phase 3.5 is
         `custom-element`, `http-request`, `local-storage`, `location-element`, and `module-url`, plus one legacy
         declaration render through Chromium; the existing package baseline verifier continues checking root and dist
         release-pack shape.
+  - [x] Add companion-module behavior assertions to the browser fixture: `http-request` fetches local JSON and records
+        request/response data, `local-storage` follows same-tab live updates, `location-element` parses URL fields and
+        repeated params, and standalone `module-url` resolves a relative browser module URL.
+  - [x] Run the browser smoke fixture against both workspace source files and the built `dist/` package artifact so
+        export/import, companion side effects, and the legacy render smoke are verified against release-pack output.
 - [ ] Verify the migrated package against all required gates: legacy parity inventory, material parity inventory,
       Phase 3.5 Edge/SSR fixtures, `cem-elements:verify`, the new `custom-element` package build/test/lint targets,
       and any affected `cem-theme` HTML/token generator workflows.

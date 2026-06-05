@@ -6,7 +6,10 @@ import { fileURLToPath } from 'node:url';
 import { chromium } from 'playwright';
 
 const projectRoot = dirname(dirname(fileURLToPath(import.meta.url)));
-const pageErrors = [];
+const fixturePaths = [
+    '/test-fixtures/browser-smoke.html',
+    '/test-fixtures/browser-smoke-dist.html',
+];
 
 const server = createServer(async (request, response) => {
     try {
@@ -39,20 +42,24 @@ const port = typeof address === 'object' && address ? address.port : 0;
 const browser = await chromium.launch({ headless: true });
 
 try {
-    const page = await browser.newPage();
-    page.on('pageerror', (error) => pageErrors.push(error.message));
-    page.on('console', (message) => {
-        if (message.type() === 'error') {
-            pageErrors.push(message.text());
-        }
-    });
+    for (const fixturePath of fixturePaths) {
+        const pageErrors = [];
+        const page = await browser.newPage();
+        page.on('pageerror', (error) => pageErrors.push(error.message));
+        page.on('console', (message) => {
+            if (message.type() === 'error') {
+                pageErrors.push(message.text());
+            }
+        });
 
-    await page.goto(`http://127.0.0.1:${port}/test-fixtures/browser-smoke.html`);
-    await page.waitForFunction(() => globalThis.__customElementFixture?.done === true);
-    const result = await page.evaluate(() => globalThis.__customElementFixture);
-    const errors = [...pageErrors, ...(result.errors ?? [])];
-    if (errors.length > 0) {
-        throw new Error(`browser fixture failed:\n${errors.map((error) => `- ${error}`).join('\n')}`);
+        await page.goto(`http://127.0.0.1:${port}${fixturePath}`);
+        await page.waitForFunction(() => globalThis.__customElementFixture?.done === true);
+        const result = await page.evaluate(() => globalThis.__customElementFixture);
+        const errors = [...pageErrors, ...(result.errors ?? [])];
+        await page.close();
+        if (errors.length > 0) {
+            throw new Error(`${fixturePath} failed:\n${errors.map((error) => `- ${error}`).join('\n')}`);
+        }
     }
 } finally {
     await browser.close();

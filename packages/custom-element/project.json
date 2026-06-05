@@ -42,6 +42,7 @@
                 "{projectRoot}/dist/**/*",
                 "{projectRoot}/scripts/verify-package-baseline.mjs",
                 "{projectRoot}/scripts/verify-browser-fixtures.mjs",
+                "{projectRoot}/test-fixtures/**/*.json",
                 "{projectRoot}/test-fixtures/**/*",
                 "{projectRoot}/package.json"
             ],

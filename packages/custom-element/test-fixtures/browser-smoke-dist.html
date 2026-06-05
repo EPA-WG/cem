@@ -2,7 +2,7 @@
 <html lang="en">
     <head>
         <meta charset="utf-8" />
-        <title>custom-element browser smoke fixture</title>
+        <title>custom-element dist browser smoke fixture</title>
     </head>
     <body>
         <custom-element tag="fixture-card" hidden>
@@ -19,7 +19,7 @@
         <script type="module">
             import { runCustomElementSmoke } from './browser-smoke.js';
 
-            window.__customElementFixture = await runCustomElementSmoke('..');
+            window.__customElementFixture = await runCustomElementSmoke('../dist');
         </script>
     </body>
 </html>
