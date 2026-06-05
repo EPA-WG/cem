@@ -102,6 +102,12 @@ export interface CemElementRuntimeOptions {
      * default resolves the path against the declaring document's base URL and `fetch`es it.
      */
     loadSrcDocument?: (specifier: string, baseDocument: Document) => Promise<string>;
+    /**
+     * Resolve a `module-url` resource slice specifier to the URL exposed under
+     * `datadom.slices.<slice>`. Relative/absolute URLs resolve by default; bare
+     * package/module specifiers should be supplied by the host module-map resolver.
+     */
+    resolveModuleUrl?: (specifier: string, baseDocument: Document) => string | Promise<string>;
 }
 
 type CemElementWindow = Window &
@@ -256,7 +262,9 @@ export class CemElementRuntime {
     private readonly renderSettled = new WeakMap<HTMLElement, Promise<void>>();
     private readonly declarationSettled = new WeakMap<object, Promise<void>>();
     private readonly srcDocuments = new Map<string, Promise<Document>>();
+    private readonly moduleUrls = new Map<string, Promise<string>>();
     private readonly loadSrcDocumentOption?: CemElementRuntimeOptions['loadSrcDocument'];
+    private readonly resolveModuleUrlOption?: CemElementRuntimeOptions['resolveModuleUrl'];
     private instanceSequence = 0;
 
     constructor(options: CemElementRuntimeOptions = {}) {
@@ -265,6 +273,7 @@ export class CemElementRuntime {
         this.privacyPolicyStamp = options.privacyPolicyStamp ?? DEFAULT_PRIVACY_POLICY_STAMP;
         this.logger = options.logger;
         this.loadSrcDocumentOption = options.loadSrcDocument;
+        this.resolveModuleUrlOption = options.resolveModuleUrl;
         // Eagerly warm the cem_ql WASM engine so canonical CEM-ML instances can render
         // through the authoritative boundary as soon as possible. Failures surface
         // per-instance at render time.
@@ -589,8 +598,9 @@ export class CemElementRuntime {
         // projection path.
         const rendered = this.renderFromDeclaration(instance, compiled, snapshot);
         this.bindRenderedSliceEvents(instance, compiled, rendered);
+        const resourcesSettled = this.bindRenderedResourceSlices(instance, compiled, rendered, token);
         this.replaceRenderedContent(instance, island, rendered);
-        this.renderSettled.set(instance, Promise.resolve());
+        this.renderSettled.set(instance, resourcesSettled);
     }
 
     private async renderViaWasm(
@@ -620,7 +630,9 @@ export class CemElementRuntime {
             const fragment = materializeRenderPlan(plan, instance.ownerDocument);
             const island = this.ensureDataIsland(instance);
             this.bindRenderedSliceEvents(instance, compiled, fragment);
+            const resourcesSettled = this.bindRenderedResourceSlices(instance, compiled, fragment, token);
             this.replaceRenderedContent(instance, island, fragment);
+            await resourcesSettled;
         } catch (error) {
             if (this.renderTokens.get(instance) !== token) {
                 return;
@@ -747,6 +759,88 @@ export class CemElementRuntime {
                 this.writeSliceFromEvent(instance, compiled, sliceName, expression, event);
             });
         }
+    }
+
+    private bindRenderedResourceSlices(
+        instance: HTMLElement,
+        compiled: CompiledDeclaration,
+        rendered: DocumentFragment,
+        token: number
+    ): Promise<void> {
+        const resourceElements = Array.from(rendered.querySelectorAll('module-url'));
+        if (resourceElements.length === 0) {
+            return Promise.resolve();
+        }
+
+        const tasks: Promise<{ sliceName: string; specifier: string; value: string; error?: unknown }>[] = [];
+        for (const element of resourceElements) {
+            element.remove();
+            const sliceName = element.getAttribute('slice')?.trim();
+            const specifier = element.getAttribute('src')?.trim();
+            if (!sliceName || !specifier) {
+                continue;
+            }
+            tasks.push(
+                this.resolveModuleUrl(specifier, instance.ownerDocument)
+                    .then((value) => ({ sliceName, specifier, value }))
+                    .catch((error: unknown) => ({ sliceName, specifier, value: specifier, error }))
+            );
+        }
+        if (tasks.length === 0) {
+            return Promise.resolve();
+        }
+
+        return Promise.all(tasks).then(async (resolved) => {
+            if (this.renderTokens.get(instance) !== token || !instance.isConnected) {
+                return;
+            }
+            const island = this.ensureDataIsland(instance);
+            const state = this.ensureInstanceState(instance, compiled, island);
+            let changed = false;
+            const diagnostics: CemElementDiagnostic[] = [];
+            for (const result of resolved) {
+                if (state.slices[result.sliceName] !== result.value) {
+                    state.slices[result.sliceName] = result.value;
+                    changed = true;
+                }
+                state.eventPayloads[result.sliceName] = {
+                    type: 'module-url',
+                    src: result.specifier,
+                    value: result.value,
+                };
+                if (result.error) {
+                    diagnostics.push(
+                        resourceDiagnostic(
+                            'cem-element.module_url_resolve_failed',
+                            `module-url \`${result.specifier}\` could not be resolved: ${
+                                result.error instanceof Error ? result.error.message : String(result.error)
+                            }`,
+                            compiled.producedTag
+                        )
+                    );
+                }
+            }
+            this.recordDiagnostics(instance, diagnostics);
+            if (changed) {
+                this.renderInstance(instance, compiled);
+                await this.whenRenderSettled(instance);
+            }
+        });
+    }
+
+    private resolveModuleUrl(specifier: string, baseDocument: Document): Promise<string> {
+        const key = `${baseDocument.baseURI}\n${specifier}`;
+        const cached = this.moduleUrls.get(key);
+        if (cached) {
+            return cached;
+        }
+        const resolved = Promise.resolve(
+            this.resolveModuleUrlOption
+                ? this.resolveModuleUrlOption(specifier, baseDocument)
+                : defaultResolveModuleUrl(specifier, baseDocument)
+        ).then((value) => String(value));
+        this.moduleUrls.set(key, resolved);
+        return resolved;
     }
 
     private writeSliceFromEvent(
@@ -1034,6 +1128,30 @@ function defaultLoadSrcDocument(path: string, baseDocument: Document): Promise<s
     });
 }
 
+function defaultResolveModuleUrl(specifier: string, baseDocument: Document): string {
+    const trimmed = specifier.trim();
+    if (trimmed === '') {
+        return '';
+    }
+    if (isUrlLikeSpecifier(trimmed)) {
+        return new URL(trimmed, baseDocument.baseURI).href;
+    }
+    const importMeta = import.meta as ImportMeta & { resolve?: (specifier: string) => string };
+    if (typeof importMeta.resolve === 'function') {
+        return importMeta.resolve(trimmed);
+    }
+    throw new Error(`cannot resolve \`${specifier}\`; bare module specifiers need a host \`resolveModuleUrl\``);
+}
+
+function isUrlLikeSpecifier(specifier: string): boolean {
+    return (
+        specifier.startsWith('.') ||
+        specifier.startsWith('/') ||
+        specifier.startsWith('#') ||
+        /^[A-Za-z][A-Za-z0-9+.-]*:/.test(specifier)
+    );
+}
+
 /** The `<template>` a local `src` reference loads: the target itself, or its first template child. */
 function templateFromTarget(target: Element | null): HTMLTemplateElement | undefined {
     if (!target) {
@@ -1078,6 +1196,16 @@ function renderDiagnostic(code: string, message: string, tag?: string): CemEleme
     return {
         code,
         severity: 'error',
+        source: 'render',
+        message,
+        tag,
+    };
+}
+
+function resourceDiagnostic(code: string, message: string, tag?: string): CemElementDiagnostic {
+    return {
+        code,
+        severity: 'warning',
         source: 'render',
         message,
         tag,

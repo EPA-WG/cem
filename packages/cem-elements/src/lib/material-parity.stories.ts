@@ -1,5 +1,5 @@
 import type { Meta, StoryObj } from '@storybook/web-components-vite';
-import { CemElementRuntime } from './cem-elements.js';
+import { CemElementRuntime, type CemElementRuntimeOptions } from './cem-elements.js';
 
 /**
  * Material-component parity stories (`docs/todo.md` §3.1). Each named story reproduces a
@@ -15,8 +15,8 @@ import { CemElementRuntime } from './cem-elements.js';
  * - Legacy XPath tests (`string-length($image)<3`, `contains($image,'/')`, `{//bend}`) become
  *   cem-ql functional selection over `/datadom`; string-format branching is shown here via
  *   attribute-presence `cem:if`/`cem:choose` (cem-ql `strings:*` qualified calls are a follow-up).
- * - Scoped `<style>` renders page-global (no light-DOM scoping); `module-url` resource slices and
- *   bare `@scope/pkg` module-map `src` specifiers remain deferred.
+ * - Scoped `<style>` renders page-global (no light-DOM scoping). Bare `@scope/pkg`
+ *   module-map `src` specifiers require host `loadSrcDocument` / `resolveModuleUrl` hooks.
  * - `<if><attribute>` boolean-attribute forwarding (`hasBoolAttribute`) is not reproduced; declared
  *   attributes + AVT cover the common cases.
  * - `/datadom` selection keys must avoid cem-ql builtin pipeline-step names (`first`, `last`,
@@ -239,14 +239,27 @@ export const MaterialInputParity: Story = {
 export const MaterialIconLinkParity: Story = {
     render: () => {
         const root = section('material icon-link parity');
-        const runtime = makeRuntime('mat-icon-link');
+        const runtime = makeRuntime('mat-icon-link', {
+            resolveModuleUrl: (specifier) => {
+                const resolved: Record<string, string> = {
+                    '@epa-wg/material': 'https://cdn.example.test/@epa-wg/material',
+                    '@epa-wg/custom-element/demo/wc-square.svg':
+                        'https://cdn.example.test/@epa-wg/custom-element/demo/wc-square.svg',
+                };
+                return resolved[specifier] ?? specifier;
+            },
+        });
         define(runtime, 'mat-iconlink-icon', '{i @class="icon {$datadom.attributes.image}" | }');
-        // icon-link: href default + AVT, a conditional nested icon, and a default slot label.
+        // icon-link: href default + AVT, module-url resource slices, a conditional nested
+        // icon, and a default slot label.
         define(
             runtime,
             'mat-icon-link',
-            '{attribute @name=href | #}' +
-                '{a @class=cem-icon-link @href="{$href}" |' +
+            '{module-url @slice=cemurl @src="@epa-wg/material"}' +
+                '{module-url @slice=logourl @src="@epa-wg/custom-element/demo/wc-square.svg"}' +
+                '{attribute @name=href | #}' +
+                '{a @class=cem-icon-link @href="{$datadom.slices.cemurl}" |' +
+                ' {img @class=resolved-logo @src="{$datadom.slices.logourl}" @alt="" | }' +
                 ' {cem:if @test="datadom.attributes.icon" | {mat-iconlink-icon @image="{$datadom.attributes.icon}" | }}' +
                 ' {slot}}'
         );
@@ -259,8 +272,21 @@ export const MaterialIconLinkParity: Story = {
     },
     play: async ({ canvasElement }) => {
         const link = requiredElement(canvasElement, 'mat-icon-link');
-        const anchor = (await waitForElement(link, 'a.cem-icon-link')) as HTMLAnchorElement;
-        assertEqual(anchor.getAttribute('href'), '/home', 'the href host attribute resolves through AVT');
+        await waitForElement(link, 'a.cem-icon-link');
+        await waitForCondition(
+            () =>
+                requiredElement(link, 'a.cem-icon-link').getAttribute('href') ===
+                'https://cdn.example.test/@epa-wg/material',
+            'the module-url `cemurl` slice rerenders the link href'
+        );
+        const anchor = requiredElement(link, 'a.cem-icon-link') as HTMLAnchorElement;
+        const logo = requiredElement(link, 'img.resolved-logo') as HTMLImageElement;
+        assertEqual(
+            logo.getAttribute('src'),
+            'https://cdn.example.test/@epa-wg/custom-element/demo/wc-square.svg',
+            'the module-url `logourl` slice resolves the image URL'
+        );
+        assert(link.querySelector('module-url') === null, 'module-url helper elements stay inert in rendered output');
         const icon = await waitForElement(link, 'mat-iconlink-icon i.icon');
         assert(icon.classList.contains('home'), 'the nested icon composes from the forwarded attribute');
         assert(anchor.textContent?.includes('Home'), 'the default slot projects the link label');
@@ -307,9 +333,9 @@ export const MaterialAutocompleteParity: Story = {
 
 let runtimeSequence = 0;
 
-function makeRuntime(prefix: string): CemElementRuntime {
+function makeRuntime(prefix: string, options: Omit<CemElementRuntimeOptions, 'declarationTag'> = {}): CemElementRuntime {
     runtimeSequence += 1;
-    return new CemElementRuntime({ declarationTag: `mat-decl-${prefix}-${runtimeSequence}` });
+    return new CemElementRuntime({ ...options, declarationTag: `mat-decl-${prefix}-${runtimeSequence}` });
 }
 
 /** Register a CEM-ML component declaration (no DOM attachment, so it auto-defines its tag). */

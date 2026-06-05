@@ -16,6 +16,7 @@
  * (design §4.3) can replace the body without changing callers.
  */
 
+// eslint-disable-next-line @nx/enforce-module-boundaries -- generated WASM bindings are the Phase 3A internal runtime boundary.
 import initCemQlWasm, {
     compileTemplate,
     renderTemplateSource,

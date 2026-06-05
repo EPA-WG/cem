@@ -22,7 +22,7 @@ the behavioral reference.
 | --- | --- | --- | --- |
 | Declaration registers a produced custom-element tag from `tag` | `README.md` lifecycle / tag sections | Supported | `ProducedTagValidation`, `PackageRuntimeSurface` |
 | Inline declaration shape requires a direct template and rejects live declaration content | `README.md` declaration lifecycle | Supported with stricter shape | `InlineDeclarationShape`, `DeclarationLiveContentRejected`, `MissingInlineTemplateRejected` |
-| `src` may load local `#id`, external documents, and `url#id` templates | `README.md` `src`; `demo/external-template.html` | Blocked | `LegacySrcDeclarationLoadingIsTrackedAsBlocked`; implemented later with the shared module-map resolver |
+| `src` may load local `#id`, external documents, and `url#id` templates | `README.md` `src`; `demo/external-template.html` | Supported | `LocalSrcDeclarationLoadingParity`, `ExternalSrcDeclarationLoadingParity`, and `SrcDeclarationLoadingDiagnostics`; bare module specifiers require host `loadSrcDocument` |
 | Omitted `tag` renders an inline instance | `README.md` "omitting tag" | Deferred | Not part of the produced-tag substrate MVP; record as bridge/adoption migration behavior |
 | Host payload is captured into a durable data island and removed from live render output | `README.md` instance lifecycle | Supported | `DataIslandCaptureAndRender`, data-island isolation stories |
 | Declared attributes expose defaults and host overrides | `docs/attributes.md`; `demo/attributes.html` | Supported | `LegacyAttributeDefaultsAndHostOverridesParity`, `DeclaredAttributeWasmRenderLoop` |
@@ -38,16 +38,16 @@ the behavioral reference.
 | Loops and variables (`for-each`, `variable`, XSLT 1.0) | README loops/variables; `demo/for-each.html` | Deferred | Not in the C2 substrate; bridge support may preserve legacy XSLT during migration |
 | Namespaced `xhtml:*` parser workaround | README troubleshooting; material input demos | Partial | Current DOM read flattens `xhtml:*` to HTML local names; material inventory tracks this as coincidental parity |
 | Scoped styles in templates | README styles section; `demo/scoped-css.html` | Partial | Styles render into light DOM but are not scoped; material inventory tracks containment as open |
-| Nested produced custom elements | README embedded CE rendering | Partial | Works when declarations are already local/inline; full dependency loading waits on `src` |
-| Resource slices (`module-url`, `http-request`, `local-storage`, `location-element`) | README extension primitives; demos | Deferred | Handled by later primitive/resource slices, not by the core substrate |
+| Nested produced custom elements | README embedded CE rendering | Supported | Works when nested declarations are registered, including through local/external `src`; covered by material parity stories |
+| Resource slices (`module-url`, `http-request`, `local-storage`, `location-element`) | README extension primitives; demos | Partial | Focused `module-url` URL resolution is supported through `resolveModuleUrl` and material parity coverage; `http-request`, `local-storage`, and `location-element` remain later primitive/resource slices |
 | Legacy `<template lang="custom-element-v0">` bridge | Migration window item | Blocked by design | `LegacyBridgeTemplateBlockedParity`; bridge support stays a separate todo item |
 
 ## Migration Decisions
 
 - XPath is not reimplemented in the browser host. Functional parity uses cem-ql over the structured `datadom` record.
 - Legacy DOM text interpolation `${$name}` remains only for DOM-parity templates; canonical CEM-ML uses `{$name}`.
-- `src`, `module-url`, and external dependency resolution share one future module-map resolver. Minimal one-off
-  resource resolution is intentionally avoided.
+- `src`, `module-url`, and external dependency resolution are host-policy driven. `src` uses `loadSrcDocument`;
+  `module-url` uses `resolveModuleUrl`; bare module specifiers require host-provided resolver hooks.
 - XSLT-only constructs (`for-each`, `variable`, full XPath functions) are bridge/adoption concerns unless promoted
   into cem-ql/cem-ml explicitly.
 - Scoped CSS currently renders as light-DOM CSS. True scoping/containment is a material parity gap, not a hidden

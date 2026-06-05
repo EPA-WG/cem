@@ -55,12 +55,12 @@ current `<cem-element>` runtime renders it faithfully.
 | 4  | Whole-expression attr dropped on null/false             | (runtime behavior)                                                               | ✅     | Slice C1.                                                                                                        |
 | 5  | `<slice name>` + `slice`/`slice-event`/`slice-value`    | `action.html:150`, `input.html:246`                                             | ✅     | Slice D. Material uses it on instances (action) and as `<slice>` decls (input).                                 |
 | 6  | Attribute-change rerender / data-island invalidation    | (runtime behavior)                                                               | ✅     | Slice D.                                                                                                         |
-| 7  | External `src="./file.html#id"` declaration loading      | `action.html:104`, `autocomplete.html:38`                                        | ❌     | Rejected with `cem-element.src_not_implemented`. **Blocks every component** — all compose via `src` imports.    |
-| 8  | Local `src="#id"` same-document declaration             | `action.html:103`, `icon.html:89`                                                | ❌     | Same `src` path; not implemented.                                                                               |
+| 7  | External `src="./file.html#id"` declaration loading      | `action.html:104`, `autocomplete.html:38`                                        | ✅     | Async external declaration loading parses `url#id`, imports the target template, and registers the produced tag; bare package specifiers require host `loadSrcDocument`. |
+| 8  | Local `src="#id"` same-document declaration             | `action.html:103`, `icon.html:89`                                                | ✅     | Same-document `#id` targets resolve to a `<template>` target or first template child.                           |
 | 9  | `hidden` declaration host attribute                     | `action.html:103`, `dropdown.html:74`                                            | 🟡     | Our declarations don't render regardless; no `hidden` cosmetic on the produced-tag model. Behaviorally moot.    |
-| 10 | `<attribute select="//xpath">` dynamic propagation      | `autocomplete.html:53`, `input.html:95`                                          | ❌     | `select` is ignored; only `name` + default text are read. Needs cem-ql/XPath (slice C2 / cem_ml).               |
-| 11 | XPath data model `/datadom/…`, `//attributes`, `//selected` | `input.html:220`, `autocomplete.html:53`                                     | ❌     | No instance XPath data model. cem_ml boundary (C2).                                                             |
-| 12 | `??` coalescing operator in `select`                    | `autocomplete.html:53`, `input.html:95`                                          | ❌     | cem-ql expression feature; unimplemented.                                                                        |
+| 10 | `<attribute select="//xpath">` dynamic propagation      | `autocomplete.html:53`, `input.html:95`                                          | 🟡     | Legacy XPath `select` is a migration decision; canonical CEM-ML uses cem-ql expressions over `datadom.*`.       |
+| 11 | XPath data model `/datadom/…`, `//attributes`, `//selected` | `input.html:220`, `autocomplete.html:53`                                     | ✅     | Functional parity is exposed as structured `datadom` records (`attributes`, `dataset`, `payload`, `slots`, `slices`, etc.), not an XPath engine. |
+| 12 | `??` coalescing operator in `select`                    | `autocomplete.html:53`, `input.html:95`                                          | ✅     | Supported by cem-ql coalescing expressions in canonical CEM-ML.                                                |
 | 13 | `if` conditional construct                              | `badge.html:192`, `input.html:207`                                              | 🟡     | Supported through canonical CEM-ML/cem-ql (`if` and `cem:if`) with `datadom.*` expressions; legacy XPath spellings still need migration/lowering. |
 | 14 | `choose`/`when`/`otherwise` conditional                 | `icon.html:79`, `icon-link.html:91`                                              | 🟡     | Supported through canonical CEM-ML/cem-ql (`choose`/`when`/`otherwise` and `cem:*`) with diagnostics for malformed branches; legacy XPath spellings still need migration/lowering. |
 | 15 | `hasBoolAttribute()` helper in expressions              | `input.html:224-228`                                                            | ❌     | No expression-function support.                                                                                  |
@@ -68,37 +68,30 @@ current `<cem-element>` runtime renders it faithfully.
 | 17 | Namespaced `xhtml:*` elements                           | `input.html:218`                                                                | 🟡     | `readTemplateSource` flattens the xhtml namespace, so `xhtml:input` renders as `<input>` — coincidental parity.  |
 | 18 | Declarative `<slot>` / named slots                      | `icon.html:85`, `input.html:206`, `autocomplete.html:85`                         | ✅     | Named/default slots lower from serialized payload in the render plan before light-DOM materialization, including DOM and WASM paths. |
 | 19 | Scoped `<style>` inside a template                      | `input.html` (×6), `menu.html` (×6)                                              | 🟡     | Emitted as a literal, page-global `<style>` into light DOM; no scoping/containment.                             |
-| 20 | Nested custom elements in render output                 | `action.html:127` (`cem-icon` in `cem-action`)                                   | 🟡     | Upgrades only if the nested tag is registered; registration depends on `src` loading (#7), so blocked in practice. |
-| 21 | `<data>` / `<option>` instance payloads                 | `autocomplete.html:112`, `input.html:275`                                        | 🟡     | Captured inert into the data island and serialized into `datadom.data.<value>` / `datadom.options.<value>` plus ordered arrays; legacy XPath `//data`/`//option` lowering remains deferred. |
-| 22 | `module-url` resource slices                            | `icon.html:221`, `icon-link.html:119-120`                                        | ❌     | Inert in the island; module-url resolution + slice exposure unimplemented.                                       |
+| 20 | Nested custom elements in render output                 | `action.html:127` (`cem-icon` in `cem-action`)                                   | ✅     | Nested produced tags upgrade when their declarations are registered, including through local/external `src`.     |
+| 21 | `<data>` / `<option>` instance payloads                 | `autocomplete.html:112`, `input.html:275`                                        | ✅     | Captured inert into the data island and serialized into `datadom.data.<value>` / `datadom.options.<value>` plus ordered arrays. |
+| 22 | `module-url` resource slices                            | `icon.html:221`, `icon-link.html:119-120`                                        | ✅     | Inert rendered helpers resolve URL-like specifiers by default or bare package specifiers through host `resolveModuleUrl`, then expose values under `datadom.slices.<slice>`. |
 
 ## Readiness conclusions
 
-**Hard blocker for full material parity: feature #7 (external/local `src` declaration loading).** All eight
-components are authored as a federated set that load each other through `src="./file.html#tag"`. Until the URI/
-source-streaming slice lands, no material component can be assembled end-to-end from its real source, and the
-material-parity *stories* (todo line 118) cannot pass against the unmodified POC files.
+**Hard blockers removed:** local/external `src` declaration loading and `module-url` resource slices now have runtime
+support and Storybook material-parity coverage. Bare `@scope/pkg` specifiers still require host resolver hooks
+(`loadSrcDocument` / `resolveModuleUrl`) because browser import-map or bundler policy is host-owned.
 
-**Authoring features that gate parity behind cem-ml/cem-ql (slice C2 and friends):** `attribute select` (#10),
-the XPath data model (#11), `??` (#12), `if`/`choose` (#13/#14), `hasBoolAttribute()` (#15), `{//xpath}` attribute
-expressions (#16), `<data>`/`<option>` consumption (#21), and `module-url` slices (#22). These are the dominant
-content of input/autocomplete/icon/icon-link/badge and depend on the canonical CEM-ML/cem-ql path.
+**Remaining material-parity caveats:** legacy XPath authoring and XSLT-only constructs are migration decisions; the
+canonical path uses CEM-ML plus cem-ql functional selection over `datadom.*`. Scoped styles still render as page-global
+light-DOM styles, and boolean helper functions such as `hasBoolAttribute()` are not reproduced directly.
 
-**What can be exercised today (✅ rows 1–6):** inline DOM-parity declarations, `<attribute>` defaults, attribute
-`{$x}` interpolation, and slice event bindings. Note the text-interpolation syntax divergence (#3b): legacy text
-bodies use `{$x}` but the C1 runtime expects `${$x}`, so material text content must be re-authored (or the divergence
-recorded as a migration decision) before it renders. A faithful subset of `menu`/`dropdown`/`action` shells
-(attribute plumbing + slice clicks, with the `if`/slot/nested-component parts stubbed) is the most that lands as
-passing parity stories before the `src` and cem-ml work. Each such story must record the stubbed-out features as
-explicit migration decisions per the todo's "record intentional CEM-ML/CEM-QL replacements as migration decisions"
-instruction.
+**Production-gate follow-up:** the Storybook parity set is green for the covered runtime behaviors. The remaining
+production-ready items live in `docs/todo.md`: AC-N-1 first-paint performance proof on material fixtures and
+end-to-end accessibility-contract assertions.
 
 **Recommended sequencing implied by this inventory:**
 
-1. Land external/local `src` declaration loading (#7/#8) — unblocks composition and nested components (#20).
-2. Land slice C2 (cem-ml/cem-ql) — unblocks #10–#16, #21–#22 and the conditional/expression-heavy components.
-3. Land declarative slot projection (#18) and scoped styles (#19) — unblocks layout-shell parity.
-4. Only then can autocomplete/input reach full parity; menu/dropdown/action/badge can reach partial parity earlier.
+1. Add AC-N-1 performance budget measurement for the material parity fixtures.
+2. Add end-to-end accessibility-contract assertions for the material parity fixtures.
+3. Decide whether scoped-style containment and `hasBoolAttribute()` compatibility remain bridge/adoption work or move
+   into the browser-substrate production gate.
 
 This inventory satisfies the todo §3.1 "Build a material parity inventory" item and feeds the parity-story
 (line 118) and `cem_ml_cli` fixture-wiring (line 124) items.

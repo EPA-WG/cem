@@ -98,8 +98,9 @@ Design home: [`cem-element-design.md`](cem-element-design.md). WASM proposal:
         the C2.6 verification gate (`nx run cem-elements:verify`) is wired and green. The C1.5 TypeScript adapter is
         removed (C2.6): the WASM render plan drops `<attribute>`/`<slice>` declarations so declaration-bearing
         canonical templates render through WASM, attribute observation moved to a per-instance `MutationObserver`
-        (Option A) so `observedAttributes` is no longer a synchronous blocker, and declaration diagnostics come from
-        the async WASM compile boundary. Remaining C2.5/C2.6 gap: `module-url` (deferred to the `src`-loading slice).
+        (Option A) so `observedAttributes` is no longer a synchronous blocker, declaration diagnostics come from
+        the async WASM compile boundary, and `module-url` resource slices now resolve through the shared resource
+        resolver hook.
     - [x] C2.1: Add a `cem_ql` data-bound render boundary for canonical CEM-ML templates. Split the production
           shape into `compileTemplate(source, options) -> TemplateArtifact` and
           `renderTemplate(artifact, DataIslandSnapshot) -> RenderPlan`; internally this may reuse
@@ -180,10 +181,13 @@ Design home: [`cem-element-design.md`](cem-element-design.md). WASM proposal:
               of rebuilding them. The TS fallback consumes primitive `datadom.*` paths flattened from the same
               snapshot for its temporary `${}` interpolation path. The concrete `<data>`/`<option>` payload mapping is
               now defined by value plus ordered arrays as above.
-      - [ ] `module-url` resource slices — **deferred to the `src`-loading slice** (decision 2026-06-04). It shares
-            the `cem-element` module-map resolver with `src` (design §3.2, [`cem-element-wasm-proposal.md` §3](cem-element-wasm-proposal.md)),
-            so resolution is implemented once there rather than as a divergent minimal resolver here. Tracked with the
-            external/local `src` declaration-loading work (material parity, line ~138; production-gate item).
+      - [x] `module-url` resource slices — resolved through the shared resource/module-map hook. Landed in
+            [`cem-elements.ts`](../packages/cem-elements/src/lib/cem-elements.ts): rendered `<module-url slice src>`
+            helpers are inert, removed from light-DOM output, resolved via `resolveModuleUrl(specifier, baseDocument)`
+            (defaulting URL-like specifiers against `baseURI`; bare package specifiers require the host hook), cached,
+            exposed under `datadom.slices.<slice>`, and trigger an async rerender when the resolved value changes.
+            Coverage: `MaterialIconLinkParity` exercises bare `@scope` resource specifiers with an injected resolver;
+            55 Storybook stories and `nx run cem-elements:verify` are green.
       - [x] Declarative slot projection — project the produced instance's payload into `<slot>` positions in the
             light DOM (named + unnamed, slot default content as fallback). Landed as a render-plan lowering step in
             [`packages/cem-elements/src/lib/projection.ts`](../packages/cem-elements/src/lib/projection.ts), with both
@@ -276,10 +280,10 @@ Design home: [`cem-element-design.md`](cem-element-design.md). WASM proposal:
       reproducing each component's characteristic in-scope behavior on the C2 substrate (attribute defaults, `/datadom`
       selection, `??`, `cem:if`/`cem:choose`, declarative slots, `<data>`/`<option>`, slice events) plus nested
       composition; the file header records the intentional CEM-ML/CEM-QL migration decisions (canonical `cem:if`/`{$…}`
-      vs legacy `<choose>`/DOM `{$x}`; cem-ql functional `/datadom` vs XPath; page-global scoped styles; deferred
-      `module-url` + bare `@scope` module-map specifiers; `<if><attribute>` forwarding; builtin-step selection-key
-      collisions). 55 stories green. The cem-ml/cem-ql features and `src` loading these needed landed in C2 + the `src`
-      slice above.
+      vs legacy `<choose>`/DOM `{$x}`; cem-ql functional `/datadom` vs XPath; page-global scoped styles; host-provided
+      module-map hooks for bare `@scope` `src` / `module-url` specifiers; `<if><attribute>` forwarding; builtin-step
+      selection-key collisions). 55 stories green. The cem-ml/cem-ql features, `src` loading, and `module-url` resource
+      slices these needed landed in C2 + the `src`/resource slices above.
   - [x] `src` declaration loading — local `src="#id"` (same-document `<template id>` / declaration resolution).
         Landed in [`cem-elements.ts`](../packages/cem-elements/src/lib/cem-elements.ts) (`resolveSrcTemplate`,
         `parseSrcReference`, `templateFromTarget`): a `<cem-element src="#id" tag="…">` resolves the same-document
@@ -297,16 +301,19 @@ Design home: [`cem-element-design.md`](cem-element-design.md). WASM proposal:
         Load failures / missing fragments are diagnosed (`src_load_failed` / `src_target_missing`). Coverage:
         `ExternalSrcDeclarationLoadingParity` (injected loader → fetch/parse/register/render) and
         `SrcDeclarationLoadingDiagnostics`; 47 stories green. NB the default `fetch` path is exercised in real browsers;
-        the injectable `loadSrcDocument` is the tested boundary. `module-url` resource slices can now reuse this
-        module-map resolver hook.
+        the injectable `loadSrcDocument` is the tested boundary.
+  - [x] `module-url` resource slices — inert resource helpers in rendered output resolve URL-like specifiers by default
+        and bare package/module specifiers through a host `resolveModuleUrl` hook, write the resolved value into the
+        named slice, and rerender CEM-ML templates through `datadom.slices.<slice>`. Coverage landed in
+        `MaterialIconLinkParity`; 55 stories green and `nx run cem-elements:verify` passes.
   - [x] Per-component parity stories — a named story per component (icon, icon-link, menu, badge, action, dropdown,
         input, autocomplete) in
         [`material-parity.stories.ts`](../packages/cem-elements/src/lib/material-parity.stories.ts), each exercising the
         component's characteristic behavior (attribute defaults, `/datadom` selection, `cem:if`/`cem:choose`, slots,
         `<data>`/`<option>`, slice events, nested composition) with migration decisions recorded in the file header.
-        Remaining caveats noted there: bare `@scope/pkg` module specifiers need a host `loadSrcDocument`, `module-url`
-        resource slices are still deferred, scoped styles render page-global, and richer `@test` expressions
-        (string functions, equality) author through cem-ql functional selection.
+        Remaining caveats noted there: bare `@scope/pkg` module specifiers need host `loadSrcDocument` /
+        `resolveModuleUrl` hooks, scoped styles render page-global, and richer `@test` expressions (string functions,
+        equality) author through cem-ql functional selection.
 - [x] Build a material parity inventory from `~/aWork/custom-element-dist/src/material/components/*.html` covering
       local/external `src`, hidden declarations, nested custom elements, declarative slots, scoped styles,
       `attribute select`, `if`/`choose` bridge constructs, namespaced `xhtml:*` elements, boolean attribute helper
@@ -322,6 +329,14 @@ Design home: [`cem-element-design.md`](cem-element-design.md). WASM proposal:
 - [ ] Production-ready gate: parity (1)–(6) from [`cem-element-design.md` §7](cem-element-design.md). When green,
       the browser substrate is eligible for Phase 3.5 Edge/SSR follow-up; `@epa-wg/custom-element` adoption remains
       deferred until after that follow-up phase.
+  - [x] (1) Functional parity story coverage for in-scope legacy behavior.
+  - [x] (2) Template and data-island isolation stories.
+  - [x] (3) Material parity stories for the eight legacy material components, including local/external `src`,
+        declarative slots, data/option payloads, slice events, and `module-url` resource slices.
+  - [x] (4) CEM-ML integration through `nx run cem-elements:verify`.
+  - [ ] (5) Performance: prove AC-N-1 first-paint budgets on the material parity fixtures under the `cem_ml:bench`
+        discipline.
+  - [ ] (6) A11y: end-to-end accessibility-contract assertions on the material parity fixtures.
 - [ ] Bridge support: `<template lang="custom-element-v0">` compat path for legacy authoring during the migration
       window; keep only if needed after the `@epa-wg/custom-element` substrate adoption.
 
