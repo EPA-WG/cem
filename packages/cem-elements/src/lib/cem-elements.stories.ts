@@ -10,6 +10,7 @@ import {
 } from './cem-elements.js';
 import {
     InMemoryEdgeRenderStateStore,
+    advanceEdgeRenderState,
     createEdgeRenderStateRecord,
     diffRenderPlansToPatchFrames,
     edgeRenderStateRevisionMatches,
@@ -2004,6 +2005,57 @@ export const EdgeRenderStateHybridStorageModel: Story = {
             '',
             'stored snapshots are policy-sanitized before content addressing'
         );
+
+        const helperStore = new InMemoryEdgeRenderStateStore();
+        const helperInitial = helperStore.writeRenderState({
+            renderPlan: previousPlan,
+            privacyPolicyStamp: 'edge-export-policy-v1',
+            sanitizedSnapshot: exportDataIslandSnapshotForEdge(previousSnapshot, {
+                privacyPolicyStamp: 'edge-export-policy-v1',
+                fields: { hostAttributes: 'allow', payload: 'redact' },
+            }),
+        });
+        assert(helperInitial.ok, 'helper fixture can seed an initial edge state');
+        const advanced = advanceEdgeRenderState(
+            helperStore,
+            {
+                renderPlan: nextPlan,
+                privacyPolicyStamp: 'edge-export-policy-v1',
+                sanitizedSnapshot,
+                stateKey: helperInitial.record.stateKey,
+            },
+            { patchOptions: { batchSize: 1, transactionId: 'edge-store-tx-1' } }
+        );
+        assert(advanced.ok, 'store-backed edge advance succeeds from a matching pointer record');
+        assertEqual(
+            advanced.previousRenderPlan?.dataRevision,
+            '21',
+            'store-backed edge advance reads the previous content-addressed render plan'
+        );
+        const advancedTextPatch = opsFromPatchFrames(advanced.frames).find((op) => op.op === 'setText');
+        assert(advancedTextPatch?.op === 'setText', 'store-backed edge advance emits patch frames');
+        assertEqual(advancedTextPatch.value, 'Edge After', 'store-backed patch frames use the next render plan');
+        assertEqual(
+            helperStore.readRecord(helperInitial.record.stateKey)?.etag,
+            advanced.record.etag,
+            'store-backed edge advance commits the next pointer record'
+        );
+
+        const rejectedAdvance = advanceEdgeRenderState(
+            helperStore,
+            {
+                renderPlan: previousPlan,
+                privacyPolicyStamp: 'edge-export-policy-v1',
+                sanitizedSnapshot: exportDataIslandSnapshotForEdge(previousSnapshot, {
+                    privacyPolicyStamp: 'edge-export-policy-v1',
+                    fields: { hostAttributes: 'allow', payload: 'redact' },
+                }),
+                stateKey: helperInitial.record.stateKey,
+            },
+            { expectedEtag: 'stale-etag' }
+        );
+        assert(!rejectedAdvance.ok, 'store-backed edge advance rejects stale expected ETags');
+        assertEqual(rejectedAdvance.reason, 'etag-mismatch', 'stale edge advance fails before returning frames');
     },
 };
 

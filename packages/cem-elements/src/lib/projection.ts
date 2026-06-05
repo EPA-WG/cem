@@ -173,6 +173,10 @@ export interface EdgeRenderStateWriteOptions {
     expectedEtag?: string;
 }
 
+export interface EdgeRenderStateAdvanceOptions extends EdgeRenderStateWriteOptions {
+    patchOptions?: EdgePatchOptions;
+}
+
 export interface EdgeRenderStateStore {
     putContent(kind: EdgeContentKind, value: unknown): EdgeContentAddress;
     getContent<T = unknown>(address: EdgeContentAddress): T | undefined;
@@ -180,6 +184,21 @@ export interface EdgeRenderStateStore {
     writeRecord(record: EdgeRenderStateRecord, options?: EdgeRenderStateWriteOptions): EdgeRenderStateWriteResult;
     writeRenderState(input: EdgeRenderStateInput, options?: EdgeRenderStateWriteOptions): EdgeRenderStateWriteResult;
 }
+
+export type EdgeRenderStateAdvanceResult =
+    | {
+          ok: true;
+          previousRenderPlan: RenderPlan | null;
+          frames: PatchFrame[];
+          record: EdgeRenderStateRecord;
+      }
+    | { ok: false; reason: 'etag-mismatch'; current: EdgeRenderStateRecord | undefined }
+    | {
+          ok: false;
+          reason: 'missing-render-plan';
+          current: EdgeRenderStateRecord;
+          address: EdgeContentAddress;
+      };
 
 export interface ProjectionPayload {
     slots?: Record<string, ProjectionPayloadNode[]>;
@@ -355,6 +374,42 @@ export function edgeRenderStateRevisionMatches(
     expectedRevision: RenderRevision
 ): boolean {
     return renderRevisionKey(record.renderRevision) === renderRevisionKey(expectedRevision);
+}
+
+export function advanceEdgeRenderState(
+    store: EdgeRenderStateStore,
+    input: EdgeRenderStateInput,
+    options: EdgeRenderStateAdvanceOptions = {}
+): EdgeRenderStateAdvanceResult {
+    const stateKey = input.stateKey ?? edgeRenderStateKey(renderPlanIdentity(input.renderPlan));
+    const current = store.readRecord(stateKey);
+    let previousRenderPlan: RenderPlan | null = null;
+    if (current) {
+        const storedPreviousPlan = store.getContent<RenderPlan>(current.currentRenderPlan);
+        if (!storedPreviousPlan) {
+            return {
+                ok: false,
+                reason: 'missing-render-plan',
+                current,
+                address: current.currentRenderPlan,
+            };
+        }
+        previousRenderPlan = storedPreviousPlan;
+    }
+    const expectedEtag = options.expectedEtag ?? current?.etag;
+    const write = store.writeRenderState(
+        { ...input, stateKey },
+        expectedEtag === undefined ? {} : { expectedEtag }
+    );
+    if (!write.ok) {
+        return write;
+    }
+    return {
+        ok: true,
+        previousRenderPlan,
+        frames: diffRenderPlansToPatchFrames(previousRenderPlan, input.renderPlan, options.patchOptions),
+        record: write.record,
+    };
 }
 
 export class InMemoryEdgeRenderStateStore implements EdgeRenderStateStore {
