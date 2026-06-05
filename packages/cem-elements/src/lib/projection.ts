@@ -207,6 +207,13 @@ export type EdgeRenderStateAdvanceResult =
           reason: 'missing-render-plan';
           current: EdgeRenderStateRecord;
           address: EdgeContentAddress;
+      }
+    | {
+          ok: false;
+          reason: 'content-address-mismatch';
+          current: EdgeRenderStateRecord;
+          expected: EdgeContentAddress;
+          actual: EdgeContentAddress;
       };
 
 export interface ProjectionPayload {
@@ -401,6 +408,16 @@ export function advanceEdgeRenderState(
                 reason: 'missing-render-plan',
                 current,
                 address: current.currentRenderPlan,
+            };
+        }
+        const actualAddress = edgeContentAddress('render-plan', storedPreviousPlan);
+        if (actualAddress.key !== current.currentRenderPlan.key) {
+            return {
+                ok: false,
+                reason: 'content-address-mismatch',
+                current,
+                expected: current.currentRenderPlan,
+                actual: actualAddress,
             };
         }
         previousRenderPlan = storedPreviousPlan;

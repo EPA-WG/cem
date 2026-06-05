@@ -422,7 +422,8 @@ gate is green.
       [`EdgeRenderStateHybridStorageModel`](../packages/cem-elements/src/lib/cem-elements.stories.ts), including
       content-addressed writes, ETag compare-and-swap, stale-write rejection, sanitized snapshot retrieval, and
       store-backed patch-frame generation from the previous content-addressed render plan, projection from serialized
-      source/snapshot input, first-render replacement frames, and fail-closed missing-content handling.
+      source/snapshot input, first-render replacement frames, and fail-closed missing-content plus content-address
+      mismatch handling.
 
 ## Phase 3.6 — `@epa-wg/custom-element` Monorepo Adoption
 

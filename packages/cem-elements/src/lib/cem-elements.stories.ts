@@ -2140,6 +2140,28 @@ export const EdgeRenderStateHybridStorageModel: Story = {
             missingAddress.key,
             'missing previous content reports the missing render-plan address'
         );
+
+        const corruptStore = new CorruptRenderPlanStore(helperInitial.record, missingAddress, nextPlan);
+        const corruptPlan = advanceEdgeRenderState(
+            corruptStore,
+            {
+                renderPlan: nextPlan,
+                privacyPolicyStamp: 'edge-export-policy-v1',
+                sanitizedSnapshot,
+                stateKey: helperInitial.record.stateKey,
+            }
+        );
+        assert(!corruptPlan.ok, 'edge advance fails closed when content does not match its address');
+        assertEqual(
+            corruptPlan.reason,
+            'content-address-mismatch',
+            'corrupt previous content reports an address mismatch'
+        );
+        assertEqual(
+            corruptPlan.reason === 'content-address-mismatch' ? corruptPlan.expected.key : '',
+            missingAddress.key,
+            'corrupt previous content reports the expected content address'
+        );
     },
 };
 
@@ -2322,6 +2344,41 @@ class MissingRenderPlanStore implements EdgeRenderStateStore {
     readRecord(stateKey: string): EdgeRenderStateRecord | undefined {
         return stateKey === this.record.stateKey
             ? { ...this.record, currentRenderPlan: this.missingAddress }
+            : undefined;
+    }
+
+    writeRecord(
+        record: EdgeRenderStateRecord,
+        options?: EdgeRenderStateWriteOptions
+    ): EdgeRenderStateWriteResult {
+        return this.fallback.writeRecord(record, options);
+    }
+
+    writeRenderState(input: Parameters<EdgeRenderStateStore['writeRenderState']>[0]): EdgeRenderStateWriteResult {
+        return this.fallback.writeRenderState(input);
+    }
+}
+
+class CorruptRenderPlanStore implements EdgeRenderStateStore {
+    private readonly fallback = new InMemoryEdgeRenderStateStore();
+
+    constructor(
+        private readonly record: EdgeRenderStateRecord,
+        private readonly expectedAddress: EdgeContentAddress,
+        private readonly corruptPlan: RenderPlan
+    ) {}
+
+    putContent(kind: EdgeContentKind, value: unknown): EdgeContentAddress {
+        return this.fallback.putContent(kind, value);
+    }
+
+    getContent<T = unknown>(address: EdgeContentAddress): T | undefined {
+        return address.key === this.expectedAddress.key ? this.corruptPlan as T : this.fallback.getContent<T>(address);
+    }
+
+    readRecord(stateKey: string): EdgeRenderStateRecord | undefined {
+        return stateKey === this.record.stateKey
+            ? { ...this.record, currentRenderPlan: this.expectedAddress }
             : undefined;
     }
 
