@@ -91,6 +91,34 @@ export interface DataIslandSnapshot {
     eventPayloads: Record<string, unknown>;
 }
 
+export type DataIslandSnapshotExportField =
+    | 'hostAttributes'
+    | 'dataset'
+    | 'payload'
+    | 'slices'
+    | 'validationState'
+    | 'eventPayloads';
+
+export type DataIslandSnapshotExportDecision = 'allow' | 'omit' | 'redact';
+
+export type ExportedDataIslandSnapshot = Pick<
+    DataIslandSnapshot,
+    | 'instanceId'
+    | 'producedTag'
+    | 'declarationTag'
+    | 'templateArtifactId'
+    | 'dataRevision'
+    | 'outputTarget'
+    | 'scopePolicyStamp'
+    | 'privacyPolicyStamp'
+> &
+    Partial<Pick<DataIslandSnapshot, DataIslandSnapshotExportField>>;
+
+export interface DataIslandSnapshotExportPolicy {
+    fields?: Partial<Record<DataIslandSnapshotExportField, DataIslandSnapshotExportDecision>>;
+    privacyPolicyStamp?: string;
+}
+
 export interface CemElementRuntimeOptions {
     declarationTag?: string;
     scopePolicyStamp?: string;
@@ -163,6 +191,14 @@ const DATA_ISLAND_VALUE = 'instance';
 const HYDRATION_METADATA_ATTR = 'data-cem-hydration';
 const HYDRATION_METADATA_VALUE = 'snapshot';
 const XHTML_NAMESPACE = 'http://www.w3.org/1999/xhtml';
+const DATA_ISLAND_EXPORT_FIELDS: readonly DataIslandSnapshotExportField[] = [
+    'hostAttributes',
+    'dataset',
+    'payload',
+    'slices',
+    'validationState',
+    'eventPayloads',
+];
 const RESERVED_CUSTOM_ELEMENT_NAMES = new Set([
     'annotation-xml',
     'color-profile',
@@ -246,6 +282,31 @@ export function installCemElementRuntime(
     const runtime = new CemElementRuntime(options);
     runtime.install(host);
     return runtime;
+}
+
+export function exportDataIslandSnapshotForEdge(
+    snapshot: DataIslandSnapshot,
+    policy: DataIslandSnapshotExportPolicy = {}
+): ExportedDataIslandSnapshot {
+    const exported: ExportedDataIslandSnapshot = {
+        instanceId: snapshot.instanceId,
+        producedTag: snapshot.producedTag,
+        declarationTag: snapshot.declarationTag,
+        templateArtifactId: snapshot.templateArtifactId,
+        dataRevision: snapshot.dataRevision,
+        outputTarget: snapshot.outputTarget,
+        scopePolicyStamp: snapshot.scopePolicyStamp,
+        privacyPolicyStamp: policy.privacyPolicyStamp ?? snapshot.privacyPolicyStamp,
+    };
+    for (const field of DATA_ISLAND_EXPORT_FIELDS) {
+        const decision = policy.fields?.[field] ?? 'omit';
+        if (decision === 'allow') {
+            exported[field] = cloneJsonSnapshotField(snapshot[field]) as never;
+        } else if (decision === 'redact') {
+            exported[field] = redactedSnapshotField(field) as never;
+        }
+    }
+    return exported;
 }
 
 export class CemElementRuntime {
@@ -1337,6 +1398,27 @@ function dataDocumentFromSnapshot(snapshot: DataIslandSnapshot): Record<string, 
         slices: snapshot.slices,
         validationState: snapshot.validationState,
         eventPayloads: snapshot.eventPayloads,
+    };
+}
+
+function cloneJsonSnapshotField(value: unknown): unknown {
+    return JSON.parse(JSON.stringify(value)) as unknown;
+}
+
+function redactedSnapshotField(field: DataIslandSnapshotExportField): unknown {
+    return field === 'payload' ? emptySerializedPayload() : {};
+}
+
+function emptySerializedPayload(): SerializedPayload {
+    return {
+        text: '',
+        childCount: 0,
+        nodes: [],
+        slots: {},
+        data: [],
+        options: [],
+        dataByValue: {},
+        optionsByValue: {},
     };
 }
 

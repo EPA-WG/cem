@@ -3,6 +3,7 @@ import {
     CemElementRuntime,
     analyzeDeclarationShape,
     cemElements,
+    exportDataIslandSnapshotForEdge,
     isValidCustomElementName,
     type CemElementDiagnostic,
     type DataIslandSnapshot,
@@ -1785,6 +1786,90 @@ export const EdgePatchFramesFromSerializedSnapshot: Story = {
             JSON.stringify(commit.nextRenderPlan),
             JSON.stringify(renderPlanIdentity(nextPlan)),
             'commit carries the next render-plan identity for edge state storage'
+        );
+    },
+};
+
+export const BrowserToEdgeSnapshotPrivacyPolicy: Story = {
+    render: () => storyPanel('Edge snapshot privacy', 'policy-denied data is omitted or redacted before export'),
+    play: () => {
+        const snapshot = edgeProjectionSnapshot('Sensitive Label', '13');
+        snapshot.privacyPolicyStamp = 'browser-local-policy-v1';
+        snapshot.hostAttributes = {
+            label: 'Allowed Label',
+        };
+        snapshot.dataset = { analyticsId: 'visitor-42' };
+        snapshot.payload = {
+            ...snapshot.payload,
+            text: 'Sensitive detail',
+            data: [
+                {
+                    kind: 'data',
+                    key: 'data-0',
+                    value: 'secret',
+                    label: 'Secret',
+                    text: 'Sensitive data',
+                    attributes: { value: 'secret' },
+                    group: null,
+                },
+            ],
+            dataByValue: {
+                secret: {
+                    kind: 'data',
+                    key: 'data-0',
+                    value: 'secret',
+                    label: 'Secret',
+                    text: 'Sensitive data',
+                    attributes: { value: 'secret' },
+                    group: null,
+                },
+            },
+        };
+        snapshot.slices = { typed: 'draft input' };
+        snapshot.validationState = { valid: false, message: 'private validation detail' };
+        snapshot.eventPayloads = { input: { value: 'raw browser event payload' } };
+
+        const defaultExport = exportDataIslandSnapshotForEdge(snapshot);
+        assert(!('hostAttributes' in defaultExport), 'default edge export omits host attributes');
+        assert(!('payload' in defaultExport), 'default edge export omits payload');
+        assert(!('validationState' in defaultExport), 'default edge export omits validation state');
+
+        const exported = exportDataIslandSnapshotForEdge(snapshot, {
+            privacyPolicyStamp: 'edge-export-policy-v1',
+            fields: {
+                hostAttributes: 'allow',
+                payload: 'redact',
+                validationState: 'redact',
+                dataset: 'omit',
+                slices: 'omit',
+                eventPayloads: 'omit',
+            },
+        });
+
+        assertEqual(exported.privacyPolicyStamp, 'edge-export-policy-v1', 'export records the effective edge policy');
+        assertEqual(exported.hostAttributes?.label, 'Allowed Label', 'allowed host attributes are exported');
+        assert(!('dataset' in exported), 'denied dataset fields are omitted before edge transport');
+        assert(!('slices' in exported), 'transient slice state is omitted before edge transport');
+        assert(!('eventPayloads' in exported), 'raw event payloads are omitted before edge transport');
+        assertEqual(exported.payload?.text, '', 'redacted payload text is cleared');
+        assertEqual(exported.payload?.childCount, 0, 'redacted payload child count is cleared');
+        assertEqual(exported.payload?.data.length, 0, 'redacted data payload choices are cleared');
+        assertEqual(
+            Object.keys(exported.payload?.dataByValue ?? {}).length,
+            0,
+            'redacted payload lookup records are cleared'
+        );
+        assertEqual(
+            Object.keys(exported.validationState ?? {}).length,
+            0,
+            'redacted validation state is present but empty'
+        );
+
+        snapshot.hostAttributes.label = 'Mutated After Export';
+        assertEqual(
+            exported.hostAttributes?.label,
+            'Allowed Label',
+            'exported edge snapshots are detached from later browser mutation'
         );
     },
 };

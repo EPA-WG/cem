@@ -402,8 +402,14 @@ gate is green.
       serializable render plans only. The fixture proves a stable render-node text patch and commit identity from two
       serialized `DataIslandSnapshot` revisions, with `replaceScope` reserved for first-render/fallback cases.
       `nx run cem-elements:test/build/lint` are green.
-- [ ] Verify privacy/export policy for browser-to-edge snapshots: denied fields are omitted or redacted before
-      leaving the browser context.
+- [x] Verify privacy/export policy for browser-to-edge snapshots: denied fields are omitted or redacted before
+      leaving the browser context. Landed in
+      [`cem-elements.ts`](../packages/cem-elements/src/lib/cem-elements.ts) and
+      [`BrowserToEdgeSnapshotPrivacyPolicy`](../packages/cem-elements/src/lib/cem-elements.stories.ts): the
+      browser-to-edge export helper fail-closes data-bearing fields to omission unless the effective policy allows
+      them, supports explicit redaction to empty JSON-compatible payload/record shapes, stamps the exported snapshot
+      with the effective privacy policy, and detaches allowed fields from later browser mutation. `nx run
+      cem-elements:test/build/lint` are green.
 - [ ] Decide the first edge render-state storage model: content-addressed cache only, revisioned KV/document records,
       or both.
 
