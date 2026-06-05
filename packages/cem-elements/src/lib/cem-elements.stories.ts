@@ -2111,6 +2111,26 @@ export const EdgeRenderStateHybridStorageModel: Story = {
             'currentSnapshot',
             'corrupt snapshot content reports the failed pointer field'
         );
+        const missingRenderPlanContents = readEdgeRenderStateContents(
+            new ContentOverrideStore(store, explicitEmptyWrite.record.currentRenderPlan, 'missing'),
+            explicitEmptyWrite.record
+        );
+        assert(!missingRenderPlanContents.ok, 'contents helper fails closed when the required render plan is missing');
+        assertEqual(
+            missingRenderPlanContents.reason === 'missing-content' ? missingRenderPlanContents.field : '',
+            'currentRenderPlan',
+            'missing render plan reports the required pointer field'
+        );
+        const corruptRenderPlanContents = readEdgeRenderStateContents(
+            new ContentOverrideStore(store, explicitEmptyWrite.record.currentRenderPlan, 'replace', previousPlan),
+            explicitEmptyWrite.record
+        );
+        assert(!corruptRenderPlanContents.ok, 'contents helper fails closed when the required render plan is corrupt');
+        assertEqual(
+            corruptRenderPlanContents.reason === 'content-address-mismatch' ? corruptRenderPlanContents.field : '',
+            'currentRenderPlan',
+            'corrupt render plan reports the required pointer field'
+        );
 
         const helperStore = new InMemoryEdgeRenderStateStore();
         const helperInitial = helperStore.writeRenderState({

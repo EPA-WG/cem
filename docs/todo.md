@@ -424,8 +424,9 @@ gate is green.
       content-addressed template artifact/render plan/snapshot export/HTML writes, ETag compare-and-swap,
       stale-write rejection, sanitized snapshot retrieval, and explicit null snapshot/empty HTML content addressing,
       store-backed patch-frame generation from the previous content-addressed render plan, projection from serialized
-      source/snapshot input, first-render replacement frames, and fail-closed missing-content plus content-address
-      mismatch and render-revision mismatch handling.
+      source/snapshot input, first-render replacement frames, whole-record content verification with field-specific
+      missing-content/content-address mismatch failures for required and optional pointers, and render-revision
+      mismatch handling.
 
 ## Phase 3.6 — `@epa-wg/custom-element` Monorepo Adoption
 
