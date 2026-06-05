@@ -325,9 +325,13 @@ store. The host can combine:
 - scope policy, resolver identity, cache identity, and `RenderRevision` metadata.
 
 The edge worker can return rendered HTML for first paint, a fresh `RenderPlan`, or a
-patch-frame stream for the browser UI adapter to apply. A provider-adjacent KV/document
-store can hold data snapshots and virtual/render-plan state by content hash and
-revision. It MUST NOT be described as storing the live browser DOM.
+patch-frame stream for the browser UI adapter to apply. The accepted first storage
+model is content-addressed cache plus revisioned pointer records: immutable blobs store
+template artifacts, render plans, rendered HTML fragments, and policy-sanitized
+snapshot exports by content address; a small KV/document record stores the current
+`RenderRevision`, content addresses, scope/privacy policy stamps, and an ETag-like
+compare value. Full data snapshot retention remains opt-in by export policy. It MUST
+NOT be described as storing the live browser DOM.
 
 This topology is useful for server-assisted first render, precomputed component
 fragments, collaborative/shared state, and low-latency data-adjacent rendering. It is

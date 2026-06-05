@@ -410,8 +410,15 @@ gate is green.
       them, supports explicit redaction to empty JSON-compatible payload/record shapes, stamps the exported snapshot
       with the effective privacy policy, and detaches allowed fields from later browser mutation. `nx run
       cem-elements:test/build/lint` are green.
-- [ ] Decide the first edge render-state storage model: content-addressed cache only, revisioned KV/document records,
-      or both.
+- [x] Decide the first edge render-state storage model: content-addressed cache only, revisioned KV/document records,
+      or both. Accepted the hybrid model: immutable content-addressed blobs for template artifacts, render plans,
+      rendered HTML fragments, and policy-sanitized snapshot exports, plus small revisioned pointer records carrying
+      `RenderRevision`, content addresses, scope/privacy policy stamps, and an ETag-like compare value. Persistent
+      full snapshot storage remains opt-in by export policy, and live/browser-only state remains out of scope. Landed
+      in [`cem-element-design.md`](cem-element-design.md),
+      [`cem-element-wasm-proposal.md`](cem-element-wasm-proposal.md),
+      [`projection.ts`](../packages/cem-elements/src/lib/projection.ts), and
+      [`EdgeRenderStateHybridStorageModel`](../packages/cem-elements/src/lib/cem-elements.stories.ts).
 
 ## Phase 3.6 — `@epa-wg/custom-element` Monorepo Adoption
 

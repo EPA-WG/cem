@@ -133,6 +133,38 @@ export interface EdgePatchOptions {
     transactionId?: string;
 }
 
+export type EdgeContentKind = 'template-artifact' | 'render-plan' | 'rendered-html' | 'sanitized-snapshot';
+
+export interface EdgeContentAddress {
+    kind: EdgeContentKind;
+    algorithm: 'stable-json-fnv1a64-v1';
+    digest: string;
+    key: string;
+}
+
+export interface EdgeRenderStateRecord {
+    storageModel: 'content-addressed-cache-with-revision-pointer-v1';
+    stateKey: string;
+    producedTag: string;
+    instanceId: string;
+    templateArtifactId: string;
+    scopePolicyStamp: string;
+    privacyPolicyStamp?: string;
+    renderRevision: RenderRevision;
+    currentRenderPlan: EdgeContentAddress;
+    currentSnapshot?: EdgeContentAddress;
+    currentHtml?: EdgeContentAddress;
+    etag: string;
+}
+
+export interface EdgeRenderStateInput {
+    renderPlan: RenderPlan;
+    sanitizedSnapshot?: unknown;
+    renderedHtml?: string;
+    privacyPolicyStamp?: string;
+    stateKey?: string;
+}
+
 export interface ProjectionPayload {
     slots?: Record<string, ProjectionPayloadNode[]>;
 }
@@ -265,6 +297,48 @@ export function diffRenderPlansToPatchFrames(
 
     frames.push({ type: 'commit', transactionId, nextRenderPlan: renderPlanIdentity(next) });
     return frames;
+}
+
+export function edgeContentAddress(kind: EdgeContentKind, value: unknown): EdgeContentAddress {
+    const digest = stableJsonDigest(value);
+    const algorithm = 'stable-json-fnv1a64-v1';
+    return {
+        kind,
+        algorithm,
+        digest,
+        key: `${kind}:${algorithm}:${digest}`,
+    };
+}
+
+export function createEdgeRenderStateRecord(input: EdgeRenderStateInput): EdgeRenderStateRecord {
+    const identity = renderPlanIdentity(input.renderPlan);
+    const currentRenderPlan = edgeContentAddress('render-plan', input.renderPlan);
+    const recordWithoutEtag = {
+        storageModel: 'content-addressed-cache-with-revision-pointer-v1' as const,
+        stateKey: input.stateKey ?? edgeRenderStateKey(identity),
+        producedTag: input.renderPlan.producedTag,
+        instanceId: input.renderPlan.instanceId,
+        templateArtifactId: input.renderPlan.templateArtifactId,
+        scopePolicyStamp: input.renderPlan.scopePolicyStamp,
+        privacyPolicyStamp: input.privacyPolicyStamp,
+        renderRevision: identity,
+        currentRenderPlan,
+        currentSnapshot: input.sanitizedSnapshot
+            ? edgeContentAddress('sanitized-snapshot', input.sanitizedSnapshot)
+            : undefined,
+        currentHtml: input.renderedHtml ? edgeContentAddress('rendered-html', input.renderedHtml) : undefined,
+    };
+    return {
+        ...recordWithoutEtag,
+        etag: edgeContentAddress('render-plan', recordWithoutEtag).digest,
+    };
+}
+
+export function edgeRenderStateRevisionMatches(
+    record: EdgeRenderStateRecord,
+    expectedRevision: RenderRevision
+): boolean {
+    return renderRevisionKey(record.renderRevision) === renderRevisionKey(expectedRevision);
 }
 
 function projectTemplateWith(
@@ -676,6 +750,50 @@ function stableTextHash(text: string): string {
         hash = (hash * 31 + text.charCodeAt(index)) >>> 0;
     }
     return hash.toString(16);
+}
+
+function stableJsonDigest(value: unknown): string {
+    const canonical = stableJsonStringify(value);
+    let hash = 0xcbf29ce484222325n;
+    const prime = 0x100000001b3n;
+    const mask = 0xffffffffffffffffn;
+    for (let index = 0; index < canonical.length; index += 1) {
+        hash ^= BigInt(canonical.charCodeAt(index));
+        hash = (hash * prime) & mask;
+    }
+    return hash.toString(16).padStart(16, '0');
+}
+
+function stableJsonStringify(value: unknown): string {
+    if (value === null || typeof value === 'string' || typeof value === 'number' || typeof value === 'boolean') {
+        return JSON.stringify(value);
+    }
+    if (Array.isArray(value)) {
+        return `[${value.map((item) => stableJsonStringify(item === undefined ? null : item)).join(',')}]`;
+    }
+    if (value && typeof value === 'object') {
+        const record = value as Record<string, unknown>;
+        const entries = Object.keys(record)
+            .filter((key) => record[key] !== undefined)
+            .sort()
+            .map((key) => `${JSON.stringify(key)}:${stableJsonStringify(record[key])}`);
+        return `{${entries.join(',')}}`;
+    }
+    throw new TypeError(`Edge render-state content is not JSON-serializable: ${String(value)}`);
+}
+
+function edgeRenderStateKey(revision: RenderRevision): string {
+    return ['edge-state', revision.scopePolicyStamp, revision.instanceId].join(':');
+}
+
+function renderRevisionKey(revision: RenderRevision): string {
+    return [
+        revision.instanceId,
+        revision.dataRevision,
+        revision.templateArtifactId,
+        revision.scopePolicyStamp,
+        revision.outputTarget,
+    ].join(':');
 }
 
 function patchTransactionId(plan: RenderPlan): string {

@@ -9,7 +9,9 @@ import {
     type DataIslandSnapshot,
 } from './cem-elements.js';
 import {
+    createEdgeRenderStateRecord,
     diffRenderPlansToPatchFrames,
+    edgeRenderStateRevisionMatches,
     materializeRenderPlan,
     projectTemplate,
     readTemplateSource,
@@ -1870,6 +1872,81 @@ export const BrowserToEdgeSnapshotPrivacyPolicy: Story = {
             exported.hostAttributes?.label,
             'Allowed Label',
             'exported edge snapshots are detached from later browser mutation'
+        );
+    },
+};
+
+export const EdgeRenderStateHybridStorageModel: Story = {
+    render: () =>
+        storyPanel(
+            'Edge render-state storage',
+            'content-addressed render blobs + revisioned pointer record'
+        ),
+    play: () => {
+        const templateHtml =
+            '<attribute name="label">Fallback</attribute>' +
+            '<article class="edge-card" data-kind="summary">' +
+            '<h2>${$label}</h2>' +
+            '<p class="detail"><slot name="detail"></slot></p>' +
+            '</article>';
+        const template = document.createElement('template');
+        template.innerHTML = templateHtml;
+        const source = readTemplateSource(template.content);
+
+        const previousSnapshot = edgeProjectionSnapshot('Edge Before', '21');
+        const nextSnapshot = edgeProjectionSnapshot('Edge After', '22');
+        const previousPlan = projectTemplate(source, { snapshot: previousSnapshot, values: { label: 'Edge Before' } });
+        const nextPlan = projectTemplate(source, { snapshot: nextSnapshot, values: { label: 'Edge After' } });
+        const sanitizedSnapshot = exportDataIslandSnapshotForEdge(nextSnapshot, {
+            privacyPolicyStamp: 'edge-export-policy-v1',
+            fields: {
+                hostAttributes: 'allow',
+                payload: 'redact',
+                validationState: 'redact',
+            },
+        });
+
+        const previousRecord = createEdgeRenderStateRecord({
+            renderPlan: previousPlan,
+            privacyPolicyStamp: 'edge-export-policy-v1',
+            sanitizedSnapshot: exportDataIslandSnapshotForEdge(previousSnapshot, {
+                privacyPolicyStamp: 'edge-export-policy-v1',
+                fields: { hostAttributes: 'allow', payload: 'redact' },
+            }),
+        });
+        const nextRecord = createEdgeRenderStateRecord({
+            renderPlan: nextPlan,
+            privacyPolicyStamp: 'edge-export-policy-v1',
+            sanitizedSnapshot,
+            stateKey: previousRecord.stateKey,
+        });
+
+        assertEqual(
+            nextRecord.storageModel,
+            'content-addressed-cache-with-revision-pointer-v1',
+            'edge state uses the accepted hybrid storage model'
+        );
+        assertEqual(
+            nextRecord.stateKey,
+            previousRecord.stateKey,
+            'revisioned pointer records keep a stable per-instance state key'
+        );
+        assertEqual(nextRecord.currentRenderPlan.kind, 'render-plan', 'render plan state is content-addressed');
+        assertEqual(
+            nextRecord.currentSnapshot?.kind,
+            'sanitized-snapshot',
+            'only sanitized snapshot exports are content-addressed'
+        );
+        assertEqual(nextRecord.renderRevision.dataRevision, '22', 'pointer record names the current data revision');
+        assertEqual(nextRecord.privacyPolicyStamp, 'edge-export-policy-v1', 'pointer record carries the export policy stamp');
+        assert(previousRecord.etag !== nextRecord.etag, 'revision pointer ETags change when the addressed state changes');
+        assert(
+            edgeRenderStateRevisionMatches(previousRecord, renderPlanIdentity(previousPlan)),
+            'stored revision can be compared before advancing a pointer'
+        );
+        assert(
+            !edgeRenderStateRevisionMatches(previousRecord, renderPlanIdentity(nextPlan)),
+            'stale revision comparison prevents blind edge-state overwrites'
         );
     },
 };
