@@ -2024,6 +2024,30 @@ export const EdgeRenderStateHybridStorageModel: Story = {
             acceptedWrite.record.currentSnapshot.key,
             'verified snapshot content reports the pointer address'
         );
+        const explicitEmptyWrite = store.writeRenderState(
+            {
+                renderPlan: nextPlan,
+                privacyPolicyStamp: 'edge-export-policy-v1',
+                sanitizedSnapshot: null,
+                renderedHtml: '',
+                stateKey: `${initialWrite.record.stateKey}:explicit-empty`,
+            }
+        );
+        assert(explicitEmptyWrite.ok, 'edge render state records explicit null snapshots and empty HTML');
+        assert(explicitEmptyWrite.record.currentSnapshot, 'explicit null snapshot still receives a content address');
+        assert(explicitEmptyWrite.record.currentHtml, 'empty rendered HTML still receives a content address');
+        const explicitNullSnapshot = readEdgeContent<null>(
+            store,
+            explicitEmptyWrite.record.currentSnapshot
+        );
+        assert(explicitNullSnapshot.ok, 'explicit null snapshot reads back from content-addressed storage');
+        assertEqual(explicitNullSnapshot.value, null, 'explicit null snapshot content is preserved');
+        const explicitEmptyHtml = readEdgeContent<string>(
+            store,
+            explicitEmptyWrite.record.currentHtml
+        );
+        assert(explicitEmptyHtml.ok, 'empty rendered HTML reads back from content-addressed storage');
+        assertEqual(explicitEmptyHtml.value, '', 'empty rendered HTML content is preserved');
 
         const helperStore = new InMemoryEdgeRenderStateStore();
         const helperInitial = helperStore.writeRenderState({

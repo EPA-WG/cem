@@ -390,10 +390,10 @@ export function createEdgeRenderStateRecord(input: EdgeRenderStateInput): EdgeRe
         privacyPolicyStamp: input.privacyPolicyStamp,
         renderRevision: identity,
         currentRenderPlan,
-        currentSnapshot: input.sanitizedSnapshot
+        currentSnapshot: input.sanitizedSnapshot !== undefined
             ? edgeContentAddress('sanitized-snapshot', input.sanitizedSnapshot)
             : undefined,
-        currentHtml: input.renderedHtml ? edgeContentAddress('rendered-html', input.renderedHtml) : undefined,
+        currentHtml: input.renderedHtml !== undefined ? edgeContentAddress('rendered-html', input.renderedHtml) : undefined,
     };
     return {
         ...recordWithoutEtag,
