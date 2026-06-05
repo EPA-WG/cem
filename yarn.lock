@@ -1405,7 +1405,7 @@ __metadata:
   version: 0.0.0-use.local
   resolution: "@epa-wg/cem@workspace:."
   dependencies:
-    "@epa-wg/custom-element": "npm:0.0.39"
+    "@epa-wg/custom-element": "workspace:^"
     "@epa-wg/trang-native": "workspace:^"
     "@eslint/js": "npm:10.0.1"
     "@monodon/rust": "npm:^2.3.0"
@@ -1439,12 +1439,11 @@ __metadata:
   languageName: unknown
   linkType: soft
 
-"@epa-wg/custom-element@npm:0.0.39":
-  version: 0.0.39
-  resolution: "@epa-wg/custom-element@npm:0.0.39"
-  checksum: 10c0/a1fd26acbe69e6f7ebb9e3c0a0633291971c391d8480cd4279ed5fb76c4b94ecca028552e277002e3a259fea86833d8b71bb6c7fd4a26b67a8f0e5a94b043bf6
-  languageName: node
-  linkType: hard
+"@epa-wg/custom-element@workspace:^, @epa-wg/custom-element@workspace:packages/custom-element":
+  version: 0.0.0-use.local
+  resolution: "@epa-wg/custom-element@workspace:packages/custom-element"
+  languageName: unknown
+  linkType: soft
 
 "@epa-wg/trang-native@workspace:^, @epa-wg/trang-native@workspace:packages/trang-native":
   version: 0.0.0-use.local

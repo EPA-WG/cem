@@ -467,27 +467,55 @@ Roadmap: [`../roadmap.md` §Phase 3.6](../roadmap.md). Starts after Phase 3.5 is
       IDE metadata, and import-time custom-element registrations; package scripts route build/test/lint through Nx;
       and the legacy `.gitignore` was tightened so imported demo baseline files remain visible while `dist` stays
       ignored.
-- [ ] Define the adapter boundary from `<custom-element>` to the `cem-element` substrate. The package must keep
+- [x] Define the adapter boundary from `<custom-element>` to the `cem-element` substrate. The package must keep
       publishing `<custom-element>` as the public tag, but internally translate legacy declaration shape (`tag`,
       `src`, inline templates, data islands, slices, host attributes, and event-to-data wiring) into the same
       declaration/runtime records used by `packages/cem-elements`; it must not retain a separate parser/render engine.
-- [ ] Decide the bridge-template policy for the next major using fixture evidence. Start by keeping
+      Landed in [`custom-element-adapter-boundary.md`](custom-element-adapter-boundary.md): `custom-element.js`
+      remains the public adapter and side-effect registration surface, while declaration compilation,
+      produced-element registration, payload/data-island capture, slices, diagnostics, and rendering delegate to a
+      `CemElementRuntime` configured with `declarationTag: 'custom-element'`; legacy normalization is limited to
+      translating `tag`, `src`, inline bridge templates, data islands, slices, host attributes, and resources into the
+      substrate model, with no package-local XSLT/XPath renderer.
+- [x] Decide the bridge-template policy for the next major using fixture evidence. Start by keeping
       `<template lang="custom-element-v0">` for the migration window, then explicitly keep, migrate, or drop each
       adoption-phase legacy gap from
       [`legacy-parity-inventory.md`](../packages/cem-elements/docs/legacy-parity-inventory.md): omitted `tag`,
       full XSLT-only `for-each`/`variable`, broad XPath functions, multiple slice events/targets, resource slices,
       and true scoped CSS behavior.
-- [ ] Port or replace package companion modules and resource primitives deliberately. `http-request.js`, demo
+      Landed in [`custom-element-bridge-template-policy.md`](custom-element-bridge-template-policy.md):
+      `custom-element-v0` stays as a fixture-bounded migration bridge into `CemElementRuntime`; omitted `tag`,
+      XSLT-only loops/variables, broad XPath, multi-target slice wiring, and scoped selector rewriting migrate or drop
+      instead of retaining an engine fork; `module-url` stays through `resolveModuleUrl`; companion resource modules
+      move to the next package task.
+- [x] Port or replace package companion modules and resource primitives deliberately. `http-request.js`, demo
       resource helpers, `local-storage`, `location-element`, and `module-url` compatibility should either become
       substrate-backed primitives, documented shims, or explicit non-goals for the next major.
-- [ ] Rewire downstream consumers to the workspace package without breaking existing HTML generator workflows.
+      Landed in [`custom-element-companion-modules.md`](custom-element-companion-modules.md): preserve published
+      companion files and import-time registrations; keep `module-url` as the only first-pass substrate-backed
+      resource path through `resolveModuleUrl`; keep `http-request`, `local-storage`, and `location-element` as
+      documented browser shims with explicit-event migration fixtures rather than implicit render primitives; defer
+      broader resource primitive design until host policy, privacy/export, async ordering, and edge/SSR behavior are
+      specified.
+- [x] Rewire downstream consumers to the workspace package without breaking existing HTML generator workflows.
       Update root dependencies and `packages/cem-theme` script/docs references that currently load
       `node_modules/@epa-wg/custom-element/{custom-element.js,http-request.js}`; keep browser-served paths stable or
       document the new import path.
+      Landed in [`custom-element-consumer-rewire.md`](custom-element-consumer-rewire.md): the root dependency now uses
+      `workspace:^`, IDE web-types point at `packages/custom-element`, `cem-theme:build:html` cache inputs track the
+      workspace package sources, and source HTML keeps the stable `node_modules/@epa-wg/custom-element/...` browser
+      path that `compile-html` vendors into `dist/vendor`.
 - [ ] Add package-local verification fixtures for `@epa-wg/custom-element`: legacy docs/demo parity, migrated
       `<custom-element>` adapter behavior, companion module behavior, package export/import smoke tests, and
       release-pack artifact shape. Reuse the existing `cem-elements` Storybook parity stories as acceptance fixtures
       instead of duplicating behavior assertions.
+  - [x] Add the first package-local browser smoke fixture. Landed in
+        [`../packages/custom-element/test-fixtures/browser-smoke.html`](../packages/custom-element/test-fixtures/browser-smoke.html)
+        and [`../packages/custom-element/scripts/verify-browser-fixtures.mjs`](../packages/custom-element/scripts/verify-browser-fixtures.mjs):
+        `@epa-wg/custom-element:test` now verifies package export/import identity, import-time registrations for
+        `custom-element`, `http-request`, `local-storage`, `location-element`, and `module-url`, plus one legacy
+        declaration render through Chromium; the existing package baseline verifier continues checking root and dist
+        release-pack shape.
 - [ ] Verify the migrated package against all required gates: legacy parity inventory, material parity inventory,
       Phase 3.5 Edge/SSR fixtures, `cem-elements:verify`, the new `custom-element` package build/test/lint targets,
       and any affected `cem-theme` HTML/token generator workflows.

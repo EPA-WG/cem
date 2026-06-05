@@ -48,7 +48,8 @@
         "type": "patreon",
         "url": "https://www.patreon.com/sashafirsov"
     },
-    "web-types": ["./ide/web-types-dce.json","./ide/web-types-xsl.json"],
-    "dependencies": {
-    }
+    "web-types": [
+        "./ide/web-types-dce.json",
+        "./ide/web-types-xsl.json"
+    ]
 }

@@ -30,13 +30,19 @@
             "dependsOn": ["build"],
             "executor": "nx:run-commands",
             "options": {
-                "command": "node scripts/verify-package-baseline.mjs",
+                "commands": [
+                    "node scripts/verify-package-baseline.mjs",
+                    "node scripts/verify-browser-fixtures.mjs"
+                ],
+                "parallel": false,
                 "cwd": "packages/custom-element"
             },
             "cache": true,
             "inputs": [
                 "{projectRoot}/dist/**/*",
                 "{projectRoot}/scripts/verify-package-baseline.mjs",
+                "{projectRoot}/scripts/verify-browser-fixtures.mjs",
+                "{projectRoot}/test-fixtures/**/*",
                 "{projectRoot}/package.json"
             ],
             "outputs": []

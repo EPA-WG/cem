@@ -21,7 +21,7 @@
     "start": "node tools/scripts/dev-server.mjs"
   },
   "dependencies": {
-    "@epa-wg/custom-element": "0.0.39"
+    "@epa-wg/custom-element": "workspace:^"
   },
   "devDependencies": {
     "@epa-wg/trang-native": "workspace:^",
@@ -59,8 +59,8 @@
     "packages/*"
   ],
   "web-types": [
-    "./node_modules/@epa-wg/custom-element/ide/web-types-dce.json",
-    "./node_modules/@epa-wg/custom-element/ide/web-types-xsl.json",
+    "./packages/custom-element/ide/web-types-dce.json",
+    "./packages/custom-element/ide/web-types-xsl.json",
     "./web_types.json"
   ],
   "packageManager": "yarn@4.12.0",

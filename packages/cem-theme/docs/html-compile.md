@@ -12,7 +12,7 @@ The source HTML remains development-oriented. Only the copied `dist` HTML receiv
 1. **Mirror source HTML** - Copy `src/**/*.html` to the same relative path under `dist/`.
 2. **Use dist-relative links** - Rewrite references to built token docs, generated CSS, local helper scripts, and package
    runtime files so each emitted HTML file points at files in `dist`.
-3. **Avoid node_modules at runtime** - Copy only referenced third-party runtime files into `dist/vendor/`.
+3. **Avoid node_modules at runtime** - Copy only referenced package runtime files into `dist/vendor/`.
 4. **Keep generator execution stable** - Run CSS extraction from `dist/lib/css-generators/*.html`, not from source HTML.
 
 ## Output Structure
@@ -50,7 +50,7 @@ packages/cem-theme/
 - Emitted HTML uses relative URLs from the emitted file location.
 - URLs that resolve into `packages/cem-theme/dist/` are rewritten to the matching relative dist path.
 - URLs that resolve into repo `node_modules/` are copied to `packages/cem-theme/dist/vendor/` and rewritten to the
-  copied file.
+  copied file. Workspace packages linked through `node_modules` follow the same rule.
 - URLs that resolve to local source JavaScript are copied to the matching path under `dist/` and rewritten if needed.
 - Relative links between source HTML files are rewritten to their mirrored `dist` locations, which usually preserves the
   same visible URL.

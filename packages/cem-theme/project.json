@@ -133,8 +133,8 @@
             "inputs": [
                 "{projectRoot}/src/**/*.html",
                 "{projectRoot}/src/**/*.js",
-                "{workspaceRoot}/node_modules/@epa-wg/custom-element/custom-element.js",
-                "{workspaceRoot}/node_modules/@epa-wg/custom-element/http-request.js",
+                "{workspaceRoot}/packages/custom-element/custom-element.js",
+                "{workspaceRoot}/packages/custom-element/http-request.js",
                 "{projectRoot}/dist/lib/**/*.xhtml"
             ],
             "outputs": [

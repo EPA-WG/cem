@@ -1,0 +1,59 @@
+<!doctype html>
+<html lang="en">
+    <head>
+        <meta charset="utf-8" />
+        <title>custom-element browser smoke fixture</title>
+    </head>
+    <body>
+        <custom-element tag="fixture-card" hidden>
+            <template>
+                <h3>{title}</h3>
+                <p><slot>empty</slot></p>
+            </template>
+        </custom-element>
+
+        <fixture-card title="Smoke">
+            <span>Payload</span>
+        </fixture-card>
+
+        <script type="module">
+            import IndexCustomElement from '../index.js';
+            import CustomElement, { CustomElement as NamedCustomElement } from '../custom-element.js';
+            import HttpRequestElement, { HttpRequestElement as NamedHttpRequestElement } from '../http-request.js';
+            import LocalStorageElement, { LocalStorageElement as NamedLocalStorageElement } from '../local-storage.js';
+            import LocationElement, { LocationElement as NamedLocationElement } from '../location-element.js';
+            import ModuleUrl, { ModuleUrl as NamedModuleUrl } from '../module-url.js';
+
+            const errors = [];
+            const check = (label, condition) => {
+                if (!condition) {
+                    errors.push(label);
+                }
+            };
+
+            check('index default export matches CustomElement', IndexCustomElement === CustomElement);
+            check('custom-element named/default exports match', NamedCustomElement === CustomElement);
+            check('http-request named/default exports match', NamedHttpRequestElement === HttpRequestElement);
+            check('local-storage named/default exports match', NamedLocalStorageElement === LocalStorageElement);
+            check('location-element named/default exports match', NamedLocationElement === LocationElement);
+            check('module-url named/default exports match', NamedModuleUrl === ModuleUrl);
+
+            check('custom-element is registered', customElements.get('custom-element') === CustomElement);
+            check('http-request is registered', customElements.get('http-request') === HttpRequestElement);
+            check('local-storage is registered', customElements.get('local-storage') === LocalStorageElement);
+            check('location-element is registered', customElements.get('location-element') === LocationElement);
+            check('module-url is registered', customElements.get('module-url') === ModuleUrl);
+
+            await customElements.whenDefined('fixture-card');
+            await new Promise((resolve) => requestAnimationFrame(resolve));
+            await new Promise((resolve) => setTimeout(resolve, 0));
+
+            const instance = document.querySelector('fixture-card');
+            check('legacy declaration registers produced tag', customElements.get('fixture-card') !== undefined);
+            check('legacy fixture renders host attribute text', instance?.querySelector('h3')?.textContent?.trim() === 'Smoke');
+            check('legacy fixture projects payload', instance?.querySelector('p')?.textContent?.trim() === 'Payload');
+
+            window.__customElementFixture = { done: true, errors };
+        </script>
+    </body>
+</html>
