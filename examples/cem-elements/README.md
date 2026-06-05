@@ -2,8 +2,9 @@
 
 Canonical CEM-ML templates that exercise the `@epa-wg/cem-elements` substrate authoring
 vocabulary (`cem:if`/`cem:choose` conditionals, `<slot>`, `<attribute>`, `<data>`/`<option>`
-payloads, and `{$datadom…}` host expressions with `??`). They are the C2.6 verification-gate
-fixtures (`docs/todo.md` §3.1 C2.6).
+payloads, `module-url`, and `{$datadom…}` host expressions with `??`). They are the C2.6
+verification-gate fixtures and Phase 3.1 production-gate material performance fixtures
+(`docs/todo.md` §3.1).
 
 ## How they ride the verification gate
 
@@ -18,6 +19,11 @@ stable), the same property `cem_ml_cli:e2e` checks for base fixtures.
 Semantic/render correctness of the same constructs is covered by the `cem_ql` render tests
 (`packages/cem_ql/tests/template_render.rs`) and the `@epa-wg/cem-elements` Storybook parity
 stories.
+
+The `material-*.cem` fixtures also ride the AC-N-1 benchmark suite through
+`nx run cem_ml:bench`. They measure first-paint parser/schema-machine/AST-builder budget for
+the material parity substrate vocabulary; render-time host bindings and module-map resolution
+remain covered by Storybook parity stories.
 
 ## The composite gate
 
@@ -36,4 +42,5 @@ The gate must be green before the temporary C1.5 TypeScript CEM-ML fallback adap
 | ------------------------ | -------------------------------------------------------------------------- |
 | `conditionals.cem`       | `cem:if` / `cem:choose` / `cem:when` / `cem:otherwise` with `@test` selection |
 | `data-document.cem`      | `<attribute>` defaults, `{$datadom…}` selection, `??` coalescing, AVT       |
+| `material-parity.cem`    | eight material component substrate shapes plus slots, slices, payloads, and `module-url` |
 | `slots-and-payload.cem`  | named + default `<slot>` with fallback, `<data>` / `<option>` payloads      |

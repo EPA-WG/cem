@@ -3,6 +3,9 @@
 //! - AC-N-1 (Tier A): parse + validate + transform any canonical fixture
 //!   in `examples/cem-ml/` and any HTML parity fixture in
 //!   `examples/semantic/` under **150 ms**, single-thread, cold cache.
+//!   The `<cem-element>` material parity substrate fixtures in
+//!   `examples/cem-elements/material-*.cem` ride the same budget
+//!   discipline for the Phase 3.1 production-ready gate.
 //!   CI tolerance is owned by [`cem_ml::benchmark::BenchmarkBudget`].
 //! - AC-N-2 (Tier A): tokenizer accumulators must scale with current
 //!   token / open-scope depth, not with document byte length. The proof
@@ -47,6 +50,17 @@ fn list_fixtures(rel: &str, ext: &str) -> Vec<std::path::PathBuf> {
     paths
 }
 
+fn list_fixtures_with_prefix(rel: &str, ext: &str, prefix: &str) -> Vec<std::path::PathBuf> {
+    list_fixtures(rel, ext)
+        .into_iter()
+        .filter(|path| {
+            path.file_name()
+                .and_then(|name| name.to_str())
+                .is_some_and(|name| name.starts_with(prefix))
+        })
+        .collect()
+}
+
 /// AC-N-1: every canonical CEM-ML fixture parses + validates under the
 /// effective 150 ms budget (tolerance from `CEM_ML_PERF_TOLERANCE`).
 #[test]
@@ -84,6 +98,35 @@ fn ac_n_1_html_parity_fixtures_under_budget() {
         assert!(
             run.within(&budget),
             "AC-N-1 fail for {path:?}: median {} ns > effective budget {} ns",
+            run.median_ns,
+            budget.effective_budget().as_nanos()
+        );
+    }
+}
+
+/// AC-N-1 / Phase 3.1 production-ready gate: material parity substrate
+/// fixtures parse + validate + transform under the same budget envelope
+/// as the base canonical fixtures. These fixtures use `<cem-element>`
+/// render-time vocabulary, so semantic acceptance remains owned by
+/// `cem-elements:verify-substrate`; this test owns first-paint budget
+/// proof for the parser/schema-machine/AST-builder pipeline.
+#[test]
+fn ac_n_1_cem_element_material_parity_fixtures_under_budget() {
+    if perf_skipped_for_build() {
+        return;
+    }
+    let budget = BenchmarkBudget::default_ac_n_1();
+    let paths = list_fixtures_with_prefix("../../examples/cem-elements", "cem", "material-");
+    assert!(
+        !paths.is_empty(),
+        "expected >= 1 material parity substrate fixture"
+    );
+    for path in &paths {
+        let bytes = std::fs::read(path).unwrap();
+        let run = run_pipeline_iterations_bare(&bytes, InputFormat::Cem, ITERATIONS);
+        assert!(
+            run.within(&budget),
+            "AC-N-1 material parity fail for {path:?}: median {} ns > effective budget {} ns",
             run.median_ns,
             budget.effective_budget().as_nanos()
         );
