@@ -81,6 +81,58 @@ export interface RenderPlan {
     nodes: RenderPlanNode[];
 }
 
+export interface RenderRevision {
+    instanceId: string;
+    dataRevision: string;
+    templateArtifactId: string;
+    scopePolicyStamp: string;
+    outputTarget: 'light-dom';
+}
+
+export interface RenderPlanIdentity extends RenderRevision {
+    producedTag: string;
+}
+
+export type DomPatchTarget = { kind: 'render-node'; id: string };
+
+export type SerializedNode =
+    | {
+          kind: 'element';
+          renderNodeId: string;
+          tagName: string;
+          attributes: Record<string, string>;
+          children: SerializedNode[];
+          sourceMapRef?: SourceMapRef;
+      }
+    | { kind: 'text'; renderNodeId: string; text: string; sourceMapRef?: SourceMapRef }
+    | { kind: 'comment'; renderNodeId: string; text: string; sourceMapRef?: SourceMapRef };
+
+export type PatchNodePayload = {
+    encoding: 'structured-node-v1';
+    node: SerializedNode;
+};
+
+export type DomPatchOp =
+    | { op: 'replace'; target: DomPatchTarget; node: PatchNodePayload }
+    | { op: 'setText'; target: DomPatchTarget; value: string }
+    | { op: 'setAttribute'; target: DomPatchTarget; name: string; value: string | null }
+    | {
+          op: 'replaceScope';
+          scopeId: string;
+          node: PatchNodePayload;
+          reason: 'first-render' | 'fallback' | 'policy' | 'recovery';
+      };
+
+export type PatchFrame =
+    | { type: 'begin'; transactionId: string; revision: RenderRevision }
+    | { type: 'ops'; transactionId: string; batchIndex: number; ops: DomPatchOp[] }
+    | { type: 'commit'; transactionId: string; nextRenderPlan: RenderPlanIdentity };
+
+export interface EdgePatchOptions {
+    batchSize?: number;
+    transactionId?: string;
+}
+
 export interface ProjectionPayload {
     slots?: Record<string, ProjectionPayloadNode[]>;
 }
@@ -179,6 +231,40 @@ export function projectLegacyTemplate(
     input: TemplateProjectionInput
 ): RenderPlan {
     return projectTemplateWith(source, input, projectLegacyNode, isTopLevelLegacyNonOutputNode);
+}
+
+export function renderPlanIdentity(plan: RenderPlan): RenderPlanIdentity {
+    return {
+        producedTag: plan.producedTag,
+        instanceId: plan.instanceId,
+        dataRevision: plan.dataRevision,
+        templateArtifactId: plan.templateArtifactId,
+        scopePolicyStamp: plan.scopePolicyStamp,
+        outputTarget: plan.outputTarget,
+    };
+}
+
+export function diffRenderPlansToPatchFrames(
+    previous: RenderPlan | null,
+    next: RenderPlan,
+    options: EdgePatchOptions = {}
+): PatchFrame[] {
+    const batchSize = options.batchSize ?? 16;
+    const transactionId = options.transactionId ?? patchTransactionId(next);
+    const ops = diffRenderPlans(previous, next);
+    const frames: PatchFrame[] = [{ type: 'begin', transactionId, revision: renderPlanIdentity(next) }];
+
+    for (let index = 0; index < ops.length; index += batchSize) {
+        frames.push({
+            type: 'ops',
+            transactionId,
+            batchIndex: index / batchSize,
+            ops: ops.slice(index, index + batchSize),
+        });
+    }
+
+    frames.push({ type: 'commit', transactionId, nextRenderPlan: renderPlanIdentity(next) });
+    return frames;
 }
 
 function projectTemplateWith(
@@ -455,6 +541,151 @@ function interpolateAttribute(value: string, values: Record<string, TemplateValu
 
 function valueToText(value: TemplateValue): string {
     return value === null ? '' : String(value);
+}
+
+function diffRenderPlans(previous: RenderPlan | null, next: RenderPlan): DomPatchOp[] {
+    if (!previous) {
+        return next.nodes.map((node) => ({
+            op: 'replaceScope',
+            scopeId: next.producedTag,
+            node: structuredPatchNode(node),
+            reason: 'first-render',
+        }));
+    }
+
+    if (
+        previous.producedTag !== next.producedTag ||
+        previous.templateArtifactId !== next.templateArtifactId ||
+        previous.outputTarget !== next.outputTarget ||
+        previous.nodes.length !== next.nodes.length
+    ) {
+        return next.nodes.map((node) => ({
+            op: 'replaceScope',
+            scopeId: next.producedTag,
+            node: structuredPatchNode(node),
+            reason: 'fallback',
+        }));
+    }
+
+    const ops: DomPatchOp[] = [];
+    for (let index = 0; index < next.nodes.length; index += 1) {
+        diffRenderNode(previous.nodes[index], next.nodes[index], ops);
+    }
+    return ops;
+}
+
+function diffRenderNode(previous: RenderPlanNode, next: RenderPlanNode, ops: DomPatchOp[]): void {
+    if (previous.kind !== next.kind || renderNodeId(previous) !== renderNodeId(next)) {
+        ops.push({ op: 'replace', target: renderNodeTarget(previous), node: structuredPatchNode(next) });
+        return;
+    }
+
+    if (previous.kind === 'text' && next.kind === 'text') {
+        if (previous.text !== next.text) {
+            ops.push({ op: 'setText', target: renderNodeTarget(previous), value: next.text });
+        }
+        return;
+    }
+
+    if (previous.kind === 'comment' && next.kind === 'comment') {
+        if (previous.text !== next.text) {
+            ops.push({ op: 'setText', target: renderNodeTarget(previous), value: next.text });
+        }
+        return;
+    }
+
+    if (previous.kind === 'element' && next.kind === 'element') {
+        if (
+            previous.tag !== next.tag ||
+            previous.namespace !== next.namespace ||
+            previous.children.length !== next.children.length
+        ) {
+            ops.push({ op: 'replace', target: renderNodeTarget(previous), node: structuredPatchNode(next) });
+            return;
+        }
+
+        diffAttributes(previous, next, ops);
+        for (let index = 0; index < next.children.length; index += 1) {
+            diffRenderNode(previous.children[index], next.children[index], ops);
+        }
+        return;
+    }
+
+    ops.push({ op: 'replace', target: renderNodeTarget(previous), node: structuredPatchNode(next) });
+}
+
+function diffAttributes(previous: Extract<RenderPlanNode, { kind: 'element' }>, next: Extract<RenderPlanNode, { kind: 'element' }>, ops: DomPatchOp[]): void {
+    const previousAttributes = attributeRecord(previous.attributes);
+    const nextAttributes = attributeRecord(next.attributes);
+    const target = renderNodeTarget(previous);
+    for (const name of Object.keys(previousAttributes).sort()) {
+        if (!(name in nextAttributes)) {
+            ops.push({ op: 'setAttribute', target, name, value: null });
+        }
+    }
+    for (const name of Object.keys(nextAttributes).sort()) {
+        if (previousAttributes[name] !== nextAttributes[name]) {
+            ops.push({ op: 'setAttribute', target, name, value: nextAttributes[name] });
+        }
+    }
+}
+
+function attributeRecord(attributes: readonly RenderPlanAttribute[]): Record<string, string> {
+    return Object.fromEntries(attributes.map((attribute) => [attribute.name, attribute.value]));
+}
+
+function renderNodeId(node: RenderPlanNode): string {
+    return node.kind === 'element' ? node.renderNodeId : textNodePatchId(node);
+}
+
+function renderNodeTarget(node: RenderPlanNode): DomPatchTarget {
+    return { kind: 'render-node', id: renderNodeId(node) };
+}
+
+function structuredPatchNode(node: RenderPlanNode): PatchNodePayload {
+    return { encoding: 'structured-node-v1', node: serializeRenderNode(node) };
+}
+
+function serializeRenderNode(node: RenderPlanNode): SerializedNode {
+    if (node.kind === 'text' || node.kind === 'comment') {
+        return {
+            kind: node.kind,
+            renderNodeId: textNodePatchId(node),
+            text: node.text,
+            sourceMapRef: node.sourceMapRef,
+        };
+    }
+
+    return {
+        kind: 'element',
+        renderNodeId: node.renderNodeId,
+        tagName: node.tag,
+        attributes: attributeRecord(node.attributes),
+        children: node.children.map(serializeRenderNode),
+        sourceMapRef: node.sourceMapRef,
+    };
+}
+
+function textNodePatchId(node: Extract<RenderPlanNode, { kind: 'text' | 'comment' }>): string {
+    return node.sourceMapRef?.frame ? `text:${node.sourceMapRef.frame}` : `text:${stableTextHash(node.text)}`;
+}
+
+function stableTextHash(text: string): string {
+    let hash = 0;
+    for (let index = 0; index < text.length; index += 1) {
+        hash = (hash * 31 + text.charCodeAt(index)) >>> 0;
+    }
+    return hash.toString(16);
+}
+
+function patchTransactionId(plan: RenderPlan): string {
+    return [
+        'patch',
+        plan.instanceId,
+        plan.templateArtifactId,
+        plan.dataRevision,
+        plan.scopePolicyStamp,
+    ].join(':');
 }
 
 function interpolateLegacy(text: string, input: TemplateProjectionInput): string {

@@ -394,8 +394,14 @@ gate is green.
       `<script type="application/json" data-cem-hydration="snapshot">` metadata. The client runtime preserves the
       server render-plan artifact/data revision on first connect, keeps the payload data island, and then handles
       ordinary attribute invalidation. `nx run cem-elements:test/build/lint` are green.
-- [ ] Add edge-processing fixture using serialized data snapshot plus previous render-plan identity to produce a
-      patch-frame stream without access to live browser DOM.
+- [x] Add edge-processing fixture using serialized data snapshot plus previous render-plan identity to produce a
+      patch-frame stream without access to live browser DOM. Landed in
+      [`projection.ts`](../packages/cem-elements/src/lib/projection.ts) and
+      [`EdgePatchFramesFromSerializedSnapshot`](../packages/cem-elements/src/lib/cem-elements.stories.ts): the pure
+      `diffRenderPlansToPatchFrames(previous, next)` helper emits `begin`, batched `ops`, and `commit` frames from
+      serializable render plans only. The fixture proves a stable render-node text patch and commit identity from two
+      serialized `DataIslandSnapshot` revisions, with `replaceScope` reserved for first-render/fallback cases.
+      `nx run cem-elements:test/build/lint` are green.
 - [ ] Verify privacy/export policy for browser-to-edge snapshots: denied fields are omitted or redacted before
       leaving the browser context.
 - [ ] Decide the first edge render-state storage model: content-addressed cache only, revisioned KV/document records,

@@ -648,6 +648,14 @@ structured-clone records. Large batches MAY later replace node or op payloads wi
 transferable binary sections while preserving the same `PatchFrame`, `DomPatchPlan`,
 and `PatchApplier` lifecycle.
 
+The Phase 3.5 edge-processing fixture uses the pure `RenderPlan` diff path in
+`projection.ts`: serialized template source plus `DataIslandSnapshot` projects to the
+next plan, then `diffRenderPlansToPatchFrames(previous, next)` emits
+`begin` / batched `ops` / `commit` frames without live DOM access. The first supported
+fine-grained diff covers stable render-node-id text and attribute changes; first render,
+template changes, root-count changes, or unsupported structural deltas intentionally
+fall back to `replaceScope` until a fuller move/insert/remove planner lands.
+
 ### 4.3 Phase 3 MVP topology
 
 The Phase 3 MVP topology is browser-local processing with a worker-backed primary path

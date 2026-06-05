@@ -8,9 +8,12 @@ import {
     type DataIslandSnapshot,
 } from './cem-elements.js';
 import {
+    diffRenderPlansToPatchFrames,
     materializeRenderPlan,
     projectTemplate,
     readTemplateSource,
+    renderPlanIdentity,
+    type PatchFrame,
     type RenderPlan,
     type RenderPlanNode,
     type TemplateSourceNode,
@@ -1737,6 +1740,55 @@ export const SsrHydrationFromSerializedSnapshot: Story = {
     },
 };
 
+export const EdgePatchFramesFromSerializedSnapshot: Story = {
+    render: () => storyPanel('Edge patch frames', 'serialized snapshot + previous render-plan identity → patch stream'),
+    play: () => {
+        const templateHtml =
+            '<attribute name="label">Fallback</attribute>' +
+            '<article class="edge-card" data-kind="summary">' +
+            '<h2>${$label}</h2>' +
+            '<p class="detail"><slot name="detail"></slot></p>' +
+            '</article>';
+        const template = document.createElement('template');
+        template.innerHTML = templateHtml;
+        const source = readTemplateSource(template.content);
+
+        const previousSnapshot = edgeProjectionSnapshot('Edge Before', '11');
+        const nextSnapshot = edgeProjectionSnapshot('Edge After', '12');
+        const previousPlan = projectTemplate(source, { snapshot: previousSnapshot, values: { label: 'Edge Before' } });
+        const nextPlan = projectTemplate(source, { snapshot: nextSnapshot, values: { label: 'Edge After' } });
+        const frames = diffRenderPlansToPatchFrames(previousPlan, nextPlan, {
+            batchSize: 1,
+            transactionId: 'edge-tx-1',
+        });
+
+        assertEqual(frames[0].type, 'begin', 'edge stream starts with a begin frame');
+        assertEqual(frames[0].transactionId, 'edge-tx-1', 'all frames share the edge transaction id');
+        assertEqual(
+            frames[0].revision.dataRevision,
+            '12',
+            'begin frame names the next serialized snapshot revision'
+        );
+
+        const ops = opsFromPatchFrames(frames);
+        const textPatch = ops.find((op) => op.op === 'setText');
+        assert(textPatch?.op === 'setText', 'edge diff emits a text patch without live DOM access');
+        assertEqual(textPatch.value, 'Edge After', 'text patch carries the next snapshot value');
+        assert(
+            !ops.some((op) => op.op === 'replaceScope'),
+            'same-template edge diffs use stable render-node patches instead of scope replacement'
+        );
+
+        const commit = frames.at(-1);
+        assert(commit?.type === 'commit', 'edge stream ends with a commit frame');
+        assertEqual(
+            JSON.stringify(commit.nextRenderPlan),
+            JSON.stringify(renderPlanIdentity(nextPlan)),
+            'commit carries the next render-plan identity for edge state storage'
+        );
+    },
+};
+
 export const DeclarationDiagnosticsAreExposed: Story = {
     render: () => storyPanel('Declaration diagnostics', 'invalid declaration shapes surface through diagnosticsFor'),
     play: () => {
@@ -2062,6 +2114,49 @@ function projectionSnapshot(
         validationState: {},
         eventPayloads: {},
     };
+}
+
+function edgeProjectionSnapshot(label: string, dataRevision: string): DataIslandSnapshot {
+    const snapshot = projectionSnapshot('story-edge-card', { label });
+    snapshot.instanceId = 'edge-instance-1';
+    snapshot.declarationTag = 'cem-element-story-edge';
+    snapshot.templateArtifactId = 'edge-template-artifact-1';
+    snapshot.dataRevision = dataRevision;
+    snapshot.scopePolicyStamp = 'edge-scope';
+    snapshot.payload = {
+        ...emptySerializedPayload(),
+        text: 'Edge detail',
+        childCount: 1,
+        nodes: [
+            {
+                kind: 'element',
+                key: 'edge-payload-0',
+                tag: 'span',
+                namespace: null,
+                attributes: { slot: 'detail' },
+                slot: 'detail',
+                children: [{ kind: 'text', key: 'edge-payload-0/0', text: 'Edge detail' }],
+            },
+        ],
+        slots: {
+            detail: [
+                {
+                    kind: 'element',
+                    key: 'edge-payload-0',
+                    tag: 'span',
+                    namespace: null,
+                    attributes: { slot: 'detail' },
+                    slot: 'detail',
+                    children: [{ kind: 'text', key: 'edge-payload-0/0', text: 'Edge detail' }],
+                },
+            ],
+        },
+    };
+    return snapshot;
+}
+
+function opsFromPatchFrames(frames: readonly PatchFrame[]) {
+    return frames.flatMap((frame) => (frame.type === 'ops' ? frame.ops : []));
 }
 
 function emptySerializedPayload(): DataIslandSnapshot['payload'] {
