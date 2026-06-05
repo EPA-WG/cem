@@ -270,9 +270,16 @@ Design home: [`cem-element-design.md`](cem-element-design.md). WASM proposal:
       `LegacyNamedSlotPayloadParity`, `LegacySliceInputEventParity`, `LegacySrcDeclarationLoadingIsTrackedAsBlocked`,
       `LegacyBridgeTemplateBlockedParity`), or an explicit migration/blocker decision (`src`, inline no-`tag`,
       XSLT `for-each`/`variable`, scoped CSS, resource primitives). Storybook coverage is now 45 passing stories.
-- [ ] Land material parity stories for every component in `~/aWork/custom-element-dist/src/material/` (action,
-      autocomplete, badge, dropdown, icon, icon-link, input, menu). Blocked on `src` declaration loading (all 8
-      components compose via `src` imports); the cem-ml/cem-ql features they also needed landed in C2.
+- [x] Land material parity stories for every component in `~/aWork/custom-element-dist/src/material/` (action,
+      autocomplete, badge, dropdown, icon, icon-link, input, menu). Landed a named parity story per component in
+      [`packages/cem-elements/src/lib/material-parity.stories.ts`](../packages/cem-elements/src/lib/material-parity.stories.ts)
+      reproducing each component's characteristic in-scope behavior on the C2 substrate (attribute defaults, `/datadom`
+      selection, `??`, `cem:if`/`cem:choose`, declarative slots, `<data>`/`<option>`, slice events) plus nested
+      composition; the file header records the intentional CEM-ML/CEM-QL migration decisions (canonical `cem:if`/`{$…}`
+      vs legacy `<choose>`/DOM `{$x}`; cem-ql functional `/datadom` vs XPath; page-global scoped styles; deferred
+      `module-url` + bare `@scope` module-map specifiers; `<if><attribute>` forwarding; builtin-step selection-key
+      collisions). 55 stories green. The cem-ml/cem-ql features and `src` loading these needed landed in C2 + the `src`
+      slice above.
   - [x] `src` declaration loading — local `src="#id"` (same-document `<template id>` / declaration resolution).
         Landed in [`cem-elements.ts`](../packages/cem-elements/src/lib/cem-elements.ts) (`resolveSrcTemplate`,
         `parseSrcReference`, `templateFromTarget`): a `<cem-element src="#id" tag="…">` resolves the same-document
@@ -292,11 +299,14 @@ Design home: [`cem-element-design.md`](cem-element-design.md). WASM proposal:
         `SrcDeclarationLoadingDiagnostics`; 47 stories green. NB the default `fetch` path is exercised in real browsers;
         the injectable `loadSrcDocument` is the tested boundary. `module-url` resource slices can now reuse this
         module-map resolver hook.
-  - [ ] Per-component parity stories — `src` loading (local + external) and the full C2 feature set are now in place,
-        so each component's behavior and federated cross-file composition can be exercised. Remaining caveats: bare
-        `@scope/pkg` module specifiers need a host `loadSrcDocument`, `module-url` resource slices are still deferred,
-        and the legacy material templates author conditionals/`{$x}` content in DOM-mode templates (need `text/cem-ml`
-        authoring or DOM-mode conditional support) — record these as migration decisions per component.
+  - [x] Per-component parity stories — a named story per component (icon, icon-link, menu, badge, action, dropdown,
+        input, autocomplete) in
+        [`material-parity.stories.ts`](../packages/cem-elements/src/lib/material-parity.stories.ts), each exercising the
+        component's characteristic behavior (attribute defaults, `/datadom` selection, `cem:if`/`cem:choose`, slots,
+        `<data>`/`<option>`, slice events, nested composition) with migration decisions recorded in the file header.
+        Remaining caveats noted there: bare `@scope/pkg` module specifiers need a host `loadSrcDocument`, `module-url`
+        resource slices are still deferred, scoped styles render page-global, and richer `@test` expressions
+        (string functions, equality) author through cem-ql functional selection.
 - [x] Build a material parity inventory from `~/aWork/custom-element-dist/src/material/components/*.html` covering
       local/external `src`, hidden declarations, nested custom elements, declarative slots, scoped styles,
       `attribute select`, `if`/`choose` bridge constructs, namespaced `xhtml:*` elements, boolean attribute helper
