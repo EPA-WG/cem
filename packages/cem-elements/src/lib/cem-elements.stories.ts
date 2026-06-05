@@ -2111,6 +2111,27 @@ export const EdgeRenderStateHybridStorageModel: Story = {
             'currentSnapshot',
             'corrupt snapshot content reports the failed pointer field'
         );
+        assert(explicitEmptyWrite.record.currentTemplateArtifact, 'explicit edge state stores a template artifact address');
+        const missingTemplateContents = readEdgeRenderStateContents(
+            new ContentOverrideStore(store, explicitEmptyWrite.record.currentTemplateArtifact, 'missing'),
+            explicitEmptyWrite.record
+        );
+        assert(!missingTemplateContents.ok, 'contents helper fails closed when addressed template artifact is missing');
+        assertEqual(
+            missingTemplateContents.reason === 'missing-content' ? missingTemplateContents.field : '',
+            'currentTemplateArtifact',
+            'missing template artifact reports the failed pointer field'
+        );
+        const corruptTemplateContents = readEdgeRenderStateContents(
+            new ContentOverrideStore(store, explicitEmptyWrite.record.currentTemplateArtifact, 'replace', { nodes: [] }),
+            explicitEmptyWrite.record
+        );
+        assert(!corruptTemplateContents.ok, 'contents helper fails closed when addressed template artifact is corrupt');
+        assertEqual(
+            corruptTemplateContents.reason === 'content-address-mismatch' ? corruptTemplateContents.field : '',
+            'currentTemplateArtifact',
+            'corrupt template artifact reports the failed pointer field'
+        );
         const missingRenderPlanContents = readEdgeRenderStateContents(
             new ContentOverrideStore(store, explicitEmptyWrite.record.currentRenderPlan, 'missing'),
             explicitEmptyWrite.record

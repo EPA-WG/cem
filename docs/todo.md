@@ -425,8 +425,8 @@ gate is green.
       stale-write rejection, sanitized snapshot retrieval, and explicit null snapshot/empty HTML content addressing,
       store-backed patch-frame generation from the previous content-addressed render plan, projection from serialized
       source/snapshot input, first-render replacement frames, whole-record content verification with field-specific
-      missing-content/content-address mismatch failures for required and optional pointers, and render-revision
-      mismatch handling.
+      missing-content/content-address mismatch failures for every pointer field, and render-revision mismatch
+      handling.
 
 ## Phase 3.6 — `@epa-wg/custom-element` Monorepo Adoption
 
