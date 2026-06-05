@@ -177,6 +177,15 @@ export interface EdgeRenderStateAdvanceOptions extends EdgeRenderStateWriteOptio
     patchOptions?: EdgePatchOptions;
 }
 
+export interface EdgeProjectionAdvanceInput {
+    source: readonly TemplateSourceNode[];
+    projection: TemplateProjectionInput;
+    sanitizedSnapshot?: unknown;
+    renderedHtml?: string;
+    privacyPolicyStamp?: string;
+    stateKey?: string;
+}
+
 export interface EdgeRenderStateStore {
     putContent(kind: EdgeContentKind, value: unknown): EdgeContentAddress;
     getContent<T = unknown>(address: EdgeContentAddress): T | undefined;
@@ -410,6 +419,24 @@ export function advanceEdgeRenderState(
         frames: diffRenderPlansToPatchFrames(previousRenderPlan, input.renderPlan, options.patchOptions),
         record: write.record,
     };
+}
+
+export function projectAndAdvanceEdgeRenderState(
+    store: EdgeRenderStateStore,
+    input: EdgeProjectionAdvanceInput,
+    options: EdgeRenderStateAdvanceOptions = {}
+): EdgeRenderStateAdvanceResult {
+    return advanceEdgeRenderState(
+        store,
+        {
+            renderPlan: projectTemplate(input.source, input.projection),
+            sanitizedSnapshot: input.sanitizedSnapshot,
+            renderedHtml: input.renderedHtml,
+            privacyPolicyStamp: input.privacyPolicyStamp,
+            stateKey: input.stateKey,
+        },
+        options
+    );
 }
 
 export class InMemoryEdgeRenderStateStore implements EdgeRenderStateStore {

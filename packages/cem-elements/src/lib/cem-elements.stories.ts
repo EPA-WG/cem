@@ -16,6 +16,7 @@ import {
     edgeContentAddress,
     edgeRenderStateRevisionMatches,
     materializeRenderPlan,
+    projectAndAdvanceEdgeRenderState,
     projectTemplate,
     readTemplateSource,
     renderPlanIdentity,
@@ -2046,6 +2047,43 @@ export const EdgeRenderStateHybridStorageModel: Story = {
             helperStore.readRecord(helperInitial.record.stateKey)?.etag,
             advanced.record.etag,
             'store-backed edge advance commits the next pointer record'
+        );
+
+        const projectionStore = new InMemoryEdgeRenderStateStore();
+        const projectionSeed = projectAndAdvanceEdgeRenderState(
+            projectionStore,
+            {
+                source,
+                projection: { snapshot: previousSnapshot, values: { label: 'Edge Before' } },
+                privacyPolicyStamp: 'edge-export-policy-v1',
+                sanitizedSnapshot: exportDataIslandSnapshotForEdge(previousSnapshot, {
+                    privacyPolicyStamp: 'edge-export-policy-v1',
+                    fields: { hostAttributes: 'allow', payload: 'redact' },
+                }),
+            }
+        );
+        assert(projectionSeed.ok, 'project-and-advance seeds edge state from serializable source and snapshot');
+        const projectionAdvance = projectAndAdvanceEdgeRenderState(
+            projectionStore,
+            {
+                source,
+                projection: { snapshot: nextSnapshot, values: { label: 'Edge After' } },
+                privacyPolicyStamp: 'edge-export-policy-v1',
+                sanitizedSnapshot,
+                stateKey: projectionSeed.record.stateKey,
+            },
+            { patchOptions: { transactionId: 'edge-project-tx-1' } }
+        );
+        assert(projectionAdvance.ok, 'project-and-advance renders and advances from serializable edge inputs');
+        assertEqual(
+            opsFromPatchFrames(projectionAdvance.frames).find((op) => op.op === 'setText')?.value,
+            'Edge After',
+            'project-and-advance emits patch frames from the projected render plan'
+        );
+        assertEqual(
+            projectionStore.readRecord(projectionSeed.record.stateKey)?.renderRevision.dataRevision,
+            '22',
+            'project-and-advance commits the projected render revision'
         );
 
         const rejectedAdvance = advanceEdgeRenderState(
