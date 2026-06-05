@@ -177,6 +177,38 @@ export type EdgeContentReadResult<T = unknown> =
           actual: EdgeContentAddress;
       };
 
+export type EdgeRenderStateContentField =
+    | 'currentTemplateArtifact'
+    | 'currentRenderPlan'
+    | 'currentSnapshot'
+    | 'currentHtml';
+
+export interface EdgeRenderStateContents {
+    record: EdgeRenderStateRecord;
+    templateArtifact?: unknown;
+    renderPlan: RenderPlan;
+    sanitizedSnapshot?: unknown;
+    renderedHtml?: string;
+}
+
+export type EdgeRenderStateContentsReadResult =
+    | { ok: true; contents: EdgeRenderStateContents }
+    | {
+          ok: false;
+          reason: 'missing-content';
+          record: EdgeRenderStateRecord;
+          field: EdgeRenderStateContentField;
+          address: EdgeContentAddress;
+      }
+    | {
+          ok: false;
+          reason: 'content-address-mismatch';
+          record: EdgeRenderStateRecord;
+          field: EdgeRenderStateContentField;
+          expected: EdgeContentAddress;
+          actual: EdgeContentAddress;
+      };
+
 export type EdgeRenderStateWriteResult =
     | { ok: true; record: EdgeRenderStateRecord }
     | { ok: false; reason: 'etag-mismatch'; current: EdgeRenderStateRecord | undefined };
@@ -426,6 +458,69 @@ export function readEdgeContent<T = unknown>(
         return { ok: false, reason: 'content-address-mismatch', expected: address, actual };
     }
     return { ok: true, address, value };
+}
+
+export function readEdgeRenderStateContents(
+    store: EdgeRenderStateStore,
+    record: EdgeRenderStateRecord
+): EdgeRenderStateContentsReadResult {
+    const renderPlan = readEdgeContent<RenderPlan>(store, record.currentRenderPlan);
+    if (!renderPlan.ok) {
+        return edgeContentFailureToRecordFailure(record, 'currentRenderPlan', renderPlan);
+    }
+
+    const contents: EdgeRenderStateContents = {
+        record,
+        renderPlan: renderPlan.value,
+    };
+
+    if (record.currentTemplateArtifact) {
+        const templateArtifact = readEdgeContent(store, record.currentTemplateArtifact);
+        if (!templateArtifact.ok) {
+            return edgeContentFailureToRecordFailure(record, 'currentTemplateArtifact', templateArtifact);
+        }
+        contents.templateArtifact = templateArtifact.value;
+    }
+    if (record.currentSnapshot) {
+        const sanitizedSnapshot = readEdgeContent(store, record.currentSnapshot);
+        if (!sanitizedSnapshot.ok) {
+            return edgeContentFailureToRecordFailure(record, 'currentSnapshot', sanitizedSnapshot);
+        }
+        contents.sanitizedSnapshot = sanitizedSnapshot.value;
+    }
+    if (record.currentHtml) {
+        const renderedHtml = readEdgeContent<string>(store, record.currentHtml);
+        if (!renderedHtml.ok) {
+            return edgeContentFailureToRecordFailure(record, 'currentHtml', renderedHtml);
+        }
+        contents.renderedHtml = renderedHtml.value;
+    }
+
+    return { ok: true, contents };
+}
+
+function edgeContentFailureToRecordFailure(
+    record: EdgeRenderStateRecord,
+    field: EdgeRenderStateContentField,
+    failure: Exclude<EdgeContentReadResult, { ok: true }>
+): EdgeRenderStateContentsReadResult {
+    if (failure.reason === 'missing-content') {
+        return {
+            ok: false,
+            reason: 'missing-content',
+            record,
+            field,
+            address: failure.address,
+        };
+    }
+    return {
+        ok: false,
+        reason: 'content-address-mismatch',
+        record,
+        field,
+        expected: failure.expected,
+        actual: failure.actual,
+    };
 }
 
 export function advanceEdgeRenderState(

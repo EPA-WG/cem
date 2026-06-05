@@ -18,8 +18,9 @@ import {
     materializeRenderPlan,
     projectAndAdvanceEdgeRenderState,
     projectTemplate,
-    readTemplateSource,
     readEdgeContent,
+    readEdgeRenderStateContents,
+    readTemplateSource,
     renderPlanIdentity,
     type EdgeContentAddress,
     type EdgeContentKind,
@@ -2048,6 +2049,7 @@ export const EdgeRenderStateHybridStorageModel: Story = {
         const explicitEmptyWrite = store.writeRenderState(
             {
                 renderPlan: nextPlan,
+                templateArtifact: source,
                 privacyPolicyStamp: 'edge-export-policy-v1',
                 sanitizedSnapshot: null,
                 renderedHtml: '',
@@ -2069,6 +2071,20 @@ export const EdgeRenderStateHybridStorageModel: Story = {
         );
         assert(explicitEmptyHtml.ok, 'empty rendered HTML reads back from content-addressed storage');
         assertEqual(explicitEmptyHtml.value, '', 'empty rendered HTML content is preserved');
+        const explicitContents = readEdgeRenderStateContents(store, explicitEmptyWrite.record);
+        assert(explicitContents.ok, 'edge state contents helper verifies every pointer in a record');
+        assertEqual(explicitContents.contents.renderPlan.dataRevision, '22', 'contents helper returns the render plan');
+        assertEqual(
+            Array.isArray(explicitContents.contents.templateArtifact),
+            true,
+            'contents helper returns the template artifact when addressed'
+        );
+        assertEqual(
+            explicitContents.contents.sanitizedSnapshot,
+            null,
+            'contents helper preserves an explicit null sanitized snapshot'
+        );
+        assertEqual(explicitContents.contents.renderedHtml, '', 'contents helper preserves empty rendered HTML');
 
         const helperStore = new InMemoryEdgeRenderStateStore();
         const helperInitial = helperStore.writeRenderState({
