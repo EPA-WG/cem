@@ -432,11 +432,45 @@ gate is green.
 
 Roadmap: [`../roadmap.md` §Phase 3.6](../roadmap.md). Starts after Phase 3.5 is green.
 
-- [ ] Migrate `@epa-wg/custom-element` from `~/aWork/custom-element/` into `packages/custom-element/`. Preserve
-      published npm identity and history.
-- [ ] Make the next major of `@epa-wg/custom-element` keep publishing `<custom-element>` with an implementation that
-      inherits the `cem-element` substrate.
-- [ ] Verify the migrated package against legacy parity, material parity, and Phase 3.5 Edge/SSR follow-up fixtures.
+- [ ] Set the migration scope and branch strategy for moving `@epa-wg/custom-element` from
+      `~/aWork/custom-element/` into `packages/custom-element/`, including how published npm identity and source
+      history will be preserved.
+- [ ] Capture the migration baseline before importing code: current npm version, published package name, entrypoints
+      (`custom-element.js`, `http-request.js`, IDE metadata, demos/docs), license/readme files, side-effect module
+      behavior, and every root/package reference to `node_modules/@epa-wg/custom-element`.
+- [ ] Import the legacy source into `packages/custom-element/` with history-preserving mechanics where practical.
+      Keep the POC as a functional reference only; do not let its XSLT/XPath implementation become the new
+      architecture decision point.
+- [ ] Scaffold the workspace package as the future `@epa-wg/custom-element` publish unit: package name, Nx targets,
+      TypeScript/build output, package exports, browser module paths, IDE assets, README/docs, and release metadata
+      must preserve the published npm identity while allowing a next-major implementation.
+- [ ] Define the adapter boundary from `<custom-element>` to the `cem-element` substrate. The package must keep
+      publishing `<custom-element>` as the public tag, but internally translate legacy declaration shape (`tag`,
+      `src`, inline templates, data islands, slices, host attributes, and event-to-data wiring) into the same
+      declaration/runtime records used by `packages/cem-elements`; it must not retain a separate parser/render engine.
+- [ ] Decide the bridge-template policy for the next major using fixture evidence. Start by keeping
+      `<template lang="custom-element-v0">` for the migration window, then explicitly keep, migrate, or drop each
+      adoption-phase legacy gap from
+      [`legacy-parity-inventory.md`](../packages/cem-elements/docs/legacy-parity-inventory.md): omitted `tag`,
+      full XSLT-only `for-each`/`variable`, broad XPath functions, multiple slice events/targets, resource slices,
+      and true scoped CSS behavior.
+- [ ] Port or replace package companion modules and resource primitives deliberately. `http-request.js`, demo
+      resource helpers, `local-storage`, `location-element`, and `module-url` compatibility should either become
+      substrate-backed primitives, documented shims, or explicit non-goals for the next major.
+- [ ] Rewire downstream consumers to the workspace package without breaking existing HTML generator workflows.
+      Update root dependencies and `packages/cem-theme` script/docs references that currently load
+      `node_modules/@epa-wg/custom-element/{custom-element.js,http-request.js}`; keep browser-served paths stable or
+      document the new import path.
+- [ ] Add package-local verification fixtures for `@epa-wg/custom-element`: legacy docs/demo parity, migrated
+      `<custom-element>` adapter behavior, companion module behavior, package export/import smoke tests, and
+      release-pack artifact shape. Reuse the existing `cem-elements` Storybook parity stories as acceptance fixtures
+      instead of duplicating behavior assertions.
+- [ ] Verify the migrated package against all required gates: legacy parity inventory, material parity inventory,
+      Phase 3.5 Edge/SSR fixtures, `cem-elements:verify`, the new `custom-element` package build/test/lint targets,
+      and any affected `cem-theme` HTML/token generator workflows.
+- [ ] Publish-readiness pass for the next major: changelog, migration guide from external POC package to workspace
+      package, bridge-window support matrix, breaking-change list, npm package contents check, and rollback plan for
+      consumers that still depend on the old XSLT-only surface.
 
 ## Phase 5 — Figma UI Kit Token Validation (`examples/figma`)
 
