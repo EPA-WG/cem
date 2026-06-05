@@ -418,7 +418,8 @@ gate is green.
       in [`cem-element-design.md`](cem-element-design.md),
       [`cem-element-wasm-proposal.md`](cem-element-wasm-proposal.md),
       [`projection.ts`](../packages/cem-elements/src/lib/projection.ts) (`EdgeRenderStateRecord`,
-      `InMemoryEdgeRenderStateStore`, `advanceEdgeRenderState`, `projectAndAdvanceEdgeRenderState`), and
+      `InMemoryEdgeRenderStateStore`, `readEdgeContent`, `advanceEdgeRenderState`,
+      `projectAndAdvanceEdgeRenderState`), and
       [`EdgeRenderStateHybridStorageModel`](../packages/cem-elements/src/lib/cem-elements.stories.ts), including
       content-addressed writes, ETag compare-and-swap, stale-write rejection, sanitized snapshot retrieval, and
       store-backed patch-frame generation from the previous content-addressed render plan, projection from serialized

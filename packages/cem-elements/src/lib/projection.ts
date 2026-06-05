@@ -165,6 +165,16 @@ export interface EdgeRenderStateInput {
     stateKey?: string;
 }
 
+export type EdgeContentReadResult<T = unknown> =
+    | { ok: true; address: EdgeContentAddress; value: T }
+    | { ok: false; reason: 'missing-content'; address: EdgeContentAddress }
+    | {
+          ok: false;
+          reason: 'content-address-mismatch';
+          expected: EdgeContentAddress;
+          actual: EdgeContentAddress;
+      };
+
 export type EdgeRenderStateWriteResult =
     | { ok: true; record: EdgeRenderStateRecord }
     | { ok: false; reason: 'etag-mismatch'; current: EdgeRenderStateRecord | undefined };
@@ -392,6 +402,21 @@ export function edgeRenderStateRevisionMatches(
     return renderRevisionKey(record.renderRevision) === renderRevisionKey(expectedRevision);
 }
 
+export function readEdgeContent<T = unknown>(
+    store: EdgeRenderStateStore,
+    address: EdgeContentAddress
+): EdgeContentReadResult<T> {
+    const value = store.getContent<T>(address);
+    if (value === undefined) {
+        return { ok: false, reason: 'missing-content', address };
+    }
+    const actual = edgeContentAddress(address.kind, value);
+    if (actual.key !== address.key) {
+        return { ok: false, reason: 'content-address-mismatch', expected: address, actual };
+    }
+    return { ok: true, address, value };
+}
+
 export function advanceEdgeRenderState(
     store: EdgeRenderStateStore,
     input: EdgeRenderStateInput,
@@ -401,8 +426,8 @@ export function advanceEdgeRenderState(
     const current = store.readRecord(stateKey);
     let previousRenderPlan: RenderPlan | null = null;
     if (current) {
-        const storedPreviousPlan = store.getContent<RenderPlan>(current.currentRenderPlan);
-        if (!storedPreviousPlan) {
+        const storedPreviousPlan = readEdgeContent<RenderPlan>(store, current.currentRenderPlan);
+        if (!storedPreviousPlan.ok && storedPreviousPlan.reason === 'missing-content') {
             return {
                 ok: false,
                 reason: 'missing-render-plan',
@@ -410,17 +435,16 @@ export function advanceEdgeRenderState(
                 address: current.currentRenderPlan,
             };
         }
-        const actualAddress = edgeContentAddress('render-plan', storedPreviousPlan);
-        if (actualAddress.key !== current.currentRenderPlan.key) {
+        if (!storedPreviousPlan.ok) {
             return {
                 ok: false,
                 reason: 'content-address-mismatch',
                 current,
-                expected: current.currentRenderPlan,
-                actual: actualAddress,
+                expected: storedPreviousPlan.expected,
+                actual: storedPreviousPlan.actual,
             };
         }
-        previousRenderPlan = storedPreviousPlan;
+        previousRenderPlan = storedPreviousPlan.value;
     }
     const expectedEtag = options.expectedEtag ?? current?.etag;
     const write = store.writeRenderState(

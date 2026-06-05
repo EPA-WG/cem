@@ -19,6 +19,7 @@ import {
     projectAndAdvanceEdgeRenderState,
     projectTemplate,
     readTemplateSource,
+    readEdgeContent,
     renderPlanIdentity,
     type EdgeContentAddress,
     type EdgeContentKind,
@@ -2008,10 +2009,20 @@ export const EdgeRenderStateHybridStorageModel: Story = {
             'revision pointer advances to the accepted render revision'
         );
         assert(acceptedWrite.record.currentSnapshot, 'accepted edge state stores a sanitized snapshot address');
+        const storedSnapshot = readEdgeContent<typeof sanitizedSnapshot>(
+            store,
+            acceptedWrite.record.currentSnapshot
+        );
+        assert(storedSnapshot.ok, 'sanitized snapshot content reads back with a matching content address');
         assertEqual(
-            store.getContent<typeof sanitizedSnapshot>(acceptedWrite.record.currentSnapshot)?.payload?.text,
+            storedSnapshot.value.payload?.text,
             '',
             'stored snapshots are policy-sanitized before content addressing'
+        );
+        assertEqual(
+            storedSnapshot.address.key,
+            acceptedWrite.record.currentSnapshot.key,
+            'verified snapshot content reports the pointer address'
         );
 
         const helperStore = new InMemoryEdgeRenderStateStore();
