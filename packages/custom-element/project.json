@@ -1,0 +1,63 @@
+{
+    "name": "@epa-wg/custom-element",
+    "$schema": "../../node_modules/nx/schemas/project-schema.json",
+    "sourceRoot": "packages/custom-element",
+    "projectType": "library",
+    "targets": {
+        "build": {
+            "executor": "nx:run-commands",
+            "options": {
+                "command": "node scripts/build-package.mjs",
+                "cwd": "packages/custom-element"
+            },
+            "cache": true,
+            "inputs": [
+                "{projectRoot}/bin/**/*",
+                "{projectRoot}/demo/**/*",
+                "{projectRoot}/docs/**/*",
+                "{projectRoot}/ide/**/*",
+                "{projectRoot}/*.js",
+                "{projectRoot}/*.d.ts",
+                "{projectRoot}/*.html",
+                "{projectRoot}/*.md",
+                "{projectRoot}/LICENSE",
+                "{projectRoot}/package.json",
+                "{projectRoot}/scripts/build-package.mjs"
+            ],
+            "outputs": ["{projectRoot}/dist"]
+        },
+        "test": {
+            "dependsOn": ["build"],
+            "executor": "nx:run-commands",
+            "options": {
+                "command": "node scripts/verify-package-baseline.mjs",
+                "cwd": "packages/custom-element"
+            },
+            "cache": true,
+            "inputs": [
+                "{projectRoot}/dist/**/*",
+                "{projectRoot}/scripts/verify-package-baseline.mjs",
+                "{projectRoot}/package.json"
+            ],
+            "outputs": []
+        },
+        "lint": {
+            "dependsOn": ["test"],
+            "executor": "nx:run-commands",
+            "options": {
+                "command": "node scripts/verify-package-baseline.mjs",
+                "cwd": "packages/custom-element"
+            },
+            "outputs": []
+        },
+        "verify": {
+            "dependsOn": ["build", "test", "lint"],
+            "executor": "nx:run-commands",
+            "options": {
+                "command": "echo \"custom-element package scaffold verified.\"",
+                "cwd": "{workspaceRoot}"
+            },
+            "outputs": []
+        }
+    }
+}

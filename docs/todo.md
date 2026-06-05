@@ -456,9 +456,17 @@ Roadmap: [`../roadmap.md` §Phase 3.6](../roadmap.md). Starts after Phase 3.5 is
       `0.0.39` behavior baseline, and the branch-level history-graft strategy from
       [`custom-element-migration-scope.md`](custom-element-migration-scope.md). A true non-squashed history graft
       remains a dedicated clean-branch/import-commit operation rather than a hidden mixed-change side effect.
-- [ ] Scaffold the workspace package as the future `@epa-wg/custom-element` publish unit: package name, Nx targets,
+- [x] Scaffold the workspace package as the future `@epa-wg/custom-element` publish unit: package name, Nx targets,
       TypeScript/build output, package exports, browser module paths, IDE assets, README/docs, and release metadata
-      must preserve the published npm identity while allowing a next-major implementation.
+      must preserve the published npm identity while allowing a next-major implementation. Landed in
+      [`project.json`](../packages/custom-element/project.json) plus package-local
+      [`scripts/build-package.mjs`](../packages/custom-element/scripts/build-package.mjs) and
+      [`scripts/verify-package-baseline.mjs`](../packages/custom-element/scripts/verify-package-baseline.mjs):
+      Nx now recognizes `@epa-wg/custom-element` with `build`, `test`, `lint`, and `verify` targets; `build` stages
+      the publish-shaped package into `dist`; the verifier checks package identity, exports, browser entrypoints,
+      IDE metadata, and import-time custom-element registrations; package scripts route build/test/lint through Nx;
+      and the legacy `.gitignore` was tightened so imported demo baseline files remain visible while `dist` stays
+      ignored.
 - [ ] Define the adapter boundary from `<custom-element>` to the `cem-element` substrate. The package must keep
       publishing `<custom-element>` as the public tag, but internally translate legacy declaration shape (`tag`,
       `src`, inline templates, data islands, slices, host attributes, and event-to-data wiring) into the same

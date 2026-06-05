@@ -13,10 +13,12 @@
         "*"
     ],
     "scripts": {
+        "build": "yarn nx run @epa-wg/custom-element:build",
         "dev:help": "echo \"needed for sandbox demo\"",
         "dev": "bash bin/stackblitz.sh",
+        "lint": "yarn nx run @epa-wg/custom-element:lint",
         "start": "npm i --no-save @web/dev-server && web-dev-server --node-resolve",
-        "test": "echo \"test would reside in https://github.com/EPA-WG/custom-element-dist\" && exit 0",
+        "test": "yarn nx run @epa-wg/custom-element:test",
         "typings": "npx -p typescript tsc custom-element.js --declaration --allowJs --emitDeclarationOnly "
     },
     "type": "module",

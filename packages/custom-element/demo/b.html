@@ -1,0 +1,58 @@
+<!DOCTYPE html>
+<html lang="en" xmlns:xsl="http://www.w3.org/1999/XSL/Transform" xmlns:xhtml="http://www.w3.org/1999/xhtml">
+<head>
+    <meta http-equiv="Content-Type" content="text/html; charset=utf-8"/>
+    <title>Forms - Declarative Custom Element implementation demo</title>
+    <link rel="icon" href="./wc-square.svg"/>
+
+    <script type="module" src="../local-storage.js"></script>
+    <script type="module" src="../custom-element.js"></script>
+    <style>
+        @import "./demo.css";
+
+        label {
+            display: flex;
+        }
+
+        label:has(input[type="text"],input[type="password"],input:not([type]) ) {
+            flex-direction: column;
+        }
+
+        nav {
+            max-width: 32em;
+        }
+    </style>
+    <!-- https://github.com/mdn/learning-area/blob/main/html/forms/form-validation/custom-error-message.html
+         todo: apply setCustomValidity( warningStr )
+    -->
+
+</head>
+<body>
+
+
+<custom-element tag="sample-input">
+    <template>
+        <attribute name="name" ></attribute>
+        <attribute name="value" select="//val"></attribute>
+        {$name}
+        <label><input type="radio" name="{$name}" slice="val" value="🍏">Apple</label>
+        <label><input type="radio" name="{$name}" slice="val" value="🍌">Banana</label>
+    </template>
+</custom-element>
+<sample-input name="zz" value="ZZZ"></sample-input>
+<custom-element>
+    <template>
+        <form slice="cart-form" action="#sample-5"
+            custom-validity="(//inp1 = //inp2) ?? 'pick same fruit'"
+            >
+            <sample-input slice="inp1" name="inp-1"></sample-input>
+            <sample-input slice="inp2" name="inp-2"></sample-input>
+            <button>Next</button>
+            Picked :{//inp1} and {//inp2}
+
+            <p>{//cart-form/@validation-message}</p>
+        </form>
+    </template>
+</custom-element>
+</body>
+</html>

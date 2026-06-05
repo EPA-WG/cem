@@ -1,0 +1,57 @@
+<!DOCTYPE html>
+<html lang="en" xmlns:xsl="http://www.w3.org/1999/XSL/Transform" xmlns:html="http://www.w3.org/1999/xhtml">
+<head>
+    <meta http-equiv="Content-Type" content="text/html; charset=utf-8"/>
+    <title>http-request Declarative Custom Element implementation demo</title>
+        <link rel="icon" href="./wc-square.svg" />
+
+    <script type="module" src="../http-request.js"></script>
+    <script type="module" src="../custom-element.js"></script>
+    <style>
+        @import "./demo.css";
+
+        button
+        {   display: inline-flex; flex-direction: column; align-items: center; flex: auto;
+            box-shadow: inset silver 0px 0px 1rem; min-width: 12rem; padding: 1rem;
+            color: coral; text-shadow: 1px 1px silver; font-weight: bolder;
+        }
+        button img{ max-height: 10vw; min-height: 4rem;}
+        table{ min-width: 16rem; }
+        td{ border-bottom: 1px solid silver; }
+        tfoot td{ border-bottom: none; }
+        td,th{text-align: right; }
+        caption{ padding: 1rem; font-weight: bolder; font-family: sans-serif; }
+        dce-1{ padding: 0; display: flex; flex-wrap: wrap;}
+        code{ text-align: right; min-width: 3rem;}
+    </style>
+</head>
+<body>
+
+<custom-element>
+    <template><!-- wrapping into template to prevent images loading within DCE declaration -->
+        <p>Pokemon buttons from API</p>
+        <http-request
+            url="https://pokeapi.co/api/v2/pokemon?limit=6&offset=0"
+            slice="page"
+            method="GET"
+            header-accept="application/json"
+            ></http-request>
+        <variable name="slides-url"
+            >https://unpkg.com/pokeapi-sprites@2.0.2/sprites/pokemon/other/dream-world</variable>
+        {count(//results)}
+        <div><for-each select="//results">
+            <variable name="pokeid"
+                select="substring-before( substring-after( @url, 'https://pokeapi.co/api/v2/pokemon/'),'/')"
+                ></variable>
+            <button>
+                <img src="{$slides-url}/{$pokeid}.svg"
+                     alt="{@name}"/>
+                {@name}
+            </button>
+        </for-each>
+        </div>
+    </template>
+</custom-element>
+<button onclick="window.customElements.upgrade(document.body);console.log(9);">window.customElements.upgrade(document.body)</button>
+</body>
+</html>
