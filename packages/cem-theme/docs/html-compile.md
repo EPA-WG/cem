@@ -39,9 +39,14 @@ packages/cem-theme/
     │   └── css/
     │       └── cem-colors.css
     └── vendor/
-        └── @epa-wg/custom-element/
-            ├── custom-element.js
-            └── http-request.js
+        └── @epa-wg/
+            ├── custom-element/
+            │   ├── custom-element.js
+            │   └── http-request.js
+            ├── cem-elements/
+            │   └── dist/
+            └── cem_ql/
+                └── dist/wasm/
 ```
 
 ## Rewriting Rules
@@ -82,6 +87,10 @@ becomes:
 ```html
 <script src="../../vendor/@epa-wg/custom-element/custom-element.js" type="module"></script>
 ```
+
+When `custom-element.js` is copied, the compiler also vendors the substrate runtime
+dependencies that the adapter imports: `@epa-wg/cem-elements/dist` and the
+`cem_ql` WASM files.
 
 From `src/lib/theme-editor/theme-editor.html` to `dist/lib/theme-editor/theme-editor.html`:
 

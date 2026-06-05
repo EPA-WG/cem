@@ -24,6 +24,8 @@ for (const root of roots) {
     await verifyRoot(root);
 }
 
+await verifyDistRuntime(join(projectRoot, 'dist'));
+
 async function verifyRoot(root) {
     const packageJson = JSON.parse(await readFile(join(root, 'package.json'), 'utf8'));
     assertEqual(packageJson.name, '@epa-wg/custom-element', `${root}: package name`);
@@ -40,7 +42,11 @@ async function verifyRoot(root) {
     }
 
     const customElementSource = await readFile(join(root, 'custom-element.js'), 'utf8');
-    assertIncludes(customElementSource, "window.customElements.define( 'custom-element'", `${root}: custom-element registration`);
+    assertIncludes(customElementSource, 'window.customElements.define(', `${root}: custom-element registration`);
+    assertIncludes(customElementSource, "'custom-element'", `${root}: custom-element tag literal`);
+    assertNotIncludes(customElementSource, 'XSLTProcessor', `${root}: adapter must not use XSLTProcessor`);
+    assertNotIncludes(customElementSource, 'createXsltFromDom', `${root}: adapter must not keep XSLT compiler`);
+    assertNotIncludes(customElementSource, 'class DceElement', `${root}: adapter must not define legacy produced class`);
 
     const httpRequestSource = await readFile(join(root, 'http-request.js'), 'utf8');
     assertIncludes(httpRequestSource, "window.customElements.define( 'http-request'", `${root}: http-request registration`);
@@ -55,6 +61,21 @@ async function verifyRoot(root) {
     assertIncludes(moduleUrlSource, "window.customElements.define( 'module-url'", `${root}: module-url registration`);
 }
 
+async function verifyDistRuntime(root) {
+    const runtimeFiles = [
+        'vendor/@epa-wg/cem-elements/dist/index.js',
+        'vendor/@epa-wg/cem-elements/dist/lib/cem-elements.js',
+        'vendor/@epa-wg/cem-elements/dist/lib/projection.js',
+        'vendor/@epa-wg/cem-elements/dist/lib/internal/runtime-support/cem-ql-render.js',
+        'vendor/@epa-wg/cem_ql/dist/wasm/cem_ql.js',
+        'vendor/@epa-wg/cem_ql/dist/wasm/cem_ql_bg.wasm',
+        'vendor/@epa-wg/cem_ql/dist/wasm/package.json',
+    ];
+    for (const file of runtimeFiles) {
+        await access(join(root, file));
+    }
+}
+
 function assertEqual(actual, expected, label) {
     if (actual !== expected) {
         throw new Error(`${label}: expected ${expected}, got ${actual}`);
@@ -64,5 +85,11 @@ function assertEqual(actual, expected, label) {
 function assertIncludes(value, expected, label) {
     if (!value.includes(expected)) {
         throw new Error(`${label}: expected to include ${expected}`);
+    }
+}
+
+function assertNotIncludes(value, expected, label) {
+    if (value.includes(expected)) {
+        throw new Error(`${label}: expected not to include ${expected}`);
     }
 }

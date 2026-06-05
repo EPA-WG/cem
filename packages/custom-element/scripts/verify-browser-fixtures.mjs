@@ -6,17 +6,20 @@ import { fileURLToPath } from 'node:url';
 import { chromium } from 'playwright';
 
 const projectRoot = dirname(dirname(fileURLToPath(import.meta.url)));
+const workspaceRoot = dirname(dirname(projectRoot));
 const fixturePaths = [
-    '/test-fixtures/browser-smoke.html',
-    '/test-fixtures/browser-smoke-dist.html',
+    '/packages/custom-element/test-fixtures/browser-smoke.html',
+    '/packages/custom-element/test-fixtures/browser-smoke-dist.html',
 ];
 
 const server = createServer(async (request, response) => {
     try {
         const requestUrl = new URL(request.url ?? '/', 'http://127.0.0.1');
-        const pathname = decodeURIComponent(requestUrl.pathname === '/' ? '/test-fixtures/browser-smoke.html' : requestUrl.pathname);
-        const filePath = normalize(join(projectRoot, pathname));
-        if (!filePath.startsWith(projectRoot + sep)) {
+        const pathname = decodeURIComponent(
+            requestUrl.pathname === '/' ? '/packages/custom-element/test-fixtures/browser-smoke.html' : requestUrl.pathname
+        );
+        const filePath = normalize(join(workspaceRoot, pathname));
+        if (!filePath.startsWith(workspaceRoot + sep)) {
             response.writeHead(403);
             response.end('Forbidden');
             return;
@@ -74,6 +77,8 @@ function contentType(filePath) {
             return 'text/javascript; charset=utf-8';
         case '.json':
             return 'application/json; charset=utf-8';
+        case '.wasm':
+            return 'application/wasm';
         case '.css':
             return 'text/css; charset=utf-8';
         default:

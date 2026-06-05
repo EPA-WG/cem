@@ -1,6 +1,6 @@
 #!/usr/bin/env node
 
-import { copyFile, mkdir, readFile, writeFile } from 'node:fs/promises';
+import { copyFile, cp, mkdir, readFile, writeFile } from 'node:fs/promises';
 import { existsSync } from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
@@ -76,6 +76,33 @@ async function copyOnce(copiedFiles, sourcePath, outputPath) {
   copiedFiles.add(key);
 }
 
+async function copyTreeOnce(copiedFiles, sourcePath, outputPath) {
+  const key = outputPath;
+  if (copiedFiles.has(key)) {
+    return;
+  }
+  await mkdir(path.dirname(outputPath), { recursive: true });
+  await cp(sourcePath, outputPath, { recursive: true });
+  copiedFiles.add(key);
+}
+
+async function copyCustomElementRuntimeDependencies(copiedFiles, sourcePath) {
+  const relativeNodeModulePath = toPosixPath(path.relative(repoNodeModulesDir, sourcePath));
+  if (relativeNodeModulePath !== '@epa-wg/custom-element/custom-element.js') {
+    return;
+  }
+  await copyTreeOnce(
+    copiedFiles,
+    path.join(repoRoot, 'packages/cem-elements/dist'),
+    path.join(vendorDir, '@epa-wg/cem-elements/dist')
+  );
+  await copyTreeOnce(
+    copiedFiles,
+    path.join(repoRoot, 'packages/cem_ql/dist/wasm'),
+    path.join(vendorDir, '@epa-wg/cem_ql/dist/wasm')
+  );
+}
+
 async function rewriteUrl(url, context) {
   const trimmed = url.trim();
   if (!trimmed || isExternalUrl(trimmed)) {
@@ -99,6 +126,7 @@ async function rewriteUrl(url, context) {
       throw new Error(`Referenced node_modules file not found: ${sourceTargetPath}`);
     }
     await copyOnce(context.copiedFiles, sourceTargetPath, outputTargetPath);
+    await copyCustomElementRuntimeDependencies(context.copiedFiles, sourceTargetPath);
   } else if (sourceTargetPath.startsWith(distDir + path.sep)) {
     outputTargetPath = sourceTargetPath;
   } else if (sourceTargetPath.startsWith(srcDir + path.sep)) {

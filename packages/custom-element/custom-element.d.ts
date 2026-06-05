@@ -1,16 +1,21 @@
-export function log(x: any): void;
-export function deepEqual(a: any, b:any): boolean|0;
 export function cloneAs(sourceNode: HTMLElement, tag:string): HTMLElement;
 export function mix(objTo: any, objFrom:any): any;
-export function mergeAttr(fromEl: HTMLElement, toEL:HTMLElement): void;
 
 export function xml2dom(xmlString:string): Document;
 export function xmlString(doc:Node|Document): string;
 export function obj2node(o:any, tag:string, doc:Document): HTMLElement;
 export function tagUid(node:HTMLElement): HTMLElement;
 
+export function getCustomElementRuntime(host?: Window, options?: Record<string, unknown>): unknown;
+export const customElementRuntime: unknown;
+export function installCustomElementRuntime(host?: Window, options?: Record<string, unknown>): unknown;
+export function diagnosticsFor(target: object): readonly unknown[];
+export function whenDeclarationSettled(declaration: object): Promise<void>;
+export function whenRenderSettled(instance: HTMLElement): Promise<void>;
+export function normalizeLegacyDeclaration(declaration: HTMLElement): HTMLElement;
+
 /**
- * @summary Declarative Custom Element as W3C proposal PoC with native(XSLT) based templating
+ * @summary Declarative Custom Element adapter over the CEM element substrate.
  * ```html
  * <custom-element tag="my-element">
  *             <template>
@@ -34,7 +39,7 @@ export function tagUid(node:HTMLElement): HTMLElement;
  * @tag custom-element
  * @tag-name custom-element
  * @attr {boolean} hidden - hides DCE definition to prevent visual appearance of content. Wrap the payload into template tag to prevent applying the inline CSS in global scope.
- * @attr {string} tag - HTML tag for Custom Element. Used for window.customElements.define(). If not set, would be generated and DCE instance rendered inline.
+ * @attr {string} tag - HTML tag for Custom Element. Used for window.customElements.define().
  * @attr {string} src - full, relative, or hash URL to DCE template.
  *
  */

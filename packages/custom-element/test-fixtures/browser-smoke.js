@@ -66,6 +66,10 @@ export async function runCustomElementSmoke(importBase) {
     check('legacy declaration registers produced tag', customElements.get('fixture-card') !== undefined);
     check('legacy fixture renders host attribute text', instance?.querySelector('h3')?.textContent?.trim() === 'Smoke');
     check('legacy fixture projects payload', instance?.querySelector('p')?.textContent?.trim() === 'Payload');
+    check(
+        'adapter render uses substrate data island',
+        instance?.querySelector('template[data-cem-island="instance"]') !== null
+    );
 
     const request = document.createElement('http-request');
     request.setAttribute('url', './http-data.json');

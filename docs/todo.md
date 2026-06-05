@@ -505,7 +505,7 @@ Roadmap: [`../roadmap.md` §Phase 3.6](../roadmap.md). Starts after Phase 3.5 is
       `workspace:^`, IDE web-types point at `packages/custom-element`, `cem-theme:build:html` cache inputs track the
       workspace package sources, and source HTML keeps the stable `node_modules/@epa-wg/custom-element/...` browser
       path that `compile-html` vendors into `dist/vendor`.
-- [ ] Add package-local verification fixtures for `@epa-wg/custom-element`: legacy docs/demo parity, migrated
+- [x] Add package-local verification fixtures for `@epa-wg/custom-element`: legacy docs/demo parity, migrated
       `<custom-element>` adapter behavior, companion module behavior, package export/import smoke tests, and
       release-pack artifact shape. Reuse the existing `cem-elements` Storybook parity stories as acceptance fixtures
       instead of duplicating behavior assertions.
@@ -521,6 +521,28 @@ Roadmap: [`../roadmap.md` §Phase 3.6](../roadmap.md). Starts after Phase 3.5 is
         repeated params, and standalone `module-url` resolves a relative browser module URL.
   - [x] Run the browser smoke fixture against both workspace source files and the built `dist/` package artifact so
         export/import, companion side effects, and the legacy render smoke are verified against release-pack output.
+  - [x] Document the adapter runtime packaging gate before replacing `custom-element.js`. Landed in
+        [`custom-element-adapter-runtime-packaging.md`](custom-element-adapter-runtime-packaging.md): a direct
+        `CemElementRuntime` import would break plain browser module consumers unless the substrate runtime and
+        `cem_ql` WASM assets are vendored or bundled behind stable package-relative URLs; the next implementation
+        slice should stage that browser-ready runtime path first.
+  - [x] Stage the first browser-ready substrate runtime payload in the custom-element dist package:
+        `scripts/build-package.mjs` copies `cem-elements/dist` and `cem_ql/dist/wasm` under
+        `dist/vendor/@epa-wg/`, and the package baseline verifier asserts the staged runtime JS plus WASM files are
+        present before adapter implementation begins.
+  - [x] Replace `custom-element.js` with the first `CemElementRuntime` adapter slice. The public `CustomElement`
+        export and import-time `custom-element` registration are preserved; untyped inline templates are normalized to
+        `lang="custom-element-v0"`; source imports use the workspace `cem-elements` build and dist imports are rewritten
+        to the vendored runtime path; browser smoke fixtures now assert substrate data-island output.
+  - [x] Add adapter-regression guards to the package verifier: `custom-element.js` must keep import-time registration
+        but must not contain `XSLTProcessor`, `createXsltFromDom`, or the legacy `DceElement` produced-class engine.
+  - [x] Update `cem-theme` HTML compilation for adapter transitive runtime files: when `custom-element.js` is vendored,
+        `compile-html.mjs` now also copies `cem-elements/dist` and `cem_ql/dist/wasm` into `dist/vendor/@epa-wg/`, and
+        the `build:html` target depends on those runtime builds.
+      Package-local verification is now green through `@epa-wg/custom-element:verify`: source and dist browser smoke
+      fixtures prove adapter registration, legacy-v0 normalization, substrate data islands, companion modules,
+      package export/import identity, release-pack runtime staging, and no legacy XSLT/render-engine regression. The
+      full cross-package gate remains the next todo item.
 - [ ] Verify the migrated package against all required gates: legacy parity inventory, material parity inventory,
       Phase 3.5 Edge/SSR fixtures, `cem-elements:verify`, the new `custom-element` package build/test/lint targets,
       and any affected `cem-theme` HTML/token generator workflows.

@@ -3,7 +3,9 @@ import { dirname, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 
 const projectRoot = dirname(dirname(fileURLToPath(import.meta.url)));
+const workspaceRoot = dirname(dirname(projectRoot));
 const distRoot = join(projectRoot, 'dist');
+const vendorRoot = join(distRoot, 'vendor/@epa-wg');
 
 const entries = [
     'LICENSE',
@@ -30,6 +32,27 @@ await mkdir(distRoot, { recursive: true });
 for (const entry of entries) {
     await cp(join(projectRoot, entry), join(distRoot, entry), { recursive: true });
 }
+
+await cp(
+    join(workspaceRoot, 'packages/cem-elements/dist'),
+    join(vendorRoot, 'cem-elements/dist'),
+    { recursive: true }
+);
+await cp(
+    join(workspaceRoot, 'packages/cem_ql/dist/wasm'),
+    join(vendorRoot, 'cem_ql/dist/wasm'),
+    { recursive: true }
+);
+
+const customElementPath = join(distRoot, 'custom-element.js');
+const customElementSource = await readFile(customElementPath, 'utf8');
+await writeFile(
+    customElementPath,
+    customElementSource.replace(
+        "from '../cem-elements/dist/index.js'",
+        "from './vendor/@epa-wg/cem-elements/dist/index.js'"
+    )
+);
 
 const packageJsonPath = join(distRoot, 'package.json');
 const packageJson = JSON.parse(await readFile(packageJsonPath, 'utf8'));
