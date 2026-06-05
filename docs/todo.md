@@ -334,8 +334,12 @@ Design home: [`cem-element-design.md`](cem-element-design.md). WASM proposal:
   - [x] (3) Material parity stories for the eight legacy material components, including local/external `src`,
         declarative slots, data/option payloads, slice events, and `module-url` resource slices.
   - [x] (4) CEM-ML integration through `nx run cem-elements:verify`.
-  - [ ] (5) Performance: prove AC-N-1 first-paint budgets on the material parity fixtures under the `cem_ml:bench`
-        discipline.
+  - [x] (5) Performance: prove AC-N-1 first-paint budgets on the material parity fixtures under the `cem_ml:bench`
+        discipline. Landed `examples/cem-elements/material-parity.cem`, a canonical substrate fixture covering the
+        eight material component shapes plus slots, slices, data/option payloads, and `module-url`; and
+        `ac_n_1_cem_element_material_parity_fixtures_under_budget` in
+        [`packages/cem_ml/tests/perf_budgets.rs`](../packages/cem_ml/tests/perf_budgets.rs), which runs
+        `examples/cem-elements/material-*.cem` through the same AC-N-1 budget harness as the base CEM/HTML fixtures.
   - [ ] (6) A11y: end-to-end accessibility-contract assertions on the material parity fixtures.
 - [ ] Bridge support: `<template lang="custom-element-v0">` compat path for legacy authoring during the migration
       window; keep only if needed after the `@epa-wg/custom-element` substrate adoption.
