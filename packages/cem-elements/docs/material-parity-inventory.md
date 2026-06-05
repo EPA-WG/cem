@@ -82,15 +82,13 @@ support and Storybook material-parity coverage. Bare `@scope/pkg` specifiers sti
 canonical path uses CEM-ML plus cem-ql functional selection over `datadom.*`. Scoped styles still render as page-global
 light-DOM styles, and boolean helper functions such as `hasBoolAttribute()` are not reproduced directly.
 
-**Production-gate follow-up:** the Storybook parity set is green for the covered runtime behaviors. The remaining
-production-ready items live in `docs/todo.md`: AC-N-1 first-paint performance proof on material fixtures and
-end-to-end accessibility-contract assertions.
+**Production gate:** the Storybook parity set is green for the covered runtime behaviors. AC-N-1 first-paint
+performance proof and end-to-end accessibility-contract assertions are both wired into the Phase 3.1 gate in
+`docs/todo.md`.
 
 **Recommended sequencing implied by this inventory:**
 
-1. Add AC-N-1 performance budget measurement for the material parity fixtures.
-2. Add end-to-end accessibility-contract assertions for the material parity fixtures.
-3. Decide whether scoped-style containment and `hasBoolAttribute()` compatibility remain bridge/adoption work or move
+1. Decide whether scoped-style containment and `hasBoolAttribute()` compatibility remain bridge/adoption work or move
    into the browser-substrate production gate.
 
 This inventory satisfies the todo §3.1 "Build a material parity inventory" item and feeds the parity-story

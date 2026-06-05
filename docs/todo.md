@@ -326,7 +326,7 @@ Design home: [`cem-element-design.md`](cem-element-design.md). WASM proposal:
       ride the same Phase 2 verification. Landed via the C2.6 gate: `nx run cem-elements:verify` composes
       `cem_ml_cli:validate-fixtures` + `cem_ml_cli:e2e` with the `cem-elements:verify-substrate` structural
       parse+roundtrip leg over [`examples/cem-elements/`](../examples/cem-elements/) and the Storybook `test`.
-- [ ] Production-ready gate: parity (1)–(6) from [`cem-element-design.md` §7](cem-element-design.md). When green,
+- [x] Production-ready gate: parity (1)–(6) from [`cem-element-design.md` §7](cem-element-design.md). When green,
       the browser substrate is eligible for Phase 3.5 Edge/SSR follow-up; `@epa-wg/custom-element` adoption remains
       deferred until after that follow-up phase.
   - [x] (1) Functional parity story coverage for in-scope legacy behavior.
@@ -340,7 +340,11 @@ Design home: [`cem-element-design.md`](cem-element-design.md). WASM proposal:
         `ac_n_1_cem_element_material_parity_fixtures_under_budget` in
         [`packages/cem_ml/tests/perf_budgets.rs`](../packages/cem_ml/tests/perf_budgets.rs), which runs
         `examples/cem-elements/material-*.cem` through the same AC-N-1 budget harness as the base CEM/HTML fixtures.
-  - [ ] (6) A11y: end-to-end accessibility-contract assertions on the material parity fixtures.
+  - [x] (6) A11y: end-to-end accessibility-contract assertions on the material parity fixtures. Landed in
+        [`material-parity.stories.ts`](../packages/cem-elements/src/lib/material-parity.stories.ts): the material
+        stories now assert accessible names, native implicit roles, host focus delegation, disclosure state
+        mirroring, decorative resource images, and `aria-*` reference integrity across the eight material parity
+        fixtures; `nx run cem-elements:test` / `nx run cem-elements:verify` are green.
 - [ ] Bridge support: `<template lang="custom-element-v0">` compat path for legacy authoring during the migration
       window; keep only if needed after the `@epa-wg/custom-element` substrate adoption.
 

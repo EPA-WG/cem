@@ -39,7 +39,7 @@
 
 {section @data-component=menu |
   {attribute @name=direction | row}
-  {nav @class="cem-menu {$direction}" @data-justify="{$datadom.attributes.justify}" |
+  {nav @class="cem-menu {$direction}" @aria-label="Material menu" @data-justify="{$datadom.attributes.justify}" |
     {slot}
   }
 }
@@ -67,8 +67,9 @@
 
 {section @data-component=dropdown |
   {attribute @name=label | Menu}
+  {slice @name=open | false}
   {div @class=cem-dropdown |
-    {button @type=button @slice=open @slice-event=click @slice-value="'open'" | {$label}}
+    {button @type=button @aria-expanded="{$open}" @slice=open @slice-event=click @slice-value="'true'" | {$label}}
     {cem:if @test="datadom.slices.open" |
       {div @class=panel | {slot}}
     }
@@ -88,7 +89,7 @@
 {section @data-component=autocomplete |
   {div @class=cem-autocomplete |
     {slot @name=input |
-      {input @type=text @value="{$datadom.attributes.value}"}
+      {input @type=text @aria-label="{$datadom.attributes.label}" @value="{$datadom.attributes.value}"}
     }
     {ul @class=options |
       {cem:if @test="datadom.data.apple" |
