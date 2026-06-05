@@ -786,13 +786,17 @@ Performance gates should measure:
   `cem-element` substrate and compatibility path, but the `@epa-wg/custom-element`
   monorepo migration and next-major substrate adoption are a later adoption phase.
 - ~~Which data-island fields are allowed to leave the browser for edge processing, and
-  how is that policy expressed per scope?~~ Deferred: Phase 3 keeps the redaction and
-  omission requirement in the serializable boundary, but the concrete field policy is
-  a Phase 3.5 Edge/SSR follow-up verification fixture.
+  how is that policy expressed per scope?~~ Resolved in Phase 3.5: browser-to-edge
+  exports fail-close data-bearing fields to omission unless the effective policy allows
+  them, support explicit redaction to empty JSON-compatible shapes, stamp exported
+  snapshots with the effective privacy policy, and detach allowed fields from later
+  browser mutation.
 - ~~Which storage model is supported first for edge render state: content-addressed
-  cache only, revisioned KV/document records, or both?~~ Deferred: the first edge
-  render-state storage choice is a Phase 3.5 Edge/SSR follow-up decision, not a Phase 3
-  browser-substrate gate.
+  cache only, revisioned KV/document records, or both?~~ Resolved in Phase 3.5: the
+  first model is a hybrid of immutable content-addressed blobs for template artifacts,
+  render plans, rendered HTML fragments, and policy-sanitized snapshot exports plus
+  small revisioned pointer records carrying `RenderRevision`, content addresses,
+  scope/privacy policy stamps, and an ETag-like compare value.
 - ~~Should the CEM site use a service-worker registry, or should that stay outside the
   core substrate until after component parity?~~ Resolved: Phase 3 uses Option C. It
   defines service-worker-compatible artifact identity, namespace/version metadata, and

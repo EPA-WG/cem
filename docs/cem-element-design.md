@@ -257,9 +257,9 @@ This makes these deployment modes valid without changing the declaration model:
   the contract. The first storage model is a hybrid: immutable, content-addressed
   blobs hold template artifacts, render plans, rendered HTML fragments, and only
   policy-sanitized snapshot exports; a small revisioned pointer record holds the
-  current `RenderRevision`, content addresses, policy stamps, and an ETag-like compare
-  value for stale-write rejection. Persistent full snapshot storage is opt-in by export
-  policy and browser-only state is never stored at the edge.
+  current `RenderRevision`, content addresses, scope/privacy policy stamps, and an
+  ETag-like compare value for stale-write rejection. Persistent full snapshot storage
+  is opt-in by export policy and browser-only state is never stored at the edge.
 - **Server-side rendering mode.** The processing layer can emit HTML plus hydration
   metadata and source-map markers. On hydration, the browser UI adapter reconstructs or
   validates the instance data island and retained render-plan identity before taking
