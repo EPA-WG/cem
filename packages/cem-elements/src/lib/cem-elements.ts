@@ -160,6 +160,8 @@ const DEFAULT_SCOPE_POLICY_STAMP = 'phase-3a-local-default';
 const DEFAULT_PRIVACY_POLICY_STAMP = 'local-only';
 const DATA_ISLAND_ATTR = 'data-cem-island';
 const DATA_ISLAND_VALUE = 'instance';
+const HYDRATION_METADATA_ATTR = 'data-cem-hydration';
+const HYDRATION_METADATA_VALUE = 'snapshot';
 const XHTML_NAMESPACE = 'http://www.w3.org/1999/xhtml';
 const RESERVED_CUSTOM_ELEMENT_NAMES = new Set([
     'annotation-xml',
@@ -255,6 +257,8 @@ export class CemElementRuntime {
     private readonly declarations = new Map<string, CompiledDeclaration>();
     private readonly diagnostics = new WeakMap<object, CemElementDiagnostic[]>();
     private readonly initializedInstances = new WeakSet<HTMLElement>();
+    private readonly hydratedServerRenders = new WeakSet<HTMLElement>();
+    private readonly hydrationSnapshots = new WeakMap<HTMLElement, DataIslandSnapshot>();
     private readonly instanceIds = new WeakMap<HTMLElement, string>();
     private readonly dataRevisions = new WeakMap<HTMLElement, number>();
     private readonly renderBounds = new WeakMap<HTMLElement, RenderBounds>();
@@ -539,6 +543,10 @@ export class CemElementRuntime {
         const island = this.ensureDataIsland(instance);
         const state = this.ensureInstanceState(instance, compiled, island);
         this.observeInstance(instance, island, state);
+        if (this.hydratedServerRenders.has(instance)) {
+            this.renderSettled.set(instance, Promise.resolve());
+            return;
+        }
         this.renderInstance(instance, compiled);
     }
 
@@ -686,6 +694,9 @@ export class CemElementRuntime {
         const existing = directDataIsland(instance);
         if (existing) {
             if (!this.initializedInstances.has(instance)) {
+                if (this.adoptServerRenderedInstance(instance, existing)) {
+                    return existing;
+                }
                 for (const child of Array.from(instance.childNodes)) {
                     if (child !== existing && !isRenderBoundary(child)) {
                         existing.content.appendChild(child);
@@ -706,6 +717,35 @@ export class CemElementRuntime {
         return island;
     }
 
+    private adoptServerRenderedInstance(instance: HTMLElement, island: HTMLTemplateElement): boolean {
+        const metadata = directHydrationMetadata(instance);
+        const bounds = directRenderBounds(instance);
+        if (!metadata || !bounds) {
+            return false;
+        }
+
+        const snapshot = parseHydrationSnapshot(metadata);
+        if (!snapshot || snapshot.producedTag !== instance.localName || snapshot.outputTarget !== 'light-dom') {
+            this.recordDiagnostics(instance, [
+                renderDiagnostic(
+                    'cem-element.hydration_metadata_invalid',
+                    'SSR hydration metadata did not match the produced element',
+                    instance.localName
+                ),
+            ]);
+            return false;
+        }
+
+        this.initializedInstances.add(instance);
+        this.hydratedServerRenders.add(instance);
+        this.hydrationSnapshots.set(instance, snapshot);
+        this.renderBounds.set(instance, bounds);
+        this.instanceIds.set(instance, snapshot.instanceId);
+        this.dataRevisions.set(instance, parseDataRevision(snapshot.dataRevision));
+        island.setAttribute(DATA_ISLAND_ATTR, DATA_ISLAND_VALUE);
+        return true;
+    }
+
     private ensureInstanceState(
         instance: HTMLElement,
         compiled: CompiledDeclaration,
@@ -716,11 +756,12 @@ export class CemElementRuntime {
             return existing;
         }
 
+        const hydrationSnapshot = this.hydrationSnapshots.get(instance);
         const state: InstanceState = {
-            slices: Object.fromEntries(
-                compiled.declaredSlices.map((slice) => [slice.name, slice.defaultValue])
-            ),
-            eventPayloads: {},
+            slices: hydrationSnapshot
+                ? templateValueRecord(hydrationSnapshot.slices)
+                : Object.fromEntries(compiled.declaredSlices.map((slice) => [slice.name, slice.defaultValue])),
+            eventPayloads: hydrationSnapshot?.eventPayloads ?? {},
         };
         const observer = island.ownerDocument.defaultView?.MutationObserver;
         if (observer) {
@@ -1153,6 +1194,69 @@ function directDataIsland(element: Element): HTMLTemplateElement | undefined {
     );
 }
 
+function directHydrationMetadata(element: Element): HTMLScriptElement | undefined {
+    return Array.from(element.children).find(
+        (child): child is HTMLScriptElement =>
+            child.localName === 'script' &&
+            child.getAttribute('type') === 'application/json' &&
+            child.getAttribute(HYDRATION_METADATA_ATTR) === HYDRATION_METADATA_VALUE
+    );
+}
+
+function directRenderBounds(element: Element): RenderBounds | undefined {
+    let start: Comment | undefined;
+    for (const child of Array.from(element.childNodes)) {
+        if (isRenderStartBoundary(child)) {
+            start = child;
+            continue;
+        }
+        if (start && isRenderEndBoundary(child)) {
+            return { start, end: child };
+        }
+    }
+    return undefined;
+}
+
+function parseHydrationSnapshot(metadata: HTMLScriptElement): DataIslandSnapshot | undefined {
+    try {
+        const value: unknown = JSON.parse(metadata.textContent ?? '');
+        return isDataIslandSnapshot(value) ? value : undefined;
+    } catch {
+        return undefined;
+    }
+}
+
+function isDataIslandSnapshot(value: unknown): value is DataIslandSnapshot {
+    if (!value || typeof value !== 'object') {
+        return false;
+    }
+    const record = value as Partial<DataIslandSnapshot>;
+    return (
+        typeof record.instanceId === 'string' &&
+        typeof record.producedTag === 'string' &&
+        typeof record.declarationTag === 'string' &&
+        typeof record.templateArtifactId === 'string' &&
+        typeof record.dataRevision === 'string' &&
+        record.outputTarget === 'light-dom' &&
+        typeof record.scopePolicyStamp === 'string' &&
+        typeof record.privacyPolicyStamp === 'string' &&
+        isPlainRecord(record.hostAttributes) &&
+        isPlainRecord(record.dataset) &&
+        isPlainRecord(record.slices) &&
+        isPlainRecord(record.validationState) &&
+        isPlainRecord(record.eventPayloads)
+    );
+}
+
+function isPlainRecord(value: unknown): value is Record<string, unknown> {
+    return Boolean(value && typeof value === 'object' && !Array.isArray(value));
+}
+
+function parseDataRevision(value: string): number {
+    const revision = Number.parseInt(value, 10);
+    return Number.isFinite(revision) && revision > 0 ? revision : 0;
+}
+
 function directLiveNodeCount(element: Element): number {
     return Array.from(element.childNodes).filter((node) => {
         if (node.nodeType === 1) {
@@ -1346,6 +1450,10 @@ function toTemplateValue(value: unknown): TemplateValue {
     return String(value);
 }
 
+function templateValueRecord(value: Record<string, unknown>): Record<string, TemplateValue> {
+    return Object.fromEntries(Object.entries(value).map(([name, child]) => [name, toTemplateValue(child)]));
+}
+
 function hostAttributes(instance: HTMLElement): Record<string, string | boolean | null> {
     const attributes: Record<string, string | boolean | null> = {};
     for (const attribute of Array.from(instance.attributes)) {
@@ -1476,5 +1584,13 @@ function nodeText(node: SerializedPayloadNode): string {
 }
 
 function isRenderBoundary(node: Node): boolean {
-    return node.nodeType === 8 && /^cem-render-(start|end)$/.test(node.textContent ?? '');
+    return isRenderStartBoundary(node) || isRenderEndBoundary(node);
+}
+
+function isRenderStartBoundary(node: Node): node is Comment {
+    return node.nodeType === 8 && node.textContent === 'cem-render-start';
+}
+
+function isRenderEndBoundary(node: Node): node is Comment {
+    return node.nodeType === 8 && node.textContent === 'cem-render-end';
 }

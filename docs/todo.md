@@ -386,8 +386,14 @@ authoring surface.
 Roadmap: [`../roadmap.md` §Phase 3.5](../roadmap.md). Starts after the Phase 3 browser substrate production-ready
 gate is green.
 
-- [ ] Add SSR fixture that renders initial HTML plus hydration metadata from a serialized `DataIslandSnapshot`, then
-      hydrates into the same client-side data-island and render-plan identity.
+- [x] Add SSR fixture that renders initial HTML plus hydration metadata from a serialized `DataIslandSnapshot`, then
+      hydrates into the same client-side data-island and render-plan identity. Landed in
+      [`cem-elements.ts`](../packages/cem-elements/src/lib/cem-elements.ts) and
+      [`SsrHydrationFromSerializedSnapshot`](../packages/cem-elements/src/lib/cem-elements.stories.ts): SSR output
+      carries a direct instance data-island, render-boundary comments, and
+      `<script type="application/json" data-cem-hydration="snapshot">` metadata. The client runtime preserves the
+      server render-plan artifact/data revision on first connect, keeps the payload data island, and then handles
+      ordinary attribute invalidation. `nx run cem-elements:test/build/lint` are green.
 - [ ] Add edge-processing fixture using serialized data snapshot plus previous render-plan identity to produce a
       patch-frame stream without access to live browser DOM.
 - [ ] Verify privacy/export policy for browser-to-edge snapshots: denied fields are omitted or redacted before

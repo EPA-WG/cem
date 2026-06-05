@@ -1620,6 +1620,123 @@ export const RenderNodeIdentityIsDeterministic: Story = {
     },
 };
 
+export const SsrHydrationFromSerializedSnapshot: Story = {
+    render: () => {
+        const root = document.createElement('section');
+        root.setAttribute('aria-label', 'SSR hydration fixture');
+
+        const templateHtml =
+            '<attribute name="label">Fallback</attribute>' +
+            '<article class="ssr-card">' +
+            '<h2>${$label}</h2>' +
+            '<div class="detail"><slot name="detail"></slot></div>' +
+            '</article>';
+        const template = document.createElement('template');
+        template.innerHTML = templateHtml;
+        const source = readTemplateSource(template.content);
+        const snapshot = projectionSnapshot('story-ssr-card', { label: 'Server Card' });
+        snapshot.instanceId = 'ssr-instance-1';
+        snapshot.declarationTag = 'cem-element-story-ssr';
+        snapshot.templateArtifactId = 'ssr-template-artifact-1';
+        snapshot.dataRevision = '7';
+        snapshot.payload = {
+            ...emptySerializedPayload(),
+            text: 'Server detail',
+            childCount: 1,
+            nodes: [
+                {
+                    kind: 'element',
+                    key: 'payload-0',
+                    tag: 'span',
+                    namespace: null,
+                    attributes: { slot: 'detail' },
+                    slot: 'detail',
+                    children: [{ kind: 'text', key: 'payload-0/0', text: 'Server detail' }],
+                },
+            ],
+            slots: {
+                detail: [
+                    {
+                        kind: 'element',
+                        key: 'payload-0',
+                        tag: 'span',
+                        namespace: null,
+                        attributes: { slot: 'detail' },
+                        slot: 'detail',
+                        children: [{ kind: 'text', key: 'payload-0/0', text: 'Server detail' }],
+                    },
+                ],
+            },
+        };
+
+        const plan = projectTemplate(source, { snapshot, values: { label: 'Server Card' } });
+        const serverFragment = materializeRenderPlan(plan, document);
+        const serverNodes = Array.from(serverFragment.childNodes);
+
+        registerInlineDeclaration({
+            declarationTag: 'cem-element-story-ssr',
+            producedTag: 'story-ssr-card',
+            innerHTML: templateHtml,
+        });
+
+        const instance = document.createElement('story-ssr-card');
+        instance.setAttribute('label', 'Server Card');
+        const island = document.createElement('template');
+        island.setAttribute('data-cem-island', 'instance');
+        island.innerHTML = '<span slot="detail">Server detail</span>';
+        const metadata = document.createElement('script');
+        metadata.setAttribute('type', 'application/json');
+        metadata.setAttribute('data-cem-hydration', 'snapshot');
+        metadata.textContent = JSON.stringify(snapshot);
+        instance.append(
+            island,
+            document.createComment('cem-render-start'),
+            ...serverNodes,
+            document.createComment('cem-render-end'),
+            metadata
+        );
+        root.append(instance);
+        return root;
+    },
+    play: async ({ canvasElement }) => {
+        const instance = requiredElement(canvasElement, 'story-ssr-card') as HTMLElement;
+        const article = await waitForElement(instance, 'article.ssr-card');
+        assertEqual(article.querySelector('h2')?.textContent, 'Server Card', 'SSR HTML renders from the serialized snapshot');
+        assertEqual(
+            article.getAttribute('data-cem-template-artifact-id'),
+            'ssr-template-artifact-1',
+            'client hydration preserves the server render-plan artifact identity'
+        );
+        assertEqual(
+            article.getAttribute('data-cem-data-revision'),
+            '7',
+            'client hydration preserves the server render-plan data revision'
+        );
+        assertEqual(
+            requiredElement(instance, 'script[data-cem-hydration="snapshot"]').textContent?.includes('ssr-instance-1'),
+            true,
+            'hydration metadata carries the serialized DataIslandSnapshot'
+        );
+        const island = requiredElement(instance, 'template[data-cem-island="instance"]') as HTMLTemplateElement;
+        assertEqual(
+            island.content.querySelector('[slot="detail"]')?.textContent,
+            'Server detail',
+            'client hydration keeps the same instance data island payload'
+        );
+        assertEqual(
+            article.querySelector('.detail')?.textContent?.trim(),
+            'Server detail',
+            'SSR slot projection is visible after client hydration'
+        );
+
+        instance.setAttribute('label', 'Client Card');
+        await waitForCondition(
+            () => requiredElement(instance, 'article.ssr-card').querySelector('h2')?.textContent === 'Client Card',
+            'client-side invalidation takes over after hydration'
+        );
+    },
+};
+
 export const DeclarationDiagnosticsAreExposed: Story = {
     render: () => storyPanel('Declaration diagnostics', 'invalid declaration shapes surface through diagnosticsFor'),
     play: () => {

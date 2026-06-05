@@ -258,7 +258,13 @@ This makes these deployment modes valid without changing the declaration model:
 - **Server-side rendering mode.** The processing layer can emit HTML plus hydration
   metadata and source-map markers. On hydration, the browser UI adapter reconstructs or
   validates the instance data island and retained render-plan identity before taking
-  over local event-to-data updates.
+  over local event-to-data updates. Phase 3.5 fixtures use a direct child
+  `<script type="application/json" data-cem-hydration="snapshot">` containing the
+  serialized `DataIslandSnapshot`, a direct instance data-island `<template>`, and the
+  normal `<!--cem-render-start-->` / `<!--cem-render-end-->` render boundary comments.
+  When those three pieces match the produced element, the browser runtime preserves the
+  server-rendered light DOM on first connect, restores the instance/data revision state,
+  and lets normal client invalidation handle later mutations.
 
 ### 4.2 Serializable processing boundary
 
