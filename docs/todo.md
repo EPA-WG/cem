@@ -432,12 +432,22 @@ gate is green.
 
 Roadmap: [`../roadmap.md` §Phase 3.6](../roadmap.md). Starts after Phase 3.5 is green.
 
-- [ ] Set the migration scope and branch strategy for moving `@epa-wg/custom-element` from
+- [x] Set the migration scope and branch strategy for moving `@epa-wg/custom-element` from
       `~/aWork/custom-element/` into `packages/custom-element/`, including how published npm identity and source
-      history will be preserved.
-- [ ] Capture the migration baseline before importing code: current npm version, published package name, entrypoints
+      history will be preserved. Landed in
+      [`custom-element-migration-scope.md`](custom-element-migration-scope.md): Phase 3.6 uses staged branches for
+      scope, history import, package scaffolding, adapter implementation, downstream consumers, and release readiness;
+      separates the local `0.0.37` history source from the workspace's consumed `0.0.39` package baseline; avoids
+      importing generic legacy release tags without namespacing; and sets the first-pass in-scope/out-of-scope
+      migration boundaries.
+- [x] Capture the migration baseline before importing code: current npm version, published package name, entrypoints
       (`custom-element.js`, `http-request.js`, IDE metadata, demos/docs), license/readme files, side-effect module
-      behavior, and every root/package reference to `node_modules/@epa-wg/custom-element`.
+      behavior, and every root/package reference to `node_modules/@epa-wg/custom-element`. Landed in
+      [`custom-element-package-baseline.md`](custom-element-package-baseline.md): the workspace consumes
+      `@epa-wg/custom-element@0.0.39`, while the local history checkout is `0.0.37`; `custom-element.js` contains
+      the published `0.0.39` browser fixes that must be preserved; companion modules register custom elements as
+      import side effects; `module-url.js` ships as a browser file but is not re-exported from `index.js`; and the
+      root/package plus `cem-theme` node_modules references are inventoried for the consumer-rewire phase.
 - [ ] Import the legacy source into `packages/custom-element/` with history-preserving mechanics where practical.
       Keep the POC as a functional reference only; do not let its XSLT/XPath implementation become the new
       architecture decision point.
