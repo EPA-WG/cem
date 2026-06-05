@@ -1919,6 +1919,7 @@ export const EdgeRenderStateHybridStorageModel: Story = {
 
         const previousRecord = createEdgeRenderStateRecord({
             renderPlan: previousPlan,
+            templateArtifact: source,
             privacyPolicyStamp: 'edge-export-policy-v1',
             sanitizedSnapshot: exportDataIslandSnapshotForEdge(previousSnapshot, {
                 privacyPolicyStamp: 'edge-export-policy-v1',
@@ -1927,6 +1928,7 @@ export const EdgeRenderStateHybridStorageModel: Story = {
         });
         const nextRecord = createEdgeRenderStateRecord({
             renderPlan: nextPlan,
+            templateArtifact: source,
             privacyPolicyStamp: 'edge-export-policy-v1',
             sanitizedSnapshot,
             stateKey: previousRecord.stateKey,
@@ -1959,10 +1961,16 @@ export const EdgeRenderStateHybridStorageModel: Story = {
             !edgeRenderStateRevisionMatches(previousRecord, renderPlanIdentity(nextPlan)),
             'stale revision comparison prevents blind edge-state overwrites'
         );
+        assertEqual(
+            nextRecord.currentTemplateArtifact?.kind,
+            'template-artifact',
+            'template artifacts are content-addressed in pointer records when supplied'
+        );
 
         const store = new InMemoryEdgeRenderStateStore();
         const initialWrite = store.writeRenderState({
             renderPlan: previousPlan,
+            templateArtifact: source,
             privacyPolicyStamp: 'edge-export-policy-v1',
             sanitizedSnapshot: exportDataIslandSnapshotForEdge(previousSnapshot, {
                 privacyPolicyStamp: 'edge-export-policy-v1',
@@ -1976,10 +1984,22 @@ export const EdgeRenderStateHybridStorageModel: Story = {
             '21',
             'content-addressed cache stores the previous render plan by address'
         );
+        assert(initialWrite.record.currentTemplateArtifact, 'initial edge write stores a template artifact address');
+        const storedTemplateArtifact = readEdgeContent<typeof source>(
+            store,
+            initialWrite.record.currentTemplateArtifact
+        );
+        assert(storedTemplateArtifact.ok, 'template artifact content reads back with a matching content address');
+        assertEqual(
+            storedTemplateArtifact.value[0]?.kind,
+            'element',
+            'stored template artifacts preserve the serialized template source'
+        );
 
         const staleWrite = store.writeRenderState(
             {
                 renderPlan: nextPlan,
+                templateArtifact: source,
                 privacyPolicyStamp: 'edge-export-policy-v1',
                 sanitizedSnapshot,
                 stateKey: initialWrite.record.stateKey,
@@ -1996,6 +2016,7 @@ export const EdgeRenderStateHybridStorageModel: Story = {
         const acceptedWrite = store.writeRenderState(
             {
                 renderPlan: nextPlan,
+                templateArtifact: source,
                 privacyPolicyStamp: 'edge-export-policy-v1',
                 sanitizedSnapshot,
                 stateKey: initialWrite.record.stateKey,
@@ -2052,6 +2073,7 @@ export const EdgeRenderStateHybridStorageModel: Story = {
         const helperStore = new InMemoryEdgeRenderStateStore();
         const helperInitial = helperStore.writeRenderState({
             renderPlan: previousPlan,
+            templateArtifact: source,
             privacyPolicyStamp: 'edge-export-policy-v1',
             sanitizedSnapshot: exportDataIslandSnapshotForEdge(previousSnapshot, {
                 privacyPolicyStamp: 'edge-export-policy-v1',
@@ -2063,6 +2085,7 @@ export const EdgeRenderStateHybridStorageModel: Story = {
             helperStore,
             {
                 renderPlan: nextPlan,
+                templateArtifact: source,
                 privacyPolicyStamp: 'edge-export-policy-v1',
                 sanitizedSnapshot,
                 stateKey: helperInitial.record.stateKey,
@@ -2120,11 +2143,17 @@ export const EdgeRenderStateHybridStorageModel: Story = {
             '22',
             'project-and-advance commits the projected render revision'
         );
+        assertEqual(
+            projectionAdvance.record.currentTemplateArtifact?.kind,
+            'template-artifact',
+            'project-and-advance stores the serialized source as a template artifact'
+        );
 
         const rejectedAdvance = advanceEdgeRenderState(
             helperStore,
             {
                 renderPlan: previousPlan,
+                templateArtifact: source,
                 privacyPolicyStamp: 'edge-export-policy-v1',
                 sanitizedSnapshot: exportDataIslandSnapshotForEdge(previousSnapshot, {
                     privacyPolicyStamp: 'edge-export-policy-v1',
@@ -2142,6 +2171,7 @@ export const EdgeRenderStateHybridStorageModel: Story = {
             firstRenderStore,
             {
                 renderPlan: previousPlan,
+                templateArtifact: source,
                 privacyPolicyStamp: 'edge-export-policy-v1',
                 sanitizedSnapshot: exportDataIslandSnapshotForEdge(previousSnapshot, {
                     privacyPolicyStamp: 'edge-export-policy-v1',

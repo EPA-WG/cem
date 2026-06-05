@@ -151,6 +151,7 @@ export interface EdgeRenderStateRecord {
     scopePolicyStamp: string;
     privacyPolicyStamp?: string;
     renderRevision: RenderRevision;
+    currentTemplateArtifact?: EdgeContentAddress;
     currentRenderPlan: EdgeContentAddress;
     currentSnapshot?: EdgeContentAddress;
     currentHtml?: EdgeContentAddress;
@@ -159,6 +160,7 @@ export interface EdgeRenderStateRecord {
 
 export interface EdgeRenderStateInput {
     renderPlan: RenderPlan;
+    templateArtifact?: unknown;
     sanitizedSnapshot?: unknown;
     renderedHtml?: string;
     privacyPolicyStamp?: string;
@@ -389,6 +391,9 @@ export function createEdgeRenderStateRecord(input: EdgeRenderStateInput): EdgeRe
         scopePolicyStamp: input.renderPlan.scopePolicyStamp,
         privacyPolicyStamp: input.privacyPolicyStamp,
         renderRevision: identity,
+        currentTemplateArtifact: input.templateArtifact !== undefined
+            ? edgeContentAddress('template-artifact', input.templateArtifact)
+            : undefined,
         currentRenderPlan,
         currentSnapshot: input.sanitizedSnapshot !== undefined
             ? edgeContentAddress('sanitized-snapshot', input.sanitizedSnapshot)
@@ -486,6 +491,7 @@ export function projectAndAdvanceEdgeRenderState(
         store,
         {
             renderPlan: projectTemplate(input.source, input.projection),
+            templateArtifact: input.source,
             sanitizedSnapshot: input.sanitizedSnapshot,
             renderedHtml: input.renderedHtml,
             privacyPolicyStamp: input.privacyPolicyStamp,
@@ -536,6 +542,9 @@ export class InMemoryEdgeRenderStateStore implements EdgeRenderStateStore {
         input: EdgeRenderStateInput,
         options: EdgeRenderStateWriteOptions = {}
     ): EdgeRenderStateWriteResult {
+        if (input.templateArtifact !== undefined) {
+            this.putContent('template-artifact', input.templateArtifact);
+        }
         this.putContent('render-plan', input.renderPlan);
         if (input.sanitizedSnapshot !== undefined) {
             this.putContent('sanitized-snapshot', input.sanitizedSnapshot);

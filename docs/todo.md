@@ -421,8 +421,8 @@ gate is green.
       `InMemoryEdgeRenderStateStore`, `readEdgeContent`, `advanceEdgeRenderState`,
       `projectAndAdvanceEdgeRenderState`), and
       [`EdgeRenderStateHybridStorageModel`](../packages/cem-elements/src/lib/cem-elements.stories.ts), including
-      content-addressed writes, ETag compare-and-swap, stale-write rejection, sanitized snapshot retrieval, and
-      explicit null snapshot/empty HTML content addressing,
+      content-addressed template artifact/render plan/snapshot export/HTML writes, ETag compare-and-swap,
+      stale-write rejection, sanitized snapshot retrieval, and explicit null snapshot/empty HTML content addressing,
       store-backed patch-frame generation from the previous content-addressed render plan, projection from serialized
       source/snapshot input, first-render replacement frames, and fail-closed missing-content plus content-address
       mismatch and render-revision mismatch handling.
