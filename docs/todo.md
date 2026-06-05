@@ -272,7 +272,7 @@ Design home: [`cem-element-design.md`](cem-element-design.md). WASM proposal:
       so the matrix maps each legacy behavior to existing stories, new named stories
       (`LegacyAttributeDefaultsAndHostOverridesParity`, `LegacyDatadomAccessMigrationParity`,
       `LegacyNamedSlotPayloadParity`, `LegacySliceInputEventParity`, `LegacySrcDeclarationLoadingIsTrackedAsBlocked`,
-      `LegacyBridgeTemplateBlockedParity`), or an explicit migration/blocker decision (`src`, inline no-`tag`,
+      `LegacyBridgeTemplateParity`), or an explicit migration/blocker decision (`src`, inline no-`tag`,
       XSLT `for-each`/`variable`, scoped CSS, resource primitives). Storybook coverage is now 45 passing stories.
 - [x] Land material parity stories for every component in `~/aWork/custom-element-dist/src/material/` (action,
       autocomplete, badge, dropdown, icon, icon-link, input, menu). Landed a named parity story per component in
@@ -345,8 +345,13 @@ Design home: [`cem-element-design.md`](cem-element-design.md). WASM proposal:
         stories now assert accessible names, native implicit roles, host focus delegation, disclosure state
         mirroring, decorative resource images, and `aria-*` reference integrity across the eight material parity
         fixtures; `nx run cem-elements:test` / `nx run cem-elements:verify` are green.
-- [ ] Bridge support: `<template lang="custom-element-v0">` compat path for legacy authoring during the migration
-      window; keep only if needed after the `@epa-wg/custom-element` substrate adoption.
+- [x] Bridge support: `<template lang="custom-element-v0">` compat path for legacy authoring during the migration
+      window; keep only if needed after the `@epa-wg/custom-element` substrate adoption. Landed as the
+      package-private legacy projection path in [`projection.ts`](../packages/cem-elements/src/lib/projection.ts) and
+      [`cem-elements.ts`](../packages/cem-elements/src/lib/cem-elements.ts): legacy-v0 templates reuse the DOM source
+      reader, accept legacy `{name}` / `{$name}` / `{//path}` interpolation, bridge `if` / `choose` / `when` /
+      `otherwise`, declaration attributes/slices, slots, and the same resource/slice event handling as the DOM path.
+      Coverage: `LegacyBridgeTemplateParity`; unsupported XSLT-only constructs remain adoption-phase follow-up.
 
 ### 3.2 Primitives — `@epa-wg/cem-components`
 
@@ -360,7 +365,13 @@ authoring surface.
       [`packages/cem-components/docs/light-dom-rendering.md`](../packages/cem-components/docs/light-dom-rendering.md).
 - [x] Define the accessibility contract: labels, descriptions, focus, keyboard behavior, roles, live regions. Landed
       in [`packages/cem-components/docs/accessibility.md`](../packages/cem-components/docs/accessibility.md).
-- [ ] Build the test harness for DOM rendering, events, accessibility assertions, and visual snapshots.
+- [x] Build the test harness for DOM rendering, events, accessibility assertions, and visual snapshots. Landed in
+      [`component-harness.ts`](../packages/cem-components/src/lib/testing/component-harness.ts) with browser-backed
+      coverage in
+      [`component-harness.browser.spec.ts`](../packages/cem-components/src/lib/testing/component-harness.browser.spec.ts):
+      the harness asserts light-DOM output, component event bubbling/composition and JSON payloads, accessible names,
+      ARIA/reference integrity, focus indicators, deterministic visual snapshots, and a Chromium screenshot smoke path.
+      `nx run @epa-wg/cem-components:test/build/lint` are green.
 - [ ] Implement minimal primitives: action, field, surface, text, icon, stack, grid, list, nav, dialog shell.
 
 ## Phase 3.5 — Edge/SSR Processing Follow-Up

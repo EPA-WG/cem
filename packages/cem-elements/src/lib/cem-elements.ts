@@ -1,5 +1,6 @@
 import {
     materializeRenderPlan,
+    projectLegacyTemplate,
     projectTemplate,
     projectSlotsInRenderPlan,
     readTemplateSource,
@@ -658,25 +659,16 @@ export class CemElementRuntime {
         compiled: CompiledDeclaration,
         snapshot: DataIslandSnapshot
     ): DocumentFragment {
-        if (compiled.mode === 'legacy-v0') {
-            this.recordDiagnostics(instance, [
-                {
-                    code: 'cem-element.legacy_template_not_implemented',
-                    severity: 'error',
-                    source: 'render',
-                    tag: compiled.producedTag,
-                    message: '`custom-element-v0` bridge templates are reserved for the bridge-support slice',
-                },
-            ]);
-            return instance.ownerDocument.createDocumentFragment();
-        }
-
         // UI adapter → processing layer → UI adapter: project the serializable template
         // source against a serializable data-island snapshot, then materialize the plan
         // into live light DOM.
         try {
             const values = templateValues(snapshot, compiled.declaredAttributes);
-            const plan = projectTemplate(compiled.templateSource, { snapshot, values });
+            const input = { snapshot, values };
+            const plan =
+                compiled.mode === 'legacy-v0'
+                    ? projectLegacyTemplate(compiled.templateSource, input)
+                    : projectTemplate(compiled.templateSource, input);
             return materializeRenderPlan(plan, instance.ownerDocument);
         } catch (error) {
             this.recordDiagnostics(instance, [
@@ -964,22 +956,13 @@ function compileInlineDeclaration(
 ): CompiledDeclaration {
     const mode = templateMode(template);
     const diagnostics: CemElementDiagnostic[] = [];
-    if (mode === 'legacy-v0') {
-        diagnostics.push(
-            declarationDiagnostic(
-                'cem-element.legacy_template_not_implemented',
-                '`custom-element-v0` templates are reserved for the bridge-support slice',
-                producedTag
-            )
-        );
-    }
 
     const templateSource = readInlineTemplateSource(template, mode);
     // DOM-parity templates extract their declarations here for the synchronous projection
     // path. CEM-ML templates render through the cem_ql WASM boundary, which owns declared
     // attributes/slices and their defaults, so nothing is scanned synchronously for them.
-    const declaredAttributes = mode === 'dom' ? extractAttributeDeclarationsFromSource(templateSource) : [];
-    const declaredSlices = mode === 'dom' ? extractSliceDeclarationsFromSource(templateSource) : [];
+    const declaredAttributes = mode !== 'cem-ml' ? extractAttributeDeclarationsFromSource(templateSource) : [];
+    const declaredSlices = mode !== 'cem-ml' ? extractSliceDeclarationsFromSource(templateSource) : [];
     const cemMlSource = mode === 'cem-ml' ? templateSourceText(template) : null;
     return {
         declarationElement,
@@ -1001,14 +984,14 @@ function compileInlineDeclaration(
  * Read the synchronous template source for a declaration. DOM-parity templates lower
  * through the browser DOM parser into a serializable source tree. CEM-ML templates render
  * through the cem_ql WASM boundary — which owns parsing, declaration metadata, defaults,
- * and diagnostics — so no synchronous source is read for them. Legacy bridge templates are
- * inert until the bridge-support slice.
+ * and diagnostics — so no synchronous source is read for them. Legacy bridge templates
+ * reuse the DOM source reader and lower through a compat projection path.
  */
 function readInlineTemplateSource(
     template: HTMLTemplateElement,
     mode: CompiledDeclaration['mode']
 ): TemplateSourceNode[] {
-    return mode === 'dom' ? readTemplateSource(template.content) : [];
+    return mode === 'dom' || mode === 'legacy-v0' ? readTemplateSource(template.content) : [];
 }
 
 function templateMode(template: HTMLTemplateElement): CompiledDeclaration['mode'] {

@@ -35,12 +35,12 @@ the behavioral reference.
 | Slice updates from DOM events rerender output | README interactivity; `demo/data-slices.html` | Supported for focused event/value forms | `LegacySliceInputEventParity`, `SliceEventInvalidationRerenders` |
 | Multiple event names / multiple slice targets / checkbox and radio coercion | `demo/data-slices.html` cases B, 7-13 | Partial | Current substrate supports one event name and focused value extraction; broader legacy forms remain bridge/adoption work |
 | Conditional rendering with `if` / `choose` / `when` / `otherwise` | README Pokemon example; material demos | Supported in canonical CEM-ML/cem-ql | `CemQlConditionalRenderLoop`; legacy XPath spellings migrate to `datadom.*` cem-ql |
-| Loops and variables (`for-each`, `variable`, XSLT 1.0) | README loops/variables; `demo/for-each.html` | Deferred | Not in the C2 substrate; bridge support may preserve legacy XSLT during migration |
+| Loops and variables (`for-each`, `variable`, XSLT 1.0) | README loops/variables; `demo/for-each.html` | Deferred | Not in the browser substrate bridge subset; adoption-phase `<custom-element>` may preserve full XSLT if needed |
 | Namespaced `xhtml:*` parser workaround | README troubleshooting; material input demos | Partial | Current DOM read flattens `xhtml:*` to HTML local names; material inventory tracks this as coincidental parity |
 | Scoped styles in templates | README styles section; `demo/scoped-css.html` | Partial | Styles render into light DOM but are not scoped; material inventory tracks containment as open |
 | Nested produced custom elements | README embedded CE rendering | Supported | Works when nested declarations are registered, including through local/external `src`; covered by material parity stories |
 | Resource slices (`module-url`, `http-request`, `local-storage`, `location-element`) | README extension primitives; demos | Partial | Focused `module-url` URL resolution is supported through `resolveModuleUrl` and material parity coverage; `http-request`, `local-storage`, and `location-element` remain later primitive/resource slices |
-| Legacy `<template lang="custom-element-v0">` bridge | Migration window item | Blocked by design | `LegacyBridgeTemplateBlockedParity`; bridge support stays a separate todo item |
+| Legacy `<template lang="custom-element-v0">` bridge | Migration window item | Supported | `LegacyBridgeTemplateParity`; supports legacy interpolation, `if`/`choose`, slots, declarations, slices/resources; full XSLT-only constructs remain adoption-phase follow-up |
 
 ## Migration Decisions
 

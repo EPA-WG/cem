@@ -9,7 +9,8 @@ can be scoped against real gaps rather than guesses.
 - **Source:** `~/aWork/custom-element-dist/src/material/components/*.html` (read-only POC reference).
 - **Components in scope (8):** action, autocomplete, badge, dropdown, icon, icon-link, input, menu.
 - **Method:** static read of each component HTML; line citations are `file:line` against the POC sources.
-- **Runtime baseline:** `<cem-element>` runtime slices A, B, C1, C2.1–C2.6, D, E (bridge support open).
+- **Runtime baseline:** `<cem-element>` runtime slices A, B, C1, C2.1–C2.6, D, E, production gate, and the
+  `custom-element-v0` bridge subset.
   See [`../../../docs/cem-element-design.md`](../../../docs/cem-element-design.md).
 
 ## Support legend

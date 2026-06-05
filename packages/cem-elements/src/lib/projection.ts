@@ -171,6 +171,26 @@ export function projectTemplate(
     source: readonly TemplateSourceNode[],
     input: TemplateProjectionInput
 ): RenderPlan {
+    return projectTemplateWith(source, input, projectNode, isTopLevelNonOutputNode);
+}
+
+export function projectLegacyTemplate(
+    source: readonly TemplateSourceNode[],
+    input: TemplateProjectionInput
+): RenderPlan {
+    return projectTemplateWith(source, input, projectLegacyNode, isTopLevelLegacyNonOutputNode);
+}
+
+function projectTemplateWith(
+    source: readonly TemplateSourceNode[],
+    input: TemplateProjectionInput,
+    project: (
+        source: TemplateSourceNode,
+        input: TemplateProjectionInput,
+        nextRenderNodeId: () => string
+    ) => RenderPlanNode[],
+    isTopLevelNonOutput: (node: TemplateSourceNode) => boolean
+): RenderPlan {
     let renderNodeSequence = 0;
     const nextRenderNodeId = (): string => {
         renderNodeSequence += 1;
@@ -179,13 +199,10 @@ export function projectTemplate(
 
     const nodes: RenderPlanNode[] = [];
     for (const sourceNode of source) {
-        if (isTopLevelNonOutputNode(sourceNode)) {
+        if (isTopLevelNonOutput(sourceNode)) {
             continue;
         }
-        const planned = projectNode(sourceNode, input.values, nextRenderNodeId);
-        if (planned) {
-            nodes.push(planned);
-        }
+        nodes.push(...project(sourceNode, input, nextRenderNodeId));
     }
     const plan: RenderPlan = {
         producedTag: input.snapshot.producedTag,
@@ -201,35 +218,93 @@ export function projectTemplate(
 
 function projectNode(
     source: TemplateSourceNode,
-    values: Record<string, TemplateValue>,
+    input: TemplateProjectionInput,
     nextRenderNodeId: () => string
-): RenderPlanNode | undefined {
+): RenderPlanNode[] {
     if (source.kind === 'text') {
-        return { kind: 'text', text: interpolateText(source.text, values), sourceMapRef: source.sourceMapRef };
+        return [{ kind: 'text', text: interpolateText(source.text, input.values), sourceMapRef: source.sourceMapRef }];
     }
     if (source.kind === 'comment') {
-        return { kind: 'comment', text: source.text, sourceMapRef: source.sourceMapRef };
+        return [{ kind: 'comment', text: source.text, sourceMapRef: source.sourceMapRef }];
     }
 
     const attributes: RenderPlanAttribute[] = [];
     for (const attribute of source.attributes) {
-        const resolved = resolveAttribute(attribute.name, attribute.value, values);
+        const resolved = resolveAttribute(attribute.name, attribute.value, input.values);
         if (resolved) {
             attributes.push(resolved);
         }
     }
 
-    return {
+    return [{
         kind: 'element',
         namespace: source.namespace,
         tag: source.tag,
         attributes,
         renderNodeId: nextRenderNodeId(),
         children: source.children
-            .map((child) => projectNode(child, values, nextRenderNodeId))
-            .filter((node): node is RenderPlanNode => node !== undefined),
+            .flatMap((child) => projectNode(child, input, nextRenderNodeId)),
         sourceMapRef: source.sourceMapRef,
-    };
+    }];
+}
+
+function projectLegacyNode(
+    source: TemplateSourceNode,
+    input: TemplateProjectionInput,
+    nextRenderNodeId: () => string
+): RenderPlanNode[] {
+    if (source.kind === 'text') {
+        return [{ kind: 'text', text: interpolateLegacy(source.text, input), sourceMapRef: source.sourceMapRef }];
+    }
+    if (source.kind === 'comment') {
+        return [{ kind: 'comment', text: source.text, sourceMapRef: source.sourceMapRef }];
+    }
+    if (source.tag === 'if') {
+        return legacyTestIsTruthy(source.attributes, input)
+            ? source.children.flatMap((child) => projectLegacyNode(child, input, nextRenderNodeId))
+            : [];
+    }
+    if (source.tag === 'choose') {
+        for (const child of source.children) {
+            if (child.kind !== 'element') {
+                continue;
+            }
+            if (child.tag === 'when' && legacyTestIsTruthy(child.attributes, input)) {
+                return child.children.flatMap((branch) => projectLegacyNode(branch, input, nextRenderNodeId));
+            }
+            if (child.tag === 'otherwise') {
+                return child.children.flatMap((branch) => projectLegacyNode(branch, input, nextRenderNodeId));
+            }
+        }
+        return [];
+    }
+
+    const attributes: RenderPlanAttribute[] = [];
+    for (const attribute of source.attributes) {
+        if (source.tag === 'attribute' && attribute.name === 'select') {
+            continue;
+        }
+        const value = interpolateLegacy(attribute.value, input);
+        if (isWholeLegacyExpression(attribute.value) && (value === '' || value === 'false')) {
+            continue;
+        }
+        attributes.push({ name: attribute.name, value });
+    }
+
+    return [{
+        kind: 'element',
+        namespace: source.namespace,
+        tag: source.tag,
+        attributes,
+        renderNodeId: nextRenderNodeId(),
+        children: source.children.flatMap((child) => projectLegacyNode(child, input, nextRenderNodeId)),
+        sourceMapRef: source.sourceMapRef,
+    }];
+}
+
+function legacyTestIsTruthy(attributes: readonly TemplateSourceAttribute[], input: TemplateProjectionInput): boolean {
+    const test = attributes.find((attribute) => attribute.name === 'test')?.value ?? '';
+    return legacyValueIsTruthy(evaluateLegacyExpression(test, input));
 }
 
 /**
@@ -382,7 +457,129 @@ function valueToText(value: TemplateValue): string {
     return value === null ? '' : String(value);
 }
 
+function interpolateLegacy(text: string, input: TemplateProjectionInput): string {
+    return text.replace(/\{([^{}]+)\}/g, (_, expression: string) =>
+        valueToText(evaluateLegacyExpression(expression, input))
+    );
+}
+
+function evaluateLegacyExpression(expression: string, input: TemplateProjectionInput): TemplateValue {
+    const trimmed = expression.trim();
+    if (trimmed === '') {
+        return null;
+    }
+    const coalesce = splitLegacyCoalesce(trimmed);
+    if (coalesce) {
+        const left = evaluateLegacyExpression(coalesce[0], input);
+        return legacyValueIsTruthy(left) ? left : evaluateLegacyExpression(coalesce[1], input);
+    }
+    const quoted = trimmed.match(/^(['"])(.*)\1$/);
+    if (quoted) {
+        return quoted[2];
+    }
+    if (trimmed === 'true') {
+        return true;
+    }
+    if (trimmed === 'false') {
+        return false;
+    }
+    const path = legacyExpressionPath(trimmed);
+    if (path.length > 0) {
+        return legacyPathValue(path, input);
+    }
+    return null;
+}
+
+function splitLegacyCoalesce(expression: string): [string, string] | null {
+    const index = expression.indexOf('??');
+    return index < 0 ? null : [expression.slice(0, index), expression.slice(index + 2)];
+}
+
+function legacyExpressionPath(expression: string): string[] {
+    if (expression.startsWith('$')) {
+        return expression.slice(1).split('.').filter(Boolean);
+    }
+    if (expression.startsWith('/datadom/')) {
+        return expression.slice('/datadom/'.length).split('/').filter(Boolean);
+    }
+    if (expression.startsWith('//')) {
+        return expression.slice(2).split('/').filter(Boolean);
+    }
+    if (/^[A-Za-z_][\w.-]*$/.test(expression)) {
+        return [expression];
+    }
+    return [];
+}
+
+function legacyPathValue(path: readonly string[], input: TemplateProjectionInput): TemplateValue {
+    const [first, ...rest] = path;
+    if (!first) {
+        return null;
+    }
+    if (first === 'attributes') {
+        return toTemplateValue((input.snapshot.hostAttributes as Record<string, unknown>)[rest.join('.')]);
+    }
+    if (first === 'dataset') {
+        return toTemplateValue((input.snapshot.dataset as Record<string, unknown>)[rest.join('.')]);
+    }
+    if (first === 'slice' || first === 'slices') {
+        return toTemplateValue((input.snapshot.slices as Record<string, unknown>)[rest.join('.')]);
+    }
+    if (first === 'payload') {
+        return readUnknownPath(input.snapshot.payload, rest);
+    }
+    return (
+        input.values[first] ??
+        toTemplateValue((input.snapshot.hostAttributes as Record<string, unknown>)[first]) ??
+        toTemplateValue((input.snapshot.dataset as Record<string, unknown>)[first]) ??
+        toTemplateValue((input.snapshot.slices as Record<string, unknown>)[first]) ??
+        null
+    );
+}
+
+function readUnknownPath(value: unknown, path: readonly string[]): TemplateValue {
+    let current = value;
+    for (const segment of path) {
+        if (!current || typeof current !== 'object' || Array.isArray(current)) {
+            return null;
+        }
+        current = (current as Record<string, unknown>)[segment];
+    }
+    return toTemplateValue(current);
+}
+
+function toTemplateValue(value: unknown): TemplateValue {
+    if (value === null || value === undefined) {
+        return null;
+    }
+    if (typeof value === 'string' || typeof value === 'boolean') {
+        return value;
+    }
+    if (typeof value === 'number') {
+        return String(value);
+    }
+    if (typeof value === 'object' && 'text' in value && typeof (value as { text?: unknown }).text === 'string') {
+        return (value as { text: string }).text;
+    }
+    return null;
+}
+
+function legacyValueIsTruthy(value: TemplateValue): boolean {
+    return value !== null && value !== false && value !== '' && value !== 'false' && value !== '0';
+}
+
+function isWholeLegacyExpression(value: string): boolean {
+    return /^\{\s*[^{}]+\s*\}$/.test(value);
+}
+
 function isTopLevelNonOutputNode(node: TemplateSourceNode): boolean {
+    if (node.kind === 'element') {
+        return node.tag === ATTRIBUTE_DECLARATION_TAG || node.tag === SLICE_DECLARATION_TAG;
+    }
+    return node.kind === 'text' && node.text.trim().length === 0;
+}
+
+function isTopLevelLegacyNonOutputNode(node: TemplateSourceNode): boolean {
     if (node.kind === 'element') {
         return node.tag === ATTRIBUTE_DECLARATION_TAG || node.tag === SLICE_DECLARATION_TAG;
     }

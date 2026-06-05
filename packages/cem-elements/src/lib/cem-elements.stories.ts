@@ -906,17 +906,38 @@ export const LocalSrcDeclarationLoadingParity: Story = {
     },
 };
 
-export const LegacyBridgeTemplateBlockedParity: Story = {
-    render: () => storyPanel('Legacy bridge template', 'custom-element-v0 bridge remains a separate migration slice'),
-    play: () => {
+export const LegacyBridgeTemplateParity: Story = {
+    render: () => storyPanel('Legacy bridge template', 'custom-element-v0 bridge renders during migration'),
+    play: async ({ canvasElement }) => {
+        const root = document.createElement('section');
+        canvasElement.appendChild(root);
         const runtime = new CemElementRuntime({ declarationTag: 'cem-element-story-legacy-bridge' });
         const declaration = buildDeclaration({
             tag: 'story-legacy-bridge',
-            templates: [{ lang: 'custom-element-v0', html: '<button type="button">legacy</button>' }],
+            templates: [{
+                lang: 'custom-element-v0',
+                html:
+                    '<attribute name="label">Legacy</attribute>' +
+                    '<button type="button" title="{title}">{$label} {title}</button>' +
+                    '<if test="//smile"><span class="smile">{//smile}</span></if>' +
+                    '<slot name="description"><i>fallback</i></slot>',
+            }],
         });
         runtime.registerDeclaration(declaration);
+        assertEqual(runtime.diagnosticsFor(declaration).length, 0, 'legacy bridge declarations register without diagnostics');
 
-        assertDiagnostic(runtime.diagnosticsFor(declaration), 'cem-element.legacy_template_not_implemented');
+        const instance = document.createElement('story-legacy-bridge');
+        instance.setAttribute('title', 'Bridge');
+        instance.dataset.smile = 'yes';
+        instance.innerHTML = '<p slot="description">projected</p>';
+        root.appendChild(instance);
+
+        await runtime.whenRenderSettled(instance);
+        const button = await waitForElement(instance, 'button');
+        assertEqual(button.textContent?.trim(), 'Legacy Bridge', 'legacy text interpolation resolves defaults and host attributes');
+        assertEqual(button.getAttribute('title'), 'Bridge', 'legacy attribute value templates resolve host attributes');
+        assertEqual(requiredElement(instance, '.smile').textContent, 'yes', 'legacy if test reads dataset-style //path values');
+        assertEqual(requiredElement(instance, 'p[slot="description"]').textContent, 'projected', 'legacy slots project payload');
     },
 };
 
@@ -1638,13 +1659,6 @@ export const DeclarationDiagnosticsAreExposed: Story = {
         runtime.registerDeclaration(liveContent);
         assertDiagnostic(runtime.diagnosticsFor(liveContent), 'cem-element.declaration_live_content');
 
-        const legacy = buildDeclaration({
-            tag: 'story-decl-legacy',
-            templates: [{ lang: 'custom-element-v0', html: '<button>x</button>' }],
-        });
-        runtime.registerDeclaration(legacy);
-        assertDiagnostic(runtime.diagnosticsFor(legacy), 'cem-element.legacy_template_not_implemented');
-
         const firstDefine = buildDeclaration({
             tag: 'story-decl-duplicate',
             templates: [{ html: '<button>first</button>' }],
@@ -1715,22 +1729,19 @@ export const RenderFailureDiagnosticsAreExposed: Story = {
         assertEqual(renderFailure.source, 'render', 'render failures are render-sourced');
         assertEqual(renderFailure.severity, 'error', 'render failures are error-severity diagnostics');
 
-        // Legacy bridge templates report both a declaration diagnostic and an instance render diagnostic.
+        // Legacy bridge templates are a supported migration path and should not
+        // report the old reserved-slice diagnostic.
         const legacyRuntime = new CemElementRuntime({ declarationTag: 'cem-element-story-render-legacy' });
         const legacyDeclaration = buildDeclaration({
             tag: 'story-render-legacy',
             templates: [{ lang: 'custom-element-v0', html: '<button>x</button>' }],
         });
         legacyRuntime.registerDeclaration(legacyDeclaration);
-        assertDiagnostic(legacyRuntime.diagnosticsFor(legacyDeclaration), 'cem-element.legacy_template_not_implemented');
         const legacyInstance = document.createElement('story-render-legacy');
         root.appendChild(legacyInstance);
-        await nextFrame();
-        const legacyRender = findDiagnostic(
-            legacyRuntime.diagnosticsFor(legacyInstance),
-            'cem-element.legacy_template_not_implemented'
-        );
-        assertEqual(legacyRender.source, 'render', 'legacy bridge templates report a render diagnostic on the instance');
+        await legacyRuntime.whenRenderSettled(legacyInstance);
+        assertEqual(legacyRuntime.diagnosticsFor(legacyDeclaration).length, 0, 'legacy declaration emits no diagnostic');
+        assertEqual(legacyRuntime.diagnosticsFor(legacyInstance).length, 0, 'legacy render emits no diagnostic');
     },
 };
 
