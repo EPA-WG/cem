@@ -13,11 +13,18 @@ import {
     advanceEdgeRenderState,
     createEdgeRenderStateRecord,
     diffRenderPlansToPatchFrames,
+    edgeContentAddress,
     edgeRenderStateRevisionMatches,
     materializeRenderPlan,
     projectTemplate,
     readTemplateSource,
     renderPlanIdentity,
+    type EdgeContentAddress,
+    type EdgeContentKind,
+    type EdgeRenderStateRecord,
+    type EdgeRenderStateStore,
+    type EdgeRenderStateWriteOptions,
+    type EdgeRenderStateWriteResult,
     type PatchFrame,
     type RenderPlan,
     type RenderPlanNode,
@@ -2056,6 +2063,45 @@ export const EdgeRenderStateHybridStorageModel: Story = {
         );
         assert(!rejectedAdvance.ok, 'store-backed edge advance rejects stale expected ETags');
         assertEqual(rejectedAdvance.reason, 'etag-mismatch', 'stale edge advance fails before returning frames');
+
+        const firstRenderStore = new InMemoryEdgeRenderStateStore();
+        const firstRender = advanceEdgeRenderState(
+            firstRenderStore,
+            {
+                renderPlan: previousPlan,
+                privacyPolicyStamp: 'edge-export-policy-v1',
+                sanitizedSnapshot: exportDataIslandSnapshotForEdge(previousSnapshot, {
+                    privacyPolicyStamp: 'edge-export-policy-v1',
+                    fields: { hostAttributes: 'allow', payload: 'redact' },
+                }),
+            },
+            { patchOptions: { transactionId: 'edge-first-render-tx' } }
+        );
+        assert(firstRender.ok, 'store-backed first render succeeds without a previous pointer');
+        assertEqual(firstRender.previousRenderPlan, null, 'first render has no previous content-addressed render plan');
+        assert(
+            opsFromPatchFrames(firstRender.frames).every((op) => op.op === 'replaceScope' && op.reason === 'first-render'),
+            'first edge render emits first-render scope replacement frames'
+        );
+
+        const missingAddress = edgeContentAddress('render-plan', previousPlan);
+        const brokenStore = new MissingRenderPlanStore(helperInitial.record, missingAddress);
+        const missingPlan = advanceEdgeRenderState(
+            brokenStore,
+            {
+                renderPlan: nextPlan,
+                privacyPolicyStamp: 'edge-export-policy-v1',
+                sanitizedSnapshot,
+                stateKey: helperInitial.record.stateKey,
+            }
+        );
+        assert(!missingPlan.ok, 'edge advance fails closed when the previous render-plan blob is missing');
+        assertEqual(missingPlan.reason, 'missing-render-plan', 'missing previous content reports a specific failure reason');
+        assertEqual(
+            missingPlan.reason === 'missing-render-plan' ? missingPlan.address.key : '',
+            missingAddress.key,
+            'missing previous content reports the missing render-plan address'
+        );
     },
 };
 
@@ -2217,6 +2263,40 @@ function findDiagnostic(diagnostics: readonly CemElementDiagnostic[], code: stri
     const diagnostic = diagnostics.find((entry) => entry.code === code);
     assert(diagnostic, `expected diagnostic ${code}`);
     return diagnostic;
+}
+
+class MissingRenderPlanStore implements EdgeRenderStateStore {
+    private readonly fallback = new InMemoryEdgeRenderStateStore();
+
+    constructor(
+        private readonly record: EdgeRenderStateRecord,
+        private readonly missingAddress: EdgeContentAddress
+    ) {}
+
+    putContent(kind: EdgeContentKind, value: unknown): EdgeContentAddress {
+        return this.fallback.putContent(kind, value);
+    }
+
+    getContent<T = unknown>(address: EdgeContentAddress): T | undefined {
+        return address.key === this.missingAddress.key ? undefined : this.fallback.getContent<T>(address);
+    }
+
+    readRecord(stateKey: string): EdgeRenderStateRecord | undefined {
+        return stateKey === this.record.stateKey
+            ? { ...this.record, currentRenderPlan: this.missingAddress }
+            : undefined;
+    }
+
+    writeRecord(
+        record: EdgeRenderStateRecord,
+        options?: EdgeRenderStateWriteOptions
+    ): EdgeRenderStateWriteResult {
+        return this.fallback.writeRecord(record, options);
+    }
+
+    writeRenderState(input: Parameters<EdgeRenderStateStore['writeRenderState']>[0]): EdgeRenderStateWriteResult {
+        return this.fallback.writeRenderState(input);
+    }
 }
 
 interface InlineDeclarationOptions {
