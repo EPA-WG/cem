@@ -1,7 +1,7 @@
 import { cemTheme } from '@epa-wg/cem-theme';
 
 export function cemComponents(): string {
-  return 'cem-components';
+  return '@epa-wg/cem-components';
 }
 
 export function getTheme(): string {

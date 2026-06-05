@@ -4,11 +4,9 @@ Declarative component primitives that consume the CEM theme. No shadow DOM — e
 light DOM, authored against the `<cem-element>` substrate from `@epa-wg/cem-elements` (functional successor to
 `@epa-wg/custom-element`; design home: [`docs/cem-element-design.md`](../../docs/cem-element-design.md)).
 
-> **Status: shell.** The package currently re-exports the theme entry point. Component implementations land in
-> Phase 3.2 of the [roadmap](../../roadmap.md), after the `cem-ml` / `cem-ml-cli` schema/parser/transform pipeline
-> (Phase 2) and the `<cem-element>` substrate (Phase 3.1) are in place. The substrate must first match the
-> `@epa-wg/custom-element` lifecycle and the material samples in `~/aWork/custom-element-dist/src/material/`. The
-> component surface is defined ahead of time in [component MVP](../../docs/component-mvp.md).
+> **Status: minimal primitives.** The package exports the Phase 3.2 browser test harness and the first installable
+> primitive declaration set from the [component MVP](../../docs/component-mvp.md), registered through the
+> production-ready `<cem-element>` substrate.
 
 ## Install
 
@@ -16,7 +14,20 @@ light DOM, authored against the `<cem-element>` substrate from `@epa-wg/cem-elem
 yarn add @epa-wg/cem-components
 ```
 
-This package depends on `@epa-wg/cem-theme`; install it alongside.
+This package depends on `@epa-wg/cem-theme` and `@epa-wg/cem-elements`; install them alongside.
+
+## Runtime install
+
+```ts
+import { CemElementRuntime } from '@epa-wg/cem-elements';
+import { installCemComponentPrimitives } from '@epa-wg/cem-components';
+
+const runtime = new CemElementRuntime();
+installCemComponentPrimitives(runtime);
+```
+
+This registers the minimal primitive tags: `cem-action`, `cem-field`, `cem-surface`, `cem-text`, `cem-icon`,
+`cem-stack`, `cem-grid`, `cem-list`, `cem-nav`, and `cem-dialog-shell`.
 
 ## Build & test
 
@@ -30,12 +41,19 @@ nx run @epa-wg/cem-components:lint
 
 `yarn build` at the repo root builds every package, including this one.
 
+`nx run @epa-wg/cem-components:test` runs the existing Node unit tests plus the Chromium-backed component harness
+coverage.
+
 ## Key paths
 
 | Purpose | Path |
 | ------- | ---- |
 | Package source | `src/` |
 | Current shell entry | `src/lib/cem-components.ts` |
+| Primitive declarations | `src/lib/primitives.ts` |
+| Primitive browser coverage | `src/lib/primitives.browser.spec.ts` |
+| Component test harness | `src/lib/testing/component-harness.ts` |
+| Browser harness coverage | `src/lib/testing/component-harness.browser.spec.ts` |
 | Built output | `dist/` |
 
 ## Component contracts

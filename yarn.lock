@@ -1377,11 +1377,12 @@ __metadata:
   version: 0.0.0-use.local
   resolution: "@epa-wg/cem-components@workspace:packages/cem-components"
   dependencies:
+    "@epa-wg/cem-elements": "workspace:^"
     "@epa-wg/cem-theme": "npm:^0.0.14"
   languageName: unknown
   linkType: soft
 
-"@epa-wg/cem-elements@workspace:packages/cem-elements":
+"@epa-wg/cem-elements@workspace:^, @epa-wg/cem-elements@workspace:packages/cem-elements":
   version: 0.0.0-use.local
   resolution: "@epa-wg/cem-elements@workspace:packages/cem-elements"
   languageName: unknown

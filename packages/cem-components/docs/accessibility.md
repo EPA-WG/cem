@@ -219,9 +219,10 @@ strip it.
   the canonical and HTML parity fixtures.
 - `nx run cem_ml_cli:e2e` — catches a11y rule violations on rendered round-trip
   output.
-- Phase 3 test harness (item 4 of [`docs/todo.md`](../../../docs/todo.md)) — will
-  cover the runtime side (focus order, keyboard, live-region timing) once it
-  lands. This document defines the contract that harness will assert.
+- Phase 3 test harness (item 4 of [`docs/todo.md`](../../../docs/todo.md)) — covers
+  the runtime side through browser-backed assertions for light-DOM output,
+  component events, accessible names, ARIA/reference integrity, focus indicators,
+  deterministic visual snapshots, and a Chromium screenshot smoke path.
 
 ## 12. AC and design references
 

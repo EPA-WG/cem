@@ -3,12 +3,14 @@
   "compilerOptions": {
     "outDir": "./out-tsc/vitest",
     "types": [
+      "@vitest/browser/providers/playwright",
       "vitest/globals",
       "vitest/importMeta",
       "vite/client",
       "node",
       "vitest"
     ],
+    "lib": ["es2022", "dom", "dom.iterable"],
     "forceConsistentCasingInFileNames": true
   },
   "include": [

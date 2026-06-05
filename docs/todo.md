@@ -372,7 +372,14 @@ authoring surface.
       the harness asserts light-DOM output, component event bubbling/composition and JSON payloads, accessible names,
       ARIA/reference integrity, focus indicators, deterministic visual snapshots, and a Chromium screenshot smoke path.
       `nx run @epa-wg/cem-components:test/build/lint` are green.
-- [ ] Implement minimal primitives: action, field, surface, text, icon, stack, grid, list, nav, dialog shell.
+- [x] Implement minimal primitives: action, field, surface, text, icon, stack, grid, list, nav, dialog shell. Landed as
+      installable `<cem-element>` CEM-ML declarations in
+      [`primitives.ts`](../packages/cem-components/src/lib/primitives.ts): `cem-action`, `cem-field`, `cem-surface`,
+      `cem-text`, `cem-icon`, `cem-stack`, `cem-grid`, `cem-list`, `cem-nav`, and `cem-dialog-shell` register through
+      `installCemComponentPrimitives(runtime)` without imperative component classes. Browser coverage in
+      [`primitives.browser.spec.ts`](../packages/cem-components/src/lib/primitives.browser.spec.ts) verifies the
+      rendered light-DOM output, labels, landmarks, dialog semantics, field label/help separation, and ARIA/reference
+      integrity. `nx run @epa-wg/cem-components:test/build/lint` are green.
 
 ## Phase 3.5 — Edge/SSR Processing Follow-Up
 
