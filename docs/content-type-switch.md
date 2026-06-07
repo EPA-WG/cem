@@ -306,6 +306,19 @@ This resolves the apparent tension between "whole-template routing" and "namespa
 binding": the former is the outer host-ingestion boundary; the latter is the interior model
 mechanism. The host layer is an adapter, not a governed dimension of the model.
 
+### 6.9 Processing hosts and input formats
+
+- **BR-PH-1** CSS generation **shall** be available as **HTML in the browser**: the in-browser
+  generator — CEM-ML templates rendered by the engine against the live browser DOM — is the
+  primary, supported delivery surface.
+- **BR-PH-2** CSS generation **should** *also* become available through the **CEM-ML CLI**
+  (headless Node, no browser), so the same generation runs in the build/CI pipeline without a
+  browser. *Future / low priority.*
+- **BR-PH-3** HTML and XHTML **shall** be accepted as input content types to the CEM-ML engine,
+  parsed and processed with **parity between the CLI and the browser**: in the browser the host
+  DOM supplies the parse (no engine-side parser needed); in the CLI the engine supplies an
+  equivalent HTML/XHTML parser so the same input yields the same result. *Future / low priority.*
+
 ## 7. Use cases
 
 - **Evolve the syntax under a stable model.** A clearer surface syntax is introduced for an

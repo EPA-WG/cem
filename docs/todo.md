@@ -165,10 +165,15 @@ into [`cem-ml-ac.md`](cem-ml-ac.md); the remaining items are implementation, wit
         [`stdlib_runtime.rs`](../packages/cem_ql/tests/stdlib_runtime.rs) (registry count 48→49);
         full cem-ql suite green. Re-scope: token-XHTML→structured-records **shaping** is a host/data
         concern, folded into slice 3 — not an engine feature.
-  - [ ] Slice 3 — Shape + bind the token document: parse each generator's token XHTML into a
-        structured cem-ql data-document on the host side (e.g. `datadom.tables.<id>` → rows of cell
-        records) and feed it through the substrate `DataIslandSnapshot`/`datadom`, replacing the
-        legacy `<http-request>`/XPath navigation. **Now the largest remaining piece.**
+  - [ ] Slice 3 — Bridge the browser DOM into a cem-ql data-document. **No XHTML parser needed**
+        (confirmed): the generators run in-browser and `http-request.js` already parses the fetched
+        token doc via `DOMParser` (`slice.data = …documentElement`), while the CEM-ML template is
+        read as a string (`templateSourceText`). Add a browser-side bridge that uses **native DOM
+        queries** (`getElementById` / `querySelector` / `nextElementSibling` — replacing the XSLT
+        `@id` / following-sibling navigation) to shape the parsed token DOM into clean cem-ql
+        records (e.g. `datadom.tables.<id>` → rows of cell records), reusing the existing
+        [`projection.ts`](../packages/cem-elements/src/lib/projection.ts) DOM-walk, and feed it via
+        `DataIslandSnapshot` / `datadom`. **Now the largest remaining piece.**
   - [ ] Slice 4 — rewrite each generator (smallest first: `cem-controls`/`cem-coupling`) to
         `type="cem-ml-v0"` CEM-ML/CEM-QL using for-each + field access + `str:normalize_space`, and
         route it through the substrate in the build pipeline.
