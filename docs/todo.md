@@ -34,21 +34,25 @@ for non-SemVer standards such as XSLT (OQ-10).
   - [ ] FF-4 Mode-disposition: unknown optional → ignore/degrade/reject per app/build-SSR/dev;
         must-understand rejects. (`cem-elements:verify`)
   - [ ] FF-5 Removal gate: zero in-repo consumers of a deprecated form + external window.
-        (**new scan check**)
+        (**new scan check** — scoped in [`fitness-functions.md`](fitness-functions.md): registry
+        `tools/fitness/deprecated-forms.json` + `tools/scripts/ff-deprecated-form-scan.mjs` →
+        `fitness:removal-scan`; generalizes the `verify-package-baseline.mjs` XSLTProcessor guard.)
   - [ ] FF-6 SemVer-presence: every governed contract declares a version axis (catches the
-        snapshot + token gaps). (**new lint check**)
+        snapshot + token gaps). (**new lint check** — scoped in
+        [`fitness-functions.md`](fitness-functions.md): registry
+        `tools/fitness/governed-contracts.json` + `tools/scripts/ff-semver-presence.mjs` →
+        `fitness:semver-presence`; the snapshot/token gaps ride `pending-version` until item #3.)
   - [ ] FF-7 XSLT capability-gating: unsupported XSLT version rejects; region isolated +
         version-pinned across CEM-ML MAJOR. (`cem-elements:verify`; AC-P-V-4)
   - [ ] FF-8 Source-map continuity across dispatch boundaries.
         (`cem_ml_cli:validate-fixtures`; AC-P-V-2)
-- [ ] OQ-3 Switching granularity: promote/detail the currently Tier-C namespace dispatch
-      (AC-P-6) and add ACs for an embedded `xsl:`-style content type. Architecture resolved
-      (BRD §6.8): the whole-`<template>`/`<script>` `lang`/`type` routing is the HTML→CEM-ML
-      host-ingestion boundary (owned by the HTML parser + cem-element, an instance of the
-      BR-CT-4 content-type handoff); interior switching is namespace-scoped, selected directly
-      or indirectly from resolved namespace metadata — the two layers compose rather than
-      compete. Residual = the normative AC-P-6 detailing of the interior indirect path plus the
-      `xsl:` content-type ACs. ([`cem-ml-ac.md`](cem-ml-ac.md) AC-P-6)
+- [x] OQ-3 Switching granularity. Architecture resolved (BRD §6.8): the
+      whole-`<template>`/`<script>` `lang`/`type` routing is the HTML→CEM-ML host-ingestion
+      boundary (owned by the HTML parser + cem-element, an instance of the BR-CT-4 content-type
+      handoff); interior switching is namespace-scoped, selected directly or indirectly from
+      resolved namespace metadata — the two layers compose rather than compete. Resolved: the
+      detailing landed in [`cem-ml-ac.md`](cem-ml-ac.md) as AC-P-6.1–6.9 (interior indirect path)
+      plus the embedded `xsl:` content type (AC-P-6.8/6.9) and the G-NVDL-CORE/FULL gate split.
   - [x] Draft the AC-P-6 promotion. Landed in
         [`cem-ml-ac-p6-nvdl-promotion.md`](cem-ml-ac-p6-nvdl-promotion.md): expands AC-P-6 into
         AC-P-6.1–6.9 (namespace-metadata dispatch, direct/indirect selection, host-vs-interior
@@ -58,8 +62,10 @@ for non-SemVer standards such as XSLT (OQ-10).
   - [x] Decide D-1..D-6: all resolved — D-1 G-NVDL-CORE Tier-B split; D-2 mode-selected (OQ-6);
         D-3 engine-implemented XSLT 3/4 (OQ-7); D-4 composed metadata chain (OQ-9); D-5
         refine-only direct/indirect; D-6 native-request + adapter-SemVer (OQ-10).
-  - [ ] Fold the draft into [`cem-ml-ac.md`](cem-ml-ac.md) AC-P-6 + §16.4 G-NVDL (+ §16.1
-        gate-graph update for the G-NVDL-CORE/FULL split).
+  - [x] Fold the draft into [`cem-ml-ac.md`](cem-ml-ac.md). Landed: AC-P-6.1–6.9 + the
+        direct/indirect conflict rule (§1 Parser), verification AC-P-V-2..V-8, the §16.4 split
+        into G-NVDL-CORE (Tier B) / G-NVDL-FULL (Tier C), and the §16.1 graph + Tier B/C
+        descriptions + gate-id-list updates. The promotion draft is retained as rationale.
 - [x] OQ-4 Version-negotiation policy: ratify the cross-axis compatibility policy — forgiving
       vs strict boundaries, who decides, how incompatible majors degrade, and how multiple
       coexisting versions of one content kind behave. (BRD §6.5; [`cem-ml-ac.md`](cem-ml-ac.md)
@@ -107,6 +113,22 @@ for non-SemVer standards such as XSLT (OQ-10).
       implemented profile (BR-CO-5); the version-stable namespace URI is not a version source;
       unimplemented versions reject deterministically (BR-VC-8). (draft:
       [`cem-ml-ac-p6-nvdl-promotion.md`](cem-ml-ac-p6-nvdl-promotion.md) D-6)
+
+### What's left — execution (all OQs and decisions resolved)
+
+The BRD ([`content-type-switch.md`](content-type-switch.md)) and the AC-P-6 promotion are folded
+into [`cem-ml-ac.md`](cem-ml-ac.md); the remaining items are implementation, with no open decisions:
+
+- [x] Fold the AC-P-6 promotion into [`cem-ml-ac.md`](cem-ml-ac.md) — AC-P-6.1–6.9, AC-P-V-2..V-8,
+      the §16.4 G-NVDL-CORE/FULL split, and the §16.1 graph + tier/gate-list updates.
+- [ ] Implement the eight fitness functions FF-1..FF-8 (OQ-2) as CI-blocking gates, including the
+      two net-new checks (FF-5 removal-scan, FF-6 SemVer-presence lint).
+- [ ] Add a SemVer axis to the two un-versioned governed contracts: the data/snapshot
+      (`DataIslandSnapshot`/`datadom`) contract and the design-token outputs (OQ-8 residual).
+- [ ] Convert the `cem-theme` CSS generators to CEM-ML+CEM-QL and rerun
+      `@epa-wg/cem-theme:verify:phase13` — the live browser-XSLT-1.0 retirement blocker (also the
+      open Phase 3.6 item below).
+- [ ] Implement engine XSLT 3.0/4.0 execution behind G-NVDL-FULL (AC-P-6.9; capability/roadmap).
 
 ## Phase 3 — Custom-Element Runtime Preparation
 

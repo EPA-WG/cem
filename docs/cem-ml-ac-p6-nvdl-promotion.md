@@ -1,7 +1,9 @@
 # AC-P-6 Promotion — NVDL-style namespace dispatch (draft)
 
-Status: Draft proposal for [`cem-ml-ac.md`](cem-ml-ac.md) · Resolves: [`todo.md`](todo.md) OQ-3
-residual · BRD: [`content-type-switch.md`](content-type-switch.md) §6.8 (BR-SW-2)
+Status: **Folded into** [`cem-ml-ac.md`](cem-ml-ac.md) (AC-P-6.1–6.9, AC-P-V-2..V-8, §16.4
+G-NVDL-CORE/FULL split, §16.1 graph + tier/gate-list updates); retained as rationale and
+decision record · Resolves: [`todo.md`](todo.md) OQ-3 · BRD:
+[`content-type-switch.md`](content-type-switch.md) §6.8 (BR-SW-2)
 
 ## 1. Context and goal
 

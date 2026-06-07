@@ -58,14 +58,16 @@ The stack is large enough that one binary AC list would never finish. Three tier
   interfaces. Tier A may be single-threaded internally, but public processing APIs are
   asynchronous.
 - **Tier B — Multi-content and runtime infrastructure.** Adds fuller embedded
-  content-type switching, SVG/MathML child scopes, JSON/CSS/SCSS/JS island expansion,
-  external-resource loading through policy-gated queues, scoped template/registry
-  lookup, plugin chains, bounded worker pools, cancellation, scheduler traces,
-  incremental/editor parsing, and benchmark publication.
-- **Tier C — Full document/runtime vision.** Adds NVDL-style dispatch, broad
-  XSLT/XPath-equivalent CEM template/query coverage, Canvas/SMIL and additional format
-  parity, live render-while-parsing, DOM patching/hydration, async DOM mutation APIs,
-  binary AST transport, chunk compression, and advanced generated type artifacts.
+  content-type switching, static namespace→schema dispatch (G-NVDL-CORE), SVG/MathML
+  child scopes, JSON/CSS/SCSS/JS island expansion, external-resource loading through
+  policy-gated queues, scoped template/registry lookup, plugin chains, bounded worker
+  pools, cancellation, scheduler traces, incremental/editor parsing, and benchmark
+  publication.
+- **Tier C — Full document/runtime vision.** Adds full (dynamic) NVDL-style dispatch
+  (G-NVDL-FULL) and engine-implemented XSLT 3.0/4.0 execution, broad XSLT/XPath-equivalent
+  CEM template/query coverage, Canvas/SMIL and additional format parity, live
+  render-while-parsing, DOM patching/hydration, async DOM mutation APIs, binary AST
+  transport, chunk compression, and advanced generated type artifacts.
 
 Each AC below is tagged `[A]`, `[B]`, or `[C]`. Initial release closes Tier A and explicitly lists which Tier B/C items
 are deferred.
@@ -103,7 +105,7 @@ are deferred.
     scope-chain visible per AC-F-1; nested redefinition shadows. Names are not required
     globally unique. Content-addressed cache identity (AC-CC-1) for an inline schema is
     `inline:<sha256-of-body>`; `cem:name` is an alias, not the cache identity.
-  - **Composition with NVDL.** Namespace-driven dispatch (AC-P-6, G-NVDL) remains the
+  - **Composition with NVDL.** Namespace-driven dispatch (AC-P-6, G-NVDL-CORE/FULL) remains the
     orthogonal mechanism for namespace-driven switching. When both fire on the same
     boundary, NVDL applies first and the explicit form layers within its scope.
 - **AC-F-3 [A] MUST** define tags, attributes, namespaces, open-content policy, CEM
@@ -292,7 +294,94 @@ are deferred.
 - **AC-P-5 [A] MUST** allow scopes to nest. A scope can contain child scopes of a
   different content type, namespace context, schema id, and policy envelope. Child scopes
   may relax or hide local diagnostics only within parent override bounds.
-- **AC-P-6 [C] MUST** dispatch between schemas mid-document via NVDL-style rules (see References).
+- **AC-P-6 [B core / C full] MUST** dispatch the active content type and schema for a region by
+  namespace, mid-document, via NVDL-style rules. Namespace-driven (indirect) selection composes
+  with the explicit AC-F-2 forms; where both apply on one boundary, NVDL applies first and the
+  explicit form layers within its scope (per the AC-F-2 *Composition with NVDL* rule). The
+  Tier-B static core and the Tier-C dynamic remainder are gated by G-NVDL-CORE / G-NVDL-FULL
+  respectively (§16.4).
+  - **AC-P-6.1 [B] Dispatch model — namespace metadata.** A resolved namespace identity MUST
+    carry **namespace metadata** `{ contentType, schemaUri, schemaVersion }`, extending the
+    AC-P-4 scope identity. Content-type/schema selection for a region is either **direct** (an
+    explicit AC-F-2 `cem:schema` declaration/switch/attribute form) or **indirect** (derived
+    from the active namespace binding's metadata, with no separate schema declaration); the
+    indirect path is the NVDL dispatch governed by this AC. A namespace with no resolvable
+    metadata and no explicit form is governed by AC-P-6.7. Namespace metadata resolves via a
+    composed, local-first chain: inline descriptor → workspace registry → package manifests →
+    external registry (explicit opt-in, gated by AC-A-6 / G-EXT). Resolution is
+    offline-deterministic by default; the resolved `{ contentType, schemaUri, schemaVersion }`
+    plus its source enters the AC-CC-1 cache hash and AC-CC-3 policy stamp. When both a direct
+    form and namespace metadata apply to one region, the explicit form MAY refine the **schema**
+    within the content type the namespace established but MUST NOT change the **content type**; a
+    direct form selecting a different content type than the active namespace metadata MUST
+    diagnose and reject deterministically (namespace owns content type; explicit refines schema).
+  - **AC-P-6.2 [B] Two-layer boundary.** AC-P-6 governs **interior** dispatch only. The
+    host-surface ingestion boundary — `<template>` / `<script>` `lang`/`type` on an HTML host —
+    is **not** AC-P-6; it is the AC-F-4 / AC-I-2 host handoff from the HTML content type into a
+    CEM-ML content type, owned by the HTML parser and the cem-element runtime. AC-P-6 begins once
+    a region is inside the CEM-ML model. The two layers MUST compose: a host-ingested CEM-ML
+    region MAY contain interior dispatched regions of other content types.
+  - **AC-P-6.3 [B core / C full] Rule form and modes.** Dispatch rules MUST be scoped and
+    resolved innermost-first (consistent with AC-F-2 identifier resolution and AC-P-10
+    rebinding). Tier B MUST support the **static modes**: *attach* (validate/interpret the region
+    under the dispatched schema/content type), *allow* (accept without validation as inert
+    foreign content unless the parent schema explicitly defines pass-through/rendering
+    semantics), and *reject* (diagnose and refuse). Tier C adds the **dynamic modes**:
+    *unwrap*/*cascade* (re-dispatch nested namespaces) and plugin-invoking attach (a dispatched
+    schema that owns an AC-T-4 transform or AC-PL plugin chain).
+  - **AC-P-6.4 [B] Scope identity and isolation.** Each dispatched region MUST open an AC-P-4
+    context scope with its own `{ schemaUri, contentType, namespaceUri }`, nest per AC-P-5, and
+    be **isolated**: tokens/constructs of one dispatched namespace MUST NOT be interpreted by
+    another region's content type or schema, and a child scope's diagnostics relax/hide only
+    within parent override bounds.
+  - **AC-P-6.5 [B] Per-namespace version resolution.** The schema dispatched for a namespace MUST
+    resolve its embedded SemVer per AC-V-9..AC-V-13. A version segment in the namespace URI (for
+    example the `/1` tail of `https://cem.dev/ns/core/1`) is a **MAJOR constraint** resolved with
+    the AC-F-8 / AC-V-2 / AC-V-3 model: same-MAJOR equal-or-higher MINOR/PATCH loads (forgiving);
+    an unsupported MAJOR aborts or routes to a legacy/compat handler (strict). Each dispatched
+    namespace versions on its own axis; a MAJOR change to one MUST NOT force a change to another.
+    An external standard that does not publish a SemVer-compatible identity MUST be mapped by its
+    native version request resolved against a CEM-owned adapter SemVer line (see AC-P-6.9 for
+    XSLT).
+  - **AC-P-6.6 [B] Source-map and handoff continuity.** A dispatched region MUST be modeled as a
+    Layer-5 parent-owned handoff `HandoffRecord { content_type, schema_id, source_span,
+    inherited_context, return_condition }`: the child parser MUST NOT consume past the
+    parent-owned return condition, and the host content type MUST resume on return. Source-map
+    stacks MUST span the dispatch boundary per AC-P-7 (origin-first, byte-range identity).
+  - **AC-P-6.7 [B] Diagnostics and unknown-namespace policy.** Diagnostics MUST originate in the
+    dispatched scope and bubble to the nearest schema-declared or context-root boundary per
+    AC-P-4. When a region's namespace resolves to no metadata, no explicit schema, and no rule,
+    the effective scope policy MUST select one **defined** behavior — `reject`, `allow`
+    (unvalidated foreign content), or `ignore` (drop with a report event). The **default** is
+    mode-selected (the run-mode disposition; see `content-type-switch.md` BR-VC-9): an
+    application run rejects unknown data/security namespaces and allows unknown presentation
+    namespaces; build/SSR rejects all; development allows all. Scope policy MAY override within
+    the mode, and the outcome MUST be deterministic. Dispatched schema sets participate in the
+    AC-CC-1 cache hash and AC-CC-3 policy stamp; a host missing a dispatched schema MUST fail
+    with `cem.cc.policy_mismatch`. `allow` and `ignore` are non-execution modes unless a separate
+    handler is explicitly selected.
+  - **AC-P-6.8 [B] XSLT region dispatch and isolation.** The namespace
+    `http://www.w3.org/1999/XSL/Transform` (conventionally `xsl:`) MUST be dispatchable as an
+    embedded content type per AC-P-6.1–AC-P-6.7: the CEM-ML parser opens a Layer-5 handoff, does
+    **not** interpret XSLT constructs as CEM-ML, isolates the subtree, and the surrounding CEM-ML
+    content type resumes on return; the `xsl:` content type carries its own version, pinned
+    independently, so a MAJOR bump of the CEM-ML core leaves the dispatched `xsl:` region's
+    expanded names and version unchanged. XSLT dispatch is explicit opt-in (host-provided
+    namespace metadata or scope-policy rule). The XSLT compatibility version is the document's
+    native `xsl:stylesheet/@version` request resolved against a CEM-owned XSLT adapter SemVer
+    line; the version-stable namespace URI is not a version source. A RELAX-NG schema for XSLT
+    (see References) MAY be attached for validation; absent one, the region is accepted only
+    under the AC-P-6.7 `allow` policy and stays inert unless AC-P-6.9 selects an execution
+    handler.
+  - **AC-P-6.9 [C] XSLT execution binding.** *Executing* the dispatched XSLT (running the
+    transform) is performed by the CEM-ML engine's own XSLT implementation (XSLT 3.0, later 4.0),
+    not delegated to a browser, and is **capability-gated**: an XSLT version/feature the engine
+    implements executes; one it does not is a deterministic must-understand reject per AC-P-6.7,
+    never silent. The deprecated browser-native XSLT 1.0 path (the `custom-element-v0` bridge) is
+    a legacy escape retired per the migration policy
+    ([`custom-element-template-migration-options.md`](custom-element-template-migration-options.md)),
+    not the execution target. AC-P-6.8 dispatch/isolation/version-pinning do **not** depend on
+    which versions are implemented.
 - **AC-P-7 [A] MUST** preserve source-map stacks on every source-derived node. Frames
   are ordered origin-first, the current frame is last, and each frame uses byte ranges
   as durable location identity. Line/column are report projections, not parser
@@ -335,6 +424,28 @@ are deferred.
   to HTML for an unprefixed `{input}`. The parser records distinct expanded names for
   the HTML and SVG nodes, keeps source-map namespace frames at each binding change, and
   validates equivalent XML default-namespace markup to the same namespace identities.
+- **AC-P-V-2** — indirect dispatch from namespace metadata: a fixture declares a namespace whose
+  metadata binds a content type + schema, emits a region in that namespace with **no** explicit
+  `cem:schema` form, and the parser attaches the correct schema and content type, with source-map
+  frames spanning the boundary per AC-P-7.
+- **AC-P-V-3** — isolation: a document interleaves two dispatched namespaces; constructs valid in
+  one are inert/foreign in the other; neither parser interprets the other's tokens; diagnostics
+  attach to the originating scope per AC-P-4.
+- **AC-P-V-4** — embedded XSLT version-pinning: a document embeds an `xsl:` region inside CEM-ML;
+  bumping the CEM-ML core MAJOR leaves the `xsl:` region's expanded names and resolved version
+  unchanged, and the CEM-ML parser emits no XSLT-construct interpretation.
+- **AC-P-V-5** — per-namespace version negotiation: forgiving load (same MAJOR, higher MINOR) and
+  strict reject (unsupported MAJOR → version diagnostic) both observed per dispatched namespace.
+- **AC-P-V-6** — unknown-namespace policy determinism: the same unresolved-namespace region yields
+  `reject` / `allow` / `ignore` strictly per the effective scope policy and run mode, with the
+  documented default when unset.
+- **AC-P-V-7** — legacy XSLT explicit opt-in: an `xsl:` subtree without namespace metadata or an
+  explicit scope-policy rule follows the AC-P-6.7 unknown-namespace default; adding an explicit
+  XSLT dispatch rule opens an isolated XSLT handoff without CEM-ML interpretation or execution.
+- **AC-P-V-8** — direct/indirect conflict: a fixture where namespace metadata dispatches one
+  content type and an explicit `cem:schema` form requests an incompatible content type produces a
+  deterministic diagnose+reject per the AC-P-6.1 conflict rule; a form that only refines the
+  schema within the same content type is accepted.
 
 ## 2. Schema
 
@@ -425,7 +536,7 @@ are deferred.
 ### 3.1 Schema Version Identity
 
 This sub-section is normative and is cited by AC-V-2, AC-V-3,
-AC-CC-1, AC-CC-3, AC-S-5, the G-NVDL gate, and
+AC-CC-1, AC-CC-3, AC-S-5, the G-NVDL-CORE/FULL gates, and
 `cem-ql-ac.md` AC-QT-4 / AC-QC-1. AC-V-2 and AC-V-3 hinge on a
 precise definition of "schema version"; without it, two
 implementations can produce subtly different validation outcomes
@@ -1109,7 +1220,7 @@ Each section above contributes a concrete check to one of these scripts; AC item
 
 An AC item is closeable only when:
 
-1. its tier (`[A]`, `[B]`, `[C]`) or gate (`G-EXT`, `G-PLUG`, `G-NVDL`, `G-MUT`, `G-HYD`) is clear;
+1. its tier (`[A]`, `[B]`, `[C]`) or gate (`G-EXT`, `G-PLUG`, `G-NVDL-CORE`, `G-NVDL-FULL`, `G-MUT`, `G-HYD`) is clear;
 2. the stack-design or impl-design doc maps it to concrete data shapes or algorithms;
 3. the verification plan above names a runnable check; and
 4. the relevant `yarn nx run ...` target exists, or the missing target is tracked as an implementation blocker in
@@ -1143,7 +1254,7 @@ feature is considered shippable at its tier.
 - **AC-G-1 MUST** — every Tier B/C AC item, or the containing AC
   subsection that owns a set of related AC items, that implements a
   feature named in §16 MUST cite the relevant gate identifier
-  (`G-EXT`, `G-PLUG`, `G-NVDL`, `G-MUT`, `G-HYD`). Implementation work
+  (`G-EXT`, `G-PLUG`, `G-NVDL-CORE`, `G-NVDL-FULL`, `G-MUT`, `G-HYD`). Implementation work
   MUST NOT begin against a gated AC item until its gate is **open**.
   New Tier B/C ACs added later that fall inside a gate's scope inherit
   the gate by virtue of citing it.
@@ -1200,7 +1311,7 @@ feature is considered shippable at its tier.
                     G-PLUG  ─────┐           │   cem-ql AC-QA-*,
                        │         │           │   cem-ql AC-QI-2/4,
                        ▼         ▼           │   cem-ql AC-QC-*)
-                    G-NVDL    G-MUT          │
+               G-NVDL-FULL    G-MUT          │
                                  │           │
                                  ▼           │
                               G-HYD ◀────────┘
@@ -1208,11 +1319,16 @@ feature is considered shippable at its tier.
                                network-driven hydration)
 ```
 
-`G-EXT` is the foundational gate; nothing else opens until it does.
-`G-NVDL` and `G-MUT` are independent of each other and may open in
-either order once `G-PLUG` is open. `G-HYD` is the deepest runtime gate:
-it requires G-MUT and G-EXT, but does not require G-NVDL unless a
-hydration fixture explicitly depends on namespace-dispatched schemas.
+`G-EXT` is the foundational gate for the dynamic features; nothing
+downstream of it opens until it does. `G-NVDL-CORE` is the exception —
+the static namespace-dispatch core (Tier B) depends only on Tier A
+close, not on `G-EXT` or `G-PLUG`. `G-NVDL-FULL` (dynamic dispatch,
+engine XSLT execution, externally loaded schemas) and `G-MUT` are
+independent of each other and may open in either order once `G-PLUG` is
+open; `G-NVDL-FULL` additionally requires `G-NVDL-CORE`. `G-HYD` is the
+deepest runtime gate: it requires G-MUT and G-EXT, but does not require
+G-NVDL-FULL unless a hydration fixture explicitly depends on
+namespace-dispatched schemas.
 
 ### 16.2 G-EXT — External-resource loading (Tier B)
 
@@ -1276,40 +1392,61 @@ resource budgeting for plugin invocations.
   fetches use the AC-A-6 I/O queue; observe plugins MAY emit
   external requests under their scope's policy).
 
-### 16.4 G-NVDL — NVDL schema dispatch (Tier C)
+### 16.4 G-NVDL — NVDL schema dispatch (Tier B core + Tier C full)
 
-Covers AC-P-6 (NVDL-style mid-document schema dispatch),
-namespace-driven schema switching, and per-scope schema identity
-under multi-content scopes.
+AC-P-6 dispatch is staged into a Tier-B static core and a Tier-C
+dynamic remainder. Both are recorded here; references to
+`G-NVDL-CORE` / `G-NVDL-FULL` elsewhere cite the matching entry.
 
-- **Gated ACs**: AC-P-6 and namespace-driven schema switching beyond
-  explicit AC-F-2 forms.
-- **Prerequisite ACs**: AC-P-4, AC-P-5 (context
-  scopes and nesting); AC-V-1, AC-V-2, AC-V-3, AC-V-7, AC-V-8
-  (validation contracts, semver behavior, open-content policy,
-  recovery model); AC-V-9..AC-V-13 (§3.1 schema version identity —
-  required so namespace-dispatched schemas resolve to the same
-  embedded version across hosts); AC-I-2 (content-type switching,
-  the Tier B expansion of which is itself a precondition);
-  AC-CC-1, AC-CC-3 (binary cache hash and policy-stamp surface so
-  schema id changes invalidate cache entries correctly); AC-T-4
-  (schema-owned transform plans).
-- **Required resolved OQs**: none (the schema URI / version
-  syntax precondition is now normative under §3.1).
+**G-NVDL-CORE — static namespace dispatch (Tier B).** Covers the
+static, locally-resolved core of AC-P-6 — namespace→
+`{ contentType, schemaUri, schemaVersion }` dispatch over embedded or
+same-document schemas.
+
+- **Gated ACs**: AC-P-6.1, AC-P-6.2, AC-P-6.4, AC-P-6.5, AC-P-6.6,
+  AC-P-6.7, the static *attach*/*allow*/*reject* modes of AC-P-6.3, and
+  AC-P-6.8 (XSLT region dispatch/isolation/version-pinning).
+- **Prerequisite ACs**: AC-P-4, AC-P-5, AC-P-7 (context scopes,
+  nesting, source-map stacks); AC-F-4 generalized to a local
+  parent-owned foreign-content handoff; AC-I-2 (content-type
+  switching); AC-V-9..AC-V-13, AC-F-8 (version identity); AC-CC-1,
+  AC-CC-3 (cache hash and policy stamp). Does **not** depend on
+  G-PLUG or G-EXT while dispatched schemas are local.
+- **Required resolved OQs**: none.
 - **Entry fixture**: a single fixture parses with two schemas
-  dispatched by namespace inside one document; source-map stacks
-  span the boundary cleanly per AC-P-7; the AC-O-3 report tree
-  shows diagnostics from both schemas attached to the originating
-  scope.
+  dispatched by namespace inside one document; source-map stacks span
+  the boundary cleanly per AC-P-7; the AC-O-3 report tree shows
+  diagnostics from both schemas attached to the originating scope.
 - **Exit fixture**: at least three documented namespace dispatches
-  inside one parse; per-scope policies inherit and override
-  correctly across boundaries per AC-P-5; binary-cache reuse
-  (AC-CC-1) succeeds across two hosts that have the same schema
-  set installed and fails with `cem.cc.policy_mismatch` when one
-  host is missing a dispatched schema.
-- **Depends on gates**: G-PLUG (NVDL-driven dispatch may invoke
-  plugin chains owned by the dispatched schema); G-EXT (schemas
-  may be loaded externally under the AC-A-6 I/O queue).
+  inside one parse; per-scope policies inherit/override across
+  boundaries per AC-P-5; binary-cache reuse (AC-CC-1) succeeds across
+  two hosts with the same schema set installed and fails with
+  `cem.cc.policy_mismatch` when one host is missing a dispatched
+  schema; AC-P-V-2..AC-P-V-8 pass.
+- **Depends on gates**: none beyond Tier A close.
+
+**G-NVDL-FULL — dynamic NVDL dispatch (Tier C).** Covers the dynamic
+remainder: the *unwrap*/*cascade* and plugin-invoking modes of
+AC-P-6.3, AC-P-6.9 engine XSLT execution, and externally loaded
+dispatched schemas.
+
+- **Gated ACs**: the dynamic modes of AC-P-6.3, AC-P-6.9 (XSLT
+  execution binding), and external-schema dispatch.
+- **Prerequisite ACs**: G-NVDL-CORE closed; AC-V-1, AC-V-2, AC-V-3,
+  AC-V-7, AC-V-8 (validation contracts, semver behavior, open-content
+  policy, recovery model); AC-T-4 (schema-owned transform plans).
+- **Required resolved OQs**: none.
+- **Entry fixture**: one fixture dispatches a namespace whose schema
+  owns a transform/plugin chain executed under G-PLUG; a second
+  fixture executes an engine XSLT 3.0 transform on a dispatched `xsl:`
+  region.
+- **Exit fixture**: an unwrap/cascade re-dispatch across three nested
+  namespaces, an externally loaded dispatched schema under the AC-A-6
+  I/O queue, and a capability-gated XSLT reject for an unimplemented
+  version, all deterministic.
+- **Depends on gates**: G-NVDL-CORE; G-PLUG (dispatch may invoke plugin
+  chains owned by the dispatched schema); G-EXT (schemas or XSLT
+  resources loaded externally under the AC-A-6 I/O queue).
 
 ### 16.5 G-MUT — DOM mutation API (Tier C)
 
