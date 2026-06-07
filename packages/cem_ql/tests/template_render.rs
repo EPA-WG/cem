@@ -624,6 +624,53 @@ fn render_template_rich_content_emits_literal_braces_around_for_each() {
 }
 
 #[test]
+fn render_template_for_each_with_cem_if_tier_filter() {
+    // CSS-generator tier filtering: iterate token rows but emit only the non-deprecated ones —
+    // the cem-ml equivalent of the legacy XPath predicate `tr[normalize-space(td[4]) != 'deprecated']`.
+    let rows = Item::Array(vec![
+        record([
+            (
+                "td1",
+                vec![Item::Atomic(AtomValue::String("--cem-layout-keep".to_owned()))],
+            ),
+            ("td2", vec![Item::Atomic(AtomValue::String("1rem".to_owned()))]),
+            (
+                "td4",
+                vec![Item::Atomic(AtomValue::String("recommended".to_owned()))],
+            ),
+        ]),
+        record([
+            (
+                "td1",
+                vec![Item::Atomic(AtomValue::String("--cem-layout-drop".to_owned()))],
+            ),
+            ("td2", vec![Item::Atomic(AtomValue::String("2rem".to_owned()))]),
+            (
+                "td4",
+                vec![Item::Atomic(AtomValue::String("deprecated".to_owned()))],
+            ),
+        ]),
+    ]);
+    let datadom = record([("slices", vec![record([("layout", vec![rows])])])]);
+    let data = TemplateData::default().with_binding("datadom", ItemStream::once(datadom));
+
+    // `@test` is whole-expression cem-ql: use BARE binding names (`row`, not `$row`) — a `$`-path
+    // parses as a primary but not as an infix operand — and a double-quoted cem-ql string literal,
+    // so the `@test` attribute is single-quoted to avoid a quote clash.
+    let rendered = render_template(
+        "{cem:for-each @select=\"$datadom.slices.layout\" @as=\"row\" |{cem:if @test='row.td4 != \"deprecated\"' |```\n  ```{$row.td1}: {$row.td2};}}",
+        &data,
+    );
+
+    assert_eq!(rendered.rendered, "\n  --cem-layout-keep: 1rem;");
+    assert!(
+        rendered.diagnostics.is_empty(),
+        "{:?}",
+        rendered.diagnostics
+    );
+}
+
+#[test]
 fn render_template_for_each_without_select_diagnoses() {
     let rendered = render_template(
         "{cem:for-each @as=\"row\" | {$row}}",

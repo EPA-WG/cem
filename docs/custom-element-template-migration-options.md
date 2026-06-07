@@ -36,12 +36,12 @@ Convert the legacy XSLT/XPath logic to CEM-ML templates and CEM-QL expressions.
 For migration fixtures, use the reference marker:
 
 ```html
-<template type="cem-ml-v0">
+<template type="cem-ml; version=0.0">
     ...
 </template>
 ```
 
-`type="cem-ml-v0"` is a migration marker for converted legacy templates. It should
+`type="cem-ml; version=0.0"` is a migration marker for converted legacy templates. It should
 mean: "this template is no longer XSLT/XPath, but it may still use migration-era
 CEM-ML/CEM-QL compatibility affordances while generator templates are converted."
 
@@ -79,7 +79,7 @@ runtime explicitly instead of treating XSLT as a regression.
 1. Inventory each `packages/cem-theme/src/lib/css-generators/*.html` template for
    legacy constructs: `<variable>`, `<for-each>`, conditionals, XPath selections,
    namespace-sensitive HTML/XSLT behavior, and generated CSS output.
-2. Define the `type="cem-ml-v0"` migration semantics required by the CSS generators.
+2. Define the `type="cem-ml; version=0.0"` migration semantics required by the CSS generators.
 3. Add one converted generator fixture first, preferably the smallest generator with
    table-driven CSS output.
 4. Extend the browser runtime only where the converted fixture proves a missing

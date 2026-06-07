@@ -16,7 +16,7 @@
         },
         {
             "id": "cem-ml-v0",
-            "pattern": "cem-ml-v0",
+            "pattern": "cem-ml; version=0.0",
             "status": "deprecated",
             "deprecatedSince": "0.1.0",
             "removeAtMajor": 2,

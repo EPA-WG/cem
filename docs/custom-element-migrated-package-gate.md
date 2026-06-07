@@ -45,7 +45,7 @@ The Phase 3.6 migration now carries two explicit options:
 
 - Option A: keep XSLT+XPath with the legacy HTML/XSLT default-namespace behavior;
 - Option B: convert the XSLT+XPath logic to CEM-ML+CEM-QL and mark converted
-  migration templates with `<template type="cem-ml-v0">`.
+  migration templates with `<template type="cem-ml; version=0.0">`.
 
 The planned CSS generation path is Option B after conversion. The current adapter
 supports the fixture-bounded legacy-v0 surface, omitted-`tag` inline rendering, and
@@ -60,7 +60,7 @@ can close.
 Acceptable paths:
 
 - Option B, recommended: convert each CSS generator to
-  `<template type="cem-ml-v0">` and CEM-QL, then use that CEM-ML version in the CSS
+  `<template type="cem-ml; version=0.0">` and CEM-QL, then use that CEM-ML version in the CSS
   generation phase;
 - Option A: keep the legacy XSLT+XPath generator runtime with default-namespace
   behavior and document it as a named compatibility runtime;

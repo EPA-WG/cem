@@ -88,10 +88,10 @@ async function copyTreeOnce(copiedFiles, sourcePath, outputPath) {
 
 /**
  * Stage the `cem-elements` substrate runtime + the `cem_ql` WASM into `dist/vendor` so the
- * converted CSS generators (`<template type="cem-ml-v0">` + the `cem-css-generator.js` bootstrap)
+ * converted CSS generators (`<template type="cem-ml; version=0.0">` + the `cem-css-generator.js` bootstrap)
  * can import the runtime-support render boundary and the DOM→datadom bridge by stable relative
  * paths. Done once per compile, independent of any legacy `custom-element.js` reference — the
- * `cem-ml-v0` generators no longer load the legacy XSLT runtime, so the staging can no longer ride
+ * `cem-ml; version=0.0` generators no longer load the legacy XSLT runtime, so the staging can no longer ride
  * on it. The whole trees are copied because the runtime-support module imports its WASM and bridge
  * siblings by relative path. No-op when a tree is absent (e.g. an isolated docs-only build).
  */

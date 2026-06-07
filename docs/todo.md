@@ -175,7 +175,7 @@ into [`cem-ml-ac.md`](cem-ml-ac.md); the remaining items are implementation, wit
         green, 60 stories). The output shape (`{tdN}` row records) is already navigable per the
         slice-1 for-each record test. Remaining for slice 4: feed the rows into
         `datadom.slices.<name>` per generator.
-  - [~] Slice 4 — rewrite each generator (smallest first) to `type="cem-ml-v0"` CEM-ML/CEM-QL and
+  - [~] Slice 4 — rewrite each generator (smallest first) to `type="cem-ml; version=0.0"` CEM-ML/CEM-QL and
         route it through the substrate. **2 of 10 converted** (`cem-controls`, `cem-coupling`);
         engine prerequisites + build wiring + the reusable bootstrap are now landed, so the
         remaining 8 are mechanical repeats of the same shape.
@@ -197,7 +197,7 @@ into [`cem-ml-ac.md`](cem-ml-ac.md); the remaining items are implementation, wit
     - [x] Build wiring + bootstrap: new
           [`cem-css-generator.js`](../packages/cem-theme/src/lib/css-generators/cem-css-generator.js)
           bootstrap (Option B) fetches the token doc, shapes `datadom.slices.<key>` via the slice-3
-          DOM→datadom bridge (`tokenTableRows`), renders the `<template type="cem-ml-v0">` through
+          DOM→datadom bridge (`tokenTableRows`), renders the `<template type="cem-ml; version=0.0">` through
           the cem-elements runtime-support `renderCemMlTemplate` (cem_ql WASM), materializes the
           plan into `<main>`, and feeds `<cem-css-loader>`. No live browser XSLT.
           [`compile-html.mjs`](../tools/scripts/compile-html.mjs) now stages the cem-elements +
@@ -212,7 +212,7 @@ into [`cem-ml-ac.md`](cem-ml-ac.md); the remaining items are implementation, wit
     - [ ] Convert the remaining 8 generators (`cem-breakpoints`, `cem-dimension`, `cem-timing`,
           `cem-layering`, `cem-stroke`, `cem-shape`, `cem-voice-fonts-typography`, `cem-colors` —
           roughly ascending size/complexity; `cem-colors` is the largest, with intent×state
-          cross-products) using the same `cem-ml-v0` + bootstrap shape.
+          cross-products) using the same `cem-ml; version=0.0` + bootstrap shape.
   - [ ] Slice 5 — rerun `@epa-wg/cem-theme:verify:phase13` (non-empty CSS + manifest validation).
 - [ ] **Wishlist (future — NOT in the immediate release timeline):** engine XSLT 3.0/4.0 execution
       behind G-NVDL-FULL (AC-P-6.9). The architecture keeps the capability-gated seam — XSLT is a
@@ -774,10 +774,10 @@ Roadmap: [`../roadmap.md` §Phase 3.6](../roadmap.md). Starts after Phase 3.5 is
   - [x] Update the migration plan to carry both valid template options. Landed in
         [`custom-element-template-migration-options.md`](custom-element-template-migration-options.md): Option A keeps
         XSLT+XPath with legacy HTML/XSLT default-namespace behavior; Option B converts the logic to CEM-ML+CEM-QL under
-        `<template type="cem-ml-v0">`; Option B is the recommended path for `cem-theme` CSS generation after
+        `<template type="cem-ml; version=0.0">`; Option B is the recommended path for `cem-theme` CSS generation after
         conversion.
   - [ ] Convert the `cem-theme` CSS generator workflow to CEM-ML+CEM-QL templates marked
-        `<template type="cem-ml-v0">`, or explicitly select Option A and fixture a named legacy XSLT+XPath runtime,
+        `<template type="cem-ml; version=0.0">`, or explicitly select Option A and fixture a named legacy XSLT+XPath runtime,
         then rerun `@epa-wg/cem-theme:verify:phase13`.
 - [ ] Publish-readiness pass for the next major: changelog, migration guide from external POC package to workspace
       package, bridge-window support matrix, breaking-change list, npm package contents check, and rollback plan for

@@ -10,7 +10,7 @@ the substrate parity inventory in
 
 Keep `<template lang="custom-element-v0">` for the next-major migration window,
 and add a separate CEM-ML migration marker for converted legacy templates:
-`<template type="cem-ml-v0">`.
+`<template type="cem-ml; version=0.0">`.
 
 The bridge is intentionally fixture-bounded:
 
@@ -19,13 +19,13 @@ The bridge is intentionally fixture-bounded:
   `if`/`choose`-style conditionals, local/external `src`, and `module-url`
   resource slices where substrate fixtures already cover the behavior;
 - it routes converted legacy authoring to CEM-ML/CEM-QL through
-  `type="cem-ml-v0"`;
+  `type="cem-ml; version=0.0"`;
 - it treats broad XSLT/XPath behavior as an explicit migration option, not a hidden
   default adapter behavior.
 
 For `<cem-element>` authoring, legacy syntax remains opt-in through
 `lang="custom-element-v0"`. Converted legacy templates use
-`type="cem-ml-v0"` until they can move to the final canonical CEM-ML type. For the
+`type="cem-ml; version=0.0"` until they can move to the final canonical CEM-ML type. For the
 `<custom-element>` adapter, untyped inline templates may be normalized to
 `lang="custom-element-v0"` during the migration window so existing package
 consumers can load while fixture gaps are made visible.
@@ -55,7 +55,7 @@ and true scoped CSS rewriting.
 | Legacy gap | Policy | Reason |
 | --- | --- | --- |
 | Omitted `tag` inline rendering | Migrate | The substrate requires a produced tag. Auto-generated tags are hard to make stable for SSR, edge snapshots, diagnostics, and custom-element registry collisions. Migrate authors to an explicit `tag` plus explicit produced instance. |
-| XSLT-only `for-each` and `variable` | Option A keep explicitly, Option B convert | Option A keeps the legacy XSLT+XPath model with HTML and XSLT default-namespace behavior. Option B converts the logic to CEM-ML+CEM-QL under `type="cem-ml-v0"`. The recommended CSS-generator path is Option B. |
+| XSLT-only `for-each` and `variable` | Option A keep explicitly, Option B convert | Option A keeps the legacy XSLT+XPath model with HTML and XSLT default-namespace behavior. Option B converts the logic to CEM-ML+CEM-QL under `type="cem-ml; version=0.0"`. The recommended CSS-generator path is Option B. |
 | Broad XPath functions and `//path` compatibility | Option A keep explicitly, Option B convert | Option A preserves XPath. Option B rewrites selection to CEM-QL over structured inputs. The default substrate adapter must not accidentally hide an XPath engine; if Option A is selected, name and fixture it as a legacy runtime. |
 | Multiple slice event names on one element | Keep only if promoted into substrate | This can be a small extension to substrate event binding, but it must live in `CemElementRuntime`. The adapter must not keep a separate event queue. |
 | Multiple slice targets, `slice for=...`, checkbox/radio coercion | Migrate | These behaviors combine target lookup, coercion, and validation side effects from the old render loop. Prefer explicit rendered controls and cem-ql expressions until a substrate primitive is designed. |
@@ -71,18 +71,18 @@ During the migration window:
   as legacy-v0 by the adapter;
 - explicit `<template lang="custom-element-v0">` remains supported for migrated
   fixtures and for consumers that need to pin legacy behavior;
-- converted legacy CEM-ML templates use `type="cem-ml-v0"` during migration;
+- converted legacy CEM-ML templates use `type="cem-ml; version=0.0"` during migration;
 - canonical CEM-ML templates use `type="text/cem-ml"` or
   `type="application/cem-ml"`;
 - new package examples and docs should prefer canonical CEM-ML/CEM-QL;
 - legacy XPath examples should either stay in an explicit Option A legacy runtime
-  path or be rewritten to CEM-QL under `type="cem-ml-v0"`;
+  path or be rewritten to CEM-QL under `type="cem-ml; version=0.0"`;
 - omitted-`tag` examples should be rewritten to a declaration plus produced
   instance;
 - scoped CSS examples should state that styles are light-DOM/global unless a
   later containment primitive is added.
 
-After the migration window, `custom-element-v0` and `cem-ml-v0` can be removed only
+After the migration window, `custom-element-v0` and `cem-ml; version=0.0` can be removed only
 when package fixtures prove that all retained demos and downstream generator
 workflows have moved to canonical CEM-ML/CEM-QL or to an explicitly documented
 legacy runtime.
@@ -93,7 +93,7 @@ legacy runtime.
   legacy-v0 without mutating explicitly typed CEM-ML templates.
 - Add a diagnostic fixture for omitted `tag` that points to the explicit
   declaration plus instance migration.
-- Add CSS-generator migration fixtures using `<template type="cem-ml-v0">` and
+- Add CSS-generator migration fixtures using `<template type="cem-ml; version=0.0">` and
   convert legacy `<variable>`/`<for-each>`/XPath logic to CEM-ML+CEM-QL.
 - Decide whether whitespace-separated `slice-event` values are promoted into
   `CemElementRuntime`; if promoted, cover them in substrate stories before the

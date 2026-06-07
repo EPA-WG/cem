@@ -1,163 +1,82 @@
 <!DOCTYPE html>
-<html lang="en" xmlns:xhtml="http://www.w3.org/1999/xhtml">
+<html lang="en">
 <head>
     <meta charset="UTF-8">
     <title>CEM layering CSS generator</title>
-    <script src="./cem-http-request.js" type="module"></script>
+    <style>
+        main { display: block; white-space: pre; font-family: monospace; }
+        table { white-space: normal; border-collapse: collapse; }
+        td { padding: 0.5rem; letter-spacing: 0.05em; }
+        caption { font-size: 1.5rem; padding-bottom: 0.5rem; text-align: start; }
+        tr>th:first-child { text-align: start; }
+        code { color: green; font-weight: bold; }
+    </style>
 </head>
 <body>
-<custom-element>
-    <template id="cem-layering-template">
-        <style>
-            td { padding: 0.5rem; letter-spacing: 0.05em; }
-            caption { font-size: 1.5rem; padding-bottom: 0.5rem; text-align: start; }
-            tr>th:first-child { text-align: start; }
-            code { color: green; font-weight: bold; }
-        </style>
+<!--
+  Phase 3.6 CEM-ML/CEM-QL generator (Option B). cem-css-generator.js shapes the token tables into
+  datadom.slices via the cem-elements DOM→datadom bridge and renders this template through the
+  cem_ql WASM boundary; no live browser XSLT. Columns — rungs: td1=token td2=value td3=desc td4=tier;
+  semantic/optional: td1=token td2=value td3=desc td4=tier; forced: td1=token td2=value.
+-->
+<template type="cem-ml; version=0.0"
+          id="cem-layering-template"
+          data-token-url="../../../dist/lib/tokens/cem-layering.xhtml"
+          data-slices="rungs=cem-layering-rungs semantic=cem-layering-semantic optional=cem-layering-semantic-optional forced=cem-layering-rungs-forced">
+{table |
+    {caption | {a @href="../../../dist/lib/tokens/cem-layering.xhtml#7-1-required-rung-tokens" | cem-layering-rungs} — signed-depth ladder (box-shadow recipes)}
+    {thead | {tr | {th | Token}{th | Value}{th | Tier}{th | Sample}{th | Description}}}
+    {tbody | {cem:for-each @select="$datadom.slices.rungs" @as="row" |
+        {tr |
+            {th | {code | {$row.td1}}}
+            {td | {code | {$row.td2}}}
+            {td | {$row.td4}}
+            {td @style="width:6rem;" | {div @style="height:2rem; width:5rem; background: Canvas; box-shadow: var({$row.td1}); border-radius: 0.25rem;" @title="{$row.td1}" | }}
+            {td | {$row.td3}}
+        }}}
+}
+{hr | }
+{table |
+    {caption | {a @href="../../../dist/lib/tokens/cem-layering.xhtml#8-1-canonical-endpoints" | cem-layering-semantic} — required semantic endpoints}
+    {thead | {tr | {th | Token}{th | Value}{th | Tier}{th | Description}}}
+    {tbody | {cem:for-each @select="$datadom.slices.semantic" @as="row" |
+        {tr | {th | {code | {$row.td1}}}{td | {code | {$row.td2}}}{td | {$row.td4}}{td | {$row.td3}}}}{cem:for-each @select="$datadom.slices.optional" @as="row" |
+        {tr | {th | {code | {$row.td1}}}{td | {code | {$row.td2}}}{td | {$row.td4}}{td | {$row.td3}}}}}
+}
+{hr | }
+{table |
+    {caption | {a @href="../../../dist/lib/tokens/cem-layering.xhtml#13-2-forced-colors" | cem-layering-rungs-forced} — forced-colors fallback}
+    {thead | {tr | {th | Token}{th | Forced-colors value}}}
+    {tbody | {cem:for-each @select="$datadom.slices.forced" @as="row" |
+        {tr | {th | {code | {$row.td1}}}{td | {code | {$row.td2}}}}}}
+}
+{hr | }
+{pre @class=language-css | {code @class=language-css @data-generated-css |```:root {
+  /* region basis rungs — signed depth ladder as box-shadow recipes (NOT z-index) */```{cem:for-each @select="$datadom.slices.rungs" @as="row" |```
+  ```{$row.td1}: {$row.td2};}```
+  /* endregion basis rungs */
 
-        <http-request method="GET" slice="cem-layering" url="../../../dist/lib/tokens/cem-layering.xhtml"></http-request>
-        <variable name="layeringData" select="//cem-layering"></variable>
+  /* region semantic endpoints — required product-facing contract */```{cem:for-each @select="$datadom.slices.semantic" @as="row" |```
+  ```{$row.td1}: {$row.td2};}```
+  /* endregion semantic endpoints */
 
-        <variable name="cem-layering-rungs"
-                  select="$layeringData//*[@id='cem-layering-rungs']/following-sibling::xhtml:table[1]/xhtml:tbody"></variable>
-        <variable name="cem-layering-semantic"
-                  select="$layeringData//*[@id='cem-layering-semantic']/following-sibling::xhtml:table[1]/xhtml:tbody"></variable>
-        <variable name="cem-layering-semantic-optional"
-                  select="$layeringData//*[@id='cem-layering-semantic-optional']/following-sibling::xhtml:table[1]/xhtml:tbody"></variable>
-        <variable name="cem-layering-rungs-forced"
-                  select="$layeringData//*[@id='cem-layering-rungs-forced']/following-sibling::xhtml:table[1]/xhtml:tbody"></variable>
-
-        <variable name="css-body">
-:root {
-    /* region basis rungs — signed depth ladder as box-shadow recipes (NOT z-index) */
-    <for-each select="$cem-layering-rungs/xhtml:tr">
-        {normalize-space(xhtml:td[1])}: {normalize-space(xhtml:td[2])};
-    </for-each>
-    /* endregion basis rungs */
-
-    /* region semantic endpoints — required product-facing contract */
-    <for-each select="$cem-layering-semantic/xhtml:tr">
-        {normalize-space(xhtml:td[1])}: {normalize-space(xhtml:td[2])};
-    </for-each>
-    /* endregion semantic endpoints */
-
-    /* region optional semantic endpoints — back-deep / work-floating */
-    <for-each select="$cem-layering-semantic-optional/xhtml:tr">
-        {normalize-space(xhtml:td[1])}: {normalize-space(xhtml:td[2])};
-    </for-each>
-    /* endregion optional semantic endpoints */
+  /* region optional semantic endpoints — back-deep / work-floating */```{cem:for-each @select="$datadom.slices.optional" @as="row" |```
+  ```{$row.td1}: {$row.td2};}```
+  /* endregion optional semantic endpoints */
 }
 
 /* region forced-colors fallback — collapse rungs; tier signal carried by D5 contour and spatial isolation */
 @media (forced-colors: active) {
-    :root {
-        <for-each select="$cem-layering-rungs-forced/xhtml:tr">
-            {normalize-space(xhtml:td[1])}: {normalize-space(xhtml:td[2])};
-        </for-each>
-    }
+  :root {```{cem:for-each @select="$datadom.slices.forced" @as="row" |```
+    ```{$row.td1}: {$row.td2};}```
+  }
 }
 /* endregion forced-colors fallback */
-        </variable>
-
-        <style>
-            :host {
-                display: block;
-                white-space: pre;
-                font-family: monospace;
-            }
-        </style>
-
-        <xhtml:table>
-            <xhtml:caption><a href="../../../dist/lib/tokens/cem-layering.xhtml#7-1-required-rung-tokens">cem-layering-rungs</a> — signed-depth ladder (box-shadow recipes)</xhtml:caption>
-            <xhtml:thead>
-                <xhtml:tr>
-                    <xhtml:th>Token</xhtml:th>
-                    <xhtml:th>Value</xhtml:th>
-                    <xhtml:th>Tier</xhtml:th>
-                    <xhtml:th>Sample</xhtml:th>
-                    <xhtml:th>Description</xhtml:th>
-                </xhtml:tr>
-            </xhtml:thead>
-            <xhtml:tbody>
-                <for-each select="$cem-layering-rungs/xhtml:tr">
-                    <variable name="token" select="normalize-space(xhtml:td[1])"></variable>
-                    <variable name="value" select="normalize-space(xhtml:td[2])"></variable>
-                    <variable name="desc"  select="normalize-space(xhtml:td[3])"></variable>
-                    <variable name="tier"  select="normalize-space(xhtml:td[4])"></variable>
-                    <xhtml:tr>
-                        <xhtml:th><code>{$token}</code></xhtml:th>
-                        <xhtml:td><code>{$value}</code></xhtml:td>
-                        <xhtml:td>{$tier}</xhtml:td>
-                        <xhtml:td style="width:6rem;">
-                            <xhtml:div style="height:2rem; width:5rem; background: Canvas; box-shadow: var({$token}); border-radius: 0.25rem;" title="{$token}"></xhtml:div>
-                        </xhtml:td>
-                        <xhtml:td>{$desc}</xhtml:td>
-                    </xhtml:tr>
-                </for-each>
-            </xhtml:tbody>
-        </xhtml:table>
-
-        <hr/>
-        <xhtml:table>
-            <xhtml:caption><a href="../../../dist/lib/tokens/cem-layering.xhtml#8-1-canonical-endpoints">cem-layering-semantic</a> — required semantic endpoints</xhtml:caption>
-            <xhtml:thead>
-                <xhtml:tr>
-                    <xhtml:th>Token</xhtml:th>
-                    <xhtml:th>Value</xhtml:th>
-                    <xhtml:th>Tier</xhtml:th>
-                    <xhtml:th>Description</xhtml:th>
-                </xhtml:tr>
-            </xhtml:thead>
-            <xhtml:tbody>
-                <for-each select="$cem-layering-semantic/xhtml:tr | $cem-layering-semantic-optional/xhtml:tr">
-                    <variable name="token" select="normalize-space(xhtml:td[1])"></variable>
-                    <variable name="value" select="normalize-space(xhtml:td[2])"></variable>
-                    <variable name="desc"  select="normalize-space(xhtml:td[3])"></variable>
-                    <variable name="tier"  select="normalize-space(xhtml:td[4])"></variable>
-                    <xhtml:tr>
-                        <xhtml:th><code>{$token}</code></xhtml:th>
-                        <xhtml:td><code>{$value}</code></xhtml:td>
-                        <xhtml:td>{$tier}</xhtml:td>
-                        <xhtml:td>{$desc}</xhtml:td>
-                    </xhtml:tr>
-                </for-each>
-            </xhtml:tbody>
-        </xhtml:table>
-
-        <hr/>
-        <xhtml:table>
-            <xhtml:caption><a href="../../../dist/lib/tokens/cem-layering.xhtml#13-2-forced-colors">cem-layering-rungs-forced</a> — forced-colors fallback</xhtml:caption>
-            <xhtml:thead>
-                <xhtml:tr>
-                    <xhtml:th>Token</xhtml:th>
-                    <xhtml:th>Forced-colors value</xhtml:th>
-                </xhtml:tr>
-            </xhtml:thead>
-            <xhtml:tbody>
-                <for-each select="$cem-layering-rungs-forced/xhtml:tr">
-                    <variable name="token" select="normalize-space(xhtml:td[1])"></variable>
-                    <variable name="value" select="normalize-space(xhtml:td[2])"></variable>
-                    <xhtml:tr>
-                        <xhtml:th><code>{$token}</code></xhtml:th>
-                        <xhtml:td><code>{$value}</code></xhtml:td>
-                    </xhtml:tr>
-                </for-each>
-            </xhtml:tbody>
-        </xhtml:table>
-
-        <hr/>
-        <pre class="language-css">
-            <code class="language-css" data-generated-css>
-{$css-body}
-            </code>
-        </pre>
-        <cem-css-loader value="{$css-body}"></cem-css-loader>
-
-    </template>
-</custom-element>
+```}}
+</template>
 <main></main>
-<script src="../../../../../node_modules/@epa-wg/custom-element/custom-element.js" type="module"></script>
-<script src="../../../../../node_modules/@epa-wg/custom-element/http-request.js" type="module"></script>
+<cem-css-loader></cem-css-loader>
 <script src="./cem-css-loader.js" type="module"></script>
+<script src="./cem-css-generator.js" type="module"></script>
 </body>
 </html>

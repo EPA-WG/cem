@@ -3,12 +3,12 @@
  * [`docs/custom-element-template-migration-options.md`](../../../../../docs/custom-element-template-migration-options.md)).
  *
  * Replaces the legacy `@epa-wg/custom-element` XSLT/XPath runtime for the `cem-theme` CSS
- * generators. It drives the converted `<template type="cem-ml-v0">` declarations directly through
+ * generators. It drives the converted `<template type="cem-ml; version=0.0">` declarations directly through
  * the `@epa-wg/cem-elements` substrate's runtime-support render boundary (the same `cem_ql` WASM
  * engine the element lifecycle uses), with no live browser XSLT.
  *
  * Per generator page it:
- *   1. reads the `<template type="cem-ml-v0">` config (`data-token-url` + `data-slices`);
+ *   1. reads the `<template type="cem-ml; version=0.0">` config (`data-token-url` + `data-slices`);
  *   2. fetches the compiled token document and parses it into a DOM (BR-PH-3 — the browser is the
  *      parser; no XHTML parser is shipped);
  *   3. shapes the relevant token `<table>`s into cem-ql row records via the slice-3 DOM→datadom
@@ -81,13 +81,13 @@ async function loadTokenDocument(url) {
 async function runGenerator(template) {
     const tokenUrl = template.getAttribute('data-token-url');
     if (!tokenUrl) {
-        throw new Error('cem-ml-v0 template is missing data-token-url');
+        throw new Error('cem-ml; version=0.0 template is missing data-token-url');
     }
     const sliceConfig = parseSliceConfig(template.getAttribute('data-slices'));
     const mountSelector = template.getAttribute('data-mount') ?? 'main';
     const mount = document.querySelector(mountSelector);
     if (!mount) {
-        throw new Error(`cem-ml-v0 mount not found: ${mountSelector}`);
+        throw new Error(`cem-ml; version=0.0 mount not found: ${mountSelector}`);
     }
 
     const tokenDoc = await loadTokenDocument(tokenUrl);
@@ -124,7 +124,7 @@ async function runGenerator(template) {
 }
 
 async function bootstrap() {
-    const templates = document.querySelectorAll('template[type="cem-ml-v0"]');
+    const templates = document.querySelectorAll('template[type="cem-ml; version=0.0"]');
     for (const template of templates) {
         try {
             await runGenerator(template);
