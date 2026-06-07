@@ -195,6 +195,10 @@ SemVer line, with the same meaning on each axis:
   treats each MINOR as potentially breaking.
 - **BR-VC-7** A capability **shall** be deprecated in a MINOR before it is removed, and removed
   only on a MAJOR boundary, so consumers always have a non-breaking migration window.
+- **BR-VC-8** Forward-compatible additions **shall** distinguish optional/tolerable features
+  from must-understand features. A processor that does not understand a required feature
+  **shall** reject the region with a deterministic diagnostic; optional newer features may be
+  ignored or degraded only when the effective scope policy allows that behavior.
 
 ### 6.6 Guided change and fitness functions
 
@@ -267,8 +271,9 @@ mechanism. The host layer is an adapter, not a governed dimension of the model.
 
 Expressed as fitness functions wherever possible:
 
-- A document mixing the current model and a legacy model renders both correctly, with neither
-  corrupting the other. *(guards BR-CO-1, BR-CO-4)*
+- A document mixing the current model and a legacy model dispatches and validates each region
+  under its own processor, with neither corrupting the other; when a legacy execution handler is
+  explicitly selected, both regions render correctly. *(guards BR-CO-1, BR-CO-3, BR-CO-4)*
 - Advancing the current model to a new major version requires no edits to embedded legacy
   regions, and prior-generation documents still render. *(guards BR-EV-3, BR-CO-2)*
 - A compatible syntax/model update loads existing documents with no author changes; an
@@ -296,10 +301,10 @@ compatibility rule) and OQ-4 (negotiation = same-MAJOR forgiving / cross-MAJOR s
 by the document and decided by the processor, with per-region coexistence). It **narrows**
 OQ-2 (SemVer supplies the predicates a fitness function checks, but the gates still need
 wiring), OQ-5 (the MAJOR boundary defines what parallel-change must protect, but the pattern
-still needs adopting), OQ-6 (newer-MINOR additions are ignorable, an unsupported MAJOR is
-rejected — the per-feature ignore-vs-degrade choice remains), and OQ-7 (deprecate-in-MINOR /
-remove-on-MAJOR gives the retirement *mechanism*, but the XSLT schedule/criteria are still a
-deliberate call).
+still needs adopting), OQ-6 (newer-MINOR additions can be compatible, an unsupported MAJOR is
+rejected — the per-feature required-vs-optional marker and ignore-vs-degrade choice remain),
+and OQ-7 (deprecate-in-MINOR / remove-on-MAJOR gives the retirement *mechanism*, but the XSLT
+schedule/criteria are still a deliberate call).
 
 Separating the two **switching surfaces** (§6.8) then clears OQ-3: the whole-`<template>` /
 `<script>` `lang`/`type` routing is the host-ingestion boundary (owned by the HTML parser and
@@ -308,6 +313,13 @@ from resolved namespace metadata. Only the normative detailing of the interior i
 (AC-P-6) remains as spec work. This also narrows OQ-8 by placing host-surface ingestion as an
 adapter boundary rather than a governed core dimension; whether the data/snapshot model,
 patch transport, and token model are also governed by this BRD remains open.
+
+Critical review adds two further decisions before commitment. First, namespace metadata needs
+an authority model: where the binding metadata comes from, how it is pinned, how offline
+resolution works, and how the metadata participates in trust and cache identity. Second,
+external legacy standards such as XSLT do not necessarily publish SemVer identities, so the
+platform must decide whether it maps those standards onto a CEM adapter SemVer line or treats
+their native version fields as separate legacy constraints.
 
 ## 11. Related documents and references
 

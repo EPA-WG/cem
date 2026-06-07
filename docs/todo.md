@@ -13,7 +13,9 @@ not the goal. These open questions must be resolved before the model is committe
 **semantic versioning across all axes** (BRD §6.5) resolves OQ-1 and OQ-4 and narrows
 OQ-2/5/6/7; separating the two **switching surfaces** (BRD §6.8 — host `<template>`/`<script>`
 ingestion vs. interior namespace-scoped selection) resolves OQ-3's architecture (residual:
-AC-P-6 detailing) and narrows OQ-8.
+AC-P-6 detailing) and narrows OQ-8. Critical review added two further commitment blockers:
+namespace metadata authority/trust/cache identity (OQ-9) and external legacy-version mapping
+for non-SemVer standards such as XSLT (OQ-10).
 
 - [x] OQ-1 Evolution axes: ratify the independent dimensions — surface syntax, underlying
       logic/semantics, and content/data model — and state which compatibility rules apply per
@@ -37,10 +39,12 @@ AC-P-6 detailing) and narrows OQ-8.
         AC-P-6.1–6.9 (namespace-metadata dispatch, direct/indirect selection, host-vs-interior
         two-layer boundary, isolation, per-namespace SemVer, Layer-5 handoff/source-map
         continuity, unknown-namespace policy) plus the embedded `xsl:` content type, a proposed
-        G-NVDL-CORE Tier-B split vs G-NVDL-FULL Tier C, and verification AC-P-V-2..V-6.
+        G-NVDL-CORE Tier-B split vs G-NVDL-FULL Tier C, and verification AC-P-V-2..V-8.
   - [ ] Decide D-1 (re-tier to a Tier-B core vs detail-only at Tier C), D-2 (unknown-namespace
-        default — aligns with OQ-6), and D-3 (XSLT execution binding — real processor vs
-        `custom-element-v0` bridge vs non-goal), then fold the draft into
+        default — aligns with OQ-6), D-3 (XSLT execution binding — real processor vs
+        `custom-element-v0` bridge vs non-goal), D-4 (namespace metadata authority/trust/cache
+        identity — OQ-9), D-5 (direct `cem:schema` vs namespace-metadata conflict policy), and
+        D-6 (XSLT/native external-standard version mapping — OQ-10), then fold the draft into
         [`cem-ml-ac.md`](cem-ml-ac.md) AC-P-6 and §16.4 G-NVDL.
 - [x] OQ-4 Version-negotiation policy: ratify the cross-axis compatibility policy — forgiving
       vs strict boundaries, who decides, how incompatible majors degrade, and how multiple
@@ -53,9 +57,10 @@ AC-P-6 detailing) and narrows OQ-8.
       parallel-change must protect; adopting the pattern itself remains.
 - [ ] OQ-6 Forward compatibility: decide how a processor handles content using a newer feature
       it does not understand — ignore, degrade, or reject — and where that is configurable.
-      (BRD §6.5, BR-VC-3) Narrowed by SemVer (BRD §6.5, BR-VC-6): newer-MINOR additions are
-      ignorable and an unsupported MAJOR is rejected; the per-feature ignore-vs-degrade choice
-      remains.
+      (BRD §6.5, BR-VC-3/8) Narrowed by SemVer (BRD §6.5, BR-VC-6): newer-MINOR additions are
+      compatible only when optional/tolerable; unsupported MAJOR is rejected. Remaining work:
+      define the must-understand marker for required features, the per-feature
+      ignore-vs-degrade behavior, and align the unknown-namespace default in AC-P-6.7.
 - [ ] OQ-7 Legacy retirement criteria: define explicit, fixture-backed retirement criteria for
       the XSLT coexistence case so it stays a bounded current-focus instance, not a permanent
       engine fork. (BRD §6.7;
@@ -68,6 +73,18 @@ AC-P-6 detailing) and narrows OQ-8.
       an adapter boundary, not a governed core dimension; the core dimensions are the CEM-ML
       interior (content type / syntax / model). Whether data/snapshot, patch transport, and
       tokens are also governed remains the open part.
+- [ ] OQ-9 Namespace metadata authority: decide where namespace metadata is declared/resolved
+      (inline schema descriptor, local registry, package manifest, external registry, or a
+      combination), how authors pin it for offline deterministic builds, how trust/resource
+      policy gates resolution, and exactly which metadata enters AC-CC-1 cache identity and
+      AC-CC-3 policy stamps. (BRD §6.4/§6.8; draft:
+      [`cem-ml-ac-p6-nvdl-promotion.md`](cem-ml-ac-p6-nvdl-promotion.md) D-4)
+- [ ] OQ-10 External legacy-version mapping: decide how non-SemVer external standards are
+      represented on the platform's SemVer axes. XSLT is the first case: choose whether
+      `xsl:stylesheet/@version`, the XSLT namespace URI, and/or a CEM-owned XSLT adapter
+      version supplies the compatibility identity; keep this separate from the execution
+      binding decision in OQ-3/D-3. (BRD §6.5/§6.7; draft:
+      [`cem-ml-ac-p6-nvdl-promotion.md`](cem-ml-ac-p6-nvdl-promotion.md) D-6)
 
 ## Phase 3 — Custom-Element Runtime Preparation
 

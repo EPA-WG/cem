@@ -43,13 +43,15 @@ explicit AC-F-2 forms; where both apply on one boundary, NVDL applies first and 
 form layers within its scope (per the existing AC-F-2 *Composition with NVDL* rule).
 
 - **AC-P-6.1 [B] Dispatch model — namespace metadata.** A resolved namespace identity MUST
-  carry **namespace metadata** `{ contentType, schemaId, schemaVersion }`, extending the AC-P-4
+  carry **namespace metadata** `{ contentType, schemaUri, schemaVersion }`, extending the AC-P-4
   scope identity. Selecting a content type/schema for a region is either:
   - **direct** — an explicit AC-F-2 `cem:schema` declaration/switch/attribute form; or
   - **indirect** — derived from the namespace metadata of the region's active namespace
     binding (the binding supplies content type, schema, and version without a separate schema
     declaration). The indirect path is the NVDL dispatch governed by this AC.
   A namespace with no resolvable metadata and no explicit form is governed by AC-P-6.7.
+  The source of namespace metadata, its trust boundary, and its cache identity are the open
+  decision D-4.
 
 - **AC-P-6.2 [B] Two-layer boundary.** AC-P-6 governs **interior** dispatch only. The
   host-surface ingestion boundary — `<template>` / `<script>` `lang`/`type` on an HTML host —
@@ -61,8 +63,9 @@ form layers within its scope (per the existing AC-F-2 *Composition with NVDL* ru
 - **AC-P-6.3 [B core / C full] Rule form and modes.** Dispatch rules MUST be scoped and
   resolved innermost-first (consistent with AC-F-2 identifier resolution and AC-P-10 rebinding).
   Tier B MUST support the **static modes**: *attach* (validate/interpret the region under the
-  dispatched schema/content type), *allow* (accept without validation), and *reject* (diagnose
-  and refuse). Tier C adds the **dynamic modes**: *unwrap*/*cascade* (re-dispatch nested
+  dispatched schema/content type), *allow* (accept without validation as inert foreign content
+  unless the parent schema explicitly defines pass-through/rendering semantics), and *reject*
+  (diagnose and refuse). Tier C adds the **dynamic modes**: *unwrap*/*cascade* (re-dispatch nested
   namespaces) and plugin-invoking attach (a dispatched schema that owns an AC-T-4 transform or
   AC-PL plugin chain).
 
@@ -79,6 +82,9 @@ form layers within its scope (per the existing AC-F-2 *Composition with NVDL* ru
   an unsupported MAJOR aborts or routes to a legacy/compat handler (strict). Each dispatched
   namespace versions on its own axis; a MAJOR change to one MUST NOT force a change to another.
   (Realizes BRD BR-VC-5/6 at the namespace axis.)
+  For external standards that do not publish SemVer-compatible identities, dispatch MUST use a
+  CEM-owned adapter SemVer line or a documented native-version mapping; this is the open
+  decision D-6.
 
 - **AC-P-6.6 [B] Source-map and handoff continuity.** A dispatched region MUST be modeled as a
   Layer-5 parent-owned handoff `HandoffRecord { content_type, schema_id, source_span,
@@ -94,6 +100,7 @@ form layers within its scope (per the existing AC-F-2 *Composition with NVDL* ru
   default; the outcome MUST be deterministic. (This is the namespace-axis instance of BRD
   BR-VC-3 / OQ-6.) Dispatched schema sets participate in the AC-CC-1 cache hash and AC-CC-3
   policy stamp; a host missing a dispatched schema MUST fail with `cem.cc.policy_mismatch`.
+  `allow` and `ignore` are non-execution modes unless a separate handler is explicitly selected.
 
 ## 3. Worked content type: embedded XSLT (`xsl:`)
 
@@ -107,8 +114,12 @@ counterpart to the host-layer `<template lang="custom-element-v0">` bridge.
   constructs as CEM-ML, and the surrounding CEM-ML content type resumes on return. The `xsl:`
   content type carries its **own** version, pinned independently; a MAJOR bump of the CEM-ML
   core MUST leave the dispatched `xsl:` region's expanded names and version unchanged. (Realizes
-  BRD BR-CO-2 / BR-CO-4.) A schema for validation MAY be attached (the RELAX-NG schema for XSLT
-  in References); absent one, the region defaults to `allow` under AC-P-6.7.
+  BRD BR-CO-2 / BR-CO-4.) XSLT dispatch is explicit opt-in: the host must provide namespace
+  metadata or an effective scope-policy rule for the XSLT namespace. A schema for validation MAY
+  be attached (the RELAX-NG schema for XSLT in References); if no validation schema is attached,
+  the region may be accepted only under the effective AC-P-6.7 `allow` policy and remains inert
+  unless AC-P-6.9 selects an execution handler. The source of the XSLT compatibility version
+  (`xsl:stylesheet/@version`, namespace URI, or CEM-owned adapter version) is D-6.
 
 - **AC-P-6.9 [C / decision] XSLT execution binding.** *Executing* the dispatched XSLT (running
   the transform) is out of scope for the CEM-ML parser and MUST be delegated by scope policy to
@@ -122,7 +133,7 @@ counterpart to the host-layer `<template lang="custom-element-v0">` bridge.
 
 Today AC-P-6 is wholly `[C]` under **G-NVDL** (§16.4), which depends on G-PLUG and G-EXT.
 That coupling is only required for the **dynamic** path (plugin-invoking dispatch, externally
-loaded schemas). The **static core** — namespace→`{ contentType, schemaId, schemaVersion }`
+loaded schemas). The **static core** — namespace→`{ contentType, schemaUri, schemaVersion }`
 dispatch over **locally available** (embedded or same-document) schemas, with attach/allow/
 reject modes — needs none of it.
 
@@ -160,6 +171,13 @@ change) — the OQ-3 architecture is still resolved by the BRD §6.8 two-layer m
 - **AC-P-V-6 — unknown-namespace policy determinism.** The same unresolved-namespace region
   yields `reject` / `allow` / `ignore` strictly per the effective scope policy, with the
   documented default when unset.
+- **AC-P-V-7 — legacy XSLT explicit opt-in.** A fixture containing an `xsl:` subtree without
+  namespace metadata or an explicit scope-policy rule follows the AC-P-6.7 unknown-namespace
+  default; adding an explicit XSLT dispatch rule opens an isolated XSLT handoff without CEM-ML
+  interpretation or execution.
+- **AC-P-V-8 — direct/indirect conflict.** A fixture where namespace metadata dispatches one
+  schema/content type and an explicit `cem:schema` form requests an incompatible one produces
+  the documented D-5 outcome with a deterministic diagnostic or allowed layering behavior.
 - Existing G-NVDL entry/exit fixtures (two-then-three namespace dispatches; AC-CC-1 reuse across
   hosts; `cem.cc.policy_mismatch` on a missing dispatched schema) remain and now map to
   AC-P-6.1–6.7.
@@ -169,7 +187,7 @@ change) — the OQ-3 architecture is still resolved by the BRD §6.8 two-layer m
 Update the gate entry to: split into G-NVDL-CORE (Tier B) and G-NVDL-FULL (Tier C) per §4 above;
 list **Gated ACs** as AC-P-6.1–6.9 (CORE: .1,.2,.4,.5,.6,.7, static .3, .8; FULL: dynamic .3,
 .9, external-schema dispatch); keep the existing prerequisite list for FULL, and the reduced
-prerequisite list (no G-PLUG/G-EXT) for CORE; keep the entry/exit fixtures, adding AC-P-V-2..V-6.
+prerequisite list (no G-PLUG/G-EXT) for CORE; keep the entry/exit fixtures, adding AC-P-V-2..V-8.
 
 ## 7. Open decisions
 
@@ -179,6 +197,17 @@ prerequisite list (no G-PLUG/G-EXT) for CORE; keep the entry/exit fixtures, addi
   should be decided consistently here.
 - **D-3 (XSLT execution, AC-P-6.9).** Real XSLT processor, `custom-element-v0` bridge, or
   documented non-goal — bounded by the Option A/B migration decision.
+- **D-4 (namespace metadata authority).** Decide whether namespace metadata is supplied by inline
+  schema descriptors, a local registry, package manifests, an external registry, or a composed
+  lookup chain; define trust/resource-policy checks, offline pinning, and AC-CC-1/AC-CC-3
+  cache/policy identity inputs.
+- **D-5 (direct-vs-indirect conflict policy).** AC-F-2 says namespace dispatch applies first and
+  explicit forms layer within its scope; decide whether an explicit form may change content type
+  inside an indirectly dispatched namespace, or whether incompatible direct/indirect selections
+  diagnose and reject.
+- **D-6 (external standard version mapping).** Decide how XSLT/native external-standard versions
+  map to the platform's SemVer axes: `xsl:stylesheet/@version`, namespace URI, a CEM-owned XSLT
+  adapter version, or a pair of native-version constraint plus adapter SemVer.
 
 ## 8. References
 
