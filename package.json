@@ -90,6 +90,24 @@
           "{workspaceRoot}/examples/**/*.{ts,js,mjs,html,cem}"
         ],
         "outputs": []
+      },
+      "fitness-semver-presence": {
+        "executor": "nx:run-commands",
+        "cache": true,
+        "options": {
+          "command": "node tools/scripts/ff-semver-presence.mjs",
+          "cwd": "{workspaceRoot}"
+        },
+        "inputs": [
+          "{workspaceRoot}/tools/scripts/ff-semver-presence.mjs",
+          "{workspaceRoot}/tools/fitness/lib.mjs",
+          "{workspaceRoot}/tools/fitness/governed-contracts.json",
+          "{workspaceRoot}/packages/*/package.json",
+          "{workspaceRoot}/packages/*/Cargo.toml",
+          "{workspaceRoot}/packages/cem-elements/src/**/*.ts",
+          "{workspaceRoot}/packages/cem-theme/dist/lib/tokens/*.json"
+        ],
+        "outputs": []
       }
     }
   }

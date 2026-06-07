@@ -53,6 +53,9 @@ jobs:
       - name: Validate UTF-8 encoding
         run: yarn validate:utf8
 
+      - name: Run fitness-function gates
+        run: yarn nx run-many -t fitness-removal-scan fitness-semver-presence
+
       - name: Derive Nx SHAs
         uses: nrwl/nx-set-shas@v4
         with:

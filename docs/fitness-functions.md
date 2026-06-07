@@ -23,8 +23,9 @@ registry entry*, not writing new scan code.
 
 **Status: Implemented** ✓ — `tools/fitness/deprecated-forms.json` (registry),
 `tools/fitness/lib.mjs` (shared walk/match helpers), `tools/scripts/ff-deprecated-form-scan.mjs`
-(scanner), Nx target `@epa-wg/cem:fitness-removal-scan`. Green; the forbidden-form fail path is
-verified. Remaining: add the target to the CI gate composition.
+(scanner), Nx target `@epa-wg/cem:fitness-removal-scan`, wired into the CI gate
+(`.github/workflows/ci.yml` "Run fitness-function gates", always-run). Green; the forbidden-form
+fail path is verified.
 
 **Guards:** BR-EV-7 (the contract/removal phase gate of parallel-change) and BR-CO-3 (legacy
 must be inventoried). Also a permanent regression guard: a removed form must not reappear.
@@ -82,6 +83,13 @@ source-wide coverage (and shares the same forbidden patterns via the registry).
 ---
 
 ## FF-6 — SemVer-presence lint
+
+**Status: Implemented** ✓ — `tools/fitness/governed-contracts.json` (registry),
+`tools/scripts/ff-semver-presence.mjs` (scanner, reuses `lib.mjs`), Nx target
+`@epa-wg/cem:fitness-semver-presence`, CI-wired alongside FF-5. Green: five `required` contracts
+resolve real SemVers; the four `pending-version` gaps (data-snapshot, token-outputs,
+patch-transport, edge-render-state) are reported and become `required` when their version lands.
+The fail path is verified.
 
 **Guards:** BR-VC-5 (every axis carries an independent SemVer line) and BR-EV-6 (governed
 contracts are exactly the enumerated boundary contracts). Catches the two known un-versioned

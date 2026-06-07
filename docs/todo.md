@@ -35,16 +35,20 @@ for non-SemVer standards such as XSLT (OQ-10).
         must-understand rejects. (`cem-elements:verify`)
   - [x] FF-5 Removal gate: zero in-repo consumers of a deprecated form + external window.
         Landed: registry `tools/fitness/deprecated-forms.json`, shared `tools/fitness/lib.mjs`,
-        scanner `tools/scripts/ff-deprecated-form-scan.mjs`, and Nx target
-        `nx run @epa-wg/cem:fitness-removal-scan` (green; forbidden-form fail path verified).
+        scanner `tools/scripts/ff-deprecated-form-scan.mjs`, Nx target
+        `@epa-wg/cem:fitness-removal-scan` (green; forbidden-form fail path verified), and wired
+        into the CI gate (`.github/workflows/ci.yml` "Run fitness-function gates", always-run).
         Forbidden XSLT-engine patterns + `custom-element-v0`/`cem-ml-v0` deprecated forms tracked;
-        the `verify-package-baseline.mjs` dist guard is retained (FF-5 covers source-wide). Still
-        to do: add the target to the CI gate composition. (scope: [`fitness-functions.md`](fitness-functions.md))
-  - [ ] FF-6 SemVer-presence: every governed contract declares a version axis (catches the
-        snapshot + token gaps). (**new lint check** — scoped in
-        [`fitness-functions.md`](fitness-functions.md): registry
-        `tools/fitness/governed-contracts.json` + `tools/scripts/ff-semver-presence.mjs` →
-        `fitness:semver-presence`; the snapshot/token gaps ride `pending-version` until item #3.)
+        the `verify-package-baseline.mjs` dist guard is retained (FF-5 covers source-wide).
+        (scope: [`fitness-functions.md`](fitness-functions.md))
+  - [x] FF-6 SemVer-presence: every governed contract declares a version axis. Landed: registry
+        `tools/fitness/governed-contracts.json`, scanner `tools/scripts/ff-semver-presence.mjs`,
+        Nx target `@epa-wg/cem:fitness-semver-presence` (green; fail path verified), CI-wired
+        alongside FF-5. Five `required` contracts resolve real SemVers (custom-element 0.0.39,
+        cem-elements 0.0.14, cem_ml/cem_ql/cem_ml_cli 0.1.0); the four gaps (data-snapshot,
+        token-outputs, patch-transport, edge-render-state) ride `pending-version` and are the
+        acceptance test for item #3 — adding each version flips it to `required`.
+        (scope: [`fitness-functions.md`](fitness-functions.md))
   - [ ] FF-7 XSLT capability-gating: unsupported XSLT version rejects; region isolated +
         version-pinned across CEM-ML MAJOR. (`cem-elements:verify`; AC-P-V-4)
   - [ ] FF-8 Source-map continuity across dispatch boundaries.
