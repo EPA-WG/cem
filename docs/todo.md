@@ -33,10 +33,13 @@ for non-SemVer standards such as XSLT (OQ-10).
         (`cem_ml_cli:e2e`; AC-P-V-3)
   - [ ] FF-4 Mode-disposition: unknown optional → ignore/degrade/reject per app/build-SSR/dev;
         must-understand rejects. (`cem-elements:verify`)
-  - [ ] FF-5 Removal gate: zero in-repo consumers of a deprecated form + external window.
-        (**new scan check** — scoped in [`fitness-functions.md`](fitness-functions.md): registry
-        `tools/fitness/deprecated-forms.json` + `tools/scripts/ff-deprecated-form-scan.mjs` →
-        `fitness:removal-scan`; generalizes the `verify-package-baseline.mjs` XSLTProcessor guard.)
+  - [x] FF-5 Removal gate: zero in-repo consumers of a deprecated form + external window.
+        Landed: registry `tools/fitness/deprecated-forms.json`, shared `tools/fitness/lib.mjs`,
+        scanner `tools/scripts/ff-deprecated-form-scan.mjs`, and Nx target
+        `nx run @epa-wg/cem:fitness-removal-scan` (green; forbidden-form fail path verified).
+        Forbidden XSLT-engine patterns + `custom-element-v0`/`cem-ml-v0` deprecated forms tracked;
+        the `verify-package-baseline.mjs` dist guard is retained (FF-5 covers source-wide). Still
+        to do: add the target to the CI gate composition. (scope: [`fitness-functions.md`](fitness-functions.md))
   - [ ] FF-6 SemVer-presence: every governed contract declares a version axis (catches the
         snapshot + token gaps). (**new lint check** — scoped in
         [`fitness-functions.md`](fitness-functions.md): registry

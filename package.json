@@ -74,6 +74,22 @@
           "config": ".verdaccio/config.yml",
           "storage": "tmp/local-registry/storage"
         }
+      },
+      "fitness-removal-scan": {
+        "executor": "nx:run-commands",
+        "cache": true,
+        "options": {
+          "command": "node tools/scripts/ff-deprecated-form-scan.mjs",
+          "cwd": "{workspaceRoot}"
+        },
+        "inputs": [
+          "{workspaceRoot}/tools/scripts/ff-deprecated-form-scan.mjs",
+          "{workspaceRoot}/tools/fitness/lib.mjs",
+          "{workspaceRoot}/tools/fitness/deprecated-forms.json",
+          "{workspaceRoot}/packages/**/*.{ts,js,mjs,html,cem}",
+          "{workspaceRoot}/examples/**/*.{ts,js,mjs,html,cem}"
+        ],
+        "outputs": []
       }
     }
   }

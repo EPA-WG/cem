@@ -21,6 +21,11 @@ registry entry*, not writing new scan code.
 
 ## FF-5 — Deprecated-form removal scan
 
+**Status: Implemented** ✓ — `tools/fitness/deprecated-forms.json` (registry),
+`tools/fitness/lib.mjs` (shared walk/match helpers), `tools/scripts/ff-deprecated-form-scan.mjs`
+(scanner), Nx target `@epa-wg/cem:fitness-removal-scan`. Green; the forbidden-form fail path is
+verified. Remaining: add the target to the CI gate composition.
+
 **Guards:** BR-EV-7 (the contract/removal phase gate of parallel-change) and BR-CO-3 (legacy
 must be inventoried). Also a permanent regression guard: a removed form must not reappear.
 
@@ -66,9 +71,11 @@ doc. Metadata-presence only — no network.
 **Output:** human-readable table + `--json` report `{ id, status, count, hits[], removeAt }` for
 CI artifacts.
 
-**Wiring:** `tools/scripts/ff-deprecated-form-scan.mjs` → Nx target `fitness:removal-scan`,
-composed into the CI gate; runs on every change. (Fold the existing three `verify-package-baseline`
-XSLT asserts into the registry so there is one source of truth.)
+**Wiring:** `tools/scripts/ff-deprecated-form-scan.mjs` → Nx target
+`@epa-wg/cem:fitness-removal-scan`, to be composed into the CI gate; runs on every change. The
+three `verify-package-baseline.mjs` XSLT asserts are **retained** — they uniquely guard the built
+`dist/custom-element.js` artifact, which FF-5's source scan excludes; FF-5 adds the workspace
+source-wide coverage (and shares the same forbidden patterns via the registry).
 
 **Effort:** Small (~½ day). Glob + per-entry match + the existing assert/exit pattern.
 

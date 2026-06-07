@@ -1,0 +1,48 @@
+{
+    "$comment": "FF-5 deprecated-form removal-scan registry. Guards BR-EV-7 / BR-CO-3. See docs/fitness-functions.md. Add a row to deprecate or forbid a form (FFDD, BR-FF-3).",
+    "currentMajor": 0,
+    "scanRoots": ["packages", "examples"],
+    "extensions": [".ts", ".js", ".mjs", ".html", ".cem"],
+    "ignoreDirs": ["node_modules", "dist", "vendor", "storybook-static", "tmp", ".git", ".nx", ".verdaccio", "coverage"],
+    "forms": [
+        {
+            "id": "custom-element-v0",
+            "pattern": "custom-element-v0",
+            "status": "deprecated",
+            "deprecatedSince": "0.1.0",
+            "removeAtMajor": 2,
+            "replacement": "type=\"text/cem-ml\"",
+            "allowlist": []
+        },
+        {
+            "id": "cem-ml-v0",
+            "pattern": "cem-ml-v0",
+            "status": "deprecated",
+            "deprecatedSince": "0.1.0",
+            "removeAtMajor": 2,
+            "replacement": "type=\"text/cem-ml\" (canonical, post-migration)",
+            "allowlist": []
+        },
+        {
+            "id": "xslt-processor",
+            "pattern": "XSLTProcessor",
+            "status": "forbidden",
+            "reason": "legacy browser XSLT 1.0 engine must not reappear in adapter source (BR-CO-5; retired per AC-P-6.9)",
+            "allowlist": ["packages/custom-element/scripts/verify-package-baseline.mjs"]
+        },
+        {
+            "id": "xslt-compiler",
+            "pattern": "createXsltFromDom",
+            "status": "forbidden",
+            "reason": "legacy XSLT compiler must not reappear in adapter source",
+            "allowlist": ["packages/custom-element/scripts/verify-package-baseline.mjs"]
+        },
+        {
+            "id": "legacy-produced-class",
+            "pattern": "class DceElement",
+            "status": "forbidden",
+            "reason": "legacy produced-class render engine must not reappear in adapter source",
+            "allowlist": ["packages/custom-element/scripts/verify-package-baseline.mjs"]
+        }
+    ]
+}
