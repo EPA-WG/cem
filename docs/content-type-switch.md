@@ -10,8 +10,9 @@ without breaking existing content (Ford, Parsons, Kua & Sadalage, *Building Evol
 Architectures*).
 
 Content-type, syntax, and namespace switching — together with versioning — are the **seams**
-that make this evolution possible. They are the mechanism, not the goal. Legacy XSLT
-coexistence is the **first, current-focus use case** of that mechanism, not the end state.
+that make this evolution possible. They are the mechanism, not the goal. Supporting XSLT as a
+peer language and retiring the deprecated browser-native XSLT 1.0 dependency are the **first,
+current-focus use case** of that mechanism, not the end state.
 
 This is a business/architecture-level document. It does not prescribe data structures, parser
 internals, dispatch algorithms, or authoring syntax; those belong in the design and
@@ -35,9 +36,10 @@ locked in, so change becomes a high-risk rewrite. Three forces make that unaccep
   to one must not force a change to the others.
 - **Older content must keep working.** Documents authored against an earlier generation must
   continue to render while newer generations are adopted incrementally.
-- **Legacy models must coexist and then retire on schedule.** Existing legacy XSLT templates
-  are the immediate example: they must run alongside new CEM-ML content, isolated from it, and
-  be retired deliberately rather than abandoned or frozen forever.
+- **Multiple languages and generations must coexist.** CEM-ML is primary, but other languages
+  (notably XSLT) are valid supported choices that must run alongside CEM-ML content, isolated
+  from it; and a deprecated dependency — browser-native XSLT 1.0 — must be retired on schedule
+  while content migrates, not abandoned or frozen.
 
 Without explicit evolutionary requirements, mixing generations risks misinterpretation,
 breakage on upgrade, permanent forks of the engine, and an inability to measure whether a
@@ -99,20 +101,31 @@ Switching surfaces (where a content type is selected):
 
 ## 5. Scope
 
-**In scope**
+The model governs **contracts**, not **mechanisms**. A contract is governed when it **crosses a
+process or trust boundary, persists across versions, or is consumed by an external party**; the
+implementation behind it is not.
 
-- Independent evolution of syntax, logic, and model, and the coexistence of their versions.
+**In scope:**
+
+- The **governed contracts** below — each carries an independent SemVer axis (§6.5) and at least
+  one fitness function (§6.6):
+  - the template authoring surface (cem-ml syntax, cem-ql expressions, schema);
+  - content-type / namespace dispatch (the region interpretation contract);
+  - the data/snapshot contract exchanged across worker/SSR/edge and browser→edge export;
+  - the render-plan / patch transport that crosses the serializable boundary;
+  - the artifact cache identity and any persisted binary-AST / wire format;
+  - externally consumed published outputs (e.g. the design-token output files);
+  - the CLI input/output contract and persisted edge render-state.
 - Declarative, author-controlled switching of the active content type/syntax for a region.
-- Compatibility expectations between documents and processors across versions.
-- Fitness functions that guard the evolutionary properties.
-- Non-conflicting coexistence and scheduled retirement of legacy models (XSLT first).
+- Version compatibility and non-conflicting coexistence/retirement across these contracts.
 
-**Out of scope**
+**Out of scope:**
 
-- The internal mechanisms that implement these requirements (parsers, identity records,
-  dispatch rules, caching, transport).
-- The exact authoring syntax and directives.
-- Migration tooling and conversion utilities (covered by the migration documents).
+- The **mechanisms** that implement the above (parsers, dispatch algorithms, cache
+  datastructures, transport, worker pools).
+- In-memory structures observed only within a single process or parse, and non-serialized
+  internal layer interfaces.
+- The exact authoring syntax and directives; migration tooling (covered by the migration docs).
 
 ## 6. Business requirements
 
@@ -129,8 +142,19 @@ Switching surfaces (where a content type is selected):
   one document or system during a transition.
 - **BR-EV-4** The architecture **shall not** lock in a single syntax or model prematurely;
   hard-to-reverse decisions shall be deferrable to the last responsible moment.
-- **BR-EV-5** Hard-to-reverse changes to a shared contract **should** follow a parallel-change
-  pattern (expand → migrate → contract) so that no single step breaks existing content.
+- **BR-EV-5** A breaking change to a governed contract **shall** follow a parallel-change
+  pattern — **expand** (add the new form alongside the old; both accepted), **migrate** (move
+  consumers; deprecate the old form in a MINOR), **contract** (remove the old form on a MAJOR) —
+  so that no single step breaks existing content. Expand-phase additions **shall** be
+  optional/tolerable (not must-understand per BR-VC-8) until the contract phase, so strict
+  (build/SSR) runs still accept pre-migration content.
+- **BR-EV-6** The governed contracts **shall** be exactly those that cross a process/trust
+  boundary, persist across versions, or are externally consumed (enumerated in §5); purely
+  in-memory, single-process mechanisms are out of scope.
+- **BR-EV-7** The contract (removal) phase **shall** be gated: removal is permitted only when a
+  fitness function proves zero remaining in-repo consumers of the old form, and external
+  consumers have had a published deprecation window of at least one MINOR before the MAJOR that
+  removes it.
 
 ### 6.2 Content type
 
@@ -195,32 +219,61 @@ SemVer line, with the same meaning on each axis:
   treats each MINOR as potentially breaking.
 - **BR-VC-7** A capability **shall** be deprecated in a MINOR before it is removed, and removed
   only on a MAJOR boundary, so consumers always have a non-breaking migration window.
-- **BR-VC-8** Forward-compatible additions **shall** distinguish optional/tolerable features
-  from must-understand features. A processor that does not understand a required feature
-  **shall** reject the region with a deterministic diagnostic; optional newer features may be
-  ignored or degraded only when the effective scope policy allows that behavior.
+- **BR-VC-8** Forward-compatible additions **shall** distinguish **must-understand** features
+  from **optional/tolerable** ones. A processor that does not understand a must-understand
+  feature **shall** reject the region with a deterministic diagnostic, in every mode. For an
+  optional unknown, the processor **shall** *degrade* to a producer-supplied fallback when one
+  is present; otherwise its disposition (*ignore* or *reject*) is set by the effective run mode
+  per BR-VC-9.
+- **BR-VC-9** The engine **shall** support three selectable dispositions for optional unknown
+  features, chosen by the effective **run mode**, and **shall** record the active mode on the
+  run so the disposition is auditable:
+  - **Application run (default)** — *per-contract*: tolerant (ignore/degrade) on presentation
+    contracts (templates, tokens), strict (reject) on data/security contracts (the
+    snapshot/`datadom` contract, privacy export, edge render-state).
+  - **Build / SSR** — *strict*: reject every optional unknown across all contracts, so build
+    artifacts and server-rendered output never silently ignore or drop content.
+  - **Development / debugging** — *tolerant*: ignore or degrade optional unknowns across all
+    contracts and continue, surfacing diagnostics, so work-in-progress is not hard-stopped.
+  The must-understand reject of BR-VC-8 holds in every mode.
 
 ### 6.6 Guided change and fitness functions
 
 - **BR-FF-1** The desired evolutionary characteristics **shall** be expressed as objective
-  fitness functions — at minimum: prior-generation content still renders; version negotiation
-  is deterministic; and no region is interpreted by another content type's processor.
-- **BR-FF-2** Fitness functions **shall** be automatable and run as verification gates, so any
-  change that preserves or violates a characteristic is detected before release.
+  fitness functions, at minimum: prior-generation content still renders; version negotiation is
+  deterministic per axis; no region is interpreted by another content type's processor; the
+  active mode's unknown-feature disposition (BR-VC-8/9) holds; every governed contract declares a
+  version axis (BR-VC-5); and the removal gate (BR-EV-7) holds before any contract phase.
+- **BR-FF-2** Fitness functions **shall** be automatable and **shall** run as **blocking** gates
+  in the deployment pipeline on every change, so any change that violates a characteristic is
+  detected before it lands — not only at release.
+- **BR-FF-3** Every change to a governed contract **shall** add or extend the fitness function
+  that guards it (fitness-function-driven development), so the guard set grows with the contracts.
 
-### 6.7 Legacy coexistence (current focus: XSLT)
+### 6.7 Multi-language support and legacy retirement (XSLT)
 
-XSLT is the first application of the evolutionary model and a representative legacy case, not
-the end goal.
+XSLT runs on two distinct tracks, not as one "legacy" lump:
 
-- **BR-CO-1** The platform **shall** support embedding a legacy model (initially XSLT) and the
-  current model (CEM-ML) within the same document in a non-conflicting manner.
-- **BR-CO-2** Embedded legacy content **shall** remain pinned to its own content type and
-  version and **shall not** be affected by future evolution of the current model.
-- **BR-CO-3** Legacy support **shall** be explicit and opt-in, never a hidden default, so it
-  can be inventoried and retired on a controlled schedule.
-- **BR-CO-4** Neighboring legacy and current regions **shall not** be interpreted by each
-  other's processing model.
+- **XSLT as a supported peer language.** CEM-ML is primary, but XSLT (3.0, later 4.0) is a valid
+  supported authoring choice in both `custom-element` content and the CLI, **implemented by the
+  CEM-ML engine itself** (not delegated to a browser). It is a peer content type with its own
+  version axis, not a legacy-only path.
+- **Browser-native XSLT 1.0 is the legacy dependency to retire.** Browsers have deprecated their
+  built-in XSLT 1.0 processor; the dependency on it (the `custom-element-v0` bridge path) is what
+  retires, via the BR-EV-5/7 parallel-change + gated removal.
+
+- **BR-CO-1** The platform **shall** support embedding XSLT and CEM-ML within one document
+  non-conflictingly, each region isolated to its own content type.
+- **BR-CO-2** An embedded XSLT region **shall** remain pinned to its own version and **shall
+  not** be affected by future evolution of the CEM-ML core.
+- **BR-CO-3** A non-primary language (XSLT) **shall** be explicit and opt-in, never a hidden
+  default, so usage can be inventoried and migrated or retired on a controlled schedule.
+- **BR-CO-4** Neighboring XSLT and CEM-ML regions **shall not** be interpreted by each other's
+  processing model.
+- **BR-CO-5** Support for a given XSLT version **shall** be a capability of the CEM-ML engine's
+  implementation, negotiated per BR-VC-6: a version the engine implements is accepted; a version
+  or feature it does not is a deterministic reject (a must-understand reject per BR-VC-8). The
+  deprecated browser-native XSLT 1.0 path is retired per BR-EV-5/7, not carried in the engine.
 
 ### 6.8 Where switching happens: host ingestion vs interior selection
 
@@ -255,16 +308,17 @@ mechanism. The host layer is an adapter, not a governed dimension of the model.
 - **Evolve the logic/model under a stable syntax.** The semantics or capabilities of a content
   type advance to a new version. Compatible documents load unchanged; incompatible ones are
   reported; older documents may pin the older version. (BR-VC-1..4, BR-EV-3)
-- **Coexist with legacy XSLT (current focus).** A team migrating XSLT generators to CEM-ML
-  keeps both in one document during transition. The XSLT regions are isolated and pinned to
-  their own version, unaffected when CEM-ML advances, and are retired one at a time on schedule.
-  (BR-CO-1..4)
+- **XSLT as a supported peer + retire browser-1.0 (current focus).** XSLT (3.0/4.0) is an
+  engine-implemented peer language: a team may author in XSLT or CEM-ML, each region isolated and
+  version-pinned. Separately, the deprecated browser-native XSLT 1.0 dependency is migrated off
+  (to engine XSLT 3/4 or CEM-ML) and removed via the parallel-change gate. (BR-CO-1..5)
 
 ## 8. Assumptions and constraints
 
 - Content types, syntaxes, and models each carry comparable, independent version identities.
 - Mixing generations is intentional and declared by the author, not inferred by guessing.
-- Legacy support (XSLT) is a time-bounded compatibility path, not a long-term target.
+- XSLT is a supported peer language (engine-implemented, capability-gated); only the deprecated
+  browser-native XSLT 1.0 dependency is a time-bounded compatibility path.
 - Evolution is governed by automatable fitness functions wired into existing verification gates.
 
 ## 9. Success criteria

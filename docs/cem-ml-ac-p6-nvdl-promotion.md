@@ -50,8 +50,10 @@ form layers within its scope (per the existing AC-F-2 *Composition with NVDL* ru
     binding (the binding supplies content type, schema, and version without a separate schema
     declaration). The indirect path is the NVDL dispatch governed by this AC.
   A namespace with no resolvable metadata and no explicit form is governed by AC-P-6.7.
-  The source of namespace metadata, its trust boundary, and its cache identity are the open
-  decision D-4.
+  Namespace metadata resolves via a **composed, local-first chain** (D-4): inline descriptor →
+  workspace registry → package manifests → external registry (explicit opt-in, G-EXT/AC-A-6
+  gated). Resolution is offline-deterministic by default; the resolved
+  `{ contentType, schemaUri, schemaVersion }` plus its source enters AC-CC-1/AC-CC-3.
 
 - **AC-P-6.2 [B] Two-layer boundary.** AC-P-6 governs **interior** dispatch only. The
   host-surface ingestion boundary — `<template>` / `<script>` `lang`/`type` on an HTML host —
@@ -96,9 +98,11 @@ form layers within its scope (per the existing AC-F-2 *Composition with NVDL* ru
   dispatched scope and bubble to the nearest schema-declared or context-root boundary per
   AC-P-4. When a region's namespace resolves to no metadata, no explicit schema, and no rule,
   the effective scope policy MUST select one **defined** behavior — `reject`, `allow`
-  (unvalidated foreign content), or `ignore` (drop with a report event) — with a documented
-  default; the outcome MUST be deterministic. (This is the namespace-axis instance of BRD
-  BR-VC-3 / OQ-6.) Dispatched schema sets participate in the AC-CC-1 cache hash and AC-CC-3
+  (unvalidated foreign content), or `ignore` (drop with a report event). The **default** is
+  mode-selected per BRD BR-VC-9: an application run rejects unknown **data/security** namespaces
+  and allows unknown **presentation** namespaces; build/SSR rejects all; development allows all.
+  Scope policy MAY override within the mode, and the outcome MUST be deterministic. (This is the
+  namespace-axis instance of BRD BR-VC-8/9 / OQ-6.) Dispatched schema sets participate in the AC-CC-1 cache hash and AC-CC-3
   policy stamp; a host missing a dispatched schema MUST fail with `cem.cc.policy_mismatch`.
   `allow` and `ignore` are non-execution modes unless a separate handler is explicitly selected.
 
@@ -121,13 +125,14 @@ counterpart to the host-layer `<template lang="custom-element-v0">` bridge.
   unless AC-P-6.9 selects an execution handler. The source of the XSLT compatibility version
   (`xsl:stylesheet/@version`, namespace URI, or CEM-owned adapter version) is D-6.
 
-- **AC-P-6.9 [C / decision] XSLT execution binding.** *Executing* the dispatched XSLT (running
-  the transform) is out of scope for the CEM-ML parser and MUST be delegated by scope policy to
-  an explicit handler: a real XSLT processor, the `custom-element-v0` legacy bridge, or a
-  documented non-goal that diagnoses unsupported execution. The choice is the open decision in
-  §6 and is bounded by [`custom-element-template-migration-options.md`](custom-element-template-migration-options.md)
-  (Option A vs B). Dispatch + isolation + version-pinning (AC-P-6.8) do **not** depend on this
-  decision.
+- **AC-P-6.9 [C] XSLT execution binding.** *Executing* the dispatched XSLT (running the
+  transform) is performed by the **CEM-ML engine's own XSLT implementation** (XSLT 3.0, later
+  4.0), not delegated to a browser. Support is **capability-gated**: an XSLT version/feature the
+  engine implements executes; one it does not is a deterministic reject per AC-P-6.7 / BRD
+  BR-VC-8 (a must-understand reject), never silent. The deprecated **browser-native XSLT 1.0**
+  path (the `custom-element-v0` bridge) is a legacy escape retired per BRD BR-EV-5/7, not the
+  target. Dispatch + isolation + version-pinning (AC-P-6.8) do **not** depend on which versions
+  are implemented.
 
 ## 4. Tier and gate placement — the promotion
 
@@ -191,23 +196,32 @@ prerequisite list (no G-PLUG/G-EXT) for CORE; keep the entry/exit fixtures, addi
 
 ## 7. Open decisions
 
-- **D-1 (re-tiering).** Accept the G-NVDL-CORE Tier-B split, or keep AC-P-6 detail-only at Tier C?
-- **D-2 (unknown-namespace default).** Default of AC-P-6.7 — `reject` (safe, strict) vs `allow`
-  (tolerant). This is the namespace-axis half of OQ-6; the per-feature ignore-vs-degrade default
-  should be decided consistently here.
-- **D-3 (XSLT execution, AC-P-6.9).** Real XSLT processor, `custom-element-v0` bridge, or
-  documented non-goal — bounded by the Option A/B migration decision.
-- **D-4 (namespace metadata authority).** Decide whether namespace metadata is supplied by inline
-  schema descriptors, a local registry, package manifests, an external registry, or a composed
-  lookup chain; define trust/resource-policy checks, offline pinning, and AC-CC-1/AC-CC-3
-  cache/policy identity inputs.
-- **D-5 (direct-vs-indirect conflict policy).** AC-F-2 says namespace dispatch applies first and
-  explicit forms layer within its scope; decide whether an explicit form may change content type
-  inside an indirectly dispatched namespace, or whether incompatible direct/indirect selections
-  diagnose and reject.
-- **D-6 (external standard version mapping).** Decide how XSLT/native external-standard versions
-  map to the platform's SemVer axes: `xsl:stylesheet/@version`, namespace URI, a CEM-owned XSLT
-  adapter version, or a pair of native-version constraint plus adapter SemVer.
+- **D-1 (re-tiering). RESOLVED.** Accept the **G-NVDL-CORE Tier-B** split (static, locally-resolved
+  dispatch core promoted to Tier B; plugin-invoking/externally-loaded full NVDL stays Tier C under
+  G-NVDL-FULL). Requires the §16.1 gate-graph update when folded into `cem-ml-ac.md`.
+- **D-2 (unknown-namespace default). RESOLVED (OQ-6).** Mode-selected per BRD BR-VC-9: AC-P-6.7's
+  default is application-run per-contract (reject data/security namespaces, allow presentation),
+  strict for build/SSR, tolerant for development; scope policy may override within the mode.
+- **D-3 (XSLT execution, AC-P-6.9). RESOLVED (OQ-7).** The CEM-ML engine implements XSLT
+  (3.0, later 4.0) itself, capability-gated and version-negotiated (BR-VC-6/8); unimplemented
+  versions/features reject deterministically. The browser-native XSLT 1.0 bridge is the
+  deprecated escape retired per BR-EV-5/7, not the execution target.
+- **D-4 (namespace metadata authority). RESOLVED (OQ-9).** Composed, local-first chain: inline →
+  workspace registry → package manifests → external (explicit opt-in, G-EXT/AC-A-6 gated).
+  Offline-deterministic by default; pinned via committed registry + lockfile; resolved
+  `{ contentType, schemaUri, schemaVersion }` + source enters AC-CC-1/AC-CC-3. Reuses the
+  existing module-map resolver hooks.
+- **D-5 (direct-vs-indirect conflict policy). RESOLVED.** Refine-only: an explicit AC-F-2 form
+  MAY change the *schema* within the content type the namespace established (refinement), but
+  **MUST NOT** change the *content type*; an explicit form selecting a different content type than
+  the active namespace metadata is a deterministic diagnose+reject. Consistent with AC-F-2 (NVDL
+  applies first, explicit layers within) and the two-layer ownership model (namespace owns content
+  type; explicit refines schema).
+- **D-6 (external standard version mapping). RESOLVED (OQ-10).** Native request + adapter SemVer:
+  the document's native version (`xsl:stylesheet/@version`, e.g. `1.0`/`3.0`) is the **requested**
+  external version; it resolves against a **CEM-owned XSLT adapter SemVer line** that tracks the
+  engine's implemented profile (the capability axis, BR-CO-5). The version-stable namespace URI is
+  **not** a version source. Unimplemented requested versions reject deterministically (BR-VC-8).
 
 ## 8. References
 

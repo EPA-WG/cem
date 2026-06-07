@@ -13,7 +13,8 @@ not the goal. These open questions must be resolved before the model is committe
 **semantic versioning across all axes** (BRD §6.5) resolves OQ-1 and OQ-4 and narrows
 OQ-2/5/6/7; separating the two **switching surfaces** (BRD §6.8 — host `<template>`/`<script>`
 ingestion vs. interior namespace-scoped selection) resolves OQ-3's architecture (residual:
-AC-P-6 detailing) and narrows OQ-8. Critical review added two further commitment blockers:
+AC-P-6 detailing) and narrows OQ-8 (now resolved to **boundary-contract scope**, BRD §5).
+Critical review added two further commitment blockers:
 namespace metadata authority/trust/cache identity (OQ-9) and external legacy-version mapping
 for non-SemVer standards such as XSLT (OQ-10).
 
@@ -21,11 +22,25 @@ for non-SemVer standards such as XSLT (OQ-10).
       logic/semantics, and content/data model — and state which compatibility rules apply per
       axis. (BRD §6.1; design: [`cem-ml-syntax.md`](cem-ml-syntax.md)) Resolved: SemVer-per-axis
       in BRD §6.5 (BR-VC-5) ratifies the axes and assigns each its own SemVer compatibility rule.
-- [ ] OQ-2 Fitness functions: define the objective, automatable fitness functions that guard
-      evolution (prior-generation content still renders; version negotiation deterministic; no
-      cross-content-kind interpretation) and wire them into the existing gates
-      (`cem-elements:verify`, `cem_ml_cli:validate-fixtures`/`e2e`). (BRD §6.6) Narrowed by
-      SemVer (BRD §6.5): SemVer supplies the pass/fail predicates; wiring the gates remains.
+- [x] OQ-2 Fitness functions. Resolved: **CI-blocking + FFDD** (BRD BR-FF-1/2/3) — all fitness
+      functions are blocking pipeline gates on every change, and every governed-contract change
+      adds/extends its guard. Catalog (8), most reusing existing gates:
+  - [ ] FF-1 Backward-render: prior-generation fixtures still render.
+        (`cem_ml_cli:validate-fixtures`, `cem-elements:verify`)
+  - [ ] FF-2 Negotiation determinism: same-MAJOR loads, unsupported MAJOR rejects, per axis.
+        (`cem_ml_cli:e2e`)
+  - [ ] FF-3 Isolation: no region interpreted by another content type's processor.
+        (`cem_ml_cli:e2e`; AC-P-V-3)
+  - [ ] FF-4 Mode-disposition: unknown optional → ignore/degrade/reject per app/build-SSR/dev;
+        must-understand rejects. (`cem-elements:verify`)
+  - [ ] FF-5 Removal gate: zero in-repo consumers of a deprecated form + external window.
+        (**new scan check**)
+  - [ ] FF-6 SemVer-presence: every governed contract declares a version axis (catches the
+        snapshot + token gaps). (**new lint check**)
+  - [ ] FF-7 XSLT capability-gating: unsupported XSLT version rejects; region isolated +
+        version-pinned across CEM-ML MAJOR. (`cem-elements:verify`; AC-P-V-4)
+  - [ ] FF-8 Source-map continuity across dispatch boundaries.
+        (`cem_ml_cli:validate-fixtures`; AC-P-V-2)
 - [ ] OQ-3 Switching granularity: promote/detail the currently Tier-C namespace dispatch
       (AC-P-6) and add ACs for an embedded `xsl:`-style content type. Architecture resolved
       (BRD §6.8): the whole-`<template>`/`<script>` `lang`/`type` routing is the HTML→CEM-ML
@@ -40,50 +55,57 @@ for non-SemVer standards such as XSLT (OQ-10).
         two-layer boundary, isolation, per-namespace SemVer, Layer-5 handoff/source-map
         continuity, unknown-namespace policy) plus the embedded `xsl:` content type, a proposed
         G-NVDL-CORE Tier-B split vs G-NVDL-FULL Tier C, and verification AC-P-V-2..V-8.
-  - [ ] Decide D-1 (re-tier to a Tier-B core vs detail-only at Tier C), D-2 (unknown-namespace
-        default — aligns with OQ-6), D-3 (XSLT execution binding — real processor vs
-        `custom-element-v0` bridge vs non-goal), D-4 (namespace metadata authority/trust/cache
-        identity — OQ-9), D-5 (direct `cem:schema` vs namespace-metadata conflict policy), and
-        D-6 (XSLT/native external-standard version mapping — OQ-10), then fold the draft into
-        [`cem-ml-ac.md`](cem-ml-ac.md) AC-P-6 and §16.4 G-NVDL.
+  - [x] Decide D-1..D-6: all resolved — D-1 G-NVDL-CORE Tier-B split; D-2 mode-selected (OQ-6);
+        D-3 engine-implemented XSLT 3/4 (OQ-7); D-4 composed metadata chain (OQ-9); D-5
+        refine-only direct/indirect; D-6 native-request + adapter-SemVer (OQ-10).
+  - [ ] Fold the draft into [`cem-ml-ac.md`](cem-ml-ac.md) AC-P-6 + §16.4 G-NVDL (+ §16.1
+        gate-graph update for the G-NVDL-CORE/FULL split).
 - [x] OQ-4 Version-negotiation policy: ratify the cross-axis compatibility policy — forgiving
       vs strict boundaries, who decides, how incompatible majors degrade, and how multiple
       coexisting versions of one content kind behave. (BRD §6.5; [`cem-ml-ac.md`](cem-ml-ac.md)
       AC-F-8, AC-V-9..V-13) Resolved: BRD §6.5 (BR-VC-6) — same-MAJOR forgiving / cross-MAJOR
       strict, declared by the document and decided by the processor, with per-region coexistence.
-- [ ] OQ-5 Migration pattern: adopt a standard parallel-change (expand → migrate → contract)
-      pattern for evolving a syntax or model without breaking consumers, generalized beyond the
-      XSLT case. (BRD §6.1 / §7) Narrowed by SemVer (BRD §6.5): the MAJOR boundary defines what
-      parallel-change must protect; adopting the pattern itself remains.
-- [ ] OQ-6 Forward compatibility: decide how a processor handles content using a newer feature
-      it does not understand — ignore, degrade, or reject — and where that is configurable.
-      (BRD §6.5, BR-VC-3/8) Narrowed by SemVer (BRD §6.5, BR-VC-6): newer-MINOR additions are
-      compatible only when optional/tolerable; unsupported MAJOR is rejected. Remaining work:
-      define the must-understand marker for required features, the per-feature
-      ignore-vs-degrade behavior, and align the unknown-namespace default in AC-P-6.7.
-- [ ] OQ-7 Legacy retirement criteria: define explicit, fixture-backed retirement criteria for
-      the XSLT coexistence case so it stays a bounded current-focus instance, not a permanent
-      engine fork. (BRD §6.7;
-      [`custom-element-template-migration-options.md`](custom-element-template-migration-options.md))
-      Narrowed by SemVer (BRD §6.5, BR-VC-7): deprecate-in-MINOR / remove-on-MAJOR is the
-      mechanism; the XSLT schedule and criteria remain a deliberate call.
-- [ ] OQ-8 Scope of evolution: decide which dimensions the model governs — template authoring
-      surface only, or also the data/snapshot model, render-plan/patch transport, and token
-      model. (BRD §5) Narrowed by BRD §6.8: host-surface ingestion (`<template>`/`<script>`) is
-      an adapter boundary, not a governed core dimension; the core dimensions are the CEM-ML
-      interior (content type / syntax / model). Whether data/snapshot, patch transport, and
-      tokens are also governed remains the open part.
-- [ ] OQ-9 Namespace metadata authority: decide where namespace metadata is declared/resolved
-      (inline schema descriptor, local registry, package manifest, external registry, or a
-      combination), how authors pin it for offline deterministic builds, how trust/resource
-      policy gates resolution, and exactly which metadata enters AC-CC-1 cache identity and
-      AC-CC-3 policy stamps. (BRD §6.4/§6.8; draft:
+- [x] OQ-5 Migration pattern: adopt parallel-change (expand → migrate → contract). Resolved:
+      **required + gated** (BRD BR-EV-5/7) — parallel-change is mandatory (shall) for breaking
+      changes to governed contracts; expand-phase additions stay optional (not must-understand)
+      until contract; the contract/removal phase is gated on a fitness function proving zero
+      in-repo consumers plus a published ≥1-MINOR deprecation window for external consumers. The
+      removal gate is itself an OQ-2 fitness function.
+- [x] OQ-6 Forward compatibility: how a processor handles an unknown newer feature. Resolved:
+      **mode-selected disposition** (BRD §6.5 BR-VC-8/9) — the engine supports all three, chosen
+      by run mode: application run = per-contract (tolerant on presentation, strict on
+      data/security); build/SSR = strict everywhere; dev/debug = tolerant everywhere.
+      must-understand ⇒ reject in every mode; degrade to a producer fallback when present, else
+      ignore/reject per mode. This also resolves **D-2** (AC-P-6.7 unknown-namespace default
+      follows the same mode model). Residual = the must-understand marker mechanism (lands in the
+      AC-P-6 promotion, not the BRD).
+- [x] OQ-7 Legacy retirement criteria. Resolved (reframed): **only the deprecated browser-native
+      XSLT 1.0 dependency retires**, via the BR-EV-5/7 parallel-change + gated removal. XSLT as a
+      language does **not** retire — XSLT 3.0/4.0 is a supported peer language **implemented by
+      the CEM-ML engine** (BR-CO-5), capability-gated and version-negotiated (BR-VC-6/8); CEM-ML
+      stays primary. This also resolves **D-3** (execution = engine-implemented XSLT 3/4; the
+      browser-1.0 bridge is the retiring escape). Residual = cem-theme CSS-generator conversion
+      (Phase 3.6 `verify:phase13`) and engine XSLT 3/4 coverage are capability/roadmap work.
+      (BRD §6.7; [`custom-element-template-migration-options.md`](custom-element-template-migration-options.md))
+- [x] OQ-8 Scope of evolution: decide which dimensions the model governs. Resolved:
+      **boundary-contract scope** (BRD §5, BR-EV-6) — govern every contract that crosses a
+      process/trust boundary, persists across versions, or is externally consumed; mechanisms
+      and in-memory single-process internals are out. Host-surface ingestion
+      (`<template>`/`<script>`) is an adapter boundary, not a governed dimension (BRD §6.8).
+      Residual: the two currently un-versioned governed contracts — the data/snapshot
+      (`datadom`) contract and the design-token outputs — still need their own SemVer axis,
+      tracked with the OQ-2 fitness-function worklist.
+- [x] OQ-9 Namespace metadata authority. Resolved (=D-4): **composed, local-first chain** —
+      inline descriptor → workspace registry → package manifests → external registry (explicit
+      opt-in, G-EXT/AC-A-6 gated). Offline-deterministic by default; pinned via committed
+      registry + lockfile; resolved `{contentType, schemaUri, schemaVersion}` + source enters
+      AC-CC-1/AC-CC-3; reuses existing module-map resolver hooks. (draft:
       [`cem-ml-ac-p6-nvdl-promotion.md`](cem-ml-ac-p6-nvdl-promotion.md) D-4)
-- [ ] OQ-10 External legacy-version mapping: decide how non-SemVer external standards are
-      represented on the platform's SemVer axes. XSLT is the first case: choose whether
-      `xsl:stylesheet/@version`, the XSLT namespace URI, and/or a CEM-owned XSLT adapter
-      version supplies the compatibility identity; keep this separate from the execution
-      binding decision in OQ-3/D-3. (BRD §6.5/§6.7; draft:
+- [x] OQ-10 External-standard version mapping. Resolved (=D-6): **native request + adapter
+      SemVer** — the document's native version (`xsl:stylesheet/@version`) is the requested
+      version, resolved against a CEM-owned XSLT adapter SemVer line tracking the engine's
+      implemented profile (BR-CO-5); the version-stable namespace URI is not a version source;
+      unimplemented versions reject deterministically (BR-VC-8). (draft:
       [`cem-ml-ac-p6-nvdl-promotion.md`](cem-ml-ac-p6-nvdl-promotion.md) D-6)
 
 ## Phase 3 — Custom-Element Runtime Preparation
