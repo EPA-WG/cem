@@ -4,6 +4,8 @@ const CUSTOM_ELEMENT_TAG = 'custom-element';
 const LEGACY_TEMPLATE_LANG = 'custom-element-v0';
 const runtimeByHost = new WeakMap();
 const registeredDeclarations = new WeakSet();
+const inlineInstances = new WeakMap();
+let inlineTagSequence = 0;
 
 export function mix(objTo, objFrom) {
     for (const key of Object.keys(objFrom)) {
@@ -129,9 +131,16 @@ function registerDeclarationElement(declaration, runtime = runtimeForTarget(decl
     if (registeredDeclarations.has(declaration)) {
         return;
     }
+    const inline = !declaration.getAttribute('tag');
+    if (inline) {
+        declaration.setAttribute('tag', nextInlineTag(declaration));
+    }
     normalizeLegacyDeclaration(declaration);
     runtime.registerDeclaration(declaration);
     registeredDeclarations.add(declaration);
+    if (inline) {
+        appendInlineInstance(declaration, runtime);
+    }
 }
 
 function runtimeForTarget(target) {
@@ -141,6 +150,37 @@ function runtimeForTarget(target) {
 
 function directTemplateChildren(element) {
     return Array.from(element.children).filter((child) => child.localName === 'template');
+}
+
+function nextInlineTag(declaration) {
+    const existing = declaration.getAttribute('data-custom-element-inline-tag');
+    if (existing) {
+        return existing;
+    }
+    inlineTagSequence += 1;
+    const tag = `custom-element-inline-${inlineTagSequence}`;
+    declaration.setAttribute('data-custom-element-inline-tag', tag);
+    return tag;
+}
+
+function appendInlineInstance(declaration, runtime) {
+    const tag = declaration.getAttribute('tag');
+    if (!tag || inlineInstances.has(declaration)) {
+        return;
+    }
+    const instance = declaration.ownerDocument.createElement(tag);
+    for (const attribute of declaration.attributes) {
+        if (['tag', 'src', 'hidden', 'data-custom-element-inline-tag'].includes(attribute.name)) {
+            continue;
+        }
+        instance.setAttribute(attribute.name, attribute.value);
+    }
+    inlineInstances.set(declaration, instance);
+    runtime.whenDeclarationSettled(declaration).then(() => {
+        if (!instance.isConnected && declaration.isConnected) {
+            declaration.append(instance);
+        }
+    });
 }
 
 if (typeof window !== 'undefined' && window.customElements && !window.customElements.get(CUSTOM_ELEMENT_TAG)) {

@@ -71,6 +71,17 @@ export async function runCustomElementSmoke(importBase) {
         instance?.querySelector('template[data-cem-island="instance"]') !== null
     );
 
+    const inlineDeclaration = document.querySelector('custom-element.inline-fixture');
+    const inlineTag = inlineDeclaration?.getAttribute('tag');
+    await waitFor(
+        'omitted tag creates an inline produced instance',
+        () => Boolean(inlineTag && inlineDeclaration?.querySelector(inlineTag)?.querySelector('strong'))
+    );
+    check(
+        'inline produced instance renders declaration attributes',
+        inlineDeclaration?.querySelector(inlineTag)?.querySelector('strong')?.textContent?.trim() === 'inline-fixture'
+    );
+
     const request = document.createElement('http-request');
     request.setAttribute('url', './http-data.json');
     request.setAttribute('method', 'GET');

@@ -3,6 +3,72 @@
 This file tracks remaining execution tasks only. Product/module sequencing lives in [`../roadmap.md`](../roadmap.md).
 Each item names the AC reference and design home so the closing change ship with a citation.
 
+## Active — Evolutionary Architecture of the Authoring/Rendering Model
+
+Design home: [`content-type-switch.md`](content-type-switch.md) (BRD). The goal is an
+evolutionary architecture in which **surface syntax**, **underlying logic**, and **content
+model** evolve independently via guided, incremental change; content-type/syntax/namespace
+switching plus versioning are the seams. Legacy XSLT coexistence is the current-focus use case,
+not the goal. These open questions must be resolved before the model is committed. Adopting
+**semantic versioning across all axes** (BRD §6.5) resolves OQ-1 and OQ-4 and narrows
+OQ-2/5/6/7; separating the two **switching surfaces** (BRD §6.8 — host `<template>`/`<script>`
+ingestion vs. interior namespace-scoped selection) resolves OQ-3's architecture (residual:
+AC-P-6 detailing) and narrows OQ-8.
+
+- [x] OQ-1 Evolution axes: ratify the independent dimensions — surface syntax, underlying
+      logic/semantics, and content/data model — and state which compatibility rules apply per
+      axis. (BRD §6.1; design: [`cem-ml-syntax.md`](cem-ml-syntax.md)) Resolved: SemVer-per-axis
+      in BRD §6.5 (BR-VC-5) ratifies the axes and assigns each its own SemVer compatibility rule.
+- [ ] OQ-2 Fitness functions: define the objective, automatable fitness functions that guard
+      evolution (prior-generation content still renders; version negotiation deterministic; no
+      cross-content-kind interpretation) and wire them into the existing gates
+      (`cem-elements:verify`, `cem_ml_cli:validate-fixtures`/`e2e`). (BRD §6.6) Narrowed by
+      SemVer (BRD §6.5): SemVer supplies the pass/fail predicates; wiring the gates remains.
+- [ ] OQ-3 Switching granularity: promote/detail the currently Tier-C namespace dispatch
+      (AC-P-6) and add ACs for an embedded `xsl:`-style content type. Architecture resolved
+      (BRD §6.8): the whole-`<template>`/`<script>` `lang`/`type` routing is the HTML→CEM-ML
+      host-ingestion boundary (owned by the HTML parser + cem-element, an instance of the
+      BR-CT-4 content-type handoff); interior switching is namespace-scoped, selected directly
+      or indirectly from resolved namespace metadata — the two layers compose rather than
+      compete. Residual = the normative AC-P-6 detailing of the interior indirect path plus the
+      `xsl:` content-type ACs. ([`cem-ml-ac.md`](cem-ml-ac.md) AC-P-6)
+  - [x] Draft the AC-P-6 promotion. Landed in
+        [`cem-ml-ac-p6-nvdl-promotion.md`](cem-ml-ac-p6-nvdl-promotion.md): expands AC-P-6 into
+        AC-P-6.1–6.9 (namespace-metadata dispatch, direct/indirect selection, host-vs-interior
+        two-layer boundary, isolation, per-namespace SemVer, Layer-5 handoff/source-map
+        continuity, unknown-namespace policy) plus the embedded `xsl:` content type, a proposed
+        G-NVDL-CORE Tier-B split vs G-NVDL-FULL Tier C, and verification AC-P-V-2..V-6.
+  - [ ] Decide D-1 (re-tier to a Tier-B core vs detail-only at Tier C), D-2 (unknown-namespace
+        default — aligns with OQ-6), and D-3 (XSLT execution binding — real processor vs
+        `custom-element-v0` bridge vs non-goal), then fold the draft into
+        [`cem-ml-ac.md`](cem-ml-ac.md) AC-P-6 and §16.4 G-NVDL.
+- [x] OQ-4 Version-negotiation policy: ratify the cross-axis compatibility policy — forgiving
+      vs strict boundaries, who decides, how incompatible majors degrade, and how multiple
+      coexisting versions of one content kind behave. (BRD §6.5; [`cem-ml-ac.md`](cem-ml-ac.md)
+      AC-F-8, AC-V-9..V-13) Resolved: BRD §6.5 (BR-VC-6) — same-MAJOR forgiving / cross-MAJOR
+      strict, declared by the document and decided by the processor, with per-region coexistence.
+- [ ] OQ-5 Migration pattern: adopt a standard parallel-change (expand → migrate → contract)
+      pattern for evolving a syntax or model without breaking consumers, generalized beyond the
+      XSLT case. (BRD §6.1 / §7) Narrowed by SemVer (BRD §6.5): the MAJOR boundary defines what
+      parallel-change must protect; adopting the pattern itself remains.
+- [ ] OQ-6 Forward compatibility: decide how a processor handles content using a newer feature
+      it does not understand — ignore, degrade, or reject — and where that is configurable.
+      (BRD §6.5, BR-VC-3) Narrowed by SemVer (BRD §6.5, BR-VC-6): newer-MINOR additions are
+      ignorable and an unsupported MAJOR is rejected; the per-feature ignore-vs-degrade choice
+      remains.
+- [ ] OQ-7 Legacy retirement criteria: define explicit, fixture-backed retirement criteria for
+      the XSLT coexistence case so it stays a bounded current-focus instance, not a permanent
+      engine fork. (BRD §6.7;
+      [`custom-element-template-migration-options.md`](custom-element-template-migration-options.md))
+      Narrowed by SemVer (BRD §6.5, BR-VC-7): deprecate-in-MINOR / remove-on-MAJOR is the
+      mechanism; the XSLT schedule and criteria remain a deliberate call.
+- [ ] OQ-8 Scope of evolution: decide which dimensions the model governs — template authoring
+      surface only, or also the data/snapshot model, render-plan/patch transport, and token
+      model. (BRD §5) Narrowed by BRD §6.8: host-surface ingestion (`<template>`/`<script>`) is
+      an adapter boundary, not a governed core dimension; the core dimensions are the CEM-ML
+      interior (content type / syntax / model). Whether data/snapshot, patch transport, and
+      tokens are also governed remains the open part.
+
 ## Phase 3 — Custom-Element Runtime Preparation
 
 Roadmap: [`../roadmap.md` §Phase 3](../roadmap.md). Component vocabulary: [`component-mvp.md`](component-mvp.md).
@@ -534,6 +600,9 @@ Roadmap: [`../roadmap.md` §Phase 3.6](../roadmap.md). Starts after Phase 3.5 is
         export and import-time `custom-element` registration are preserved; untyped inline templates are normalized to
         `lang="custom-element-v0"`; source imports use the workspace `cem-elements` build and dist imports are rewritten
         to the vendored runtime path; browser smoke fixtures now assert substrate data-island output.
+  - [x] Preserve migration-window omitted-`tag` inline rendering for legacy generator workflows: the adapter now assigns
+        a stable generated produced tag, registers it through `CemElementRuntime`, appends one inline produced instance,
+        and covers that path in source/dist browser fixtures.
   - [x] Add adapter-regression guards to the package verifier: `custom-element.js` must keep import-time registration
         but must not contain `XSLTProcessor`, `createXsltFromDom`, or the legacy `DceElement` produced-class engine.
   - [x] Update `cem-theme` HTML compilation for adapter transitive runtime files: when `custom-element.js` is vendored,
@@ -546,6 +615,19 @@ Roadmap: [`../roadmap.md` §Phase 3.6](../roadmap.md). Starts after Phase 3.5 is
 - [ ] Verify the migrated package against all required gates: legacy parity inventory, material parity inventory,
       Phase 3.5 Edge/SSR fixtures, `cem-elements:verify`, the new `custom-element` package build/test/lint targets,
       and any affected `cem-theme` HTML/token generator workflows.
+  - [x] Run the first migrated-package gate pass. Landed findings in
+        [`custom-element-migrated-package-gate.md`](custom-element-migrated-package-gate.md): `cem-elements:verify`,
+        `@epa-wg/custom-element:verify`, and `@epa-wg/cem-theme:build:html` pass; `@epa-wg/cem-theme:verify:phase13`
+        fails because existing CSS generator templates still depend on full XSLT+XPath `<variable>`, `<for-each>`, and
+        broad XPath evaluation, producing empty CSS under the substrate adapter.
+  - [x] Update the migration plan to carry both valid template options. Landed in
+        [`custom-element-template-migration-options.md`](custom-element-template-migration-options.md): Option A keeps
+        XSLT+XPath with legacy HTML/XSLT default-namespace behavior; Option B converts the logic to CEM-ML+CEM-QL under
+        `<template type="cem-ml-v0">`; Option B is the recommended path for `cem-theme` CSS generation after
+        conversion.
+  - [ ] Convert the `cem-theme` CSS generator workflow to CEM-ML+CEM-QL templates marked
+        `<template type="cem-ml-v0">`, or explicitly select Option A and fixture a named legacy XSLT+XPath runtime,
+        then rerun `@epa-wg/cem-theme:verify:phase13`.
 - [ ] Publish-readiness pass for the next major: changelog, migration guide from external POC package to workspace
       package, bridge-window support matrix, breaking-change list, npm package contents check, and rollback plan for
       consumers that still depend on the old XSLT-only surface.

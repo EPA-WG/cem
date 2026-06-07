@@ -61,6 +61,10 @@ Evolutionary-architecture concepts:
 - **Parallel change (expand → migrate → contract)** — evolving a contract by first adding the
   new form alongside the old, migrating consumers, then removing the old form, so no single
   step breaks a consumer.
+- **Semantic versioning (SemVer)** — a version expressed as `MAJOR.MINOR.PATCH`, where MAJOR
+  signals an incompatible (breaking) change, MINOR a backward-compatible addition, and PATCH a
+  backward-compatible fix. Applied per axis, it gives each evolution dimension an objective,
+  comparable compatibility contract.
 
 The seams (the evolution axes):
 
@@ -75,6 +79,14 @@ The seams (the evolution axes):
   used to decide compatibility between a document and a processor.
 - **Region / subtree** — a bounded portion of a document to which a content type, syntax, and
   version apply; regions may be nested and may differ from their neighbors.
+
+Switching surfaces (where a content type is selected):
+
+- **Host-surface ingestion** — the HTML-native boundary (`<template>` / `<script>` with
+  `lang` / `type`) where a host page hands a region to the CEM-ML model; owned by the HTML
+  parser and the cem-element runtime.
+- **Interior selection** — selection of content type/schema inside a CEM-ML region, either
+  *directly* (an explicit declaration) or *indirectly* (resolved from namespace metadata).
 
 ## 4. Objectives
 
@@ -150,7 +162,7 @@ The seams (the evolution axes):
 - **BR-NS-4** A namespace **shall** be identified by a stable identity that is durable across
   documents and tools.
 
-### 6.5 Versioning and compatibility
+### 6.5 Versioning and compatibility (semantic versioning across all axes)
 
 - **BR-VC-1** Version compatibility between a document and a processor **shall** be negotiable:
   a document may request a specific version or a compatible range, and the outcome (accepted,
@@ -163,6 +175,26 @@ The seams (the evolution axes):
   or reject) rather than undefined.
 - **BR-VC-4** Each region's content type, syntax, and version **shall** be locally scoped, so a
   version change to one region does not invalidate sibling regions.
+
+**Semantic versioning across all axes.** Every evolution axis — content type, syntax,
+underlying logic, content model, namespace identity, and the document format — carries its own
+SemVer line, with the same meaning on each axis:
+
+| Increment | Meaning on any axis          | Compatibility expectation                                              |
+| --------- | ---------------------------- | --------------------------------------------------------------------- |
+| MAJOR     | breaking / incompatible      | not backward-compatible; must be negotiated to a supported version or rejected |
+| MINOR     | backward-compatible addition | older content keeps working; new additions are ignorable by older processors   |
+| PATCH     | backward-compatible fix      | fully interchangeable within the same MAJOR.MINOR line                |
+
+- **BR-VC-5** Every axis **shall** carry an independent SemVer line, advanced on its own
+  timeline; a MAJOR change on one axis **shall not** imply a version change on any other axis.
+- **BR-VC-6** Negotiation **shall** follow SemVer compatibility: a document declares a version
+  or range on an axis, and a processor accepts it when it supports the same MAJOR at an
+  equal-or-higher MINOR/PATCH (forgiving), and **shall** reject it — or route it to an explicit
+  legacy/compat handler — when it does not support the declared MAJOR (strict). Pre-1.0 (`0.x`)
+  treats each MINOR as potentially breaking.
+- **BR-VC-7** A capability **shall** be deprecated in a MINOR before it is removed, and removed
+  only on a MAJOR boundary, so consumers always have a non-breaking migration window.
 
 ### 6.6 Guided change and fitness functions
 
@@ -185,6 +217,31 @@ the end goal.
   can be inventoried and retired on a controlled schedule.
 - **BR-CO-4** Neighboring legacy and current regions **shall not** be interpreted by each
   other's processing model.
+
+### 6.8 Where switching happens: host ingestion vs interior selection
+
+Switching the active content type happens at two complementary layers, not one. They are not
+competing alternatives, and conflating them is what makes "switching granularity" look
+unresolved.
+
+- **BR-SW-1** *(Host-surface ingestion.)* On an HTML host page, `<template>` / `<script>` with
+  `lang` / `type` is the HTML-native pattern that marks a region as input to the CEM-ML model
+  and selects its flavor/version. This boundary **shall** be owned by the HTML parser and the
+  cem-element runtime, and is an instance of the content-type handoff (BR-CT-4) from the HTML
+  content type into a CEM-ML content type. It is necessarily whole-element, because an HTML
+  attribute applies to its element.
+- **BR-SW-2** *(Interior selection.)* Inside a CEM-ML region, the content type or schema
+  **shall** be selectable at sub-region granularity, either **directly** (an explicit
+  content-type/schema declaration) or **indirectly** (resolved from namespace metadata — the
+  namespace binding supplies the content type, schema, and version per BR-NS-2). This is the
+  fine-grained, namespace-scoped mechanism.
+- **BR-SW-3** The two layers **shall** compose: a host-ingested CEM-ML region may contain
+  interior regions of other content types (including embedded legacy XSLT) selected by interior
+  namespace metadata, each isolated per BR-NS-3 / BR-CO-4.
+
+This resolves the apparent tension between "whole-template routing" and "namespace-scoped
+binding": the former is the outer host-ingestion boundary; the latter is the interior model
+mechanism. The host layer is an adapter, not a governed dimension of the model.
 
 ## 7. Use cases
 
@@ -220,6 +277,9 @@ Expressed as fitness functions wherever possible:
   versioned without changing the syntax. *(guards BR-EV-2, BR-SY-2)*
 - Legacy regions are explicitly marked and therefore discoverable for planned retirement.
   *(guards BR-CO-3)*
+- Each axis advances on its own SemVer line: a MINOR/PATCH update loads prior content unchanged,
+  and an unsupported MAJOR is either negotiated to a supported version or cleanly rejected —
+  never silently misread. *(guards BR-VC-5, BR-VC-6)*
 
 ## 10. Open questions
 
@@ -229,6 +289,25 @@ Model*). They cover: ratifying the evolution axes; defining and wiring fitness f
 switching granularity (whole-template vs namespace-scoped); the cross-axis version-negotiation
 policy; the parallel-change migration pattern; forward-compatibility/tolerant-processing
 behavior; legacy (XSLT) retirement criteria; and the scope of dimensions the model governs.
+
+Adopting **semantic versioning across all axes** (§6.5) closes some of these and narrows
+others. It **resolves** OQ-1 (the axes are ratified and each gets SemVer as its per-axis
+compatibility rule) and OQ-4 (negotiation = same-MAJOR forgiving / cross-MAJOR strict, declared
+by the document and decided by the processor, with per-region coexistence). It **narrows**
+OQ-2 (SemVer supplies the predicates a fitness function checks, but the gates still need
+wiring), OQ-5 (the MAJOR boundary defines what parallel-change must protect, but the pattern
+still needs adopting), OQ-6 (newer-MINOR additions are ignorable, an unsupported MAJOR is
+rejected — the per-feature ignore-vs-degrade choice remains), and OQ-7 (deprecate-in-MINOR /
+remove-on-MAJOR gives the retirement *mechanism*, but the XSLT schedule/criteria are still a
+deliberate call).
+
+Separating the two **switching surfaces** (§6.8) then clears OQ-3: the whole-`<template>` /
+`<script>` `lang`/`type` routing is the host-ingestion boundary (owned by the HTML parser and
+cem-element), while interior switching is namespace-scoped — selected directly or indirectly
+from resolved namespace metadata. Only the normative detailing of the interior indirect path
+(AC-P-6) remains as spec work. This also narrows OQ-8 by placing host-surface ingestion as an
+adapter boundary rather than a governed core dimension; whether the data/snapshot model,
+patch transport, and token model are also governed by this BRD remains open.
 
 ## 11. Related documents and references
 
