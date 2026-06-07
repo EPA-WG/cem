@@ -44,11 +44,10 @@ for non-SemVer standards such as XSLT (OQ-10).
   - [x] FF-6 SemVer-presence: every governed contract declares a version axis. Landed: registry
         `tools/fitness/governed-contracts.json`, scanner `tools/scripts/ff-semver-presence.mjs`,
         Nx target `@epa-wg/cem:fitness-semver-presence` (green; fail path verified), CI-wired
-        alongside FF-5. Seven `required` contracts resolve real SemVers (custom-element 0.0.39,
-        cem-elements 0.0.14, cem_ml/cem_ql/cem_ml_cli 0.1.0, data-snapshot 1.0.0, token-outputs
-        1.0.0); two gaps (patch-transport, edge-render-state) ride `pending-version` and are the
-        acceptance test — adding each version flips it to `required`.
-        (scope: [`fitness-functions.md`](fitness-functions.md))
+        alongside FF-5. All nine `required` contracts resolve real SemVers (custom-element 0.0.39,
+        cem-elements 0.0.14, cem_ml/cem_ql/cem_ml_cli 0.1.0, data-snapshot/token-outputs/
+        patch-transport/edge-render-state 1.0.0); **zero `pending-version` gaps remain — FF-6 fully
+        closed.** (scope: [`fitness-functions.md`](fitness-functions.md))
   - [ ] FF-7 XSLT capability-gating: unsupported XSLT version rejects; region isolated +
         version-pinned across CEM-ML MAJOR. (`cem-elements:verify`; AC-P-V-4)
   - [ ] FF-8 Source-map continuity across dispatch boundaries.
@@ -137,12 +136,18 @@ into [`cem-ml-ac.md`](cem-ml-ac.md); the remaining items are implementation, wit
       BR-EV-5, stamped at `createSnapshot` and carried through edge export) and `TOKENS_SCHEMA_VERSION`
       = 1.0.0 stamped as `$version` on `cem.tokens.json` / `cem.voice.tokens.json` (`export-tokens.mjs`);
       both flipped to `required` in FF-6 (green; typecheck + 59 Storybook tests pass). FF-6 then
-      surfaced two further gaps — `patch-transport` (RENDER_ENGINE_VERSION) and `edge-render-state` —
-      now riding `pending-version` as follow-ups.
+      surfaced two further gaps — `patch-transport` and `edge-render-state` — now **also landed**
+      (`RENDER_ENGINE_VERSION` on the `begin` `PatchFrame`; `EDGE_RENDER_STATE_VERSION` as
+      `EdgeRenderStateRecord.schemaVersion`, part of the etag identity) and promoted to `required`.
+      FF-6 is now fully closed: 9/9 `required`, 0 pending.
 - [ ] Convert the `cem-theme` CSS generators to CEM-ML+CEM-QL and rerun
       `@epa-wg/cem-theme:verify:phase13` — the live browser-XSLT-1.0 retirement blocker (also the
       open Phase 3.6 item below).
-- [ ] Implement engine XSLT 3.0/4.0 execution behind G-NVDL-FULL (AC-P-6.9; capability/roadmap).
+- [ ] **Wishlist (future — NOT in the immediate release timeline):** engine XSLT 3.0/4.0 execution
+      behind G-NVDL-FULL (AC-P-6.9). The architecture keeps the capability-gated seam — XSLT is a
+      peer content type and an unimplemented version rejects deterministically (BR-CO-5/BR-VC-8) —
+      so the engine can add XSLT 3/4 later without breaking content. Building the XSLT 3/4 engine
+      itself is deferred beyond the immediate release.
 
 ## Phase 3 — Custom-Element Runtime Preparation
 

@@ -71,6 +71,12 @@ export type RenderPlanNode =
           sourceMapRef?: SourceMapRef;
       };
 
+/** Render-engine / patch-transport schema version (FF-6 SemVer axis, BR-VC-5). */
+export const RENDER_ENGINE_VERSION = '1.0.0';
+
+/** Edge render-state record schema version (FF-6 SemVer axis, BR-VC-5). */
+export const EDGE_RENDER_STATE_VERSION = '1.0.0';
+
 export interface RenderPlan {
     producedTag: string;
     instanceId: string;
@@ -124,7 +130,7 @@ export type DomPatchOp =
       };
 
 export type PatchFrame =
-    | { type: 'begin'; transactionId: string; revision: RenderRevision }
+    | { type: 'begin'; transactionId: string; revision: RenderRevision; renderEngineVersion?: string }
     | { type: 'ops'; transactionId: string; batchIndex: number; ops: DomPatchOp[] }
     | { type: 'commit'; transactionId: string; nextRenderPlan: RenderPlanIdentity };
 
@@ -144,6 +150,7 @@ export interface EdgeContentAddress {
 
 export interface EdgeRenderStateRecord {
     storageModel: 'content-addressed-cache-with-revision-pointer-v1';
+    schemaVersion?: string;
     stateKey: string;
     producedTag: string;
     instanceId: string;
@@ -385,7 +392,9 @@ export function diffRenderPlansToPatchFrames(
     const batchSize = options.batchSize ?? 16;
     const transactionId = options.transactionId ?? patchTransactionId(next);
     const ops = diffRenderPlans(previous, next);
-    const frames: PatchFrame[] = [{ type: 'begin', transactionId, revision: renderPlanIdentity(next) }];
+    const frames: PatchFrame[] = [
+        { type: 'begin', transactionId, revision: renderPlanIdentity(next), renderEngineVersion: RENDER_ENGINE_VERSION },
+    ];
 
     for (let index = 0; index < ops.length; index += batchSize) {
         frames.push({
@@ -416,6 +425,7 @@ export function createEdgeRenderStateRecord(input: EdgeRenderStateInput): EdgeRe
     const currentRenderPlan = edgeContentAddress('render-plan', input.renderPlan);
     const recordWithoutEtag = {
         storageModel: 'content-addressed-cache-with-revision-pointer-v1' as const,
+        schemaVersion: EDGE_RENDER_STATE_VERSION,
         stateKey: input.stateKey ?? edgeRenderStateKey(identity),
         producedTag: input.renderPlan.producedTag,
         instanceId: input.renderPlan.instanceId,

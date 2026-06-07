@@ -86,10 +86,10 @@ source-wide coverage (and shares the same forbidden patterns via the registry).
 
 **Status: Implemented** ✓ — `tools/fitness/governed-contracts.json` (registry),
 `tools/scripts/ff-semver-presence.mjs` (scanner, reuses `lib.mjs`), Nx target
-`@epa-wg/cem:fitness-semver-presence`, CI-wired alongside FF-5. Green: seven `required` contracts
-resolve real SemVers — including `data-snapshot` and `token-outputs` at 1.0.0, now landed and
-promoted from `pending-version`. Two gaps remain (`patch-transport`, `edge-render-state`),
-reported and promotable once their version lands. The fail path is verified.
+`@epa-wg/cem:fitness-semver-presence`, CI-wired alongside FF-5. Green: all nine `required`
+contracts resolve real SemVers — `data-snapshot`, `token-outputs`, `patch-transport`, and
+`edge-render-state` landed at 1.0.0 and promoted from `pending-version`; **no gaps remain.** The
+fail path is verified.
 
 **Guards:** BR-VC-5 (every axis carries an independent SemVer line) and BR-EV-6 (governed
 contracts are exactly the enumerated boundary contracts). Catches the two known un-versioned

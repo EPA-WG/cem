@@ -381,7 +381,9 @@ are deferred.
     a legacy escape retired per the migration policy
     ([`custom-element-template-migration-options.md`](custom-element-template-migration-options.md)),
     not the execution target. AC-P-6.8 dispatch/isolation/version-pinning do **not** depend on
-    which versions are implemented.
+    which versions are implemented. Engine XSLT 3.0/4.0 execution is a **deferred Tier-C wishlist**
+    capability, **not part of the immediate release timeline**; near-term work covers only the
+    AC-P-6.8 dispatch/isolation/version-pinning (Tier B, G-NVDL-CORE).
 - **AC-P-7 [A] MUST** preserve source-map stacks on every source-derived node. Frames
   are ordered origin-first, the current frame is last, and each frame uses byte ranges
   as durable location identity. Line/column are report projections, not parser

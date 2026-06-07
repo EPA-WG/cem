@@ -207,7 +207,8 @@ prerequisite list (no G-PLUG/G-EXT) for CORE; keep the entry/exit fixtures, addi
 - **D-3 (XSLT execution, AC-P-6.9). RESOLVED (OQ-7).** The CEM-ML engine implements XSLT
   (3.0, later 4.0) itself, capability-gated and version-negotiated (BR-VC-6/8); unimplemented
   versions/features reject deterministically. The browser-native XSLT 1.0 bridge is the
-  deprecated escape retired per BR-EV-5/7, not the execution target.
+  deprecated escape retired per BR-EV-5/7, not the execution target. Engine XSLT 3/4 execution is
+  a future **wishlist** (G-NVDL-FULL, Tier C), not in the immediate release timeline.
 - **D-4 (namespace metadata authority). RESOLVED (OQ-9).** Composed, local-first chain: inline →
   workspace registry → package manifests → external (explicit opt-in, G-EXT/AC-A-6 gated).
   Offline-deterministic by default; pinned via committed registry + lockfile; resolved

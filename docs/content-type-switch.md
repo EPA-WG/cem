@@ -275,6 +275,12 @@ XSLT runs on two distinct tracks, not as one "legacy" lump:
   or feature it does not is a deterministic reject (a must-understand reject per BR-VC-8). The
   deprecated browser-native XSLT 1.0 path is retired per BR-EV-5/7, not carried in the engine.
 
+**Release positioning.** The immediate release retires the deprecated browser-native XSLT 1.0
+dependency and keeps the capability-gated seam. **Engine implementation of XSLT 3.0/4.0 execution
+is a future wishlist capability, not part of the immediate release timeline** — BR-CO-5 holds
+either way: until the engine implements a given XSLT version, requesting it is a deterministic
+reject.
+
 ### 6.8 Where switching happens: host ingestion vs interior selection
 
 Switching the active content type happens at two complementary layers, not one. They are not

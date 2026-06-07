@@ -45,16 +45,14 @@
         },
         {
             "id": "patch-transport",
-            "status": "pending-version",
-            "description": "render-plan / patch-frame transport across the serializable boundary",
-            "tracks": "todo.md What's-left #3 — add a RENDER_ENGINE_VERSION constant",
+            "status": "required",
+            "description": "render-plan / patch-frame transport across the serializable boundary; the `begin` PatchFrame carries renderEngineVersion stamped from RENDER_ENGINE_VERSION",
             "locator": { "type": "regex", "file": "packages/cem-elements/src/lib/projection.ts", "pattern": "RENDER_ENGINE_VERSION\\s*=\\s*['\"]([^'\"]+)['\"]" }
         },
         {
             "id": "edge-render-state",
-            "status": "pending-version",
-            "description": "persisted edge render-state record schema (RenderRevision is a counter, not a schema SemVer)",
-            "tracks": "todo.md What's-left #3 — add an EdgeRenderStateRecord schema version",
+            "status": "required",
+            "description": "persisted edge render-state record schema; EdgeRenderStateRecord.schemaVersion stamped from EDGE_RENDER_STATE_VERSION (part of the content-address/etag identity)",
             "locator": { "type": "regex", "file": "packages/cem-elements/src/lib/projection.ts", "pattern": "EDGE_RENDER_STATE_VERSION\\s*=\\s*['\"]([^'\"]+)['\"]" }
         }
     ]
