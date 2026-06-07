@@ -55,3 +55,46 @@ export async function findSubstringHits(absPath, relPath, pattern) {
     }
     return hits;
 }
+
+/** Practical SemVer 2.0 check (MAJOR.MINOR.PATCH with optional prerelease/build). */
+export function isSemver(value) {
+    return (
+        typeof value === 'string' &&
+        /^\d+\.\d+\.\d+(?:-[0-9A-Za-z.-]+)?(?:\+[0-9A-Za-z.-]+)?$/.test(value.trim())
+    );
+}
+
+/**
+ * Resolve a version string from a registry locator.
+ * `{ type: "json", file, path }`  — JSON.parse + dot-path.
+ * `{ type: "regex", file, pattern, flags }` — capture group 1 (or whole match).
+ * Returns `{ found, value, error }`.
+ */
+export async function readVersionFromLocator(workspaceRoot, locator) {
+    const abs = join(workspaceRoot, locator.file);
+    let content;
+    try {
+        content = await readFile(abs, 'utf8');
+    } catch {
+        return { found: false, value: null, error: `file not found: ${locator.file}` };
+    }
+    if (locator.type === 'json') {
+        let data;
+        try {
+            data = JSON.parse(content);
+        } catch {
+            return { found: false, value: null, error: `invalid JSON: ${locator.file}` };
+        }
+        const value = locator.path.split('.').reduce((o, k) => (o == null ? undefined : o[k]), data);
+        if (value === undefined) {
+            return { found: false, value: null, error: `path '${locator.path}' absent in ${locator.file}` };
+        }
+        return { found: true, value: String(value), error: null };
+    }
+    if (locator.type === 'regex') {
+        const match = new RegExp(locator.pattern, locator.flags ?? '').exec(content);
+        if (!match) return { found: false, value: null, error: `pattern not found in ${locator.file}` };
+        return { found: true, value: match[1] ?? match[0], error: null };
+    }
+    return { found: false, value: null, error: `unknown locator type: ${locator.type}` };
+}
