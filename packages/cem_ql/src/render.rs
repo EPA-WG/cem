@@ -74,6 +74,15 @@ pub enum TemplateNode {
         branches: Vec<ChooseBranch>,
         source_map: SourceMapStack,
     },
+    /// `cem:for-each` — evaluates `select` to a sequence and renders `children` once per item,
+    /// binding the current item to `$as` (default `item`). Flattens like the conditionals (no
+    /// wrapper element).
+    ForEach {
+        select: Option<CompiledTemplateExpression>,
+        as_name: String,
+        children: Vec<TemplateNode>,
+        source_map: SourceMapStack,
+    },
 }
 
 #[derive(Debug, Clone)]
@@ -288,6 +297,9 @@ impl TemplateCompiler<'_> {
             SchemaTokenKind::NodeStart { name } if is_choose_name(name) => {
                 Some(self.compile_choose())
             }
+            SchemaTokenKind::NodeStart { name } if is_for_each_name(name) => {
+                Some(self.compile_for_each())
+            }
             SchemaTokenKind::NodeStart { .. } => Some(self.compile_element()),
             SchemaTokenKind::Text(text) | SchemaTokenKind::Trivia(text) => {
                 let text = text.clone();
@@ -453,6 +465,73 @@ impl TemplateCompiler<'_> {
         };
         let children = self.parse_children(&tag);
         ChooseBranch { test, children }
+    }
+
+    fn compile_for_each(&mut self) -> TemplateNode {
+        let start = self.tokens[self.index].clone();
+        let tag = node_start_name(&start);
+        self.index += 1;
+        let (select, as_name) = self.parse_for_each_attributes(&start);
+        let loop_name = as_name.unwrap_or_else(|| "item".to_owned());
+        // Declare the loop variable so descendant `{$<name>}` expressions compile; restore the
+        // prior declaration state after the block so the binding does not leak out of scope.
+        let pre_existing = self.compile_context.policy_bindings.contains_key(&loop_name);
+        self.compile_context
+            .policy_bindings
+            .entry(loop_name.clone())
+            .or_insert_with(ItemStream::empty);
+        let children = self.parse_children(&tag);
+        if !pre_existing {
+            self.compile_context.policy_bindings.remove(&loop_name);
+        }
+        TemplateNode::ForEach {
+            select,
+            as_name: loop_name,
+            children,
+            source_map: frame_for(&start),
+        }
+    }
+
+    /// Parse `cem:for-each` attributes: `@select` (the sequence expression, required) and `@as`
+    /// (the loop variable name, default `item`; a leading `$` is tolerated). Other attributes
+    /// are ignored.
+    fn parse_for_each_attributes(
+        &mut self,
+        start: &SchemaToken,
+    ) -> (Option<CompiledTemplateExpression>, Option<String>) {
+        let mut select = None;
+        let mut as_name = None;
+        while self.index < self.tokens.len() {
+            match &self.tokens[self.index].kind {
+                SchemaTokenKind::Attribute { name, value, .. } => {
+                    let attr = name.clone();
+                    let raw = value.clone().unwrap_or_default();
+                    let token = self.tokens[self.index].clone();
+                    self.index += 1;
+                    match attr.as_str() {
+                        "select" => select = Some(self.compile_expression(&raw, &token)),
+                        "as" => {
+                            let trimmed = raw.trim().trim_start_matches('$').to_owned();
+                            if !trimmed.is_empty() {
+                                as_name = Some(trimmed);
+                            }
+                        }
+                        _ => {}
+                    }
+                }
+                SchemaTokenKind::Trivia(_) => self.index += 1,
+                _ => break,
+            }
+        }
+        if select.is_none() {
+            self.diagnostics.push(render_diagnostic(
+                "cem.ql.render.for_each_missing_select",
+                "`cem:for-each` requires a `@select` expression".to_owned(),
+                start.byte_range.start,
+                frame_for(start),
+            ));
+        }
+        (select, as_name)
     }
 
     /// Compile the `@test` whole-expression attribute of a conditional, ignoring others.
@@ -664,7 +743,57 @@ impl PlanRenderer {
                     }
                 }
             }
+            TemplateNode::ForEach {
+                select,
+                as_name,
+                children,
+                ..
+            } => {
+                let items = self.evaluate_select(select.as_ref());
+                let previous = self.evaluation_context.policy_bindings.get(as_name).cloned();
+                for item in items {
+                    self.evaluation_context
+                        .policy_bindings
+                        .insert(as_name.clone(), ItemStream::once(item));
+                    for child in children {
+                        self.render_into(child, out);
+                    }
+                }
+                // Restore the prior binding so the loop variable does not leak past the block.
+                match previous {
+                    Some(prev) => {
+                        self.evaluation_context
+                            .policy_bindings
+                            .insert(as_name.clone(), prev);
+                    }
+                    None => {
+                        self.evaluation_context.policy_bindings.remove(as_name);
+                    }
+                }
+            }
         }
+    }
+
+    /// Evaluate a `cem:for-each` `@select` expression to the sequence of items to iterate.
+    fn evaluate_select(&mut self, select: Option<&CompiledTemplateExpression>) -> Vec<Item> {
+        let Some(select) = select else {
+            return Vec::new();
+        };
+        let Some(query) = &select.query else {
+            return Vec::new();
+        };
+        let stream = evaluate(query, &self.evaluation_context);
+        self.diagnostics.extend(stream.diagnostics.clone());
+        if let Some(error) = stream.error {
+            self.diagnostics.push(render_diagnostic(
+                "cem.ql.render.for_each_failed",
+                format!("`cem:for-each` select `{}` failed: {error:?}", select.source),
+                select.byte_offset,
+                select.source_map.clone(),
+            ));
+            return Vec::new();
+        }
+        stream.items
     }
 
     /// Evaluate a conditional `@test` expression to a cem-ql effective-boolean.
@@ -972,6 +1101,10 @@ fn is_when_name(name: &str) -> bool {
 
 fn is_otherwise_name(name: &str) -> bool {
     conditional_local_name(name) == "otherwise"
+}
+
+fn is_for_each_name(name: &str) -> bool {
+    conditional_local_name(name) == "for-each"
 }
 
 /// Build a per-node source-map stack from a token's real absolute `byte_range`.

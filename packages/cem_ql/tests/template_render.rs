@@ -464,3 +464,88 @@ fn render_template_supports_nested_conditionals() {
     );
     assert_eq!(when_a.rendered, "<span>A</span>");
 }
+
+// --- cem:for-each iteration (the CSS-generator conversion prerequisite) ---
+
+#[test]
+fn render_template_for_each_iterates_a_sequence() {
+    // A multi-item host binding; for-each binds each item to `$row` and renders its children.
+    let data = TemplateData::default().with_binding(
+        "rows",
+        ItemStream::from_items(vec![
+            Item::Atomic(AtomValue::String("a".to_owned())),
+            Item::Atomic(AtomValue::String("b".to_owned())),
+            Item::Atomic(AtomValue::String("c".to_owned())),
+        ]),
+    );
+
+    let rendered = render_template(
+        "{ul | {cem:for-each @select=\"$rows\" @as=\"row\" | {li | {$row}}}}",
+        &data,
+    );
+
+    assert_eq!(rendered.rendered, "<ul><li>a</li><li>b</li><li>c</li></ul>");
+    assert!(
+        rendered.diagnostics.is_empty(),
+        "{:?}",
+        rendered.diagnostics
+    );
+}
+
+#[test]
+fn render_template_for_each_binds_record_fields_per_item() {
+    // Realistic CSS-generator shape: iterate token rows, emit "<token>=<value>" per row.
+    let rows = ItemStream::from_items(vec![
+        record([
+            (
+                "token",
+                vec![Item::Atomic(AtomValue::String("--cem-gap".to_owned()))],
+            ),
+            (
+                "value",
+                vec![Item::Atomic(AtomValue::String("0.5rem".to_owned()))],
+            ),
+        ]),
+        record([
+            (
+                "token",
+                vec![Item::Atomic(AtomValue::String("--cem-inset".to_owned()))],
+            ),
+            (
+                "value",
+                vec![Item::Atomic(AtomValue::String("1rem".to_owned()))],
+            ),
+        ]),
+    ]);
+    let data = TemplateData::default().with_binding("rows", rows);
+
+    let rendered = render_template(
+        "{cem:for-each @select=\"$rows\" @as=\"row\" | {$row.token}={$row.value} }",
+        &data,
+    );
+
+    assert_eq!(rendered.rendered, "--cem-gap=0.5rem --cem-inset=1rem ");
+    assert!(
+        rendered.diagnostics.is_empty(),
+        "{:?}",
+        rendered.diagnostics
+    );
+}
+
+#[test]
+fn render_template_for_each_without_select_diagnoses() {
+    let rendered = render_template(
+        "{cem:for-each @as=\"row\" | {$row}}",
+        &TemplateData::default(),
+    );
+
+    assert_eq!(rendered.rendered, "");
+    assert!(
+        rendered
+            .diagnostics
+            .iter()
+            .any(|diagnostic| diagnostic.code == "cem.ql.render.for_each_missing_select"),
+        "{:?}",
+        rendered.diagnostics
+    );
+}

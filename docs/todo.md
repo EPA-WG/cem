@@ -140,9 +140,26 @@ into [`cem-ml-ac.md`](cem-ml-ac.md); the remaining items are implementation, wit
       (`RENDER_ENGINE_VERSION` on the `begin` `PatchFrame`; `EDGE_RENDER_STATE_VERSION` as
       `EdgeRenderStateRecord.schemaVersion`, part of the etag identity) and promoted to `required`.
       FF-6 is now fully closed: 9/9 `required`, 0 pending.
-- [ ] Convert the `cem-theme` CSS generators to CEM-ML+CEM-QL and rerun
+- [ ] Convert the `cem-theme` CSS generators to CEM-ML+CEM-QL (Option B) and rerun
       `@epa-wg/cem-theme:verify:phase13` — the live browser-XSLT-1.0 retirement blocker (also the
-      open Phase 3.6 item below).
+      open Phase 3.6 item below). Confirmed blocked on missing substrate capability (no iteration;
+      `/datadom` is flat) — landing slice-by-slice, smallest generator first per the migration doc:
+  - [x] Slice 1 — cem-ql `for-each` iteration. Landed in
+        [`render.rs`](../packages/cem_ql/src/render.rs): `TemplateNode::ForEach`, `compile_for_each`
+        (scoped compile-time `@as` declaration), render-time per-item rebind of `$as` via
+        `policy_bindings`, and the `cem.ql.render.for_each_missing_select` diagnostic. Accepts
+        `cem:for-each`/bare `for-each` with `@select` + optional `@as` (default `item`); flattens
+        like the conditionals and flows through the WASM boundary automatically (no API change).
+        Coverage: 3 tests in [`template_render.rs`](../packages/cem_ql/tests/template_render.rs)
+        (atomic iteration, record-row `$row.field` access, missing-select diagnostic); full cem-ql
+        suite green.
+  - [ ] Slice 2 — navigable data-document model: navigate token XHTML as cem-ql record/sequence
+        access (`*[@id]/following-sibling::table[1]/tbody/tr`, `td[n]`, `normalize-space()`); the
+        current `/datadom` is a flat attribute record. This is the larger remaining piece.
+  - [ ] Slice 3 — HTTP data-binding of the token XHTML into that navigable data-document.
+  - [ ] Slice 4 — rewrite each generator (smallest first: `cem-controls`/`cem-coupling`) to
+        `type="cem-ml-v0"` CEM-ML/CEM-QL and route it through the substrate in the build pipeline.
+  - [ ] Slice 5 — rerun `@epa-wg/cem-theme:verify:phase13` (non-empty CSS + manifest validation).
 - [ ] **Wishlist (future — NOT in the immediate release timeline):** engine XSLT 3.0/4.0 execution
       behind G-NVDL-FULL (AC-P-6.9). The architecture keeps the capability-gated seam — XSLT is a
       peer content type and an unimplemented version rejects deterministically (BR-CO-5/BR-VC-8) —
