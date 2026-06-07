@@ -153,12 +153,25 @@ into [`cem-ml-ac.md`](cem-ml-ac.md); the remaining items are implementation, wit
         Coverage: 3 tests in [`template_render.rs`](../packages/cem_ql/tests/template_render.rs)
         (atomic iteration, record-row `$row.field` access, missing-select diagnostic); full cem-ql
         suite green.
-  - [ ] Slice 2 — navigable data-document model: navigate token XHTML as cem-ql record/sequence
-        access (`*[@id]/following-sibling::table[1]/tbody/tr`, `td[n]`, `normalize-space()`); the
-        current `/datadom` is a flat attribute record. This is the larger remaining piece.
-  - [ ] Slice 3 — HTTP data-binding of the token XHTML into that navigable data-document.
+  - [x] Slice 2 — cem-ql functional navigation primitives (the "navigable data-document" engine
+        side). Finding: XPath axis evaluation is **deliberately unwired** in cem-ql
+        ([`eval.rs`](../packages/cem_ql/src/eval.rs): "host AST axis evaluation is not wired yet"),
+        consistent with the C2.4 "functional parity, not an XPath engine" direction. The functional
+        toolkit is otherwise present — Record field access (`datadom.x.y`), the slice-1 `for-each`,
+        and stdlib `first`/`last`/`nth`/`string` — so the only missing primitive was
+        `normalize_space`. Added `str:normalize_space` (XSLT normalize-space parity) in
+        [`strings.rs`](../packages/cem_ql/src/stdlib/strings.rs) +
+        [`pipeline.rs`](../packages/cem_ql/src/eval/pipeline.rs), with coverage in
+        [`stdlib_runtime.rs`](../packages/cem_ql/tests/stdlib_runtime.rs) (registry count 48→49);
+        full cem-ql suite green. Re-scope: token-XHTML→structured-records **shaping** is a host/data
+        concern, folded into slice 3 — not an engine feature.
+  - [ ] Slice 3 — Shape + bind the token document: parse each generator's token XHTML into a
+        structured cem-ql data-document on the host side (e.g. `datadom.tables.<id>` → rows of cell
+        records) and feed it through the substrate `DataIslandSnapshot`/`datadom`, replacing the
+        legacy `<http-request>`/XPath navigation. **Now the largest remaining piece.**
   - [ ] Slice 4 — rewrite each generator (smallest first: `cem-controls`/`cem-coupling`) to
-        `type="cem-ml-v0"` CEM-ML/CEM-QL and route it through the substrate in the build pipeline.
+        `type="cem-ml-v0"` CEM-ML/CEM-QL using for-each + field access + `str:normalize_space`, and
+        route it through the substrate in the build pipeline.
   - [ ] Slice 5 — rerun `@epa-wg/cem-theme:verify:phase13` (non-empty CSS + manifest validation).
 - [ ] **Wishlist (future — NOT in the immediate release timeline):** engine XSLT 3.0/4.0 execution
       behind G-NVDL-FULL (AC-P-6.9). The architecture keeps the capability-gated seam — XSLT is a

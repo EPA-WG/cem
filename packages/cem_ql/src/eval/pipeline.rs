@@ -208,6 +208,10 @@ pub(crate) fn apply_stdlib_call(
         ("cem:stdlib/strings", "ends_with") => {
             string_predicate(arg_streams, |left, right| left.ends_with(right))
         }
+        ("cem:stdlib/strings", "normalize_space") => {
+            let value = first_string(&arg_streams);
+            ItemStream::once(Item::Atomic(AtomValue::String(normalize_space(&value))))
+        }
         ("cem:stdlib/numbers", "double") => number_double(arg_streams),
         ("cem:stdlib/numbers", "decimal") => number_decimal(arg_streams),
         ("cem:stdlib/numbers", "integer") => number_integer(arg_streams),
@@ -741,6 +745,13 @@ fn first_string(streams: &[ItemStream]) -> String {
         .and_then(|stream| stream.items.first())
         .and_then(item_string)
         .unwrap_or_default()
+}
+
+/// XSLT `normalize-space`: trim leading/trailing whitespace and collapse internal runs of
+/// whitespace to a single space. Used by the converted cem-theme CSS generators to read token
+/// table cells. `split_whitespace` skips all Unicode whitespace runs, matching the semantics.
+fn normalize_space(value: &str) -> String {
+    value.split_whitespace().collect::<Vec<_>>().join(" ")
 }
 
 fn first_number(streams: &[ItemStream]) -> f64 {

@@ -21,7 +21,7 @@ fn eval(source: &str) -> cem_ql::eval::ItemStream {
 fn tier_a_registry_lists_every_documented_module_function() {
     let registry = ModuleRegistry::tier_a();
 
-    assert_eq!(registry.functions.len(), 48);
+    assert_eq!(registry.functions.len(), 49);
     assert!(registry.resolve("cem:stdlib/sequence", "map", 2).is_some());
     assert!(registry.resolve("cem:stdlib/strings", "slice", 3).is_some());
     assert!(registry
@@ -74,6 +74,14 @@ fn string_stdlib_functions_evaluate() {
 
     let contains = eval(r#"str:contains("semantic", "man")"#);
     assert_eq!(contains.items, vec![Item::Atomic(AtomValue::Boolean(true))]);
+
+    // normalize_space: trims and collapses internal whitespace (XSLT normalize-space parity),
+    // the primitive the converted cem-theme CSS generators use to read token table cells.
+    let normalized = eval("str:normalize_space(\"  --cem-gap   \n  0.5rem  \")");
+    assert_eq!(
+        normalized.items,
+        vec![Item::Atomic(AtomValue::String("--cem-gap 0.5rem".to_owned()))]
+    );
 }
 
 #[test]
