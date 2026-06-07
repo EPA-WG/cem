@@ -34,6 +34,7 @@ import {
     type TemplateSourceNode,
 } from './projection.js';
 import { renderCemMlTemplate, runtimeVersion } from './internal/runtime-support/cem-ql-render.js';
+import { domToRecord, normalizeSpace, tokenTableRows } from './data-document.js';
 
 const meta: Meta = {
     title: 'CEM Elements/Runtime',
@@ -85,6 +86,46 @@ export const InlineDeclarationShape: Story = {
         });
         assert(result.ok, 'a single inline declaration template should be accepted');
         assertEqual(result.diagnostics.length, 0, 'accepted declarations should not emit diagnostics');
+    },
+};
+
+export const DataDocumentDomBridge: Story = {
+    render: () =>
+        storyPanel(
+            'DOM → datadom bridge',
+            'native DOM queries shape a parsed token document into cem-ql row records (slice 3)'
+        ),
+    play: () => {
+        // A token document fragment shaped like the cem-theme token XHTML: an id'd section heading
+        // followed by a data table — the legacy `*[@id]/following-sibling::table[1]`.
+        const root = document.createElement('div');
+        root.innerHTML = `
+            <h6 id="cem-coupling-minimums">minimums</h6>
+            <table>
+                <thead><tr><th>Token</th><th>Value</th></tr></thead>
+                <tbody>
+                    <tr><td> --cem-gap </td><td>  0.5rem  </td></tr>
+                    <tr><td>--cem-inset</td><td>1rem</td></tr>
+                </tbody>
+            </table>
+        `;
+
+        const rows = tokenTableRows(root, 'cem-coupling-minimums');
+        assertEqual(rows.length, 2, 'two tbody rows are projected (thead excluded)');
+        assertEqual(rows[0].td1, '--cem-gap', 'cell text is whitespace-normalized (row 1, td1)');
+        assertEqual(rows[0].td2, '0.5rem', 'cell text is whitespace-normalized (row 1, td2)');
+        assertEqual(rows[1].td1, '--cem-inset', 'row 2 td1');
+        assertEqual(rows[1].td2, '1rem', 'row 2 td2');
+
+        assertEqual(tokenTableRows(root, 'missing-anchor').length, 0, 'a missing anchor yields no rows');
+        assertEqual(normalizeSpace('  a   b \n c '), 'a b c', 'normalizeSpace collapses whitespace');
+
+        const node = domToRecord(root.querySelector('table')!);
+        assertEqual(node.tag, 'table', 'generic record carries the element local name');
+        assert(
+            node.children.some((child) => child.tag === 'tbody'),
+            'generic record exposes child elements'
+        );
     },
 };
 
