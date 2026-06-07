@@ -165,18 +165,54 @@ into [`cem-ml-ac.md`](cem-ml-ac.md); the remaining items are implementation, wit
         [`stdlib_runtime.rs`](../packages/cem_ql/tests/stdlib_runtime.rs) (registry count 48→49);
         full cem-ql suite green. Re-scope: token-XHTML→structured-records **shaping** is a host/data
         concern, folded into slice 3 — not an engine feature.
-  - [ ] Slice 3 — Bridge the browser DOM into a cem-ql data-document. **No XHTML parser needed**
-        (confirmed): the generators run in-browser and `http-request.js` already parses the fetched
-        token doc via `DOMParser` (`slice.data = …documentElement`), while the CEM-ML template is
-        read as a string (`templateSourceText`). Add a browser-side bridge that uses **native DOM
-        queries** (`getElementById` / `querySelector` / `nextElementSibling` — replacing the XSLT
-        `@id` / following-sibling navigation) to shape the parsed token DOM into clean cem-ql
-        records (e.g. `datadom.tables.<id>` → rows of cell records), reusing the existing
-        [`projection.ts`](../packages/cem-elements/src/lib/projection.ts) DOM-walk, and feed it via
-        `DataIslandSnapshot` / `datadom`. **Now the largest remaining piece.**
-  - [ ] Slice 4 — rewrite each generator (smallest first: `cem-controls`/`cem-coupling`) to
-        `type="cem-ml-v0"` CEM-ML/CEM-QL using for-each + field access + `str:normalize_space`, and
-        route it through the substrate in the build pipeline.
+  - [x] Slice 3 — DOM→`datadom` bridge. Landed
+        [`data-document.ts`](../packages/cem-elements/src/lib/data-document.ts): `normalizeSpace`,
+        `domToRecord` (generic element→record), `tableToRows` (tbody rows → `{td1,td2,…}` records,
+        whitespace-normalized), and `followingTable` + `tokenTableRows` (native `querySelector` +
+        `nextElementSibling`, replacing the legacy `*[@id]/following-sibling::table[1]/tbody/tr`).
+        **No XHTML parser** — the browser already parsed the token doc (`http-request.js`
+        `DOMParser`, BR-PH-3). Browser test: the `DataDocumentDomBridge` story (cem-elements `test`
+        green, 60 stories). The output shape (`{tdN}` row records) is already navigable per the
+        slice-1 for-each record test. Remaining for slice 4: feed the rows into
+        `datadom.slices.<name>` per generator.
+  - [~] Slice 4 — rewrite each generator (smallest first) to `type="cem-ml-v0"` CEM-ML/CEM-QL and
+        route it through the substrate. **2 of 10 converted** (`cem-controls`, `cem-coupling`);
+        engine prerequisites + build wiring + the reusable bootstrap are now landed, so the
+        remaining 8 are mechanical repeats of the same shape.
+    - [x] Engine prerequisite A: `cem:for-each` iterates the **members** of a selected `Item::Array`.
+          The slice-1 for-each was proven against native multi-item sequences, but the WASM JSON
+          boundary delivers `datadom.slices.<name>` (a JSON array of row objects) as a single
+          `Item::Array`, so for-each iterated once over the whole array. Fix in
+          [`render.rs`](../packages/cem_ql/src/render.rs) `evaluate_select` (flatten one array level
+          — legacy XSLT node-set iteration parity).
+    - [x] Engine prerequisite B: `RichContent` (triple-backtick) now renders as verbatim text in
+          [`render.rs`](../packages/cem_ql/src/render.rs) `compile_node`, so a generator can emit
+          output containing literal `{`/`}` (CSS rule blocks `:root { … }`) that would otherwise
+          collide with cem-ml's structural braces. Pair rich-content scaffold with sibling
+          `{cem:for-each …}` for the dynamic lines. Both prerequisites covered by
+          `render_template_for_each_iterates_array_item_members` +
+          `render_template_rich_content_emits_literal_braces_around_for_each` in
+          [`template_render.rs`](../packages/cem_ql/tests/template_render.rs) (25 render tests, full
+          cem-ql suite green); WASM rebuilt.
+    - [x] Build wiring + bootstrap: new
+          [`cem-css-generator.js`](../packages/cem-theme/src/lib/css-generators/cem-css-generator.js)
+          bootstrap (Option B) fetches the token doc, shapes `datadom.slices.<key>` via the slice-3
+          DOM→datadom bridge (`tokenTableRows`), renders the `<template type="cem-ml-v0">` through
+          the cem-elements runtime-support `renderCemMlTemplate` (cem_ql WASM), materializes the
+          plan into `<main>`, and feeds `<cem-css-loader>`. No live browser XSLT.
+          [`compile-html.mjs`](../tools/scripts/compile-html.mjs) now stages the cem-elements +
+          cem_ql WASM trees into `dist/vendor` unconditionally (`stageSubstrateRuntime`), decoupled
+          from the dropped legacy `custom-element.js` reference.
+    - [x] `cem-controls` + `cem-coupling` converted (whole-file: preview tables + CSS body, legacy
+          runtime removed). Each: `capture-xpath-text` → non-empty CSS, `validate-manifest --hard`
+          green (8 / 3 manifest tokens, no extras, valid CSS), browser probe confirms exactly one
+          `code[data-generated-css]`, `:root` token resolution via the injected css-loader style,
+          and both preview tables rendered. 60 cem-elements stories still green against the rebuilt
+          WASM.
+    - [ ] Convert the remaining 8 generators (`cem-breakpoints`, `cem-dimension`, `cem-timing`,
+          `cem-layering`, `cem-stroke`, `cem-shape`, `cem-voice-fonts-typography`, `cem-colors` —
+          roughly ascending size/complexity; `cem-colors` is the largest, with intent×state
+          cross-products) using the same `cem-ml-v0` + bootstrap shape.
   - [ ] Slice 5 — rerun `@epa-wg/cem-theme:verify:phase13` (non-empty CSS + manifest validation).
 - [ ] **Wishlist (future — NOT in the immediate release timeline):** engine XSLT 3.0/4.0 execution
       behind G-NVDL-FULL (AC-P-6.9). The architecture keeps the capability-gated seam — XSLT is a

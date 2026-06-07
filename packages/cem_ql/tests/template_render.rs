@@ -533,6 +533,97 @@ fn render_template_for_each_binds_record_fields_per_item() {
 }
 
 #[test]
+fn render_template_for_each_iterates_array_item_members() {
+    // The host data-document delivers a slice (token rows shaped from a `<table>`) as a single
+    // `Item::Array` — exactly what the WASM JSON boundary builds from a JSON array of objects
+    // under `datadom.slices.<name>`. for-each must iterate the array members, not the array.
+    let rows = Item::Array(vec![
+        record([
+            (
+                "td1",
+                vec![Item::Atomic(AtomValue::String("--cem-gap".to_owned()))],
+            ),
+            (
+                "td2",
+                vec![Item::Atomic(AtomValue::String("0.5rem".to_owned()))],
+            ),
+        ]),
+        record([
+            (
+                "td1",
+                vec![Item::Atomic(AtomValue::String("--cem-inset".to_owned()))],
+            ),
+            (
+                "td2",
+                vec![Item::Atomic(AtomValue::String("1rem".to_owned()))],
+            ),
+        ]),
+    ]);
+    let datadom = record([("slices", vec![record([("geometry", vec![rows])])])]);
+    let data = TemplateData::default().with_binding("datadom", ItemStream::once(datadom));
+
+    let rendered = render_template(
+        "{cem:for-each @select=\"$datadom.slices.geometry\" @as=\"row\" | {$row.td1}: {$row.td2};}",
+        &data,
+    );
+
+    assert_eq!(rendered.rendered, "--cem-gap: 0.5rem;--cem-inset: 1rem;");
+    assert!(
+        rendered.diagnostics.is_empty(),
+        "{:?}",
+        rendered.diagnostics
+    );
+}
+
+#[test]
+fn render_template_rich_content_emits_literal_braces_around_for_each() {
+    // The CSS-generator shape: rich-content (triple backtick) supplies the literal `:root { … }`
+    // braces that would otherwise collide with cem-ml structure, while a sibling for-each emits the
+    // dynamic declaration lines from an array slice.
+    let rows = Item::Array(vec![
+        record([
+            (
+                "td1",
+                vec![Item::Atomic(AtomValue::String("--cem-control-height".to_owned()))],
+            ),
+            (
+                "td2",
+                vec![Item::Atomic(AtomValue::String("2.5rem".to_owned()))],
+            ),
+        ]),
+        record([
+            (
+                "td1",
+                vec![Item::Atomic(AtomValue::String("--cem-list-row-height".to_owned()))],
+            ),
+            (
+                "td2",
+                vec![Item::Atomic(AtomValue::String("3rem".to_owned()))],
+            ),
+        ]),
+    ]);
+    let datadom = record([("slices", vec![record([("geometry", vec![rows])])])]);
+    let data = TemplateData::default().with_binding("datadom", ItemStream::once(datadom));
+
+    // Leading whitespace after `|` is trimmed (relaxed content boundary), so per-row newlines come
+    // from a rich-content fence at the head of the for-each body, not bare indentation.
+    let rendered = render_template(
+        "{code |```:root {```{cem:for-each @select=\"$datadom.slices.geometry\" @as=\"row\" |```\n  ```{$row.td1}: {$row.td2};}```\n}```}",
+        &data,
+    );
+
+    assert_eq!(
+        rendered.rendered,
+        "<code>:root {\n  --cem-control-height: 2.5rem;\n  --cem-list-row-height: 3rem;\n}</code>"
+    );
+    assert!(
+        rendered.diagnostics.is_empty(),
+        "{:?}",
+        rendered.diagnostics
+    );
+}
+
+#[test]
 fn render_template_for_each_without_select_diagnoses() {
     let rendered = render_template(
         "{cem:for-each @as=\"row\" | {$row}}",

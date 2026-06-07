@@ -1,129 +1,75 @@
 <!DOCTYPE html>
-<html lang="en" xmlns:xhtml="http://www.w3.org/1999/xhtml">
+<html lang="en">
 <head>
     <meta charset="UTF-8">
     <title>CEM controls CSS generator</title>
-    <script src="./cem-http-request.js" type="module"></script>
+    <style>
+        main { display: block; white-space: pre; font-family: monospace; }
+        table { white-space: normal; border-collapse: collapse; }
+        td { padding: 0.5rem; letter-spacing: 0.05em; }
+        caption { font-size: 1.5rem; padding-bottom: 0.5rem; text-align: start; }
+        tr>th:first-child { text-align: start; }
+        code { color: green; font-weight: bold; }
+    </style>
 </head>
 <body>
-<custom-element>
-    <template id="cem-controls-template">
-        <style>
-            td { padding: 0.5rem; letter-spacing: 0.05em; }
-            caption { font-size: 1.5rem; padding-bottom: 0.5rem; text-align: start; }
-            tr>th:first-child { text-align: start; }
-            code { color: green; font-weight: bold; }
-        </style>
-
-        <http-request method="GET" slice="cem-controls" url="../../../dist/lib/tokens/cem-controls.xhtml"></http-request>
-        <variable name="controlsData" select="//cem-controls"></variable>
-
-        <variable name="cem-controls-geometry"
-                  select="$controlsData//*[@id='cem-controls-geometry']/following-sibling::xhtml:table[1]/xhtml:tbody"></variable>
-        <variable name="cem-controls-geometry-overrides"
-                  select="$controlsData//*[@id='cem-controls-geometry-overrides']/following-sibling::xhtml:table[1]/xhtml:tbody"></variable>
-
-        <variable name="css-body">
-:root {
-    /* region control geometry — balanced (default) baseline */
-    <for-each select="$cem-controls-geometry/xhtml:tr">
-        {normalize-space(xhtml:td[1])}: {normalize-space(xhtml:td[2])};
-    </for-each>
-    /* endregion control geometry */
+<!--
+  Phase 3.6 CEM-ML/CEM-QL generator (Option B). The legacy @epa-wg/custom-element XSLT/XPath
+  runtime is gone: cem-css-generator.js shapes the token tables into datadom.slices via the
+  cem-elements DOM→datadom bridge and renders this template through the cem_ql WASM boundary.
+  Token table columns — geometry: td1=token td2=value td3=description td4=tier;
+  overrides: td1=token td2=forgiving td3=compact.
+-->
+<template type="cem-ml-v0"
+          id="cem-controls-template"
+          data-token-url="../../../dist/lib/tokens/cem-controls.xhtml"
+          data-slices="geometry=cem-controls-geometry overrides=cem-controls-geometry-overrides">
+{table |
+    {caption | {a @href="../../../dist/lib/tokens/cem-controls.xhtml#3-1-baseline-balanced-mode" | cem-controls-geometry} — visual control geometry (balanced baseline)}
+    {thead | {tr | {th | Token}{th | Value}{th | Tier}{th | Swatch}{th | Description}}}
+    {tbody | {cem:for-each @select="$datadom.slices.geometry" @as="row" |
+        {tr |
+            {th | {code | {$row.td1}}}
+            {td | {code | {$row.td2}}}
+            {td | {$row.td4}}
+            {td @style="width:5rem;" | {div @style="height:1rem; width: var({$row.td1}); background: currentColor; min-width: 2px; max-width: 8rem;" @title="{$row.td1}" | }}
+            {td | {$row.td3}}
+        }}}
+}
+{hr | }
+{table |
+    {caption | {a @href="../../../dist/lib/tokens/cem-controls.xhtml#3-2-coupling-mode-overrides-visual-geometry-only" | cem-controls-geometry-overrides} — coupling mode overrides (visual geometry only)}
+    {thead | {tr | {th | Token}{th | forgiving}{th | compact}}}
+    {tbody | {cem:for-each @select="$datadom.slices.overrides" @as="row" |
+        {tr |
+            {th | {code | {$row.td1}}}
+            {td | {code | {$row.td2}}}
+            {td | {code | {$row.td3}}}
+        }}}
+}
+{hr | }
+{pre @class=language-css | {code @class=language-css @data-generated-css |```:root {
+  /* region control geometry — balanced (default) baseline */```{cem:for-each @select="$datadom.slices.geometry" @as="row" |```
+  ```{$row.td1}: {$row.td2};}```
+  /* endregion control geometry */
 }
 
 /* region coupling mode: forgiving — larger visual geometry */
-:root[data-cem-coupling="forgiving"] {
-    <for-each select="$cem-controls-geometry-overrides/xhtml:tr">
-        {normalize-space(xhtml:td[1])}: {normalize-space(xhtml:td[2])};
-    </for-each>
+:root[data-cem-coupling="forgiving"] {```{cem:for-each @select="$datadom.slices.overrides" @as="row" |```
+  ```{$row.td1}: {$row.td2};}```
 }
 /* endregion coupling mode: forgiving */
 
 /* region coupling mode: compact — smaller visual geometry */
-:root[data-cem-coupling="compact"] {
-    <for-each select="$cem-controls-geometry-overrides/xhtml:tr">
-        {normalize-space(xhtml:td[1])}: {normalize-space(xhtml:td[3])};
-    </for-each>
+:root[data-cem-coupling="compact"] {```{cem:for-each @select="$datadom.slices.overrides" @as="row" |```
+  ```{$row.td1}: {$row.td3};}```
 }
 /* endregion coupling mode: compact */
-        </variable>
-
-        <style>
-            :host {
-                display: block;
-                white-space: pre;
-                font-family: monospace;
-            }
-        </style>
-
-        <xhtml:table>
-            <xhtml:caption><a href="../../../dist/lib/tokens/cem-controls.xhtml#3-1-baseline-balanced-mode">cem-controls-geometry</a> — visual control geometry (balanced baseline)</xhtml:caption>
-            <xhtml:thead>
-                <xhtml:tr>
-                    <xhtml:th>Token</xhtml:th>
-                    <xhtml:th>Value</xhtml:th>
-                    <xhtml:th>Tier</xhtml:th>
-                    <xhtml:th>Swatch</xhtml:th>
-                    <xhtml:th>Description</xhtml:th>
-                </xhtml:tr>
-            </xhtml:thead>
-            <xhtml:tbody>
-                <for-each select="$cem-controls-geometry/xhtml:tr">
-                    <variable name="token" select="normalize-space(xhtml:td[1])"></variable>
-                    <variable name="value" select="normalize-space(xhtml:td[2])"></variable>
-                    <variable name="desc"  select="normalize-space(xhtml:td[3])"></variable>
-                    <variable name="tier"  select="normalize-space(xhtml:td[4])"></variable>
-                    <xhtml:tr>
-                        <xhtml:th><code>{$token}</code></xhtml:th>
-                        <xhtml:td><code>{$value}</code></xhtml:td>
-                        <xhtml:td>{$tier}</xhtml:td>
-                        <xhtml:td style="width:5rem;">
-                            <xhtml:div style="height:1rem; width: var({$token}); background: currentColor; min-width: 2px; max-width: 8rem;" title="{$token}"></xhtml:div>
-                        </xhtml:td>
-                        <xhtml:td>{$desc}</xhtml:td>
-                    </xhtml:tr>
-                </for-each>
-            </xhtml:tbody>
-        </xhtml:table>
-
-        <hr/>
-        <xhtml:table>
-            <xhtml:caption><a href="../../../dist/lib/tokens/cem-controls.xhtml#3-2-coupling-mode-overrides-visual-geometry-only">cem-controls-geometry-overrides</a> — coupling mode overrides (visual geometry only)</xhtml:caption>
-            <xhtml:thead>
-                <xhtml:tr>
-                    <xhtml:th>Token</xhtml:th>
-                    <xhtml:th>forgiving</xhtml:th>
-                    <xhtml:th>compact</xhtml:th>
-                </xhtml:tr>
-            </xhtml:thead>
-            <xhtml:tbody>
-                <for-each select="$cem-controls-geometry-overrides/xhtml:tr">
-                    <variable name="token"     select="normalize-space(xhtml:td[1])"></variable>
-                    <variable name="forgiving" select="normalize-space(xhtml:td[2])"></variable>
-                    <variable name="compact"   select="normalize-space(xhtml:td[3])"></variable>
-                    <xhtml:tr>
-                        <xhtml:th><code>{$token}</code></xhtml:th>
-                        <xhtml:td><code>{$forgiving}</code></xhtml:td>
-                        <xhtml:td><code>{$compact}</code></xhtml:td>
-                    </xhtml:tr>
-                </for-each>
-            </xhtml:tbody>
-        </xhtml:table>
-
-        <hr/>
-        <pre class="language-css">
-            <code class="language-css" data-generated-css>
-{$css-body}
-            </code>
-        </pre>
-        <cem-css-loader value="{$css-body}"></cem-css-loader>
-
-    </template>
-</custom-element>
+```}}
+</template>
 <main></main>
-<script src="../../../../../node_modules/@epa-wg/custom-element/custom-element.js" type="module"></script>
-<script src="../../../../../node_modules/@epa-wg/custom-element/http-request.js" type="module"></script>
+<cem-css-loader></cem-css-loader>
 <script src="./cem-css-loader.js" type="module"></script>
+<script src="./cem-css-generator.js" type="module"></script>
 </body>
 </html>

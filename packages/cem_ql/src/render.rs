@@ -310,6 +310,20 @@ impl TemplateCompiler<'_> {
                     source_map: frame_for(&token),
                 })
             }
+            // Triple-backtick rich content is verbatim text: its body is emitted as-is with
+            // braces preserved, so generators can produce output that itself contains literal
+            // `{`/`}` (e.g. CSS rule blocks `:root { … }`) without colliding with cem-ml's
+            // structural braces. No interpolation happens inside — pair it with sibling
+            // `{cem:for-each …}`/`{$…}` nodes for the dynamic parts.
+            SchemaTokenKind::RichContent { data } => {
+                let text = data.clone();
+                let token = self.tokens[self.index].clone();
+                self.index += 1;
+                Some(TemplateNode::Text {
+                    text,
+                    source_map: frame_for(&token),
+                })
+            }
             SchemaTokenKind::Comment(text) => {
                 let text = text.clone();
                 let token = self.tokens[self.index].clone();
@@ -775,6 +789,12 @@ impl PlanRenderer {
     }
 
     /// Evaluate a `cem:for-each` `@select` expression to the sequence of items to iterate.
+    ///
+    /// A selected `Item::Array` is flattened one level into its members, so iterating a
+    /// data-document collection (e.g. `$datadom.slices.geometry` — the token rows the host
+    /// bridge shapes from a `<table>`, delivered through the JSON boundary as a single array
+    /// item) yields one iteration per row, matching legacy XSLT `for-each` node-set iteration.
+    /// A bare sequence already iterates per item, so only array items are expanded.
     fn evaluate_select(&mut self, select: Option<&CompiledTemplateExpression>) -> Vec<Item> {
         let Some(select) = select else {
             return Vec::new();
@@ -793,7 +813,14 @@ impl PlanRenderer {
             ));
             return Vec::new();
         }
-        stream.items
+        stream
+            .items
+            .into_iter()
+            .flat_map(|item| match item {
+                Item::Array(members) => members,
+                other => vec![other],
+            })
+            .collect()
     }
 
     /// Evaluate a conditional `@test` expression to a cem-ql effective-boolean.
