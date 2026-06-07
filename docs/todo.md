@@ -44,10 +44,10 @@ for non-SemVer standards such as XSLT (OQ-10).
   - [x] FF-6 SemVer-presence: every governed contract declares a version axis. Landed: registry
         `tools/fitness/governed-contracts.json`, scanner `tools/scripts/ff-semver-presence.mjs`,
         Nx target `@epa-wg/cem:fitness-semver-presence` (green; fail path verified), CI-wired
-        alongside FF-5. Five `required` contracts resolve real SemVers (custom-element 0.0.39,
-        cem-elements 0.0.14, cem_ml/cem_ql/cem_ml_cli 0.1.0); the four gaps (data-snapshot,
-        token-outputs, patch-transport, edge-render-state) ride `pending-version` and are the
-        acceptance test for item #3 — adding each version flips it to `required`.
+        alongside FF-5. Seven `required` contracts resolve real SemVers (custom-element 0.0.39,
+        cem-elements 0.0.14, cem_ml/cem_ql/cem_ml_cli 0.1.0, data-snapshot 1.0.0, token-outputs
+        1.0.0); two gaps (patch-transport, edge-render-state) ride `pending-version` and are the
+        acceptance test — adding each version flips it to `required`.
         (scope: [`fitness-functions.md`](fitness-functions.md))
   - [ ] FF-7 XSLT capability-gating: unsupported XSLT version rejects; region isolated +
         version-pinned across CEM-ML MAJOR. (`cem-elements:verify`; AC-P-V-4)
@@ -128,10 +128,17 @@ into [`cem-ml-ac.md`](cem-ml-ac.md); the remaining items are implementation, wit
 
 - [x] Fold the AC-P-6 promotion into [`cem-ml-ac.md`](cem-ml-ac.md) — AC-P-6.1–6.9, AC-P-V-2..V-8,
       the §16.4 G-NVDL-CORE/FULL split, and the §16.1 graph + tier/gate-list updates.
-- [ ] Implement the eight fitness functions FF-1..FF-8 (OQ-2) as CI-blocking gates, including the
-      two net-new checks (FF-5 removal-scan, FF-6 SemVer-presence lint).
-- [ ] Add a SemVer axis to the two un-versioned governed contracts: the data/snapshot
-      (`DataIslandSnapshot`/`datadom`) contract and the design-token outputs (OQ-8 residual).
+- [ ] Implement the eight fitness functions FF-1..FF-8 (OQ-2) as CI-blocking gates. Done: the two
+      net-new checks FF-5 (removal-scan) + FF-6 (SemVer-presence) are landed, green, and CI-wired
+      (`.github/workflows/ci.yml`). Remaining: FF-1..FF-4, FF-7, FF-8 (mostly assertions over the
+      existing `cem_ml_cli` / `cem-elements:verify` gates — wire/extend each).
+- [x] Add a SemVer axis to the two un-versioned governed contracts. Landed: `SNAPSHOT_SCHEMA_VERSION`
+      = 1.0.0 on `DataIslandSnapshot` (`cem-elements.ts` — optional/additive expand-phase field per
+      BR-EV-5, stamped at `createSnapshot` and carried through edge export) and `TOKENS_SCHEMA_VERSION`
+      = 1.0.0 stamped as `$version` on `cem.tokens.json` / `cem.voice.tokens.json` (`export-tokens.mjs`);
+      both flipped to `required` in FF-6 (green; typecheck + 59 Storybook tests pass). FF-6 then
+      surfaced two further gaps — `patch-transport` (RENDER_ENGINE_VERSION) and `edge-render-state` —
+      now riding `pending-version` as follow-ups.
 - [ ] Convert the `cem-theme` CSS generators to CEM-ML+CEM-QL and rerun
       `@epa-wg/cem-theme:verify:phase13` — the live browser-XSLT-1.0 retirement blocker (also the
       open Phase 3.6 item below).

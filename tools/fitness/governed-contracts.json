@@ -33,17 +33,15 @@
         },
         {
             "id": "data-snapshot",
-            "status": "pending-version",
-            "description": "DataIslandSnapshot / datadom contract (crosses worker/SSR/edge + browser→edge export)",
-            "tracks": "todo.md What's-left #3 — add a DataIslandSnapshot schema version",
+            "status": "required",
+            "description": "DataIslandSnapshot / datadom contract (crosses worker/SSR/edge + browser→edge export); carries an optional `version` stamped from SNAPSHOT_SCHEMA_VERSION",
             "locator": { "type": "regex", "file": "packages/cem-elements/src/lib/cem-elements.ts", "pattern": "SNAPSHOT_SCHEMA_VERSION\\s*=\\s*['\"]([^'\"]+)['\"]" }
         },
         {
             "id": "token-outputs",
-            "status": "pending-version",
-            "description": "published design-token output files (cem.tokens.json, externally consumed)",
-            "tracks": "todo.md What's-left #3 — add $version to cem.tokens.json",
-            "locator": { "type": "json", "file": "packages/cem-theme/dist/lib/tokens/cem.tokens.json", "path": "$version" }
+            "status": "required",
+            "description": "published design-token output files; cem.tokens.json / cem.voice.tokens.json carry $version stamped from the export source-of-truth (TOKENS_SCHEMA_VERSION). Located at source so the check needs no build.",
+            "locator": { "type": "regex", "file": "packages/cem-theme/scripts/export-tokens.mjs", "pattern": "TOKENS_SCHEMA_VERSION\\s*=\\s*['\"]([^'\"]+)['\"]" }
         },
         {
             "id": "patch-transport",

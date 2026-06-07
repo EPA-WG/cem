@@ -74,7 +74,12 @@ export type SerializedPayloadNode =
           children: SerializedPayloadNode[];
       };
 
+/** Schema version of the DataIslandSnapshot / datadom governed contract (FF-6 SemVer axis, BR-VC-5). */
+export const SNAPSHOT_SCHEMA_VERSION = '1.0.0';
+
 export interface DataIslandSnapshot {
+    /** Snapshot schema version; see {@link SNAPSHOT_SCHEMA_VERSION}. Optional during the expand phase (BR-EV-5). */
+    version?: string;
     instanceId: string;
     producedTag: string;
     declarationTag: string;
@@ -103,6 +108,7 @@ export type DataIslandSnapshotExportDecision = 'allow' | 'omit' | 'redact';
 
 export type ExportedDataIslandSnapshot = Pick<
     DataIslandSnapshot,
+    | 'version'
     | 'instanceId'
     | 'producedTag'
     | 'declarationTag'
@@ -298,6 +304,7 @@ export function exportDataIslandSnapshotForEdge(
         scopePolicyStamp: snapshot.scopePolicyStamp,
         privacyPolicyStamp: policy.privacyPolicyStamp ?? snapshot.privacyPolicyStamp,
     };
+    if (snapshot.version !== undefined) exported.version = snapshot.version;
     for (const field of DATA_ISLAND_EXPORT_FIELDS) {
         const decision = policy.fields?.[field] ?? 'omit';
         if (decision === 'allow') {
@@ -986,6 +993,7 @@ export class CemElementRuntime {
         island: HTMLTemplateElement
     ): DataIslandSnapshot {
         return {
+            version: SNAPSHOT_SCHEMA_VERSION,
             instanceId: this.instanceId(instance),
             producedTag: compiled.producedTag,
             declarationTag: compiled.declarationTag,
