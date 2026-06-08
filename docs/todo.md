@@ -176,9 +176,10 @@ into [`cem-ml-ac.md`](cem-ml-ac.md); the remaining items are implementation, wit
         slice-1 for-each record test. Remaining for slice 4: feed the rows into
         `datadom.slices.<name>` per generator.
   - [~] Slice 4 — rewrite each generator (smallest first) to `type="cem-ml; version=0.0"` CEM-ML/CEM-QL and
-        route it through the substrate. **2 of 10 converted** (`cem-controls`, `cem-coupling`);
-        engine prerequisites + build wiring + the reusable bootstrap are now landed, so the
-        remaining 8 are mechanical repeats of the same shape.
+        route it through the substrate. **9 of 10 converted**; only `cem-colors` remains.
+        Engine prerequisites + build wiring + the reusable bootstrap are landed; each converted
+        generator passes `validate-manifest --hard` + a browser probe (one `code[data-generated-css]`,
+        `:root` token resolves via the injected css-loader, no page errors).
     - [x] Engine prerequisite A: `cem:for-each` iterates the **members** of a selected `Item::Array`.
           The slice-1 for-each was proven against native multi-item sequences, but the WASM JSON
           boundary delivers `datadom.slices.<name>` (a JSON array of row objects) as a single
@@ -203,16 +204,20 @@ into [`cem-ml-ac.md`](cem-ml-ac.md); the remaining items are implementation, wit
           [`compile-html.mjs`](../tools/scripts/compile-html.mjs) now stages the cem-elements +
           cem_ql WASM trees into `dist/vendor` unconditionally (`stageSubstrateRuntime`), decoupled
           from the dropped legacy `custom-element.js` reference.
-    - [x] `cem-controls` + `cem-coupling` converted (whole-file: preview tables + CSS body, legacy
-          runtime removed). Each: `capture-xpath-text` → non-empty CSS, `validate-manifest --hard`
-          green (8 / 3 manifest tokens, no extras, valid CSS), browser probe confirms exactly one
-          `code[data-generated-css]`, `:root` token resolution via the injected css-loader style,
-          and both preview tables rendered. 60 cem-elements stories still green against the rebuilt
-          WASM.
-    - [ ] Convert the remaining 8 generators (`cem-breakpoints`, `cem-dimension`, `cem-timing`,
-          `cem-layering`, `cem-stroke`, `cem-shape`, `cem-voice-fonts-typography`, `cem-colors` —
-          roughly ascending size/complexity; `cem-colors` is the largest, with intent×state
-          cross-products) using the same `cem-ml; version=0.0` + bootstrap shape.
+    - [x] **9 of 10 generators converted** (whole-file: preview tables + CSS body, legacy runtime
+          removed), each `validate-manifest --hard` green + browser-probed: `cem-controls`,
+          `cem-coupling`, `cem-layering`, `cem-timing`, `cem-stroke`, `cem-dimension`, `cem-shape`,
+          `cem-breakpoints` (conditional `@media` ranges via `cem:choose`/`when`/`otherwise`),
+          `cem-voice-fonts-typography`. Engine surface used: for-each over array slices, rich-content
+          braces, `@media`/theme-class blocks, `cem:if`/`cem:choose` with **bare-name** `@test`
+          comparisons. Gotchas: slice keys must avoid cem-ql builtin step names (incl. `read`); AVT
+          attributes take one `{$…}` span; shape's cross-spec preview vars come from `<link>`ing the
+          generated `cem-dimension.css`/`cem-controls.css`. 60 cem-elements stories green vs rebuilt WASM.
+    - [ ] Convert `cem-colors` (the last + hardest): intent×state cross-product
+          (`--cem-action-{intent}-{state}-{background|text}` via nested for-each), `[emotion]`
+          placeholder substitution (needs XPath string fns `concat`/`substring-before`/`-after`/
+          `contains` — verify cem-ql has them or add `str:*`), a hue-variant cross-table join for
+          `light-dark()`, and theme-mode selector blocks. Heavily validated by `verify:phase13`.
   - [ ] Slice 5 — rerun `@epa-wg/cem-theme:verify:phase13` (non-empty CSS + manifest validation).
 - [ ] **Wishlist (future — NOT in the immediate release timeline):** engine XSLT 3.0/4.0 execution
       behind G-NVDL-FULL (AC-P-6.9). The architecture keeps the capability-gated seam — XSLT is a
