@@ -1,6 +1,7 @@
 import type { Meta, StoryObj } from '@storybook/web-components-vite';
 import {
     CemElementRuntime,
+    SNAPSHOT_SCHEMA_VERSION,
     analyzeDeclarationShape,
     cemElements,
     exportDataIslandSnapshotForEdge,
@@ -1793,6 +1794,80 @@ export const SsrHydrationFromSerializedSnapshot: Story = {
             () => requiredElement(instance, 'article.ssr-card').querySelector('h2')?.textContent === 'Client Card',
             'client-side invalidation takes over after hydration'
         );
+    },
+};
+
+export const SsrHydrationRejectsUnsupportedSnapshotVersion: Story = {
+    render: () =>
+        storyPanel(
+            'SSR hydration version gate',
+            'a higher-MINOR snapshot version is rejected (BR-VC-9 data/security), hydration falls back to a fresh render'
+        ),
+    play: async ({ canvasElement }) => {
+        const root = document.createElement('section');
+        canvasElement.appendChild(root);
+
+        const templateHtml =
+            '<attribute name="label">Fallback</attribute>' +
+            '<article class="ssr-reject-card">' +
+            '<h2>${$label}</h2>' +
+            '<div class="detail"><slot name="detail"></slot></div>' +
+            '</article>';
+
+        // Default runMode is `application`: the snapshot/`datadom` is a
+        // data/security contract, so a snapshot whose schema MINOR is ahead of
+        // this build (unknown optional features) must be rejected per BR-VC-9
+        // rather than adopted.
+        const runtime = new CemElementRuntime({ declarationTag: 'cem-element-story-ssr-reject' });
+        runtime.install(window);
+        const declaration = document.createElement('cem-element-story-ssr-reject');
+        declaration.setAttribute('tag', 'story-ssr-reject-card');
+        const declTemplate = document.createElement('template');
+        declTemplate.innerHTML = templateHtml;
+        declaration.appendChild(declTemplate);
+        root.appendChild(declaration);
+        runtime.registerDeclaration(declaration);
+
+        const template = document.createElement('template');
+        template.innerHTML = templateHtml;
+        const source = readTemplateSource(template.content);
+        const snapshot = projectionSnapshot('story-ssr-reject-card', { label: 'Server Card' });
+        snapshot.instanceId = 'ssr-reject-instance-1';
+        snapshot.declarationTag = 'cem-element-story-ssr-reject';
+        snapshot.templateArtifactId = 'ssr-reject-artifact-1';
+        snapshot.dataRevision = '7';
+        // A schema MINOR ahead of the build version — the un-understood case.
+        const [major, minor, patch] = SNAPSHOT_SCHEMA_VERSION.split('.').map((n) => Number.parseInt(n, 10));
+        snapshot.version = `${major}.${minor + 1}.${patch}`;
+
+        const plan = projectTemplate(source, { snapshot, values: { label: 'Server Card' } });
+        const serverFragment = materializeRenderPlan(plan, document);
+        const serverNodes = Array.from(serverFragment.childNodes);
+
+        const instance = document.createElement('story-ssr-reject-card');
+        instance.setAttribute('label', 'Server Card');
+        const island = document.createElement('template');
+        island.setAttribute('data-cem-island', 'instance');
+        const metadata = document.createElement('script');
+        metadata.setAttribute('type', 'application/json');
+        metadata.setAttribute('data-cem-hydration', 'snapshot');
+        metadata.textContent = JSON.stringify(snapshot);
+        instance.append(
+            island,
+            document.createComment('cem-render-start'),
+            ...serverNodes,
+            document.createComment('cem-render-end'),
+            metadata
+        );
+        root.appendChild(instance);
+
+        await runtime.whenRenderSettled(instance);
+
+        // The un-understood snapshot version is rejected at the hydration ingest
+        // seam; hydration is refused and the instance falls back to a fresh
+        // client render (which still produces the article).
+        assertDiagnostic(runtime.diagnosticsFor(instance), 'cem-element.snapshot_version_rejected');
+        await waitForElement(instance, 'article.ssr-reject-card');
     },
 };
 
