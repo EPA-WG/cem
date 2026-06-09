@@ -33,10 +33,14 @@ for non-SemVer standards such as XSLT (OQ-10).
         same-MAJOR load + unsupported-MAJOR / future-MINOR reject; core-namespace axis at Tier A).
   - [x] FF-3 Isolation: no region interpreted by another content type's processor.
         (`cem_ml_cli:e2e`; AC-P-V-3) — **active** (evidence `schema-scoping/sibling-isolation.cem`).
-  - [ ] FF-4 Mode-disposition: unknown optional → ignore/degrade/reject per app/build-SSR/dev;
-        must-understand rejects. (`cem-elements:verify`) — **tracked** (AC-P-6.7 disposition
-        machinery not built: no reject/allow/ignore + run-mode default in cem_ml or cem-elements;
-        [B]-tier capability is the prerequisite, AC-P-V-6 fixture comes after).
+  - [~] FF-4 Mode-disposition: unknown optional → ignore/degrade/reject per app/build-SSR/dev;
+        must-understand rejects. (`cem-elements:verify`) — **tracked; decision-core landed.** The
+        pure BR-VC-9 disposition core is built + unit-tested (`cem-elements/src/lib/disposition.ts`:
+        RunMode × per-contract presentation/data-security classification → reject/degrade, BR-VC-8
+        must-understand override; 41 tests via new `cem-elements:test:unit`, wired into `verify` +
+        CI). Remaining before active: wire to the contract ingest paths (snapshot / edge-render-state
+        read-back — today version-stamped write-only) + thread the run-mode source, then author the
+        AC-P-V-6 fixture/test.
   - [x] FF-5 Removal gate: zero in-repo consumers of a deprecated form + external window.
         Landed: registry `tools/fitness/deprecated-forms.json`, shared `tools/fitness/lib.mjs`,
         scanner `tools/scripts/ff-deprecated-form-scan.mjs`, Nx target

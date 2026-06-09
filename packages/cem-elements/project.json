@@ -35,6 +35,22 @@
             ],
             "outputs": []
         },
+        "test:unit": {
+            "cache": true,
+            "executor": "nx:run-commands",
+            "options": {
+                "command": "yarn vitest --config packages/cem-elements/vitest.unit.config.mts --run",
+                "cwd": "{workspaceRoot}"
+            },
+            "inputs": [
+                "{projectRoot}/src/**/*.ts",
+                "{projectRoot}/vitest.unit.config.mts",
+                "{projectRoot}/package.json",
+                "{workspaceRoot}/package.json",
+                "{workspaceRoot}/yarn.lock"
+            ],
+            "outputs": []
+        },
         "verify-substrate": {
             "cache": true,
             "executor": "nx:run-commands",
@@ -58,6 +74,7 @@
                 { "projects": ["cem_ml_cli"], "target": "validate-fixtures" },
                 { "projects": ["cem_ml_cli"], "target": "e2e" },
                 "verify-substrate",
+                "test:unit",
                 "test"
             ],
             "options": {

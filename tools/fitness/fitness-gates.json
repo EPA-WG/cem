@@ -35,7 +35,7 @@
             "status": "tracked",
             "guards": ["AC-P-V-6"],
             "backing": ["cem-elements:verify"],
-            "tracks": "AC-P-6.7 unknown-namespace disposition machinery not built — no reject/allow/ignore selection and no run-mode (app/build-SSR/dev) default exists in cem_ml or cem-elements ([B]-tier capability). Building that capability is the prerequisite before an AC-P-V-6 fixture can assert determinism."
+            "tracks": "AC-P-6.7/BR-VC-9 disposition: the pure decision-core IS built and unit-tested (packages/cem-elements/src/lib/disposition.ts — RunMode app/build-SSR/dev × per-contract presentation/data-security classification → reject/degrade, BR-VC-8 must-understand override; run via cem-elements:test:unit). Still required before flipping active: wire it to the contract ingest paths (snapshot / edge-render-state read-back — currently version-stamped write-only) + thread the run-mode source, then author the AC-P-V-6 fixture/test that drives a real unknown-optional feature through it."
         },
         {
             "id": "FF-5",

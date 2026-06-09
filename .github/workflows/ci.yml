@@ -65,4 +65,4 @@ jobs:
           main-branch-name: main
 
       - name: Run affected targets
-        run: yarn nx affected -t lint test build typecheck e2e-ci
+        run: yarn nx affected -t lint test test:unit build typecheck e2e-ci
