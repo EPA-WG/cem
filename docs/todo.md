@@ -44,13 +44,17 @@ for non-SemVer standards such as XSLT (OQ-10).
         Evidence: `disposition.spec.ts` + `projection.disposition.spec.ts` (56 unit tests) +
         the `SsrHydrationRejectsUnsupportedSnapshotVersion` Storybook story (61 total). The
         parser-side AC-P-V-6 is split out below.
-  - [ ] AC-P-V-6 (parser) unresolved-namespace disposition — **tracked** (cem_ml). The literal
-        AC-P-V-6 verifier: a `cem_ml` region whose namespace resolves to no metadata, no schema, and
-        no rule yields reject/allow/ignore strictly per the effective scope policy + run mode
-        (AC-P-6.7's parser subject), with the documented default when unset. FF-4 covers the BR-VC-9
-        contract disposition AC-P-6.7 references as the default selector; this parser verifier is the
-        remaining half. Needs scope-policy disposition + run-mode threading in the cem_ml parser
-        (namespace.rs/schema machine), then an AC-P-V-6 fixture + integration test.
+  - [~] AC-P-V-6 (parser) unresolved-namespace disposition — **tracked; decision-core landed**
+        (cem_ml). The literal AC-P-V-6 verifier: a `cem_ml` region whose namespace resolves to no
+        metadata, no schema, and no rule yields reject/allow/ignore strictly per the effective scope
+        policy + run mode (AC-P-6.7's parser subject), with the documented default when unset. FF-4
+        covers the BR-VC-9 contract disposition AC-P-6.7 references as the default selector; this
+        parser verifier is the remaining half. **Done:** the pure decision-core
+        `packages/cem_ml/src/schema/disposition.rs` (RunMode app/build-SSR/dev × NamespaceClass →
+        reject/allow/ignore, scope-policy override wins; 7 unit tests, clippy-clean). **Remaining:**
+        detect an unresolved-namespace region + thread the run mode through the schema machine
+        (`machine.rs`/`namespace.rs`), apply the outcome (reject→Error, allow→accept-foreign,
+        ignore→drop+report), then an AC-P-V-6 fixture + integration test.
   - [x] FF-5 Removal gate: zero in-repo consumers of a deprecated form + external window.
         Landed: registry `tools/fitness/deprecated-forms.json`, shared `tools/fitness/lib.mjs`,
         scanner `tools/scripts/ff-deprecated-form-scan.mjs`, Nx target

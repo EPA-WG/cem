@@ -4,6 +4,7 @@
 //! Tier A vocab + machine live in submodules.
 
 pub mod compiler;
+pub mod disposition;
 pub mod ir;
 pub mod machine;
 pub mod namespace;
