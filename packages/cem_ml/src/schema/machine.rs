@@ -13,6 +13,7 @@
 use crate::diagnostics::{Diagnostic, Severity};
 use crate::events::{EventNormalizer, HandoffRecord, NormalizedEvent, ScalarValue};
 use crate::handoff::{is_supported_content_type, HandoffStack};
+use crate::schema::disposition::{self, Disposition, RunMode};
 use crate::schema::namespace::NsContext;
 use crate::schema::scoping::{
     inline_cache_identity, InlineSchemaDeclaration, SchemaScopeContext, SchemaSource,
@@ -68,6 +69,9 @@ pub struct CemSchemaMachine<E: EventNormalizer> {
     pending_states: Vec<PendingState>,
     /// Tracks the annotation currently being assembled on the open frame.
     pending_annotation: Option<PendingAnnotation>,
+    /// Effective run mode selecting the AC-P-6.7 unknown-namespace disposition
+    /// default. Defaults to `Application`; a host sets it via [`with_run_mode`].
+    run_mode: RunMode,
     finished: bool,
 }
 
@@ -150,8 +154,17 @@ impl<E: EventNormalizer> CemSchemaMachine<E> {
             pending_attr: None,
             pending_states: Vec::new(),
             pending_annotation: None,
+            run_mode: RunMode::Application,
             finished: false,
         }
+    }
+
+    /// Set the effective run mode for the AC-P-6.7 unknown-namespace disposition
+    /// (default [`RunMode::Application`]). Build/SSR pipelines pass
+    /// [`RunMode::BuildSsr`], dev tooling [`RunMode::Development`].
+    pub fn with_run_mode(mut self, run_mode: RunMode) -> Self {
+        self.run_mode = run_mode;
+        self
     }
 
     /// Returns the active `NsContext` (the top of the scope chain).
@@ -363,6 +376,13 @@ impl<E: EventNormalizer> CemSchemaMachine<E> {
             self.pending_directive_body.clear();
             self.pending_directive_open = None;
         } else {
+            // AC-P-6.7 / AC-P-V-6: before popping this scope's namespace
+            // context, check whether the element's resolved namespace is an
+            // unresolved-namespace region (resolves to a URI that is not a known
+            // Tier A namespace and is not covered by an active schema source) and
+            // apply the run-mode disposition. Done at close so the element's own
+            // `xmlns` declarations are already in its context.
+            self.apply_unresolved_namespace_disposition(&frame);
             // Commit any pending `cem:schema` element before popping
             // this scope. The pending element's effects apply to the
             // surrounding scope (declaration / src / select switches);
@@ -387,6 +407,51 @@ impl<E: EventNormalizer> CemSchemaMachine<E> {
         }
         let _ = frame;
         self.pending_annotation = None;
+    }
+
+    /// AC-P-6.7 / AC-P-V-6: when a closing element's namespace resolves to a URI
+    /// that is not a known Tier A namespace and is not covered by an active
+    /// schema source, select the run-mode disposition and surface it. `reject`
+    /// is an Error; `allow` (unvalidated foreign content) and `ignore` (drop with
+    /// a report event) are Info report events. The frame is not removed from the
+    /// tree here — Tier A realizes the decision as a diagnostic; deeper
+    /// drop/foreign-DOM handling is future work.
+    fn apply_unresolved_namespace_disposition(&mut self, frame: &SchemaFrame) {
+        let Some(name) = frame.expected_close.as_deref() else {
+            return;
+        };
+        if name.is_empty() || name.starts_with('@') || name == "cem:schema" {
+            return;
+        }
+        let namespace_uri = self.current_ns_context().resolve(name).namespace_uri;
+        let has_active_schema_source =
+            !matches!(self.schema_scopes.current().active, SchemaSource::Default);
+        if !disposition::is_unresolved_namespace(namespace_uri.as_deref(), has_active_schema_source) {
+            return;
+        }
+        let uri = namespace_uri.unwrap_or_default();
+        let decision = disposition::resolve_disposition(self.run_mode, None, None);
+        let (code, severity) = match decision.disposition {
+            Disposition::Reject => ("cem.schema.unresolved_namespace", Severity::Error),
+            Disposition::Allow => ("cem.schema.unresolved_namespace_allowed", Severity::Info),
+            Disposition::Ignore => ("cem.schema.unresolved_namespace_ignored", Severity::Info),
+        };
+        self.diagnostics.push(Diagnostic {
+            uri: None,
+            line: None,
+            column: None,
+            byte_offset: Some(frame.source_span.start),
+            code: code.to_owned(),
+            severity,
+            message: format!(
+                "element `{name}` is in unresolved namespace `{uri}` (no metadata, schema, or rule); \
+                 {mode:?} run disposition: {disp:?}",
+                mode = decision.mode,
+                disp = decision.disposition
+            ),
+            node: None,
+            source_map: Some(frame.source_map_stack.clone()),
+        });
     }
 
     fn on_mode_switch(&mut self, content_type: String, mut handoff: HandoffRecord) {

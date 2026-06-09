@@ -40,7 +40,7 @@
                 "packages/cem-elements/src/lib/disposition.spec.ts",
                 "packages/cem-elements/src/lib/projection.disposition.spec.ts"
             ],
-            "$note": "Scoped to the BR-VC-9 / AC-P-6.7 run-mode disposition over unknown OPTIONAL features per governed contract (RunMode app/build-SSR/dev × presentation/data-security class → reject/degrade, BR-VC-8 must-understand override). Decision-core packages/cem-elements/src/lib/disposition.ts; applied at both data/security contract ingest seams — snapshot hydration (adoptServerRenderedInstance) + edge-render-state (readEdgeRenderStateContents) — with a configurable runMode (default application). The PARSER-side AC-P-V-6 unresolved-namespace disposition (a cem_ml region whose namespace resolves to no metadata/schema/rule) is separate cem_ml work tracked in docs/todo.md, not asserted by this gate."
+            "$note": "Scoped to the BR-VC-9 / AC-P-6.7 run-mode disposition over unknown OPTIONAL features per governed contract (RunMode app/build-SSR/dev × presentation/data-security class → reject/degrade, BR-VC-8 must-understand override). Decision-core packages/cem-elements/src/lib/disposition.ts; applied at both data/security contract ingest seams — snapshot hydration (adoptServerRenderedInstance) + edge-render-state (readEdgeRenderStateContents) — with a configurable runMode (default application). The PARSER-side AC-P-V-6 unresolved-namespace disposition (a cem_ml region whose namespace resolves to no metadata/schema/rule) is separate cem_ml work — now landed + verified by cem_ml tests/namespace_disposition_fixtures.rs (run under cem_ml:test), not asserted by this gate."
         },
         {
             "id": "FF-5",

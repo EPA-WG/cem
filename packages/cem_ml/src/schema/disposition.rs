@@ -22,6 +22,29 @@
 //! fitness function FF-4; this side is the literal AC-P-V-6 verifier (tracked
 //! in `docs/todo.md`).
 
+use crate::schema::ir::CEM_CORE_NAMESPACE;
+
+/// Namespaces the Tier A engine resolves natively — they need no host metadata,
+/// schema, or scope-policy rule, so an element in one is never an
+/// unresolved-namespace region.
+pub const KNOWN_NAMESPACES: &[&str] = &[
+    CEM_CORE_NAMESPACE,
+    "http://www.w3.org/1999/xhtml",
+    "http://www.w3.org/2000/svg",
+];
+
+/// Whether an element is an **unresolved-namespace region** per AC-P-6.7: its
+/// prefix resolves to a URI (an *unbound* prefix is the separate
+/// `cem.lint.unbound_prefix` case, not this), that URI is not a known Tier A
+/// namespace, and no active schema source/rule covers the region. When true the
+/// caller selects a [`Disposition`] via [`resolve_disposition`].
+pub fn is_unresolved_namespace(namespace_uri: Option<&str>, has_active_schema_source: bool) -> bool {
+    match namespace_uri {
+        None => false,
+        Some(uri) => !has_active_schema_source && !KNOWN_NAMESPACES.contains(&uri),
+    }
+}
+
 /// Run mode selecting the default disposition for an unresolved-namespace region.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum RunMode {
@@ -171,6 +194,26 @@ mod tests {
         let rejected = resolve_disposition(RunMode::BuildSsr, Some(NamespaceClass::Presentation), None);
         assert_eq!(rejected.disposition, Disposition::Reject);
         assert_eq!(rejected.source, DispositionSource::RunModeDefault);
+    }
+
+    #[test]
+    fn known_namespaces_are_not_unresolved() {
+        for ns in KNOWN_NAMESPACES {
+            assert!(!is_unresolved_namespace(Some(ns), false));
+        }
+    }
+
+    #[test]
+    fn unknown_namespace_is_unresolved_only_without_an_active_schema_source() {
+        assert!(is_unresolved_namespace(Some("urn:custom:widgets"), false));
+        // An active schema source/rule covers the region → resolved.
+        assert!(!is_unresolved_namespace(Some("urn:custom:widgets"), true));
+    }
+
+    #[test]
+    fn unbound_prefix_is_not_an_unresolved_namespace() {
+        // No URI = unbound prefix = the separate cem.lint.unbound_prefix case.
+        assert!(!is_unresolved_namespace(None, false));
     }
 
     #[test]
