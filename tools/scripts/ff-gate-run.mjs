@@ -42,7 +42,10 @@ async function loadProjectTargets() {
 }
 
 function splitTargetRef(ref) {
-    const idx = ref.lastIndexOf(':');
+    // Split on the FIRST colon: Nx project names never contain ':' (scopes use
+    // '/'), while target names can (e.g. `test:unit`, `build:css`,
+    // `verify:phase13`). lastIndexOf would mis-assign a colon-bearing target.
+    const idx = ref.indexOf(':');
     return { project: ref.slice(0, idx), target: ref.slice(idx + 1) };
 }
 

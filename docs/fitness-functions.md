@@ -167,17 +167,30 @@ Current state (matches `todo.md` OQ-2):
   `packages/cem_ml/tests/version_negotiation_fixtures.rs`), FF-3 isolation
   (`cem_ml_cli:e2e`/`validate-fixtures`; evidence `schema-scoping/sibling-isolation.cem`),
   FF-8 source-map continuity (`cem_ml_cli:validate-fixtures`; evidence
-  `namespace-rebinding/default-html-svg-html.cem`), plus FF-5 and FF-6. CI invokes
-  `cem_ml_cli:validate-fixtures` + `cem_ml_cli:e2e` in the fitness-gate step and runs `cem_ml:test`
-  via `nx affected -t test`, so FF-1/2/3/8 are genuinely enforced.
+  `namespace-rebinding/default-html-svg-html.cem`), FF-4 mode-disposition (`cem-elements:test:unit`,
+  `cem-elements:test`; evidence `disposition.ts` + `disposition.spec.ts` +
+  `projection.disposition.spec.ts`), plus FF-5 and FF-6. CI invokes `cem_ml_cli:validate-fixtures` +
+  `cem_ml_cli:e2e` in the fitness-gate step and runs `cem_ml:test` / `cem-elements:test{,:unit}` via
+  `nx affected -t test test:unit`, so FF-1/2/3/4/8 are genuinely enforced.
+  - **FF-4 scope (BR-VC-9 / AC-P-6.7):** the run-mode disposition over unknown OPTIONAL features per
+    governed contract — `RunMode` (application / build-SSR / development) × per-contract class
+    (presentation: templates/tokens; data/security: snapshot-datadom / edge-render-state / privacy)
+    → reject / degrade, with the BR-VC-8 must-understand override. Decision-core
+    `packages/cem-elements/src/lib/disposition.ts`; applied at both data/security ingest seams —
+    snapshot hydration (`adoptServerRenderedInstance`) and edge-render-state
+    (`readEdgeRenderStateContents`) — via a configurable `runMode` (default `application`). It does
+    **not** cover the parser-side AC-P-V-6 verification (below).
 - **tracked (deferred — the underlying [B]-tier capability is not built yet, not just the fixture):**
-  FF-4 mode-disposition (AC-P-V-6) needs the AC-P-6.7 unknown-namespace disposition machinery
-  (reject/allow/ignore + run-mode default) — absent from `cem_ml` and `cem-elements`; FF-7 XSLT
-  capability-gating (AC-P-V-4/V-7) needs AC-P-6.8 XSLT region dispatch — the engine has no `xsl:`
-  handling and XSLT is absent from the Layer-5 handoff content types. Flipping one to `active` =
-  building its capability, then authoring the AC-P-V fixture(s) + integration test and pointing
-  `evidence` at them — the FFDD acceptance test for that AC-P-V work, exactly as FF-2 here (and as
+  FF-7 XSLT capability-gating (AC-P-V-4/V-7) needs AC-P-6.8 XSLT region dispatch — the engine has no
+  `xsl:` handling and XSLT is absent from the Layer-5 handoff content types. Flipping it to `active` =
+  building the capability, then authoring the AC-P-V fixture(s) + integration test and pointing
+  `evidence` at them — the FFDD acceptance test for that work, exactly as FF-2/FF-4 here (and as
   FF-6's `pending-version`→`required` flip drove the SemVer-axis task).
+- **separate follow-up (not an FF gate):** the parser-side **AC-P-V-6** unresolved-namespace
+  disposition — a `cem_ml` region whose namespace resolves to no metadata/schema/rule yielding
+  reject/allow/ignore per scope policy + run mode (AC-P-6.7's parser subject). FF-4 covers the
+  BR-VC-9 contract disposition that AC-P-6.7 references as the default selector; this parser verifier
+  is tracked in `todo.md` as cem_ml work.
 
 ## Shared infrastructure & sequencing
 
