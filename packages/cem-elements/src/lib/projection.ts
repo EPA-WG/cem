@@ -19,6 +19,12 @@
  * this same render-plan materialization path.
  */
 
+import {
+    ingestContractVersion,
+    type DispositionDecision,
+    type RunMode,
+} from './disposition.js';
+
 const XHTML_NAMESPACE = 'http://www.w3.org/1999/xhtml';
 const ATTRIBUTE_DECLARATION_TAG = 'attribute';
 const SLICE_DECLARATION_TAG = 'slice';
@@ -200,6 +206,12 @@ export interface EdgeRenderStateContents {
 
 export type EdgeRenderStateContentsReadResult =
     | { ok: true; contents: EdgeRenderStateContents }
+    | {
+          ok: false;
+          reason: 'schema-version-unsupported';
+          record: EdgeRenderStateRecord;
+          decision?: DispositionDecision;
+      }
     | {
           ok: false;
           reason: 'missing-content';
@@ -472,8 +484,25 @@ export function readEdgeContent<T = unknown>(
 
 export function readEdgeRenderStateContents(
     store: EdgeRenderStateStore,
-    record: EdgeRenderStateRecord
+    record: EdgeRenderStateRecord,
+    mode: RunMode = 'application'
 ): EdgeRenderStateContentsReadResult {
+    // BR-VC-9: the edge render-state record is a data/security contract. If the
+    // persisted record declares a schema version this build does not fully
+    // understand (higher MINOR = unknown optional features, or a MAJOR mismatch
+    // = must-understand), apply the run-mode disposition before trusting it. An
+    // application/build-SSR run rejects rather than honoring/dropping unknown
+    // fields from a record written by a newer engine.
+    const ingest = ingestContractVersion(
+        record.schemaVersion,
+        EDGE_RENDER_STATE_VERSION,
+        mode,
+        'edge-render-state'
+    );
+    if (!ingest.accept) {
+        return { ok: false, reason: 'schema-version-unsupported', record, decision: ingest.decision };
+    }
+
     const renderPlan = readEdgeContent<RenderPlan>(store, record.currentRenderPlan);
     if (!renderPlan.ok) {
         return edgeContentFailureToRecordFailure(record, 'currentRenderPlan', renderPlan);
