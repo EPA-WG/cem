@@ -72,17 +72,18 @@ for non-SemVer standards such as XSLT (OQ-10).
         cem-elements 0.0.14, cem_ml/cem_ql/cem_ml_cli 0.1.0, data-snapshot/token-outputs/
         patch-transport/edge-render-state 1.0.0); **zero `pending-version` gaps remain — FF-6 fully
         closed.** (scope: [`fitness-functions.md`](fitness-functions.md))
-  - [~] FF-7 XSLT capability-gating: unsupported XSLT version rejects; region isolated +
-        version-pinned across CEM-ML MAJOR. (`cem-elements:verify`; AC-P-V-4) — **tracked;
-        decision-core landed.** `packages/cem_ml/src/schema/xslt.rs`: `XSL_NAMESPACE`,
-        `parse_xslt_version`, version-pinning `resolve_xslt_dispatch` against a CEM-owned `ADAPTER_LINE`
-        that never references the CEM-ML core version (so a core MAJOR bump leaves the pinned identity
-        unchanged — AC-P-V-4), and `xslt_region_outcome`: explicit opt-in → version-pinned `Dispatch`,
-        no opt-in → the AC-P-V-6 unknown-namespace default (AC-P-V-7, building on the parser
-        disposition above); 9 unit tests, clippy-clean. **Remaining:** wire the `xsl:` namespace into
-        the schema machine to open an isolated Layer-5 handoff on opt-in (no CEM-ML interpretation) +
-        thread the opt-in source (host metadata / scope-policy rule), then AC-P-V-4/V-7 fixtures +
-        integration tests.
+  - [x] FF-7 XSLT capability-gating: unsupported XSLT version rejects; region isolated +
+        version-pinned across CEM-ML MAJOR. (`cem_ml:test`; AC-P-V-4/V-7) — **active.** Scoped to
+        AC-P-6.8 XSLT region **dispatch** (the gate's guards). Decision-core
+        `packages/cem_ml/src/schema/xslt.rs` (`XSL_NAMESPACE`, `parse_xslt_version`, version-pinning
+        `resolve_xslt_dispatch` against a CEM-owned `ADAPTER_LINE` independent of the CEM-ML core
+        version → AC-P-V-4; `xslt_region_outcome`). Machine wiring (`with_xslt_dispatch` opt-in,
+        `emit_xslt_dispatch`, region-isolation guard): an opted-in `xsl:` region opens an isolated,
+        version-pinned handoff (descendants not interpreted), missing/malformed `@version` rejects,
+        and without opt-in the region falls to the AC-P-V-6 unknown-namespace default (AC-P-V-7).
+        Verified by `tests/xslt_dispatch_fixtures.rs` + `examples/cem-ml/xslt-dispatch/*.cem`. XSLT
+        **execution** capability-gating (AC-P-6.9 — running a transform; rejecting an unimplemented
+        executable version) stays a deferred Tier-C wishlist, not asserted by this gate.
   - [x] FF-8 Source-map continuity across dispatch boundaries.
         (`cem_ml_cli:validate-fixtures`; AC-P-V-2) — **active** (evidence
         `namespace-rebinding/default-html-svg-html.cem`).
@@ -161,23 +162,21 @@ into [`cem-ml-ac.md`](cem-ml-ac.md); the remaining items are implementation, wit
 
 - [x] Fold the AC-P-6 promotion into [`cem-ml-ac.md`](cem-ml-ac.md) — AC-P-6.1–6.9, AC-P-V-2..V-8,
       the §16.4 G-NVDL-CORE/FULL split, and the §16.1 graph + tier/gate-list updates.
-- [~] Implement the eight fitness functions FF-1..FF-8 (OQ-2) as CI-blocking gates. Done: net-new
-      scanners FF-5 (removal-scan) + FF-6 (SemVer-presence); and the **FF-gate map** framework
+- [x] Implement the eight fitness functions FF-1..FF-8 (OQ-2) as CI-blocking gates. **All 8 active**
+      (`@epa-wg/cem:fitness-gate-map`: 8 active / 0 tracked / 0 errors). Net-new scanners FF-5
+      (removal-scan) + FF-6 (SemVer-presence); the **FF-gate map** framework
       (`tools/fitness/fitness-gates.json` + `tools/scripts/ff-gate-run.mjs` + Nx
-      `@epa-wg/cem:fitness-gate-map`, CI-wired) that names all 8 FFs, verifies the FF→backing→CI
-      mapping, and enforces the **active** ones (7/8): FF-1 (backward-render), FF-2 (negotiation
-      determinism), FF-3 (isolation), FF-4 (mode-disposition), FF-8 (source-map continuity) + the
-      FF-5/FF-6 scanners — CI invokes `cem_ml_cli:validate-fixtures` + `cem_ml_cli:e2e` and runs
-      `cem_ml:test` + `cem-elements:test{,:unit}` via `nx affected -t test test:unit`. FF-2 added the
-      AC-P-V-5 corpus (`examples/cem-ml/version-negotiation/*.cem` + `version_negotiation_fixtures.rs`).
-      FF-4 (scoped to the BR-VC-9 / AC-P-6.7 run-mode disposition over contract optional features per
-      the framing reconciliation) added `cem-elements/src/lib/disposition.ts` applied at both
-      data/security ingest seams (snapshot hydration + edge-render-state), 56 unit tests + a hydration
-      reject Storybook story. **Tracked (deferred — capability, not just fixtures):** FF-7 needs
-      AC-P-6.8 XSLT region dispatch (no `xsl:` handling; XSLT absent from the Layer-5 handoff content
-      types) — a [B]-tier capability build that precedes its AC-P-V-4/V-7 fixtures. Also tracked
-      separately: the parser-side **AC-P-V-6** unresolved-namespace disposition (cem_ml), the literal
-      verifier FF-4's contract disposition does not cover (see the FF-4 catalog entry above).
+      `@epa-wg/cem:fitness-gate-map`, CI-wired) names all 8 FFs and verifies the FF→backing→CI
+      mapping. CI invokes `cem_ml_cli:validate-fixtures` + `cem_ml_cli:e2e` and runs `cem_ml:test` +
+      `cem-elements:test{,:unit}` via `nx affected -t test test:unit`. Per-FF acceptance landed
+      slice-by-slice: FF-2 AC-P-V-5 version-negotiation corpus; FF-4 the BR-VC-9 / AC-P-6.7 run-mode
+      disposition over contract optional features (`cem-elements/src/lib/disposition.ts`, both
+      data/security ingest seams, 56 unit tests + a hydration-reject story); FF-7 AC-P-6.8 XSLT region
+      **dispatch** (`cem_ml/src/schema/xslt.rs` + machine wiring; isolated version-pinned handoff on
+      opt-in, AC-P-V-6 default without — AC-P-V-4/V-7). **Deferred (Tier-C wishlist, not gated):**
+      AC-P-6.9 XSLT *execution* capability-gating. **Also landed:** the parser-side **AC-P-V-6**
+      unresolved-namespace disposition (cem_ml), the literal verifier FF-4's contract disposition does
+      not cover (see the FF-4 catalog entry above).
 - [x] Add a SemVer axis to the two un-versioned governed contracts. Landed: `SNAPSHOT_SCHEMA_VERSION`
       = 1.0.0 on `DataIslandSnapshot` (`cem-elements.ts` — optional/additive expand-phase field per
       BR-EV-5, stamped at `createSnapshot` and carried through edge export) and `TOKENS_SCHEMA_VERSION`

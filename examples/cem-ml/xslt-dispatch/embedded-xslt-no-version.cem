@@ -1,0 +1,14 @@
+@doc cem-ml 1
+@ns cem = "https://cem.dev/ns/core/1"
+@ns html = "http://www.w3.org/1999/xhtml"
+@ns xsl = "http://www.w3.org/1999/XSL/Transform"
+@default html
+
+// AC-P-6.8 — an opted-in XSLT region whose `xsl:stylesheet` declares no
+// `@version`. Dispatch cannot version-pin the handoff, so it is a deterministic
+// reject (`cem.xslt.version_invalid`) rather than a silent default.
+{main @cem:screen="xslt-dispatch" |
+  {xsl:stylesheet |
+    {xsl:template @match="/" | output}
+  }
+}

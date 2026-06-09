@@ -169,9 +169,11 @@ Current state (matches `todo.md` OQ-2):
   FF-8 source-map continuity (`cem_ml_cli:validate-fixtures`; evidence
   `namespace-rebinding/default-html-svg-html.cem`), FF-4 mode-disposition (`cem-elements:test:unit`,
   `cem-elements:test`; evidence `disposition.ts` + `disposition.spec.ts` +
-  `projection.disposition.spec.ts`), plus FF-5 and FF-6. CI invokes `cem_ml_cli:validate-fixtures` +
+  `projection.disposition.spec.ts`), FF-7 XSLT dispatch (`cem_ml:test`; evidence
+  `cem_ml/src/schema/xslt.rs` + `xslt_dispatch_fixtures.rs` + `examples/cem-ml/xslt-dispatch/`),
+  plus FF-5 and FF-6 — **all 8 active**. CI invokes `cem_ml_cli:validate-fixtures` +
   `cem_ml_cli:e2e` in the fitness-gate step and runs `cem_ml:test` / `cem-elements:test{,:unit}` via
-  `nx affected -t test test:unit`, so FF-1/2/3/4/8 are genuinely enforced.
+  `nx affected -t test test:unit`, so every FF is genuinely enforced.
   - **FF-4 scope (BR-VC-9 / AC-P-6.7):** the run-mode disposition over unknown OPTIONAL features per
     governed contract — `RunMode` (application / build-SSR / development) × per-contract class
     (presentation: templates/tokens; data/security: snapshot-datadom / edge-render-state / privacy)
@@ -180,12 +182,14 @@ Current state (matches `todo.md` OQ-2):
     snapshot hydration (`adoptServerRenderedInstance`) and edge-render-state
     (`readEdgeRenderStateContents`) — via a configurable `runMode` (default `application`). It does
     **not** cover the parser-side AC-P-V-6 verification (below).
-- **tracked (deferred — the underlying [B]-tier capability is not built yet, not just the fixture):**
-  FF-7 XSLT capability-gating (AC-P-V-4/V-7) needs AC-P-6.8 XSLT region dispatch — the engine has no
-  `xsl:` handling and XSLT is absent from the Layer-5 handoff content types. Flipping it to `active` =
-  building the capability, then authoring the AC-P-V fixture(s) + integration test and pointing
-  `evidence` at them — the FFDD acceptance test for that work, exactly as FF-2/FF-4 here (and as
-  FF-6's `pending-version`→`required` flip drove the SemVer-axis task).
+  - **FF-7 scope (AC-P-6.8 dispatch):** an opted-in `xsl:` region opens an isolated, version-pinned
+    handoff (version from `xsl:stylesheet/@version` against the CEM adapter line, independent of the
+    CEM-ML core version → AC-P-V-4; descendants not interpreted), missing/malformed `@version`
+    rejects, and without opt-in the region follows the AC-P-V-6 unknown-namespace default (AC-P-V-7).
+    Decision-core `cem_ml/src/schema/xslt.rs` + machine wiring; verified by
+    `cem_ml/tests/xslt_dispatch_fixtures.rs` (`cem_ml:test`). XSLT **execution** capability-gating
+    (AC-P-6.9) is a deferred Tier-C wishlist, not asserted here.
+- **all 8 FFs active** (`fitness-gate-map`: 8 active / 0 tracked / 0 errors).
 - **separate follow-up (not an FF gate):** the parser-side **AC-P-V-6** unresolved-namespace
   disposition — a `cem_ml` region whose namespace resolves to no metadata/schema/rule yielding
   reject/allow/ignore per scope policy + run mode (AC-P-6.7's parser subject). FF-4 covers the

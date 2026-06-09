@@ -15,6 +15,7 @@ use crate::events::{EventNormalizer, HandoffRecord, NormalizedEvent, ScalarValue
 use crate::handoff::{is_supported_content_type, HandoffStack};
 use crate::schema::disposition::{self, Disposition, RunMode};
 use crate::schema::namespace::NsContext;
+use crate::schema::xslt;
 use crate::schema::scoping::{
     inline_cache_identity, InlineSchemaDeclaration, SchemaScopeContext, SchemaSource,
 };
@@ -72,6 +73,16 @@ pub struct CemSchemaMachine<E: EventNormalizer> {
     /// Effective run mode selecting the AC-P-6.7 unknown-namespace disposition
     /// default. Defaults to `Application`; a host sets it via [`with_run_mode`].
     run_mode: RunMode,
+    /// AC-P-6.8 explicit opt-in: when true, an `xsl:`-namespace region is
+    /// dispatched as an isolated, version-pinned XSLT handoff instead of falling
+    /// to the unknown-namespace disposition. Default false (host-provided).
+    xslt_dispatch_opt_in: bool,
+    /// `frames` depth of the open XSLT region root, when inside a dispatched
+    /// `xsl:` region (`None` otherwise). Descendants are isolated: no CEM-ML
+    /// interpretation or unknown-namespace disposition applies to them.
+    xslt_region_open_depth: Option<usize>,
+    /// `xsl:stylesheet/@version` captured on the region root for version-pinning.
+    pending_xslt_version: Option<String>,
     finished: bool,
 }
 
@@ -155,6 +166,9 @@ impl<E: EventNormalizer> CemSchemaMachine<E> {
             pending_states: Vec::new(),
             pending_annotation: None,
             run_mode: RunMode::Application,
+            xslt_dispatch_opt_in: false,
+            xslt_region_open_depth: None,
+            pending_xslt_version: None,
             finished: false,
         }
     }
@@ -164,6 +178,16 @@ impl<E: EventNormalizer> CemSchemaMachine<E> {
     /// [`RunMode::BuildSsr`], dev tooling [`RunMode::Development`].
     pub fn with_run_mode(mut self, run_mode: RunMode) -> Self {
         self.run_mode = run_mode;
+        self
+    }
+
+    /// AC-P-6.8 explicit opt-in for XSLT region dispatch (default off). When on,
+    /// an `xsl:`-namespace region opens an isolated, version-pinned XSLT handoff
+    /// (no CEM-ML interpretation of the subtree) instead of falling to the
+    /// unknown-namespace disposition. This stands in for host-provided namespace
+    /// metadata / a scope-policy rule.
+    pub fn with_xslt_dispatch(mut self, opt_in: bool) -> Self {
+        self.xslt_dispatch_opt_in = opt_in;
         self
     }
 
@@ -333,6 +357,18 @@ impl<E: EventNormalizer> CemSchemaMachine<E> {
             };
             self.ns_contexts.push(child);
             self.schema_scopes.push(scope_id);
+            // AC-P-6.8: on explicit opt-in, an element resolving to the XSLT
+            // namespace opens an isolated, version-pinned dispatch region. Opened
+            // here (before any content) so descendants are isolated; the pinned
+            // version is captured from this root's `@version` and the dispatch is
+            // emitted at the region root's close.
+            if self.xslt_dispatch_opt_in && self.xslt_region_open_depth.is_none() {
+                let uri = self.current_ns_context().resolve(name).namespace_uri;
+                if uri.as_deref().map(xslt::is_xslt_namespace).unwrap_or(false) {
+                    self.xslt_region_open_depth = Some(self.frames.len());
+                    self.pending_xslt_version = None;
+                }
+            }
         }
     }
 
@@ -351,6 +387,10 @@ impl<E: EventNormalizer> CemSchemaMachine<E> {
             });
             return;
         }
+        // AC-P-6.8 XSLT-region bookkeeping, computed before the frame is popped
+        // so the depth comparison matches `on_open`.
+        let is_xslt_region_root = self.xslt_region_open_depth == Some(self.frames.len());
+        let inside_xslt_region = self.xslt_region_open_depth.is_some();
         let frame = self.frames.pop().expect("frames non-empty");
         let pending_schema_element = self.pending_schema_elements.pop().unwrap_or(None);
         let _pending_host_switch = self.pending_host_switches.pop();
@@ -376,13 +416,18 @@ impl<E: EventNormalizer> CemSchemaMachine<E> {
             self.pending_directive_body.clear();
             self.pending_directive_open = None;
         } else {
-            // AC-P-6.7 / AC-P-V-6: before popping this scope's namespace
-            // context, check whether the element's resolved namespace is an
-            // unresolved-namespace region (resolves to a URI that is not a known
-            // Tier A namespace and is not covered by an active schema source) and
-            // apply the run-mode disposition. Done at close so the element's own
-            // `xmlns` declarations are already in its context.
-            self.apply_unresolved_namespace_disposition(&frame);
+            // AC-P-6.8 / AC-P-V-4 / AC-P-V-7: a dispatched XSLT region root emits
+            // the version-pinned dispatch; its descendants are isolated (no
+            // CEM-ML interpretation or disposition). Otherwise apply the AC-P-6.7
+            // unknown-namespace disposition (AC-P-V-6) — done at close so the
+            // element's own `xmlns` declarations are already in its context.
+            if is_xslt_region_root {
+                self.emit_xslt_dispatch(&frame);
+                self.xslt_region_open_depth = None;
+                self.pending_xslt_version = None;
+            } else if !inside_xslt_region {
+                self.apply_unresolved_namespace_disposition(&frame);
+            }
             // Commit any pending `cem:schema` element before popping
             // this scope. The pending element's effects apply to the
             // surrounding scope (declaration / src / select switches);
@@ -452,6 +497,50 @@ impl<E: EventNormalizer> CemSchemaMachine<E> {
             node: None,
             source_map: Some(frame.source_map_stack.clone()),
         });
+    }
+
+    /// AC-P-6.8 / AC-P-V-4: emit the version-pinned XSLT dispatch for a region
+    /// root. The pinned version comes from the root's `xsl:stylesheet/@version`
+    /// resolved against the CEM XSLT adapter line — never the namespace URI or
+    /// the CEM-ML core version — so a core MAJOR bump leaves it unchanged.
+    /// A missing/malformed `@version` is a deterministic reject. Tier A realizes
+    /// the dispatch as a diagnostic; the region's subtree is isolated (no CEM-ML
+    /// interpretation) via the region-depth guard, and execution is gated
+    /// separately (AC-P-6.9).
+    fn emit_xslt_dispatch(&mut self, frame: &SchemaFrame) {
+        let byte_offset = Some(frame.source_span.start);
+        let source_map = Some(frame.source_map_stack.clone());
+        match xslt::resolve_xslt_dispatch(self.pending_xslt_version.as_deref()) {
+            Ok(dispatch) => self.diagnostics.push(Diagnostic {
+                uri: None,
+                line: None,
+                column: None,
+                byte_offset,
+                code: "cem.handoff.xslt_dispatched".to_owned(),
+                severity: Severity::Info,
+                message: format!(
+                    "xsl: region dispatched as an isolated handoff, version-pinned to XSLT {}.{} \
+                     (adapter line {}); not interpreted as CEM-ML",
+                    dispatch.requested.major, dispatch.requested.minor, dispatch.adapter_line
+                ),
+                node: None,
+                source_map,
+            }),
+            Err(error) => self.diagnostics.push(Diagnostic {
+                uri: None,
+                line: None,
+                column: None,
+                byte_offset,
+                code: "cem.xslt.version_invalid".to_owned(),
+                severity: Severity::Error,
+                message: format!(
+                    "xsl: region dispatched but its `xsl:stylesheet/@version` is {error:?}; \
+                     cannot version-pin the XSLT handoff"
+                ),
+                node: None,
+                source_map,
+            }),
+        }
     }
 
     fn on_mode_switch(&mut self, content_type: String, mut handoff: HandoffRecord) {
@@ -540,6 +629,12 @@ impl<E: EventNormalizer> CemSchemaMachine<E> {
     }
 
     fn handle_attribute(&mut self, attr: PendingAttr, value: String, value_range: ByteRange) {
+        // AC-P-6.8 version-pinning: capture `@version` on the XSLT region root
+        // (its frame is the current top). Falls through — `version` is also an
+        // ordinary attribute on the element.
+        if attr.name == "version" && self.xslt_region_open_depth == Some(self.frames.len()) {
+            self.pending_xslt_version = Some(value.clone());
+        }
         // Namespace attribute forms: `xmlns="uri"` rebinds the default
         // binding on the current scope; `xmlns:prefix="uri"` declares a
         // prefix binding. Mirrors XML 1.0 §"Namespaces in XML" and the

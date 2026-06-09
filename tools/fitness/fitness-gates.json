@@ -61,10 +61,15 @@
         {
             "id": "FF-7",
             "title": "XSLT capability-gating: unsupported XSLT version rejects; region isolated + version-pinned",
-            "status": "tracked",
+            "status": "active",
             "guards": ["AC-P-V-4", "AC-P-V-7"],
-            "backing": ["cem-elements:verify"],
-            "tracks": "AC-P-6.8 XSLT region dispatch: decision-core landed (packages/cem_ml/src/schema/xslt.rs — XSL_NAMESPACE, parse_xslt_version, version-pinning resolve_xslt_dispatch against a CEM-owned ADAPTER_LINE independent of the CEM-ML core version (AC-P-V-4), and xslt_region_outcome: explicit opt-in → version-pinned Dispatch, no opt-in → the AC-P-V-6 unknown-namespace default (AC-P-V-7); 9 unit tests). Remaining before active: wire the xsl: namespace into the schema machine to open an isolated Layer-5 handoff on opt-in (no CEM-ML interpretation) + thread the opt-in source (host metadata / scope-policy rule), then AC-P-V-4/V-7 fixtures + integration tests."
+            "backing": ["cem_ml:test"],
+            "evidence": [
+                "packages/cem_ml/src/schema/xslt.rs",
+                "packages/cem_ml/tests/xslt_dispatch_fixtures.rs",
+                "examples/cem-ml/xslt-dispatch/embedded-xslt.cem"
+            ],
+            "$note": "Scoped to AC-P-6.8 XSLT region DISPATCH (the gate's guards AC-P-V-4 + AC-P-V-7): an opted-in xsl: region opens an isolated, version-pinned handoff (version from xsl:stylesheet/@version against the CEM-owned adapter line, independent of the CEM-ML core version → AC-P-V-4; descendants not interpreted as CEM-ML), a missing/malformed @version is a deterministic reject, and without opt-in the region falls to the AC-P-V-6 unknown-namespace default (AC-P-V-7). Decision-core packages/cem_ml/src/schema/xslt.rs + machine wiring (with_xslt_dispatch / emit_xslt_dispatch / region-isolation guard); verified by tests/xslt_dispatch_fixtures.rs (run under cem_ml:test). XSLT EXECUTION capability-gating (AC-P-6.9 — running a transform; rejecting an unimplemented executable version) is a deferred Tier-C wishlist, not in the release timeline and not asserted by this gate."
         },
         {
             "id": "FF-8",
