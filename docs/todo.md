@@ -348,8 +348,9 @@ Design home: [`cem-element-design.md`](cem-element-design.md). WASM proposal:
       until after component parity. Landed in [`cem-element-design.md` §4.2](cem-element-design.md) and
       [`cem-element-wasm-proposal.md` §10/§11/§13/§14](cem-element-wasm-proposal.md).
 - [x] Scaffold `packages/cem-elements/` (new package). Wire `nx run cem-elements:build/test/lint`.
-- [ ] Implement the `<cem-element>` runtime in execution slices from
-      [`cem-element-design.md` §3–§5](cem-element-design.md):
+- [x] Implement the `<cem-element>` runtime in execution slices from
+      [`cem-element-design.md` §3–§5](cem-element-design.md): slices A, B, C1, C1.5, C2 (C2.1–C2.6),
+      D, E all landed; `cem-elements:verify` green.
   - [x] Runtime slice A: define `<cem-element>`, validate inline declaration shape, reject `src`+inline template
         conflicts, and register produced custom-element tags from `tag`.
   - [x] Runtime slice B: initialize produced instances, create/reuse
@@ -361,7 +362,7 @@ Design home: [`cem-element-design.md`](cem-element-design.md). WASM proposal:
         `DataIslandSnapshot`-based input, and materializes the render plan back into light DOM.
   - [x] Runtime slice C1.5: add package-private canonical CEM-ML subset lowering for `{name @attr=value | ...}`
         templates so the browser runtime can exercise the same render-plan path before the final WASM API exists.
-  - [ ] Runtime slice C2: lower canonical inline CEM-ML declaration templates through the `cem_ml`
+  - [x] Runtime slice C2: lower canonical inline CEM-ML declaration templates through the `cem_ml`
         WASM/runtime-support boundary into the same render-plan shape. Canonical-subset CEM-ML now renders through
         the `cem_ql` WASM boundary (C2.1–C2.3) with functional `/datadom` data-document selection + `??` (C2.4) and
         `cem:if`/`cem:choose` conditionals, `<data>`/`<option>` payloads, and declarative slot projection (C2.5), and
