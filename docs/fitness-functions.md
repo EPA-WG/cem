@@ -162,16 +162,22 @@ Pass/fail (deterministic):
 
 Current state (matches `todo.md` OQ-2):
 - **active:** FF-1 backward-render (`cem_ml_cli:validate-fixtures`, `cem-elements:verify`; evidence
-  `examples/cem-ml/fixture-manifest.json`), FF-3 isolation (`cem_ml_cli:e2e`/`validate-fixtures`;
-  evidence `schema-scoping/sibling-isolation.cem`), FF-8 source-map continuity
-  (`cem_ml_cli:validate-fixtures`; evidence `namespace-rebinding/default-html-svg-html.cem`), plus
-  FF-5 and FF-6. CI now also invokes `cem_ml_cli:validate-fixtures` + `cem_ml_cli:e2e` in the
-  fitness-gate step so FF-1/3/8 are genuinely enforced.
-- **tracked (deferred until their AC-P-V fixtures land):** FF-2 negotiation determinism (AC-P-V-5),
-  FF-4 mode-disposition (AC-P-V-6), FF-7 XSLT capability-gating (AC-P-V-4/V-7). Flipping one to
-  `active` = authoring its AC-P-V fixture(s) and pointing `evidence` at them — the FFDD acceptance
-  test for that AC-P-V work, exactly as FF-6's `pending-version`→`required` flip drove the SemVer-axis
-  task.
+  `examples/cem-ml/fixture-manifest.json`), FF-2 negotiation determinism (`cem_ml_cli:e2e`,
+  `cem_ml:test`; evidence `examples/cem-ml/version-negotiation/core-major-forgiving.cem` +
+  `packages/cem_ml/tests/version_negotiation_fixtures.rs`), FF-3 isolation
+  (`cem_ml_cli:e2e`/`validate-fixtures`; evidence `schema-scoping/sibling-isolation.cem`),
+  FF-8 source-map continuity (`cem_ml_cli:validate-fixtures`; evidence
+  `namespace-rebinding/default-html-svg-html.cem`), plus FF-5 and FF-6. CI invokes
+  `cem_ml_cli:validate-fixtures` + `cem_ml_cli:e2e` in the fitness-gate step and runs `cem_ml:test`
+  via `nx affected -t test`, so FF-1/2/3/8 are genuinely enforced.
+- **tracked (deferred — the underlying [B]-tier capability is not built yet, not just the fixture):**
+  FF-4 mode-disposition (AC-P-V-6) needs the AC-P-6.7 unknown-namespace disposition machinery
+  (reject/allow/ignore + run-mode default) — absent from `cem_ml` and `cem-elements`; FF-7 XSLT
+  capability-gating (AC-P-V-4/V-7) needs AC-P-6.8 XSLT region dispatch — the engine has no `xsl:`
+  handling and XSLT is absent from the Layer-5 handoff content types. Flipping one to `active` =
+  building its capability, then authoring the AC-P-V fixture(s) + integration test and pointing
+  `evidence` at them — the FFDD acceptance test for that AC-P-V work, exactly as FF-2 here (and as
+  FF-6's `pending-version`→`required` flip drove the SemVer-axis task).
 
 ## Shared infrastructure & sequencing
 

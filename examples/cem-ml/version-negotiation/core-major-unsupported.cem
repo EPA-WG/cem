@@ -1,0 +1,14 @@
+@doc cem-ml 2
+@ns cem = "https://cem.dev/ns/core/1"
+@ns html = "http://www.w3.org/1999/xhtml"
+@default html
+
+// AC-P-V-5 — strict reject (unsupported MAJOR).
+//
+// The document requests core CEM-ML MAJOR 2; the engine implements only
+// the 1.x line, so negotiation rejects with `cem.doc.version_unsupported`
+// and records no format identity. The reject is observed by the FF-2
+// integration test, not the auto-validated corpus.
+{main @cem:screen="version-negotiation" |
+  {p | Unsupported MAJOR 2 must reject deterministically.}
+}

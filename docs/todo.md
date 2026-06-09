@@ -27,12 +27,16 @@ for non-SemVer standards such as XSLT (OQ-10).
       adds/extends its guard. Catalog (8), most reusing existing gates:
   - [x] FF-1 Backward-render: prior-generation fixtures still render.
         (`cem_ml_cli:validate-fixtures`, `cem-elements:verify`) — **active** in the FF-gate map.
-  - [ ] FF-2 Negotiation determinism: same-MAJOR loads, unsupported MAJOR rejects, per axis.
-        (`cem_ml_cli:e2e`) — **tracked** in the FF-gate map (AC-P-V-5 fixtures not authored yet).
+  - [x] FF-2 Negotiation determinism: same-MAJOR loads, unsupported MAJOR rejects, per axis.
+        (`cem_ml_cli:e2e`, `cem_ml:test`; AC-P-V-5/AC-F-8) — **active** (evidence
+        `version-negotiation/core-major-forgiving.cem` + `version_negotiation_fixtures.rs`: forgiving
+        same-MAJOR load + unsupported-MAJOR / future-MINOR reject; core-namespace axis at Tier A).
   - [x] FF-3 Isolation: no region interpreted by another content type's processor.
         (`cem_ml_cli:e2e`; AC-P-V-3) — **active** (evidence `schema-scoping/sibling-isolation.cem`).
   - [ ] FF-4 Mode-disposition: unknown optional → ignore/degrade/reject per app/build-SSR/dev;
-        must-understand rejects. (`cem-elements:verify`) — **tracked** (AC-P-V-6 fixtures pending).
+        must-understand rejects. (`cem-elements:verify`) — **tracked** (AC-P-6.7 disposition
+        machinery not built: no reject/allow/ignore + run-mode default in cem_ml or cem-elements;
+        [B]-tier capability is the prerequisite, AC-P-V-6 fixture comes after).
   - [x] FF-5 Removal gate: zero in-repo consumers of a deprecated form + external window.
         Landed: registry `tools/fitness/deprecated-forms.json`, shared `tools/fitness/lib.mjs`,
         scanner `tools/scripts/ff-deprecated-form-scan.mjs`, Nx target
@@ -49,8 +53,10 @@ for non-SemVer standards such as XSLT (OQ-10).
         patch-transport/edge-render-state 1.0.0); **zero `pending-version` gaps remain — FF-6 fully
         closed.** (scope: [`fitness-functions.md`](fitness-functions.md))
   - [ ] FF-7 XSLT capability-gating: unsupported XSLT version rejects; region isolated +
-        version-pinned across CEM-ML MAJOR. (`cem-elements:verify`; AC-P-V-4) — **tracked** in the
-        FF-gate map (AC-P-V-4/V-7 fixtures not authored yet).
+        version-pinned across CEM-ML MAJOR. (`cem-elements:verify`; AC-P-V-4) — **tracked** (AC-P-6.8
+        XSLT region dispatch not built: no `xsl:` handling in the engine, XSLT absent from the Layer-5
+        handoff content types; version-pinned dispatch + isolation + opt-in ([B]-tier) precede the
+        AC-P-V-4/V-7 fixtures).
   - [x] FF-8 Source-map continuity across dispatch boundaries.
         (`cem_ml_cli:validate-fixtures`; AC-P-V-2) — **active** (evidence
         `namespace-rebinding/default-html-svg-html.cem`).
@@ -134,10 +140,16 @@ into [`cem-ml-ac.md`](cem-ml-ac.md); the remaining items are implementation, wit
       (`tools/fitness/fitness-gates.json` + `tools/scripts/ff-gate-run.mjs` + Nx
       `@epa-wg/cem:fitness-gate-map`, CI-wired) that names all 8 FFs, verifies the FF→backing→CI
       mapping, and enforces the **active** ones whose behavior already exists: FF-1 (backward-render),
-      FF-3 (isolation), FF-8 (source-map continuity) — CI now also invokes
-      `cem_ml_cli:validate-fixtures` + `cem_ml_cli:e2e`. **Tracked (deferred):** FF-2, FF-4, FF-7 —
-      they need AC-P-V-2/4/5/6/7/8 dispatch/negotiation/XSLT-handoff fixtures (none exist yet);
-      flipping each to active = authoring its AC-P-V fixture + pointing `evidence` at it.
+      FF-2 (negotiation determinism), FF-3 (isolation), FF-8 (source-map continuity) — CI invokes
+      `cem_ml_cli:validate-fixtures` + `cem_ml_cli:e2e` and runs `cem_ml:test` via `nx affected`.
+      FF-2 added the AC-P-V-5 corpus (`examples/cem-ml/version-negotiation/*.cem` +
+      `version_negotiation_fixtures.rs`: forgiving same-MAJOR load + unsupported-MAJOR / future-MINOR
+      reject). **Tracked (deferred — capability, not just fixtures):** FF-4 needs the AC-P-6.7
+      unknown-namespace disposition machinery (reject/allow/ignore + run-mode default; absent from
+      cem_ml + cem-elements); FF-7 needs AC-P-6.8 XSLT region dispatch (no `xsl:` handling; XSLT
+      absent from the Layer-5 handoff content types). Both are [B]-tier capability builds that precede
+      their AC-P-V-4/V-6/V-7 fixtures; flipping each to active = build the capability, then author the
+      fixture + integration test and point `evidence` at them.
 - [x] Add a SemVer axis to the two un-versioned governed contracts. Landed: `SNAPSHOT_SCHEMA_VERSION`
       = 1.0.0 on `DataIslandSnapshot` (`cem-elements.ts` — optional/additive expand-phase field per
       BR-EV-5, stamped at `createSnapshot` and carried through edge export) and `TOKENS_SCHEMA_VERSION`
