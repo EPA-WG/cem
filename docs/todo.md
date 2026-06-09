@@ -817,9 +817,13 @@ Roadmap: [`../roadmap.md` §Phase 3.6](../roadmap.md). Starts after Phase 3.5 is
       fixtures prove adapter registration, legacy-v0 normalization, substrate data islands, companion modules,
       package export/import identity, release-pack runtime staging, and no legacy XSLT/render-engine regression. The
       full cross-package gate remains the next todo item.
-- [ ] Verify the migrated package against all required gates: legacy parity inventory, material parity inventory,
+- [x] Verify the migrated package against all required gates: legacy parity inventory, material parity inventory,
       Phase 3.5 Edge/SSR fixtures, `cem-elements:verify`, the new `custom-element` package build/test/lint targets,
-      and any affected `cem-theme` HTML/token generator workflows.
+      and any affected `cem-theme` HTML/token generator workflows. **All green (re-verified 2026-06-09):**
+      `cem-elements:verify` (61 Storybook parity + Edge/SSR fixtures + cem_ml_cli e2e/validate-fixtures + test:unit),
+      `@epa-wg/custom-element:verify` (build/test/lint + browser smoke), `@epa-wg/cem-theme:build:html`, and
+      `@epa-wg/cem-theme:verify:phase13` (the prior XSLT blocker — now green after the Option-B generator conversion).
+      The legacy + material parity inventories are the docs/stories landed in the sub-items above.
   - [x] Run the first migrated-package gate pass. Landed findings in
         [`custom-element-migrated-package-gate.md`](custom-element-migrated-package-gate.md): `cem-elements:verify`,
         `@epa-wg/custom-element:verify`, and `@epa-wg/cem-theme:build:html` pass; `@epa-wg/cem-theme:verify:phase13`
