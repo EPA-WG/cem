@@ -64,7 +64,7 @@
             "status": "tracked",
             "guards": ["AC-P-V-4", "AC-P-V-7"],
             "backing": ["cem-elements:verify"],
-            "tracks": "AC-P-6.8 XSLT region dispatch not built — the engine has no xsl: handling and XSLT is absent from the Layer-5 handoff content types (handoff.rs SUPPORTED_CONTENT_TYPES); version-pinned XSLT dispatch + isolation + explicit opt-in ([B]-tier) must land before AC-P-V-4/V-7 fixtures can assert."
+            "tracks": "AC-P-6.8 XSLT region dispatch: decision-core landed (packages/cem_ml/src/schema/xslt.rs — XSL_NAMESPACE, parse_xslt_version, version-pinning resolve_xslt_dispatch against a CEM-owned ADAPTER_LINE independent of the CEM-ML core version (AC-P-V-4), and xslt_region_outcome: explicit opt-in → version-pinned Dispatch, no opt-in → the AC-P-V-6 unknown-namespace default (AC-P-V-7); 9 unit tests). Remaining before active: wire the xsl: namespace into the schema machine to open an isolated Layer-5 handoff on opt-in (no CEM-ML interpretation) + thread the opt-in source (host metadata / scope-policy rule), then AC-P-V-4/V-7 fixtures + integration tests."
         },
         {
             "id": "FF-8",

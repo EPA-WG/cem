@@ -10,6 +10,7 @@ pub mod machine;
 pub mod namespace;
 pub mod scoping;
 pub mod vocab;
+pub mod xslt;
 
 use crate::source::ByteRange;
 use crate::source_map::SourceMapStack;

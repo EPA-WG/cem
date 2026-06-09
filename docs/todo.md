@@ -72,11 +72,17 @@ for non-SemVer standards such as XSLT (OQ-10).
         cem-elements 0.0.14, cem_ml/cem_ql/cem_ml_cli 0.1.0, data-snapshot/token-outputs/
         patch-transport/edge-render-state 1.0.0); **zero `pending-version` gaps remain — FF-6 fully
         closed.** (scope: [`fitness-functions.md`](fitness-functions.md))
-  - [ ] FF-7 XSLT capability-gating: unsupported XSLT version rejects; region isolated +
-        version-pinned across CEM-ML MAJOR. (`cem-elements:verify`; AC-P-V-4) — **tracked** (AC-P-6.8
-        XSLT region dispatch not built: no `xsl:` handling in the engine, XSLT absent from the Layer-5
-        handoff content types; version-pinned dispatch + isolation + opt-in ([B]-tier) precede the
-        AC-P-V-4/V-7 fixtures).
+  - [~] FF-7 XSLT capability-gating: unsupported XSLT version rejects; region isolated +
+        version-pinned across CEM-ML MAJOR. (`cem-elements:verify`; AC-P-V-4) — **tracked;
+        decision-core landed.** `packages/cem_ml/src/schema/xslt.rs`: `XSL_NAMESPACE`,
+        `parse_xslt_version`, version-pinning `resolve_xslt_dispatch` against a CEM-owned `ADAPTER_LINE`
+        that never references the CEM-ML core version (so a core MAJOR bump leaves the pinned identity
+        unchanged — AC-P-V-4), and `xslt_region_outcome`: explicit opt-in → version-pinned `Dispatch`,
+        no opt-in → the AC-P-V-6 unknown-namespace default (AC-P-V-7, building on the parser
+        disposition above); 9 unit tests, clippy-clean. **Remaining:** wire the `xsl:` namespace into
+        the schema machine to open an isolated Layer-5 handoff on opt-in (no CEM-ML interpretation) +
+        thread the opt-in source (host metadata / scope-policy rule), then AC-P-V-4/V-7 fixtures +
+        integration tests.
   - [x] FF-8 Source-map continuity across dispatch boundaries.
         (`cem_ml_cli:validate-fixtures`; AC-P-V-2) — **active** (evidence
         `namespace-rebinding/default-html-svg-html.cem`).
