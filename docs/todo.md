@@ -34,13 +34,16 @@ for non-SemVer standards such as XSLT (OQ-10).
   - [x] FF-3 Isolation: no region interpreted by another content type's processor.
         (`cem_ml_cli:e2e`; AC-P-V-3) — **active** (evidence `schema-scoping/sibling-isolation.cem`).
   - [~] FF-4 Mode-disposition: unknown optional → ignore/degrade/reject per app/build-SSR/dev;
-        must-understand rejects. (`cem-elements:verify`) — **tracked; decision-core landed.** The
-        pure BR-VC-9 disposition core is built + unit-tested (`cem-elements/src/lib/disposition.ts`:
-        RunMode × per-contract presentation/data-security classification → reject/degrade, BR-VC-8
-        must-understand override; 41 tests via new `cem-elements:test:unit`, wired into `verify` +
-        CI). Remaining before active: wire to the contract ingest paths (snapshot / edge-render-state
-        read-back — today version-stamped write-only) + thread the run-mode source, then author the
-        AC-P-V-6 fixture/test.
+        must-understand rejects. (`cem-elements:verify`) — **tracked; core + first ingest wired.**
+        BR-VC-9 disposition core + version-negotiation are built + unit-tested
+        (`cem-elements/src/lib/disposition.ts`: RunMode × per-contract class → reject/degrade,
+        BR-VC-8 must-understand override, `ingestContractVersion`; 50 tests via `cem-elements:test:unit`,
+        wired into `verify` + CI). Now **applied at the snapshot hydration ingest seam**
+        (`adoptServerRenderedInstance` rejects an un-understood snapshot version → fresh-render
+        fallback) with a configurable `runMode` option (default `application`); all 60 Storybook tests
+        still green. Remaining before active: wire the edge-render-state ingest; an end-to-end
+        hydration reject-path test/fixture (AC-P-V-6); reconcile AC-P-V-6's namespace wording vs the
+        BR-VC-9 contract framing.
   - [x] FF-5 Removal gate: zero in-repo consumers of a deprecated form + external window.
         Landed: registry `tools/fitness/deprecated-forms.json`, shared `tools/fitness/lib.mjs`,
         scanner `tools/scripts/ff-deprecated-form-scan.mjs`, Nx target

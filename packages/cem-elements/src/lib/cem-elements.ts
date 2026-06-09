@@ -15,6 +15,7 @@ import {
     renderCemMlTemplate,
     type RuntimeSupportDiagnostic,
 } from './internal/runtime-support/cem-ql-render.js';
+import { ingestContractVersion, type RunMode } from './disposition.js';
 
 export type CemElementDiagnosticSeverity = 'info' | 'warning' | 'error' | 'fatal';
 
@@ -143,6 +144,15 @@ export interface CemElementRuntimeOptions {
      * package/module specifiers should be supplied by the host module-map resolver.
      */
     resolveModuleUrl?: (specifier: string, baseDocument: Document) => string | Promise<string>;
+    /**
+     * Effective run mode for the BR-VC-9 unknown-optional-feature disposition
+     * applied when ingesting a versioned governed-contract payload (e.g. a
+     * server-rendered hydration snapshot whose schema MINOR is ahead of this
+     * build). Defaults to `application` — the correct conservative default for a
+     * client runtime; build/SSR pipelines pass `build-ssr`, dev tooling
+     * `development`. See {@link ingestContractVersion}.
+     */
+    runMode?: RunMode;
 }
 
 type CemElementWindow = Window &
@@ -338,6 +348,7 @@ export class CemElementRuntime {
     private readonly moduleUrls = new Map<string, Promise<string>>();
     private readonly loadSrcDocumentOption?: CemElementRuntimeOptions['loadSrcDocument'];
     private readonly resolveModuleUrlOption?: CemElementRuntimeOptions['resolveModuleUrl'];
+    private readonly runMode: RunMode;
     private instanceSequence = 0;
 
     constructor(options: CemElementRuntimeOptions = {}) {
@@ -347,6 +358,7 @@ export class CemElementRuntime {
         this.logger = options.logger;
         this.loadSrcDocumentOption = options.loadSrcDocument;
         this.resolveModuleUrlOption = options.resolveModuleUrl;
+        this.runMode = options.runMode ?? 'application';
         // Eagerly warm the cem_ql WASM engine so canonical CEM-ML instances can render
         // through the authoritative boundary as soon as possible. Failures surface
         // per-instance at render time.
@@ -798,6 +810,31 @@ export class CemElementRuntime {
                 renderDiagnostic(
                     'cem-element.hydration_metadata_invalid',
                     'SSR hydration metadata did not match the produced element',
+                    instance.localName
+                ),
+            ]);
+            return false;
+        }
+
+        // BR-VC-9: the snapshot/`datadom` is a data/security contract. If the
+        // persisted snapshot declares a schema version this build does not fully
+        // understand (a higher MINOR = unknown optional features, or a MAJOR
+        // mismatch = must-understand), apply the run-mode disposition. In an
+        // application run the data/security disposition is reject — refuse to
+        // trust the un-understood snapshot and fall back to a fresh render rather
+        // than silently honoring or dropping unknown fields.
+        const ingest = ingestContractVersion(
+            snapshot.version,
+            SNAPSHOT_SCHEMA_VERSION,
+            this.runMode,
+            'data-snapshot'
+        );
+        if (!ingest.accept) {
+            this.recordDiagnostics(instance, [
+                renderDiagnostic(
+                    'cem-element.snapshot_version_rejected',
+                    ingest.decision?.rationale ??
+                        `SSR hydration snapshot version ${String(snapshot.version)} is not understood by build ${SNAPSHOT_SCHEMA_VERSION} (${ingest.reason})`,
                     instance.localName
                 ),
             ]);

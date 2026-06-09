@@ -173,3 +173,80 @@ export function decideDisposition(
         rationale,
     };
 }
+
+interface SemVerParts {
+    major: number;
+    minor: number;
+    patch: number;
+}
+
+/** Parse `MAJOR.MINOR.PATCH` (ignoring any `-pre`/`+build` suffix). `undefined` when malformed. */
+function parseSemVer(value: string): SemVerParts | undefined {
+    const core = value.split('+', 1)[0].split('-', 1)[0];
+    const fields = core.split('.');
+    if (fields.length !== 3) {
+        return undefined;
+    }
+    const nums = fields.map((f) => (/^\d+$/.test(f) ? Number.parseInt(f, 10) : NaN));
+    if (nums.some((n) => !Number.isFinite(n))) {
+        return undefined;
+    }
+    const [major, minor, patch] = nums;
+    return { major, minor, patch };
+}
+
+/** Why an ingested contract payload resolved the way it did. */
+export type IngestReason =
+    | 'understood' // payload version is fully understood by this build
+    | 'no-version' // no version declared (BR-EV-5 expand-phase optional) — accepted
+    | 'unknown-optional' // payload declares a higher MINOR: additive features this build doesn't know
+    | 'incompatible-major' // payload MAJOR differs: a must-understand (BR-VC-8) reject
+    | 'unparsable-version'; // a version is present but malformed — rejected, can't verify compatibility
+
+/** Outcome of checking an ingested contract payload's version against this build. */
+export interface IngestOutcome {
+    /** True = accept the payload (possibly degraded); false = reject it. */
+    accept: boolean;
+    reason: IngestReason;
+    /** The BR-VC-9 decision, when an unknown-optional / must-understand policy applied. */
+    decision?: DispositionDecision;
+}
+
+/**
+ * Decide whether to accept a contract payload whose declared `payloadVersion`
+ * is checked against this build's `buildVersion`, applying the BR-VC-9
+ * disposition when the payload carries unknown optional features.
+ *
+ * Semantics (mirrors the FF-2 `@doc` negotiation on the parser side):
+ * - no version declared → accept (BR-EV-5: the version axis is optional in the
+ *   expand phase, so a version-less payload is the legacy/forgiving case);
+ * - MAJOR differs → must-understand reject (BR-VC-8), in every mode;
+ * - same MAJOR, higher MINOR → unknown optional features present → BR-VC-9
+ *   `decideDisposition`; accept iff the disposition is not `reject`;
+ * - otherwise (payload ≤ build within the same MAJOR) → fully understood, accept;
+ * - present-but-malformed version → reject (compatibility cannot be verified).
+ */
+export function ingestContractVersion(
+    payloadVersion: string | undefined,
+    buildVersion: string,
+    mode: RunMode,
+    contract: GovernedContractId,
+): IngestOutcome {
+    if (payloadVersion === undefined) {
+        return { accept: true, reason: 'no-version' };
+    }
+    const payload = parseSemVer(payloadVersion);
+    const build = parseSemVer(buildVersion);
+    if (!payload || !build) {
+        return { accept: false, reason: 'unparsable-version' };
+    }
+    if (payload.major !== build.major) {
+        const decision = decideDisposition(mode, contract, { mustUnderstand: true });
+        return { accept: false, reason: 'incompatible-major', decision };
+    }
+    if (payload.minor > build.minor) {
+        const decision = decideDisposition(mode, contract);
+        return { accept: decision.disposition !== 'reject', reason: 'unknown-optional', decision };
+    }
+    return { accept: true, reason: 'understood' };
+}

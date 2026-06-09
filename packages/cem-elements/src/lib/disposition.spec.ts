@@ -3,6 +3,7 @@ import { describe, expect, it } from 'vitest';
 import {
     classifyContract,
     decideDisposition,
+    ingestContractVersion,
     type ContractClass,
     type GovernedContractId,
     type RunMode,
@@ -121,5 +122,69 @@ describe('decideDisposition — decision record is auditable', () => {
         expect(d.mode).toBe('application');
         expect(d.contract).toBe('data-snapshot');
         expect(d.rationale).toContain('BR-VC-9');
+    });
+});
+
+describe('ingestContractVersion — version negotiation feeds the disposition', () => {
+    const BUILD = '1.2.0';
+
+    it('accepts a version-less payload (BR-EV-5 expand-phase optional)', () => {
+        const o = ingestContractVersion(undefined, BUILD, 'application', 'data-snapshot');
+        expect(o).toEqual({ accept: true, reason: 'no-version' });
+    });
+
+    it('accepts an equal version as fully understood', () => {
+        const o = ingestContractVersion('1.2.0', BUILD, 'application', 'data-snapshot');
+        expect(o.accept).toBe(true);
+        expect(o.reason).toBe('understood');
+    });
+
+    it('accepts a lower minor as fully understood', () => {
+        const o = ingestContractVersion('1.0.5', BUILD, 'application', 'data-snapshot');
+        expect(o.accept).toBe(true);
+        expect(o.reason).toBe('understood');
+    });
+
+    it('rejects a malformed present version (cannot verify compatibility)', () => {
+        const o = ingestContractVersion('1.x', BUILD, 'development', 'token-outputs');
+        expect(o.accept).toBe(false);
+        expect(o.reason).toBe('unparsable-version');
+    });
+
+    it('rejects a MAJOR mismatch as must-understand in every mode', () => {
+        for (const mode of ALL_MODES) {
+            const o = ingestContractVersion('2.0.0', BUILD, mode, 'token-outputs');
+            expect(o.accept).toBe(false);
+            expect(o.reason).toBe('incompatible-major');
+            expect(o.decision?.mustUnderstand).toBe(true);
+        }
+    });
+
+    describe('higher MINOR = unknown optional features → BR-VC-9 disposition', () => {
+        it('application rejects on a data/security contract', () => {
+            const o = ingestContractVersion('1.3.0', BUILD, 'application', 'data-snapshot');
+            expect(o.reason).toBe('unknown-optional');
+            expect(o.accept).toBe(false);
+            expect(o.decision?.disposition).toBe('reject');
+        });
+
+        it('application tolerates on a presentation contract', () => {
+            const o = ingestContractVersion('1.3.0', BUILD, 'application', 'token-outputs');
+            expect(o.reason).toBe('unknown-optional');
+            expect(o.accept).toBe(true);
+            expect(o.decision?.disposition).toBe('degrade');
+        });
+
+        it('build/SSR rejects even a presentation contract', () => {
+            const o = ingestContractVersion('1.3.0', BUILD, 'build-ssr', 'token-outputs');
+            expect(o.accept).toBe(false);
+            expect(o.decision?.disposition).toBe('reject');
+        });
+
+        it('development tolerates even a data/security contract', () => {
+            const o = ingestContractVersion('1.3.0', BUILD, 'development', 'data-snapshot');
+            expect(o.accept).toBe(true);
+            expect(o.decision?.disposition).toBe('degrade');
+        });
     });
 });
