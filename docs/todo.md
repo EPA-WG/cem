@@ -25,14 +25,14 @@ for non-SemVer standards such as XSLT (OQ-10).
 - [x] OQ-2 Fitness functions. Resolved: **CI-blocking + FFDD** (BRD BR-FF-1/2/3) — all fitness
       functions are blocking pipeline gates on every change, and every governed-contract change
       adds/extends its guard. Catalog (8), most reusing existing gates:
-  - [ ] FF-1 Backward-render: prior-generation fixtures still render.
-        (`cem_ml_cli:validate-fixtures`, `cem-elements:verify`)
+  - [x] FF-1 Backward-render: prior-generation fixtures still render.
+        (`cem_ml_cli:validate-fixtures`, `cem-elements:verify`) — **active** in the FF-gate map.
   - [ ] FF-2 Negotiation determinism: same-MAJOR loads, unsupported MAJOR rejects, per axis.
-        (`cem_ml_cli:e2e`)
-  - [ ] FF-3 Isolation: no region interpreted by another content type's processor.
-        (`cem_ml_cli:e2e`; AC-P-V-3)
+        (`cem_ml_cli:e2e`) — **tracked** in the FF-gate map (AC-P-V-5 fixtures not authored yet).
+  - [x] FF-3 Isolation: no region interpreted by another content type's processor.
+        (`cem_ml_cli:e2e`; AC-P-V-3) — **active** (evidence `schema-scoping/sibling-isolation.cem`).
   - [ ] FF-4 Mode-disposition: unknown optional → ignore/degrade/reject per app/build-SSR/dev;
-        must-understand rejects. (`cem-elements:verify`)
+        must-understand rejects. (`cem-elements:verify`) — **tracked** (AC-P-V-6 fixtures pending).
   - [x] FF-5 Removal gate: zero in-repo consumers of a deprecated form + external window.
         Landed: registry `tools/fitness/deprecated-forms.json`, shared `tools/fitness/lib.mjs`,
         scanner `tools/scripts/ff-deprecated-form-scan.mjs`, Nx target
@@ -49,9 +49,11 @@ for non-SemVer standards such as XSLT (OQ-10).
         patch-transport/edge-render-state 1.0.0); **zero `pending-version` gaps remain — FF-6 fully
         closed.** (scope: [`fitness-functions.md`](fitness-functions.md))
   - [ ] FF-7 XSLT capability-gating: unsupported XSLT version rejects; region isolated +
-        version-pinned across CEM-ML MAJOR. (`cem-elements:verify`; AC-P-V-4)
-  - [ ] FF-8 Source-map continuity across dispatch boundaries.
-        (`cem_ml_cli:validate-fixtures`; AC-P-V-2)
+        version-pinned across CEM-ML MAJOR. (`cem-elements:verify`; AC-P-V-4) — **tracked** in the
+        FF-gate map (AC-P-V-4/V-7 fixtures not authored yet).
+  - [x] FF-8 Source-map continuity across dispatch boundaries.
+        (`cem_ml_cli:validate-fixtures`; AC-P-V-2) — **active** (evidence
+        `namespace-rebinding/default-html-svg-html.cem`).
 - [x] OQ-3 Switching granularity. Architecture resolved (BRD §6.8): the
       whole-`<template>`/`<script>` `lang`/`type` routing is the HTML→CEM-ML host-ingestion
       boundary (owned by the HTML parser + cem-element, an instance of the BR-CT-4 content-type
@@ -127,10 +129,15 @@ into [`cem-ml-ac.md`](cem-ml-ac.md); the remaining items are implementation, wit
 
 - [x] Fold the AC-P-6 promotion into [`cem-ml-ac.md`](cem-ml-ac.md) — AC-P-6.1–6.9, AC-P-V-2..V-8,
       the §16.4 G-NVDL-CORE/FULL split, and the §16.1 graph + tier/gate-list updates.
-- [ ] Implement the eight fitness functions FF-1..FF-8 (OQ-2) as CI-blocking gates. Done: the two
-      net-new checks FF-5 (removal-scan) + FF-6 (SemVer-presence) are landed, green, and CI-wired
-      (`.github/workflows/ci.yml`). Remaining: FF-1..FF-4, FF-7, FF-8 (mostly assertions over the
-      existing `cem_ml_cli` / `cem-elements:verify` gates — wire/extend each).
+- [~] Implement the eight fitness functions FF-1..FF-8 (OQ-2) as CI-blocking gates. Done: net-new
+      scanners FF-5 (removal-scan) + FF-6 (SemVer-presence); and the **FF-gate map** framework
+      (`tools/fitness/fitness-gates.json` + `tools/scripts/ff-gate-run.mjs` + Nx
+      `@epa-wg/cem:fitness-gate-map`, CI-wired) that names all 8 FFs, verifies the FF→backing→CI
+      mapping, and enforces the **active** ones whose behavior already exists: FF-1 (backward-render),
+      FF-3 (isolation), FF-8 (source-map continuity) — CI now also invokes
+      `cem_ml_cli:validate-fixtures` + `cem_ml_cli:e2e`. **Tracked (deferred):** FF-2, FF-4, FF-7 —
+      they need AC-P-V-2/4/5/6/7/8 dispatch/negotiation/XSLT-handoff fixtures (none exist yet);
+      flipping each to active = authoring its AC-P-V fixture + pointing `evidence` at it.
 - [x] Add a SemVer axis to the two un-versioned governed contracts. Landed: `SNAPSHOT_SCHEMA_VERSION`
       = 1.0.0 on `DataIslandSnapshot` (`cem-elements.ts` — optional/additive expand-phase field per
       BR-EV-5, stamped at `createSnapshot` and carried through edge export) and `TOKENS_SCHEMA_VERSION`
@@ -140,10 +147,11 @@ into [`cem-ml-ac.md`](cem-ml-ac.md); the remaining items are implementation, wit
       (`RENDER_ENGINE_VERSION` on the `begin` `PatchFrame`; `EDGE_RENDER_STATE_VERSION` as
       `EdgeRenderStateRecord.schemaVersion`, part of the etag identity) and promoted to `required`.
       FF-6 is now fully closed: 9/9 `required`, 0 pending.
-- [ ] Convert the `cem-theme` CSS generators to CEM-ML+CEM-QL (Option B) and rerun
-      `@epa-wg/cem-theme:verify:phase13` — the live browser-XSLT-1.0 retirement blocker (also the
-      open Phase 3.6 item below). Confirmed blocked on missing substrate capability (no iteration;
-      `/datadom` is flat) — landing slice-by-slice, smallest generator first per the migration doc:
+- [x] Convert the `cem-theme` CSS generators to CEM-ML+CEM-QL (Option B) and rerun
+      `@epa-wg/cem-theme:verify:phase13` — **DONE: all 10 generators converted, `verify:phase13`
+      fully green** (manifest coverage + browser capture for 10 specs, theme-mode resolution ×5,
+      forced-colors, reduced-motion, shape, a11y/contrast, cross-spec). The live browser-XSLT-1.0
+      runtime is retired from the generators. Landed slice-by-slice per the migration doc:
   - [x] Slice 1 — cem-ql `for-each` iteration. Landed in
         [`render.rs`](../packages/cem_ql/src/render.rs): `TemplateNode::ForEach`, `compile_for_each`
         (scoped compile-time `@as` declaration), render-time per-item rebind of `$as` via
@@ -175,11 +183,9 @@ into [`cem-ml-ac.md`](cem-ml-ac.md); the remaining items are implementation, wit
         green, 60 stories). The output shape (`{tdN}` row records) is already navigable per the
         slice-1 for-each record test. Remaining for slice 4: feed the rows into
         `datadom.slices.<name>` per generator.
-  - [~] Slice 4 — rewrite each generator (smallest first) to `type="cem-ml; version=0.0"` CEM-ML/CEM-QL and
-        route it through the substrate. **9 of 10 converted**; only `cem-colors` remains.
-        Engine prerequisites + build wiring + the reusable bootstrap are landed; each converted
-        generator passes `validate-manifest --hard` + a browser probe (one `code[data-generated-css]`,
-        `:root` token resolves via the injected css-loader, no page errors).
+  - [x] Slice 4 — rewrite each generator to `type="cem-ml; version=0.0"` CEM-ML/CEM-QL and route it
+        through the substrate. **All 10 converted** (whole-file: preview tables + CSS body, legacy
+        runtime removed); each passes `validate-manifest --hard` + a browser probe.
     - [x] Engine prerequisite A: `cem:for-each` iterates the **members** of a selected `Item::Array`.
           The slice-1 for-each was proven against native multi-item sequences, but the WASM JSON
           boundary delivers `datadom.slices.<name>` (a JSON array of row objects) as a single
@@ -204,21 +210,24 @@ into [`cem-ml-ac.md`](cem-ml-ac.md); the remaining items are implementation, wit
           [`compile-html.mjs`](../tools/scripts/compile-html.mjs) now stages the cem-elements +
           cem_ql WASM trees into `dist/vendor` unconditionally (`stageSubstrateRuntime`), decoupled
           from the dropped legacy `custom-element.js` reference.
-    - [x] **9 of 10 generators converted** (whole-file: preview tables + CSS body, legacy runtime
+    - [x] **All 10 generators converted** (whole-file: preview tables + CSS body, legacy runtime
           removed), each `validate-manifest --hard` green + browser-probed: `cem-controls`,
           `cem-coupling`, `cem-layering`, `cem-timing`, `cem-stroke`, `cem-dimension`, `cem-shape`,
           `cem-breakpoints` (conditional `@media` ranges via `cem:choose`/`when`/`otherwise`),
-          `cem-voice-fonts-typography`. Engine surface used: for-each over array slices, rich-content
-          braces, `@media`/theme-class blocks, `cem:if`/`cem:choose` with **bare-name** `@test`
-          comparisons. Gotchas: slice keys must avoid cem-ql builtin step names (incl. `read`); AVT
-          attributes take one `{$…}` span; shape's cross-spec preview vars come from `<link>`ing the
-          generated `cem-dimension.css`/`cem-controls.css`. 60 cem-elements stories green vs rebuilt WASM.
-    - [ ] Convert `cem-colors` (the last + hardest): intent×state cross-product
-          (`--cem-action-{intent}-{state}-{background|text}` via nested for-each), `[emotion]`
-          placeholder substitution (needs XPath string fns `concat`/`substring-before`/`-after`/
-          `contains` — verify cem-ql has them or add `str:*`), a hue-variant cross-table join for
-          `light-dark()`, and theme-mode selector blocks. Heavily validated by `verify:phase13`.
-  - [ ] Slice 5 — rerun `@epa-wg/cem-theme:verify:phase13` (non-empty CSS + manifest validation).
+          `cem-voice-fonts-typography`, and `cem-colors`. Engine surface used: for-each over array
+          slices, rich-content braces, `@media`/theme-class blocks + CSS nesting, `cem:if`/`cem:choose`
+          with **bare-name** `@test` comparisons. For `cem-colors` (the hardest) three cem-ql
+          additions landed: `str:replace` (the `[emotion]` placeholder substitution), `record_field`
+          one-level array flattening (so `datadom.slices.hue.td1` projects across rows), and the
+          cross-table join uses set-intersection `&` for sequence membership (the `=`/`!=` operators
+          compare only the first item, not existentially). Gotchas: slice keys must avoid cem-ql
+          builtin step names (incl. `read`); AVT attributes take one `{$…}` span; `str:concat(seq,sep)`
+          is string-join (concatenate two strings with `str:concat((a, b))`); shape's cross-spec
+          preview vars come from `<link>`ing the generated CSS. 60 cem-elements stories + full cem-ql
+          suite green vs rebuilt WASM.
+  - [x] Slice 5 — `@epa-wg/cem-theme:verify:phase13` **fully green** (manifest coverage + browser
+        capture for 10 specs, theme-mode resolution ×5, forced-colors, reduced-motion, D3 shape,
+        a11y/contrast, cross-spec semantic checks).
 - [ ] **Wishlist (future — NOT in the immediate release timeline):** engine XSLT 3.0/4.0 execution
       behind G-NVDL-FULL (AC-P-6.9). The architecture keeps the capability-gated seam — XSLT is a
       peer content type and an unimplemented version rejects deterministically (BR-CO-5/BR-VC-8) —
@@ -781,9 +790,11 @@ Roadmap: [`../roadmap.md` §Phase 3.6](../roadmap.md). Starts after Phase 3.5 is
         XSLT+XPath with legacy HTML/XSLT default-namespace behavior; Option B converts the logic to CEM-ML+CEM-QL under
         `<template type="cem-ml; version=0.0">`; Option B is the recommended path for `cem-theme` CSS generation after
         conversion.
-  - [ ] Convert the `cem-theme` CSS generator workflow to CEM-ML+CEM-QL templates marked
-        `<template type="cem-ml; version=0.0">`, or explicitly select Option A and fixture a named legacy XSLT+XPath runtime,
-        then rerun `@epa-wg/cem-theme:verify:phase13`.
+  - [x] Convert the `cem-theme` CSS generator workflow to CEM-ML+CEM-QL templates marked
+        `<template type="cem-ml; version=0.0">` (Option B), then rerun `@epa-wg/cem-theme:verify:phase13`.
+        **Done** — all 10 generators converted (see the Phase-3.6 Option-B slices under
+        "What's left — execution"); `verify:phase13` fully green; the live browser-XSLT runtime is
+        retired from the generators.
 - [ ] Publish-readiness pass for the next major: changelog, migration guide from external POC package to workspace
       package, bridge-window support matrix, breaking-change list, npm package contents check, and rollback plan for
       consumers that still depend on the old XSLT-only surface.

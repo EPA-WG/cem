@@ -671,6 +671,74 @@ fn render_template_for_each_with_cem_if_tier_filter() {
 }
 
 #[test]
+fn render_template_action_cross_product_with_emotion_substitution() {
+    // cem-colors shape: intent×state nested for-each emitting cross-product token names, with the
+    // `[emotion]` placeholder in the state formula replaced by the intent's emotion via str:replace.
+    let intents = Item::Array(vec![record([
+        ("td1", vec![Item::Atomic(AtomValue::String("explicit".to_owned()))]),
+        ("td2", vec![Item::Atomic(AtomValue::String("trust".to_owned()))]),
+    ])]);
+    let states = Item::Array(vec![record([
+        ("td1", vec![Item::Atomic(AtomValue::String("disabled".to_owned()))]),
+        (
+            "td2",
+            vec![Item::Atomic(AtomValue::String(
+                "mix(var(--cem-palette-[emotion]), var(--cem-palette-[emotion]-x))".to_owned(),
+            ))],
+        ),
+    ])]);
+    let datadom = record([(
+        "slices",
+        vec![record([("intents", vec![intents]), ("states", vec![states])])],
+    )]);
+    let data = TemplateData::default().with_binding("datadom", ItemStream::once(datadom));
+
+    let rendered = render_template(
+        "{cem:for-each @select=\"$datadom.slices.intents\" @as=\"intent\" |{cem:for-each @select=\"$datadom.slices.states\" @as=\"state\" |--cem-action-{$intent.td1}-{$state.td1}-background: {$str:replace(state.td2, \"[emotion]\", intent.td2)};}}",
+        &data,
+    );
+
+    assert_eq!(
+        rendered.rendered,
+        "--cem-action-explicit-disabled-background: mix(var(--cem-palette-trust), var(--cem-palette-trust-x));"
+    );
+    assert!(rendered.diagnostics.is_empty(), "{:?}", rendered.diagnostics);
+}
+
+#[test]
+fn render_template_cross_table_join_resolves_palette_reference() {
+    // cem-colors emotion-shift: choose `--cem-color-<name>` when that token exists in the
+    // hue-variant table, else fall back to `--cem-palette-<name>`. The existence check projects a
+    // field across an array slice (`datadom.slices.hue.td1`, flattened) and tests existential `=`
+    // against a `str:concat((…))`-built target.
+    let hue = Item::Array(vec![
+        record([("td1", vec![Item::Atomic(AtomValue::String("--cem-color-cyan-xl".to_owned()))])]),
+        record([("td1", vec![Item::Atomic(AtomValue::String("--cem-color-blue-xl".to_owned()))])]),
+    ]);
+    let shift = Item::Array(vec![record([
+        ("td1", vec![Item::Atomic(AtomValue::String("--cem-palette-comfort".to_owned()))]),
+        ("td3", vec![Item::Atomic(AtomValue::String("cyan-xl".to_owned()))]),
+        ("td4", vec![Item::Atomic(AtomValue::String("warm".to_owned()))]),
+    ])]);
+    let datadom = record([(
+        "slices",
+        vec![record([("hue", vec![hue]), ("shift", vec![shift])])],
+    )]);
+    let data = TemplateData::default().with_binding("datadom", ItemStream::once(datadom));
+
+    let rendered = render_template(
+        "{cem:for-each @select=\"$datadom.slices.shift\" @as=\"emo\" |{$emo.td1}: light-dark({cem:choose |{cem:when @test='datadom.slices.hue.td1 = str:concat((\"--cem-color-\", emo.td3))' |var(--cem-color-{$emo.td3})}{cem:otherwise |var(--cem-palette-{$emo.td3})}}, {cem:choose |{cem:when @test='datadom.slices.hue.td1 = str:concat((\"--cem-color-\", emo.td4))' |var(--cem-color-{$emo.td4})}{cem:otherwise |var(--cem-palette-{$emo.td4})}});}",
+        &data,
+    );
+
+    assert_eq!(
+        rendered.rendered,
+        "--cem-palette-comfort: light-dark(var(--cem-color-cyan-xl), var(--cem-palette-warm));"
+    );
+    assert!(rendered.diagnostics.is_empty(), "{:?}", rendered.diagnostics);
+}
+
+#[test]
 fn render_template_for_each_without_select_diagnoses() {
     let rendered = render_template(
         "{cem:for-each @as=\"row\" | {$row}}",

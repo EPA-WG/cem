@@ -21,9 +21,10 @@ fn eval(source: &str) -> cem_ql::eval::ItemStream {
 fn tier_a_registry_lists_every_documented_module_function() {
     let registry = ModuleRegistry::tier_a();
 
-    assert_eq!(registry.functions.len(), 49);
+    assert_eq!(registry.functions.len(), 50);
     assert!(registry.resolve("cem:stdlib/sequence", "map", 2).is_some());
     assert!(registry.resolve("cem:stdlib/strings", "slice", 3).is_some());
+    assert!(registry.resolve("cem:stdlib/strings", "replace", 3).is_some());
     assert!(registry
         .resolve("cem:stdlib/numbers", "format", 2)
         .is_some());

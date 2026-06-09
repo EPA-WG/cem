@@ -1,0 +1,70 @@
+{
+    "$comment": "FF-1..FF-8 fitness-gate map (OQ-2; guards BR-FF-1/2/3). Each FF names the Nx target(s) that enforce it. `active` FFs are CI-blocking: their backing targets must be defined AND invoked in the CI workflow, and their evidence fixtures/scripts must exist. `tracked` FFs are deferred (their AC-P-V dispatch fixtures do not exist yet): the backing target must be defined, but it is reported non-blocking with a `tracks` pointer until the fixtures land. FFDD (BR-FF-3): add or flip a row here, not code. Run via `@epa-wg/cem:fitness-gate-map`. See docs/fitness-functions.md.",
+    "ciWorkflow": ".github/workflows/ci.yml",
+    "gates": [
+        {
+            "id": "FF-1",
+            "title": "Backward-render: prior-generation fixtures still render",
+            "status": "active",
+            "guards": ["BR-EV-3", "AC-P-V corpus"],
+            "backing": ["cem_ml_cli:validate-fixtures", "cem-elements:verify"],
+            "evidence": ["examples/cem-ml/fixture-manifest.json"]
+        },
+        {
+            "id": "FF-2",
+            "title": "Negotiation determinism: same-MAJOR loads, unsupported MAJOR rejects, per axis",
+            "status": "tracked",
+            "guards": ["AC-P-V-5"],
+            "backing": ["cem_ml_cli:e2e"],
+            "tracks": "AC-P-V-5 per-namespace version-negotiation fixtures not authored yet"
+        },
+        {
+            "id": "FF-3",
+            "title": "Isolation: no region interpreted by another content type's processor",
+            "status": "active",
+            "guards": ["AC-P-V-3", "AC-P-4"],
+            "backing": ["cem_ml_cli:e2e", "cem_ml_cli:validate-fixtures"],
+            "evidence": ["examples/cem-ml/schema-scoping/sibling-isolation.cem"]
+        },
+        {
+            "id": "FF-4",
+            "title": "Mode-disposition: unknown optional ignore/degrade/reject; must-understand rejects",
+            "status": "tracked",
+            "guards": ["AC-P-V-6"],
+            "backing": ["cem-elements:verify"],
+            "tracks": "AC-P-V-6 unknown-namespace policy-determinism fixtures not authored yet"
+        },
+        {
+            "id": "FF-5",
+            "title": "Removal gate: zero in-repo consumers of a deprecated form + external window",
+            "status": "active",
+            "guards": ["BR-EV-7", "BR-CO-3"],
+            "backing": ["@epa-wg/cem:fitness-removal-scan"],
+            "evidence": ["tools/fitness/deprecated-forms.json", "tools/scripts/ff-deprecated-form-scan.mjs"]
+        },
+        {
+            "id": "FF-6",
+            "title": "SemVer-presence: every governed contract declares a version axis",
+            "status": "active",
+            "guards": ["BR-VC-5", "BR-EV-6"],
+            "backing": ["@epa-wg/cem:fitness-semver-presence"],
+            "evidence": ["tools/fitness/governed-contracts.json", "tools/scripts/ff-semver-presence.mjs"]
+        },
+        {
+            "id": "FF-7",
+            "title": "XSLT capability-gating: unsupported XSLT version rejects; region isolated + version-pinned",
+            "status": "tracked",
+            "guards": ["AC-P-V-4", "AC-P-V-7"],
+            "backing": ["cem-elements:verify"],
+            "tracks": "AC-P-V-4/V-7 embedded-XSLT version-pinning + legacy-opt-in fixtures not authored yet"
+        },
+        {
+            "id": "FF-8",
+            "title": "Source-map continuity across dispatch boundaries",
+            "status": "active",
+            "guards": ["AC-P-V-2", "AC-P-7"],
+            "backing": ["cem_ml_cli:validate-fixtures"],
+            "evidence": ["examples/cem-ml/namespace-rebinding/default-html-svg-html.cem"]
+        }
+    ]
+}

@@ -54,7 +54,10 @@ jobs:
         run: yarn validate:utf8
 
       - name: Run fitness-function gates
-        run: yarn nx run-many -t fitness-removal-scan fitness-semver-presence
+        run: |
+          yarn nx run-many -t fitness-removal-scan fitness-semver-presence fitness-gate-map
+          yarn nx run cem_ml_cli:validate-fixtures
+          yarn nx run cem_ml_cli:e2e
 
       - name: Derive Nx SHAs
         uses: nrwl/nx-set-shas@v4

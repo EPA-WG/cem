@@ -141,6 +141,38 @@ regex-based.
 
 ---
 
+## FF-1..FF-4, FF-7, FF-8 — gate map (reuse existing gates)
+
+**Status: framework + ready FFs implemented** ✓ — the six non-net-new FFs are wired as named,
+CI-blocking gates through a registry + composing runner that mirrors the FF-5/FF-6 style:
+`tools/fitness/fitness-gates.json` (registry) + `tools/scripts/ff-gate-run.mjs` (runner) + Nx target
+`@epa-wg/cem:fitness-gate-map`, composed into the CI gate alongside FF-5/FF-6.
+
+Unlike FF-5/FF-6 (standalone scanners), these FFs **reuse existing gates** — so the runner does not
+re-run those heavy gates; it verifies the **FF→gate→CI mapping is intact** (a drift guard), while the
+backing gates do the actual behavioral enforcement when they run in CI. Per FF the registry records
+`backing` (the Nx target[s] that enforce it), `guards` (BR/AC refs), and either `evidence`
+(fixtures/scripts that must exist, for `active`) or `tracks` (for `tracked`).
+
+Pass/fail (deterministic):
+- `active` FF → **fail** unless every backing target is *defined*, at least one backing target is
+  *invoked in `.github/workflows/ci.yml`*, and every `evidence` path exists.
+- `tracked` FF → **report** non-blocking with its `tracks` pointer (its AC-P-V dispatch fixtures are
+  not authored yet); the backing target must still be defined.
+
+Current state (matches `todo.md` OQ-2):
+- **active:** FF-1 backward-render (`cem_ml_cli:validate-fixtures`, `cem-elements:verify`; evidence
+  `examples/cem-ml/fixture-manifest.json`), FF-3 isolation (`cem_ml_cli:e2e`/`validate-fixtures`;
+  evidence `schema-scoping/sibling-isolation.cem`), FF-8 source-map continuity
+  (`cem_ml_cli:validate-fixtures`; evidence `namespace-rebinding/default-html-svg-html.cem`), plus
+  FF-5 and FF-6. CI now also invokes `cem_ml_cli:validate-fixtures` + `cem_ml_cli:e2e` in the
+  fitness-gate step so FF-1/3/8 are genuinely enforced.
+- **tracked (deferred until their AC-P-V fixtures land):** FF-2 negotiation determinism (AC-P-V-5),
+  FF-4 mode-disposition (AC-P-V-6), FF-7 XSLT capability-gating (AC-P-V-4/V-7). Flipping one to
+  `active` = authoring its AC-P-V fixture(s) and pointing `evidence` at them — the FFDD acceptance
+  test for that AC-P-V work, exactly as FF-6's `pending-version`→`required` flip drove the SemVer-axis
+  task.
+
 ## Shared infrastructure & sequencing
 
 - New `tools/fitness/` holds the two JSON registries; new `tools/scripts/ff-*.mjs` hold the two

@@ -212,6 +212,7 @@ pub(crate) fn apply_stdlib_call(
             let value = first_string(&arg_streams);
             ItemStream::once(Item::Atomic(AtomValue::String(normalize_space(&value))))
         }
+        ("cem:stdlib/strings", "replace") => string_replace(arg_streams),
         ("cem:stdlib/numbers", "double") => number_double(arg_streams),
         ("cem:stdlib/numbers", "decimal") => number_decimal(arg_streams),
         ("cem:stdlib/numbers", "integer") => number_integer(arg_streams),
@@ -331,17 +332,25 @@ fn nth(mut input: ItemStream, n: Option<&ItemStream>) -> ItemStream {
 }
 
 fn record_field(input: ItemStream, field: &str) -> Option<ItemStream> {
-    if !input
+    // Flatten one array level so navigating a data-document collection (a slice delivered through
+    // the JSON boundary as a single `Item::Array` of row records) projects the field across its
+    // rows — i.e. `datadom.slices.hue.td1` yields the sequence of every row's `td1`, parity with a
+    // bare record sequence. A non-array item passes through unchanged.
+    let items: Vec<Item> = input
         .items
         .iter()
-        .any(|item| matches!(item, Item::Record(_)))
-    {
+        .flat_map(|item| match item {
+            Item::Array(members) => members.clone(),
+            other => vec![other.clone()],
+        })
+        .collect();
+    if !items.iter().any(|item| matches!(item, Item::Record(_))) {
         return None;
     }
     let mut out = ItemStream::empty();
     out.diagnostics.extend(input.diagnostics);
     out.error = input.error;
-    for item in input.items {
+    for item in items {
         if let Item::Record(record) = item {
             if let Some(values) = record.get(field) {
                 out.items.extend(values.clone());
@@ -804,6 +813,29 @@ fn string_concat(streams: Vec<ItemStream>) -> ItemStream {
         })
         .unwrap_or_default();
     ItemStream::once(Item::Atomic(AtomValue::String(parts.join(&separator))))
+}
+
+/// `str:replace(haystack, needle, replacement)` — replace ALL occurrences (XPath-2 `replace`
+/// parity for literal needles; e.g. substituting an `[emotion]` placeholder in a token formula).
+/// An empty needle leaves the haystack unchanged (avoids the infinite/degenerate split).
+fn string_replace(streams: Vec<ItemStream>) -> ItemStream {
+    let haystack = first_string(&streams);
+    let needle = nth_string(&streams, 1);
+    let replacement = nth_string(&streams, 2);
+    let result = if needle.is_empty() {
+        haystack
+    } else {
+        haystack.replace(&needle, &replacement)
+    };
+    ItemStream::once(Item::Atomic(AtomValue::String(result)))
+}
+
+fn nth_string(streams: &[ItemStream], index: usize) -> String {
+    streams
+        .get(index)
+        .and_then(|stream| stream.items.first())
+        .and_then(item_string)
+        .unwrap_or_default()
 }
 
 fn string_predicate(streams: Vec<ItemStream>, f: fn(&str, &str) -> bool) -> ItemStream {

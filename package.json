@@ -108,6 +108,25 @@
           "{workspaceRoot}/packages/cem-theme/dist/lib/tokens/*.json"
         ],
         "outputs": []
+      },
+      "fitness-gate-map": {
+        "executor": "nx:run-commands",
+        "cache": true,
+        "options": {
+          "command": "node tools/scripts/ff-gate-run.mjs",
+          "cwd": "{workspaceRoot}"
+        },
+        "inputs": [
+          "{workspaceRoot}/tools/scripts/ff-gate-run.mjs",
+          "{workspaceRoot}/tools/fitness/fitness-gates.json",
+          "{workspaceRoot}/.github/workflows/ci.yml",
+          "{workspaceRoot}/packages/*/project.json",
+          "{workspaceRoot}/package.json",
+          "{workspaceRoot}/examples/cem-ml/**/*",
+          "{workspaceRoot}/tools/fitness/*.json",
+          "{workspaceRoot}/tools/scripts/ff-*.mjs"
+        ],
+        "outputs": []
       }
     }
   }

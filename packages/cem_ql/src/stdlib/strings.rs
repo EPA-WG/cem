@@ -15,4 +15,5 @@ pub const FUNCTIONS: &[StdlibFunction] = &[
     StdlibFunction::native(MODULE_URI, "starts_with", 2, Tier::A),
     StdlibFunction::native(MODULE_URI, "ends_with", 2, Tier::A),
     StdlibFunction::native(MODULE_URI, "normalize_space", 1, Tier::A),
+    StdlibFunction::native(MODULE_URI, "replace", 3, Tier::A),
 ];
