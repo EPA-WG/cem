@@ -14,19 +14,28 @@ Companion docs (referenced, not duplicated here):
 
 ## 1. Scope & target versions
 
-**Decision (2026-06-09): 0.1.0 across the three published packages** — a major
-step that stays pre-1.0, so the public API is not yet under a stable-1.0 SemVer
-promise (AC-P-6.9 XSLT execution + Phase-5 token platforms are still in flux).
+**Decision (2026-06-09): 0.1.0** — a major step that stays pre-1.0, so the
+public API is not yet under a stable-1.0 SemVer promise (AC-P-6.9 XSLT execution
++ Phase-5 token platforms are still in flux). Pre-1.0 SemVer: a `0.MINOR` bump
+may carry breaking changes.
 
-| Package | From | To | Notes |
+**Release topology** (from `nx.json` `release.groups.cem`): the monorepo group
+is **fixed** (all bump together) over the `cem` group; `custom-element` is a
+separate repo with its own release, and `trang-native` is independent.
+
+| Package | From | To | Released via |
 | --- | --- | --- | --- |
-| `@epa-wg/custom-element` | 0.0.39 | 0.1.0 | XSLT-only adapter + the new substrate bridge |
-| `@epa-wg/cem-elements` | 0.0.14 | 0.1.0 | `<cem-element>` substrate runtime |
-| `@epa-wg/cem-theme` | 0.0.14 | 0.1.0 | tokens + converted CSS generators |
+| `@epa-wg/cem` (root) | 0.0.14 | 0.1.0 | nx `cem` group (private — version coordination only, not published) |
+| `@epa-wg/cem-theme` | 0.0.14 | 0.1.0 | nx `cem` group |
+| `@epa-wg/cem-components` | 0.0.14 | 0.1.0 | nx `cem` group |
+| `@epa-wg/cem-elements` | 0.0.14 | 0.1.0 | nx `cem` group |
+| `@epa-wg/custom-element` | 0.0.39 | 0.1.0 | **separate** (`EPA-WG/custom-element` repo), not the monorepo group |
+| `@epa-wg/trang-native` | 0.1.0 | — | independent (`trang-native-release.yml`); no bump needed |
 
 The Rust crates (`cem_ml`, `cem_ql`, `cem_ml_cli`) are workspace-internal
-(Cargo `0.1.0`), not npm-published. Pre-1.0 SemVer: a `0.MINOR` bump may carry
-breaking changes.
+(Cargo `0.1.0`), not npm-published. **Note:** the fixed group means
+`cem-components` rides the same 0.1.0 bump — confirm its contents are
+release-ready even though it is not the focus of this engine work.
 
 ## 2. Changelog summary (since 0.0.14, 2026-05-04)
 
@@ -87,21 +96,28 @@ in-repo consumers of the deprecated form before removal.
 
 ## 5. npm package-contents check
 
-Dry-run `npm pack` findings (2026-06-09):
+Dry-run `npm pack` findings (2026-06-09). **Important:** `custom-element` is
+built to a self-contained `dist/` (its own `dist/package.json`, imports vendored
+to `./vendor/@epa-wg/cem-elements/...`), and **publish is from `dist/`** — the
+source dir's root `custom-element.js` still has the workspace-relative
+`../cem-elements` import and is not the published entry. So pack from `dist/`,
+not the source dir.
 
-| Package | `files` | Verdict |
+| Package | Publish root | Verdict |
 | --- | --- | --- |
-| `@epa-wg/cem-elements` | `["dist","!**/*.tsbuildinfo"]` | ✅ clean (dist + subpath exports) |
-| `@epa-wg/cem-theme` | `["dist","!**/*.tsbuildinfo"]` | ✅ clean (dist + token subpath exports) |
-| `@epa-wg/custom-element` | `["*"]` | ⚠️ ships 152 files / 3.7 MB — includes `.vscode/settings.json`, dev configs, and root sources duplicated under `dist/` |
+| `@epa-wg/cem-elements` | `dist` (`!**/*.tsbuildinfo`) | ✅ clean (dist + subpath exports) |
+| `@epa-wg/cem-theme` | `dist` (`!**/*.tsbuildinfo`) | ✅ clean (dist + token subpath exports) |
+| `@epa-wg/custom-element` | `dist/` | ✅ 80 files / 2.9 MB, self-contained; no `.vscode`/dev cruft. **One stray:** `vendor/@epa-wg/cem-elements/dist/tsconfig.lib.tsbuildinfo` (38 kB) copied in by the substrate vendoring (`compile-html.mjs stageSubstrateRuntime`) |
 
-**Pre-publish action (do not blind-fix):** tighten `@epa-wg/custom-element`
-`files` to an explicit allowlist that *keeps the CDN-facing root entry*
-(`custom-element.js` + `custom-element.d.ts` — the README's
-`unpkg.com/@epa-wg/custom-element@0.0/custom-element.js` consumer path) and
-`dist/`, but excludes `.vscode/`, lint/tsconfig, and bin sources. Verify with
-`npm pack --dry-run` before tagging, since `module`/`types`/`exports` resolve to
-the root entry.
+(An earlier source-dir pack showed 152 files incl. `.vscode/` — that was the
+**dev** dir, not the published artifact; the `files:["*"]` on the source manifest
+is a non-issue for npm because the build emits a clean `dist/` with its own
+manifest.)
+
+**Pre-publish action (minor, optional):** drop the stray `*.tsbuildinfo` from the
+vendored copy — exclude it in `stageSubstrateRuntime` (it already runs `tsc`
+incrementally) or add a `dist/.npmignore`. Not a blocker. Always
+`npm pack --dry-run` from `dist/` before tagging.
 
 ## 6. Rollback plan
 
@@ -119,10 +135,13 @@ the root entry.
 
 ## 7. Pre-publish checklist
 
-- [ ] Choose the version bump in `nx release` config to land 0.1.0 (see §1).
-- [ ] Tighten `@epa-wg/custom-element` `files` + re-run `npm pack --dry-run` (§5).
+- [ ] Land 0.1.0 on the nx `cem` group (`yarn publish:prepare`; conventional
+      commits drive the bump) — includes `cem-components` via the fixed group (§1).
+- [ ] Release `@epa-wg/custom-element` 0.1.0 on its own repo (separate pipeline, §1).
+- [ ] `npm pack --dry-run` from each `dist/`; optionally drop the stray vendored
+      `*.tsbuildinfo` (§5). Confirm `cem-components` dist is release-ready.
 - [ ] Regenerate `CHANGELOG.md` via `nx release` and spot-check §2 highlights.
-- [ ] Confirm all migration gates green (done 2026-06-09: `cem-elements:verify`,
+- [x] Confirm all migration gates green (done 2026-06-09: `cem-elements:verify`,
       `@epa-wg/custom-element:verify`, `@epa-wg/cem-theme:build:html` +
       `verify:phase13`).
 - [ ] Add a deprecation notice to the legacy XSLT-only README section (§4).

@@ -842,13 +842,15 @@ Roadmap: [`../roadmap.md` §Phase 3.6](../roadmap.md). Starts after Phase 3.5 is
 - [~] Publish-readiness pass for the next major: changelog, migration guide from external POC package to workspace
       package, bridge-window support matrix, breaking-change list, npm package contents check, and rollback plan for
       consumers that still depend on the old XSLT-only surface. **Analysis landed** in
-      [`release-readiness-0.1.0.md`](release-readiness-0.1.0.md): target **0.1.0** (all three published packages),
-      bridge policy **deprecate-now / remove-next-major** (FF-5-gated), changelog summary, breaking-change list,
-      support matrix, rollback plan, and the npm-contents check (finding: `@epa-wg/custom-element` `files:["*"]` ships
-      dev cruft + dist duplication — pre-publish action recorded; cem-elements/cem-theme clean). **Remaining = the
-      maintainer publish actions** (the §7 checklist): set the `nx release` bump to 0.1.0, tighten the custom-element
-      `files` allowlist + `npm pack --dry-run`, regenerate `CHANGELOG.md`, add the legacy-deprecation README notice,
-      then tag/publish.
+      [`release-readiness-0.1.0.md`](release-readiness-0.1.0.md): target **0.1.0**, bridge policy
+      **deprecate-now / remove-next-major** (FF-5-gated), changelog summary, breaking-change list, support matrix,
+      rollback plan, and the npm-contents check. **Release topology** (corrected from `nx.json`): the fixed nx `cem`
+      group bumps `cem-theme` + `cem-components` + `cem-elements` (+ private root) together; `custom-element` releases
+      separately (own repo); `trang-native` independent. **npm-contents:** publish is from each package's clean
+      `dist/` (custom-element packs 80 files self-contained; the source `files:["*"]` is a dev-manifest non-issue) —
+      only stray is a 38 kB vendored `tsbuildinfo` (optional cleanup). **Remaining = maintainer publish actions**
+      (§7 checklist): land 0.1.0 on the nx group + custom-element's own repo, `npm pack --dry-run` per `dist/`,
+      regenerate `CHANGELOG.md`, add the legacy-deprecation README notice, then tag/publish.
 
 ## Phase 5 — Figma UI Kit Token Validation (`examples/figma`)
 
