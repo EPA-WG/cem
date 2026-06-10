@@ -839,9 +839,16 @@ Roadmap: [`../roadmap.md` §Phase 3.6](../roadmap.md). Starts after Phase 3.5 is
         **Done** — all 10 generators converted (see the Phase-3.6 Option-B slices under
         "What's left — execution"); `verify:phase13` fully green; the live browser-XSLT runtime is
         retired from the generators.
-- [ ] Publish-readiness pass for the next major: changelog, migration guide from external POC package to workspace
+- [~] Publish-readiness pass for the next major: changelog, migration guide from external POC package to workspace
       package, bridge-window support matrix, breaking-change list, npm package contents check, and rollback plan for
-      consumers that still depend on the old XSLT-only surface.
+      consumers that still depend on the old XSLT-only surface. **Analysis landed** in
+      [`release-readiness-0.1.0.md`](release-readiness-0.1.0.md): target **0.1.0** (all three published packages),
+      bridge policy **deprecate-now / remove-next-major** (FF-5-gated), changelog summary, breaking-change list,
+      support matrix, rollback plan, and the npm-contents check (finding: `@epa-wg/custom-element` `files:["*"]` ships
+      dev cruft + dist duplication — pre-publish action recorded; cem-elements/cem-theme clean). **Remaining = the
+      maintainer publish actions** (the §7 checklist): set the `nx release` bump to 0.1.0, tighten the custom-element
+      `files` allowlist + `npm pack --dry-run`, regenerate `CHANGELOG.md`, add the legacy-deprecation README notice,
+      then tag/publish.
 
 ## Phase 5 — Figma UI Kit Token Validation (`examples/figma`)
 
