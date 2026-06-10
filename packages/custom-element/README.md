@@ -283,6 +283,13 @@ The in-browser native implementation as of now supports [XSLT 1.0](https://www.w
 File the [change request](https://github.com/EPA-WG/custom-element/issues) for support of another XSLT version or
 template engine.
 
+> **Deprecated (0.1.0):** the legacy browser-native XSLT 1.0 / XPath rendering path is **deprecated but still
+> functional** in 0.1.0. Authoring has moved to the CEM-ML / CEM-QL substrate
+> (`<template type="cem-ml; version=0.0">`), which the `<custom-element>` adapter now renders through.
+> The XSLT-only path ships one full major as a migration bridge and is **removed in the next major**
+> (enforced by the FF-5 removal gate once there are zero in-repo consumers). Migrate authoring templates to the
+> substrate; the generated output (e.g. `cem-theme` CSS) is unaffected.
+
 # troubleshooting
 ## HTML parser is not compatible with templates
 On many tags like `table`, or link `a` the attempt to use XSLT operations could lead to DOM order mismatch to given

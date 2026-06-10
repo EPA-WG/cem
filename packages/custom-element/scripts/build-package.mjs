@@ -36,7 +36,8 @@ for (const entry of entries) {
 await cp(
     join(workspaceRoot, 'packages/cem-elements/dist'),
     join(vendorRoot, 'cem-elements/dist'),
-    { recursive: true }
+    // Drop incremental-build artifacts; the vendored runtime is JS/WASM only.
+    { recursive: true, filter: (src) => !src.endsWith('.tsbuildinfo') }
 );
 await cp(
     join(workspaceRoot, 'packages/cem_ql/dist/wasm'),

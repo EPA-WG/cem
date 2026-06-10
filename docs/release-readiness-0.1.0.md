@@ -107,16 +107,18 @@ not the source dir.
 | --- | --- | --- |
 | `@epa-wg/cem-elements` | `dist` (`!**/*.tsbuildinfo`) | ✅ clean (dist + subpath exports) |
 | `@epa-wg/cem-theme` | `dist` (`!**/*.tsbuildinfo`) | ✅ clean (dist + token subpath exports) |
-| `@epa-wg/custom-element` | `dist/` | ✅ 80 files / 2.9 MB, self-contained; no `.vscode`/dev cruft. **One stray:** `vendor/@epa-wg/cem-elements/dist/tsconfig.lib.tsbuildinfo` (38 kB) copied in by the substrate vendoring (`compile-html.mjs stageSubstrateRuntime`) |
+| `@epa-wg/custom-element` | `dist/` | ✅ 85 files / 691 kB packed (3.0 MB unpacked), self-contained; no `.vscode`/dev cruft. **Stray `*.tsbuildinfo` now excluded** — the vendoring copy in `build-package.mjs` filters `.tsbuildinfo` (verified: 0 in the tarball) |
 
 (An earlier source-dir pack showed 152 files incl. `.vscode/` — that was the
 **dev** dir, not the published artifact; the `files:["*"]` on the source manifest
 is a non-issue for npm because the build emits a clean `dist/` with its own
 manifest.)
 
-**Pre-publish action (minor, optional):** drop the stray `*.tsbuildinfo` from the
-vendored copy — exclude it in `stageSubstrateRuntime` (it already runs `tsc`
-incrementally) or add a `dist/.npmignore`. Not a blocker. Always
+**Pre-publish action — DONE (2026-06-10):** the stray `*.tsbuildinfo` is now
+filtered out of the vendored copy in `packages/custom-element/scripts/build-package.mjs`
+(`cp` `filter`). `npm pack --dry-run` from each `dist/` is clean: custom-element 85
+files / 691 kB, cem-theme 123 / 5.3 MB, cem-elements 23 / 39 kB, cem-components 15 /
+8 kB — all `tsbuildinfo`-free, `cem-components` dist confirmed release-ready. Always
 `npm pack --dry-run` from `dist/` before tagging.
 
 ## 6. Rollback plan
@@ -138,10 +140,16 @@ incrementally) or add a `dist/.npmignore`. Not a blocker. Always
 - [ ] Land 0.1.0 on the nx `cem` group (`yarn publish:prepare`; conventional
       commits drive the bump) — includes `cem-components` via the fixed group (§1).
 - [ ] Release `@epa-wg/custom-element` 0.1.0 on its own repo (separate pipeline, §1).
-- [ ] `npm pack --dry-run` from each `dist/`; optionally drop the stray vendored
-      `*.tsbuildinfo` (§5). Confirm `cem-components` dist is release-ready.
+- [x] `npm pack --dry-run` from each `dist/`; stray vendored `*.tsbuildinfo`
+      dropped (§5, 2026-06-10). `cem-components` dist confirmed release-ready
+      (15 files / 8 kB).
 - [ ] Regenerate `CHANGELOG.md` via `nx release` and spot-check §2 highlights.
 - [x] Confirm all migration gates green (done 2026-06-09: `cem-elements:verify`,
       `@epa-wg/custom-element:verify`, `@epa-wg/cem-theme:build:html` +
       `verify:phase13`).
-- [ ] Add a deprecation notice to the legacy XSLT-only README section (§4).
+- [x] Add a deprecation notice to the legacy XSLT-only README section (§4).
+      Landed in `packages/custom-element/README.md` (§"XSLT 1.0") and
+      `packages/cem-theme/README.md` (Build & test — generator path): both note
+      deprecated-but-functional in 0.1.0, removed next major (FF-5 gated), migrate to
+      the substrate. cem-theme also clarifies the generated `dist/lib/css/*.css` is
+      unchanged, so CSS consumers are unaffected.
