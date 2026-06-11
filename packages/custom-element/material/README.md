@@ -32,8 +32,11 @@ above; the raw pages are kept as authoring reference.
 ## Scope
 
 Supported (Tier 1/2): the constructs the material components and demos use — see the converter doc.
-**Not converted (Tier 3, deferred):** standalone full XSLT stylesheets (push-model `<xsl:template
-match>` + `apply-templates`/`call-template`/`sort`, EXSLT `func:function`, `<msxsl:script>`); these
-emit a conversion diagnostic. The original POC `xslt-*` test stories
+A CI gate (`@epa-wg/custom-element:test`, `test-fixtures/material-convert-gate.js`) converts every
+`<template>` in these files and fails on unexpected diagnostics. **Known deferred gaps (allowed):** the
+legacy DCE `hasBoolAttribute()` boolean-attribute helper (used by `input`/`action`) is not reproduced
+on the substrate. **Not converted (Tier 3, deferred):** standalone full XSLT stylesheets (push-model
+`<xsl:template match>` + `apply-templates`/`call-template`/`sort`, EXSLT `func:function`,
+`<msxsl:script>`); these emit a conversion diagnostic. The original POC `xslt-*` test stories
 (`~/aWork/custom-element-dist/src/stories`) are ported into the substrate twin stories rather than
 copied verbatim (they were bound to the POC's runtime and project layout).

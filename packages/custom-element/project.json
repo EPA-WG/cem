@@ -50,6 +50,7 @@
                 "{projectRoot}/scripts/verify-browser-fixtures.mjs",
                 "{projectRoot}/test-fixtures/**/*.json",
                 "{projectRoot}/test-fixtures/**/*",
+                "{projectRoot}/material/**/*",
                 "{projectRoot}/package.json"
             ],
             "outputs": []

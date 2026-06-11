@@ -14,9 +14,10 @@
  * EXSLT `func:function`, `msxsl:script`) are out of scope and emit a diagnostic.
  */
 
-import type { TemplateSourceNode, TemplateSourceAttribute } from '../projection.js';
+import { readTemplateSource, type TemplateSourceNode, type TemplateSourceAttribute } from '../projection.js';
 
 const XSL_NAMESPACE = 'http://www.w3.org/1999/XSL/Transform';
+const XHTML_NAMESPACE = 'http://www.w3.org/1999/xhtml';
 
 /** Declaration tags that the runtime treats as non-output and the render plan drops. */
 const DECLARATION_TAGS = new Set(['attribute', 'slice', 'data', 'option', 'module-url']);
@@ -125,6 +126,30 @@ function toItemNode(element: Extract<TemplateSourceNode, { kind: 'element' }>): 
         attrs[attribute.name] = attribute.value;
     }
     return { text: textContent(element), attrs };
+}
+
+/**
+ * Read a legacy HTML+XSLT `<template>` into the serializable source tree with HTML and XSLT
+ * recognized as distinct namespaces. The browser HTML parser garbles non-HTML constructs (`xsl:*`,
+ * `for-each`) — especially inside table content models — so the raw markup is re-parsed as XML under
+ * both the XHTML default namespace and the XSL namespace. Falls back to the HTML-parsed content when
+ * the XML is not well-formed. Pair with {@link convertLegacyTemplateToCemMl}; the runtime and the
+ * material-template gate share this one pipeline.
+ */
+export function parseLegacyTemplateSource(template: HTMLTemplateElement): TemplateSourceNode[] {
+    const raw = template.innerHTML.trim().length > 0 ? template.innerHTML : template.textContent ?? '';
+    const xml =
+        `<cem-legacy-root xmlns="${XHTML_NAMESPACE}" xmlns:xsl="${XSL_NAMESPACE}" ` +
+        `xmlns:xhtml="${XHTML_NAMESPACE}">${raw}</cem-legacy-root>`;
+    try {
+        const parsed = new DOMParser().parseFromString(xml, 'application/xml');
+        if (parsed.querySelector('parsererror') === null && parsed.documentElement) {
+            return readTemplateSource(parsed.documentElement);
+        }
+    } catch {
+        // fall through to the HTML-parsed content
+    }
+    return readTemplateSource(template.content);
 }
 
 function localName(tag: string): string {
@@ -597,8 +622,10 @@ class XPathRewriter {
         if (value === 'true' || value === 'false') {
             return `${value} `;
         }
-        // Bare path step (e.g. a datadom field / slice referenced by name).
-        return `datadom.slices.${value} `;
+        // Bare name → a flat binding reference (legacy DCE `{name}` resolves the host attribute /
+        // dataset / slice of that name; the runtime seeds those as flat bindings). Slices are
+        // referenced explicitly with `//name`.
+        return `${value} `;
     }
 
     private rewriteCall(name: string): string {

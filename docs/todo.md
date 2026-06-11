@@ -623,7 +623,7 @@ Design home: [`cem-element-design.md`](cem-element-design.md). WASM proposal:
       reader, accept legacy `{name}` / `{$name}` / `{//path}` interpolation, bridge `if` / `choose` / `when` /
       `otherwise`, declaration attributes/slices, slots, and the same resource/slice event handling as the DOM path.
       Coverage: `LegacyBridgeTemplateParity`; unsupported XSLT-only constructs remain adoption-phase follow-up.
-- [~] Legacy HTML+XSLT backward-compat via DOM→CEM-ML conversion (keep the test suite, demos, and material
+- [x] Legacy HTML+XSLT backward-compat via DOM→CEM-ML conversion (keep the test suite, demos, and material
       components working on the substrate engine — **no browser `XSLTProcessor`**, so the FF-5 forbidden gate
       stays green). Decision: legacy template DOM is parsed with HTML + XSLT namespaces and **transpiled to
       canonical CEM-ML**, then rendered on the same cem_ql WASM engine as migrated templates, so a legacy
@@ -637,10 +637,27 @@ Design home: [`cem-element-design.md`](cem-element-design.md). WASM proposal:
       `cem:for-each` `$position`), and the engine fix binding declared attributes when unset. Coverage: twin
       stories in [`legacy-xslt-parity.stories.ts`](../packages/cem-elements/src/lib/legacy-xslt-parity.stories.ts)
       (legacy ⇆ CEM-ML identical DOM) + `convert.spec.ts`; `cem-elements:verify` + `@epa-wg/custom-element:verify`
-      + FF-5 green. **Remaining:** copy the demo/stories/material modules into the repo and port the rest of the
-      legacy story patterns (material components, `xslt-if`/`xslt-conditionals`) as twin stories. **Tier 3
-      deferred** (standalone XSLT stylesheets: push-model `apply-templates`/`call-template`/`sort`, EXSLT
-      `func:function`, `msxsl:script` — non-transpilable; emit a conversion diagnostic).
+      + FF-5 green. Material components copied to
+      [`packages/custom-element/material/`](../packages/custom-element/material/) (+ `README.md`); twin
+      stories cover 5 patterns (icon-link choose/when/`contains`/slot/AVT, if/`not`, for-each unroll,
+      choose/otherwise badge, for-each `@attr`+`position` swatches). **Strengthening DONE (A1–A3):**
+  - [x] **A2.** Copied modules are now a CI requirement: the material-template convert gate
+        ([`test-fixtures/material-convert-gate.{html,js}`](../packages/custom-element/test-fixtures/material-convert-gate.js))
+        loads each `material/components/*.html`, runs every `<template>` through the shared
+        `parseLegacyTemplateSource` + `convertLegacyTemplateToCemMl` pipeline (the runtime's), and fails on any
+        unexpected diagnostic — wired into `@epa-wg/custom-element:test`/`:verify`. Drift in the copied files or a
+        converter regression now fails CI. (The reparse was extracted to the exported `parseLegacyTemplateSource`
+        so the gate and the runtime share one pipeline; the legacy bridge `{name}` interpolation was also fixed to
+        resolve a flat binding, and `browser-smoke.js` waits for the now-async WASM render.)
+  - [x] **A3.** Interactive slice-event twin landed (`LegacySliceIfOrderingParity`): a checkbox `slice` drives two
+        `<if test="//show-a='AA'">` blocks; asserts slice-driven re-render + in-order inline rendering, legacy ⇆
+        CEM-ML. (`cem-elements:test` now 67 / 6 twin stories.)
+  - **Deferred (documented gaps, allowed by the gate):** legacy DCE `hasBoolAttribute()` boolean-attribute helper
+        (used by `input`/`action`) is not reproduced; **Tier 3** standalone XSLT stylesheets — push-model
+        `apply-templates`/`call-template`/`sort`, EXSLT `func:function`, `msxsl:script` (non-transpilable).
+  - **Then (tracked elsewhere, in order): B.** 0.1.0 publish-readiness — maintainer publish actions
+        (§"Publish-readiness pass" below). **C.** externally-gated phases — Figma validation (Phase 5), iOS/Android
+        compile gates (Phase 8), and the engine XSLT 3.0/4.0 execution wishlist (top of this file).
 
 ### 3.2 Primitives — `@epa-wg/cem-components`
 

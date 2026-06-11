@@ -16,7 +16,7 @@ import {
     type RuntimeSupportDiagnostic,
 } from './internal/runtime-support/cem-ql-render.js';
 import { ingestContractVersion, type RunMode } from './disposition.js';
-import { convertLegacyTemplateToCemMl } from './legacy-xslt/convert.js';
+import { convertLegacyTemplateToCemMl, parseLegacyTemplateSource } from './legacy-xslt/convert.js';
 
 export type CemElementDiagnosticSeverity = 'info' | 'warning' | 'error' | 'fatal';
 
@@ -208,7 +208,6 @@ const DATA_ISLAND_VALUE = 'instance';
 const HYDRATION_METADATA_ATTR = 'data-cem-hydration';
 const HYDRATION_METADATA_VALUE = 'snapshot';
 const XHTML_NAMESPACE = 'http://www.w3.org/1999/xhtml';
-const XSL_NAMESPACE = 'http://www.w3.org/1999/XSL/Transform';
 const DATA_ISLAND_EXPORT_FIELDS: readonly DataIslandSnapshotExportField[] = [
     'hostAttributes',
     'dataset',
@@ -1160,32 +1159,9 @@ function readInlineTemplateSource(
     mode: CompiledDeclaration['mode']
 ): TemplateSourceNode[] {
     if (mode === 'legacy-xslt') {
-        return readLegacyXsltSource(template);
+        return parseLegacyTemplateSource(template);
     }
     return mode === 'dom' || mode === 'legacy-v0' ? readTemplateSource(template.content) : [];
-}
-
-/**
- * Read a legacy HTML+XSLT template into the serializable source tree with HTML and XSLT recognized
- * as distinct namespaces. The browser HTML parser garbles non-HTML constructs (`xsl:*`, `for-each`)
- * — especially inside table content models — so the raw markup is re-parsed as XML under both the
- * XHTML default namespace and the XSL namespace. Falls back to the HTML-parsed content if the XML is
- * not well-formed.
- */
-function readLegacyXsltSource(template: HTMLTemplateElement): TemplateSourceNode[] {
-    const raw = template.innerHTML.trim().length > 0 ? template.innerHTML : templateSourceText(template);
-    const xml =
-        `<cem-legacy-root xmlns="${XHTML_NAMESPACE}" xmlns:xsl="${XSL_NAMESPACE}" ` +
-        `xmlns:xhtml="${XHTML_NAMESPACE}">${raw}</cem-legacy-root>`;
-    try {
-        const parsed = new DOMParser().parseFromString(xml, 'application/xml');
-        if (parsed.querySelector('parsererror') === null && parsed.documentElement) {
-            return readTemplateSource(parsed.documentElement);
-        }
-    } catch {
-        // fall through to the HTML-parsed content
-    }
-    return readTemplateSource(template.content);
 }
 
 function templateMode(template: HTMLTemplateElement): CompiledDeclaration['mode'] {

@@ -221,6 +221,60 @@ export const LegacyForEachAttrParity: Story = {
     },
 };
 
+export const LegacySliceIfOrderingParity: Story = {
+    render: () => {
+        const root = section('legacy slice-driven if ordering parity');
+        // Legacy `xslt/if` pattern: a checkbox slice drives two `<if>` blocks; the inline one must
+        // render in document order between the ▶ ◀ markers. Authored as legacy HTML+XSLT.
+        defineLegacy(
+            makeRuntime('legacy-toggle'),
+            'legacy-toggle',
+            '<slice name="show-a">false</slice>' +
+                '<div class="whole">' +
+                '<label><input type="checkbox" value="AA" slice="show-a" slice-event="change" slice-value="{$target.value}"/> A</label>' +
+                '▶<if test="//show-a = \'AA\'">!A</if>◀' +
+                '</div>' +
+                '<if test="//show-a = \'AA\'"><div class="t1">T1</div></if>'
+        );
+        // Hand-written CEM-ML twin.
+        defineCemMl(
+            makeRuntime('cem-toggle'),
+            'cem-toggle',
+            '{slice @name=show-a | false}' +
+                '{div @class=whole |' +
+                ' {label | {input @type=checkbox @value=AA @slice=show-a @slice-event=change @slice-value="{$target.value}"} A}' +
+                '▶{cem:if @test=\'datadom.slices.show-a = "AA"\' | !A}◀}' +
+                '{cem:if @test=\'datadom.slices.show-a = "AA"\' | {div @class=t1 | T1}}'
+        );
+        root.append(instance('legacy-toggle', {}, ''), instance('cem-toggle', {}, ''));
+        return root;
+    },
+    play: async ({ canvasElement }) => {
+        const legacy = requiredElement(canvasElement, 'legacy-toggle') as HTMLElement;
+        const twin = requiredElement(canvasElement, 'cem-toggle') as HTMLElement;
+
+        const whole = await waitForElement(legacy, '.whole');
+        assert(legacy.querySelector('.t1') === null, 'the gated block is absent before the slice is set');
+        assert(/▶\s*◀/.test(whole.textContent ?? ''), 'inline block absent before toggle (▶ ◀)');
+
+        // Toggle the checkbox → the change-event slice sets show-a; both `<if>` blocks render.
+        const checkbox = (await waitForElement(legacy, 'input[type=checkbox]')) as HTMLInputElement;
+        checkbox.checked = true;
+        checkbox.dispatchEvent(new Event('change', { bubbles: true }));
+
+        await waitForElement(legacy, '.t1');
+        const wholeAfter = requiredElement(legacy, '.whole');
+        assert(/▶\s*!A\s*◀/.test(wholeAfter.textContent ?? ''), 'inline block renders in order between ▶ and ◀');
+
+        // Drive the twin identically and compare.
+        const twinCheckbox = (await waitForElement(twin, 'input[type=checkbox]')) as HTMLInputElement;
+        twinCheckbox.checked = true;
+        twinCheckbox.dispatchEvent(new Event('change', { bubbles: true }));
+        await waitForElement(twin, '.t1');
+        assertEqual(renderedHtml(legacy), renderedHtml(twin), 'slice-driven legacy ≡ CEM-ML twin after toggle');
+    },
+};
+
 // ---------------------------------------------------------------------------
 // helpers
 // ---------------------------------------------------------------------------

@@ -64,8 +64,17 @@ export async function runCustomElementSmoke(importBase) {
 
     const instance = document.querySelector('fixture-card');
     check('legacy declaration registers produced tag', customElements.get('fixture-card') !== undefined);
-    check('legacy fixture renders host attribute text', instance?.querySelector('h3')?.textContent?.trim() === 'Smoke');
-    check('legacy fixture projects payload', instance?.querySelector('p')?.textContent?.trim() === 'Payload');
+    // The adapter now transpiles the legacy template to CEM-ML and renders it through the cem_ql
+    // WASM boundary, which is asynchronous — wait for the rendered output rather than asserting it
+    // synchronously (the old DOM-projection bridge rendered synchronously).
+    await waitFor(
+        'legacy fixture renders host attribute text',
+        () => instance?.querySelector('h3')?.textContent?.trim() === 'Smoke'
+    );
+    await waitFor(
+        'legacy fixture projects payload',
+        () => instance?.querySelector('p')?.textContent?.trim() === 'Payload'
+    );
     check(
         'adapter render uses substrate data island',
         instance?.querySelector('template[data-cem-island="instance"]') !== null

@@ -10,6 +10,8 @@ const workspaceRoot = dirname(dirname(projectRoot));
 const fixturePaths = [
     '/packages/custom-element/test-fixtures/browser-smoke.html',
     '/packages/custom-element/test-fixtures/browser-smoke-dist.html',
+    // Legacy material suite → DOM→CEM-ML conversion gate (keeps the copied modules a CI requirement).
+    '/packages/custom-element/test-fixtures/material-convert-gate.html',
 ];
 
 const server = createServer(async (request, response) => {

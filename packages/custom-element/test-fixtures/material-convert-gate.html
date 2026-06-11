@@ -1,0 +1,14 @@
+<!doctype html>
+<html lang="en">
+    <head>
+        <meta charset="utf-8" />
+        <title>material template conversion gate</title>
+    </head>
+    <body>
+        <script type="module">
+            import { runMaterialConvertGate } from './material-convert-gate.js';
+
+            globalThis.__customElementFixture = await runMaterialConvertGate();
+        </script>
+    </body>
+</html>
