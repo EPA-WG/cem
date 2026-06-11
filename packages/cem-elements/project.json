@@ -47,7 +47,8 @@
                 "{projectRoot}/vitest.unit.config.mts",
                 "{projectRoot}/package.json",
                 "{workspaceRoot}/package.json",
-                "{workspaceRoot}/yarn.lock"
+                "{workspaceRoot}/yarn.lock",
+                "{workspaceRoot}/packages/cem_ml/src/legacy_custom_element.rs"
             ],
             "outputs": []
         },
