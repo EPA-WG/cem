@@ -134,6 +134,93 @@ export const LegacyForEachXsltParity: Story = {
     },
 };
 
+export const LegacyChooseOtherwiseParity: Story = {
+    render: () => {
+        const root = section('legacy choose/otherwise parity');
+        // Legacy: choose with a datadom-attribute when + an otherwise fallback (material badge shape).
+        defineLegacy(
+            makeRuntime('legacy-badge'),
+            'legacy-badge',
+            '<attribute name="kind"></attribute>' +
+                '<span class="badge {$kind}">' +
+                '<choose>' +
+                '<when test="$kind"><b>{$kind}</b></when>' +
+                '<otherwise><i>none</i></otherwise>' +
+                '</choose>' +
+                '</span>'
+        );
+        defineCemMl(
+            makeRuntime('cem-badge'),
+            'cem-badge',
+            '{attribute @name=kind}' +
+                '{span @class="badge {$kind}" |' +
+                ' {cem:choose |' +
+                ' {cem:when @test="kind" | {b | {$kind}}}' +
+                ' {cem:otherwise | {i | none}}}}'
+        );
+        root.append(
+            instance('legacy-badge', { kind: 'alert' }, ''),
+            instance('cem-badge', { kind: 'alert' }, ''),
+            instance('legacy-badge', {}, ''),
+            instance('cem-badge', {}, '')
+        );
+        return root;
+    },
+    play: async ({ canvasElement }) => {
+        const [legacySet, twinSet, legacyNone, twinNone] = [
+            ...canvasElement.querySelectorAll('legacy-badge, cem-badge'),
+        ] as HTMLElement[];
+        await waitForElement(legacySet, 'b');
+        assertEqual(legacySet.querySelector('b')?.textContent, 'alert', 'when branch renders the kind');
+        await waitForElement(legacyNone, 'i');
+        assertEqual(legacyNone.querySelector('i')?.textContent, 'none', 'otherwise branch renders the fallback');
+        await waitForElement(twinSet, 'b');
+        await waitForElement(twinNone, 'i');
+        assertEqual(renderedHtml(legacySet), renderedHtml(twinSet), 'when-branch legacy ≡ CEM-ML twin');
+        assertEqual(renderedHtml(legacyNone), renderedHtml(twinNone), 'otherwise-branch legacy ≡ CEM-ML twin');
+    },
+};
+
+export const LegacyForEachAttrParity: Story = {
+    render: () => {
+        const root = section('legacy for-each @attr parity');
+        // Legacy: for-each over an inline node-set with attributes, AVT, and position().
+        defineLegacy(
+            makeRuntime('legacy-swatches'),
+            'legacy-swatches',
+            '<xsl:variable name="colors">' +
+                '<color hex="#f00">Red</color><color hex="#0f0">Green</color>' +
+                '</xsl:variable>' +
+                '<for-each select="exsl:node-set($colors)/*">' +
+                '<div class="swatch" style="background:{@hex}">{position()}. {.}</div>' +
+                '</for-each>'
+        );
+        defineCemMl(
+            makeRuntime('cem-swatches'),
+            'cem-swatches',
+            '{div @class="swatch" @style="background:#f00" | 1. Red}' +
+                '{div @class="swatch" @style="background:#0f0" | 2. Green}'
+        );
+        root.append(instance('legacy-swatches', {}, ''), instance('cem-swatches', {}, ''));
+        return root;
+    },
+    play: async ({ canvasElement }) => {
+        const legacy = requiredElement(canvasElement, 'legacy-swatches') as HTMLElement;
+        const twin = requiredElement(canvasElement, 'cem-swatches') as HTMLElement;
+        await waitForElement(legacy, 'div.swatch');
+        const swatches = Array.from(legacy.querySelectorAll('div.swatch'));
+        assertEqual(swatches.length, 2, 'for-each unrolls both members');
+        assertEqual(
+            (swatches[0] as HTMLElement).style.background,
+            'rgb(255, 0, 0)',
+            '@hex AVT substitutes the member attribute literal'
+        );
+        assertEqual(swatches[1]?.textContent?.trim(), '2. Green', 'position() and `.` substitute literals');
+        await waitForElement(twin, 'div.swatch');
+        assertEqual(renderedHtml(legacy), renderedHtml(twin), 'legacy for-each ≡ unrolled CEM-ML twin');
+    },
+};
+
 // ---------------------------------------------------------------------------
 // helpers
 // ---------------------------------------------------------------------------

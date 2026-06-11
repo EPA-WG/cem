@@ -53,6 +53,10 @@ generated entry:
 - **`<cem-element>` substrate (`cem-elements`)** — runtime slices A–E, C2 WASM
   lowering, serializable projection boundary, edge render-state, SSR hydration
   with BR-VC-9 contract disposition.
+- **Legacy HTML+XSLT backward-compat** — a DOM→CEM-ML converter
+  (`legacy-xslt/convert.ts`) + a runtime `legacy-xslt` mode transpile legacy
+  `<custom-element>` HTML+XSLT templates onto the cem_ql engine (no browser XSLT
+  processor), so legacy demos render identically to migrated CEM-ML twins.
 - **`cem-theme` generators** — all 10 CSS generators converted off the live
   browser-XSLT runtime to `type="cem-ml; version=0.0"` (Option B);
   `verify:phase13` green. Token export pipeline (DTCG / Figma / token-platforms).
@@ -67,14 +71,20 @@ For consumers of the 0.0.x line:
    generated `dist/lib/css/*.css` is stable, but the generator *templates*
    changed to `type="cem-ml; version=0.0"`. Anyone who forked/embedded the
    generator HTML must adopt the substrate (Option B).
-2. **The browser XSLT-1.0 `XSLTProcessor` engine is removed from the
-   `custom-element` adapter** (see §4) — not merely deprecated. `<xsl:for-each>`,
-   `<xsl:value-of>`, `<xsl:variable>`, `<xsl:template>`, and broad XPath functions
-   no longer execute (the package verifier fails if `XSLTProcessor` reappears). The
-   `<custom-element>` tag stays functional through `CemElementRuntime`, and a
-   `custom-element-v0` bridge covers a *subset* of legacy authoring (curly-brace
-   interpolation, `if`/`choose`/`when`/`otherwise`, path selection, AVT) — that
-   bridge is the deprecated-but-functional part, removed next major.
+2. **The browser XSLT-1.0 transform *engine* is retired from the `custom-element`
+   adapter** (see §4), but **legacy HTML+XSLT templates still work** — they are
+   transpiled to CEM-ML and rendered on the substrate (`CemElementRuntime`), not by
+   a browser XSLT processor (the package verifier fails if `XSLTProcessor` reappears).
+   The converter (`cem-elements/src/lib/legacy-xslt/convert.ts`) covers the Tier 1/2
+   surface the legacy demos use — `<xsl:value-of>`/`{…}`, `<xsl:for-each>` (incl. the
+   `exsl:node-set($var)/*` inline-variable idiom, unrolled), `<xsl:if>`/`<xsl:choose>`,
+   `<xsl:variable>`, `<slot>`, `<attribute>`/`<slice>`, AVT, and the XPath function
+   subset (`contains`, `not`, `translate`, `substring*`, `position`, `count`, …).
+   **Tier 3 standalone XSLT stylesheets are not converted** (push-model
+   `<xsl:template match>`/`apply-templates`/`call-template`/`sort`, EXSLT
+   `func:function`, `<msxsl:script>`) — they emit a conversion diagnostic; author that
+   logic in CEM-ML/CEM-QL. The separate `custom-element-v0` DOM-projection bridge
+   (explicit `lang`) stays deprecated-but-functional, removed next major.
 3. **Deep `dist/` imports are discouraged.** Import package export subpaths
    instead — `@epa-wg/cem-theme/tokens/cem.tokens.json`,
    `@epa-wg/cem-theme/tokens/cem.tokens.ts`, `@epa-wg/cem-elements`. Debug-only
@@ -89,19 +99,23 @@ For consumers of the 0.0.x line:
 
 ## 4. Bridge-window support matrix
 
-**Policy (2026-06-09; corrected 2026-06-10): the XSLT *engine* is already removed;
-the legacy *authoring bridge* deprecates now, removes next major.** The browser
-XSLT-1.0 `XSLTProcessor` rendering engine is gone in 0.1.0 (the `custom-element`
-adapter delegates to `CemElementRuntime` and the verifier blocks `XSLTProcessor`
-from returning). The `custom-element-v0` bridge — a *subset* of legacy authoring,
-not XSLT-tag execution — ships deprecated-but-working for one full major, then the
-FF-5 removal gate (zero in-repo consumers) clears it.
+**Policy (2026-06-09; revised 2026-06-10): the native XSLT *engine* is retired, but
+legacy HTML+XSLT is supported by transpiling it to CEM-ML on the substrate.** The
+browser XSLT-1.0 transform processor is gone in 0.1.0 (the `custom-element` adapter
+delegates to `CemElementRuntime`; the verifier blocks `XSLTProcessor` from
+returning). Legacy HTML+XSLT templates run via the DOM→CEM-ML converter on the same
+engine as migrated templates — a legacy sample and its CEM-ML twin render
+identically. Tier 3 standalone XSLT stylesheets (push-model / EXSLT / `msxsl:script`)
+are not converted. The older `custom-element-v0` DOM-projection bridge stays
+deprecated, removed next major (FF-5 gated).
 
 | Surface | 0.1.0 | next major |
 | --- | --- | --- |
 | CEM-ML/CEM-QL substrate (`type="cem-ml; version=0.0"`) | ✅ recommended | ✅ |
-| XSLT-tag execution (`<xsl:*>` + XPath via `XSLTProcessor`) | ❌ **removed** | ❌ |
-| `custom-element-v0` legacy-authoring bridge (interpolation, `if`/`choose`, paths, AVT) | ⚠️ deprecated, functional | ❌ removed (FF-5 gated) |
+| Native browser XSLT transform engine (`XSLTProcessor`) | ❌ **retired** | ❌ |
+| Legacy HTML+XSLT via DOM→CEM-ML conversion (Tier 1/2: `value-of`/`for-each`/`if`/`choose`/`variable`/AVT + XPath subset) | ✅ supported | ✅ |
+| Tier 3 standalone XSLT stylesheets (`apply-templates`/`call-template`/`sort`, EXSLT, `msxsl:script`) | ❌ not converted (diagnostic) | ❌ |
+| `custom-element-v0` DOM-projection bridge (explicit `lang`) | ⚠️ deprecated, functional | ❌ removed (FF-5 gated) |
 | `custom-element-v0` / `cem-ml-v0` deprecated form ids | ⚠️ scanned by FF-5 | ❌ removed |
 
 ## 5. npm package-contents check

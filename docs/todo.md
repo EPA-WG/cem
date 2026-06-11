@@ -623,6 +623,24 @@ Design home: [`cem-element-design.md`](cem-element-design.md). WASM proposal:
       reader, accept legacy `{name}` / `{$name}` / `{//path}` interpolation, bridge `if` / `choose` / `when` /
       `otherwise`, declaration attributes/slices, slots, and the same resource/slice event handling as the DOM path.
       Coverage: `LegacyBridgeTemplateParity`; unsupported XSLT-only constructs remain adoption-phase follow-up.
+- [~] Legacy HTML+XSLT backward-compat via DOM→CEM-ML conversion (keep the test suite, demos, and material
+      components working on the substrate engine — **no browser `XSLTProcessor`**, so the FF-5 forbidden gate
+      stays green). Decision: legacy template DOM is parsed with HTML + XSLT namespaces and **transpiled to
+      canonical CEM-ML**, then rendered on the same cem_ql WASM engine as migrated templates, so a legacy
+      sample and its CEM-ML twin render identically. **Landed:** the converter
+      [`legacy-xslt/convert.ts`](../packages/cem-elements/src/lib/legacy-xslt/convert.ts) (Tier 1/2 element +
+      XPath-expression mapping, inline node-set `for-each` unrolling), the runtime `legacy-xslt` mode in
+      [`cem-elements.ts`](../packages/cem-elements/src/lib/cem-elements.ts) (auto-detection, namespace-split
+      XML re-parse, convert→WASM), the adapter routing in
+      [`custom-element.js`](../packages/custom-element/custom-element.js) (`custom-element-xslt` default), the
+      cem-ql XPath stdlib gap (`str:translate`/`substring`/`substring_before`/`substring_after`, `seq:count`,
+      `cem:for-each` `$position`), and the engine fix binding declared attributes when unset. Coverage: twin
+      stories in [`legacy-xslt-parity.stories.ts`](../packages/cem-elements/src/lib/legacy-xslt-parity.stories.ts)
+      (legacy ⇆ CEM-ML identical DOM) + `convert.spec.ts`; `cem-elements:verify` + `@epa-wg/custom-element:verify`
+      + FF-5 green. **Remaining:** copy the demo/stories/material modules into the repo and port the rest of the
+      legacy story patterns (material components, `xslt-if`/`xslt-conditionals`) as twin stories. **Tier 3
+      deferred** (standalone XSLT stylesheets: push-model `apply-templates`/`call-template`/`sort`, EXSLT
+      `func:function`, `msxsl:script` — non-transpilable; emit a conversion diagnostic).
 
 ### 3.2 Primitives — `@epa-wg/cem-components`
 

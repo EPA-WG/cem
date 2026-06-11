@@ -103,9 +103,9 @@ nx run @epa-wg/cem-theme:lint
 > CEM-ML / CEM-QL substrate (`<template type="cem-ml; version=0.0">`). No XSLT generator ships in this
 > package any more. **The generated CSS in `dist/lib/css/*.css` is unchanged**, so consumers who only
 > `<link>` the stylesheets are unaffected — only anyone who forked or embedded the old generator HTML
-> needs to adopt the substrate. (The XSLT execution engine itself is removed from the
-> `@epa-wg/custom-element` adapter in 0.1.0; a `custom-element-v0` bridge covers a subset of legacy
-> authoring there for one more major.) See
+> needs to adopt the substrate. (The native browser XSLT *engine* is retired from the
+> `@epa-wg/custom-element` adapter in 0.1.0; legacy HTML+XSLT templates there still work — transpiled
+> to CEM-ML and rendered on the substrate engine.) See
 > [release-readiness 0.1.0 §4](../../docs/release-readiness-0.1.0.md).
 
 ## Key paths

@@ -278,27 +278,32 @@ is available in `{}` in attributes, in `for-each`, `if`, `value-of`, and other X
 
 XPath is a selector language to navigate over custom element instance data, attributes, and payload.
 
-## XSLT 1.0 — removed in 0.1.0
+## XSLT 1.0 — engine retired, legacy templates supported via conversion (0.1.0)
 
-> **Important (0.1.0):** the in-browser native **XSLT 1.0 `XSLTProcessor` rendering engine has been
-> removed.** `<custom-element>` now renders through the CEM-ML / CEM-QL substrate
-> (`CemElementRuntime`), and XSLT-only constructs — `<xsl:for-each>`, `<xsl:value-of>`,
-> `<xsl:variable>`, `<xsl:template>`, and broad XPath functions — **no longer execute.**
+> **How it works now (0.1.0):** the in-browser native XSLT 1.0 transform engine is **retired** —
+> `<custom-element>` no longer runs a browser XSLT processor. Instead, legacy HTML+XSLT templates are
+> **transpiled to CEM-ML and rendered on the CEM-ML / CEM-QL substrate** (`CemElementRuntime`), the
+> same engine hand-authored `type="cem-ml; version=0.0"` templates use. A legacy sample and its
+> migrated CEM-ML twin therefore render **identically**, on one engine.
 >
-> **What still works:** the `<custom-element>` tag and a `custom-element-v0` compatibility bridge that
-> covers a *subset* of legacy authoring — `{ }` / `{$name}` / `{//path}` interpolation, `if` / `choose`
-> / `when` / `otherwise`, path selection, `??` coalescing, attribute value templates, declaration
-> attributes/slices, and slots. An untyped inline `<template>` is auto-normalized to
-> `lang="custom-element-v0"`. This bridge is itself **deprecated** and removed in the next major (FF-5
-> removal gate).
+> **Supported legacy constructs** (auto-detected; the template DOM is parsed with HTML + XSLT
+> namespaces and converted): `<xsl:value-of>` / `{…}` interpolation, `<xsl:for-each>` (incl. the
+> `exsl:node-set($var)/*` inline-variable idiom, unrolled), `<xsl:if>` / `<xsl:choose>` / `when` /
+> `otherwise` (and the bare `for-each`/`if`/`choose` spellings), `<xsl:variable>`, `<slot>`,
+> declaration `<attribute>` / `<slice>`, attribute value templates, and the XPath function subset the
+> legacy demos use (`contains`, `not`, `translate`, `substring(-before/-after)`, `string-length`,
+> `position()`, `count`, `concat`, `normalize-space`, comparisons). Bare `{name}` / `{$name}` /
+> `{//path}` interpolation and `??` coalescing are supported.
 >
-> **Migrate** XSLT-authored templates to the substrate (`<template type="cem-ml; version=0.0">`). The
-> historical XSLT documentation below is retained for reference only; the `.xslt` demo files and
-> `xsl:*` IDE metadata in this package no longer drive any rendering. Generated output that previously
-> relied on XSLT (e.g. `cem-theme` CSS) was converted and is unaffected.
-
-The original POC used the in-browser native [XSLT 1.0](https://www.w3.org/TR/xslt-10/) implementation
-for transformation. That dependency is what 0.1.0 retires.
+> **Not converted (Tier 3, deferred):** standalone full XSLT stylesheets using the push model
+> (`<xsl:template match>` + `<xsl:apply-templates>` / `<xsl:call-template>` / `<xsl:sort>`), EXSLT
+> `func:function`, and `<msxsl:script>` (embedded JScript — non-transpilable). These emit a
+> conversion diagnostic. Author such logic in CEM-ML/CEM-QL directly.
+>
+> The historical XSLT 1.0 reference below documents the original authoring surface; most of it is
+> reproduced by the converter. The original POC used the native
+> [XSLT 1.0](https://www.w3.org/TR/xslt-10/) processor — that *engine dependency* is what 0.1.0 retires,
+> not the authoring dialect.
 
 # troubleshooting
 ## HTML parser is not compatible with templates

@@ -1,0 +1,252 @@
+<!DOCTYPE html>
+<html lang="en" xmlns:xsl="http://www.w3.org/1999/XSL/Transform" xmlns:xhtml="http://www.w3.org/1999/xhtml">
+<head>
+    <meta charset="UTF-8">
+    <meta content="text/html; charset=utf-8" http-equiv="Content-Type"/>
+    <title>Components - custom-element - Material Design</title>
+    <link href="../../custom-element/demo/wc-square.svg" rel="icon"/>
+    <link href="https://fonts.googleapis.com/icon?family=Material+Icons" rel="stylesheet"/>
+    <link crossorigin="anonymous" href="https://use.fontawesome.com/releases/v5.15.4/css/all.css"
+          integrity="sha384-DyZ88mC6Up2uqS4h/KRgHuoeGwBcD4Ng9SiP4dIRy0EXTlnuz47vAwmeGwVChigm" rel="stylesheet"/>
+
+    <script type="importmap">
+        {
+          "imports": {
+            "@epa-wg/": "../../"
+          }
+        }
+    </script>
+    <script src="../../custom-element/module-url.js" type="module"></script>
+    <script src="../../custom-element/custom-element.js" type="module"></script>
+    <style>
+        @import "../angular.css";
+        @import "../material.css";
+        @import "../theme/semantic.css";
+        @import "../demo.css";
+        main{
+            display: flex; flex-wrap: wrap;
+            gap: 3rem;
+            padding: 5rem;
+            &>p{ min-width: 90%; }
+            html-demo-element
+            {   overflow: visible;
+                [slot="legend"]{ border-radius: 1rem 1rem 0 0; }
+                [slot="description"]{ padding: 0 1rem 1rem 1rem; dd{ padding: 0 !important;margin: 0; }}
+                [slot="description"] dd{ padding: 0; }
+            }
+            var{ color: darkgreen; font-weight: bold; }
+        }
+        cem-icon{ margin: 1rem; }
+    </style>
+</head>
+<!--
+ToDO
+* docs w/ how to use
+-->
+<body>
+<template id="cem-icon">
+    <attribute name="image"
+            aria-description="defines the icon in one of the libraries or URL. The selection algorithm
+            if value is single symbol, it is treated as unicode or emoji image
+            if value has a slash symbol (/), it is treated as URL for img< element
+            otherwise if value has a <code>fa-</code> substring, it is treated as favicon
+            otherwise if value is not empty, it is treated as material icon"
+            ></attribute>
+    <attribute name="size"
+            aria-description="Icon size. Default value is 'normal'. Values: normal|small|large"
+            ></attribute>
+    <attribute name="direction"
+            aria-description="defines css flex-direction. Default value is 'row'. Values: row|column"
+            ></attribute>
+    <style>
+        &[direction="column"]>*{ flex-direction: column; gap:0; }
+        &[direction="row"   ]>*{ flex-direction: row;     }
+        &[size="normal"  ]>*>.icon{ height: var(--cem-icon-size);       font-size: var(--cem-icon-size); }
+        &[size="small"   ]>*>.icon{ height: var(--cem-icon-size-small); font-size: var(--cem-icon-size-small); }
+        &[size="large"   ]>*>.icon{ height: var(--cem-icon-size-large); font-size: var(--cem-icon-size-large); }
+        &{ display: inline-flex; justify-content: center; }
+        &>* {
+            display: inline-flex; align-items: center; gap: calc( var(--cem-icon-size) / 4 );
+
+            .icon {
+                font-size: var(--cem-icon-size);
+                height: var(--cem-icon-size);
+            }
+            .unicode{position: relative; top:-25%; }
+        }
+    </style>
+
+    <choose>
+        <when test="string-length($image) &lt; 3"><b class="icon unicode">{$image}</b></when>
+        <when test="contains($image,'/')"><img alt="icon" class="icon" src="{$image}"/></when>
+        <when test="contains($image,'fa-')"><i class="icon {$image}"></i></when>
+        <when test="$image"><span class="icon material-icons">{$image}</span></when>
+    </choose>
+    <slot></slot>
+
+</template>
+
+<custom-element hidden src="#cem-icon" tag="cem-icon"></custom-element>
+<custom-element hidden src="./icon-link.html#cem-icon-link" tag="cem-icon-link"></custom-element>
+
+<header class="cem-theme-teal">
+    <custom-element src="../index.html#nav-head"></custom-element>
+</header>
+<main>
+    <aside>
+        <p><code>cem-icon</code> is an icon component from &lt;custom-element&gt; Material suite icons based on the
+            <a href="https://m3.material.io/styles/icons/designing-icons">Material Design specification for Icons</a>.<br/>
+            Icons are small symbols to easily identify actions and categories
+        </p>
+        <h1>Attributes</h1>
+        <div> <code>image</code> attribute defines the icon in one of the libraries or URL. The selection algorithm
+            <ol>
+                <li>if value is single symbol, it is treated as <var>unicode</var> or <var>emoji</var> image </li>
+                <li>if value has a slash symbol (<code>/</code>), it is treated as <var>URL</var> for <code>img</code> element </li>
+                <li>if value has a <code>fa-</code> substring, it is treated as <var>favicon</var> </li>
+                <li>if value is not empty, it is treated as <var>material icon</var> </li>
+                
+            </ol>
+        </div>
+        <div> <code>direction</code> attribute defines css <code>row</code> or <code>column</code> flex-direction. </div>
+    </aside>
+<section>
+    <html-demo-element legend="Direction attribute">
+        <p slot="description">
+            Defines the text position next to icon. Uses CSS <code>flex-direction</code> values.
+        </p>
+        <template>
+<cem-icon image="»"> default is row </cem-icon>
+<cem-icon image="home" direction="column"> column </cem-icon>
+<cem-icon image="fas fa-bone" direction="row"> row </cem-icon>
+        </template>
+    </html-demo-element>
+
+
+    <html-demo-element legend="Size attribute">
+        <p slot="description">
+            Defines the icon size.
+        </p>
+        <template>
+<cem-icon image="fas fa-heart" size="small"> small </cem-icon>
+<cem-icon image="fas fa-heart" size="normal"> normal </cem-icon>
+<cem-icon image="fas fa-heart" size="large"> large </cem-icon>
+        </template>
+    </html-demo-element>
+
+</section>
+    
+    <html-demo-element legend="Unicode or Emoji">
+        <p slot="description">
+            <cem-icon image="https://unicodeplus.com/favicon.ico"
+                ><a href="https://unicodeplus.com/search">Search Unicode</a> </cem-icon>
+            <cem-icon image="https://emojipedia.org/images/favicon-32x32.png"
+                ><a href="https://emojipedia.org/search?q=heart">Search Emoji</a></cem-icon>
+        </p>
+        <template>
+<cem-icon image="🚀"      > Rocket emoji </cem-icon>
+<cem-icon image="👁"  > Eye unicode </cem-icon>
+<hr/>
+<cem-icon image="🎄" ></cem-icon>
+<cem-icon image="😭" ></cem-icon>
+<cem-icon image="🔥" ></cem-icon>
+<cem-icon image="💀" ></cem-icon><br/>
+<cem-icon image="🛒" ></cem-icon>
+<cem-icon image="✨" ></cem-icon>
+<cem-icon image="😊" ></cem-icon>
+<cem-icon image="😂" ></cem-icon><br/>
+<cem-icon image="⭐" ></cem-icon>
+<cem-icon image="🫶" ></cem-icon>
+<cem-icon image="🎁" ></cem-icon>
+<cem-icon image="✅" ></cem-icon>
+        </template>
+    </html-demo-element>
+
+    <html-demo-element legend="Google Material icon font">
+        <p slot="description">
+            <cem-icon image="https://www.gstatic.com/images/icons/material/apps/fonts/1x/catalog/v5/favicon.svg"
+                >Material Icon &bull; <a href="https://fonts.google.com/icons">Search all</a></cem-icon>
+        </p>
+        <template>
+<cem-icon image="recycling"      > recycling</cem-icon>
+<cem-icon image="shopping_cart"  > shopping_cart</cem-icon>
+<hr/>
+<cem-icon image="search"         ></cem-icon>
+<cem-icon image="home"           ></cem-icon>
+<cem-icon image="menu"           ></cem-icon>
+<cem-icon image="close"          ></cem-icon><br/>
+<cem-icon image="check_circle"   ></cem-icon>
+<cem-icon image="favorite"       ></cem-icon>
+<cem-icon image="add"            ></cem-icon>
+<cem-icon image="star"           ></cem-icon><br/>
+<cem-icon image="chevron_right"  ></cem-icon>
+<cem-icon image="logout"         ></cem-icon>
+<cem-icon image="add_circle"     ></cem-icon>
+<cem-icon image="cancel"         ></cem-icon>
+        </template>
+    </html-demo-element>
+
+    <html-demo-element legend="Fontawesome">
+        <p slot="description">
+                <cem-icon image="https://fontawesome.com/images/favicon/icon.svg"
+                >Fontawesome Icon &bull; <a href="https://fontawesome.com/icons/">Search all</a></cem-icon>
+            </a>
+        </p>
+        <template>
+            <cem-icon image="fab fa-github"> GitHub</cem-icon>
+            <cem-icon image="fas fa-bookmark"> Bookmark</cem-icon>
+            <cem-icon image="fab fa-discord"></cem-icon><hr/>
+            <cem-icon image="fab fa-android"></cem-icon>
+            <cem-icon image="fab fa-apple"></cem-icon>
+            <cem-icon image="far fa-user"></cem-icon>
+            <cem-icon image="far fa-envelope"></cem-icon><br/>
+            <cem-icon image="fas fa-thumbs-up"></cem-icon>
+            <cem-icon image="far fa-thumbs-down"></cem-icon>
+            <cem-icon image="far fa-star"></cem-icon>
+            <cem-icon image="fas fa-star"></cem-icon><br/>
+            <cem-icon image="fas fa-location-arrow"></cem-icon>
+            <cem-icon image="fas fa-map-marker"></cem-icon>
+            <cem-icon image="fas fa-map-marked-alt"></cem-icon>
+            <cem-icon image="fas fa-globe"></cem-icon>
+
+        </template>
+    </html-demo-element>
+
+
+    <html-demo-element description="logo SVG with link to file in module"
+                       legend="Image from importmap module">
+        <template>
+            <custom-element>
+                <template>
+                    <module-url slice="logo-url" src="@epa-wg/custom-element/demo/wc-square.svg"></module-url>
+                    <cem-icon image="{//logo-url}"> custom-element</cem-icon>
+                    <cem-icon image="https://unpkg.com/pokeapi-sprites@2.0.2/sprites/pokemon/other/dream-world/1.svg">
+                        bulbasaur
+                    </cem-icon>
+                </template>
+            </custom-element>
+        </template>
+    </html-demo-element>
+
+
+    <html-demo-element legend="Color">
+        <p slot="description">
+            For font based icons the color is inherited from CSS text <code>color</code>.
+        </p>
+        <template>
+<cem-icon image="fas fa-heart" style="color:red"     > red    </cem-icon>
+<cem-icon image="fas fa-heart" style="color:green"   > green  </cem-icon>
+<cem-icon image="fas fa-heart" style="color:blue"    > blue   </cem-icon>
+        </template>
+    </html-demo-element>
+
+
+</main>
+<footer>
+    <hr/>
+    <a href="../../LICENSE"> Code and documentation licensed under an Apache License 2.0 </a>
+</footer>
+<script src="https://unpkg.com/html-demo-element@1.0.8/html-demo-element.js" type="module"></script>
+
+</body>
+</html>

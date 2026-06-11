@@ -1,0 +1,236 @@
+<!DOCTYPE html>
+<html lang="en" xmlns:xsl="http://www.w3.org/1999/XSL/Transform" xmlns:xhtml="http://www.w3.org/1999/xhtml">
+<head>
+    <meta charset="UTF-8">
+    <meta content="text/html; charset=utf-8" http-equiv="Content-Type"/>
+    <title>Components - custom-element - Material Design</title>
+    <link href="../../custom-element/demo/wc-square.svg" rel="icon"/>
+    <link href="https://fonts.googleapis.com/icon?family=Material+Icons" rel="stylesheet"/>
+    <link crossorigin="anonymous" href="https://use.fontawesome.com/releases/v5.15.4/css/all.css"
+          integrity="sha384-DyZ88mC6Up2uqS4h/KRgHuoeGwBcD4Ng9SiP4dIRy0EXTlnuz47vAwmeGwVChigm" rel="stylesheet"/>
+
+    <script type="importmap">
+        {
+          "imports": {
+            "@epa-wg/": "../../"
+          }
+        }
+    </script>
+    <script src="../../custom-element/module-url.js" type="module"></script>
+    <script src="../../custom-element/custom-element.js" type="module"></script>
+    <style>
+        @import "../angular.css";
+        @import "../material.css";
+        @import "../theme/semantic.css";
+        @import "../demo.css";
+        main{
+            display: flex; flex-wrap: wrap;
+            gap: 3rem;
+            padding: 5rem;
+            &>p{ min-width: 90%; }
+            html-demo-element
+            {   overflow: visible;
+                [slot="legend"]{ border-radius: 1rem 1rem 0 0; }
+                [slot="description"]{ padding: 0 1rem 1rem 1rem; dd{ padding: 0 !important;margin: 0; }}
+                [slot="description"] dd{ padding: 0; }
+            }
+        }
+    </style>
+</head>
+
+<body>
+<custom-element hidden src="./icon-link.html#cem-icon-link" tag="cem-icon-link"></custom-element>
+
+<header class="cem-theme-teal">
+    <custom-element src="../index.html#nav-head" ></custom-element>
+</header>
+<main>
+    <p><code>cem-menu</code> is responsive menu component from &lt;custom-element&gt; Material suite based on the
+        <a href="https://material.io/components" >Material Design specification</a>.
+    </p>
+    <p>
+        <code>direction</code> attribute defines css <code>row</code> or <code>column</code> flex-direction.
+    </p>
+    <custom-element tag="cem-menu" hidden>
+        <template id="cem-menu">
+            <attribute name="direction"></attribute>
+            <attribute name="justify"></attribute>
+            <style>
+
+                &[direction="column"]>*{ flex-direction: column;  }
+                &[direction="row"   ]>*{ flex-direction: row;     }
+                &[justify="end"     ]>*{ justify-content: flex-end;  }
+                &[justify="start"   ]>*{ justify-content: flex-start;}
+
+                dce-root
+                {
+                    display: flex;
+                    flex-direction: row;
+                    flex-wrap: wrap;
+                    &>style{display: none !important;}
+                    &>*
+                    {   display: flex;
+                        align-items: center;
+                        padding: var(--cem-menu-item-padding);
+                        background-color: var( --cem-menu-item-background );
+                        color: var( --cem-menu-item-color );
+                        text-decoration: none;
+                        font-weight: var(--cem-menu-item-font-weight);
+                        &:focus{ z-index: 1; }
+                        &[disabled],&[disabled]:visited{ color:var(--cem-menu-item-color-disabled); pointer-events: none;}
+                        &:visited{ color:var(--cem-menu-item-color); }
+                        &:hover
+                        {
+                            color: var(--cem-menu-item-hover-color);
+                            background-color: var(--cem-menu-item-hover-background);
+                        }
+                        &:empty{ display: none;}
+                    }
+                }
+
+            </style>
+            <slot name=""></slot>
+        </template>
+    </custom-element>
+
+<html-demo-element legend="Default" description="horizontal menu with padding on elements">
+    <template>
+<cem-menu>
+    <a href="#">link 1</a>
+    <a disabled>link 2</a>
+    <a href="#">link 3</a>
+</cem-menu>
+    </template>
+</html-demo-element>
+
+<html-demo-element legend="Vertical" description="vertical menu">
+    <template>
+<cem-menu direction="column">
+    <a href="#">link 1</a>
+    <a href="#">link 2</a>
+    <a href="#">link 3</a>
+</cem-menu>
+    </template>
+</html-demo-element>
+
+<html-demo-element legend="Horizontal" description="horizontal menu">
+    <template>
+<cem-menu direction="row">
+    <a href="#">link 1</a>
+    <a href="#">link 2</a>
+    <a href="#">link 3</a>
+</cem-menu>
+    </template>
+</html-demo-element>
+
+<html-demo-element legend="custom styling for all menus in scope" description="supported via overriding css properties">
+    <template>
+<custom-element>
+    <template>
+<style>
+    a{
+        --cem-menu-item-color: yellow;
+        --cem-menu-item-background: lightblue;
+        --cem-menu-item-hover-background: blue;
+        --cem-menu-item-hover-color: red;
+        &:visited{ color:var(--cem-menu-item-color); }
+        &:hover{ color:var(--cem-menu-item-hover-color); }
+    }
+</style>
+<cem-menu direction="row">
+    <a href="#">link 1</a>
+    <a href="#">link 2</a>
+    <a href="#">link 3</a>
+</cem-menu>
+<cem-menu direction="row">
+    <a href="#">link A</a>
+    <a href="#">link B</a>
+</cem-menu>
+    </template>
+</custom-element>
+    </template>
+</html-demo-element>
+
+<html-demo-element legend="inline custom styling " description="supported via overriding css properties">
+    <template>
+<cem-menu direction="row">
+    <template>
+        <style>
+            a
+            {   --cem-menu-item-color:blue;
+                --cem-menu-item-background: salmon;
+                --cem-menu-item-hover-background: blue;
+                --cem-menu-item-hover-color: yellow;
+            }
+        </style>
+        <a href="#">link 1</a>
+        <a href="#">link 2</a>
+        <a href="#">link 3</a>
+    </template>
+</cem-menu>
+    </template>
+</html-demo-element>
+
+<html-demo-element legend="wrap menu" description="second line is left aligned by default">
+    <template>
+
+<custom-element>
+    <template>
+        <style>
+            cem-menu
+            {   display: block;
+                width: 8rem;
+                border: dashed 1px coral;
+            }
+        </style>
+<cem-menu>
+    <template>
+        <a href="#">link 1</a>
+        <a href="#">link 2</a>
+        <a href="#">link 3</a>
+    </template>
+</cem-menu>
+    </template>
+</custom-element>
+
+    </template>
+</html-demo-element>
+
+<html-demo-element legend="wrap menu right" description="second line right aligned">
+    <template>
+
+<custom-element>
+    <template>
+        <style>
+            cem-menu
+            {   display: block;
+                width: 8rem;
+                border: dashed 1px coral;
+            }
+        </style>
+<cem-menu justify="end">
+    <template>
+        <a href="#">link 1</a>
+        <a href="#">link 2</a>
+        <a href="#">link 3</a>
+    </template>
+</cem-menu>
+    </template>
+</custom-element>
+
+    </template>
+</html-demo-element>
+
+
+
+
+
+</main>
+<footer>
+    <hr/>
+    <a href="../../LICENSE"> Code and documentation licensed under an Apache License 2.0 </a>
+</footer>
+<script type="module" src="https://unpkg.com/html-demo-element@1.0.8/html-demo-element.js"></script>
+
+</body>
+</html>
