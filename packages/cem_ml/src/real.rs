@@ -444,6 +444,36 @@ impl CemMlEngine for RealCemMlEngine {
     }
 
     fn convert(&self, request: ConvertRequest) -> EngineResult<ConvertResponse> {
+        if request.to_format == LayerFormat::Cem
+            && request
+                .context
+                .content_type
+                .as_deref()
+                .map(crate::legacy_custom_element::is_legacy_custom_element_content_type)
+                .unwrap_or(false)
+        {
+            let input = String::from_utf8_lossy(&request.input.bytes);
+            let converted = crate::legacy_custom_element::convert_template_source(input.as_ref());
+            let mut content = converted.source;
+            if !content.is_empty() && !content.ends_with('\n') {
+                content.push('\n');
+            }
+            let diagnostics = converted
+                .diagnostics
+                .iter()
+                .map(|diagnostic| diagnostic.to_engine_diagnostic(Some(request.input.uri.clone())))
+                .collect();
+            return Ok(ConvertResponse {
+                primary: json!({
+                    "kind": "cem",
+                    "content": content,
+                    "sourceMap": null,
+                    "outputSpans": [],
+                }),
+                diagnostics,
+            });
+        }
+
         let from_format = request.input.from_format.unwrap_or(InputFormat::Cem);
         let run = run_pipeline_as(&request.input.bytes, from_format);
         let primary = match request.to_format {
@@ -802,6 +832,30 @@ mod tests {
                                 && frame["transform"]["content_type"] == "application/xml"
                         })
             }));
+    }
+
+    #[test]
+    fn convert_legacy_custom_element_content_type_to_canonical_cem_ml() {
+        let req = ConvertRequest {
+            input: EngineInput {
+                uri: "legacy.html".to_owned(),
+                bytes: br#"<if test="not($disabled)"><button>Go</button></if>"#.to_vec(),
+                from_format: None,
+            },
+            to_format: LayerFormat::Cem,
+            preserve_source_offsets: false,
+            context: EngineContext {
+                content_type: Some(crate::legacy_custom_element::TEMPLATE_LANG.to_owned()),
+                ..ctx()
+            },
+        };
+        let resp = RealCemMlEngine::new().convert(req).unwrap();
+        assert_eq!(resp.primary["kind"], "cem");
+        assert_eq!(
+            resp.primary["content"].as_str().unwrap(),
+            "{cem:if @test=\"not (disabled)\" | {button | Go}}\n"
+        );
+        assert!(resp.diagnostics.is_empty());
     }
 
     #[test]

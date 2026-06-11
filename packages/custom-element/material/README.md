@@ -17,6 +17,7 @@ The sample markup (the `<custom-element>` declarations) is preserved **as-is**; 
 `custom-element` implementation they import changed (it now routes through the converter). See:
 
 - Converter: [`../../cem-elements/src/lib/legacy-xslt/convert.ts`](../../cem-elements/src/lib/legacy-xslt/convert.ts)
+- Engine contract/lowering: [`../../cem_ml/src/legacy_custom_element.rs`](../../cem_ml/src/legacy_custom_element.rs)
 - Adapter routing: [`../custom-element.js`](../custom-element.js) (untyped templates → `legacy-xslt` mode)
 - Tested parity (legacy ⇆ CEM-ML identical DOM):
   [`../../cem-elements/src/lib/legacy-xslt-parity.stories.ts`](../../cem-elements/src/lib/legacy-xslt-parity.stories.ts)
@@ -35,7 +36,9 @@ Supported (Tier 1/2): the constructs the material components and demos use — s
 A CI gate (`@epa-wg/custom-element:test`, `test-fixtures/material-convert-gate.js`) loads
 `test-fixtures/legacy-compat-manifest.json`, converts every `<template>` in these files, requires the
 manifest-listed primary component templates to produce non-empty CEM-ML, and fails on diagnostics that
-are not explicitly allowlisted per component. **Known deferred gap (allowed only for `cem-input`):** the
+are not explicitly allowlisted per component. The Rust CEM-ML engine gate reads the same manifest and
+material files for the bounded `cem_ml::legacy_custom_element` lowering path. **Known deferred gap
+(allowed only for `cem-input`):** the
 legacy DCE `hasBoolAttribute()` boolean-attribute helper is not reproduced on the substrate.
 **Not converted (Tier 3, deferred):** standalone full XSLT stylesheets (push-model
 `<xsl:template match>` + `apply-templates`/`call-template`/`sort`, EXSLT `func:function`,

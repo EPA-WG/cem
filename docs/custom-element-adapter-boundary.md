@@ -233,18 +233,20 @@ Current state:
 - `@epa-wg/custom-element` normalizes untyped templates and delegates to
   `CemElementRuntime`;
 - `cem_ml::legacy_custom_element` records the CEM-owned Tier 1/2 compatibility
-  contract and Tier 3 handoff boundary;
+  contract, Tier 3 handoff boundary, and a bounded engine-side legacy fragment
+  lowering path for `convert --to-format cem --content-type custom-element-xslt`;
 - `cem-elements/src/lib/legacy-xslt/contract.ts` mirrors that compatibility
   contract for the current browser adapter and fixture gates;
-- `cem-elements` owns the current TypeScript DOM-to-CEM-ML legacy converter
-  implementation;
+- `cem-elements` owns the current browser DOM-to-CEM-ML legacy converter
+  implementation, preserving browser-template parsing behavior while the engine
+  path catches up;
 - `cem_ql` owns the canonical CEM-ML render boundary;
 - `cem_ml` owns XSLT namespace dispatch/version-pinning only, not execution.
 
 Recommended target:
 
-- move the legacy HTML+XSLT compatibility compiler behind a CEM-owned engine
-  boundary shared by browser runtime, CLI, SSR, and tests;
+- finish moving the legacy HTML+XSLT compatibility compiler behind a CEM-owned
+  engine boundary shared by browser runtime, CLI, SSR, and tests;
 - keep the compiler output as canonical CEM-ML plus `cem_ql` expressions, not a
   live XSLT/XPath engine;
 - treat copied demo/material files as executable compatibility fixtures with a

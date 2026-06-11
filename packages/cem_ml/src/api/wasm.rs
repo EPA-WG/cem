@@ -20,6 +20,10 @@
 //! offParseEvent();
 //! ```
 //!
+//! The same adapter also exposes the bounded legacy custom-element
+//! HTML+XSLT lowering path as JSON so JS hosts can call the CEM-owned
+//! converter before routing the canonical CEM-ML through the render engine.
+//!
 //! [`JsObserver`] is the `EngineObserver` adapter that dispatches each
 //! event through whichever JS callback is currently registered.
 //! Embedders running the pipeline from Rust-side WASM code pass it as
@@ -66,6 +70,21 @@ pub fn on_transform(callback: Function) {
 #[wasm_bindgen(js_name = "offTransform")]
 pub fn off_transform() {
     TRANSFORM_OBSERVER.with(|cell| *cell.borrow_mut() = None);
+}
+
+#[wasm_bindgen(js_name = "convertLegacyCustomElementTemplate")]
+pub fn convert_legacy_custom_element_template(source: &str) -> String {
+    let result = crate::legacy_custom_element::convert_template_source(source);
+    serde_json::to_string(&result).unwrap_or_else(|error| {
+        serde_json::json!({
+            "source": "",
+            "diagnostics": [{
+                "code": "legacy_xslt.wasm.serialize_failed",
+                "message": format!("legacy conversion result could not be serialized: {error}")
+            }]
+        })
+        .to_string()
+    })
 }
 
 /// `EngineObserver` adapter that forwards every event to whichever

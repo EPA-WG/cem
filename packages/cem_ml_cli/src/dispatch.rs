@@ -781,6 +781,7 @@ mod tests {
     use super::*;
     use cem_ml::engine::NotImplementedEngine;
     use cem_ml::fake::FakeEngine;
+    use cem_ml::real::RealCemMlEngine;
     use clap::Parser;
     use std::io::Cursor;
     use std::path::PathBuf;
@@ -1094,6 +1095,31 @@ mod tests {
     }
 
     #[test]
+    fn convert_legacy_custom_element_content_type_routes_to_engine_lowering() {
+        let p = write_fixture(
+            "legacy-custom-element.html",
+            r#"<if test="not($disabled)"><button>Go</button></if>"#,
+        );
+        let (outcome, stdout, stderr) = run(
+            &RealCemMlEngine::new(),
+            &[
+                "convert",
+                "--to-format",
+                "cem",
+                "--content-type",
+                cem_ml::legacy_custom_element::TEMPLATE_LANG,
+                p.to_str().unwrap(),
+            ],
+        );
+        assert_eq!(outcome.exit_code, EXIT_OK, "{stderr}");
+        let v: serde_json::Value = serde_json::from_str(stdout.trim()).unwrap();
+        assert_eq!(
+            v["content"].as_str().unwrap(),
+            "{cem:if @test=\"not (disabled)\" | {button | Go}}\n"
+        );
+    }
+
+    #[test]
     fn fixture_validate_with_dir_uses_default_basename() {
         let dir = std::env::temp_dir().join("cem-ml-cli-tests/fv-dir");
         let _ = std::fs::remove_dir_all(&dir);
@@ -1228,12 +1254,7 @@ mod tests {
         let p = write_fixture("observe-events-stdout.cem", "{p | hi}");
         let (outcome, stdout, _) = run(
             &FakeEngine,
-            &[
-                "--observe-events",
-                "-",
-                "parse",
-                p.to_str().unwrap(),
-            ],
+            &["--observe-events", "-", "parse", p.to_str().unwrap()],
         );
         assert_eq!(outcome.exit_code, EXIT_OK);
         // Stdout carries the JSONL events stream plus the normal
@@ -1243,7 +1264,10 @@ mod tests {
         let v: serde_json::Value =
             serde_json::from_str(first).expect("first line of stdout is JSONL");
         assert!(v.get("channel").is_some(), "channel field must be present");
-        assert!(v.get("sequence").is_some(), "sequence field must be present");
+        assert!(
+            v.get("sequence").is_some(),
+            "sequence field must be present"
+        );
     }
 }
 
@@ -1251,7 +1275,9 @@ mod tests {
 /// the pipeline. Subcommands that do not consume a CEM-ML document
 /// (`version`, `fixture roundtrip`'s metadata-only shape, `transform`)
 /// yield an empty slice, which suppresses event emission.
-fn observable_inputs(command: &cli::Command) -> Vec<(std::path::PathBuf, Option<cli::InputFormat>)> {
+fn observable_inputs(
+    command: &cli::Command,
+) -> Vec<(std::path::PathBuf, Option<cli::InputFormat>)> {
     match command {
         cli::Command::Parse(a) => vec![(a.input.clone(), a.from_format)],
         cli::Command::Validate(a) => a

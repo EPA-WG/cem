@@ -54,6 +54,14 @@
                 "package": "cem-ml",
                 "target-dir": "dist/target/cem_ml"
             },
+            "inputs": [
+                "{projectRoot}/src/**/*.rs",
+                "{projectRoot}/tests/**/*.rs",
+                "{projectRoot}/Cargo.toml",
+                "{projectRoot}/grammar/tree-sitter-cem/**/*",
+                "{workspaceRoot}/packages/custom-element/material/components/**/*.html",
+                "{workspaceRoot}/packages/custom-element/test-fixtures/legacy-compat-manifest.json"
+            ],
             "configurations": {
                 "production": {
                     "release": true

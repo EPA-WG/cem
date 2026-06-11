@@ -85,11 +85,12 @@ hybrid of Option A's authoring compatibility and Option B's execution model:
   migrated templates;
 - keep the compatibility subset narrow and fixture-derived.
 
-The browser package currently does this in the `cem-elements` TypeScript
-converter. That is acceptable as the first bridge, but it is not the final owner
-of the semantics. The recommended next step is to move the compatibility compiler
-behind a CEM-owned engine boundary so CLI validation, SSR, Storybook, and the
-published adapter all compile the same legacy source with the same diagnostics.
+The browser package does this in the `cem-elements` TypeScript converter, and
+`cem_ml::legacy_custom_element` now provides the first bounded engine-side
+lowering path for raw legacy fragments. That is the right ownership direction,
+but the migration is not complete until the browser runtime, CLI validation,
+SSR, Storybook, and the published adapter all compile the same legacy source
+with the same diagnostics.
 
 Compatibility tiers:
 

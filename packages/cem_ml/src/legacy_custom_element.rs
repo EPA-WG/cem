@@ -1,19 +1,31 @@
-//! Legacy `@epa-wg/custom-element` HTML+XSLT compatibility contract.
+//! Legacy `@epa-wg/custom-element` HTML+XSLT compatibility contract and
+//! bounded lowering path.
 //!
-//! This module deliberately records the CEM-owned compatibility surface before
-//! the full legacy compiler is moved out of the browser TypeScript adapter. The
-//! current implementation still lives in `cem-elements/src/lib/legacy-xslt`,
-//! but these constants define the engine-owned Tier 1/2 subset that browser
-//! runtime, CLI, SSR, and fixture gates must converge on.
+//! This module records the CEM-owned compatibility surface and provides the
+//! first engine-side lowering entry point for the legacy custom-element syntax.
+//! The browser adapter still has a TypeScript DOM converter for parity with the
+//! browser parser, but the executable contract now lives in the CEM-ML engine.
 //!
 //! Scope boundary:
 //! - Tier 1/2 pull-style constructs lower to canonical CEM-ML + `cem_ql`.
 //! - Tier 3 push-template / standalone stylesheet constructs remain an explicit
 //!   handoff, not an accidental browser-only feature.
 
+use crate::diagnostics::{Diagnostic, Severity};
+use serde::Serialize;
+use std::collections::HashMap;
+
 /// Host-template language marker used by the package adapter for untyped
 /// legacy declarations.
 pub const TEMPLATE_LANG: &str = "custom-element-xslt";
+
+/// Content types that opt the engine conversion path into legacy lowering.
+pub const TEMPLATE_CONTENT_TYPES: &[&str] = &[
+    TEMPLATE_LANG,
+    "text/custom-element-xslt",
+    "application/custom-element-xslt",
+    "text/x-custom-element-xslt",
+];
 
 /// Diagnostic code emitted when a legacy XPath function has no CEM-QL mapping.
 pub const UNSUPPORTED_FUNCTION_CODE: &str = "legacy_xslt.unsupported_function";
@@ -72,6 +84,36 @@ pub const SUPPORTED_XPATH_FUNCTIONS: &[&str] = &[
     "position",
 ];
 
+const HTML_VOID_ELEMENTS: &[&str] = &[
+    "area", "base", "br", "col", "embed", "hr", "img", "input", "link", "meta", "param", "source",
+    "track", "wbr",
+];
+
+#[derive(Debug, Clone, PartialEq, Eq, Serialize)]
+pub struct LegacyConversionDiagnostic {
+    pub code: String,
+    pub message: String,
+}
+
+impl LegacyConversionDiagnostic {
+    pub fn to_engine_diagnostic(&self, uri: Option<String>) -> Diagnostic {
+        Diagnostic {
+            uri,
+            code: self.code.clone(),
+            severity: Severity::Warning,
+            message: self.message.clone(),
+            ..Diagnostic::default()
+        }
+    }
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Serialize)]
+pub struct LegacyConversionResult {
+    /// Canonical CEM-ML source text ready for the CEM-QL render boundary.
+    pub source: String,
+    pub diagnostics: Vec<LegacyConversionDiagnostic>,
+}
+
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum LegacyElementDisposition {
     /// Lower as legacy control flow or expression output.
@@ -125,9 +167,993 @@ pub fn function_disposition(name: &str) -> LegacyFunctionDisposition {
     }
 }
 
+/// Return true when an engine request content type opts into legacy lowering.
+pub fn is_legacy_custom_element_content_type(content_type: &str) -> bool {
+    let media_type = content_type
+        .split(';')
+        .next()
+        .unwrap_or(content_type)
+        .trim()
+        .to_ascii_lowercase();
+    TEMPLATE_CONTENT_TYPES.contains(&media_type.as_str())
+}
+
+/// Lower a legacy custom-element template fragment to canonical CEM-ML source.
+///
+/// This is intentionally a bounded fragment converter, not a full browser DOM or
+/// XSLT implementation. It covers the old custom-element pull-style dialect:
+/// bare and `xsl:` control-flow elements, AVT interpolation, inline node-set
+/// `for-each` unrolling, and the XPath function set declared above.
+pub fn convert_template_source(source: &str) -> LegacyConversionResult {
+    let mut diagnostics = Vec::new();
+    let nodes = LegacyFragmentParser::new(source).parse();
+    let ctx = EmitCtx::default();
+    let source = emit_children(&nodes, &ctx, &mut diagnostics);
+    LegacyConversionResult {
+        source,
+        diagnostics,
+    }
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+enum LegacyNode {
+    Element(LegacyElement),
+    Text(String),
+    Comment,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+struct LegacyElement {
+    tag: String,
+    attributes: Vec<LegacyAttribute>,
+    children: Vec<LegacyNode>,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+struct LegacyAttribute {
+    name: String,
+    value: String,
+}
+
+struct LegacyFragmentParser<'a> {
+    input: &'a str,
+    cursor: usize,
+}
+
+impl<'a> LegacyFragmentParser<'a> {
+    fn new(input: &'a str) -> Self {
+        Self { input, cursor: 0 }
+    }
+
+    fn parse(mut self) -> Vec<LegacyNode> {
+        self.parse_nodes_until(None)
+    }
+
+    fn parse_nodes_until(&mut self, closing_local_name: Option<&str>) -> Vec<LegacyNode> {
+        let mut nodes = Vec::new();
+        while self.cursor < self.input.len() {
+            if self.starts_with("<!--") {
+                self.consume_comment();
+                nodes.push(LegacyNode::Comment);
+            } else if self.starts_with("</") {
+                let closing = self.consume_closing_tag();
+                if closing_local_name
+                    .map(|expected| local_name(&closing).eq_ignore_ascii_case(expected))
+                    .unwrap_or(true)
+                {
+                    break;
+                }
+            } else if self.starts_with("<") {
+                if let Some(element) = self.consume_element() {
+                    nodes.push(LegacyNode::Element(element));
+                } else {
+                    nodes.push(LegacyNode::Text(self.consume_text()));
+                }
+            } else {
+                nodes.push(LegacyNode::Text(self.consume_text()));
+            }
+        }
+        nodes
+    }
+
+    fn starts_with(&self, pattern: &str) -> bool {
+        self.input[self.cursor..].starts_with(pattern)
+    }
+
+    fn consume_comment(&mut self) {
+        if let Some(end) = self.input[self.cursor + 4..].find("-->") {
+            self.cursor += 4 + end + 3;
+        } else {
+            self.cursor = self.input.len();
+        }
+    }
+
+    fn consume_closing_tag(&mut self) -> String {
+        self.cursor += 2;
+        self.skip_ws();
+        let name = self.consume_name();
+        if let Some(end) = self.input[self.cursor..].find('>') {
+            self.cursor += end + 1;
+        } else {
+            self.cursor = self.input.len();
+        }
+        name
+    }
+
+    fn consume_element(&mut self) -> Option<LegacyElement> {
+        if !self.starts_with("<") {
+            return None;
+        }
+        self.cursor += 1;
+        self.skip_ws();
+        let tag = self.consume_name();
+        if tag.is_empty() {
+            return None;
+        }
+
+        let mut attributes = Vec::new();
+        let mut self_closing = false;
+        loop {
+            self.skip_ws();
+            if self.cursor >= self.input.len() {
+                break;
+            }
+            if self.starts_with("/>") {
+                self.cursor += 2;
+                self_closing = true;
+                break;
+            }
+            if self.starts_with(">") {
+                self.cursor += 1;
+                break;
+            }
+            let name = self.consume_name();
+            if name.is_empty() {
+                self.cursor += 1;
+                continue;
+            }
+            self.skip_ws();
+            let value = if self.starts_with("=") {
+                self.cursor += 1;
+                self.skip_ws();
+                self.consume_attribute_value()
+            } else {
+                String::new()
+            };
+            attributes.push(LegacyAttribute { name, value });
+        }
+
+        let name = local_name(&tag).to_owned();
+        let html_void = !tag.contains(':') && HTML_VOID_ELEMENTS.contains(&name.as_str());
+        let children = if self_closing || html_void {
+            Vec::new()
+        } else {
+            self.parse_nodes_until(Some(&name))
+        };
+        Some(LegacyElement {
+            tag,
+            attributes,
+            children,
+        })
+    }
+
+    fn consume_text(&mut self) -> String {
+        let end = self.input[self.cursor..]
+            .find('<')
+            .map(|offset| self.cursor + offset)
+            .unwrap_or(self.input.len());
+        let text = decode_html_entities(&self.input[self.cursor..end]);
+        self.cursor = end;
+        text
+    }
+
+    fn consume_name(&mut self) -> String {
+        let start = self.cursor;
+        while let Some(ch) = self.input[self.cursor..].chars().next() {
+            if ch.is_ascii_alphanumeric() || matches!(ch, '_' | '-' | ':' | '.') {
+                self.cursor += ch.len_utf8();
+            } else {
+                break;
+            }
+        }
+        self.input[start..self.cursor].to_owned()
+    }
+
+    fn consume_attribute_value(&mut self) -> String {
+        let Some(first) = self.input[self.cursor..].chars().next() else {
+            return String::new();
+        };
+        if first == '"' || first == '\'' {
+            self.cursor += first.len_utf8();
+            let start = self.cursor;
+            while let Some(ch) = self.input[self.cursor..].chars().next() {
+                if ch == first {
+                    let value = decode_html_entities(&self.input[start..self.cursor]);
+                    self.cursor += ch.len_utf8();
+                    return value;
+                }
+                self.cursor += ch.len_utf8();
+            }
+            return decode_html_entities(&self.input[start..]);
+        }
+        let start = self.cursor;
+        while let Some(ch) = self.input[self.cursor..].chars().next() {
+            if ch.is_whitespace() || matches!(ch, '>' | '/') {
+                break;
+            }
+            self.cursor += ch.len_utf8();
+        }
+        decode_html_entities(&self.input[start..self.cursor])
+    }
+
+    fn skip_ws(&mut self) {
+        while let Some(ch) = self.input[self.cursor..].chars().next() {
+            if ch.is_whitespace() {
+                self.cursor += ch.len_utf8();
+            } else {
+                break;
+            }
+        }
+    }
+}
+
+#[derive(Debug, Clone, Default)]
+struct EmitCtx {
+    loop_var: Option<String>,
+    node_sets: HashMap<String, Vec<ItemNode>>,
+    scalars: HashMap<String, String>,
+    item: Option<CurrentItem>,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+struct ItemNode {
+    text: String,
+    attrs: HashMap<String, String>,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+struct CurrentItem {
+    text: String,
+    attrs: HashMap<String, String>,
+    position: usize,
+}
+
+fn emit_children(
+    nodes: &[LegacyNode],
+    ctx: &EmitCtx,
+    diagnostics: &mut Vec<LegacyConversionDiagnostic>,
+) -> String {
+    let scoped = with_variable_scope(nodes, ctx, diagnostics);
+    nodes
+        .iter()
+        .map(|node| emit_node(node, &scoped, diagnostics))
+        .collect()
+}
+
+fn with_variable_scope(
+    nodes: &[LegacyNode],
+    ctx: &EmitCtx,
+    diagnostics: &mut Vec<LegacyConversionDiagnostic>,
+) -> EmitCtx {
+    let mut scoped = ctx.clone();
+    for node in nodes {
+        let LegacyNode::Element(element) = node else {
+            continue;
+        };
+        if local_name(&element.tag) != "variable" {
+            continue;
+        }
+        let Some(name) = attr_value(element, "name") else {
+            continue;
+        };
+        let members: Vec<ItemNode> = element
+            .children
+            .iter()
+            .filter_map(|child| match child {
+                LegacyNode::Element(member) => Some(to_item_node(member)),
+                _ => None,
+            })
+            .collect();
+        if let Some(select) = attr_value(element, "select") {
+            let rewritten = rewrite_expression(select, &scoped, false, diagnostics);
+            scoped.scalars.insert(name.to_owned(), rewritten);
+        } else if !members.is_empty() {
+            scoped.node_sets.insert(name.to_owned(), members);
+        }
+    }
+    scoped
+}
+
+fn to_item_node(element: &LegacyElement) -> ItemNode {
+    let mut attrs = HashMap::new();
+    for attr in &element.attributes {
+        attrs.insert(attr.name.clone(), attr.value.clone());
+    }
+    ItemNode {
+        text: text_content(element),
+        attrs,
+    }
+}
+
+fn emit_node(
+    node: &LegacyNode,
+    ctx: &EmitCtx,
+    diagnostics: &mut Vec<LegacyConversionDiagnostic>,
+) -> String {
+    match node {
+        LegacyNode::Text(text) => interpolate(text, ctx, diagnostics),
+        LegacyNode::Comment => String::new(),
+        LegacyNode::Element(element) => emit_element(element, ctx, diagnostics),
+    }
+}
+
+fn emit_element(
+    element: &LegacyElement,
+    ctx: &EmitCtx,
+    diagnostics: &mut Vec<LegacyConversionDiagnostic>,
+) -> String {
+    let name = local_name(&element.tag);
+    match name {
+        "value-of" => return emit_value_of(element, ctx, diagnostics),
+        "text" => return emit_xsl_text(element),
+        "if" => return emit_if(element, ctx, diagnostics),
+        "choose" => return emit_choose(element, ctx, diagnostics),
+        "when" | "otherwise" => {
+            diagnostics.push(diag(
+                "legacy_xslt.orphan_branch",
+                format!("<{}> outside <choose> is ignored", element.tag),
+            ));
+            return String::new();
+        }
+        "for-each" => return emit_for_each(element, ctx, diagnostics),
+        "variable" => return String::new(),
+        "slot" => return emit_slot(element, ctx, diagnostics),
+        _ => {}
+    }
+
+    if element_disposition(name) == LegacyElementDisposition::Tier3Handoff
+        && (is_xslt_element(&element.tag) || name == "function")
+    {
+        diagnostics.push(diag(
+            UNSUPPORTED_CONSTRUCT_CODE,
+            format!(
+                "<{}> (Tier 3 / non-transpilable) is not converted",
+                element.tag
+            ),
+        ));
+        return String::new();
+    }
+
+    let tag = if element.tag.starts_with("xhtml:") {
+        name
+    } else {
+        element.tag.as_str()
+    };
+    emit_generic_element(element, ctx, diagnostics, tag)
+}
+
+fn emit_generic_element(
+    element: &LegacyElement,
+    ctx: &EmitCtx,
+    diagnostics: &mut Vec<LegacyConversionDiagnostic>,
+    tag: &str,
+) -> String {
+    let attrs = element
+        .attributes
+        .iter()
+        .map(|attr| emit_attribute(attr, ctx, diagnostics))
+        .collect::<String>();
+    let body = if local_name(tag) == "style" {
+        emit_rich_content(&text_content(element))
+    } else {
+        emit_children(&element.children, ctx, diagnostics)
+    };
+    if body.is_empty() {
+        format!("{{{tag}{attrs}}}")
+    } else {
+        format!("{{{tag}{attrs} | {body}}}")
+    }
+}
+
+fn emit_attribute(
+    attr: &LegacyAttribute,
+    ctx: &EmitCtx,
+    diagnostics: &mut Vec<LegacyConversionDiagnostic>,
+) -> String {
+    if attr.name == "xmlns" || attr.name.starts_with("xmlns:") {
+        return String::new();
+    }
+    attr_assign(&attr.name, &interpolate(&attr.value, ctx, diagnostics))
+}
+
+fn emit_value_of(
+    element: &LegacyElement,
+    ctx: &EmitCtx,
+    diagnostics: &mut Vec<LegacyConversionDiagnostic>,
+) -> String {
+    let Some(select) = attr_value(element, "select") else {
+        diagnostics.push(diag(
+            "legacy_xslt.value_of_missing_select",
+            "<value-of> without @select is ignored",
+        ));
+        return String::new();
+    };
+    format!("{{{}}}", rewrite_expression(select, ctx, true, diagnostics))
+}
+
+fn emit_xsl_text(element: &LegacyElement) -> String {
+    escape_literal(&text_content(element))
+}
+
+fn emit_if(
+    element: &LegacyElement,
+    ctx: &EmitCtx,
+    diagnostics: &mut Vec<LegacyConversionDiagnostic>,
+) -> String {
+    let Some(test) = attr_value(element, "test") else {
+        diagnostics.push(diag(
+            "legacy_xslt.if_missing_test",
+            "<if> without @test is ignored",
+        ));
+        return String::new();
+    };
+    let body = emit_children(&element.children, ctx, diagnostics);
+    format!(
+        "{{cem:if{} | {body}}}",
+        expr_attr("test", &rewrite_expression(test, ctx, false, diagnostics))
+    )
+}
+
+fn emit_choose(
+    element: &LegacyElement,
+    ctx: &EmitCtx,
+    diagnostics: &mut Vec<LegacyConversionDiagnostic>,
+) -> String {
+    let mut branches = String::new();
+    for child in &element.children {
+        let LegacyNode::Element(branch) = child else {
+            continue;
+        };
+        match local_name(&branch.tag) {
+            "when" => {
+                let Some(test) = attr_value(branch, "test") else {
+                    diagnostics.push(diag(
+                        "legacy_xslt.when_missing_test",
+                        "<when> without @test is ignored",
+                    ));
+                    continue;
+                };
+                let body = emit_children(&branch.children, ctx, diagnostics);
+                branches.push_str(&format!(
+                    "{{cem:when{} | {body}}}",
+                    expr_attr("test", &rewrite_expression(test, ctx, false, diagnostics))
+                ));
+            }
+            "otherwise" => {
+                let body = emit_children(&branch.children, ctx, diagnostics);
+                branches.push_str(&format!("{{cem:otherwise | {body}}}"));
+            }
+            _ => {}
+        }
+    }
+    format!("{{cem:choose | {branches}}}")
+}
+
+fn emit_for_each(
+    element: &LegacyElement,
+    ctx: &EmitCtx,
+    diagnostics: &mut Vec<LegacyConversionDiagnostic>,
+) -> String {
+    let Some(select) = attr_value(element, "select") else {
+        diagnostics.push(diag(
+            "legacy_xslt.for_each_missing_select",
+            "<for-each> without @select is ignored",
+        ));
+        return String::new();
+    };
+
+    if let Some(node_set_ref) = match_node_set_select(select, ctx) {
+        let members = ctx
+            .node_sets
+            .get(&node_set_ref.name)
+            .cloned()
+            .unwrap_or_default();
+        let predicate = node_set_ref
+            .predicate
+            .as_deref()
+            .map(|predicate| rewrite_predicate(predicate, ctx, diagnostics));
+        return members
+            .iter()
+            .enumerate()
+            .map(|(index, member)| {
+                let item_ctx = EmitCtx {
+                    item: Some(CurrentItem {
+                        text: member.text.clone(),
+                        attrs: member.attrs.clone(),
+                        position: index + 1,
+                    }),
+                    loop_var: None,
+                    ..ctx.clone()
+                };
+                let body = emit_children(&element.children, &item_ctx, diagnostics);
+                if let Some(predicate) = &predicate {
+                    format!("{{cem:if{} | {body}}}", expr_attr("test", predicate))
+                } else {
+                    body
+                }
+            })
+            .collect();
+    }
+
+    let loop_var = "item".to_owned();
+    let child_ctx = EmitCtx {
+        loop_var: Some(loop_var.clone()),
+        item: None,
+        ..ctx.clone()
+    };
+    let body = emit_children(&element.children, &child_ctx, diagnostics);
+    format!(
+        "{{cem:for-each{} @as=\"{loop_var}\" | {body}}}",
+        expr_attr(
+            "select",
+            &rewrite_expression(select, ctx, false, diagnostics)
+        )
+    )
+}
+
+fn emit_slot(
+    element: &LegacyElement,
+    ctx: &EmitCtx,
+    diagnostics: &mut Vec<LegacyConversionDiagnostic>,
+) -> String {
+    let attrs = attr_value(element, "name")
+        .map(|name| attr_assign("name", name))
+        .unwrap_or_default();
+    let fallback = emit_children(&element.children, ctx, diagnostics);
+    if fallback.is_empty() {
+        format!("{{slot{attrs}}}")
+    } else {
+        format!("{{slot{attrs} | {fallback}}}")
+    }
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+struct NodeSetRef {
+    name: String,
+    predicate: Option<String>,
+}
+
+fn match_node_set_select(select: &str, ctx: &EmitCtx) -> Option<NodeSetRef> {
+    let trimmed = select.trim();
+    if let Some(name) = trimmed.strip_prefix('$') {
+        if is_name(name) && ctx.node_sets.contains_key(name) {
+            return Some(NodeSetRef {
+                name: name.to_owned(),
+                predicate: None,
+            });
+        }
+    }
+
+    let inner = trimmed
+        .strip_prefix("exsl:node-set(")
+        .or_else(|| trimmed.strip_prefix("node-set("))?;
+    let close = inner.find(')')?;
+    let var = inner[..close].trim().strip_prefix('$')?;
+    if !ctx.node_sets.contains_key(var) {
+        return None;
+    }
+    let rest = inner[close + 1..].trim();
+    let rest = rest.strip_prefix('/')?.trim_start();
+    let rest = rest.strip_prefix('*')?.trim();
+    let predicate = if rest.is_empty() {
+        None
+    } else if rest.starts_with('[') && rest.ends_with(']') {
+        Some(rest[1..rest.len() - 1].to_owned())
+    } else {
+        return None;
+    };
+    Some(NodeSetRef {
+        name: var.to_owned(),
+        predicate,
+    })
+}
+
+fn rewrite_predicate(
+    predicate: &str,
+    ctx: &EmitCtx,
+    diagnostics: &mut Vec<LegacyConversionDiagnostic>,
+) -> String {
+    if let Some(name) = predicate.trim().strip_prefix('$') {
+        if is_name(name) {
+            if let Some(value) = ctx.scalars.get(name) {
+                return value.clone();
+            }
+        }
+    }
+    rewrite_expression(predicate, ctx, false, diagnostics)
+}
+
+fn interpolate(
+    text: &str,
+    ctx: &EmitCtx,
+    diagnostics: &mut Vec<LegacyConversionDiagnostic>,
+) -> String {
+    let mut out = String::new();
+    let mut cursor = 0;
+    while let Some(open) = text[cursor..].find('{') {
+        let open = cursor + open;
+        out.push_str(&text[cursor..open]);
+        let Some(close_offset) = text[open + 1..].find('}') else {
+            out.push_str(&text[open..]);
+            return out;
+        };
+        let close = open + 1 + close_offset;
+        let expression = text[open + 1..close].trim();
+        if let Some(item) = &ctx.item {
+            if let Some(literal) = resolve_item_literal(expression, item) {
+                out.push_str(&literal);
+                cursor = close + 1;
+                continue;
+            }
+        }
+        out.push('{');
+        out.push_str(&rewrite_expression(expression, ctx, true, diagnostics));
+        out.push('}');
+        cursor = close + 1;
+    }
+    out.push_str(&text[cursor..]);
+    out
+}
+
+fn resolve_item_literal(expression: &str, item: &CurrentItem) -> Option<String> {
+    if expression == "." {
+        return Some(item.text.clone());
+    }
+    if expression == "position()" {
+        return Some(item.position.to_string());
+    }
+    if let Some(name) = expression.strip_prefix('@') {
+        if is_name(name) {
+            return Some(item.attrs.get(name).cloned().unwrap_or_default());
+        }
+    }
+    None
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+enum XToken {
+    String(String),
+    Number(String),
+    Name(String),
+    Var(String),
+    Punct(String),
+}
+
+fn rewrite_expression(
+    expression: &str,
+    ctx: &EmitCtx,
+    interpolation: bool,
+    diagnostics: &mut Vec<LegacyConversionDiagnostic>,
+) -> String {
+    let tokens = tokenize_xpath(expression);
+    let mut rewriter = XPathRewriter {
+        tokens,
+        pos: 0,
+        ctx,
+        diagnostics,
+    };
+    let bare = rewriter.rewrite_all().trim().to_owned();
+    if interpolation && is_simple_path(&bare) {
+        format!("${bare}")
+    } else {
+        bare
+    }
+}
+
+fn tokenize_xpath(input: &str) -> Vec<XToken> {
+    let chars: Vec<char> = input.chars().collect();
+    let mut tokens = Vec::new();
+    let mut i = 0;
+    while i < chars.len() {
+        let c = chars[i];
+        if c.is_whitespace() {
+            i += 1;
+            continue;
+        }
+        if c == '"' || c == '\'' {
+            let quote = c;
+            i += 1;
+            let start = i;
+            while i < chars.len() && chars[i] != quote {
+                i += 1;
+            }
+            tokens.push(XToken::String(chars[start..i].iter().collect()));
+            if i < chars.len() {
+                i += 1;
+            }
+            continue;
+        }
+        if c.is_ascii_digit() {
+            let start = i;
+            while i < chars.len() && (chars[i].is_ascii_digit() || chars[i] == '.') {
+                i += 1;
+            }
+            tokens.push(XToken::Number(chars[start..i].iter().collect()));
+            continue;
+        }
+        if c == '$' {
+            i += 1;
+            let start = i;
+            while i < chars.len() && is_name_char(chars[i]) {
+                i += 1;
+            }
+            tokens.push(XToken::Var(chars[start..i].iter().collect()));
+            continue;
+        }
+        if c == '@' {
+            i += 1;
+            let start = i;
+            while i < chars.len() && is_name_char(chars[i]) {
+                i += 1;
+            }
+            tokens.push(XToken::Punct("@".to_owned()));
+            tokens.push(XToken::Name(chars[start..i].iter().collect()));
+            continue;
+        }
+        if c == '/' && chars.get(i + 1) == Some(&'/') {
+            tokens.push(XToken::Punct("//".to_owned()));
+            i += 2;
+            continue;
+        }
+        if c == '?' && chars.get(i + 1) == Some(&'?') {
+            tokens.push(XToken::Punct("??".to_owned()));
+            i += 2;
+            continue;
+        }
+        if c == '!' && chars.get(i + 1) == Some(&'=') {
+            tokens.push(XToken::Punct("!=".to_owned()));
+            i += 2;
+            continue;
+        }
+        if is_name_start(c) {
+            let start = i;
+            while i < chars.len() && is_name_char(chars[i]) {
+                i += 1;
+            }
+            tokens.push(XToken::Name(chars[start..i].iter().collect()));
+            continue;
+        }
+        tokens.push(XToken::Punct(c.to_string()));
+        i += 1;
+    }
+    tokens
+}
+
+struct XPathRewriter<'a, 'd> {
+    tokens: Vec<XToken>,
+    pos: usize,
+    ctx: &'a EmitCtx,
+    diagnostics: &'d mut Vec<LegacyConversionDiagnostic>,
+}
+
+impl XPathRewriter<'_, '_> {
+    fn rewrite_all(&mut self) -> String {
+        let mut out = String::new();
+        while self.pos < self.tokens.len() {
+            out.push_str(&self.rewrite_token());
+        }
+        out
+    }
+
+    fn peek(&self) -> Option<&XToken> {
+        self.tokens.get(self.pos)
+    }
+
+    fn rewrite_token(&mut self) -> String {
+        let token = self.tokens[self.pos].clone();
+        self.pos += 1;
+        match token {
+            XToken::String(value) => format!("\"{}\" ", value.replace('"', "\\\"")),
+            XToken::Number(value) => format!("{value} "),
+            XToken::Var(value) => format!("{value} "),
+            XToken::Punct(value) => self.rewrite_punct(&value),
+            XToken::Name(value) => self.rewrite_name(&value),
+        }
+    }
+
+    fn rewrite_punct(&mut self, value: &str) -> String {
+        if value == "//" {
+            if let Some(XToken::Name(next)) = self.peek().cloned() {
+                self.pos += 1;
+                return format!("datadom.slices.{next} ");
+            }
+            return String::new();
+        }
+        if value == "@" {
+            if let Some(XToken::Name(next)) = self.peek().cloned() {
+                self.pos += 1;
+                let base = self.ctx.loop_var.as_deref().unwrap_or("datadom.attributes");
+                return format!("{base}.{next} ");
+            }
+            return String::new();
+        }
+        if value == "." {
+            return self
+                .ctx
+                .loop_var
+                .as_ref()
+                .map(|loop_var| format!("{loop_var} "))
+                .unwrap_or_else(|| ". ".to_owned());
+        }
+        format!("{value} ")
+    }
+
+    fn rewrite_name(&mut self, value: &str) -> String {
+        if matches!(self.peek(), Some(XToken::Punct(punct)) if punct == "(") {
+            return self.rewrite_call(value);
+        }
+        if matches!(value, "and" | "or" | "div" | "mod" | "true" | "false") {
+            return format!("{value} ");
+        }
+        format!("{value} ")
+    }
+
+    fn rewrite_call(&mut self, name: &str) -> String {
+        self.pos += 1; // consume '('
+        let mut args = Vec::new();
+        let mut depth = 0;
+        let mut current = String::new();
+        while self.pos < self.tokens.len() {
+            let token = self.tokens[self.pos].clone();
+            match token {
+                XToken::Punct(ref punct) if punct == "(" => {
+                    depth += 1;
+                    current.push_str(&self.rewrite_token());
+                }
+                XToken::Punct(ref punct) if punct == ")" => {
+                    if depth == 0 {
+                        self.pos += 1;
+                        break;
+                    }
+                    depth -= 1;
+                    current.push_str(&self.rewrite_token());
+                }
+                XToken::Punct(ref punct) if punct == "," && depth == 0 => {
+                    args.push(current.trim().to_owned());
+                    current.clear();
+                    self.pos += 1;
+                }
+                _ => current.push_str(&self.rewrite_token()),
+            }
+        }
+        if !current.trim().is_empty() {
+            args.push(current.trim().to_owned());
+        }
+        self.emit_call(name, &args)
+    }
+
+    fn emit_call(&mut self, name: &str, args: &[String]) -> String {
+        match function_disposition(name) {
+            LegacyFunctionDisposition::Special if name == "position" => "position ".to_owned(),
+            LegacyFunctionDisposition::Special if name == "not" => {
+                format!("not ({}) ", args.join(", "))
+            }
+            LegacyFunctionDisposition::Special if name == "concat" => {
+                format!("str:concat(({})) ", args.join(", "))
+            }
+            LegacyFunctionDisposition::CemQl(mapped) => {
+                format!("{mapped}({}) ", args.join(", "))
+            }
+            _ => {
+                self.diagnostics.push(diag(
+                    UNSUPPORTED_FUNCTION_CODE,
+                    format!("XPath function {name}() has no cem-ql mapping; passed through"),
+                ));
+                format!("{name}({}) ", args.join(", "))
+            }
+        }
+    }
+}
+
+fn attr_value<'a>(element: &'a LegacyElement, name: &str) -> Option<&'a str> {
+    element
+        .attributes
+        .iter()
+        .find(|attr| attr.name == name)
+        .map(|attr| attr.value.as_str())
+}
+
+fn text_content(element: &LegacyElement) -> String {
+    element
+        .children
+        .iter()
+        .map(|child| match child {
+            LegacyNode::Text(text) => text.clone(),
+            LegacyNode::Element(child) => text_content(child),
+            LegacyNode::Comment => String::new(),
+        })
+        .collect()
+}
+
+fn expr_attr(name: &str, expression: &str) -> String {
+    attr_assign(name, expression)
+}
+
+fn attr_assign(name: &str, value: &str) -> String {
+    if !value.contains('"') {
+        format!(" @{name}=\"{value}\"")
+    } else if !value.contains('\'') {
+        format!(" @{name}='{value}'")
+    } else {
+        format!(" @{name}='{}'", value.replace('\'', "&apos;"))
+    }
+}
+
+fn escape_literal(text: &str) -> String {
+    if text.chars().any(|ch| matches!(ch, '{' | '}' | '|' | '`')) {
+        emit_rich_content(text)
+    } else {
+        text.to_owned()
+    }
+}
+
+fn emit_rich_content(text: &str) -> String {
+    format!("```{text}```")
+}
+
+fn local_name(tag: &str) -> &str {
+    tag.rsplit_once(':').map(|(_, local)| local).unwrap_or(tag)
+}
+
+fn is_xslt_element(tag: &str) -> bool {
+    tag.starts_with("xsl:")
+}
+
+fn decode_html_entities(input: &str) -> String {
+    if !input.contains('&') {
+        return input.to_owned();
+    }
+    input
+        .replace("&lt;", "<")
+        .replace("&gt;", ">")
+        .replace("&quot;", "\"")
+        .replace("&apos;", "'")
+        .replace("&amp;", "&")
+}
+
+fn is_name(value: &str) -> bool {
+    let mut chars = value.chars();
+    matches!(chars.next(), Some(ch) if is_name_start(ch)) && chars.all(is_name_char)
+}
+
+fn is_simple_path(expression: &str) -> bool {
+    let mut chars = expression.chars();
+    matches!(chars.next(), Some(ch) if ch.is_ascii_alphabetic() || ch == '_')
+        && chars.all(|ch| ch.is_ascii_alphanumeric() || matches!(ch, '_' | '.'))
+}
+
+fn is_name_start(ch: char) -> bool {
+    ch.is_ascii_alphabetic() || ch == '_'
+}
+
+fn is_name_char(ch: char) -> bool {
+    ch.is_ascii_alphanumeric() || matches!(ch, '_' | '.' | '-' | ':')
+}
+
+fn diag(code: impl Into<String>, message: impl Into<String>) -> LegacyConversionDiagnostic {
+    LegacyConversionDiagnostic {
+        code: code.into(),
+        message: message.into(),
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    fn convert(input: &str) -> LegacyConversionResult {
+        convert_template_source(input)
+    }
 
     #[test]
     fn classifies_material_bridge_elements() {
@@ -199,5 +1225,384 @@ mod tests {
             function_disposition("hasBoolAttribute"),
             LegacyFunctionDisposition::Unsupported
         );
+    }
+
+    #[test]
+    fn recognizes_legacy_content_types() {
+        assert!(is_legacy_custom_element_content_type(TEMPLATE_LANG));
+        assert!(is_legacy_custom_element_content_type(
+            "text/custom-element-xslt; charset=utf-8"
+        ));
+        assert!(!is_legacy_custom_element_content_type("text/html"));
+    }
+
+    #[test]
+    fn lowers_avt_attribute_and_text_interpolation() {
+        let result = convert(r#"<a href="{$href}">Go {$label}</a>"#);
+        assert_eq!(result.source, r#"{a @href="{$href}" | Go {$label}}"#);
+        assert!(result.diagnostics.is_empty());
+    }
+
+    #[test]
+    fn lowers_choose_when_contains_to_cem_choose() {
+        let result = convert(
+            r#"<choose><when test="contains($icon,'/')"><img src="{$icon}"/></when><when test="$icon"><span>{$icon}</span></when></choose>"#,
+        );
+        assert_eq!(
+            result.source,
+            r#"{cem:choose | {cem:when @test='str:contains(icon, "/")' | {img @src="{$icon}"}}{cem:when @test="icon" | {span | {$icon}}}}"#
+        );
+    }
+
+    #[test]
+    fn lowers_xsl_value_of() {
+        let result = convert(r#"<xsl:value-of select="$name"/>"#);
+        assert_eq!(result.source, "{$name}");
+        assert!(result.diagnostics.is_empty());
+    }
+
+    #[test]
+    fn lowers_for_each_with_context_item_attribute_and_position() {
+        let result = convert(
+            r#"<for-each select="$rows"><div style="color:{@hex}">{position()}. {.}</div></for-each>"#,
+        );
+        assert_eq!(
+            result.source,
+            r#"{cem:for-each @select="rows" @as="item" | {div @style="color:{$item.hex}" | {$position}. {$item}}}"#
+        );
+    }
+
+    #[test]
+    fn unrolls_inline_node_set_variable() {
+        let result = convert(
+            r#"<variable name="fruits"><item>Apple</item><item>Banana</item></variable><ul><for-each select="exsl:node-set($fruits)/*"><li>{.}</li></for-each></ul>"#,
+        );
+        assert_eq!(result.source, "{ul | {li | Apple}{li | Banana}}");
+        assert!(result.diagnostics.is_empty());
+    }
+
+    #[test]
+    fn unrolls_node_set_with_scalar_predicate() {
+        let result = convert(
+            r#"<variable name="show" select="//show-items = 'yes'"/><variable name="items"><item>First</item><item>Second</item></variable><for-each select="exsl:node-set($items)/*[$show]"><span>{.}</span></for-each>"#,
+        );
+        assert_eq!(
+            result.source,
+            r#"{cem:if @test='datadom.slices.show-items = "yes"' | {span | First}}{cem:if @test='datadom.slices.show-items = "yes"' | {span | Second}}"#
+        );
+    }
+
+    #[test]
+    fn maps_concat_to_sequence_join() {
+        let result = convert(r#"<span title="{concat($a, '-', $b)}"/>"#);
+        assert_eq!(
+            result.source,
+            r#"{span @title='{str:concat((a, "-", b))}'}"#
+        );
+    }
+
+    #[test]
+    fn reports_unsupported_tier3_constructs() {
+        let result = convert(r#"<xsl:apply-templates select="node()"/>"#);
+        assert_eq!(result.source, "");
+        assert_eq!(result.diagnostics.len(), 1);
+        assert_eq!(result.diagnostics[0].code, UNSUPPORTED_CONSTRUCT_CODE);
+    }
+
+    #[test]
+    fn reports_unsupported_legacy_function() {
+        let result = convert(r#"<input disabled="{hasBoolAttribute('disabled')}"/>"#);
+        assert_eq!(result.diagnostics.len(), 1);
+        assert_eq!(result.diagnostics[0].code, UNSUPPORTED_FUNCTION_CODE);
+    }
+
+    #[test]
+    fn decodes_html_entities_in_xpath_attributes() {
+        let result = convert(r#"<if test="string-length($image) &lt; 3">short</if>"#);
+        assert_eq!(
+            result.source,
+            r#"{cem:if @test="str:length(image) < 3" | short}"#
+        );
+        assert!(result.diagnostics.is_empty());
+    }
+
+    #[test]
+    fn prefixed_void_html_elements_can_carry_legacy_children() {
+        let result = convert(
+            r#"<xhtml:input value="{$value}"><if test="$required"><attribute name="required">{$required}</attribute></if></xhtml:input>"#,
+        );
+        assert_eq!(
+            result.source,
+            r#"{input @value="{$value}" | {cem:if @test="required" | {attribute @name="required" | {$required}}}}"#
+        );
+        assert!(result.diagnostics.is_empty());
+    }
+
+    #[test]
+    fn bare_html_template_is_output_but_xsl_template_is_tier3() {
+        let bare = convert("<template><span>Demo</span></template>");
+        assert_eq!(bare.source, "{template | {span | Demo}}");
+        assert!(bare.diagnostics.is_empty());
+
+        let xsl = convert(r#"<xsl:template match="/"><span>Demo</span></xsl:template>"#);
+        assert_eq!(xsl.source, "");
+        assert_eq!(xsl.diagnostics.len(), 1);
+        assert_eq!(xsl.diagnostics[0].code, UNSUPPORTED_CONSTRUCT_CODE);
+    }
+
+    #[test]
+    fn material_manifest_primary_templates_convert_under_engine_subset() {
+        let root = std::path::PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("../..");
+        let manifest_path =
+            root.join("packages/custom-element/test-fixtures/legacy-compat-manifest.json");
+        let manifest_text = std::fs::read_to_string(&manifest_path)
+            .unwrap_or_else(|err| panic!("read {}: {err}", manifest_path.display()));
+        let manifest: serde_json::Value =
+            serde_json::from_str(&manifest_text).expect("legacy manifest JSON");
+        assert_eq!(manifest["schemaVersion"], 1);
+
+        for component in manifest["materialComponents"]
+            .as_array()
+            .expect("materialComponents[]")
+        {
+            let name = component["name"].as_str().expect("component name");
+            let html_path = root.join(format!(
+                "packages/custom-element/material/components/{name}.html"
+            ));
+            let html = std::fs::read_to_string(&html_path)
+                .unwrap_or_else(|err| panic!("read {}: {err}", html_path.display()));
+            let templates = extract_document_templates(&html);
+            assert!(
+                !templates.is_empty(),
+                "{name}: no top-level templates found"
+            );
+
+            let allows = allowed_diagnostics(component);
+            let mut allowed_counts = vec![0usize; allows.len()];
+            let mut results = Vec::new();
+            for template in &templates {
+                let result = convert_template_source(&template.body);
+                for diagnostic in &result.diagnostics {
+                    let Some(index) = allows
+                        .iter()
+                        .position(|allow| diagnostic_matches(allow, diagnostic))
+                    else {
+                        panic!(
+                            "{name}: unexpected diagnostic {} -- {}",
+                            diagnostic.code, diagnostic.message
+                        );
+                    };
+                    allowed_counts[index] += 1;
+                }
+                results.push((template, result));
+            }
+
+            for (index, allow) in allows.iter().enumerate() {
+                if let Some(max_count) = allow.max_count {
+                    assert!(
+                        allowed_counts[index] <= max_count,
+                        "{name}: {} emitted {} times; max {max_count}",
+                        allow.code,
+                        allowed_counts[index]
+                    );
+                }
+            }
+
+            for required in component["requiredTemplates"]
+                .as_array()
+                .expect("requiredTemplates[]")
+            {
+                let selector = required["selector"].as_str().expect("selector");
+                let min_source_len = required["minSourceLength"].as_u64().unwrap_or(1) as usize;
+                let (_, result) = find_required_template_result(&results, selector)
+                    .unwrap_or_else(|| panic!("{name}: required selector `{selector}` not found"));
+                assert!(
+                    result.source.trim().len() >= min_source_len,
+                    "{name}: `{selector}` produced {} chars; expected >= {min_source_len}",
+                    result.source.trim().len()
+                );
+            }
+        }
+    }
+
+    #[derive(Debug)]
+    struct ExtractedTemplate {
+        attrs: std::collections::HashMap<String, String>,
+        parent_custom_element_tag: Option<String>,
+        body: String,
+    }
+
+    #[derive(Debug)]
+    struct AllowedDiagnostic {
+        code: String,
+        message_includes: Option<String>,
+        max_count: Option<usize>,
+    }
+
+    fn extract_document_templates(html: &str) -> Vec<ExtractedTemplate> {
+        let mut templates = Vec::new();
+        let mut cursor = 0;
+        while let Some(start_offset) = html[cursor..].find("<template") {
+            let start = cursor + start_offset;
+            let Some(open_end_offset) = html[start..].find('>') else {
+                break;
+            };
+            let open_end = start + open_end_offset;
+            let open_tag = &html[start..=open_end];
+            let attrs = parse_tag_attrs(open_tag);
+
+            let mut depth = 1usize;
+            let mut search = open_end + 1;
+            let mut close_start = None;
+            let mut close_end = None;
+            while depth > 0 {
+                let next_open = html[search..]
+                    .find("<template")
+                    .map(|offset| search + offset);
+                let next_close = html[search..]
+                    .find("</template>")
+                    .map(|offset| search + offset);
+                match (next_open, next_close) {
+                    (Some(open), Some(close)) if open < close => {
+                        depth += 1;
+                        search = open + "<template".len();
+                    }
+                    (_, Some(close)) => {
+                        depth -= 1;
+                        if depth == 0 {
+                            close_start = Some(close);
+                            close_end = Some(close + "</template>".len());
+                            break;
+                        }
+                        search = close + "</template>".len();
+                    }
+                    _ => break,
+                }
+            }
+
+            let Some(close_start) = close_start else {
+                break;
+            };
+            let close_end = close_end.expect("close_end set with close_start");
+            templates.push(ExtractedTemplate {
+                attrs,
+                parent_custom_element_tag: parent_custom_element_tag(html, start),
+                body: html[open_end + 1..close_start].to_owned(),
+            });
+            cursor = close_end;
+        }
+        templates
+    }
+
+    fn parse_tag_attrs(tag: &str) -> std::collections::HashMap<String, String> {
+        let mut attrs = std::collections::HashMap::new();
+        let chars: Vec<char> = tag.chars().collect();
+        let mut cursor = tag.find(char::is_whitespace).unwrap_or(tag.len());
+        while cursor < chars.len() {
+            while cursor < chars.len() && chars[cursor].is_whitespace() {
+                cursor += 1;
+            }
+            if cursor >= chars.len() || matches!(chars[cursor], '>' | '/') {
+                break;
+            }
+            let name_start = cursor;
+            while cursor < chars.len()
+                && !chars[cursor].is_whitespace()
+                && !matches!(chars[cursor], '=' | '>' | '/')
+            {
+                cursor += 1;
+            }
+            let name: String = chars[name_start..cursor].iter().collect();
+            while cursor < chars.len() && chars[cursor].is_whitespace() {
+                cursor += 1;
+            }
+            let value = if cursor < chars.len() && chars[cursor] == '=' {
+                cursor += 1;
+                while cursor < chars.len() && chars[cursor].is_whitespace() {
+                    cursor += 1;
+                }
+                if cursor < chars.len() && matches!(chars[cursor], '"' | '\'') {
+                    let quote = chars[cursor];
+                    cursor += 1;
+                    let value_start = cursor;
+                    while cursor < chars.len() && chars[cursor] != quote {
+                        cursor += 1;
+                    }
+                    let value: String = chars[value_start..cursor].iter().collect();
+                    if cursor < chars.len() {
+                        cursor += 1;
+                    }
+                    decode_html_entities(&value)
+                } else {
+                    let value_start = cursor;
+                    while cursor < chars.len()
+                        && !chars[cursor].is_whitespace()
+                        && !matches!(chars[cursor], '>' | '/')
+                    {
+                        cursor += 1;
+                    }
+                    decode_html_entities(&chars[value_start..cursor].iter().collect::<String>())
+                }
+            } else {
+                String::new()
+            };
+            attrs.insert(name, value);
+        }
+        attrs
+    }
+
+    fn parent_custom_element_tag(html: &str, template_start: usize) -> Option<String> {
+        let prefix = &html[..template_start];
+        let open = prefix.rfind("<custom-element")?;
+        let close = prefix.rfind("</custom-element>");
+        if close.map(|close| close > open).unwrap_or(false) {
+            return None;
+        }
+        let open_end = html[open..].find('>').map(|offset| open + offset)?;
+        parse_tag_attrs(&html[open..=open_end]).remove("tag")
+    }
+
+    fn allowed_diagnostics(component: &serde_json::Value) -> Vec<AllowedDiagnostic> {
+        component["allowedDiagnostics"]
+            .as_array()
+            .unwrap_or(&Vec::new())
+            .iter()
+            .map(|allow| AllowedDiagnostic {
+                code: allow["code"].as_str().unwrap_or("").to_owned(),
+                message_includes: allow["messageIncludes"].as_str().map(str::to_owned),
+                max_count: allow["maxCount"].as_u64().map(|value| value as usize),
+            })
+            .collect()
+    }
+
+    fn diagnostic_matches(
+        allow: &AllowedDiagnostic,
+        diagnostic: &LegacyConversionDiagnostic,
+    ) -> bool {
+        allow.code == diagnostic.code
+            && allow
+                .message_includes
+                .as_ref()
+                .map(|needle| diagnostic.message.contains(needle))
+                .unwrap_or(true)
+    }
+
+    fn find_required_template_result<'a>(
+        results: &'a [(&'a ExtractedTemplate, LegacyConversionResult)],
+        selector: &str,
+    ) -> Option<&'a (&'a ExtractedTemplate, LegacyConversionResult)> {
+        if let Some(id) = selector.strip_prefix("template#") {
+            return results
+                .iter()
+                .find(|(template, _)| template.attrs.get("id").map(String::as_str) == Some(id));
+        }
+        let tag_marker = "custom-element[tag=\"";
+        if let Some(rest) = selector.strip_prefix(tag_marker) {
+            let tag = rest.split('"').next()?;
+            return results
+                .iter()
+                .find(|(template, _)| template.parent_custom_element_tag.as_deref() == Some(tag));
+        }
+        None
     }
 }
