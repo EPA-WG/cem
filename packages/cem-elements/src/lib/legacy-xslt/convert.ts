@@ -15,29 +15,21 @@
  */
 
 import { readTemplateSource, type TemplateSourceNode, type TemplateSourceAttribute } from '../projection.js';
+import {
+    LEGACY_XPATH_FUNCTION_MAP,
+    LEGACY_XSLT_DECLARATION_ELEMENTS,
+    LEGACY_XSLT_DIAGNOSTIC_CODES,
+    LEGACY_XSLT_TIER3_HANDOFF_ELEMENTS,
+} from './contract.js';
 
 const XSL_NAMESPACE = 'http://www.w3.org/1999/XSL/Transform';
 const XHTML_NAMESPACE = 'http://www.w3.org/1999/xhtml';
 
 /** Declaration tags that the runtime treats as non-output and the render plan drops. */
-const DECLARATION_TAGS = new Set(['attribute', 'slice', 'data', 'option', 'module-url']);
+const DECLARATION_TAGS: ReadonlySet<string> = new Set(LEGACY_XSLT_DECLARATION_ELEMENTS);
 
 /** Constructs we deliberately do not transpile (Tier 3 / non-transpilable). */
-const UNSUPPORTED_LOCAL_NAMES = new Set([
-    'template',
-    'apply-templates',
-    'call-template',
-    'with-param',
-    'param',
-    'sort',
-    'copy',
-    'copy-of',
-    'element',
-    'function',
-    'script',
-    'stylesheet',
-    'output',
-]);
+const UNSUPPORTED_LOCAL_NAMES: ReadonlySet<string> = new Set(LEGACY_XSLT_TIER3_HANDOFF_ELEMENTS);
 
 export interface LegacyConversionDiagnostic {
     code: string;
@@ -189,7 +181,7 @@ function emitElement(node: Extract<TemplateSourceNode, { kind: 'element' }>, ctx
         case 'otherwise':
             // Handled inside emitChoose; a stray branch outside choose is dropped with a diagnostic.
             ctx.diagnostics.push({
-                code: 'legacy_xslt.orphan_branch',
+                code: LEGACY_XSLT_DIAGNOSTIC_CODES.orphanBranch,
                 message: `<${node.tag}> outside <choose> is ignored`,
             });
             return '';
@@ -203,7 +195,7 @@ function emitElement(node: Extract<TemplateSourceNode, { kind: 'element' }>, ctx
 
     if (UNSUPPORTED_LOCAL_NAMES.has(name) && (isXsltElement(node) || name === 'function')) {
         ctx.diagnostics.push({
-            code: 'legacy_xslt.unsupported_construct',
+            code: LEGACY_XSLT_DIAGNOSTIC_CODES.unsupportedConstruct,
             message: `<${node.tag}> (Tier 3 / non-transpilable) is not converted`,
         });
         return '';
@@ -281,7 +273,7 @@ function emitValueOf(node: Extract<TemplateSourceNode, { kind: 'element' }>, ctx
     const select = attrValue(node, 'select');
     if (select === null) {
         ctx.diagnostics.push({
-            code: 'legacy_xslt.value_of_missing_select',
+            code: LEGACY_XSLT_DIAGNOSTIC_CODES.valueOfMissingSelect,
             message: '<value-of> without @select is ignored',
         });
         return '';
@@ -298,7 +290,7 @@ function emitIf(node: Extract<TemplateSourceNode, { kind: 'element' }>, ctx: Con
     const test = attrValue(node, 'test');
     if (test === null) {
         ctx.diagnostics.push({
-            code: 'legacy_xslt.if_missing_test',
+            code: LEGACY_XSLT_DIAGNOSTIC_CODES.ifMissingTest,
             message: '<if> without @test is ignored',
         });
         return '';
@@ -318,7 +310,7 @@ function emitChoose(node: Extract<TemplateSourceNode, { kind: 'element' }>, ctx:
             const test = attrValue(child, 'test');
             if (test === null) {
                 ctx.diagnostics.push({
-                    code: 'legacy_xslt.when_missing_test',
+                    code: LEGACY_XSLT_DIAGNOSTIC_CODES.whenMissingTest,
                     message: '<when> without @test is ignored',
                 });
                 continue;
@@ -337,7 +329,7 @@ function emitForEach(node: Extract<TemplateSourceNode, { kind: 'element' }>, ctx
     const select = attrValue(node, 'select');
     if (select === null) {
         ctx.diagnostics.push({
-            code: 'legacy_xslt.for_each_missing_select',
+            code: LEGACY_XSLT_DIAGNOSTIC_CODES.forEachMissingSelect,
             message: '<for-each> without @select is ignored',
         });
         return '';
@@ -419,18 +411,7 @@ function emitSlot(node: Extract<TemplateSourceNode, { kind: 'element' }>, ctx: C
 // ---------------------------------------------------------------------------
 
 /** XPath function name → cem-ql `prefix:name`. `concat`/`not`/`position` are special-cased. */
-const FUNCTION_MAP: Record<string, string> = {
-    contains: 'str:contains',
-    'starts-with': 'str:starts_with',
-    'ends-with': 'str:ends_with',
-    'normalize-space': 'str:normalize_space',
-    translate: 'str:translate',
-    substring: 'str:substring',
-    'substring-before': 'str:substring_before',
-    'substring-after': 'str:substring_after',
-    'string-length': 'str:length',
-    count: 'seq:count',
-};
+const FUNCTION_MAP: Readonly<Record<string, string>> = LEGACY_XPATH_FUNCTION_MAP;
 
 /**
  * Rewrite a (subset of) XPath expression to an equivalent cem-ql expression. Handles the forms the
@@ -680,7 +661,7 @@ class XPathRewriter {
             return `${mapped}(${args.join(', ')}) `;
         }
         this.ctx.diagnostics.push({
-            code: 'legacy_xslt.unsupported_function',
+            code: LEGACY_XSLT_DIAGNOSTIC_CODES.unsupportedFunction,
             message: `XPath function ${name}() has no cem-ql mapping; passed through`,
         });
         return `${name}(${args.join(', ')}) `;

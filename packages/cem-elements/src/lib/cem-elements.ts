@@ -17,6 +17,7 @@ import {
 } from './internal/runtime-support/cem-ql-render.js';
 import { ingestContractVersion, type RunMode } from './disposition.js';
 import { convertLegacyTemplateToCemMl, parseLegacyTemplateSource } from './legacy-xslt/convert.js';
+import { LEGACY_CUSTOM_ELEMENT_TEMPLATE_LANG } from './legacy-xslt/contract.js';
 
 export type CemElementDiagnosticSeverity = 'info' | 'warning' | 'error' | 'fatal';
 
@@ -1172,7 +1173,7 @@ function templateMode(template: HTMLTemplateElement): CompiledDeclaration['mode'
     if (type === 'text/cem-ml' || type === 'application/cem-ml') {
         return 'cem-ml';
     }
-    if (template.getAttribute('lang') === 'custom-element-xslt' || containsLegacyXsltConstructs(template)) {
+    if (template.getAttribute('lang') === LEGACY_CUSTOM_ELEMENT_TEMPLATE_LANG || containsLegacyXsltConstructs(template)) {
         return 'legacy-xslt';
     }
     const source = templateSourceText(template).trim();

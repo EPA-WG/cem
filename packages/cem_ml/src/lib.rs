@@ -14,6 +14,7 @@ pub mod events;
 pub mod formatter;
 pub mod handoff;
 pub mod interpreter;
+pub mod legacy_custom_element;
 pub mod observability;
 pub mod parser;
 pub mod plugin;

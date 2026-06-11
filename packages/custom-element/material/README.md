@@ -32,10 +32,12 @@ above; the raw pages are kept as authoring reference.
 ## Scope
 
 Supported (Tier 1/2): the constructs the material components and demos use — see the converter doc.
-A CI gate (`@epa-wg/custom-element:test`, `test-fixtures/material-convert-gate.js`) converts every
-`<template>` in these files and fails on unexpected diagnostics. **Known deferred gaps (allowed):** the
-legacy DCE `hasBoolAttribute()` boolean-attribute helper (used by `input`/`action`) is not reproduced
-on the substrate. **Not converted (Tier 3, deferred):** standalone full XSLT stylesheets (push-model
+A CI gate (`@epa-wg/custom-element:test`, `test-fixtures/material-convert-gate.js`) loads
+`test-fixtures/legacy-compat-manifest.json`, converts every `<template>` in these files, requires the
+manifest-listed primary component templates to produce non-empty CEM-ML, and fails on diagnostics that
+are not explicitly allowlisted per component. **Known deferred gap (allowed only for `cem-input`):** the
+legacy DCE `hasBoolAttribute()` boolean-attribute helper is not reproduced on the substrate.
+**Not converted (Tier 3, deferred):** standalone full XSLT stylesheets (push-model
 `<xsl:template match>` + `apply-templates`/`call-template`/`sort`, EXSLT `func:function`,
 `<msxsl:script>`); these emit a conversion diagnostic. The original POC `xslt-*` test stories
 (`~/aWork/custom-element-dist/src/stories`) are ported into the substrate twin stories rather than

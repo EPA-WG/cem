@@ -1,0 +1,53 @@
+{
+    "schemaVersion": 1,
+    "materialComponents": [
+        {
+            "name": "action",
+            "requiredTemplates": [{ "selector": "template#cem-action", "minSourceLength": 1 }],
+            "allowedDiagnostics": []
+        },
+        {
+            "name": "autocomplete",
+            "requiredTemplates": [
+                { "selector": "custom-element[tag=\"cem-autocomplete\"] > template", "minSourceLength": 1 }
+            ],
+            "allowedDiagnostics": []
+        },
+        {
+            "name": "badge",
+            "requiredTemplates": [{ "selector": "template#cem-badge", "minSourceLength": 1 }],
+            "allowedDiagnostics": []
+        },
+        {
+            "name": "dropdown",
+            "requiredTemplates": [{ "selector": "template#cem-dropdown", "minSourceLength": 1 }],
+            "allowedDiagnostics": []
+        },
+        {
+            "name": "icon-link",
+            "requiredTemplates": [{ "selector": "template#cem-icon-link", "minSourceLength": 1 }],
+            "allowedDiagnostics": []
+        },
+        {
+            "name": "icon",
+            "requiredTemplates": [{ "selector": "template#cem-icon", "minSourceLength": 1 }],
+            "allowedDiagnostics": []
+        },
+        {
+            "name": "input",
+            "requiredTemplates": [{ "selector": "template#cem-input", "minSourceLength": 1 }],
+            "allowedDiagnostics": [
+                {
+                    "code": "legacy_xslt.unsupported_function",
+                    "messageIncludes": "hasBoolAttribute()",
+                    "maxCount": 5
+                }
+            ]
+        },
+        {
+            "name": "menu",
+            "requiredTemplates": [{ "selector": "template#cem-menu", "minSourceLength": 1 }],
+            "allowedDiagnostics": []
+        }
+    ]
+}

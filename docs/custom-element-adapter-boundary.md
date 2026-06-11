@@ -232,7 +232,12 @@ Current state:
 
 - `@epa-wg/custom-element` normalizes untyped templates and delegates to
   `CemElementRuntime`;
-- `cem-elements` owns the TypeScript DOM-to-CEM-ML legacy converter;
+- `cem_ml::legacy_custom_element` records the CEM-owned Tier 1/2 compatibility
+  contract and Tier 3 handoff boundary;
+- `cem-elements/src/lib/legacy-xslt/contract.ts` mirrors that compatibility
+  contract for the current browser adapter and fixture gates;
+- `cem-elements` owns the current TypeScript DOM-to-CEM-ML legacy converter
+  implementation;
 - `cem_ql` owns the canonical CEM-ML render boundary;
 - `cem_ml` owns XSLT namespace dispatch/version-pinning only, not execution.
 
