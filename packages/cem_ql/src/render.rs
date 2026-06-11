@@ -21,6 +21,9 @@ use crate::ir::CompiledQuery;
 
 /// Binding name under which the `/datadom` data document is exposed to expressions.
 const DATA_DOCUMENT_BINDING: &str = "datadom";
+/// Loop-position binding name. The legacy HTML+XSLT bridge rewrites XPath `position()` to
+/// `$position`; `cem:for-each` binds it to the 1-based iteration index.
+const POSITION_BINDING: &str = "position";
 
 #[derive(Debug, Clone, Default)]
 pub struct TemplateData {
@@ -494,9 +497,21 @@ impl TemplateCompiler<'_> {
             .policy_bindings
             .entry(loop_name.clone())
             .or_insert_with(ItemStream::empty);
+        // Also declare `position` (XSLT `position()` parity) so descendant `{$position}` compiles.
+        let position_pre_existing = self
+            .compile_context
+            .policy_bindings
+            .contains_key(POSITION_BINDING);
+        self.compile_context
+            .policy_bindings
+            .entry(POSITION_BINDING.to_owned())
+            .or_insert_with(ItemStream::empty);
         let children = self.parse_children(&tag);
         if !pre_existing {
             self.compile_context.policy_bindings.remove(&loop_name);
+        }
+        if !position_pre_existing {
+            self.compile_context.policy_bindings.remove(POSITION_BINDING);
         }
         TemplateNode::ForEach {
             select,
@@ -765,15 +780,23 @@ impl PlanRenderer {
             } => {
                 let items = self.evaluate_select(select.as_ref());
                 let previous = self.evaluation_context.policy_bindings.get(as_name).cloned();
-                for item in items {
+                // XSLT `position()` parity: bind a 1-based index for the current iteration. Saved
+                // and restored alongside the loop variable so nested loops see their own position.
+                let previous_position =
+                    self.evaluation_context.policy_bindings.get(POSITION_BINDING).cloned();
+                for (offset, item) in items.into_iter().enumerate() {
                     self.evaluation_context
                         .policy_bindings
                         .insert(as_name.clone(), ItemStream::once(item));
+                    self.evaluation_context.policy_bindings.insert(
+                        POSITION_BINDING.to_owned(),
+                        ItemStream::once(Item::Atomic(AtomValue::Integer((offset + 1) as i64))),
+                    );
                     for child in children {
                         self.render_into(child, out);
                     }
                 }
-                // Restore the prior binding so the loop variable does not leak past the block.
+                // Restore the prior bindings so the loop variables do not leak past the block.
                 match previous {
                     Some(prev) => {
                         self.evaluation_context
@@ -782,6 +805,16 @@ impl PlanRenderer {
                     }
                     None => {
                         self.evaluation_context.policy_bindings.remove(as_name);
+                    }
+                }
+                match previous_position {
+                    Some(prev) => {
+                        self.evaluation_context
+                            .policy_bindings
+                            .insert(POSITION_BINDING.to_owned(), prev);
+                    }
+                    None => {
+                        self.evaluation_context.policy_bindings.remove(POSITION_BINDING);
                     }
                 }
             }

@@ -21,7 +21,7 @@ fn eval(source: &str) -> cem_ql::eval::ItemStream {
 fn tier_a_registry_lists_every_documented_module_function() {
     let registry = ModuleRegistry::tier_a();
 
-    assert_eq!(registry.functions.len(), 50);
+    assert_eq!(registry.functions.len(), 55);
     assert!(registry.resolve("cem:stdlib/sequence", "map", 2).is_some());
     assert!(registry.resolve("cem:stdlib/strings", "slice", 3).is_some());
     assert!(registry.resolve("cem:stdlib/strings", "replace", 3).is_some());
@@ -83,6 +83,61 @@ fn string_stdlib_functions_evaluate() {
         normalized.items,
         vec![Item::Atomic(AtomValue::String("--cem-gap 0.5rem".to_owned()))]
     );
+}
+
+#[test]
+fn xpath_string_bridge_functions_evaluate() {
+    // translate: ASCII upper->lower fold (chars in `from` map positionally to `to`).
+    let folded = eval(r#"str:translate("Cem-ML", "ABCDEFGHIJKLMNOPQRSTUVWXYZ", "abcdefghijklmnopqrstuvwxyz")"#);
+    assert_eq!(
+        folded.items,
+        vec![Item::Atomic(AtomValue::String("cem-ml".to_owned()))]
+    );
+
+    // translate: a `from` char with no `to` counterpart is deleted.
+    let stripped = eval(r#"str:translate("a-b-c", "-", "")"#);
+    assert_eq!(
+        stripped.items,
+        vec![Item::Atomic(AtomValue::String("abc".to_owned()))]
+    );
+
+    // substring: 1-based start, optional length.
+    let sub = eval(r#"str:substring("semantic", 3, 4)"#);
+    assert_eq!(
+        sub.items,
+        vec![Item::Atomic(AtomValue::String("mant".to_owned()))]
+    );
+    let sub_open = eval(r#"str:substring("semantic", 5)"#);
+    assert_eq!(
+        sub_open.items,
+        vec![Item::Atomic(AtomValue::String("ntic".to_owned()))]
+    );
+
+    // substring_before / substring_after split on the first separator (empty when absent).
+    let before = eval(r#"str:substring_before("fa-github", "-")"#);
+    assert_eq!(
+        before.items,
+        vec![Item::Atomic(AtomValue::String("fa".to_owned()))]
+    );
+    let after = eval(r#"str:substring_after("fa-github", "-")"#);
+    assert_eq!(
+        after.items,
+        vec![Item::Atomic(AtomValue::String("github".to_owned()))]
+    );
+    let missing = eval(r#"str:substring_before("plain", "-")"#);
+    assert_eq!(
+        missing.items,
+        vec![Item::Atomic(AtomValue::String(String::new()))]
+    );
+}
+
+#[test]
+fn sequence_count_returns_item_count() {
+    let count = eval(r#"seq:count(("a", "b", "c"))"#);
+    assert_eq!(count.items, vec![Item::Atomic(AtomValue::Integer(3))]);
+
+    let empty = eval(r#"seq:count(())"#);
+    assert_eq!(empty.items, vec![Item::Atomic(AtomValue::Integer(0))]);
 }
 
 #[test]

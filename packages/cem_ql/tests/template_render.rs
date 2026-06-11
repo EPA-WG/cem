@@ -493,6 +493,32 @@ fn render_template_for_each_iterates_a_sequence() {
 }
 
 #[test]
+fn render_template_for_each_binds_position() {
+    // XSLT `position()` parity: the legacy bridge rewrites `position()` to `$position`, which
+    // cem:for-each binds to the 1-based iteration index.
+    let data = TemplateData::default().with_binding(
+        "rows",
+        ItemStream::from_items(vec![
+            Item::Atomic(AtomValue::String("a".to_owned())),
+            Item::Atomic(AtomValue::String("b".to_owned())),
+            Item::Atomic(AtomValue::String("c".to_owned())),
+        ]),
+    );
+
+    let rendered = render_template(
+        "{cem:for-each @select=\"$rows\" @as=\"row\" | {$position}:{$row};}",
+        &data,
+    );
+
+    assert_eq!(rendered.rendered, "1:a;2:b;3:c;");
+    assert!(
+        rendered.diagnostics.is_empty(),
+        "{:?}",
+        rendered.diagnostics
+    );
+}
+
+#[test]
 fn render_template_for_each_binds_record_fields_per_item() {
     // Realistic CSS-generator shape: iterate token rows, emit "<token>=<value>" per row.
     let rows = ItemStream::from_items(vec![

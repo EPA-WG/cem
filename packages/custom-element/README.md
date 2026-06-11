@@ -278,17 +278,27 @@ is available in `{}` in attributes, in `for-each`, `if`, `value-of`, and other X
 
 XPath is a selector language to navigate over custom element instance data, attributes, and payload.
 
-## XSLT 1.0
-The in-browser native implementation as of now supports [XSLT 1.0](https://www.w3.org/TR/xslt-10/).
-File the [change request](https://github.com/EPA-WG/custom-element/issues) for support of another XSLT version or
-template engine.
+## XSLT 1.0 — removed in 0.1.0
 
-> **Deprecated (0.1.0):** the legacy browser-native XSLT 1.0 / XPath rendering path is **deprecated but still
-> functional** in 0.1.0. Authoring has moved to the CEM-ML / CEM-QL substrate
-> (`<template type="cem-ml; version=0.0">`), which the `<custom-element>` adapter now renders through.
-> The XSLT-only path ships one full major as a migration bridge and is **removed in the next major**
-> (enforced by the FF-5 removal gate once there are zero in-repo consumers). Migrate authoring templates to the
-> substrate; the generated output (e.g. `cem-theme` CSS) is unaffected.
+> **Important (0.1.0):** the in-browser native **XSLT 1.0 `XSLTProcessor` rendering engine has been
+> removed.** `<custom-element>` now renders through the CEM-ML / CEM-QL substrate
+> (`CemElementRuntime`), and XSLT-only constructs — `<xsl:for-each>`, `<xsl:value-of>`,
+> `<xsl:variable>`, `<xsl:template>`, and broad XPath functions — **no longer execute.**
+>
+> **What still works:** the `<custom-element>` tag and a `custom-element-v0` compatibility bridge that
+> covers a *subset* of legacy authoring — `{ }` / `{$name}` / `{//path}` interpolation, `if` / `choose`
+> / `when` / `otherwise`, path selection, `??` coalescing, attribute value templates, declaration
+> attributes/slices, and slots. An untyped inline `<template>` is auto-normalized to
+> `lang="custom-element-v0"`. This bridge is itself **deprecated** and removed in the next major (FF-5
+> removal gate).
+>
+> **Migrate** XSLT-authored templates to the substrate (`<template type="cem-ml; version=0.0">`). The
+> historical XSLT documentation below is retained for reference only; the `.xslt` demo files and
+> `xsl:*` IDE metadata in this package no longer drive any rendering. Generated output that previously
+> relied on XSLT (e.g. `cem-theme` CSS) was converted and is unaffected.
+
+The original POC used the in-browser native [XSLT 1.0](https://www.w3.org/TR/xslt-10/) implementation
+for transformation. That dependency is what 0.1.0 retires.
 
 # troubleshooting
 ## HTML parser is not compatible with templates

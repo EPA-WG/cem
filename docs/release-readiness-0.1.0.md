@@ -67,8 +67,14 @@ For consumers of the 0.0.x line:
    generated `dist/lib/css/*.css` is stable, but the generator *templates*
    changed to `type="cem-ml; version=0.0"`. Anyone who forked/embedded the
    generator HTML must adopt the substrate (Option B).
-2. **Deprecated legacy XSLT-only `custom-element` surface** (see §4). Still
-   functional in 0.1.0.
+2. **The browser XSLT-1.0 `XSLTProcessor` engine is removed from the
+   `custom-element` adapter** (see §4) — not merely deprecated. `<xsl:for-each>`,
+   `<xsl:value-of>`, `<xsl:variable>`, `<xsl:template>`, and broad XPath functions
+   no longer execute (the package verifier fails if `XSLTProcessor` reappears). The
+   `<custom-element>` tag stays functional through `CemElementRuntime`, and a
+   `custom-element-v0` bridge covers a *subset* of legacy authoring (curly-brace
+   interpolation, `if`/`choose`/`when`/`otherwise`, path selection, AVT) — that
+   bridge is the deprecated-but-functional part, removed next major.
 3. **Deep `dist/` imports are discouraged.** Import package export subpaths
    instead — `@epa-wg/cem-theme/tokens/cem.tokens.json`,
    `@epa-wg/cem-theme/tokens/cem.tokens.ts`, `@epa-wg/cem-elements`. Debug-only
@@ -83,15 +89,19 @@ For consumers of the 0.0.x line:
 
 ## 4. Bridge-window support matrix
 
-**Policy (2026-06-09): deprecate now, remove next major.** The legacy XSLT-only
-path ships deprecated-but-working in 0.1.0 and is removed in the following major,
-giving consumers one full major to migrate. The FF-5 removal gate enforces zero
-in-repo consumers of the deprecated form before removal.
+**Policy (2026-06-09; corrected 2026-06-10): the XSLT *engine* is already removed;
+the legacy *authoring bridge* deprecates now, removes next major.** The browser
+XSLT-1.0 `XSLTProcessor` rendering engine is gone in 0.1.0 (the `custom-element`
+adapter delegates to `CemElementRuntime` and the verifier blocks `XSLTProcessor`
+from returning). The `custom-element-v0` bridge — a *subset* of legacy authoring,
+not XSLT-tag execution — ships deprecated-but-working for one full major, then the
+FF-5 removal gate (zero in-repo consumers) clears it.
 
 | Surface | 0.1.0 | next major |
 | --- | --- | --- |
 | CEM-ML/CEM-QL substrate (`type="cem-ml; version=0.0"`) | ✅ recommended | ✅ |
-| Legacy XSLT-only templates (`custom-element` XSLT+XPath) | ⚠️ deprecated, functional | ❌ removed (FF-5 gated) |
+| XSLT-tag execution (`<xsl:*>` + XPath via `XSLTProcessor`) | ❌ **removed** | ❌ |
+| `custom-element-v0` legacy-authoring bridge (interpolation, `if`/`choose`, paths, AVT) | ⚠️ deprecated, functional | ❌ removed (FF-5 gated) |
 | `custom-element-v0` / `cem-ml-v0` deprecated form ids | ⚠️ scanned by FF-5 | ❌ removed |
 
 ## 5. npm package-contents check

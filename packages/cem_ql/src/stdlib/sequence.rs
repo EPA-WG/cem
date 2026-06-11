@@ -18,4 +18,6 @@ pub const FUNCTIONS: &[StdlibFunction] = &[
     StdlibFunction::native(MODULE_URI, "intersect", 2, Tier::A),
     StdlibFunction::native(MODULE_URI, "difference", 2, Tier::A),
     StdlibFunction::native(MODULE_URI, "symmetric_difference", 2, Tier::A),
+    // XPath `count()` parity for the legacy HTML+XSLT bridge — number of items in a sequence.
+    StdlibFunction::native(MODULE_URI, "count", 1, Tier::A),
 ];

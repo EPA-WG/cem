@@ -174,6 +174,10 @@ pub(crate) fn apply_stdlib_call(
         }
         ("cem:stdlib/sequence", "where") => callable_sequence(arg_streams, ctx, args, false, true),
         ("cem:stdlib/sequence", "peek") => arg_streams.into_iter().next().unwrap_or_default(),
+        ("cem:stdlib/sequence", "count") => {
+            let count = arg_streams.into_iter().next().unwrap_or_default().items.len();
+            ItemStream::once(Item::Atomic(AtomValue::Integer(count as i64)))
+        }
         ("cem:stdlib/strings", "length") => {
             let value = first_string(&arg_streams);
             ItemStream::once(Item::Atomic(AtomValue::Integer(
@@ -213,6 +217,14 @@ pub(crate) fn apply_stdlib_call(
             ItemStream::once(Item::Atomic(AtomValue::String(normalize_space(&value))))
         }
         ("cem:stdlib/strings", "replace") => string_replace(arg_streams),
+        ("cem:stdlib/strings", "translate") => string_translate(arg_streams),
+        ("cem:stdlib/strings", "substring") => string_substring(arg_streams),
+        ("cem:stdlib/strings", "substring_before") => {
+            string_substring_split(arg_streams, true)
+        }
+        ("cem:stdlib/strings", "substring_after") => {
+            string_substring_split(arg_streams, false)
+        }
         ("cem:stdlib/numbers", "double") => number_double(arg_streams),
         ("cem:stdlib/numbers", "decimal") => number_decimal(arg_streams),
         ("cem:stdlib/numbers", "integer") => number_integer(arg_streams),
@@ -828,6 +840,55 @@ fn string_replace(streams: Vec<ItemStream>) -> ItemStream {
         haystack.replace(&needle, &replacement)
     };
     ItemStream::once(Item::Atomic(AtomValue::String(result)))
+}
+
+/// XPath `translate(s, from, to)`: replace each char of `s` that appears in `from` with the char at
+/// the same position in `to`; a `from` char with no `to` counterpart is deleted. Legacy XSLT uses
+/// this for ASCII case-folding and character stripping.
+fn string_translate(streams: Vec<ItemStream>) -> ItemStream {
+    let value = first_string(&streams);
+    let from: Vec<char> = nth_string(&streams, 1).chars().collect();
+    let to: Vec<char> = nth_string(&streams, 2).chars().collect();
+    let out: String = value
+        .chars()
+        .filter_map(|c| match from.iter().position(|f| *f == c) {
+            Some(index) => to.get(index).copied(),
+            None => Some(c),
+        })
+        .collect();
+    ItemStream::once(Item::Atomic(AtomValue::String(out)))
+}
+
+/// XPath `substring(s, start, length?)` — 1-based, character-indexed. Pragmatic legacy-parity subset:
+/// `start` is clamped to >= 1 before the 0-based conversion (the full XPath start<1 length-adjust
+/// rule is not needed by the bridged samples).
+fn string_substring(streams: Vec<ItemStream>) -> ItemStream {
+    let chars: Vec<char> = first_string(&streams).chars().collect();
+    let start = streams.get(1).and_then(first_integer).unwrap_or(1).max(1) as usize;
+    let begin = start - 1;
+    let out: String = match streams.get(2).and_then(first_integer) {
+        Some(len) => chars.into_iter().skip(begin).take(len.max(0) as usize).collect(),
+        None => chars.into_iter().skip(begin).collect(),
+    };
+    ItemStream::once(Item::Atomic(AtomValue::String(out)))
+}
+
+/// XPath `substring-before` (`before = true`) / `substring-after` (`before = false`): the part of the
+/// string before/after the first occurrence of the separator, or empty string when absent.
+fn string_substring_split(streams: Vec<ItemStream>, before: bool) -> ItemStream {
+    let value = first_string(&streams);
+    let separator = nth_string(&streams, 1);
+    let out = match value.find(&separator) {
+        Some(index) if !separator.is_empty() => {
+            if before {
+                value[..index].to_owned()
+            } else {
+                value[index + separator.len()..].to_owned()
+            }
+        }
+        _ => String::new(),
+    };
+    ItemStream::once(Item::Atomic(AtomValue::String(out)))
 }
 
 fn nth_string(streams: &[ItemStream], index: usize) -> String {
