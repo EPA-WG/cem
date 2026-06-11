@@ -44,11 +44,27 @@ the behavioral reference.
 
 ## Migration Decisions
 
-- XPath is not reimplemented in the browser host. Functional parity uses cem-ql over the structured `datadom` record.
+- XPath is not reimplemented as a browser host engine. The legacy-XSLT bridge lowers the fixture-bounded XPath subset to
+  cem-ql over flat host bindings and the structured `datadom` record.
 - Legacy DOM text interpolation `${$name}` remains only for DOM-parity templates; canonical CEM-ML uses `{$name}`.
 - `src`, `module-url`, and external dependency resolution are host-policy driven. `src` uses `loadSrcDocument`;
   `module-url` uses `resolveModuleUrl`; bare module specifiers require host-provided resolver hooks.
-- XSLT-only constructs (`for-each`, `variable`, full XPath functions) are bridge/adoption concerns unless promoted
-  into cem-ql/cem-ml explicitly.
+- The supported XSLT subset is pull-style and fixture-derived: `if`, `choose`, `when`, `otherwise`, `value-of`,
+  inline `variable`, and `for-each` over an inline node-set variable lower to CEM-ML. Push-style XSLT and standalone
+  stylesheet constructs remain Tier 3 handoff/deferred work.
 - Scoped CSS currently renders as light-DOM CSS. True scoping/containment is a material parity gap, not a hidden
   substrate guarantee.
+
+## Recommended Next Step
+
+The current bridge proves that legacy HTML+XSLT can be compiled to canonical CEM-ML and rendered through `cem_ql` WASM,
+but the converter still lives in `cem-elements` TypeScript. To make old custom-element syntax genuinely supported by
+the CEM-ML engine, move that compatibility compiler behind a shared CEM engine boundary and use it from the browser
+runtime, CLI validation, SSR, and package gates.
+
+Keep `@epa-wg/custom-element` as a thin adapter:
+
+- normalize untyped legacy templates to `lang="custom-element-xslt"`;
+- delegate parsing/conversion/rendering to the shared engine path;
+- preserve copied demo/material modules as executable fixtures;
+- reject or explicitly hand off Tier 3 XSLT rather than expanding the bridge by accident.

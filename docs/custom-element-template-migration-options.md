@@ -74,6 +74,34 @@ blocked by missing CEM-QL/CEM-ML loop, binding, namespace, or XPath-parity featu
 If Option A is chosen, update the package verifier and docs to name that legacy
 runtime explicitly instead of treating XSLT as a regression.
 
+## Legacy `custom-element` Compatibility Recommendation
+
+For the copied `custom-element` demo, story, and material component modules, use a
+hybrid of Option A's authoring compatibility and Option B's execution model:
+
+- accept the old declarative HTML+XSLT syntax as input during the bridge window;
+- lower the supported subset to canonical CEM-ML and `cem_ql` expressions;
+- run the resulting template through the same CEM-ML render engine used by
+  migrated templates;
+- keep the compatibility subset narrow and fixture-derived.
+
+The browser package currently does this in the `cem-elements` TypeScript
+converter. That is acceptable as the first bridge, but it is not the final owner
+of the semantics. The recommended next step is to move the compatibility compiler
+behind a CEM-owned engine boundary so CLI validation, SSR, Storybook, and the
+published adapter all compile the same legacy source with the same diagnostics.
+
+Compatibility tiers:
+
+| Tier | Scope | Disposition |
+| --- | --- | --- |
+| 1 | Material component subset: declarations, AVT, `if`, `choose`, `for-each` over inline node-set variables, slots, resource slices, and the XPath functions used by those files | Supported by conversion to CEM-ML |
+| 2 | Focused demos that use the same pull-style subset plus simple XPath string/sequence helpers | Supported only when covered by an executable fixture |
+| 3 | Standalone stylesheets, `apply-templates`, `call-template`, `sort`, `xsl:template`, EXSLT functions, script extensions, broad DOM axes | Explicit handoff/deferred, not silently supported |
+
+The adapter must remain a facade. It may normalize legacy declarations, but it
+must not own a private XPath evaluator or XSLT runtime.
+
 ## Immediate Plan
 
 1. Inventory each `packages/cem-theme/src/lib/css-generators/*.html` template for

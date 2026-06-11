@@ -27,7 +27,12 @@
                 "{projectRoot}/LICENSE",
                 "{projectRoot}/package.json",
                 "{projectRoot}/scripts/build-package.mjs",
+                "{workspaceRoot}/packages/cem-elements/src/**/*",
+                "{workspaceRoot}/packages/cem-elements/package.json",
+                "{workspaceRoot}/packages/cem-elements/tsconfig.lib.json",
                 "{workspaceRoot}/packages/cem-elements/dist/**/*",
+                "{workspaceRoot}/packages/cem_ql/src/**/*",
+                "{workspaceRoot}/packages/cem_ql/Cargo.toml",
                 "{workspaceRoot}/packages/cem_ql/dist/wasm/**/*"
             ],
             "outputs": ["{projectRoot}/dist"]

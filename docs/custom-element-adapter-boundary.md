@@ -126,17 +126,20 @@ resolution logic. Fetching, module-map resolution, and scope policy belong to
 ### Inline Templates
 
 Inline `<template>` children are passed to the substrate. During the migration
-window, legacy templates that do not declare `lang` or `type` should be annotated
-as:
+window, legacy templates that do not declare `lang` or `type` are annotated as:
 
 ```html
-<template lang="custom-element-v0">...</template>
+<template lang="custom-element-xslt">...</template>
 ```
 
-That routes old DOM/XSLT-shaped authoring through the existing legacy-v0 bridge
-instead of the canonical CEM-ML parser. Templates that already declare
-`lang="custom-element-v0"`, `type="text/cem-ml"`, or `type="application/cem-ml"`
-must be left unchanged.
+That routes old HTML+XSLT-shaped authoring through the legacy-XSLT conversion
+path instead of the canonical CEM-ML parser. The conversion path parses the
+template DOM, lowers the fixture-bounded XSLT/XPath subset to canonical CEM-ML,
+and renders through `cem_ql` WASM. Templates that already declare
+`lang="custom-element-xslt"`, `lang="custom-element-v0"`, `type="text/cem-ml"`,
+or `type="application/cem-ml"` must be left unchanged. The `custom-element-v0`
+bridge remains an explicit DOM-projection compatibility path; it is not the
+default for untyped legacy templates.
 
 ### Data Islands And Payload
 
@@ -218,3 +221,32 @@ This boundary does not:
 - complete publish-readiness for the next major.
 
 Those are the next Phase 3.6 tasks in [`todo.md`](todo.md).
+
+## Recommended Engine Ownership
+
+The published adapter should stay thin. Legacy HTML+XSLT semantics must not
+become a second browser-only implementation hidden inside
+`@epa-wg/custom-element`.
+
+Current state:
+
+- `@epa-wg/custom-element` normalizes untyped templates and delegates to
+  `CemElementRuntime`;
+- `cem-elements` owns the TypeScript DOM-to-CEM-ML legacy converter;
+- `cem_ql` owns the canonical CEM-ML render boundary;
+- `cem_ml` owns XSLT namespace dispatch/version-pinning only, not execution.
+
+Recommended target:
+
+- move the legacy HTML+XSLT compatibility compiler behind a CEM-owned engine
+  boundary shared by browser runtime, CLI, SSR, and tests;
+- keep the compiler output as canonical CEM-ML plus `cem_ql` expressions, not a
+  live XSLT/XPath engine;
+- treat copied demo/material files as executable compatibility fixtures with a
+  per-file construct allowlist;
+- keep standalone XSLT stylesheets and push-template constructs as an explicit
+  Tier 3 handoff, not part of the material component bridge.
+
+This preserves the current low-risk conversion strategy while making the
+requirement "old custom-element syntax is supported by the CEM-ML engine" true
+for non-browser surfaces as well.
