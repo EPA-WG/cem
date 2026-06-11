@@ -228,32 +228,28 @@ The published adapter should stay thin. Legacy HTML+XSLT semantics must not
 become a second browser-only implementation hidden inside
 `@epa-wg/custom-element`.
 
-Current state:
+Current state (migration complete):
 
 - `@epa-wg/custom-element` normalizes untyped templates and delegates to
   `CemElementRuntime`;
-- `cem_ml::legacy_custom_element` records the CEM-owned Tier 1/2 compatibility
-  contract, Tier 3 handoff boundary, and a bounded engine-side legacy fragment
-  lowering path for `convert --to-format cem --content-type custom-element-xslt`;
-- `cem-elements/src/lib/legacy-xslt/contract.ts` mirrors that compatibility
-  contract for the current browser adapter and fixture gates;
-- `cem-elements` owns the current browser DOM-to-CEM-ML legacy converter
-  implementation, preserving browser-template parsing behavior while the engine
-  path catches up;
-- `cem_ql` owns the canonical CEM-ML render boundary;
-- `cem_ml` owns XSLT namespace dispatch/version-pinning only, not execution.
+- `cem_ml::legacy_custom_element` is the **single** CEM-owned legacy HTML+XSLT →
+  CEM-ML compiler (Tier 1/2 lowering, Tier 3 handoff boundary), reached by the CLI
+  (`convert --to-format cem --content-type custom-element-xslt`) and exported on the
+  `cem_ql` WASM module as `convertLegacyCustomElementTemplate`;
+- the **browser runtime** lowers legacy declarations through that engine via
+  `convertLegacyTemplate` (cem-elements runtime-support), lazily on first render;
+  there is no separate browser DOM-to-CEM-ML converter any more;
+- `cem-elements/src/lib/legacy-xslt/contract.ts` is the TS mirror of the contract
+  (template lang, element/function sets, diagnostic codes) consumed by the adapter
+  and fixture gates; `contract.alignment.spec.ts` fails if it drifts from the Rust
+  authoritative side;
+- the copied demo/material files are executable compatibility fixtures: the
+  `@epa-wg/custom-element` material convert gate runs each `<template>` through the
+  **same engine** with a per-file diagnostic allowlist (`legacy-compat-manifest.json`);
+- `cem_ql` owns the canonical CEM-ML render boundary; `cem_ml` owns XSLT namespace
+  dispatch/version-pinning only, not execution.
 
-Recommended target:
-
-- finish moving the legacy HTML+XSLT compatibility compiler behind a CEM-owned
-  engine boundary shared by browser runtime, CLI, SSR, and tests;
-- keep the compiler output as canonical CEM-ML plus `cem_ql` expressions, not a
-  live XSLT/XPath engine;
-- treat copied demo/material files as executable compatibility fixtures with a
-  per-file construct allowlist;
-- keep standalone XSLT stylesheets and push-template constructs as an explicit
-  Tier 3 handoff, not part of the material component bridge.
-
-This preserves the current low-risk conversion strategy while making the
-requirement "old custom-element syntax is supported by the CEM-ML engine" true
-for non-browser surfaces as well.
+The requirement "old `custom-element` syntax is supported by the CEM-ML engine" now
+holds for browser runtime, CLI, SSR, and tests through one compiler. Standalone XSLT
+stylesheets and push-template constructs remain an explicit Tier 3 handoff (engine
+diagnostic), not part of the material component bridge.

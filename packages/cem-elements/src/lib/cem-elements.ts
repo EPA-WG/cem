@@ -11,12 +11,12 @@ import {
 } from './projection.js';
 import {
     compileCemMlTemplate,
+    convertLegacyTemplate,
     ensureRuntimeReady,
     renderCemMlTemplate,
     type RuntimeSupportDiagnostic,
 } from './internal/runtime-support/cem-ql-render.js';
 import { ingestContractVersion, type RunMode } from './disposition.js';
-import { convertLegacyTemplateToCemMl, parseLegacyTemplateSource } from './legacy-xslt/convert.js';
 import { LEGACY_CUSTOM_ELEMENT_TEMPLATE_LANG } from './legacy-xslt/contract.js';
 
 export type CemElementDiagnosticSeverity = 'info' | 'warning' | 'error' | 'fatal';
@@ -181,8 +181,13 @@ interface CompiledDeclaration {
     template: HTMLTemplateElement;
     templateSource: TemplateSourceNode[];
     mode: 'dom' | 'cem-ml' | 'legacy-v0' | 'legacy-xslt';
-    /** Raw canonical CEM-ML source text, retained for the `cem_ql` WASM render boundary. */
+    /**
+     * Raw canonical CEM-ML source text for the `cem_ql` WASM render boundary. For legacy-xslt this
+     * starts null and is filled by the async engine conversion of {@link legacySource} on first render.
+     */
     cemMlSource: string | null;
+    /** Raw legacy HTML+XSLT markup, lowered to {@link cemMlSource} by the engine on first render. */
+    legacySource: string | null;
     /** Whether this declaration renders through the canonical CEM-ML WASM boundary. */
     wasmEligible: boolean;
     declaredAttributes: AttributeDeclaration[];
@@ -346,6 +351,8 @@ export class CemElementRuntime {
     private readonly renderTokens = new WeakMap<HTMLElement, number>();
     private readonly renderSettled = new WeakMap<HTMLElement, Promise<void>>();
     private readonly declarationSettled = new WeakMap<object, Promise<void>>();
+    /** Dedupes the async engine lowering of a legacy-xslt declaration across its instances. */
+    private readonly legacyConversions = new WeakMap<CompiledDeclaration, Promise<void>>();
     private readonly srcDocuments = new Map<string, Promise<Document>>();
     private readonly moduleUrls = new Map<string, Promise<string>>();
     private readonly loadSrcDocumentOption?: CemElementRuntimeOptions['loadSrcDocument'];
@@ -443,12 +450,11 @@ export class CemElementRuntime {
         this.recordDiagnostics(declarationElement, [...shapeDiagnostics, ...compiled.diagnostics]);
         this.declarations.set(tag, compiled);
         this.defineProducedElement(declarationElement, compiled);
-        // CEM-ML declaration parse diagnostics (structural well-formedness) come from the
-        // async cem_ql WASM compile; cem-ql expression errors surface at render instead.
-        if (
-            (compiled.mode === 'cem-ml' || compiled.mode === 'legacy-xslt') &&
-            compiled.cemMlSource !== null
-        ) {
+        // CEM-ML declaration parse diagnostics (structural well-formedness) come from the async
+        // cem_ql WASM compile; cem-ql expression errors surface at render instead. Legacy-XSLT
+        // declarations have no cemMlSource until the engine lowers them on first render, where their
+        // conversion diagnostics surface — so they are not compiled here.
+        if (compiled.mode === 'cem-ml' && compiled.cemMlSource !== null) {
             return this.surfaceDeclarationDiagnostics(declarationElement, compiled);
         }
         return Promise.resolve();
@@ -682,8 +688,9 @@ export class CemElementRuntime {
         const snapshot = this.createSnapshot(instance, compiled, island);
         const token = this.nextRenderToken(instance);
 
-        if (compiled.wasmEligible && compiled.cemMlSource !== null) {
-            // Canonical CEM-ML renders through the authoritative `cem_ql` WASM boundary.
+        if (compiled.wasmEligible && (compiled.cemMlSource !== null || compiled.legacySource !== null)) {
+            // Canonical CEM-ML — and legacy HTML+XSLT (lowered by the engine on first render) —
+            // render through the authoritative `cem_ql` WASM boundary.
             this.renderSettled.set(instance, this.renderViaWasm(instance, compiled, snapshot, token));
             return;
         }
@@ -697,14 +704,46 @@ export class CemElementRuntime {
         this.renderSettled.set(instance, resourcesSettled);
     }
 
+    /**
+     * Lower a legacy HTML+XSLT declaration to canonical CEM-ML through the CEM-owned engine, once per
+     * declaration (shared across its instances). Fills {@link CompiledDeclaration.cemMlSource} and
+     * surfaces conversion diagnostics on the declaration element. No-op for CEM-ML declarations.
+     */
+    private ensureLegacyConverted(compiled: CompiledDeclaration): Promise<void> {
+        if (compiled.cemMlSource !== null || compiled.legacySource === null) {
+            return Promise.resolve();
+        }
+        let conversion = this.legacyConversions.get(compiled);
+        if (!conversion) {
+            conversion = convertLegacyTemplate(compiled.legacySource).then((converted) => {
+                compiled.cemMlSource = converted.source;
+                if (converted.diagnostics.length > 0) {
+                    this.recordDiagnostics(
+                        compiled.declarationElement,
+                        converted.diagnostics.map((diagnostic) =>
+                            runtimeSupportDiagnostic(diagnostic, compiled.producedTag)
+                        )
+                    );
+                }
+            });
+            this.legacyConversions.set(compiled, conversion);
+        }
+        return conversion;
+    }
+
     private async renderViaWasm(
         instance: HTMLElement,
         compiled: CompiledDeclaration,
         snapshot: DataIslandSnapshot,
         token: number
     ): Promise<void> {
-        const source = compiled.cemMlSource ?? '';
         try {
+            // Legacy HTML+XSLT is lowered to CEM-ML by the engine on first render (cached).
+            await this.ensureLegacyConverted(compiled);
+            if (this.renderTokens.get(instance) !== token) {
+                return; // a newer render superseded this one mid-flight
+            }
+            const source = compiled.cemMlSource ?? '';
             const data = wasmTemplateData(snapshot, compiled.declaredAttributes);
             const result = await renderCemMlTemplate(source, data, {
                 renderNodeIdPrefix: compiled.producedTag,
@@ -1111,27 +1150,20 @@ function compileInlineDeclaration(
 
     const templateSource = readInlineTemplateSource(template, mode);
     // DOM-parity and legacy-v0 bridge templates extract their declarations here for the synchronous
-    // projection path. Legacy-XSLT templates also extract them so a declared-but-unset attribute is
-    // bound (e.g. `$disabled` → null) for the WASM flat bindings — matching DCE semantics where
-    // every declared attribute is always referenceable. Pure CEM-ML lets the WASM boundary own them.
-    const scanDeclarations = mode === 'dom' || mode === 'legacy-v0' || mode === 'legacy-xslt';
+    // projection path. CEM-ML and legacy-XSLT templates render through the cem_ql WASM boundary,
+    // which owns declared attributes/defaults (seed_declaration_defaults binds even unset ones).
+    const scanDeclarations = mode === 'dom' || mode === 'legacy-v0';
     const declaredAttributes = scanDeclarations ? extractAttributeDeclarationsFromSource(templateSource) : [];
     const declaredSlices = scanDeclarations ? extractSliceDeclarationsFromSource(templateSource) : [];
 
-    // Legacy HTML+XSLT templates are transpiled to canonical CEM-ML and then ride the same WASM
-    // engine as hand-migrated templates, so a legacy sample and its CEM-ML twin render identically.
-    let cemMlSource = mode === 'cem-ml' ? templateSourceText(template) : null;
-    let wasmEligible = mode === 'cem-ml';
-    if (mode === 'legacy-xslt') {
-        const converted = convertLegacyTemplateToCemMl(templateSource);
-        cemMlSource = converted.source;
-        wasmEligible = true;
-        for (const diagnostic of converted.diagnostics) {
-            diagnostics.push(
-                declarationDiagnostic(`cem-element.${diagnostic.code}`, diagnostic.message, producedTag)
-            );
-        }
-    }
+    // Legacy HTML+XSLT templates are transpiled to canonical CEM-ML by the CEM-owned engine
+    // (`convertLegacyTemplate`, cem_ml via the cem_ql WASM module) and then ride the same WASM render
+    // path as hand-migrated templates. The conversion is async (WASM), so the raw markup is retained
+    // and lowered lazily on first render (see {@link renderViaWasm}) — `cemMlSource` starts null.
+    const cemMlSource = mode === 'cem-ml' ? templateSourceText(template) : null;
+    const legacySource =
+        mode === 'legacy-xslt' ? (template.innerHTML.trim().length > 0 ? template.innerHTML : templateSourceText(template)) : null;
+    const wasmEligible = mode === 'cem-ml' || mode === 'legacy-xslt';
     return {
         declarationElement,
         declarationTag,
@@ -1141,6 +1173,7 @@ function compileInlineDeclaration(
         templateSource,
         mode,
         cemMlSource,
+        legacySource,
         wasmEligible,
         declaredAttributes,
         declaredSlices,
@@ -1159,9 +1192,8 @@ function readInlineTemplateSource(
     template: HTMLTemplateElement,
     mode: CompiledDeclaration['mode']
 ): TemplateSourceNode[] {
-    if (mode === 'legacy-xslt') {
-        return parseLegacyTemplateSource(template);
-    }
+    // Legacy-XSLT templates are parsed + lowered by the engine from raw markup (see
+    // compileInlineDeclaration), so no synchronous source tree is read for them here.
     return mode === 'dom' || mode === 'legacy-v0' ? readTemplateSource(template.content) : [];
 }
 

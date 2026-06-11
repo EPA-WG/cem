@@ -1,15 +1,10 @@
 // Material-template conversion gate. Loads each copied legacy material component
 // (`packages/custom-element/material/components/*.html`), extracts its `<template>` declarations, and
-// runs them through the SAME DOM→CEM-ML pipeline the runtime uses
-// (`parseLegacyTemplateSource` + `convertLegacyTemplateToCemMl` from the cem-elements build). Every
-// template must transpile without unexpected diagnostics, and each manifest-listed primary component
-// template must produce non-empty CEM-ML output — so drift in the copied files, or a converter
-// regression, fails `@epa-wg/custom-element:test`.
-import {
-    convertLegacyTemplateToCemMl,
-    parseLegacyTemplateSource,
-} from '/packages/cem-elements/dist/lib/legacy-xslt/convert.js';
-import { LEGACY_XSLT_DIAGNOSTIC_CODES } from '/packages/cem-elements/dist/index.js';
+// runs them through the SAME CEM-owned engine the runtime uses (`convertLegacyTemplate` — cem_ml via
+// the cem_ql WASM module). Every template must transpile without unexpected diagnostics, and each
+// manifest-listed primary component template must produce non-empty CEM-ML output — so drift in the
+// copied files, or an engine regression, fails `@epa-wg/custom-element:test`.
+import { convertLegacyTemplate, LEGACY_XSLT_DIAGNOSTIC_CODES } from '/packages/cem-elements/dist/index.js';
 
 const MANIFEST_ALLOWED_DIAGNOSTIC_CODES = new Set([
     LEGACY_XSLT_DIAGNOSTIC_CODES.unsupportedConstruct,
@@ -47,14 +42,14 @@ export async function runMaterialConvertGate() {
             continue;
         }
 
-        templates.forEach((template, index) => {
+        for (const [index, template] of templates.entries()) {
             templateCount += 1;
             let result;
             try {
-                result = convertLegacyTemplateToCemMl(parseLegacyTemplateSource(template));
+                result = await convertLegacyTemplate(template.innerHTML);
             } catch (error) {
                 errors.push(`${name} template#${index}: conversion threw — ${error.message}`);
-                return;
+                continue;
             }
             templateResults.set(template, result);
             const unexpected = result.diagnostics.filter((d) => !isAllowedDiagnostic(component, d));
@@ -62,7 +57,7 @@ export async function runMaterialConvertGate() {
                 const detail = unexpected.map((d) => `${d.code} — ${d.message}`).join('; ');
                 errors.push(`${name} template#${index}: ${detail}`);
             }
-        });
+        }
 
         verifyAllowedDiagnosticBudgets(name, component, templates, templateResults, errors);
         verifyRequiredTemplates(name, component, doc, templateResults, errors);

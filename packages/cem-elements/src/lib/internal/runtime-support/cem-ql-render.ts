@@ -19,6 +19,7 @@
 // eslint-disable-next-line @nx/enforce-module-boundaries -- generated WASM bindings are the Phase 3A internal runtime boundary.
 import initCemQlWasm, {
     compileTemplate,
+    convertLegacyCustomElementTemplate,
     renderTemplateSource,
     version as cemQlVersion,
 } from '../../../../../cem_ql/dist/wasm/cem_ql.js';
@@ -82,6 +83,35 @@ export async function compileCemMlTemplate(source: string): Promise<RuntimeSuppo
     return (result.diagnostics ?? [])
         .filter((diagnostic) => (diagnostic.code ?? '').startsWith('cem.tokenizer.'))
         .map(mapDiagnostic);
+}
+
+export interface LegacyConvertResult {
+    /** Canonical CEM-ML source text for the cem_ql render boundary. */
+    source: string;
+    diagnostics: RuntimeSupportDiagnostic[];
+}
+
+/**
+ * Lower a legacy `<custom-element>` HTML+XSLT template to canonical CEM-ML through the CEM-owned
+ * engine (`cem_ml::legacy_custom_element`, exposed on the cem_ql WASM module). This is the single
+ * legacy compiler shared by the browser runtime, CLI, and tests. Awaits WASM init on first use.
+ */
+export async function convertLegacyTemplate(source: string): Promise<LegacyConvertResult> {
+    await ensureRuntimeReady();
+    const result = JSON.parse(convertLegacyCustomElementTemplate(source)) as {
+        source?: string;
+        diagnostics?: Array<{ code?: string; message?: string }>;
+    };
+    return {
+        source: result.source ?? '',
+        // Engine conversion diagnostics carry no severity; they are advisory (unsupported
+        // function / Tier-3 construct) — surface them as warnings.
+        diagnostics: (result.diagnostics ?? []).map((diagnostic) => ({
+            code: diagnostic.code ?? 'legacy_xslt.unknown',
+            severity: 'warning' as const,
+            message: diagnostic.message ?? '',
+        })),
+    };
 }
 
 /**

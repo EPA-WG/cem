@@ -24,6 +24,11 @@ pub fn wasm_version() -> String {
     crate::VERSION.to_owned()
 }
 
+// `convertLegacyCustomElementTemplate` is provided by the `cem_ml` crate's own `#[wasm_bindgen]`
+// export (`cem_ml::api::wasm`), which is linked into this `cem_ql` WASM module (cem_ql depends on
+// cem_ml). The browser loads the cem_ql module and gets the one CEM-owned legacy compiler — no
+// re-export needed here (re-exporting would collide on the `js_name`).
+
 #[wasm_bindgen(js_name = "compileTemplate")]
 pub fn wasm_compile_template(source: &str, host_bindings_json: &str) -> String {
     let host_bindings = match parse_host_bindings(host_bindings_json) {

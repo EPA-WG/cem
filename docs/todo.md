@@ -652,6 +652,14 @@ Design home: [`cem-element-design.md`](cem-element-design.md). WASM proposal:
   - [x] **A3.** Interactive slice-event twin landed (`LegacySliceIfOrderingParity`): a checkbox `slice` drives two
         `<if test="//show-a='AA'">` blocks; asserts slice-driven re-render + in-order inline rendering, legacy ⇆
         CEM-ML. (`cem-elements:test` now 67 / 6 twin stories.)
+  - [x] **Engine migration (single compiler):** the legacy compiler now lives behind the CEM-owned engine
+        boundary shared by browser runtime, CLI, SSR, and tests. `cem_ml::legacy_custom_element` is the only
+        compiler; it is exported on the `cem_ql` WASM module (`convertLegacyCustomElementTemplate`, reachable
+        because cem_ql depends on cem_ml). The runtime lowers legacy declarations via
+        [`convertLegacyTemplate`](../packages/cem-elements/src/lib/internal/runtime-support/cem-ql-render.ts)
+        (lazy, on first render); the material gate uses the same engine. The browser-side TS converter
+        (`convert.ts`/`convert.spec.ts`) was **deleted**; `contract.ts` + `contract.alignment.spec.ts` remain
+        as the TS mirror + drift guard. See [`custom-element-adapter-boundary.md` §"Recommended Engine Ownership"].
   - **Deferred (documented gaps, allowed by the gate):** legacy DCE `hasBoolAttribute()` boolean-attribute helper
         (used by `input`/`action`) is not reproduced; **Tier 3** standalone XSLT stylesheets — push-model
         `apply-templates`/`call-template`/`sort`, EXSLT `func:function`, `msxsl:script` (non-transpilable).

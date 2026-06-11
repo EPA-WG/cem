@@ -7,8 +7,9 @@ import { CemElementRuntime, type CemElementRuntimeOptions } from './cem-elements
  * Each story registers a **legacy** `<custom-element>` template authored as declarative HTML+XSLT
  * (bare `for-each`/`if`/`choose`/`when`, `{$x}` AVT, XPath functions) and its **hand-written CEM-ML
  * twin**, instantiates both, and asserts they render **identical** light DOM. This proves the
- * DOM→CEM-ML converter (`legacy-xslt/convert.ts`) + the runtime `legacy-xslt` mode lower legacy
- * markup onto the same cem_ql WASM engine as migrated templates — no browser XSLT engine involved.
+ * runtime `legacy-xslt` mode lowers legacy markup to CEM-ML through the CEM-owned engine
+ * (`cem_ml::legacy_custom_element` via the cem_ql WASM module) and renders it on the same engine as
+ * migrated templates — one compiler, no browser XSLT engine involved.
  */
 
 const meta: Meta = {
