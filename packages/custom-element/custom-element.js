@@ -1,7 +1,11 @@
 import { CemElementRuntime } from '../cem-elements/dist/index.js';
 
 const CUSTOM_ELEMENT_TAG = 'custom-element';
-const LEGACY_TEMPLATE_LANG = 'custom-element-v0';
+// Untyped legacy templates are HTML+XSLT: route them to the substrate `legacy-xslt` mode, which
+// transpiles the template DOM to canonical CEM-ML and renders it on the cem_ql WASM engine (no
+// browser XSLT engine). The older `custom-element-v0` DOM-projection bridge remains available to
+// templates that set `lang="custom-element-v0"` explicitly.
+const LEGACY_TEMPLATE_LANG = 'custom-element-xslt';
 const runtimeByHost = new WeakMap();
 const registeredDeclarations = new WeakSet();
 const inlineInstances = new WeakMap();

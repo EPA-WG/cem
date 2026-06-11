@@ -16,6 +16,7 @@ import {
     type RuntimeSupportDiagnostic,
 } from './internal/runtime-support/cem-ql-render.js';
 import { ingestContractVersion, type RunMode } from './disposition.js';
+import { convertLegacyTemplateToCemMl } from './legacy-xslt/convert.js';
 
 export type CemElementDiagnosticSeverity = 'info' | 'warning' | 'error' | 'fatal';
 
@@ -178,7 +179,7 @@ interface CompiledDeclaration {
     artifactId: string;
     template: HTMLTemplateElement;
     templateSource: TemplateSourceNode[];
-    mode: 'dom' | 'cem-ml' | 'legacy-v0';
+    mode: 'dom' | 'cem-ml' | 'legacy-v0' | 'legacy-xslt';
     /** Raw canonical CEM-ML source text, retained for the `cem_ql` WASM render boundary. */
     cemMlSource: string | null;
     /** Whether this declaration renders through the canonical CEM-ML WASM boundary. */
@@ -207,6 +208,7 @@ const DATA_ISLAND_VALUE = 'instance';
 const HYDRATION_METADATA_ATTR = 'data-cem-hydration';
 const HYDRATION_METADATA_VALUE = 'snapshot';
 const XHTML_NAMESPACE = 'http://www.w3.org/1999/xhtml';
+const XSL_NAMESPACE = 'http://www.w3.org/1999/XSL/Transform';
 const DATA_ISLAND_EXPORT_FIELDS: readonly DataIslandSnapshotExportField[] = [
     'hostAttributes',
     'dataset',
@@ -443,7 +445,10 @@ export class CemElementRuntime {
         this.defineProducedElement(declarationElement, compiled);
         // CEM-ML declaration parse diagnostics (structural well-formedness) come from the
         // async cem_ql WASM compile; cem-ql expression errors surface at render instead.
-        if (compiled.mode === 'cem-ml' && compiled.cemMlSource !== null) {
+        if (
+            (compiled.mode === 'cem-ml' || compiled.mode === 'legacy-xslt') &&
+            compiled.cemMlSource !== null
+        ) {
             return this.surfaceDeclarationDiagnostics(declarationElement, compiled);
         }
         return Promise.resolve();
@@ -1105,12 +1110,28 @@ function compileInlineDeclaration(
     const diagnostics: CemElementDiagnostic[] = [];
 
     const templateSource = readInlineTemplateSource(template, mode);
-    // DOM-parity templates extract their declarations here for the synchronous projection
-    // path. CEM-ML templates render through the cem_ql WASM boundary, which owns declared
-    // attributes/slices and their defaults, so nothing is scanned synchronously for them.
-    const declaredAttributes = mode !== 'cem-ml' ? extractAttributeDeclarationsFromSource(templateSource) : [];
-    const declaredSlices = mode !== 'cem-ml' ? extractSliceDeclarationsFromSource(templateSource) : [];
-    const cemMlSource = mode === 'cem-ml' ? templateSourceText(template) : null;
+    // DOM-parity and legacy-v0 bridge templates extract their declarations here for the synchronous
+    // projection path. Legacy-XSLT templates also extract them so a declared-but-unset attribute is
+    // bound (e.g. `$disabled` → null) for the WASM flat bindings — matching DCE semantics where
+    // every declared attribute is always referenceable. Pure CEM-ML lets the WASM boundary own them.
+    const scanDeclarations = mode === 'dom' || mode === 'legacy-v0' || mode === 'legacy-xslt';
+    const declaredAttributes = scanDeclarations ? extractAttributeDeclarationsFromSource(templateSource) : [];
+    const declaredSlices = scanDeclarations ? extractSliceDeclarationsFromSource(templateSource) : [];
+
+    // Legacy HTML+XSLT templates are transpiled to canonical CEM-ML and then ride the same WASM
+    // engine as hand-migrated templates, so a legacy sample and its CEM-ML twin render identically.
+    let cemMlSource = mode === 'cem-ml' ? templateSourceText(template) : null;
+    let wasmEligible = mode === 'cem-ml';
+    if (mode === 'legacy-xslt') {
+        const converted = convertLegacyTemplateToCemMl(templateSource);
+        cemMlSource = converted.source;
+        wasmEligible = true;
+        for (const diagnostic of converted.diagnostics) {
+            diagnostics.push(
+                declarationDiagnostic(`cem-element.${diagnostic.code}`, diagnostic.message, producedTag)
+            );
+        }
+    }
     return {
         declarationElement,
         declarationTag,
@@ -1120,7 +1141,7 @@ function compileInlineDeclaration(
         templateSource,
         mode,
         cemMlSource,
-        wasmEligible: mode === 'cem-ml',
+        wasmEligible,
         declaredAttributes,
         declaredSlices,
         diagnostics,
@@ -1138,7 +1159,33 @@ function readInlineTemplateSource(
     template: HTMLTemplateElement,
     mode: CompiledDeclaration['mode']
 ): TemplateSourceNode[] {
+    if (mode === 'legacy-xslt') {
+        return readLegacyXsltSource(template);
+    }
     return mode === 'dom' || mode === 'legacy-v0' ? readTemplateSource(template.content) : [];
+}
+
+/**
+ * Read a legacy HTML+XSLT template into the serializable source tree with HTML and XSLT recognized
+ * as distinct namespaces. The browser HTML parser garbles non-HTML constructs (`xsl:*`, `for-each`)
+ * — especially inside table content models — so the raw markup is re-parsed as XML under both the
+ * XHTML default namespace and the XSL namespace. Falls back to the HTML-parsed content if the XML is
+ * not well-formed.
+ */
+function readLegacyXsltSource(template: HTMLTemplateElement): TemplateSourceNode[] {
+    const raw = template.innerHTML.trim().length > 0 ? template.innerHTML : templateSourceText(template);
+    const xml =
+        `<cem-legacy-root xmlns="${XHTML_NAMESPACE}" xmlns:xsl="${XSL_NAMESPACE}" ` +
+        `xmlns:xhtml="${XHTML_NAMESPACE}">${raw}</cem-legacy-root>`;
+    try {
+        const parsed = new DOMParser().parseFromString(xml, 'application/xml');
+        if (parsed.querySelector('parsererror') === null && parsed.documentElement) {
+            return readTemplateSource(parsed.documentElement);
+        }
+    } catch {
+        // fall through to the HTML-parsed content
+    }
+    return readTemplateSource(template.content);
 }
 
 function templateMode(template: HTMLTemplateElement): CompiledDeclaration['mode'] {
@@ -1149,11 +1196,29 @@ function templateMode(template: HTMLTemplateElement): CompiledDeclaration['mode'
     if (type === 'text/cem-ml' || type === 'application/cem-ml') {
         return 'cem-ml';
     }
+    if (template.getAttribute('lang') === 'custom-element-xslt' || containsLegacyXsltConstructs(template)) {
+        return 'legacy-xslt';
+    }
     const source = templateSourceText(template).trim();
     if (source.startsWith('@doc') || source.startsWith('{')) {
         return 'cem-ml';
     }
     return 'dom';
+}
+
+/**
+ * Detect whether an untyped template is authored as legacy HTML+XSLT: the `xsl:` namespace prefix or
+ * the bare XSLT control-flow spellings (`for-each`/`value-of`/`choose`/`when`/`otherwise`/`variable`,
+ * and `<if>`). These tags do not exist in HTML, so their presence unambiguously marks the legacy
+ * dialect. Explicit `custom-element-v0` (legacy DOM bridge) and `cem-ml` templates are decided first.
+ */
+function containsLegacyXsltConstructs(template: HTMLTemplateElement): boolean {
+    const raw = (template.innerHTML || templateSourceText(template)).toLowerCase();
+    return (
+        raw.includes('<xsl:') ||
+        /<\/?(?:for-each|value-of|choose|when|otherwise|variable)[\s/>]/.test(raw) ||
+        /<if[\s/>]/.test(raw)
+    );
 }
 
 /**

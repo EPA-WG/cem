@@ -1072,10 +1072,16 @@ fn seed_declaration_defaults(nodes: &[TemplateNode], bindings: &mut BTreeMap<Str
         if bindings.contains_key(&name) {
             continue; // a host-provided value overrides the declared default
         }
+        // Always bind a declared attribute/slice so `{$X}` / `not (X)` references resolve even when
+        // the host left it unset (DCE parity: a declared attribute is always referenceable). An
+        // empty declaration binds Null; a non-empty default binds its text.
         let default = declaration_default_text(children);
-        if !default.is_empty() {
-            bindings.insert(name, ItemStream::once(Item::Atomic(AtomValue::String(default))));
-        }
+        let value = if default.is_empty() {
+            Item::Atomic(AtomValue::Null)
+        } else {
+            Item::Atomic(AtomValue::String(default))
+        };
+        bindings.insert(name, ItemStream::once(value));
     }
 }
 

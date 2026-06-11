@@ -3,7 +3,7 @@
  *
  * Backward-compat bridge: legacy `<custom-element>` templates were authored as declarative
  * HTML + XSLT (`xsl:*` elements, the bare `for-each`/`if`/`choose` spellings, `{…}` AVT, and XPath
- * function calls). Rather than re-introduce a browser `XSLTProcessor` (forbidden by the FF-5 gate),
+ * function calls). Rather than re-introduce a browser XSLT engine (forbidden by the FF-5 gate),
  * we transpile the parsed template DOM — read into the serializable {@link TemplateSourceNode} tree —
  * into **canonical CEM-ML source text**, then render it through the same cem_ql WASM engine that
  * hand-migrated `type="cem-ml; version=0.0"` templates use. A legacy sample and its migrated CEM-ML
@@ -49,10 +49,22 @@ export interface LegacyConversionResult {
     diagnostics: LegacyConversionDiagnostic[];
 }
 
+/** A materialized member of an inline `<variable>` node-set literal. */
+interface ItemNode {
+    text: string;
+    attrs: Record<string, string>;
+}
+
 interface ConvertCtx {
     diagnostics: LegacyConversionDiagnostic[];
     /** Innermost `for-each` loop variable, so `.`/`@attr`/`position()` resolve to it. */
     loopVar: string | null;
+    /** In-scope inline `<variable>` node-set literals, keyed by name (for for-each unrolling). */
+    nodeSets: Map<string, ItemNode[]>;
+    /** In-scope `<variable name select>` scalar definitions → their rewritten cem-ql expression. */
+    scalars: Map<string, string>;
+    /** When unrolling, the current member: `.`/`@attr`/`position()` resolve to its literal values. */
+    item?: ItemNode & { position: number };
 }
 
 /**
@@ -62,9 +74,57 @@ interface ConvertCtx {
 export function convertLegacyTemplateToCemMl(
     nodes: readonly TemplateSourceNode[],
 ): LegacyConversionResult {
-    const ctx: ConvertCtx = { diagnostics: [], loopVar: null };
-    const source = nodes.map((node) => emitNode(node, ctx)).join('');
-    return { source, diagnostics: ctx.diagnostics };
+    const ctx: ConvertCtx = {
+        diagnostics: [],
+        loopVar: null,
+        nodeSets: new Map(),
+        scalars: new Map(),
+    };
+    return { source: emitChildren(nodes, ctx), diagnostics: ctx.diagnostics };
+}
+
+/**
+ * Emit a sibling list, first hoisting any `<variable>` definitions into a child scope. Inline
+ * node-set literals feed for-each unrolling; scalar `select` variables feed predicate/expression
+ * substitution. The `<variable>` elements themselves produce no output.
+ */
+function emitChildren(nodes: readonly TemplateSourceNode[], ctx: ConvertCtx): string {
+    const scoped = withVariableScope(nodes, ctx);
+    return nodes.map((node) => emitNode(node, scoped)).join('');
+}
+
+function withVariableScope(nodes: readonly TemplateSourceNode[], ctx: ConvertCtx): ConvertCtx {
+    let nodeSets = ctx.nodeSets;
+    let scalars = ctx.scalars;
+    for (const node of nodes) {
+        if (node.kind !== 'element' || localName(node.tag) !== 'variable') {
+            continue;
+        }
+        const name = attrValue(node, 'name');
+        if (!name) {
+            continue;
+        }
+        const select = attrValue(node, 'select');
+        const members = node.children.filter(
+            (child): child is Extract<TemplateSourceNode, { kind: 'element' }> => child.kind === 'element'
+        );
+        if (select === null && members.length > 0) {
+            nodeSets = new Map(nodeSets);
+            nodeSets.set(name, members.map(toItemNode));
+        } else if (select !== null) {
+            scalars = new Map(scalars);
+            scalars.set(name, rewriteExpression(select, ctx));
+        }
+    }
+    return nodeSets === ctx.nodeSets && scalars === ctx.scalars ? ctx : { ...ctx, nodeSets, scalars };
+}
+
+function toItemNode(element: Extract<TemplateSourceNode, { kind: 'element' }>): ItemNode {
+    const attrs: Record<string, string> = {};
+    for (const attribute of element.attributes) {
+        attrs[attribute.name] = attribute.value;
+    }
+    return { text: textContent(element), attrs };
 }
 
 function localName(tag: string): string {
@@ -111,7 +171,7 @@ function emitElement(node: Extract<TemplateSourceNode, { kind: 'element' }>, ctx
         case 'for-each':
             return emitForEach(node, ctx);
         case 'variable':
-            return emitVariable(node, ctx);
+            return emitVariable();
         case 'slot':
             return emitSlot(node, ctx);
     }
@@ -143,9 +203,7 @@ function emitGenericElement(
 ): string {
     const attrs = node.attributes.map((attr) => emitAttribute(attr, ctx)).join('');
     const isStyle = localName(tag) === 'style';
-    const body = isStyle
-        ? emitRichContent(textContent(node))
-        : node.children.map((child) => emitNode(child, ctx)).join('');
+    const body = isStyle ? emitRichContent(textContent(node)) : emitChildren(node.children, ctx);
     if (body === '') {
         return `{${tag}${attrs}}`;
     }
@@ -168,9 +226,30 @@ function emitText(text: string, ctx: ConvertCtx): string {
 /** Rewrite `{xpath}` AVT spans into `{cem-ql}` interpolation; leave surrounding literal text. */
 function interpolate(text: string, ctx: ConvertCtx): string {
     return text.replace(/\{([^{}]*)\}/g, (_match, expression: string) => {
-        const rewritten = rewriteExpression(expression, ctx);
-        return `{${rewritten}}`;
+        // While unrolling a node-set member, `.`/`@attr`/`position()` become literal text/values.
+        if (ctx.item) {
+            const literal = resolveItemLiteral(expression.trim(), ctx.item);
+            if (literal !== null) {
+                return literal;
+            }
+        }
+        return `{${rewriteExpression(expression, ctx, true)}}`;
     });
+}
+
+/** Resolve `.` / `@attr` / `position()` against the current unrolled member, else null. */
+function resolveItemLiteral(expression: string, item: ItemNode & { position: number }): string | null {
+    if (expression === '.') {
+        return item.text;
+    }
+    if (expression === 'position()') {
+        return String(item.position);
+    }
+    const attr = expression.match(/^@([\w-]+)$/);
+    if (attr) {
+        return item.attrs[attr[1]] ?? '';
+    }
+    return null;
 }
 
 function emitValueOf(node: Extract<TemplateSourceNode, { kind: 'element' }>, ctx: ConvertCtx): string {
@@ -182,7 +261,7 @@ function emitValueOf(node: Extract<TemplateSourceNode, { kind: 'element' }>, ctx
         });
         return '';
     }
-    return `{${rewriteExpression(select, ctx)}}`;
+    return `{${rewriteExpression(select, ctx, true)}}`;
 }
 
 function emitXslText(node: Extract<TemplateSourceNode, { kind: 'element' }>): string {
@@ -199,7 +278,7 @@ function emitIf(node: Extract<TemplateSourceNode, { kind: 'element' }>, ctx: Con
         });
         return '';
     }
-    const body = node.children.map((child) => emitNode(child, ctx)).join('');
+    const body = emitChildren(node.children, ctx);
     return `{cem:if${exprAttr('test', rewriteExpression(test, ctx))} | ${body}}`;
 }
 
@@ -219,10 +298,10 @@ function emitChoose(node: Extract<TemplateSourceNode, { kind: 'element' }>, ctx:
                 });
                 continue;
             }
-            const body = child.children.map((node) => emitNode(node, ctx)).join('');
+            const body = emitChildren(child.children, ctx);
             branches.push(`{cem:when${exprAttr('test', rewriteExpression(test, ctx))} | ${body}}`);
         } else if (name === 'otherwise') {
-            const body = child.children.map((node) => emitNode(node, ctx)).join('');
+            const body = emitChildren(child.children, ctx);
             branches.push(`{cem:otherwise | ${body}}`);
         }
     }
@@ -238,28 +317,71 @@ function emitForEach(node: Extract<TemplateSourceNode, { kind: 'element' }>, ctx
         });
         return '';
     }
+    // Inline node-set idiom: `for-each select="exsl:node-set($var)/*[pred?]"` over a literal
+    // `<variable>` — unroll at conversion time into static CEM-ML (no runtime loop), substituting
+    // `.`/`@attr`/`position()` with each member's literal values. A predicate becomes a per-item
+    // `cem:if`. This is the legacy parity path for the for-each demos.
+    const nodeSetRef = matchNodeSetSelect(select, ctx);
+    if (nodeSetRef) {
+        const members = ctx.nodeSets.get(nodeSetRef.name) ?? [];
+        const predicateTest = nodeSetRef.predicate ? rewritePredicate(nodeSetRef.predicate, ctx) : null;
+        return members
+            .map((member, index) => {
+                const itemCtx: ConvertCtx = {
+                    ...ctx,
+                    loopVar: null,
+                    item: { ...member, position: index + 1 },
+                };
+                const body = emitChildren(node.children, itemCtx);
+                return predicateTest ? `{cem:if${exprAttr('test', predicateTest)} | ${body}}` : body;
+            })
+            .join('');
+    }
+
     const loopVar = 'item';
-    const childCtx: ConvertCtx = { diagnostics: ctx.diagnostics, loopVar };
-    const body = node.children.map((child) => emitNode(child, childCtx)).join('');
+    const childCtx: ConvertCtx = { ...ctx, loopVar, item: undefined };
+    const body = emitChildren(node.children, childCtx);
     return `{cem:for-each${exprAttr('select', rewriteExpression(select, ctx))} @as="${loopVar}" | ${body}}`;
 }
 
-function emitVariable(node: Extract<TemplateSourceNode, { kind: 'element' }>, ctx: ConvertCtx): string {
-    // `<variable name select>` and `<xsl:variable>` with an inline node-set literal are handled at
-    // the `for-each` that selects them (the common legacy idiom inlines the sequence). A standalone
-    // variable produces no output here; record a diagnostic if it carries an unsupported body.
-    if (attrValue(node, 'select') === null && node.children.length > 0) {
-        ctx.diagnostics.push({
-            code: 'legacy_xslt.inline_variable_deferred',
-            message: `<${node.tag}> inline node-set is not yet inlined; reference it via @select`,
-        });
+/**
+ * Recognize a for-each `@select` that iterates an inline node-set literal: `exsl:node-set($X)/*`,
+ * `exsl:node-set($X)/*[PRED]`, or a bare `$X`, where `X` is an in-scope inline `<variable>`. Returns
+ * the variable name and any predicate, or null when the select is a runtime sequence (kept as a real
+ * `cem:for-each`).
+ */
+function matchNodeSetSelect(select: string, ctx: ConvertCtx): { name: string; predicate: string | null } | null {
+    const trimmed = select.trim();
+    const nodeSet = trimmed.match(/^(?:exsl:)?node-set\(\s*\$([\w-]+)\s*\)\s*\/\s*\*\s*(?:\[(.+)\])?$/);
+    if (nodeSet && ctx.nodeSets.has(nodeSet[1])) {
+        return { name: nodeSet[1], predicate: nodeSet[2] ?? null };
     }
+    const bare = trimmed.match(/^\$([\w-]+)$/);
+    if (bare && ctx.nodeSets.has(bare[1])) {
+        return { name: bare[1], predicate: null };
+    }
+    return null;
+}
+
+/** A for-each predicate `[$cond]`: a scalar `<variable>` ref resolves to its select; else rewritten. */
+function rewritePredicate(predicate: string, ctx: ConvertCtx): string {
+    const scalarRef = predicate.trim().match(/^\$([\w-]+)$/);
+    if (scalarRef && ctx.scalars.has(scalarRef[1])) {
+        return ctx.scalars.get(scalarRef[1]) as string;
+    }
+    return rewriteExpression(predicate, ctx);
+}
+
+function emitVariable(): string {
+    // `<variable>` definitions are hoisted into scope by `withVariableScope` (inline node-set
+    // literals feed for-each unrolling; scalar `select` variables feed predicate substitution) and
+    // produce no output of their own.
     return '';
 }
 
 function emitSlot(node: Extract<TemplateSourceNode, { kind: 'element' }>, ctx: ConvertCtx): string {
     const nameAttr = node.attributes.find((attr) => attr.name === 'name');
-    const fallback = node.children.map((child) => emitNode(child, ctx)).join('');
+    const fallback = emitChildren(node.children, ctx);
     const attrs = nameAttr ? attrAssign('name', nameAttr.value) : '';
     if (fallback === '') {
         return `{slot${attrs}}`;
@@ -290,13 +412,25 @@ const FUNCTION_MAP: Record<string, string> = {
  * Tier 1/2 legacy samples use: variable refs (`$x`), the context item (`.`), attribute steps
  * (`@a`), slice/datadom paths (`//x`, `/datadom/x`), string/numeric literals, comparison/boolean
  * operators, the `??` coalesce, and the function set in {@link FUNCTION_MAP} plus `not`/`position`/
- * `concat`. Unrecognized fragments are passed through (cem-ql shares much of XPath's surface).
+ * `concat`.
+ *
+ * Variable references are emitted **bare** (no `$`): cem-ql's `@test`/`@select` expression grammar
+ * binds bare names but rejects `$x` inside compound expressions (functions, operators, `not`). When
+ * `interpolation` is set (an element/attribute `{…}` span) and the whole expression is a single
+ * simple path, a leading `$` is added — the form element-content interpolation requires (`{$icon}`).
  */
-export function rewriteExpression(expression: string, ctx: ConvertCtx): string {
+export function rewriteExpression(expression: string, ctx: ConvertCtx, interpolation = false): string {
     const tokens = tokenizeXPath(expression);
-    const parser = new XPathRewriter(tokens, ctx);
-    const out = parser.rewriteAll();
-    return out.trim();
+    const bare = new XPathRewriter(tokens, ctx).rewriteAll().trim();
+    if (interpolation && isSimplePath(bare)) {
+        return `$${bare}`;
+    }
+    return bare;
+}
+
+/** A bare dotted identifier path (`icon`, `item.hex`, `datadom.slices.x`) — safe to `$`-prefix. */
+function isSimplePath(expression: string): boolean {
+    return /^[A-Za-z_][\w.]*$/.test(expression);
 }
 
 type XToken =
@@ -412,7 +546,8 @@ class XPathRewriter {
             case 'number':
                 return `${token.value} `;
             case 'var':
-                return `$${token.value} `;
+                // Bare variable reference (no `$`) — see rewriteExpression.
+                return `${token.value} `;
             case 'punct':
                 return this.rewritePunct(token.value);
             case 'name':
@@ -426,7 +561,7 @@ class XPathRewriter {
             const next = this.peek();
             if (next && next.kind === 'name') {
                 this.pos += 1;
-                return `$datadom.slices.${next.value} `;
+                return `datadom.slices.${next.value} `;
             }
             return '';
         }
@@ -434,13 +569,13 @@ class XPathRewriter {
             const next = this.peek();
             if (next && next.kind === 'name') {
                 this.pos += 1;
-                const base = this.ctx.loopVar ? `$${this.ctx.loopVar}` : '$datadom.attributes';
+                const base = this.ctx.loopVar ? this.ctx.loopVar : 'datadom.attributes';
                 return `${base}.${next.value} `;
             }
             return '';
         }
         if (value === '.') {
-            return this.ctx.loopVar ? `$${this.ctx.loopVar} ` : '. ';
+            return this.ctx.loopVar ? `${this.ctx.loopVar} ` : '. ';
         }
         if (value === '??' || value === '=' || value === '!=' || value === '(' || value === ')' ||
             value === ',' || value === '<' || value === '>' || value === '+' || value === '-' ||
@@ -463,7 +598,7 @@ class XPathRewriter {
             return `${value} `;
         }
         // Bare path step (e.g. a datadom field / slice referenced by name).
-        return `$datadom.slices.${value} `;
+        return `datadom.slices.${value} `;
     }
 
     private rewriteCall(name: string): string {
@@ -504,7 +639,7 @@ class XPathRewriter {
 
     private emitCall(name: string, args: string[]): string {
         if (name === 'position') {
-            return '$position ';
+            return 'position ';
         }
         if (name === 'not') {
             return `not (${args.join(', ')}) `;

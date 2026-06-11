@@ -781,3 +781,13 @@ fn render_template_for_each_without_select_diagnoses() {
         rendered.diagnostics
     );
 }
+
+
+
+
+
+
+
+
+
+

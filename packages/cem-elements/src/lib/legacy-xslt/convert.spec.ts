@@ -50,8 +50,8 @@ describe('convertLegacyTemplateToCemMl', () => {
         ]);
         expect(source).toBe(
             '{cem:choose | ' +
-                '{cem:when @test=\'str:contains($icon, "/")\' | {img @src="{$icon}"}}' +
-                '{cem:when @test="$icon" | {span | {$icon}}}}',
+                '{cem:when @test=\'str:contains(icon, "/")\' | {img @src="{$icon}"}}' +
+                '{cem:when @test="icon" | {span | {$icon}}}}',
         );
     });
 
@@ -59,7 +59,7 @@ describe('convertLegacyTemplateToCemMl', () => {
         const { source } = convert([
             el('if', [['test', 'not($disabled)']], [el('button', [], [txt('Go')])]),
         ]);
-        expect(source).toBe('{cem:if @test="not ($disabled)" | {button | Go}}');
+        expect(source).toBe('{cem:if @test="not (disabled)" | {button | Go}}');
     });
 
     it('maps xsl:value-of (namespaced) to interpolation', () => {
@@ -76,7 +76,7 @@ describe('convertLegacyTemplateToCemMl', () => {
             ]),
         ]);
         expect(source).toBe(
-            '{cem:for-each @select="$rows" @as="item" | ' +
+            '{cem:for-each @select="rows" @as="item" | ' +
                 '{div @style="color:{$item.hex}" | {$position}. {$item}}}',
         );
     });
@@ -85,7 +85,7 @@ describe('convertLegacyTemplateToCemMl', () => {
         const { source } = convert([
             el('if', [['test', "//show-items = 'yes'"]], [txt('shown')]),
         ]);
-        expect(source).toBe('{cem:if @test=\'$datadom.slices.show-items = "yes"\' | shown}');
+        expect(source).toBe('{cem:if @test=\'datadom.slices.show-items = "yes"\' | shown}');
     });
 
     it('wraps <style> content in rich content (literal CSS braces)', () => {
@@ -111,10 +111,58 @@ describe('convertLegacyTemplateToCemMl', () => {
         expect(diagnostics[0].code).toBe('legacy_xslt.unsupported_construct');
     });
 
+    it('unrolls a for-each over an inline node-set variable', () => {
+        const { source, diagnostics } = convert([
+            el('variable', [['name', 'fruits']], [
+                el('item', [], [txt('Apple')]),
+                el('item', [], [txt('Banana')]),
+            ]),
+            el('ul', [], [
+                el('for-each', [['select', 'exsl:node-set($fruits)/*']], [
+                    el('li', [], [txt('{.}')]),
+                ]),
+            ]),
+        ]);
+        expect(source).toBe('{ul | {li | Apple}{li | Banana}}');
+        expect(diagnostics).toEqual([]);
+    });
+
+    it('unrolls with @attr and position() substituted as literals', () => {
+        const { source } = convert([
+            el('variable', [['name', 'colors']], [
+                el('color', [['hex', '#f00']], [txt('Red')]),
+                el('color', [['hex', '#0f0']], [txt('Green')]),
+            ]),
+            el('for-each', [['select', 'exsl:node-set($colors)/*']], [
+                el('div', [['style', 'background:{@hex}']], [txt('{position()}. {.}')]),
+            ]),
+        ]);
+        expect(source).toBe(
+            '{div @style="background:#f00" | 1. Red}{div @style="background:#0f0" | 2. Green}',
+        );
+    });
+
+    it('wraps unrolled items in cem:if for a scalar-variable predicate', () => {
+        const { source } = convert([
+            el('variable', [['name', 'show'], ['select', "//show-items = 'yes'"]], []),
+            el('variable', [['name', 'items']], [
+                el('item', [], [txt('First')]),
+                el('item', [], [txt('Second')]),
+            ]),
+            el('for-each', [['select', 'exsl:node-set($items)/*[$show]']], [
+                el('span', [], [txt('{.}')]),
+            ]),
+        ]);
+        expect(source).toBe(
+            '{cem:if @test=\'datadom.slices.show-items = "yes"\' | {span | First}}' +
+                '{cem:if @test=\'datadom.slices.show-items = "yes"\' | {span | Second}}',
+        );
+    });
+
     it('maps concat() to a sequence join', () => {
         const { source } = convert([
             el('span', [['title', '{concat($a, "-", $b)}']], []),
         ]);
-        expect(source).toBe('{span @title=\'{str:concat(($a, "-", $b))}\'}');
+        expect(source).toBe('{span @title=\'{str:concat((a, "-", b))}\'}');
     });
 });
