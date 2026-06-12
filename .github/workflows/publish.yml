@@ -44,6 +44,11 @@ jobs:
         with:
           workspaces: ". -> dist/target"
 
+      - name: Install wasm-bindgen-cli
+        uses: taiki-e/install-action@v2
+        with:
+          tool: wasm-bindgen-cli@0.2.122
+
       - name: Install dependencies
         run: yarn install --immutable
 
