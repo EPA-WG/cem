@@ -26,11 +26,14 @@ Partially implemented:
   `xsl:template`, `xsl:call-template`, `xsl:with-param`, `xsl:param`, and a
   bounded `xsl:apply-templates` path over inline `exsl:node-set($var)/*`
   variables now lower through `cem_ml::legacy_custom_element`.
-- The current apply-template selector supports simple match patterns and `mode`.
+- The current apply-template selector supports simple match patterns, `mode`,
+  source-document child/attribute/text traversal (`*`, `@*`, `text()`, `.`),
+  simple absolute/descendant selectors used by samples, union splitting, basic
+  template `priority`, and a single child `xsl:sort` over literal item values.
   It is a compatibility adapter profile, not a general XSLT stylesheet engine.
-- The component/sample-useful `xsl:sort` subset, broader XPath-backed
-  apply-template traversal, priorities, default template rules, and recursion
-  safety remain open implementation work.
+- Remaining open work includes broader XPath-backed apply-template traversal,
+  multi-key sort semantics, default template rules beyond the sample-backed
+  fallbacks, and recursion safety where sample-used.
 - XSLT dispatch (`AC-P-6.8`) is implemented as isolation/version-pinning
   decision-core; XSLT execution binding (`AC-P-6.9`) remains deferred.
 
@@ -77,10 +80,10 @@ Evidence from copied samples:
 3. **Template invocation subset.** `xsl:template`, `xsl:call-template`, and
    `xsl:apply-templates` are in scope. The first engine slice supports root and
    named templates, `param`/`with-param`, simple match-based template selection,
-   and `mode` for inline node-set variables. The remaining bounded subset must
-   cover default template behavior needed by samples, recursion when used by
-   samples, `priority` where it affects sample resolution, and the
-   sample-useful `sort` subset.
+   `mode`, sample-style source traversal, basic template priority, and a
+   single-key sort subset. The remaining bounded subset must cover default
+   template behavior needed by samples, recursion when used by samples,
+   multi-key sort where sample-used, and broader XPath selection.
 
 ## Remaining Open Questions
 

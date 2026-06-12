@@ -210,6 +210,7 @@ pub fn convert_template_source(source: &str) -> LegacyConversionResult {
     let mut diagnostics = Vec::new();
     let nodes = LegacyFragmentParser::new(source).parse();
     let ctx = EmitCtx {
+        root_nodes: nodes.clone(),
         templates: collect_templates(&nodes),
         ..EmitCtx::default()
     };
@@ -435,6 +436,7 @@ struct EmitCtx {
     node_sets: HashMap<String, Vec<ItemNode>>,
     scalars: HashMap<String, String>,
     item: Option<CurrentItem>,
+    root_nodes: Vec<LegacyNode>,
     templates: TemplateRegistry,
 }
 
@@ -443,13 +445,25 @@ struct ItemNode {
     tag: String,
     text: String,
     attrs: HashMap<String, String>,
+    children: Vec<LegacyNode>,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 struct CurrentItem {
+    kind: CurrentItemKind,
+    tag: String,
     text: String,
     attrs: HashMap<String, String>,
+    children: Vec<LegacyNode>,
     position: usize,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+enum CurrentItemKind {
+    Document,
+    Element,
+    Attribute,
+    Text,
 }
 
 fn emit_children(
@@ -536,6 +550,7 @@ fn to_item_node(element: &LegacyElement) -> ItemNode {
         tag: local_name(&element.tag).to_owned(),
         text: text_content(element),
         attrs,
+        children: element.children.clone(),
     }
 }
 
@@ -743,11 +758,7 @@ fn emit_for_each(
             .enumerate()
             .map(|(index, member)| {
                 let item_ctx = EmitCtx {
-                    item: Some(CurrentItem {
-                        text: member.text.clone(),
-                        attrs: member.attrs.clone(),
-                        position: index + 1,
-                    }),
+                    item: Some(current_item_from_item_node(member, index + 1)),
                     loop_var: None,
                     ..ctx.clone()
                 };
@@ -784,7 +795,18 @@ fn emit_stylesheet(
 ) -> String {
     let scoped = with_variable_scope(&element.children, ctx, diagnostics);
     if let Some(root) = &ctx.templates.root {
-        return emit_children(&root.children, &scoped, diagnostics);
+        let root_ctx = EmitCtx {
+            item: Some(CurrentItem {
+                kind: CurrentItemKind::Document,
+                tag: "#document".to_owned(),
+                text: String::new(),
+                attrs: HashMap::new(),
+                children: source_document_nodes(&ctx.root_nodes, element),
+                position: 1,
+            }),
+            ..scoped
+        };
+        return emit_children(&root.children, &root_ctx, diagnostics);
     }
     element
         .children
@@ -862,17 +884,13 @@ fn emit_apply_templates(
     diagnostics: &mut Vec<LegacyConversionDiagnostic>,
 ) -> String {
     let select = attr_value(element, "select").unwrap_or("*");
-    if let Some(node_set_ref) = match_node_set_select(select, ctx) {
-        let members = ctx
-            .node_sets
-            .get(&node_set_ref.name)
-            .cloned()
-            .unwrap_or_default();
+    if let Some(mut members) = select_apply_members(select, ctx) {
+        apply_sort_children(&mut members, element);
         return members
             .iter()
             .enumerate()
             .map(|(index, member)| {
-                emit_apply_template_item(member, index + 1, element, ctx, diagnostics)
+                emit_apply_template_member(member, index + 1, element, ctx, diagnostics)
             })
             .collect();
     }
@@ -886,52 +904,381 @@ fn emit_apply_templates(
     String::new()
 }
 
-fn emit_apply_template_item(
-    member: &ItemNode,
+#[derive(Debug, Clone, PartialEq, Eq)]
+enum ApplyMember {
+    Item(ItemNode),
+    Current(CurrentItem),
+}
+
+fn select_apply_members(select: &str, ctx: &EmitCtx) -> Option<Vec<ApplyMember>> {
+    if let Some(node_set_ref) = match_node_set_select(select, ctx) {
+        let members = ctx
+            .node_sets
+            .get(&node_set_ref.name)
+            .cloned()
+            .unwrap_or_default();
+        return Some(members.into_iter().map(ApplyMember::Item).collect());
+    }
+
+    let mut out = Vec::new();
+    for part in select.split('|') {
+        out.extend(select_current_members(part.trim(), ctx)?);
+    }
+    Some(out)
+}
+
+fn emit_apply_template_member(
+    member: &ApplyMember,
     position: usize,
     element: &LegacyElement,
     ctx: &EmitCtx,
     diagnostics: &mut Vec<LegacyConversionDiagnostic>,
 ) -> String {
-    let item_ctx = EmitCtx {
-        item: Some(CurrentItem {
-            text: member.text.clone(),
-            attrs: member.attrs.clone(),
+    let current = match member {
+        ApplyMember::Item(member) => current_item_from_item_node(member, position),
+        ApplyMember::Current(member) => CurrentItem {
             position,
-        }),
+            ..member.clone()
+        },
+    };
+    let item_ctx = EmitCtx {
+        item: Some(current.clone()),
         loop_var: None,
         ..ctx.clone()
     };
     let mode = attr_value(element, "mode");
-    if let Some(template) = find_matching_template(member, mode, &ctx.templates) {
+    if let Some(template) = find_matching_template(&current, mode, &ctx.templates) {
         return emit_children(&template.children, &item_ctx, diagnostics);
     }
-    member.text.clone()
+    current.text
 }
 
 fn find_matching_template<'a>(
-    member: &ItemNode,
+    member: &CurrentItem,
     mode: Option<&str>,
     templates: &'a TemplateRegistry,
 ) -> Option<&'a LegacyElement> {
-    templates.by_match.iter().find(|template| {
-        if attr_value(template, "mode") != mode {
-            return false;
-        }
-        let Some(pattern) = attr_value(template, "match") else {
-            return false;
-        };
-        matches_item_pattern(pattern, member)
-    })
+    templates
+        .by_match
+        .iter()
+        .enumerate()
+        .filter(|(_, template)| {
+            if attr_value(template, "mode") != mode {
+                return false;
+            }
+            let Some(pattern) = attr_value(template, "match") else {
+                return false;
+            };
+            matches_item_pattern(pattern, member)
+        })
+        .max_by_key(|(index, template)| {
+            let priority = attr_value(template, "priority")
+                .and_then(|value| value.trim().parse::<f64>().ok())
+                .unwrap_or_else(|| {
+                    default_template_priority(attr_value(template, "match").unwrap_or(""))
+                });
+            ((priority * 1000.0) as i64, *index as i64)
+        })
+        .map(|(_, template)| template)
 }
 
-fn matches_item_pattern(pattern: &str, member: &ItemNode) -> bool {
+fn matches_item_pattern(pattern: &str, member: &CurrentItem) -> bool {
+    pattern
+        .split('|')
+        .any(|part| matches_single_item_pattern(part.trim(), member))
+}
+
+fn matches_single_item_pattern(pattern: &str, member: &CurrentItem) -> bool {
+    match member.kind {
+        CurrentItemKind::Document => pattern == "/",
+        CurrentItemKind::Attribute => pattern == "@*" || pattern == "node()" || pattern == ".",
+        CurrentItemKind::Text => pattern == "text()" || pattern == "node()" || pattern == ".",
+        CurrentItemKind::Element => {
+            pattern == "*"
+                || pattern == "node()"
+                || pattern == "."
+                || pattern == member.tag
+                || member.attrs.get("name").map(String::as_str) == Some(pattern)
+                || matches_simple_predicate_pattern(pattern, member)
+        }
+    }
+}
+
+fn matches_simple_predicate_pattern(pattern: &str, member: &CurrentItem) -> bool {
+    if !pattern.starts_with("*[") || !pattern.ends_with(']') {
+        return false;
+    }
+    let predicate = pattern[2..pattern.len() - 1].trim();
+    if predicate == "*" {
+        return member
+            .children
+            .iter()
+            .any(|child| matches!(child, LegacyNode::Element(_)));
+    }
+    if predicate == "not(*)" {
+        return !member
+            .children
+            .iter()
+            .any(|child| matches!(child, LegacyNode::Element(_)));
+    }
+    let Some(rest) = predicate.strip_prefix('@') else {
+        return false;
+    };
+    let Some((name, value)) = rest.split_once('=') else {
+        return member.attrs.contains_key(rest);
+    };
+    let expected = value.trim().trim_matches('"').trim_matches('\'');
+    member.attrs.get(name.trim()).map(String::as_str) == Some(expected)
+}
+
+fn default_template_priority(pattern: &str) -> f64 {
     let pattern = pattern.trim();
-    pattern == "*"
-        || pattern == "node()"
-        || pattern == "."
-        || pattern == member.tag
-        || member.attrs.get("name").map(String::as_str) == Some(pattern)
+    if pattern == "*" || pattern == "@*" || pattern == "node()" || pattern == "text()" {
+        -0.5
+    } else if pattern.contains('|') {
+        0.0
+    } else {
+        0.5
+    }
+}
+
+fn current_item_from_item_node(member: &ItemNode, position: usize) -> CurrentItem {
+    CurrentItem {
+        kind: CurrentItemKind::Element,
+        tag: member.tag.clone(),
+        text: member.text.clone(),
+        attrs: member.attrs.clone(),
+        children: member.children.clone(),
+        position,
+    }
+}
+
+fn source_document_nodes(nodes: &[LegacyNode], stylesheet: &LegacyElement) -> Vec<LegacyNode> {
+    nodes
+        .iter()
+        .filter(|node| match node {
+            LegacyNode::Element(element) => element != stylesheet,
+            _ => true,
+        })
+        .cloned()
+        .collect()
+}
+
+fn select_current_members(select: &str, ctx: &EmitCtx) -> Option<Vec<ApplyMember>> {
+    let current = ctx.item.as_ref()?;
+    match select {
+        "." => Some(vec![ApplyMember::Current(current.clone())]),
+        "*" => Some(element_children(&current.children)),
+        "@*" => Some(attribute_children(current)),
+        "text()" | "./text()" => Some(text_children(&current.children)),
+        _ if select.starts_with("//") || select.starts_with('/') => {
+            select_absolute_members(select, &ctx.root_nodes)
+        }
+        _ if select.ends_with("/*") => select_current_path_members(select, current),
+        _ => None,
+    }
+}
+
+fn select_current_path_members(select: &str, current: &CurrentItem) -> Option<Vec<ApplyMember>> {
+    let base = select.strip_suffix("/*")?;
+    let base = base.strip_prefix("./").unwrap_or(base);
+    let children = element_children(&current.children);
+    if base.is_empty() || base == "." {
+        return Some(children);
+    }
+    let mut out = Vec::new();
+    for member in children {
+        let ApplyMember::Current(item) = member else {
+            continue;
+        };
+        if item.tag == base {
+            out.extend(element_children(&item.children));
+        }
+    }
+    Some(out)
+}
+
+fn select_absolute_members(select: &str, roots: &[LegacyNode]) -> Option<Vec<ApplyMember>> {
+    let mut text = select.trim();
+    let descendant = text.starts_with("//");
+    text = text.trim_start_matches('/');
+    let mut want_attrs = false;
+    let mut want_text = false;
+    if let Some(base) = text.strip_suffix("/@*") {
+        text = base;
+        want_attrs = true;
+    } else if let Some(base) = text.strip_suffix("/text()") {
+        text = base;
+        want_text = true;
+    }
+    let segments: Vec<&str> = text.split('/').filter(|part| !part.is_empty()).collect();
+    if segments.is_empty() {
+        return Some(Vec::new());
+    }
+    let mut elements = if descendant {
+        find_descendant_elements(roots, segments[0])
+    } else {
+        find_child_elements(roots, segments[0])
+    };
+    for segment in segments.iter().skip(1) {
+        elements = elements
+            .iter()
+            .flat_map(|element| find_child_elements(&element.children, segment))
+            .collect();
+    }
+    if want_attrs {
+        return Some(
+            elements
+                .iter()
+                .flat_map(attribute_children_from_element)
+                .collect(),
+        );
+    }
+    if want_text {
+        return Some(
+            elements
+                .iter()
+                .flat_map(|element| text_children(&element.children))
+                .collect(),
+        );
+    }
+    Some(
+        elements
+            .into_iter()
+            .map(|element| ApplyMember::Current(current_item_from_element(&element, 1)))
+            .collect(),
+    )
+}
+
+fn find_child_elements(nodes: &[LegacyNode], segment: &str) -> Vec<LegacyElement> {
+    nodes
+        .iter()
+        .filter_map(|node| match node {
+            LegacyNode::Element(element)
+                if segment == "*"
+                    || local_name(&element.tag) == segment
+                    || element.tag == segment =>
+            {
+                Some(element.clone())
+            }
+            _ => None,
+        })
+        .collect()
+}
+
+fn find_descendant_elements(nodes: &[LegacyNode], segment: &str) -> Vec<LegacyElement> {
+    let mut out = Vec::new();
+    for node in nodes {
+        let LegacyNode::Element(element) = node else {
+            continue;
+        };
+        if segment == "*" || local_name(&element.tag) == segment || element.tag == segment {
+            out.push(element.clone());
+        }
+        out.extend(find_descendant_elements(&element.children, segment));
+    }
+    out
+}
+
+fn element_children(nodes: &[LegacyNode]) -> Vec<ApplyMember> {
+    nodes
+        .iter()
+        .filter_map(|node| match node {
+            LegacyNode::Element(element) if !is_xslt_element(&element.tag) => {
+                Some(ApplyMember::Current(current_item_from_element(element, 1)))
+            }
+            _ => None,
+        })
+        .collect()
+}
+
+fn attribute_children(current: &CurrentItem) -> Vec<ApplyMember> {
+    current
+        .attrs
+        .iter()
+        .map(|(name, value)| ApplyMember::Current(current_item_from_attribute(name, value)))
+        .collect()
+}
+
+fn attribute_children_from_element(element: &LegacyElement) -> Vec<ApplyMember> {
+    element
+        .attributes
+        .iter()
+        .map(|attr| ApplyMember::Current(current_item_from_attribute(&attr.name, &attr.value)))
+        .collect()
+}
+
+fn text_children(nodes: &[LegacyNode]) -> Vec<ApplyMember> {
+    nodes
+        .iter()
+        .filter_map(|node| match node {
+            LegacyNode::Text(text) if !text.trim().is_empty() => {
+                Some(ApplyMember::Current(CurrentItem {
+                    kind: CurrentItemKind::Text,
+                    tag: "#text".to_owned(),
+                    text: text.clone(),
+                    attrs: HashMap::new(),
+                    children: Vec::new(),
+                    position: 1,
+                }))
+            }
+            _ => None,
+        })
+        .collect()
+}
+
+fn current_item_from_element(element: &LegacyElement, position: usize) -> CurrentItem {
+    let mut attrs = HashMap::new();
+    for attr in &element.attributes {
+        attrs.insert(attr.name.clone(), attr.value.clone());
+    }
+    CurrentItem {
+        kind: CurrentItemKind::Element,
+        tag: local_name(&element.tag).to_owned(),
+        text: direct_text_content(element),
+        attrs,
+        children: element.children.clone(),
+        position,
+    }
+}
+
+fn current_item_from_attribute(name: &str, value: &str) -> CurrentItem {
+    CurrentItem {
+        kind: CurrentItemKind::Attribute,
+        tag: local_name(name).to_owned(),
+        text: value.to_owned(),
+        attrs: HashMap::new(),
+        children: Vec::new(),
+        position: 1,
+    }
+}
+
+fn apply_sort_children(members: &mut [ApplyMember], element: &LegacyElement) {
+    let Some(sort) = element.children.iter().find_map(|child| match child {
+        LegacyNode::Element(child) if local_name(&child.tag) == "sort" => Some(child),
+        _ => None,
+    }) else {
+        return;
+    };
+    let select = attr_value(sort, "select").unwrap_or(".");
+    let descending = attr_value(sort, "order") == Some("descending");
+    members.sort_by(|a, b| {
+        let left = sort_key_for_member(a, select);
+        let right = sort_key_for_member(b, select);
+        if descending {
+            right.cmp(&left)
+        } else {
+            left.cmp(&right)
+        }
+    });
+}
+
+fn sort_key_for_member(member: &ApplyMember, select: &str) -> String {
+    let current = match member {
+        ApplyMember::Item(item) => current_item_from_item_node(item, 1),
+        ApplyMember::Current(item) => item.clone(),
+    };
+    resolve_item_literal(select.trim(), &current).unwrap_or_default()
 }
 
 fn emit_slot(
@@ -1041,6 +1388,12 @@ fn interpolate(
 fn resolve_item_literal(expression: &str, item: &CurrentItem) -> Option<String> {
     if expression == "." {
         return Some(item.text.clone());
+    }
+    if matches!(expression, "text()" | "./text()") {
+        return Some(item.text.clone());
+    }
+    if matches!(expression, "name()" | "local-name()" | "local-name(.)") {
+        return Some(item.tag.clone());
     }
     if expression == "position()" {
         return Some(item.position.to_string());
@@ -1313,6 +1666,17 @@ fn text_content(element: &LegacyElement) -> String {
         .collect()
 }
 
+fn direct_text_content(element: &LegacyElement) -> String {
+    element
+        .children
+        .iter()
+        .filter_map(|child| match child {
+            LegacyNode::Text(text) => Some(text.as_str()),
+            _ => None,
+        })
+        .collect()
+}
+
 fn expr_attr(name: &str, expression: &str) -> String {
     attr_assign(name, expression)
 }
@@ -1576,6 +1940,30 @@ mod tests {
             r#"<xsl:stylesheet version="1.0"><xsl:variable name="items"><item>One</item><item>Two</item></xsl:variable><xsl:template match="/"><ul><xsl:apply-templates select="exsl:node-set($items)/*"/></ul></xsl:template><xsl:template match="item"><li><xsl:value-of select="."/></li></xsl:template></xsl:stylesheet>"#,
         );
         assert_eq!(result.source, "{ul | {li | One}{li | Two}}");
+        assert!(result.diagnostics.is_empty());
+    }
+
+    #[test]
+    fn lowers_apply_templates_over_document_children_attributes_and_text() {
+        let result = convert(
+            r#"<doc><item id="a">Alpha<child>Beta</child></item></doc><xsl:stylesheet version="1.0"><xsl:template match="/"><xsl:apply-templates select="*"/></xsl:template><xsl:template match="doc"><section><xsl:apply-templates select="*"/></section></xsl:template><xsl:template match="item"><p><xsl:value-of select="name()"/><xsl:apply-templates select="@*"/><xsl:value-of select="./text()"/><xsl:apply-templates select="*"/></p></xsl:template><xsl:template match="@*"><i><xsl:value-of select="name()"/>=<xsl:value-of select="."/></i></xsl:template><xsl:template match="child"><b><xsl:value-of select="."/></b></xsl:template></xsl:stylesheet>"#,
+        );
+        assert_eq!(
+            result.source,
+            "{doc | {item @id=\"a\" | Alpha{child | Beta}}}{section | {p | item{i | id=a}Alpha{b | Beta}}}"
+        );
+        assert!(result.diagnostics.is_empty());
+    }
+
+    #[test]
+    fn applies_template_priority_and_basic_sort() {
+        let result = convert(
+            r#"<doc><item rank="2">B</item><item rank="1">A</item></doc><xsl:stylesheet version="1.0"><xsl:template match="/"><ol><xsl:apply-templates select="//item"><xsl:sort select="@rank" order="ascending"/></xsl:apply-templates></ol></xsl:template><xsl:template match="item" priority="-10"><li>wrong</li></xsl:template><xsl:template match="*" priority="20"><li><xsl:value-of select="@rank"/>:<xsl:value-of select="."/></li></xsl:template></xsl:stylesheet>"#,
+        );
+        assert_eq!(
+            result.source,
+            "{doc | {item @rank=\"2\" | B}{item @rank=\"1\" | A}}{ol | {li | 1:A}{li | 2:B}}"
+        );
         assert!(result.diagnostics.is_empty());
     }
 

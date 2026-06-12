@@ -47,11 +47,12 @@ Roadmap: [`../roadmap.md` §Phase 4](../roadmap.md). Components come before the 
 to proven web component names, states, attributes, and accessibility behavior instead of inventing a parallel model.
 
 - [ ] Complete the custom-element XSLT parity scope before expanding the component catalog. The engine now has the first
-      stylesheet-compat slice for `xsl:stylesheet`, root/named `xsl:template`, `xsl:call-template`, params, and bounded
-      `xsl:apply-templates` over inline `exsl:node-set($var)/*` variables. Phase 4 still needs the remaining copied
-      component/sample parity: broader XPath-backed apply-template traversal, default template rules, priority where it
-      affects sample resolution, recursion where sample-used, and the sample-useful `sort` subset. Track the inventory
-      with `yarn nx run @epa-wg/custom-element:xslt:inventory`; track the remaining bounded implementation questions in
+      stylesheet-compat slices for `xsl:stylesheet`, root/named `xsl:template`, `xsl:call-template`, params, bounded
+      `xsl:apply-templates` over inline `exsl:node-set($var)/*` variables, sample-style source child/attribute/text
+      traversal, basic template priority, and single-key `xsl:sort`. Phase 4 still needs the remaining copied
+      component/sample parity: broader XPath-backed apply-template traversal, default template rules, multi-key sort
+      where sample-used, and recursion safety where sample-used. Track the inventory with
+      `yarn nx run @epa-wg/custom-element:xslt:inventory`; track the remaining bounded implementation questions in
       [`custom-element-xslt-parity-decision.md`](custom-element-xslt-parity-decision.md).
 - [ ] Define the Phase 4 component MVP list and state matrix across actions, inputs, navigation, content, feedback,
       and the first app workflow surfaces. Use Angular Material only as a coverage and ergonomics benchmark, not as a

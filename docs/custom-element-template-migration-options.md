@@ -106,9 +106,11 @@ must not own a private XPath evaluator or XSLT runtime.
 Phase 4 component work requires a bounded XSLT 1.0 + limited sample-used EXSLT
 compatibility adapter for copied component/sample templating, including
 `xsl:template`, `xsl:apply-templates`, and `xsl:call-template`. The first
-engine slice supports root and named templates, params, and bounded
-`apply-templates` over inline `exsl:node-set($var)/*` variables. Remaining
-selector traversal, priority, recursion-safety, and `sort` work is tracked in
+engine slices support root and named templates, params, bounded
+`apply-templates` over inline `exsl:node-set($var)/*` variables, sample-style
+source child/attribute/text traversal, basic template priority, and single-key
+`sort`. Remaining broader XPath traversal, default-template, multi-key sort,
+and recursion-safety work is tracked in
 [`custom-element-xslt-parity-decision.md`](custom-element-xslt-parity-decision.md).
 
 ## Immediate Plan
