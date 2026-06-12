@@ -140,10 +140,12 @@ manifest.)
 
 **Pre-publish action — DONE (2026-06-10):** the stray `*.tsbuildinfo` is now
 filtered out of the vendored copy in `packages/custom-element/scripts/build-package.mjs`
-(`cp` `filter`). `npm pack --dry-run` from each `dist/` is clean: custom-element 85
-files / 691 kB, cem-theme 123 / 5.3 MB, cem-elements 23 / 39 kB, cem-components 15 /
-8 kB — all `tsbuildinfo`-free, `cem-components` dist confirmed release-ready. Always
-`npm pack --dry-run` from `dist/` before tagging.
+(`cp` `filter`). Always `npm pack --dry-run` from `dist/` before tagging.
+
+**Re-checked in the 2026-06-12 dry-run rehearsal** (post engine-migration; counts
+grew as the substrate landed, all `tsbuildinfo`-free): custom-element 91 files /
+741 kB, cem-theme 132 / 5.3 MB, cem-elements 29 / 51 kB, cem-components 15 / 8 kB.
+All pack cleanly.
 
 ## 6. Rollback plan
 
@@ -161,13 +163,15 @@ files / 691 kB, cem-theme 123 / 5.3 MB, cem-elements 23 / 39 kB, cem-components 
 
 ## 7. Pre-publish checklist
 
-- [ ] Land 0.1.0 on the nx `cem` group (`yarn publish:prepare`; conventional
-      commits drive the bump) — includes `cem-components` via the fixed group (§1).
+- [ ] Land 0.1.0 on the nx `cem` group — **pass an explicit specifier**
+      (`nx release version 0.1.0` / `nx release 0.1.0`), NOT conventional-commits
+      auto-bump (see §8). Includes `cem-components` via the fixed group (§1).
 - [ ] Release `@epa-wg/custom-element` 0.1.0 on its own repo (separate pipeline, §1).
 - [x] `npm pack --dry-run` from each `dist/`; stray vendored `*.tsbuildinfo`
-      dropped (§5, 2026-06-10). `cem-components` dist confirmed release-ready
-      (15 files / 8 kB).
-- [ ] Regenerate `CHANGELOG.md` via `nx release` and spot-check §2 highlights.
+      dropped (§5). Re-verified in the 2026-06-12 rehearsal — all four dists pack
+      clean (§5 counts). `cem-components` dist release-ready.
+- [ ] Curate `CHANGELOG.md` from §2 highlights — the `nx release` auto-changelog is
+      unreliable for 0.1.0 (see §8); do not rely on it.
 - [x] Confirm all migration gates green (done 2026-06-09: `cem-elements:verify`,
       `@epa-wg/custom-element:verify`, `@epa-wg/cem-theme:build:html` +
       `verify:phase13`).
@@ -177,3 +181,36 @@ files / 691 kB, cem-theme 123 / 5.3 MB, cem-elements 23 / 39 kB, cem-components 
       deprecated-but-functional in 0.1.0, removed next major (FF-5 gated), migrate to
       the substrate. cem-theme also clarifies the generated `dist/lib/css/*.css` is
       unchanged, so CSS consumers are unaffected.
+
+## 8. Dry-run rehearsal findings (2026-06-12)
+
+`nx release version`/`changelog --dry-run` + per-`dist/` `npm pack --dry-run`,
+everything short of tag/publish. Two real issues found; one fixed here.
+
+1. **Conventional-commits will NOT auto-bump to 0.1.0.** `nx release version
+   --dry-run` (no specifier) resolved current `0.0.14` from the git tag and computed
+   **no bump** ("No files would be changed") — of 332 commits since `0.0.14`, only 5
+   use a conventional `feat:`/`fix:` prefix. The release MUST pass an explicit
+   specifier: `nx release version 0.1.0` (verified: cleanly bumps all four cem-group
+   manifests to 0.1.0).
+
+2. **The auto-generated CHANGELOG is unreliable.** Because ~327/332 commits are
+   non-conventional, `nx release changelog 0.1.0 --dry-run` omits essentially all the
+   0.1.0 work (engine/substrate/legacy-XSLT/FF gates) and mis-anchors its "from" ref,
+   surfacing stale pre-`0.0.14` commits. **Recommendation:** treat the §2 highlights as
+   the canonical 0.1.0 changelog (hand-curate the entry); do not ship the raw
+   auto-generated one. (Longer term: adopt conventional commits, or tag a clean base.)
+
+3. **FIXED — internal dependency range.** `cem-components` pinned
+   `@epa-wg/cem-theme: "^0.0.14"`, which `^0.1.0` violates (nx
+   `preserveMatchingDependencyRanges` blocked the version step). Changed to
+   `"workspace:^"` (matching its `@epa-wg/cem-elements` dep; nx rewrites it to the
+   published version at release). Re-run dry-run: no warning, all four bump to 0.1.0.
+
+4. **Pack contents clean** (post engine-migration counts) — see §5.
+
+Not exercised (require maintainer/auth): the actual `nx release` tag + push, `npm
+publish`, the GitHub release (`changelog.workspaceChangelog.createRelease: github`),
+and the separate `@epa-wg/custom-element` repo release. The `preVersionCommand`
+(`sync-release-version.cjs` + `nx run-many -t build`) ran during the rehearsal
+without error.
