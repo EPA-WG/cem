@@ -1378,7 +1378,7 @@ __metadata:
   resolution: "@epa-wg/cem-components@workspace:packages/cem-components"
   dependencies:
     "@epa-wg/cem-elements": "workspace:^"
-    "@epa-wg/cem-theme": "npm:^0.0.14"
+    "@epa-wg/cem-theme": "workspace:^"
   languageName: unknown
   linkType: soft
 
@@ -1388,7 +1388,7 @@ __metadata:
   languageName: unknown
   linkType: soft
 
-"@epa-wg/cem-theme@npm:^0.0.14, @epa-wg/cem-theme@workspace:packages/cem-theme":
+"@epa-wg/cem-theme@workspace:^, @epa-wg/cem-theme@workspace:packages/cem-theme":
   version: 0.0.0-use.local
   resolution: "@epa-wg/cem-theme@workspace:packages/cem-theme"
   dependencies:
