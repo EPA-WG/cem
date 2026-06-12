@@ -543,7 +543,29 @@ fn with_variable_scope(
             })
             .collect();
         if let Some(select) = attr_value(element, "select") {
-            if let Some(items) = select_variable_current_items(select, &scoped) {
+            if let Some(members) = select_exsl_node_set_members(select, &scoped) {
+                let current_items: Vec<CurrentItem> = members
+                    .iter()
+                    .filter_map(|member| current_item_from_apply_member(member))
+                    .collect();
+                let item_nodes: Vec<ItemNode> = current_items
+                    .iter()
+                    .filter(|item| item.kind == CurrentItemKind::Element)
+                    .map(item_node_from_current_item)
+                    .collect();
+                if !item_nodes.is_empty() {
+                    scoped.node_sets.insert(name.to_owned(), item_nodes);
+                }
+                if !current_items.is_empty() {
+                    let scalar = current_items
+                        .iter()
+                        .map(|item| item.text.as_str())
+                        .collect::<Vec<_>>()
+                        .join("");
+                    scoped.current_sets.insert(name.to_owned(), current_items);
+                    scoped.scalars.insert(name.to_owned(), scalar);
+                }
+            } else if let Some(items) = select_variable_current_items(select, &scoped) {
                 scoped.current_sets.insert(name.to_owned(), items);
             } else {
                 let rewritten = scoped
@@ -1214,6 +1236,10 @@ enum ApplyMember {
 }
 
 fn select_apply_members(select: &str, ctx: &EmitCtx) -> Option<Vec<ApplyMember>> {
+    if let Some(members) = select_exsl_node_set_members(select, ctx) {
+        return Some(members);
+    }
+
     if let Some(node_set_ref) = match_node_set_select(select, ctx) {
         let members = ctx
             .node_sets
@@ -1560,6 +1586,76 @@ fn select_variable_current_items(select: &str, ctx: &EmitCtx) -> Option<Vec<Curr
     }
 }
 
+fn select_exsl_node_set_members(select: &str, ctx: &EmitCtx) -> Option<Vec<ApplyMember>> {
+    let trimmed = select.trim();
+    let inner = trimmed
+        .strip_prefix("exsl:node-set(")
+        .or_else(|| trimmed.strip_prefix("exslt:node-set("))
+        .or_else(|| trimmed.strip_prefix("node-set("))?;
+    let close = inner.find(')')?;
+    let var = inner[..close].trim().strip_prefix('$')?;
+    let mut members: Vec<ApplyMember> = if let Some(nodes) = ctx.current_sets.get(var) {
+        nodes.iter().cloned().map(ApplyMember::Current).collect()
+    } else if let Some(nodes) = ctx.node_sets.get(var) {
+        nodes.iter().cloned().map(ApplyMember::Item).collect()
+    } else {
+        return None;
+    };
+    let rest = inner[close + 1..].trim();
+    if rest.is_empty() {
+        return Some(members);
+    }
+    let mut path = rest.strip_prefix('/')?;
+    if let Some(attr_name) = path.strip_prefix("@") {
+        return Some(select_attributes_from_members(members, attr_name, ctx));
+    }
+    let (step, attr_name) = if let Some((step, attr_name)) = path.rsplit_once("/@") {
+        (step, Some(attr_name))
+    } else {
+        (path, None)
+    };
+    path = step;
+    members = filter_any_members_by_step(members, path, ctx);
+    if let Some(attr_name) = attr_name {
+        return Some(select_attributes_from_members(members, attr_name, ctx));
+    }
+    Some(members)
+}
+
+fn select_attributes_from_members(
+    members: Vec<ApplyMember>,
+    attr_name: &str,
+    _ctx: &EmitCtx,
+) -> Vec<ApplyMember> {
+    members
+        .into_iter()
+        .filter_map(|member| current_item_from_apply_member(&member))
+        .flat_map(|item| {
+            if attr_name == "*" {
+                attribute_children(&item)
+            } else {
+                attribute_named(&item, attr_name)
+            }
+        })
+        .collect()
+}
+
+fn current_item_from_apply_member(member: &ApplyMember) -> Option<CurrentItem> {
+    match member {
+        ApplyMember::Current(item) => Some(item.clone()),
+        ApplyMember::Item(item) => Some(current_item_from_item_node(item, 1)),
+    }
+}
+
+fn item_node_from_current_item(item: &CurrentItem) -> ItemNode {
+    ItemNode {
+        tag: item.tag.clone(),
+        text: item.text.clone(),
+        attrs: item.attrs.clone(),
+        children: item.children.clone(),
+    }
+}
+
 fn looks_like_node_variable_select(select: &str, ctx: &EmitCtx) -> bool {
     if select.contains('=')
         || select.contains("!=")
@@ -1705,12 +1801,18 @@ fn filter_any_members_by_step(
     let (step_without_index, index) = parse_step_index(step);
     let filtered: Vec<ApplyMember> = members
         .into_iter()
-        .filter(|member| match member {
-            ApplyMember::Current(item) => {
-                step_matches_current(step_without_index, item)
-                    && step_predicate_matches_current(step_without_index, item, ctx)
+        .filter_map(|member| {
+            let item = match &member {
+                ApplyMember::Current(item) => item.clone(),
+                ApplyMember::Item(item) => current_item_from_item_node(item, 1),
+            };
+            if step_matches_current(step_without_index, &item)
+                && step_predicate_matches_current(step_without_index, &item, ctx)
+            {
+                Some(member)
+            } else {
+                None
             }
-            _ => false,
         })
         .collect();
     if let Some(index) = index {
@@ -1891,6 +1993,17 @@ fn predicate_matches_current(predicate: &str, current: &CurrentItem, ctx: &EmitC
         let left = left.trim();
         if matches!(left, "name()" | "local-name()" | "local-name(.)") {
             return current.tag == expected;
+        }
+        if matches!(
+            left,
+            "text()" | "." | "string()" | "normalize-space(text())"
+        ) {
+            let actual = if left == "normalize-space(text())" {
+                current.text.trim().to_owned()
+            } else {
+                current.text.clone()
+            };
+            return actual == expected;
         }
         if let Some(attr_name) = left.strip_prefix('@') {
             return current.attrs.get(attr_name.trim()).map(String::as_str)
@@ -2902,6 +3015,27 @@ mod tests {
             result.source,
             r#"{cem:if @test='datadom.slices.show-items = "yes"' | {span | First}}{cem:if @test='datadom.slices.show-items = "yes"' | {span | Second}}"#
         );
+    }
+
+    #[test]
+    fn binds_exsl_node_set_selection_variables_as_node_set_aliases() {
+        let result = convert(
+            r#"<xsl:variable name="table-data"><row><cell>A1</cell><cell>A2</cell></row><row><cell>B1</cell><cell>B2</cell></row></xsl:variable><variable name="rows" select="exsl:node-set($table-data)/*"/><table><for-each select="$rows"><tr><for-each select="*"><td>{.}</td></for-each></tr></for-each></table>"#,
+        );
+        assert_eq!(
+            result.source,
+            "{table | {tr | {td | A1}{td | A2}}{tr | {td | B1}{td | B2}}}"
+        );
+        assert!(result.diagnostics.is_empty());
+    }
+
+    #[test]
+    fn binds_exsl_node_set_predicate_attribute_selection_as_scalar() {
+        let result = convert(
+            r#"<xsl:variable name="methods"><a href="h1" title="./set-url.html?history=pushState">pushState</a><a href="h2" title="./set-url.html?history=replaceState">replaceState</a></xsl:variable><variable name="selected-method" select="'replaceState'"/><variable name="selected-url" select="exsl:node-set($methods)/*[text() = $selected-method]/@title"/><p><xsl:value-of select="$selected-url"/></p>"#,
+        );
+        assert_eq!(result.source, "{p | ./set-url.html?history=replaceState}");
+        assert!(result.diagnostics.is_empty());
     }
 
     #[test]

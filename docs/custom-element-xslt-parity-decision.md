@@ -25,9 +25,12 @@ Partially implemented:
 - `xsl:stylesheet` dispatch, root `xsl:template match="/"`, named
   `xsl:template`, `xsl:call-template`, `xsl:with-param`, `xsl:param`, and a
   bounded `xsl:apply-templates` path over inline `exsl:node-set($var)/*`
-  variables now lower through `cem_ml::legacy_custom_element`. `xsl:for-each`
-  also unrolls current-node selections such as `@*|*` when a template has a
-  concrete current item.
+  variables now lower through `cem_ml::legacy_custom_element`. Selected
+  variables can alias static `exsl:node-set($var)/*` result fragments, including
+  sample-used filtered attribute extraction such as
+  `exsl:node-set($methods)/*[text() = $selected]/@title`. `xsl:for-each` also
+  unrolls current-node selections such as `@*|*` when a template has a concrete
+  current item.
 - The current apply-template selector supports simple match patterns, `mode`,
   source-document child/attribute/text traversal (`*`, `@*`, `text()`, `.`),
   sample-style absolute/descendant selectors, namespace-qualified local-name

@@ -36,9 +36,10 @@ to proven web component names, states, attributes, and accessibility behavior in
       `xsl:apply-templates` over inline `exsl:node-set($var)/*` variables, sample-style source child/attribute/text
       traversal, absolute/descendant selectors, namespace wildcards, indexed child steps, parent-relative paths, simple
       predicates including scalar equality checks, current attribute/child `for-each` unions, preceding-sibling
-      traversal, variable-rooted current-node paths, default template fallbacks, basic template priority, multi-key
-      `xsl:sort`, literal `count`/`sum` over supported node selections, bounded current-node copy/copy-of/attribute
-      construction, scalar-AVT `xsl:element` construction, and recursion safety. Phase 4 still needs the remaining
+      traversal, variable-rooted current-node paths, static EXSLT node-set variable aliases, filtered static node-set
+      attribute extraction, default template fallbacks, basic template priority, multi-key `xsl:sort`, literal
+      `count`/`sum` over supported node selections, bounded current-node copy/copy-of/attribute construction,
+      scalar-AVT `xsl:element` construction, and recursion safety. Phase 4 still needs the remaining
       copied component/sample parity: richer XPath predicate/function behavior, dynamic names outside the scalar AVT
       subset, and any additional XSLT instructions from copied fixtures where sample-used. Track the inventory with
       `yarn nx run @epa-wg/custom-element:xslt:inventory`; track the remaining bounded implementation questions in

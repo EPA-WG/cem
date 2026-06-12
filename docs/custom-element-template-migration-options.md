@@ -111,7 +111,8 @@ engine slices support root and named templates, params, bounded
 source child/attribute/text traversal, absolute/descendant selectors,
 namespace wildcards, indexed child steps, parent-relative and
 preceding-sibling paths, current attribute/child `for-each` unions,
-variable-rooted current-node paths, and simple predicates including
+variable-rooted current-node paths, static EXSLT node-set variable aliases,
+filtered static node-set attribute extraction, and simple predicates including
 scalar/current-name equality checks, default template fallbacks, basic template
 priority, multi-key `sort`, literal `count`/`sum` over supported node
 selections, bounded current-node copy/copy-of/attribute construction,
