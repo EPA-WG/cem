@@ -23,7 +23,7 @@ Design homes:
 - [ ] Legacy DCE `hasBoolAttribute()` boolean-attribute helper is not reproduced yet. It is currently an
       allowlisted compatibility gap for legacy material `input`/`action` templates.
 - [ ] Tier 3 standalone XSLT stylesheets remain an explicit handoff/deferred scope outside the bounded compatibility
-      profile: unsupported dynamic construction/copying instructions, EXSLT `func:function`, and `msxsl:script` are
+      profile: unsupported dynamic construction instructions, EXSLT `func:function`, and `msxsl:script` are
       non-transpilable in the legacy custom-element bridge.
 
 ## Phase 4 — CEM Component Set
@@ -35,9 +35,11 @@ to proven web component names, states, attributes, and accessibility behavior in
       stylesheet-compat slices for `xsl:stylesheet`, root/named `xsl:template`, `xsl:call-template`, params, bounded
       `xsl:apply-templates` over inline `exsl:node-set($var)/*` variables, sample-style source child/attribute/text
       traversal, absolute/descendant selectors, namespace wildcards, indexed child steps, parent-relative paths, simple
-      predicates, default template fallbacks, basic template priority, multi-key `xsl:sort`, and recursion safety. Phase
-      4 still needs the remaining copied component/sample parity: richer XPath predicate/function behavior and any
-      additional XSLT instructions from copied fixtures where sample-used. Track the inventory with
+      predicates, default template fallbacks, basic template priority, multi-key `xsl:sort`, bounded current-node
+      copy/copy-of/attribute construction, and recursion safety. Phase 4 still needs the remaining copied
+      component/sample parity: richer XPath predicate/function behavior, dynamic construction such as
+      `xsl:element name="..."`, and any additional XSLT instructions from copied fixtures where sample-used. Track the
+      inventory with
       `yarn nx run @epa-wg/custom-element:xslt:inventory`; track the remaining bounded implementation questions in
       [`custom-element-xslt-parity-decision.md`](custom-element-xslt-parity-decision.md).
 - [ ] Define the Phase 4 component MVP list and state matrix across actions, inputs, navigation, content, feedback,

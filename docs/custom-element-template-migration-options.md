@@ -111,8 +111,9 @@ engine slices support root and named templates, params, bounded
 source child/attribute/text traversal, absolute/descendant selectors,
 namespace wildcards, indexed child steps, parent-relative paths, simple
 predicates, default template fallbacks, basic template priority, multi-key
-`sort`, and recursion safety. Remaining richer XPath predicate/function work and
-any additional sample-used XSLT instructions are tracked in
+`sort`, bounded current-node copy/copy-of/attribute construction, and recursion
+safety. Remaining richer XPath predicate/function work and dynamic construction
+cases such as `xsl:element name="..."` are tracked in
 [`custom-element-xslt-parity-decision.md`](custom-element-xslt-parity-decision.md).
 
 ## Immediate Plan

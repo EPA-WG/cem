@@ -35,9 +35,14 @@ Partially implemented:
   `priority`, default template fallbacks, a bounded recursion guard, and child
   `xsl:sort` over one or more literal/numeric keys. It is a compatibility
   adapter profile, not a general XSLT stylesheet engine.
+- The current construction subset supports direct `xsl:attribute` on emitted
+  elements, `xsl:copy` for the current node, and bounded `xsl:copy-of` for the
+  current node, current attributes, selected elements, and inline node-set
+  variables.
 - Remaining open work is limited to richer XPath predicate/function semantics
-  and any additional XSLT instructions or traversal cases that copied
-  component/sample fixtures prove they need.
+  plus dynamic construction cases such as `xsl:element name="..."` and any
+  additional XSLT instructions or traversal cases that copied component/sample
+  fixtures prove they need.
 - XSLT dispatch (`AC-P-6.8`) is implemented as isolation/version-pinning
   decision-core; XSLT execution binding (`AC-P-6.9`) remains deferred.
 
@@ -86,9 +91,10 @@ Evidence from copied samples:
    named templates, `param`/`with-param`, simple match-based template selection,
    `mode`, sample-style source traversal, namespace wildcard and indexed-child
    selection, parent-relative paths, simple predicates, basic template priority,
-   and a multi-key sort subset with recursion safety. The remaining bounded
-   subset must cover richer XPath predicate/function behavior and additional
-   XSLT instructions only where sample-used.
+   a multi-key sort subset with recursion safety, and bounded current-node
+   copy/attribute construction. The remaining bounded subset must cover richer
+   XPath predicate/function behavior and dynamic construction only where
+   sample-used.
 
 ## Remaining Open Questions
 

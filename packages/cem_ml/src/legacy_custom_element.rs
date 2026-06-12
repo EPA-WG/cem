@@ -594,6 +594,18 @@ fn emit_element(
         }
         "call-template" => return emit_call_template(element, ctx, diagnostics),
         "apply-templates" => return emit_apply_templates(element, ctx, diagnostics),
+        "copy" if is_xslt_element(&element.tag) => return emit_xsl_copy(element, ctx, diagnostics),
+        "copy-of" if is_xslt_element(&element.tag) => {
+            return emit_xsl_copy_of(element, ctx, diagnostics)
+        }
+        "attribute" if is_xslt_element(&element.tag) => {
+            diagnostics.push(diag(
+                "legacy_xslt.attribute_outside_element",
+                "<xsl:attribute> outside an emitted element is ignored",
+            ));
+            return String::new();
+        }
+        "output" if is_xslt_element(&element.tag) => return String::new(),
         "param" | "with-param" => return String::new(),
         "variable" => return String::new(),
         "slot" => return emit_slot(element, ctx, diagnostics),
@@ -627,21 +639,108 @@ fn emit_generic_element(
     diagnostics: &mut Vec<LegacyConversionDiagnostic>,
     tag: &str,
 ) -> String {
-    let attrs = element
+    let mut attrs = element
         .attributes
         .iter()
         .map(|attr| emit_attribute(attr, ctx, diagnostics))
         .collect::<String>();
+    attrs.push_str(&emit_xsl_instruction_attributes(
+        &element.children,
+        ctx,
+        diagnostics,
+    ));
     let body = if local_name(tag) == "style" {
         emit_rich_content(&text_content(element))
     } else {
-        emit_children(&element.children, ctx, diagnostics)
+        emit_children_excluding_instruction_attributes(&element.children, ctx, diagnostics)
     };
     if body.is_empty() {
         format!("{{{tag}{attrs}}}")
     } else {
         format!("{{{tag}{attrs} | {body}}}")
     }
+}
+
+fn emit_children_excluding_instruction_attributes(
+    nodes: &[LegacyNode],
+    ctx: &EmitCtx,
+    diagnostics: &mut Vec<LegacyConversionDiagnostic>,
+) -> String {
+    nodes
+        .iter()
+        .filter(|node| !is_xsl_instruction_attribute_node(node))
+        .map(|node| emit_node(node, ctx, diagnostics))
+        .collect()
+}
+
+fn is_xsl_instruction_attribute_node(node: &LegacyNode) -> bool {
+    matches!(
+        node,
+        LegacyNode::Element(element)
+            if is_xslt_element(&element.tag)
+                && (local_name(&element.tag) == "attribute"
+                    || (local_name(&element.tag) == "copy-of"
+                        && attr_value(element, "select") == Some("@*")))
+    )
+}
+
+fn emit_xsl_instruction_attributes(
+    nodes: &[LegacyNode],
+    ctx: &EmitCtx,
+    diagnostics: &mut Vec<LegacyConversionDiagnostic>,
+) -> String {
+    let mut attrs = String::new();
+    for node in nodes {
+        let LegacyNode::Element(element) = node else {
+            continue;
+        };
+        if !is_xslt_element(&element.tag) {
+            continue;
+        }
+        match local_name(&element.tag) {
+            "attribute" => attrs.push_str(&emit_xsl_attribute(element, ctx, diagnostics)),
+            "copy-of" if attr_value(element, "select") == Some("@*") => {
+                if let Some(current) = &ctx.item {
+                    attrs.push_str(&attrs_from_current(current));
+                }
+            }
+            _ => {}
+        }
+    }
+    attrs
+}
+
+fn emit_xsl_attribute(
+    element: &LegacyElement,
+    ctx: &EmitCtx,
+    diagnostics: &mut Vec<LegacyConversionDiagnostic>,
+) -> String {
+    let Some(name) = attr_value(element, "name") else {
+        diagnostics.push(diag(
+            "legacy_xslt.attribute_missing_name",
+            "<xsl:attribute> without @name is ignored",
+        ));
+        return String::new();
+    };
+    if name.contains('{') || name.contains('}') || !is_name(name) {
+        diagnostics.push(diag(
+            UNSUPPORTED_CONSTRUCT_CODE,
+            format!("<xsl:attribute name=\"{name}\"> has a dynamic or invalid name"),
+        ));
+        return String::new();
+    }
+    let value = if let Some(select) = attr_value(element, "select") {
+        if let Some(item) = &ctx.item {
+            resolve_item_literal(select.trim(), item).unwrap_or_else(|| {
+                format!("{{{}}}", rewrite_expression(select, ctx, true, diagnostics))
+            })
+        } else {
+            format!("{{{}}}", rewrite_expression(select, ctx, true, diagnostics))
+        }
+    } else {
+        emit_children(&element.children, ctx, diagnostics)
+    };
+    attr_assign(name, &value)
 }
 
 fn emit_attribute(
@@ -912,6 +1011,79 @@ fn emit_apply_templates(
             "<{} select=\"{}\"> is outside the bounded apply-templates subset",
             element.tag, select
         ),
+    ));
+    String::new()
+}
+
+fn emit_xsl_copy(
+    element: &LegacyElement,
+    ctx: &EmitCtx,
+    diagnostics: &mut Vec<LegacyConversionDiagnostic>,
+) -> String {
+    let Some(current) = &ctx.item else {
+        diagnostics.push(diag(
+            "legacy_xslt.copy_without_current_item",
+            "<xsl:copy> without a current node is ignored",
+        ));
+        return String::new();
+    };
+    match current.kind {
+        CurrentItemKind::Document => emit_children(&current.children, ctx, diagnostics),
+        CurrentItemKind::Attribute | CurrentItemKind::Text => escape_literal(&current.text),
+        CurrentItemKind::Element => {
+            let attrs = emit_xsl_instruction_attributes(&element.children, ctx, diagnostics);
+            let body =
+                emit_children_excluding_instruction_attributes(&element.children, ctx, diagnostics);
+            if body.is_empty() {
+                format!("{{{}{attrs}}}", current.tag)
+            } else {
+                format!("{{{}{attrs} | {body}}}", current.tag)
+            }
+        }
+    }
+}
+
+fn emit_xsl_copy_of(
+    element: &LegacyElement,
+    ctx: &EmitCtx,
+    diagnostics: &mut Vec<LegacyConversionDiagnostic>,
+) -> String {
+    let Some(select) = attr_value(element, "select") else {
+        diagnostics.push(diag(
+            "legacy_xslt.copy_of_missing_select",
+            "<xsl:copy-of> without @select is ignored",
+        ));
+        return String::new();
+    };
+    let select = select.trim();
+    if let Some(name) = select.strip_prefix('$') {
+        if let Some(nodes) = ctx.node_sets.get(name) {
+            return nodes
+                .iter()
+                .map(|node| serialize_item_node_to_cem(node, ctx, diagnostics))
+                .collect();
+        }
+        if let Some(value) = ctx.scalars.get(name) {
+            return escape_literal(value);
+        }
+    }
+    if select == "." {
+        if let Some(current) = &ctx.item {
+            return serialize_current_item_to_cem(current, ctx, diagnostics);
+        }
+    }
+    if let Some(members) = select_current_members(select, ctx) {
+        return members
+            .iter()
+            .map(|member| match member {
+                ApplyMember::Item(item) => serialize_item_node_to_cem(item, ctx, diagnostics),
+                ApplyMember::Current(item) => serialize_current_item_to_cem(item, ctx, diagnostics),
+            })
+            .collect();
+    }
+    diagnostics.push(diag(
+        UNSUPPORTED_CONSTRUCT_CODE,
+        format!("<xsl:copy-of select=\"{select}\"> is outside the bounded copy subset"),
     ));
     String::new()
 }
@@ -1463,6 +1635,103 @@ fn text_children_with_parent(nodes: &[LegacyNode], parent: &CurrentItem) -> Vec<
             }
             _ => None,
         })
+        .collect()
+}
+
+fn serialize_current_item_to_cem(
+    item: &CurrentItem,
+    ctx: &EmitCtx,
+    diagnostics: &mut Vec<LegacyConversionDiagnostic>,
+) -> String {
+    match item.kind {
+        CurrentItemKind::Document => item
+            .children
+            .iter()
+            .map(|child| serialize_legacy_node_to_cem(child, ctx, diagnostics))
+            .collect(),
+        CurrentItemKind::Attribute | CurrentItemKind::Text => escape_literal(&item.text),
+        CurrentItemKind::Element => {
+            let attrs = attrs_from_current(item);
+            let body = item
+                .children
+                .iter()
+                .map(|child| serialize_legacy_node_to_cem(child, ctx, diagnostics))
+                .collect::<String>();
+            if body.is_empty() {
+                format!("{{{}{attrs}}}", item.tag)
+            } else {
+                format!("{{{}{attrs} | {body}}}", item.tag)
+            }
+        }
+    }
+}
+
+fn serialize_item_node_to_cem(
+    item: &ItemNode,
+    ctx: &EmitCtx,
+    diagnostics: &mut Vec<LegacyConversionDiagnostic>,
+) -> String {
+    let attrs = attrs_from_map(&item.attrs);
+    let body = if item.children.is_empty() {
+        escape_literal(&item.text)
+    } else {
+        item.children
+            .iter()
+            .map(|child| serialize_legacy_node_to_cem(child, ctx, diagnostics))
+            .collect()
+    };
+    if body.is_empty() {
+        format!("{{{}{attrs}}}", item.tag)
+    } else {
+        format!("{{{}{attrs} | {body}}}", item.tag)
+    }
+}
+
+fn serialize_legacy_node_to_cem(
+    node: &LegacyNode,
+    ctx: &EmitCtx,
+    diagnostics: &mut Vec<LegacyConversionDiagnostic>,
+) -> String {
+    match node {
+        LegacyNode::Text(text) => escape_literal(&interpolate(text, ctx, diagnostics)),
+        LegacyNode::Comment => String::new(),
+        LegacyNode::Element(element) => {
+            let tag = if element.tag.starts_with("xhtml:") {
+                local_name(&element.tag)
+            } else {
+                element.tag.as_str()
+            };
+            let mut attrs = element
+                .attributes
+                .iter()
+                .map(|attr| emit_attribute(attr, ctx, diagnostics))
+                .collect::<String>();
+            attrs.push_str(&emit_xsl_instruction_attributes(
+                &element.children,
+                ctx,
+                diagnostics,
+            ));
+            let body =
+                emit_children_excluding_instruction_attributes(&element.children, ctx, diagnostics);
+            if body.is_empty() {
+                format!("{{{tag}{attrs}}}")
+            } else {
+                format!("{{{tag}{attrs} | {body}}}")
+            }
+        }
+    }
+}
+
+fn attrs_from_current(item: &CurrentItem) -> String {
+    attrs_from_map(&item.attrs)
+}
+
+fn attrs_from_map(attrs: &HashMap<String, String>) -> String {
+    let mut pairs: Vec<(&String, &String)> = attrs.iter().collect();
+    pairs.sort_by(|(left, _), (right, _)| left.cmp(right));
+    pairs
+        .into_iter()
+        .map(|(name, value)| attr_assign(name, value))
         .collect()
 }
 
@@ -2249,6 +2518,18 @@ mod tests {
         assert_eq!(
             result.source,
             "{doc | {row @href=\"x\" | {td | One}{td | Two}}}{out | {a | href=x}{b | {a | href=x}:Two}{b | {a | href=x}:One}{b | {a | href=x}:Two}}"
+        );
+        assert!(result.diagnostics.is_empty());
+    }
+
+    #[test]
+    fn lowers_copy_copy_of_and_xsl_attribute_in_bounded_templates() {
+        let result = convert(
+            r#"<doc><item id="a">Alpha<child title="b">Beta</child></item></doc><xsl:stylesheet version="1.0"><xsl:template match="/"><out><xsl:apply-templates select="//item"/><xsl:copy-of select="//child"/></out></xsl:template><xsl:template match="item"><xsl:copy><xsl:copy-of select="@*"/><xsl:attribute name="data-name"><xsl:value-of select="name()"/></xsl:attribute><xsl:apply-templates select="*"/></xsl:copy></xsl:template><xsl:template match="child"><leaf><xsl:attribute name="title"><xsl:value-of select="@title"/></xsl:attribute><xsl:value-of select="."/></leaf></xsl:template></xsl:stylesheet>"#,
+        );
+        assert_eq!(
+            result.source,
+            "{doc | {item @id=\"a\" | Alpha{child @title=\"b\" | Beta}}}{out | {item @id=\"a\" @data-name=\"item\" | {leaf @title=\"b\" | Beta}}{child @title=\"b\" | Beta}}"
         );
         assert!(result.diagnostics.is_empty());
     }
