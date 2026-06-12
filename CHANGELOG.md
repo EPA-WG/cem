@@ -1,3 +1,47 @@
+## 0.1.0 (2026-06-12)
+
+First release shipping the CEM-ML / CEM-QL engine and the `<cem-element>` substrate.
+(Curated from `docs/release-readiness-0.1.0.md`; the conventional-commits auto-changelog does not
+represent this release — see §8.)
+
+### 🚀 Features
+
+- **CEM-ML engine (`cem_ml`)** — layered tokenizer → event normalizer → schema machine → AST: `@doc`
+  version negotiation, namespace rebinding, schema scoping, Layer-5 handoff, unknown-namespace
+  disposition (AC-P-6.7), and XSLT region dispatch (AC-P-6.8).
+- **CEM-QL engine (`cem_ql`)** — compile-once / render-many WASM boundary, `/datadom` selection,
+  `cem:for-each` / `cem:if` / `cem:choose`, and an XPath-parity stdlib (`str:*`, `seq:*`, `num:*`).
+- **`<cem-element>` substrate (`@epa-wg/cem-elements`)** — runtime slices A–E, C2 WASM lowering,
+  serializable projection boundary, edge render-state, and SSR hydration with BR-VC-9 disposition.
+- **`@epa-wg/cem-components`** — base primitives authored entirely against `<cem-element>`.
+- **Legacy HTML+XSLT backward-compat** — legacy `<custom-element>` HTML+XSLT templates are transpiled
+  to canonical CEM-ML by the single CEM-owned engine (`cem_ml::legacy_custom_element`, shared by
+  browser / CLI / SSR / tests) and rendered on the cem_ql engine — no browser XSLT processor — so
+  legacy demos render identically to their migrated CEM-ML twins.
+- **`cem-theme`** — all 10 CSS generators converted off the browser XSLT 1.0 runtime to
+  `type="cem-ml; version=0.0"` (Option B); DTCG / Figma / native token-platform export pipeline.
+- **Governance** — fitness functions FF-1..FF-8 all CI-blocking and active, the FF-gate map, and
+  governed-contract SemVer axes.
+
+### 💥 Breaking changes
+
+- The browser-native XSLT 1.0 `XSLTProcessor` engine is **retired** from `@epa-wg/custom-element`;
+  legacy HTML+XSLT runs via DOM→CEM-ML conversion on the substrate (Tier 1/2; standalone XSLT
+  stylesheets are a deferred Tier-3 handoff).
+- `cem-theme` CSS generators no longer use the browser XSLT runtime — the generated
+  `dist/lib/css/*.css` is unchanged, so CSS consumers are unaffected; only forked/embedded generator
+  HTML must migrate.
+- Versioned governed contracts apply a run-mode disposition on ingest (BR-VC-9): a data/security
+  payload whose schema MINOR is ahead of the consuming build is rejected in application runs.
+- Prefer package export subpaths over deep `dist/` imports.
+
+See [`docs/release-readiness-0.1.0.md`](docs/release-readiness-0.1.0.md) for the full breaking-change
+list, bridge-window support matrix, and rollback plan.
+
+### ❤️ Thank You
+
+- Sasha Firsov @sashafirsov
+
 ## 0.0.14 (2026-05-04)
 
 ### 🚀 Features
