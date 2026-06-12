@@ -147,6 +147,14 @@ grew as the substrate landed, all `tsbuildinfo`-free): custom-element 91 files /
 741 kB, cem-theme 132 / 5.3 MB, cem-elements 29 / 51 kB, cem-components 15 / 8 kB.
 All pack cleanly.
 
+**Re-checked again in the 2026-06-12 publish-readiness pass** with
+`npm --cache /tmp/cem-npm-cache pack --dry-run --json` from each publish root:
+`@epa-wg/cem-theme` 132 files / 5.3 MB, `@epa-wg/cem-elements` 29 files / 51 kB,
+`@epa-wg/cem-components` 15 files / 8 kB, and `@epa-wg/custom-element` 91 files /
+741 kB. All pack cleanly. The custom-element artifact still reports version
+`0.0.39`; its `0.1.0` bump belongs to the separate custom-element release
+pipeline, not the nx `cem` group.
+
 ## 6. Rollback plan
 
 - **Consumer rollback:** pin the previous published version
@@ -163,15 +171,23 @@ All pack cleanly.
 
 ## 7. Pre-publish checklist
 
-- [ ] Land 0.1.0 on the nx `cem` group — **pass an explicit specifier**
-      (`nx release version 0.1.0` / `nx release 0.1.0`), NOT conventional-commits
-      auto-bump (see §8). Includes `cem-components` via the fixed group (§1).
-- [ ] Release `@epa-wg/custom-element` 0.1.0 on its own repo (separate pipeline, §1).
+- [x] Land 0.1.0 on the nx `cem` group. The workspace manifests now show
+      `@epa-wg/cem`, `@epa-wg/cem-theme`, `@epa-wg/cem-components`, and
+      `@epa-wg/cem-elements` at `0.1.0`; `cem-components` is included via the
+      fixed group (§1).
+- [~] Release/publish steps are intentionally skipped for now and will happen
+      later. This includes tag/push/publish for the nx `cem` group, the GitHub
+      release, and the separate `@epa-wg/custom-element` 0.1.0 release pipeline
+      (§1). Current custom-element source/dist manifests still report `0.0.39`;
+      bumping and publishing that artifact remains a separate maintainer release
+      step.
 - [x] `npm pack --dry-run` from each `dist/`; stray vendored `*.tsbuildinfo`
-      dropped (§5). Re-verified in the 2026-06-12 rehearsal — all four dists pack
-      clean (§5 counts). `cem-components` dist release-ready.
-- [ ] Curate `CHANGELOG.md` from §2 highlights — the `nx release` auto-changelog is
-      unreliable for 0.1.0 (see §8); do not rely on it.
+      dropped (§5). Re-verified in the 2026-06-12 rehearsal and again in the
+      publish-readiness pass — all four dists pack clean (§5 counts).
+      `cem-components` dist release-ready.
+- [x] Curate `CHANGELOG.md` from §2 highlights. The `0.1.0` entry is hand-curated
+      because the `nx release` auto-changelog is unreliable for this release
+      (see §8); do not replace it with the raw generated changelog.
 - [x] Confirm all migration gates green (done 2026-06-09: `cem-elements:verify`,
       `@epa-wg/custom-element:verify`, `@epa-wg/cem-theme:build:html` +
       `verify:phase13`).

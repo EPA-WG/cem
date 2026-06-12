@@ -30,14 +30,16 @@ Design homes:
 
 Roadmap: [`../roadmap.md` §Phase 3.6](../roadmap.md).
 
-- [~] Publish-readiness pass for the next major: changelog, migration guide from external POC package to workspace
+- [x] Publish-readiness pass for the next major: changelog, migration guide from external POC package to workspace
       package, bridge-window support matrix, breaking-change list, npm package contents check, and rollback plan for
       consumers that still depend on the old XSLT-only surface. Analysis landed in
       [`release-readiness-0.1.0.md`](release-readiness-0.1.0.md): target `0.1.0`, bridge policy
       deprecate-now / remove-next-major (FF-5-gated), changelog summary, breaking-change list, support matrix,
-      rollback plan, and the npm-contents check. Remaining maintainer publish actions: land `0.1.0` on the nx group
-      and `custom-element`'s own repo, run `npm pack --dry-run` per `dist/`, regenerate `CHANGELOG.md`, add the
-      legacy-deprecation README notice, then tag/publish.
+      rollback plan, and the npm-contents check. Local publish-readiness is complete for the nx `cem` group:
+      manifests are at `0.1.0`, `CHANGELOG.md` is curated, README deprecation notices are present, and all four
+      publish roots pack cleanly. Publish/tag/GitHub-release actions are intentionally skipped for now and will be
+      run later by a maintainer, including the separate `@epa-wg/custom-element` `0.1.0` release pipeline (its local
+      source/dist manifests still report `0.0.39`).
 
 ## Phase 5 — Figma UI Kit Token Validation (`examples/figma`)
 
