@@ -86,6 +86,7 @@ pub const SUPPORTED_XPATH_FUNCTIONS: &[&str] = &[
     "not",
     "concat",
     "position",
+    "current",
 ];
 
 const HTML_VOID_ELEMENTS: &[&str] = &[
@@ -191,7 +192,7 @@ pub fn function_disposition(name: &str) -> LegacyFunctionDisposition {
         "string-length" => LegacyFunctionDisposition::CemQl("str:length"),
         "count" => LegacyFunctionDisposition::CemQl("seq:count"),
         "sum" => LegacyFunctionDisposition::CemQl("seq:sum"),
-        "not" | "concat" | "position" => LegacyFunctionDisposition::Special,
+        "not" | "concat" | "position" | "current" => LegacyFunctionDisposition::Special,
         _ => LegacyFunctionDisposition::Unsupported,
     }
 }
@@ -441,6 +442,7 @@ impl<'a> LegacyFragmentParser<'a> {
 struct EmitCtx {
     loop_var: Option<String>,
     node_sets: HashMap<String, Vec<ItemNode>>,
+    current_sets: HashMap<String, Vec<CurrentItem>>,
     scalars: HashMap<String, String>,
     item: Option<CurrentItem>,
     root_nodes: Vec<LegacyNode>,
@@ -541,12 +543,16 @@ fn with_variable_scope(
             })
             .collect();
         if let Some(select) = attr_value(element, "select") {
-            let rewritten = scoped
-                .item
-                .as_ref()
-                .and_then(|item| resolve_item_literal(select.trim(), item))
-                .unwrap_or_else(|| rewrite_expression(select, &scoped, false, diagnostics));
-            scoped.scalars.insert(name.to_owned(), rewritten);
+            if let Some(items) = select_variable_current_items(select, &scoped) {
+                scoped.current_sets.insert(name.to_owned(), items);
+            } else {
+                let rewritten = scoped
+                    .item
+                    .as_ref()
+                    .and_then(|item| resolve_item_literal(select.trim(), item))
+                    .unwrap_or_else(|| rewrite_expression(select, &scoped, false, diagnostics));
+                scoped.scalars.insert(name.to_owned(), rewritten);
+            }
         } else if !members.is_empty() {
             scoped.node_sets.insert(name.to_owned(), members);
         }
@@ -964,6 +970,29 @@ fn emit_for_each(
             .collect();
     }
 
+    if let Some(mut members) = select_apply_members(select, ctx) {
+        apply_sort_children(&mut members, element);
+        return members
+            .iter()
+            .enumerate()
+            .map(|(index, member)| {
+                let current = match member {
+                    ApplyMember::Item(member) => current_item_from_item_node(member, index + 1),
+                    ApplyMember::Current(member) => CurrentItem {
+                        position: index + 1,
+                        ..member.clone()
+                    },
+                };
+                let item_ctx = EmitCtx {
+                    item: Some(current),
+                    loop_var: None,
+                    ..ctx.clone()
+                };
+                emit_children(&element.children, &item_ctx, diagnostics)
+            })
+            .collect();
+    }
+
     let loop_var = "item".to_owned();
     let child_ctx = EmitCtx {
         loop_var: Some(loop_var.clone()),
@@ -1343,6 +1372,10 @@ fn select_current_members(select: &str, ctx: &EmitCtx) -> Option<Vec<ApplyMember
         _ if select.starts_with("//") || select.starts_with('/') => {
             select_absolute_members(select, ctx)
         }
+        _ if select.starts_with('$') => select_variable_path_members(select, ctx),
+        _ if select.starts_with("preceding-sibling::") => {
+            select_preceding_sibling_members(select, current, ctx)
+        }
         _ if select.starts_with("../") => select_parent_path_members(select, current, ctx),
         _ if select.ends_with("/*") => select_current_path_members(select, current, ctx),
         _ => select_child_path_members(select, current, ctx),
@@ -1507,6 +1540,136 @@ fn select_child_path_members(
     Some(members)
 }
 
+fn select_variable_current_items(select: &str, ctx: &EmitCtx) -> Option<Vec<CurrentItem>> {
+    let select = select.trim();
+    if !looks_like_node_variable_select(select, ctx) {
+        return None;
+    }
+    let members = select_current_members(select, ctx)?;
+    let items: Vec<CurrentItem> = members
+        .into_iter()
+        .filter_map(|member| match member {
+            ApplyMember::Current(item) => Some(item),
+            ApplyMember::Item(item) => Some(current_item_from_item_node(&item, 1)),
+        })
+        .collect();
+    if items.is_empty() && select != "." {
+        None
+    } else {
+        Some(items)
+    }
+}
+
+fn looks_like_node_variable_select(select: &str, ctx: &EmitCtx) -> bool {
+    if select.contains('=')
+        || select.contains("!=")
+        || select.contains("&gt;")
+        || select.contains("&lt;")
+        || select.contains('>')
+        || select.contains('<')
+    {
+        return false;
+    }
+    if matches!(select, "." | ".." | "*" | "@*") {
+        return true;
+    }
+    if select.starts_with("./")
+        || select.starts_with("../")
+        || select.starts_with("//")
+        || select.starts_with('/')
+        || select.contains('|')
+        || select.starts_with("preceding-sibling::")
+    {
+        return true;
+    }
+    select.strip_prefix('$').is_some_and(|rest| {
+        let name = rest
+            .split_once('/')
+            .map(|(name, _)| name)
+            .unwrap_or(rest)
+            .trim();
+        ctx.current_sets.contains_key(name) || ctx.node_sets.contains_key(name)
+    })
+}
+
+fn select_variable_path_members(select: &str, ctx: &EmitCtx) -> Option<Vec<ApplyMember>> {
+    let rest = select.trim().strip_prefix('$')?;
+    let (name, path) = rest
+        .split_once('/')
+        .map(|(name, path)| (name.trim(), Some(path)))
+        .unwrap_or((rest.trim(), None));
+    if !is_name(name) {
+        return None;
+    }
+    let mut members: Vec<ApplyMember> = if let Some(items) = ctx.current_sets.get(name) {
+        items.iter().cloned().map(ApplyMember::Current).collect()
+    } else if let Some(items) = ctx.node_sets.get(name) {
+        items.iter().cloned().map(ApplyMember::Item).collect()
+    } else {
+        return None;
+    };
+    let Some(path) = path else {
+        return Some(members);
+    };
+    for step in path.split('/').filter(|part| !part.is_empty()) {
+        let mut next = Vec::new();
+        for member in members {
+            let current = match member {
+                ApplyMember::Current(item) => item,
+                ApplyMember::Item(item) => current_item_from_item_node(&item, 1),
+            };
+            next.extend(select_step_from_current(&current, step, ctx));
+        }
+        members = next;
+    }
+    Some(members)
+}
+
+fn select_step_from_current(current: &CurrentItem, step: &str, ctx: &EmitCtx) -> Vec<ApplyMember> {
+    if step == "text()" {
+        return text_children_with_parent(&current.children, current);
+    }
+    if step == "@*" || step.starts_with("@*[") {
+        return filter_any_members_by_step(attribute_children(current), step, ctx);
+    }
+    if let Some(attr_name) = step.strip_prefix('@') {
+        return attribute_named(current, attr_name);
+    }
+    filter_members_by_step(
+        element_children_with_parent(&current.children, current),
+        step,
+        ctx,
+    )
+}
+
+fn select_preceding_sibling_members(
+    select: &str,
+    current: &CurrentItem,
+    ctx: &EmitCtx,
+) -> Option<Vec<ApplyMember>> {
+    let step = select.strip_prefix("preceding-sibling::")?;
+    let parent = current.parent.as_ref()?;
+    let mut out = Vec::new();
+    for sibling in element_children_with_parent(&parent.children, parent) {
+        let ApplyMember::Current(item) = sibling else {
+            continue;
+        };
+        if same_current_node(&item, current) {
+            break;
+        }
+        out.push(ApplyMember::Current(item));
+    }
+    Some(filter_members_by_step(out, step, ctx))
+}
+
+fn same_current_node(left: &CurrentItem, right: &CurrentItem) -> bool {
+    left.kind == right.kind
+        && left.tag == right.tag
+        && left.text == right.text
+        && left.attrs == right.attrs
+        && left.children == right.children
+}
+
 fn filter_members_by_step(
     members: Vec<ApplyMember>,
     step: &str,
@@ -1517,6 +1680,33 @@ fn filter_members_by_step(
         .into_iter()
         .filter(|member| match member {
             ApplyMember::Current(item) if item.kind == CurrentItemKind::Element => {
+                step_matches_current(step_without_index, item)
+                    && step_predicate_matches_current(step_without_index, item, ctx)
+            }
+            _ => false,
+        })
+        .collect();
+    if let Some(index) = index {
+        filtered
+            .get(index.saturating_sub(1))
+            .cloned()
+            .into_iter()
+            .collect()
+    } else {
+        filtered
+    }
+}
+
+fn filter_any_members_by_step(
+    members: Vec<ApplyMember>,
+    step: &str,
+    ctx: &EmitCtx,
+) -> Vec<ApplyMember> {
+    let (step_without_index, index) = parse_step_index(step);
+    let filtered: Vec<ApplyMember> = members
+        .into_iter()
+        .filter(|member| match member {
+            ApplyMember::Current(item) => {
                 step_matches_current(step_without_index, item)
                     && step_predicate_matches_current(step_without_index, item, ctx)
             }
@@ -1662,6 +1852,7 @@ fn step_name(step: &str) -> &str {
 fn step_matches_current(step: &str, current: &CurrentItem) -> bool {
     let step = step_name(step);
     step == "*"
+        || step == "@*"
         || step.ends_with(":*")
         || current.tag == step
         || step
@@ -1721,7 +1912,10 @@ fn resolve_predicate_value(value: &str, ctx: &EmitCtx) -> Option<String> {
             .get(name)
             .map(|value| unquote_xpath_literal(value));
     }
-    if matches!(value, "name()" | "local-name()" | "local-name(.)") {
+    if matches!(
+        value,
+        "name()" | "local-name()" | "local-name(.)" | "name(current())" | "local-name(current())"
+    ) {
         return ctx.item.as_ref().map(|item| item.tag.clone());
     }
     Some(value.trim_matches('"').trim_matches('\'').to_owned())
@@ -2119,6 +2313,17 @@ fn resolve_item_literal(expression: &str, item: &CurrentItem) -> Option<String> 
 
 fn evaluate_xpath_literal(expression: &str, ctx: &EmitCtx) -> Option<String> {
     let expression = expression.trim();
+    if let Some((left, right)) = split_top_level_plus(expression) {
+        let left = evaluate_xpath_literal(left, ctx)?;
+        let left = left.trim().parse::<f64>().ok()?;
+        let right = right.trim().parse::<f64>().ok()?;
+        let total = left + right;
+        return Some(if total.fract() == 0.0 {
+            (total as i64).to_string()
+        } else {
+            total.to_string()
+        });
+    }
     if let Some(select) = single_function_arg(expression, "count") {
         return select_members_for_eval(select, ctx).map(|members| members.len().to_string());
     }
@@ -2135,6 +2340,19 @@ fn evaluate_xpath_literal(expression: &str, ctx: &EmitCtx) -> Option<String> {
     None
 }
 
+fn split_top_level_plus(expression: &str) -> Option<(&str, &str)> {
+    let mut depth = 0usize;
+    for (index, ch) in expression.char_indices() {
+        match ch {
+            '(' | '[' => depth += 1,
+            ')' | ']' => depth = depth.saturating_sub(1),
+            '+' if depth == 0 => return Some((&expression[..index], &expression[index + 1..])),
+            _ => {}
+        }
+    }
+    None
+}
+
 fn single_function_arg<'a>(expression: &'a str, name: &str) -> Option<&'a str> {
     let inner = expression
         .strip_prefix(name)?
@@ -2147,6 +2365,9 @@ fn single_function_arg<'a>(expression: &'a str, name: &str) -> Option<&'a str> {
 fn select_members_for_eval(select: &str, ctx: &EmitCtx) -> Option<Vec<ApplyMember>> {
     let select = select.trim();
     if let Some(name) = select.strip_prefix('$') {
+        if let Some(nodes) = ctx.current_sets.get(name) {
+            return Some(nodes.iter().cloned().map(ApplyMember::Current).collect());
+        }
         if let Some(nodes) = ctx.node_sets.get(name) {
             return Some(nodes.iter().cloned().map(ApplyMember::Item).collect());
         }
@@ -2391,6 +2612,7 @@ impl XPathRewriter<'_, '_> {
     fn emit_call(&mut self, name: &str, args: &[String]) -> String {
         match function_disposition(name) {
             LegacyFunctionDisposition::Special if name == "position" => "position ".to_owned(),
+            LegacyFunctionDisposition::Special if name == "current" => ". ".to_owned(),
             LegacyFunctionDisposition::Special if name == "not" => {
                 format!("not ({}) ", args.join(", "))
             }
@@ -2722,6 +2944,18 @@ mod tests {
     }
 
     #[test]
+    fn unrolls_for_each_over_current_attribute_and_child_union() {
+        let result = convert(
+            r#"<doc><item id="a"><child>Beta</child></item></doc><xsl:stylesheet version="1.0"><xsl:template match="/"><xsl:apply-templates select="//item"/></xsl:template><xsl:template match="item"><xsl:for-each select="@*|*"><b><xsl:value-of select="name()"/>:<xsl:value-of select="."/></b></xsl:for-each></xsl:template></xsl:stylesheet>"#,
+        );
+        assert_eq!(
+            result.source,
+            "{doc | {item @id=\"a\" | {child | Beta}}}{b | id:a}{b | child:Beta}"
+        );
+        assert!(result.diagnostics.is_empty());
+    }
+
+    #[test]
     fn selects_namespaced_wildcards_indexed_children_specific_attributes_and_parent_paths() {
         let result = convert(
             r#"<doc><row href="x"><xhtml:td>One</xhtml:td><xhtml:td>Two</xhtml:td></row></doc><xsl:stylesheet version="1.0"><xsl:template match="/"><out><xsl:apply-templates select="//row/@href"/><xsl:apply-templates select="//row/xhtml:td[2]"/><xsl:apply-templates select="//row/xhtml:*"/></out></xsl:template><xsl:template match="@*"><a><xsl:value-of select="name()"/>=<xsl:value-of select="."/></a></xsl:template><xsl:template match="td"><b><xsl:apply-templates select="../@href"/>:<xsl:value-of select="."/></b></xsl:template></xsl:stylesheet>"#,
@@ -2777,6 +3011,30 @@ mod tests {
         assert_eq!(
             result.source,
             "{doc | {value @a=\"2\" @b=\"3\"}{value @c=\"4\"}}{out | 3/9}"
+        );
+        assert!(result.diagnostics.is_empty());
+    }
+
+    #[test]
+    fn selects_variable_rooted_current_item_paths() {
+        let result = convert(
+            r#"<doc><row id="r1"><cell>A</cell><cell>B</cell><other>C</other></row></doc><xsl:stylesheet version="1.0"><xsl:template match="/"><out><xsl:apply-templates select="//row"/></out></xsl:template><xsl:template match="row"><xsl:variable name="rowNode" select="."/><xsl:variable name="key" select="'cell'"/><xsl:variable name="attrKey" select="'id'"/><first><xsl:apply-templates select="$rowNode/*[name()=$key][1]"/></first><attr><xsl:apply-templates select="$rowNode/@*[name()=$attrKey]"/></attr></xsl:template><xsl:template match="cell"><b><xsl:value-of select="."/></b></xsl:template><xsl:template match="@*"><i><xsl:value-of select="name()"/>=<xsl:value-of select="."/></i></xsl:template></xsl:stylesheet>"#,
+        );
+        assert_eq!(
+            result.source,
+            "{doc | {row @id=\"r1\" | {cell | A}{cell | B}{other | C}}}{out | {first | {b | A}}{attr | {i | id=r1}}}"
+        );
+        assert!(result.diagnostics.is_empty());
+    }
+
+    #[test]
+    fn selects_preceding_siblings_with_current_name_predicate() {
+        let result = convert(
+            r#"<doc><item>A</item><other>B</other><item>C</item></doc><xsl:stylesheet version="1.0"><xsl:template match="/"><out><xsl:apply-templates select="//item"/></out></xsl:template><xsl:template match="item"><n><xsl:value-of select="count(preceding-sibling::*[name()=name(current())]) + 1"/></n></xsl:template></xsl:stylesheet>"#,
+        );
+        assert_eq!(
+            result.source,
+            "{doc | {item | A}{other | B}{item | C}}{out | {n | 1}{n | 2}}"
         );
         assert!(result.diagnostics.is_empty());
     }

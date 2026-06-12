@@ -35,11 +35,12 @@ to proven web component names, states, attributes, and accessibility behavior in
       stylesheet-compat slices for `xsl:stylesheet`, root/named `xsl:template`, `xsl:call-template`, params, bounded
       `xsl:apply-templates` over inline `exsl:node-set($var)/*` variables, sample-style source child/attribute/text
       traversal, absolute/descendant selectors, namespace wildcards, indexed child steps, parent-relative paths, simple
-      predicates, default template fallbacks, basic template priority, multi-key `xsl:sort`, bounded current-node
-      copy/copy-of/attribute construction, scalar-AVT `xsl:element` construction, and recursion safety. Phase 4 still
-      needs the remaining copied component/sample parity: richer XPath predicate/function behavior, dynamic names
-      outside the scalar AVT subset, and any additional XSLT instructions from copied fixtures where sample-used. Track
-      the inventory with
+      predicates including scalar equality checks, current attribute/child `for-each` unions, preceding-sibling
+      traversal, variable-rooted current-node paths, default template fallbacks, basic template priority, multi-key
+      `xsl:sort`, literal `count`/`sum` over supported node selections, bounded current-node copy/copy-of/attribute
+      construction, scalar-AVT `xsl:element` construction, and recursion safety. Phase 4 still needs the remaining
+      copied component/sample parity: richer XPath predicate/function behavior, dynamic names outside the scalar AVT
+      subset, and any additional XSLT instructions from copied fixtures where sample-used. Track the inventory with
       `yarn nx run @epa-wg/custom-element:xslt:inventory`; track the remaining bounded implementation questions in
       [`custom-element-xslt-parity-decision.md`](custom-element-xslt-parity-decision.md).
 - [ ] Define the Phase 4 component MVP list and state matrix across actions, inputs, navigation, content, feedback,

@@ -25,20 +25,26 @@ Partially implemented:
 - `xsl:stylesheet` dispatch, root `xsl:template match="/"`, named
   `xsl:template`, `xsl:call-template`, `xsl:with-param`, `xsl:param`, and a
   bounded `xsl:apply-templates` path over inline `exsl:node-set($var)/*`
-  variables now lower through `cem_ml::legacy_custom_element`.
+  variables now lower through `cem_ml::legacy_custom_element`. `xsl:for-each`
+  also unrolls current-node selections such as `@*|*` when a template has a
+  concrete current item.
 - The current apply-template selector supports simple match patterns, `mode`,
   source-document child/attribute/text traversal (`*`, `@*`, `text()`, `.`),
   sample-style absolute/descendant selectors, namespace-qualified local-name
   matching, namespace wildcards such as `xhtml:*`, indexed child steps,
-  parent-relative paths, named attribute selection, union splitting, simple
-  predicates (`*`, `not(*)`, `@attr`, `@attr='value'`, `@attr=$param`, and
-  `name()=$param`), basic template `priority`, default template fallbacks, a
+  parent-relative paths, current attribute/child unions,
+  preceding-sibling selectors, variable-rooted current node paths such as
+  `$rowNode/*[name()=$key]` and `$rowNode/@*[name()=$key]`,
+  named attribute selection, union splitting, simple predicates (`*`,
+  `not(*)`, `@attr`, `@attr='value'`, `@attr=$param`, `name()=$param`, and
+  `name()=name(current())`), basic template `priority`, default template
+  fallbacks, a
   bounded recursion guard, and child `xsl:sort` over one or more literal/numeric
   keys. It is a compatibility adapter profile, not a general XSLT stylesheet
   engine.
 - The current expression subset also evaluates sample-style `count(...)` and
   `sum(...)` calls when their argument is already in the supported node
-  selection subset.
+  selection subset, plus sample-style numeric `count(...) + n` expressions.
 - The current construction subset supports direct `xsl:attribute` on emitted
   elements, `xsl:copy` for the current node, and bounded `xsl:copy-of` for the
   current node, current attributes, selected elements, and inline node-set
@@ -95,7 +101,8 @@ Evidence from copied samples:
    `xsl:apply-templates` are in scope. The first engine slice supports root and
    named templates, `param`/`with-param`, simple match-based template selection,
    `mode`, sample-style source traversal, namespace wildcard and indexed-child
-   selection, parent-relative paths, scalar equality predicates, basic template
+   selection, parent-relative and preceding-sibling paths, variable-rooted
+   current-node paths, scalar/current-name equality predicates, basic template
    priority, a multi-key sort subset with recursion safety, and bounded
    current-node copy/attribute/element construction. The remaining bounded
    subset must cover richer XPath predicate/function behavior and dynamic names
