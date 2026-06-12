@@ -50,21 +50,20 @@ pub const CONTROL_FLOW_ELEMENTS: &[&str] = &[
 /// or inert render helpers.
 pub const DECLARATION_ELEMENTS: &[&str] = &["attribute", "slice", "data", "option", "module-url"];
 
-/// Tier 3 XSLT constructs that are not part of the material/demo bridge.
-pub const TIER3_HANDOFF_ELEMENTS: &[&str] = &[
+/// XSLT stylesheet adapter constructs implemented by the bounded Phase 4
+/// compatibility profile.
+pub const STYLESHEET_COMPAT_ELEMENTS: &[&str] = &[
+    "stylesheet",
     "template",
-    "apply-templates",
     "call-template",
     "with-param",
     "param",
-    "sort",
-    "copy",
-    "copy-of",
-    "element",
-    "function",
-    "script",
-    "stylesheet",
-    "output",
+    "apply-templates",
+];
+
+/// Tier 3 XSLT constructs that are outside the current material/demo bridge.
+pub const TIER3_HANDOFF_ELEMENTS: &[&str] = &[
+    "sort", "copy", "copy-of", "element", "function", "script", "output",
 ];
 
 /// XPath functions the bridge lowers to CEM-QL directly or by special rewrite.
@@ -124,6 +123,29 @@ pub enum LegacyElementDisposition {
     OutputElement,
     /// Explicit Tier 3 handoff/deferred construct.
     Tier3Handoff,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub enum LegacyXsltCompatDisposition {
+    /// Implemented by the bounded custom-element fragment bridge.
+    FragmentBridge,
+    /// Implemented by the XSLT 1.0 compatibility adapter profile.
+    StylesheetCompat,
+    /// Explicitly outside the current compatibility profile.
+    Handoff,
+}
+
+/// Classify XSLT names for the Phase 4 compatibility adapter profile.
+pub fn xslt_compat_disposition(local_name: &str) -> LegacyXsltCompatDisposition {
+    match local_name {
+        name if STYLESHEET_COMPAT_ELEMENTS.contains(&name) => {
+            LegacyXsltCompatDisposition::StylesheetCompat
+        }
+        name if CONTROL_FLOW_ELEMENTS.contains(&name) || DECLARATION_ELEMENTS.contains(&name) => {
+            LegacyXsltCompatDisposition::FragmentBridge
+        }
+        _ => LegacyXsltCompatDisposition::Handoff,
+    }
 }
 
 /// Classify a local element name after any `xsl:` prefix has been stripped.
@@ -187,7 +209,10 @@ pub fn is_legacy_custom_element_content_type(content_type: &str) -> bool {
 pub fn convert_template_source(source: &str) -> LegacyConversionResult {
     let mut diagnostics = Vec::new();
     let nodes = LegacyFragmentParser::new(source).parse();
-    let ctx = EmitCtx::default();
+    let ctx = EmitCtx {
+        templates: collect_templates(&nodes),
+        ..EmitCtx::default()
+    };
     let source = emit_children(&nodes, &ctx, &mut diagnostics);
     LegacyConversionResult {
         source,
@@ -213,6 +238,13 @@ struct LegacyElement {
 struct LegacyAttribute {
     name: String,
     value: String,
+}
+
+#[derive(Debug, Clone, Default)]
+struct TemplateRegistry {
+    named: HashMap<String, LegacyElement>,
+    root: Option<LegacyElement>,
+    by_match: Vec<LegacyElement>,
 }
 
 struct LegacyFragmentParser<'a> {
@@ -403,10 +435,12 @@ struct EmitCtx {
     node_sets: HashMap<String, Vec<ItemNode>>,
     scalars: HashMap<String, String>,
     item: Option<CurrentItem>,
+    templates: TemplateRegistry,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 struct ItemNode {
+    tag: String,
     text: String,
     attrs: HashMap<String, String>,
 }
@@ -428,6 +462,35 @@ fn emit_children(
         .iter()
         .map(|node| emit_node(node, &scoped, diagnostics))
         .collect()
+}
+
+fn collect_templates(nodes: &[LegacyNode]) -> TemplateRegistry {
+    let mut registry = TemplateRegistry::default();
+    collect_templates_from_nodes(nodes, &mut registry);
+    registry
+}
+
+fn collect_templates_from_nodes(nodes: &[LegacyNode], registry: &mut TemplateRegistry) {
+    for node in nodes {
+        let LegacyNode::Element(element) = node else {
+            continue;
+        };
+        let name = local_name(&element.tag);
+        if name == "template" && is_xslt_element(&element.tag) {
+            if let Some(template_name) = attr_value(element, "name") {
+                registry
+                    .named
+                    .insert(template_name.to_owned(), element.clone());
+            }
+            if attr_value(element, "match") == Some("/") {
+                registry.root = Some(element.clone());
+            } else if attr_value(element, "match").is_some() {
+                registry.by_match.push(element.clone());
+            }
+            continue;
+        }
+        collect_templates_from_nodes(&element.children, registry);
+    }
 }
 
 fn with_variable_scope(
@@ -470,6 +533,7 @@ fn to_item_node(element: &LegacyElement) -> ItemNode {
         attrs.insert(attr.name.clone(), attr.value.clone());
     }
     ItemNode {
+        tag: local_name(&element.tag).to_owned(),
         text: text_content(element),
         attrs,
     }
@@ -506,6 +570,13 @@ fn emit_element(
             return String::new();
         }
         "for-each" => return emit_for_each(element, ctx, diagnostics),
+        "stylesheet" => return emit_stylesheet(element, ctx, diagnostics),
+        "template" if is_xslt_element(&element.tag) => {
+            return emit_template(element, ctx, diagnostics)
+        }
+        "call-template" => return emit_call_template(element, ctx, diagnostics),
+        "apply-templates" => return emit_apply_templates(element, ctx, diagnostics),
+        "param" | "with-param" => return String::new(),
         "variable" => return String::new(),
         "slot" => return emit_slot(element, ctx, diagnostics),
         _ => {}
@@ -578,6 +649,11 @@ fn emit_value_of(
         ));
         return String::new();
     };
+    if let Some(item) = &ctx.item {
+        if let Some(literal) = resolve_item_literal(select.trim(), item) {
+            return escape_literal(&literal);
+        }
+    }
     format!("{{{}}}", rewrite_expression(select, ctx, true, diagnostics))
 }
 
@@ -699,6 +775,163 @@ fn emit_for_each(
             &rewrite_expression(select, ctx, false, diagnostics)
         )
     )
+}
+
+fn emit_stylesheet(
+    element: &LegacyElement,
+    ctx: &EmitCtx,
+    diagnostics: &mut Vec<LegacyConversionDiagnostic>,
+) -> String {
+    let scoped = with_variable_scope(&element.children, ctx, diagnostics);
+    if let Some(root) = &ctx.templates.root {
+        return emit_children(&root.children, &scoped, diagnostics);
+    }
+    element
+        .children
+        .iter()
+        .filter_map(|child| match child {
+            LegacyNode::Element(child) if local_name(&child.tag) == "template" => None,
+            other => Some(emit_node(other, &scoped, diagnostics)),
+        })
+        .collect()
+}
+
+fn emit_template(
+    element: &LegacyElement,
+    ctx: &EmitCtx,
+    diagnostics: &mut Vec<LegacyConversionDiagnostic>,
+) -> String {
+    if attr_value(element, "name").is_some() || attr_value(element, "match").is_some() {
+        return String::new();
+    }
+    emit_children(&element.children, ctx, diagnostics)
+}
+
+fn emit_call_template(
+    element: &LegacyElement,
+    ctx: &EmitCtx,
+    diagnostics: &mut Vec<LegacyConversionDiagnostic>,
+) -> String {
+    let Some(name) = attr_value(element, "name") else {
+        diagnostics.push(diag(
+            "legacy_xslt.call_template_missing_name",
+            "<call-template> without @name is ignored",
+        ));
+        return String::new();
+    };
+    let Some(template) = ctx.templates.named.get(name) else {
+        diagnostics.push(diag(
+            "legacy_xslt.call_template_missing_target",
+            format!("<call-template name=\"{name}\"> target was not found"),
+        ));
+        return String::new();
+    };
+    let scoped = with_call_template_params(element, ctx, diagnostics);
+    emit_children(&template.children, &scoped, diagnostics)
+}
+
+fn with_call_template_params(
+    element: &LegacyElement,
+    ctx: &EmitCtx,
+    diagnostics: &mut Vec<LegacyConversionDiagnostic>,
+) -> EmitCtx {
+    let mut scoped = ctx.clone();
+    for child in &element.children {
+        let LegacyNode::Element(param) = child else {
+            continue;
+        };
+        if local_name(&param.tag) != "with-param" {
+            continue;
+        }
+        let Some(name) = attr_value(param, "name") else {
+            continue;
+        };
+        let value = if let Some(select) = attr_value(param, "select") {
+            rewrite_expression(select, ctx, false, diagnostics)
+        } else {
+            text_content(param)
+        };
+        scoped.scalars.insert(name.to_owned(), value);
+    }
+    scoped
+}
+
+fn emit_apply_templates(
+    element: &LegacyElement,
+    ctx: &EmitCtx,
+    diagnostics: &mut Vec<LegacyConversionDiagnostic>,
+) -> String {
+    let select = attr_value(element, "select").unwrap_or("*");
+    if let Some(node_set_ref) = match_node_set_select(select, ctx) {
+        let members = ctx
+            .node_sets
+            .get(&node_set_ref.name)
+            .cloned()
+            .unwrap_or_default();
+        return members
+            .iter()
+            .enumerate()
+            .map(|(index, member)| {
+                emit_apply_template_item(member, index + 1, element, ctx, diagnostics)
+            })
+            .collect();
+    }
+    diagnostics.push(diag(
+        UNSUPPORTED_CONSTRUCT_CODE,
+        format!(
+            "<{} select=\"{}\"> is outside the bounded apply-templates subset",
+            element.tag, select
+        ),
+    ));
+    String::new()
+}
+
+fn emit_apply_template_item(
+    member: &ItemNode,
+    position: usize,
+    element: &LegacyElement,
+    ctx: &EmitCtx,
+    diagnostics: &mut Vec<LegacyConversionDiagnostic>,
+) -> String {
+    let item_ctx = EmitCtx {
+        item: Some(CurrentItem {
+            text: member.text.clone(),
+            attrs: member.attrs.clone(),
+            position,
+        }),
+        loop_var: None,
+        ..ctx.clone()
+    };
+    let mode = attr_value(element, "mode");
+    if let Some(template) = find_matching_template(member, mode, &ctx.templates) {
+        return emit_children(&template.children, &item_ctx, diagnostics);
+    }
+    member.text.clone()
+}
+
+fn find_matching_template<'a>(
+    member: &ItemNode,
+    mode: Option<&str>,
+    templates: &'a TemplateRegistry,
+) -> Option<&'a LegacyElement> {
+    templates.by_match.iter().find(|template| {
+        if attr_value(template, "mode") != mode {
+            return false;
+        }
+        let Some(pattern) = attr_value(template, "match") else {
+            return false;
+        };
+        matches_item_pattern(pattern, member)
+    })
+}
+
+fn matches_item_pattern(pattern: &str, member: &ItemNode) -> bool {
+    let pattern = pattern.trim();
+    pattern == "*"
+        || pattern == "node()"
+        || pattern == "."
+        || pattern == member.tag
+        || member.attrs.get("name").map(String::as_str) == Some(pattern)
 }
 
 fn emit_slot(
@@ -955,7 +1188,12 @@ impl XPathRewriter<'_, '_> {
         match token {
             XToken::String(value) => format!("\"{}\" ", value.replace('"', "\\\"")),
             XToken::Number(value) => format!("{value} "),
-            XToken::Var(value) => format!("{value} "),
+            XToken::Var(value) => self
+                .ctx
+                .scalars
+                .get(&value)
+                .map(|scalar| format!("{scalar} "))
+                .unwrap_or_else(|| format!("{value} ")),
             XToken::Punct(value) => self.rewrite_punct(&value),
             XToken::Name(value) => self.rewrite_name(&value),
         }
@@ -1181,18 +1419,40 @@ mod tests {
 
     #[test]
     fn tier3_push_model_constructs_are_handoff_only() {
-        for name in [
-            "template",
-            "apply-templates",
-            "call-template",
-            "sort",
-            "stylesheet",
-        ] {
+        for name in ["sort", "output"] {
             assert_eq!(
                 element_disposition(name),
                 LegacyElementDisposition::Tier3Handoff
             );
         }
+    }
+
+    #[test]
+    fn classifies_stylesheet_compat_constructs_separately() {
+        assert_eq!(
+            xslt_compat_disposition("template"),
+            LegacyXsltCompatDisposition::StylesheetCompat
+        );
+        assert_eq!(
+            xslt_compat_disposition("call-template"),
+            LegacyXsltCompatDisposition::StylesheetCompat
+        );
+        assert_eq!(
+            xslt_compat_disposition("apply-templates"),
+            LegacyXsltCompatDisposition::StylesheetCompat
+        );
+        assert_eq!(
+            xslt_compat_disposition("stylesheet"),
+            LegacyXsltCompatDisposition::StylesheetCompat
+        );
+        assert_eq!(
+            xslt_compat_disposition("if"),
+            LegacyXsltCompatDisposition::FragmentBridge
+        );
+        assert_eq!(
+            xslt_compat_disposition("sort"),
+            LegacyXsltCompatDisposition::Handoff
+        );
     }
 
     #[test]
@@ -1302,7 +1562,33 @@ mod tests {
     }
 
     #[test]
+    fn lowers_named_template_call_with_params() {
+        let result = convert(
+            r#"<xsl:stylesheet version="1.0"><xsl:template match="/"><xsl:call-template name="badge"><xsl:with-param name="label" select="'New'"/></xsl:call-template></xsl:template><xsl:template name="badge"><span class="badge">{$label}</span></xsl:template></xsl:stylesheet>"#,
+        );
+        assert_eq!(result.source, r#"{span @class="badge" | {"New"}}"#);
+        assert!(result.diagnostics.is_empty());
+    }
+
+    #[test]
+    fn lowers_apply_templates_over_inline_node_set_with_simple_match() {
+        let result = convert(
+            r#"<xsl:stylesheet version="1.0"><xsl:variable name="items"><item>One</item><item>Two</item></xsl:variable><xsl:template match="/"><ul><xsl:apply-templates select="exsl:node-set($items)/*"/></ul></xsl:template><xsl:template match="item"><li><xsl:value-of select="."/></li></xsl:template></xsl:stylesheet>"#,
+        );
+        assert_eq!(result.source, "{ul | {li | One}{li | Two}}");
+        assert!(result.diagnostics.is_empty());
+    }
+
+    #[test]
     fn reports_unsupported_tier3_constructs() {
+        let result = convert(r#"<xsl:copy-of select="node()"/>"#);
+        assert_eq!(result.source, "");
+        assert_eq!(result.diagnostics.len(), 1);
+        assert_eq!(result.diagnostics[0].code, UNSUPPORTED_CONSTRUCT_CODE);
+    }
+
+    #[test]
+    fn reports_apply_templates_outside_bounded_subset() {
         let result = convert(r#"<xsl:apply-templates select="node()"/>"#);
         assert_eq!(result.source, "");
         assert_eq!(result.diagnostics.len(), 1);
@@ -1339,15 +1625,14 @@ mod tests {
     }
 
     #[test]
-    fn bare_html_template_is_output_but_xsl_template_is_tier3() {
+    fn bare_html_template_is_output_and_xsl_template_is_registered() {
         let bare = convert("<template><span>Demo</span></template>");
         assert_eq!(bare.source, "{template | {span | Demo}}");
         assert!(bare.diagnostics.is_empty());
 
         let xsl = convert(r#"<xsl:template match="/"><span>Demo</span></xsl:template>"#);
         assert_eq!(xsl.source, "");
-        assert_eq!(xsl.diagnostics.len(), 1);
-        assert_eq!(xsl.diagnostics[0].code, UNSUPPORTED_CONSTRUCT_CODE);
+        assert!(xsl.diagnostics.is_empty());
     }
 
     #[test]

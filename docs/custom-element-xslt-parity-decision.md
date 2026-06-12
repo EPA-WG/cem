@@ -1,0 +1,121 @@
+# Custom-Element XSLT Parity Decision
+
+This records the Phase 4 blocker and decision behind CEM component expansion:
+copied `@epa-wg/custom-element` components/samples use more XSLT than the
+current bounded custom-element fragment bridge.
+
+## Current State
+
+Done:
+
+- `cem_ml::legacy_custom_element` lowers the bounded custom-element fragment
+  dialect to canonical CEM-ML for `--content-type custom-element-xslt`.
+- The supported fragment subset includes bare and `xsl:` `if`, `choose`,
+  `when`/`otherwise`, `for-each`, `variable`, `value-of`, AVT interpolation,
+  slots, declaration/resource helpers, and the fixture-derived XPath function
+  subset.
+- The engine converter is exported to WASM as
+  `convertLegacyCustomElementTemplate`.
+- The material component fixture gate reads
+  `packages/custom-element/test-fixtures/legacy-compat-manifest.json` and the
+  copied material component HTML files.
+
+Partially implemented:
+
+- `xsl:stylesheet` dispatch, root `xsl:template match="/"`, named
+  `xsl:template`, `xsl:call-template`, `xsl:with-param`, `xsl:param`, and a
+  bounded `xsl:apply-templates` path over inline `exsl:node-set($var)/*`
+  variables now lower through `cem_ml::legacy_custom_element`.
+- The current apply-template selector supports simple match patterns and `mode`.
+  It is a compatibility adapter profile, not a general XSLT stylesheet engine.
+- The component/sample-useful `xsl:sort` subset, broader XPath-backed
+  apply-template traversal, priorities, default template rules, and recursion
+  safety remain open implementation work.
+- XSLT dispatch (`AC-P-6.8`) is implemented as isolation/version-pinning
+  decision-core; XSLT execution binding (`AC-P-6.9`) remains deferred.
+
+Evidence from copied samples:
+
+- Material components primarily need the fragment subset (`if`, `choose`,
+  `for-each`, AVT, declaration helpers) plus the known `hasBoolAttribute()`
+  gap, but Phase 4 compatibility must support the component templating set in
+  full when copied components/samples rely on stylesheet invocation.
+- Demo/reference files such as `demo/table.xsl`, `demo/tree.xsl`,
+  `demo/template.xsl`, `demo/s.xslt`, `demo/html-template.xml`,
+  `demo/xhtml-template.xhtml`, `demo/http-request.html`,
+  `demo/location-element.html`, and `demo/local-storage.html` use
+  `xsl:template`, `xsl:apply-templates`, and/or `xsl:call-template`.
+- The executable inventory target
+  `yarn nx run @epa-wg/custom-element:xslt:inventory` scans 41 copied
+  material/demo files and writes
+  `packages/custom-element/dist/reports/xslt-compat-inventory.{json,md}`.
+  The current inventory finds these template features:
+  `apply-templates`, `call-template`, `choose`, `for-each`, `if`,
+  `match-patterns`, `param`, `sort`, `stylesheet`, `template`, `variable`,
+  and `with-param`.
+  It finds these XPath/EXSLT functions:
+  `concat`, `contains`, `count`, `current`, `exsl:node-set`,
+  `exslt:node-set`, `hasBoolAttribute`, `local-name`, `name`,
+  `normalize-space`, `not`, `position`, `processing-instruction`,
+  `starts-with`, `string-length`, `substring`, `substring-after`,
+  `substring-before`, `sum`, `text`, and `translate`.
+
+## Decisions
+
+1. **Compatibility target.** Phase 4 requires full parity for the copied
+   custom-element components and the sample-used templating behavior needed to
+   validate those components. This includes the demo/reference stylesheets that
+   exercise the component templating set; it is not limited to the already
+   implemented fragment bridge.
+
+2. **Version target.** Target XSLT 1.0 compatibility plus the limited EXSLT
+   idioms used by the copied demos/components, especially `exsl:node-set`.
+   "XSLT 1.1" was a typo and does not mean the abandoned XSLT 1.1 working-draft
+   surface. This should be named as a legacy compatibility adapter profile, not
+   as the future XSLT 3.0/4.0 peer-language engine.
+
+3. **Template invocation subset.** `xsl:template`, `xsl:call-template`, and
+   `xsl:apply-templates` are in scope. The first engine slice supports root and
+   named templates, `param`/`with-param`, simple match-based template selection,
+   and `mode` for inline node-set variables. The remaining bounded subset must
+   cover default template behavior needed by samples, recursion when used by
+   samples, `priority` where it affects sample resolution, and the
+   sample-useful `sort` subset.
+
+## Remaining Open Questions
+
+1. **XPath/data model.** The inventory now names the function and feature
+   surface, but implementation still needs to define the data model that backs
+   it: document order, attribute nodes, text nodes, current node vs selected
+   node, parent navigation, unions, predicates, wildcard matching, and
+   mode-specific traversal.
+
+2. **Namespace recognition.** The engine should dispatch XSLT by resolved
+   namespace identity (`http://www.w3.org/1999/XSL/Transform`), not only lexical
+   tag prefix. Bare legacy aliases (`if`, `for-each`, `choose`, etc.) should stay
+   scoped to `custom-element-xslt` compatibility input. Default HTML namespace
+   handling and `xsl:` namespace declarations need an executable fixture that
+   proves HTML output elements remain HTML while XSLT instructions dispatch to
+   the XSLT adapter.
+
+3. **On-demand loading boundary.** XSLT compatibility execution should not be
+   loaded by default. Which activation points are required: explicit
+   `custom-element-xslt` content type, CEM-ML AST initialization with an XSLT
+   capability, inline `xmlns:xsl` namespace metadata, or all of these?
+
+4. **Schema source.** Which schema is authoritative for validation/import:
+   the historical XSLT 1.0 DTD-derived metadata already present in
+   `packages/custom-element/ide/`, a new CEM-owned compatibility schema, or a
+   later XSLT 4.0 RELAX-NG schema for the future peer-language engine?
+
+5. **Output and diagnostics.** Should unsupported XSLT constructs remain
+   warnings in the custom-element bridge, or become build-blocking diagnostics
+   for Phase 4 component fixtures?
+
+## Recommended Next Step
+
+Define a separate `custom-element-xslt-compat` adapter profile for the
+inventory-backed XSLT 1.0 + limited EXSLT subset. That profile must include a
+bounded template invocation engine for `xsl:template`, `xsl:call-template`, and
+`xsl:apply-templates`, while staying separate from the future XSLT 3.0/4.0
+peer-language engine.

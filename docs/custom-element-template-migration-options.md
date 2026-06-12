@@ -98,10 +98,18 @@ Compatibility tiers:
 | --- | --- | --- |
 | 1 | Material component subset: declarations, AVT, `if`, `choose`, `for-each` over inline node-set variables, slots, resource slices, and the XPath functions used by those files | Supported by conversion to CEM-ML |
 | 2 | Focused demos that use the same pull-style subset plus simple XPath string/sequence helpers | Supported only when covered by an executable fixture |
-| 3 | Standalone stylesheets, `apply-templates`, `call-template`, `sort`, `xsl:template`, EXSLT functions, script extensions, broad DOM axes | Explicit handoff/deferred, not silently supported |
+| 3 | `sort`, EXSLT functions beyond the inventory-backed node-set idiom, script extensions, broad DOM axes, and template invocation outside the bounded compatibility profile | Explicit handoff/deferred, not silently supported |
 
 The adapter must remain a facade. It may normalize legacy declarations, but it
 must not own a private XPath evaluator or XSLT runtime.
+
+Phase 4 component work requires a bounded XSLT 1.0 + limited sample-used EXSLT
+compatibility adapter for copied component/sample templating, including
+`xsl:template`, `xsl:apply-templates`, and `xsl:call-template`. The first
+engine slice supports root and named templates, params, and bounded
+`apply-templates` over inline `exsl:node-set($var)/*` variables. Remaining
+selector traversal, priority, recursion-safety, and `sort` work is tracked in
+[`custom-element-xslt-parity-decision.md`](custom-element-xslt-parity-decision.md).
 
 ## Immediate Plan
 

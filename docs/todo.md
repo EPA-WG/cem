@@ -41,12 +41,34 @@ Roadmap: [`../roadmap.md` §Phase 3.6](../roadmap.md).
       run later by a maintainer, including the separate `@epa-wg/custom-element` `0.1.0` release pipeline (its local
       source/dist manifests still report `0.0.39`).
 
+## Phase 4 — CEM Component Set
+
+Roadmap: [`../roadmap.md` §Phase 4](../roadmap.md). Components come before the Figma UI Kit so the design library maps
+to proven web component names, states, attributes, and accessibility behavior instead of inventing a parallel model.
+
+- [ ] Complete the custom-element XSLT parity scope before expanding the component catalog. The engine now has the first
+      stylesheet-compat slice for `xsl:stylesheet`, root/named `xsl:template`, `xsl:call-template`, params, and bounded
+      `xsl:apply-templates` over inline `exsl:node-set($var)/*` variables. Phase 4 still needs the remaining copied
+      component/sample parity: broader XPath-backed apply-template traversal, default template rules, priority where it
+      affects sample resolution, recursion where sample-used, and the sample-useful `sort` subset. Track the inventory
+      with `yarn nx run @epa-wg/custom-element:xslt:inventory`; track the remaining bounded implementation questions in
+      [`custom-element-xslt-parity-decision.md`](custom-element-xslt-parity-decision.md).
+- [ ] Define the Phase 4 component MVP list and state matrix across actions, inputs, navigation, content, feedback,
+      and the first app workflow surfaces. Use Angular Material only as a coverage and ergonomics benchmark, not as a
+      required implementation dependency.
+- [ ] Expand `@epa-wg/cem-components` from the current primitives into the practical Material-style surface:
+      action/icon-button/menu-item, text field/textarea/select/checkbox/radio/switch, app bar/nav/tabs, card/list/table,
+      chip/badge/avatar/media preview, dialog/sheet/toast/progress/skeleton/alert.
+- [ ] Add component docs and examples for semantics, token usage, states, and accessibility notes. The exit gate is that
+      the future CEM site and Figma site demo can be built from this component set without one-off UI controls.
+
 ## Phase 5 — Figma UI Kit Token Validation (`examples/figma`)
 
 Roadmap: [`../roadmap.md` §Phase 5](../roadmap.md). Token export contract:
 [`../packages/cem-theme/docs/token-export.md`](../packages/cem-theme/docs/token-export.md). Figma library workflow:
 [`../packages/cem-theme/docs/token-figma.md`](../packages/cem-theme/docs/token-figma.md). These items moved from
-Phase 1 because the validation is only meaningful against a populated Figma UI Kit.
+Phase 1 because the validation is only meaningful against a populated Figma UI Kit. This phase starts after the
+Phase 4 component set has stable names, variants, and state semantics.
 
 - [ ] Validate native Figma library variables against the generated `figma/cem-*.tokens.json` files for every mode.
       Surface the validation in `nx run @epa-wg/cem-theme:test:figma` (new target) or extend the existing

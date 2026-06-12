@@ -42,6 +42,7 @@
             "executor": "nx:run-commands",
             "options": {
                 "commands": [
+                    "node scripts/inventory-xslt-compat.mjs",
                     "node scripts/verify-package-baseline.mjs",
                     "node scripts/verify-browser-fixtures.mjs"
                 ],
@@ -51,14 +52,30 @@
             "cache": true,
             "inputs": [
                 "{projectRoot}/dist/**/*",
+                "{projectRoot}/scripts/inventory-xslt-compat.mjs",
                 "{projectRoot}/scripts/verify-package-baseline.mjs",
                 "{projectRoot}/scripts/verify-browser-fixtures.mjs",
                 "{projectRoot}/test-fixtures/**/*.json",
                 "{projectRoot}/test-fixtures/**/*",
+                "{projectRoot}/demo/**/*",
                 "{projectRoot}/material/**/*",
                 "{projectRoot}/package.json"
             ],
-            "outputs": []
+            "outputs": ["{projectRoot}/dist/reports/xslt-compat-inventory.json", "{projectRoot}/dist/reports/xslt-compat-inventory.md"]
+        },
+        "xslt:inventory": {
+            "executor": "nx:run-commands",
+            "options": {
+                "command": "node scripts/inventory-xslt-compat.mjs",
+                "cwd": "packages/custom-element"
+            },
+            "cache": true,
+            "inputs": [
+                "{projectRoot}/scripts/inventory-xslt-compat.mjs",
+                "{projectRoot}/demo/**/*",
+                "{projectRoot}/material/**/*"
+            ],
+            "outputs": ["{projectRoot}/dist/reports/xslt-compat-inventory.json", "{projectRoot}/dist/reports/xslt-compat-inventory.md"]
         },
         "lint": {
             "dependsOn": ["test"],

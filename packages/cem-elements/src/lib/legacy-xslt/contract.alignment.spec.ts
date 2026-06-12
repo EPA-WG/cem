@@ -8,6 +8,7 @@ import {
     LEGACY_XSLT_CONTROL_FLOW_ELEMENTS,
     LEGACY_XSLT_DECLARATION_ELEMENTS,
     LEGACY_XSLT_DIAGNOSTIC_CODES,
+    LEGACY_XSLT_STYLESHEET_COMPAT_ELEMENTS,
     LEGACY_XSLT_TIER3_HANDOFF_ELEMENTS,
     LEGACY_XPATH_SUPPORTED_FUNCTIONS,
 } from './contract.js';
@@ -50,6 +51,12 @@ describe('legacy-xslt contract alignment (TS mirror ⇄ cem_ml authoritative)', 
 
     it('declaration element set matches', () => {
         expect(sorted(LEGACY_XSLT_DECLARATION_ELEMENTS)).toEqual(sorted(rustStringArray('DECLARATION_ELEMENTS')));
+    });
+
+    it('stylesheet compatibility element set matches', () => {
+        expect(sorted(LEGACY_XSLT_STYLESHEET_COMPAT_ELEMENTS)).toEqual(
+            sorted(rustStringArray('STYLESHEET_COMPAT_ELEMENTS'))
+        );
     });
 
     it('Tier 3 handoff element set matches', () => {

@@ -224,6 +224,9 @@ Goal: cover the practical Material-style UI surface in CEM terms.
 
 Deliverables:
 
+- Custom-element XSLT parity implemented before component expansion: define a separate legacy XSLT 1.0 + limited
+  sample-used EXSLT compatibility adapter for copied component/sample templating, including bounded
+  `xsl:template`, `xsl:apply-templates`, and `xsl:call-template` behavior.
 - Actions: button, icon button, split action, menu item.
 - Inputs: text field, textarea, select, checkbox, radio, switch, slider, date/time affordances.
 - Navigation: app bar, side nav, tabs, breadcrumbs, pagination.
@@ -240,6 +243,7 @@ Exit criteria:
 ## Phase 5 - Figma UI Kit
 
 Goal: give designers a governed, usable design kit tied to generated tokens and component semantics.
+Starts after the Phase 4 CEM Component Set has stable names, variants, states, and accessibility semantics.
 
 Deliverables:
 

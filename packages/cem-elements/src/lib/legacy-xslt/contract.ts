@@ -41,19 +41,22 @@ export const LEGACY_XSLT_DECLARATION_ELEMENTS = [
     'module-url',
 ] as const;
 
-export const LEGACY_XSLT_TIER3_HANDOFF_ELEMENTS = [
+export const LEGACY_XSLT_STYLESHEET_COMPAT_ELEMENTS = [
+    'stylesheet',
     'template',
     'apply-templates',
     'call-template',
     'with-param',
     'param',
+] as const;
+
+export const LEGACY_XSLT_TIER3_HANDOFF_ELEMENTS = [
     'sort',
     'copy',
     'copy-of',
     'element',
     'function',
     'script',
-    'stylesheet',
     'output',
 ] as const;
 
