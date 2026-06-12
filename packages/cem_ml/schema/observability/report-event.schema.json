@@ -1,0 +1,226 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://cem.dev/schema/observability/report-event.schema.json",
+  "title": "ReportEvent",
+  "description": "Canonical wire form of the engine observability event surface (AC-O-1 / AC-O-3). One ReportEvent flows through each `onParseEvent`, `onValidate`, or `onTransform` callback. The `channel` discriminator picks exactly one of the `parse`, `validate`, or `transform` payloads. `byteOffset` is the AC-P-3 canonical source coordinate, omitted from the wire when the emitting layer has no source location for the event.",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["sequence", "channel"],
+  "properties": {
+    "sequence": {
+      "type": "integer",
+      "minimum": 0,
+      "description": "Dense, monotonic event sequence across every channel (AC-O-3)."
+    },
+    "channel": {
+      "type": "string",
+      "enum": ["parse", "validate", "transform"],
+      "description": "Discriminator. Exactly one of `parse` / `validate` / `transform` MUST be present and MUST match this value."
+    },
+    "byteOffset": {
+      "type": "integer",
+      "minimum": 0,
+      "description": "AC-P-3 canonical source coordinate. Omitted when the emitting layer has no source location. Always present on parse-channel events; present on validate-channel events whose underlying Diagnostic carries a location."
+    },
+    "sourceMap": {
+      "$ref": "#/$defs/SourceMapStack"
+    },
+    "parse": {
+      "$ref": "#/$defs/ParseReportEvent"
+    },
+    "validate": {
+      "$ref": "#/$defs/ValidateReportEvent"
+    },
+    "transform": {
+      "$ref": "#/$defs/TransformReportEvent"
+    }
+  },
+  "oneOf": [
+    {
+      "properties": { "channel": { "const": "parse" } },
+      "required": ["parse", "byteOffset"],
+      "not": {
+        "anyOf": [{ "required": ["validate"] }, { "required": ["transform"] }]
+      }
+    },
+    {
+      "properties": { "channel": { "const": "validate" } },
+      "required": ["validate"],
+      "not": {
+        "anyOf": [{ "required": ["parse"] }, { "required": ["transform"] }]
+      }
+    },
+    {
+      "properties": { "channel": { "const": "transform" } },
+      "required": ["transform"],
+      "not": {
+        "anyOf": [{ "required": ["parse"] }, { "required": ["validate"] }]
+      }
+    }
+  ],
+  "$defs": {
+    "ParseReportEvent": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["kind"],
+      "properties": {
+        "kind": {
+          "type": "string",
+          "enum": [
+            "open_scope",
+            "close_scope",
+            "name",
+            "value",
+            "trivia",
+            "separator",
+            "mode_switch",
+            "processing_instruction",
+            "error"
+          ],
+          "description": "Stable lowercase token drawn from `ParseEventKind`. New kinds are additive only."
+        },
+        "name": {
+          "type": ["string", "null"],
+          "description": "Lexical name when the event names one (open_scope, close_scope, name, mode_switch's content type, processing_instruction target)."
+        },
+        "value": {
+          "type": ["string", "null"],
+          "description": "Stringified scalar value when the event carries one (value events, processing-instruction data)."
+        }
+      }
+    },
+    "ValidateReportEvent": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["code", "severity", "message"],
+      "properties": {
+        "code": {
+          "type": "string",
+          "pattern": "^cem(?:\\.[a-z0-9_]+)+$",
+          "description": "Stable diagnostic identifier, e.g. `cem.tokenizer.bare_brace_text` or `cem.doc.version_missing`."
+        },
+        "severity": {
+          "type": "string",
+          "enum": ["info", "warning", "error", "fatal"]
+        },
+        "message": {
+          "type": "string"
+        }
+      }
+    },
+    "TransformReportEvent": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["transform", "summary"],
+      "properties": {
+        "transform": {
+          "$ref": "#/$defs/TransformKind",
+          "description": "TransformKind discriminator from the source-map model (e.g. `CemTokenizer`, `EventNormalizer`, `CemAstBuilder`). Names follow the Rust enum variants."
+        },
+        "summary": {
+          "type": "string",
+          "description": "Free-form human-readable phase summary; not load-bearing for routing."
+        }
+      }
+    },
+    "TransformKind": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["kind"],
+      "properties": {
+        "kind": {
+          "type": "string",
+          "enum": [
+            "HtmlTokenizer",
+            "XmlTokenizer",
+            "CemTokenizer",
+            "EventNormalizer",
+            "SchemaValidation",
+            "CemAstBuilder",
+            "Query",
+            "QueryStep",
+            "HandoffBoundary",
+            "ContentTypeTransform",
+            "InterpreterRender"
+          ]
+        },
+        "schema_id": {
+          "type": "integer",
+          "minimum": 0,
+          "maximum": 4294967295
+        },
+        "child_content_type": {
+          "type": "string"
+        },
+        "content_type": {
+          "type": "string"
+        }
+      },
+      "oneOf": [
+        {
+          "properties": {
+            "kind": {
+              "enum": [
+                "HtmlTokenizer",
+                "XmlTokenizer",
+                "CemTokenizer",
+                "EventNormalizer",
+                "CemAstBuilder",
+                "Query",
+                "QueryStep",
+                "InterpreterRender"
+              ]
+            }
+          },
+          "not": {
+            "anyOf": [
+              { "required": ["schema_id"] },
+              { "required": ["child_content_type"] },
+              { "required": ["content_type"] }
+            ]
+          }
+        },
+        {
+          "properties": { "kind": { "const": "SchemaValidation" } },
+          "required": ["schema_id"],
+          "not": {
+            "anyOf": [
+              { "required": ["child_content_type"] },
+              { "required": ["content_type"] }
+            ]
+          }
+        },
+        {
+          "properties": { "kind": { "const": "HandoffBoundary" } },
+          "required": ["child_content_type"],
+          "not": {
+            "anyOf": [
+              { "required": ["schema_id"] },
+              { "required": ["content_type"] }
+            ]
+          }
+        },
+        {
+          "properties": { "kind": { "const": "ContentTypeTransform" } },
+          "required": ["content_type"],
+          "not": {
+            "anyOf": [
+              { "required": ["schema_id"] },
+              { "required": ["child_content_type"] }
+            ]
+          }
+        }
+      ]
+    },
+    "SourceMapStack": {
+      "type": "object",
+      "description": "Origin-first stack of `SourceMapFrame` records (AC-P-7). The last frame is the current emission's frame. Frame structure is opaque to this schema — consumers that need its fields read `SourceMapFrame` from the Rust crate or its companion schema.",
+      "properties": {
+        "frames": {
+          "type": "array",
+          "items": { "type": "object" }
+        }
+      }
+    }
+  }
+}

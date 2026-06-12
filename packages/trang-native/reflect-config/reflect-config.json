@@ -1,0 +1,14 @@
+[
+{
+  "name":"com.sun.org.apache.xerces.internal.jaxp.SAXParserFactoryImpl",
+  "methods":[{"name":"<init>","parameterTypes":[] }]
+},
+{
+  "name":"com.thaiopensource.datatype.xsd.DatatypeLibraryFactoryImpl",
+  "methods":[{"name":"<init>","parameterTypes":[] }]
+},
+{
+  "name":"com.thaiopensource.datatype.xsd.regex.java.RegexEngineImpl",
+  "methods":[{"name":"<init>","parameterTypes":[] }]
+}
+]

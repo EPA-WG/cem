@@ -1,0 +1,11 @@
+@doc cem-ml 1
+@ns cem = "https://cem.dev/ns/core/1"
+@ns html = "http://www.w3.org/1999/xhtml"
+@default html
+
+// Sibling-position switch: a no-body `cem:schema @src="..."` adopts the
+// loaded schema for following siblings until the parent scope closes.
+{main @cem:screen="example" |
+  {cem:schema @src="schema://sibling/example/1"}
+  {p | Content rendered against schema://sibling/example/1}
+}

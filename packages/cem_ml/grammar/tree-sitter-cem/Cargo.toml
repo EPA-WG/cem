@@ -1,0 +1,17 @@
+[package]
+name = "tree-sitter-cem"
+version = "0.1.0"
+edition = "2021"
+description = "Tree-sitter grammar binding for canonical CEM-ML"
+license = "MIT"
+build = "build.rs"
+publish = false
+
+[lib]
+path = "bindings/rust/lib.rs"
+
+[dependencies]
+tree-sitter-language = "0.1"
+
+[build-dependencies]
+cc = "1"

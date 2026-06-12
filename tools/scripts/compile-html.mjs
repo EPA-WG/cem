@@ -1,6 +1,6 @@
 #!/usr/bin/env node
 
-import { copyFile, mkdir, readFile, writeFile } from 'node:fs/promises';
+import { copyFile, cp, mkdir, readFile, writeFile } from 'node:fs/promises';
 import { existsSync } from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
@@ -74,6 +74,36 @@ async function copyOnce(copiedFiles, sourcePath, outputPath) {
   await mkdir(path.dirname(outputPath), { recursive: true });
   await copyFile(sourcePath, outputPath);
   copiedFiles.add(key);
+}
+
+async function copyTreeOnce(copiedFiles, sourcePath, outputPath) {
+  const key = outputPath;
+  if (copiedFiles.has(key)) {
+    return;
+  }
+  await mkdir(path.dirname(outputPath), { recursive: true });
+  await cp(sourcePath, outputPath, { recursive: true });
+  copiedFiles.add(key);
+}
+
+/**
+ * Stage the `cem-elements` substrate runtime + the `cem_ql` WASM into `dist/vendor` so the
+ * converted CSS generators (`<template type="cem-ml; version=0.0">` + the `cem-css-generator.js` bootstrap)
+ * can import the runtime-support render boundary and the DOM→datadom bridge by stable relative
+ * paths. Done once per compile, independent of any legacy `custom-element.js` reference — the
+ * `cem-ml; version=0.0` generators no longer load the legacy XSLT runtime, so the staging can no longer ride
+ * on it. The whole trees are copied because the runtime-support module imports its WASM and bridge
+ * siblings by relative path. No-op when a tree is absent (e.g. an isolated docs-only build).
+ */
+async function stageSubstrateRuntime(copiedFiles) {
+  const cemElementsDist = path.join(repoRoot, 'packages/cem-elements/dist');
+  const wasmDist = path.join(repoRoot, 'packages/cem_ql/dist/wasm');
+  if (existsSync(cemElementsDist)) {
+    await copyTreeOnce(copiedFiles, cemElementsDist, path.join(vendorDir, '@epa-wg/cem-elements/dist'));
+  }
+  if (existsSync(wasmDist)) {
+    await copyTreeOnce(copiedFiles, wasmDist, path.join(vendorDir, '@epa-wg/cem_ql/dist/wasm'));
+  }
 }
 
 async function rewriteUrl(url, context) {
@@ -195,6 +225,8 @@ async function compileHtmlFile(relativePath, copiedFiles) {
 async function compileAll() {
   const htmlFiles = await glob('**/*.html', { cwd: srcDir });
   const copiedFiles = new Set();
+
+  await stageSubstrateRuntime(copiedFiles);
 
   console.log(`Found ${htmlFiles.length} HTML files to compile`);
   for (const htmlFile of htmlFiles.sort()) {

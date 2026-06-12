@@ -1,0 +1,1533 @@
+# `cem-ml` / `cem-ml-cli` — Acceptance Criteria
+
+> **Status: Primary decision driver**
+>
+> This file is the acceptance-criteria source of truth for `cem-ml` and
+> `cem-ml-cli`. The stack design and implementation design explain and implement these
+> criteria; they do not override them.
+>
+> History policy: the original AC seeded the stack design, then the stack design was
+> corrected through later reasoning. This revision folds the resolved later reasoning
+> back into the AC. Where the original AC and later design reasoning conflict, the newer
+> resolved reasoning wins here. Remaining unresolved choices are tracked in
+> [Open Questions](#open-questions) and must not be implemented as implicit decisions.
+
+This document captures the acceptance criteria (AC) for the CEM parser/runtime and CLI. Each item is phrased as a checkable
+statement so it can be referenced from `docs/todo.md` and from PR descriptions. Every requirement uses MUST / SHOULD /
+MAY in the RFC 2119 sense.
+
+> **Status legend**
+>
+> - **MUST** — required for the package to be considered shippable.
+> - **SHOULD** — required unless an explicit waiver is recorded in this file.
+> - **MAY** — explicitly optional; in scope for a later release.
+> - **OPEN** — needs a decision before AC can be tested.
+
+## Goal
+
+`cem-ml` is the CEM document layer: a parser, schema machine, AST/report model,
+transformation engine, and future runtime surface for CEM artifacts. It must support
+semantic fixtures, component templates, design documents, transforms, and rendered
+custom-element projections through one source-mapped processing model.
+
+The long-range parity target includes HTML, XML, SVG, MathML, CSS, JSON, YAML, CSV,
+JavaScript/TypeScript islands, Rust-facing schema artifacts, CEM-ML Query, XSLT-like
+template transformation, Canvas command data, SMIL-style timed content, and binary AST
+transport. Parity is tiered. A feature named here is not Tier A unless its AC item says
+`[A]`.
+
+The canonical authoring/source surface is the curly-brace CEM-ML syntax defined in
+[`cem-ml-syntax.md`](cem-ml-syntax.md). XML convention syntax remains a secondary
+parity/mirror surface and must be developed alongside each feature that can be expressed
+in XML.
+
+## Conformance Tiers
+
+The stack is large enough that one binary AC list would never finish. Three tiers:
+
+- **Tier A — Streaming schema/transform MVP.** Parses the canonical
+  `examples/cem-ml/*.cem` fixture set and the existing secondary
+  `examples/semantic/*.html` HTML parity fixtures through async Rust/WASM public APIs,
+  validates them against a CEM-native schema compiled to a RELAX-NG-equivalent
+  structural IR, builds a source-preserving input DOM/AST plus CEM projection, and
+  transforms them to deterministic canonical CEM-ML and rendered light-DOM
+  custom-element markup. Tier A includes source-stream decoding, basic namespace
+  resolution, CEM schema-qualified annotations, source-map stacks, AST-associated
+  reports, one-pass reference slots, CEM-native curly tokenization, WHATWG HTML
+  tokenization, an XML 1.0 profile, and parent-owned HTML style/script handoff
+  interfaces. Tier A may be single-threaded internally, but public processing APIs are
+  asynchronous.
+- **Tier B — Multi-content and runtime infrastructure.** Adds fuller embedded
+  content-type switching, static namespace→schema dispatch (G-NVDL-CORE), SVG/MathML
+  child scopes, JSON/CSS/SCSS/JS island expansion, external-resource loading through
+  policy-gated queues, scoped template/registry lookup, plugin chains, bounded worker
+  pools, cancellation, scheduler traces, incremental/editor parsing, and benchmark
+  publication.
+- **Tier C — Full document/runtime vision.** Adds full (dynamic) NVDL-style dispatch
+  (G-NVDL-FULL) and engine-implemented XSLT 3.0/4.0 execution, broad XSLT/XPath-equivalent
+  CEM template/query coverage, Canvas/SMIL and additional format parity, live
+  render-while-parsing, DOM patching/hydration, async DOM mutation APIs, binary AST
+  transport, chunk compression, and advanced generated type artifacts.
+
+Each AC below is tagged `[A]`, `[B]`, or `[C]`. Initial release closes Tier A and explicitly lists which Tier B/C items
+are deferred.
+
+---
+
+## 0. Cross-Cutting Feature Requirements
+
+- **AC-F-1 [A] MUST** define scope policy as the shared mechanism for encoding defaults,
+  error-level overrides, namespace bindings, content type, schema id, resource limits,
+  diagnostic visibility, and parent override bounds.
+- **AC-F-2 [A] MUST** support schema loading from stable URI/file identities **and**
+  inline schema declarations with mid-document schema switching. The full document-side
+  scoping contract — declaration/switching forms, source attributes (URI vs cem-ql),
+  and identifier resolution — is normative in `docs/cem-ml-stack-design.md §13.1`.
+  Summary of normative requirements:
+  - **Inline declaration.** `<cem:schema cem:name="...">…body…</cem:schema>` declares an
+    inline schema with a scope-chain-resolved name. Declaration does **not** switch the
+    parent scope's active schema; the body is available for reference from descendant
+    scopes.
+  - **Mid-document switch (element form).** `<cem:schema src="..."/>` (self-closing)
+    opens a sibling-position scope adopting the loaded schema for itself and subsequent
+    siblings to end of parent scope. `<cem:schema src="...">…</cem:schema>` (open form)
+    wraps its children in a scope and the parent scope is unaffected after the close
+    tag. The `select="..."` variant accepts a cem-ql expression in place of a URI.
+  - **Mid-document switch (attribute form).** `cem:schema-src="..."` or
+    `cem:schema-select="..."` on any element makes that element a scope; the loaded
+    schema applies inside only and does **not** propagate up to the parent scope.
+  - **Source attributes.** `src` / `cem:schema-src` carry a URI literal resolved via
+    AC-T-4 (gated by AC-A-6 for non-local). `select` / `cem:schema-select` carry a
+    cem-ql expression evaluated with scope-chain-aware semantics; innermost match wins.
+    The two are mutually exclusive on a single host; absence of both is a
+    schema-compilation error.
+  - **Identifier resolution.** `cem:name` bindings on inline `<cem:schema>` are
+    scope-chain visible per AC-F-1; nested redefinition shadows. Names are not required
+    globally unique. Content-addressed cache identity (AC-CC-1) for an inline schema is
+    `inline:<sha256-of-body>`; `cem:name` is an alias, not the cache identity.
+  - **Composition with NVDL.** Namespace-driven dispatch (AC-P-6, G-NVDL-CORE/FULL) remains the
+    orthogonal mechanism for namespace-driven switching. When both fire on the same
+    boundary, NVDL applies first and the explicit form layers within its scope.
+- **AC-F-3 [A] MUST** define tags, attributes, namespaces, open-content policy, CEM
+  annotation names, state values, and transform hooks in the CEM-native schema.
+- **AC-F-4 [A] MUST** model namespace-owned content-type switches as parent-owned
+  handoffs with explicit return conditions. Tier A implements HTML `<style>`,
+  `style=""`, and raw-text `<script>` handoff interfaces; fuller namespace/content
+  switching is Tier B/C.
+- **AC-F-5 [A] MUST** define CEM reference slots for `id`/`for`/`aria-*` and template or
+  entity references without cloning referenced content into the source tree. XML entity
+  expansion remains XML-transform-owned compatibility behavior.
+- **AC-F-6 [A] MUST** expose parser, schema, validation, transform, reporting,
+  resource-policy, and source-map contracts. Plugin, concurrency, runtime interpreter,
+  and DOM mutation contracts are required by later-tier AC items.
+- **AC-F-7 [A] MUST** keep data streaming where possible. Public Rust and WASM
+  entry points are asynchronous and accept finite source adapters or streams. Internal
+  Tier A processing may use task-local state and token-local buffers.
+- **AC-F-8 [A] MUST** define document-format version identity for canonical CEM-ML
+  source as `{ formatId, contentType, formatVersion }`. Tier A defines exactly one
+  canonical document format: `formatId = "cem-ml"`,
+  `contentType = "text/cem-ml"`, and initial embedded supported version `1.0.0`.
+  Author-facing `@doc cem-ml 1` is the required shorthand for the `1.x`
+  compatibility family.
+  - **Top-level requirement.** Persisted top-level canonical `.cem` documents MUST
+    begin, before any non-trivia directive or item, with `@doc cem-ml <version>`.
+    Missing top-level `@doc` rejects the document before schema loading with
+    `cem.doc.version_missing`.
+  - **Accepted `@doc` version syntax.** `<version>` accepts `MAJOR`, `MAJOR.MINOR`,
+    or full SemVer 2.0 `MAJOR.MINOR.PATCH` with optional prerelease/build metadata.
+    Partial forms are constraints, not embedded versions: `1` means any supported
+    `1.x.y`, `1.2` means any supported `1.2.y`, and `1.2.3` means a supported
+    full version compatible with `1.2.3`.
+  - **Compatibility.** The parser resolves the declared constraint against its
+    embedded supported document-format versions using the same SemVer compatibility
+    model as AC-V-10 / AC-V-11: same major with loaded `(MINOR, PATCH)` greater
+    than or equal to declared `(MINOR, PATCH)`, `0.x` exact minor/patch behavior,
+    exact prerelease matching when prerelease is declared, and build metadata ignored
+    for precedence. Unknown format ids reject with `cem.doc.format_unknown`; invalid
+    SemVer rejects with `cem.doc.semver_invalid`; unsupported version constraints or
+    major mismatches reject with `cem.doc.version_unsupported`; prerelease mismatches
+    reject with `cem.doc.prerelease_unmatched`.
+  - **Resolution identity.** Resolution MUST produce a full embedded document-format
+    version before parsing any syntax that can vary by version, record
+    `cem.doc.version_resolved` in the AC-O-3 report tree, and carry the resolved
+    `{ formatId, contentType, formatVersion }` on the document root scope and any
+    AC-CC-1 / AC-CC-3 cache or policy identity for the parsed document.
+  - **Fragments and parity formats.** Embedded CEM-ML fragments parsed inside an
+    already-established CEM-ML scope inherit the parent document-format identity unless
+    the host API supplies an explicit fragment format. XML and HTML parity inputs do
+    not accept `@doc`; their document-format identity comes from the selected
+    parser/content-type profile.
+- **AC-F-9 [A] MUST** treat the curly-brace CEM-ML surface in
+  [`cem-ml-syntax.md`](cem-ml-syntax.md) as the canonical document syntax. XML
+  convention forms are secondary parity/mirror forms, not competing canonical sources.
+- **AC-F-10 [A] MUST** implement the parser/runtime as a layered pipeline whose
+  inter-layer boundaries are public contracts. Tier A names eight layers; the
+  high-level boundaries between layers are normative for Tier A even when an individual
+  layer's body is deferred. Reference design: [`cem-ml-stack-design.md`](cem-ml-stack-design.md)
+  §§5–12 and [`cem-ml-stack-design-impl.md`](cem-ml-stack-design-impl.md) §3.
+  - **Layer 1 — ByteSource / EncodingDecoder.** Async byte/string sources, encoding
+    selection, BOM handling, and absolute byte-offset assignment. Emits
+    `DecodedChunk { scalars, byte_range, encoding }` and a `SourceId`. Boundary:
+    Layer 2 receives decoded scalars plus byte ranges, never raw transport bytes.
+  - **Layer 2 — SchemaTokenizer.** Profile-aware tokenizer (canonical CEM curly,
+    WHATWG HTML state machine, XML 1.0). Emits `SchemaToken`/`RawToken` with token-local
+    buffering bounded by `MAX_TOKEN_BUFFER_BYTES`. Boundary: every token carries a
+    source-map stack rooted in Layer 1's `SourceId`.
+  - **Layer 3 — EventNormalizer.** Lowers every tokenizer profile into a shared
+    `NormalizedEvent` stream (`OpenScope`, `CloseScope`, `Name`, `Value`, `Trivia`,
+    `Separator`, `ModeSwitch`, `Error`). Boundary: downstream layers see no
+    syntax-flavor-specific token shapes.
+  - **Layer 4 — SchemaMachine.** RELAX-NG-derivative frame stack with phase/attribute/content
+    state, scope policy, namespace context, and an expected-close set. Owns the
+    handoff stack for parent-bounded embedded content (Layer 5). Boundary: emits
+    typed AST construction events to Layer 6 along with the active `SchemaFrame`.
+  - **Layer 5 — Scoped Embedded Handoff Stack.** Records `HandoffRecord { content_type,
+    schema_id, source_span, inherited_context, return_condition }`. Boundary: a child
+    parser cannot consume past the parent-owned return condition.
+  - **Layer 6 — InputDomAstBuilder / InterpreterAstBuilder.** Builds the
+    source-preserving input DOM/AST and the CEM projection. Every node carries a
+    `SourceMapStack` and unresolved reference slots are filled by parse-time `id_table`
+    lookup. Boundary: emits a typed `CemAstNode` graph plus `id_table` + diagnostic
+    slots.
+  - **Layer 7 — BinaryAstEncoder (interface only in Tier A).** Stable interface for a
+    deterministic uncompressed AST encoding with dictionaries for node kinds, schema
+    ids, strings, source-map frames, scope slots, and typed values. Body deferred to
+    Tier B per AC-CC-* and §16.0.
+  - **Layer 8 — ChunkCompressor (deferred).** Per `cem-ml-stack-design.md` §11; not
+    in Tier A.
+  - **Layer 9 — ImplementationInterpreter / Transform.** Applies content-type
+    transforms (WHATWG HTML DOM compliance is a transform per AC-I-6) and renders to
+    custom-element light-DOM markup per AC-T-* and the active CEM template plan.
+    Boundary: returns `TransformOutput` with transform-frame source maps preserved.
+  - **Cross-cutting contracts.** `SourceMapStack` (origin-first, byte-range identity)
+    threads every layer per AC-P-7. `Diagnostic { uri, line, column, byteOffset, code,
+    severity, message, sourceMap }` per AC-P-3 surfaces from any layer; `line`/`column`
+    remain projections from the selected frame, never stored permanently on AST
+    nodes.
+- **AC-F-11 [A] MUST** explicitly defer the following from Tier A while preserving
+  their interface boundaries so a later tier can implement them without re-shaping
+  Tier A code:
+  - **Binary AST chunk compression.** Layer 8 (`ChunkCompressor`) interface is Tier A;
+    payload compression, platform/app dictionaries, and chunk graphs are Tier B per
+    AC-CC-1..AC-CC-4 and `cem-ml-stack-design.md` §11.
+  - **Multi-content plugin runtime.** Plugin descriptors, chain execution, scope
+    transformation chains, sandboxing, and budgets are gated on G-PLUG (Tier B) per
+    AC-PL-* and AC-G-*. Tier A handoffs are limited to HTML `<style>`, `style=""`,
+    and raw-text `<script>`; SVG/MathML/CSS/JSON islands are Tier B per AC-F-4 / AC-I-2.
+  - **Full WHATWG DOM API compatibility.** AC-I-6 makes WHATWG HTML DOM compliance a
+    content-type transform over the initial parser DOM. The full browser DOM API
+    surface (live `NodeList`/`HTMLCollection`, `MutationObserver`, ranges, custom-element
+    upgrade lifecycle, event dispatch) is a later runtime decision and not Tier A.
+  - **Thread pools, bounded queues, and external-I/O scheduler.** AC-A-4..AC-A-7 and
+    AC-O-2 worker-pool, bounded-queue, external-I/O queue, and AbortSignal trace
+    contracts are Tier B per gate G-EXT. Tier A is async on public APIs but
+    single-threaded internally.
+  - **Published Rust and WASM output artifacts.** AC-C-* compatibility and
+    distribution gates (browser/Node/Rust/WASM publishability matrix, release checks)
+    are Tier B. Tier A ships the Rust crate path-locally inside this workspace; no
+    crates.io publish, no npm WASM bundle.
+
+### Verification
+
+- **AC-F-V-1** — inline schema declaration with reference: a document declares
+  `<cem:schema cem:name="badge">…</cem:schema>` at one location and references it via
+  `cem:schema-select` from a descendant scope; validation succeeds, the descendant
+  scope's diagnostics route under the inline schema's identity per AC-P-4, and the
+  AC-CC-1 cache identity for the inline body is `inline:<sha256>`.
+- **AC-F-V-2** — `cem:name` scope-chain override: an outer `<cem:schema cem:name="X">`
+  and a nested `<cem:schema cem:name="X">` resolve correctly per scope — references in
+  the outer scope hit the outer definition, references in the nested scope hit the
+  nested definition; no diagnostic is emitted for duplicate-name.
+- **AC-F-V-3** — mid-document switch (self-closing and wrapping forms): a fixture uses
+  `<cem:schema src="..."/>` for sibling-position switching and `<cem:schema src="...">…</cem:schema>`
+  for wrapping; in both cases the parent scope's active schema is unchanged after the
+  switched-in scope ends, and AC-P-7 source-map frames span the boundary.
+- **AC-F-V-4** — attribute-form switch on arbitrary element: `cem:schema-src` and
+  `cem:schema-select` on a `<section>` make that element a scope; descendants validate
+  under the new schema, siblings of `<section>` remain under the parent's schema. NVDL
+  composition: when both an active NVDL dispatch and an explicit attribute apply, NVDL
+  resolves first and the explicit form layers within.
+- **AC-F-V-5** — syntax parity: a canonical CEM-ML fixture and its XML/HTML parity
+  fixture lower to the same schema event stream, source-map frame model, and validation
+  result, except for source syntax spans and content-type-specific trivia.
+- **AC-F-V-6** — document-format version identity: fixtures cover
+  `@doc cem-ml 1`, `@doc cem-ml 1.0`, and `@doc cem-ml 1.0.0` resolving to the same
+  Tier A parser profile; a missing top-level `@doc`, unknown format id, invalid SemVer,
+  unsupported future minor/patch, major mismatch, and prerelease mismatch each emit the
+  documented diagnostic before schema loading.
+- **AC-F-V-7** — layered runtime contract present in the public crate: `cem_ml`
+  exposes module boundaries for each Tier A layer named in AC-F-10 (`source`,
+  `tokenizer`, `events`, `schema`, `handoff`, `parser`, `ast` interface stubs,
+  `interpreter` / `transform`) with the public type names listed there resolving as
+  importable items, even where the body is a stub. Verified by a Rust compile-time
+  check (`cargo check -p cem-ml`) that imports `ByteSource`, `DecodedChunk`,
+  `SchemaToken`, `NormalizedEvent`, `SchemaFrame`, `CemAstNode`, `SourceMapFrame`,
+  `Diagnostic`, and `Interpreter` and exercises their stable identities.
+- **AC-F-V-8** — Tier A deferrals are present as interface boundaries, not gaps:
+  for each item in AC-F-11, the relevant boundary type or trait exists in the public
+  crate (e.g. `BinaryAstEncoder`, plugin descriptor types, scheduler-trace events)
+  marked with a `#[doc(hidden)]` or `Tier B`-noted comment, so future tiers can
+  implement the body without changing imports.
+
+## 1. Parser
+
+- **AC-P-1 [A] MUST** parse canonical curly-brace CEM-ML documents, HTML5 documents,
+  and XML 1.0 well-formed profile documents into the same source-preserving input
+  DOM/AST abstraction. The public parser tree surface exposes common document, element,
+  attribute, text, trivia, processing instruction, raw-text, error-node, source-map, and
+  reference-slot APIs. CEM AST, WHATWG implementation DOM, and XML projections are
+  projections over that input tree, not competing parser roots.
+- **AC-P-2 [A] MUST** be a streaming-first parser: it accepts async byte/string source
+  adapters, including WASM `ReadableStream<Uint8Array | string>` where available, and
+  emits parse/report events incrementally. Tokenizer buffering MUST be token-local and
+  bounded; retained AST, report, source-map, line-index, reference, and diagnostic data
+  MUST be governed by explicit resource caps instead of hidden full-source buffering.
+- **AC-P-3 [A] MUST** report parse errors with `{ uri, line, column, byteOffset, code, severity, message }`. Errors do
+  not abort the stream unless the effective scope policy maps severity to `fatal` or
+  fail-fast behavior. `byteOffset`, `line`, and `column` are projections from the
+  selected source-map frame; byte ranges are the canonical coordinate.
+- **AC-P-4 [A] MUST** support **context scopes** with stable projected identity
+  `{ schemaUri, contentType, namespaceUri }` plus implementation-owned scope id,
+  namespace context, source-map stack, and effective scope policy. Diagnostics originate
+  in the detecting scope and bubble to the nearest schema-declared or context-root
+  error boundary, where policy decides hide/report/recover/abort behavior.
+- **AC-P-5 [A] MUST** allow scopes to nest. A scope can contain child scopes of a
+  different content type, namespace context, schema id, and policy envelope. Child scopes
+  may relax or hide local diagnostics only within parent override bounds.
+- **AC-P-6 [B core / C full] MUST** dispatch the active content type and schema for a region by
+  namespace, mid-document, via NVDL-style rules. Namespace-driven (indirect) selection composes
+  with the explicit AC-F-2 forms; where both apply on one boundary, NVDL applies first and the
+  explicit form layers within its scope (per the AC-F-2 *Composition with NVDL* rule). The
+  Tier-B static core and the Tier-C dynamic remainder are gated by G-NVDL-CORE / G-NVDL-FULL
+  respectively (§16.4).
+  - **AC-P-6.1 [B] Dispatch model — namespace metadata.** A resolved namespace identity MUST
+    carry **namespace metadata** `{ contentType, schemaUri, schemaVersion }`, extending the
+    AC-P-4 scope identity. Content-type/schema selection for a region is either **direct** (an
+    explicit AC-F-2 `cem:schema` declaration/switch/attribute form) or **indirect** (derived
+    from the active namespace binding's metadata, with no separate schema declaration); the
+    indirect path is the NVDL dispatch governed by this AC. A namespace with no resolvable
+    metadata and no explicit form is governed by AC-P-6.7. Namespace metadata resolves via a
+    composed, local-first chain: inline descriptor → workspace registry → package manifests →
+    external registry (explicit opt-in, gated by AC-A-6 / G-EXT). Resolution is
+    offline-deterministic by default; the resolved `{ contentType, schemaUri, schemaVersion }`
+    plus its source enters the AC-CC-1 cache hash and AC-CC-3 policy stamp. When both a direct
+    form and namespace metadata apply to one region, the explicit form MAY refine the **schema**
+    within the content type the namespace established but MUST NOT change the **content type**; a
+    direct form selecting a different content type than the active namespace metadata MUST
+    diagnose and reject deterministically (namespace owns content type; explicit refines schema).
+  - **AC-P-6.2 [B] Two-layer boundary.** AC-P-6 governs **interior** dispatch only. The
+    host-surface ingestion boundary — `<template>` / `<script>` `lang`/`type` on an HTML host —
+    is **not** AC-P-6; it is the AC-F-4 / AC-I-2 host handoff from the HTML content type into a
+    CEM-ML content type, owned by the HTML parser and the cem-element runtime. AC-P-6 begins once
+    a region is inside the CEM-ML model. The two layers MUST compose: a host-ingested CEM-ML
+    region MAY contain interior dispatched regions of other content types.
+  - **AC-P-6.3 [B core / C full] Rule form and modes.** Dispatch rules MUST be scoped and
+    resolved innermost-first (consistent with AC-F-2 identifier resolution and AC-P-10
+    rebinding). Tier B MUST support the **static modes**: *attach* (validate/interpret the region
+    under the dispatched schema/content type), *allow* (accept without validation as inert
+    foreign content unless the parent schema explicitly defines pass-through/rendering
+    semantics), and *reject* (diagnose and refuse). Tier C adds the **dynamic modes**:
+    *unwrap*/*cascade* (re-dispatch nested namespaces) and plugin-invoking attach (a dispatched
+    schema that owns an AC-T-4 transform or AC-PL plugin chain).
+  - **AC-P-6.4 [B] Scope identity and isolation.** Each dispatched region MUST open an AC-P-4
+    context scope with its own `{ schemaUri, contentType, namespaceUri }`, nest per AC-P-5, and
+    be **isolated**: tokens/constructs of one dispatched namespace MUST NOT be interpreted by
+    another region's content type or schema, and a child scope's diagnostics relax/hide only
+    within parent override bounds.
+  - **AC-P-6.5 [B] Per-namespace version resolution.** The schema dispatched for a namespace MUST
+    resolve its embedded SemVer per AC-V-9..AC-V-13. A version segment in the namespace URI (for
+    example the `/1` tail of `https://cem.dev/ns/core/1`) is a **MAJOR constraint** resolved with
+    the AC-F-8 / AC-V-2 / AC-V-3 model: same-MAJOR equal-or-higher MINOR/PATCH loads (forgiving);
+    an unsupported MAJOR aborts or routes to a legacy/compat handler (strict). Each dispatched
+    namespace versions on its own axis; a MAJOR change to one MUST NOT force a change to another.
+    An external standard that does not publish a SemVer-compatible identity MUST be mapped by its
+    native version request resolved against a CEM-owned adapter SemVer line (see AC-P-6.9 for
+    XSLT).
+  - **AC-P-6.6 [B] Source-map and handoff continuity.** A dispatched region MUST be modeled as a
+    Layer-5 parent-owned handoff `HandoffRecord { content_type, schema_id, source_span,
+    inherited_context, return_condition }`: the child parser MUST NOT consume past the
+    parent-owned return condition, and the host content type MUST resume on return. Source-map
+    stacks MUST span the dispatch boundary per AC-P-7 (origin-first, byte-range identity).
+  - **AC-P-6.7 [B] Diagnostics and unknown-namespace policy.** Diagnostics MUST originate in the
+    dispatched scope and bubble to the nearest schema-declared or context-root boundary per
+    AC-P-4. When a region's namespace resolves to no metadata, no explicit schema, and no rule,
+    the effective scope policy MUST select one **defined** behavior — `reject`, `allow`
+    (unvalidated foreign content), or `ignore` (drop with a report event). The **default** is
+    mode-selected (the run-mode disposition; see `content-type-switch.md` BR-VC-9): an
+    application run rejects unknown data/security namespaces and allows unknown presentation
+    namespaces; build/SSR rejects all; development allows all. Scope policy MAY override within
+    the mode, and the outcome MUST be deterministic. Dispatched schema sets participate in the
+    AC-CC-1 cache hash and AC-CC-3 policy stamp; a host missing a dispatched schema MUST fail
+    with `cem.cc.policy_mismatch`. `allow` and `ignore` are non-execution modes unless a separate
+    handler is explicitly selected.
+  - **AC-P-6.8 [B] XSLT region dispatch and isolation.** The namespace
+    `http://www.w3.org/1999/XSL/Transform` (conventionally `xsl:`) MUST be dispatchable as an
+    embedded content type per AC-P-6.1–AC-P-6.7: the CEM-ML parser opens a Layer-5 handoff, does
+    **not** interpret XSLT constructs as CEM-ML, isolates the subtree, and the surrounding CEM-ML
+    content type resumes on return; the `xsl:` content type carries its own version, pinned
+    independently, so a MAJOR bump of the CEM-ML core leaves the dispatched `xsl:` region's
+    expanded names and version unchanged. XSLT dispatch is explicit opt-in (host-provided
+    namespace metadata or scope-policy rule). The XSLT compatibility version is the document's
+    native `xsl:stylesheet/@version` request resolved against a CEM-owned XSLT adapter SemVer
+    line; the version-stable namespace URI is not a version source. A RELAX-NG schema for XSLT
+    (see References) MAY be attached for validation; absent one, the region is accepted only
+    under the AC-P-6.7 `allow` policy and stays inert unless AC-P-6.9 selects an execution
+    handler.
+  - **AC-P-6.9 [C] XSLT execution binding.** *Executing* the dispatched XSLT (running the
+    transform) is performed by the CEM-ML engine's own XSLT implementation (XSLT 3.0, later 4.0),
+    not delegated to a browser, and is **capability-gated**: an XSLT version/feature the engine
+    implements executes; one it does not is a deterministic must-understand reject per AC-P-6.7,
+    never silent. The deprecated browser-native XSLT 1.0 path (the `custom-element-v0` bridge) is
+    a legacy escape retired per the migration policy
+    ([`custom-element-template-migration-options.md`](custom-element-template-migration-options.md)),
+    not the execution target. AC-P-6.8 dispatch/isolation/version-pinning do **not** depend on
+    which versions are implemented. Engine XSLT 3.0/4.0 execution is a **deferred Tier-C wishlist**
+    capability, **not part of the immediate release timeline**; near-term work covers only the
+    AC-P-6.8 dispatch/isolation/version-pinning (Tier B, G-NVDL-CORE).
+- **AC-P-7 [A] MUST** preserve source-map stacks on every source-derived node. Frames
+  are ordered origin-first, the current frame is last, and each frame uses byte ranges
+  as durable location identity. Line/column are report projections, not parser
+  semantics.
+- **AC-P-8 [A] MUST** use CEM-native schema syntax and canonical curly-brace CEM-ML
+  document syntax as the source of truth for CEM schema behavior. RELAX NG, XML
+  convention syntax, HTML fixture syntax, and other schema/document formats are
+  mirrors/adapters, not competing canonical CEM sources.
+- **AC-P-9 [A] MUST** preserve comments, whitespace, doctypes, processing
+  instructions, CDATA/raw-text nodes where supported by content type, and recovered
+  error nodes in the initial input DOM/AST unless the effective scope policy strips them
+  through a transform that preserves report/source-map references.
+  - **Comment delimiters per surface.** Canonical CEM-ML recognises `// …` line
+    comments (terminated by end-of-line) and `/* … */` block comments per
+    [`cem-ml-syntax.md`](cem-ml-syntax.md). XML and HTML parity surfaces
+    recognise `<!-- … -->` per the XML 1.0 / WHATWG HTML specifications. The
+    Unicode-profile comment delimiters described in `cem-ml-syntax.md`
+    (`※`, `⸨…⸩`, `﴾…﴿`) are experimental and not in scope for this AC.
+  - **AST preservation is the default.** Each recognised comment lowers into a
+    `Comment` node (CEM AST) and the matching `CharacterData(Comment)` in any
+    WHATWG-DOM projection, with its source-map frame intact, so
+    reverse-conversion and report diagnostics can address it by byte range.
+  - **Strip / retain policy hook.** The effective scope policy MAY install a
+    transform that removes `Comment` nodes from the AST after parse-time. The
+    transform MUST preserve every report event and source-map reference that
+    points at the stripped span — the comment is gone from the AST, but its
+    diagnostic surface remains addressable. Policies that wish to retain
+    comments take no action: preservation is the default.
+- **AC-P-10 [A] MUST** support scoped namespace rebinding for the same namespace binding
+  name, including the empty/default binding. Unprefixed tags resolve against the active
+  binding at their source position; previously resolved nodes keep their expanded
+  namespace identity even when a later declaration reuses the same binding name for a
+  different schema namespace.
+
+### Verification
+
+- **AC-P-V-1** — default namespace rebinding: a CEM-ML fixture declares HTML as the
+  default namespace, emits an unprefixed HTML host node, rebinds the default namespace
+  to SVG for an unprefixed `{svg}` / `{path}` subtree, then rebinds the default namespace
+  to HTML for an unprefixed `{input}`. The parser records distinct expanded names for
+  the HTML and SVG nodes, keeps source-map namespace frames at each binding change, and
+  validates equivalent XML default-namespace markup to the same namespace identities.
+- **AC-P-V-2** — indirect dispatch from namespace metadata: a fixture declares a namespace whose
+  metadata binds a content type + schema, emits a region in that namespace with **no** explicit
+  `cem:schema` form, and the parser attaches the correct schema and content type, with source-map
+  frames spanning the boundary per AC-P-7.
+- **AC-P-V-3** — isolation: a document interleaves two dispatched namespaces; constructs valid in
+  one are inert/foreign in the other; neither parser interprets the other's tokens; diagnostics
+  attach to the originating scope per AC-P-4.
+- **AC-P-V-4** — embedded XSLT version-pinning: a document embeds an `xsl:` region inside CEM-ML;
+  bumping the CEM-ML core MAJOR leaves the `xsl:` region's expanded names and resolved version
+  unchanged, and the CEM-ML parser emits no XSLT-construct interpretation.
+- **AC-P-V-5** — per-namespace version negotiation: forgiving load (same MAJOR, higher MINOR) and
+  strict reject (unsupported MAJOR → version diagnostic) both observed per dispatched namespace.
+- **AC-P-V-6** — unknown-namespace policy determinism: the same unresolved-namespace region yields
+  `reject` / `allow` / `ignore` strictly per the effective scope policy and run mode, with the
+  documented default when unset.
+- **AC-P-V-7** — legacy XSLT explicit opt-in: an `xsl:` subtree without namespace metadata or an
+  explicit scope-policy rule follows the AC-P-6.7 unknown-namespace default; adding an explicit
+  XSLT dispatch rule opens an isolated XSLT handoff without CEM-ML interpretation or execution.
+- **AC-P-V-8** — direct/indirect conflict: a fixture where namespace metadata dispatches one
+  content type and an explicit `cem:schema` form requests an incompatible content type produces a
+  deterministic diagnose+reject per the AC-P-6.1 conflict rule; a form that only refines the
+  schema within the same content type is accepted.
+
+## 2. Schema
+
+- **AC-S-1 [A] MUST** define schemas in **CEM-native syntax** as the source of truth.
+- **AC-S-2 [A] MUST** emit equivalent **RELAX NG** XML and compact syntax mirrors for
+  validation/tooling alongside the native form. Mirrors MUST be byte-stable for
+  unchanged input. XSD is a downstream adapter only when a consumer explicitly requires
+  it.
+- **AC-S-3 [A] MUST** emit type headers in **TypeScript** (`.d.ts`) that mirror schema element/attribute shapes.
+- **AC-S-4 [B] SHOULD** emit type headers in **Rust** (`.rs`) for native consumers.
+- **AC-S-5 [A] MUST** expose schemas at stable URIs so namespace declarations in documents can resolve them.
+- **AC-S-6 [A] MUST** — TS emit strategy is **structural by default with opt-in
+  `Validated<T>` wrappers**. Emitted `.d.ts` types are plain structural interfaces /
+  type aliases that mirror schema shapes — no brand fields, no `unique symbol` markers,
+  no nominal discriminators — so they interop with `lib.dom.d.ts` (`HTMLElement`,
+  `SVGElement`, `XMLDocument` derivatives) without adapters. The emitter additionally
+  exposes a generic `Validated<T>` brand and constructors `asValidated<T>(input: T): Validated<T>`
+  (throws on schema-validation failure) and `tryValidated<T>(input: T): Validated<T> | ValidationError`
+  for callers who want the type system to track validation status. `Validated<Badge>` is
+  structurally assignable to `Badge` (so it flows through DOM-typed APIs unchanged) but
+  the reverse requires going through a constructor. Validation failure inside the
+  constructors routes diagnostics through AC-V-1 / AC-O-1 using the same source-map and
+  diagnostic-code surface as inline validation. Schema version identity (§3.1) is
+  carried in the brand parameterization so `Validated<Badge@1.0>` and `Validated<Badge@2.0>`
+  are distinct nominal types.
+- **AC-S-7 [A] MUST** compile CEM-native schemas into a structural validation IR with
+  RELAX-NG functional parity. Tier A MAY execute a limited DFA profile generated from
+  that IR; unsupported Tier A structural constraints fail schema compilation instead of
+  silently weakening validation.
+- **AC-S-8 [A] MUST** emit a schema-owned rule registry for cross-reference,
+  semantic/contextual, lexical/mode, tokenizer-boundary, policy, and transform rules
+  with explicit execution placement.
+- **AC-S-9 [A] MUST** define CEM annotations as schema-qualified names, not HTML
+  `data-*` attributes. HTML `data-*` resolves to synthetic HTML-data metadata and does
+  not become CEM-owned unless a schema rule maps it.
+
+### Verification
+
+- **AC-S-V-1** — structural interop: a CEM-emitted type for an element extending an
+  HTML/SVG/XML schema (e.g. a `Badge` whose schema declares it derived from
+  `HTMLElement`) is assignable to and from the matching `lib.dom.d.ts` type with no cast
+  and no adapter. Verified by `tsc --noEmit` on an emitted `.d.ts` + a fixture
+  `accepts(el: HTMLElement)` call site receiving an emitted `Badge`.
+- **AC-S-V-2** — `Validated<T>` brand integrity: a plain object literal of `Badge` shape
+  is **not** assignable to `Validated<Badge>` without going through `asValidated` /
+  `tryValidated`. Verified by a `// @ts-expect-error` fixture.
+- **AC-S-V-3** — `Validated<T>` flows as `T`: a `Validated<Badge>` value is assignable
+  to a parameter typed `Badge` (and through it to `HTMLElement` if the schema declares
+  the inheritance). Verified by a fixture call site.
+- **AC-S-V-4** — version-identity discrimination: `Validated<Badge@1.0>` and
+  `Validated<Badge@2.0>` are non-assignable to each other; emitted from two §3.1
+  schema-version inputs of the same logical type.
+- **AC-S-V-5** — validation-failure diagnostics: `asValidated` rejection on
+  schema-invalid input emits an AC-V-1-shaped diagnostic with the same code/severity
+  surface as inline validation and a source-map frame derived from the caller's
+  invocation site.
+
+## 3. Validation & Strict Typing
+
+- **AC-V-1 [A] MUST** validate documents against schemas and surface diagnostics through
+  every parser, schema, AST, report, transform, and rendered-output layer using the same
+  diagnostic identity and source-map stack. XSLT-compatible consumers are future
+  adapters over the same diagnostic model; unrestricted XSLT runtime behavior is not a
+  Tier A contract.
+- **AC-V-2 [A] MUST** be **forgiving by default within a semver-compatible namespace**. If the document declares
+  schema version X.Y and the loaded schema is X.Y′ (Y′ ≥ Y), unknown elements/attributes produce **warnings, not
+  errors**.
+- **AC-V-3 [A] MUST** be **strict on major mismatch**. If the document pins schema X and the loaded schema is X+1,
+  validation MUST fail loudly and abort the scope.
+- **AC-V-4 [A] MUST** emit validation reports from the canonical AST-associated report tree. JSON output is required
+  for machine-readable validation reports. Text and HTML outputs MAY be provided by the reference implementation as
+  convenience renderers; they are not canonical storage formats. The internal report is
+  an event-time AST-associated tree with source-map stacks, visible partial hierarchy,
+  active scope context, origin/boundary scopes, and monotonic event sequence numbers.
+- **AC-V-5 [A] MUST** validate the canonical `examples/cem-ml/*.cem` fixtures and the
+  existing `examples/semantic/*.html` HTML parity fixtures with **zero hard
+  violations**.
+- **AC-V-6 [A] SHOULD** detect: unknown elements/attrs, invalid state combinations, missing accessible names, broken
+  `id`/`for`/`aria-*` references, unsafe inline content.
+- **AC-V-7 [A] MUST** use schema-owned open-content policy for unknown elements and
+  attributes. Defaults: unknown CEM-owned names are errors, unknown HTML attributes are
+  warnings, WHATWG custom elements are accepted, ARIA/`role` are deferred to semantic
+  validation, and unbound prefixes are errors unless policy overrides them.
+- **AC-V-8 [A] MUST** recover from non-fatal schema errors with tainted recovered
+  subtrees when policy allows recovery. Recovered subtrees preserve source maps and do
+  not corrupt the parent structural state.
+
+### 3.1 Schema Version Identity
+
+This sub-section is normative and is cited by AC-V-2, AC-V-3,
+AC-CC-1, AC-CC-3, AC-S-5, the G-NVDL-CORE/FULL gates, and
+`cem-ql-ac.md` AC-QT-4 / AC-QC-1. AC-V-2 and AC-V-3 hinge on a
+precise definition of "schema version"; without it, two
+implementations can produce subtly different validation outcomes
+for the same document.
+
+- **AC-V-9 [A] MUST** define schema version identity as a pair:
+  - **URI** — stable schema identity per AC-S-5. The URI MAY end
+    with a version segment as a **partial pin**, in any of the
+    forms `MAJOR` (`/1`), `MAJOR.MINOR` (`/1.2`), or full
+    SemVer 2.0 (`/1.2.3`, `/1.2.3-rc.1`, `/1.2.3+sha.abc`). The
+    version segment, when present, expresses the document's
+    **constraint** and is matched by the loader against schema
+    candidates' embedded version per AC-V-10. A URI without a
+    version segment means "any version of this schema."
+  - **Embedded version** — every loaded schema descriptor MUST
+    carry a **complete** SemVer 2.0 string in `descriptor.version`
+    (e.g. `1.2.3`, `1.2.3-rc.1`, `1.2.3+sha.abc`; never `1.2`).
+    Partial versions in this field are rejected at load with
+    `cem.v.semver_invalid`. The embedded version is the
+    authoritative version of the loaded schema; the URI tail is
+    advisory.
+
+- **AC-V-10 [A] MUST** define how URI-tail constraints match
+  embedded versions during schema resolution:
+  - URI without version segment matches any embedded **stable**
+    version (pre-releases require an explicitly pre-release-named
+    URI — see the pre-release rule below — so an unversioned URI
+    never resolves to a pre-release).
+  - URI ending in `MAJOR` matches any embedded `MAJOR.*.*`.
+  - URI ending in `MAJOR.MINOR` matches any embedded
+    `MAJOR.MINOR.*`.
+  - URI ending in full SemVer matches embedded versions that
+    satisfy AC-V-2 forgiving-mode comparison against the URI's
+    full version (same `MAJOR`, embedded `(MINOR, PATCH)` ≥
+    URI `(MINOR, PATCH)` per SemVer §11 precedence).
+  - Prereleases satisfy a non-prerelease URI segment **only when
+    explicitly named** (`/1.2.3-rc.1` matches embedded
+    `1.2.3-rc.1`, never embedded `1.2.3` or vice versa). This
+    matches npm default behavior and avoids surprising
+    rc-into-stable matches.
+  - Build metadata (`+meta`) on the URI tail is matched
+    case-sensitively against the embedded build metadata when
+    the URI specifies it; URIs without build metadata match
+    embedded versions with any build metadata.
+
+- **AC-V-11 [A] MUST** ground AC-V-2 and AC-V-3 comparison in the
+  **embedded full version** of the loaded schema, not the
+  URI-tail partial version. Concretely, given declared embedded
+  `D` (from the document's resolved schema reference) and loaded
+  embedded `L`:
+  - **AC-V-2 forgiving mode** fires when `L.MAJOR == D.MAJOR` and
+    `(L.MINOR, L.PATCH) >= (D.MINOR, D.PATCH)` per SemVer §11
+    precedence. Unknown elements/attributes warn under
+    `cem.v.minor_skew`.
+  - **AC-V-3 strict mode** fires when `L.MAJOR != D.MAJOR`, or
+    when `L.MAJOR == 0` and `(L.MINOR, L.PATCH) != (D.MINOR,
+    D.PATCH)` (per SemVer §4 — `0.x` is unstable, every bump may
+    break). Validation aborts the scope under
+    `cem.v.major_mismatch`.
+  - Build metadata (`+meta`) is **ignored** for AC-V-2 and AC-V-3
+    precedence per SemVer §10. It IS included in the AC-CC-1
+    fingerprint (see AC-V-12) so the cache distinguishes builds
+    without changing validation behavior.
+  - A prerelease declaration is satisfied only by the exact
+    embedded prerelease per AC-V-10. Mismatched prereleases
+    abort under `cem.v.prerelease_unmatched`.
+
+- **AC-V-12 [A] MUST** make the **embedded full version** the
+  canonical input to the AC-CC-1 schema fingerprint and the
+  AC-CC-3 policy stamp, including any prerelease and build
+  metadata components verbatim. The URI-tail partial version
+  MUST NOT enter the fingerprint — two documents declaring the
+  same schema with different URI tails (`/1.2` vs `/1` vs
+  unversioned) MUST hash to the **same** fingerprint when they
+  resolve to the same embedded version. This decouples cache
+  identity from author shorthand and keeps cross-host artifact
+  reuse stable across documents that pin loosely.
+
+- **AC-V-13 [A] MUST** record the URI-to-embedded resolution as
+  a structured event in the report tree per AC-O-3 with code
+  `cem.v.semver_resolved`. The event carries the URI as
+  declared, the embedded full version, and which AC-V-10
+  matching rule fired (`unconstrained`, `major`, `major-minor`,
+  `full`, `prerelease-exact`). This makes G-NVDL dispatch traces
+  and cross-host cache mismatches diagnosable without re-running
+  the loader.
+
+- **AC-V-V-S [A]** — verification (under §"Verification Plan"):
+  one document per row of AC-V-10's matching table loads against
+  a fixture schema descriptor with a known embedded version;
+  assert the resolution event carries the documented match rule;
+  assert AC-V-2 / AC-V-3 outcomes per AC-V-11 across at least one
+  minor-skew case, one major-mismatch case, one `0.x` minor-skew
+  case (which must trigger strict mode), one prerelease-exact
+  case, and one prerelease-mismatch case; assert AC-CC-1
+  fingerprints collapse across `/1`, `/1.2`, and `/1.2.3` URI
+  forms when they resolve to the same embedded `1.2.3`.
+
+#### Diagnostic codes (this sub-section)
+
+| Code                            | Severity (default)        | Source AC      |
+|---------------------------------|---------------------------|----------------|
+| `cem.v.semver_invalid`          | error (rejected at load)  | AC-V-9         |
+| `cem.v.minor_skew`              | warning                   | AC-V-11/AC-V-2 |
+| `cem.v.major_mismatch`          | error (aborts scope)      | AC-V-11/AC-V-3 |
+| `cem.v.prerelease_unmatched`    | error (aborts scope)      | AC-V-11        |
+| `cem.v.semver_resolved`         | info                      | AC-V-13        |
+
+Scope policies MAY remap severities per the host bubble-to-boundary
+contract; the values above are the shipped defaults.
+
+## 4. Interpreter & DOM State Machine
+
+The implementation MUST split:
+
+- **Parser** — content → events / typed nodes.
+- **Interpreter** — validated AST/projection state → transform or runtime state
+  transitions.
+
+Tier A materializes a source-preserving input DOM/AST, then applies WHATWG HTML DOM
+compliance as a content-type transform. A browser-style DOM state machine is a later
+runtime surface.
+
+- **AC-I-1 [A] MUST** treat parsing, validation, AST construction, content-type
+  transforms, CEM projection, and rendered output as explicit state transitions with
+  source-map frame creation at each transform boundary. The runtime-phase public DOM
+  `apply()` API is specified by AC-I-7.
+- **AC-I-2 [A] MUST** switch parser/transform context when content type changes. Tier A
+  switches for HTML `<style>`, `style=""`, and raw-text `<script>` boundaries; SVG,
+  MathML, CSS `url(...)`, JSON, JS template islands, and external resources are Tier B/C.
+- **AC-I-3 [A] MUST** allow parser, transform, and handoff scopes to own subtrees and
+  route writes through the owning transform pipeline. Public cross-scope DOM mutation
+  rejection is governed by the deferred DOM mutation ACs.
+- **AC-I-4 [B] MUST** support render-while-parsing: an interpreter can emit visible state before EOF on its input
+  stream. Examples that drive this requirement: top-level-await scripts, HTML with external images/CSS.
+- **AC-I-5 [B] SHOULD** batch render updates. The render-batch policy
+  is **host-defined**, owned by the scope policy per AC-F-1 and
+  inherited per AC-A-4: the cem-ml library exposes the knob but does
+  **not** dictate a numeric default. Each scope policy sets a
+  `render_batch_window` (a duration after which pending updates flush
+  even if the input stream has not completed) plus the implicit
+  flush-on-stream-completion trigger. Consumer apps choose values
+  that fit their environment:
+  - **Browser / interactive hosts** typically use a short window
+    (~100 ms is a common author choice that matches first-paint
+    perception budgets); flush also fires on stream completion.
+  - **Server-side / build-pipeline hosts** typically equate the
+    window with the host's critical timeout — render flushes only
+    on stream completion or when the host's request/job timeout
+    fires, whichever comes first; the timeout reaching the render
+    layer materializes as the host's critical-timeout error.
+  - **Test / snapshot hosts** typically use stream-completion-only
+    (no time-based flush) so render output is deterministic across
+    runs.
+
+  Reference implementations MAY ship a thin convenience preset per
+  host environment for ergonomics, but the preset is host-side
+  configuration, not a library-level default. Child scopes MAY
+  shorten the inherited window but MUST NOT lengthen it, per the
+  AC-A-4 cap-tightening rule.
+- **AC-I-6 [A] MUST** implement WHATWG HTML DOM compliance as a schema-driven
+  content-type transform over the initial HTML parser DOM. Full browser DOM API
+  compatibility remains a later runtime decision.
+- **AC-I-7 [C] MUST** expose the runtime-phase apply API as
+  `apply(stream, opts?) => Promise<void>`, where `stream` is a **CEM DOM
+  stream** — a typed stream of already-parsed, already-projected, source-map-bearing
+  CEM nodes — and `opts` is `{ target?: Node, signal?: AbortSignal }`. Loading and
+  programmatic construction of the stream are **separate concerns** (handled by AC-T-4's
+  transform-source loader and by host-side construction APIs respectively); both
+  upstream producers are themselves async and abortable per AC-A-1 / AC-A-7. `apply`
+  itself MUST:
+  - Default `target` to the document root when omitted; the transform's own match
+    patterns (AC-T-1) scope within `target`.
+  - Run as a single AC-M-9 transaction. Any failure during stream consumption,
+    transform execution, schema validation (AC-M-11), or chained plugin work
+    (AC-PL-15) rolls back the whole apply; the promise rejects with the originating
+    error routed through AC-M-10.
+  - Resolve the promise on transaction **commit**. Visible render fires through the
+    normal AC-I-4 / AC-I-5 batch window — `apply` does not expose a separate
+    commit-vs-render knob; callers needing a settled tree use `flushAsync` (AC-M-14).
+  - Honor `signal` per AC-A-7: aborting before commit rolls back the transaction;
+    aborting after commit is a no-op on the tree (the abort still rejects any
+    outstanding stream consumption).
+
+### Verification
+
+- **AC-I-V-1** — `apply()` happy path: construct a CEM DOM stream from a build-time
+  loader (AC-T-4 URI variant) and from an in-memory construction API, call
+  `apply(stream, { target })` against a subtree of a canonical `examples/cem-ml/*.cem`
+  fixture and its `examples/semantic/*.html` HTML parity fixture, confirm the
+  transformed subtree matches the AC-T-2 snapshot and a single
+  `MutationRecord` is emitted on commit per AC-M-V-4.
+- **AC-I-V-2** — `apply()` rollback: induce a mid-stream schema violation (AC-M-11)
+  on a fixture subtree, confirm the apply promise rejects, the subtree is byte-identical
+  to the pre-apply snapshot per AC-M-V-5, and zero `MutationRecord`s are emitted.
+- **AC-I-V-3** — `apply()` abort: signal `AbortController.abort()` after stream
+  consumption begins but before commit; confirm the promise rejects with
+  `DOMException("Aborted", "AbortError")` and the transaction rolls back per AC-M-9.
+
+## 5. DOM Mutation API — Async Layer Over Sync Surface
+
+The DOM mutation API is a required runtime-phase feature, but it is not part of Tier A
+parser/validation/transform shipment. Tier A must preserve enough ownership,
+source-map, scope, and report metadata for this API to be added without replacing the
+parser stack. The synchronous WHATWG DOM (`appendChild`, `setAttribute`,
+`textContent =`, `innerHTML =`, `replaceWith`, ...) remains a compatibility target for
+later browser/runtime adapters; CEM-owned mutation uses async counterparts that
+participate in interpreter ownership, scope scheduling, batching, and diagnostics.
+
+### Surface
+
+- **AC-M-1 [C] MUST** expose an async counterpart for each mutating operation in the DOM core. Naming convention:
+  suffix `Async`. Initial runtime set:
+  - `appendChildAsync(node)` / `prependAsync(...nodes)`
+  - `insertBeforeAsync(node, ref)`
+  - `removeChildAsync(node)` / `removeAsync()`
+  - `replaceChildAsync(newNode, oldNode)` / `replaceWithAsync(...nodes)`
+  - `before/afterAsync(...nodes)`
+  - `setAttributeAsync(name, value)` / `removeAttributeAsync(name)` / `toggleAttributeAsync(name, force?)`
+  - `setTextContentAsync(text)`
+  - `setInnerHTMLAsync(html)` / `setOuterHTMLAsync(html)` — these MUST run the parser+interpreter for the embedded
+    content type (HTML by default).
+  - `cloneNodeAsync(deep?)` — async only when `deep` triggers cross-scope clone.
+- **AC-M-2 [C] MUST** return `Promise<void>` from every `*Async` mutator. Resolution means the mutation is committed
+  to the DOM **and** the owning interpreter has finished any cascading work (style recalc, scoped registry updates,
+  child-scope spawning).
+- **AC-M-3 [C] SHOULD** keep the sync mutators available, but route them through a fast path that is functionally
+  equivalent to `await mutator()` followed by a synchronous flush. Sync mutators MUST NOT be used inside an
+  interpreter that owns a subtree under active streaming — they SHOULD throw `OwnedSubtreeError` if attempted.
+
+### Semantics
+
+- **AC-M-4 [C] MUST** route every async mutation through the owning interpreter's queue (per AC-I-3, AC-A-4).
+  Mutations from outside the owning scope SHOULD be rejected with `ScopeViolationError`.
+- **AC-M-5 [C] MUST** preserve **submission order** within a single owner: if `appendChildAsync(a)` is called before
+  `appendChildAsync(b)` against the same parent, `a` MUST settle before `b`. Cross-parent ordering is not guaranteed.
+- **AC-M-6 [C] SHOULD** **coalesce** mutations that fall within the same batch window (per AC-I-5) into a single
+  observer notification — multiple `setAttributeAsync` calls on the same node within the host's configured
+  `render_batch_window` surface as one `MutationRecord`. The Promise of each call resolves only once the merged batch flushes.
+- **AC-M-7 [C] MUST** support `AbortSignal` on every `*Async` mutator. Aborting before the queued mutation begins
+  rejects the promise with `DOMException("Aborted", "AbortError")` and skips the mutation. Aborting after work has
+  begun follows the rollback policy in AC-M-9.
+- **AC-M-8 [C] MUST** dispatch `MutationObserver` callbacks **after** the batch flushes, not at promise-resolution
+  time. Observer callbacks see a consistent post-batch DOM.
+
+### Errors & Rollback
+
+- **AC-M-9 [C] MUST** — rollback contract on rejection follows the **Transactional** model. Bare `*Async` mutators are
+  best-effort: a rejection carries the post-state and any work that already committed stays committed. Mutations
+  declared inside `withTransaction(async () => …)` are atomic — a rejection (from any mutator, schema validation, plugin
+  failure, or `AbortSignal`) unwinds every commit made inside the transaction body, including cascading interpreter
+  work per AC-M-2 (style recalc, scoped-registry updates, child-scope spawning). Concretely:
+  - *Scope.* A transaction is bound to a single owning interpreter (per AC-M-4); attempting to mutate across scopes
+    inside `withTransaction` rejects with `ScopeViolationError` and rolls back the transaction.
+  - *Nesting.* Nested `withTransaction` calls flatten into the outermost transaction. The inner promise resolves only
+    when the outer transaction commits; the inner cannot commit independently.
+  - *Observer visibility.* `MutationObserver` callbacks (AC-M-8) fire only for *committed* transactions. A rolled-back
+    transaction produces no `MutationRecord` and no observer wake-up, even if individual batches inside it had begun to
+    flush.
+  - *Bare-mutator failure.* A rejected bare mutator emits its `MutationRecord` for whatever did commit before the
+    failure point and routes the rejection through AC-M-10's error stream. Consumers needing all-or-nothing semantics
+    MUST wrap the sequence in `withTransaction`.
+- **AC-M-10 [C] MUST** route rejected mutations through the same error stream as parser/validator errors
+  (`onParseEvent`, AC-O-1) so consumers see one error pipeline.
+- **AC-M-11 [C] SHOULD** validate the post-mutation tree against the active schema before commit. A schema violation
+  rejects the promise with `SchemaViolationError` and rolls back per AC-M-9.
+
+### Concurrency & Resources
+
+- **AC-M-12 [C] MUST** count mutation work against the same per-scope thread-pool slot as parsing/transform work
+  (AC-A-4). Mutations MUST NOT bypass the pool by going synchronous under the covers.
+- **AC-M-13 [C] SHOULD** allow **read amid pending writes**: synchronous reads see the last committed state, never an
+  in-flight intermediate. Reads inside the same microtask after an awaited mutation MUST observe that mutation.
+- **AC-M-14 [C] MAY** offer `flushAsync(scope?)` to force pending mutations to commit immediately, bypassing the
+  batch window. Used by tests and by `apply` (AC-I-7) when callers need a settled tree before observing render output.
+
+### Verification
+
+- **AC-M-V-1** — round-trip test: mutate every canonical `examples/cem-ml/*.cem`
+  fixture and every `examples/semantic/*.html` HTML parity fixture via the async API,
+  snapshot before/after, confirm the snapshot matches an equivalent sync-mutation
+  reference.
+- **AC-M-V-2** — ordering test: assert `await Promise.all([appendChildAsync(a), appendChildAsync(b)])` results in the
+  documented order regardless of microtask scheduling.
+- **AC-M-V-3** — abort test: a bare mutator aborted via `AbortSignal` *before* its queued work begins leaves the DOM
+  and observers untouched (AC-M-7); a bare mutator aborted *after* work begins follows best-effort semantics per
+  AC-M-9 and the post-state is reported on the rejection.
+- **AC-M-V-4** — observer test: N mutations within the batch window produce 1 `MutationRecord`; N+1 mutations split
+  across the window produce 2 records.
+- **AC-M-V-5** — transaction rollback: a `withTransaction` body that performs three commits and then rejects (via
+  schema violation per AC-M-11, plugin failure per AC-PL-15, or `AbortSignal` per AC-M-7) leaves the DOM byte-identical
+  to the pre-transaction snapshot, emits zero `MutationRecord`s, and routes the rejection through AC-M-10.
+
+## 6. Transformations
+
+- **AC-T-1 [A] MUST** apply schema-driven CEM template transformations to a DOM/AST
+  subtree. Tier A covers the XSLT-like subset needed for fixture transformation:
+  template matching, scoped selection, value extraction, copy/pass-through behavior,
+  recursive application, generated attributes, deterministic serialization, and
+  source-map frame creation. It does not adopt unrestricted XPath/XSLT execution as the
+  runtime contract.
+- **AC-T-2 [A] MUST** transform every canonical fixture in `examples/cem-ml/*.cem` and
+  every HTML parity fixture in `examples/semantic/*.html` to light-DOM custom-element
+  markup compatible with `@epa-wg/custom-element` and snapshot the output.
+- **AC-T-3 [C] SHOULD** evaluate XSLT 4.0 surface (see `qt4cg.org` reference) for
+  completeness and map accepted capabilities into CEM template/query semantics.
+- **AC-T-4 [A] MUST** support schema-owned transform plans loaded from the compiled
+  CEM-native schema. Loading arbitrary transforms from URI, `ReadableStream`, or DOM is
+  Tier B/C and must obey the same resource and source-map policy.
+- **AC-T-5 [A] MUST** produce canonical CEM-ML transform output as the stable snapshot,
+  hash, and cache identity. Rendered light-DOM custom-element HTML is a deterministic
+  projection of that canonical output.
+- **AC-T-6 [A] MUST** preserve standard HTML attributes, ARIA, class/id, and synthetic
+  HTML-data metadata as pass-through input unless the active schema defines a stricter
+  mapping. Transformers match schema-qualified CEM annotations, not raw `data-*`.
+- **AC-T-7 [A] MUST** embed `cem-ql` expressions using the canonical CEM-ML host rules
+  in [`cem-ml-syntax.md`](cem-ml-syntax.md), with XML convention parity maintained:
+  - **Template-aware attribute values** — attribute-value mode owns `{...}` spans, so a
+    schema-marked attribute may contain cem-ql expressions such as
+    `{button @disabled={.busy} @label="Hello {.name}" | Save}`. Multiple spans per
+    attribute are allowed; literal `{` and `}` escape as `{{` and `}}`.
+  - **Whole-expression attributes** — attributes documented by the schema as taking one
+    expression (`select`, `match`, `test`, `use`, `group-by`, etc.) use the full
+    attribute value as cem-ql source without surrounding `{}`.
+  - **Content expressions** — text/content templates MUST NOT use bare `{.name}` or
+    `{count(.items)}` interpolation. A content expression is an explicit `$` node:
+    `{$ .name}` or `{$ | count(.items)}`. Structural template content uses normal
+    `{node ...}` CEM-ML nodes.
+  - **XML parity** — XML convention templates retain XSLT-style AVT braces in
+    template-aware attributes, but content expressions lower to an explicit
+    `<cem:expr>...</cem:expr>` (or schema-equivalent expression element), not to bare
+    text interpolation.
+  This binds the host side of `cem-ql-ac.md` AC-QS-6 (cem-ql is not embedded in normal
+  HTML attributes by default; the template compiler handles the boundary) and is the
+  normative CEM-ML template embedding contract. The cem-ql parser is invoked on the
+  attribute-value span or `$` expression-node body after host-syntax unescaping; the
+  emitted source-map frame is `TransformKind::TemplateEmbedding` and preserves both the
+  host span and the cem-ql sub-span per AC-P-7.
+
+## 7. Transformation Plugins
+
+The built-in stack covers HTML / XML / CSS stubs, CEM template transforms, and future
+SVG/MathML/JSON/JS islands. Real projects need content types the platform does not ship
+such as SCSS, TypeScript, JSX, Markdown variants, project-specific DSLs, and
+cross-cutting concerns that augment any content type (security checks, click tracking,
+telemetry). Plugins extend the transformation chain without forking the runtime. The
+plugin API is a Tier B decision driver even though the current stack design still needs
+the concrete plugin architecture section.
+
+### Plugin Descriptor
+
+- **AC-PL-1 [B] MUST** — every plugin is registered via a descriptor:
+  `{ name, version, inputContentType, outputContentType, mode: 'observe' | 'mutate', invoke, supportsSourceMap }`.
+  `inputContentType` MAY be a list (a linter that runs across CSS and SCSS, for example).
+- **AC-PL-2 [B] MUST** — invoke signature: `invoke(input, ctx) => Promise<output>`. `ctx` exposes scope identity, the
+  AbortSignal, and a write-channel for validation/observability events.
+- **AC-PL-3 [B] MUST** — `mode: 'observe'` plugins (non-invasive) MUST NOT mutate the output. Runtime SHOULD enforce
+  by passing a frozen / structural-share view; attempts to mutate raise `ObserverViolationError`.
+- **AC-PL-4 [B] MUST** — `mode: 'mutate'` plugins (invasive) MUST set `supportsSourceMap: true` and emit a source map
+  with every output. The runtime rejects registration of mutate-mode plugins without source-map support.
+- **AC-PL-5 [B] MUST** — every plugin runs inside the scope that hosts it; it cannot reach across scopes.
+
+### Scope Transformation Chain
+
+- **AC-PL-6 [B] MUST** — each scope owns a chain of plugins applied in **outer → inner** order:
+  `[ ancestor plugins (reverse install order) → scope-local plugins ]`. A scope sees the merged chain at apply time.
+- **AC-PL-7 [B] MUST** — a parent scope can install plugins that target all descendant scopes whose
+  `inputContentType` matches. Outside-down control is mandatory.
+- **AC-PL-8 [B] MUST** — a descendant scope MAY add plugins on top of inherited ones, but MUST NOT remove, reorder, or
+  bypass ancestor plugins. Ancestors retain control.
+- **AC-PL-9 [B] MUST** — by default, all `observe` plugins for a content type run **before** any `mutate` plugin, so
+  security/lint passes see pre-mutation content. Plugins MAY declare a numeric priority that the runtime honors
+  within their mode.
+- **AC-PL-10 [B] SHOULD** — `observe` plugins MAY run in parallel with each other; `mutate` plugins serialize so each
+  one's source map references the previous output deterministically.
+- **AC-PL-11 [B] MUST** — built-in transformers (HTML tokenizer/parser, CSS parser,
+  CEM template transform, future XSLT-compatible adapters, etc.) are addressable as
+  plugins via the same descriptor surface. One model, one chain.
+
+### Source Maps & Debugging
+
+- **AC-PL-12 [B] MUST** — every mutation plugin emits a source map. Format: V3, or a CEM-native equivalent that
+  round-trips losslessly to V3.
+- **AC-PL-13 [B] MUST** — the runtime stitches source maps across stacked mutation plugins so a debugger or
+  programmatic resolver walks back through every layer to the original source. Verified by AC-PL-V-5.
+- **AC-PL-14 [B] SHOULD** — source map entries include the originating scope identity so cross-scope edits remain
+  attributable in the merged map.
+
+### Examples (non-normative)
+
+- **Non-invasive — security checker.** Registered against `text/css`, mode `observe`. Watches for `expression(...)`,
+  `javascript:` URIs, and unbounded selectors; emits validation events. Output tree is byte-identical to input.
+- **Invasive — click tracker.** Registered against `text/html`, mode `mutate`. Adds `data-track-id` and an inline
+  click handler to every interactive element. Emits a source map so devtools can step from the injected handler back
+  to the source attribute and the originating scope.
+- **Invasive — SCSS → CSS.** Registered with `inputContentType: 'text/scss'`, `outputContentType: 'text/css'`,
+  mode `mutate`. Converts and emits a source map; downstream CSS plugins (e.g., the security checker above) see the
+  generated CSS but can resolve back to SCSS via the stitched map.
+
+### Errors & Resource Limits
+
+- **AC-PL-15 [B] MUST** — plugin failure is a scope error per AC-P-4. It MUST NOT cascade beyond the scope that hosts
+  the plugin. Failure mode for the rest of the chain (skip downstream / abort scope)
+  follows the hosting scope policy. DOM mutation rollback uses AC-M-9 only when the
+  plugin participates in the Tier C mutation runtime.
+- **AC-PL-16 [B] MUST** — plugin invocation consumes per-scope thread-pool slots per AC-A-4 and external-resource
+  streams per AC-A-6. Plugins MUST NOT bypass the pool.
+- **AC-PL-17 [B] SHOULD** — hosts MAY set per-plugin time/memory budgets; exceeding the budget rejects the plugin's
+  promise with `PluginBudgetError` and triggers AC-PL-15.
+
+### Lifecycle & Discovery
+
+- **AC-PL-18 [B] MUST** — plugins are registered via descriptor objects, not by side-effecting imports.
+- **AC-PL-19 [B] MUST** — plugins are installable / uninstallable at runtime per scope. In-flight invocations either
+  drain to completion or are cancelled via `AbortSignal` (AC-A-7); the policy is host-selectable.
+- **AC-PL-20 [B] MUST** — plugin sandboxing model. Plugins run in-process with host privileges; isolation is enforced
+  at load time by the CEM Rust AST validator. CEM is the sole producer of plugin Rust ASTs and MUST reject any AST
+  that references capabilities outside the plugin descriptor's declared capability set (e.g. `std::fs`, `std::net`,
+  `std::process`, `unsafe`, FFI, `extern crate` outside the allow-list). Rejection happens before `rustc`/JIT
+  invocation and surfaces as `PluginCapabilityError`. No Worker, capability-restricted ctx façade, or out-of-process
+  runtime is required at this tier; revisit only if a future plugin source bypasses the CEM AST pipeline.
+
+### Verification
+
+- **AC-PL-V-1** — SCSS-to-CSS plugin happy path: register, parse an `<style type="text/scss">` scope inside an HTML
+  doc, confirm output is valid CSS and the source map maps every CSS rule back to a SCSS line/column.
+- **AC-PL-V-2** — non-invasive security checker registered against `text/css` records violations without mutating the
+  tree; tree hash before/after is identical.
+- **AC-PL-V-3** — click-tracker plugin: every interactive node in `examples/semantic/login.html` gets a tracking ID;
+  source map resolves each injected attribute back to the source element.
+- **AC-PL-V-4** — inheritance: parent installs a plugin, descendant scope of matching content type sees it run;
+  descendant attempt to disable rejects with `PluginInheritanceError`.
+- **AC-PL-V-5** — source-map stitching: stack SCSS → CSS → click-tracker; resolving a final-output position returns a
+  chain back to the original SCSS source.
+- **AC-PL-V-6** — observer-only enforcement: a mutation attempt from an `observe`-mode plugin throws
+  `ObserverViolationError` and the scope's tree is unchanged.
+- **AC-PL-V-7** — capability enforcement (AC-PL-20): a plugin whose Rust AST references `std::fs::read`, `std::net`,
+  or `unsafe { ... }` without declaring the corresponding capability in its descriptor is rejected at load time with
+  `PluginCapabilityError`; no host code from the plugin is executed and the scope's plugin chain is unchanged.
+
+## 8. API Conventions
+
+- **AC-A-1 [A] MUST** expose all processing as **asynchronous** APIs. No blocking variants.
+- **AC-A-2 [A] MUST** model deferrable subtree or child-scope work as a Future/Promise
+  attached to the owning scope processor. Resolving the owner MUST await all owned child
+  scope work required for a complete parse/validate/transform result.
+- **AC-A-3 [A] MUST** make Tier A child-scope completion deterministic. A single-threaded
+  implementation may resolve owned child work depth-first. Parallel worker scheduling is
+  Tier B and must preserve report event sequence determinism.
+- **AC-A-4 [B] MUST** route processing through a **thread pool** sized
+  per-scope, to prevent resource overbooking. Thread-pool size — and
+  every other resource characteristic the host enforces (queue size
+  per AC-A-5, external-I/O stream count per AC-A-6, per-scope memory
+  caps, per-plugin time/memory budgets per AC-PL-17, etc.) — is owned
+  by the **scope policy** per AC-F-1 and inherits down the scope tree
+  per AC-P-4 / AC-P-5. The host's **root scope** carries a documented
+  default thread-pool size:
+  - in browser/WASM hosts, `min(navigator.hardwareConcurrency, 8)`,
+    floored at 1;
+  - in native hosts, `min(num_cpus, 8)`, floored at 1;
+  - hosts MAY override the root default via the same scope-policy
+    surface used by every other scope.
+
+  Child scopes inherit the parent scope's resource caps and MAY
+  **constrain further only** — a child scope MAY lower the
+  thread-pool size, queue size, stream count, memory cap, or budget
+  it offers to its own subtree, but MUST NOT raise any cap above what
+  its parent allows. Attempts to relax (raise) an inherited cap are
+  rejected at policy load with `cem.a.cap_relaxation_denied`. This
+  matches the parent-override-bounds rule in AC-P-5 and makes
+  resource governance one-directional: untrusted descendants cannot
+  escape an ancestor's budget by installing a more permissive policy.
+- **AC-A-5 [B] MUST** keep the per-scope queue size bounded; overflow policy (block / reject / spill to parent) MUST
+  be documented per scope. Queue size obeys the same parent-bound
+  inheritance as AC-A-4.
+- **AC-A-6 [B] MUST** route **external resource I/O** (network, FS) through an event-stream queue that does **not**
+  consume thread-pool slots. Stream count is also scope-bounded and
+  obeys the same parent-bound inheritance as AC-A-4.
+- **AC-A-7 [B] SHOULD** support cancellation via `AbortSignal` end-to-end (parser, interpreter, fetch).
+- **AC-A-8 [A] MUST** use diagnostic bubbling rather than implicit per-node promise
+  rejection as the canonical error propagation contract. Errors originate at the
+  detecting scope, bubble to the nearest error-boundary scope, and are handled by that
+  boundary scope's effective policy. API calls reject only when policy maps the outcome
+  to fatal/abort/failed command behavior.
+
+## 9. Scoped Custom-Element Registries
+
+- **AC-R-1 [B] MUST** support scoped template/registry references for DCE/custom-element
+  integration. DCE tag names are template references and machine-state bindings in the
+  CEM model; CEM does not police the browser `customElements` registry in Tier A.
+- **AC-R-2 [B] MUST** support inherited lookup for CEM template registries: a scope
+  falls back to its parent registry if a template/tag reference is not found locally.
+- **AC-R-3 [B] SHOULD** detect registry/template collisions across nested scopes and
+  surface them as warnings or policy-controlled diagnostics.
+
+## 10. Performance & Resource Budgets
+
+- **AC-N-1 [A] MUST** parse + validate + transform any canonical fixture in
+  `examples/cem-ml/` and any HTML parity fixture in `examples/semantic/` in under
+  **150 ms** on a developer-class machine (single-thread, cold cache). Benchmarked in CI
+  with a tolerance band.
+- **AC-N-2 [A] MUST** use bounded streaming accumulators. Tokenizer memory scales with
+  current token and open-scope depth, not document byte length. Retained AST, report,
+  source-map, line-index, reference-slot, and diagnostic structures are allowed but MUST
+  be governed by documented caps or by the selected output/report projection. Verified
+  by a 10 MB synthetic fixture and limit-breach diagnostics.
+- **AC-N-3 [B] SHOULD** publish a benchmark suite in the Rust workspace with regressions surfaced via Nx.
+
+## 11. Security
+
+- **AC-X-1 [A] MUST** treat untrusted input as untrusted: no eval, no dynamic import based on content, no fetch unless
+  the host explicitly opted in.
+- **AC-X-2 [B] MUST** isolate scopes — a malformed/malicious child scope MUST NOT corrupt sibling or parent state.
+- **AC-X-3 [A] SHOULD** flag unsafe-content patterns (inline `<script>` in CEM semantic docs, `javascript:` URIs,
+  unbounded `srcdoc`) in validation.
+
+## 12. Observability
+
+- **AC-O-1 [A] MUST** expose a structured event stream (`onParseEvent`, `onValidate`, `onTransform`) with stable
+  shapes for tooling. Implementations may expose callbacks, async streams, or report
+  AST projections, but the event names and payload categories MUST remain stable.
+- **AC-O-2 [B] SHOULD** support a debug mode that records a deterministic trace of thread scheduling for postmortem.
+- **AC-O-3 [A] MUST** record report/log/diagnostic events as AST-associated report nodes. Each event node MUST include
+  the current source module state, the source-map stack as it exists at emission time, the visible partial DOM/AST
+  hierarchy at that moment, and a monotonic event sequence number.
+- **AC-O-4 [A] MUST** make the internal report representation an AST tree that can be formatted into CEM-native, XML,
+  JSON, or another supported structured format.
+- **AC-O-5 [A] MAY** provide text and HTML report output in the reference implementation as convenience projections
+  from the internal report AST. Text and HTML output MUST NOT be the canonical report model.
+- **AC-O-6 [A] MUST** preserve comments, whitespace, and processing-instruction source
+  positions for reporting even when a later transform strips those nodes from rendered
+  output.
+
+## 13. Compatibility & Distribution
+
+- **AC-C-1 [A] MUST** run in modern browsers (latest 2 of Chromium, Firefox, Safari) and Node ≥ 22, with the same
+  public API.
+- **AC-C-2 [A] MUST** ship a Rust crate that exposes the core parser/validator/transform
+  contracts and can compile to native and WASM-compatible targets.
+- **AC-C-3 [A] MUST** keep the Rust crate and CLI package boundaries publishable. Any future npm/WASM wrapper must
+  consume the Rust-owned contract instead of restoring the deprecated TypeScript package.
+
+---
+
+## 14. Content-Addressed Binary Cache & Transport
+
+This section defines a **shared cache and transport protocol** used by every
+parsed artifact in the stack: cem-ml documents, schemas, transform plans, and
+cem-ql query modules (see [`cem-ql-ac.md`](cem-ql-ac.md) §14). The intent is
+that a parse happens **at most once** for a given input across the build and
+runtime sides; reload skips the parser, validator-frame construction, and
+type-check, and resumes from a binary form keyed by content hash.
+
+### Hashing & binary form
+
+- **AC-CC-1 [B] MUST** assign every parsed top-level artifact a deterministic
+  **content hash**. Hash inputs:
+  - the canonical UTF-8 source bytes after BOM strip,
+  - the artifact's content-type identifier and, for CEM-ML documents or fragments,
+    the resolved document-format identity from AC-F-8,
+  - a versioned hash-scheme tag (`cem-bin/1+blake3` for the initial scheme).
+  The hash MUST be reproducible across hosts and platforms and MUST identify
+  the artifact for cache reuse. Artifacts covered: cem-ml documents (parser
+  output), schemas (`StructuralSchemaIr`), transform plans (AC-T-4),
+  cem-ql modules.
+- **AC-CC-2 [B] MUST** emit and accept a portable binary serialization of
+  the parsed/typed artifact, keyed by AC-CC-1. Loading a binary whose hash
+  matches an in-process or on-disk cache entry MUST skip parsing and proceed
+  directly to validation / interpretation / evaluation. The binary format is
+  owned by this AC and shared with downstream stacks (cem-ql) so a single
+  loader implementation handles both.
+- **AC-CC-3 [B] MUST** carry the artifact's declared **policy stamps** in the
+  binary: resolved document-format identity for CEM-ML documents or fragments,
+  declared schema URIs, declared plugin imports, declared external reads, and
+  the scope-policy fingerprint under which it was produced. A
+  binary whose policy stamps the active scope cannot satisfy MUST fail with
+  `cem.cc.policy_mismatch` and fall back to the source when available; the
+  cached binary MUST NOT be silently used under a less-restrictive policy.
+
+### Development vs production mode
+
+- **AC-CC-4 [B] MUST** support a `mode: "dev" | "prod"` cache axis. **Dev**
+  binaries MUST preserve full **source-map stacks** per AC-O-3 / AC-P-7 so
+  diagnostics from a reloaded binary are indistinguishable from diagnostics
+  produced by re-parsing the source. **Prod** binaries MAY omit source-map
+  stacks to reduce size.
+- **AC-CC-5 [B] MUST** make source-map sidecars **independently
+  content-addressed**: a dev binary references its source-map sidecar by
+  AC-CC-1 hash, the sidecar is cached separately, and either side can be
+  evicted and re-fetched. Cache scope is `(content-type, hash, mode)`; a
+  dev artifact and a prod artifact with the same AST payload are distinct
+  cache entries because their source-map content differs.
+
+### Transport protocol
+
+- **AC-CC-6 [B] MUST** define an HTTP(S) and `file://`-equivalent loader
+  protocol expressed as headers on the source response:
+  - **Response** MUST carry `CEM-Hash: <hash>` on every body that produces a
+    parsed artifact. The engine uses `CEM-Hash` for **integrity check**
+    (compare against AC-CC-1 recomputed locally on first load) and as the
+    **cache key**.
+  - **Request** MAY carry `If-CEM-Hash: <hash>` when the engine already
+    holds a cached binary it would prefer to reuse.
+  - When `If-CEM-Hash` matches the server's current `CEM-Hash`, the server
+    MUST respond `304 Not Modified` with an empty body, the matching
+    `CEM-Hash` header, and the same `Content-Type`. The engine satisfies
+    the load from local cache and emits no `cem.cc.*` diagnostic. This is
+    the cem-ml analogue of `ETag`/`If-None-Match`, scoped to the **parsed
+    artifact** rather than the raw source bytes — two source files that
+    canonicalize to the same AST share one cache entry.
+  - Hash mismatch (recomputed AC-CC-1 hash ≠ declared `CEM-Hash`) MUST fail
+    closed with `cem.cc.hash_mismatch`, discard any cached binary at that
+    hash, and refuse to use the body.
+- **AC-CC-7 [B] MUST** apply the same protocol to **secondary-content
+  retrieval**: schemas, transform plans, plugin modules, external `read()`
+  content per cem-ql AC-QA-1, and `<http-request>`-style template fetches.
+  When the engine knows the expected hash for a secondary resource, it MAY
+  send `If-CEM-Hash`; a confirmation-only `304` response is sufficient for
+  the engine to satisfy the request from cache without re-downloading the
+  body. Servers that cannot honor `If-CEM-Hash` MUST return the full body
+  with `CEM-Hash` — degradation is graceful.
+- **AC-CC-8 [B] SHOULD** expose the same protocol over `cem-ml-cli` and
+  build-pipeline interfaces, not only HTTP, so a build emits binaries +
+  hashes into a content-addressed store that a runtime loader consumes via
+  the same `CEM-Hash` semantics.
+
+### Tier C — chunked & shared substructure
+
+- **AC-CC-9 [C] MAY** support **chunked binaries**: subtrees of a parse
+  result are independently hashed and addressable, enabling partial cache
+  reuse across documents that share template/schema/scope substructure.
+  Aligns with the deferred chunk-compression and binary-transport scope
+  in §0.
+- **AC-CC-10 [C] MAY** support **cross-artifact deduplication**: schemas,
+  source-map blobs, and reference closures shared by multiple cem-ml or
+  cem-ql binaries are stored once in the cache and referenced by hash.
+
+### Diagnostics
+
+- **AC-CC-D-1 [B] MUST** route every cache/transport error through the host
+  report AST per AC-O-3 with codes:
+  `cem.cc.hash_mismatch`, `cem.cc.policy_mismatch`, `cem.cc.format_version`,
+  `cem.cc.cache_evicted`, `cem.cc.source_map_missing` (dev only).
+
+### Verification
+
+- **AC-CC-V-1 [B]** — round-trip test: parse a fixture set in dev mode,
+  serialize, evict in-memory cache, reload from binary, re-validate;
+  diagnostics, source-map stacks, and `AstNodeId` identity MUST match the
+  source-driven run byte-for-byte.
+- **AC-CC-V-2 [B]** — hash-protocol test: a mock loader serves a cem-ml
+  document. First request returns `200` + `CEM-Hash`. Second request sends
+  `If-CEM-Hash`; server responds `304` with empty body; engine satisfies
+  the AST from cache; assert the parser is **not** entered on pass two.
+- **AC-CC-V-3 [B]** — policy-stamp test: a binary produced under a permissive
+  scope policy is loaded under a stricter one; assert
+  `cem.cc.policy_mismatch` and fallback to source.
+- **AC-CC-V-4 [B]** — dev/prod cache-axis test: the same source parsed in
+  dev and prod yields two binaries with different hashes; loading either
+  satisfies its own request only.
+
+---
+
+## Verification Plan
+
+A release is acceptance-tested by running:
+
+1. `yarn nx run cem_ml:test` — unit tests covering parser, validator, interpreter, transform.
+2. `yarn nx run cem_ml_cli:validate-fixtures` — runs validation across every
+   `examples/cem-ml/*.cem` canonical fixture and every `examples/semantic/*.html` HTML
+   parity fixture. Exits 0 only if the report records zero hard violations.
+3. `yarn nx run cem_ml_cli:bench` — runs parse/validate/transform benchmarks. Numbers archived per release.
+4. `yarn nx run cem_ml_cli:e2e` — round-trips each canonical and parity fixture:
+   parse → validate → transform → render via `@epa-wg/custom-element`. Snapshot
+   compared against committed expectations.
+5. Manual smoke: open the rendered fixture in a browser, confirm it renders the expected semantic surface.
+
+Each section above contributes a concrete check to one of these scripts; AC items missing a check are not closeable.
+
+### Closure criteria
+
+An AC item is closeable only when:
+
+1. its tier (`[A]`, `[B]`, `[C]`) or gate (`G-EXT`, `G-PLUG`, `G-NVDL-CORE`, `G-NVDL-FULL`, `G-MUT`, `G-HYD`) is clear;
+2. the stack-design or impl-design doc maps it to concrete data shapes or algorithms;
+3. the verification plan above names a runnable check; and
+4. the relevant `yarn nx run ...` target exists, or the missing target is tracked as an implementation blocker in
+   [`todo.md`](todo.md).
+
+Mention in a design document is not closure. Sections 13 and 16 are the authoritative gates.
+
+---
+
+## Open Questions
+
+All previously open questions are resolved. New ones, if surfaced during implementation,
+should be appended here.
+
+---
+
+## 16. Tier Promotion Gates
+
+Five Tier B/C features
+cross major contract boundaries (security, concurrency, schema model,
+network) and depend on each other; promoting any of them informally
+puts pressure on Tier A ACs that have already shipped. Each gate
+below names its preconditions, resolved OQs, entry and exit fixtures,
+and cross-gate dependencies. The §13 verification plan stays
+authoritative for *what* must pass; this section binds *when*
+implementation work on a gated feature may begin and *when* the
+feature is considered shippable at its tier.
+
+### 16.0 Gate framework
+
+- **AC-G-1 MUST** — every Tier B/C AC item, or the containing AC
+  subsection that owns a set of related AC items, that implements a
+  feature named in §16 MUST cite the relevant gate identifier
+  (`G-EXT`, `G-PLUG`, `G-NVDL-CORE`, `G-NVDL-FULL`, `G-MUT`, `G-HYD`). Implementation work
+  MUST NOT begin against a gated AC item until its gate is **open**.
+  New Tier B/C ACs added later that fall inside a gate's scope inherit
+  the gate by virtue of citing it.
+
+- **AC-G-2 MUST** — a gate is **open** when *all* of the following
+  hold:
+  1. every AC listed in its `Prerequisite ACs` field
+     passes its §13 verification script with **no recorded waiver**;
+  2. every Open Question listed in its `Required resolved OQs`
+     field has a committed answer in §15;
+  3. every upstream gate listed in its `Depends on gates` field is
+     itself open.
+
+  The gate's `Entry fixture` is the first implementation checkpoint
+  after opening; it proves the new gated surface has entered the
+  pipeline without claiming shippability. A gate transitions from open
+  to **closed** when its `Exit fixture` passes; a closed gate is the
+  formal "this Tier B/C feature is shippable at its tier" signal.
+  Closed gates remain closed unless demoted per AC-G-4.
+
+- **AC-G-3 MUST** — gate state (open / closed / demoted) is recorded
+  in `cem-ml-stack-design-impl.md` once that document grows a "Gate
+  status" subsection. Until then, gate state is recorded in PR
+  descriptions that touch a gated AC item, and the head-of-`develop`
+  state is the source of truth.
+
+- **AC-G-4 MUST** — a gate that fails its entry or exit fixture, or
+  whose `Prerequisite ACs` regress on a green-to-red verification
+  run, MUST be **demoted** to *closed-pending*: in-flight work on
+  that gate's ACs pauses, the failing condition is filed as a
+  release blocker, and downstream gates that depend on it are
+  demoted in turn. Demotion does not delete code already merged
+  behind the gate; it stops new work and falls back to Tier A
+  snapshot baselines for affected fixtures until the regression is
+  fixed.
+
+- **AC-G-5 SHOULD** — `cem-ql-ac.md` Tier B AC items that depend on
+  a host gate (notably `read()` per cem-ql AC-QA-1, `AbortSignal`
+  propagation per cem-ql AC-QA-3, network-scheme imports per
+  cem-ql AC-QI-2 / AC-QI-4, and the §14 cache transport per
+  cem-ql AC-QC-*) cite the same gate identifier rather than
+  re-asserting the precondition. This keeps the two ACs from
+  drifting and lets a single PR open the gate on both sides.
+
+### 16.1 Cross-gate dependency graph
+
+```
+                [Tier A close]
+                       │
+                       ▼
+                    G-EXT  ──────────────────┐
+                       │                     │
+                       ▼                     │  (also unblocks
+                    G-PLUG  ─────┐           │   cem-ql AC-QA-*,
+                       │         │           │   cem-ql AC-QI-2/4,
+                       ▼         ▼           │   cem-ql AC-QC-*)
+               G-NVDL-FULL    G-MUT          │
+                                 │           │
+                                 ▼           │
+                              G-HYD ◀────────┘
+                              (also depends on G-EXT for
+                               network-driven hydration)
+```
+
+`G-EXT` is the foundational gate for the dynamic features; nothing
+downstream of it opens until it does. `G-NVDL-CORE` is the exception —
+the static namespace-dispatch core (Tier B) depends only on Tier A
+close, not on `G-EXT` or `G-PLUG`. `G-NVDL-FULL` (dynamic dispatch,
+engine XSLT execution, externally loaded schemas) and `G-MUT` are
+independent of each other and may open in either order once `G-PLUG` is
+open; `G-NVDL-FULL` additionally requires `G-NVDL-CORE`. `G-HYD` is the
+deepest runtime gate: it requires G-MUT and G-EXT, but does not require
+G-NVDL-FULL unless a hydration fixture explicitly depends on
+namespace-dispatched schemas.
+
+### 16.2 G-EXT — External-resource loading (Tier B)
+
+Covers the AC-A-6 I/O queue, scope-policy grant model for fetches,
+content-type registry resolution at fetch time, and the cem-ql
+`read()` surface (cem-ql AC-QA-1 / AC-QA-1.1).
+
+- **Gated ACs**: AC-A-6, the external-resource parts of AC-T-4 /
+  AC-CC-6 / AC-CC-7, and downstream cem-ql AC-QA-1..AC-QA-3 /
+  AC-QA-5 / AC-QI-2 network tier / AC-QI-4 / AC-QC-4.
+- **Prerequisite ACs**: AC-A-1, AC-A-2, AC-A-3, AC-A-8
+  (async API foundation + diagnostic bubbling); AC-X-1, AC-X-3
+  (untrusted-input handling); AC-O-3 (report routing); AC-F-1
+  (scope policy surface); AC-P-3, AC-P-4, AC-P-7 (parser diagnostic
+  / context-scope / source-map contracts the I/O queue inherits).
+- **Required resolved OQs**: none. AC-A-6 is normative; this gate
+  enforces its preconditions but does not need a §15 decision.
+- **Entry fixture**: a single `file://` fixture loads through
+  AC-A-6's I/O queue under a Tier B scope policy that grants
+  `file://fixtures/`; a denied scheme on the same call site routes
+  through AC-O-3 with the originating scope context attached and
+  the documented `cem.ext.fetch_denied` code.
+- **Exit fixture**: HTTP and `file://` fetches succeed and fail
+  correctly under three documented scope policies (deny-all,
+  allow-by-prefix, allow-with-budget); cancellation via
+  `AbortSignal` (AC-A-7) cleanly aborts pending requests with no
+  leaked queue slots; benchmark publication per AC-N-3 shows queue
+  overhead within the AC-N-1 150 ms budget when no fetches are
+  queued; the AC-CC-6 / AC-CC-7 transport `If-CEM-Hash` round-trip
+  succeeds for a content-type-dispatched secondary artifact.
+- **Depends on gates**: none (root gate after Tier A close).
+- **Downstream cem-ql impact**: opens cem-ql AC-QA-1 / AC-QA-2 /
+  AC-QA-3 / AC-QA-V-1, cem-ql AC-QI-2 network tier, and cem-ql
+  AC-QC-4 transport participation.
+
+### 16.3 G-PLUG — Plugin runtime (Tier B)
+
+Covers §7 (AC-PL-1..AC-PL-20), the per-scope plugin chain, observe /
+mutate mode separation, source-map stitching, and per-scope
+resource budgeting for plugin invocations.
+
+- **Gated ACs**: AC-PL-1..AC-PL-20.
+- **Prerequisite ACs**: AC-A-4, AC-A-5 (per-scope thread pool, queue
+  overflow policy); AC-X-1, AC-X-2 (untrusted input, scope isolation);
+  AC-O-1, AC-O-3 (event stream, report routing); AC-T-1 (transform
+  contract that plugins compose with).
+- **Required resolved OQs**: none remaining for this gate (AC-PL-20
+  resolved in §7). Thread-pool default and per-scope cap inheritance
+  are normative under AC-A-4.
+- **Entry fixture**: AC-PL-V-1 (SCSS-to-CSS plugin happy path)
+  passes end-to-end through the public async API with a stitched
+  source map per AC-PL-12.
+- **Exit fixture**: AC-PL-V-1..AC-PL-V-7 all pass; an out-of-scope
+  mutation attempt from a registered plugin is rejected at the
+  trust boundary with the documented diagnostic and does not
+  corrupt sibling-scope state per AC-X-2; a 100-plugin chain on a
+  single scope stays under per-plugin budget per AC-PL-17 without
+  exhausting the scope's thread-pool slots; observer-only
+  enforcement (AC-PL-V-6) holds under the chosen sandboxing model.
+- **Depends on gates**: G-EXT (plugin descriptors and observe-mode
+  fetches use the AC-A-6 I/O queue; observe plugins MAY emit
+  external requests under their scope's policy).
+
+### 16.4 G-NVDL — NVDL schema dispatch (Tier B core + Tier C full)
+
+AC-P-6 dispatch is staged into a Tier-B static core and a Tier-C
+dynamic remainder. Both are recorded here; references to
+`G-NVDL-CORE` / `G-NVDL-FULL` elsewhere cite the matching entry.
+
+**G-NVDL-CORE — static namespace dispatch (Tier B).** Covers the
+static, locally-resolved core of AC-P-6 — namespace→
+`{ contentType, schemaUri, schemaVersion }` dispatch over embedded or
+same-document schemas.
+
+- **Gated ACs**: AC-P-6.1, AC-P-6.2, AC-P-6.4, AC-P-6.5, AC-P-6.6,
+  AC-P-6.7, the static *attach*/*allow*/*reject* modes of AC-P-6.3, and
+  AC-P-6.8 (XSLT region dispatch/isolation/version-pinning).
+- **Prerequisite ACs**: AC-P-4, AC-P-5, AC-P-7 (context scopes,
+  nesting, source-map stacks); AC-F-4 generalized to a local
+  parent-owned foreign-content handoff; AC-I-2 (content-type
+  switching); AC-V-9..AC-V-13, AC-F-8 (version identity); AC-CC-1,
+  AC-CC-3 (cache hash and policy stamp). Does **not** depend on
+  G-PLUG or G-EXT while dispatched schemas are local.
+- **Required resolved OQs**: none.
+- **Entry fixture**: a single fixture parses with two schemas
+  dispatched by namespace inside one document; source-map stacks span
+  the boundary cleanly per AC-P-7; the AC-O-3 report tree shows
+  diagnostics from both schemas attached to the originating scope.
+- **Exit fixture**: at least three documented namespace dispatches
+  inside one parse; per-scope policies inherit/override across
+  boundaries per AC-P-5; binary-cache reuse (AC-CC-1) succeeds across
+  two hosts with the same schema set installed and fails with
+  `cem.cc.policy_mismatch` when one host is missing a dispatched
+  schema; AC-P-V-2..AC-P-V-8 pass.
+- **Depends on gates**: none beyond Tier A close.
+
+**G-NVDL-FULL — dynamic NVDL dispatch (Tier C).** Covers the dynamic
+remainder: the *unwrap*/*cascade* and plugin-invoking modes of
+AC-P-6.3, AC-P-6.9 engine XSLT execution, and externally loaded
+dispatched schemas.
+
+- **Gated ACs**: the dynamic modes of AC-P-6.3, AC-P-6.9 (XSLT
+  execution binding), and external-schema dispatch.
+- **Prerequisite ACs**: G-NVDL-CORE closed; AC-V-1, AC-V-2, AC-V-3,
+  AC-V-7, AC-V-8 (validation contracts, semver behavior, open-content
+  policy, recovery model); AC-T-4 (schema-owned transform plans).
+- **Required resolved OQs**: none.
+- **Entry fixture**: one fixture dispatches a namespace whose schema
+  owns a transform/plugin chain executed under G-PLUG; a second
+  fixture executes an engine XSLT 3.0 transform on a dispatched `xsl:`
+  region.
+- **Exit fixture**: an unwrap/cascade re-dispatch across three nested
+  namespaces, an externally loaded dispatched schema under the AC-A-6
+  I/O queue, and a capability-gated XSLT reject for an unimplemented
+  version, all deterministic.
+- **Depends on gates**: G-NVDL-CORE; G-PLUG (dispatch may invoke plugin
+  chains owned by the dispatched schema); G-EXT (schemas or XSLT
+  resources loaded externally under the AC-A-6 I/O queue).
+
+### 16.5 G-MUT — DOM mutation API (Tier C)
+
+Covers §5 (AC-M-1..AC-M-14), the async mutation surface over the
+sync DOM, queue ordering, batch coalescing, observer dispatch, and
+rollback discipline.
+
+- **Gated ACs**: AC-I-7 and AC-M-1..AC-M-14.
+- **Prerequisite ACs**: AC-T-1 (transform contract — mutation is
+  layered over transforms, not under them); AC-P-7 (source-map
+  stability under replay — mutations re-emit source frames per
+  AC-PL-13's stitching model); AC-A-1..AC-A-7 (async + abort + queue
+  + I/O — every mutator is async and cancellable); AC-O-3 (report
+  routing for AC-M-10 rejection errors); AC-CC-1, AC-CC-2, AC-CC-3
+  (binary cache hash and serialization stable across pre- and
+  post-mutation snapshots so a mutated tree can re-hash
+  deterministically); AC-I-6 (WHATWG DOM compliance — mutation
+  targets the schema-driven projection, not a fork of it).
+- **Required resolved OQs**: none remaining for this gate (AC-M-9
+  resolved to Transactional in §5).
+- **Entry fixture**: AC-M-V-1 (round-trip test on a single
+  `examples/semantic/` fixture) passes; the read-only invariant
+  cem-ql AC-Q-2 holds — queries see the mutated state but cannot
+  themselves write.
+- **Exit fixture**: AC-M-V-1..AC-M-V-5 and AC-I-V-1..AC-I-V-3 all
+  pass (round-trip, ordering, abort, observer batching, transaction
+  rollback, plus apply happy-path / rollback / abort); the
+  Transactional rollback contract holds under three induced failure
+  modes (schema validation failure per AC-M-11, plugin rejection per
+  AC-PL-15, cancelled mutation per AC-M-7); `flushAsync(scope?)`
+  (AC-M-14) preserves submission order per AC-M-5 when used.
+- **Depends on gates**: G-PLUG (mutation may be initiated by
+  mutate-mode plugins per AC-PL-4 / AC-PL-15).
+
+### 16.6 G-HYD — Live hydration / render-while-parsing (Tier C)
+
+Covers AC-I-4 (render-while-parsing), AC-I-5 (batch policy), and
+the integration of mutation queues with the rendering pipeline so
+visible state can change during parse.
+
+- **Gated ACs**: AC-I-4, AC-I-5, and hydration-specific integration
+  with the mutation queue opened by G-MUT.
+- **Prerequisite ACs**: AC-O-1 (event stream so hosts can drive UI off
+  render events); AC-O-2 (deterministic scheduling trace for
+  postmortem); AC-N-1 (150 ms first-paint budget, which hydration MUST
+  respect under the canonical `examples/cem-ml/` fixture set and the
+  `examples/semantic/` HTML parity set).
+- **Required resolved OQs**: none (render-batch policy is
+  host-defined per AC-I-5 and inherited per AC-A-4).
+- **Entry fixture**: a single canonical `examples/cem-ml/` fixture and its
+  `examples/semantic/` HTML parity fixture render visible state before EOF on their
+  input streams per AC-I-4;
+  `MutationRecord` batching behaves per AC-M-V-4 across the parse
+  → hydration boundary.
+- **Exit fixture**: render-while-parsing on **all** canonical
+  `examples/cem-ml/*.cem` fixtures and HTML parity `examples/semantic/*.html` fixtures
+  stays under the AC-N-1 first-paint budget; the AC-O-2 debug trace records scheduling
+  deterministically across two runs; cancellation mid-render via
+  `AbortSignal` leaves the DOM in a consistent state per the
+  OQ-4 rollback model and emits the documented `cem.hyd.aborted`
+  diagnostic.
+- **Depends on gates**: G-MUT (live hydration writes through the
+  async mutation queue); G-EXT (network-driven hydration cases —
+  e.g. resources fetched mid-stream — use the AC-A-6 I/O queue).
+
+---
+
+## References
+
+- NVDL — Namespace-based Validation Dispatching Language: <https://en.wikipedia.org/wiki/Namespace-based_Validation_Dispatching_Language>, <https://nvdl.oxygenxml.com/>
+- RELAX-NG schema for XSLT 4.0: <https://qt4cg.org/specifications/xslt-40/schema-for-xslt40.rnc>
+- iXml — Invisible XML: <https://invisiblexml.org/1.0/ixml.xml.html>
+- HTML5 in RELAX-NG: <https://github.com/validator/validator/blob/main/schema/html5/html5.rnc>
+- `@epa-wg/custom-element` — runtime target for transformed output (workspace dep).
+- Design docs: [`cem-ml-stack-design.md`](cem-ml-stack-design.md),
+  [`cem-ml-stack-design-impl.md`](cem-ml-stack-design-impl.md).
+- Query language AC: [`cem-ql-ac.md`](cem-ql-ac.md) — normative surface for the
+  scoped query language consumed by AC-T-1 / AC-T-2 / AC-T-3 / AC-T-7 and the
+  `ScopedQueryLanguage::CemScopedQuery` placeholder. AC-T-7 owns the
+  CEM-ML template embedding side; cem-ql owns the expression grammar.
+- Companion docs: [`cem-ml-library-plan.md`](cem-ml-library-plan.md), [`component-mvp.md`](component-mvp.md),
+  [`todo.md`](todo.md).

@@ -1,0 +1,30 @@
+{
+  "version": 1,
+  "pairs": [
+    {
+      "id": "login",
+      "cem": "examples/cem-ml/login.cem",
+      "html": "examples/semantic/login.html"
+    },
+    {
+      "id": "registration",
+      "cem": "examples/cem-ml/registration.cem",
+      "html": "examples/semantic/registration.html"
+    },
+    {
+      "id": "profile",
+      "cem": "examples/cem-ml/profile.cem",
+      "html": "examples/semantic/profile.html"
+    },
+    {
+      "id": "assets-list",
+      "cem": "examples/cem-ml/assets-list.cem",
+      "html": "examples/semantic/assets-list.html"
+    },
+    {
+      "id": "message-thread",
+      "cem": "examples/cem-ml/message-thread.cem",
+      "html": "examples/semantic/message-thread.html"
+    }
+  ]
+}

@@ -1,0 +1,12 @@
+
+[workspace]
+resolver = '2'
+members = [
+	'packages/cem_ml',
+	'packages/cem_ml_cli',
+	'packages/cem_ql',
+	'packages/cem_ml/grammar/tree-sitter-cem',
+]
+
+[profile.release]
+lto = true

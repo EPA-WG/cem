@@ -9,6 +9,8 @@ on:
 
 env:
   FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: true
+  CEM_ML_SCHEMA_PARITY_REQUIRED: '1'
+  TRANG_NATIVE_REQUIRE_PREBUILT: '1'
 
 jobs:
   ci:
@@ -28,8 +30,30 @@ jobs:
           node-version: 24
           cache: yarn
 
+      - name: Install Rust toolchain
+        uses: dtolnay/rust-toolchain@stable
+        with:
+          components: rustfmt, clippy
+          targets: wasm32-unknown-unknown
+
+      - name: Cache Rust
+        uses: Swatinem/rust-cache@v2
+        with:
+          workspaces: ". -> dist/target"
+
+      - name: Install wasm-bindgen-cli
+        uses: taiki-e/install-action@v2
+        with:
+          tool: wasm-bindgen-cli@0.2.122
+
       - name: Install dependencies
         run: yarn install --immutable
+
+      - name: Install xmllint
+        run: sudo apt-get update && sudo apt-get install -y --no-install-recommends libxml2-utils
+
+      - name: Resolve native Trang
+        run: yarn nx run @epa-wg/trang-native:build
 
       - name: Install Playwright Chromium
         run: npx playwright install --with-deps chromium
@@ -37,10 +61,16 @@ jobs:
       - name: Validate UTF-8 encoding
         run: yarn validate:utf8
 
+      - name: Run fitness-function gates
+        run: |
+          yarn nx run-many -t fitness-removal-scan fitness-semver-presence fitness-gate-map
+          yarn nx run cem_ml_cli:validate-fixtures
+          yarn nx run cem_ml_cli:e2e
+
       - name: Derive Nx SHAs
         uses: nrwl/nx-set-shas@v4
         with:
           main-branch-name: main
 
       - name: Run affected targets
-        run: yarn nx affected -t lint test build typecheck e2e-ci
+        run: yarn nx affected -t lint test test:unit build typecheck e2e-ci

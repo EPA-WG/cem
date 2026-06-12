@@ -1,0 +1,23 @@
+@doc cem-ml 1
+@ns cem = "https://cem.dev/ns/core/1"
+@ns html = "http://www.w3.org/1999/xhtml"
+@default html
+
+{main @cem:screen="assets" @aria-labelledby="assets-title" |
+  {h1 @id="assets-title" | Assets}
+  {form @cem:form="asset-filter" @role=search |
+    {label @for="asset-query" | Search assets}
+    {input @id="asset-query" @name=q @type=search}
+    {button @type=submit @cem:action=secondary | Search}
+  }
+  {ul @cem:list="assets" |
+    {li @cem:row="asset" |
+      {a @href="/assets/1001" | Design token report}
+      {span @cem:badge=info | PDF}
+    }
+    {li @cem:row="asset" |
+      {a @href="/assets/1002" | Theme export bundle}
+      {span @cem:badge=success | JSON}
+    }
+  }
+}

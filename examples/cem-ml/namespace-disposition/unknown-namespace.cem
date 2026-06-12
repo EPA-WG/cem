@@ -1,0 +1,19 @@
+@doc cem-ml 1
+@ns cem = "https://cem.dev/ns/core/1"
+@ns html = "http://www.w3.org/1999/xhtml"
+@ns widget = "urn:example:widgets:1"
+@default html
+
+// AC-P-V-6 — unknown-namespace policy determinism.
+//
+// `main` and `p` are in the default HTML namespace and `cem:screen` is the
+// core annotation — all known Tier A namespaces, resolved natively. The
+// `widget:gauge` element resolves to `urn:example:widgets:1`, which has no
+// metadata, no explicit schema, and no rule: it is an unresolved-namespace
+// region. The effective run mode selects its disposition (reject / allow /
+// ignore) per AC-P-6.7; the integration test drives this fixture under each
+// mode and asserts the deterministic outcome.
+{main @cem:screen="ns-disposition" |
+  {p | A known-namespace element resolves natively.}
+  {widget:gauge | unresolved-namespace region}
+}

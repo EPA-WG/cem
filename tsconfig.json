@@ -1,13 +1,16 @@
 {
-  "extends": "./tsconfig.base.json",
-  "compileOnSave": false,
-  "files": [],
-  "references": [
-    {
-      "path": "./packages/cem-theme"
-    },
-    {
-      "path": "./packages/cem-components"
-    }
-  ]
+    "extends": "./tsconfig.base.json",
+    "compileOnSave": false,
+    "files": [],
+    "references": [
+        {
+            "path": "./packages/cem-theme"
+        },
+        {
+            "path": "./packages/cem-components"
+        },
+        {
+            "path": "./packages/cem-elements"
+        }
+    ]
 }

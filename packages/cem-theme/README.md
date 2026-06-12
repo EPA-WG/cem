@@ -98,6 +98,16 @@ nx run @epa-wg/cem-theme:lint
 
 `build:tokens` depends on `build:css`. `build:token-platforms` depends on `build:tokens`.
 
+> **Generator path converted (0.1.0):** all CSS generators in `src/lib/css-generators/*.html` have been
+> **converted off** the legacy browser-native XSLT 1.0 / XPath runtime — they now author against the
+> CEM-ML / CEM-QL substrate (`<template type="cem-ml; version=0.0">`). No XSLT generator ships in this
+> package any more. **The generated CSS in `dist/lib/css/*.css` is unchanged**, so consumers who only
+> `<link>` the stylesheets are unaffected — only anyone who forked or embedded the old generator HTML
+> needs to adopt the substrate. (The native browser XSLT *engine* is retired from the
+> `@epa-wg/custom-element` adapter in 0.1.0; legacy HTML+XSLT templates there still work — transpiled
+> to CEM-ML and rendered on the substrate engine.) See
+> [release-readiness 0.1.0 §4](../../docs/release-readiness-0.1.0.md).
+
 ## Key paths
 
 | Purpose                                       | Path                                |

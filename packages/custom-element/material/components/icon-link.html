@@ -1,0 +1,161 @@
+<!DOCTYPE html>
+<html lang="en" xmlns:xsl="http://www.w3.org/1999/XSL/Transform" xmlns:xhtml="http://www.w3.org/1999/xhtml">
+<head>
+    <meta charset="UTF-8">
+    <meta content="text/html; charset=utf-8" http-equiv="Content-Type"/>
+    <title>Components - custom-element - Material Design</title>
+    <link href="../../custom-element/demo/wc-square.svg" rel="icon"/>
+    <link href="https://fonts.googleapis.com/icon?family=Material+Icons" rel="stylesheet"/>
+    <link crossorigin="anonymous" href="https://use.fontawesome.com/releases/v5.15.4/css/all.css"
+          integrity="sha384-DyZ88mC6Up2uqS4h/KRgHuoeGwBcD4Ng9SiP4dIRy0EXTlnuz47vAwmeGwVChigm" rel="stylesheet"/>
+
+    <script type="importmap">
+        {
+          "imports": {
+            "@epa-wg/": "../../"
+          }
+        }
+    </script>
+    <script src="../../custom-element/module-url.js" type="module"></script>
+    <script src="../../custom-element/custom-element.js" type="module"></script>
+    <style>
+        @import "../angular.css";
+        @import "../material.css";
+        @import "../theme/semantic.css";
+        @import "../demo.css";
+        main{
+            display: flex; flex-wrap: wrap;
+            gap: 3rem;
+            padding: 5rem;
+            &>p{ min-width: 90%; }
+            html-demo-element
+            {   overflow: visible;
+                [slot="legend"]{ border-radius: 1rem 1rem 0 0; }
+                [slot="description"]{ padding: 0 1rem 1rem 1rem; dd{ padding: 0 !important;margin: 0; }}
+                [slot="description"] dd{ padding: 0; }
+            }
+        }
+    </style>
+</head>
+
+<body>
+<template id="cem-icon-link">
+    <attribute name="href"></attribute>
+    <attribute name="icon"></attribute>
+    <attribute aria-description="color appearance. Default value is 'normal'. Values: normal|primary|secondary|alert|blend"
+               name="kind"></attribute>
+    <style>
+        &:not([kind]) a, &[kind="normal"] a {
+            /*background-color: var(--mdc-theme-primary, #6200ee);*/
+        }
+
+        a {
+            display: inline-flex;
+            align-items: center;
+            gap: 0.5rem;
+            padding: 0.5rem 1rem;;
+            border-radius: 1.5rem;
+
+            background-color: var(--cem-action-primary-background);
+            transition: var(--cem-action-transition);
+            box-shadow: var(--cem-action-box-shadow);
+
+            &:hover {
+                background-color: var(--cem-action-primary-background-hover);
+                box-shadow: var(--cem-action-box-shadow-hover);
+            }
+
+            &:focus {
+                background-color: var(--cem-action-primary-background-focus);
+            }
+
+            &:active, &:focus:active {
+                background-color: var(--cem-action-primary-background-active);
+            }
+
+            &, &:visited {
+                text-decoration: none;
+                color: var(--mat-light-blue-900);
+            }
+            --icon-size: 2rem;
+            min-height: var(--icon-size);
+        }
+
+        .icon {
+            font-size: var(--icon-size);
+            height: var(--icon-size);
+        }
+
+    </style>
+    <a href="{$href}">
+        <choose>
+            <when test="contains($icon,'/')"><img alt="DCE logo" class="icon" src="{$icon}"/></when>
+            <when test="contains($icon,'fa-')"><i class="icon {$icon}"></i></when>
+            <when test="$icon"><span class="icon material-icons">{$icon}</span></when>
+        </choose>
+        <slot></slot>
+    </a>
+</template>
+
+<custom-element hidden src="#cem-icon-link" tag="cem-icon-link"></custom-element>
+
+<header class="cem-theme-teal">
+    <custom-element src="../index.html#nav-head" ></custom-element>
+</header>
+<main>
+    <p><code>cem-icon-link</code> is button like component from &lt;custom-element&gt; Material suite based on the
+        <a href="https://material.io/components" >Material Design specification</a>.
+    </p>
+    <p>
+        <code>direction</code> attribute defines css <code>row</code> or <code>column</code> flex-direction.
+    </p>
+
+
+<html-demo-element legend="Image from importmap module"
+                   description="logo SVG with link to file in module">
+    <template>
+        <custom-element>
+            <template>
+                <module-url slice="cem-url" src="@epa-wg/material"></module-url>
+                <module-url slice="logo-url" src="@epa-wg/custom-element/demo/wc-square.svg"></module-url>
+                <cem-icon-link href="{//cem-url}/" icon="{//logo-url}"> custom-element</cem-icon-link>
+                <cem-icon-link icon="https://unpkg.com/pokeapi-sprites@2.0.2/sprites/pokemon/other/dream-world/1.svg">
+                    bulbasaur</cem-icon-link>
+            </template>
+        </custom-element>
+    </template>
+</html-demo-element>
+
+<html-demo-element legend="Google Material icon font" >
+    <p slot="description">
+        <a href="https://fonts.google.com/icons">Material Icon</a> example.
+    </p>
+    <template>
+        <cem-icon-link icon="recycling"> recycling</cem-icon-link>
+        <cem-icon-link icon="shopping_cart"> shopping_cart</cem-icon-link>
+    </template>
+</html-demo-element>
+
+<html-demo-element legend="Fontawesome" >
+    <p slot="description">
+        <a href="https://fontawesome.com/icons/">Fontawesome Icon</a> example.
+    </p>
+    <template>
+        <cem-icon-link icon="fab fa-github" > GitHub </cem-icon-link>
+        <cem-icon-link icon="fas fa-cloud-upload-alt" > Upload </cem-icon-link>
+    </template>
+</html-demo-element>
+
+
+
+
+
+</main>
+<footer>
+    <hr/>
+    <a href="../../LICENSE"> Code and documentation licensed under an Apache License 2.0 </a>
+</footer>
+<script type="module" src="https://unpkg.com/html-demo-element@1.0.8/html-demo-element.js"></script>
+
+</body>
+</html>

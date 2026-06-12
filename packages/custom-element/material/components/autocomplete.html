@@ -1,0 +1,168 @@
+<!DOCTYPE html>
+<html lang="en" xmlns:xsl="http://www.w3.org/1999/XSL/Transform" xmlns:xhtml="http://www.w3.org/1999/xhtml">
+<head>
+    <meta charset="UTF-8">
+    <meta content="text/html; charset=utf-8" http-equiv="Content-Type"/>
+    <title>Components - custom-element - Material Design</title>
+    <link href="../../custom-element/demo/wc-square.svg" rel="icon"/>
+    <link href="https://fonts.googleapis.com/icon?family=Material+Icons" rel="stylesheet"/>
+    <link crossorigin="anonymous" href="https://use.fontawesome.com/releases/v5.15.4/css/all.css"
+          integrity="sha384-DyZ88mC6Up2uqS4h/KRgHuoeGwBcD4Ng9SiP4dIRy0EXTlnuz47vAwmeGwVChigm" rel="stylesheet"/>
+
+    <script type="importmap">
+        {
+          "imports": {
+            "@epa-wg/": "../../"
+          }
+        }
+    </script>
+    <script src="../../custom-element/module-url.js" type="module"></script>
+    <script src="../../custom-element/custom-element.js" type="module"></script>
+    <style>
+        @import "../angular.css";
+        @import "../material.css";
+        @import "../theme/semantic.css";
+        @import "../demo.css";
+        main{
+            display: flex; flex-wrap: wrap;
+            gap: 3rem;
+            padding: 5rem;
+            &>p{ min-width: 90%; }
+            html-demo-element{flex:1; width: 100%; }
+        }
+    </style>
+</head>
+
+<body>
+<custom-element tag="cem-icon-link" hidden src="./icon-link.html#cem-icon-link" ></custom-element>
+<custom-element tag="cem-input"     hidden src="./input.html#cem-input" ></custom-element>
+<custom-element tag="cem-menu"      hidden src="./menu.html#cem-menu"></custom-element>
+
+
+<header class="cem-theme-teal">
+    <custom-element src="../index.html#nav-head" ></custom-element>
+</header>
+<main>
+    <p><code>cem-autocomplete</code> is autocomplete component from &lt;custom-element&gt; Material suite based on the
+        <a href="https://material.io/components" >Material Design specification</a>.
+    </p>
+
+    <custom-element tag="cem-autocomplete" hidden>
+        <template>
+            <!-- cem-input attributes -->
+            <attribute name="value"   select="//selected[//selected/event] ?? //attributes/@value" ></attribute>
+            <attribute name="name"           ></attribute>
+            <attribute name="type"           ></attribute>
+            <attribute name="autocapitalize" ></attribute>
+            <attribute name="disabled"       ></attribute>
+            <attribute name="multiple"       ></attribute>
+            <attribute name="readonly"       ></attribute>
+            <attribute name="required"       ></attribute>
+            <attribute name="incremental"    ></attribute>
+            <attribute name="max"            ></attribute>
+            <attribute name="maxlength"      ></attribute>
+            <attribute name="min"            ></attribute>
+            <attribute name="minlength"      ></attribute>
+            <attribute name="size"           ></attribute>
+            <attribute name="step"           ></attribute>
+            <attribute name="tabindex"       ></attribute>
+            <attribute name="autocomplete"   ></attribute>
+            <attribute name="form"           ></attribute>
+            <attribute name="id"             ></attribute>
+            <attribute name="list"           ></attribute>
+            <attribute name="pattern"        ></attribute>
+            <attribute name="placeholder"    ></attribute>
+            <attribute name="title"          ></attribute>
+            <attribute name="leading"       aria-description="leading icon"  ></attribute>
+            <attribute name="trailing"      aria-description="trailing icon" ></attribute>
+            <attribute name="label"         aria-description="label text"    ></attribute>
+            <attribute name="supporting"    aria-description="Supporting text"    ></attribute>
+            <style>
+                &
+                {
+                }
+            </style>
+            <slot name="input"><cem-input></cem-input></slot>
+            <slot name="menu"><cem-menu></cem-menu></slot>
+        </template>
+    </custom-element>
+
+<html-demo-element legend="No value" description="Focus to see the cursor in input with label shifted upward ">
+    <template>
+<cem-autocomplete label="String field" ></cem-autocomplete>
+    </template>
+</html-demo-element>
+
+<html-demo-element legend="No value with placeholder" description="focus to see the placeholder text">
+    <template>
+<cem-autocomplete label="Number" type="number" placeholder="Enter the numeric value"></cem-autocomplete>
+    </template>
+</html-demo-element>
+
+<html-demo-element legend="Value defined" description="The value should be visible" >
+    <template>
+<cem-autocomplete label="Text" type="text" value="abc"></cem-autocomplete>
+    </template>
+</html-demo-element>
+
+<html-demo-element legend="No initial value with placeholder" >
+    <div slot="description"><code>data value="xxx</code> for selection item uses <code>data</code> attribute for value </div>
+    <template>
+<cem-autocomplete label="Fruits and berries" type="text" placeholder="Enter the fruit name">
+    <data value="apple"      > 🍎 Apple        </data>
+    <data value="strawberry" > 🍓 Strawberry   </data>
+    <data value="pineapple"  > 🍍 Pineapple    </data>
+</cem-autocomplete>
+    </template>
+</html-demo-element>
+
+<html-demo-element legend="Number, No initial value without placeholder" description="label takes the space till input is focused" >
+    <template>
+<cem-autocomplete label="Number" type="number" >
+    <data value="1">One       </data>
+    <data value="2">Two       </data>
+    <data value="3">Three     </data>
+</cem-autocomplete>
+    </template>
+</html-demo-element>
+
+
+<html-demo-element legend="Options text as value" description="The value is same as text" >
+    <template>
+<cem-autocomplete label="Dinosaur" type="text" >
+        <option>Tyrannosaurus    </option>
+        <option>Sauropod         </option>
+        <option>Velociraptor     </option>
+</cem-autocomplete>
+    </template>
+</html-demo-element>
+
+<html-demo-element legend="Options Grouping" description="filter within eac group, empty groups are hidden" >
+    <template>
+<cem-autocomplete label="Number" type="text" >
+    <optgroup label="🦖 Theropods">
+        <option>Tyrannosaurus    </option>
+        <option>Sauropod         </option>
+        <option>Velociraptor     </option>
+        <option>Deinonychus      </option>
+    </optgroup>
+    <optgroup label="🦕 Sauropods">
+        <option>Diplodocus      </option>
+        <option>Saltasaurus     </option>
+        <option>Apatosaurus     </option>
+    </optgroup>
+</cem-autocomplete>
+    </template>
+</html-demo-element>
+
+
+</main>
+<footer>
+    <hr/>
+    <a href="../../LICENSE"> Code and documentation licensed under an Apache License 2.0 </a>
+</footer>
+<!--<script type="module" src="./html-demo-element.js"></script>-->
+<script type="module" src="https://unpkg.com/html-demo-element@1/html-demo-element.js"></script>
+
+</body>
+</html>

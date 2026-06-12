@@ -1,0 +1,31 @@
+<!doctype html>
+<html lang="en">
+    <head>
+        <meta charset="utf-8" />
+        <title>custom-element dist browser smoke fixture</title>
+    </head>
+    <body>
+        <custom-element tag="fixture-card" hidden>
+            <template>
+                <h3>{title}</h3>
+                <p><slot>empty</slot></p>
+            </template>
+        </custom-element>
+
+        <fixture-card title="Smoke">
+            <span>Payload</span>
+        </fixture-card>
+
+        <custom-element class="inline-fixture">
+            <template>
+                <strong>{class}</strong>
+            </template>
+        </custom-element>
+
+        <script type="module">
+            import { runCustomElementSmoke } from './browser-smoke.js';
+
+            window.__customElementFixture = await runCustomElementSmoke('../dist');
+        </script>
+    </body>
+</html>

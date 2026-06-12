@@ -1,0 +1,12 @@
+# Build artefacts — produced by scripts/build-* and dropped on `nx reset`.
+build/
+dist/
+
+# Native binary downloaded by postinstall (consumers only) or symlinked
+# in by local builds (developers).
+bin/native/
+
+# Reflect-config produced by `native-image-agent` runs against the JAR.
+# We commit the *seed* configs under reflect-config/ but ignore any
+# agent-overwrite scratch.
+reflect-config/.agent-scratch/

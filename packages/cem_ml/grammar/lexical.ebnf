@@ -1,0 +1,71 @@
+(* CEM-ML Lexical Grammar — Tier A *)
+(* Source-of-truth markdown: ../schema/cem-core.md *)
+(* Rust tokenizer mirror: ../src/tokenizer/cem.rs *)
+(* Document syntax reference: ../../../docs/cem-ml-syntax.md *)
+(*                                                                            *)
+(* This file is the machine-readable lexical surface. Every production maps   *)
+(* to a `SchemaTokenKind` variant in the Rust tokenizer. The sync test in     *)
+(* `src/tokenizer/cem.rs::tests::grammar_token_kinds_match_lexical_grammar`   *)
+(* verifies the EBNF lists every kind the tokenizer can emit.                 *)
+
+document         = directive , { directive } , { item } ;
+fragment         = { directive } , { item } ;
+
+item             = node
+                 | expression_node
+                 | anonymous_scope
+                 | directive
+                 | comment
+                 | rich_content
+                 | text ;
+
+node             = "{" , qname , { attribute } , [ content_boundary ] , { item } , "}" ;
+expression_node  = "{" , "$" , [ content_boundary ] , expression_body , "}" ;
+anonymous_scope  = "{" , attribute , { attribute } , [ content_boundary ] , { item } , "}" ;
+
+attribute        = "@" , qname , [ "=" , value ] ;
+value            = bare_value
+                 | quoted_string
+                 | cem_ql_span ;
+
+bare_value       = name_continue , { name_continue } ;
+quoted_string    = '"' , { quoted_char_double } , '"'
+                 | "'" , { quoted_char_single } , "'" ;
+cem_ql_span      = "{" , { cem_ql_char | balanced_braces } , "}" ;
+
+content_boundary = "|" | "▷" ;      (* `▷` Unicode equivalent *)
+
+directive        = "@" , name , { non_newline } , ( "\n" | end_of_input ) ;
+                 (* Tier A canonical names: doc, ns, default, schema *)
+
+comment          = "//" , { non_newline } , ( "\n" | end_of_input )
+                 | "/*" , { comment_inner } , "*/" ;
+
+rich_content     = "```" , { rich_char } , "```" ;
+
+text             = text_char , { text_char } ;
+                 (* In content plane only; never starts with `{`, `}`, "`" *)
+
+qname            = [ name , ":" ] , name ;
+name             = name_start , { name_continue } ;
+name_start       = letter | "_" ;
+name_continue    = letter | digit | "_" | "-" ;
+expression_body  = { cem_ql_char | balanced_braces } ;
+balanced_braces  = "{" , { cem_ql_char | balanced_braces } , "}" ;
+
+(* Terminal byte/scalar classes. *)
+letter           = ? Unicode alphabetic scalar ? ;
+digit            = ? Unicode numeric scalar ? ;
+non_newline      = ? any scalar except U+000A ? ;
+text_char        = ? any scalar except "{" | "}" | "`" | "/" ? ;
+quoted_char_double = ? any scalar except '"' ? ;
+quoted_char_single = ? any scalar except "'" ? ;
+cem_ql_char      = ? any scalar except "{" | "}" ? ;
+rich_char        = ? any scalar except triple-backtick ? ;
+comment_inner    = ? any scalar except "*" "/" pair ? ;
+end_of_input     = ? EOF marker ? ;
+
+(* Token-kind cross-reference (must match SchemaTokenKind in src/tokenizer.rs): *)
+(*   NodeStart, NodeEnd, Attribute, Text, Trivia, Comment,                      *)
+(*   ProcessingInstruction, ExpressionNode, AnonymousScopeStart, Directive,     *)
+(*   RichContent, Error                                                          *)

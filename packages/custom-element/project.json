@@ -1,0 +1,82 @@
+{
+    "name": "@epa-wg/custom-element",
+    "$schema": "../../node_modules/nx/schemas/project-schema.json",
+    "sourceRoot": "packages/custom-element",
+    "projectType": "library",
+    "targets": {
+        "build": {
+            "executor": "nx:run-commands",
+            "dependsOn": [
+                { "projects": ["cem-elements"], "target": "build" },
+                { "projects": ["cem_ql"], "target": "build:wasm" }
+            ],
+            "options": {
+                "command": "node scripts/build-package.mjs",
+                "cwd": "packages/custom-element"
+            },
+            "cache": true,
+            "inputs": [
+                "{projectRoot}/bin/**/*",
+                "{projectRoot}/demo/**/*",
+                "{projectRoot}/docs/**/*",
+                "{projectRoot}/ide/**/*",
+                "{projectRoot}/*.js",
+                "{projectRoot}/*.d.ts",
+                "{projectRoot}/*.html",
+                "{projectRoot}/*.md",
+                "{projectRoot}/LICENSE",
+                "{projectRoot}/package.json",
+                "{projectRoot}/scripts/build-package.mjs",
+                "{workspaceRoot}/packages/cem-elements/src/**/*",
+                "{workspaceRoot}/packages/cem-elements/package.json",
+                "{workspaceRoot}/packages/cem-elements/tsconfig.lib.json",
+                "{workspaceRoot}/packages/cem-elements/dist/**/*",
+                "{workspaceRoot}/packages/cem_ql/src/**/*",
+                "{workspaceRoot}/packages/cem_ql/Cargo.toml",
+                "{workspaceRoot}/packages/cem_ql/dist/wasm/**/*"
+            ],
+            "outputs": ["{projectRoot}/dist"]
+        },
+        "test": {
+            "dependsOn": ["build"],
+            "executor": "nx:run-commands",
+            "options": {
+                "commands": [
+                    "node scripts/verify-package-baseline.mjs",
+                    "node scripts/verify-browser-fixtures.mjs"
+                ],
+                "parallel": false,
+                "cwd": "packages/custom-element"
+            },
+            "cache": true,
+            "inputs": [
+                "{projectRoot}/dist/**/*",
+                "{projectRoot}/scripts/verify-package-baseline.mjs",
+                "{projectRoot}/scripts/verify-browser-fixtures.mjs",
+                "{projectRoot}/test-fixtures/**/*.json",
+                "{projectRoot}/test-fixtures/**/*",
+                "{projectRoot}/material/**/*",
+                "{projectRoot}/package.json"
+            ],
+            "outputs": []
+        },
+        "lint": {
+            "dependsOn": ["test"],
+            "executor": "nx:run-commands",
+            "options": {
+                "command": "node scripts/verify-package-baseline.mjs",
+                "cwd": "packages/custom-element"
+            },
+            "outputs": []
+        },
+        "verify": {
+            "dependsOn": ["build", "test", "lint"],
+            "executor": "nx:run-commands",
+            "options": {
+                "command": "echo \"custom-element package scaffold verified.\"",
+                "cwd": "{workspaceRoot}"
+            },
+            "outputs": []
+        }
+    }
+}

@@ -1,0 +1,20 @@
+@epa-wg/trang-native
+====================
+
+This package distributes a native (GraalVM-compiled) build of Trang, a
+RELAX NG / DTD / XSD schema converter originally authored by
+James Clark and currently maintained by the relaxng community at
+https://github.com/relaxng/jing-trang.
+
+Upstream Trang source is licensed under the 2-clause BSD license; the
+full text is in LICENSE. This package's wrapper scripts (under
+scripts/, src/, bin/trang.mjs) are also released under the 2-clause
+BSD license to keep the distribution license-uniform.
+
+Each released binary is built by GitHub Actions from a pinned upstream
+revision recorded in upstream.json. The build provenance — runner OS,
+runner arch, GraalVM version, jing-trang commit SHA — is stamped into
+the release notes and into the per-archive metadata.json sidecar.
+
+Trang itself does not bundle a JRE in the GraalVM native-image build;
+no Java runtime is required on consumer machines.

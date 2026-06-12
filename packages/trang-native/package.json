@@ -1,0 +1,49 @@
+{
+  "name": "@epa-wg/trang-native",
+  "version": "0.1.0",
+  "description": "Native (GraalVM-compiled) Trang binary for RELAX NG / XSD / DTD conversion. Used by cem-ml schema-emit verification fixtures and any consumer that wants Trang without a JRE.",
+  "license": "BSD-2-Clause",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/EPA-WG/cem.git",
+    "directory": "packages/trang-native"
+  },
+  "type": "module",
+  "main": "./src/index.mjs",
+  "exports": {
+    ".": "./src/index.mjs",
+    "./package.json": "./package.json"
+  },
+  "bin": {
+    "trang": "./bin/trang.mjs"
+  },
+  "files": [
+    "bin/",
+    "scripts/postinstall.mjs",
+    "scripts/verify-checksum.mjs",
+    "scripts/lib/",
+    "src/",
+    "LICENSE",
+    "NOTICE",
+    "README.md"
+  ],
+  "scripts": {
+    "postinstall": "node scripts/postinstall.mjs"
+  },
+  "engines": {
+    "node": ">=20"
+  },
+  "keywords": [
+    "trang",
+    "relax-ng",
+    "rng",
+    "rnc",
+    "xsd",
+    "dtd",
+    "schema",
+    "graalvm",
+    "native-image",
+    "cem-ml"
+  ],
+  "homepage": "https://github.com/EPA-WG/cem/tree/main/packages/trang-native#readme"
+}

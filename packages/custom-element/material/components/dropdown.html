@@ -1,0 +1,173 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta content="text/html; charset=utf-8" http-equiv="Content-Type"/>
+    <title>Components - custom-element - Material Design</title>
+    <link href="../../custom-element/demo/wc-square.svg" rel="icon"/>
+    <link href="https://fonts.googleapis.com/icon?family=Material+Icons" rel="stylesheet"/>
+    <link crossorigin="anonymous" href="https://use.fontawesome.com/releases/v5.15.4/css/all.css"
+          integrity="sha384-DyZ88mC6Up2uqS4h/KRgHuoeGwBcD4Ng9SiP4dIRy0EXTlnuz47vAwmeGwVChigm" rel="stylesheet"/>
+
+    <script type="importmap">
+        {
+          "imports": {
+            "@epa-wg/": "../../"
+          }
+        }
+    </script>
+    <script src="../../custom-element/module-url.js" type="module"></script>
+    <script src="../../custom-element/custom-element.js" type="module"></script>
+    <style>
+        @import "../angular.css";
+        @import "../material.css";
+        @import "../theme/semantic.css";
+        @import "../demo.css";
+
+        main {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 3rem;
+            padding: 5rem;
+
+            & > p {
+                min-width: 90%;
+            }
+
+            html-demo-element {
+                overflow: visible;
+
+                [slot="legend"] {
+                    border-radius: 1rem 1rem 0 0;
+                }
+
+                [slot="description"] {
+                    padding: 0 1rem 1rem 1rem;
+
+                    dd {
+                        padding: 0 !important;
+                        margin: 0;
+                    }
+                }
+
+                [slot="description"] dd {
+                    padding: 0;
+                }
+                [slot="demo"]{ min-height: 8rem; }
+            }
+        }
+    </style>
+</head>
+
+<body>
+<custom-element hidden src="./icon-link.html#cem-icon-link" tag="cem-icon-link"></custom-element>
+<custom-element hidden src="./menu.html#cem-menu" tag="cem-menu"></custom-element>
+
+<header class="cem-theme-teal">
+    <custom-element src="../index.html#nav-head"></custom-element>
+</header>
+<main>
+    <p><code>cem-dropdown</code> is popover component from &lt;custom-element&gt; Material suite based on the
+        <a href="https://material.io/components">Material Design specification</a>.
+    </p>
+    <p>The visibility of dropdown content is driven by <code>open</code> attribute</p>
+    <custom-element hidden tag="cem-dropdown">
+        <template id="cem-dropdown">
+            <attribute name="open"></attribute>
+            <attribute name="label"></attribute>
+            <style>
+                &[open="false"]>*>aside{  max-height: 0; }
+                &>* {
+                    position: relative;
+
+                    --cem-dropdown-shadow: 0px 3px 1px -2px rgba(0, 0, 0, .2), 0px 2px 2px 0px rgba(0, 0, 0, .14), 0px 1px 5px 0px rgba(0, 0, 0, .12);
+                    --cem-dropdown-max-height: 10rem;
+                    --cem-dropdown-base-min-width: 8em;
+
+                    & > label {
+                        min-width: var(--cem-dropdown-base-min-width);
+                        display: inline-block;
+                    }
+
+                    & > aside {
+                        position: absolute;
+                        left: 0;
+                        top: 100%;
+
+                        overflow: hidden;
+                        max-height: var(--cem-dropdown-max-height);
+                        transition: var(--cem-drop-transition);
+
+                        display: flex;
+                        flex-direction: column;
+
+                        border-radius: var(--cem-autocomplete-container-shape);
+                        border-top-left-radius: 0;
+                        border-top-right-radius: 0;
+                        box-shadow: var(--cem-dropdown-shadow);
+                    }
+                }
+            </style>
+            <slot name="base"><label>{$label}</label></slot>
+            <aside>
+                <slot name=""></slot>
+            </aside>
+        </template>
+    </custom-element>
+
+    <html-demo-element
+            legend="HTML in dropdown"
+            description="any HTML payload is OK. The image is just for reference." >
+        <template>
+<cem-dropdown label="Image in drop" open="true">
+    <img src="../../custom-element/demo/confused.svg"/>
+</cem-dropdown>
+<hr/>
+<hr/>
+<hr/>
+<hr/>
+        </template>
+    </html-demo-element>
+
+    <html-demo-element legend="Menu in dropdown">
+        <template>
+<cem-dropdown label="Vertical menu" >
+    <cem-menu direction="column">
+        <a href="#">link 1</a>
+        <a href="#">link 2</a>
+        <a href="#">link 3</a>
+    </cem-menu>
+</cem-dropdown>
+        </template>
+    </html-demo-element>
+
+    <html-demo-element legend="Hide dropdown dynamically"
+                       description="open=false hides dropdown"
+                       >
+        <template>
+            <custom-element>
+                <template>
+<label><input slice="opened" type="checkbox" value="1" checked/>
+        open</label><br/>
+<cem-dropdown label="Vertical menu" open="{//opened='1'}">
+
+    <cem-menu direction="column">
+        <a href="#">link 1</a>
+        <a href="#">link 2</a>
+        <a href="#">link 3</a>
+    </cem-menu>
+</cem-dropdown>
+                </template>
+            </custom-element>
+        </template>
+    </html-demo-element>
+
+</main>
+<footer>
+    <hr/>
+    <a href="../../LICENSE"> Code and documentation licensed under an Apache License 2.0 </a>
+</footer>
+<script src="https://unpkg.com/html-demo-element@1/html-demo-element.js" type="module"></script>
+
+</body>
+</html>

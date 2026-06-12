@@ -7,6 +7,7 @@ on:
 
 env:
   FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: true
+  TRANG_NATIVE_REQUIRE_PREBUILT: '1'
 
 jobs:
   publish:
@@ -32,11 +33,30 @@ jobs:
           registry-url: https://registry.npmjs.org/
           cache: yarn
 
+      - name: Install Rust toolchain
+        uses: dtolnay/rust-toolchain@stable
+        with:
+          components: rustfmt, clippy
+          targets: wasm32-unknown-unknown
+
+      - name: Cache Rust
+        uses: Swatinem/rust-cache@v2
+        with:
+          workspaces: ". -> dist/target"
+
+      - name: Install wasm-bindgen-cli
+        uses: taiki-e/install-action@v2
+        with:
+          tool: wasm-bindgen-cli@0.2.122
+
       - name: Install dependencies
         run: yarn install --immutable
 
       - name: Install Playwright Chromium
         run: npx playwright install --with-deps chromium
+
+      - name: Resolve native Trang
+        run: yarn nx run @epa-wg/trang-native:build
 
       - name: Build packages
         run: yarn nx run-many -t build

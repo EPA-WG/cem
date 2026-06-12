@@ -1,0 +1,8 @@
+<!doctype html>
+<main xmlns:cem="https://cem.dev/ns/core/1" cem:screen="conversion" aria-labelledby="title">
+  <!-- conversion fixture -->
+  <h1 id="title">Conversion fixture</h1>
+  <cem:scope type="application/json">{"name":"{$.user}","ok":true}</cem:scope>
+  <cem:expr>.items[0].name</cem:expr>
+  <button disabled="{.busy}" aria-label="Hello {.name}">Save</button>
+</main>

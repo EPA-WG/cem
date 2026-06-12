@@ -1,0 +1,13 @@
+@doc cem-ml 1
+@ns cem = "https://cem.dev/ns/core/1"
+@ns html = "http://www.w3.org/1999/xhtml"
+@default html
+
+// Wrapping-form switch via cem-ql selector instead of URI literal:
+// `@select="..."` carries a cem-ql expression that picks the schema to
+// load. Tier A records the expression; cem-ql evaluation lands later.
+{main @cem:screen="example" |
+  {cem:schema @select=".schemas.active" |
+    {p | Content rendered against the schema selected by `.schemas.active`}
+  }
+}

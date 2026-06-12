@@ -1,0 +1,120 @@
+{
+    "name": "@epa-wg/trang-native",
+    "$schema": "../../node_modules/nx/schemas/project-schema.json",
+    "projectType": "library",
+    "sourceRoot": "packages/trang-native/src",
+    "tags": ["tooling", "schema-emit"],
+    "targets": {
+        "fetch-source": {
+            "executor": "nx:run-commands",
+            "cache": true,
+            "inputs": [
+                "{projectRoot}/scripts/fetch-source.mjs",
+                "{projectRoot}/upstream.json"
+            ],
+            "outputs": [
+                "{projectRoot}/build/source"
+            ],
+            "options": {
+                "command": "node scripts/fetch-source.mjs",
+                "cwd": "packages/trang-native"
+            }
+        },
+        "build-jar": {
+            "executor": "nx:run-commands",
+            "dependsOn": ["fetch-source"],
+            "cache": true,
+            "inputs": [
+                "{projectRoot}/build/source/**/*",
+                "{projectRoot}/scripts/build-jar.mjs"
+            ],
+            "outputs": [
+                "{projectRoot}/build/trang.jar"
+            ],
+            "options": {
+                "command": "node scripts/build-jar.mjs",
+                "cwd": "packages/trang-native"
+            }
+        },
+        "build": {
+            "executor": "nx:run-commands",
+            "cache": true,
+            "inputs": [
+                "{projectRoot}/package.json",
+                "{projectRoot}/scripts/acquire-binary.mjs",
+                "{projectRoot}/scripts/lib/native-binary.mjs",
+                "{projectRoot}/scripts/fetch-source.mjs",
+                "{projectRoot}/scripts/build-jar.mjs",
+                "{projectRoot}/scripts/build-native.mjs",
+                "{projectRoot}/upstream.json",
+                "{projectRoot}/reflect-config/**/*"
+            ],
+            "outputs": [
+                "{projectRoot}/build/native"
+            ],
+            "options": {
+                "command": "node scripts/acquire-binary.mjs",
+                "cwd": "packages/trang-native"
+            }
+        },
+        "build-from-source": {
+            "executor": "nx:run-commands",
+            "dependsOn": ["build-jar"],
+            "cache": true,
+            "inputs": [
+                "{projectRoot}/build/trang.jar",
+                "{projectRoot}/scripts/build-native.mjs",
+                "{projectRoot}/reflect-config/**/*"
+            ],
+            "outputs": [
+                "{projectRoot}/build/native"
+            ],
+            "options": {
+                "command": "node scripts/build-native.mjs",
+                "cwd": "packages/trang-native"
+            }
+        },
+        "build:linux-x86_64": {
+            "executor": "nx:run-commands",
+            "dependsOn": ["build-jar"],
+            "options": {
+                "command": "node scripts/build-native.mjs --target linux-x86_64",
+                "cwd": "packages/trang-native"
+            }
+        },
+        "build:linux-aarch64": {
+            "executor": "nx:run-commands",
+            "dependsOn": ["build-jar"],
+            "options": {
+                "command": "node scripts/build-native.mjs --target linux-aarch64",
+                "cwd": "packages/trang-native"
+            }
+        },
+        "build:windows-x86_64": {
+            "executor": "nx:run-commands",
+            "dependsOn": ["build-jar"],
+            "options": {
+                "command": "node scripts/build-native.mjs --target windows-x86_64",
+                "cwd": "packages/trang-native"
+            }
+        },
+        "build:macos-aarch64": {
+            "executor": "nx:run-commands",
+            "dependsOn": ["build-jar"],
+            "options": {
+                "command": "node scripts/build-native.mjs --target macos-aarch64",
+                "cwd": "packages/trang-native"
+            }
+        },
+        "package": {
+            "executor": "nx:run-commands",
+            "options": {
+                "command": "node scripts/package-binary.mjs",
+                "cwd": "packages/trang-native"
+            },
+            "outputs": [
+                "{projectRoot}/dist/**/*"
+            ]
+        }
+    }
+}

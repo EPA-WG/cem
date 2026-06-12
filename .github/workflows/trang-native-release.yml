@@ -1,0 +1,192 @@
+name: trang-native release
+
+# Triggered by tags of the form `trang-native-v<semver>`. Builds the
+# four-target matrix on GitHub-hosted runners (no cross-compile), then
+# attaches all archives + a top-level SHA256SUMS to the matching
+# GitHub Release.
+#
+# Each runner installs GraalVM + Ant, runs the per-target nx build, then
+# packages and uploads its single archive. The `assemble` job downloads
+# every per-target artifact, builds the SHA256SUMS file, and creates
+# (or updates) the GitHub Release.
+
+on:
+  push:
+    tags:
+      - 'trang-native-v*.*.*'
+  workflow_dispatch:
+    inputs:
+      version:
+        description: "Version tag suffix (without the `trang-native-v` prefix)"
+        required: true
+        type: string
+
+env:
+  FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: true
+  GRAALVM_JAVA_VERSION: '21'
+
+jobs:
+  build:
+    name: build (${{ matrix.target }})
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - target: linux-x86_64
+            runs-on: ubuntu-latest
+            archive_ext: tar.gz
+          - target: linux-aarch64
+            # GitHub-hosted arm64 Linux runners (public preview / GA
+            # depending on org settings). Falls back to a self-hosted
+            # arm64 runner via the `larger-runners` label if available.
+            runs-on: ubuntu-24.04-arm
+            archive_ext: tar.gz
+          - target: windows-x86_64
+            runs-on: windows-latest
+            archive_ext: zip
+          - target: macos-aarch64
+            runs-on: macos-14
+            archive_ext: tar.gz
+    runs-on: ${{ matrix.runs-on }}
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up GraalVM
+        uses: graalvm/setup-graalvm@v1
+        with:
+          java-version: ${{ env.GRAALVM_JAVA_VERSION }}
+          distribution: graalvm
+          github-token: ${{ secrets.GITHUB_TOKEN }}
+          # No `cache:` — Trang is Ant-built, not Maven; the action's
+          # `cache: maven` mode fails fast when no pom.xml is present.
+
+      - name: Set up Apache Ant
+        if: runner.os != 'Windows'
+        run: |
+          if ! command -v ant >/dev/null 2>&1; then
+            case "${{ runner.os }}" in
+              Linux)
+                sudo apt-get update
+                sudo apt-get install -y ant
+                ;;
+              macOS)
+                brew install ant
+                ;;
+            esac
+          fi
+          ant -version
+
+      - name: Set up Apache Ant (Windows)
+        if: runner.os == 'Windows'
+        run: |
+          choco install ant -y --no-progress
+          ant -version
+
+      - name: Use Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 24
+          # No `cache: yarn` — setup-node runs `yarn cache dir` with the
+          # runner's bundled yarn 1.x before Corepack flips us to yarn
+          # 4.x, which fails on the `packageManager` mismatch. The
+          # install step is short relative to native-image, so the
+          # cache miss is cheap.
+
+      - name: Enable Corepack
+        run: corepack enable
+
+      - name: Install dependencies
+        run: yarn install --immutable
+        env:
+          TRANG_NATIVE_SKIP_DOWNLOAD: '1'
+
+      - name: Fetch Trang source
+        run: yarn nx run @epa-wg/trang-native:fetch-source
+
+      - name: Build trang.jar
+        run: yarn nx run @epa-wg/trang-native:build-jar
+
+      - name: Build native binary
+        run: yarn nx run @epa-wg/trang-native:build:${{ matrix.target }}
+
+      - name: Package archive
+        run: |
+          node packages/trang-native/scripts/package-binary.mjs --target ${{ matrix.target }}
+
+      - name: Upload archive
+        uses: actions/upload-artifact@v4
+        with:
+          name: trang-${{ matrix.target }}
+          path: |
+            packages/trang-native/dist/trang-${{ matrix.target }}.${{ matrix.archive_ext }}
+            packages/trang-native/dist/trang-${{ matrix.target }}.${{ matrix.archive_ext }}.sha256
+          if-no-files-found: error
+          retention-days: 7
+
+  assemble:
+    name: assemble release
+    needs: build
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Download all archives
+        uses: actions/download-artifact@v4
+        with:
+          path: artifacts
+          pattern: trang-*
+
+      - name: Flatten and build SHA256SUMS
+        run: |
+          mkdir -p release
+          find artifacts -type f \( -name '*.tar.gz' -o -name '*.zip' -o -name '*.sha256' \) -exec cp {} release/ \;
+          cd release
+          : > SHA256SUMS
+          for archive in trang-*.tar.gz trang-*.zip; do
+            [ -e "$archive" ] || continue
+            sha256sum "$archive" >> SHA256SUMS
+          done
+          echo '--- release contents ---'
+          ls -la
+          echo '--- SHA256SUMS ---'
+          cat SHA256SUMS
+
+      - name: Resolve release tag
+        id: tag
+        run: |
+          if [ "${{ github.event_name }}" = 'workflow_dispatch' ]; then
+            echo "name=trang-native-v${{ inputs.version }}" >> "$GITHUB_OUTPUT"
+          else
+            echo "name=${GITHUB_REF_NAME}" >> "$GITHUB_OUTPUT"
+          fi
+
+      - name: Create / update GitHub Release
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: ${{ steps.tag.outputs.name }}
+          name: ${{ steps.tag.outputs.name }}
+          files: |
+            release/trang-*.tar.gz
+            release/trang-*.zip
+            release/trang-*.sha256
+            release/SHA256SUMS
+          body: |
+            Native Trang binaries (GraalVM `native-image`) for the four
+            Tier A platforms: `linux-x86_64`, `linux-aarch64`,
+            `windows-x86_64`, `macos-aarch64`.
+
+            Provenance:
+            - Upstream: see `packages/trang-native/upstream.json`
+            - Runner OS / GraalVM JDK version recorded in each
+              archive's `metadata.json`
+
+            Verify before use:
+            ```
+            shasum -a 256 -c SHA256SUMS
+            ```
+          generate_release_notes: false
+          fail_on_unmatched_files: true

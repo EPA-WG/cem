@@ -1,7 +1,7 @@
 # CEM Roadmap
 
-CEM should become a complete consumer-semantics design system: tokens, documentation, web components, native adapters,
-Figma assets, demos, and XML/HTML tooling that all prove the same model from different angles.
+CEM should become a complete consumer-semantics design system: tokens, documentation, schema-defined parser/runtime
+tooling, web components, native adapters, Figma assets, and demos that all prove the same model from different angles.
 
 This roadmap is intentionally higher level than `docs/todo.md`. Use this file to decide product/module order; use
 `docs/todo.md` for task-level execution.
@@ -12,9 +12,10 @@ This roadmap is intentionally higher level than `docs/todo.md`. Use this file to
 | ------ | ------- | ----------------------- |
 | CEM token/theme core | Canonical token specs, generated CSS, DTCG JSON, TypeScript metadata, and reports. | `packages/cem-theme` |
 | Native platform adapters | iOS Swift and Android Kotlin/Compose outputs generated from the same token spine. | `packages/cem-theme/dist/lib/token-platforms` |
-| CEM custom-element runtime | Declarative no-JS web component primitives built on `@epa-wg/custom-element`. | `packages/cem-components` |
+| CEM parser/runtime foundation | Schema-defined streaming parser layers: byte decoding, tokenization, normalized events, validation, AST/source maps, binary AST chunks, and implementation handoff. | `packages/cem_ml` |
+| CEM XML/HTML/XSLT CLI | CEM document schemas, XML/HTML profiles, Invisible XML/CSF profile experiments, DOM helpers, transforms, validation, and reports over the parser foundation. | `packages/cem_ml_cli` |
+| CEM custom-element substrate | Declarative no-JS runtime centered on `<cem-element>`: scoped data islands, event-to-data wiring, and light-DOM re-render from CEM-ML/CEM-QL templates. Staged in `@epa-wg/cem-elements`; edge/SSR and `@epa-wg/custom-element` adoption are follow-up phases after the browser substrate is stable. | `packages/cem-elements`, future `packages/custom-element` |
 | CEM component set | Material-style UI coverage expressed in CEM semantics: buttons, fields, lists, nav, cards, dialogs, tables, tabs, etc. | `packages/cem-components` |
-| CEM XML/HTML/XSLT library | Schema, parser, DOM helpers, transforms, and validation for declarative CEM documents. | future `packages/cem-dom` or `packages/cem-xml` |
 | Figma UI Kit | Designer-facing components, variants, variables, usage examples, and governance workflow. | `examples/figma`, future design artifacts |
 | CEM site | Public docs, token/component gallery, interactive examples, and release documentation wired from the repo root. | future `apps/cem-site` or static docs app |
 | Figma site demo | A realistic product demo: login, registration, profile, asset listing views, and threaded discussion. | future `examples/figma-site-demo` |
@@ -24,9 +25,13 @@ This roadmap is intentionally higher level than `docs/todo.md`. Use this file to
 
 1. Build the shared semantic spine before building demos.
 2. Generate platform outputs from source-of-truth tokens; do not hand-author native or Figma values.
-3. Prove components on the web before porting full UI examples into Figma/native.
-4. Use demos as integration tests, not as the first source of component behavior.
-5. Keep Angular Material as a reference benchmark for coverage and ergonomics, not as a required implementation
+3. Keep parser layers explicit: byte source, decoder, tokenizer, normalized event stream, schema machine, AST builder,
+   binary AST encoder, and implementation interpreter are separate contracts.
+4. Carry source-map stacks and byte offsets through every parser, transform, generated node, and runtime handoff.
+5. Treat embedded languages and mixed formats as scoped handoffs owned by the parent parser's return condition.
+6. Prove components on the web before porting full UI examples into Figma/native.
+7. Use demos as integration tests, not as the first source of component behavior.
+8. Keep Angular Material as a reference benchmark for coverage and ergonomics, not as a required implementation
    dependency unless an Angular adapter is explicitly scoped later.
 
 ## Phase 0 - Repo Spine And Docs
@@ -60,49 +65,158 @@ Deliverables:
 - iOS Swift output and Android XML/Kotlin output.
 - Validation for generated token modes, reports, native files, and package exports.
 
-Remaining gates:
+Remaining gates: none under Phase 1. Native toolchain compile gates (Swift, Kotlin/Compose) and the non-Figma
+token-change smoke test moved to [Phase 8 - Native Platform Packages](#phase-8---native-platform-packages) where the
+native artifacts they validate are owned. Figma-specific token validation moved to
+[Phase 5 - Figma UI Kit](#phase-5---figma-ui-kit) so the gate lands alongside the kit it validates.
 
-- Validate native Figma library variables in the CEM UI Kit.
-- Compile generated Swift with a supported Xcode toolchain.
-- Compile generated Kotlin/Compose with a supported Gradle toolchain.
-- Run a full token-change smoke test through CSS, JSON, Figma, Swift, and Android outputs.
+## Phase 2 - Schema-Defined Parser And Document Runtime
 
-## Phase 2 - XML/HTML/XSLT Schema, Parser, And DOM Library
-
-Goal: define the declarative document layer that CEM components and demos can share.
+Goal: define the schema-driven parsing and document layer that CEM components, transforms, docs, and demos can share.
 
 Deliverables:
 
-- CEM document schema for semantic screens, forms, navigation, lists, assets, profiles, and messages.
-- Parser from CEM XML/HTML into a typed DOM model.
-- DOM helper APIs for querying semantic roles, state, validation, and relationships.
-- XSLT transforms from semantic documents into light-DOM custom-element markup.
-- Validation reports for unknown elements, invalid state combinations, missing labels, broken references, and unsafe
-  content.
+- Layered runtime contract: byte source, encoding decoder, schema tokenizer, normalized event stream,
+  schema-compiled state machine, interpreter AST builder, and implementation interpreter.
+- CEM document schema for semantic screens, forms, navigation, lists, assets, profiles, messages, and embedded payloads.
+- XML/HTML parser profile using visibly nested events, source spans, and schema frames rather than DOM construction
+  inside the tokenizer.
+- Scoped embedded-language handoff model for HTML `style`/`script`, XML CDATA or schema-tagged text, CSF fields, JSON
+  string subdocuments, and future CSS/TypeScript/Rust-like regions.
+- Typed document AST/DOM helper APIs for querying semantic roles, state, validation, relationships, source maps, and
+  unresolved references.
+- Source-map stack contract that preserves byte offsets as ground truth and derives line/column or UTF-16 positions as
+  needed.
+- Binary AST and subtree chunking design for cache, transport, retry, and parallel preprocessing; implementation can
+  start with an uncompressed debug encoding.
+- XSLT or transform pipeline from validated semantic documents into light-DOM custom-element markup.
+- Validation reports for unknown elements, invalid state combinations, missing labels, broken references, unsafe
+  content, unsupported embedded-language handoffs, and non-streamable schema features.
 - Fixtures covering login, registration, profile, asset listing, and threaded discussion documents.
 
 Exit criteria:
 
-- A fixture CEM document can be parsed, validated, transformed to HTML, and rendered by the component runtime.
+- A fixture CEM document can be decoded, tokenized, normalized into events, schema-validated, mapped into a typed AST,
+  transformed to HTML, and rendered by the component runtime.
+- Every generated node can be traced back through the source-map stack to the original source bytes or to the transform
+  that generated it.
+- Embedded `style`, `script`, CDATA/text, and CSF-like field payloads either validate through explicit scoped handoffs
+  or produce actionable diagnostics.
 - The same fixture can feed docs/examples without copying business structure into multiple formats.
 
 ## Phase 3 - Custom-Element Runtime
 
-Goal: establish the reusable declarative web runtime before building the full component catalog.
+Goal: establish the reusable declarative web runtime before building the full component catalog. Phase 3 has two
+linked tracks: the **substrate** (`@epa-wg/cem-elements`) that delivers the `<cem-element>` declarative authoring tag,
+and the **primitives** (`@epa-wg/cem-components`) that consume it. Design home for the substrate is
+[`docs/cem-element-design.md`](docs/cem-element-design.md). WASM integration options for CEM-ML/CEM-QL template
+compilation, inline and URI declaration sources, streaming, worker-pool scheduling, and post-Phase-3 edge/SSR
+processing boundaries are proposed in
+[`docs/cem-element-wasm-proposal.md`](docs/cem-element-wasm-proposal.md).
+
+### 3.1 Substrate — `@epa-wg/cem-elements`
+
+Deliverables:
+
+- New `<cem-element>` declarative authoring tag, functional successor to `<custom-element>` from
+  `@epa-wg/custom-element`. Same concept (data island, event-to-data wiring, data-to-template re-render); template
+  surface lowers through `cem_ml` and expressions use CEM-QL instead of XPath.
+- WHATWG `<template>`-wrapped declaration and instance data islands. Declaration content, captured author payload,
+  slices, event payloads, and validation state stay associated with the component scope but are inert to the browser
+  rendering engine; only the rendered projection is visible after upgrade.
+- Migration-readiness contract for the future `@epa-wg/custom-element` adoption phase. Phase 3 proves the
+  `cem-element` substrate and compatibility fixtures, but it does not move `@epa-wg/custom-element` into this
+  monorepo or make `<custom-element>` inherit the substrate.
+- Bridge-window compatibility surface: legacy `<custom-element>` templates remain supported via an opt-in
+  `lang="custom-element-v0"` annotation while authors migrate.
+- WASM-backed template processing path selected from
+  [`docs/cem-element-wasm-proposal.md`](docs/cem-element-wasm-proposal.md), covering inline declaration templates,
+  URI/module-map resolution, remote source streaming, local parser streaming, reusable host runtime support,
+  patch-frame streams, worker-pool scheduling, service-worker-compatible artifact identity/hooks,
+  post-Phase-3 edge/SSR boundaries, and main-thread DOM patch ownership.
+
+Exit criteria (browser substrate production-ready trigger, not `@epa-wg/custom-element` adoption):
+
+- Functional parity with `<custom-element>` proven by fixtures under
+  `packages/cem-elements/tests/parity/legacy/`.
+- Data-island isolation proven in browser fixtures: raw declaration/instance data inside `<template>` does not affect
+  layout, selectors, form data, accessibility, or visible UI directly.
+- Material parity with every component in `~/aWork/custom-element-dist/src/material/` (action, autocomplete, badge,
+  dropdown, icon, icon-link, input, menu) proven by fixtures under `packages/cem-elements/tests/parity/material/`,
+  including local/external `src`, hidden declarations, nested elements, slot projection, scoped styles, attribute
+  `select`, namespaced `xhtml:*` elements, boolean attribute helper semantics, `module-url` resource slices,
+  `data`/`option` payloads, slice events, and `slice-value`.
+- Phase 2 verification suite (`nx run cem_ml_cli:validate-fixtures`, `cem_ml_cli:e2e`, `cem_ml:bench`) is green on
+  every parity fixture.
+- Accessibility contract in [`packages/cem-components/docs/accessibility.md`](packages/cem-components/docs/accessibility.md)
+  passes end-to-end on the material parity set.
+
+When the substrate hits this production-ready trigger, it is eligible for the Edge/SSR follow-up phase. The
+`@epa-wg/custom-element` monorepo migration and next-major implementation adoption happen only after that follow-up
+phase.
+
+### 3.2 Primitives — `@epa-wg/cem-components`
 
 Deliverables:
 
 - Base CEM custom-element conventions: naming, attributes, events, form participation, validation, loading states, and
-  progressive enhancement.
-- Light-DOM rendering rules and compatibility with `@epa-wg/custom-element`.
-- Accessibility contract for labels, descriptions, focus, keyboard behavior, roles, and live regions.
+  progressive enhancement. Landed in
+  [`packages/cem-components/docs/conventions.md`](packages/cem-components/docs/conventions.md).
+- Light-DOM rendering rules and compatibility with the `cem-element` substrate (no shadow DOM). Landed in
+  [`packages/cem-components/docs/light-dom-rendering.md`](packages/cem-components/docs/light-dom-rendering.md).
+- Accessibility contract for labels, descriptions, focus, keyboard behavior, roles, and live regions. Landed in
+  [`packages/cem-components/docs/accessibility.md`](packages/cem-components/docs/accessibility.md).
 - Test harness for DOM rendering, events, accessibility assertions, and visual snapshots.
 - Minimal primitives: action, field, surface, text, icon, stack, grid, list, nav, dialog shell.
 
 Exit criteria:
 
+- Primitives are authored exclusively with `<cem-element>`; no primitive depends on the legacy `<custom-element>`
+  surface.
 - Components can be used declaratively with no app JavaScript for common static and form flows.
-- The runtime can consume output from the XML/HTML/XSLT transform layer.
+- The runtime can consume validated light-DOM output from the parser/document transform layer.
+
+## Phase 3.5 - Edge/SSR Processing Follow-Up
+
+Goal: prove server and edge processing against the same serializable boundary after the browser worker substrate is
+stable, without changing `<cem-element>` semantics.
+
+Deliverables:
+
+- SSR host fixture that emits initial HTML plus hydration metadata from a serialized `DataIslandSnapshot` and validates
+  hydration against template artifact identity, `RenderRevision`, source-map mode, and retained render-plan identity.
+- Edge processing fixture that accepts a serialized snapshot plus previous render-plan identity and produces a
+  patch-frame stream without access to live browser DOM.
+- Privacy/export policy fixtures proving that denied data-island fields are omitted or redacted before leaving the
+  browser context.
+- First render-state storage decision for edge processing: content-addressed cache only, revisioned KV/document
+  records, or both.
+
+Exit criteria:
+
+- Edge/SSR fixtures prove the processing boundary outside the browser.
+- No server or edge host can mutate live browser DOM, observe focus/selection/composition state, or bypass the
+  data-export policy.
+- Browser worker and main-thread fallback behavior remain the reference runtime semantics.
+
+## Phase 3.6 - `@epa-wg/custom-element` Monorepo Adoption
+
+Goal: move the published `@epa-wg/custom-element` package into this repository and rebuild its next-major
+implementation on the parity-proven `cem-element` substrate after the Edge/SSR follow-up phase.
+
+Deliverables:
+
+- Migrate `@epa-wg/custom-element` from `~/aWork/custom-element/` into `packages/custom-element/`, preserving
+  published npm identity and history.
+- Keep `<custom-element>` as the public tag shipped by `@epa-wg/custom-element`.
+- Make the next major of `@epa-wg/custom-element` inherit the `cem-element` substrate instead of maintaining a
+  separate parser/render engine.
+- Keep or retire `<template lang="custom-element-v0">` bridge support based on fixture evidence from the migration.
+
+Exit criteria:
+
+- Legacy parity, material parity, Edge/SSR follow-up fixtures, and custom-element package fixtures are green.
+- `@epa-wg/cem-elements` is no longer the staging migration target once `@epa-wg/custom-element` adopts the substrate.
 
 ## Phase 4 - CEM Component Set
 
@@ -135,6 +249,13 @@ Deliverables:
 - Handoff annotations mapping Figma components to CEM elements and attributes.
 - Governance rules for token updates, kit releases, and no write-back to source markdown.
 
+Token-validation gates (moved from Phase 1):
+
+- Validate native Figma library variables against the generated `figma/cem-*.tokens.json` files for every mode. The
+  gate ships with the UI Kit because the validation is meaningful only against a populated kit.
+- Extend the Phase 1 token-change smoke test to cover the Figma propagation path end to end (CSS / JSON / Swift /
+  Android already gated in Phase 1).
+
 Exit criteria:
 
 - Designers can mock the major CEM demo flows without inventing colors, spacing, or unsupported component states.
@@ -149,6 +270,8 @@ Deliverables:
 - Root-wired docs site with guides, token browser, component gallery, examples, API/reference, and release notes.
 - Generated docs imported from package markdown and token reports.
 - Interactive examples for tokens, components, XML fixtures, and native output snippets.
+- Optional service-worker template/artifact registry for site/docs/playground caching, built from the Phase 3 artifact
+  identity and registry-hook contract after component parity.
 - Search and stable deep links.
 - Optional Angular Material comparison page showing coverage and migration mapping.
 
@@ -198,11 +321,13 @@ Deliverables:
 - CI/toolchain validation for Swift and Kotlin outputs.
 - Native visual parity checks against web/Figma references where practical.
 
-Native validation gates:
+Native validation gates (moved from Phase 1):
 
 - Generated Swift compiles with the supported Xcode/Swift toolchain.
 - Generated Kotlin/Compose compiles with the supported Gradle/Kotlin toolchain.
 - Generated iOS and Android reports show zero fail-hard violations before release.
+- Full token-change smoke test through CSS, JSON, Swift, and Android outputs. (The Figma propagation leg lives in
+  Phase 5.)
 
 Exit criteria:
 
@@ -229,8 +354,11 @@ Exit criteria:
 | Milestone | Focus | Why now |
 | --------- | ----- | ------- |
 | M1 | Root docs spine and token/native validation gates | Current work is valuable but not yet easy to discover or verify end to end. |
-| M2 | XML/HTML/XSLT schema and fixture pipeline | It gives components, docs, and demos a shared semantic input model. |
-| M3 | Custom-element runtime primitives | Components need stable behavior conventions before broad catalog work. |
+| M2 | Schema-defined parser runtime and fixture pipeline | It gives components, docs, and demos a shared semantic input model with source maps, validation, embedded-language handoffs, and an AST boundary. |
+| M3a | `<cem-element>` browser substrate | The declarative substrate must reach legacy + material parity before primitives commit to it. See [`docs/cem-element-design.md`](docs/cem-element-design.md). |
+| M3b | Edge/SSR processing follow-up | Server/edge processing should prove the serializable boundary after the browser substrate is stable, not during Phase 3. |
+| M3c | `@epa-wg/custom-element` monorepo adoption | The published package adopts the substrate only after browser parity and the Edge/SSR follow-up are green. |
+| M3d | Custom-element runtime primitives | Components need stable behavior conventions before broad catalog work; they consume the parity-proven substrate from M3a. |
 | M4 | Component set MVP | Unlocks real screens and validates token semantics in UI. |
 | M5 | Figma UI Kit MVP | Designers need the same semantics once component names and states stabilize. |
 | M6 | CEM site | Public documentation should be generated from stable package and component contracts. |
@@ -242,7 +370,10 @@ Exit criteria:
 
 - Wire `roadmap.md`, `docs/todo.md`, package docs, and token export docs from the root README.
 - Add a docs index under `docs/`.
-- Decide the package name for the XML/HTML/XSLT DOM library.
+- Draft the parser runtime contract: byte decoder, tokenizer, event normalizer, schema machine, AST/source-map model,
+  and implementation interpreter boundary.
+- Define the first CEM XML/HTML profile and the scoped handoff rules for `style`, `script`, CDATA/text, CSF fields, and
+  JSON string subdocuments.
 - Create the first semantic fixture set: login, registration, profile, assets list, and message thread.
 - Define the component MVP list and state matrix.
 - Add a Figma UI Kit plan that maps components to generated token variables.

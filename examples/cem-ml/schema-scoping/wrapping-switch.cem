@@ -1,0 +1,15 @@
+@doc cem-ml 1
+@ns cem = "https://cem.dev/ns/core/1"
+@ns html = "http://www.w3.org/1999/xhtml"
+@default html
+
+// Wrapping-form switch: the `cem:schema @src="..."` element wraps its
+// children in a scope whose active schema is the loaded one. The parent
+// scope's active schema is unaffected after the close tag.
+{main @cem:screen="example" |
+  {cem:schema @src="schema://wrapping/example/1" |
+    {p | Content rendered against schema://wrapping/example/1}
+  }
+  // Back to the parent scope's default schema.
+  {p | Content rendered against the default schema}
+}

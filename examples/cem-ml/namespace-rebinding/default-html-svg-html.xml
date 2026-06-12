@@ -1,0 +1,27 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!--
+  XML parity rendering of `default-html-svg-html.cem`. The default
+  namespace rebinds from HTML → SVG → HTML across the document using
+  `xmlns="..."` attributes. The CEM-side `cem:screen` annotation is
+  preserved on the `cem:` namespace-qualified attribute.
+
+  Per `packages/cem_ml/docs/cross-surface-conversion.md` §1–§2, this
+  document and the matching `.cem` form lower into the same schema
+  event stream after content-type-specific trivia is accounted for.
+  The XML 1.0 tokenizer at `packages/cem_ml/src/tokenizer/xml.rs`
+  exercises this parity in the namespace-rebinding integration suite.
+-->
+<main xmlns="http://www.w3.org/1999/xhtml"
+      xmlns:cem="https://cem.dev/ns/core/1"
+      cem:screen="namespace-demo">
+  <h1>Namespace rebinding example</h1>
+
+  <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 16 16" aria-hidden="true">
+    <path d="M2 8h12"/>
+  </svg>
+
+  <form xmlns="http://www.w3.org/1999/xhtml">
+    <label for="email">Email</label>
+    <input id="email" name="email" type="email" required="required"/>
+  </form>
+</main>

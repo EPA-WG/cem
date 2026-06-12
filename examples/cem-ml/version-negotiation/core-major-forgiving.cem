@@ -1,0 +1,15 @@
+@doc cem-ml 1
+@ns cem = "https://cem.dev/ns/core/1"
+@ns html = "http://www.w3.org/1999/xhtml"
+@default html
+
+// AC-P-V-5 — forgiving load (same MAJOR).
+//
+// The document declares the core CEM-ML content type with an open MAJOR
+// constraint (`@doc cem-ml 1`). The engine's embedded Tier A profile is
+// 1.0.0, so the same-MAJOR constraint resolves forgivingly: parsing binds
+// the embedded 1.0.0 profile and records `cem.doc.version_resolved`. This
+// is the clean-parsing evidence fixture for FF-2.
+{main @cem:screen="version-negotiation" |
+  {p | Forgiving same-MAJOR load: the open `1` constraint binds embedded 1.0.0.}
+}

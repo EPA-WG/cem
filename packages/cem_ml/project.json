@@ -1,0 +1,130 @@
+{
+    "name": "cem_ml",
+    "$schema": "../../node_modules/nx/schemas/project-schema.json",
+    "projectType": "library",
+    "sourceRoot": "packages/cem_ml/src",
+    "targets": {
+        "build": {
+            "executor": "@monodon/rust:check",
+            "dependsOn": ["build:docs"],
+            "outputs": ["{options.target-dir}"],
+            "options": {
+                "package": "cem-ml",
+                "target-dir": "dist/target/cem_ml"
+            }
+        },
+        "build:docs": {
+            "executor": "nx:run-commands",
+            "options": {
+                "command": "node tools/scripts/compile-markdown.mjs --project packages/cem_ml --src-dir schema",
+                "cwd": "{workspaceRoot}"
+            },
+            "cache": true,
+            "inputs": [
+                "{projectRoot}/schema/**/*.md"
+            ],
+            "outputs": [
+                "{projectRoot}/dist/**/*.md",
+                "{projectRoot}/dist/**/*.xhtml"
+            ]
+        },
+        "build:schema-artifacts": {
+            "executor": "nx:run-commands",
+            "dependsOn": ["build:docs"],
+            "cache": true,
+            "options": {
+                "command": "cargo run --package cem-ml --bin cem-ml-schema-emit --target-dir dist/target/cem_ml -- --out packages/cem_ml/dist/lib/schema",
+                "cwd": "{workspaceRoot}"
+            },
+            "inputs": [
+                "{projectRoot}/schema/**/*.md",
+                "{projectRoot}/src/schema/compiler/**/*.rs",
+                "{projectRoot}/src/bin/cem-ml-schema-emit.rs"
+            ],
+            "outputs": [
+                "{projectRoot}/dist/lib/schema/**"
+            ]
+        },
+        "test": {
+            "cache": true,
+            "executor": "@monodon/rust:test",
+            "dependsOn": ["test:observability-schema"],
+            "outputs": ["{options.target-dir}"],
+            "options": {
+                "package": "cem-ml",
+                "target-dir": "dist/target/cem_ml"
+            },
+            "inputs": [
+                "{projectRoot}/src/**/*.rs",
+                "{projectRoot}/tests/**/*.rs",
+                "{projectRoot}/Cargo.toml",
+                "{projectRoot}/grammar/tree-sitter-cem/**/*",
+                "{workspaceRoot}/packages/custom-element/material/components/**/*.html",
+                "{workspaceRoot}/packages/custom-element/test-fixtures/legacy-compat-manifest.json"
+            ],
+            "configurations": {
+                "production": {
+                    "release": true
+                }
+            }
+        },
+        "test:observability-schema": {
+            "cache": true,
+            "executor": "nx:run-commands",
+            "options": {
+                "command": "node tools/scripts/validate-observability-schema.mjs",
+                "cwd": "{workspaceRoot}"
+            },
+            "inputs": [
+                "{projectRoot}/schema/observability/report-event.schema.json",
+                "{projectRoot}/src/observability.rs",
+                "{projectRoot}/src/source_map.rs",
+                "{workspaceRoot}/tools/scripts/validate-observability-schema.mjs"
+            ]
+        },
+        "lint": {
+            "cache": true,
+            "executor": "@monodon/rust:lint",
+            "outputs": ["{options.target-dir}"],
+            "options": {
+                "package": "cem-ml",
+                "target-dir": "dist/target/cem_ml"
+            }
+        },
+        "build:wasm": {
+            "cache": true,
+            "executor": "nx:run-commands",
+            "options": {
+                "command": "cargo build --lib --target wasm32-unknown-unknown",
+                "cwd": "packages/cem_ml"
+            },
+            "outputs": ["{workspaceRoot}/dist/target/wasm32-unknown-unknown"]
+        },
+        "bench": {
+            "cache": false,
+            "executor": "nx:run-commands",
+            "options": {
+                "command": "cargo test --release --test perf_budgets --target-dir ../../dist/target/cem_ml -- --nocapture",
+                "cwd": "packages/cem_ml"
+            },
+            "outputs": ["{workspaceRoot}/dist/target/cem_ml/release"]
+        },
+        "tree-sitter:generate": {
+            "cache": true,
+            "executor": "nx:run-commands",
+            "options": {
+                "command": "tree-sitter generate",
+                "cwd": "packages/cem_ml/grammar/tree-sitter-cem"
+            },
+            "inputs": [
+                "{projectRoot}/grammar/tree-sitter-cem/grammar.js"
+            ],
+            "outputs": [
+                "{projectRoot}/grammar/tree-sitter-cem/src/parser.c",
+                "{projectRoot}/grammar/tree-sitter-cem/src/grammar.json",
+                "{projectRoot}/grammar/tree-sitter-cem/src/node-types.json"
+            ]
+        }
+    },
+    "tags": ["scope:cem-ml", "type:lib", "lang:rust"]
+}

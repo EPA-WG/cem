@@ -123,7 +123,11 @@
             ]
         },
         "build:html": {
-            "dependsOn": ["build:docs"],
+            "dependsOn": [
+                "build:docs",
+                { "projects": ["cem-elements"], "target": "build" },
+                { "projects": ["cem_ql"], "target": "build:wasm" }
+            ],
             "executor": "nx:run-commands",
             "options": {
                 "command": "node ../../tools/scripts/compile-html.mjs",
@@ -133,8 +137,10 @@
             "inputs": [
                 "{projectRoot}/src/**/*.html",
                 "{projectRoot}/src/**/*.js",
-                "{workspaceRoot}/node_modules/@epa-wg/custom-element/custom-element.js",
-                "{workspaceRoot}/node_modules/@epa-wg/custom-element/http-request.js",
+                "{workspaceRoot}/packages/custom-element/custom-element.js",
+                "{workspaceRoot}/packages/custom-element/http-request.js",
+                "{workspaceRoot}/packages/cem-elements/dist/**/*",
+                "{workspaceRoot}/packages/cem_ql/dist/wasm/**/*",
                 "{projectRoot}/dist/lib/**/*.xhtml"
             ],
             "outputs": [

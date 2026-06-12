@@ -1,0 +1,43 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1200" height="300" viewBox="0 0 1200 300" font-family="'Segoe UI',system-ui,-apple-system,sans-serif">
+  <defs>
+    <marker id="ar" markerWidth="10" markerHeight="10" refX="7.5" refY="4" orient="auto" markerUnits="userSpaceOnUse">
+      <path d="M0,0 L9,4 L0,8 Z" fill="#475569"/>
+    </marker>
+  </defs>
+  <rect width="1200" height="300" fill="#f8fafc"/>
+  <rect x="0.5" y="0.5" width="1199" height="299" fill="none" stroke="#e2e8f0"/>
+  <rect x="28" y="26" width="32" height="25" rx="5" fill="#2563eb"/>
+  <text x="44" y="44" font-size="14" font-weight="700" fill="#ffffff" text-anchor="middle">08</text>
+  <text x="70" y="45" font-size="19" font-weight="700" fill="#0f172a">Version Identity &amp; Scoping</text>
+  <text x="372" y="45" font-size="13" fill="#64748b">— how a schema is named, pinned, and shadowed</text>
+
+  <!-- top: version identity -->
+  <text x="36" y="76" font-size="11" font-weight="700" fill="#7c3aed" letter-spacing="0.5">VERSION IDENTITY</text>
+  <rect x="56" y="86" width="312" height="76" rx="9" fill="#f1f5f9" stroke="#cbd5e1"/>
+  <text x="72" y="108" font-size="11.5" font-weight="700" fill="#0f172a">Declared URI tail</text>
+  <text x="72" y="127" font-size="10.5" fill="#475569" font-family="ui-monospace,monospace">.../core      any stable version</text>
+  <text x="72" y="142" font-size="10.5" fill="#475569" font-family="ui-monospace,monospace">.../core/1    newest 1.x</text>
+  <text x="72" y="157" font-size="10.5" fill="#475569" font-family="ui-monospace,monospace">.../core/1.2.3  newest >=1.2.3 in maj.1</text>
+
+  <line x1="368" y1="124" x2="436" y2="124" stroke="#475569" stroke-width="2.5" marker-end="url(#ar)"/>
+  <rect x="446" y="92" width="244" height="64" rx="9" fill="#dbeafe"/>
+  <rect x="446" y="92" width="5" height="64" fill="#2563eb"/>
+  <text x="568" y="118" font-size="12.5" font-weight="700" fill="#1e3a5f" text-anchor="middle">URI-tail match</text>
+  <text x="568" y="137" font-size="10.5" fill="#475569" text-anchor="middle">AC-V-10, against published manifests</text>
+
+  <line x1="690" y1="124" x2="758" y2="124" stroke="#475569" stroke-width="2.5" marker-end="url(#ar)"/>
+  <rect x="768" y="92" width="376" height="64" rx="9" fill="#1e3a5f"/>
+  <text x="956" y="116" font-size="13" font-weight="700" fill="#ffffff" text-anchor="middle">Embedded full SemVer</text>
+  <text x="956" y="138" font-size="10.5" fill="#94a3b8" text-anchor="middle">authoritative (e.g. 1.2.5); the URI tail is only advisory</text>
+
+  <line x1="36" y1="182" x2="1164" y2="182" stroke="#e2e8f0" stroke-width="1"/>
+
+  <!-- bottom: scoping -->
+  <text x="36" y="206" font-size="11" font-weight="700" fill="#7c3aed" letter-spacing="0.5">DOCUMENT-SIDE SCOPING</text>
+  <rect x="56" y="216" width="640" height="62" rx="9" fill="#ede9fe" stroke="#ddd6fe"/>
+  <text x="74" y="237" font-size="11.5" font-weight="700" fill="#4c1d95">document scope — cem:schema A bound</text>
+  <rect x="92" y="242" width="430" height="26" rx="6" fill="#ddd6fe"/>
+  <text x="108" y="259" font-size="11" fill="#4c1d95">subtree — cem:name rebinds to schema B (shadows A)</text>
+  <text x="724" y="240" font-size="11.5" fill="#475569">Inline cem:schema, cem:schema-src / -select;</text>
+  <text x="724" y="258" font-size="11.5" fill="#475569">inner scopes shadow, sibling scopes stay isolated.</text>
+</svg>

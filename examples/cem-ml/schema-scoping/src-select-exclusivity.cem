@@ -1,0 +1,13 @@
+@doc cem-ml 1
+@ns cem = "https://cem.dev/ns/core/1"
+@ns html = "http://www.w3.org/1999/xhtml"
+@default html
+
+// Invalid combination: `cem:schema` carrying both `src` and `select`.
+// Per AC-F-2 this is a schema-compilation error; the schema machine
+// emits `cem.schema.scoping.exclusive_src_select`.
+{main @cem:screen="example" |
+  {cem:schema @src="schema://x" @select=".schemas.active" |
+    {p | This combination is rejected}
+  }
+}

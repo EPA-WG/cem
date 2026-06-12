@@ -1,0 +1,48 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1200" height="300" viewBox="0 0 1200 300" font-family="'Segoe UI',system-ui,-apple-system,sans-serif">
+  <defs>
+    <marker id="ar" markerWidth="9" markerHeight="9" refX="7" refY="3.5" orient="auto" markerUnits="userSpaceOnUse">
+      <path d="M0,0 L8,3.5 L0,7 Z" fill="#475569"/>
+    </marker>
+  </defs>
+  <rect width="1200" height="300" fill="#f8fafc"/>
+  <rect x="0.5" y="0.5" width="1199" height="299" fill="none" stroke="#e2e8f0"/>
+  <rect x="28" y="26" width="32" height="25" rx="5" fill="#2563eb"/>
+  <text x="44" y="44" font-size="14" font-weight="700" fill="#ffffff" text-anchor="middle">02</text>
+  <text x="70" y="45" font-size="19" font-weight="700" fill="#0f172a">The Need</text>
+  <text x="190" y="45" font-size="13" fill="#64748b">— why a dedicated schema system, not plain XML or HTML data-*</text>
+
+  <text x="285" y="78" font-size="12" font-weight="700" fill="#64748b" text-anchor="middle" letter-spacing="0.5">PROBLEM</text>
+  <text x="855" y="78" font-size="12" font-weight="700" fill="#2563eb" text-anchor="middle" letter-spacing="0.5">WHAT CEM-ML SCHEMA PROVIDES</text>
+
+  <!-- row template: problem box, arrow, need box -->
+  <!-- r1 -->
+  <rect x="60" y="92" width="450" height="34" rx="6" fill="#f1f5f9" stroke="#e2e8f0"/>
+  <text x="76" y="114" font-size="13" fill="#475569">XML delimiter noise around every node</text>
+  <line x1="520" y1="109" x2="628" y2="109" stroke="#475569" stroke-width="2" marker-end="url(#ar)"/>
+  <rect x="636" y="92" width="504" height="34" rx="6" fill="#dbeafe"/>
+  <rect x="636" y="92" width="4" height="34" fill="#2563eb"/>
+  <text x="654" y="114" font-size="13" fill="#1e3a5f">Curly {name @attr | content} surface syntax</text>
+  <!-- r2 -->
+  <rect x="60" y="134" width="450" height="34" rx="6" fill="#f1f5f9" stroke="#e2e8f0"/>
+  <text x="76" y="156" font-size="13" fill="#475569">No shared semantic model across docs/components</text>
+  <line x1="520" y1="151" x2="628" y2="151" stroke="#475569" stroke-width="2" marker-end="url(#ar)"/>
+  <rect x="636" y="134" width="504" height="34" rx="6" fill="#dbeafe"/>
+  <rect x="636" y="134" width="4" height="34" fill="#2563eb"/>
+  <text x="654" y="156" font-size="13" fill="#1e3a5f">CEM-native schema as the single source of truth</text>
+  <!-- r3 -->
+  <rect x="60" y="176" width="450" height="34" rx="6" fill="#f1f5f9" stroke="#e2e8f0"/>
+  <text x="76" y="198" font-size="13" fill="#475569">HTML data-* attributes are untyped and ambiguous</text>
+  <line x1="520" y1="193" x2="628" y2="193" stroke="#475569" stroke-width="2" marker-end="url(#ar)"/>
+  <rect x="636" y="176" width="504" height="34" rx="6" fill="#dbeafe"/>
+  <rect x="636" y="176" width="4" height="34" fill="#2563eb"/>
+  <text x="654" y="198" font-size="13" fill="#1e3a5f">Schema-qualified annotations with typed values</text>
+  <!-- r4 -->
+  <rect x="60" y="218" width="450" height="34" rx="6" fill="#f1f5f9" stroke="#e2e8f0"/>
+  <text x="76" y="240" font-size="13" fill="#475569">Whole-document validators; third-party DOM lock-in</text>
+  <line x1="520" y1="235" x2="628" y2="235" stroke="#475569" stroke-width="2" marker-end="url(#ar)"/>
+  <rect x="636" y="218" width="504" height="34" rx="6" fill="#dbeafe"/>
+  <rect x="636" y="218" width="4" height="34" fill="#2563eb"/>
+  <text x="654" y="240" font-size="13" fill="#1e3a5f">Streaming validation on a CEM-owned event model</text>
+
+  <text x="600" y="278" font-size="12" fill="#94a3b8" text-anchor="middle" font-style="italic">Plus: deterministic byte-offset diagnostics, secure-by-default parsing, and RELAX NG / TypeScript / Rust tooling interop.</text>
+</svg>

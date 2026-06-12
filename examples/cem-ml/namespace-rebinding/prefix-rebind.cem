@@ -1,0 +1,24 @@
+@doc cem-ml 1
+@ns cem = "https://cem.dev/ns/core/1"
+@ns html = "http://www.w3.org/1999/xhtml"
+@ns x = "https://example.test/ns/outer"
+@default html
+
+// Prefix-rebinding: the document-level `@ns x = "https://example.test/ns/outer"`
+// directive binds prefix `x`. A nested section rebinds the same prefix
+// via the XML-style `@xmlns:x="..."` attribute. Resolution at the
+// source position of each use picks the active binding (innermost
+// wins). After the nested section closes, the parent's binding is
+// restored.
+{main @cem:screen="prefix-rebind-demo" |
+  // Reference under the outer scope → uri:outer.
+  {p @x:role="outer" | Outer scope}
+
+  {section @xmlns:x="https://example.test/ns/inner" |
+    // Reference under the inner scope → uri:inner.
+    {p @x:role="inner" | Inner scope}
+  }
+
+  // Back at the outer scope; the inner rebind is gone.
+  {p @x:role="outer-again" | Outer scope after inner closes}
+}

@@ -1,0 +1,152 @@
+{
+    "name": "cem_ml_cli",
+    "$schema": "../../node_modules/nx/schemas/project-schema.json",
+    "projectType": "application",
+    "sourceRoot": "packages/cem_ml_cli/src",
+    "targets": {
+        "build": {
+            "cache": true,
+            "executor": "@monodon/rust:build",
+            "outputs": ["{options.target-dir}"],
+            "options": {
+                "package": "cem-ml-cli",
+                "target-dir": "dist/target/cem_ml_cli"
+            },
+            "configurations": {
+                "production": {
+                    "release": true
+                }
+            }
+        },
+        "test": {
+            "cache": true,
+            "executor": "@monodon/rust:test",
+            "outputs": ["{options.target-dir}"],
+            "options": {
+                "package": "cem-ml-cli",
+                "target-dir": "dist/target/cem_ml_cli"
+            },
+            "configurations": {
+                "production": {
+                    "release": true
+                }
+            }
+        },
+        "lint": {
+            "cache": true,
+            "executor": "@monodon/rust:lint",
+            "outputs": ["{options.target-dir}"],
+            "options": {
+                "package": "cem-ml-cli",
+                "target-dir": "dist/target/cem_ml_cli"
+            }
+        },
+        "run": {
+            "executor": "@monodon/rust:run",
+            "outputs": ["{options.target-dir}"],
+            "options": {
+                "package": "cem-ml-cli",
+                "target-dir": "dist/target/cem_ml_cli"
+            },
+            "configurations": {
+                "production": {
+                    "release": true
+                }
+            }
+        },
+        "test:template-embedding": {
+            "cache": true,
+            "executor": "nx:run-commands",
+            "options": {
+                "command": "cargo test --package cem-ml-cli --test template_embedding --target-dir dist/target/cem_ml_cli",
+                "cwd": "{workspaceRoot}"
+            },
+            "inputs": [
+                "{projectRoot}/src/**/*.rs",
+                "{projectRoot}/tests/template_embedding.rs",
+                "{projectRoot}/Cargo.toml",
+                "{workspaceRoot}/packages/cem_ml/src/**/*.rs",
+                "{workspaceRoot}/packages/cem_ml/Cargo.toml",
+                "{workspaceRoot}/packages/cem_ql/src/**/*.rs",
+                "{workspaceRoot}/packages/cem_ql/Cargo.toml"
+            ],
+            "outputs": ["{workspaceRoot}/dist/target/cem_ml_cli"]
+        },
+        "validate-fixtures": {
+            "executor": "nx:run-commands",
+            "dependsOn": ["build"],
+            "options": {
+                "command": "./dist/target/cem_ml_cli/debug/cem-ml fixture validate --zero-hard-violations --report-json packages/cem_ml_cli/dist --report-md packages/cem_ml_cli/dist",
+                "cwd": "{workspaceRoot}"
+            },
+            "inputs": [
+                "{projectRoot}/src/**/*.rs",
+                "{projectRoot}/Cargo.toml",
+                "{workspaceRoot}/packages/cem_ml/src/**/*.rs",
+                "{workspaceRoot}/packages/cem_ml/Cargo.toml",
+                "{workspaceRoot}/examples/cem-ml/fixture-manifest.json",
+                "{workspaceRoot}/examples/cem-ml/**/*.cem",
+                "{workspaceRoot}/examples/semantic/**/*.html"
+            ],
+            "outputs": [
+                "{projectRoot}/dist/cem-ml.report.json",
+                "{projectRoot}/dist/cem-ml.report.md"
+            ]
+        },
+        "e2e": {
+            "executor": "nx:run-commands",
+            "dependsOn": ["build"],
+            "options": {
+                "commands": [
+                    "./dist/target/cem_ml_cli/debug/cem-ml fixture validate --zero-hard-violations --quiet --report-json packages/cem_ml_cli/dist --report-md packages/cem_ml_cli/dist",
+                    "./dist/target/cem_ml_cli/debug/cem-ml fixture roundtrip --quiet --report-json packages/cem_ml_cli/dist --report-md packages/cem_ml_cli/dist",
+                    "./dist/target/cem_ml_cli/debug/cem-ml convert --from-format cem --to-format cem --out packages/cem_ml_cli/dist/cem-ml.cross-surface.cem.cem examples/cem-ml/cross-surface/conversion-rules.cem",
+                    "./dist/target/cem_ml_cli/debug/cem-ml convert --from-format xml --to-format cem --out packages/cem_ml_cli/dist/cem-ml.cross-surface.xml.cem examples/cem-ml/cross-surface/conversion-rules.xml",
+                    "./dist/target/cem_ml_cli/debug/cem-ml convert --from-format html --to-format cem --out packages/cem_ml_cli/dist/cem-ml.cross-surface.html.cem examples/cem-ml/cross-surface/conversion-rules.html"
+                ],
+                "parallel": false,
+                "cwd": "{workspaceRoot}"
+            },
+            "inputs": [
+                "{projectRoot}/src/**/*.rs",
+                "{projectRoot}/Cargo.toml",
+                "{workspaceRoot}/packages/cem_ml/src/**/*.rs",
+                "{workspaceRoot}/packages/cem_ml/Cargo.toml",
+                "{workspaceRoot}/examples/cem-ml/fixture-manifest.json",
+                "{workspaceRoot}/examples/cem-ml/**/*.cem",
+                "{workspaceRoot}/examples/cem-ml/**/*.xml",
+                "{workspaceRoot}/examples/cem-ml/**/*.html",
+                "{workspaceRoot}/examples/semantic/**/*.html"
+            ],
+            "outputs": [
+                "{projectRoot}/dist/cem-ml.report.json",
+                "{projectRoot}/dist/cem-ml.report.md",
+                "{projectRoot}/dist/cem-ml.roundtrip.report.json",
+                "{projectRoot}/dist/cem-ml.roundtrip.report.md",
+                "{projectRoot}/dist/cem-ml.cross-surface.cem.cem",
+                "{projectRoot}/dist/cem-ml.cross-surface.xml.cem",
+                "{projectRoot}/dist/cem-ml.cross-surface.html.cem"
+            ]
+        },
+        "bench": {
+            "cache": false,
+            "executor": "nx:run-commands",
+            "dependsOn": ["build"],
+            "options": {
+                "command": "./dist/target/cem_ml_cli/debug/cem-ml bench --format json --iterations 5 --quiet --report-json packages/cem_ml_cli/dist examples/cem-ml/assets-list.cem examples/cem-ml/login.cem examples/cem-ml/message-thread.cem examples/cem-ml/profile.cem examples/cem-ml/registration.cem",
+                "cwd": "{workspaceRoot}"
+            },
+            "inputs": [
+                "{projectRoot}/src/**/*.rs",
+                "{projectRoot}/Cargo.toml",
+                "{workspaceRoot}/packages/cem_ml/src/**/*.rs",
+                "{workspaceRoot}/packages/cem_ml/Cargo.toml",
+                "{workspaceRoot}/examples/cem-ml/**/*.cem"
+            ],
+            "outputs": [
+                "{projectRoot}/dist/cem-ml.bench.report.json"
+            ]
+        }
+    },
+    "tags": ["scope:cem-ml", "type:app", "lang:rust"]
+}

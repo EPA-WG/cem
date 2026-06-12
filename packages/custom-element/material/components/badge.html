@@ -1,0 +1,239 @@
+<!DOCTYPE html>
+<html lang="en" xmlns:xsl="http://www.w3.org/1999/XSL/Transform" xmlns:xhtml="http://www.w3.org/1999/xhtml">
+<head>
+    <meta charset="UTF-8">
+    <meta content="text/html; charset=utf-8" http-equiv="Content-Type"/>
+    <title>Components - custom-element - Material Design</title>
+    <link href="../../custom-element/demo/wc-square.svg" rel="icon"/>
+    <link href="https://fonts.googleapis.com/icon?family=Material+Icons" rel="stylesheet"/>
+    <link crossorigin="anonymous" href="https://use.fontawesome.com/releases/v5.15.4/css/all.css"
+          integrity="sha384-DyZ88mC6Up2uqS4h/KRgHuoeGwBcD4Ng9SiP4dIRy0EXTlnuz47vAwmeGwVChigm" rel="stylesheet"/>
+
+    <script type="importmap">
+        {
+          "imports": {
+            "@epa-wg/": "../../"
+          }
+        }
+    </script>
+    <script src="../../custom-element/module-url.js" type="module"></script>
+    <script src="../../custom-element/custom-element.js" type="module"></script>
+    <style>
+        @import "../angular.css";
+        @import "../material.css";
+        @import "../theme/semantic.css";
+        @import "../demo.css";
+        main{
+            display: flex; flex-wrap: wrap;
+            gap: 3rem;
+            padding: 5rem;
+            &>p{ min-width: 90%; }
+            html-demo-element
+            {   overflow: visible;
+                [slot="legend"]{ border-radius: 1rem 1rem 0 0; }
+                [slot="description"]{ padding: 0 1rem 1rem 1rem; dd{ padding: 0 !important;margin: 0; }}
+                [slot="description"] dd{ padding: 0; }
+            }
+            var{ color: darkgreen; font-weight: bold; }
+            html-demo-element { [slot="demo"] { display: flex; gap: 8rem; } } }
+            flex-3x{ display: inline-flex; flex-wrap: wrap;gap:3rem; max-width:12rem;}
+    </style>
+</head>
+<!--
+ToDO
+* docs w/ how to use
+-->
+<body>
+<template id="cem-badge">
+    <attribute name="text"
+            aria-description="Badge text content. Up to 4 characters including + sign."
+            ></attribute>
+    <attribute name="dot"
+            aria-description="attribute defines the small dot presentation without visible text. Default 'true' "
+            ></attribute>
+    <attribute name="color"
+            aria-description="semantic colors. Default is 'primary'. Values: primary|secondary|success|alert"
+            ></attribute>
+    <attribute name="align"
+            aria-description="Vertical & horizontal align. Default is 'top right'. Values: top|middle|bottom|left|center|right"
+            ></attribute>
+    <attribute name="invisible"
+            aria-description="Boolean. Default is 'false'. Values: true|false"
+            ></attribute>
+    <style>
+        &[dot]>*>dd{ height: 0; width: 0; min-width: 0.5rem; color: transparent; padding: 0; min-height: 0.5rem; }
+        &[invisible]>*>dd{ height: 0; width: 0; min-width: 0; color: transparent; padding: 0; min-height:0; }
+        &[align~=left]>*>dd{  --cem-badge-align-h: -100%; }
+        &[align~=center]>*>dd{  --cem-badge-align-h: -25%; }
+        &[align~=right]>*>dd{  --cem-badge-align-h: 50%; }
+        &[align~=top]>*>dd{  --cem-badge-align-v: -50%; }
+        &[align~=middle]>*>dd{  --cem-badge-align-v: 25%; }
+        &[align~=bottom]>*>dd{  --cem-badge-align-v: 75%; }
+        &{ position: relative; display: inline-block; --cem-badge-align-v: -50%; --cem-badge-align-h: 50%; }
+        &>*>dd{
+            /*position: absolute; top:-0.5rem; border-radius: 0.5rem; */
+            /*padding: 0.25rem; background-color: red;*/
+            display: flex ;
+            flex-direction: row;
+            flex-wrap: wrap;
+            -webkit-box-pack: center;
+            justify-content: center;
+            align-content: center;
+            -webkit-box-align: center;
+            align-items: center;
+            position: absolute;
+            box-sizing: border-box;
+            font-family: Roboto, Helvetica, Arial, sans-serif;
+            font-weight: 500;
+            font-size: 0.75rem;
+            min-width: 20px;
+            line-height: 1;
+            height: 20px;
+            z-index: 1;
+            background-color: var(--cem-badge-color, --cem-badge-color-primary);
+            color: var(--cem-badge-text-color,rgb(255, 255, 255));
+            top: 0;
+            right: 0;
+            transform: scale(1) translate(var(--cem-badge-align-h), var(--cem-badge-align-v));
+            transform-origin: 100% 0%;
+            padding: 0 6px;
+            border-radius: 10px;
+            border: var(--cem-badge-border, none);
+            transition: all 225ms cubic-bezier(0.4, 0, 0.2, 1);
+        }
+        &[color="secondary"]>*>dd{ background-color: var(--cem-badge-color-secondary); }
+        &[color="success"]>*>dd{ background-color: var(--cem-badge-color-success); }
+        &[color="alert"]>*>dd{ background-color: var(--cem-badge-color-alert); }
+
+    </style>
+    <dd>{text}</dd>
+    <slot></slot>
+</template>
+
+<custom-element hidden src="#cem-badge" tag="cem-badge"></custom-element>
+<custom-element hidden src="./icon-link.html#cem-badge-link" tag="cem-badge-link"></custom-element>
+<custom-element hidden src="./icon-link.html#cem-icon-link" tag="cem-icon-link"></custom-element>
+<custom-element hidden src="./icon.html#cem-icon" tag="cem-icon"></custom-element>
+
+<header class="cem-theme-teal">
+    <custom-element src="../index.html#nav-head"></custom-element>
+</header>
+<main>
+    <aside>
+        <p><code>cem-badge</code> is badge component from &lt;custom-element&gt; Material suite based on the
+            <a href="https://m3.material.io/components/badges/overview">Material Design specification for Badges</a>.<br/>
+            Badges show notifications, counts, or status information on navigation items and icons.
+            Inspired by <a href="https://mui.com/material-ui/react-badge/">MUI</a>
+        </p>
+        <h1>Attributes</h1>
+        <div> <code>text</code> attribute defines the Up to 4 characters including + sign.</div>
+        <div> <code>dot</code> attribute defines the small dot presentation without visible text. Default 'true'. </div>
+        <div> <code>invisible</code> attribute hides badge. </div>
+        <div> <code>align</code> attribute defines the vertical & horizontal align. Default is 'top right'. Values: top|middle|bottom|left|center|right. </div>
+    </aside>
+
+    <html-demo-element legend="Variations">
+        <p slot="description">
+
+        </p>
+        <template>
+<cem-badge text="0"    color="secondary"> <cem-icon image="far fa-envelope"></cem-icon> </cem-badge>
+<cem-badge text="999+"                  > <cem-icon image="🛒" vertical="middle"></cem-icon>  </cem-badge>
+<cem-badge text="999+"  dot             > <cem-icon image="notifications" vertical="middle"></cem-icon>  </cem-badge>
+        </template>
+    </html-demo-element>
+
+    <html-demo-element legend="color attribute">
+        <p slot="description">
+            Semantic colors
+        </p>
+        <template>
+<cem-badge text="0"                     > <cem-icon image="✉"></cem-icon> </cem-badge>
+<cem-badge text="1"    color="primary"  > <cem-icon image="✉"></cem-icon> </cem-badge>
+<cem-badge text="2"    color="secondary"> <cem-icon image="✉"></cem-icon> </cem-badge>
+<cem-badge text="3"    color="success"  > <cem-icon image="✉"></cem-icon> </cem-badge>
+<cem-badge text="4"    color="alert"    > <cem-icon image="✉"></cem-icon> </cem-badge>
+        </template>
+    </html-demo-element>
+
+    <html-demo-element legend="custom color">
+        <p slot="description">
+            Override by CE
+        </p>
+        <template>
+<custom-element>
+    <template>
+        <style>
+            &
+            {   --cem-badge-text-color:red;
+                --cem-badge-color:#FF08;
+                --cem-badge-border: 1px blue solid;
+                cem-badge dd{box-shadow: -2px 3px 8px blue;}
+            }
+        </style>
+        <cem-badge text="123"> CUSTOM COLOR </cem-badge>
+    </template>
+</custom-element>
+        </template>
+    </html-demo-element>
+
+
+    <html-demo-element legend="invisible attribute">
+        <p slot="description">
+            hides badge, animated
+        </p>
+        <template>
+    <custom-element>
+        <template>
+            <label>
+                <input type="checkbox" slice="is-checked" value="on" />
+                invisible</label>
+<cem-badge text="1"  >
+    <if test="/datadom/slice/is-checked = 'on'">
+        <attribute name="invisible">on</attribute>
+    </if>
+    <cem-icon image="mail" ></cem-icon>
+</cem-badge>
+    &nbsp;
+<cem-badge dot>
+    <if test="/datadom/slice/is-checked = 'on'">
+        <attribute name="invisible">on</attribute>
+    </if>
+    <cem-icon image="mail" ></cem-icon>
+</cem-badge>
+        </template>
+    </custom-element>
+        </template>
+    </html-demo-element>
+
+    <html-demo-element legend="align attribute">
+        <p slot="description">
+            sets vertical( top, middle, bottom ) and horizontal( left, center, right) badge align.<br/>
+            Default is right top.
+        </p>
+        <template>
+<flex-3x>
+    <cem-badge text="1" align="left top"   ><cem-icon image="mail" ></cem-icon></cem-badge>
+    <cem-badge text="2" align="center top" ><cem-icon image="mail" ></cem-icon></cem-badge>
+    <cem-badge text="3" align="right top"  ><cem-icon image="mail" ></cem-icon></cem-badge>
+
+    <cem-badge text="4" align="left middle"   ><cem-icon image="mail" ></cem-icon></cem-badge>
+    <cem-badge text="5" align="center middle" ><cem-icon image="mail" ></cem-icon></cem-badge>
+    <cem-badge text="6" align="right middle"  ><cem-icon image="mail" ></cem-icon></cem-badge>
+
+    <cem-badge text="7" align="left bottom"   ><cem-icon image="mail" ></cem-icon></cem-badge>
+    <cem-badge text="8" align="center bottom" ><cem-icon image="mail" ></cem-icon></cem-badge>
+    <cem-badge text="9" align="right bottom"  ><cem-icon image="mail" ></cem-icon></cem-badge>
+</flex-3x>
+        </template>
+    </html-demo-element>
+
+</main>
+<footer>
+    <hr/>
+    <a href="../../LICENSE"> Code and documentation licensed under an Apache License 2.0 </a>
+</footer>
+<script src="https://unpkg.com/html-demo-element@1.0.8/html-demo-element.js" type="module"></script>
+
+</body>
+</html>

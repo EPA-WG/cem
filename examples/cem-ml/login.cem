@@ -1,0 +1,17 @@
+@doc cem-ml 1
+@ns cem = "https://cem.dev/ns/core/1"
+@ns html = "http://www.w3.org/1999/xhtml"
+@default html
+
+{main @cem:screen="login" @aria-labelledby="login-title" |
+  {h1 @id="login-title" | Sign in}
+  {form @cem:form="sign-in" @method=post @action="/session" |
+    {label @for=email | Email}
+    {input @id=email @name=email @type=email @autocomplete=email @required}
+
+    {label @for=password | Password}
+    {input @id=password @name=password @type=password @autocomplete=current-password @required}
+
+    {button @type=submit @cem:action=primary | Sign in}
+  }
+}

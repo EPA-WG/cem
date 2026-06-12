@@ -1,0 +1,96 @@
+{
+    "name": "cem-elements",
+    "$schema": "../../node_modules/nx/schemas/project-schema.json",
+    "sourceRoot": "packages/cem-elements/src",
+    "projectType": "library",
+    "targets": {
+        "build": {
+            "dependsOn": [{ "projects": ["cem_ql"], "target": "build:wasm" }]
+        },
+        "typecheck": {
+            "dependsOn": [{ "projects": ["cem_ql"], "target": "build:wasm" }]
+        },
+        "storybook": {
+            "executor": "nx:run-commands",
+            "options": {
+                "command": "yarn storybook dev --config-dir packages/cem-elements/.storybook --host 127.0.0.1 --port 4400 --no-open",
+                "cwd": "{workspaceRoot}"
+            }
+        },
+        "build-storybook": {
+            "executor": "nx:run-commands",
+            "outputs": ["{projectRoot}/storybook-static"],
+            "options": {
+                "command": "yarn storybook build --config-dir packages/cem-elements/.storybook --output-dir packages/cem-elements/storybook-static",
+                "cwd": "{workspaceRoot}"
+            }
+        },
+        "test": {
+            "executor": "nx:run-commands",
+            "dependsOn": [{ "projects": ["cem_ql"], "target": "build:wasm" }],
+            "options": {
+                "command": "yarn vitest --config packages/cem-elements/vitest.config.mts --project=storybook --run",
+                "cwd": "{workspaceRoot}"
+            },
+            "inputs": [
+                "{projectRoot}/.storybook/**/*",
+                "{projectRoot}/src/**/*.ts",
+                "{projectRoot}/vitest.config.mts",
+                "{projectRoot}/package.json",
+                "{workspaceRoot}/package.json",
+                "{workspaceRoot}/yarn.lock"
+            ],
+            "outputs": []
+        },
+        "test:unit": {
+            "cache": true,
+            "executor": "nx:run-commands",
+            "dependsOn": [{ "projects": ["cem_ql"], "target": "build:wasm" }],
+            "options": {
+                "command": "yarn vitest --config packages/cem-elements/vitest.unit.config.mts --run",
+                "cwd": "{workspaceRoot}"
+            },
+            "inputs": [
+                "{projectRoot}/src/**/*.ts",
+                "{projectRoot}/vitest.unit.config.mts",
+                "{projectRoot}/package.json",
+                "{workspaceRoot}/package.json",
+                "{workspaceRoot}/yarn.lock",
+                "{workspaceRoot}/packages/cem_ml/src/legacy_custom_element.rs"
+            ],
+            "outputs": []
+        },
+        "verify-substrate": {
+            "cache": true,
+            "executor": "nx:run-commands",
+            "dependsOn": [{ "projects": ["cem_ml_cli"], "target": "build" }],
+            "options": {
+                "command": "node tools/scripts/verify-cem-elements-substrate.mjs",
+                "cwd": "{workspaceRoot}"
+            },
+            "inputs": [
+                "{workspaceRoot}/tools/scripts/verify-cem-elements-substrate.mjs",
+                "{workspaceRoot}/examples/cem-elements/**/*.cem",
+                "{workspaceRoot}/packages/cem_ml_cli/src/**/*.rs",
+                "{workspaceRoot}/packages/cem_ml/src/**/*.rs",
+                "{workspaceRoot}/packages/cem_ql/src/**/*.rs"
+            ],
+            "outputs": []
+        },
+        "verify": {
+            "executor": "nx:run-commands",
+            "dependsOn": [
+                { "projects": ["cem_ml_cli"], "target": "validate-fixtures" },
+                { "projects": ["cem_ml_cli"], "target": "e2e" },
+                "verify-substrate",
+                "test:unit",
+                "test"
+            ],
+            "options": {
+                "command": "echo \"C2.6 verification gate green: cem_ml_cli validate-fixtures + e2e, cem-element substrate roundtrip, and Storybook parity stories all passed.\"",
+                "cwd": "{workspaceRoot}"
+            },
+            "outputs": []
+        }
+    }
+}

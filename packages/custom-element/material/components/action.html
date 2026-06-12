@@ -1,0 +1,262 @@
+<!DOCTYPE html>
+<html lang="en" xmlns:xsl="http://www.w3.org/1999/XSL/Transform" xmlns:xhtml="http://www.w3.org/1999/xhtml">
+<head>
+    <!--
+
+
+
+Action State
+* default, normal, no state
+* hover
+* pressed
+* focused
+* focus forced by keyboard
+* selected
+* disabled
+
+Action variation
+* default, normal, secondary
+* primary, emphasized
+* alternate flow
+* danger
+* ghost
+
+
+    -->
+    <meta charset="UTF-8">
+    <meta content="text/html; charset=utf-8" http-equiv="Content-Type"/>
+    <title>Components - custom-element - Material Design</title>
+    <link href="../../custom-element/demo/wc-square.svg" rel="icon"/>
+    <link href="https://fonts.googleapis.com/icon?family=Material+Icons" rel="stylesheet"/>
+    <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:opsz,wght,FILL,GRAD@24,400,0,0&icon_names=shift" />    <link crossorigin="anonymous" href="https://use.fontawesome.com/releases/v5.15.4/css/all.css"
+          integrity="sha384-DyZ88mC6Up2uqS4h/KRgHuoeGwBcD4Ng9SiP4dIRy0EXTlnuz47vAwmeGwVChigm" rel="stylesheet"/>
+
+    <script type="importmap">
+        {
+          "imports": {
+            "@epa-wg/": "../../"
+          }
+        }
+    </script>
+    <script src="../../custom-element/module-url.js" type="module"></script>
+    <script src="../../custom-element/custom-element.js" type="module"></script>
+    <style>
+        @import "../angular.css";
+        @import "../material.css";
+        @import "../theme/semantic.css";
+        @import "../theme/consumer-theme.css";
+        @import "../demo.css";
+        main{
+            display: flex; flex-wrap: wrap;
+            gap: 3rem;
+            padding: 5rem;
+            &>p{ min-width: 90%; }
+            html-demo-element
+            {   overflow: visible;
+                [slot="legend"]{ border-radius: 1rem 1rem 0 0; }
+                [slot="description"]{ padding: 0 1rem 1rem 1rem; dd{ padding: 0 !important;margin: 0; }}
+                [slot="description"] dd{ padding: 0; }
+                [slot="demo"]{ display: flex; gap: 2rem; align-items: center; justify-content: center;}
+            }
+            var{ color: darkgreen; font-weight: bold; }
+            flex-3x{ display: inline-flex; flex-wrap: wrap;gap:3rem; max-width:12rem;}
+            cem-action{display: inline-block;}
+    </style>
+</head>
+<!--
+ToDO
+* docs w/ how to use
+-->
+<body>
+<template id="cem-action">
+    <attribute name="text"
+            aria-description="button text content. "
+            ></attribute>
+    <attribute name="dot"
+            aria-description="attribute defines the small dot presentation without visible text. Default 'true' "
+            ></attribute>
+    <attribute name="color"
+            aria-description="semantic colors. Default is 'primary'. Values: primary|secondary|success|alert"
+            ></attribute>
+    <attribute name="align"
+            aria-description="Vertical & horizontal align. Default is 'top right'. Values: top|middle|bottom|left|center|right"
+            ></attribute>
+    <attribute name="invisible"
+            aria-description="Boolean. Default is 'false'. Values: true|false"
+            ></attribute>
+    <style>
+        & button{
+            display: flex; align-items: center; justify-content: center; gap:1em;
+            background-color: var(--cem-action-background-color);
+            color: var(--cem-action-color);
+            width: 100%;
+        }
+        &[color="secondary"]>*>dd{ background-color: var(--cem-action-color-secondary); }
+        &[color="success"]>*>dd{ background-color: var(--cem-action-color-success); }
+        &[color="alert"]>*>dd{ background-color: var(--cem-action-color-alert); }
+
+    </style>
+    <button><slot>{text}</slot></button>
+
+</template>
+
+<custom-element hidden src="#cem-action" tag="cem-action"></custom-element>
+<custom-element hidden src="./icon-link.html#cem-icon-link" tag="cem-icon-link"></custom-element>
+<custom-element hidden src="./icon.html#cem-icon" tag="cem-icon"></custom-element>
+
+<header class="cem-theme-teal">
+    <custom-element src="../index.html#nav-head"></custom-element>
+</header>
+<main>
+    <aside>
+        <p><code>cem-action</code> is button-looking component from &lt;custom-element&gt; Material suite based on the
+            <a href="https://m3.material.io/components/buttons/overview">Material Design specification for buttons</a>.<br/>
+            Action triggers the flow by changing the data <var>slice</var> or following the <var>href</var> attribute URL.
+            Inspired by <a href="https://mui.com/material-ui/react-button/">MUI</a>
+        </p>
+        <h1>Attributes</h1>
+        <div> <code>text</code> optional attribute defines the text inside the button.</div>
+        <div> <code>class</code> specific: <var>cem-bend-sharp</var>, <var>cem-bend-smooth</var>(default), <var>cem-bend-round</var>.</div>
+        <div> <code>href</code> TBD</div>
+        <div> <code>slice</code> TBD</div>
+    </aside>
+
+    <html-demo-element legend="Typical use">
+        <template>
+<cem-action text="text in attribute" ></cem-action>
+<cem-action> with icon <cem-icon image="search" ></cem-icon>  </cem-action>
+<cem-action class="cem-bend-sharp"> square border </cem-action>
+<cem-action  class="cem-bend-round"> round border   </cem-action>
+<cem-action  class="cem-bend-round">
+    <cem-icon image="🛒"></cem-icon>
+    <div>round border <br/> multiline</div>
+</cem-action>
+        </template>
+    </html-demo-element>
+
+    <html-demo-element legend="Bend">
+        <p slot="description">
+            Corner shape is defined by <var>--cem-bend</var>
+        </p>
+        <template></template>
+<custom-element>
+    <template>
+<style>
+    &>*{ display: flex; gap: 1rem; margin: 1rem; flex-wrap: wrap; justify-content: center;}
+    cem-action:first-of-type,cem-action:first-of-type+*{ width: 100%; text-align: center; }
+</style>
+<cem-action class="{//bend}" > default  </cem-action>
+<div class="material-symbols-outlined">shift</div>
+<cem-action class="cem-bend-sharp" slice="bend" slice-event="click" slice-value="'cem-bend-sharp'"> square  </cem-action>
+<cem-action class="cem-bend-smooth" slice="bend" slice-event="click" slice-value="'cem-bend-smooth'"> smooth </cem-action>
+<cem-action class="cem-bend-round" slice="bend" slice-event="click" slice-value="'cem-bend-round'"> round  </cem-icon>  </cem-action>
+
+    </template>
+</custom-element>
+    </html-demo-element>
+
+    <html-demo-element legend="Variations">
+        <p slot="description">
+
+        </p>
+        <template>
+<cem-action text="0"    color="secondary"> <cem-icon image="far fa-envelope"></cem-icon> </cem-action>
+<cem-action text="999+"                  > <cem-icon image="🛒" vertical="middle"></cem-icon>  </cem-action>
+<cem-action text="999+"  dot             > <cem-icon image="notifications" vertical="middle"></cem-icon>  </cem-action>
+        </template>
+    </html-demo-element>
+
+    <html-demo-element legend="color attribute">
+        <p slot="description">
+            Semantic colors
+        </p>
+        <template>
+<cem-action text="0"                     > <cem-icon image="✉"></cem-icon> </cem-action>
+<cem-action text="1"    color="primary"  > <cem-icon image="✉"></cem-icon> </cem-action>
+<cem-action text="2"    color="secondary"> <cem-icon image="✉"></cem-icon> </cem-action>
+<cem-action text="3"    color="success"  > <cem-icon image="✉"></cem-icon> </cem-action>
+<cem-action text="4"    color="alert"    > <cem-icon image="✉"></cem-icon> </cem-action>
+        </template>
+    </html-demo-element>
+
+    <html-demo-element legend="custom color">
+        <p slot="description">
+            Override by CE
+        </p>
+        <template>
+<custom-element>
+    <template>
+        <style>
+            &
+            {   --cem-action-text-color:red;
+                --cem-action-color:#FF08;
+                --cem-action-border: 1px blue solid;
+                cem-action dd{box-shadow: -2px 3px 8px blue;}
+            }
+        </style>
+        <cem-action text="123"> CUSTOM COLOR </cem-action>
+    </template>
+</custom-element>
+        </template>
+    </html-demo-element>
+
+
+    <html-demo-element legend="invisible attribute">
+        <p slot="description">
+            hides button, animated
+        </p>
+        <template>
+    <custom-element>
+        <template>
+            <label>
+                <input type="checkbox" slice="is-checked" value="on" />
+                invisible</label>
+<cem-action text="1"  >
+    <if test="/datadom/slice/is-checked = 'on'">
+        <attribute name="invisible">on</attribute>
+    </if>
+    <cem-icon image="mail" ></cem-icon>
+</cem-action>
+    &nbsp;
+<cem-action dot>
+    <if test="/datadom/slice/is-checked = 'on'">
+        <attribute name="invisible">on</attribute>
+    </if>
+    <cem-icon image="mail" ></cem-icon>
+</cem-action>
+        </template>
+    </custom-element>
+        </template>
+    </html-demo-element>
+
+    <html-demo-element legend="align attribute">
+        <p slot="description">
+            sets vertical( top, middle, bottom ) and horizontal( left, center, right) button align.<br/>
+            Default is right top.
+        </p>
+        <template>
+<flex-3x>
+    <cem-action text="1" align="left top"   ><cem-icon image="mail" ></cem-icon></cem-action>
+    <cem-action text="2" align="center top" ><cem-icon image="mail" ></cem-icon></cem-action>
+    <cem-action text="3" align="right top"  ><cem-icon image="mail" ></cem-icon></cem-action>
+
+    <cem-action text="4" align="left middle"   ><cem-icon image="mail" ></cem-icon></cem-action>
+    <cem-action text="5" align="center middle" ><cem-icon image="mail" ></cem-icon></cem-action>
+    <cem-action text="6" align="right middle"  ><cem-icon image="mail" ></cem-icon></cem-action>
+
+    <cem-action text="7" align="left bottom"   ><cem-icon image="mail" ></cem-icon></cem-action>
+    <cem-action text="8" align="center bottom" ><cem-icon image="mail" ></cem-icon></cem-action>
+    <cem-action text="9" align="right bottom"  ><cem-icon image="mail" ></cem-icon></cem-action>
+</flex-3x>
+        </template>
+    </html-demo-element>
+
+</main>
+<footer>
+    <hr/>
+    <a href="../../LICENSE"> Code and documentation licensed under an Apache License 2.0 </a>
+</footer>
+<script src="https://unpkg.com/html-demo-element@1.0.8/html-demo-element.js" type="module"></script>
+
+</body>
+</html>

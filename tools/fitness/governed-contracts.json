@@ -1,0 +1,59 @@
+{
+    "$comment": "FF-6 SemVer-presence registry. Guards BR-VC-5 / BR-EV-6. See docs/fitness-functions.md. status: 'required' (must locate a valid SemVer or FAIL) | 'pending-version' (a known un-versioned governed contract — reported, non-blocking, until its SemVer axis lands and it is promoted to 'required'). Locators for 'pending-version' point at where the version SHOULD live, so FF-6 flags 'ready to promote' once it appears.",
+    "contracts": [
+        {
+            "id": "custom-element-adapter",
+            "status": "required",
+            "description": "published <custom-element> package API contract",
+            "locator": { "type": "json", "file": "packages/custom-element/package.json", "path": "version" }
+        },
+        {
+            "id": "cem-elements-substrate",
+            "status": "required",
+            "description": "cem-element substrate package contract",
+            "locator": { "type": "json", "file": "packages/cem-elements/package.json", "path": "version" }
+        },
+        {
+            "id": "template-authoring-cem-ml",
+            "status": "required",
+            "description": "CEM-ML grammar/compiler crate (template authoring surface)",
+            "locator": { "type": "regex", "file": "packages/cem_ml/Cargo.toml", "pattern": "^version\\s*=\\s*\"([^\"]+)\"", "flags": "m" }
+        },
+        {
+            "id": "query-language-cem-ql",
+            "status": "required",
+            "description": "CEM-QL grammar/compiler crate",
+            "locator": { "type": "regex", "file": "packages/cem_ql/Cargo.toml", "pattern": "^version\\s*=\\s*\"([^\"]+)\"", "flags": "m" }
+        },
+        {
+            "id": "cli-io",
+            "status": "required",
+            "description": "cem-ml-cli input/output contract",
+            "locator": { "type": "regex", "file": "packages/cem_ml_cli/Cargo.toml", "pattern": "^version\\s*=\\s*\"([^\"]+)\"", "flags": "m" }
+        },
+        {
+            "id": "data-snapshot",
+            "status": "required",
+            "description": "DataIslandSnapshot / datadom contract (crosses worker/SSR/edge + browser→edge export); carries an optional `version` stamped from SNAPSHOT_SCHEMA_VERSION",
+            "locator": { "type": "regex", "file": "packages/cem-elements/src/lib/cem-elements.ts", "pattern": "SNAPSHOT_SCHEMA_VERSION\\s*=\\s*['\"]([^'\"]+)['\"]" }
+        },
+        {
+            "id": "token-outputs",
+            "status": "required",
+            "description": "published design-token output files; cem.tokens.json / cem.voice.tokens.json carry $version stamped from the export source-of-truth (TOKENS_SCHEMA_VERSION). Located at source so the check needs no build.",
+            "locator": { "type": "regex", "file": "packages/cem-theme/scripts/export-tokens.mjs", "pattern": "TOKENS_SCHEMA_VERSION\\s*=\\s*['\"]([^'\"]+)['\"]" }
+        },
+        {
+            "id": "patch-transport",
+            "status": "required",
+            "description": "render-plan / patch-frame transport across the serializable boundary; the `begin` PatchFrame carries renderEngineVersion stamped from RENDER_ENGINE_VERSION",
+            "locator": { "type": "regex", "file": "packages/cem-elements/src/lib/projection.ts", "pattern": "RENDER_ENGINE_VERSION\\s*=\\s*['\"]([^'\"]+)['\"]" }
+        },
+        {
+            "id": "edge-render-state",
+            "status": "required",
+            "description": "persisted edge render-state record schema; EdgeRenderStateRecord.schemaVersion stamped from EDGE_RENDER_STATE_VERSION (part of the content-address/etag identity)",
+            "locator": { "type": "regex", "file": "packages/cem-elements/src/lib/projection.ts", "pattern": "EDGE_RENDER_STATE_VERSION\\s*=\\s*['\"]([^'\"]+)['\"]" }
+        }
+    ]
+}

@@ -1,0 +1,20 @@
+@doc cem-ml 1
+@ns cem = "https://cem.dev/ns/core/1"
+@ns html = "http://www.w3.org/1999/xhtml"
+@ns xsl = "http://www.w3.org/1999/XSL/Transform"
+@default html
+
+// AC-P-6.8 / AC-P-V-4 / AC-P-V-7 — an embedded XSLT region inside CEM-ML.
+//
+// `xsl:stylesheet` and its `xsl:template` child are in the version-stable XSLT
+// namespace. On explicit opt-in the region is dispatched as an isolated,
+// version-pinned handoff (pinned to XSLT 1.0 from `@version`, not from the URI)
+// and the subtree is not interpreted as CEM-ML; without opt-in the same region
+// falls to the AC-P-6.7 unknown-namespace default disposition (AC-P-V-7).
+{main @cem:screen="xslt-dispatch" |
+  {xsl:stylesheet @version="1.0" |
+    {xsl:template @match="/" |
+      {html:p | transformed output}
+    }
+  }
+}

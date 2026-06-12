@@ -1,0 +1,37 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1200" height="300" viewBox="0 0 1200 300" font-family="'Segoe UI',system-ui,-apple-system,sans-serif">
+  <rect width="1200" height="300" fill="#f8fafc"/>
+  <rect x="0.5" y="0.5" width="1199" height="299" fill="none" stroke="#e2e8f0"/>
+  <rect x="28" y="26" width="32" height="25" rx="5" fill="#2563eb"/>
+  <text x="44" y="44" font-size="14" font-weight="700" fill="#ffffff" text-anchor="middle">01</text>
+  <text x="70" y="45" font-size="19" font-weight="700" fill="#0f172a">History</text>
+  <text x="166" y="45" font-size="13" fill="#64748b">— waves of document-schema practice that led to CEM-ML</text>
+
+  <line x1="120" y1="174" x2="1080" y2="174" stroke="#cbd5e1" stroke-width="3"/>
+
+  <!-- 1 — SGML & DTD -->
+  <circle cx="120" cy="174" r="9" fill="#2563eb"/>
+  <text x="120" y="118" font-size="13" font-weight="700" fill="#2563eb" text-anchor="middle">1986</text>
+  <text x="120" y="206" font-size="12" font-weight="400" text-anchor="middle"><tspan font-weight="700" fill="#0f172a">SGML &amp; DTD</tspan><tspan x="120" dy="1.35em" fill="#64748b">document grammar roots</tspan></text>
+  <!-- 2 — XSD -->
+  <circle cx="312" cy="174" r="9" fill="#2563eb"/>
+  <text x="312" y="118" font-size="13" font-weight="700" fill="#2563eb" text-anchor="middle">2001</text>
+  <text x="312" y="206" font-size="12" font-weight="400" text-anchor="middle"><tspan font-weight="700" fill="#0f172a">XSD</tspan><tspan x="312" dy="1.35em" fill="#64748b">XML-native typed schemas</tspan></text>
+  <!-- 3 — RELAX NG -->
+  <circle cx="504" cy="174" r="9" fill="#2563eb"/>
+  <text x="504" y="118" font-size="13" font-weight="700" fill="#2563eb" text-anchor="middle">2001</text>
+  <text x="504" y="206" font-size="12" font-weight="400" text-anchor="middle"><tspan font-weight="700" fill="#0f172a">RELAX NG</tspan><tspan x="504" dy="1.35em" fill="#64748b">pattern-based validation</tspan></text>
+  <!-- 4 — Schematron -->
+  <circle cx="696" cy="174" r="9" fill="#2563eb"/>
+  <text x="696" y="118" font-size="13" font-weight="700" fill="#2563eb" text-anchor="middle">early 2000s</text>
+  <text x="696" y="206" font-size="12" font-weight="400" text-anchor="middle"><tspan font-weight="700" fill="#0f172a">Schematron</tspan><tspan x="696" dy="1.35em" fill="#64748b">assertion &amp; rule checks</tspan></text>
+  <!-- 5 — JSON Schema -->
+  <circle cx="888" cy="174" r="9" fill="#2563eb"/>
+  <text x="888" y="118" font-size="13" font-weight="700" fill="#2563eb" text-anchor="middle">2020-12</text>
+  <text x="888" y="206" font-size="12" font-weight="400" text-anchor="middle"><tspan font-weight="700" fill="#0f172a">JSON Schema</tspan><tspan x="888" dy="1.35em" fill="#64748b">JSON value validation</tspan></text>
+  <!-- 6 — CEM-ML schema -->
+  <circle cx="1080" cy="174" r="10" fill="#7c3aed"/>
+  <text x="1080" y="118" font-size="13" font-weight="700" fill="#7c3aed" text-anchor="middle">2026</text>
+  <text x="1080" y="206" font-size="12" font-weight="400" text-anchor="middle"><tspan font-weight="700" fill="#4c1d95">CEM-ML schema</tspan><tspan x="1080" dy="1.35em" fill="#64748b">CEM-native source of truth</tspan></text>
+
+  <text x="600" y="268" font-size="12" fill="#94a3b8" text-anchor="middle" font-style="italic">CEM-ML keeps a CEM-native schema as the source of truth and emits the formats downstream tools already understand.</text>
+</svg>

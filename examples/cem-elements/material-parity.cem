@@ -1,0 +1,107 @@
+@doc cem-ml 1
+@ns cem = "https://cem.dev/ns/core/1"
+@ns html = "http://www.w3.org/1999/xhtml"
+@default html
+
+// `<cem-element>` material parity substrate fixture for the production-ready
+// AC-N-1 first-paint budget. This keeps the material component vocabulary in
+// one canonical CEM-ML fixture so `nx run cem_ml:bench` measures the same
+// parser/schema-machine/AST-builder path used by the substrate verification
+// gate. Host bindings and resource/module-map resolution happen at render time.
+
+{section @data-component=icon |
+  {attribute @name=image | home}
+  {span @class=cem-icon |
+    {cem:choose |
+      {cem:when @test="datadom.attributes.image" |
+        {span @class="icon material-icons" | {$datadom.attributes.image}}
+      }
+      {cem:otherwise |
+        {span @class="icon placeholder" | ?}
+      }
+    }
+    {slot}
+  }
+}
+
+{section @data-component=icon-link |
+  {module-url @slice=cemurl @src="@epa-wg/material"}
+  {module-url @slice=logourl @src="@epa-wg/custom-element/demo/wc-square.svg"}
+  {attribute @name=href | #}
+  {a @class=cem-icon-link @href="{$datadom.slices.cemurl}" |
+    {img @class=resolved-logo @src="{$datadom.slices.logourl}" @alt=""}
+    {cem:if @test="datadom.attributes.icon" |
+      {span @class="icon {$datadom.attributes.icon}"}
+    }
+    {slot}
+  }
+}
+
+{section @data-component=menu |
+  {attribute @name=direction | row}
+  {nav @class="cem-menu {$direction}" @aria-label="Material menu" @data-justify="{$datadom.attributes.justify}" |
+    {slot}
+  }
+}
+
+{section @data-component=badge |
+  {attribute @name=color | primary}
+  {span @class="cem-badge {$color}" |
+    {slot}
+    {cem:if @test="datadom.attributes.text" |
+      {span @class=badge-dd | {$datadom.attributes.text}}
+    }
+  }
+}
+
+{section @data-component=action |
+  {attribute @name=text | Action}
+  {button @type=button @slice=pressed @slice-event=click @slice-value="'on'" |
+    {cem:if @test="datadom.attributes.icon" |
+      {span @class="icon {$datadom.attributes.icon}"}
+    }
+    {slot | {$text}}
+  }
+  {span @class=state | {$datadom.slices.pressed}}
+}
+
+{section @data-component=dropdown |
+  {attribute @name=label | Menu}
+  {slice @name=open | false}
+  {div @class=cem-dropdown |
+    {button @type=button @aria-expanded="{$open}" @slice=open @slice-event=click @slice-value="'true'" | {$label}}
+    {cem:if @test="datadom.slices.open" |
+      {div @class=panel | {slot}}
+    }
+  }
+}
+
+{section @data-component=input |
+  {attribute @name=type | text}
+  {label @class=cem-input |
+    {span @class=label |
+      {slot @name=label | {$datadom.attributes.placeholder}}
+    }
+    {input @type="{$type}" @value="{$datadom.attributes.value}" @slice=value @slice-event=input}
+  }
+}
+
+{section @data-component=autocomplete |
+  {div @class=cem-autocomplete |
+    {slot @name=input |
+      {input @type=text @aria-label="{$datadom.attributes.label}" @value="{$datadom.attributes.value}"}
+    }
+    {ul @class=options |
+      {cem:if @test="datadom.data.apple" |
+        {li @class=opt | {$datadom.data.apple.label}}
+      }
+      {cem:if @test="datadom.data.banana" |
+        {li @class=opt | {$datadom.data.banana.label}}
+      }
+    }
+    {data @value=apple | Apple}
+    {data @value=banana | Banana}
+    {option @value=text | Text}
+    {option @value=email | Email}
+  }
+}

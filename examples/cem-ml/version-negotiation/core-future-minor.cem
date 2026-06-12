@@ -1,0 +1,14 @@
+@doc cem-ml 1.2
+@ns cem = "https://cem.dev/ns/core/1"
+@ns html = "http://www.w3.org/1999/xhtml"
+@default html
+
+// AC-P-V-5 — strict reject (future MINOR within the supported MAJOR).
+//
+// Same MAJOR (1) but a MINOR (2) ahead of the embedded 1.0 profile: the
+// engine cannot guarantee the newer minor's surface, so negotiation
+// rejects with `cem.doc.version_unsupported` rather than loading blindly.
+// This pins the minor axis of the negotiation alongside the MAJOR cases.
+{main @cem:screen="version-negotiation" |
+  {p | Future MINOR 1.2 must reject against embedded 1.0.}
+}

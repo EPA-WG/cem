@@ -1,0 +1,45 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1200" height="300" viewBox="0 0 1200 300" font-family="'Segoe UI',system-ui,-apple-system,sans-serif">
+  <defs>
+    <marker id="ar" markerWidth="10" markerHeight="10" refX="7.5" refY="4" orient="auto" markerUnits="userSpaceOnUse">
+      <path d="M0,0 L9,4 L0,8 Z" fill="#475569"/>
+    </marker>
+  </defs>
+  <rect width="1200" height="300" fill="#f8fafc"/>
+  <rect x="0.5" y="0.5" width="1199" height="299" fill="none" stroke="#e2e8f0"/>
+  <rect x="28" y="26" width="32" height="25" rx="5" fill="#2563eb"/>
+  <text x="44" y="44" font-size="14" font-weight="700" fill="#ffffff" text-anchor="middle">03</text>
+  <text x="70" y="45" font-size="19" font-weight="700" fill="#0f172a">Proposed Solution</text>
+  <text x="270" y="45" font-size="13" fill="#64748b">— one canonical schema, compiled once, used everywhere</text>
+
+  <!-- A: CEM-native schema -->
+  <rect x="48" y="118" width="216" height="96" rx="10" fill="#7c3aed"/>
+  <text x="156" y="158" font-size="15" font-weight="700" fill="#ffffff" text-anchor="middle">CEM-native schema</text>
+  <text x="156" y="180" font-size="12" fill="#ddd6fe" text-anchor="middle">canonical source of truth</text>
+
+  <line x1="264" y1="166" x2="362" y2="166" stroke="#475569" stroke-width="2.5" marker-end="url(#ar)"/>
+  <text x="313" y="156" font-size="11" fill="#64748b" text-anchor="middle">compile</text>
+
+  <!-- B: CompiledSchema IR -->
+  <rect x="372" y="118" width="216" height="96" rx="10" fill="#1e3a5f"/>
+  <text x="480" y="158" font-size="15" font-weight="700" fill="#ffffff" text-anchor="middle">CompiledSchema</text>
+  <text x="480" y="180" font-size="12" fill="#94a3b8" text-anchor="middle">structural validation IR</text>
+
+  <!-- fan-out -->
+  <path d="M588 150 C 640 150, 648 96, 700 96" fill="none" stroke="#475569" stroke-width="2.5" marker-end="url(#ar)"/>
+  <path d="M588 182 C 640 182, 648 236, 700 236" fill="none" stroke="#475569" stroke-width="2.5" marker-end="url(#ar)"/>
+
+  <!-- C: SchemaMachine -->
+  <rect x="710" y="62" width="440" height="74" rx="10" fill="#dbeafe"/>
+  <rect x="710" y="62" width="5" height="74" fill="#2563eb"/>
+  <text x="734" y="92" font-size="14" font-weight="700" fill="#1e3a5f">SchemaMachine — streaming validation</text>
+  <text x="734" y="115" font-size="12" fill="#475569">validates documents layer-by-layer, with source maps</text>
+
+  <!-- D: artifacts -->
+  <rect x="710" y="196" width="440" height="74" rx="10" fill="#ede9fe"/>
+  <rect x="710" y="196" width="5" height="74" fill="#7c3aed"/>
+  <text x="734" y="226" font-size="14" font-weight="700" fill="#4c1d95">Release artifacts</text>
+  <text x="734" y="249" font-size="12" fill="#475569">RELAX NG mirrors · TypeScript .d.ts · Rust .rs · URI manifest</text>
+
+  <text x="480" y="246" font-size="12" fill="#94a3b8" text-anchor="middle" font-style="italic">SemVer-keyed:</text>
+  <text x="480" y="263" font-size="12" fill="#94a3b8" text-anchor="middle" font-style="italic">forgiving / strict</text>
+</svg>

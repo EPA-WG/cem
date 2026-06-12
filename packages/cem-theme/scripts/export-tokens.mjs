@@ -27,6 +27,9 @@ const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const PACKAGE_ROOT = path.resolve(__dirname, "..");
 const DIST_TOKENS = path.join(PACKAGE_ROOT, "dist/lib/tokens");
 
+/** Schema version of the published design-token output files (FF-6 SemVer axis, BR-VC-5). */
+const TOKENS_SCHEMA_VERSION = "1.0.0";
+
 const VALID_TIERS = new Set(["required", "recommended", "optional", "adapter", "deprecated"]);
 
 // Supported color-scheme modes
@@ -676,6 +679,8 @@ async function stage3Emit(resolvedTokens, manifestBySpec, version, opts) {
     const voiceTree = buildDtcgTree(voiceTokens);
     visualTree.$extensions = { cem: { generated } };
     voiceTree.$extensions = { cem: { generated } };
+    visualTree.$version = TOKENS_SCHEMA_VERSION;
+    voiceTree.$version = TOKENS_SCHEMA_VERSION;
 
     // Fail-hard: provenance must be present
     if (!visualTree.$extensions?.cem?.generated) {
