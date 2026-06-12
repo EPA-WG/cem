@@ -3,7 +3,6 @@
   "compilerOptions": {
     "outDir": "./out-tsc/vitest",
     "types": [
-      "@vitest/browser/providers/playwright",
       "vitest/globals",
       "vitest/importMeta",
       "vite/client",
