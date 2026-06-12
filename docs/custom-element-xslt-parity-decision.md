@@ -29,11 +29,11 @@ Partially implemented:
 - The current apply-template selector supports simple match patterns, `mode`,
   source-document child/attribute/text traversal (`*`, `@*`, `text()`, `.`),
   simple absolute/descendant selectors used by samples, union splitting, basic
-  template `priority`, and a single child `xsl:sort` over literal item values.
-  It is a compatibility adapter profile, not a general XSLT stylesheet engine.
-- Remaining open work includes broader XPath-backed apply-template traversal,
-  multi-key sort semantics, default template rules beyond the sample-backed
-  fallbacks, and recursion safety where sample-used.
+  template `priority`, default template fallbacks, a bounded recursion guard,
+  and child `xsl:sort` over one or more literal/numeric keys. It is a
+  compatibility adapter profile, not a general XSLT stylesheet engine.
+- Remaining open work includes broader XPath-backed apply-template traversal
+  and predicate/function semantics where copied samples prove they are needed.
 - XSLT dispatch (`AC-P-6.8`) is implemented as isolation/version-pinning
   decision-core; XSLT execution binding (`AC-P-6.9`) remains deferred.
 
@@ -81,9 +81,9 @@ Evidence from copied samples:
    `xsl:apply-templates` are in scope. The first engine slice supports root and
    named templates, `param`/`with-param`, simple match-based template selection,
    `mode`, sample-style source traversal, basic template priority, and a
-   single-key sort subset. The remaining bounded subset must cover default
-   template behavior needed by samples, recursion when used by samples,
-   multi-key sort where sample-used, and broader XPath selection.
+   multi-key sort subset with recursion safety. The remaining bounded subset
+   must cover broader XPath selection and predicate/function behavior where
+   sample-used.
 
 ## Remaining Open Questions
 

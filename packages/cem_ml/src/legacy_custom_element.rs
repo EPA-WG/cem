@@ -87,6 +87,7 @@ const HTML_VOID_ELEMENTS: &[&str] = &[
     "area", "base", "br", "col", "embed", "hr", "img", "input", "link", "meta", "param", "source",
     "track", "wbr",
 ];
+const MAX_TEMPLATE_DEPTH: usize = 64;
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize)]
 pub struct LegacyConversionDiagnostic {
@@ -437,6 +438,7 @@ struct EmitCtx {
     scalars: HashMap<String, String>,
     item: Option<CurrentItem>,
     root_nodes: Vec<LegacyNode>,
+    template_depth: usize,
     templates: TemplateRegistry,
 }
 
@@ -834,6 +836,13 @@ fn emit_call_template(
     ctx: &EmitCtx,
     diagnostics: &mut Vec<LegacyConversionDiagnostic>,
 ) -> String {
+    if ctx.template_depth >= MAX_TEMPLATE_DEPTH {
+        diagnostics.push(diag(
+            "legacy_xslt.template_recursion_limit",
+            format!("template recursion exceeded the bounded limit of {MAX_TEMPLATE_DEPTH}"),
+        ));
+        return String::new();
+    }
     let Some(name) = attr_value(element, "name") else {
         diagnostics.push(diag(
             "legacy_xslt.call_template_missing_name",
@@ -848,7 +857,8 @@ fn emit_call_template(
         ));
         return String::new();
     };
-    let scoped = with_call_template_params(element, ctx, diagnostics);
+    let mut scoped = with_call_template_params(element, ctx, diagnostics);
+    scoped.template_depth += 1;
     emit_children(&template.children, &scoped, diagnostics)
 }
 
@@ -934,23 +944,13 @@ fn emit_apply_template_member(
     ctx: &EmitCtx,
     diagnostics: &mut Vec<LegacyConversionDiagnostic>,
 ) -> String {
-    let current = match member {
-        ApplyMember::Item(member) => current_item_from_item_node(member, position),
-        ApplyMember::Current(member) => CurrentItem {
-            position,
-            ..member.clone()
-        },
-    };
-    let item_ctx = EmitCtx {
-        item: Some(current.clone()),
-        loop_var: None,
-        ..ctx.clone()
-    };
-    let mode = attr_value(element, "mode");
-    if let Some(template) = find_matching_template(&current, mode, &ctx.templates) {
-        return emit_children(&template.children, &item_ctx, diagnostics);
-    }
-    current.text
+    emit_apply_template_member_with_mode(
+        member,
+        position,
+        attr_value(element, "mode"),
+        ctx,
+        diagnostics,
+    )
 }
 
 fn find_matching_template<'a>(
@@ -1077,6 +1077,83 @@ fn select_current_members(select: &str, ctx: &EmitCtx) -> Option<Vec<ApplyMember
         _ if select.ends_with("/*") => select_current_path_members(select, current),
         _ => None,
     }
+}
+
+fn emit_default_template_rule(
+    current: &CurrentItem,
+    mode: Option<&str>,
+    ctx: &EmitCtx,
+    diagnostics: &mut Vec<LegacyConversionDiagnostic>,
+) -> String {
+    match current.kind {
+        CurrentItemKind::Attribute | CurrentItemKind::Text => current.text.clone(),
+        CurrentItemKind::Document | CurrentItemKind::Element => {
+            if ctx.template_depth >= MAX_TEMPLATE_DEPTH {
+                diagnostics.push(diag(
+                    "legacy_xslt.template_recursion_limit",
+                    format!(
+                        "template recursion exceeded the bounded limit of {MAX_TEMPLATE_DEPTH}"
+                    ),
+                ));
+                return String::new();
+            }
+            let mut members = element_children(&current.children);
+            members.extend(text_children(&current.children));
+            let child_ctx = EmitCtx {
+                template_depth: ctx.template_depth + 1,
+                ..ctx.clone()
+            };
+            members
+                .iter()
+                .enumerate()
+                .map(|(index, member)| {
+                    emit_apply_template_member_with_mode(
+                        member,
+                        index + 1,
+                        mode,
+                        &child_ctx,
+                        diagnostics,
+                    )
+                })
+                .collect()
+        }
+    }
+}
+
+fn emit_apply_template_member_with_mode(
+    member: &ApplyMember,
+    position: usize,
+    mode: Option<&str>,
+    ctx: &EmitCtx,
+    diagnostics: &mut Vec<LegacyConversionDiagnostic>,
+) -> String {
+    let current = match member {
+        ApplyMember::Item(member) => current_item_from_item_node(member, position),
+        ApplyMember::Current(member) => CurrentItem {
+            position,
+            ..member.clone()
+        },
+    };
+    let item_ctx = EmitCtx {
+        item: Some(current.clone()),
+        loop_var: None,
+        ..ctx.clone()
+    };
+    if let Some(template) = find_matching_template(&current, mode, &ctx.templates) {
+        if item_ctx.template_depth >= MAX_TEMPLATE_DEPTH {
+            diagnostics.push(diag(
+                "legacy_xslt.template_recursion_limit",
+                format!("template recursion exceeded the bounded limit of {MAX_TEMPLATE_DEPTH}"),
+            ));
+            return String::new();
+        }
+        let template_ctx = EmitCtx {
+            template_depth: item_ctx.template_depth + 1,
+            ..item_ctx
+        };
+        return emit_children(&template.children, &template_ctx, diagnostics);
+    }
+    emit_default_template_rule(&current, mode, &item_ctx, diagnostics)
 }
 
 fn select_current_path_members(select: &str, current: &CurrentItem) -> Option<Vec<ApplyMember>> {
@@ -1254,23 +1331,55 @@ fn current_item_from_attribute(name: &str, value: &str) -> CurrentItem {
 }
 
 fn apply_sort_children(members: &mut [ApplyMember], element: &LegacyElement) {
-    let Some(sort) = element.children.iter().find_map(|child| match child {
-        LegacyNode::Element(child) if local_name(&child.tag) == "sort" => Some(child),
-        _ => None,
-    }) else {
+    let sorts: Vec<SortSpec> = element
+        .children
+        .iter()
+        .filter_map(|child| match child {
+            LegacyNode::Element(child) if local_name(&child.tag) == "sort" => Some(SortSpec {
+                select: attr_value(child, "select").unwrap_or(".").to_owned(),
+                descending: attr_value(child, "order") == Some("descending"),
+                numeric: attr_value(child, "data-type") == Some("number"),
+            }),
+            _ => None,
+        })
+        .collect();
+    if sorts.is_empty() {
         return;
     };
-    let select = attr_value(sort, "select").unwrap_or(".");
-    let descending = attr_value(sort, "order") == Some("descending");
     members.sort_by(|a, b| {
-        let left = sort_key_for_member(a, select);
-        let right = sort_key_for_member(b, select);
-        if descending {
-            right.cmp(&left)
-        } else {
-            left.cmp(&right)
+        for sort in &sorts {
+            let ordering = if sort.numeric {
+                let left = sort_key_for_member(a, &sort.select)
+                    .trim()
+                    .parse::<f64>()
+                    .unwrap_or(0.0);
+                let right = sort_key_for_member(b, &sort.select)
+                    .trim()
+                    .parse::<f64>()
+                    .unwrap_or(0.0);
+                left.partial_cmp(&right)
+                    .unwrap_or(std::cmp::Ordering::Equal)
+            } else {
+                sort_key_for_member(a, &sort.select).cmp(&sort_key_for_member(b, &sort.select))
+            };
+            let ordering = if sort.descending {
+                ordering.reverse()
+            } else {
+                ordering
+            };
+            if ordering != std::cmp::Ordering::Equal {
+                return ordering;
+            }
         }
+        std::cmp::Ordering::Equal
     });
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+struct SortSpec {
+    select: String,
+    descending: bool,
+    numeric: bool,
 }
 
 fn sort_key_for_member(member: &ApplyMember, select: &str) -> String {
@@ -1278,7 +1387,20 @@ fn sort_key_for_member(member: &ApplyMember, select: &str) -> String {
         ApplyMember::Item(item) => current_item_from_item_node(item, 1),
         ApplyMember::Current(item) => item.clone(),
     };
-    resolve_item_literal(select.trim(), &current).unwrap_or_default()
+    let select = select.trim();
+    if let Some(literal) = resolve_item_literal(select, &current) {
+        return literal;
+    }
+    current
+        .children
+        .iter()
+        .find_map(|child| match child {
+            LegacyNode::Element(element) if local_name(&element.tag) == select => {
+                Some(text_content(element))
+            }
+            _ => None,
+        })
+        .unwrap_or_default()
 }
 
 fn emit_slot(
@@ -1965,6 +2087,43 @@ mod tests {
             "{doc | {item @rank=\"2\" | B}{item @rank=\"1\" | A}}{ol | {li | 1:A}{li | 2:B}}"
         );
         assert!(result.diagnostics.is_empty());
+    }
+
+    #[test]
+    fn applies_default_template_rules_for_unmatched_elements() {
+        let result = convert(
+            r#"<doc><wrap><item>Alpha</item></wrap><item>Beta</item></doc><xsl:stylesheet version="1.0"><xsl:template match="/"><xsl:apply-templates select="*"/></xsl:template><xsl:template match="item"><b><xsl:value-of select="."/></b></xsl:template></xsl:stylesheet>"#,
+        );
+        assert_eq!(
+            result.source,
+            "{doc | {wrap | {item | Alpha}}{item | Beta}}{b | Alpha}{b | Beta}"
+        );
+        assert!(result.diagnostics.is_empty());
+    }
+
+    #[test]
+    fn sorts_with_multiple_keys_and_numeric_type() {
+        let result = convert(
+            r#"<doc><item group="b" rank="2">B2</item><item group="a" rank="10">A10</item><item group="a" rank="2">A2</item></doc><xsl:stylesheet version="1.0"><xsl:template match="/"><ol><xsl:apply-templates select="//item"><xsl:sort select="@group"/><xsl:sort select="@rank" data-type="number"/></xsl:apply-templates></ol></xsl:template><xsl:template match="item"><li><xsl:value-of select="@group"/>:<xsl:value-of select="@rank"/>:<xsl:value-of select="."/></li></xsl:template></xsl:stylesheet>"#,
+        );
+        assert_eq!(
+            result.source,
+            "{doc | {item @group=\"b\" @rank=\"2\" | B2}{item @group=\"a\" @rank=\"10\" | A10}{item @group=\"a\" @rank=\"2\" | A2}}{ol | {li | a:2:A2}{li | a:10:A10}{li | b:2:B2}}"
+        );
+        assert!(result.diagnostics.is_empty());
+    }
+
+    #[test]
+    fn stops_recursive_template_calls_at_bounded_limit() {
+        let result = convert(
+            r#"<xsl:stylesheet version="1.0"><xsl:template match="/"><xsl:call-template name="again"/></xsl:template><xsl:template name="again"><xsl:call-template name="again"/></xsl:template></xsl:stylesheet>"#,
+        );
+        assert_eq!(result.source, "");
+        assert_eq!(result.diagnostics.len(), 1);
+        assert_eq!(
+            result.diagnostics[0].code,
+            "legacy_xslt.template_recursion_limit"
+        );
     }
 
     #[test]

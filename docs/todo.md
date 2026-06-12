@@ -49,9 +49,9 @@ to proven web component names, states, attributes, and accessibility behavior in
 - [ ] Complete the custom-element XSLT parity scope before expanding the component catalog. The engine now has the first
       stylesheet-compat slices for `xsl:stylesheet`, root/named `xsl:template`, `xsl:call-template`, params, bounded
       `xsl:apply-templates` over inline `exsl:node-set($var)/*` variables, sample-style source child/attribute/text
-      traversal, basic template priority, and single-key `xsl:sort`. Phase 4 still needs the remaining copied
-      component/sample parity: broader XPath-backed apply-template traversal, default template rules, multi-key sort
-      where sample-used, and recursion safety where sample-used. Track the inventory with
+      traversal, default template fallbacks, basic template priority, multi-key `xsl:sort`, and recursion safety. Phase
+      4 still needs the remaining copied component/sample parity: broader XPath-backed apply-template traversal and
+      predicate/function behavior where sample-used. Track the inventory with
       `yarn nx run @epa-wg/custom-element:xslt:inventory`; track the remaining bounded implementation questions in
       [`custom-element-xslt-parity-decision.md`](custom-element-xslt-parity-decision.md).
 - [ ] Define the Phase 4 component MVP list and state matrix across actions, inputs, navigation, content, feedback,
