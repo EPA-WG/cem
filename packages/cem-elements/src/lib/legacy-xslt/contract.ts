@@ -48,16 +48,17 @@ export const LEGACY_XSLT_STYLESHEET_COMPAT_ELEMENTS = [
     'call-template',
     'with-param',
     'param',
-] as const;
-
-export const LEGACY_XSLT_TIER3_HANDOFF_ELEMENTS = [
     'sort',
     'copy',
     'copy-of',
+    'attribute',
     'element',
+    'output',
+] as const;
+
+export const LEGACY_XSLT_TIER3_HANDOFF_ELEMENTS = [
     'function',
     'script',
-    'output',
 ] as const;
 
 export const LEGACY_XPATH_FUNCTION_MAP = {

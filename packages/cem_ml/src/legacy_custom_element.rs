@@ -59,12 +59,16 @@ pub const STYLESHEET_COMPAT_ELEMENTS: &[&str] = &[
     "with-param",
     "param",
     "apply-templates",
+    "sort",
+    "copy",
+    "copy-of",
+    "attribute",
+    "element",
+    "output",
 ];
 
 /// Tier 3 XSLT constructs that are outside the current material/demo bridge.
-pub const TIER3_HANDOFF_ELEMENTS: &[&str] = &[
-    "sort", "copy", "copy-of", "element", "function", "script", "output",
-];
+pub const TIER3_HANDOFF_ELEMENTS: &[&str] = &["function", "script"];
 
 /// XPath functions the bridge lowers to CEM-QL directly or by special rewrite.
 pub const SUPPORTED_XPATH_FUNCTIONS: &[&str] = &[
@@ -535,7 +539,11 @@ fn with_variable_scope(
             })
             .collect();
         if let Some(select) = attr_value(element, "select") {
-            let rewritten = rewrite_expression(select, &scoped, false, diagnostics);
+            let rewritten = scoped
+                .item
+                .as_ref()
+                .and_then(|item| resolve_item_literal(select.trim(), item))
+                .unwrap_or_else(|| rewrite_expression(select, &scoped, false, diagnostics));
             scoped.scalars.insert(name.to_owned(), rewritten);
         } else if !members.is_empty() {
             scoped.node_sets.insert(name.to_owned(), members);
@@ -597,6 +605,9 @@ fn emit_element(
         "copy" if is_xslt_element(&element.tag) => return emit_xsl_copy(element, ctx, diagnostics),
         "copy-of" if is_xslt_element(&element.tag) => {
             return emit_xsl_copy_of(element, ctx, diagnostics)
+        }
+        "element" if is_xslt_element(&element.tag) => {
+            return emit_xsl_element(element, ctx, diagnostics)
         }
         "attribute" if is_xslt_element(&element.tag) => {
             diagnostics.push(diag(
@@ -743,6 +754,75 @@ fn emit_xsl_attribute(
     attr_assign(name, &value)
 }
 
+fn emit_xsl_element(
+    element: &LegacyElement,
+    ctx: &EmitCtx,
+    diagnostics: &mut Vec<LegacyConversionDiagnostic>,
+) -> String {
+    let Some(name) = attr_value(element, "name") else {
+        diagnostics.push(diag(
+            "legacy_xslt.element_missing_name",
+            "<xsl:element> without @name is ignored",
+        ));
+        return String::new();
+    };
+    let Some(tag) = resolve_constructed_name(name, ctx, diagnostics) else {
+        return String::new();
+    };
+    let attrs = emit_xsl_instruction_attributes(&element.children, ctx, diagnostics);
+    let body = emit_children_excluding_instruction_attributes(&element.children, ctx, diagnostics);
+    if body.is_empty() {
+        format!("{{{tag}{attrs}}}")
+    } else {
+        format!("{{{tag}{attrs} | {body}}}")
+    }
+}
+
+fn resolve_constructed_name(
+    value: &str,
+    ctx: &EmitCtx,
+    diagnostics: &mut Vec<LegacyConversionDiagnostic>,
+) -> Option<String> {
+    let value = value.trim();
+    if is_name(value) {
+        return Some(local_name(value).to_owned());
+    }
+    let Some(inner) = value
+        .strip_prefix('{')
+        .and_then(|rest| rest.strip_suffix('}'))
+    else {
+        diagnostics.push(diag(
+            UNSUPPORTED_CONSTRUCT_CODE,
+            format!("<xsl:element name=\"{value}\"> has a dynamic name outside the bounded subset"),
+        ));
+        return None;
+    };
+    let inner = inner.trim();
+    let resolved = if let Some(name) = inner.strip_prefix('$') {
+        ctx.scalars.get(name).cloned()
+    } else {
+        ctx.item
+            .as_ref()
+            .and_then(|item| resolve_item_literal(inner, item))
+    };
+    let Some(resolved) = resolved else {
+        diagnostics.push(diag(
+            UNSUPPORTED_CONSTRUCT_CODE,
+            format!("<xsl:element name=\"{value}\"> could not be resolved statically"),
+        ));
+        return None;
+    };
+    let resolved = resolved.trim().trim_matches('"').trim_matches('\'');
+    if !is_name(resolved) {
+        diagnostics.push(diag(
+            UNSUPPORTED_CONSTRUCT_CODE,
+            format!("<xsl:element name=\"{value}\"> resolved to invalid name \"{resolved}\""),
+        ));
+        return None;
+    }
+    Some(local_name(resolved).to_owned())
+}
+
 fn emit_attribute(
     attr: &LegacyAttribute,
     ctx: &EmitCtx,
@@ -769,6 +849,11 @@ fn emit_value_of(
     if let Some(item) = &ctx.item {
         if let Some(literal) = resolve_item_literal(select.trim(), item) {
             return escape_literal(&literal);
+        }
+    }
+    if let Some(name) = select.trim().strip_prefix('$') {
+        if let Some(value) = ctx.scalars.get(name) {
+            return escape_literal(value);
         }
     }
     format!("{{{}}}", rewrite_expression(select, ctx, true, diagnostics))
@@ -2338,7 +2423,7 @@ mod tests {
 
     #[test]
     fn tier3_push_model_constructs_are_handoff_only() {
-        for name in ["sort", "output"] {
+        for name in ["function", "script"] {
             assert_eq!(
                 element_disposition(name),
                 LegacyElementDisposition::Tier3Handoff
@@ -2348,28 +2433,29 @@ mod tests {
 
     #[test]
     fn classifies_stylesheet_compat_constructs_separately() {
-        assert_eq!(
-            xslt_compat_disposition("template"),
-            LegacyXsltCompatDisposition::StylesheetCompat
-        );
-        assert_eq!(
-            xslt_compat_disposition("call-template"),
-            LegacyXsltCompatDisposition::StylesheetCompat
-        );
-        assert_eq!(
-            xslt_compat_disposition("apply-templates"),
-            LegacyXsltCompatDisposition::StylesheetCompat
-        );
-        assert_eq!(
-            xslt_compat_disposition("stylesheet"),
-            LegacyXsltCompatDisposition::StylesheetCompat
-        );
+        for name in [
+            "template",
+            "call-template",
+            "apply-templates",
+            "stylesheet",
+            "sort",
+            "copy",
+            "copy-of",
+            "attribute",
+            "element",
+            "output",
+        ] {
+            assert_eq!(
+                xslt_compat_disposition(name),
+                LegacyXsltCompatDisposition::StylesheetCompat
+            );
+        }
         assert_eq!(
             xslt_compat_disposition("if"),
             LegacyXsltCompatDisposition::FragmentBridge
         );
         assert_eq!(
-            xslt_compat_disposition("sort"),
+            xslt_compat_disposition("script"),
             LegacyXsltCompatDisposition::Handoff
         );
     }
@@ -2530,6 +2616,18 @@ mod tests {
         assert_eq!(
             result.source,
             "{doc | {item @id=\"a\" | Alpha{child @title=\"b\" | Beta}}}{out | {item @id=\"a\" @data-name=\"item\" | {leaf @title=\"b\" | Beta}}{child @title=\"b\" | Beta}}"
+        );
+        assert!(result.diagnostics.is_empty());
+    }
+
+    #[test]
+    fn lowers_dynamic_xsl_element_name_from_current_item_variable() {
+        let result = convert(
+            r#"<doc><alpha/><beta/></doc><xsl:stylesheet version="1.0"><xsl:template match="/"><out><xsl:apply-templates select="//doc/*"/></out></xsl:template><xsl:template match="*"><xsl:variable name="p" select="name()"/><xsl:element name="{$p}"><xsl:attribute name="xv"><xsl:value-of select="$p"/></xsl:attribute></xsl:element></xsl:template></xsl:stylesheet>"#,
+        );
+        assert_eq!(
+            result.source,
+            "{doc | {alpha}{beta}}{out | {alpha @xv=\"alpha\"}{beta @xv=\"beta\"}}"
         );
         assert!(result.diagnostics.is_empty());
     }

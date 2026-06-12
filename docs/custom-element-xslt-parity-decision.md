@@ -38,9 +38,10 @@ Partially implemented:
 - The current construction subset supports direct `xsl:attribute` on emitted
   elements, `xsl:copy` for the current node, and bounded `xsl:copy-of` for the
   current node, current attributes, selected elements, and inline node-set
-  variables.
+  variables. It also supports bounded `xsl:element` names when the name is
+  literal or resolves through a scalar AVT such as `name="{$p}"`.
 - Remaining open work is limited to richer XPath predicate/function semantics
-  plus dynamic construction cases such as `xsl:element name="..."` and any
+  plus dynamic construction names outside that scalar AVT subset and any
   additional XSLT instructions or traversal cases that copied component/sample
   fixtures prove they need.
 - XSLT dispatch (`AC-P-6.8`) is implemented as isolation/version-pinning
@@ -92,9 +93,9 @@ Evidence from copied samples:
    `mode`, sample-style source traversal, namespace wildcard and indexed-child
    selection, parent-relative paths, simple predicates, basic template priority,
    a multi-key sort subset with recursion safety, and bounded current-node
-   copy/attribute construction. The remaining bounded subset must cover richer
-   XPath predicate/function behavior and dynamic construction only where
-   sample-used.
+   copy/attribute/element construction. The remaining bounded subset must cover
+   richer XPath predicate/function behavior and dynamic names outside the scalar
+   AVT subset only where sample-used.
 
 ## Remaining Open Questions
 
