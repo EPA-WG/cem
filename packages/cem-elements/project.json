@@ -4,6 +4,12 @@
     "sourceRoot": "packages/cem-elements/src",
     "projectType": "library",
     "targets": {
+        "build": {
+            "dependsOn": [{ "projects": ["cem_ql"], "target": "build:wasm" }]
+        },
+        "typecheck": {
+            "dependsOn": [{ "projects": ["cem_ql"], "target": "build:wasm" }]
+        },
         "storybook": {
             "executor": "nx:run-commands",
             "options": {
@@ -21,6 +27,7 @@
         },
         "test": {
             "executor": "nx:run-commands",
+            "dependsOn": [{ "projects": ["cem_ql"], "target": "build:wasm" }],
             "options": {
                 "command": "yarn vitest --config packages/cem-elements/vitest.config.mts --project=storybook --run",
                 "cwd": "{workspaceRoot}"
@@ -38,6 +45,7 @@
         "test:unit": {
             "cache": true,
             "executor": "nx:run-commands",
+            "dependsOn": [{ "projects": ["cem_ql"], "target": "build:wasm" }],
             "options": {
                 "command": "yarn vitest --config packages/cem-elements/vitest.unit.config.mts --run",
                 "cwd": "{workspaceRoot}"
