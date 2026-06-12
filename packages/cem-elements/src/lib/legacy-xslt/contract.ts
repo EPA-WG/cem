@@ -72,6 +72,7 @@ export const LEGACY_XPATH_FUNCTION_MAP = {
     'substring-after': 'str:substring_after',
     'string-length': 'str:length',
     count: 'seq:count',
+    sum: 'seq:sum',
 } as const;
 
 export const LEGACY_XPATH_SPECIAL_FUNCTIONS = ['not', 'concat', 'position'] as const;

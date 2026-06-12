@@ -110,11 +110,12 @@ engine slices support root and named templates, params, bounded
 `apply-templates` over inline `exsl:node-set($var)/*` variables, sample-style
 source child/attribute/text traversal, absolute/descendant selectors,
 namespace wildcards, indexed child steps, parent-relative paths, simple
-predicates, default template fallbacks, basic template priority, multi-key
-`sort`, bounded current-node copy/copy-of/attribute construction, scalar-AVT
-`xsl:element` construction, and recursion safety. Remaining richer XPath
-predicate/function work and dynamic names outside that scalar AVT subset are
-tracked in
+predicates including scalar equality checks, default template fallbacks, basic
+template priority, multi-key `sort`, literal `count`/`sum` over supported node
+selections, bounded current-node copy/copy-of/attribute construction,
+scalar-AVT `xsl:element` construction, and recursion safety. Remaining richer
+XPath predicate/function work and dynamic names outside that scalar AVT subset
+are tracked in
 [`custom-element-xslt-parity-decision.md`](custom-element-xslt-parity-decision.md).
 
 ## Immediate Plan

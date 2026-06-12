@@ -31,10 +31,14 @@ Partially implemented:
   sample-style absolute/descendant selectors, namespace-qualified local-name
   matching, namespace wildcards such as `xhtml:*`, indexed child steps,
   parent-relative paths, named attribute selection, union splitting, simple
-  predicates (`*`, `not(*)`, `@attr`, and `@attr='value'`), basic template
-  `priority`, default template fallbacks, a bounded recursion guard, and child
-  `xsl:sort` over one or more literal/numeric keys. It is a compatibility
-  adapter profile, not a general XSLT stylesheet engine.
+  predicates (`*`, `not(*)`, `@attr`, `@attr='value'`, `@attr=$param`, and
+  `name()=$param`), basic template `priority`, default template fallbacks, a
+  bounded recursion guard, and child `xsl:sort` over one or more literal/numeric
+  keys. It is a compatibility adapter profile, not a general XSLT stylesheet
+  engine.
+- The current expression subset also evaluates sample-style `count(...)` and
+  `sum(...)` calls when their argument is already in the supported node
+  selection subset.
 - The current construction subset supports direct `xsl:attribute` on emitted
   elements, `xsl:copy` for the current node, and bounded `xsl:copy-of` for the
   current node, current attributes, selected elements, and inline node-set
@@ -91,11 +95,11 @@ Evidence from copied samples:
    `xsl:apply-templates` are in scope. The first engine slice supports root and
    named templates, `param`/`with-param`, simple match-based template selection,
    `mode`, sample-style source traversal, namespace wildcard and indexed-child
-   selection, parent-relative paths, simple predicates, basic template priority,
-   a multi-key sort subset with recursion safety, and bounded current-node
-   copy/attribute/element construction. The remaining bounded subset must cover
-   richer XPath predicate/function behavior and dynamic names outside the scalar
-   AVT subset only where sample-used.
+   selection, parent-relative paths, scalar equality predicates, basic template
+   priority, a multi-key sort subset with recursion safety, and bounded
+   current-node copy/attribute/element construction. The remaining bounded
+   subset must cover richer XPath predicate/function behavior and dynamic names
+   outside the scalar AVT subset only where sample-used.
 
 ## Remaining Open Questions
 
