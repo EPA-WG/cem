@@ -28,12 +28,16 @@ Partially implemented:
   variables now lower through `cem_ml::legacy_custom_element`.
 - The current apply-template selector supports simple match patterns, `mode`,
   source-document child/attribute/text traversal (`*`, `@*`, `text()`, `.`),
-  simple absolute/descendant selectors used by samples, union splitting, basic
-  template `priority`, default template fallbacks, a bounded recursion guard,
-  and child `xsl:sort` over one or more literal/numeric keys. It is a
-  compatibility adapter profile, not a general XSLT stylesheet engine.
-- Remaining open work includes broader XPath-backed apply-template traversal
-  and predicate/function semantics where copied samples prove they are needed.
+  sample-style absolute/descendant selectors, namespace-qualified local-name
+  matching, namespace wildcards such as `xhtml:*`, indexed child steps,
+  parent-relative paths, named attribute selection, union splitting, simple
+  predicates (`*`, `not(*)`, `@attr`, and `@attr='value'`), basic template
+  `priority`, default template fallbacks, a bounded recursion guard, and child
+  `xsl:sort` over one or more literal/numeric keys. It is a compatibility
+  adapter profile, not a general XSLT stylesheet engine.
+- Remaining open work is limited to richer XPath predicate/function semantics
+  and any additional XSLT instructions or traversal cases that copied
+  component/sample fixtures prove they need.
 - XSLT dispatch (`AC-P-6.8`) is implemented as isolation/version-pinning
   decision-core; XSLT execution binding (`AC-P-6.9`) remains deferred.
 
@@ -80,18 +84,19 @@ Evidence from copied samples:
 3. **Template invocation subset.** `xsl:template`, `xsl:call-template`, and
    `xsl:apply-templates` are in scope. The first engine slice supports root and
    named templates, `param`/`with-param`, simple match-based template selection,
-   `mode`, sample-style source traversal, basic template priority, and a
-   multi-key sort subset with recursion safety. The remaining bounded subset
-   must cover broader XPath selection and predicate/function behavior where
-   sample-used.
+   `mode`, sample-style source traversal, namespace wildcard and indexed-child
+   selection, parent-relative paths, simple predicates, basic template priority,
+   and a multi-key sort subset with recursion safety. The remaining bounded
+   subset must cover richer XPath predicate/function behavior and additional
+   XSLT instructions only where sample-used.
 
 ## Remaining Open Questions
 
-1. **XPath/data model.** The inventory now names the function and feature
-   surface, but implementation still needs to define the data model that backs
-   it: document order, attribute nodes, text nodes, current node vs selected
-   node, parent navigation, unions, predicates, wildcard matching, and
-   mode-specific traversal.
+1. **XPath/data model.** The engine now has an executable current-item data
+   model for document, element, attribute, text, parent navigation, unions,
+   wildcard matching, and mode-specific traversal. The remaining question is how
+   far to extend predicates and functions beyond the sample-backed subset
+   without turning the adapter into a general XPath runtime.
 
 2. **Namespace recognition.** The engine should dispatch XSLT by resolved
    namespace identity (`http://www.w3.org/1999/XSL/Transform`), not only lexical

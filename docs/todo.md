@@ -22,24 +22,9 @@ Design homes:
 
 - [ ] Legacy DCE `hasBoolAttribute()` boolean-attribute helper is not reproduced yet. It is currently an
       allowlisted compatibility gap for legacy material `input`/`action` templates.
-- [ ] Tier 3 standalone XSLT stylesheets remain an explicit handoff/deferred scope:
-      push-model `apply-templates`/`call-template`/`sort`, EXSLT `func:function`, and `msxsl:script`
-      are non-transpilable in the bounded legacy custom-element bridge.
-
-## Phase 3.6 — `@epa-wg/custom-element` Monorepo Adoption
-
-Roadmap: [`../roadmap.md` §Phase 3.6](../roadmap.md).
-
-- [x] Publish-readiness pass for the next major: changelog, migration guide from external POC package to workspace
-      package, bridge-window support matrix, breaking-change list, npm package contents check, and rollback plan for
-      consumers that still depend on the old XSLT-only surface. Analysis landed in
-      [`release-readiness-0.1.0.md`](release-readiness-0.1.0.md): target `0.1.0`, bridge policy
-      deprecate-now / remove-next-major (FF-5-gated), changelog summary, breaking-change list, support matrix,
-      rollback plan, and the npm-contents check. Local publish-readiness is complete for the nx `cem` group:
-      manifests are at `0.1.0`, `CHANGELOG.md` is curated, README deprecation notices are present, and all four
-      publish roots pack cleanly. Publish/tag/GitHub-release actions are intentionally skipped for now and will be
-      run later by a maintainer, including the separate `@epa-wg/custom-element` `0.1.0` release pipeline (its local
-      source/dist manifests still report `0.0.39`).
+- [ ] Tier 3 standalone XSLT stylesheets remain an explicit handoff/deferred scope outside the bounded compatibility
+      profile: unsupported dynamic construction/copying instructions, EXSLT `func:function`, and `msxsl:script` are
+      non-transpilable in the legacy custom-element bridge.
 
 ## Phase 4 — CEM Component Set
 
@@ -49,9 +34,10 @@ to proven web component names, states, attributes, and accessibility behavior in
 - [ ] Complete the custom-element XSLT parity scope before expanding the component catalog. The engine now has the first
       stylesheet-compat slices for `xsl:stylesheet`, root/named `xsl:template`, `xsl:call-template`, params, bounded
       `xsl:apply-templates` over inline `exsl:node-set($var)/*` variables, sample-style source child/attribute/text
-      traversal, default template fallbacks, basic template priority, multi-key `xsl:sort`, and recursion safety. Phase
-      4 still needs the remaining copied component/sample parity: broader XPath-backed apply-template traversal and
-      predicate/function behavior where sample-used. Track the inventory with
+      traversal, absolute/descendant selectors, namespace wildcards, indexed child steps, parent-relative paths, simple
+      predicates, default template fallbacks, basic template priority, multi-key `xsl:sort`, and recursion safety. Phase
+      4 still needs the remaining copied component/sample parity: richer XPath predicate/function behavior and any
+      additional XSLT instructions from copied fixtures where sample-used. Track the inventory with
       `yarn nx run @epa-wg/custom-element:xslt:inventory`; track the remaining bounded implementation questions in
       [`custom-element-xslt-parity-decision.md`](custom-element-xslt-parity-decision.md).
 - [ ] Define the Phase 4 component MVP list and state matrix across actions, inputs, navigation, content, feedback,
