@@ -192,7 +192,9 @@ pub fn function_disposition(name: &str) -> LegacyFunctionDisposition {
         "string-length" => LegacyFunctionDisposition::CemQl("str:length"),
         "count" => LegacyFunctionDisposition::CemQl("seq:count"),
         "sum" => LegacyFunctionDisposition::CemQl("seq:sum"),
-        "not" | "concat" | "position" | "current" => LegacyFunctionDisposition::Special,
+        "not" | "concat" | "position" | "current" | "hasBoolAttribute" => {
+            LegacyFunctionDisposition::Special
+        }
         _ => LegacyFunctionDisposition::Unsupported,
     }
 }
@@ -2594,13 +2596,20 @@ fn evaluate_xpath_operand(expression: &str, ctx: &EmitCtx) -> Option<String> {
     if expression.parse::<f64>().is_ok() {
         return Some(expression.to_owned());
     }
-    select_members_for_eval(expression, ctx).map(|members| {
-        members
-            .iter()
-            .map(member_string_value)
-            .collect::<Vec<_>>()
-            .join("")
-    })
+    // Only treat a node-set as a known operand value when we actually found
+    // static members. An empty result means the path had no match in the
+    // static template AST — for runtime references such as `//show-a` that
+    // correspond to datadom slices, this is "unknown at compile time", not
+    // "empty string", so we must return None to avoid incorrect static folding.
+    select_members_for_eval(expression, ctx)
+        .filter(|members| !members.is_empty())
+        .map(|members| {
+            members
+                .iter()
+                .map(member_string_value)
+                .collect::<Vec<_>>()
+                .join("")
+        })
 }
 
 fn is_quoted_xpath_literal(value: &str) -> bool {
@@ -2995,6 +3004,23 @@ impl XPathRewriter<'_, '_> {
             LegacyFunctionDisposition::Special if name == "concat" => {
                 format!("str:concat(({})) ", args.join(", "))
             }
+            LegacyFunctionDisposition::Special if name == "hasBoolAttribute" => {
+                // DCE compile-time rewrite: hasBoolAttribute($attr) expands to the
+                // idiomatic HTML boolean attribute test — true when the value is empty,
+                // the attribute name itself, or "true", and not explicitly "false".
+                // The arg is either a bare variable name (from $attr rewriting) or a
+                // quoted string literal — strip surrounding CEM-QL string quotes when
+                // present so the attr name can be used both as a binding and a literal.
+                let raw = args.first().map(|s| s.trim()).unwrap_or("");
+                let attr = if raw.starts_with('"') && raw.ends_with('"') && raw.len() >= 2 {
+                    &raw[1..raw.len() - 1]
+                } else {
+                    raw
+                };
+                format!(
+                    r#"not ({attr} = "false") and ({attr} = "" or {attr} = "{attr}" or {attr} = "true") "#
+                )
+            }
             LegacyFunctionDisposition::CemQl(mapped) => {
                 format!("{mapped}({}) ", args.join(", "))
             }
@@ -3208,10 +3234,10 @@ mod tests {
     }
 
     #[test]
-    fn keeps_legacy_dce_helpers_out_of_the_supported_subset() {
+    fn hasboolattribute_is_a_special_dce_rewrite() {
         assert_eq!(
             function_disposition("hasBoolAttribute"),
-            LegacyFunctionDisposition::Unsupported
+            LegacyFunctionDisposition::Special
         );
     }
 
@@ -3547,10 +3573,20 @@ mod tests {
     }
 
     #[test]
-    fn reports_unsupported_legacy_function() {
-        let result = convert(r#"<input disabled="{hasBoolAttribute('disabled')}"/>"#);
-        assert_eq!(result.diagnostics.len(), 1);
-        assert_eq!(result.diagnostics[0].code, UNSUPPORTED_FUNCTION_CODE);
+    fn lowers_hasboolattribute_to_idiomatic_html_boolean_test() {
+        // Variable-ref form used by material input component.
+        let result = convert(
+            r#"<if test="hasBoolAttribute($disabled)"><attribute name="disabled">{$disabled}</attribute></if>"#,
+        );
+        assert!(result.diagnostics.is_empty());
+        assert_eq!(
+            result.source,
+            "{cem:if @test='not (disabled = \"false\") and (disabled = \"\" or disabled = \"disabled\" or disabled = \"true\")' | {attribute @name=\"disabled\" | {$disabled}}}"
+        );
+        // String-literal form (strips surrounding CEM-QL quotes).
+        let result2 = convert(r#"<if test="hasBoolAttribute('required')"><span>yes</span></if>"#);
+        assert!(result2.diagnostics.is_empty());
+        assert!(result2.source.contains(r#"required = "required""#));
     }
 
     #[test]

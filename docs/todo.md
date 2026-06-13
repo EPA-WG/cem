@@ -20,8 +20,10 @@ Design homes:
 [`custom-element-template-migration-options.md`](custom-element-template-migration-options.md) and
 [`custom-element-adapter-boundary.md`](custom-element-adapter-boundary.md).
 
-- [ ] Legacy DCE `hasBoolAttribute()` boolean-attribute helper is not reproduced yet. It is currently an
-      allowlisted compatibility gap for legacy material `input`/`action` templates.
+- [x] Legacy DCE `hasBoolAttribute()` boolean-attribute helper — implemented as a compile-time rewrite
+      in `cem_ml::legacy_custom_element::emit_call`; expands to the idiomatic HTML boolean attribute
+      test `not (attr = "false") and (attr = "" or attr = "attr" or attr = "true")`. Allowlist entry
+      removed from `legacy-compat-manifest.json`.
 - [ ] Tier 3 standalone XSLT stylesheets remain an explicit handoff/deferred scope outside the bounded compatibility
       profile: unresolved dynamic construction names, EXSLT `func:function`, and `msxsl:script` are non-transpilable in
       the legacy custom-element bridge.
