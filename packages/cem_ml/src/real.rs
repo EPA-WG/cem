@@ -468,9 +468,14 @@ impl CemMlEngine for RealCemMlEngine {
     }
 
     fn convert(&self, request: ConvertRequest) -> EngineResult<ConvertResponse> {
-        let loaded = load_input_through_lifecycle(&request.input, &request.context);
+        let registry = LifecycleRegistry::with_builtin_adapters();
+        let loaded = registry.load(&request.input, &request.context);
+        let export = registry.select_export(request.target.as_ref(), request.to_format);
+        let to_format = export.to_format;
+        let mut diagnostics = loaded.diagnostics;
+        diagnostics.extend(export.diagnostics);
 
-        if request.to_format == LayerFormat::Cem && loaded.from_format == InputFormat::Cem {
+        if to_format == LayerFormat::Cem && loaded.from_format == InputFormat::Cem {
             let mut content = String::from_utf8_lossy(&loaded.bytes).into_owned();
             if !content.is_empty() && !content.ends_with('\n') {
                 content.push('\n');
@@ -482,13 +487,13 @@ impl CemMlEngine for RealCemMlEngine {
                     "sourceMap": null,
                     "outputSpans": [],
                 }),
-                diagnostics: loaded.diagnostics,
+                diagnostics,
             });
         }
 
         let from_format = loaded.from_format;
         let run = run_pipeline_as(&loaded.bytes, from_format);
-        let primary = match request.to_format {
+        let primary = match to_format {
             LayerFormat::Cem => {
                 let formatted = formatter::format_transform(
                     &run.document,
@@ -512,7 +517,6 @@ impl CemMlEngine for RealCemMlEngine {
             LayerFormat::Ast => projection::ast_json(&run.document),
             LayerFormat::Events => projection::events_json_as(&loaded.bytes, from_format),
         };
-        let mut diagnostics = loaded.diagnostics;
         diagnostics.extend(run.diagnostics);
         Ok(ConvertResponse {
             primary,
@@ -932,6 +936,24 @@ mod tests {
             resp.primary["content"].as_str().unwrap(),
             "{cem:if @test=\"not (disabled)\" | {button | Go}}\n"
         );
+        assert!(resp.diagnostics.is_empty());
+    }
+
+    #[test]
+    fn convert_target_cem_content_type_selects_canonical_cem_export() {
+        let req = ConvertRequest {
+            input: input(b"{p Hi}", "in.cem"),
+            to_format: LayerFormat::DomJson,
+            preserve_source_offsets: false,
+            context: ctx(),
+            target: Some(FormatIdentity {
+                content_type: Some("application/cem+xml".to_owned()),
+                ..FormatIdentity::default()
+            }),
+        };
+        let resp = RealCemMlEngine::new().convert(req).unwrap();
+        assert_eq!(resp.primary["kind"], "cem");
+        assert_eq!(resp.primary["content"], "{p Hi}\n");
         assert!(resp.diagnostics.is_empty());
     }
 

@@ -45,13 +45,14 @@ Current implementation status:
 - `--schema` and `--content-type` are carried in `EngineContext` and emitted in reports.
   `cem_ml::lifecycle::LifecycleRegistry` now owns built-in input content-type dispatch
   for parser-backed commands (`parse`, `validate`, `check`, `inspect`, `convert`,
-  `trace`, `bench`, and fixture workflows); schema-specific adapter selection is
-  still pending.
+  `trace`, `bench`, and fixture workflows) and CEM target export selection for
+  `convert --to-content-type application/cem+xml`; schema-specific adapter selection
+  is still pending.
 - `validate` / `check` / `convert` route `custom-element-xslt` input through the first
   shared lifecycle adapter path, lowering legacy custom-element XSLT to canonical
   CEM-ML through `cem_ml::legacy_custom_element`; `convert --content-type
   custom-element-xslt --to-content-type application/cem+xml` selects canonical
-  CEM-ML export from the declared target identity.
+  CEM-ML export from the declared target identity through the lifecycle registry.
 - `schema` and `plugin` CLI command groups are reserved until the registry and plugin
   lifecycle surfaces are promoted from library internals to command-line workflows.
 

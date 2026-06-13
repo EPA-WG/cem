@@ -15,8 +15,9 @@ for the current architecture have landed; only deferred capability work remains 
       that validates bytes, loads normalized events / CEM AST, and exports to the requested target identity. Keep
       `--from-format` / `--to-format` as compatibility aliases while adding explicit input/output content-type and
       schema selection.
-      Built-in input content-type dispatch is now registry-backed across parser-backed commands; keep this item open
-      until schema/namespace-specific selection and target export adapters are registry-owned too.
+      Built-in input content-type dispatch is now registry-backed across parser-backed commands, and CEM target export
+      is registry-owned for `--to-content-type application/cem+xml`; keep this item open until schema/namespace-specific
+      selection and non-CEM target export adapters are registry-owned too.
 - [x] **Immediate goal: XSLT 1.0 lifecycle adapter.** Move the existing legacy custom-element XSLT 1.0 lowering
       (`cem_ml::legacy_custom_element`) behind the lifecycle adapter registry instead of the current one-off
       `convert --content-type custom-element-xslt` branch. `cem-ml validate --content-type custom-element-xslt <input>`

@@ -154,31 +154,6 @@ fn to_engine_layer_format(f: cli::LayerFormat) -> eng::LayerFormat {
     }
 }
 
-fn convert_output_layer(args: &cli::ConvertArgs) -> eng::LayerFormat {
-    if args
-        .to_content_type
-        .as_deref()
-        .map(is_cem_content_type)
-        .unwrap_or(false)
-    {
-        return eng::LayerFormat::Cem;
-    }
-    to_engine_layer_format(args.to_format)
-}
-
-fn is_cem_content_type(content_type: &str) -> bool {
-    let essence = content_type
-        .split(';')
-        .next()
-        .unwrap_or(content_type)
-        .trim()
-        .to_ascii_lowercase();
-    matches!(
-        essence.as_str(),
-        "application/cem+xml" | "application/cem" | "text/cem" | "text/cem-ml"
-    )
-}
-
 fn to_engine_parse_projection(f: cli::ParseFormat) -> eng::ParseProjection {
     match f {
         cli::ParseFormat::DomJson => eng::ParseProjection::DomJson,
@@ -632,7 +607,7 @@ pub fn run_convert<E: CemMlEngine + ?Sized>(
     };
     let req = eng::ConvertRequest {
         input,
-        to_format: convert_output_layer(&args),
+        to_format: to_engine_layer_format(args.to_format),
         preserve_source_offsets: args.preserve_source_offsets,
         context: context(&args.context),
         target: convert_target_identity(&args),
@@ -1152,7 +1127,7 @@ mod tests {
         );
         assert_eq!(outcome.exit_code, EXIT_OK);
         let v: serde_json::Value = serde_json::from_str(stdout.trim()).unwrap();
-        assert_eq!(v["toFormat"], "cem");
+        assert_eq!(v["toFormat"], "dom-json");
         assert_eq!(v["target"]["contentType"], "application/cem+xml");
         assert_eq!(v["target"]["schema"], "https://cem.dev/ns/core/1");
         assert_eq!(v["target"]["baseUri"], "file:///tmp/");
