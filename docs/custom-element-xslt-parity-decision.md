@@ -30,7 +30,8 @@ Partially implemented:
   sample-used filtered attribute extraction such as
   `exsl:node-set($methods)/*[text() = $selected]/@title`. `xsl:for-each` also
   unrolls current-node selections such as `@*|*` when a template has a concrete
-  current item.
+  current item. `xsl:param` defaults and `xsl:with-param` now preserve both
+  scalar and bounded node-set values, including sample-style `select="*"`.
 - The current apply-template selector supports simple match patterns, `mode`,
   source-document child/attribute/text traversal (`*`, `@*`, `text()`, `.`),
   sample-style absolute/descendant selectors, namespace-qualified local-name
@@ -108,7 +109,8 @@ Evidence from copied samples:
    named templates, `param`/`with-param`, simple match-based template selection,
    `mode`, sample-style source traversal, namespace wildcard and indexed-child
    selection, parent-relative and preceding-sibling paths, variable-rooted
-   current-node paths, scalar/current-name equality predicates, basic template
+   current-node paths, scalar/current-name equality predicates, scalar and
+   node-set template params, basic template
    priority, a multi-key sort subset with recursion safety, and bounded
    current-node copy/attribute/element construction. The remaining bounded
    subset must cover richer XPath predicate/function behavior and dynamic names

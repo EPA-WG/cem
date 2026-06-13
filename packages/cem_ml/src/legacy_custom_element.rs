@@ -543,43 +543,89 @@ fn with_variable_scope(
             })
             .collect();
         if let Some(select) = attr_value(element, "select") {
-            if let Some(members) = select_exsl_node_set_members(select, &scoped) {
-                let current_items: Vec<CurrentItem> = members
-                    .iter()
-                    .filter_map(|member| current_item_from_apply_member(member))
-                    .collect();
-                let item_nodes: Vec<ItemNode> = current_items
-                    .iter()
-                    .filter(|item| item.kind == CurrentItemKind::Element)
-                    .map(item_node_from_current_item)
-                    .collect();
-                if !item_nodes.is_empty() {
-                    scoped.node_sets.insert(name.to_owned(), item_nodes);
-                }
-                if !current_items.is_empty() {
-                    let scalar = current_items
-                        .iter()
-                        .map(|item| item.text.as_str())
-                        .collect::<Vec<_>>()
-                        .join("");
-                    scoped.current_sets.insert(name.to_owned(), current_items);
-                    scoped.scalars.insert(name.to_owned(), scalar);
-                }
-            } else if let Some(items) = select_variable_current_items(select, &scoped) {
-                scoped.current_sets.insert(name.to_owned(), items);
-            } else {
-                let rewritten = scoped
-                    .item
-                    .as_ref()
-                    .and_then(|item| resolve_item_literal(select.trim(), item))
-                    .unwrap_or_else(|| rewrite_expression(select, &scoped, false, diagnostics));
-                scoped.scalars.insert(name.to_owned(), rewritten);
-            }
+            let source = scoped.clone();
+            bind_select_value(&mut scoped, name, select, &source, diagnostics);
         } else if !members.is_empty() {
             scoped.node_sets.insert(name.to_owned(), members);
         }
     }
     scoped
+}
+
+fn bind_select_value(
+    scoped: &mut EmitCtx,
+    name: &str,
+    select: &str,
+    source: &EmitCtx,
+    diagnostics: &mut Vec<LegacyConversionDiagnostic>,
+) {
+    let select = select.trim();
+    if select != "." {
+        if let Some(value) = source
+            .item
+            .as_ref()
+            .and_then(|item| resolve_item_literal(select, item))
+            .or_else(|| evaluate_xpath_literal(select, source))
+        {
+            scoped.scalars.insert(name.to_owned(), value);
+            return;
+        }
+        if is_quoted_xpath_literal(select) {
+            scoped.scalars.insert(
+                name.to_owned(),
+                format!("\"{}\"", unquote_xpath_literal(select).replace('"', "\\\"")),
+            );
+            return;
+        }
+    }
+    if let Some(members) = select_apply_members(select, source).filter(|members| {
+        !members.is_empty()
+            || select.starts_with("exsl:node-set(")
+            || select.starts_with("exslt:node-set(")
+            || select.starts_with("node-set(")
+    }) {
+        bind_apply_members(scoped, name, members);
+        return;
+    }
+    if let Some(items) = select_variable_current_items(select, source) {
+        bind_current_items(scoped, name, items);
+        return;
+    }
+    let rewritten = source
+        .item
+        .as_ref()
+        .and_then(|item| resolve_item_literal(select, item))
+        .or_else(|| evaluate_xpath_literal(select, source))
+        .unwrap_or_else(|| rewrite_expression(select, source, false, diagnostics));
+    scoped.scalars.insert(name.to_owned(), rewritten);
+}
+
+fn bind_apply_members(scoped: &mut EmitCtx, name: &str, members: Vec<ApplyMember>) {
+    let current_items: Vec<CurrentItem> = members
+        .iter()
+        .filter_map(current_item_from_apply_member)
+        .collect();
+    bind_current_items(scoped, name, current_items);
+}
+
+fn bind_current_items(scoped: &mut EmitCtx, name: &str, current_items: Vec<CurrentItem>) {
+    let item_nodes: Vec<ItemNode> = current_items
+        .iter()
+        .filter(|item| item.kind == CurrentItemKind::Element)
+        .map(item_node_from_current_item)
+        .collect();
+    if !item_nodes.is_empty() {
+        scoped.node_sets.insert(name.to_owned(), item_nodes);
+    }
+    if !current_items.is_empty() {
+        let scalar = current_items
+            .iter()
+            .map(|item| item.text.as_str())
+            .collect::<Vec<_>>()
+            .join("");
+        scoped.current_sets.insert(name.to_owned(), current_items);
+        scoped.scalars.insert(name.to_owned(), scalar);
+    }
 }
 
 fn to_item_node(element: &LegacyElement) -> ItemNode {
@@ -1119,6 +1165,7 @@ fn emit_call_template(
         return String::new();
     };
     let mut scoped = with_call_template_params(element, ctx, diagnostics);
+    scoped = with_template_param_defaults(&template.children, &scoped, diagnostics);
     scoped.template_depth += 1;
     emit_children(&template.children, &scoped, diagnostics)
 }
@@ -1139,12 +1186,48 @@ fn with_call_template_params(
         let Some(name) = attr_value(param, "name") else {
             continue;
         };
-        let value = if let Some(select) = attr_value(param, "select") {
-            rewrite_expression(select, ctx, false, diagnostics)
+        if let Some(select) = attr_value(param, "select") {
+            let source = scoped.clone();
+            bind_select_value(&mut scoped, name, select, &source, diagnostics);
         } else {
-            text_content(param)
+            let value = emit_children(&param.children, ctx, diagnostics);
+            scoped.scalars.insert(name.to_owned(), value);
+        }
+    }
+    scoped
+}
+
+fn with_template_param_defaults(
+    nodes: &[LegacyNode],
+    ctx: &EmitCtx,
+    diagnostics: &mut Vec<LegacyConversionDiagnostic>,
+) -> EmitCtx {
+    let mut scoped = ctx.clone();
+    for node in nodes {
+        let LegacyNode::Element(param) = node else {
+            continue;
         };
-        scoped.scalars.insert(name.to_owned(), value);
+        if local_name(&param.tag) != "param" {
+            continue;
+        }
+        let Some(name) = attr_value(param, "name") else {
+            continue;
+        };
+        if scoped.scalars.contains_key(name)
+            || scoped.node_sets.contains_key(name)
+            || scoped.current_sets.contains_key(name)
+        {
+            continue;
+        }
+        if let Some(select) = attr_value(param, "select") {
+            let source = scoped.clone();
+            bind_select_value(&mut scoped, name, select, &source, diagnostics);
+        } else if !param.children.is_empty() {
+            let value = emit_children(&param.children, &scoped, diagnostics);
+            scoped.scalars.insert(name.to_owned(), value);
+        } else {
+            scoped.scalars.insert(name.to_owned(), String::new());
+        }
     }
     scoped
 }
@@ -1282,11 +1365,12 @@ fn emit_apply_template_member(
     ctx: &EmitCtx,
     diagnostics: &mut Vec<LegacyConversionDiagnostic>,
 ) -> String {
+    let scoped = with_call_template_params(element, ctx, diagnostics);
     emit_apply_template_member_with_mode(
         member,
         position,
         attr_value(element, "mode"),
-        ctx,
+        &scoped,
         diagnostics,
     )
 }
@@ -1499,6 +1583,8 @@ fn emit_apply_template_member_with_mode(
             template_depth: item_ctx.template_depth + 1,
             ..item_ctx
         };
+        let template_ctx =
+            with_template_param_defaults(&template.children, &template_ctx, diagnostics);
         return emit_children(&template.children, &template_ctx, diagnostics);
     }
     emit_default_template_rule(&current, mode, &item_ctx, diagnostics)
@@ -3230,6 +3316,27 @@ mod tests {
             r#"<xsl:stylesheet version="1.0"><xsl:template match="/"><xsl:call-template name="badge"><xsl:with-param name="label" select="'New'"/></xsl:call-template></xsl:template><xsl:template name="badge"><span class="badge">{$label}</span></xsl:template></xsl:stylesheet>"#,
         );
         assert_eq!(result.source, r#"{span @class="badge" | {"New"}}"#);
+        assert!(result.diagnostics.is_empty());
+    }
+
+    #[test]
+    fn lowers_template_param_defaults_from_current_item() {
+        let result = convert(
+            r#"<doc><item>A</item></doc><xsl:stylesheet version="1.0"><xsl:template match="/"><xsl:apply-templates select="//item"/></xsl:template><xsl:template match="item"><xsl:param name="childName" select="name()"/><p><xsl:value-of select="$childName"/></p></xsl:template></xsl:stylesheet>"#,
+        );
+        assert_eq!(result.source, "{doc | {item | A}}{p | item}");
+        assert!(result.diagnostics.is_empty());
+    }
+
+    #[test]
+    fn passes_node_set_with_param_to_named_template() {
+        let result = convert(
+            r#"<doc><item>A</item><item>B</item></doc><xsl:stylesheet version="1.0"><xsl:template match="/"><xsl:call-template name="render"><xsl:with-param name="data" select="*"/></xsl:call-template></xsl:template><xsl:template name="render"><xsl:param name="data"/><out><xsl:apply-templates select="$data"/></out></xsl:template><xsl:template match="item"><i><xsl:value-of select="."/></i></xsl:template></xsl:stylesheet>"#,
+        );
+        assert_eq!(
+            result.source,
+            "{doc | {item | A}{item | B}}{out | {i | A}{i | B}}"
+        );
         assert!(result.diagnostics.is_empty());
     }
 

@@ -114,10 +114,10 @@ preceding-sibling paths, current attribute/child `for-each` unions,
 variable-rooted current-node paths, static EXSLT node-set variable aliases,
 filtered static node-set attribute extraction, and simple predicates including
 scalar/current-name equality checks, static `if`/`when` folding for known
-current-node tests, default template fallbacks, basic template priority,
-multi-key `sort`, literal `count`/`sum` over supported node selections, bounded
-current-node copy/copy-of/attribute construction, scalar-AVT `xsl:element`
-construction, and recursion safety.
+current-node tests, scalar and node-set template params, default template
+fallbacks, basic template priority, multi-key `sort`, literal `count`/`sum`
+over supported node selections, bounded current-node copy/copy-of/attribute
+construction, scalar-AVT `xsl:element` construction, and recursion safety.
 Remaining richer XPath predicate/function work and dynamic names outside that
 scalar AVT subset are tracked in
 [`custom-element-xslt-parity-decision.md`](custom-element-xslt-parity-decision.md).

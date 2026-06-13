@@ -38,8 +38,9 @@ to proven web component names, states, attributes, and accessibility behavior in
       predicates including scalar equality checks, current attribute/child `for-each` unions, preceding-sibling
       traversal, variable-rooted current-node paths, static EXSLT node-set variable aliases, filtered static node-set
       attribute extraction, static `if`/`when` folding for known current-node tests, default template fallbacks, basic
-      template priority, multi-key `xsl:sort`, literal `count`/`sum` over supported node selections, bounded
-      current-node copy/copy-of/attribute construction, scalar-AVT `xsl:element` construction, and recursion safety.
+      template priority, scalar and node-set template params, multi-key `xsl:sort`, literal `count`/`sum` over
+      supported node selections, bounded current-node copy/copy-of/attribute construction, scalar-AVT `xsl:element`
+      construction, and recursion safety.
       Phase 4 still needs the remaining
       copied component/sample parity: richer XPath predicate/function behavior, dynamic names outside the scalar AVT
       subset, and any additional XSLT instructions from copied fixtures where sample-used. Track the inventory with
