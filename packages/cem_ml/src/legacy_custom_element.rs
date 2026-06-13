@@ -908,6 +908,12 @@ fn emit_if(
         ));
         return String::new();
     };
+    if let Some(value) = evaluate_xpath_bool(test, ctx) {
+        if value {
+            return emit_children(&element.children, ctx, diagnostics);
+        }
+        return String::new();
+    }
     let body = emit_children(&element.children, ctx, diagnostics);
     format!(
         "{{cem:if{} | {body}}}",
@@ -921,6 +927,7 @@ fn emit_choose(
     diagnostics: &mut Vec<LegacyConversionDiagnostic>,
 ) -> String {
     let mut branches = String::new();
+    let mut only_static_false = true;
     for child in &element.children {
         let LegacyNode::Element(branch) = child else {
             continue;
@@ -934,6 +941,15 @@ fn emit_choose(
                     ));
                     continue;
                 };
+                if let Some(value) = evaluate_xpath_bool(test, ctx) {
+                    if value && only_static_false && branches.is_empty() {
+                        return emit_children(&branch.children, ctx, diagnostics);
+                    }
+                    if !value {
+                        continue;
+                    }
+                }
+                only_static_false = false;
                 let body = emit_children(&branch.children, ctx, diagnostics);
                 branches.push_str(&format!(
                     "{{cem:when{} | {body}}}",
@@ -941,6 +957,9 @@ fn emit_choose(
                 ));
             }
             "otherwise" => {
+                if only_static_false && branches.is_empty() {
+                    return emit_children(&branch.children, ctx, diagnostics);
+                }
                 let body = emit_children(&branch.children, ctx, diagnostics);
                 branches.push_str(&format!("{{cem:otherwise | {body}}}"));
             }
@@ -1520,6 +1539,10 @@ fn select_parent_path_members(
     let parent = current.parent.as_ref()?;
     let rest = select.strip_prefix("../")?;
     match rest {
+        ".." => parent
+            .parent
+            .as_ref()
+            .map(|grandparent| vec![ApplyMember::Current((**grandparent).clone())]),
         "*" => Some(element_children_with_parent(&parent.children, parent)),
         "@*" => Some(attribute_children(parent)),
         _ if rest.starts_with("@") => Some(attribute_named(parent, &rest[1..])),
@@ -2410,7 +2433,10 @@ fn resolve_item_literal(expression: &str, item: &CurrentItem) -> Option<String> 
     if matches!(expression, "text()" | "./text()") {
         return Some(item.text.clone());
     }
-    if matches!(expression, "name()" | "local-name()" | "local-name(.)") {
+    if matches!(
+        expression,
+        "name()" | "name(.)" | "local-name()" | "local-name(.)"
+    ) {
         return Some(item.tag.clone());
     }
     if expression == "position()" {
@@ -2420,6 +2446,150 @@ fn resolve_item_literal(expression: &str, item: &CurrentItem) -> Option<String> 
         if is_name(name) {
             return Some(item.attrs.get(name).cloned().unwrap_or_default());
         }
+    }
+    None
+}
+
+fn evaluate_xpath_bool(expression: &str, ctx: &EmitCtx) -> Option<bool> {
+    let expression = expression.trim();
+    if expression == "../.." {
+        return ctx
+            .item
+            .as_ref()
+            .and_then(|item| item.parent.as_ref())
+            .map(|parent| parent.kind != CurrentItemKind::Document);
+    }
+    if let Some(inner) = single_function_arg(expression, "not") {
+        return evaluate_xpath_bool(inner, ctx).map(|value| !value);
+    }
+    if let Some((left, operator, right)) = split_top_level_comparison(expression) {
+        let left = evaluate_xpath_operand(left, ctx)?;
+        let right = evaluate_xpath_operand(right, ctx)?;
+        return Some(compare_xpath_operands(&left, operator, &right));
+    }
+    if let Some(value) = evaluate_xpath_operand(expression, ctx) {
+        return Some(xpath_truthy(&value));
+    }
+    select_members_for_eval(expression, ctx).map(|members| !members.is_empty())
+}
+
+fn evaluate_xpath_operand(expression: &str, ctx: &EmitCtx) -> Option<String> {
+    let expression = expression.trim();
+    if let Some(value) = evaluate_xpath_literal(expression, ctx) {
+        return Some(value);
+    }
+    if let Some(inner) = single_function_arg(expression, "normalize-space") {
+        return evaluate_xpath_operand(inner, ctx).map(|value| value.trim().to_owned());
+    }
+    if let Some(item) = &ctx.item {
+        if let Some(value) = resolve_item_literal(expression, item) {
+            return Some(value);
+        }
+    }
+    if let Some(name) = expression.strip_prefix('$') {
+        if is_name(name) {
+            return ctx
+                .scalars
+                .get(name)
+                .map(|value| unquote_xpath_literal(value));
+        }
+    }
+    if let Some(name) = expression.strip_prefix('@') {
+        if is_name(name) {
+            return ctx
+                .item
+                .as_ref()
+                .map(|item| item.attrs.get(name).cloned().unwrap_or_default());
+        }
+    }
+    if is_quoted_xpath_literal(expression) {
+        return Some(unquote_xpath_literal(expression));
+    }
+    if expression.parse::<f64>().is_ok() {
+        return Some(expression.to_owned());
+    }
+    select_members_for_eval(expression, ctx).map(|members| {
+        members
+            .iter()
+            .map(member_string_value)
+            .collect::<Vec<_>>()
+            .join("")
+    })
+}
+
+fn is_quoted_xpath_literal(value: &str) -> bool {
+    (value.starts_with('"') && value.ends_with('"'))
+        || (value.starts_with('\'') && value.ends_with('\''))
+}
+
+fn xpath_truthy(value: &str) -> bool {
+    let value = value.trim();
+    !value.is_empty() && value != "0" && value != "false"
+}
+
+fn compare_xpath_operands(left: &str, operator: &str, right: &str) -> bool {
+    if let (Ok(left_num), Ok(right_num)) = (left.trim().parse::<f64>(), right.trim().parse::<f64>())
+    {
+        return match operator {
+            "=" => left_num == right_num,
+            "!=" => left_num != right_num,
+            ">" => left_num > right_num,
+            "<" => left_num < right_num,
+            ">=" => left_num >= right_num,
+            "<=" => left_num <= right_num,
+            _ => false,
+        };
+    }
+    match operator {
+        "=" => left == right,
+        "!=" => left != right,
+        ">" => left > right,
+        "<" => left < right,
+        ">=" => left >= right,
+        "<=" => left <= right,
+        _ => false,
+    }
+}
+
+fn split_top_level_comparison(expression: &str) -> Option<(&str, &str, &str)> {
+    let mut depth = 0usize;
+    let mut quote: Option<char> = None;
+    let bytes = expression.as_bytes();
+    let mut index = 0usize;
+    while index < bytes.len() {
+        let ch = expression[index..].chars().next()?;
+        if let Some(active_quote) = quote {
+            if ch == active_quote {
+                quote = None;
+            }
+            index += ch.len_utf8();
+            continue;
+        }
+        match ch {
+            '"' | '\'' => quote = Some(ch),
+            '(' | '[' => depth += 1,
+            ')' | ']' => depth = depth.saturating_sub(1),
+            '!' if depth == 0 && expression[index..].starts_with("!=") => {
+                return Some((&expression[..index], "!=", &expression[index + 2..]));
+            }
+            '>' if depth == 0 && expression[index..].starts_with(">=") => {
+                return Some((&expression[..index], ">=", &expression[index + 2..]));
+            }
+            '<' if depth == 0 && expression[index..].starts_with("<=") => {
+                return Some((&expression[..index], "<=", &expression[index + 2..]));
+            }
+            '=' if depth == 0 => {
+                return Some((&expression[..index], "=", &expression[index + 1..]))
+            }
+            '>' if depth == 0 => {
+                return Some((&expression[..index], ">", &expression[index + 1..]))
+            }
+            '<' if depth == 0 => {
+                return Some((&expression[..index], "<", &expression[index + 1..]))
+            }
+            _ => {}
+        }
+        index += ch.len_utf8();
     }
     None
 }
@@ -2503,6 +2673,13 @@ fn member_numeric_value(member: &ApplyMember) -> f64 {
         ApplyMember::Current(item) => item.text.as_str(),
     };
     value.trim().parse::<f64>().unwrap_or(0.0)
+}
+
+fn member_string_value(member: &ApplyMember) -> String {
+    match member {
+        ApplyMember::Item(item) => item.text.clone(),
+        ApplyMember::Current(item) => item.text.clone(),
+    }
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -3169,6 +3346,30 @@ mod tests {
         assert_eq!(
             result.source,
             "{doc | {item | A}{other | B}{item | C}}{out | {n | 1}{n | 2}}"
+        );
+        assert!(result.diagnostics.is_empty());
+    }
+
+    #[test]
+    fn folds_static_if_tests_for_current_text_attributes_and_ancestors() {
+        let result = convert(
+            r#"<doc><wrap><item name="hero"> Text </item><item>   </item></wrap></doc><xsl:stylesheet version="1.0"><xsl:template match="/"><out><xsl:apply-templates select="//item"/></out></xsl:template><xsl:template match="item"><xsl:if test="../..">/</xsl:if><xsl:if test="@name">named</xsl:if><xsl:if test="normalize-space(text()) != ''"><p><xsl:value-of select="text()"/></p></xsl:if></xsl:template></xsl:stylesheet>"#,
+        );
+        assert_eq!(
+            result.source,
+            "{doc | {wrap | {item @name=\"hero\" |  Text }{item |    }}}{out | /named{p |  Text }/}"
+        );
+        assert!(result.diagnostics.is_empty());
+    }
+
+    #[test]
+    fn folds_static_choose_count_comparisons() {
+        let result = convert(
+            r#"<doc><item>A</item><item>B</item><solo>C</solo></doc><xsl:stylesheet version="1.0"><xsl:template match="/"><out><xsl:apply-templates select="//item"/><xsl:apply-templates select="//solo"/></out></xsl:template><xsl:template match="*"><xsl:variable name="tagName" select="name()"/><xsl:choose><xsl:when test="count(../*[name()=$tagName]) != 1"><many><xsl:value-of select="name()"/></many></xsl:when><xsl:otherwise><one><xsl:value-of select="name()"/></one></xsl:otherwise></xsl:choose></xsl:template></xsl:stylesheet>"#,
+        );
+        assert_eq!(
+            result.source,
+            "{doc | {item | A}{item | B}{solo | C}}{out | {many | item}{many | item}{one | solo}}"
         );
         assert!(result.diagnostics.is_empty());
     }

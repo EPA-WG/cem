@@ -48,6 +48,9 @@ Partially implemented:
 - The current expression subset also evaluates sample-style `count(...)` and
   `sum(...)` calls when their argument is already in the supported node
   selection subset, plus sample-style numeric `count(...) + n` expressions.
+  `xsl:if` and `xsl:when` fold static sample-used booleans over known current
+  nodes: count comparisons, attribute existence, current text normalization,
+  simple scalar/string equality, and the XPath-template `../..` ancestor test.
 - The current construction subset supports direct `xsl:attribute` on emitted
   elements, `xsl:copy` for the current node, and bounded `xsl:copy-of` for the
   current node, current attributes, selected elements, and inline node-set
