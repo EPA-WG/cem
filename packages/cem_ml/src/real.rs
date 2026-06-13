@@ -10,6 +10,7 @@ use crate::engine::*;
 use crate::events::cem::CemEventNormalizer;
 use crate::formatter;
 use crate::interpreter::light_dom::LightDomInterpreter;
+use crate::lifecycle::{LifecycleRegistry, LoadedInput};
 use crate::parser::builder::CemAstBuilder;
 use crate::parser::document::CemDocument;
 use crate::projection;
@@ -142,37 +143,8 @@ fn input_uris(inputs: &[EngineInput]) -> Vec<String> {
     inputs.iter().map(|i| i.uri.clone()).collect()
 }
 
-struct LoadedInput {
-    bytes: Vec<u8>,
-    from_format: InputFormat,
-    diagnostics: Vec<Diagnostic>,
-}
-
 fn load_input_through_lifecycle(input: &EngineInput, context: &EngineContext) -> LoadedInput {
-    if context
-        .content_type
-        .as_deref()
-        .map(crate::legacy_custom_element::is_legacy_custom_element_content_type)
-        .unwrap_or(false)
-    {
-        let legacy_source = String::from_utf8_lossy(&input.bytes);
-        let converted =
-            crate::legacy_custom_element::convert_template_source(legacy_source.as_ref());
-        return LoadedInput {
-            bytes: converted.source.into_bytes(),
-            from_format: InputFormat::Cem,
-            diagnostics: converted
-                .diagnostics
-                .iter()
-                .map(|diagnostic| diagnostic.to_engine_diagnostic(Some(input.uri.clone())))
-                .collect(),
-        };
-    }
-    LoadedInput {
-        bytes: input.bytes.clone(),
-        from_format: input.from_format.unwrap_or(InputFormat::Cem),
-        diagnostics: Vec::new(),
-    }
+    LifecycleRegistry::with_builtin_adapters().load(input, context)
 }
 
 /// Run the full Tier A pipeline (`tokenize → normalize → schema → AST →

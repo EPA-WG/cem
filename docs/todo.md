@@ -15,13 +15,13 @@ for the current architecture have landed; only deferred capability work remains 
       that validates bytes, loads normalized events / CEM AST, and exports to the requested target identity. Keep
       `--from-format` / `--to-format` as compatibility aliases while adding explicit input/output content-type and
       schema selection.
-- [ ] **Immediate goal: XSLT 1.0 lifecycle adapter.** Move the existing legacy custom-element XSLT 1.0 lowering
+- [x] **Immediate goal: XSLT 1.0 lifecycle adapter.** Move the existing legacy custom-element XSLT 1.0 lowering
       (`cem_ml::legacy_custom_element`) behind the lifecycle adapter registry instead of the current one-off
       `convert --content-type custom-element-xslt` branch. `cem-ml validate --content-type custom-element-xslt <input>`
       must validate raw legacy XSLT input directly; `cem-ml convert --content-type custom-element-xslt
       --to-content-type application/cem+xml <input>` must load through the same adapter and export canonical CEM-ML.
-      First implementation slice is in place through the shared CLI/lib lifecycle load path for `validate`, `check`, and
-      `convert`; keep this item open until the adapter registry abstraction owns that dispatch.
+      The dispatch now lives in `cem_ml::lifecycle::LifecycleRegistry`; broader schema-aware lifecycle selection remains
+      tracked by the structural data lifecycle item above.
 - [ ] **Wishlist (future — NOT in the immediate release timeline):** engine XSLT 3.0/4.0 execution
       behind G-NVDL-FULL (AC-P-6.9). The architecture keeps the capability-gated seam — XSLT is a
       peer language behind explicit dispatch, not the primary model or a browser-native dependency —
