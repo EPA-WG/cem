@@ -15,11 +15,11 @@ use crate::events::{EventNormalizer, HandoffRecord, NormalizedEvent, ScalarValue
 use crate::handoff::{is_supported_content_type, HandoffStack};
 use crate::schema::disposition::{self, Disposition, RunMode};
 use crate::schema::namespace::NsContext;
-use crate::schema::xslt;
 use crate::schema::scoping::{
     inline_cache_identity, InlineSchemaDeclaration, SchemaScopeContext, SchemaSource,
 };
 use crate::schema::vocab::CompiledSchema;
+use crate::schema::xslt;
 use crate::schema::{FramePhase, SchemaFrame, SchemaMachine, ScopeId};
 use crate::source::ByteRange;
 use crate::source_map::SourceMapStack;
@@ -471,7 +471,8 @@ impl<E: EventNormalizer> CemSchemaMachine<E> {
         let namespace_uri = self.current_ns_context().resolve(name).namespace_uri;
         let has_active_schema_source =
             !matches!(self.schema_scopes.current().active, SchemaSource::Default);
-        if !disposition::is_unresolved_namespace(namespace_uri.as_deref(), has_active_schema_source) {
+        if !disposition::is_unresolved_namespace(namespace_uri.as_deref(), has_active_schema_source)
+        {
             return;
         }
         let uri = namespace_uri.unwrap_or_default();

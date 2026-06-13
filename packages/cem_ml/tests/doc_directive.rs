@@ -36,8 +36,10 @@ fn doc_diagnostic<'a>(doc: &'a CemDocument, code: &str) -> Option<&'a Diagnostic
 }
 
 fn assert_resolved_to_tier_a(doc: &CemDocument) {
-    let identity: &DocumentFormatIdentity =
-        doc.format_identity.as_ref().expect("format_identity recorded");
+    let identity: &DocumentFormatIdentity = doc
+        .format_identity
+        .as_ref()
+        .expect("format_identity recorded");
     assert_eq!(identity.format_id, SUPPORTED_FORMAT_ID);
     assert_eq!(identity.content_type, SUPPORTED_CONTENT_TYPE);
     assert_eq!(identity.format_version, SUPPORTED_VERSION);

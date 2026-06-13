@@ -79,14 +79,19 @@ fn known_namespace_elements_emit_no_disposition() {
     // The fixture's `main`/`p` (HTML) + `cem:screen` (core) are known Tier A
     // namespaces; only the one `widget:` element is unresolved. Exactly one
     // disposition diagnostic regardless of mode.
-    for mode in [RunMode::Application, RunMode::BuildSsr, RunMode::Development] {
+    for mode in [
+        RunMode::Application,
+        RunMode::BuildSsr,
+        RunMode::Development,
+    ] {
         let diags = run(&read("unknown-namespace"), mode);
         let count = diags
             .iter()
-            .filter(|d| {
-                d.code == REJECT_CODE || d.code == ALLOW_CODE || d.code == IGNORE_CODE
-            })
+            .filter(|d| d.code == REJECT_CODE || d.code == ALLOW_CODE || d.code == IGNORE_CODE)
             .count();
-        assert_eq!(count, 1, "exactly one unresolved-namespace region in {mode:?}");
+        assert_eq!(
+            count, 1,
+            "exactly one unresolved-namespace region in {mode:?}"
+        );
     }
 }

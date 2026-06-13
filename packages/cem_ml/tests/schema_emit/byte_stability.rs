@@ -6,9 +6,7 @@
 //! runs. This is the runnable surface for AC-S-2's "byte-stable for
 //! unchanged input" requirement and §13.2.4's encoding rules.
 
-use cem_ml::schema::compiler::{
-    ArtifactKind, CompilerOptions, ContentHash, SchemaCompiler,
-};
+use cem_ml::schema::compiler::{ArtifactKind, CompilerOptions, ContentHash, SchemaCompiler};
 use cem_ml::schema::ir::CompiledSchema;
 
 /// Emit the same schema twice with the same options and assert that
@@ -65,8 +63,7 @@ fn emit_with_rust_header_is_byte_stable() {
 #[test]
 fn manifest_is_emitted_last_and_is_byte_stable() {
     let schema = CompiledSchema::cem_core();
-    let output =
-        SchemaCompiler::emit_all(&schema, &CompilerOptions::default()).expect("emit_all");
+    let output = SchemaCompiler::emit_all(&schema, &CompilerOptions::default()).expect("emit_all");
 
     let manifest = output
         .artifacts
@@ -80,7 +77,10 @@ fn manifest_is_emitted_last_and_is_byte_stable() {
         output.artifacts.last().map(|a| a.kind),
         Some(ArtifactKind::Manifest)
     );
-    assert_eq!(manifest.content_hash, ContentHash::from_blake3(&manifest.bytes));
+    assert_eq!(
+        manifest.content_hash,
+        ContentHash::from_blake3(&manifest.bytes)
+    );
 }
 
 #[test]

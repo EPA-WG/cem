@@ -22,9 +22,7 @@
 //! `cargo test --release --test perf_budgets` or
 //! `nx run cem_ml:bench`.
 
-use cem_ml::benchmark::{
-    perf_suite_skipped, run_pipeline_iterations_bare, BenchmarkBudget,
-};
+use cem_ml::benchmark::{perf_suite_skipped, run_pipeline_iterations_bare, BenchmarkBudget};
 use cem_ml::engine::InputFormat;
 
 const ITERATIONS: u32 = 8;

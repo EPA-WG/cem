@@ -57,10 +57,7 @@ impl SchedulerTrace {
     }
 
     pub fn snapshot(&self) -> Vec<SchedulerEvent> {
-        self.events
-            .lock()
-            .expect("poisoned trace mutex")
-            .clone()
+        self.events.lock().expect("poisoned trace mutex").clone()
     }
 
     pub fn len(&self) -> usize {

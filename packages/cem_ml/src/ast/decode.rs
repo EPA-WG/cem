@@ -262,10 +262,7 @@ fn decode_transform(tag: u16, payload: Option<String>) -> Result<TransformKind, 
 fn decode_byte_range(payload: Option<&str>) -> crate::source::ByteRange {
     let raw = payload.unwrap_or("0,0");
     let (start, len) = raw.split_once(',').unwrap_or(("0", "0"));
-    crate::source::ByteRange::new(
-        start.parse().unwrap_or(0),
-        len.parse().unwrap_or(0),
-    )
+    crate::source::ByteRange::new(start.parse().unwrap_or(0), len.parse().unwrap_or(0))
 }
 
 fn read_nodes(

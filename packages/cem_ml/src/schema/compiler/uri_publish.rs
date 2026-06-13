@@ -14,9 +14,7 @@
 
 use std::cmp::Ordering;
 
-use crate::schema::ir::{
-    CompiledSchema, SchemaVersionConstraint, SchemaVersionMatchRule, SemVer,
-};
+use crate::schema::ir::{CompiledSchema, SchemaVersionConstraint, SchemaVersionMatchRule, SemVer};
 
 use super::byte_stability::DeterministicWriter;
 use super::error::EmitError;
@@ -212,9 +210,7 @@ fn json_string(raw: &str) -> String {
             '\t' => out.push_str("\\t"),
             '\u{08}' => out.push_str("\\b"),
             '\u{0C}' => out.push_str("\\f"),
-            ch if (ch as u32) < 0x20 => {
-                out.push_str(&format!("\\u{:04x}", ch as u32))
-            }
+            ch if (ch as u32) < 0x20 => out.push_str(&format!("\\u{:04x}", ch as u32)),
             ch => out.push(ch),
         }
     }
@@ -262,9 +258,9 @@ pub fn parse_schema_uri(uri: &str) -> Option<SchemaUriRef> {
 }
 
 fn parse_schema_uri_checked(uri: &str) -> Result<SchemaUriRef, EmitError> {
-    let rest = uri.strip_prefix(WELL_KNOWN_PREFIX).ok_or_else(|| {
-        unresolvable_uri(uri, "not a well-known https://cem.dev/ns/ schema URI")
-    })?;
+    let rest = uri
+        .strip_prefix(WELL_KNOWN_PREFIX)
+        .ok_or_else(|| unresolvable_uri(uri, "not a well-known https://cem.dev/ns/ schema URI"))?;
     if rest.is_empty() {
         return Err(unresolvable_uri(uri, "schema URI has no namespace tail"));
     }
@@ -314,7 +310,10 @@ fn unresolvable_uri(uri: &str, reason: &'static str) -> EmitError {
 fn validate_namespace_tail(uri: &str, segments: &[&str]) -> Result<(), EmitError> {
     for segment in segments {
         if !is_safe_namespace_segment(segment) {
-            return Err(unresolvable_uri(uri, "schema URI namespace segment is not safe"));
+            return Err(unresolvable_uri(
+                uri,
+                "schema URI namespace segment is not safe",
+            ));
         }
     }
     Ok(())
@@ -358,14 +357,15 @@ fn parse_version_segment(segment: &str) -> VersionSegment {
     let (numeric, prerelease) = match without_build.split_once('-') {
         Some((core, pre)) => {
             if !validate_semver_identifiers(pre, IdentifierKind::Prerelease) {
-                return VersionSegment::Invalid("schema URI version has invalid prerelease metadata");
+                return VersionSegment::Invalid(
+                    "schema URI version has invalid prerelease metadata",
+                );
             }
             (core, Some(pre.to_owned()))
         }
         None => (without_build, None),
     };
-    let parts: Option<Vec<u64>> =
-        numeric.split('.').map(parse_version_number).collect();
+    let parts: Option<Vec<u64>> = numeric.split('.').map(parse_version_number).collect();
     let Some(parts) = parts else {
         return VersionSegment::Invalid("schema URI version has invalid numeric fields");
     };
@@ -421,11 +421,16 @@ fn validate_semver_identifiers(raw: &str, kind: IdentifierKind) -> bool {
     if raw.is_empty() {
         return false;
     }
-    raw.split('.').all(|ident| validate_semver_identifier(ident, kind))
+    raw.split('.')
+        .all(|ident| validate_semver_identifier(ident, kind))
 }
 
 fn validate_semver_identifier(ident: &str, kind: IdentifierKind) -> bool {
-    if ident.is_empty() || !ident.bytes().all(|b| b.is_ascii_alphanumeric() || b == b'-') {
+    if ident.is_empty()
+        || !ident
+            .bytes()
+            .all(|b| b.is_ascii_alphanumeric() || b == b'-')
+    {
         return false;
     }
     if matches!(kind, IdentifierKind::Prerelease)
@@ -465,10 +470,7 @@ pub fn resolve_uri<'m>(
     let uri_ref = parse_schema_uri_checked(declared_uri)?;
     let candidates: Vec<&PublicationManifest> = manifests
         .iter()
-        .filter(|m| {
-            manifest_namespace_tail(m).as_deref()
-                == Some(uri_ref.namespace_tail.as_str())
-        })
+        .filter(|m| manifest_namespace_tail(m).as_deref() == Some(uri_ref.namespace_tail.as_str()))
         .filter(|m| constraint_matches(&uri_ref.constraint, &m.embedded_version))
         .collect();
     let winner = select_winning_manifest(declared_uri, &uri_ref.constraint, candidates)?;
@@ -505,7 +507,11 @@ fn select_winning_manifest<'m>(
     if uri_build_is_explicit(constraint) {
         return Ok(highest[0]);
     }
-    if let Some(unbuilt) = highest.iter().copied().find(|m| m.embedded_version.build.is_none()) {
+    if let Some(unbuilt) = highest
+        .iter()
+        .copied()
+        .find(|m| m.embedded_version.build.is_none())
+    {
         return Ok(unbuilt);
     }
     let first_build = highest[0].embedded_version.build.as_deref();
@@ -538,9 +544,7 @@ fn constraint_matches(constraint: &SchemaVersionConstraint, embedded: &SemVer) -
             embedded.major == *major && embedded.prerelease.is_none()
         }
         SchemaVersionConstraint::MajorMinor(major, minor) => {
-            embedded.major == *major
-                && embedded.minor == *minor
-                && embedded.prerelease.is_none()
+            embedded.major == *major && embedded.minor == *minor && embedded.prerelease.is_none()
         }
         SchemaVersionConstraint::Full(uri_version) => {
             if uri_version.prerelease.is_some() {
@@ -555,8 +559,7 @@ fn constraint_matches(constraint: &SchemaVersionConstraint, embedded: &SemVer) -
                 // the URI's, stable releases only (AC-V-10 / AC-V-2).
                 embedded.prerelease.is_none()
                     && embedded.major == uri_version.major
-                    && (embedded.minor, embedded.patch)
-                        >= (uri_version.minor, uri_version.patch)
+                    && (embedded.minor, embedded.patch) >= (uri_version.minor, uri_version.patch)
                     && build_matches(uri_version, embedded)
             }
         }
@@ -679,7 +682,10 @@ mod tests {
             unconstrained.constraint,
             SchemaVersionConstraint::Unconstrained
         );
-        assert_eq!(unconstrained.match_rule, SchemaVersionMatchRule::Unconstrained);
+        assert_eq!(
+            unconstrained.match_rule,
+            SchemaVersionMatchRule::Unconstrained
+        );
 
         let major = parse_schema_uri("https://cem.dev/ns/core/1").unwrap();
         assert_eq!(major.namespace_tail, "core");
@@ -859,10 +865,8 @@ mod tests {
     #[test]
     fn emit_manifest_artifact_produces_well_formed_json() {
         let schema = CompiledSchema::cem_core();
-        let output =
-            SchemaCompiler::emit_all(&schema, &CompilerOptions::default()).unwrap();
-        let manifest_artifact =
-            emit_manifest_artifact(&schema, &output.manifest).unwrap();
+        let output = SchemaCompiler::emit_all(&schema, &CompilerOptions::default()).unwrap();
+        let manifest_artifact = emit_manifest_artifact(&schema, &output.manifest).unwrap();
 
         assert_eq!(manifest_artifact.kind, ArtifactKind::Manifest);
         assert_eq!(manifest_artifact.relative_path, "core/1.0.0/manifest.json");
@@ -891,8 +895,7 @@ mod tests {
     #[test]
     fn emit_manifest_artifact_is_byte_stable() {
         let schema = CompiledSchema::cem_core();
-        let output =
-            SchemaCompiler::emit_all(&schema, &CompilerOptions::default()).unwrap();
+        let output = SchemaCompiler::emit_all(&schema, &CompilerOptions::default()).unwrap();
         let first = emit_manifest_artifact(&schema, &output.manifest).unwrap();
         let second = emit_manifest_artifact(&schema, &output.manifest).unwrap();
         assert_eq!(first.bytes, second.bytes);

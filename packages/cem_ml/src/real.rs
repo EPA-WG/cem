@@ -142,6 +142,39 @@ fn input_uris(inputs: &[EngineInput]) -> Vec<String> {
     inputs.iter().map(|i| i.uri.clone()).collect()
 }
 
+struct LoadedInput {
+    bytes: Vec<u8>,
+    from_format: InputFormat,
+    diagnostics: Vec<Diagnostic>,
+}
+
+fn load_input_through_lifecycle(input: &EngineInput, context: &EngineContext) -> LoadedInput {
+    if context
+        .content_type
+        .as_deref()
+        .map(crate::legacy_custom_element::is_legacy_custom_element_content_type)
+        .unwrap_or(false)
+    {
+        let legacy_source = String::from_utf8_lossy(&input.bytes);
+        let converted =
+            crate::legacy_custom_element::convert_template_source(legacy_source.as_ref());
+        return LoadedInput {
+            bytes: converted.source.into_bytes(),
+            from_format: InputFormat::Cem,
+            diagnostics: converted
+                .diagnostics
+                .iter()
+                .map(|diagnostic| diagnostic.to_engine_diagnostic(Some(input.uri.clone())))
+                .collect(),
+        };
+    }
+    LoadedInput {
+        bytes: input.bytes.clone(),
+        from_format: input.from_format.unwrap_or(InputFormat::Cem),
+        diagnostics: Vec::new(),
+    }
+}
+
 /// Run the full Tier A pipeline (`tokenize → normalize → schema → AST →
 /// validation rules`) while routing every observable event through the
 /// supplied [`EngineObserver`].
@@ -359,7 +392,9 @@ impl CemMlEngine for RealCemMlEngine {
         let inputs = input_uris(&request.inputs);
         let mut all_diags: Vec<Diagnostic> = Vec::new();
         for input in &request.inputs {
-            let run = run_pipeline_as(&input.bytes, input.from_format.unwrap_or(InputFormat::Cem));
+            let loaded = load_input_through_lifecycle(input, &request.context);
+            all_diags.extend(loaded.diagnostics);
+            let run = run_pipeline_as(&loaded.bytes, loaded.from_format);
             all_diags.extend(run.diagnostics);
         }
         let report = Report::deterministic(
@@ -374,7 +409,9 @@ impl CemMlEngine for RealCemMlEngine {
         let inputs = input_uris(&request.inputs);
         let mut all_diags: Vec<Diagnostic> = Vec::new();
         for input in &request.inputs {
-            let run = run_pipeline_as(&input.bytes, input.from_format.unwrap_or(InputFormat::Cem));
+            let loaded = load_input_through_lifecycle(input, &request.context);
+            all_diags.extend(loaded.diagnostics);
+            let run = run_pipeline_as(&loaded.bytes, loaded.from_format);
             all_diags.extend(run.diagnostics);
         }
         let report = Report::deterministic(
@@ -444,25 +481,13 @@ impl CemMlEngine for RealCemMlEngine {
     }
 
     fn convert(&self, request: ConvertRequest) -> EngineResult<ConvertResponse> {
-        if request.to_format == LayerFormat::Cem
-            && request
-                .context
-                .content_type
-                .as_deref()
-                .map(crate::legacy_custom_element::is_legacy_custom_element_content_type)
-                .unwrap_or(false)
-        {
-            let input = String::from_utf8_lossy(&request.input.bytes);
-            let converted = crate::legacy_custom_element::convert_template_source(input.as_ref());
-            let mut content = converted.source;
+        let loaded = load_input_through_lifecycle(&request.input, &request.context);
+
+        if request.to_format == LayerFormat::Cem && loaded.from_format == InputFormat::Cem {
+            let mut content = String::from_utf8_lossy(&loaded.bytes).into_owned();
             if !content.is_empty() && !content.ends_with('\n') {
                 content.push('\n');
             }
-            let diagnostics = converted
-                .diagnostics
-                .iter()
-                .map(|diagnostic| diagnostic.to_engine_diagnostic(Some(request.input.uri.clone())))
-                .collect();
             return Ok(ConvertResponse {
                 primary: json!({
                     "kind": "cem",
@@ -470,12 +495,12 @@ impl CemMlEngine for RealCemMlEngine {
                     "sourceMap": null,
                     "outputSpans": [],
                 }),
-                diagnostics,
+                diagnostics: loaded.diagnostics,
             });
         }
 
-        let from_format = request.input.from_format.unwrap_or(InputFormat::Cem);
-        let run = run_pipeline_as(&request.input.bytes, from_format);
+        let from_format = loaded.from_format;
+        let run = run_pipeline_as(&loaded.bytes, from_format);
         let primary = match request.to_format {
             LayerFormat::Cem => {
                 let formatted = formatter::format_transform(
@@ -498,11 +523,13 @@ impl CemMlEngine for RealCemMlEngine {
             }
             LayerFormat::DomJson => projection::dom_json(&run.document),
             LayerFormat::Ast => projection::ast_json(&run.document),
-            LayerFormat::Events => projection::events_json_as(&request.input.bytes, from_format),
+            LayerFormat::Events => projection::events_json_as(&loaded.bytes, from_format),
         };
+        let mut diagnostics = loaded.diagnostics;
+        diagnostics.extend(run.diagnostics);
         Ok(ConvertResponse {
             primary,
-            diagnostics: run.diagnostics,
+            diagnostics,
         })
     }
 
@@ -714,6 +741,44 @@ mod tests {
     }
 
     #[test]
+    fn validate_legacy_custom_element_content_type_runs_xslt_lifecycle_adapter() {
+        let req = ValidateRequest {
+            inputs: vec![input(br#"<button>Go</button>"#, "legacy.html")],
+            projection: ValidateProjection::Json,
+            fail_level: FailLevel::Validate,
+            context: EngineContext {
+                content_type: Some(crate::legacy_custom_element::TEMPLATE_LANG.to_owned()),
+                ..ctx()
+            },
+        };
+        let resp = RealCemMlEngine::new().validate(req).unwrap();
+        assert_eq!(resp.report.summary.hard_violation_count, 0);
+        assert_eq!(resp.report.summary.error_count, 0);
+        assert_eq!(resp.report.summary.warning_count, 0);
+    }
+
+    #[test]
+    fn validate_legacy_custom_element_content_type_reports_unsupported_xslt() {
+        let req = ValidateRequest {
+            inputs: vec![input(br#"<xsl:copy-of select="node()"/>"#, "legacy.html")],
+            projection: ValidateProjection::Json,
+            fail_level: FailLevel::Validate,
+            context: EngineContext {
+                content_type: Some(crate::legacy_custom_element::TEMPLATE_LANG.to_owned()),
+                ..ctx()
+            },
+        };
+        let resp = RealCemMlEngine::new().validate(req).unwrap();
+        assert_eq!(resp.report.summary.warning_count, 1);
+        assert!(resp
+            .report
+            .diagnostics
+            .iter()
+            .any(|diagnostic| diagnostic.code
+                == crate::legacy_custom_element::UNSUPPORTED_CONSTRUCT_CODE));
+    }
+
+    #[test]
     fn check_zero_hard_violations_succeeds_on_clean_fixture() {
         let bytes = std::fs::read(
             std::path::PathBuf::from(env!("CARGO_MANIFEST_DIR"))
@@ -751,6 +816,7 @@ mod tests {
             to_format: LayerFormat::DomJson,
             preserve_source_offsets: false,
             context: ctx(),
+            target: None,
         };
         let resp = RealCemMlEngine::new().convert(req).unwrap();
         assert_eq!(resp.primary["kind"], "document");
@@ -767,6 +833,7 @@ mod tests {
             to_format: LayerFormat::Cem,
             preserve_source_offsets: true,
             context: ctx(),
+            target: None,
         };
         let resp = RealCemMlEngine::new().convert(req).unwrap();
         assert_eq!(resp.primary["kind"], "cem");
@@ -806,6 +873,7 @@ mod tests {
             to_format: LayerFormat::Cem,
             preserve_source_offsets: true,
             context: ctx(),
+            target: None,
         };
         let resp = RealCemMlEngine::new().convert(req).unwrap();
         assert_eq!(resp.primary["kind"], "cem");
@@ -848,6 +916,7 @@ mod tests {
                 content_type: Some(crate::legacy_custom_element::TEMPLATE_LANG.to_owned()),
                 ..ctx()
             },
+            target: None,
         };
         let resp = RealCemMlEngine::new().convert(req).unwrap();
         assert_eq!(resp.primary["kind"], "cem");

@@ -100,11 +100,10 @@ pub fn resolve_doc_directive(text: &str) -> Result<DocumentFormatIdentity, DocDi
             format_id: format_id.to_owned(),
         });
     }
-    let (constraint, _rule) = parse_version_constraint(version_str).ok_or_else(|| {
-        DocDirectiveError::SemverInvalid {
+    let (constraint, _rule) =
+        parse_version_constraint(version_str).ok_or_else(|| DocDirectiveError::SemverInvalid {
             value: version_str.to_owned(),
-        }
-    })?;
+        })?;
     resolve_against_supported(version_str, constraint)
 }
 
@@ -120,9 +119,7 @@ fn resolve_against_supported(
         // silently bypass the supported-version check.
         SchemaVersionConstraint::Unconstrained => false,
         SchemaVersionConstraint::Major(m) => *m == supported.major,
-        SchemaVersionConstraint::MajorMinor(m, n) => {
-            *m == supported.major && supported.minor >= *n
-        }
+        SchemaVersionConstraint::MajorMinor(m, n) => *m == supported.major && supported.minor >= *n,
         SchemaVersionConstraint::Full(v) => {
             if v.prerelease.is_some() {
                 // Prerelease-exact path: AC-V-10 / AC-F-8 require an
@@ -133,8 +130,7 @@ fn resolve_against_supported(
                     declared: declared.to_owned(),
                 });
             }
-            v.major == supported.major
-                && (supported.minor, supported.patch) >= (v.minor, v.patch)
+            v.major == supported.major && (supported.minor, supported.patch) >= (v.minor, v.patch)
         }
     };
     if satisfied {

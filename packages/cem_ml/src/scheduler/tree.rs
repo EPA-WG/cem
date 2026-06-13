@@ -109,14 +109,12 @@ impl ScopePolicyTree {
         if self.nodes.contains_key(&scope) {
             return Err(ScopePolicyTreeError::DuplicateScope(scope.0));
         }
-        let parent_policy = self
-            .nodes
-            .get(&parent)
-            .map(|n| n.policy)
-            .ok_or(ScopePolicyTreeError::UnknownParent {
+        let parent_policy = self.nodes.get(&parent).map(|n| n.policy).ok_or(
+            ScopePolicyTreeError::UnknownParent {
                 scope: scope.0,
                 parent: parent.0,
-            })?;
+            },
+        )?;
         check_constrain_only(scope.0, &parent_policy, &policy)?;
         self.nodes.insert(
             scope,
@@ -242,7 +240,10 @@ mod tests {
         assert_eq!(err.code(), "cem.a.cap_relaxation_denied");
         assert!(matches!(
             err,
-            ScopePolicyTreeError::CapRelaxationDenied { cap: ResourceCap::CpuWorkers, .. }
+            ScopePolicyTreeError::CapRelaxationDenied {
+                cap: ResourceCap::CpuWorkers,
+                ..
+            }
         ));
     }
 
@@ -257,7 +258,10 @@ mod tests {
             let err = tree
                 .install(PolicyScopeId(1), PolicyScopeId(0), p)
                 .unwrap_err();
-            assert!(matches!(err, ScopePolicyTreeError::CapRelaxationDenied { .. }), "cap {name}");
+            assert!(
+                matches!(err, ScopePolicyTreeError::CapRelaxationDenied { .. }),
+                "cap {name}"
+            );
         }
     }
 

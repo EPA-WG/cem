@@ -304,6 +304,20 @@ pub struct ConvertArgs {
           help = "Output layer (cem|dom-json|ast|events)")]
     pub to_format: LayerFormat,
 
+    #[arg(
+        long = "to-content-type",
+        value_name = "TYPE",
+        help = "Target content type for conversion/export"
+    )]
+    pub to_content_type: Option<String>,
+
+    #[arg(
+        long = "to-schema",
+        value_name = "URI-OR-FILE",
+        help = "Target schema URI or file for conversion/export"
+    )]
+    pub to_schema: Option<String>,
+
     #[arg(long, value_name = "FILE")]
     pub out: Option<PathBuf>,
 
@@ -495,6 +509,21 @@ mod tests {
                 "rejected: {fmt}"
             );
         }
+    }
+
+    #[test]
+    fn convert_accepts_target_identity_flags() {
+        try_parse(&[
+            "convert",
+            "--to-format",
+            "cem",
+            "--to-content-type",
+            "application/cem+xml",
+            "--to-schema",
+            "https://cem.dev/ns/core/1",
+            "in.html",
+        ])
+        .unwrap();
     }
 
     #[test]

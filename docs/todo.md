@@ -20,6 +20,8 @@ for the current architecture have landed; only deferred capability work remains 
       `convert --content-type custom-element-xslt` branch. `cem-ml validate --content-type custom-element-xslt <input>`
       must validate raw legacy XSLT input directly; `cem-ml convert --content-type custom-element-xslt
       --to-content-type application/cem+xml <input>` must load through the same adapter and export canonical CEM-ML.
+      First implementation slice is in place through the shared CLI/lib lifecycle load path for `validate`, `check`, and
+      `convert`; keep this item open until the adapter registry abstraction owns that dispatch.
 - [ ] **Wishlist (future — NOT in the immediate release timeline):** engine XSLT 3.0/4.0 execution
       behind G-NVDL-FULL (AC-P-6.9). The architecture keeps the capability-gated seam — XSLT is a
       peer language behind explicit dispatch, not the primary model or a browser-native dependency —

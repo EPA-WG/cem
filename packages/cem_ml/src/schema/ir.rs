@@ -258,7 +258,10 @@ pub enum OpenContentAction {
     AcceptIgnore,
     DeferToSemanticPass,
     DelegateToRegisteredSchema,
-    Diagnostic { code: String, severity: crate::diagnostics::Severity },
+    Diagnostic {
+        code: String,
+        severity: crate::diagnostics::Severity,
+    },
 }
 
 #[derive(Debug, Clone)]
@@ -510,7 +513,13 @@ fn build_cem_core_annotations() -> BTreeMap<&'static str, AnnotationDef> {
         AnnotationDef {
             local_name: "screen",
             allowed_values: None,
-            known_values: vec!["login", "registration", "profile", "assets", "message-thread"],
+            known_values: vec![
+                "login",
+                "registration",
+                "profile",
+                "assets",
+                "message-thread",
+            ],
             allowed_states: vec!["default", "loading", "empty"],
         },
     );
@@ -633,11 +642,7 @@ fn build_cem_core_structural(
                 .allowed_values
                 .as_ref()
                 .map(|vs| vs.iter().map(|v| (*v).to_owned()).collect()),
-            allowed_state_names: def
-                .allowed_states
-                .iter()
-                .map(|s| (*s).to_owned())
-                .collect(),
+            allowed_state_names: def.allowed_states.iter().map(|s| (*s).to_owned()).collect(),
         })
         .collect();
 
@@ -831,7 +836,10 @@ mod tests {
         let s = CompiledSchema::cem_core();
         assert_eq!(s.version_identity.uri, CEM_CORE_NAMESPACE);
         assert_eq!(s.version_identity.embedded_version, SemVer::new(1, 0, 0));
-        assert_eq!(s.version_identity.constraint, SchemaVersionConstraint::Major(1));
+        assert_eq!(
+            s.version_identity.constraint,
+            SchemaVersionConstraint::Major(1)
+        );
         assert_eq!(s.version_identity.match_rule, SchemaVersionMatchRule::Major);
         assert_eq!(s.version_identity.fingerprint_input, "1.0.0");
     }
@@ -878,7 +886,10 @@ mod tests {
         }
         assert_eq!(d.html_custom_element, OpenContentAction::Accept);
         assert_eq!(d.cem_html_data_attribute, OpenContentAction::AcceptIgnore);
-        assert_eq!(d.aria_or_role_attribute, OpenContentAction::DeferToSemanticPass);
+        assert_eq!(
+            d.aria_or_role_attribute,
+            OpenContentAction::DeferToSemanticPass
+        );
 
         match &d.active_cem_unknown_element {
             OpenContentAction::Diagnostic { code, severity } => {
@@ -974,11 +985,17 @@ mod tests {
             StructuralConstraintKind::ContentBoundary,
         ] {
             assert!(
-                s.structural.tier_a_profile.supported_constraints.contains(&kind),
+                s.structural
+                    .tier_a_profile
+                    .supported_constraints
+                    .contains(&kind),
                 "tier_a_profile missing constraint: {kind:?}"
             );
         }
-        assert_eq!(s.structural.diagnostics.engine, ValidationEngineKind::TierADfa);
+        assert_eq!(
+            s.structural.diagnostics.engine,
+            ValidationEngineKind::TierADfa
+        );
     }
 
     #[test]

@@ -111,12 +111,12 @@ pub fn run_pipeline_iterations_bare(
 ) -> BenchmarkRun {
     use crate::events::cem::CemEventNormalizer;
     use crate::parser::builder::CemAstBuilder;
+    use crate::schema::machine::CemSchemaMachine;
+    use crate::schema::vocab::CompiledSchema;
     use crate::source::{BytesSource, SourceId};
     use crate::tokenizer::cem::CemTokenizer;
     use crate::tokenizer::html::HtmlTokenizer;
     use crate::tokenizer::xml::XmlTokenizer;
-    use crate::schema::machine::CemSchemaMachine;
-    use crate::schema::vocab::CompiledSchema;
 
     let iterations = iterations.max(1);
     let mut per_iter_ns: Vec<u128> = Vec::with_capacity(iterations as usize);
@@ -126,7 +126,9 @@ pub fn run_pipeline_iterations_bare(
             InputFormat::Cem => {
                 let src = BytesSource::new(SourceId(1), bytes.to_vec());
                 let tok = CemTokenizer::from_source(src);
-                let _ = CemSchemaMachine::new(CompiledSchema::cem_core(), CemEventNormalizer::new(tok)).run();
+                let _ =
+                    CemSchemaMachine::new(CompiledSchema::cem_core(), CemEventNormalizer::new(tok))
+                        .run();
                 let src = BytesSource::new(SourceId(1), bytes.to_vec());
                 let tok = CemTokenizer::from_source(src);
                 let _ = CemAstBuilder::new(CemEventNormalizer::new(tok)).build();
@@ -134,7 +136,9 @@ pub fn run_pipeline_iterations_bare(
             InputFormat::Html => {
                 let src = BytesSource::new(SourceId(1), bytes.to_vec());
                 let tok = HtmlTokenizer::from_source(src);
-                let _ = CemSchemaMachine::new(CompiledSchema::cem_core(), CemEventNormalizer::new(tok)).run();
+                let _ =
+                    CemSchemaMachine::new(CompiledSchema::cem_core(), CemEventNormalizer::new(tok))
+                        .run();
                 let src = BytesSource::new(SourceId(1), bytes.to_vec());
                 let tok = HtmlTokenizer::from_source(src);
                 let _ = CemAstBuilder::new(CemEventNormalizer::new(tok)).build();
@@ -142,7 +146,9 @@ pub fn run_pipeline_iterations_bare(
             InputFormat::Xml => {
                 let src = BytesSource::new(SourceId(1), bytes.to_vec());
                 let tok = XmlTokenizer::from_source(src);
-                let _ = CemSchemaMachine::new(CompiledSchema::cem_core(), CemEventNormalizer::new(tok)).run();
+                let _ =
+                    CemSchemaMachine::new(CompiledSchema::cem_core(), CemEventNormalizer::new(tok))
+                        .run();
                 let src = BytesSource::new(SourceId(1), bytes.to_vec());
                 let tok = XmlTokenizer::from_source(src);
                 let _ = CemAstBuilder::new(CemEventNormalizer::new(tok)).build();

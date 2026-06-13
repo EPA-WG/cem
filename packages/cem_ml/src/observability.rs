@@ -414,7 +414,10 @@ mod tests {
             (ParseEventKind::Trivia, "trivia"),
             (ParseEventKind::Separator, "separator"),
             (ParseEventKind::ModeSwitch, "mode_switch"),
-            (ParseEventKind::ProcessingInstruction, "processing_instruction"),
+            (
+                ParseEventKind::ProcessingInstruction,
+                "processing_instruction",
+            ),
             (ParseEventKind::Error, "error"),
         ];
         for (kind, expected) in pairs {
@@ -448,7 +451,13 @@ mod tests {
         let mut seq = EventSequencer::new();
         {
             let mut emit = EventEmitter::new(&observer, &mut seq);
-            emit.parse(ParseEventKind::OpenScope, Some("p".into()), None, Some(0), None);
+            emit.parse(
+                ParseEventKind::OpenScope,
+                Some("p".into()),
+                None,
+                Some(0),
+                None,
+            );
             emit.validate(&crate::diagnostics::Diagnostic {
                 uri: None,
                 line: None,
@@ -463,7 +472,10 @@ mod tests {
             emit.transform(TransformKind::CemTokenizer, "tokenized", None, None);
         }
         let captured = observer.snapshot();
-        assert_eq!(captured.iter().map(|e| e.sequence).collect::<Vec<_>>(), vec![0, 1, 2]);
+        assert_eq!(
+            captured.iter().map(|e| e.sequence).collect::<Vec<_>>(),
+            vec![0, 1, 2]
+        );
     }
 
     #[test]

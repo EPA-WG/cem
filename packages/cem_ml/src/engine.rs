@@ -91,6 +91,25 @@ pub struct EngineContext {
     pub base_uri: Option<String>,
 }
 
+#[derive(Debug, Clone, Default, PartialEq, Eq, Serialize, Deserialize)]
+pub struct FormatIdentity {
+    #[serde(rename = "contentType")]
+    pub content_type: Option<String>,
+    pub schema: Option<String>,
+    #[serde(rename = "baseUri")]
+    pub base_uri: Option<String>,
+}
+
+impl From<&EngineContext> for FormatIdentity {
+    fn from(context: &EngineContext) -> Self {
+        Self {
+            content_type: context.content_type.clone(),
+            schema: context.schema.clone(),
+            base_uri: context.base_uri.clone(),
+        }
+    }
+}
+
 #[derive(Debug, Clone)]
 pub struct EngineInput {
     pub uri: String,
@@ -137,6 +156,7 @@ pub struct ConvertRequest {
     pub to_format: LayerFormat,
     pub preserve_source_offsets: bool,
     pub context: EngineContext,
+    pub target: Option<FormatIdentity>,
 }
 
 #[derive(Debug, Clone)]

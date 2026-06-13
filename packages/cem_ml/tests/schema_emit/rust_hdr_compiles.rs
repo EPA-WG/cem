@@ -12,10 +12,8 @@ use std::env;
 use std::fs;
 use std::process::Command;
 
-use cem_ml::schema::compiler::{
-    rust_hdr::RustHdrEmitter, EmissionCursor, SchemaEmitter,
-};
 use cem_ml::schema::compiler::CompilerOptions;
+use cem_ml::schema::compiler::{rust_hdr::RustHdrEmitter, EmissionCursor, SchemaEmitter};
 use cem_ml::schema::ir::CompiledSchema;
 
 #[test]
