@@ -44,8 +44,9 @@ Current implementation status:
   through the `cem_ml::engine::CemMlEngine` trait.
 - `--schema` and `--content-type` are carried in `EngineContext` and emitted in reports.
   `cem_ml::lifecycle::LifecycleRegistry` now owns built-in input content-type dispatch
-  for `validate`, `check`, and `convert`; schema-specific adapter selection and full
-  command coverage are still pending.
+  for parser-backed commands (`parse`, `validate`, `check`, `inspect`, `convert`,
+  `trace`, `bench`, and fixture workflows); schema-specific adapter selection is
+  still pending.
 - `validate` / `check` / `convert` route `custom-element-xslt` input through the first
   shared lifecycle adapter path, lowering legacy custom-element XSLT to canonical
   CEM-ML through `cem_ml::legacy_custom_element`; `convert --content-type

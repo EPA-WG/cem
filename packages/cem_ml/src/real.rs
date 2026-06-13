@@ -43,10 +43,6 @@ pub struct PipelineRun {
     pub diagnostics: Vec<Diagnostic>,
 }
 
-fn run_pipeline(bytes: &[u8]) -> PipelineRun {
-    run_pipeline_as(bytes, InputFormat::Cem)
-}
-
 fn run_pipeline_as(bytes: &[u8], from_format: InputFormat) -> PipelineRun {
     match from_format {
         InputFormat::Cem => run_pipeline_with::<CemTokenizer>(bytes),
@@ -145,6 +141,21 @@ fn input_uris(inputs: &[EngineInput]) -> Vec<String> {
 
 fn load_input_through_lifecycle(input: &EngineInput, context: &EngineContext) -> LoadedInput {
     LifecycleRegistry::with_builtin_adapters().load(input, context)
+}
+
+fn materialized_input(input: &EngineInput) -> EngineResult<EngineInput> {
+    if !input.bytes.is_empty() {
+        return Ok(input.clone());
+    }
+    let bytes = std::fs::read(&input.uri).map_err(|source| EngineError::Io {
+        path: input.uri.clone().into(),
+        source,
+    })?;
+    Ok(EngineInput {
+        uri: input.uri.clone(),
+        bytes,
+        from_format: input.from_format,
+    })
 }
 
 /// Run the full Tier A pipeline (`tokenize → normalize → schema → AST →
@@ -345,18 +356,19 @@ pub fn observe_pipeline(
 
 impl CemMlEngine for RealCemMlEngine {
     fn parse(&self, request: ParseRequest) -> EngineResult<ParseResponse> {
-        let from_format = request.input.from_format.unwrap_or(InputFormat::Cem);
-        let run = run_pipeline_as(&request.input.bytes, from_format);
+        let loaded = load_input_through_lifecycle(&request.input, &request.context);
+        let from_format = loaded.from_format;
+        let run = run_pipeline_as(&loaded.bytes, from_format);
         let primary = match request.projection {
             ParseProjection::DomJson | ParseProjection::Json => projection::dom_json(&run.document),
             ParseProjection::Ast => projection::ast_json(&run.document),
-            ParseProjection::Events => {
-                projection::events_json_as(&request.input.bytes, from_format)
-            }
+            ParseProjection::Events => projection::events_json_as(&loaded.bytes, from_format),
         };
+        let mut diagnostics = loaded.diagnostics;
+        diagnostics.extend(run.diagnostics);
         Ok(ParseResponse {
             primary,
-            diagnostics: run.diagnostics,
+            diagnostics,
         })
     }
 
@@ -399,8 +411,11 @@ impl CemMlEngine for RealCemMlEngine {
     }
 
     fn inspect(&self, request: InspectRequest) -> EngineResult<InspectResponse> {
-        let from_format = request.input.from_format.unwrap_or(InputFormat::Cem);
-        let run = run_pipeline_as(&request.input.bytes, from_format);
+        let loaded = load_input_through_lifecycle(&request.input, &request.context);
+        let from_format = loaded.from_format;
+        let run = run_pipeline_as(&loaded.bytes, from_format);
+        let mut diagnostics = loaded.diagnostics;
+        diagnostics.extend(run.diagnostics);
         let body = match request.show {
             InspectView::Summary => {
                 let elements = run
@@ -418,15 +433,15 @@ impl CemMlEngine for RealCemMlEngine {
                     "input": request.input.uri,
                     "elements": elements,
                     "attributes": attributes,
-                    "diagnosticCount": run.diagnostics.len(),
+                    "diagnosticCount": diagnostics.len(),
                 })
             }
             InspectView::Ast => projection::ast_json(&run.document),
-            InspectView::Events => projection::events_json_as(&request.input.bytes, from_format),
+            InspectView::Events => projection::events_json_as(&loaded.bytes, from_format),
             InspectView::Diagnostics => json!({
                 "kind": "diagnostics",
                 "input": request.input.uri,
-                "diagnostics": run.diagnostics,
+                "diagnostics": diagnostics,
             }),
             InspectView::SourceOffsets => {
                 let mut offsets: Vec<Value> = Vec::new();
@@ -506,7 +521,8 @@ impl CemMlEngine for RealCemMlEngine {
     }
 
     fn trace(&self, request: TraceRequest) -> EngineResult<TraceResponse> {
-        let from_format = request.input.from_format.unwrap_or(InputFormat::Cem);
+        let loaded = load_input_through_lifecycle(&request.input, &request.context);
+        let from_format = loaded.from_format;
         let scheduler_trace = crate::scheduler::SchedulerTrace::new();
         let policy = crate::scheduler::ScopePolicy {
             cpu_workers: 1,
@@ -523,11 +539,13 @@ impl CemMlEngine for RealCemMlEngine {
                 EngineError::Internal(format!("scheduler trace setup failed: {err}"))
             })?;
         }
-        let run = run_pipeline_as(&request.input.bytes, from_format);
+        let run = run_pipeline_as(&loaded.bytes, from_format);
         pool.run_to_completion(&abort, |_| {});
+        let mut diagnostics = loaded.diagnostics;
+        diagnostics.extend(run.diagnostics);
         let report = Report::deterministic(
             vec![request.input.uri.clone()],
-            run.diagnostics,
+            diagnostics,
             snapshot(FailLevel::Validate, &request.context),
         )
         .with_scheduler_trace(&scheduler_trace);
@@ -535,7 +553,7 @@ impl CemMlEngine for RealCemMlEngine {
             "kind": "trace",
             "input": request.input.uri,
             "projection": request.projection,
-            "events": projection::events_json_as(&request.input.bytes, from_format),
+            "events": projection::events_json_as(&loaded.bytes, from_format),
             "report": report,
         });
         Ok(TraceResponse { body })
@@ -549,7 +567,9 @@ impl CemMlEngine for RealCemMlEngine {
         for _ in 0..iterations {
             let t = Instant::now();
             for input in &request.inputs {
-                let _ = run_pipeline(&input.bytes);
+                let input = materialized_input(input)?;
+                let loaded = load_input_through_lifecycle(&input, &request.context);
+                let _ = run_pipeline_as(&loaded.bytes, loaded.from_format);
             }
             let elapsed = t.elapsed().as_nanos();
             per_iter_ns.push(elapsed);
@@ -587,22 +607,10 @@ impl CemMlEngine for RealCemMlEngine {
         let inputs = input_uris(&request.inputs);
         let mut all_diags: Vec<Diagnostic> = Vec::new();
         for input in &request.inputs {
-            let bytes = if input.bytes.is_empty() {
-                // Default fixtures arrive with bytes left blank by the CLI
-                // dispatcher (placeholder_input); read from disk now.
-                match std::fs::read(&input.uri) {
-                    Ok(b) => b,
-                    Err(e) => {
-                        return Err(EngineError::Io {
-                            path: input.uri.clone().into(),
-                            source: e,
-                        });
-                    }
-                }
-            } else {
-                input.bytes.clone()
-            };
-            let run = run_pipeline_as(&bytes, input.from_format.unwrap_or(InputFormat::Cem));
+            let input = materialized_input(input)?;
+            let loaded = load_input_through_lifecycle(&input, &request.context);
+            all_diags.extend(loaded.diagnostics);
+            let run = run_pipeline_as(&loaded.bytes, loaded.from_format);
             all_diags.extend(run.diagnostics);
         }
         let report = Report::deterministic(
@@ -621,20 +629,10 @@ impl CemMlEngine for RealCemMlEngine {
         let mut artifacts: Vec<Value> = Vec::new();
         let mut all_diags: Vec<Diagnostic> = Vec::new();
         for input in &request.inputs {
-            let bytes = if input.bytes.is_empty() {
-                match std::fs::read(&input.uri) {
-                    Ok(b) => b,
-                    Err(e) => {
-                        return Err(EngineError::Io {
-                            path: input.uri.clone().into(),
-                            source: e,
-                        });
-                    }
-                }
-            } else {
-                input.bytes.clone()
-            };
-            let run = run_pipeline_as(&bytes, input.from_format.unwrap_or(InputFormat::Cem));
+            let input = materialized_input(input)?;
+            let loaded = load_input_through_lifecycle(&input, &request.context);
+            all_diags.extend(loaded.diagnostics);
+            let run = run_pipeline_as(&loaded.bytes, loaded.from_format);
             let rendered = LightDomInterpreter::new().render(&run.document);
             artifacts.push(json!({
                 "input": input.uri,
@@ -692,6 +690,27 @@ mod tests {
         };
         let resp = RealCemMlEngine::new().parse(req).unwrap();
         assert!(resp.primary.is_array());
+    }
+
+    #[test]
+    fn parse_legacy_custom_element_content_type_uses_lifecycle_adapter() {
+        let req = ParseRequest {
+            input: input(
+                br#"<if test="$ready"><button>Go</button></if>"#,
+                "legacy.html",
+            ),
+            projection: ParseProjection::DomJson,
+            fail_level: FailLevel::Parse,
+            preserve_source_offsets: false,
+            context: EngineContext {
+                content_type: Some(crate::legacy_custom_element::TEMPLATE_LANG.to_owned()),
+                ..ctx()
+            },
+        };
+        let resp = RealCemMlEngine::new().parse(req).unwrap();
+        assert_eq!(resp.primary["kind"], "document");
+        assert_eq!(resp.primary["children"][0]["name"], "if");
+        assert_eq!(resp.primary["children"][0]["namespace"], "cem");
     }
 
     #[test]
@@ -779,6 +798,23 @@ mod tests {
         assert_eq!(resp.body["kind"], "summary");
         assert!(resp.body["elements"].as_u64().unwrap() >= 1);
         assert!(resp.body["attributes"].as_u64().unwrap() >= 1);
+    }
+
+    #[test]
+    fn inspect_legacy_custom_element_content_type_uses_lifecycle_adapter() {
+        let req = InspectRequest {
+            input: input(br#"<button type="button">Go</button>"#, "legacy.html"),
+            show: InspectView::Summary,
+            context: EngineContext {
+                content_type: Some(crate::legacy_custom_element::TEMPLATE_LANG.to_owned()),
+                ..ctx()
+            },
+        };
+        let resp = RealCemMlEngine::new().inspect(req).unwrap();
+        assert_eq!(resp.body["kind"], "summary");
+        assert_eq!(resp.body["elements"], 1);
+        assert_eq!(resp.body["attributes"], 1);
+        assert_eq!(resp.body["diagnosticCount"], 0);
     }
 
     #[test]
@@ -915,6 +951,22 @@ mod tests {
         );
         assert_eq!(scheduler_trace["events"][0]["scopeId"], 0);
         assert_eq!(scheduler_trace["events"][0]["task"], "tokenize");
+    }
+
+    #[test]
+    fn trace_legacy_custom_element_content_type_uses_lifecycle_adapter() {
+        let req = TraceRequest {
+            input: input(br#"<button>Go</button>"#, "legacy.html"),
+            projection: TraceProjection::Json,
+            context: EngineContext {
+                content_type: Some(crate::legacy_custom_element::TEMPLATE_LANG.to_owned()),
+                ..ctx()
+            },
+        };
+        let resp = RealCemMlEngine::new().trace(req).unwrap();
+        assert_eq!(resp.body["kind"], "trace");
+        assert!(resp.body["events"].to_string().contains("button"));
+        assert_eq!(resp.body["report"]["summary"]["hardViolationCount"], 0);
     }
 
     #[test]
