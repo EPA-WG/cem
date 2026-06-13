@@ -75,7 +75,7 @@ export const LEGACY_XPATH_FUNCTION_MAP = {
     sum: 'seq:sum',
 } as const;
 
-export const LEGACY_XPATH_SPECIAL_FUNCTIONS = ['not', 'concat', 'position', 'current'] as const;
+export const LEGACY_XPATH_SPECIAL_FUNCTIONS = ['not', 'concat', 'position', 'current', 'hasBoolAttribute'] as const;
 
 export const LEGACY_XPATH_SUPPORTED_FUNCTIONS = [
     ...Object.keys(LEGACY_XPATH_FUNCTION_MAP),

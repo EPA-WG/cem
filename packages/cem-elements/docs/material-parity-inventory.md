@@ -64,7 +64,7 @@ current `<cem-element>` runtime renders it faithfully.
 | 12 | `??` coalescing operator in `select`                    | `autocomplete.html:53`, `input.html:95`                                          | ✅     | Supported by cem-ql coalescing expressions in canonical CEM-ML.                                                |
 | 13 | `if` conditional construct                              | `badge.html:192`, `input.html:207`                                              | 🟡     | Supported through canonical CEM-ML/cem-ql (`if` and `cem:if`) with `datadom.*` expressions; legacy XPath spellings still need migration/lowering. |
 | 14 | `choose`/`when`/`otherwise` conditional                 | `icon.html:79`, `icon-link.html:91`                                              | 🟡     | Supported through canonical CEM-ML/cem-ql (`choose`/`when`/`otherwise` and `cem:*`) with diagnostics for malformed branches; legacy XPath spellings still need migration/lowering. |
-| 15 | `hasBoolAttribute()` helper in expressions              | `input.html:224-228`                                                            | ❌     | No expression-function support.                                                                                  |
+| 15 | `hasBoolAttribute()` helper in expressions              | `input.html:224-228`                                                            | ✅     | Legacy helper lowers at compile time to the HTML boolean-attribute test used by the material input template.      |
 | 16 | `class="{//bend}"` XPath in attribute value             | `action.html:148`                                                               | ❌     | Only `{$name}` resolves; `{//xpath}` is not evaluated.                                                           |
 | 17 | Namespaced `xhtml:*` elements                           | `input.html:218`                                                                | 🟡     | `readTemplateSource` flattens the xhtml namespace, so `xhtml:input` renders as `<input>` — coincidental parity.  |
 | 18 | Declarative `<slot>` / named slots                      | `icon.html:85`, `input.html:206`, `autocomplete.html:85`                         | ✅     | Named/default slots lower from serialized payload in the render plan before light-DOM materialization, including DOM and WASM paths. |
@@ -81,7 +81,7 @@ support and Storybook material-parity coverage. Bare `@scope/pkg` specifiers sti
 
 **Remaining material-parity caveats:** legacy XPath authoring and XSLT-only constructs are migration decisions; the
 canonical path uses CEM-ML plus cem-ql functional selection over `datadom.*`. Scoped styles still render as page-global
-light-DOM styles, and boolean helper functions such as `hasBoolAttribute()` are not reproduced directly.
+light-DOM styles. `hasBoolAttribute()` is supported in the legacy bridge as a compile-time boolean-attribute rewrite.
 
 **Production gate:** the Storybook parity set is green for the covered runtime behaviors. AC-N-1 first-paint
 performance proof and end-to-end accessibility-contract assertions are both wired into the Phase 3.1 gate in
@@ -89,8 +89,8 @@ performance proof and end-to-end accessibility-contract assertions are both wire
 
 **Recommended sequencing implied by this inventory:**
 
-1. Decide whether scoped-style containment and `hasBoolAttribute()` compatibility remain bridge/adoption work or move
-   into the browser-substrate production gate.
+1. Decide whether scoped-style containment remains bridge/adoption work or moves into the browser-substrate production
+   gate.
 
 This inventory satisfies the todo §3.1 "Build a material parity inventory" item and feeds the parity-story
 (line 118) and `cem_ml_cli` fixture-wiring (line 124) items.

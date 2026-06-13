@@ -24,16 +24,16 @@ Design homes:
       in `cem_ml::legacy_custom_element::emit_call`; expands to the idiomatic HTML boolean attribute
       test `not (attr = "false") and (attr = "" or attr = "attr" or attr = "true")`. Allowlist entry
       removed from `legacy-compat-manifest.json`.
-- [ ] Tier 3 standalone XSLT stylesheets remain an explicit handoff/deferred scope outside the bounded compatibility
-      profile: unresolved dynamic construction names, EXSLT `func:function`, and `msxsl:script` are non-transpilable in
-      the legacy custom-element bridge.
+- [ ] Tier 3 XSLT remains an explicit handoff/deferred scope outside the bounded compatibility profile: unresolved
+      dynamic construction names outside the scalar AVT subset, EXSLT `func:function`, and `msxsl:script` are
+      non-transpilable in the legacy custom-element bridge.
 
 ## Phase 4 — CEM Component Set
 
 Roadmap: [`../roadmap.md` §Phase 4](../roadmap.md). Components come before the Figma UI Kit so the design library maps
 to proven web component names, states, attributes, and accessibility behavior instead of inventing a parallel model.
 
-- [ ] Complete the custom-element XSLT parity scope before expanding the component catalog. The engine now has the first
+- [x] Complete the custom-element XSLT parity scope before expanding the component catalog. The engine now has the first
       stylesheet-compat slices for `xsl:stylesheet`, root/named `xsl:template`, `xsl:call-template`, params, bounded
       `xsl:apply-templates` over inline `exsl:node-set($var)/*` variables, sample-style source child/attribute/text
       traversal, absolute/descendant selectors, namespace wildcards, indexed child steps, parent-relative paths, simple
@@ -42,12 +42,11 @@ to proven web component names, states, attributes, and accessibility behavior in
       attribute extraction, static `if`/`when` folding for known current-node tests, default template fallbacks, basic
       template priority, scalar and node-set template params, multi-key `xsl:sort`, literal `count`/`sum` over
       supported node selections, bounded current-node copy/copy-of/attribute construction, scalar-AVT `xsl:element`
-      construction, and recursion safety.
-      Phase 4 still needs the remaining
-      copied component/sample parity: richer XPath predicate/function behavior, dynamic names outside the scalar AVT
-      subset, and any additional XSLT instructions from copied fixtures where sample-used. Track the inventory with
-      `yarn nx run @epa-wg/custom-element:xslt:inventory`; track the remaining bounded implementation questions in
-      [`custom-element-xslt-parity-decision.md`](custom-element-xslt-parity-decision.md).
+      construction, `hasBoolAttribute()` boolean-attribute rewriting, and recursion safety. The copied material
+      component templates now convert without unexpected diagnostics in both the Rust engine manifest gate and the
+      browser/WASM custom-element gate. Future XPath/function expansion is sample-driven follow-up, not a blocker for
+      Phase 4 catalog expansion. Track the inventory with `yarn nx run @epa-wg/custom-element:xslt:inventory`; track the
+      remaining bounded implementation questions in [`custom-element-xslt-parity-decision.md`](custom-element-xslt-parity-decision.md).
 - [ ] Define the Phase 4 component MVP list and state matrix across actions, inputs, navigation, content, feedback,
       and the first app workflow surfaces. Use Angular Material only as a coverage and ergonomics benchmark, not as a
       required implementation dependency.

@@ -87,6 +87,7 @@ pub const SUPPORTED_XPATH_FUNCTIONS: &[&str] = &[
     "concat",
     "position",
     "current",
+    "hasBoolAttribute",
 ];
 
 const HTML_VOID_ELEMENTS: &[&str] = &[

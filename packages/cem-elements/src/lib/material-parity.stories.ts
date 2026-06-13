@@ -17,8 +17,8 @@ import { CemElementRuntime, type CemElementRuntimeOptions } from './cem-elements
  *   attribute-presence `cem:if`/`cem:choose` (cem-ql `strings:*` qualified calls are a follow-up).
  * - Scoped `<style>` renders page-global (no light-DOM scoping). Bare `@scope/pkg`
  *   module-map `src` specifiers require host `loadSrcDocument` / `resolveModuleUrl` hooks.
- * - `<if><attribute>` boolean-attribute forwarding (`hasBoolAttribute`) is not reproduced; declared
- *   attributes + AVT cover the common cases.
+ * - Legacy `<if><attribute>` boolean-attribute forwarding (`hasBoolAttribute`) is covered by the
+ *   custom-element XSLT bridge; these canonical CEM-ML parity stories use declared attributes + AVT.
  * - `/datadom` selection keys must avoid cem-ql builtin pipeline-step names (`first`, `last`,
  *   `take`, `drop`, `nth`, `where`, `target`), which shadow same-named record fields.
  */

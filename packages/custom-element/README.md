@@ -292,13 +292,13 @@ XPath is a selector language to navigate over custom element instance data, attr
 > `otherwise` (and the bare `for-each`/`if`/`choose` spellings), `<xsl:variable>`, `<slot>`,
 > declaration `<attribute>` / `<slice>`, attribute value templates, and the XPath function subset the
 > legacy demos use (`contains`, `not`, `translate`, `substring(-before/-after)`, `string-length`,
-> `position()`, `count`, `concat`, `normalize-space`, comparisons). Bare `{name}` / `{$name}` /
+> `position()`, `count`, `concat`, `normalize-space`, `hasBoolAttribute`, comparisons). Bare `{name}` / `{$name}` /
 > `{//path}` interpolation and `??` coalescing are supported.
 >
-> **Not converted (Tier 3, deferred):** standalone full XSLT stylesheets using the push model
-> (`<xsl:template match>` + `<xsl:apply-templates>` / `<xsl:call-template>` / `<xsl:sort>`), EXSLT
-> `func:function`, and `<msxsl:script>` (embedded JScript — non-transpilable). These emit a
-> conversion diagnostic. Author such logic in CEM-ML/CEM-QL directly.
+> **Not converted (Tier 3, deferred):** XSLT outside the bounded compatibility profile, including
+> EXSLT `func:function`, `<msxsl:script>` (embedded JScript — non-transpilable), and dynamic
+> construction names outside the scalar AVT subset. These emit a conversion diagnostic. Author such
+> logic in CEM-ML/CEM-QL directly.
 >
 > The historical XSLT 1.0 reference below documents the original authoring surface; most of it is
 > reproduced by the converter. The original POC used the native

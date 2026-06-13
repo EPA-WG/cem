@@ -54,7 +54,7 @@ generated entry:
   lowering, serializable projection boundary, edge render-state, SSR hydration
   with BR-VC-9 contract disposition.
 - **Legacy HTML+XSLT backward-compat** — a DOM→CEM-ML converter
-  (`legacy-xslt/convert.ts`) + a runtime `legacy-xslt` mode transpile legacy
+  (`cem_ml::legacy_custom_element`, reached through the runtime WASM boundary) + a runtime `legacy-xslt` mode transpile legacy
   `<custom-element>` HTML+XSLT templates onto the cem_ql engine (no browser XSLT
   processor), so legacy demos render identically to migrated CEM-ML twins.
 - **`cem-theme` generators** — all 10 CSS generators converted off the live
@@ -75,15 +75,16 @@ For consumers of the 0.0.x line:
    adapter** (see §4), but **legacy HTML+XSLT templates still work** — they are
    transpiled to CEM-ML and rendered on the substrate (`CemElementRuntime`), not by
    a browser XSLT processor (the package verifier fails if `XSLTProcessor` reappears).
-   The converter (`cem-elements/src/lib/legacy-xslt/convert.ts`) covers the Tier 1/2
+   The converter (`cem_ml::legacy_custom_element`, exposed through `convertLegacyTemplate`) covers the Tier 1/2
    surface the legacy demos use — `<xsl:value-of>`/`{…}`, `<xsl:for-each>` (incl. the
    `exsl:node-set($var)/*` inline-variable idiom, unrolled), `<xsl:if>`/`<xsl:choose>`,
-   `<xsl:variable>`, `<slot>`, `<attribute>`/`<slice>`, AVT, and the XPath function
-   subset (`contains`, `not`, `translate`, `substring*`, `position`, `count`, …).
-   **Tier 3 standalone XSLT stylesheets are not converted** (push-model
-   `<xsl:template match>`/`apply-templates`/`call-template`/`sort`, EXSLT
-   `func:function`, `<msxsl:script>`) — they emit a conversion diagnostic; author that
-   logic in CEM-ML/CEM-QL. The separate `custom-element-v0` DOM-projection bridge
+   `<xsl:variable>`, `<slot>`, `<attribute>`/`<slice>`, AVT, `hasBoolAttribute()`
+   boolean-attribute rewriting, and the XPath function subset (`contains`, `not`, `translate`, `substring*`,
+   `position`, `count`, …).
+   **Tier 3 XSLT outside the bounded compatibility profile is not converted**
+   (for example EXSLT `func:function`, `<msxsl:script>`, or dynamic construction names outside the scalar AVT subset)
+   — these emit a conversion diagnostic; author that logic in CEM-ML/CEM-QL. The separate
+   `custom-element-v0` DOM-projection bridge
    (explicit `lang`) stays deprecated-but-functional, removed next major.
 3. **Deep `dist/` imports are discouraged.** Import package export subpaths
    instead — `@epa-wg/cem-theme/tokens/cem.tokens.json`,
@@ -105,8 +106,8 @@ browser XSLT-1.0 transform processor is gone in 0.1.0 (the `custom-element` adap
 delegates to `CemElementRuntime`; the verifier blocks `XSLTProcessor` from
 returning). Legacy HTML+XSLT templates run via the DOM→CEM-ML converter on the same
 engine as migrated templates — a legacy sample and its CEM-ML twin render
-identically. Tier 3 standalone XSLT stylesheets (push-model / EXSLT / `msxsl:script`)
-are not converted. The older `custom-element-v0` DOM-projection bridge stays
+identically. Tier 3 XSLT outside the bounded compatibility profile is not converted. The older
+`custom-element-v0` DOM-projection bridge stays
 deprecated, removed next major (FF-5 gated).
 
 | Surface | 0.1.0 | next major |
@@ -114,7 +115,7 @@ deprecated, removed next major (FF-5 gated).
 | CEM-ML/CEM-QL substrate (`type="cem-ml; version=0.0"`) | ✅ recommended | ✅ |
 | Native browser XSLT transform engine (`XSLTProcessor`) | ❌ **retired** | ❌ |
 | Legacy HTML+XSLT via DOM→CEM-ML conversion (Tier 1/2: `value-of`/`for-each`/`if`/`choose`/`variable`/AVT + XPath subset) | ✅ supported | ✅ |
-| Tier 3 standalone XSLT stylesheets (`apply-templates`/`call-template`/`sort`, EXSLT, `msxsl:script`) | ❌ not converted (diagnostic) | ❌ |
+| Tier 3 XSLT outside the bounded compatibility profile (EXSLT `func:function`, `msxsl:script`, unsupported dynamic construction) | ❌ not converted (diagnostic) | ❌ |
 | `custom-element-v0` DOM-projection bridge (explicit `lang`) | ⚠️ deprecated, functional | ❌ removed (FF-5 gated) |
 | `custom-element-v0` / `cem-ml-v0` deprecated form ids | ⚠️ scanned by FF-5 | ❌ removed |
 
