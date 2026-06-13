@@ -8,6 +8,18 @@ Each item names the AC reference and design home so the closing change ships wit
 Design home: [`content-type-switch.md`](content-type-switch.md) (BRD). The open questions and implementation gates
 for the current architecture have landed; only deferred capability work remains here.
 
+- [ ] **Immediate goal: structural data lifecycle for lib + CLI.** Design homes:
+      [`cem-ml-cli-contract.md`](cem-ml-cli-contract.md), [`cem-ml-cli-plan.md`](cem-ml-cli-plan.md), and
+      [`../roadmap.md` §Phase 2](../roadmap.md#phase-2---schema-defined-parser-and-document-runtime). Promote format
+      identity from report metadata to execution input: content type + schema/namespace identity select the adapter
+      that validates bytes, loads normalized events / CEM AST, and exports to the requested target identity. Keep
+      `--from-format` / `--to-format` as compatibility aliases while adding explicit input/output content-type and
+      schema selection.
+- [ ] **Immediate goal: XSLT 1.0 lifecycle adapter.** Move the existing legacy custom-element XSLT 1.0 lowering
+      (`cem_ml::legacy_custom_element`) behind the lifecycle adapter registry instead of the current one-off
+      `convert --content-type custom-element-xslt` branch. `cem-ml validate --content-type custom-element-xslt <input>`
+      must validate raw legacy XSLT input directly; `cem-ml convert --content-type custom-element-xslt
+      --to-content-type application/cem+xml <input>` must load through the same adapter and export canonical CEM-ML.
 - [ ] **Wishlist (future — NOT in the immediate release timeline):** engine XSLT 3.0/4.0 execution
       behind G-NVDL-FULL (AC-P-6.9). The architecture keeps the capability-gated seam — XSLT is a
       peer language behind explicit dispatch, not the primary model or a browser-native dependency —

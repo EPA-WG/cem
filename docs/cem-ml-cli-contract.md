@@ -9,13 +9,56 @@ curly-brace syntax in [`cem-ml-syntax.md`](cem-ml-syntax.md). XML and HTML are
 secondary parity input surfaces and should remain selectable anywhere parser-backed
 input format is exposed.
 
+## Major Requirement: Structural Data Lifecycle
+
+`cem-ml` and `cem-ml-cli` MUST provide one structural data lifecycle over every supported
+format:
+
+1. **Validate** input bytes against the declared format identity.
+2. **Load** the validated input into the internal CEM document AST / event model.
+3. **Export** that internal representation into a declared external format.
+
+The format identity is the pair of:
+
+- **content type** — the wire/container syntax, for example `application/cem+xml`,
+  `text/html`, `application/xml`, `application/xslt+xml`, or
+  `text/custom-element-xslt`;
+- **schema / namespace identity** — the structural vocabulary and validation contract
+  active inside that content type.
+
+The generic CEM-ML parser/event/AST pipeline is the internal spine. Namespace-specific
+and content-type-specific behavior MUST be supplied by registered plugins/adapters that
+can participate in these lifecycle stages:
+
+- `load`: bytes + format identity → normalized events / CEM AST;
+- `validate`: normalized events / CEM AST + schema identity → diagnostics/report;
+- `export`: CEM AST + target format identity → bytes/projection + source map.
+
+The CLI is a thin orchestration layer over this lifecycle. It MUST NOT grow separate
+format-specific validation engines per command. Format-specific behavior belongs in
+`cem-ml` plugins/adapters, and CLI flags only select the input and output identities.
+
+Current implementation status:
+
+- `parse`, `validate`, `check`, `inspect`, `convert`, and fixture flows already route
+  through the `cem_ml::engine::CemMlEngine` trait.
+- `--schema` and `--content-type` are carried in `EngineContext` and emitted in reports,
+  but full registry-based schema/content-type dispatch is not yet wired for every
+  command.
+- `convert --content-type custom-element-xslt --to-format cem` is the first
+  content-type-specific adapter path, lowering legacy custom-element XSLT to canonical
+  CEM-ML through `cem_ml::legacy_custom_element`.
+- `schema` and `plugin` CLI command groups are reserved until the registry and plugin
+  lifecycle surfaces are promoted from library internals to command-line workflows.
+
 ## Functional Surface
 
 - Parse one input into structured output.
+- Load supported inputs into the internal CEM event stream / AST through the adapter selected by content type + schema.
 - Validate one or more inputs and emit human-readable or machine-readable diagnostics.
 - Run CI-oriented checks with hard-violation behavior.
 - Inspect parsed output as summary, tree, AST, events, diagnostics, or source-offset views.
-- Convert supported inputs into DOM JSON, AST, or event representations.
+- Convert/export supported inputs into declared external formats or debug projections through the same internal AST.
 - Trace parser and validator work with deterministic text or JSON output.
 - Benchmark parse and validate work with deterministic text or JSON reports.
 - Validate the default semantic fixture set or explicitly provided fixture paths.
@@ -26,7 +69,10 @@ input format is exposed.
 ## Planned Option Behavior
 
 - Fail level: `parse`, `validate`, `strict`.
-- Input format selection for CEM-native, XML, and HTML.
+- Input identity selection by content type and schema, with `--from-format cem|html|xml`
+  retained only as a convenience alias while the registry matures.
+- Output identity selection by content type and schema, with `--to-format cem|dom-json|ast|events`
+  retained for current projections and debug layers.
 - Output format selection for CEM-native, XML, JSON, text, HTML, Markdown, DOM JSON, AST, events, and tree-shaped
   output where relevant.
 - Output destination handling for stdout and `--out`.

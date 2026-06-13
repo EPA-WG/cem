@@ -13,7 +13,7 @@ This roadmap is intentionally higher level than `docs/todo.md`. Use this file to
 | CEM token/theme core | Canonical token specs, generated CSS, DTCG JSON, TypeScript metadata, and reports. | `packages/cem-theme` |
 | Native platform adapters | iOS Swift and Android Kotlin/Compose outputs generated from the same token spine. | `packages/cem-theme/dist/lib/token-platforms` |
 | CEM parser/runtime foundation | Schema-defined streaming parser layers: byte decoding, tokenization, normalized events, validation, AST/source maps, binary AST chunks, and implementation handoff. | `packages/cem_ml` |
-| CEM XML/HTML/XSLT CLI | CEM document schemas, XML/HTML profiles, Invisible XML/CSF profile experiments, DOM helpers, transforms, validation, and reports over the parser foundation. | `packages/cem_ml_cli` |
+| CEM structural lifecycle CLI | Validation, load into the internal CEM AST/event model, and export/convert across schema + content-type identities. Built-in adapters cover CEM-ML, HTML/XML parity, and the immediate XSLT 1.0 custom-element compatibility profile; future adapters register through the plugin/content-type model. | `packages/cem_ml_cli`, `packages/cem_ml` |
 | CEM custom-element substrate | Declarative no-JS runtime centered on `<cem-element>`: scoped data islands, event-to-data wiring, and light-DOM re-render from CEM-ML/CEM-QL templates. Staged in `@epa-wg/cem-elements`; edge/SSR and `@epa-wg/custom-element` adoption are follow-up phases after the browser substrate is stable. | `packages/cem-elements`, future `packages/custom-element` |
 | CEM component set | Material-style UI coverage expressed in CEM semantics: buttons, fields, lists, nav, cards, dialogs, tables, tabs, etc. | `packages/cem-components` |
 | Figma UI Kit | Designer-facing components, variants, variables, usage examples, and governance workflow. | `examples/figma`, future design artifacts |
@@ -76,6 +76,16 @@ Goal: define the schema-driven parsing and document layer that CEM components, t
 
 Deliverables:
 
+- Structural data lifecycle requirement for `cem_ml` and `cem_ml_cli`: every supported format follows
+  validate → load into internal AST/events → export, with format identity defined by content type plus schema/namespace.
+- Lifecycle adapter registry for content-type/schema-specific behavior. The generic CEM event/AST pipeline remains the
+  internal spine; CEM-ML, HTML/XML parity, and XSLT 1.0 compatibility are adapters over that spine rather than separate
+  command-specific engines.
+- CLI format selection promoted from fixed `--from-format` / `--to-format` enums toward input/output content type and
+  schema identity, while keeping the current enum flags as convenience aliases.
+- XSLT 1.0 adapter implementation for the immediate custom-element compatibility profile: raw
+  `custom-element-xslt`/XSLT 1.0-family input can be validated by CLI, loaded through the internal CEM AST/event model,
+  and exported to canonical CEM-ML or debug projections.
 - Layered runtime contract: byte source, encoding decoder, schema tokenizer, normalized event stream,
   schema-compiled state machine, interpreter AST builder, and implementation interpreter.
 - CEM document schema for semantic screens, forms, navigation, lists, assets, profiles, messages, and embedded payloads.
@@ -96,6 +106,10 @@ Deliverables:
 
 Exit criteria:
 
+- `cem-ml validate --content-type custom-element-xslt <input>` validates legacy custom-element XSLT 1.0 compatibility
+  input directly and reports unsupported constructs without requiring a separate conversion command.
+- `cem-ml convert --content-type custom-element-xslt --to-content-type application/cem+xml <input>` loads through the
+  same adapter registry and emits canonical CEM-ML with conversion diagnostics and source-map boundary information.
 - A fixture CEM document can be decoded, tokenized, normalized into events, schema-validated, mapped into a typed AST,
   transformed to HTML, and rendered by the component runtime.
 - Every generated node can be traced back through the source-map stack to the original source bytes or to the transform

@@ -1,12 +1,12 @@
 # `cem-ml-cli` Implementation Plan
 
-**Status:** Phase 1 parser/schema assessment complete. No Rust implementation is included in this document.
+**Status:** Parser-backed implementation exists for the current built-in CEM/HTML/XML surfaces. This document now
+tracks the next design step: schema + content-type lifecycle dispatch and the immediate XSLT 1.0 adapter.
 
 Phase 1 artifact: [`docs/cem-ml-parser-schema-adr.md`](./cem-ml-parser-schema-adr.md).
 
-This plan defines the planned `cem-ml` CLI feature set for the Rust platform. Existing
-CLI notes in [`cem-ml-cli-contract.md`](./cem-ml-cli-contract.md) are idea inputs, not
-decision criteria or compatibility requirements.
+This plan defines the `cem-ml` CLI feature set for the Rust platform. The lifecycle requirement in
+[`cem-ml-cli-contract.md`](./cem-ml-cli-contract.md) is the active command-shape and format-identity source.
 
 - App crate: `packages/cem_ml_cli`, Cargo package `cem-ml-cli`, binary `cem-ml`.
 - Library crate: `packages/cem_ml`, Cargo package `cem-ml`, Rust crate `cem_ml`.
@@ -14,14 +14,72 @@ decision criteria or compatibility requirements.
 The goal is to provide useful parser/runtime CLI capabilities: command workflows, option
 semantics, report fields, diagnostic fields, fail-level behavior, and exit codes.
 
+## Immediate Goal - Structural Lifecycle And XSLT 1.0 Adapter
+
+Promote the CLI/lib contract from fixed parser projections to the structural data
+lifecycle defined in [`cem-ml-cli-contract.md`](./cem-ml-cli-contract.md):
+
+1. validate input bytes against a declared content type + schema identity;
+2. load the validated structure into the internal CEM event stream / AST;
+3. export that internal representation into a declared target content type + schema identity.
+
+The first implementation target for this lifecycle is XSLT 1.0:
+
+- `application/xslt+xml` / `text/xsl` / `text/custom-element-xslt` inputs are recognized
+  as XSLT 1.0-family content types;
+- the existing legacy custom-element XSLT 1.0 compatibility lowering
+  (`cem_ml::legacy_custom_element`) becomes a registered input adapter instead of a
+  one-off `convert` branch;
+- CLI validation can run the XSLT adapter directly, producing diagnostics for unsupported
+  or malformed XSLT 1.0 constructs before export;
+- CLI conversion can load XSLT through the adapter and export canonical CEM-ML, DOM JSON,
+  AST, events, or later XML/HTML outputs through the same engine path.
+
+This goal is separate from the deferred XSLT 3.0/4.0 execution engine. It covers the
+XSLT 1.0 structural compatibility profile needed by copied custom-element templates and
+the immediate CLI lifecycle contract.
+
+### Design Changes
+
+1. Add a `FormatIdentity` model in `cem-ml`:
+    - `content_type: ContentType`
+    - `schema: Option<SchemaIdentity>`
+    - `base_uri: Option<String>`
+    - optional namespace bindings / version pins when a parser discovers them.
+2. Move format identity from global context toward per-input and per-output declarations:
+    - `EngineInput` carries its input `FormatIdentity`;
+    - `ConvertRequest` carries both source and target `FormatIdentity`;
+    - `ValidateRequest` validates each input against its own identity.
+3. Add a lifecycle adapter trait in `cem-ml`:
+    - `matches(identity)`;
+    - `load(bytes, identity) -> events / AST + diagnostics`;
+    - `validate(ast/events, identity) -> diagnostics`;
+    - `export(ast, identity) -> bytes/projection + source map`.
+4. Back the lifecycle with a registry:
+    - built-in adapters: CEM-ML, HTML parity, XML parity, legacy custom-element XSLT 1.0;
+    - future adapters registered through the existing plugin descriptor/content-type model;
+    - deterministic adapter selection errors when no adapter matches or more than one adapter matches.
+5. Update CLI flags without breaking current debug workflows:
+    - keep `--from-format` and `--to-format` as aliases for built-in identities;
+    - keep `--content-type` as the input content type for `parse`, `validate`, `check`,
+      `inspect`, and `convert`;
+    - add explicit target identity flags for conversion, for example
+      `--to-content-type` and `--to-schema`;
+    - continue supporting `--schema` for input schema identity until split input/output schema
+      flags land.
+6. Replace the current XSLT special case in `RealCemMlEngine::convert` with the adapter
+   registry path, then route `validate` through the same adapter so raw XSLT can be
+   CLI-validated without a two-command convert-then-validate workaround.
+
 ## Explicit Scope
 
-- Do not implement or design the streaming parser in this plan.
-- Do not implement or design multithreading, worker pools, scheduler traces, or render-while-parsing.
-- Do not implement parser internals yet, including canonical CEM-ML curly syntax,
-  XML/HTML parity profiles, AST construction, or event production.
-- Do front-load a separate Java XML stack, parser pattern, and schema pattern assessment before implementation.
-- Keep `cem-ml-cli` thin. Shared behavior belongs in `cem-ml`.
+- For the lifecycle-dispatch increment, do not redesign the existing tokenizer, normalizer, AST builder, or
+  validation-rule catalog.
+- Do not implement the deferred XSLT 3.0/4.0 execution engine in this increment.
+- Do not implement multithreading, worker pools, scheduler traces, or render-while-parsing as part of the CLI lifecycle
+  work.
+- Keep `cem-ml-cli` thin. Shared behavior belongs in `cem-ml`; CLI commands only select identities, wire I/O, and
+  render reports/projections.
 
 ## Phase 0 - Feature Baseline
 
