@@ -78,6 +78,13 @@ Deliverables:
 
 - Structural data lifecycle requirement for `cem_ml` and `cem_ml_cli`: every supported format follows
   validate → load into internal AST/events → export, with format identity defined by content type plus schema/namespace.
+- Root-scope run configuration shared by lib, WASM, and CLI: every document root is scope zero for its AST tree, with
+  default content type, schema/version pins, default and named namespace bindings, module-map/resolver identity, base
+  URI, scope policy, and budgets available as input/output options. APIs accept input/output spec arrays; CLI supports
+  config files for CI/build reproducibility and repeatable CSV records for concise one-liners.
+- Multi-document run context for build/CI validation and transformation: one invocation can process many inputs and
+  outputs through a shared scheduler/thread-pool context while preserving per-document root-scope diagnostics,
+  source maps, and resource accounting.
 - Lifecycle adapter registry for content-type/schema-specific behavior. The generic CEM event/AST pipeline remains the
   internal spine; CEM-ML, HTML/XML parity, and XSLT 1.0 compatibility are adapters over that spine rather than separate
   command-specific engines.

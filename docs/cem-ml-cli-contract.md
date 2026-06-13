@@ -38,6 +38,49 @@ The CLI is a thin orchestration layer over this lifecycle. It MUST NOT grow sepa
 format-specific validation engines per command. Format-specific behavior belongs in
 `cem-ml` plugins/adapters, and CLI flags only select the input and output identities.
 
+## Major Requirement: Root Scope And Run Configuration
+
+The document root is the root scope for the whole AST tree. It MUST use the same
+scope model as any internal AST scope: descendants inherit root parameters until an
+inner scope explicitly overrides them, and diagnostics/source maps must be able to
+report which effective scope parameters were active.
+
+Root-scope input parameters MUST be available through the Rust library API, the WASM
+API, and the CLI. The shared model must include at least:
+
+- default content type;
+- schema identity and version pins;
+- default namespace binding;
+- named namespace bindings;
+- module map / resolver identity;
+- base URI;
+- scope policy and resource budget hooks needed by validation, module resolution, and
+  plugin/adaptor dispatch.
+
+The input → internal AST → output chain MUST accept output scope options as well.
+Output identity is not just an output format enum: outputs can declare content type,
+schema identity, namespace bindings, version pins, base URI, and module-map/resolver
+identity where the target adapter needs them.
+
+Configuration surfaces:
+
+- Rust library and WASM APIs MUST accept structured arrays of input specs and output
+  specs so one run can validate or transform multiple sources without collapsing their
+  per-document root scopes.
+- CLI MUST support a config-file surface for reproducible CI/build use. The file is the
+  preferred shape for multi-source runs, module maps, namespace maps, and multiple
+  outputs.
+- CLI MAY also support repeatable CSV option values for concise one-liners. CSV is a
+  convenience projection of the same input/output spec arrays, not a separate behavior
+  path. It must be parsed with deterministic escaping rules rather than ad-hoc comma
+  splitting.
+
+Multi-document build/CI runs MUST share one scheduler/thread-pool run context across
+documents where safe, while keeping per-document root scopes, diagnostics, source maps,
+and resource policy accounting isolated. This is required for validating or transforming
+many data sources in one CLI invocation without paying one full runtime setup cost per
+document.
+
 Current implementation status:
 
 - `parse`, `validate`, `check`, `inspect`, `convert`, and fixture flows already route
@@ -48,6 +91,10 @@ Current implementation status:
   `trace`, `bench`, and fixture workflows) and CEM target export selection for
   `convert --to-content-type application/cem+xml`; schema-specific adapter selection
   is still pending.
+- Root-scope configuration is not complete yet. Current CLI flags expose only schema,
+  content type, base URI, and conversion target identity; module maps, explicit namespace
+  maps, config-file input/output spec arrays, and shared multi-document scheduler
+  configuration are planned requirements.
 - `validate` / `check` / `convert` route `custom-element-xslt` input through the first
   shared lifecycle adapter path, lowering legacy custom-element XSLT to canonical
   CEM-ML through `cem_ml::legacy_custom_element`; `convert --content-type
@@ -78,6 +125,11 @@ Current implementation status:
   retained only as a convenience alias while the registry matures.
 - Output identity selection by content type and schema, with `--to-format cem|dom-json|ast|events`
   retained for current projections and debug layers.
+- Root-scope configuration for inputs and outputs: default content type, schema,
+  version pins, default namespace, named namespaces, module map / resolver identity,
+  base URI, scope policy, and resource budgets.
+- Multi-source configuration via config file, plus repeatable CSV option records for
+  CLI one-liners. Config files are preferred for CI/build reproducibility.
 - Output format selection for CEM-native, XML, JSON, text, HTML, Markdown, DOM JSON, AST, events, and tree-shaped
   output where relevant.
 - Output destination handling for stdout and `--out`.

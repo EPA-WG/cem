@@ -18,6 +18,14 @@ for the current architecture have landed; only deferred capability work remains 
       Built-in input content-type dispatch is now registry-backed across parser-backed commands, and CEM target export
       is registry-owned for `--to-content-type application/cem+xml`; keep this item open until schema/namespace-specific
       selection and non-CEM target export adapters are registry-owned too.
+- [ ] **Immediate goal: root-scope run configuration for lib + WASM + CLI.** Design homes:
+      [`cem-ml-cli-contract.md`](cem-ml-cli-contract.md#major-requirement-root-scope-and-run-configuration) and
+      [`cem-ml-cli-plan.md`](cem-ml-cli-plan.md#run-configuration-shape). Add a serializable `RunConfig` with input and
+      output spec arrays, root `ScopeConfig` per input/output, module-map/resolver identity, default and named namespace
+      bindings, schema/version pins, base URI, scope policy, and resource budgets. Expose the same shape through Rust
+      lib APIs, WASM APIs, CLI config files, and repeatable CSV CLI records. Keep scheduler/thread-pool configuration
+      at run level so build/CI can validate or transform multiple documents in one shared runtime while preserving
+      per-document root-scope diagnostics and budget accounting.
 - [x] **Immediate goal: XSLT 1.0 lifecycle adapter.** Move the existing legacy custom-element XSLT 1.0 lowering
       (`cem_ml::legacy_custom_element`) behind the lifecycle adapter registry instead of the current one-off
       `convert --content-type custom-element-xslt` branch. `cem-ml validate --content-type custom-element-xslt <input>`

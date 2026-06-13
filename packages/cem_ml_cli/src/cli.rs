@@ -6,7 +6,9 @@ use std::path::PathBuf;
     name = "cem-ml",
     bin_name = "cem-ml",
     about = "CEM parser/runtime CLI",
-    long_about = "CEM parser/runtime CLI. See docs/cem-ml-cli-contract.md for the feature surface.",
+    long_about = "CEM parser/runtime CLI. See docs/cem-ml-cli-contract.md for the feature surface.
+
+Repository: https://github.com/EPA-WG/cem",
     version = cem_ml::VERSION,
     propagate_version = true,
     disable_help_subcommand = false,

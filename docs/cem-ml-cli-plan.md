@@ -50,16 +50,32 @@ the immediate CLI lifecycle contract.
     - `EngineInput` carries its input `FormatIdentity`;
     - `ConvertRequest` carries both source and target `FormatIdentity`;
     - `ValidateRequest` validates each input against its own identity.
-3. Add a lifecycle adapter trait in `cem-ml`:
+3. Promote root-scope configuration to the shared API model:
+    - every document root is scope `0` for that AST tree and carries the same
+      parameters as internal scopes;
+    - root input scope config includes default content type, schema identity, version
+      pins, default namespace, named namespace map, module map / resolver identity,
+      base URI, scope policy, and resource budgets;
+    - output scope config mirrors the same identity fields so export adapters can
+      choose content type, schema, namespace, version, and resolver behavior from the
+      declared target, not from CLI-only flags.
+4. Add a lifecycle adapter trait in `cem-ml`:
     - `matches(identity)`;
     - `load(bytes, identity) -> events / AST + diagnostics`;
     - `validate(ast/events, identity) -> diagnostics`;
     - `export(ast, identity) -> bytes/projection + source map`.
-4. Back the lifecycle with a registry:
+5. Back the lifecycle with a registry:
     - built-in adapters: CEM-ML, HTML parity, XML parity, legacy custom-element XSLT 1.0;
     - future adapters registered through the existing plugin descriptor/content-type model;
     - deterministic adapter selection errors when no adapter matches or more than one adapter matches.
-5. Update CLI flags without breaking current debug workflows:
+6. Define one serializable run configuration shared by lib, WASM, and CLI:
+    - Rust library and WASM APIs accept arrays of input specs and output specs;
+    - CLI accepts a config file for the same shape, optimized for CI/build reproducibility;
+    - CLI also accepts repeatable CSV option records for one-liners. CSV records must be
+      parsed with deterministic escaping and map to the same input/output spec structs;
+    - one run can contain multiple data sources and multiple outputs while preserving
+      isolated root scopes per input.
+7. Update CLI flags without breaking current debug workflows:
     - keep `--from-format` and `--to-format` as aliases for built-in identities;
     - keep `--content-type` as the input content type for `parse`, `validate`, `check`,
       `inspect`, and `convert`;
@@ -67,17 +83,81 @@ the immediate CLI lifecycle contract.
       `--to-content-type` and `--to-schema`;
     - continue supporting `--schema` for input schema identity until split input/output schema
       flags land.
-6. Replace the current XSLT special case in `RealCemMlEngine::convert` with the adapter
+8. Replace the current XSLT special case in `RealCemMlEngine::convert` with the adapter
    registry path, then route `validate` through the same adapter so raw XSLT can be
    CLI-validated without a two-command convert-then-validate workaround.
+
+### Run Configuration Shape
+
+The API-level shape is an array model, not a set of global options:
+
+```text
+RunConfig {
+  inputs: Vec<InputSpec>,
+  outputs: Vec<OutputSpec>,
+  scheduler: SchedulerConfig,
+}
+
+InputSpec {
+  uri,
+  bytes | stream,
+  root_scope: ScopeConfig,
+}
+
+OutputSpec {
+  input_ref,
+  destination,
+  root_scope: ScopeConfig,
+}
+
+ScopeConfig {
+  default_content_type,
+  schema,
+  version_pins,
+  default_namespace,
+  namespaces,
+  module_map,
+  base_uri,
+  policy,
+  budgets,
+}
+```
+
+The CLI config-file form should preserve this structure directly. A config file is the
+recommended interface for build/CI validation and multi-source transformation because it
+is reviewable, reproducible, and can represent nested maps without shell quoting hazards.
+
+CSV CLI options are a convenience for small invocations, not the primary source of
+truth. A future CLI should prefer repeatable records such as:
+
+```bash
+cem-ml validate \
+  --input-spec 'uri=src/a.cem,contentType=application/cem+xml,schema=https://cem.dev/ns/core/1,defaultNs=https://cem.dev/ns/core/1,namespaces=html:https://www.w3.org/1999/xhtml|svg:http://www.w3.org/2000/svg,moduleMap=cem.modules.json'
+
+cem-ml convert \
+  --input-spec 'uri=src/a.cem,contentType=application/cem+xml,schema=https://cem.dev/ns/core/1' \
+  --output-spec 'input=src/a.cem,dest=dist/a.cem,contentType=application/cem+xml,schema=https://cem.dev/ns/core/1'
+```
+
+Critical constraints:
+
+- CSV cannot be parsed by naive comma splitting. Use a real CSV parser or a constrained
+  key/value grammar with quoting/escaping tests.
+- Namespace maps and module maps are structurally nested. For anything beyond simple
+  one-liners, require or strongly recommend the config-file form.
+- Global flags may remain as defaults, but per-input/per-output records must override
+  them. This lets one CI invocation validate mixed content types and schemas safely.
+- The scheduler/thread-pool context belongs to the run, not to one document. Work can be
+  shared across documents, but scope policy, diagnostics, source-map stacks, and resource
+  budget accounting remain per document/root scope.
 
 ## Explicit Scope
 
 - For the lifecycle-dispatch increment, do not redesign the existing tokenizer, normalizer, AST builder, or
   validation-rule catalog.
 - Do not implement the deferred XSLT 3.0/4.0 execution engine in this increment.
-- Do not implement multithreading, worker pools, scheduler traces, or render-while-parsing as part of the CLI lifecycle
-  work.
+- Do not implement the shared multi-document scheduler/thread-pool as part of the current
+  XSLT lifecycle adapter slice. It is a required run-configuration follow-up.
 - Keep `cem-ml-cli` thin. Shared behavior belongs in `cem-ml`; CLI commands only select identities, wire I/O, and
   render reports/projections.
 
