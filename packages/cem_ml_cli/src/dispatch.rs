@@ -556,6 +556,8 @@ fn run_convert_fanout<E: CemMlEngine + ?Sized>(
         Ok(inputs) => inputs,
         Err(err) => return handle_cli_request_error(err, s),
     };
+    let mut report_inputs = Vec::new();
+    let mut report_diagnostics = Vec::new();
 
     for (index, output) in config.outputs.iter().enumerate() {
         let destination = match output.destination.as_ref().map(PathBuf::from) {
@@ -565,6 +567,7 @@ fn run_convert_fanout<E: CemMlEngine + ?Sized>(
                     Ok(input) => input,
                     Err(err) => return handle_cli_request_error(err, s),
                 };
+                let input_uri = input.uri.clone();
                 let req = eng::ConvertRequest {
                     input,
                     to_format: to_engine_layer_format(args.to_format),
@@ -574,11 +577,22 @@ fn run_convert_fanout<E: CemMlEngine + ?Sized>(
                 };
                 match engine.convert(req) {
                     Ok(resp) => {
+                        report_inputs.push(input_uri);
+                        report_diagnostics.extend(resp.diagnostics.clone());
                         if let Err(e) = write_primary(&resp.primary, args.out.as_deref(), s) {
                             let _ = writeln!(s.stderr, "cem-ml: write failure: {e}");
                             return Outcome::code(EXIT_IO);
                         }
                         write_diagnostics(&resp.diagnostics, s);
+                        if let Err(e) = write_convert_report_if_requested(
+                            args,
+                            config,
+                            &report_inputs,
+                            &report_diagnostics,
+                        ) {
+                            let _ = writeln!(s.stderr, "cem-ml: convert report write failure: {e}");
+                            return Outcome::code(EXIT_IO);
+                        }
                         return Outcome::ok();
                     }
                     Err(e) => return handle_engine_error(e, s),
@@ -598,6 +612,7 @@ fn run_convert_fanout<E: CemMlEngine + ?Sized>(
             Ok(input) => input,
             Err(err) => return handle_cli_request_error(err, s),
         };
+        let input_uri = input.uri.clone();
         let req = eng::ConvertRequest {
             input,
             to_format: to_engine_layer_format(args.to_format),
@@ -607,6 +622,8 @@ fn run_convert_fanout<E: CemMlEngine + ?Sized>(
         };
         match engine.convert(req) {
             Ok(resp) => {
+                report_inputs.push(input_uri);
+                report_diagnostics.extend(resp.diagnostics.clone());
                 if let Err(e) = write_primary(&resp.primary, Some(destination.as_path()), s) {
                     let _ = writeln!(s.stderr, "cem-ml: write failure: {e}");
                     return Outcome::code(EXIT_IO);
@@ -615,6 +632,13 @@ fn run_convert_fanout<E: CemMlEngine + ?Sized>(
             }
             Err(e) => return handle_engine_error(e, s),
         }
+    }
+
+    if let Err(e) =
+        write_convert_report_if_requested(args, config, &report_inputs, &report_diagnostics)
+    {
+        let _ = writeln!(s.stderr, "cem-ml: convert report write failure: {e}");
+        return Outcome::code(EXIT_IO);
     }
 
     Outcome::ok()
@@ -790,6 +814,7 @@ fn severity_label(s: cem_ml::diagnostics::Severity) -> &'static str {
 pub const REPORT_BASENAME_VALIDATE: &str = "cem-ml.report";
 pub const REPORT_BASENAME_ROUNDTRIP: &str = "cem-ml.roundtrip.report";
 pub const REPORT_BASENAME_BENCH: &str = "cem-ml.bench.report";
+pub const REPORT_BASENAME_CONVERT: &str = "cem-ml.convert.report";
 
 fn resolve_report_target(p: &Path, basename: &str, ext: &str) -> std::path::PathBuf {
     if p.extension().is_some() {
@@ -823,6 +848,10 @@ fn write_report_files(
         fs::write(&target, render_report_markdown(report))?;
     }
     Ok(())
+}
+
+fn report_requested(report_opts: &cli::ReportOptions) -> bool {
+    report_opts.report_json.is_some() || report_opts.report_md.is_some()
 }
 
 fn report_options_snapshot(
@@ -868,6 +897,60 @@ fn handle_run_config_diagnostics_report(
         let _ = writeln!(s.stdout, "{json}");
     }
     Outcome::code(EXIT_USAGE_OR_RESERVED)
+}
+
+fn scheduler_trace_for_convert_report(
+    config: &RunConfig,
+    input_uris: &[String],
+) -> Result<cem_ml::scheduler::SchedulerTrace, EngineError> {
+    let trace = cem_ml::scheduler::SchedulerTrace::new();
+    let mut policy = if config.scheduler.thread_pool.as_deref() == Some("host") {
+        cem_ml::scheduler::ScopePolicy::host_root()
+    } else {
+        cem_ml::scheduler::ScopePolicy {
+            cpu_workers: 1,
+            queue_size: 8,
+            io_streams: 4,
+            memory_bytes: 8 * 1024 * 1024,
+            plugin_time_budget_ms: None,
+            overflow: cem_ml::scheduler::OverflowPolicy::Reject,
+        }
+    };
+    if let Some(max_parallel_documents) = config.scheduler.max_parallel_documents {
+        policy.cpu_workers = max_parallel_documents.max(1);
+    }
+    let abort = cem_ml::scheduler::AbortSignal::new();
+    for (index, uri) in input_uris.iter().enumerate() {
+        let pool = cem_ml::scheduler::WorkerPool::new(index as u32, policy, trace.clone());
+        for task in ["load", "convert", "write"] {
+            pool.submit(format!("{uri}:{task}"), &abort)
+                .map_err(|err| {
+                    EngineError::Internal(format!("scheduler trace setup failed: {err}"))
+                })?;
+        }
+        pool.run_to_completion(&abort, |_| {});
+    }
+    Ok(trace)
+}
+
+fn write_convert_report_if_requested(
+    args: &cli::ConvertArgs,
+    config: &RunConfig,
+    input_uris: &[String],
+    diagnostics: &[cem_ml::diagnostics::Diagnostic],
+) -> io::Result<()> {
+    if !report_requested(&args.report) {
+        return Ok(());
+    }
+    let trace = scheduler_trace_for_convert_report(config, input_uris)
+        .map_err(|err| io::Error::other(err.to_string()))?;
+    let report = cem_ml::report::Report::deterministic(
+        input_uris.to_vec(),
+        diagnostics.to_vec(),
+        report_options_snapshot(cli::FailLevel::Validate, &args.context),
+    )
+    .with_scheduler_trace(&trace);
+    write_report_files(&report, &args.report, REPORT_BASENAME_CONVERT)
 }
 
 fn render_report_markdown(report: &cem_ml::report::Report) -> String {
@@ -1149,6 +1232,7 @@ pub fn run_convert<E: CemMlEngine + ?Sized>(
         Ok(i) => i,
         Err(err) => return handle_cli_request_error(err, s),
     };
+    let input_uri = input.uri.clone();
     let req = eng::ConvertRequest {
         input,
         to_format: to_engine_layer_format(args.to_format),
@@ -1164,6 +1248,12 @@ pub fn run_convert<E: CemMlEngine + ?Sized>(
                 return Outcome::code(EXIT_IO);
             }
             write_diagnostics(&resp.diagnostics, s);
+            if let Err(e) =
+                write_convert_report_if_requested(&args, &config, &[input_uri], &resp.diagnostics)
+            {
+                let _ = writeln!(s.stderr, "cem-ml: convert report write failure: {e}");
+                return Outcome::code(EXIT_IO);
+            }
             Outcome::ok()
         }
         Err(e) => handle_engine_error(e, s),
@@ -1733,6 +1823,101 @@ mod tests {
         let second_written = std::fs::read_to_string(&second_out).unwrap();
         let second_json: serde_json::Value = serde_json::from_str(&second_written).unwrap();
         assert_eq!(second_json["content"], "{p Second}\n");
+    }
+
+    #[test]
+    fn convert_writes_side_report_with_scheduler_trace() {
+        let input = write_fixture("convert-report-input.cem", "{p Hi}");
+        let out_path = std::env::temp_dir().join("cem-ml-cli-tests/convert-report-output.json");
+        let report_path = std::env::temp_dir().join("cem-ml-cli-tests/convert-report.json");
+        let _ = std::fs::remove_file(&out_path);
+        let _ = std::fs::remove_file(&report_path);
+        let (outcome, stdout, stderr) = run(
+            &RealCemMlEngine::new(),
+            &[
+                "convert",
+                "--out",
+                out_path.to_str().unwrap(),
+                "--report-json",
+                report_path.to_str().unwrap(),
+                input.to_str().unwrap(),
+            ],
+        );
+        assert_eq!(outcome.exit_code, EXIT_OK, "{stderr}");
+        assert!(stdout.trim().is_empty());
+        assert!(out_path.is_file());
+        let report: serde_json::Value =
+            serde_json::from_str(&std::fs::read_to_string(&report_path).unwrap()).unwrap();
+        assert_eq!(report["summary"]["inputCount"], 1);
+        assert_eq!(
+            report["reportAst"]["schedulerTrace"]["events"][0]["task"],
+            format!("{}:load", input.display())
+        );
+    }
+
+    #[test]
+    fn convert_fanout_writes_side_report_for_each_output() {
+        let first = write_fixture("convert-fanout-report-first.cem", "{p First}");
+        let second = write_fixture("convert-fanout-report-second.cem", "{p Second}");
+        let first_out =
+            std::env::temp_dir().join("cem-ml-cli-tests/convert-fanout-report-first.json");
+        let second_out =
+            std::env::temp_dir().join("cem-ml-cli-tests/convert-fanout-report-second.json");
+        let report_path = std::env::temp_dir().join("cem-ml-cli-tests/convert-fanout-report.json");
+        let config_path =
+            std::env::temp_dir().join("cem-ml-cli-tests/convert-fanout-report-config.json");
+        let _ = std::fs::remove_file(&first_out);
+        let _ = std::fs::remove_file(&second_out);
+        let _ = std::fs::remove_file(&report_path);
+        std::fs::write(
+            &config_path,
+            serde_json::json!({
+                "inputs": [
+                    { "uri": first.display().to_string() },
+                    { "uri": second.display().to_string() }
+                ],
+                "outputs": [
+                    {
+                        "inputRef": first.display().to_string(),
+                        "destination": first_out.display().to_string(),
+                        "rootScope": { "defaultContentType": "application/cem+xml" }
+                    },
+                    {
+                        "inputRef": second.display().to_string(),
+                        "destination": second_out.display().to_string(),
+                        "rootScope": { "defaultContentType": "application/cem+xml" }
+                    }
+                ],
+                "scheduler": {
+                    "maxParallelDocuments": 2
+                }
+            })
+            .to_string(),
+        )
+        .unwrap();
+
+        let (outcome, stdout, stderr) = run(
+            &RealCemMlEngine::new(),
+            &[
+                "convert",
+                "--config",
+                config_path.to_str().unwrap(),
+                "--report-json",
+                report_path.to_str().unwrap(),
+            ],
+        );
+        assert_eq!(outcome.exit_code, EXIT_OK, "{stderr}");
+        assert!(stdout.trim().is_empty());
+        let report: serde_json::Value =
+            serde_json::from_str(&std::fs::read_to_string(&report_path).unwrap()).unwrap();
+        assert_eq!(report["summary"]["inputCount"], 2);
+        assert_eq!(report["reportAst"]["schedulerTrace"]["eventCount"], 18);
+        assert_eq!(
+            report["reportAst"]["schedulerTrace"]["events"][9]["scopeId"],
+            1
+        );
+        assert!(first_out.is_file());
+        assert!(second_out.is_file());
     }
 
     #[test]

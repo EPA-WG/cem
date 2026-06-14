@@ -375,6 +375,8 @@ pub struct ConvertArgs {
     pub context: ContextOptions,
     #[command(flatten)]
     pub run: RunOptions,
+    #[command(flatten)]
+    pub report: ReportOptions,
 }
 
 #[derive(Args, Debug)]

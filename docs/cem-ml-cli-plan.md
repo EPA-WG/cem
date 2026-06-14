@@ -92,8 +92,10 @@ the immediate CLI lifecycle contract.
    `outputs[]` records, using `inputRef` or the sole configured input for each output.
    Normalized `RunConfig.scheduler` flows into the engine execution context, and the
    trace worker policy is derived from that scheduler config. Validate/check reports now
-   embed a shared run-level scheduler trace with per-document scope IDs. Convert-side
-   scheduler projection remains open until convert has explicit side-report output.
+   embed a shared run-level scheduler trace with per-document scope IDs. Convert can now
+   write explicit side reports with the same scheduler projection while preserving
+   content-primary stdout/`--out` behavior. Direct parser task dispatch through the
+   scheduler trace remains open.
 7. Update CLI flags without breaking current debug workflows:
     - keep `--from-format` and `--to-format` as aliases for built-in identities;
     - keep `--content-type` as the input content type for `parse`, `validate`, `check`,
