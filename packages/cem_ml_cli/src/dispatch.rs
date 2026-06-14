@@ -1805,6 +1805,10 @@ mod tests {
         format!("file://{}", path.display())
     }
 
+    fn localhost_file_uri(path: &Path) -> String {
+        format!("file://localhost{}", path.display())
+    }
+
     fn assert_remote_input_uri_rejected(args: &[&str], uri: &str) {
         let (outcome, stdout, stderr) = run(&FakeEngine, args);
 
@@ -1821,6 +1825,16 @@ mod tests {
         assert_eq!(outcome.exit_code, EXIT_IO);
         assert!(stdout.trim().is_empty());
         assert!(stderr.contains("I/O error"));
+        assert!(stderr.contains("only local file:// URIs are supported"));
+        assert!(stderr.contains(uri));
+    }
+
+    fn assert_non_local_file_uri_output_rejected(args: &[&str], uri: &str) {
+        let (outcome, stdout, stderr) = run(&FakeEngine, args);
+
+        assert_eq!(outcome.exit_code, EXIT_IO);
+        assert!(stdout.trim().is_empty());
+        assert!(stderr.contains("write failure"));
         assert!(stderr.contains("only local file:// URIs are supported"));
         assert!(stderr.contains(uri));
     }
@@ -1877,6 +1891,31 @@ mod tests {
     }
 
     #[test]
+    fn non_local_file_uri_inputs_are_rejected_across_cli_commands() {
+        const URI: &str = "file://example.test/input.cem";
+        let cases: Vec<(&str, Vec<&str>)> = vec![
+            ("validate", vec!["validate", "--format", "json", URI]),
+            (
+                "validate-input-spec",
+                vec![
+                    "validate",
+                    "--input-spec",
+                    "uri=file://example.test/input.cem",
+                ],
+            ),
+            ("check", vec!["check", "--format", "json", URI]),
+            ("convert", vec!["convert", URI]),
+            ("inspect", vec!["inspect", URI]),
+            ("trace", vec!["trace", URI]),
+            ("bench", vec!["bench", "--format", "json", URI]),
+        ];
+
+        for (_name, args) in cases {
+            assert_non_local_file_uri_input_rejected(&args, URI);
+        }
+    }
+
+    #[test]
     fn parse_with_fake_engine_emits_json_to_stdout() {
         let p = write_fixture("parse-fake.cem", "{x}");
         let (outcome, stdout, _) = run(&FakeEngine, &["parse", p.to_str().unwrap()]);
@@ -1890,6 +1929,17 @@ mod tests {
     fn parse_file_uri_input_reads_local_input() {
         let p = write_fixture("parse-file-uri-input.cem", "{x}");
         let file_uri = local_file_uri(&p);
+        let (outcome, stdout, stderr) = run(&FakeEngine, &["parse", &file_uri]);
+
+        assert_eq!(outcome.exit_code, EXIT_OK, "{stderr}");
+        let v: serde_json::Value = serde_json::from_str(stdout.trim()).expect("valid JSON");
+        assert_eq!(v["input"], file_uri);
+    }
+
+    #[test]
+    fn parse_localhost_file_uri_input_reads_local_input() {
+        let p = write_fixture("parse-localhost-file-uri-input.cem", "{x}");
+        let file_uri = localhost_file_uri(&p);
         let (outcome, stdout, stderr) = run(&FakeEngine, &["parse", &file_uri]);
 
         assert_eq!(outcome.exit_code, EXIT_OK, "{stderr}");
@@ -1994,6 +2044,23 @@ mod tests {
         assert!(stderr.contains("write failure"));
         assert!(stderr.contains("remote/custom URI resolvers are not implemented"));
         assert!(stderr.contains("https://example.test/out.json"));
+    }
+
+    #[test]
+    fn non_local_file_uri_out_destinations_are_rejected_across_cli_commands() {
+        let input = write_fixture("non-local-file-uri-out.cem", "{x}");
+        let input = input.to_str().unwrap();
+        const URI: &str = "file://example.test/out.json";
+        let cases: Vec<Vec<&str>> = vec![
+            vec!["parse", "--out", URI, input],
+            vec!["convert", "--out", URI, input],
+            vec!["inspect", "--out", URI, input],
+            vec!["trace", "--out", URI, input],
+        ];
+
+        for args in cases {
+            assert_non_local_file_uri_output_rejected(&args, URI);
+        }
     }
 
     #[test]
@@ -3579,6 +3646,18 @@ mod tests {
     }
 
     #[test]
+    fn non_local_file_uri_config_path_is_rejected() {
+        let uri = "file://example.test/run.json";
+        let (outcome, stdout, stderr) =
+            run(&RealCemMlEngine::new(), &["validate", "--config", uri]);
+
+        assert_eq!(outcome.exit_code, EXIT_IO);
+        assert!(stdout.trim().is_empty());
+        assert!(stderr.contains("only local file:// URIs are supported"));
+        assert!(stderr.contains(uri));
+    }
+
+    #[test]
     fn namespace_context_diagnostics_fail_before_document_parsing() {
         let (outcome, stdout, stderr) = run(
             &RealCemMlEngine::new(),
@@ -3833,6 +3912,17 @@ mod tests {
         assert_eq!(outcome.exit_code, EXIT_IO);
         assert!(stdout.trim().is_empty());
         assert!(stderr.contains("remote/custom input URI resolvers are not implemented"));
+    }
+
+    #[test]
+    fn fixture_validate_non_local_file_uri_input_is_rejected() {
+        let uri = "file://example.test/fixture.cem";
+        let (outcome, stdout, stderr) = run(&RealCemMlEngine::new(), &["fixture", "validate", uri]);
+
+        assert_eq!(outcome.exit_code, EXIT_IO);
+        assert!(stdout.trim().is_empty());
+        assert!(stderr.contains("only local file:// URIs are supported"));
+        assert!(stderr.contains(uri));
     }
 
     #[test]
@@ -4745,6 +4835,22 @@ mod tests {
     }
 
     #[test]
+    fn validate_non_local_file_uri_report_destination_is_rejected() {
+        let p = write_fixture("validate-non-local-file-uri-report-destination.cem", "{x}");
+        let uri = "file://example.test/report.json";
+        let (outcome, stdout, stderr) = run(
+            &FakeEngine,
+            &["validate", "--report-json", uri, p.to_str().unwrap()],
+        );
+
+        assert_eq!(outcome.exit_code, EXIT_IO);
+        assert!(stdout.trim().is_empty());
+        assert!(stderr.contains("report write failure"));
+        assert!(stderr.contains("only local file:// URIs are supported"));
+        assert!(stderr.contains(uri));
+    }
+
+    #[test]
     fn validate_remote_uri_markdown_report_destination_is_rejected_without_resolver() {
         let p = write_fixture("validate-remote-md-report-destination.cem", "{x}");
         let (outcome, stdout, stderr) = run(
@@ -4887,6 +4993,25 @@ mod tests {
         assert!(stderr.contains("--observe-events failed"));
         assert!(stderr.contains("remote/custom URI resolvers are not implemented"));
         assert!(stderr.contains("https://example.test/events.jsonl"));
+    }
+
+    #[test]
+    fn observe_events_non_local_file_uri_destination_is_rejected() {
+        let p = write_fixture(
+            "observe-events-non-local-file-uri-destination.cem",
+            "{p | hi}",
+        );
+        let uri = "file://example.test/events.jsonl";
+        let (outcome, stdout, stderr) = run(
+            &FakeEngine,
+            &["--observe-events", uri, "parse", p.to_str().unwrap()],
+        );
+
+        assert_eq!(outcome.exit_code, EXIT_IO);
+        assert!(stdout.is_empty());
+        assert!(stderr.contains("--observe-events failed"));
+        assert!(stderr.contains("only local file:// URIs are supported"));
+        assert!(stderr.contains(uri));
     }
 
     #[test]
