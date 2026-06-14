@@ -1839,6 +1839,16 @@ mod tests {
         assert!(stderr.contains(uri));
     }
 
+    fn assert_remote_output_uri_rejected(args: &[&str], uri: &str) {
+        let (outcome, stdout, stderr) = run(&FakeEngine, args);
+
+        assert_eq!(outcome.exit_code, EXIT_IO);
+        assert!(stdout.trim().is_empty());
+        assert!(stderr.contains("write failure"));
+        assert!(stderr.contains("remote/custom URI resolvers are not implemented"));
+        assert!(stderr.contains(uri));
+    }
+
     #[test]
     fn version_subcommand_prints_version_and_exits_zero() {
         let (outcome, stdout, _) = run(&NotImplementedEngine, &["version"]);
@@ -1916,6 +1926,28 @@ mod tests {
     }
 
     #[test]
+    fn custom_uri_inputs_are_rejected_across_cli_commands() {
+        const URI: &str = "cem+vfs://workspace/input.cem";
+        let cases: Vec<Vec<&str>> = vec![
+            vec!["validate", "--format", "json", URI],
+            vec![
+                "validate",
+                "--input-spec",
+                "uri=cem+vfs://workspace/input.cem",
+            ],
+            vec!["check", "--format", "json", URI],
+            vec!["convert", URI],
+            vec!["inspect", URI],
+            vec!["trace", URI],
+            vec!["bench", "--format", "json", URI],
+        ];
+
+        for args in cases {
+            assert_remote_input_uri_rejected(&args, URI);
+        }
+    }
+
+    #[test]
     fn parse_with_fake_engine_emits_json_to_stdout() {
         let p = write_fixture("parse-fake.cem", "{x}");
         let (outcome, stdout, _) = run(&FakeEngine, &["parse", p.to_str().unwrap()]);
@@ -1945,6 +1977,23 @@ mod tests {
         assert_eq!(outcome.exit_code, EXIT_OK, "{stderr}");
         let v: serde_json::Value = serde_json::from_str(stdout.trim()).expect("valid JSON");
         assert_eq!(v["input"], file_uri);
+    }
+
+    #[test]
+    fn parse_percent_escaped_file_uri_input_reads_local_input() {
+        let p = write_fixture("parse-percent escaped-input.cem", "{x}");
+        let uri = local_file_uri(&p).replace(' ', "%20");
+        let (outcome, stdout, stderr) = run(&FakeEngine, &["parse", &uri]);
+
+        assert_eq!(outcome.exit_code, EXIT_OK, "{stderr}");
+        let v: serde_json::Value = serde_json::from_str(stdout.trim()).expect("valid JSON");
+        assert_eq!(v["input"], uri);
+    }
+
+    #[test]
+    fn parse_malformed_percent_escaped_file_uri_input_is_rejected() {
+        let uri = "file:///tmp/cem%zz/input.cem";
+        assert_non_local_file_uri_input_rejected(&["parse", uri], uri);
     }
 
     #[test]
@@ -1991,6 +2040,58 @@ mod tests {
         let written = std::fs::read_to_string(&out_path).unwrap();
         let v: serde_json::Value = serde_json::from_str(&written).unwrap();
         assert_eq!(v["kind"], "fake-parse");
+    }
+
+    #[test]
+    fn parse_localhost_file_uri_out_destination_writes_local_output() {
+        let p = write_fixture("parse-localhost-file-uri-out.cem", "{x}");
+        let out_path =
+            std::env::temp_dir().join("cem-ml-cli-tests/parse-localhost-file-uri-out.json");
+        let _ = std::fs::remove_file(&out_path);
+        let (outcome, stdout, stderr) = run(
+            &FakeEngine,
+            &[
+                "parse",
+                "--out",
+                &localhost_file_uri(&out_path),
+                p.to_str().unwrap(),
+            ],
+        );
+
+        assert_eq!(outcome.exit_code, EXIT_OK, "{stderr}");
+        assert!(stdout.trim().is_empty());
+        let written = std::fs::read_to_string(&out_path).unwrap();
+        let v: serde_json::Value = serde_json::from_str(&written).unwrap();
+        assert_eq!(v["kind"], "fake-parse");
+    }
+
+    #[test]
+    fn parse_percent_escaped_file_uri_out_destination_writes_local_output() {
+        let p = write_fixture("parse-percent-escaped-file-uri-out.cem", "{x}");
+        let out_path =
+            std::env::temp_dir().join("cem-ml-cli-tests/parse-percent escaped-file-uri-out.json");
+        let _ = std::fs::remove_file(&out_path);
+        let out_uri = local_file_uri(&out_path).replace(' ', "%20");
+        let (outcome, stdout, stderr) = run(
+            &FakeEngine,
+            &["parse", "--out", &out_uri, p.to_str().unwrap()],
+        );
+
+        assert_eq!(outcome.exit_code, EXIT_OK, "{stderr}");
+        assert!(stdout.trim().is_empty());
+        let written = std::fs::read_to_string(&out_path).unwrap();
+        let v: serde_json::Value = serde_json::from_str(&written).unwrap();
+        assert_eq!(v["kind"], "fake-parse");
+    }
+
+    #[test]
+    fn parse_malformed_percent_escaped_file_uri_out_destination_is_rejected() {
+        let p = write_fixture("parse-malformed-percent-escaped-file-uri-out.cem", "{x}");
+        let uri = "file:///tmp/cem%zz/out.json";
+        assert_non_local_file_uri_output_rejected(
+            &["parse", "--out", uri, p.to_str().unwrap()],
+            uri,
+        );
     }
 
     #[test]
@@ -2060,6 +2161,23 @@ mod tests {
 
         for args in cases {
             assert_non_local_file_uri_output_rejected(&args, URI);
+        }
+    }
+
+    #[test]
+    fn custom_uri_out_destinations_are_rejected_across_cli_commands() {
+        let input = write_fixture("custom-uri-out.cem", "{x}");
+        let input = input.to_str().unwrap();
+        const URI: &str = "cem+vfs://workspace/out.json";
+        let cases: Vec<Vec<&str>> = vec![
+            vec!["parse", "--out", URI, input],
+            vec!["convert", "--out", URI, input],
+            vec!["inspect", "--out", URI, input],
+            vec!["trace", "--out", URI, input],
+        ];
+
+        for args in cases {
+            assert_remote_output_uri_rejected(&args, URI);
         }
     }
 
@@ -2403,6 +2521,32 @@ mod tests {
     }
 
     #[test]
+    fn validate_config_custom_uri_input_is_rejected_without_resolver() {
+        let config_path =
+            std::env::temp_dir().join("cem-ml-cli-tests/validate-custom-uri-input-config.json");
+        std::fs::write(
+            &config_path,
+            serde_json::json!({
+                "inputs": [{
+                    "uri": "cem+vfs://workspace/input.cem"
+                }]
+            })
+            .to_string(),
+        )
+        .unwrap();
+
+        let (outcome, stdout, stderr) = run(
+            &RealCemMlEngine::new(),
+            &["validate", "--config", config_path.to_str().unwrap()],
+        );
+
+        assert_eq!(outcome.exit_code, EXIT_IO);
+        assert!(stdout.trim().is_empty());
+        assert!(stderr.contains("remote/custom URI resolvers are not implemented"));
+        assert!(stderr.contains("cem+vfs://workspace/input.cem"));
+    }
+
+    #[test]
     fn input_spec_inherits_global_content_type_default() {
         let p = write_fixture("validate-input-spec-default.html", r#"<button>Go</button>"#);
         let (outcome, stdout, stderr) = run(
@@ -2701,6 +2845,11 @@ mod tests {
             r#"@schema src="ui/button"
 {p Hi}"#,
         );
+        let custom = write_fixture(
+            "validate-context-custom-module-map.cem",
+            r#"@schema src="ui/button"
+{p Hi}"#,
+        );
         let non_local = write_fixture(
             "validate-context-non-local-module-map.cem",
             r#"@schema src="ui/button"
@@ -2710,6 +2859,12 @@ mod tests {
             (
                 "https://example.test/cem.modules.json",
                 remote.to_str().unwrap(),
+                "cem.scope.module_map_resolver_unsupported",
+                "remote/custom URI resolver",
+            ),
+            (
+                "cem+vfs://workspace/cem.modules.json",
+                custom.to_str().unwrap(),
                 "cem.scope.module_map_resolver_unsupported",
                 "remote/custom URI resolver",
             ),
@@ -3026,6 +3181,47 @@ mod tests {
     }
 
     #[test]
+    fn convert_localhost_file_uri_config_resolves_relative_destination_against_config_path() {
+        let input = write_fixture(
+            "convert-localhost-file-uri-config-relative-dest-input.cem",
+            "{p Hi}",
+        );
+        let dir = std::env::temp_dir().join("cem-ml-cli-tests/convert-localhost-file-uri-config");
+        let config_path = dir.join("run.json");
+        let out_path = dir.join("dist/out.json");
+        std::fs::create_dir_all(&dir).unwrap();
+        let _ = std::fs::remove_file(&out_path);
+        std::fs::write(
+            &config_path,
+            serde_json::json!({
+                "inputs": [{
+                    "uri": input.display().to_string()
+                }],
+                "outputs": [{
+                    "destination": "dist/out.json",
+                    "rootScope": {
+                        "defaultContentType": "application/cem+xml"
+                    }
+                }]
+            })
+            .to_string(),
+        )
+        .unwrap();
+
+        let config_uri = localhost_file_uri(&config_path);
+        let (outcome, stdout, stderr) = run(
+            &RealCemMlEngine::new(),
+            &["convert", "--config", &config_uri],
+        );
+
+        assert_eq!(outcome.exit_code, EXIT_OK, "{stderr}");
+        assert!(stdout.trim().is_empty());
+        let written = std::fs::read_to_string(&out_path).unwrap();
+        let v: serde_json::Value = serde_json::from_str(&written).unwrap();
+        assert_eq!(v["content"], "{p Hi}\n");
+    }
+
+    #[test]
     fn convert_config_file_uri_destination_writes_local_output() {
         let input = write_fixture("convert-config-file-uri-dest-input.cem", "{p Hi}");
         let out_path = std::env::temp_dir().join("cem-ml-cli-tests/convert-file-uri-dest.json");
@@ -3104,6 +3300,12 @@ mod tests {
             PathBuf::from("/tmp/cem#ml/out.json")
         );
         assert!(local_file_uri_to_path("file://example.test/tmp/out.json").is_none());
+    }
+
+    #[test]
+    fn local_file_uri_output_path_rejects_malformed_percent_escapes() {
+        assert!(local_file_uri_to_path("file:///tmp/cem%2/out.json").is_none());
+        assert!(local_file_uri_to_path("file:///tmp/cem%zz/out.json").is_none());
     }
 
     #[test]
@@ -3480,6 +3682,32 @@ mod tests {
     }
 
     #[test]
+    fn output_spec_localhost_file_uri_destination_writes_local_output() {
+        let input = write_fixture(
+            "convert-output-localhost-file-uri-destination.cem",
+            "{p Hi}",
+        );
+        let out_path = std::env::temp_dir()
+            .join("cem-ml-cli-tests/convert-output-localhost-file-uri-destination.json");
+        let _ = std::fs::remove_file(&out_path);
+        let (outcome, stdout, stderr) = run(
+            &FakeEngine,
+            &[
+                "convert",
+                "--output-spec",
+                &format!("dest={}", localhost_file_uri(&out_path)),
+                input.to_str().unwrap(),
+            ],
+        );
+
+        assert_eq!(outcome.exit_code, EXIT_OK, "{stderr}");
+        assert!(stdout.trim().is_empty());
+        let written = std::fs::read_to_string(&out_path).unwrap();
+        let v: serde_json::Value = serde_json::from_str(&written).unwrap();
+        assert_eq!(v["kind"], "fake-convert");
+    }
+
+    #[test]
     fn output_spec_remote_uri_destination_is_rejected_without_resolver() {
         let input = write_fixture("convert-output-remote-destination.cem", "{p Hi}");
         let (outcome, stdout, stderr) = run(
@@ -3804,6 +4032,18 @@ mod tests {
         assert_eq!(outcome.exit_code, EXIT_IO);
         assert!(stdout.trim().is_empty());
         assert!(stderr.contains("only local file:// URIs are supported"));
+        assert!(stderr.contains(uri));
+    }
+
+    #[test]
+    fn custom_uri_config_path_is_rejected_without_resolver() {
+        let uri = "cem+vfs://workspace/run.json";
+        let (outcome, stdout, stderr) =
+            run(&RealCemMlEngine::new(), &["validate", "--config", uri]);
+
+        assert_eq!(outcome.exit_code, EXIT_IO);
+        assert!(stdout.trim().is_empty());
+        assert!(stderr.contains("remote/custom URI resolvers are not implemented"));
         assert!(stderr.contains(uri));
     }
 
@@ -4944,6 +5184,29 @@ mod tests {
     }
 
     #[test]
+    fn report_explicit_localhost_file_uri_path_writes_local_report() {
+        let p = write_fixture("validate-explicit-localhost-file-uri.cem", "{x}");
+        let json_path =
+            std::env::temp_dir().join("cem-ml-cli-tests/custom-localhost-file-uri-name.json");
+        let _ = std::fs::remove_file(&json_path);
+        let (outcome, _, stderr) = run(
+            &FakeEngine,
+            &[
+                "validate",
+                "--report-json",
+                &localhost_file_uri(&json_path),
+                p.to_str().unwrap(),
+            ],
+        );
+
+        assert_eq!(outcome.exit_code, EXIT_OK, "{stderr}");
+        assert!(
+            json_path.is_file(),
+            "localhost file URI report path should be honored"
+        );
+    }
+
+    #[test]
     fn markdown_report_explicit_file_uri_path_writes_local_report() {
         let p = write_fixture("validate-explicit-md-file-uri.cem", "{x}");
         let md_path = std::env::temp_dir().join("cem-ml-cli-tests/custom-file-uri-name.md");
@@ -4997,6 +5260,22 @@ mod tests {
         assert!(stdout.trim().is_empty());
         assert!(stderr.contains("report write failure"));
         assert!(stderr.contains("only local file:// URIs are supported"));
+        assert!(stderr.contains(uri));
+    }
+
+    #[test]
+    fn validate_custom_uri_report_destination_is_rejected_without_resolver() {
+        let p = write_fixture("validate-custom-uri-report-destination.cem", "{x}");
+        let uri = "cem+vfs://workspace/report.json";
+        let (outcome, stdout, stderr) = run(
+            &FakeEngine,
+            &["validate", "--report-json", uri, p.to_str().unwrap()],
+        );
+
+        assert_eq!(outcome.exit_code, EXIT_IO);
+        assert!(stdout.trim().is_empty());
+        assert!(stderr.contains("report write failure"));
+        assert!(stderr.contains("remote/custom URI resolvers are not implemented"));
         assert!(stderr.contains(uri));
     }
 
@@ -5126,6 +5405,29 @@ mod tests {
     }
 
     #[test]
+    fn observe_events_localhost_file_uri_writes_jsonl_event_stream() {
+        let p = write_fixture("observe-events-localhost-file-uri.cem", "{p | hi}");
+        let out_dir = std::env::temp_dir().join("cem-ml-cli-observe-localhost-file-uri");
+        std::fs::create_dir_all(&out_dir).unwrap();
+        let out_path = out_dir.join("events.jsonl");
+        let _ = std::fs::remove_file(&out_path);
+        let (outcome, _, stderr) = run(
+            &FakeEngine,
+            &[
+                "--observe-events",
+                &localhost_file_uri(&out_path),
+                "parse",
+                p.to_str().unwrap(),
+            ],
+        );
+
+        assert_eq!(outcome.exit_code, EXIT_OK, "{stderr}");
+        assert!(out_path.is_file(), "observe-events should create the file");
+        let body = std::fs::read_to_string(&out_path).unwrap();
+        assert!(!body.is_empty(), "event stream must not be empty");
+    }
+
+    #[test]
     fn observe_events_remote_uri_destination_is_rejected_without_resolver() {
         let p = write_fixture("observe-events-remote-destination.cem", "{p | hi}");
         let (outcome, stdout, stderr) = run(
@@ -5161,6 +5463,22 @@ mod tests {
         assert!(stdout.is_empty());
         assert!(stderr.contains("--observe-events failed"));
         assert!(stderr.contains("only local file:// URIs are supported"));
+        assert!(stderr.contains(uri));
+    }
+
+    #[test]
+    fn observe_events_custom_uri_destination_is_rejected_without_resolver() {
+        let p = write_fixture("observe-events-custom-uri-destination.cem", "{p | hi}");
+        let uri = "cem+vfs://workspace/events.jsonl";
+        let (outcome, stdout, stderr) = run(
+            &FakeEngine,
+            &["--observe-events", uri, "parse", p.to_str().unwrap()],
+        );
+
+        assert_eq!(outcome.exit_code, EXIT_IO);
+        assert!(stdout.is_empty());
+        assert!(stderr.contains("--observe-events failed"));
+        assert!(stderr.contains("remote/custom URI resolvers are not implemented"));
         assert!(stderr.contains(uri));
     }
 
