@@ -1815,6 +1815,16 @@ mod tests {
         assert!(stderr.contains(uri));
     }
 
+    fn assert_non_local_file_uri_input_rejected(args: &[&str], uri: &str) {
+        let (outcome, stdout, stderr) = run(&FakeEngine, args);
+
+        assert_eq!(outcome.exit_code, EXIT_IO);
+        assert!(stdout.trim().is_empty());
+        assert!(stderr.contains("I/O error"));
+        assert!(stderr.contains("only local file:// URIs are supported"));
+        assert!(stderr.contains(uri));
+    }
+
     #[test]
     fn version_subcommand_prints_version_and_exits_zero() {
         let (outcome, stdout, _) = run(&NotImplementedEngine, &["version"]);
@@ -1858,6 +1868,12 @@ mod tests {
     fn parse_remote_uri_input_is_rejected_without_resolver() {
         let uri = "https://example.test/input.cem";
         assert_remote_input_uri_rejected(&["parse", uri], uri);
+    }
+
+    #[test]
+    fn parse_non_local_file_uri_input_is_rejected() {
+        let uri = "file://example.test/input.cem";
+        assert_non_local_file_uri_input_rejected(&["parse", uri], uri);
     }
 
     #[test]
@@ -2915,6 +2931,20 @@ mod tests {
     }
 
     #[test]
+    fn local_file_uri_path_rejects_non_local_file_uri_hosts() {
+        let err = local_file_uri_path(
+            Path::new("file://example.test/out.json"),
+            "output destination",
+        )
+        .unwrap_err();
+
+        assert_eq!(err.kind(), io::ErrorKind::InvalidInput);
+        assert!(err
+            .to_string()
+            .contains("only local file:// URIs are supported"));
+    }
+
+    #[test]
     fn convert_config_fans_out_multiple_outputs() {
         let first = write_fixture("convert-fanout-first.cem", "{p First}");
         let second = write_fixture("convert-fanout-second.cem", "{p Second}");
@@ -3275,6 +3305,28 @@ mod tests {
         assert!(stdout.trim().is_empty());
         assert!(stderr.contains("remote/custom URI resolvers are not implemented"));
         assert!(stderr.contains("https://example.test/out.json"));
+    }
+
+    #[test]
+    fn output_spec_non_local_file_uri_destination_is_rejected() {
+        let input = write_fixture(
+            "convert-output-non-local-file-uri-destination.cem",
+            "{p Hi}",
+        );
+        let (outcome, stdout, stderr) = run(
+            &FakeEngine,
+            &[
+                "convert",
+                "--output-spec",
+                "dest=file://example.test/out.json",
+                input.to_str().unwrap(),
+            ],
+        );
+
+        assert_eq!(outcome.exit_code, EXIT_IO);
+        assert!(stdout.trim().is_empty());
+        assert!(stderr.contains("only local file:// URIs are supported"));
+        assert!(stderr.contains("file://example.test/out.json"));
     }
 
     #[test]
@@ -3856,6 +3908,18 @@ mod tests {
         assert_eq!(outcome.exit_code, EXIT_IO);
         assert!(stdout.trim().is_empty());
         assert!(stderr.contains("remote/custom input URI resolvers are not implemented"));
+        assert!(stderr.contains(uri));
+    }
+
+    #[test]
+    fn fixture_roundtrip_non_local_file_uri_input_is_rejected() {
+        let uri = "file://example.test/fixture-roundtrip.cem";
+        let (outcome, stdout, stderr) =
+            run(&RealCemMlEngine::new(), &["fixture", "roundtrip", uri]);
+
+        assert_eq!(outcome.exit_code, EXIT_IO);
+        assert!(stdout.trim().is_empty());
+        assert!(stderr.contains("only local file:// URIs are supported"));
         assert!(stderr.contains(uri));
     }
 
