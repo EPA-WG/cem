@@ -115,12 +115,17 @@ fn run_config(
     options: &cli::RunOptions,
     defaults: RunConfigDefaults,
 ) -> Result<RunConfig, CliRequestError> {
-    let config_base_uri = options
-        .config
-        .as_ref()
-        .map(|path| path.display().to_string());
+    let mut config_base_uri = None;
     let mut config = if let Some(path) = &options.config {
-        let bytes = fs::read(path).map_err(|source| {
+        let config_path = local_file_uri_path(path, "config path").map_err(|source| {
+            CliRequestError::Engine(EngineError::Io {
+                path: path.clone(),
+                source,
+            })
+        })?;
+        let config_source_uri = path.display().to_string();
+        config_base_uri = Some(config_path.display().to_string());
+        let bytes = fs::read(config_path.as_ref()).map_err(|source| {
             CliRequestError::Engine(EngineError::Io {
                 path: path.clone(),
                 source,
@@ -130,21 +135,22 @@ fn run_config(
             content_type: options
                 .config_content_type
                 .clone()
+                .or_else(|| infer_config_content_type(config_path.as_ref()))
                 .or_else(|| infer_config_content_type(path)),
             schema: None,
-            base_uri: Some(path.display().to_string()),
+            base_uri: Some(config_source_uri.clone()),
         };
         run_config::parse_run_config(run_config::RunConfigParseRequest {
             bytes,
             identity,
-            base_uri: Some(path.display().to_string()),
+            base_uri: Some(config_source_uri.clone()),
         })
         .map_err(|error| CliRequestError::RunConfigDiagnostics {
             config: None,
             diagnostics: vec![run_config_error_diagnostic(
                 error.code,
                 error.message,
-                Some(path.display().to_string()),
+                Some(config_source_uri),
             )],
         })
         .map(|response| response.config)?
@@ -2117,6 +2123,44 @@ mod tests {
             &RealCemMlEngine::new(),
             &["convert", "--config", config_path.to_str().unwrap()],
         );
+        assert_eq!(outcome.exit_code, EXIT_OK, "{stderr}");
+        assert!(stdout.trim().is_empty());
+        let written = std::fs::read_to_string(&out_path).unwrap();
+        let v: serde_json::Value = serde_json::from_str(&written).unwrap();
+        assert_eq!(v["content"], "{p Hi}\n");
+    }
+
+    #[test]
+    fn convert_file_uri_config_resolves_relative_destination_against_config_path() {
+        let input = write_fixture("convert-file-uri-config-relative-dest-input.cem", "{p Hi}");
+        let dir = std::env::temp_dir().join("cem-ml-cli-tests/convert-file-uri-config");
+        let config_path = dir.join("run.json");
+        let out_path = dir.join("dist/out.json");
+        std::fs::create_dir_all(&dir).unwrap();
+        let _ = std::fs::remove_file(&out_path);
+        std::fs::write(
+            &config_path,
+            serde_json::json!({
+                "inputs": [{
+                    "uri": input.display().to_string()
+                }],
+                "outputs": [{
+                    "destination": "dist/out.json",
+                    "rootScope": {
+                        "defaultContentType": "application/cem+xml"
+                    }
+                }]
+            })
+            .to_string(),
+        )
+        .unwrap();
+
+        let config_uri = format!("file://{}", config_path.display());
+        let (outcome, stdout, stderr) = run(
+            &RealCemMlEngine::new(),
+            &["convert", "--config", &config_uri],
+        );
+
         assert_eq!(outcome.exit_code, EXIT_OK, "{stderr}");
         assert!(stdout.trim().is_empty());
         let written = std::fs::read_to_string(&out_path).unwrap();

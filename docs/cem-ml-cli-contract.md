@@ -161,9 +161,10 @@ Current implementation status:
   version resolver. Input module maps resolve relative schema-source identities and
   local JSON aliases, including config-relative module-map paths and local `file://`
   module-map URIs. Config-file output
-  destinations normalize relative paths against the config document path. Configured
-  and positional input reads resolve local `file://` URIs, and primary output writes
-  resolve local `file://` destinations to filesystem paths; remote/custom
+  destinations normalize relative paths against the config document path, including
+  local `file://` config documents. Configured and positional input reads resolve local
+  `file://` URIs, and primary output writes resolve local `file://` destinations to
+  filesystem paths; remote/custom
   module-map resolver semantics, remote/custom output resolver semantics, and
   unsupported remaining budget hooks remain planned requirements.
 - `validate` / `check` / `convert` route `custom-element-xslt` input through the first
