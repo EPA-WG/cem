@@ -1,6 +1,9 @@
 use clap::{Args, Parser, Subcommand, ValueEnum};
 use std::path::PathBuf;
 
+pub const COPYRIGHT_NOTICE: &str =
+    "Copyright (c) 2026 Sasha Firsov <https://github.com/sashafirsov>";
+
 #[derive(Parser, Debug)]
 #[command(
     name = "cem-ml",
@@ -8,7 +11,8 @@ use std::path::PathBuf;
     about = "CEM parser/runtime CLI",
     long_about = "CEM parser/runtime CLI. See docs/cem-ml-cli-contract.md for the feature surface.
 
-Repository: https://github.com/EPA-WG/cem",
+Repository: https://github.com/EPA-WG/cem
+Copyright (c) 2026 Sasha Firsov <https://github.com/sashafirsov>",
     version = cem_ml::VERSION,
     propagate_version = true,
     disable_help_subcommand = false,

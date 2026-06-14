@@ -778,6 +778,7 @@ pub fn run_fixture_roundtrip<E: CemMlEngine + ?Sized>(
 
 pub fn run_version(s: &mut Streams<'_>) -> Outcome {
     let _ = writeln!(s.stdout, "cem-ml {}", cem_ml::VERSION);
+    let _ = writeln!(s.stdout, "{}", cli::COPYRIGHT_NOTICE);
     Outcome::ok()
 }
 
@@ -836,6 +837,7 @@ mod tests {
         let (outcome, stdout, _) = run(&NotImplementedEngine, &["version"]);
         assert_eq!(outcome.exit_code, EXIT_OK);
         assert!(stdout.starts_with("cem-ml "));
+        assert!(stdout.contains(cli::COPYRIGHT_NOTICE));
     }
 
     #[test]

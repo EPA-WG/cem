@@ -1,4 +1,7 @@
 # custom-element
+
+Copyright (c) 2026 Sasha Firsov <https://github.com/sashafirsov>
+
 `Declarative Custom Element` (DCE) is a part of pure `Declarative Web Application` stack. A proof of concept as a part of
 [WCCG in Declarative custom elements](https://github.com/w3c/webcomponents-cg/issues/32#issuecomment-1321037301) and [Declarative Web Application](https://github.com/EPA-WG/dwa#readme)
 discussion. **NO-JS** The functionality of DCE and its data access does not require programming using JavaScript.

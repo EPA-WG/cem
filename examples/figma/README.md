@@ -1,5 +1,7 @@
 # CEM Figma Token Workflow
 
+Copyright (c) 2026 Sasha Firsov <https://github.com/sashafirsov>
+
 The Figma workflow is a native Figma library generated from token artifacts. Markdown token specs remain the source of
 truth; Figma changes must be converted into spec edits before they enter the build.
 

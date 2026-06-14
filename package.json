@@ -2,6 +2,10 @@
     "name": "@epa-wg/cem",
     "description": "Consumer Semantic Material Theme and custom-element components library for NO-JS declarative web applications.",
     "version": "0.1.0",
+    "author": {
+        "name": "Sasha Firsov",
+        "email": "sasha@firsov.net"
+    },
     "license": "MIT",
     "private": true,
     "repository": {
@@ -15,6 +19,7 @@
         "build:theme": "nx run @epa-wg/cem-theme:build",
         "build:css": "nx run @epa-wg/cem-theme:build:css",
         "lint": "nx run-many -t lint",
+        "validate:package-metadata": "node tools/scripts/validate-package-metadata.mjs",
         "publish:prepare": "./tools/scripts/publish-prepare.sh",
         "validate:utf8": "node tools/scripts/validate-utf8.mjs",
         "css-generate": "node tools/scripts/capture-xpath-text.mjs file://./packages/cem-theme/src/lib/css-generators/colors.html //*[@code='language-css'] /tmp/colors.css",

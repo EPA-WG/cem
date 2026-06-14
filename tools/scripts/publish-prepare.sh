@@ -2,6 +2,10 @@
 
 echo "🚀 Starting release preparation..."
 
+# Step -1: Validate npm package metadata before release mutation
+echo "🔎 Validating published npm package metadata..."
+node tools/scripts/validate-package-metadata.mjs
+
 # Step 0: Restore workspace:* protocol before release
 echo "🔙 Restoring workspace protocol for release..."
 node tools/scripts/restore-workspace-protocol.cjs

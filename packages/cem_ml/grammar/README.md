@@ -1,5 +1,7 @@
 # CEM-ML Editor Grammar Assets
 
+Copyright (c) 2026 Sasha Firsov <https://github.com/sashafirsov>
+
 This directory ships the editor-side grammar artifacts that mirror the
 Rust tokenizer in [`../src/tokenizer/cem.rs`](../src/tokenizer/cem.rs).
 

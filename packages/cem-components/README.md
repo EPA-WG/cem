@@ -1,5 +1,7 @@
 # `@epa-wg/cem-components`
 
+Copyright (c) 2026 Sasha Firsov <https://github.com/sashafirsov>
+
 Declarative component primitives that consume the CEM theme. No shadow DOM — every component renders in the
 light DOM, authored against the `<cem-element>` substrate from `@epa-wg/cem-elements` (functional successor to
 `@epa-wg/custom-element`; design home: [`docs/cem-element-design.md`](../../docs/cem-element-design.md)).

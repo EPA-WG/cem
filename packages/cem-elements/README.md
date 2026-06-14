@@ -1,5 +1,7 @@
 # cem-elements
 
+Copyright (c) 2026 Sasha Firsov <https://github.com/sashafirsov>
+
 This library was generated with [Nx](https://nx.dev).
 
 ## Building

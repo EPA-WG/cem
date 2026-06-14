@@ -1,5 +1,7 @@
 # `<cem-element>` substrate fixtures
 
+Copyright (c) 2026 Sasha Firsov <https://github.com/sashafirsov>
+
 Canonical CEM-ML templates that exercise the `@epa-wg/cem-elements` substrate authoring
 vocabulary (`cem:if`/`cem:choose` conditionals, `<slot>`, `<attribute>`, `<data>`/`<option>`
 payloads, `module-url`, and `{$datadom…}` host expressions with `??`). They are the C2.6

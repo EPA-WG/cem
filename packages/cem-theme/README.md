@@ -1,5 +1,7 @@
 # `@epa-wg/cem-theme` Consumer Semantic Material Theme
 
+Copyright (c) 2026 Sasha Firsov <https://github.com/sashafirsov>
+
 Canonical [CEM](https://github.com/EPA-WG/cem) token specs, generated CSS, DTCG JSON, TypeScript metadata, native iOS/Android outputs, and Figma
 library files. [Token specs](./src/lib/tokens/index.md) in `src/lib/tokens/*.md` are the single source of truth; copied Markdown specs are published
 under `dist/lib/tokens/*.md` so consumers and AI coding assistants can read version-matched semantic guidance from the

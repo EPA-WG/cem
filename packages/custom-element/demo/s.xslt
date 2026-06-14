@@ -1,3 +1,4 @@
+<!-- Copyright (c) 2026 Sasha Firsov <https://github.com/sashafirsov> -->
 <xsl:stylesheet xmlns:xsl="http://www.w3.org/1999/XSL/Transform" xmlns:xhtml="http://www.w3.org/1999/xhtml"
                 xmlns:dce="urn:schemas-epa-wg:dce" xmlns:exsl="http://exslt.org/common" version="1.0"
                 exclude-result-prefixes="exsl">

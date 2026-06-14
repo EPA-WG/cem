@@ -8,5 +8,8 @@ members = [
 	'packages/cem_ml/grammar/tree-sitter-cem',
 ]
 
+[workspace.package]
+authors = ["Sasha Firsov <sasha@firsov.net>"]
+
 [profile.release]
 lto = true

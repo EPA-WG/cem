@@ -1,5 +1,7 @@
 # Legacy material components — backward-compat reference
 
+Copyright (c) 2026 Sasha Firsov <https://github.com/sashafirsov>
+
 These are the legacy `@epa-wg/custom-element` **material suite** components (`components/*.html`),
 copied verbatim from the POC (`~/aWork/custom-element-dist/src/material/components`). They are
 authored as declarative **HTML + XSLT** (bare `<attribute>` / `<if>` / `<choose>` / `<when>`, `{$x}` /

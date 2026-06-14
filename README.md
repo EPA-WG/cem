@@ -1,5 +1,7 @@
 # CEM - Consumer Semantic Material Theme and custom-element components library
 
+Copyright (c) 2026 Sasha Firsov <https://github.com/sashafirsov>
+
 A theme system and custom-element Material component library for building declarative, no-JavaScript web applications.
 
 CEM reinterprets Google’s [Material Design Guidelines](https://material.io/design) through a consumer-first

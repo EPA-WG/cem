@@ -1,5 +1,7 @@
 # CEM Android Token Example
 
+Copyright (c) 2026 Sasha Firsov <https://github.com/sashafirsov>
+
 Minimal Compose example showing how a consumer can use generated CEM Android resources and constants after running:
 
 ```bash

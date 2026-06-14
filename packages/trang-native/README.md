@@ -1,5 +1,7 @@
 # @epa-wg/trang-native
 
+Copyright (c) 2026 Sasha Firsov <https://github.com/sashafirsov>
+
 Native (GraalVM-compiled) Trang for RELAX NG / DTD / XSD conversion —
 **no JRE required** on consumer machines.
 

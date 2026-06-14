@@ -1,5 +1,7 @@
 # XSLT-Dispatch Fixtures
 
+Copyright (c) 2026 Sasha Firsov <https://github.com/sashafirsov>
+
 Per `docs/cem-ml-ac.md` §AC-P-6.8 / §AC-P-V-4 / §AC-P-V-7. Each fixture embeds an
 `xsl:`-namespace region inside CEM-ML and exercises **XSLT region dispatch**:
 the version-stable XSLT namespace is dispatchable as an embedded content type,

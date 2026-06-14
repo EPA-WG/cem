@@ -1,5 +1,7 @@
 # CEMTokensExample
 
+Copyright (c) 2026 Sasha Firsov <https://github.com/sashafirsov>
+
 Minimal SwiftUI example showing how a consumer can use generated CEM token constants after adding
 `dist/lib/token-platforms/ios/CEMTokens.swift` to an app target.
 

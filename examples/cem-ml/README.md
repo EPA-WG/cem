@@ -1,5 +1,7 @@
 # Canonical CEM-ML Fixtures
 
+Copyright (c) 2026 Sasha Firsov <https://github.com/sashafirsov>
+
 This directory is the canonical fixture surface for `cem-ml`. These `.cem` files use
 the curly-brace syntax from `docs/cem-ml-syntax.md`.
 

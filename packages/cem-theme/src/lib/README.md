@@ -1,5 +1,7 @@
 # CEM Theme
 
+Copyright (c) 2026 Sasha Firsov <https://github.com/sashafirsov>
+
 **CEM Theme** is the token package for the Consumer-Experience Model design system. It defines a consumer-semantic layer
 for colors, spacing, interaction safety, controls, shape, layering, stroke, typography, motion, breakpoints, and
 responsive strategy.
