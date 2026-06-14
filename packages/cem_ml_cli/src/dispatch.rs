@@ -2202,6 +2202,22 @@ mod tests {
     }
 
     #[test]
+    fn parse_custom_uri_report_destination_is_rejected_without_resolver() {
+        let p = write_fixture("parse-custom-report.cem", "{x}");
+        let uri = "cem+vfs://workspace/parse-report.json";
+        let (outcome, stdout, stderr) = run(
+            &FakeEngine,
+            &["parse", "--report-json", uri, p.to_str().unwrap()],
+        );
+
+        assert_eq!(outcome.exit_code, EXIT_IO);
+        assert!(stdout.contains("\"kind\": \"fake-parse\""));
+        assert!(stderr.contains("parse report write failure"));
+        assert!(stderr.contains("remote/custom URI resolvers are not implemented"));
+        assert!(stderr.contains(uri));
+    }
+
+    #[test]
     fn validate_emits_report_with_contract_field_names() {
         let p = write_fixture("validate.cem", "{x}");
         let (outcome, stdout, _) = run(&FakeEngine, &["validate", p.to_str().unwrap()]);
@@ -3290,6 +3306,39 @@ mod tests {
     }
 
     #[test]
+    fn convert_config_custom_uri_destination_is_rejected() {
+        let input = write_fixture("convert-config-custom-uri-dest-input.cem", "{p Hi}");
+        let config_path =
+            std::env::temp_dir().join("cem-ml-cli-tests/convert-custom-uri-dest-config.json");
+        std::fs::write(
+            &config_path,
+            serde_json::json!({
+                "inputs": [{
+                    "uri": input.display().to_string()
+                }],
+                "outputs": [{
+                    "destination": "cem+vfs://workspace/out.json",
+                    "rootScope": {
+                        "defaultContentType": "application/cem+xml"
+                    }
+                }]
+            })
+            .to_string(),
+        )
+        .unwrap();
+
+        let (outcome, stdout, stderr) = run(
+            &RealCemMlEngine::new(),
+            &["convert", "--config", config_path.to_str().unwrap()],
+        );
+
+        assert_eq!(outcome.exit_code, EXIT_IO);
+        assert!(stdout.trim().is_empty());
+        assert!(stderr.contains("remote/custom URI resolvers are not implemented"));
+        assert!(stderr.contains("cem+vfs://workspace/out.json"));
+    }
+
+    #[test]
     fn local_file_uri_output_path_decodes_percent_escaped_paths() {
         assert_eq!(
             local_file_uri_to_path("file:///tmp/cem%20ml/out.json").unwrap(),
@@ -3503,6 +3552,33 @@ mod tests {
         assert!(stderr.contains("convert report write failure"));
         assert!(stderr.contains("remote/custom URI resolvers are not implemented"));
         assert!(stderr.contains("https://example.test/convert.md"));
+    }
+
+    #[test]
+    fn convert_custom_uri_report_destination_is_rejected_without_resolver() {
+        let input = write_fixture("convert-custom-report-input.cem", "{p Hi}");
+        let out_path =
+            std::env::temp_dir().join("cem-ml-cli-tests/convert-custom-report-output.json");
+        let _ = std::fs::remove_file(&out_path);
+        let uri = "cem+vfs://workspace/convert-report.json";
+        let (outcome, stdout, stderr) = run(
+            &RealCemMlEngine::new(),
+            &[
+                "convert",
+                "--out",
+                out_path.to_str().unwrap(),
+                "--report-json",
+                uri,
+                input.to_str().unwrap(),
+            ],
+        );
+
+        assert_eq!(outcome.exit_code, EXIT_IO);
+        assert!(stdout.trim().is_empty());
+        assert!(out_path.is_file());
+        assert!(stderr.contains("convert report write failure"));
+        assert!(stderr.contains("remote/custom URI resolvers are not implemented"));
+        assert!(stderr.contains(uri));
     }
 
     #[test]
@@ -3724,6 +3800,25 @@ mod tests {
         assert!(stdout.trim().is_empty());
         assert!(stderr.contains("remote/custom URI resolvers are not implemented"));
         assert!(stderr.contains("https://example.test/out.json"));
+    }
+
+    #[test]
+    fn output_spec_custom_uri_destination_is_rejected_without_resolver() {
+        let input = write_fixture("convert-output-custom-destination.cem", "{p Hi}");
+        let (outcome, stdout, stderr) = run(
+            &FakeEngine,
+            &[
+                "convert",
+                "--output-spec",
+                "dest=cem+vfs://workspace/out.json",
+                input.to_str().unwrap(),
+            ],
+        );
+
+        assert_eq!(outcome.exit_code, EXIT_IO);
+        assert!(stdout.trim().is_empty());
+        assert!(stderr.contains("remote/custom URI resolvers are not implemented"));
+        assert!(stderr.contains("cem+vfs://workspace/out.json"));
     }
 
     #[test]
@@ -4305,6 +4400,17 @@ mod tests {
     }
 
     #[test]
+    fn fixture_validate_custom_uri_input_is_rejected_without_resolver() {
+        let uri = "cem+vfs://workspace/fixture.cem";
+        let (outcome, stdout, stderr) = run(&RealCemMlEngine::new(), &["fixture", "validate", uri]);
+
+        assert_eq!(outcome.exit_code, EXIT_IO);
+        assert!(stdout.trim().is_empty());
+        assert!(stderr.contains("remote/custom input URI resolvers are not implemented"));
+        assert!(stderr.contains(uri));
+    }
+
+    #[test]
     fn fixture_validate_non_local_file_uri_input_is_rejected() {
         let uri = "file://example.test/fixture.cem";
         let (outcome, stdout, stderr) = run(&RealCemMlEngine::new(), &["fixture", "validate", uri]);
@@ -4382,6 +4488,18 @@ mod tests {
     #[test]
     fn fixture_roundtrip_remote_uri_input_is_rejected_without_resolver() {
         let uri = "https://example.test/fixture-roundtrip.cem";
+        let (outcome, stdout, stderr) =
+            run(&RealCemMlEngine::new(), &["fixture", "roundtrip", uri]);
+
+        assert_eq!(outcome.exit_code, EXIT_IO);
+        assert!(stdout.trim().is_empty());
+        assert!(stderr.contains("remote/custom input URI resolvers are not implemented"));
+        assert!(stderr.contains(uri));
+    }
+
+    #[test]
+    fn fixture_roundtrip_custom_uri_input_is_rejected_without_resolver() {
+        let uri = "cem+vfs://workspace/fixture-roundtrip.cem";
         let (outcome, stdout, stderr) =
             run(&RealCemMlEngine::new(), &["fixture", "roundtrip", uri]);
 
@@ -5071,6 +5189,19 @@ mod tests {
     }
 
     #[test]
+    fn fixture_roundtrip_custom_uri_report_destination_is_rejected_without_resolver() {
+        let uri = "cem+vfs://workspace/fixture-roundtrip-report.json";
+        let (outcome, stdout, stderr) =
+            run(&FakeEngine, &["fixture", "roundtrip", "--report-json", uri]);
+
+        assert_eq!(outcome.exit_code, EXIT_IO);
+        assert!(stdout.trim().is_empty());
+        assert!(stderr.contains("report write failure"));
+        assert!(stderr.contains("remote/custom URI resolvers are not implemented"));
+        assert!(stderr.contains(uri));
+    }
+
+    #[test]
     fn fixture_validate_remote_uri_report_destination_is_rejected_without_resolver() {
         let (outcome, stdout, stderr) = run(
             &FakeEngine,
@@ -5087,6 +5218,19 @@ mod tests {
         assert!(stderr.contains("report write failure"));
         assert!(stderr.contains("remote/custom URI resolvers are not implemented"));
         assert!(stderr.contains("https://example.test/fixture-report.json"));
+    }
+
+    #[test]
+    fn fixture_validate_custom_uri_report_destination_is_rejected_without_resolver() {
+        let uri = "cem+vfs://workspace/fixture-report.json";
+        let (outcome, stdout, stderr) =
+            run(&FakeEngine, &["fixture", "validate", "--report-json", uri]);
+
+        assert_eq!(outcome.exit_code, EXIT_IO);
+        assert!(stdout.trim().is_empty());
+        assert!(stderr.contains("report write failure"));
+        assert!(stderr.contains("remote/custom URI resolvers are not implemented"));
+        assert!(stderr.contains(uri));
     }
 
     #[test]
@@ -5319,6 +5463,29 @@ mod tests {
         assert!(stderr.contains("benchmark report write failure"));
         assert!(stderr.contains("remote/custom URI resolvers are not implemented"));
         assert!(stderr.contains("https://example.test/bench.json"));
+    }
+
+    #[test]
+    fn bench_custom_uri_report_destination_is_rejected_without_resolver() {
+        let p = write_fixture("bench-custom-report-destination.cem", "{x}");
+        let uri = "cem+vfs://workspace/bench.json";
+        let (outcome, stdout, stderr) = run(
+            &FakeEngine,
+            &[
+                "bench",
+                "--format",
+                "json",
+                "--report-json",
+                uri,
+                p.to_str().unwrap(),
+            ],
+        );
+
+        assert_eq!(outcome.exit_code, EXIT_IO);
+        assert!(stdout.contains("\"kind\": \"fake-bench\""));
+        assert!(stderr.contains("benchmark report write failure"));
+        assert!(stderr.contains("remote/custom URI resolvers are not implemented"));
+        assert!(stderr.contains(uri));
     }
 
     #[test]
