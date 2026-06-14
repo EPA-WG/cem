@@ -106,9 +106,9 @@ the immediate CLI lifecycle contract.
    resolve against the embedded document-format version. Run-config normalization
    validates root-scope module-map, namespace, and version-pin option shape before
    document parsing, while unknown budget keys, unsupported version-pin targets, and
-   valid-but-not-yet-enforced module-map fields emit deterministic execution diagnostics
-   instead of being silently ignored. Real runtime behavior for module maps and
-   remaining budget hooks remains open.
+   unsupported non-scheduler budget hooks plus valid-but-not-yet-enforced module-map
+   fields emit deterministic execution diagnostics instead of being silently ignored.
+   Real runtime behavior for module maps and those remaining budget hooks remains open.
 7. Update CLI flags without breaking current debug workflows:
     - keep `--from-format` and `--to-format` as aliases for built-in identities;
     - keep `--content-type` as the input content type for `parse`, `validate`, `check`,

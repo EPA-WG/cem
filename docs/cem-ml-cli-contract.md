@@ -123,10 +123,10 @@ Current implementation status:
   Recognized CEM-ML root-scope version pins resolve against the embedded
   document-format version. Run-config normalization validates root-scope module-map,
   namespace, and version-pin option shape before document parsing, while unknown
-  budget keys, unsupported version-pin targets, and valid-but-not-yet-enforced
-  module-map fields emit deterministic execution diagnostics instead of being silently
-  ignored. Real runtime behavior for module maps and the remaining budget hooks
-  remains pending.
+  budget keys, unsupported version-pin targets, unsupported non-scheduler budget
+  hooks, and valid-but-not-yet-enforced module-map fields emit deterministic execution
+  diagnostics instead of being silently ignored. Real runtime behavior for module maps
+  and those remaining budget hooks remains pending.
 - `--schema` and `--content-type` are carried in `EngineContext` and emitted in reports.
   `cem_ml::lifecycle::LifecycleRegistry` now owns built-in input content-type dispatch
   for parser-backed commands (`parse`, `validate`, `check`, `inspect`, `convert`,
@@ -140,7 +140,7 @@ Current implementation status:
   schema validation's root namespace context. Recognized CEM-ML version pins resolve
   through the document-format version resolver. Module maps are shape-validated during
   run-config normalization; their runtime resolver/schema semantics and unsupported
-  budget hooks remain planned requirements.
+  non-scheduler budget hooks remain planned requirements.
 - `validate` / `check` / `convert` route `custom-element-xslt` input through the first
   shared lifecycle adapter path, lowering legacy custom-element XSLT to canonical
   CEM-ML through `cem_ml::legacy_custom_element`; `convert --content-type

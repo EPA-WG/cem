@@ -309,14 +309,7 @@ fn root_scope_execution_diagnostics(
             direction,
         ));
     }
-    if !scope.budgets.is_empty() {
-        diagnostics.push(unsupported_scope_diagnostic(
-            uri,
-            "cem.scope.budgets_unenforced",
-            "budgets",
-            direction,
-        ));
-    }
+    diagnostics.extend(root_scope_budget_diagnostics(uri, scope, direction));
     diagnostics
 }
 
@@ -365,6 +358,58 @@ fn parse_u64_budget(field: &str, value: &str) -> Result<u64, String> {
     value
         .parse::<u64>()
         .map_err(|_| format!("budget `{field}` expects an unsigned integer, got `{value}`"))
+}
+
+fn root_scope_budget_diagnostics(
+    uri: &str,
+    scope: &ScopeConfig,
+    direction: &str,
+) -> Vec<Diagnostic> {
+    let mut diagnostics = Vec::new();
+    for (field, value) in &scope.budgets {
+        match normalize_scope_key(field).as_str() {
+            "cpu" | "cpuworkers" | "queue" | "queuesize" | "io" | "iostreams" => {
+                if let Err(message) = parse_u32_budget(field, value) {
+                    diagnostics.push(scope_policy_diagnostic(
+                        uri,
+                        "cem.scope.budget_invalid",
+                        message,
+                        direction,
+                    ));
+                }
+            }
+            "memory" | "memorybytes" | "pluginms" | "plugintimebudgetms" => {
+                if let Err(message) = parse_u64_budget(field, value) {
+                    diagnostics.push(scope_policy_diagnostic(
+                        uri,
+                        "cem.scope.budget_invalid",
+                        message,
+                        direction,
+                    ));
+                }
+            }
+            "overflow" => match normalize_scope_key(value).as_str() {
+                "block" | "reject" | "spilltoparent" => {}
+                _ => diagnostics.push(scope_policy_diagnostic(
+                    uri,
+                    "cem.scope.budget_invalid",
+                    format!(
+                        "budget `overflow` expects block, reject, or spill-to-parent, got `{value}`"
+                    ),
+                    direction,
+                )),
+            },
+            _ => diagnostics.push(scope_policy_diagnostic(
+                uri,
+                "cem.scope.budget_unenforced",
+                format!(
+                    "budget `{field}` is parsed and preserved, but runtime enforcement is not implemented yet"
+                ),
+                direction,
+            )),
+        }
+    }
+    diagnostics
 }
 
 fn apply_scope_scheduler_fields(
@@ -1196,6 +1241,58 @@ mod tests {
         };
         let resp = RealCemMlEngine::new().parse(req).unwrap();
         assert_eq!(resp.primary["kind"], "document");
+    }
+
+    #[test]
+    fn parse_accepts_recognized_root_scope_scheduler_budgets_without_unenforced_warning() {
+        let mut source = input(b"{p Hi}", "budgeted.cem");
+        source
+            .root_scope
+            .budgets
+            .insert("queueSize".to_owned(), "12".to_owned());
+        source
+            .root_scope
+            .budgets
+            .insert("pluginTimeBudgetMs".to_owned(), "7".to_owned());
+        let req = ParseRequest {
+            input: source,
+            projection: ParseProjection::DomJson,
+            fail_level: FailLevel::Parse,
+            preserve_source_offsets: false,
+            context: ctx(),
+        };
+
+        let resp = RealCemMlEngine::new().parse(req).unwrap();
+        assert!(!resp
+            .diagnostics
+            .iter()
+            .any(|diag| diag.code == "cem.scope.budgets_unenforced"));
+        assert!(!resp
+            .diagnostics
+            .iter()
+            .any(|diag| diag.code == "cem.scope.budget_unenforced"));
+    }
+
+    #[test]
+    fn parse_reports_invalid_recognized_root_scope_scheduler_budgets() {
+        let mut source = input(b"{p Hi}", "budgeted.cem");
+        source
+            .root_scope
+            .budgets
+            .insert("queueSize".to_owned(), "nope".to_owned());
+        let req = ParseRequest {
+            input: source,
+            projection: ParseProjection::DomJson,
+            fail_level: FailLevel::Parse,
+            preserve_source_offsets: false,
+            context: ctx(),
+        };
+
+        let resp = RealCemMlEngine::new().parse(req).unwrap();
+        assert!(resp
+            .diagnostics
+            .iter()
+            .any(|diag| diag.code == "cem.scope.budget_invalid"));
     }
 
     #[test]
