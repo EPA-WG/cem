@@ -103,9 +103,10 @@ the immediate CLI lifecycle contract.
    enforces a parser-backed pipeline wall-clock budget; `validateMs` and `checkMs`
    enforce scheduled per-input document work budgets; `convertMs` enforces
    input/output-scope convert work budgets; `traceMs`, `inspectMs`, `benchMs`,
-   `fixtureValidateMs`, and `fixtureRoundtripMs` enforce trace, inspect, benchmark, and
-   fixture workflow budgets; and effective `baseUri` values project relative report
-   input and diagnostic URIs. Root-scope default and named namespace bindings seed
+   `fixtureValidateMs`, `fixtureRoundtripMs`, and `observeMs` enforce trace, inspect,
+   benchmark, fixture, and observability workflow budgets; and effective `baseUri`
+   values project relative report input and diagnostic URIs. Root-scope default and
+   named namespace bindings seed
    schema validation's document-root namespace context, and recognized CEM-ML
    root-scope version pins resolve against the embedded document-format version.
    Input root-scope module maps provide the resolver base for

@@ -120,9 +120,10 @@ Current implementation status:
   scheduled validate/check, trace, and convert execution; `parseMs` enforces a
   parser-backed pipeline wall-clock budget; `validateMs` and `checkMs` enforce
   scheduled per-input document work budgets; `convertMs` enforces input/output-scope
-  convert work budgets; `traceMs`, `inspectMs`, `benchMs`, `fixtureValidateMs`, and
-  `fixtureRoundtripMs` enforce trace, inspect, benchmark, and fixture workflow budgets;
-  and effective `baseUri` values project relative report input and diagnostic URIs.
+  convert work budgets; `traceMs`, `inspectMs`, `benchMs`, `fixtureValidateMs`,
+  `fixtureRoundtripMs`, and `observeMs` enforce trace, inspect, benchmark, fixture,
+  and observability workflow budgets; and effective `baseUri` values project relative
+  report input and diagnostic URIs.
   Root-scope default and named namespace bindings seed schema validation's
   document-root namespace context. Recognized CEM-ML root-scope version pins resolve
   against the embedded document-format version. Input root-scope module maps provide
@@ -147,8 +148,9 @@ Current implementation status:
   policy/budget fields for scheduled worker policy, `parseMs` for parser-backed
   wall-clock enforcement, `validateMs` / `checkMs` for scheduled per-input document
   work budgets, `convertMs` for input/output-scope convert work budgets, and
-  `traceMs` / `inspectMs` / `benchMs` / `fixtureValidateMs` / `fixtureRoundtripMs` for
-  trace, inspect, benchmark, and fixture workflow budgets.
+  `traceMs` / `inspectMs` / `benchMs` / `fixtureValidateMs` / `fixtureRoundtripMs` /
+  `observeMs` for trace, inspect, benchmark, fixture, and observability workflow
+  budgets.
   Effective `baseUri` values project relative report input and diagnostic URIs.
   Default and named namespace maps seed schema validation's root namespace context.
   Recognized CEM-ML version pins resolve through the document-format

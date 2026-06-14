@@ -2920,6 +2920,40 @@ mod tests {
     }
 
     #[test]
+    fn observe_events_input_spec_observe_ms_budget_is_reported() {
+        let p = write_fixture("observe-events-budget.cem", "{p | hi}");
+        let out_dir = std::env::temp_dir().join("cem-ml-cli-observe");
+        std::fs::create_dir_all(&out_dir).unwrap();
+        let out_path = out_dir.join("budget-events.jsonl");
+        let _ = std::fs::remove_file(&out_path);
+        let (outcome, _, stderr) = run(
+            &RealCemMlEngine::new(),
+            &[
+                "--observe-events",
+                out_path.to_str().unwrap(),
+                "validate",
+                "--format",
+                "json",
+                "--input-spec",
+                &format!("uri={},budgets=observeMs:0", p.display()),
+            ],
+        );
+        assert_eq!(outcome.exit_code, EXIT_OK, "{stderr}");
+        let body = std::fs::read_to_string(&out_path).unwrap();
+        assert!(
+            body.lines().any(|line| {
+                line.contains(r#""channel":"validate""#)
+                    && line.contains(r#""code":"cem.scope.budget_exceeded""#)
+            }),
+            "observeMs budget should emit a validate event: {body}"
+        );
+        assert!(
+            !body.contains("cem.scope.budget_unenforced"),
+            "observeMs should be recognized as enforced: {body}"
+        );
+    }
+
+    #[test]
     fn observe_events_uses_config_inputs() {
         let p = write_fixture("observe-events-config.html", "<button>Go</button>");
         let config_path = std::env::temp_dir().join("cem-ml-cli-tests/observe-events-config.json");
@@ -3107,7 +3141,12 @@ fn emit_observability_events(
         };
         let loaded = registry.load(&input, &context);
         let observer = cem_ml::observability::BufferingObserver::new();
-        let _ = cem_ml::real::observe_pipeline(&loaded.bytes, loaded.from_format, &observer);
+        let _ = cem_ml::real::observe_pipeline_scoped(
+            &loaded.bytes,
+            loaded.from_format,
+            &input.root_scope,
+            &observer,
+        );
         all_events.extend(observer.drain());
     }
 

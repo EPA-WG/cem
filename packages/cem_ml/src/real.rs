@@ -40,7 +40,8 @@ impl RealCemMlEngine {
 
 /// Aggregate every layer's diagnostics for an input through the
 /// pipeline. Used by every parser-backed request, and by the public
-/// observability entry point [`observe_pipeline`].
+/// observability entry points [`observe_pipeline`] and
+/// [`observe_pipeline_scoped`].
 pub struct PipelineRun {
     pub document: CemDocument,
     pub diagnostics: Vec<Diagnostic>,
@@ -541,7 +542,8 @@ fn root_scope_budget_diagnostics(
             | "checktimebudgetms" | "convertms" | "converttimebudgetms" | "tracems"
             | "tracetimebudgetms" | "inspectms" | "inspecttimebudgetms" | "benchms"
             | "benchtimebudgetms" | "fixturevalidatems" | "fixturevalidatetimebudgetms"
-            | "fixtureroundtripms" | "fixtureroundtriptimebudgetms" => {
+            | "fixtureroundtripms" | "fixtureroundtriptimebudgetms" | "observems"
+            | "observetimebudgetms" => {
                 if let Err(message) = parse_u64_budget(field, value) {
                     diagnostics.push(scope_policy_diagnostic(
                         uri,
@@ -656,7 +658,7 @@ fn apply_scope_scheduler_fields(
             | "tracems" | "tracetimebudgetms" | "inspectms" | "inspecttimebudgetms"
             | "benchms" | "benchtimebudgetms" | "fixturevalidatems"
             | "fixturevalidatetimebudgetms" | "fixtureroundtripms"
-            | "fixtureroundtriptimebudgetms" => {
+            | "fixtureroundtriptimebudgetms" | "observems" | "observetimebudgetms" => {
                 if let Err(message) = parse_u64_budget(field, value) {
                     diagnostics.push(scope_policy_diagnostic(
                         uri,
@@ -839,10 +841,32 @@ pub fn observe_pipeline(
     from_format: InputFormat,
     observer: &dyn crate::observability::EngineObserver,
 ) -> PipelineRun {
+    observe_pipeline_with_scope(bytes, from_format, None, observer)
+}
+
+/// Run the observable Tier A pipeline while applying root-scope
+/// configuration to parser-backed validation and observability workflow
+/// budget diagnostics.
+pub fn observe_pipeline_scoped(
+    bytes: &[u8],
+    from_format: InputFormat,
+    root_scope: &ScopeConfig,
+    observer: &dyn crate::observability::EngineObserver,
+) -> PipelineRun {
+    observe_pipeline_with_scope(bytes, from_format, Some(root_scope), observer)
+}
+
+fn observe_pipeline_with_scope(
+    bytes: &[u8],
+    from_format: InputFormat,
+    root_scope: Option<&ScopeConfig>,
+    observer: &dyn crate::observability::EngineObserver,
+) -> PipelineRun {
     use crate::events::{EventNormalizer, NormalizedEvent, ScalarValue};
     use crate::observability::{EventEmitter, EventSequencer, ParseEventKind};
     use crate::source_map::TransformKind;
 
+    let started_at = Instant::now();
     let mut sequencer = EventSequencer::new();
     let mut emit = EventEmitter::new(observer, &mut sequencer);
 
@@ -904,9 +928,23 @@ pub fn observe_pipeline(
         None,
     );
 
-    let run = run_pipeline_as(bytes, from_format);
+    let mut run = match root_scope {
+        Some(root_scope) => run_pipeline_as_scoped(bytes, from_format, root_scope),
+        None => run_pipeline_as(bytes, from_format),
+    };
 
     emit.transform(TransformKind::CemAstBuilder, "AST built", None, None);
+
+    let mut budget_diags = root_scope
+        .map(|root_scope| {
+            time_budget_diagnostics(
+                root_scope,
+                &["observems", "observetimebudgetms"],
+                started_at.elapsed().as_nanos(),
+            )
+        })
+        .unwrap_or_default();
+    run.diagnostics.append(&mut budget_diags);
 
     // Validate channel — every accumulated diagnostic, plus the
     // normalizer's own diagnostics we collected above (they are also
@@ -1798,6 +1836,27 @@ mod tests {
             .diagnostics
             .iter()
             .any(|diag| diag.code == "cem.scope.budget_exceeded"));
+    }
+
+    #[test]
+    fn observe_pipeline_enforces_root_scope_observe_ms_budget() {
+        let mut root_scope = ScopeConfig::default();
+        root_scope
+            .budgets
+            .insert("observeMs".to_owned(), "0".to_owned());
+        let observer = crate::observability::BufferingObserver::new();
+
+        let run = observe_pipeline_scoped(b"{p Hi}", InputFormat::Cem, &root_scope, &observer);
+        assert!(run.diagnostics.iter().any(|diag| {
+            diag.code == "cem.scope.budget_exceeded" && diag.severity == Severity::Error
+        }));
+
+        let events = observer.drain();
+        assert!(events.iter().any(|event| {
+            event.validate.as_ref().is_some_and(|validate| {
+                validate.code == "cem.scope.budget_exceeded" && validate.severity == "error"
+            })
+        }));
     }
 
     #[test]
