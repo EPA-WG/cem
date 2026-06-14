@@ -117,8 +117,9 @@ the immediate CLI lifecycle contract.
    module-map paths against the config document path. Config-file output destinations
    normalize relative paths against the config document path, including local
    `file://` config documents. Configured and positional input reads resolve local
-   `file://` URIs, and primary output writes resolve local `file://` destinations to
-   filesystem paths. Run-config normalization validates root-scope module-map,
+   `file://` URIs, and primary output, side-report, and observability event writes
+   resolve local `file://` destinations to filesystem paths. Run-config normalization
+   validates root-scope module-map,
    namespace, and version-pin option shape before document parsing, while unreadable or
    malformed module maps, unknown budget keys, unsupported version-pin targets, and
    unsupported remaining budget hooks emit deterministic execution diagnostics instead

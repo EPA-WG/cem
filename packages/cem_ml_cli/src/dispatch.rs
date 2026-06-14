@@ -926,22 +926,24 @@ fn write_report_files(
     basename: &str,
 ) -> io::Result<()> {
     if let Some(p) = &report_opts.report_json {
-        let target = resolve_report_target(p, basename, "json");
+        let raw_target = resolve_report_target(p, basename, "json");
+        let target = local_file_uri_path(&raw_target, "report destination")?;
         if let Some(parent) = target.parent() {
             if !parent.as_os_str().is_empty() {
                 fs::create_dir_all(parent)?;
             }
         }
-        fs::write(&target, serde_json::to_string_pretty(report)?)?;
+        fs::write(target.as_ref(), serde_json::to_string_pretty(report)?)?;
     }
     if let Some(p) = &report_opts.report_md {
-        let target = resolve_report_target(p, basename, "md");
+        let raw_target = resolve_report_target(p, basename, "md");
+        let target = local_file_uri_path(&raw_target, "report destination")?;
         if let Some(parent) = target.parent() {
             if !parent.as_os_str().is_empty() {
                 fs::create_dir_all(parent)?;
             }
         }
-        fs::write(&target, render_report_markdown(report))?;
+        fs::write(target.as_ref(), render_report_markdown(report))?;
     }
     Ok(())
 }
@@ -1416,13 +1418,14 @@ pub fn run_bench<E: CemMlEngine + ?Sized>(
             }
             if let Some(p) = &args.report.report_json {
                 if let Err(e) = (|| -> io::Result<()> {
-                    let target = resolve_report_target(p, REPORT_BASENAME_BENCH, "json");
+                    let raw_target = resolve_report_target(p, REPORT_BASENAME_BENCH, "json");
+                    let target = local_file_uri_path(&raw_target, "report destination")?;
                     if let Some(parent) = target.parent() {
                         if !parent.as_os_str().is_empty() {
                             fs::create_dir_all(parent)?;
                         }
                     }
-                    fs::write(&target, serde_json::to_string_pretty(&resp.body)?)
+                    fs::write(target.as_ref(), serde_json::to_string_pretty(&resp.body)?)
                 })() {
                     let _ = writeln!(s.stderr, "cem-ml: benchmark report write failure: {e}");
                     return Outcome::code(EXIT_IO);
@@ -3111,6 +3114,29 @@ mod tests {
     }
 
     #[test]
+    fn bench_with_file_uri_dir_uses_bench_basename() {
+        let p = write_fixture("bench-file-uri-dir.cem", "{x}");
+        let dir = std::env::temp_dir().join("cem-ml-cli-tests/bench-file-uri-dir");
+        let _ = std::fs::remove_dir_all(&dir);
+        let (outcome, _, _) = run(
+            &FakeEngine,
+            &[
+                "bench",
+                "--format",
+                "json",
+                "--report-json",
+                &format!("file://{}", dir.display()),
+                p.to_str().unwrap(),
+            ],
+        );
+        assert_eq!(outcome.exit_code, EXIT_OK);
+        assert!(
+            dir.join("cem-ml.bench.report.json").is_file(),
+            "missing bench.report.json"
+        );
+    }
+
+    #[test]
     fn report_explicit_file_path_overrides_basename() {
         let p = write_fixture("validate-explicit.cem", "{x}");
         let json_path = std::env::temp_dir().join("cem-ml-cli-tests/custom-name.json");
@@ -3126,6 +3152,27 @@ mod tests {
         );
         assert_eq!(outcome.exit_code, EXIT_OK);
         assert!(json_path.is_file(), "explicit filename should be honored");
+    }
+
+    #[test]
+    fn report_explicit_file_uri_path_writes_local_report() {
+        let p = write_fixture("validate-explicit-file-uri.cem", "{x}");
+        let json_path = std::env::temp_dir().join("cem-ml-cli-tests/custom-file-uri-name.json");
+        let _ = std::fs::remove_file(&json_path);
+        let (outcome, _, _) = run(
+            &FakeEngine,
+            &[
+                "validate",
+                "--report-json",
+                &format!("file://{}", json_path.display()),
+                p.to_str().unwrap(),
+            ],
+        );
+        assert_eq!(outcome.exit_code, EXIT_OK);
+        assert!(
+            json_path.is_file(),
+            "file URI report path should be honored"
+        );
     }
 
     #[test]
@@ -3165,6 +3212,28 @@ mod tests {
         // and emits at least one parse event for the `{p}` open.
         assert!(channels.contains("parse"));
         assert!(channels.contains("transform"));
+    }
+
+    #[test]
+    fn observe_events_file_uri_writes_jsonl_event_stream() {
+        let p = write_fixture("observe-events-file-uri.cem", "{p | hi}");
+        let out_dir = std::env::temp_dir().join("cem-ml-cli-observe-file-uri");
+        std::fs::create_dir_all(&out_dir).unwrap();
+        let out_path = out_dir.join("events.jsonl");
+        let _ = std::fs::remove_file(&out_path);
+        let (outcome, _, _) = run(
+            &FakeEngine,
+            &[
+                "--observe-events",
+                &format!("file://{}", out_path.display()),
+                "parse",
+                p.to_str().unwrap(),
+            ],
+        );
+        assert_eq!(outcome.exit_code, EXIT_OK);
+        assert!(out_path.is_file(), "observe-events should create the file");
+        let body = std::fs::read_to_string(&out_path).unwrap();
+        assert!(!body.is_empty(), "event stream must not be empty");
     }
 
     #[test]
@@ -3452,12 +3521,13 @@ fn emit_observability_events(
         s.stdout.write_all(jsonl.as_bytes())?;
         s.stdout.flush()?;
     } else {
+        let target = local_file_uri_path(target, "observability event destination")?;
         if let Some(parent) = target.parent() {
             if !parent.as_os_str().is_empty() {
                 fs::create_dir_all(parent)?;
             }
         }
-        fs::write(target, jsonl.as_bytes())?;
+        fs::write(target.as_ref(), jsonl.as_bytes())?;
     }
     Ok(())
 }
