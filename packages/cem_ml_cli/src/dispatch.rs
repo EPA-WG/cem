@@ -3778,6 +3778,26 @@ mod tests {
     }
 
     #[test]
+    fn inspect_remote_uri_out_destination_is_rejected_without_resolver() {
+        let p = write_fixture("inspect-remote-out.cem", "{x}");
+        let (outcome, stdout, stderr) = run(
+            &FakeEngine,
+            &[
+                "inspect",
+                "--out",
+                "https://example.test/inspect.json",
+                p.to_str().unwrap(),
+            ],
+        );
+
+        assert_eq!(outcome.exit_code, EXIT_IO);
+        assert!(stdout.trim().is_empty());
+        assert!(stderr.contains("write failure"));
+        assert!(stderr.contains("remote/custom URI resolvers are not implemented"));
+        assert!(stderr.contains("https://example.test/inspect.json"));
+    }
+
+    #[test]
     fn inspect_input_spec_inspect_ms_budget_is_reported() {
         let p = write_fixture("inspect-budget.cem", "{p Hi}");
         let (outcome, stdout, stderr) = run(
@@ -3837,6 +3857,26 @@ mod tests {
         assert_eq!(v["scheduler"]["policy"]["cpuWorkers"], 3);
         assert_eq!(v["scheduler"]["policy"]["queueSize"], 12);
         assert_eq!(v["scheduler"]["policy"]["pluginTimeBudgetMs"], 7);
+    }
+
+    #[test]
+    fn trace_remote_uri_out_destination_is_rejected_without_resolver() {
+        let p = write_fixture("trace-remote-out.cem", "{x}");
+        let (outcome, stdout, stderr) = run(
+            &FakeEngine,
+            &[
+                "trace",
+                "--out",
+                "https://example.test/trace.json",
+                p.to_str().unwrap(),
+            ],
+        );
+
+        assert_eq!(outcome.exit_code, EXIT_IO);
+        assert!(stdout.trim().is_empty());
+        assert!(stderr.contains("write failure"));
+        assert!(stderr.contains("remote/custom URI resolvers are not implemented"));
+        assert!(stderr.contains("https://example.test/trace.json"));
     }
 
     #[test]
