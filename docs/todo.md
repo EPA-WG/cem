@@ -46,12 +46,13 @@ for the current architecture have landed; only deferred capability work remains 
       parser-backed pipeline wall-clock budget; and effective `baseUri` values now project relative report input and
       diagnostic URIs. Root-scope default and named namespace bindings now seed schema validation's document-root
       namespace context, and recognized CEM-ML root-scope version pins now resolve against the embedded document-format
-      version. Input root-scope module maps now provide the resolver base for relative schema `src` identities.
-      Run-config normalization now validates root-scope module-map, namespace, and version-pin option shape before
-      document parsing, while unknown budget keys, unsupported version-pin targets, and unsupported remaining budget
-      hooks emit deterministic execution diagnostics instead of being silently ignored.
-      Keep this item open until full module-map loading/output resolver semantics and those remaining budget hooks drive
-      their real runtime behavior, not just preservation and diagnostics.
+      version. Input root-scope module maps now provide the resolver base for relative schema `src` identities and load
+      local JSON alias maps for schema-source specifier resolution. Run-config normalization now validates root-scope
+      module-map, namespace, and version-pin option shape before document parsing, while unreadable or malformed module
+      maps, unknown budget keys, unsupported version-pin targets, and unsupported remaining budget hooks emit
+      deterministic execution diagnostics instead of being silently ignored.
+      Keep this item open until remote/custom module-map resolver semantics, output resolver semantics, and those
+      remaining budget hooks drive their real runtime behavior, not just preservation and diagnostics.
 - [x] **Immediate goal: XSLT 1.0 lifecycle adapter.** Move the existing legacy custom-element XSLT 1.0 lowering
       (`cem_ml::legacy_custom_element`) behind the lifecycle adapter registry instead of the current one-off
       `convert --content-type custom-element-xslt` branch. `cem-ml validate --content-type custom-element-xslt <input>`

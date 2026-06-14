@@ -123,12 +123,13 @@ Current implementation status:
   bindings seed schema validation's document-root namespace context. Recognized CEM-ML
   root-scope version pins resolve against the embedded document-format version. Input
   root-scope module maps provide the resolver base for relative schema `src`
-  identities. Run-config normalization validates root-scope module-map, namespace, and
-  version-pin option shape before document parsing, while unknown budget keys,
-  unsupported version-pin targets, and unsupported remaining budget hooks emit
-  deterministic execution diagnostics instead of being silently ignored. Full
-  module-map loading/output resolver semantics and those remaining budget hooks remain
-  pending.
+  identities and load local JSON alias maps for schema-source specifier resolution.
+  Run-config normalization validates root-scope module-map, namespace, and version-pin
+  option shape before document parsing, while unreadable or malformed module maps,
+  unknown budget keys, unsupported version-pin targets, and unsupported remaining
+  budget hooks emit deterministic execution diagnostics instead of being silently
+  ignored. Remote/custom module-map resolver semantics, output resolver semantics, and
+  those remaining budget hooks remain pending.
 - `--schema` and `--content-type` are carried in `EngineContext` and emitted in reports.
   `cem_ml::lifecycle::LifecycleRegistry` now owns built-in input content-type dispatch
   for parser-backed commands (`parse`, `validate`, `check`, `inspect`, `convert`,
@@ -141,9 +142,9 @@ Current implementation status:
   wall-clock enforcement. Effective `baseUri` values project relative report input and
   diagnostic URIs. Default and named namespace maps seed schema validation's root
   namespace context. Recognized CEM-ML version pins resolve through the document-format
-  version resolver. Input module maps resolve relative schema-source identities; full
-  module-map loading/output resolver semantics and unsupported remaining budget hooks
-  remain planned requirements.
+  version resolver. Input module maps resolve relative schema-source identities and
+  local JSON aliases; remote/custom module-map resolver semantics, output resolver
+  semantics, and unsupported remaining budget hooks remain planned requirements.
 - `validate` / `check` / `convert` route `custom-element-xslt` input through the first
   shared lifecycle adapter path, lowering legacy custom-element XSLT to canonical
   CEM-ML through `cem_ml::legacy_custom_element`; `convert --content-type

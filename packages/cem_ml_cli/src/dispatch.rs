@@ -1782,6 +1782,41 @@ mod tests {
     }
 
     #[test]
+    fn input_spec_module_map_json_is_loaded() {
+        let p = write_fixture(
+            "validate-input-spec-module-map.cem",
+            r#"@schema src="ui/button"
+{p Hi}"#,
+        );
+        let module_map = write_fixture(
+            "validate-input-spec-cem.modules.json",
+            r#"{"schemas":{"ui/button":"./schemas/button.schema"}}"#,
+        );
+        let (outcome, stdout, stderr) = run(
+            &RealCemMlEngine::new(),
+            &[
+                "validate",
+                "--format",
+                "json",
+                "--input-spec",
+                &format!("uri={},moduleMap={}", p.display(), module_map.display()),
+            ],
+        );
+        assert_eq!(outcome.exit_code, EXIT_OK, "{stderr}");
+        let v: serde_json::Value = serde_json::from_str(stdout.trim()).unwrap();
+        let diagnostics = v["diagnostics"].as_array().unwrap();
+        assert!(!diagnostics
+            .iter()
+            .any(|diag| diag["code"] == "cem.scope.module_map_unreadable"));
+        assert!(!diagnostics
+            .iter()
+            .any(|diag| diag["code"] == "cem.scope.module_map_invalid"));
+        assert!(!diagnostics
+            .iter()
+            .any(|diag| diag["code"] == "cem.scope.module_map_unenforced"));
+    }
+
+    #[test]
     fn input_spec_version_pins_resolve_through_engine() {
         let p = write_fixture("validate-input-spec-version-pin.cem", r#"{p Hi}"#);
         let (outcome, stdout, stderr) = run(

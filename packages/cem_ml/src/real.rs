@@ -26,6 +26,7 @@ use crate::tokenizer::xml::XmlTokenizer;
 use crate::tokenizer::SchemaTokenizer;
 use crate::validation::{RuleContext, RuleRegistry};
 use serde_json::{json, Value};
+use std::collections::BTreeMap;
 use std::time::Instant;
 
 #[derive(Debug, Default, Clone)]
@@ -70,6 +71,9 @@ where
     T: SchemaTokenizer + FromBytes,
 {
     let started_at = Instant::now();
+    let (module_map_entries, module_map_diagnostics) = root_scope
+        .map(load_root_module_map)
+        .unwrap_or_else(|| (BTreeMap::new(), Vec::new()));
     // Schema-machine pass.
     let schema_outcome = {
         let src = BytesSource::new(SourceId(1), bytes.to_vec());
@@ -81,7 +85,10 @@ where
                 root_scope.default_namespace.as_deref(),
                 &root_scope.namespaces,
             );
-            machine = machine.with_root_module_map(root_scope.module_map.as_deref());
+            machine = machine.with_root_module_map_entries(
+                root_scope.module_map.as_deref(),
+                &module_map_entries,
+            );
         }
         machine.run()
     };
@@ -100,6 +107,7 @@ where
         doc
     };
     document.diagnostics.extend(schema_outcome.diagnostics);
+    document.diagnostics.extend(module_map_diagnostics);
 
     // Validation rule registry.
     let registry = RuleRegistry::with_tier_a_rules();
@@ -366,6 +374,108 @@ fn parse_u64_budget(field: &str, value: &str) -> Result<u64, String> {
     value
         .parse::<u64>()
         .map_err(|_| format!("budget `{field}` expects an unsigned integer, got `{value}`"))
+}
+
+fn load_root_module_map(scope: &ScopeConfig) -> (BTreeMap<String, String>, Vec<Diagnostic>) {
+    let Some(module_map) = scope.module_map.as_deref().map(str::trim) else {
+        return (BTreeMap::new(), Vec::new());
+    };
+    if module_map.is_empty() {
+        return (BTreeMap::new(), Vec::new());
+    }
+    let bytes = match std::fs::read(module_map) {
+        Ok(bytes) => bytes,
+        Err(error) => {
+            return (
+                BTreeMap::new(),
+                vec![Diagnostic {
+                    code: "cem.scope.module_map_unreadable".to_owned(),
+                    severity: Severity::Warning,
+                    message: format!(
+                        "root-scope moduleMap `{module_map}` could not be read: {error}"
+                    ),
+                    ..Diagnostic::default()
+                }],
+            );
+        }
+    };
+    let value = match serde_json::from_slice::<Value>(&bytes) {
+        Ok(value) => value,
+        Err(error) => {
+            return (
+                BTreeMap::new(),
+                vec![Diagnostic {
+                    code: "cem.scope.module_map_invalid".to_owned(),
+                    severity: Severity::Warning,
+                    message: format!(
+                        "root-scope moduleMap `{module_map}` is not valid JSON: {error}"
+                    ),
+                    ..Diagnostic::default()
+                }],
+            );
+        }
+    };
+    match module_map_aliases(&value) {
+        Ok(entries) => (entries, Vec::new()),
+        Err(message) => (
+            BTreeMap::new(),
+            vec![Diagnostic {
+                code: "cem.scope.module_map_invalid".to_owned(),
+                severity: Severity::Warning,
+                message: format!("root-scope moduleMap `{module_map}` is invalid: {message}"),
+                ..Diagnostic::default()
+            }],
+        ),
+    }
+}
+
+fn module_map_aliases(value: &Value) -> Result<BTreeMap<String, String>, String> {
+    let Some(object) = value.as_object() else {
+        return Err("expected a JSON object".to_owned());
+    };
+    let mut aliases = BTreeMap::new();
+    collect_module_map_aliases(object, &mut aliases)?;
+    Ok(aliases)
+}
+
+fn collect_module_map_aliases(
+    object: &serde_json::Map<String, Value>,
+    aliases: &mut BTreeMap<String, String>,
+) -> Result<(), String> {
+    for (key, value) in object {
+        match key.as_str() {
+            "imports" | "schemas" | "modules" => {
+                let Some(nested) = value.as_object() else {
+                    return Err(format!("`{key}` must be a JSON object"));
+                };
+                collect_module_map_aliases(nested, aliases)?;
+            }
+            _ => {
+                if let Some(target) = module_map_entry_target(key, value)? {
+                    aliases.insert(key.clone(), target);
+                }
+            }
+        }
+    }
+    Ok(())
+}
+
+fn module_map_entry_target(key: &str, value: &Value) -> Result<Option<String>, String> {
+    if let Some(target) = value.as_str() {
+        return Ok(Some(target.to_owned()));
+    }
+    let Some(object) = value.as_object() else {
+        return Ok(None);
+    };
+    for field in ["uri", "src", "path"] {
+        if let Some(target) = object.get(field) {
+            let Some(target) = target.as_str() else {
+                return Err(format!("moduleMap entry `{key}.{field}` must be a string"));
+            };
+            return Ok(Some(target.to_owned()));
+        }
+    }
+    Ok(None)
 }
 
 fn parse_ms_budget(scope: &ScopeConfig) -> Option<(&str, Result<u64, String>)> {
@@ -1343,6 +1453,56 @@ mod tests {
             .diagnostics
             .iter()
             .any(|diag| diag.code == "cem.scope.budget_invalid"));
+    }
+
+    #[test]
+    fn root_module_map_json_loads_flat_and_nested_aliases() {
+        let value = json!({
+            "ui/button": "./schemas/button.schema",
+            "schemas": {
+                "ui/card": {
+                    "src": "./schemas/card.schema"
+                }
+            },
+            "imports": {
+                "ui/list": "./schemas/list.schema"
+            }
+        });
+
+        let aliases = module_map_aliases(&value).unwrap();
+        assert_eq!(
+            aliases.get("ui/button").map(String::as_str),
+            Some("./schemas/button.schema")
+        );
+        assert_eq!(
+            aliases.get("ui/card").map(String::as_str),
+            Some("./schemas/card.schema")
+        );
+        assert_eq!(
+            aliases.get("ui/list").map(String::as_str),
+            Some("./schemas/list.schema")
+        );
+    }
+
+    #[test]
+    fn root_module_map_loader_reports_invalid_json() {
+        let path = std::env::temp_dir().join(format!(
+            "cem-ml-invalid-module-map-{}.json",
+            std::process::id()
+        ));
+        std::fs::write(&path, "{").unwrap();
+        let scope = ScopeConfig {
+            module_map: Some(path.to_string_lossy().into_owned()),
+            ..ScopeConfig::default()
+        };
+
+        let (entries, diagnostics) = load_root_module_map(&scope);
+        let _ = std::fs::remove_file(path);
+
+        assert!(entries.is_empty());
+        assert!(diagnostics
+            .iter()
+            .any(|diag| diag.code == "cem.scope.module_map_invalid"));
     }
 
     #[test]

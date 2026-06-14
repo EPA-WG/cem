@@ -88,6 +88,10 @@ pub struct CemSchemaMachine<E: EventNormalizer> {
     /// schema `src` values resolve against this base before being recorded
     /// as active schema sources.
     schema_source_base: Option<String>,
+    /// Alias entries loaded from the root-scope module map. Keys are schema
+    /// specifiers, values are URI/path identities resolved before base-path
+    /// fallback.
+    schema_source_aliases: BTreeMap<String, String>,
     finished: bool,
 }
 
@@ -175,6 +179,7 @@ impl<E: EventNormalizer> CemSchemaMachine<E> {
             xslt_region_open_depth: None,
             pending_xslt_version: None,
             schema_source_base: None,
+            schema_source_aliases: BTreeMap::new(),
             finished: false,
         }
     }
@@ -197,12 +202,21 @@ impl<E: EventNormalizer> CemSchemaMachine<E> {
         self
     }
 
-    /// Register the root-scope module map as the resolver identity for
-    /// relative schema `src` values. The map file itself is not loaded by
-    /// Tier A yet; its containing directory/base URI is enough to make
-    /// subsequent schema-source identities deterministic.
+    /// Register the root-scope module map path as the resolver identity for
+    /// relative schema `src` values. Callers that already loaded aliases
+    /// should use [`Self::with_root_module_map_entries`].
     pub fn with_root_module_map(mut self, module_map: Option<&str>) -> Self {
         self.schema_source_base = module_map.and_then(module_map_schema_base);
+        self
+    }
+
+    pub fn with_root_module_map_entries(
+        mut self,
+        module_map: Option<&str>,
+        entries: &BTreeMap<String, String>,
+    ) -> Self {
+        self.schema_source_base = module_map.and_then(module_map_schema_base);
+        self.schema_source_aliases = entries.clone();
         self
     }
 
@@ -266,17 +280,25 @@ impl<E: EventNormalizer> CemSchemaMachine<E> {
 
     fn resolve_schema_uri(&self, uri: String) -> String {
         let trimmed = uri.trim();
+        if let Some(mapped) = self.schema_source_aliases.get(trimmed) {
+            return self.resolve_schema_uri_literal(mapped);
+        }
+        self.resolve_schema_uri_literal(&uri)
+    }
+
+    fn resolve_schema_uri_literal(&self, uri: &str) -> String {
+        let trimmed = uri.trim();
         if trimmed.is_empty()
             || has_uri_scheme(trimmed)
             || std::path::Path::new(trimmed).is_absolute()
         {
-            return uri;
+            return uri.to_owned();
         }
         let Some(base) = self.schema_source_base.as_deref() else {
-            return uri;
+            return uri.to_owned();
         };
         if base.is_empty() {
-            return uri;
+            return uri.to_owned();
         }
         let relative = trimmed.trim_start_matches("./");
         if base.ends_with('/') {
@@ -1863,6 +1885,32 @@ mod tests {
         assert!(
             saw_resolved_uri,
             "relative @schema src should resolve against the root module-map directory"
+        );
+    }
+
+    #[test]
+    fn root_module_map_entries_resolve_schema_aliases() {
+        let input = r#"@schema src="ui/button"
+{section | body}"#;
+        let src = BytesSource::new(SourceId(1), input.as_bytes().to_vec());
+        let tok = CemTokenizer::from_source(src);
+        let normalizer = CemEventNormalizer::new(tok);
+        let mut entries = BTreeMap::new();
+        entries.insert("ui/button".to_owned(), "./schemas/button.schema".to_owned());
+        let mut saw_resolved_uri = false;
+        CemSchemaMachine::new(CompiledSchema::cem_core(), normalizer)
+            .with_root_module_map_entries(Some("maps/cem.modules.json"), &entries)
+            .run_with_observer(|m| {
+                if matches!(
+                    m.schema_scopes().current().active,
+                    SchemaSource::Uri(ref u) if u == "maps/schemas/button.schema"
+                ) {
+                    saw_resolved_uri = true;
+                }
+            });
+        assert!(
+            saw_resolved_uri,
+            "moduleMap aliases should resolve before module-map base fallback"
         );
     }
 
