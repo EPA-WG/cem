@@ -336,6 +336,7 @@ fn to_engine_input_format(f: cli::InputFormat) -> eng::InputFormat {
 fn to_engine_layer_format(f: cli::LayerFormat) -> eng::LayerFormat {
     match f {
         cli::LayerFormat::Cem => eng::LayerFormat::Cem,
+        cli::LayerFormat::Html => eng::LayerFormat::Html,
         cli::LayerFormat::DomJson => eng::LayerFormat::DomJson,
         cli::LayerFormat::Ast => eng::LayerFormat::Ast,
         cli::LayerFormat::Events => eng::LayerFormat::Events,
@@ -2713,6 +2714,37 @@ mod tests {
         assert_eq!(v["target"]["contentType"], "application/cem+xml");
         assert_eq!(v["target"]["schema"], "https://cem.dev/ns/core/1");
         assert_eq!(v["target"]["baseUri"], "file:///tmp/");
+    }
+
+    #[test]
+    fn convert_to_format_html_renders_light_dom_html() {
+        let p = write_fixture("convert-html.cem", "@doc cem-ml 1\n{p | Hi}");
+        let (outcome, stdout, stderr) = run(
+            &RealCemMlEngine::new(),
+            &["convert", "--to-format", "html", p.to_str().unwrap()],
+        );
+        assert_eq!(outcome.exit_code, EXIT_OK, "{stderr}");
+        let v: serde_json::Value = serde_json::from_str(stdout.trim()).unwrap();
+        assert_eq!(v["kind"], "html");
+        assert_eq!(v["content"], "<p>Hi</p>");
+    }
+
+    #[test]
+    fn convert_to_content_type_html_selects_html_export_adapter() {
+        let p = write_fixture("convert-target-html.cem", "@doc cem-ml 1\n{p | Hi}");
+        let (outcome, stdout, stderr) = run(
+            &RealCemMlEngine::new(),
+            &[
+                "convert",
+                "--to-content-type",
+                "text/html",
+                p.to_str().unwrap(),
+            ],
+        );
+        assert_eq!(outcome.exit_code, EXIT_OK, "{stderr}");
+        let v: serde_json::Value = serde_json::from_str(stdout.trim()).unwrap();
+        assert_eq!(v["kind"], "html");
+        assert_eq!(v["content"], "<p>Hi</p>");
     }
 
     #[test]

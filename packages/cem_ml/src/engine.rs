@@ -25,6 +25,7 @@ pub enum InputFormat {
 #[serde(rename_all = "kebab-case")]
 pub enum LayerFormat {
     Cem,
+    Html,
     DomJson,
     Ast,
     Events,

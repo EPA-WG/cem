@@ -240,6 +240,14 @@ impl LifecycleAdapter for HtmlAdapter {
     fn load(&self, input: &EngineInput, _: &FormatIdentity) -> LoadedInput {
         passthrough_load(input, InputFormat::Html, Some(self.id()))
     }
+
+    fn matches_target(&self, identity: &FormatIdentity) -> bool {
+        self.matches_input(identity)
+    }
+
+    fn target_format(&self) -> Option<LayerFormat> {
+        Some(LayerFormat::Html)
+    }
 }
 
 struct XmlAdapter;
@@ -352,6 +360,19 @@ mod tests {
             .select_export(Some(&target), LayerFormat::DomJson);
         assert_eq!(selected.to_format, LayerFormat::Cem);
         assert_eq!(selected.adapter_id, Some("cem-ml"));
+        assert!(selected.diagnostics.is_empty());
+    }
+
+    #[test]
+    fn html_target_content_type_selects_html_export() {
+        let target = FormatIdentity {
+            content_type: Some("text/html; charset=utf-8".to_owned()),
+            ..FormatIdentity::default()
+        };
+        let selected = LifecycleRegistry::with_builtin_adapters()
+            .select_export(Some(&target), LayerFormat::DomJson);
+        assert_eq!(selected.to_format, LayerFormat::Html);
+        assert_eq!(selected.adapter_id, Some("html"));
         assert!(selected.diagnostics.is_empty());
     }
 

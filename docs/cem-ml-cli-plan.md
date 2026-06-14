@@ -33,8 +33,8 @@ The first implementation target for this lifecycle is XSLT 1.0:
   one-off `convert` branch;
 - CLI validation can run the XSLT adapter directly, producing diagnostics for unsupported
   or malformed XSLT 1.0 constructs before export;
-- CLI conversion can load XSLT through the adapter and export canonical CEM-ML, DOM JSON,
-  AST, events, or later XML/HTML outputs through the same engine path.
+- CLI conversion can load XSLT through the adapter and export canonical CEM-ML, light-DOM HTML, DOM JSON, AST, events,
+  or later XML outputs through the same engine path.
 
 This goal is separate from the deferred XSLT 3.0/4.0 execution engine. It covers the
 XSLT 1.0 structural compatibility profile needed by copied custom-element templates and
@@ -358,7 +358,7 @@ These are data shapes only. Parser-filled content remains blocked until the pars
     - `--fail-level parse|validate|strict`
     - `--format text|html|json|xml|cem|markdown|dom-json|ast|events|tree`
     - `--from-format cem|html|xml`
-    - `--to-format cem|dom-json|ast|events`
+    - `--to-format cem|html|dom-json|ast|events`
     - `--show summary|ast|events|diagnostics|source-offsets|tree`
     - `--iterations <n>`
     - `--budget-ms <n>`
@@ -429,9 +429,11 @@ These are data shapes only. Parser-filled content remains blocked until the pars
     - Scope, schema-binding, plugin, and source-map views remain deferred.
 6. `cem-ml convert <input>`
     - Supported input formats: `cem`, `html`, `xml`.
-    - Supported output formats: `dom-json`, `ast`, `events`.
-    - Schema-version conversion, rendered HTML/XML output, comment-preservation behavior, and source maps remain deferred
-      to the parser implementation.
+    - Supported output formats: `cem`, `html`, `dom-json`, `ast`, `events`.
+    - `--to-content-type application/cem+xml` selects canonical CEM-ML export, and `--to-content-type text/html`
+      selects light-DOM HTML export.
+    - Schema-version conversion, rendered XML output, comment-preservation behavior, and broader target adapters remain
+      deferred.
 7. `cem-ml trace <input>`
     - Supported structured formats: `json`, `xml`, `cem`.
     - Reference convenience formats: `text`, `html`.
@@ -443,7 +445,7 @@ These are data shapes only. Parser-filled content remains blocked until the pars
     - Benchmarking uses the engine boundary; parser performance work is deferred.
 9. `cem-ml fixture roundtrip [input...]`
     - Defaults to the canonical CEM-ML fixtures and HTML parity fixtures.
-    - Supports `--to-format cem|dom-json|ast|events`.
+    - Supports `--to-format cem|html|dom-json|ast|events`.
     - Transform/render snapshots remain deferred.
 
 ## Phase 7 - File I/O And Reports

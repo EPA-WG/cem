@@ -1280,6 +1280,27 @@ impl CemMlEngine for RealCemMlEngine {
                         })).collect::<Vec<_>>(),
                     })
                 }
+                LayerFormat::Html => {
+                    let rendered = LightDomInterpreter::new().render(&run.document);
+                    let output_spans = rendered
+                        .output_spans
+                        .iter()
+                        .map(|span| {
+                            json!({
+                                "outputRange": span.output_range,
+                                "origin": span.origin,
+                            })
+                        })
+                        .collect::<Vec<_>>();
+                    let source_map = rendered.source_map.clone();
+                    diagnostics.extend(rendered.diagnostics);
+                    json!({
+                        "kind": "html",
+                        "content": rendered.rendered,
+                        "sourceMap": source_map,
+                        "outputSpans": output_spans,
+                    })
+                }
                 LayerFormat::DomJson => projection::dom_json(&run.document),
                 LayerFormat::Ast => projection::ast_json(&run.document),
                 LayerFormat::Events => projection::events_json_as(&loaded.bytes, from_format),
@@ -2349,7 +2370,11 @@ mod tests {
             resp.primary["content"].as_str().unwrap(),
             "{cem:if @test=\"not (disabled)\" | {button | Go}}\n"
         );
-        assert!(resp.diagnostics.is_empty());
+        assert!(
+            resp.diagnostics.is_empty(),
+            "unexpected diagnostics: {:?}",
+            resp.diagnostics
+        );
     }
 
     #[test]
@@ -2369,7 +2394,56 @@ mod tests {
         let resp = RealCemMlEngine::new().convert(req).unwrap();
         assert_eq!(resp.primary["kind"], "cem");
         assert_eq!(resp.primary["content"], "{p Hi}\n");
-        assert!(resp.diagnostics.is_empty());
+        assert!(
+            resp.diagnostics.is_empty(),
+            "unexpected diagnostics: {:?}",
+            resp.diagnostics
+        );
+    }
+
+    #[test]
+    fn convert_html_layer_renders_light_dom_html() {
+        let req = ConvertRequest {
+            input: input(b"@doc cem-ml 1\n{p | Hi}", "in.cem"),
+            to_format: LayerFormat::Html,
+            preserve_source_offsets: false,
+            context: ctx(),
+            target: None,
+            target_scope: Default::default(),
+            scheduler_scope_id: 0,
+        };
+        let resp = RealCemMlEngine::new().convert(req).unwrap();
+        assert_eq!(resp.primary["kind"], "html");
+        assert_eq!(resp.primary["content"], "<p>Hi</p>");
+        assert!(
+            resp.diagnostics.is_empty(),
+            "unexpected diagnostics: {:?}",
+            resp.diagnostics
+        );
+    }
+
+    #[test]
+    fn convert_target_html_content_type_selects_html_export() {
+        let req = ConvertRequest {
+            input: input(b"@doc cem-ml 1\n{p | Hi}", "in.cem"),
+            to_format: LayerFormat::DomJson,
+            preserve_source_offsets: false,
+            context: ctx(),
+            target: Some(FormatIdentity {
+                content_type: Some("text/html".to_owned()),
+                ..FormatIdentity::default()
+            }),
+            target_scope: Default::default(),
+            scheduler_scope_id: 0,
+        };
+        let resp = RealCemMlEngine::new().convert(req).unwrap();
+        assert_eq!(resp.primary["kind"], "html");
+        assert_eq!(resp.primary["content"], "<p>Hi</p>");
+        assert!(
+            resp.diagnostics.is_empty(),
+            "unexpected diagnostics: {:?}",
+            resp.diagnostics
+        );
     }
 
     #[test]
