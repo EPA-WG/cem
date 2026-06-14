@@ -2059,6 +2059,45 @@ mod tests {
     }
 
     #[test]
+    fn root_scope_config_diagnostics_fail_before_document_parsing() {
+        let config_path = std::env::temp_dir().join("cem-ml-cli-tests/bad-root-scope.json");
+        std::fs::write(
+            &config_path,
+            serde_json::json!({
+                "inputs": [{
+                    "uri": "/definitely/not/read.cem",
+                    "rootScope": {
+                        "namespaces": { "xml": "urn:not-xml" },
+                        "moduleMap": ""
+                    }
+                }]
+            })
+            .to_string(),
+        )
+        .unwrap();
+
+        let (outcome, stdout, stderr) = run(
+            &RealCemMlEngine::new(),
+            &["validate", "--config", config_path.to_str().unwrap()],
+        );
+
+        assert_eq!(outcome.exit_code, EXIT_USAGE_OR_RESERVED);
+        assert!(stderr.contains("cem.run_config.scope_namespace_invalid"));
+        assert!(
+            !stderr.contains("I/O error"),
+            "root-scope diagnostics must fail before input files are read: {stderr}"
+        );
+        let report: serde_json::Value = serde_json::from_str(stdout.trim()).unwrap();
+        let diagnostics = report["diagnostics"].as_array().unwrap();
+        assert!(diagnostics
+            .iter()
+            .any(|diag| diag["code"] == "cem.run_config.scope_namespace_invalid"));
+        assert!(diagnostics
+            .iter()
+            .any(|diag| diag["code"] == "cem.run_config.scope_module_map_invalid"));
+    }
+
+    #[test]
     fn validate_without_positional_or_spec_is_usage_error() {
         let (outcome, _, stderr) = run(&FakeEngine, &["validate"]);
         assert_eq!(outcome.exit_code, EXIT_USAGE_OR_RESERVED);

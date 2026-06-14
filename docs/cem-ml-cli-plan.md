@@ -99,10 +99,12 @@ the immediate CLI lifecycle contract.
    returned by engine convert execution while preserving content-primary stdout/`--out`
    behavior. Full input and output root-scope config reaches engine requests.
    Recognized root-scope scheduler policy and budget fields derive the per-scope
-   worker policy for scheduled validate/check, trace, and convert execution, while
-   unknown budget keys, module-map, namespace, and version fields emit deterministic
-   execution diagnostics instead of being silently ignored. Real runtime behavior for
-   module maps, namespace/version semantics, and remaining budget hooks remains open.
+   worker policy for scheduled validate/check, trace, and convert execution. Run-config
+   normalization validates root-scope module-map, namespace, and version-pin option shape
+   before document parsing, while unknown budget keys and valid-but-not-yet-enforced
+   module-map/namespace/version fields emit deterministic execution diagnostics instead
+   of being silently ignored. Real runtime behavior for module maps, namespace/version
+   semantics, and remaining budget hooks remains open.
 7. Update CLI flags without breaking current debug workflows:
     - keep `--from-format` and `--to-format` as aliases for built-in identities;
     - keep `--content-type` as the input content type for `parse`, `validate`, `check`,
@@ -181,9 +183,9 @@ Critical constraints:
   shared across documents, but scope policy, diagnostics, source-map stacks, and resource
   budget accounting remain per document/root scope.
 - Config diagnostics happen before document parsing. Invalid config content type,
-  malformed JSON, unresolved module maps, bad namespace maps, missing input sources, or
-  output references to unknown inputs must fail as configuration diagnostics instead of
-  document-level validation noise.
+  malformed JSON, invalid module-map declarations, bad namespace maps, invalid version
+  pins, or output references to unknown inputs must fail as configuration diagnostics
+  instead of document-level validation noise.
 
 ## Explicit Scope
 

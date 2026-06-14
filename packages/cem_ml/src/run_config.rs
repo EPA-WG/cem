@@ -249,6 +249,13 @@ pub fn validate_run_config(config: &RunConfig, base_uri: Option<&str>) -> Vec<Di
                 base_uri,
             ));
         }
+        validate_scope_config(
+            &input.root_scope,
+            "input",
+            index,
+            base_uri,
+            &mut diagnostics,
+        );
     }
 
     for (index, output) in config.outputs.iter().enumerate() {
@@ -261,6 +268,13 @@ pub fn validate_run_config(config: &RunConfig, base_uri: Option<&str>) -> Vec<Di
                 ));
             }
         }
+        validate_scope_config(
+            &output.root_scope,
+            "output",
+            index,
+            base_uri,
+            &mut diagnostics,
+        );
     }
 
     diagnostics
@@ -278,9 +292,9 @@ fn apply_scope_field(
         "modulemap" => scope.module_map = Some(value),
         "baseuri" => scope.base_uri = Some(value),
         "policy" => scope.policy = Some(value),
-        "namespaces" | "ns" => scope.namespaces = parse_map_field(&value)?,
-        "versions" | "versionpins" => scope.version_pins = parse_map_field(&value)?,
-        "budgets" => scope.budgets = parse_map_field(&value)?,
+        "namespaces" | "ns" => scope.namespaces = parse_map_field("namespaces", &value)?,
+        "versions" | "versionpins" => scope.version_pins = parse_map_field("versionPins", &value)?,
+        "budgets" => scope.budgets = parse_map_field("budgets", &value)?,
         other => {
             return Err(parse_error(format!(
                 "unsupported spec field `{other}`; use config files for nested data"
@@ -334,7 +348,10 @@ fn split_key_value(field: &str) -> Result<Option<(String, String)>, SpecParseErr
     Ok(None)
 }
 
-fn parse_map_field(value: &str) -> Result<BTreeMap<String, String>, SpecParseError> {
+fn parse_map_field(
+    field_name: &str,
+    value: &str,
+) -> Result<BTreeMap<String, String>, SpecParseError> {
     let mut map = BTreeMap::new();
     if value.trim().is_empty() {
         return Ok(map);
@@ -343,10 +360,22 @@ fn parse_map_field(value: &str) -> Result<BTreeMap<String, String>, SpecParseErr
     for pair in split_escaped(value, '|')? {
         let Some((key, value)) = pair.split_once(':') else {
             return Err(parse_error(format!(
-                "map entry `{pair}` is missing `:` separator"
+                "{field_name} map entry `{pair}` is missing `:` separator"
             )));
         };
-        map.insert(key.trim().to_owned(), value.trim().to_owned());
+        let key = key.trim();
+        let value = value.trim();
+        if key.is_empty() {
+            return Err(parse_error(format!(
+                "{field_name} map entries require a non-empty key"
+            )));
+        }
+        if value.is_empty() {
+            return Err(parse_error(format!(
+                "{field_name} map entry `{key}` requires a non-empty value"
+            )));
+        }
+        map.insert(key.to_owned(), value.to_owned());
     }
 
     Ok(map)
@@ -440,6 +469,125 @@ fn config_diagnostic(code: &str, message: String, base_uri: Option<&str>) -> Dia
     }
 }
 
+fn validate_scope_config(
+    scope: &ScopeConfig,
+    direction: &str,
+    index: usize,
+    base_uri: Option<&str>,
+    diagnostics: &mut Vec<Diagnostic>,
+) {
+    if let Some(module_map) = scope.module_map.as_deref() {
+        if module_map.trim().is_empty() {
+            diagnostics.push(config_diagnostic(
+                "cem.run_config.scope_module_map_invalid",
+                format!("{direction} scope at index {index} has an empty moduleMap"),
+                base_uri,
+            ));
+        }
+    }
+
+    if let Some(default_namespace) = scope.default_namespace.as_deref() {
+        validate_namespace_uri(
+            "defaultNamespace",
+            default_namespace,
+            direction,
+            index,
+            base_uri,
+            diagnostics,
+        );
+    }
+
+    for (prefix, uri) in &scope.namespaces {
+        validate_namespace_prefix(prefix, direction, index, base_uri, diagnostics);
+        validate_namespace_uri(
+            &format!("namespaces.{prefix}"),
+            uri,
+            direction,
+            index,
+            base_uri,
+            diagnostics,
+        );
+        if prefix == "xml" && uri != "http://www.w3.org/XML/1998/namespace" {
+            diagnostics.push(config_diagnostic(
+                "cem.run_config.scope_namespace_invalid",
+                format!(
+                    "{direction} scope at index {index} binds reserved prefix `xml` to `{uri}`"
+                ),
+                base_uri,
+            ));
+        }
+        if prefix == "xmlns" {
+            diagnostics.push(config_diagnostic(
+                "cem.run_config.scope_namespace_invalid",
+                format!("{direction} scope at index {index} uses reserved prefix `xmlns`"),
+                base_uri,
+            ));
+        }
+    }
+
+    for (name, constraint) in &scope.version_pins {
+        if name.trim().is_empty() {
+            diagnostics.push(config_diagnostic(
+                "cem.run_config.scope_version_pin_invalid",
+                format!("{direction} scope at index {index} has an empty versionPins key"),
+                base_uri,
+            ));
+        }
+        if constraint.trim().is_empty() {
+            diagnostics.push(config_diagnostic(
+                "cem.run_config.scope_version_pin_invalid",
+                format!(
+                    "{direction} scope at index {index} has an empty versionPins value for `{name}`"
+                ),
+                base_uri,
+            ));
+        }
+    }
+}
+
+fn validate_namespace_prefix(
+    prefix: &str,
+    direction: &str,
+    index: usize,
+    base_uri: Option<&str>,
+    diagnostics: &mut Vec<Diagnostic>,
+) {
+    let valid = !prefix.trim().is_empty()
+        && !prefix.contains(':')
+        && !prefix.chars().any(char::is_whitespace)
+        && prefix
+            .chars()
+            .next()
+            .is_some_and(|ch| ch == '_' || ch.is_ascii_alphabetic())
+        && prefix
+            .chars()
+            .all(|ch| ch == '_' || ch == '-' || ch == '.' || ch.is_ascii_alphanumeric());
+    if !valid {
+        diagnostics.push(config_diagnostic(
+            "cem.run_config.scope_namespace_invalid",
+            format!("{direction} scope at index {index} has invalid namespace prefix `{prefix}`"),
+            base_uri,
+        ));
+    }
+}
+
+fn validate_namespace_uri(
+    field: &str,
+    uri: &str,
+    direction: &str,
+    index: usize,
+    base_uri: Option<&str>,
+    diagnostics: &mut Vec<Diagnostic>,
+) {
+    if uri.trim().is_empty() {
+        diagnostics.push(config_diagnostic(
+            "cem.run_config.scope_namespace_invalid",
+            format!("{direction} scope at index {index} has an empty {field} URI"),
+            base_uri,
+        ));
+    }
+}
+
 fn merge_scope_defaults(scope: &mut ScopeConfig, defaults: &ScopeConfig) {
     if scope.default_content_type.is_none() {
         scope.default_content_type = defaults.default_content_type.clone();
@@ -530,6 +678,15 @@ mod tests {
             spec.root_scope.default_content_type.as_deref(),
             Some("text/custom-element-xslt")
         );
+    }
+
+    #[test]
+    fn spec_record_rejects_empty_scope_map_entries() {
+        let error = parse_input_spec_record("uri=src/a.cem,namespaces=:urn:widgets").unwrap_err();
+
+        assert!(error
+            .message
+            .contains("namespaces map entries require a non-empty key"));
     }
 
     #[test]
@@ -690,6 +847,53 @@ mod tests {
             .diagnostics
             .iter()
             .any(|diag| diag.code == "cem.run_config.input_uri_duplicate"));
+    }
+
+    #[test]
+    fn run_config_validation_reports_invalid_scope_fields() {
+        let parsed = parse_run_config(RunConfigParseRequest {
+            bytes: br#"{
+                "inputs": [{
+                    "uri": "src/a.cem",
+                    "rootScope": {
+                        "defaultNamespace": "",
+                        "namespaces": {
+                            "1bad": "urn:widgets",
+                            "xml": "urn:not-xml"
+                        },
+                        "versionPins": {
+                            "core": ""
+                        },
+                        "moduleMap": ""
+                    }
+                }]
+            }"#
+            .to_vec(),
+            identity: FormatIdentity {
+                content_type: Some("application/json".to_owned()),
+                ..FormatIdentity::default()
+            },
+            base_uri: Some("file:///run-config.json".to_owned()),
+        })
+        .unwrap();
+        let response = normalize_run_config(
+            parsed.config,
+            RunConfigDefaults::default(),
+            Some("file:///run-config.json"),
+        );
+
+        let codes: Vec<_> = response
+            .diagnostics
+            .iter()
+            .map(|diag| diag.code.as_str())
+            .collect();
+        assert!(codes.contains(&"cem.run_config.scope_module_map_invalid"));
+        assert!(codes.contains(&"cem.run_config.scope_namespace_invalid"));
+        assert!(codes.contains(&"cem.run_config.scope_version_pin_invalid"));
+        assert!(response
+            .diagnostics
+            .iter()
+            .all(|diag| diag.uri.as_deref() == Some("file:///run-config.json")));
     }
 
     #[test]
