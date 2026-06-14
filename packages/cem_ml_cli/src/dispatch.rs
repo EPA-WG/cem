@@ -3918,6 +3918,48 @@ mod tests {
     }
 
     #[test]
+    fn validate_remote_uri_report_destination_is_rejected_without_resolver() {
+        let p = write_fixture("validate-remote-report-destination.cem", "{x}");
+        let (outcome, stdout, stderr) = run(
+            &FakeEngine,
+            &[
+                "validate",
+                "--report-json",
+                "https://example.test/report.json",
+                p.to_str().unwrap(),
+            ],
+        );
+
+        assert_eq!(outcome.exit_code, EXIT_IO);
+        assert!(stdout.trim().is_empty());
+        assert!(stderr.contains("report write failure"));
+        assert!(stderr.contains("remote/custom URI resolvers are not implemented"));
+        assert!(stderr.contains("https://example.test/report.json"));
+    }
+
+    #[test]
+    fn bench_remote_uri_report_destination_is_rejected_without_resolver() {
+        let p = write_fixture("bench-remote-report-destination.cem", "{x}");
+        let (outcome, stdout, stderr) = run(
+            &FakeEngine,
+            &[
+                "bench",
+                "--format",
+                "json",
+                "--report-json",
+                "https://example.test/bench.json",
+                p.to_str().unwrap(),
+            ],
+        );
+
+        assert_eq!(outcome.exit_code, EXIT_IO);
+        assert!(stdout.contains("\"kind\": \"fake-bench\""));
+        assert!(stderr.contains("benchmark report write failure"));
+        assert!(stderr.contains("remote/custom URI resolvers are not implemented"));
+        assert!(stderr.contains("https://example.test/bench.json"));
+    }
+
+    #[test]
     fn quiet_suppresses_stdout_for_validate() {
         let p = write_fixture("validate-quiet.cem", "{x}");
         let (outcome, stdout, _) = run(&FakeEngine, &["--quiet", "validate", p.to_str().unwrap()]);
