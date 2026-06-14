@@ -3979,6 +3979,26 @@ mod tests {
     }
 
     #[test]
+    fn observe_events_remote_uri_destination_is_rejected_without_resolver() {
+        let p = write_fixture("observe-events-remote-destination.cem", "{p | hi}");
+        let (outcome, stdout, stderr) = run(
+            &FakeEngine,
+            &[
+                "--observe-events",
+                "https://example.test/events.jsonl",
+                "parse",
+                p.to_str().unwrap(),
+            ],
+        );
+
+        assert_eq!(outcome.exit_code, EXIT_IO);
+        assert!(stdout.is_empty());
+        assert!(stderr.contains("--observe-events failed"));
+        assert!(stderr.contains("remote/custom URI resolvers are not implemented"));
+        assert!(stderr.contains("https://example.test/events.jsonl"));
+    }
+
+    #[test]
     fn observe_events_dash_writes_jsonl_to_stdout() {
         let p = write_fixture("observe-events-stdout.cem", "{p | hi}");
         let (outcome, stdout, _) = run(
@@ -4326,6 +4346,7 @@ pub fn dispatch<E: CemMlEngine + ?Sized>(
     if let Some(observe_path) = parsed.observe_events.as_ref() {
         if let Err(e) = emit_observability_events(&parsed.command, observe_path, s) {
             let _ = writeln!(s.stderr, "cem-ml: --observe-events failed: {e}");
+            return Outcome::code(EXIT_IO);
         }
     }
     match parsed.command {
