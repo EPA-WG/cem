@@ -5,7 +5,7 @@
 //! that `cem-ml-cli` calls through. This is the production engine that
 //! replaces `NotImplementedEngine` in `cem-ml-cli/src/main.rs`.
 
-use crate::diagnostics::Diagnostic;
+use crate::diagnostics::{Diagnostic, Severity};
 use crate::engine::*;
 use crate::events::cem::CemEventNormalizer;
 use crate::formatter;
@@ -15,6 +15,7 @@ use crate::parser::builder::CemAstBuilder;
 use crate::parser::document::CemDocument;
 use crate::projection;
 use crate::report::{Report, ReportOptionsSnapshot};
+use crate::run_config::ScopeConfig;
 use crate::schema::machine::CemSchemaMachine;
 use crate::schema::vocab::CompiledSchema;
 use crate::source::{BytesSource, SourceId};
@@ -139,6 +140,75 @@ fn input_uris(inputs: &[EngineInput]) -> Vec<String> {
     inputs.iter().map(|i| i.uri.clone()).collect()
 }
 
+fn unsupported_scope_diagnostic(uri: &str, code: &str, field: &str, direction: &str) -> Diagnostic {
+    Diagnostic {
+        uri: Some(uri.to_owned()),
+        code: code.to_owned(),
+        severity: Severity::Warning,
+        message: format!(
+            "{direction} root-scope field `{field}` is parsed and preserved, but runtime enforcement is not implemented yet"
+        ),
+        ..Diagnostic::default()
+    }
+}
+
+fn root_scope_execution_diagnostics(
+    uri: &str,
+    scope: &ScopeConfig,
+    direction: &str,
+) -> Vec<Diagnostic> {
+    let mut diagnostics = Vec::new();
+    if !scope.version_pins.is_empty() {
+        diagnostics.push(unsupported_scope_diagnostic(
+            uri,
+            "cem.scope.version_pins_unenforced",
+            "versionPins",
+            direction,
+        ));
+    }
+    if scope.default_namespace.is_some() {
+        diagnostics.push(unsupported_scope_diagnostic(
+            uri,
+            "cem.scope.default_namespace_unenforced",
+            "defaultNamespace",
+            direction,
+        ));
+    }
+    if !scope.namespaces.is_empty() {
+        diagnostics.push(unsupported_scope_diagnostic(
+            uri,
+            "cem.scope.namespaces_unenforced",
+            "namespaces",
+            direction,
+        ));
+    }
+    if scope.module_map.is_some() {
+        diagnostics.push(unsupported_scope_diagnostic(
+            uri,
+            "cem.scope.module_map_unenforced",
+            "moduleMap",
+            direction,
+        ));
+    }
+    if scope.policy.is_some() {
+        diagnostics.push(unsupported_scope_diagnostic(
+            uri,
+            "cem.scope.policy_unenforced",
+            "policy",
+            direction,
+        ));
+    }
+    if !scope.budgets.is_empty() {
+        diagnostics.push(unsupported_scope_diagnostic(
+            uri,
+            "cem.scope.budgets_unenforced",
+            "budgets",
+            direction,
+        ));
+    }
+    diagnostics
+}
+
 fn load_input_through_lifecycle(input: &EngineInput, context: &EngineContext) -> LoadedInput {
     LifecycleRegistry::with_builtin_adapters().load(input, context)
 }
@@ -194,6 +264,9 @@ fn run_scheduled_validation_documents(
         let mut loaded_input: Option<LoadedInput> = None;
         pool.run_to_completion(&abort, |task| {
             if task.ends_with(":lifecycle-load") {
+                let mut scope_diagnostics =
+                    root_scope_execution_diagnostics(&input.uri, &input.root_scope, "input");
+                all_diags.append(&mut scope_diagnostics);
                 let mut loaded = load_input_through_lifecycle(input, context);
                 all_diags.append(&mut loaded.diagnostics);
                 loaded_input = Some(loaded);
@@ -224,6 +297,7 @@ fn materialized_input(input: &EngineInput) -> EngineResult<EngineInput> {
         bytes,
         from_format: input.from_format,
         identity: input.identity.clone(),
+        root_scope: input.root_scope.clone(),
     })
 }
 
@@ -433,7 +507,12 @@ impl CemMlEngine for RealCemMlEngine {
             ParseProjection::Ast => projection::ast_json(&run.document),
             ParseProjection::Events => projection::events_json_as(&loaded.bytes, from_format),
         };
-        let mut diagnostics = loaded.diagnostics;
+        let mut diagnostics = root_scope_execution_diagnostics(
+            &request.input.uri,
+            &request.input.root_scope,
+            "input",
+        );
+        diagnostics.extend(loaded.diagnostics);
         diagnostics.extend(run.diagnostics);
         Ok(ParseResponse {
             primary,
@@ -475,7 +554,12 @@ impl CemMlEngine for RealCemMlEngine {
         let loaded = load_input_through_lifecycle(&request.input, &request.context);
         let from_format = loaded.from_format;
         let run = run_pipeline_as(&loaded.bytes, from_format);
-        let mut diagnostics = loaded.diagnostics;
+        let mut diagnostics = root_scope_execution_diagnostics(
+            &request.input.uri,
+            &request.input.root_scope,
+            "input",
+        );
+        diagnostics.extend(loaded.diagnostics);
         diagnostics.extend(run.diagnostics);
         let body = match request.show {
             InspectView::Summary => {
@@ -548,6 +632,12 @@ impl CemMlEngine for RealCemMlEngine {
         let mut primary: Option<Value> = None;
         pool.run_to_completion(&abort, |task| {
             if task.ends_with(":lifecycle-load") {
+                let mut scope_diagnostics = root_scope_execution_diagnostics(
+                    &request.input.uri,
+                    &request.input.root_scope,
+                    "input",
+                );
+                diagnostics.append(&mut scope_diagnostics);
                 let mut loaded = registry.load(&request.input, &request.context);
                 diagnostics.append(&mut loaded.diagnostics);
                 loaded_input = Some(loaded);
@@ -555,6 +645,12 @@ impl CemMlEngine for RealCemMlEngine {
             }
 
             if task.ends_with(":select-export") {
+                let mut scope_diagnostics = root_scope_execution_diagnostics(
+                    &request.input.uri,
+                    &request.target_scope,
+                    "output",
+                );
+                diagnostics.append(&mut scope_diagnostics);
                 let mut export = registry.select_export(request.target.as_ref(), request.to_format);
                 diagnostics.append(&mut export.diagnostics);
                 export_selection = Some(export);
@@ -639,7 +735,12 @@ impl CemMlEngine for RealCemMlEngine {
         }
         let run = run_pipeline_as(&loaded.bytes, from_format);
         pool.run_to_completion(&abort, |_| {});
-        let mut diagnostics = loaded.diagnostics;
+        let mut diagnostics = root_scope_execution_diagnostics(
+            &request.input.uri,
+            &request.input.root_scope,
+            "input",
+        );
+        diagnostics.extend(loaded.diagnostics);
         diagnostics.extend(run.diagnostics);
         let report = Report::deterministic(
             vec![request.input.uri.clone()],
@@ -711,6 +812,11 @@ impl CemMlEngine for RealCemMlEngine {
         let mut all_diags: Vec<Diagnostic> = Vec::new();
         for input in &request.inputs {
             let input = materialized_input(input)?;
+            all_diags.extend(root_scope_execution_diagnostics(
+                &input.uri,
+                &input.root_scope,
+                "input",
+            ));
             let loaded = load_input_through_lifecycle(&input, &request.context);
             all_diags.extend(loaded.diagnostics);
             let run = run_pipeline_as(&loaded.bytes, loaded.from_format);
@@ -733,6 +839,11 @@ impl CemMlEngine for RealCemMlEngine {
         let mut all_diags: Vec<Diagnostic> = Vec::new();
         for input in &request.inputs {
             let input = materialized_input(input)?;
+            all_diags.extend(root_scope_execution_diagnostics(
+                &input.uri,
+                &input.root_scope,
+                "input",
+            ));
             let loaded = load_input_through_lifecycle(&input, &request.context);
             all_diags.extend(loaded.diagnostics);
             let run = run_pipeline_as(&loaded.bytes, loaded.from_format);
@@ -763,6 +874,7 @@ mod tests {
             bytes: bytes.to_vec(),
             from_format: None,
             identity: None,
+            root_scope: Default::default(),
         }
     }
 
@@ -878,6 +990,38 @@ mod tests {
     }
 
     #[test]
+    fn validate_reports_unenforced_root_scope_fields() {
+        let mut source = input(b"{p Hi}", "scoped.cem");
+        source.root_scope.namespaces.insert(
+            "html".to_owned(),
+            "https://www.w3.org/1999/xhtml".to_owned(),
+        );
+        source
+            .root_scope
+            .budgets
+            .insert("parseMs".to_owned(), "5".to_owned());
+        let req = ValidateRequest {
+            inputs: vec![source],
+            projection: ValidateProjection::Json,
+            fail_level: FailLevel::Validate,
+            context: ctx(),
+        };
+
+        let resp = RealCemMlEngine::new().validate(req).unwrap();
+        assert!(resp.report.summary.warning_count >= 2);
+        assert!(resp
+            .report
+            .diagnostics
+            .iter()
+            .any(|diag| diag.code == "cem.scope.namespaces_unenforced"));
+        assert!(resp
+            .report
+            .diagnostics
+            .iter()
+            .any(|diag| diag.code == "cem.scope.budgets_unenforced"));
+    }
+
+    #[test]
     fn input_identity_overrides_global_context_content_type() {
         let mut source = input(br#"<button>Go</button>"#, "legacy.html");
         source.identity = Some(FormatIdentity {
@@ -975,6 +1119,7 @@ mod tests {
             preserve_source_offsets: false,
             context: ctx(),
             target: None,
+            target_scope: Default::default(),
             scheduler_scope_id: 0,
         };
         let resp = RealCemMlEngine::new().convert(req).unwrap();
@@ -990,11 +1135,13 @@ mod tests {
                 bytes: br#"<button cem:action="primary" type="submit">Save</button>"#.to_vec(),
                 from_format: Some(InputFormat::Html),
                 identity: None,
+                root_scope: Default::default(),
             },
             to_format: LayerFormat::Cem,
             preserve_source_offsets: true,
             context: ctx(),
             target: None,
+            target_scope: Default::default(),
             scheduler_scope_id: 0,
         };
         let resp = RealCemMlEngine::new().convert(req).unwrap();
@@ -1032,11 +1179,13 @@ mod tests {
                 bytes: br#"<button cem:action="primary" type="submit">Save</button>"#.to_vec(),
                 from_format: Some(InputFormat::Xml),
                 identity: None,
+                root_scope: Default::default(),
             },
             to_format: LayerFormat::Cem,
             preserve_source_offsets: true,
             context: ctx(),
             target: None,
+            target_scope: Default::default(),
             scheduler_scope_id: 0,
         };
         let resp = RealCemMlEngine::new().convert(req).unwrap();
@@ -1074,6 +1223,7 @@ mod tests {
                 bytes: br#"<if test="not($disabled)"><button>Go</button></if>"#.to_vec(),
                 from_format: None,
                 identity: None,
+                root_scope: Default::default(),
             },
             to_format: LayerFormat::Cem,
             preserve_source_offsets: false,
@@ -1082,6 +1232,7 @@ mod tests {
                 ..ctx()
             },
             target: None,
+            target_scope: Default::default(),
             scheduler_scope_id: 0,
         };
         let resp = RealCemMlEngine::new().convert(req).unwrap();
@@ -1104,12 +1255,40 @@ mod tests {
                 content_type: Some("application/cem+xml".to_owned()),
                 ..FormatIdentity::default()
             }),
+            target_scope: Default::default(),
             scheduler_scope_id: 0,
         };
         let resp = RealCemMlEngine::new().convert(req).unwrap();
         assert_eq!(resp.primary["kind"], "cem");
         assert_eq!(resp.primary["content"], "{p Hi}\n");
         assert!(resp.diagnostics.is_empty());
+    }
+
+    #[test]
+    fn convert_reports_unenforced_output_scope_fields() {
+        let req = ConvertRequest {
+            input: input(b"{p Hi}", "in.cem"),
+            to_format: LayerFormat::DomJson,
+            preserve_source_offsets: false,
+            context: ctx(),
+            target: None,
+            target_scope: crate::run_config::ScopeConfig {
+                module_map: Some("cem.modules.json".to_owned()),
+                policy: Some("strict".to_owned()),
+                ..Default::default()
+            },
+            scheduler_scope_id: 0,
+        };
+
+        let resp = RealCemMlEngine::new().convert(req).unwrap();
+        assert!(resp
+            .diagnostics
+            .iter()
+            .any(|diag| diag.code == "cem.scope.module_map_unenforced"));
+        assert!(resp
+            .diagnostics
+            .iter()
+            .any(|diag| diag.code == "cem.scope.policy_unenforced"));
     }
 
     #[test]
@@ -1174,6 +1353,7 @@ mod tests {
                     bytes: Vec::new(),
                     from_format: None,
                     identity: None,
+                    root_scope: Default::default(),
                 })
                 .collect();
         let req = FixtureValidateRequest {

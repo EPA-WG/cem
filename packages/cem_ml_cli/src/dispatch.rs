@@ -66,6 +66,7 @@ fn engine_input(
         bytes,
         from_format: from_format.map(to_engine_input_format),
         identity,
+        root_scope: ScopeConfig::default(),
     })
 }
 
@@ -84,6 +85,7 @@ fn placeholder_input(path: &Path, from_format: Option<cli::InputFormat>) -> eng:
         bytes: Vec::new(),
         from_format: from_format.map(to_engine_input_format),
         identity: None,
+        root_scope: ScopeConfig::default(),
     }
 }
 
@@ -103,6 +105,7 @@ fn engine_input_from_spec(
         bytes,
         from_format: from_format.map(to_engine_input_format),
         identity: spec.root_scope.format_identity_option(),
+        root_scope: spec.root_scope.clone(),
     })
 }
 
@@ -471,6 +474,18 @@ fn convert_target_identity_with_config(
     convert_target_identity(args)
 }
 
+fn convert_target_scope(args: &cli::ConvertArgs) -> ScopeConfig {
+    output_scope_defaults(args)
+}
+
+fn convert_target_scope_with_config(args: &cli::ConvertArgs, config: &RunConfig) -> ScopeConfig {
+    config
+        .outputs
+        .first()
+        .map(|output| output.root_scope.clone())
+        .unwrap_or_else(|| convert_target_scope(args))
+}
+
 fn convert_output_destination(args: &cli::ConvertArgs, config: &RunConfig) -> Option<PathBuf> {
     args.out.clone().or_else(|| {
         config
@@ -575,6 +590,7 @@ fn run_convert_fanout<E: CemMlEngine + ?Sized>(
                     preserve_source_offsets: args.preserve_source_offsets,
                     context: context_with_config(&args.context, config),
                     target: output_target_identity(output),
+                    target_scope: output.root_scope.clone(),
                     scheduler_scope_id: index as u32,
                 };
                 match engine.convert(req) {
@@ -625,6 +641,7 @@ fn run_convert_fanout<E: CemMlEngine + ?Sized>(
             preserve_source_offsets: args.preserve_source_offsets,
             context: context_with_config(&args.context, config),
             target: output_target_identity(output),
+            target_scope: output.root_scope.clone(),
             scheduler_scope_id: index as u32,
         };
         match engine.convert(req) {
@@ -1226,6 +1243,7 @@ pub fn run_convert<E: CemMlEngine + ?Sized>(
         preserve_source_offsets: args.preserve_source_offsets,
         context: context_with_config(&args.context, &config),
         target: convert_target_identity_with_config(&args, &config),
+        target_scope: convert_target_scope_with_config(&args, &config),
         scheduler_scope_id: 0,
     };
     match engine.convert(req) {
@@ -1702,6 +1720,33 @@ mod tests {
         let v: serde_json::Value = serde_json::from_str(stdout.trim()).unwrap();
         assert_eq!(v["summary"]["hardViolationCount"], 0);
         assert_eq!(v["summary"]["inputCount"], 1);
+    }
+
+    #[test]
+    fn input_spec_root_scope_fields_surface_execution_diagnostics() {
+        let p = write_fixture("validate-input-spec-scope.cem", r#"{p Hi}"#);
+        let (outcome, stdout, stderr) = run(
+            &RealCemMlEngine::new(),
+            &[
+                "validate",
+                "--format",
+                "json",
+                "--input-spec",
+                &format!(
+                    "uri={},namespaces=html:https://www.w3.org/1999/xhtml,budgets=parseMs:5",
+                    p.display()
+                ),
+            ],
+        );
+        assert_eq!(outcome.exit_code, EXIT_OK, "{stderr}");
+        let v: serde_json::Value = serde_json::from_str(stdout.trim()).unwrap();
+        let diagnostics = v["diagnostics"].as_array().unwrap();
+        assert!(diagnostics
+            .iter()
+            .any(|diag| diag["code"] == "cem.scope.namespaces_unenforced"));
+        assert!(diagnostics
+            .iter()
+            .any(|diag| diag["code"] == "cem.scope.budgets_unenforced"));
     }
 
     #[test]

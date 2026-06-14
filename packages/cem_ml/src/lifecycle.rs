@@ -300,6 +300,7 @@ mod tests {
             bytes: bytes.to_vec(),
             from_format: None,
             identity: None,
+            root_scope: Default::default(),
         }
     }
 

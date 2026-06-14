@@ -1,6 +1,6 @@
 use crate::diagnostics::Diagnostic;
 use crate::report::{Report, SchedulerTraceReport};
-use crate::run_config::SchedulerConfig;
+use crate::run_config::{SchedulerConfig, ScopeConfig};
 use serde::{Deserialize, Serialize};
 use serde_json::Value;
 use std::path::PathBuf;
@@ -118,6 +118,7 @@ pub struct EngineInput {
     pub bytes: Vec<u8>,
     pub from_format: Option<InputFormat>,
     pub identity: Option<FormatIdentity>,
+    pub root_scope: ScopeConfig,
 }
 
 #[derive(Debug, Clone)]
@@ -160,6 +161,7 @@ pub struct ConvertRequest {
     pub preserve_source_offsets: bool,
     pub context: EngineContext,
     pub target: Option<FormatIdentity>,
+    pub target_scope: ScopeConfig,
     pub scheduler_scope_id: u32,
 }
 
