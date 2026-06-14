@@ -8,7 +8,7 @@
 use crate::cli;
 use crate::template_pass;
 use cem_ml::engine::{self as eng, CemMlEngine, EngineError};
-use cem_ml::run_config::{self, InputSpec, OutputSpec, RunConfig};
+use cem_ml::run_config::{self, InputSpec, OutputSpec, RunConfig, RunConfigDefaults, ScopeConfig};
 use std::fs;
 use std::io::{self, Write};
 use std::path::{Path, PathBuf};
@@ -41,6 +41,10 @@ pub struct Streams<'a> {
 
 enum CliRequestError {
     Usage(String),
+    RunConfigDiagnostics {
+        config: Option<RunConfig>,
+        diagnostics: Vec<cem_ml::diagnostics::Diagnostic>,
+    },
     Engine(EngineError),
 }
 
@@ -51,6 +55,7 @@ fn read_input(path: &Path) -> io::Result<Vec<u8>> {
 fn engine_input(
     path: &Path,
     from_format: Option<cli::InputFormat>,
+    identity: Option<eng::FormatIdentity>,
 ) -> Result<eng::EngineInput, EngineError> {
     let bytes = read_input(path).map_err(|e| EngineError::Io {
         path: path.to_path_buf(),
@@ -60,8 +65,17 @@ fn engine_input(
         uri: path.display().to_string(),
         bytes,
         from_format: from_format.map(to_engine_input_format),
-        identity: None,
+        identity,
     })
+}
+
+fn positional_input_identity(path: &Path, defaults: &ScopeConfig) -> Option<eng::FormatIdentity> {
+    let mut scope = defaults.clone();
+    if scope.default_content_type.is_none() {
+        scope.default_content_type =
+            run_config::infer_content_type_from_path(&path.display().to_string());
+    }
+    scope.format_identity_option()
 }
 
 fn placeholder_input(path: &Path, from_format: Option<cli::InputFormat>) -> eng::EngineInput {
@@ -88,11 +102,18 @@ fn engine_input_from_spec(
         uri: spec.uri.clone(),
         bytes,
         from_format: from_format.map(to_engine_input_format),
-        identity: Some(spec.root_scope.format_identity()),
+        identity: spec.root_scope.format_identity_option(),
     })
 }
 
-fn run_config(options: &cli::RunOptions) -> Result<RunConfig, CliRequestError> {
+fn run_config(
+    options: &cli::RunOptions,
+    defaults: RunConfigDefaults,
+) -> Result<RunConfig, CliRequestError> {
+    let config_base_uri = options
+        .config
+        .as_ref()
+        .map(|path| path.display().to_string());
     let mut config = if let Some(path) = &options.config {
         let bytes = fs::read(path).map_err(|source| {
             CliRequestError::Engine(EngineError::Io {
@@ -113,22 +134,15 @@ fn run_config(options: &cli::RunOptions) -> Result<RunConfig, CliRequestError> {
             identity,
             base_uri: Some(path.display().to_string()),
         })
-        .map_err(|error| CliRequestError::Usage(format!("invalid run config: {error}")))
-        .and_then(|response| {
-            if response.diagnostics.is_empty() {
-                Ok(response.config)
-            } else {
-                let messages = response
-                    .diagnostics
-                    .iter()
-                    .map(|diag| format!("{}: {}", diag.code, diag.message))
-                    .collect::<Vec<_>>()
-                    .join("; ");
-                Err(CliRequestError::Usage(format!(
-                    "invalid run config: {messages}"
-                )))
-            }
-        })?
+        .map_err(|error| CliRequestError::RunConfigDiagnostics {
+            config: None,
+            diagnostics: vec![run_config_error_diagnostic(
+                error.code,
+                error.message,
+                Some(path.display().to_string()),
+            )],
+        })
+        .map(|response| response.config)?
     } else {
         RunConfig::default()
     };
@@ -144,7 +158,29 @@ fn run_config(options: &cli::RunOptions) -> Result<RunConfig, CliRequestError> {
         config.outputs.push(spec);
     }
 
-    Ok(config)
+    let response = run_config::normalize_run_config(config, defaults, config_base_uri.as_deref());
+    if response.diagnostics.is_empty() {
+        Ok(response.config)
+    } else {
+        Err(CliRequestError::RunConfigDiagnostics {
+            config: Some(response.config),
+            diagnostics: response.diagnostics,
+        })
+    }
+}
+
+fn run_config_error_diagnostic(
+    code: &str,
+    message: String,
+    uri: Option<String>,
+) -> cem_ml::diagnostics::Diagnostic {
+    cem_ml::diagnostics::Diagnostic {
+        uri,
+        code: code.to_owned(),
+        severity: cem_ml::diagnostics::Severity::Fatal,
+        message,
+        ..cem_ml::diagnostics::Diagnostic::default()
+    }
 }
 
 fn infer_config_content_type(path: &Path) -> Option<String> {
@@ -161,8 +197,10 @@ fn collect_configured_inputs(
     paths: &[PathBuf],
     from_format: Option<cli::InputFormat>,
     config: &RunConfig,
+    positional_defaults: &ScopeConfig,
 ) -> Result<Vec<eng::EngineInput>, CliRequestError> {
-    let mut inputs = collect_inputs(paths, from_format).map_err(CliRequestError::Engine)?;
+    let mut inputs =
+        collect_inputs(paths, from_format, positional_defaults).map_err(CliRequestError::Engine)?;
     for spec in &config.inputs {
         inputs.push(engine_input_from_spec(spec, from_format)?);
     }
@@ -173,10 +211,18 @@ fn single_configured_input(
     path: Option<&Path>,
     from_format: Option<cli::InputFormat>,
     config: &RunConfig,
+    positional_defaults: &ScopeConfig,
 ) -> Result<eng::EngineInput, CliRequestError> {
     let mut inputs = Vec::new();
     if let Some(path) = path {
-        inputs.push(engine_input(path, from_format).map_err(CliRequestError::Engine)?);
+        inputs.push(
+            engine_input(
+                path,
+                from_format,
+                positional_input_identity(path, positional_defaults),
+            )
+            .map_err(CliRequestError::Engine)?,
+        );
     }
     for spec in &config.inputs {
         inputs.push(engine_input_from_spec(spec, from_format)?);
@@ -197,8 +243,18 @@ fn single_configured_input(
 fn collect_inputs(
     paths: &[std::path::PathBuf],
     from_format: Option<cli::InputFormat>,
+    positional_defaults: &ScopeConfig,
 ) -> Result<Vec<eng::EngineInput>, EngineError> {
-    paths.iter().map(|p| engine_input(p, from_format)).collect()
+    paths
+        .iter()
+        .map(|p| {
+            engine_input(
+                p,
+                from_format,
+                positional_input_identity(p, positional_defaults),
+            )
+        })
+        .collect()
 }
 
 fn collect_fixture_inputs(paths: &[PathBuf]) -> Vec<eng::EngineInput> {
@@ -354,6 +410,31 @@ fn context(c: &cli::ContextOptions) -> eng::EngineContext {
     }
 }
 
+fn input_scope_defaults(c: &cli::ContextOptions) -> ScopeConfig {
+    ScopeConfig {
+        default_content_type: c.content_type.clone(),
+        schema: c.schema.clone(),
+        base_uri: c.base_uri.clone(),
+        ..ScopeConfig::default()
+    }
+}
+
+fn output_scope_defaults(args: &cli::ConvertArgs) -> ScopeConfig {
+    ScopeConfig {
+        default_content_type: args.to_content_type.clone(),
+        schema: args.to_schema.clone(),
+        base_uri: args.context.base_uri.clone(),
+        ..ScopeConfig::default()
+    }
+}
+
+fn run_defaults(input_scope: ScopeConfig, output_scope: ScopeConfig) -> RunConfigDefaults {
+    RunConfigDefaults {
+        input_scope,
+        output_scope,
+    }
+}
+
 fn convert_target_identity(args: &cli::ConvertArgs) -> Option<eng::FormatIdentity> {
     if args.to_content_type.is_none() && args.to_schema.is_none() && args.context.base_uri.is_none()
     {
@@ -396,6 +477,11 @@ fn handle_cli_request_error(err: CliRequestError, s: &mut Streams<'_>) -> Outcom
     match err {
         CliRequestError::Usage(msg) => {
             let _ = writeln!(s.stderr, "cem-ml: {msg}");
+            Outcome::code(EXIT_USAGE_OR_RESERVED)
+        }
+        CliRequestError::RunConfigDiagnostics { diagnostics, .. } => {
+            let _ = writeln!(s.stderr, "cem-ml: invalid run config");
+            write_diagnostics(&diagnostics, s);
             Outcome::code(EXIT_USAGE_OR_RESERVED)
         }
         CliRequestError::Engine(err) => handle_engine_error(err, s),
@@ -592,6 +678,51 @@ fn write_report_files(
     Ok(())
 }
 
+fn report_options_snapshot(
+    fail_level: cli::FailLevel,
+    context: &cli::ContextOptions,
+) -> cem_ml::report::ReportOptionsSnapshot {
+    cem_ml::report::ReportOptionsSnapshot {
+        fail_level: to_engine_fail_level(fail_level),
+        schema: context.schema.clone(),
+        content_type: context.content_type.clone(),
+        base_uri: context.base_uri.clone(),
+    }
+}
+
+fn run_config_diagnostic_inputs(config: Option<RunConfig>) -> Vec<String> {
+    config
+        .map(|config| config.inputs.into_iter().map(|input| input.uri).collect())
+        .unwrap_or_default()
+}
+
+fn handle_run_config_diagnostics_report(
+    config: Option<RunConfig>,
+    diagnostics: Vec<cem_ml::diagnostics::Diagnostic>,
+    fail_level: cli::FailLevel,
+    context: &cli::ContextOptions,
+    report_opts: &cli::ReportOptions,
+    basename: &str,
+    s: &mut Streams<'_>,
+) -> Outcome {
+    let _ = writeln!(s.stderr, "cem-ml: invalid run config");
+    write_diagnostics(&diagnostics, s);
+    let report = cem_ml::report::Report::deterministic(
+        run_config_diagnostic_inputs(config),
+        diagnostics,
+        report_options_snapshot(fail_level, context),
+    );
+    if let Err(e) = write_report_files(&report, report_opts, basename) {
+        let _ = writeln!(s.stderr, "cem-ml: report write failure: {e}");
+        return Outcome::code(EXIT_IO);
+    }
+    if !s.quiet {
+        let json = serde_json::to_string_pretty(&report).unwrap_or_default();
+        let _ = writeln!(s.stdout, "{json}");
+    }
+    Outcome::code(EXIT_USAGE_OR_RESERVED)
+}
+
 fn render_report_markdown(report: &cem_ml::report::Report) -> String {
     let mut out = String::new();
     out.push_str("# cem-ml report\n\n");
@@ -624,11 +755,20 @@ pub fn run_parse<E: CemMlEngine + ?Sized>(
     args: cli::ParseArgs,
     s: &mut Streams<'_>,
 ) -> Outcome {
-    let config = match run_config(&args.run) {
+    let input_defaults = input_scope_defaults(&args.context);
+    let config = match run_config(
+        &args.run,
+        run_defaults(input_defaults.clone(), ScopeConfig::default()),
+    ) {
         Ok(config) => config,
         Err(err) => return handle_cli_request_error(err, s),
     };
-    let input = match single_configured_input(args.input.as_deref(), args.from_format, &config) {
+    let input = match single_configured_input(
+        args.input.as_deref(),
+        args.from_format,
+        &config,
+        &input_defaults,
+    ) {
         Ok(i) => i,
         Err(err) => return handle_cli_request_error(err, s),
     };
@@ -663,14 +803,33 @@ pub fn run_validate<E: CemMlEngine + ?Sized>(
     args: cli::ValidateArgs,
     s: &mut Streams<'_>,
 ) -> Outcome {
-    let config = match run_config(&args.run) {
+    let input_defaults = input_scope_defaults(&args.context);
+    let config = match run_config(
+        &args.run,
+        run_defaults(input_defaults.clone(), ScopeConfig::default()),
+    ) {
         Ok(config) => config,
+        Err(CliRequestError::RunConfigDiagnostics {
+            config,
+            diagnostics,
+        }) => {
+            return handle_run_config_diagnostics_report(
+                config,
+                diagnostics,
+                args.fail_level,
+                &args.context,
+                &args.report,
+                REPORT_BASENAME_VALIDATE,
+                s,
+            );
+        }
         Err(err) => return handle_cli_request_error(err, s),
     };
-    let inputs = match collect_configured_inputs(&args.inputs, args.from_format, &config) {
-        Ok(v) => v,
-        Err(err) => return handle_cli_request_error(err, s),
-    };
+    let inputs =
+        match collect_configured_inputs(&args.inputs, args.from_format, &config, &input_defaults) {
+            Ok(v) => v,
+            Err(err) => return handle_cli_request_error(err, s),
+        };
     if inputs.is_empty() {
         return handle_cli_request_error(
             CliRequestError::Usage("validate requires at least one input or --input-spec".into()),
@@ -711,14 +870,33 @@ pub fn run_check<E: CemMlEngine + ?Sized>(
     args: cli::CheckArgs,
     s: &mut Streams<'_>,
 ) -> Outcome {
-    let config = match run_config(&args.run) {
+    let input_defaults = input_scope_defaults(&args.context);
+    let config = match run_config(
+        &args.run,
+        run_defaults(input_defaults.clone(), ScopeConfig::default()),
+    ) {
         Ok(config) => config,
+        Err(CliRequestError::RunConfigDiagnostics {
+            config,
+            diagnostics,
+        }) => {
+            return handle_run_config_diagnostics_report(
+                config,
+                diagnostics,
+                args.fail_level,
+                &args.context,
+                &args.report,
+                REPORT_BASENAME_VALIDATE,
+                s,
+            );
+        }
         Err(err) => return handle_cli_request_error(err, s),
     };
-    let inputs = match collect_configured_inputs(&args.inputs, args.from_format, &config) {
-        Ok(v) => v,
-        Err(err) => return handle_cli_request_error(err, s),
-    };
+    let inputs =
+        match collect_configured_inputs(&args.inputs, args.from_format, &config, &input_defaults) {
+            Ok(v) => v,
+            Err(err) => return handle_cli_request_error(err, s),
+        };
     if inputs.is_empty() {
         return handle_cli_request_error(
             CliRequestError::Usage("check requires at least one input or --input-spec".into()),
@@ -764,11 +942,20 @@ pub fn run_inspect<E: CemMlEngine + ?Sized>(
     args: cli::InspectArgs,
     s: &mut Streams<'_>,
 ) -> Outcome {
-    let config = match run_config(&args.run) {
+    let input_defaults = input_scope_defaults(&args.context);
+    let config = match run_config(
+        &args.run,
+        run_defaults(input_defaults.clone(), ScopeConfig::default()),
+    ) {
         Ok(config) => config,
         Err(err) => return handle_cli_request_error(err, s),
     };
-    let input = match single_configured_input(args.input.as_deref(), args.from_format, &config) {
+    let input = match single_configured_input(
+        args.input.as_deref(),
+        args.from_format,
+        &config,
+        &input_defaults,
+    ) {
         Ok(i) => i,
         Err(err) => return handle_cli_request_error(err, s),
     };
@@ -794,11 +981,21 @@ pub fn run_convert<E: CemMlEngine + ?Sized>(
     args: cli::ConvertArgs,
     s: &mut Streams<'_>,
 ) -> Outcome {
-    let config = match run_config(&args.run) {
+    let input_defaults = input_scope_defaults(&args.context);
+    let output_defaults = output_scope_defaults(&args);
+    let config = match run_config(
+        &args.run,
+        run_defaults(input_defaults.clone(), output_defaults),
+    ) {
         Ok(config) => config,
         Err(err) => return handle_cli_request_error(err, s),
     };
-    let input = match single_configured_input(args.input.as_deref(), args.from_format, &config) {
+    let input = match single_configured_input(
+        args.input.as_deref(),
+        args.from_format,
+        &config,
+        &input_defaults,
+    ) {
         Ok(i) => i,
         Err(err) => return handle_cli_request_error(err, s),
     };
@@ -828,11 +1025,20 @@ pub fn run_trace<E: CemMlEngine + ?Sized>(
     args: cli::TraceArgs,
     s: &mut Streams<'_>,
 ) -> Outcome {
-    let config = match run_config(&args.run) {
+    let input_defaults = input_scope_defaults(&args.context);
+    let config = match run_config(
+        &args.run,
+        run_defaults(input_defaults.clone(), ScopeConfig::default()),
+    ) {
         Ok(config) => config,
         Err(err) => return handle_cli_request_error(err, s),
     };
-    let input = match single_configured_input(args.input.as_deref(), args.from_format, &config) {
+    let input = match single_configured_input(
+        args.input.as_deref(),
+        args.from_format,
+        &config,
+        &input_defaults,
+    ) {
         Ok(i) => i,
         Err(err) => return handle_cli_request_error(err, s),
     };
@@ -858,11 +1064,15 @@ pub fn run_bench<E: CemMlEngine + ?Sized>(
     args: cli::BenchArgs,
     s: &mut Streams<'_>,
 ) -> Outcome {
-    let config = match run_config(&args.run) {
+    let input_defaults = input_scope_defaults(&args.context);
+    let config = match run_config(
+        &args.run,
+        run_defaults(input_defaults.clone(), ScopeConfig::default()),
+    ) {
         Ok(config) => config,
         Err(err) => return handle_cli_request_error(err, s),
     };
-    let inputs = match collect_configured_inputs(&args.inputs, None, &config) {
+    let inputs = match collect_configured_inputs(&args.inputs, None, &config, &input_defaults) {
         Ok(v) => v,
         Err(err) => return handle_cli_request_error(err, s),
     };
@@ -916,8 +1126,26 @@ pub fn run_fixture_validate<E: CemMlEngine + ?Sized>(
     args: cli::FixtureValidateArgs,
     s: &mut Streams<'_>,
 ) -> Outcome {
-    let config = match run_config(&args.run) {
+    let input_defaults = input_scope_defaults(&args.context);
+    let config = match run_config(
+        &args.run,
+        run_defaults(input_defaults, ScopeConfig::default()),
+    ) {
         Ok(config) => config,
+        Err(CliRequestError::RunConfigDiagnostics {
+            config,
+            diagnostics,
+        }) => {
+            return handle_run_config_diagnostics_report(
+                config,
+                diagnostics,
+                args.fail_level,
+                &args.context,
+                &args.report,
+                REPORT_BASENAME_VALIDATE,
+                s,
+            );
+        }
         Err(err) => return handle_cli_request_error(err, s),
     };
     let mut inputs = collect_fixture_inputs(&args.inputs);
@@ -967,8 +1195,26 @@ pub fn run_fixture_roundtrip<E: CemMlEngine + ?Sized>(
     args: cli::FixtureRoundtripArgs,
     s: &mut Streams<'_>,
 ) -> Outcome {
-    let config = match run_config(&args.run) {
+    let input_defaults = input_scope_defaults(&args.context);
+    let config = match run_config(
+        &args.run,
+        run_defaults(input_defaults, ScopeConfig::default()),
+    ) {
         Ok(config) => config,
+        Err(CliRequestError::RunConfigDiagnostics {
+            config,
+            diagnostics,
+        }) => {
+            return handle_run_config_diagnostics_report(
+                config,
+                diagnostics,
+                cli::FailLevel::Validate,
+                &args.context,
+                &args.report,
+                REPORT_BASENAME_ROUNDTRIP,
+                s,
+            );
+        }
         Err(err) => return handle_cli_request_error(err, s),
     };
     let mut inputs = collect_fixture_inputs(&args.inputs);
@@ -1207,6 +1453,50 @@ mod tests {
     }
 
     #[test]
+    fn input_spec_inherits_global_content_type_default() {
+        let p = write_fixture("validate-input-spec-default.html", r#"<button>Go</button>"#);
+        let (outcome, stdout, stderr) = run(
+            &RealCemMlEngine::new(),
+            &[
+                "validate",
+                "--format",
+                "json",
+                "--content-type",
+                cem_ml::legacy_custom_element::TEMPLATE_LANG,
+                "--input-spec",
+                &format!("uri={}", p.display()),
+            ],
+        );
+        assert_eq!(outcome.exit_code, EXIT_OK, "{stderr}");
+        let v: serde_json::Value = serde_json::from_str(stdout.trim()).unwrap();
+        assert_eq!(v["summary"]["hardViolationCount"], 0);
+        assert_eq!(v["summary"]["inputCount"], 1);
+    }
+
+    #[test]
+    fn positional_input_identity_infers_content_type_from_extension() {
+        let identity =
+            positional_input_identity(Path::new("src/screen.html"), &ScopeConfig::default())
+                .expect("html extension should infer content type");
+        assert_eq!(identity.content_type.as_deref(), Some("text/html"));
+        assert_eq!(identity.schema, None);
+        assert_eq!(identity.base_uri, None);
+    }
+
+    #[test]
+    fn validate_positional_html_uses_inferred_content_type_identity() {
+        let p = write_fixture("validate-positional-html.html", r#"<button>Go</button>"#);
+        let (outcome, stdout, stderr) = run(
+            &RealCemMlEngine::new(),
+            &["validate", "--format", "json", p.to_str().unwrap()],
+        );
+        assert_eq!(outcome.exit_code, EXIT_OK, "{stderr}");
+        let v: serde_json::Value = serde_json::from_str(stdout.trim()).unwrap();
+        assert_eq!(v["summary"]["hardViolationCount"], 0);
+        assert_eq!(v["summary"]["inputCount"], 1);
+    }
+
+    #[test]
     fn convert_config_input_and_output_specs_select_identity_and_destination() {
         let input = write_fixture(
             "convert-config-input.html",
@@ -1248,8 +1538,34 @@ mod tests {
     }
 
     #[test]
+    fn output_spec_inherits_convert_target_identity_default() {
+        let input = write_fixture("convert-output-default-input.cem", "{p Hi}");
+        let out_path = std::env::temp_dir().join("cem-ml-cli-tests/convert-output-default.cem");
+        let _ = std::fs::remove_file(&out_path);
+        let (outcome, stdout, stderr) = run(
+            &RealCemMlEngine::new(),
+            &[
+                "convert",
+                "--to-content-type",
+                "application/cem+xml",
+                "--output-spec",
+                &format!("dest={}", out_path.display()),
+                input.to_str().unwrap(),
+            ],
+        );
+        assert_eq!(outcome.exit_code, EXIT_OK, "{stderr}");
+        assert!(stdout.trim().is_empty());
+        let written = std::fs::read_to_string(&out_path).unwrap();
+        let v: serde_json::Value = serde_json::from_str(&written).unwrap();
+        assert_eq!(v["kind"], "cem");
+        assert_eq!(v["content"], "{p Hi}\n");
+    }
+
+    #[test]
     fn config_diagnostics_fail_before_document_parsing() {
         let config_path = std::env::temp_dir().join("cem-ml-cli-tests/bad-config.json");
+        let report_path = std::env::temp_dir().join("cem-ml-cli-tests/bad-config-report.json");
+        let _ = std::fs::remove_file(&report_path);
         std::fs::write(
             &config_path,
             serde_json::json!({
@@ -1260,15 +1576,33 @@ mod tests {
         )
         .unwrap();
 
-        let (outcome, _, stderr) = run(
+        let (outcome, stdout, stderr) = run(
             &RealCemMlEngine::new(),
-            &["validate", "--config", config_path.to_str().unwrap()],
+            &[
+                "validate",
+                "--config",
+                config_path.to_str().unwrap(),
+                "--report-json",
+                report_path.to_str().unwrap(),
+            ],
         );
         assert_eq!(outcome.exit_code, EXIT_USAGE_OR_RESERVED);
         assert!(stderr.contains("cem.run_config.output_input_ref_unknown"));
         assert!(
             !stderr.contains("I/O error"),
             "config diagnostics must fail before input files are read: {stderr}"
+        );
+        let stdout_report: serde_json::Value = serde_json::from_str(stdout.trim()).unwrap();
+        assert_eq!(
+            stdout_report["diagnostics"][0]["code"],
+            "cem.run_config.output_input_ref_unknown"
+        );
+        assert_eq!(stdout_report["summary"]["fatalCount"], 1);
+        let written = std::fs::read_to_string(&report_path).unwrap();
+        let file_report: serde_json::Value = serde_json::from_str(&written).unwrap();
+        assert_eq!(
+            file_report["diagnostics"][0]["code"],
+            "cem.run_config.output_input_ref_unknown"
         );
     }
 

@@ -81,6 +81,23 @@ impl ScopeConfig {
             base_uri: self.base_uri.clone(),
         }
     }
+
+    pub fn format_identity_option(&self) -> Option<FormatIdentity> {
+        let identity = self.format_identity();
+        (identity.content_type.is_some()
+            || identity.schema.is_some()
+            || identity.base_uri.is_some())
+        .then_some(identity)
+    }
+}
+
+#[derive(Debug, Clone, Default, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct RunConfigDefaults {
+    #[serde(default)]
+    pub input_scope: ScopeConfig,
+    #[serde(default)]
+    pub output_scope: ScopeConfig,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -141,16 +158,43 @@ pub fn parse_run_config(
                     format!("run config JSON could not be parsed: {error}"),
                 )
             })?;
-            let diagnostics = validate_run_config(&config, request.base_uri.as_deref());
             Ok(RunConfigParseResponse {
                 config,
-                diagnostics,
+                diagnostics: Vec::new(),
             })
         }
         other => Err(run_config_error(
             "cem.run_config.unsupported_content_type",
             format!("run config content type `{other}` is not supported yet; use application/json"),
         )),
+    }
+}
+
+pub fn normalize_run_config(
+    mut config: RunConfig,
+    defaults: RunConfigDefaults,
+    base_uri: Option<&str>,
+) -> RunConfigParseResponse {
+    for input in &mut config.inputs {
+        merge_scope_defaults(&mut input.root_scope, &defaults.input_scope);
+        if input.root_scope.default_content_type.is_none() {
+            input.root_scope.default_content_type = infer_content_type_from_path(&input.uri);
+        }
+    }
+
+    for output in &mut config.outputs {
+        merge_scope_defaults(&mut output.root_scope, &defaults.output_scope);
+        if output.root_scope.default_content_type.is_none() {
+            if let Some(destination) = output.destination.as_deref() {
+                output.root_scope.default_content_type = infer_content_type_from_path(destination);
+            }
+        }
+    }
+
+    let diagnostics = validate_run_config(&config, base_uri);
+    RunConfigParseResponse {
+        config,
+        diagnostics,
     }
 }
 
@@ -396,6 +440,54 @@ fn config_diagnostic(code: &str, message: String, base_uri: Option<&str>) -> Dia
     }
 }
 
+fn merge_scope_defaults(scope: &mut ScopeConfig, defaults: &ScopeConfig) {
+    if scope.default_content_type.is_none() {
+        scope.default_content_type = defaults.default_content_type.clone();
+    }
+    if scope.schema.is_none() {
+        scope.schema = defaults.schema.clone();
+    }
+    if scope.default_namespace.is_none() {
+        scope.default_namespace = defaults.default_namespace.clone();
+    }
+    if scope.module_map.is_none() {
+        scope.module_map = defaults.module_map.clone();
+    }
+    if scope.base_uri.is_none() {
+        scope.base_uri = defaults.base_uri.clone();
+    }
+    if scope.policy.is_none() {
+        scope.policy = defaults.policy.clone();
+    }
+
+    let mut version_pins = defaults.version_pins.clone();
+    version_pins.extend(scope.version_pins.clone());
+    scope.version_pins = version_pins;
+
+    let mut namespaces = defaults.namespaces.clone();
+    namespaces.extend(scope.namespaces.clone());
+    scope.namespaces = namespaces;
+
+    let mut budgets = defaults.budgets.clone();
+    budgets.extend(scope.budgets.clone());
+    scope.budgets = budgets;
+}
+
+pub fn infer_content_type_from_path(path: &str) -> Option<String> {
+    let ext = std::path::Path::new(path)
+        .extension()
+        .and_then(|ext| ext.to_str())?
+        .to_ascii_lowercase();
+    match ext.as_str() {
+        "cem" => Some("application/cem+xml".to_owned()),
+        "html" | "htm" => Some("text/html".to_owned()),
+        "xml" => Some("application/xml".to_owned()),
+        "xsl" | "xslt" => Some("application/xslt+xml".to_owned()),
+        "json" => Some("application/json".to_owned()),
+        _ => None,
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -481,8 +573,80 @@ mod tests {
     }
 
     #[test]
+    fn normalize_run_config_applies_defaults_and_infers_content_type() {
+        let response = normalize_run_config(
+            RunConfig {
+                inputs: vec![
+                    InputSpec {
+                        uri: "src/a.cem".to_owned(),
+                        ..InputSpec::default()
+                    },
+                    InputSpec {
+                        uri: "src/b.html".to_owned(),
+                        root_scope: ScopeConfig {
+                            schema: Some("explicit-schema".to_owned()),
+                            ..ScopeConfig::default()
+                        },
+                    },
+                ],
+                outputs: vec![OutputSpec {
+                    destination: Some("dist/a.cem".to_owned()),
+                    ..OutputSpec::default()
+                }],
+                scheduler: SchedulerConfig::default(),
+            },
+            RunConfigDefaults {
+                input_scope: ScopeConfig {
+                    schema: Some("default-schema".to_owned()),
+                    ..ScopeConfig::default()
+                },
+                output_scope: ScopeConfig {
+                    schema: Some("target-schema".to_owned()),
+                    ..ScopeConfig::default()
+                },
+            },
+            None,
+        );
+
+        assert!(response.diagnostics.is_empty());
+        assert_eq!(
+            response.config.inputs[0]
+                .root_scope
+                .default_content_type
+                .as_deref(),
+            Some("application/cem+xml")
+        );
+        assert_eq!(
+            response.config.inputs[0].root_scope.schema.as_deref(),
+            Some("default-schema")
+        );
+        assert_eq!(
+            response.config.inputs[1]
+                .root_scope
+                .default_content_type
+                .as_deref(),
+            Some("text/html")
+        );
+        assert_eq!(
+            response.config.inputs[1].root_scope.schema.as_deref(),
+            Some("explicit-schema")
+        );
+        assert_eq!(
+            response.config.outputs[0]
+                .root_scope
+                .default_content_type
+                .as_deref(),
+            Some("application/cem+xml")
+        );
+        assert_eq!(
+            response.config.outputs[0].root_scope.schema.as_deref(),
+            Some("target-schema")
+        );
+    }
+
+    #[test]
     fn run_config_validation_reports_unknown_output_input_ref() {
-        let response = parse_run_config(RunConfigParseRequest {
+        let parsed = parse_run_config(RunConfigParseRequest {
             bytes: br#"{"inputs":[{"uri":"src/a.cem"}],"outputs":[{"inputRef":"missing.cem"}]}"#
                 .to_vec(),
             identity: FormatIdentity {
@@ -492,6 +656,11 @@ mod tests {
             base_uri: Some("file:///run-config.json".to_owned()),
         })
         .unwrap();
+        let response = normalize_run_config(
+            parsed.config,
+            RunConfigDefaults::default(),
+            Some("file:///run-config.json"),
+        );
 
         assert_eq!(response.diagnostics.len(), 1);
         assert_eq!(
@@ -506,7 +675,7 @@ mod tests {
 
     #[test]
     fn run_config_validation_reports_duplicate_inputs() {
-        let response = parse_run_config(RunConfigParseRequest {
+        let parsed = parse_run_config(RunConfigParseRequest {
             bytes: br#"{"inputs":[{"uri":"src/a.cem"},{"uri":"src/a.cem"}]}"#.to_vec(),
             identity: FormatIdentity {
                 content_type: Some("application/json".to_owned()),
@@ -515,6 +684,7 @@ mod tests {
             base_uri: None,
         })
         .unwrap();
+        let response = normalize_run_config(parsed.config, RunConfigDefaults::default(), None);
 
         assert!(response
             .diagnostics
