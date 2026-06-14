@@ -41,7 +41,9 @@ for the current architecture have landed; only deferred capability work remains 
       `--namespace PREFIX=URI`, `--module-map`, repeatable `--version-pin NAME=CONSTRAINT`, `--scope-policy`, and
       repeatable `--scope-budget NAME=VALUE` flags now flow into positional input root scopes alongside `--schema`,
       `--content-type`, and `--base-uri`, using the same run-config default-scope validation as config/spec
-      root-scope fields. Config diagnostics now fail before document parsing for malformed JSON,
+      root-scope fields. Convert target identity now preserves command-level default/named namespace bindings and
+      output-spec namespace-only identities when selecting export adapters. Config diagnostics now fail before
+      document parsing for malformed JSON,
       unsupported config content types, duplicate input URIs, and unknown output input references, and validation-style
       CLI commands represent those diagnostics in generated JSON/Markdown reports. The `--observe-events` path now uses
       the same configured input list and lifecycle dispatch as parser-backed commands, including `--input-spec` and

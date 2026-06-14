@@ -205,7 +205,7 @@ Current implementation status:
 - Fail level: `parse`, `validate`, `strict`.
 - Input identity selection by content type and schema, with `--from-format cem|html|xml`
   retained only as a convenience alias while the registry matures.
-- Output identity selection by content type and schema, with `--to-format cem|html|dom-json|ast|events`
+- Output identity selection by content type, schema, and namespace identity, with `--to-format cem|html|dom-json|ast|events`
   retained for current projections and debug layers.
 - Root-scope configuration for inputs and outputs: default content type, schema,
   version pins, default namespace, named namespaces, module map / resolver identity,
@@ -217,6 +217,9 @@ Current implementation status:
   config files or `--input-spec` records remain the preferred shape for richer
   per-input maps and resolver settings. These command-level defaults use the same
   run-config default-scope validation as their `rootScope` config/spec counterparts.
+- For `convert`, command-level `--to-content-type`, `--to-schema`, `--default-namespace`,
+  repeatable `--namespace PREFIX=URI`, and `--base-uri` also form the default output
+  target identity unless an `--output-spec` / config output supplies a richer output root scope.
 - Multi-source configuration via config file, plus repeatable CSV option records for
   CLI one-liners. Config files are preferred for CI/build reproducibility.
 - Config-file content type via `--config-content-type`, inferred from extension when

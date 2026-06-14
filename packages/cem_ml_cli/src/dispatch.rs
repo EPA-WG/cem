@@ -505,15 +505,19 @@ fn run_defaults(input_scope: ScopeConfig, output_scope: ScopeConfig) -> RunConfi
 }
 
 fn convert_target_identity(args: &cli::ConvertArgs) -> Option<eng::FormatIdentity> {
-    if args.to_content_type.is_none() && args.to_schema.is_none() && args.context.base_uri.is_none()
+    if args.to_content_type.is_none()
+        && args.to_schema.is_none()
+        && args.context.default_namespace.is_none()
+        && args.context.namespaces.is_empty()
+        && args.context.base_uri.is_none()
     {
         return None;
     }
     Some(eng::FormatIdentity {
         content_type: args.to_content_type.clone(),
         schema: args.to_schema.clone(),
-        default_namespace: None,
-        namespaces: BTreeMap::new(),
+        default_namespace: args.context.default_namespace.clone(),
+        namespaces: context_namespaces(&args.context),
         base_uri: args.context.base_uri.clone(),
     })
 }
@@ -526,6 +530,8 @@ fn convert_target_identity_with_config(
         let identity = output.root_scope.format_identity();
         if identity.content_type.is_some()
             || identity.schema.is_some()
+            || identity.default_namespace.is_some()
+            || !identity.namespaces.is_empty()
             || identity.base_uri.is_some()
         {
             return Some(identity);
@@ -1907,6 +1913,32 @@ mod tests {
     }
 
     #[test]
+    fn validate_unknown_input_namespace_reports_unsupported_adapter() {
+        let p = write_fixture("validate-unknown-input-namespace.data", "{p Hi}");
+        let (outcome, stdout, stderr) = run(
+            &RealCemMlEngine::new(),
+            &[
+                "validate",
+                "--format",
+                "json",
+                "--namespace",
+                "widget=https://example.test/ns/widgets/1",
+                p.to_str().unwrap(),
+            ],
+        );
+
+        assert_eq!(outcome.exit_code, EXIT_OK, "{stderr}");
+        let v: serde_json::Value = serde_json::from_str(stdout.trim()).unwrap();
+        let diagnostics = v["diagnostics"].as_array().unwrap();
+        assert!(diagnostics.iter().any(|diag| {
+            diag["code"] == "cem.lifecycle.adapter_unsupported"
+                && diag["message"].as_str().is_some_and(|message| {
+                    message.contains("namespace `widget=https://example.test/ns/widgets/1`")
+                })
+        }));
+    }
+
+    #[test]
     fn validate_applies_base_uri_to_report_inputs_and_diagnostics() {
         let p = PathBuf::from("dist/target/cem_ml_cli/base-uri-input.cem");
         std::fs::create_dir_all(p.parent().unwrap()).unwrap();
@@ -2827,6 +2859,32 @@ mod tests {
     }
 
     #[test]
+    fn output_spec_namespace_identity_selects_cem_export_adapter() {
+        let input = write_fixture("convert-output-namespace-input.cem", "{p Hi}");
+        let out_path = std::env::temp_dir().join("cem-ml-cli-tests/convert-output-namespace.out");
+        let _ = std::fs::remove_file(&out_path);
+        let (outcome, stdout, stderr) = run(
+            &RealCemMlEngine::new(),
+            &[
+                "convert",
+                "--output-spec",
+                &format!(
+                    "dest={},defaultNs=https://cem.dev/ns/core/1",
+                    out_path.display()
+                ),
+                input.to_str().unwrap(),
+            ],
+        );
+
+        assert_eq!(outcome.exit_code, EXIT_OK, "{stderr}");
+        assert!(stdout.trim().is_empty());
+        let written = std::fs::read_to_string(&out_path).unwrap();
+        let v: serde_json::Value = serde_json::from_str(&written).unwrap();
+        assert_eq!(v["kind"], "cem");
+        assert_eq!(v["content"], "{p Hi}\n");
+    }
+
+    #[test]
     fn config_diagnostics_fail_before_document_parsing() {
         let config_path = std::env::temp_dir().join("cem-ml-cli-tests/bad-config.json");
         let report_path = std::env::temp_dir().join("cem-ml-cli-tests/bad-config-report.json");
@@ -3465,6 +3523,28 @@ mod tests {
     }
 
     #[test]
+    fn convert_to_default_namespace_cem_core_selects_cem_export_adapter() {
+        let p = write_fixture(
+            "convert-target-default-namespace.cem",
+            "@doc cem-ml 1\n{p | Hi}",
+        );
+        let (outcome, stdout, stderr) = run(
+            &RealCemMlEngine::new(),
+            &[
+                "convert",
+                "--default-namespace",
+                "https://cem.dev/ns/core/1",
+                p.to_str().unwrap(),
+            ],
+        );
+
+        assert_eq!(outcome.exit_code, EXIT_OK, "{stderr}");
+        let v: serde_json::Value = serde_json::from_str(stdout.trim()).unwrap();
+        assert_eq!(v["kind"], "cem");
+        assert_eq!(v["content"], "@doc cem-ml 1\n{p | Hi}\n");
+    }
+
+    #[test]
     fn convert_to_unknown_schema_reports_unsupported_target_adapter() {
         let p = write_fixture(
             "convert-target-unknown-schema.cem",
@@ -3487,6 +3567,31 @@ mod tests {
         assert!(v.is_array());
         assert!(stderr.contains("cem.lifecycle.target_adapter_unsupported"));
         assert!(stderr.contains("target schema `https://example.test/ns/widgets/1`"));
+    }
+
+    #[test]
+    fn convert_to_unknown_namespace_reports_unsupported_target_adapter() {
+        let p = write_fixture(
+            "convert-target-unknown-namespace.cem",
+            "@doc cem-ml 1\n{p | Hi}",
+        );
+        let (outcome, stdout, stderr) = run(
+            &RealCemMlEngine::new(),
+            &[
+                "convert",
+                "--to-format",
+                "events",
+                "--namespace",
+                "widget=https://example.test/ns/widgets/1",
+                p.to_str().unwrap(),
+            ],
+        );
+
+        assert_eq!(outcome.exit_code, EXIT_OK, "{stderr}");
+        let v: serde_json::Value = serde_json::from_str(stdout.trim()).unwrap();
+        assert!(v.is_array());
+        assert!(stderr.contains("cem.lifecycle.target_adapter_unsupported"));
+        assert!(stderr.contains("target namespace `widget=https://example.test/ns/widgets/1`"));
     }
 
     #[test]

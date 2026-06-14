@@ -136,8 +136,8 @@ the immediate CLI lifecycle contract.
     - keep `--from-format` and `--to-format` as aliases for built-in identities;
     - keep `--content-type` as the input content type for `parse`, `validate`, `check`,
       `inspect`, and `convert`;
-    - add explicit target identity flags for conversion, for example
-      `--to-content-type` and `--to-schema`;
+    - add explicit target identity flags for conversion, including `--to-content-type`,
+      `--to-schema`, `--default-namespace`, and repeatable `--namespace PREFIX=URI`;
     - expose command-level root-scope defaults with `--default-namespace`,
       repeatable `--namespace PREFIX=URI`, `--module-map`, repeatable
       `--version-pin NAME=CONSTRAINT`, `--scope-policy`, and repeatable
