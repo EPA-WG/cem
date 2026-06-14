@@ -539,7 +539,8 @@ fn root_scope_budget_diagnostics(
             "memory" | "memorybytes" | "pluginms" | "plugintimebudgetms" | "parsems"
             | "parsetimebudgetms" | "validatems" | "validatetimebudgetms" | "checkms"
             | "checktimebudgetms" | "convertms" | "converttimebudgetms" | "tracems"
-            | "tracetimebudgetms" | "inspectms" | "inspecttimebudgetms" => {
+            | "tracetimebudgetms" | "inspectms" | "inspecttimebudgetms" | "benchms"
+            | "benchtimebudgetms" => {
                 if let Err(message) = parse_u64_budget(field, value) {
                     diagnostics.push(scope_policy_diagnostic(
                         uri,
@@ -651,7 +652,8 @@ fn apply_scope_scheduler_fields(
             },
             "parsems" | "parsetimebudgetms" | "validatems" | "validatetimebudgetms"
             | "checkms" | "checktimebudgetms" | "convertms" | "converttimebudgetms"
-            | "tracems" | "tracetimebudgetms" | "inspectms" | "inspecttimebudgetms" => {
+            | "tracems" | "tracetimebudgetms" | "inspectms" | "inspecttimebudgetms"
+            | "benchms" | "benchtimebudgetms" => {
                 if let Err(message) = parse_u64_budget(field, value) {
                     diagnostics.push(scope_policy_diagnostic(
                         uri,
@@ -1326,14 +1328,26 @@ impl CemMlEngine for RealCemMlEngine {
         let iterations = request.iterations.max(1);
         let mut total_ns: u128 = 0;
         let mut per_iter_ns: Vec<u128> = Vec::with_capacity(iterations as usize);
+        let mut diagnostics: Vec<Diagnostic> = Vec::new();
         let mut budget_exceeded = false;
         for _ in 0..iterations {
             let t = Instant::now();
             for input in &request.inputs {
                 let input = materialized_input(input)?;
+                let input_started_at = Instant::now();
                 let loaded = load_input_through_lifecycle(&input, &request.context);
                 let _ =
                     run_pipeline_as_scoped(&loaded.bytes, loaded.from_format, &input.root_scope);
+                let mut budget_diags = time_budget_diagnostics(
+                    &input.root_scope,
+                    &["benchms", "benchtimebudgetms"],
+                    input_started_at.elapsed().as_nanos(),
+                );
+                if !budget_diags.is_empty() {
+                    budget_exceeded = true;
+                    project_diagnostic_uris(&mut budget_diags, &input, &request.context);
+                    diagnostics.extend(budget_diags);
+                }
             }
             let elapsed = t.elapsed().as_nanos();
             per_iter_ns.push(elapsed);
@@ -1357,6 +1371,7 @@ impl CemMlEngine for RealCemMlEngine {
             "perIterationNs": per_iter_ns,
             "budgetMs": request.budget_ms,
             "budgetExceeded": budget_exceeded,
+            "diagnostics": diagnostics,
         });
         Ok(BenchResponse {
             body,
@@ -1696,6 +1711,31 @@ mod tests {
         };
 
         let resp = RealCemMlEngine::new().inspect(req).unwrap();
+        let diagnostics = resp.body["diagnostics"].as_array().unwrap();
+        assert!(diagnostics
+            .iter()
+            .any(|diag| diag["code"] == "cem.scope.budget_exceeded"));
+    }
+
+    #[test]
+    fn bench_enforces_root_scope_bench_ms_budget() {
+        let mut source = input(b"{p Hi}", "budgeted.cem");
+        source
+            .root_scope
+            .budgets
+            .insert("benchMs".to_owned(), "0".to_owned());
+        let req = BenchRequest {
+            inputs: vec![source],
+            projection: BenchProjection::Json,
+            iterations: 1,
+            budget_ms: None,
+            profile: None,
+            cold_cache: false,
+            context: ctx(),
+        };
+
+        let resp = RealCemMlEngine::new().bench(req).unwrap();
+        assert!(resp.budget_exceeded);
         let diagnostics = resp.body["diagnostics"].as_array().unwrap();
         assert!(diagnostics
             .iter()

@@ -1356,7 +1356,7 @@ pub fn run_bench<E: CemMlEngine + ?Sized>(
                     }
                     fs::write(&target, serde_json::to_string_pretty(&resp.body)?)
                 })() {
-                    let _ = writeln!(s.stderr, "cem-ml: bench report write failure: {e}");
+                    let _ = writeln!(s.stderr, "cem-ml: benchmark report write failure: {e}");
                     return Outcome::code(EXIT_IO);
                 }
             }
@@ -2502,6 +2502,31 @@ mod tests {
         let v: serde_json::Value = serde_json::from_str(stdout.trim()).unwrap();
         assert_eq!(v["kind"], "fake-bench");
         assert_eq!(v["iterations"], 3);
+    }
+
+    #[test]
+    fn bench_input_spec_bench_ms_budget_is_enforced() {
+        let p = write_fixture("bench-budget.cem", "{p Hi}");
+        let (outcome, stdout, stderr) = run(
+            &RealCemMlEngine::new(),
+            &[
+                "bench",
+                "--iterations",
+                "1",
+                "--input-spec",
+                &format!("uri={},budgets=benchMs:0", p.display()),
+            ],
+        );
+        assert_eq!(outcome.exit_code, EXIT_HARD_FAILURE, "{stderr}");
+        let v: serde_json::Value = serde_json::from_str(stdout.trim()).unwrap();
+        assert_eq!(v["budgetExceeded"], true);
+        let diagnostics = v["diagnostics"].as_array().unwrap();
+        assert!(diagnostics
+            .iter()
+            .any(|diag| diag["code"] == "cem.scope.budget_exceeded"));
+        assert!(!diagnostics
+            .iter()
+            .any(|diag| diag["code"] == "cem.scope.budget_unenforced"));
     }
 
     #[test]

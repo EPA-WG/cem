@@ -102,9 +102,9 @@ the immediate CLI lifecycle contract.
    worker policy for scheduled validate/check, trace, and convert execution; `parseMs`
    enforces a parser-backed pipeline wall-clock budget; `validateMs` and `checkMs`
    enforce scheduled per-input document work budgets; `convertMs` enforces
-   input/output-scope convert work budgets; `traceMs` and `inspectMs` enforce trace
-   and inspect work budgets; and effective `baseUri` values project relative report
-   input and diagnostic URIs. Root-scope default and named namespace bindings seed
+   input/output-scope convert work budgets; `traceMs`, `inspectMs`, and `benchMs`
+   enforce trace, inspect, and benchmark workflow budgets; and effective `baseUri` values
+   project relative report input and diagnostic URIs. Root-scope default and named namespace bindings seed
    schema validation's document-root namespace context, and recognized CEM-ML
    root-scope version pins resolve against the embedded document-format version.
    Input root-scope module maps provide the resolver base for
@@ -227,7 +227,7 @@ Critical constraints:
     - existing `examples/semantic/*.html` files remain secondary HTML parity fixtures.
 2. Define exit codes:
     - `0`: success
-    - `1`: parse, validation, strict-mode, or benchmark-budget failure
+    - `1`: parse, validation, strict-mode, or benchmark budget failure
     - `2`: CLI usage error
     - `3`: schema resolution error, reserved
     - `4`: transform failure, reserved
@@ -333,7 +333,7 @@ Exit criteria: an ADR exists and no parser code has been added.
     - events
     - inspect summary
     - trace report
-    - bench report
+    - benchmark report
     - fixture roundtrip report
 
 These are data shapes only. Parser-filled content remains blocked until the parser decision phase is complete.
@@ -491,7 +491,7 @@ coverage; the parser stack design only owns the layer outputs that feed CLI proj
     - inspect output modes
     - convert format validation
     - trace JSON/text shape
-    - bench budget exit behavior
+    - benchmark budget exit behavior
     - fixture roundtrip report shape
 3. Add `cem-ml-cli` integration tests for:
     - help and version
@@ -509,7 +509,7 @@ coverage; the parser stack design only owns the layer outputs that feed CLI proj
       quiet/verbose/no-color, zero hard violations, source-offset preservation, inspect views, benchmark controls, and
       fixture defaults
     - output shapes: diagnostics, report AST, CEM/XML/JSON report renderings, text/HTML convenience renderings, DOM
-      JSON, AST, events, inspect views, trace output, bench output, and fixture roundtrip reports
+      JSON, AST, events, inspect views, trace output, benchmark output, and fixture roundtrip reports
     - exit behavior: success, parser/validation failure, usage errors, reserved subsystem errors, I/O errors, and
       unexpected internal failures
     - parser-blocked cases: rows that assert routing and shape with the fake engine now, plus a future real-engine gate

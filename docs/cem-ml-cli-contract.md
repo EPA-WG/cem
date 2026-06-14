@@ -120,10 +120,10 @@ Current implementation status:
   scheduled validate/check, trace, and convert execution; `parseMs` enforces a
   parser-backed pipeline wall-clock budget; `validateMs` and `checkMs` enforce
   scheduled per-input document work budgets; `convertMs` enforces input/output-scope
-  convert work budgets; `traceMs` and `inspectMs` enforce trace and inspect work
-  budgets; and effective `baseUri` values project relative report input and diagnostic
-  URIs. Root-scope default and named namespace bindings seed schema validation's
-  document-root namespace context. Recognized CEM-ML root-scope version pins resolve
+  convert work budgets; `traceMs`, `inspectMs`, and `benchMs` enforce trace, inspect,
+  and benchmark workflow budgets; and effective `baseUri` values project relative report
+  input and diagnostic URIs. Root-scope default and named namespace bindings seed
+  schema validation's document-root namespace context. Recognized CEM-ML root-scope version pins resolve
   against the embedded document-format version. Input root-scope module maps provide
   the resolver base for relative schema `src` identities, load local JSON alias maps
   for schema-source specifier resolution, and normalize relative module-map paths
@@ -146,9 +146,8 @@ Current implementation status:
   policy/budget fields for scheduled worker policy, `parseMs` for parser-backed
   wall-clock enforcement, `validateMs` / `checkMs` for scheduled per-input document
   work budgets, `convertMs` for input/output-scope convert work budgets, and
-  `traceMs` / `inspectMs` for trace and inspect work budgets. Effective `baseUri`
-  values project relative report input and
-  diagnostic URIs. Default and named namespace maps seed schema validation's root
+  `traceMs` / `inspectMs` / `benchMs` for trace, inspect, and benchmark workflow budgets.
+  Effective `baseUri` values project relative report input and diagnostic URIs. Default and named namespace maps seed schema validation's root
   namespace context. Recognized CEM-ML version pins resolve through the document-format
   version resolver. Input module maps resolve relative schema-source identities and
   local JSON aliases, including config-relative module-map paths. Config-file output
@@ -249,7 +248,7 @@ The deterministic default timestamp for feature tests is `1970-01-01T00:00:00.00
 - Fixture validation Markdown: `packages/cem_ml_cli/dist/cem-ml.report.md`
 - Fixture roundtrip JSON: `packages/cem_ml_cli/dist/cem-ml.roundtrip.report.json`
 - Fixture roundtrip Markdown: `packages/cem_ml_cli/dist/cem-ml.roundtrip.report.md`
-- Bench JSON: `packages/cem_ml_cli/dist/cem-ml.bench.report.json`
+- Benchmark JSON (`cem-ml bench`): `packages/cem_ml_cli/dist/cem-ml.bench.report.json`
 
 JSON, XML, and CEM-native reports are structured projections. Text, Markdown, and HTML
 reports are reference-implementation convenience projections.
@@ -257,7 +256,7 @@ reports are reference-implementation convenience projections.
 ## Exit Codes
 
 - `0`: success
-- `1`: parse, validation, strict-mode, or benchmark-budget failure
+- `1`: parse, validation, strict-mode, or benchmark budget failure
 - `2`: CLI usage error, including reserved commands
 - `3`: schema resolution error, reserved
 - `4`: transform failure, reserved
