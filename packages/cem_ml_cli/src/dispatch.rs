@@ -10,6 +10,7 @@ use crate::template_pass;
 use cem_ml::engine::{self as eng, CemMlEngine, EngineError};
 use cem_ml::run_config::{self, InputSpec, OutputSpec, RunConfig, RunConfigDefaults, ScopeConfig};
 use std::borrow::Cow;
+use std::collections::BTreeMap;
 use std::fs;
 use std::io::{self, Write};
 use std::path::{Path, PathBuf};
@@ -57,7 +58,7 @@ fn read_input(path: &Path) -> io::Result<Vec<u8>> {
 fn engine_input(
     path: &Path,
     from_format: Option<cli::InputFormat>,
-    identity: Option<eng::FormatIdentity>,
+    root_scope: ScopeConfig,
 ) -> Result<eng::EngineInput, EngineError> {
     let bytes = read_input(path).map_err(|e| EngineError::Io {
         path: path.to_path_buf(),
@@ -67,27 +68,31 @@ fn engine_input(
         uri: path.display().to_string(),
         bytes,
         from_format: from_format.map(to_engine_input_format),
-        identity,
-        root_scope: ScopeConfig::default(),
+        identity: root_scope.format_identity_option(),
+        root_scope,
     })
 }
 
-fn positional_input_identity(path: &Path, defaults: &ScopeConfig) -> Option<eng::FormatIdentity> {
+fn positional_input_scope(path: &Path, defaults: &ScopeConfig) -> ScopeConfig {
     let mut scope = defaults.clone();
     if scope.default_content_type.is_none() {
         scope.default_content_type =
             run_config::infer_content_type_from_path(&path.display().to_string());
     }
-    scope.format_identity_option()
+    scope
 }
 
-fn placeholder_input(path: &Path, from_format: Option<cli::InputFormat>) -> eng::EngineInput {
+fn placeholder_input(
+    path: &Path,
+    from_format: Option<cli::InputFormat>,
+    root_scope: ScopeConfig,
+) -> eng::EngineInput {
     eng::EngineInput {
         uri: path.display().to_string(),
         bytes: Vec::new(),
         from_format: from_format.map(to_engine_input_format),
-        identity: None,
-        root_scope: ScopeConfig::default(),
+        identity: root_scope.format_identity_option(),
+        root_scope,
     }
 }
 
@@ -230,7 +235,7 @@ fn single_configured_input(
             engine_input(
                 path,
                 from_format,
-                positional_input_identity(path, positional_defaults),
+                positional_input_scope(path, positional_defaults),
             )
             .map_err(CliRequestError::Engine)?,
         );
@@ -262,19 +267,29 @@ fn collect_inputs(
             engine_input(
                 p,
                 from_format,
-                positional_input_identity(p, positional_defaults),
+                positional_input_scope(p, positional_defaults),
             )
         })
         .collect()
 }
 
-fn collect_fixture_inputs(paths: &[PathBuf], use_defaults: bool) -> Vec<eng::EngineInput> {
+fn collect_fixture_inputs(
+    paths: &[PathBuf],
+    use_defaults: bool,
+    positional_defaults: &ScopeConfig,
+) -> Vec<eng::EngineInput> {
     if paths.is_empty() && use_defaults {
-        default_fixture_inputs()
+        default_fixture_inputs(positional_defaults)
     } else {
         paths
             .iter()
-            .map(|p| placeholder_input(p, infer_input_format(p)))
+            .map(|p| {
+                placeholder_input(
+                    p,
+                    infer_input_format(p),
+                    positional_input_scope(p, positional_defaults),
+                )
+            })
             .collect()
     }
 }
@@ -290,13 +305,21 @@ fn infer_input_format(path: &Path) -> Option<cli::InputFormat> {
 
 const FIXTURE_MANIFEST_JSON: &str = include_str!("../../../examples/cem-ml/fixture-manifest.json");
 
-fn default_fixture_inputs() -> Vec<eng::EngineInput> {
+fn default_fixture_inputs(positional_defaults: &ScopeConfig) -> Vec<eng::EngineInput> {
     fixture_manifest_pairs()
         .into_iter()
         .flat_map(|pair| {
             [
-                placeholder_input(Path::new(&pair.cem), Some(cli::InputFormat::Cem)),
-                placeholder_input(Path::new(&pair.html), Some(cli::InputFormat::Html)),
+                placeholder_input(
+                    Path::new(&pair.cem),
+                    Some(cli::InputFormat::Cem),
+                    positional_input_scope(Path::new(&pair.cem), positional_defaults),
+                ),
+                placeholder_input(
+                    Path::new(&pair.html),
+                    Some(cli::InputFormat::Html),
+                    positional_input_scope(Path::new(&pair.html), positional_defaults),
+                ),
             ]
         })
         .collect()
@@ -434,6 +457,8 @@ fn input_scope_defaults(c: &cli::ContextOptions) -> ScopeConfig {
     ScopeConfig {
         default_content_type: c.content_type.clone(),
         schema: c.schema.clone(),
+        default_namespace: c.default_namespace.clone(),
+        namespaces: context_namespaces(c),
         base_uri: c.base_uri.clone(),
         ..ScopeConfig::default()
     }
@@ -443,9 +468,18 @@ fn output_scope_defaults(args: &cli::ConvertArgs) -> ScopeConfig {
     ScopeConfig {
         default_content_type: args.to_content_type.clone(),
         schema: args.to_schema.clone(),
+        default_namespace: args.context.default_namespace.clone(),
+        namespaces: context_namespaces(&args.context),
         base_uri: args.context.base_uri.clone(),
         ..ScopeConfig::default()
     }
+}
+
+fn context_namespaces(c: &cli::ContextOptions) -> BTreeMap<String, String> {
+    c.namespaces
+        .iter()
+        .map(|binding| (binding.prefix.clone(), binding.uri.clone()))
+        .collect()
 }
 
 fn run_defaults(input_scope: ScopeConfig, output_scope: ScopeConfig) -> RunConfigDefaults {
@@ -516,7 +550,7 @@ fn convert_configured_inputs(
             engine_input(
                 path,
                 args.from_format,
-                positional_input_identity(path, positional_defaults),
+                positional_input_scope(path, positional_defaults),
             )
             .map_err(CliRequestError::Engine)?,
         );
@@ -1498,7 +1532,7 @@ pub fn run_fixture_validate<E: CemMlEngine + ?Sized>(
     let input_defaults = input_scope_defaults(&args.context);
     let config = match run_config(
         &args.run,
-        run_defaults(input_defaults, ScopeConfig::default()),
+        run_defaults(input_defaults.clone(), ScopeConfig::default()),
     ) {
         Ok(config) => config,
         Err(CliRequestError::RunConfigDiagnostics {
@@ -1517,7 +1551,8 @@ pub fn run_fixture_validate<E: CemMlEngine + ?Sized>(
         }
         Err(err) => return handle_cli_request_error(err, s),
     };
-    let mut inputs = collect_fixture_inputs(&args.inputs, config.inputs.is_empty());
+    let mut inputs =
+        collect_fixture_inputs(&args.inputs, config.inputs.is_empty(), &input_defaults);
     for spec in &config.inputs {
         match engine_input_from_spec(spec, None) {
             Ok(input) => inputs.push(input),
@@ -1567,7 +1602,7 @@ pub fn run_fixture_roundtrip<E: CemMlEngine + ?Sized>(
     let input_defaults = input_scope_defaults(&args.context);
     let config = match run_config(
         &args.run,
-        run_defaults(input_defaults, ScopeConfig::default()),
+        run_defaults(input_defaults.clone(), ScopeConfig::default()),
     ) {
         Ok(config) => config,
         Err(CliRequestError::RunConfigDiagnostics {
@@ -1586,7 +1621,8 @@ pub fn run_fixture_roundtrip<E: CemMlEngine + ?Sized>(
         }
         Err(err) => return handle_cli_request_error(err, s),
     };
-    let mut inputs = collect_fixture_inputs(&args.inputs, config.inputs.is_empty());
+    let mut inputs =
+        collect_fixture_inputs(&args.inputs, config.inputs.is_empty(), &input_defaults);
     for spec in &config.inputs {
         match engine_input_from_spec(spec, None) {
             Ok(input) => inputs.push(input),
@@ -2175,11 +2211,38 @@ mod tests {
     #[test]
     fn positional_input_identity_infers_content_type_from_extension() {
         let identity =
-            positional_input_identity(Path::new("src/screen.html"), &ScopeConfig::default())
+            positional_input_scope(Path::new("src/screen.html"), &ScopeConfig::default())
+                .format_identity_option()
                 .expect("html extension should infer content type");
         assert_eq!(identity.content_type.as_deref(), Some("text/html"));
         assert_eq!(identity.schema, None);
         assert_eq!(identity.base_uri, None);
+    }
+
+    #[test]
+    fn positional_input_scope_carries_context_namespace_defaults() {
+        let context = cli::ContextOptions {
+            schema: Some("https://cem.dev/ns/core/1".to_owned()),
+            content_type: None,
+            default_namespace: Some("urn:default".to_owned()),
+            namespaces: vec![cli::NamespaceBinding {
+                prefix: "widget".to_owned(),
+                uri: "urn:widgets".to_owned(),
+            }],
+            base_uri: Some("file:///workspace/".to_owned()),
+        };
+
+        let defaults = input_scope_defaults(&context);
+        let scope = positional_input_scope(Path::new("src/screen.html"), &defaults);
+
+        assert_eq!(scope.default_content_type.as_deref(), Some("text/html"));
+        assert_eq!(scope.schema.as_deref(), Some("https://cem.dev/ns/core/1"));
+        assert_eq!(scope.default_namespace.as_deref(), Some("urn:default"));
+        assert_eq!(
+            scope.namespaces.get("widget").map(String::as_str),
+            Some("urn:widgets")
+        );
+        assert_eq!(scope.base_uri.as_deref(), Some("file:///workspace/"));
     }
 
     #[test]
@@ -2844,6 +2907,7 @@ mod tests {
                 PathBuf::from("examples/cem-ml/namespace-rebinding/default-html-svg-html.xml"),
             ],
             false,
+            &ScopeConfig::default(),
         );
         assert_eq!(inputs[0].from_format, Some(eng::InputFormat::Cem));
         assert_eq!(inputs[1].from_format, Some(eng::InputFormat::Html));
@@ -3744,8 +3808,12 @@ fn observable_inputs(
         }
         cli::Command::Fixture(cli::FixtureCmd::Validate(a)) => {
             let input_defaults = input_scope_defaults(&a.context);
-            let config = run_config(&a.run, run_defaults(input_defaults, ScopeConfig::default()))?;
-            let mut inputs = collect_fixture_inputs(&a.inputs, config.inputs.is_empty());
+            let config = run_config(
+                &a.run,
+                run_defaults(input_defaults.clone(), ScopeConfig::default()),
+            )?;
+            let mut inputs =
+                collect_fixture_inputs(&a.inputs, config.inputs.is_empty(), &input_defaults);
             for spec in &config.inputs {
                 inputs.push(engine_input_from_spec(spec, None)?);
             }
@@ -3753,8 +3821,12 @@ fn observable_inputs(
         }
         cli::Command::Fixture(cli::FixtureCmd::Roundtrip(a)) => {
             let input_defaults = input_scope_defaults(&a.context);
-            let config = run_config(&a.run, run_defaults(input_defaults, ScopeConfig::default()))?;
-            let mut inputs = collect_fixture_inputs(&a.inputs, config.inputs.is_empty());
+            let config = run_config(
+                &a.run,
+                run_defaults(input_defaults.clone(), ScopeConfig::default()),
+            )?;
+            let mut inputs =
+                collect_fixture_inputs(&a.inputs, config.inputs.is_empty(), &input_defaults);
             for spec in &config.inputs {
                 inputs.push(engine_input_from_spec(spec, None)?);
             }

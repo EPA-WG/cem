@@ -138,6 +138,8 @@ the immediate CLI lifecycle contract.
       `inspect`, and `convert`;
     - add explicit target identity flags for conversion, for example
       `--to-content-type` and `--to-schema`;
+    - expose command-level namespace defaults with `--default-namespace` and
+      repeatable `--namespace PREFIX=URI`;
     - continue supporting `--schema` for input schema identity until split input/output schema
       flags land.
 8. Replace the current XSLT special case in `RealCemMlEngine::convert` with the adapter
@@ -522,8 +524,8 @@ coverage; the parser stack design only owns the layer outputs that feed CLI proj
     - command surface: `parse`, `validate`, `check`, `inspect`, `convert`, `trace`, `bench`, `fixture validate`,
       `fixture roundtrip`, `help`, `version`, and reserved `transform`, `schema`, and `plugin` workflows
     - option groups: fail level, output format, report destinations, output file, schema/content-type/base URI,
-      quiet/verbose/no-color, zero hard violations, source-offset preservation, inspect views, benchmark controls, and
-      fixture defaults
+      default namespace and named namespace bindings, quiet/verbose/no-color, zero hard violations, source-offset
+      preservation, inspect views, benchmark controls, and fixture defaults
     - output shapes: diagnostics, report AST, CEM/XML/JSON report renderings, text/HTML convenience renderings, DOM
       JSON, AST, events, inspect views, trace output, benchmark output, and fixture roundtrip reports
     - exit behavior: success, parser/validation failure, usage errors, reserved subsystem errors, I/O errors, and

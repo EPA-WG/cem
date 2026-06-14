@@ -1,5 +1,6 @@
 use clap::{Args, Parser, Subcommand, ValueEnum};
 use std::path::PathBuf;
+use std::str::FromStr;
 
 pub const COPYRIGHT_NOTICE: &str =
     "Copyright (c) 2026 Sasha Firsov <https://github.com/sashafirsov>";
@@ -177,11 +178,54 @@ pub struct ContextOptions {
     pub content_type: Option<String>,
 
     #[arg(
+        long = "default-namespace",
+        value_name = "URI",
+        help = "Default namespace URI for the input root scope"
+    )]
+    pub default_namespace: Option<String>,
+
+    #[arg(
+        long = "namespace",
+        value_name = "PREFIX=URI",
+        action = clap::ArgAction::Append,
+        help = "Named namespace binding for the input root scope; repeatable"
+    )]
+    pub namespaces: Vec<NamespaceBinding>,
+
+    #[arg(
         long,
         value_name = "URI",
         help = "Base URI for diagnostic/report URI normalization"
     )]
     pub base_uri: Option<String>,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct NamespaceBinding {
+    pub prefix: String,
+    pub uri: String,
+}
+
+impl FromStr for NamespaceBinding {
+    type Err = String;
+
+    fn from_str(value: &str) -> Result<Self, Self::Err> {
+        let Some((prefix, uri)) = value.split_once('=') else {
+            return Err("expected PREFIX=URI".to_owned());
+        };
+        let prefix = prefix.trim();
+        let uri = uri.trim();
+        if prefix.is_empty() {
+            return Err("namespace prefix must not be empty; use --default-namespace for the default namespace".to_owned());
+        }
+        if uri.is_empty() {
+            return Err("namespace URI must not be empty".to_owned());
+        }
+        Ok(Self {
+            prefix: prefix.to_owned(),
+            uri: uri.to_owned(),
+        })
+    }
 }
 
 #[derive(Args, Debug, Default, Clone)]
@@ -584,6 +628,37 @@ mod tests {
             "in.html",
         ])
         .unwrap();
+    }
+
+    #[test]
+    fn commands_accept_namespace_context_options() {
+        let cli = try_parse(&[
+            "validate",
+            "--default-namespace",
+            "urn:default",
+            "--namespace",
+            "html=https://www.w3.org/1999/xhtml",
+            "--namespace",
+            "svg=http://www.w3.org/2000/svg",
+            "in.cem",
+        ])
+        .unwrap();
+
+        let Command::Validate(args) = cli.command else {
+            panic!("expected validate command");
+        };
+        assert_eq!(
+            args.context.default_namespace.as_deref(),
+            Some("urn:default")
+        );
+        assert_eq!(args.context.namespaces.len(), 2);
+        assert_eq!(args.context.namespaces[0].prefix, "html");
+        assert_eq!(
+            args.context.namespaces[0].uri,
+            "https://www.w3.org/1999/xhtml"
+        );
+        assert!(try_parse(&["validate", "--namespace", "=urn:default", "in.cem"]).is_err());
+        assert!(try_parse(&["validate", "--namespace", "html", "in.cem"]).is_err());
     }
 
     #[test]

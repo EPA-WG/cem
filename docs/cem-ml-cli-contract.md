@@ -210,6 +210,10 @@ Current implementation status:
 - Root-scope configuration for inputs and outputs: default content type, schema,
   version pins, default namespace, named namespaces, module map / resolver identity,
   base URI, scope policy, and resource budgets.
+- Command-level input root-scope defaults include `--content-type`, `--schema`,
+  `--default-namespace`, repeatable `--namespace PREFIX=URI`, and `--base-uri`;
+  config files or `--input-spec` records remain the preferred shape for richer
+  per-input namespace maps and resolver settings.
 - Multi-source configuration via config file, plus repeatable CSV option records for
   CLI one-liners. Config files are preferred for CI/build reproducibility.
 - Config-file content type via `--config-content-type`, inferred from extension when
@@ -218,7 +222,8 @@ Current implementation status:
   output where relevant.
 - Output destination handling for stdout and `--out`.
 - Report destinations for JSON and Markdown reports, including directory destinations with default filenames.
-- Schema, content-type, and base-URI recording even before full schema resolution exists.
+- Schema, content-type, namespace, and base-URI option plumbing even before full
+  schema resolution exists.
 - Quiet, verbose, and no-color terminal behavior.
 - Zero-hard-violations check behavior.
 - Source-offset preservation for conversion and parser projection workflows.

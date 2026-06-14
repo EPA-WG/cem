@@ -37,7 +37,9 @@ for the current architecture have landed; only deferred capability work remains 
       helpers over the same library parser, and CLI `--config`, `--config-content-type`, repeatable `--input-spec`, and
       repeatable `--output-spec` map into engine input identities and the first conversion output target/destination.
       Positional inputs now receive the same normalized content-type identity path, including extension inference when
-      no explicit `--content-type` is supplied. Config diagnostics now fail before document parsing for malformed JSON,
+      no explicit `--content-type` is supplied; command-level `--default-namespace` and repeatable
+      `--namespace PREFIX=URI` flags now flow into positional input root scopes alongside `--schema`,
+      `--content-type`, and `--base-uri`. Config diagnostics now fail before document parsing for malformed JSON,
       unsupported config content types, duplicate input URIs, and unknown output input references, and validation-style
       CLI commands represent those diagnostics in generated JSON/Markdown reports. The `--observe-events` path now uses
       the same configured input list and lifecycle dispatch as parser-backed commands, including `--input-spec` and
