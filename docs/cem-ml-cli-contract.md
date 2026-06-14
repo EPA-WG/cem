@@ -115,10 +115,12 @@ Current implementation status:
   per-document tasks, so the trace reflects actual document work instead of report
   projection only. Convert can write explicit side reports from scheduler traces returned
   by engine convert execution while preserving content-primary stdout/`--out` behavior.
-  Full input and output root-scope config reaches engine requests, and unsupported
-  policy, budget, module-map, namespace, and version fields emit deterministic execution
-  diagnostics instead of being silently ignored. Real runtime behavior for those fields
-  remains pending.
+  Full input and output root-scope config reaches engine requests. Recognized
+  root-scope scheduler policy and budget fields derive the per-scope worker policy for
+  scheduled validate/check, trace, and convert execution, while unknown budget keys,
+  module-map, namespace, and version fields emit deterministic execution diagnostics
+  instead of being silently ignored. Real runtime behavior for module maps,
+  namespace/version semantics, and the remaining budget hooks remains pending.
 - `--schema` and `--content-type` are carried in `EngineContext` and emitted in reports.
   `cem_ml::lifecycle::LifecycleRegistry` now owns built-in input content-type dispatch
   for parser-backed commands (`parse`, `validate`, `check`, `inspect`, `convert`,
@@ -126,9 +128,9 @@ Current implementation status:
   `convert --to-content-type application/cem+xml`; schema-specific adapter selection
   is still pending.
 - Root-scope configuration is not complete yet. Current execution uses run-config identity
-  fields for lifecycle dispatch and first conversion output selection; module maps,
-  explicit namespace maps, multi-output fanout, and shared multi-document scheduler
-  execution remain planned requirements.
+  fields for lifecycle dispatch and conversion output selection, and recognized scheduler
+  policy/budget fields for scheduled worker policy. Module maps, explicit namespace maps,
+  namespace/version semantics, and unsupported budget hooks remain planned requirements.
 - `validate` / `check` / `convert` route `custom-element-xslt` input through the first
   shared lifecycle adapter path, lowering legacy custom-element XSLT to canonical
   CEM-ML through `cem_ml::legacy_custom_element`; `convert --content-type

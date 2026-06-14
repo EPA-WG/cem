@@ -157,6 +157,31 @@ fn root_scope_execution_diagnostics(
     scope: &ScopeConfig,
     direction: &str,
 ) -> Vec<Diagnostic> {
+    let mut diagnostics = root_scope_metadata_diagnostics(uri, scope, direction);
+    if scope.policy.is_some() {
+        diagnostics.push(unsupported_scope_diagnostic(
+            uri,
+            "cem.scope.policy_unenforced",
+            "policy",
+            direction,
+        ));
+    }
+    if !scope.budgets.is_empty() {
+        diagnostics.push(unsupported_scope_diagnostic(
+            uri,
+            "cem.scope.budgets_unenforced",
+            "budgets",
+            direction,
+        ));
+    }
+    diagnostics
+}
+
+fn root_scope_metadata_diagnostics(
+    uri: &str,
+    scope: &ScopeConfig,
+    direction: &str,
+) -> Vec<Diagnostic> {
     let mut diagnostics = Vec::new();
     if !scope.version_pins.is_empty() {
         diagnostics.push(unsupported_scope_diagnostic(
@@ -190,22 +215,137 @@ fn root_scope_execution_diagnostics(
             direction,
         ));
     }
-    if scope.policy.is_some() {
-        diagnostics.push(unsupported_scope_diagnostic(
-            uri,
-            "cem.scope.policy_unenforced",
-            "policy",
-            direction,
-        ));
+    diagnostics
+}
+
+fn scope_policy_diagnostic(uri: &str, code: &str, message: String, direction: &str) -> Diagnostic {
+    Diagnostic {
+        uri: Some(uri.to_owned()),
+        code: code.to_owned(),
+        severity: Severity::Warning,
+        message: format!("{direction} root-scope {message}"),
+        ..Diagnostic::default()
     }
-    if !scope.budgets.is_empty() {
-        diagnostics.push(unsupported_scope_diagnostic(
-            uri,
-            "cem.scope.budgets_unenforced",
-            "budgets",
-            direction,
-        ));
+}
+
+fn normalize_scope_key(key: &str) -> String {
+    key.chars()
+        .filter(|ch| *ch != '-' && *ch != '_')
+        .collect::<String>()
+        .to_ascii_lowercase()
+}
+
+fn parse_u32_budget(field: &str, value: &str) -> Result<u32, String> {
+    value
+        .parse::<u32>()
+        .map(|value| value.max(1))
+        .map_err(|_| format!("budget `{field}` expects an unsigned integer, got `{value}`"))
+}
+
+fn parse_u64_budget(field: &str, value: &str) -> Result<u64, String> {
+    value
+        .parse::<u64>()
+        .map_err(|_| format!("budget `{field}` expects an unsigned integer, got `{value}`"))
+}
+
+fn apply_scope_scheduler_fields(
+    policy: &mut crate::scheduler::ScopePolicy,
+    uri: &str,
+    scope: &ScopeConfig,
+    direction: &str,
+) -> Vec<Diagnostic> {
+    let mut diagnostics = Vec::new();
+    if let Some(named_policy) = scope.policy.as_deref() {
+        match normalize_scope_key(named_policy).as_str() {
+            "host" => *policy = crate::scheduler::ScopePolicy::host_root(),
+            "deterministic" | "default" => {
+                *policy = crate::scheduler::ScopePolicy {
+                    cpu_workers: 1,
+                    queue_size: 8,
+                    io_streams: 4,
+                    memory_bytes: 8 * 1024 * 1024,
+                    plugin_time_budget_ms: None,
+                    overflow: crate::scheduler::OverflowPolicy::Reject,
+                };
+            }
+            _ => diagnostics.push(unsupported_scope_diagnostic(
+                uri,
+                "cem.scope.policy_unenforced",
+                "policy",
+                direction,
+            )),
+        }
     }
+
+    for (field, value) in &scope.budgets {
+        match normalize_scope_key(field).as_str() {
+            "cpu" | "cpuworkers" => match parse_u32_budget(field, value) {
+                Ok(value) => policy.cpu_workers = value,
+                Err(message) => diagnostics.push(scope_policy_diagnostic(
+                    uri,
+                    "cem.scope.budget_invalid",
+                    message,
+                    direction,
+                )),
+            },
+            "queue" | "queuesize" => match parse_u32_budget(field, value) {
+                Ok(value) => policy.queue_size = value,
+                Err(message) => diagnostics.push(scope_policy_diagnostic(
+                    uri,
+                    "cem.scope.budget_invalid",
+                    message,
+                    direction,
+                )),
+            },
+            "io" | "iostreams" => match parse_u32_budget(field, value) {
+                Ok(value) => policy.io_streams = value,
+                Err(message) => diagnostics.push(scope_policy_diagnostic(
+                    uri,
+                    "cem.scope.budget_invalid",
+                    message,
+                    direction,
+                )),
+            },
+            "memory" | "memorybytes" => match parse_u64_budget(field, value) {
+                Ok(value) => policy.memory_bytes = value,
+                Err(message) => diagnostics.push(scope_policy_diagnostic(
+                    uri,
+                    "cem.scope.budget_invalid",
+                    message,
+                    direction,
+                )),
+            },
+            "pluginms" | "plugintimebudgetms" => match parse_u64_budget(field, value) {
+                Ok(value) => policy.plugin_time_budget_ms = Some(value),
+                Err(message) => diagnostics.push(scope_policy_diagnostic(
+                    uri,
+                    "cem.scope.budget_invalid",
+                    message,
+                    direction,
+                )),
+            },
+            "overflow" => match normalize_scope_key(value).as_str() {
+                "block" => policy.overflow = crate::scheduler::OverflowPolicy::Block,
+                "reject" => policy.overflow = crate::scheduler::OverflowPolicy::Reject,
+                "spilltoparent" => {
+                    policy.overflow = crate::scheduler::OverflowPolicy::SpillToParent
+                }
+                _ => diagnostics.push(scope_policy_diagnostic(
+                    uri,
+                    "cem.scope.budget_invalid",
+                    format!("budget `overflow` expects block, reject, or spill-to-parent, got `{value}`"),
+                    direction,
+                )),
+            },
+            _ => diagnostics.push(scope_policy_diagnostic(
+                uri,
+                "cem.scope.budget_unenforced",
+                format!("budget `{field}` is parsed and preserved, but runtime enforcement is not implemented yet"),
+                direction,
+            )),
+        }
+    }
+
     diagnostics
 }
 
@@ -234,6 +374,36 @@ fn scheduler_policy_from_context(context: &EngineContext) -> crate::scheduler::S
     policy
 }
 
+fn scheduler_policy_for_scope(
+    context: &EngineContext,
+    uri: &str,
+    scope: &ScopeConfig,
+    direction: &str,
+) -> (crate::scheduler::ScopePolicy, Vec<Diagnostic>) {
+    let mut policy = scheduler_policy_from_context(context);
+    let diagnostics = apply_scope_scheduler_fields(&mut policy, uri, scope, direction);
+    (policy, diagnostics)
+}
+
+fn scheduler_policy_for_convert(
+    request: &ConvertRequest,
+) -> (crate::scheduler::ScopePolicy, Vec<Diagnostic>) {
+    let mut policy = scheduler_policy_from_context(&request.context);
+    let mut diagnostics = apply_scope_scheduler_fields(
+        &mut policy,
+        &request.input.uri,
+        &request.input.root_scope,
+        "input",
+    );
+    diagnostics.extend(apply_scope_scheduler_fields(
+        &mut policy,
+        &request.input.uri,
+        &request.target_scope,
+        "output",
+    ));
+    (policy, diagnostics)
+}
+
 fn scheduler_policy_json(policy: crate::scheduler::ScopePolicy) -> Value {
     json!({
         "cpuWorkers": policy.cpu_workers,
@@ -250,10 +420,12 @@ fn run_scheduled_validation_documents(
     inputs: &[EngineInput],
 ) -> EngineResult<(Vec<Diagnostic>, crate::scheduler::SchedulerTrace)> {
     let trace = crate::scheduler::SchedulerTrace::new();
-    let policy = scheduler_policy_from_context(context);
     let abort = crate::scheduler::AbortSignal::new();
     let mut all_diags: Vec<Diagnostic> = Vec::new();
     for (index, input) in inputs.iter().enumerate() {
+        let (policy, mut policy_diagnostics) =
+            scheduler_policy_for_scope(context, &input.uri, &input.root_scope, "input");
+        all_diags.append(&mut policy_diagnostics);
         let pool = crate::scheduler::WorkerPool::new(index as u32, policy, trace.clone());
         for task in ["lifecycle-load", "parse-validate"] {
             pool.submit(format!("{}:{task}", input.uri), &abort)
@@ -265,7 +437,7 @@ fn run_scheduled_validation_documents(
         pool.run_to_completion(&abort, |task| {
             if task.ends_with(":lifecycle-load") {
                 let mut scope_diagnostics =
-                    root_scope_execution_diagnostics(&input.uri, &input.root_scope, "input");
+                    root_scope_metadata_diagnostics(&input.uri, &input.root_scope, "input");
                 all_diags.append(&mut scope_diagnostics);
                 let mut loaded = load_input_through_lifecycle(input, context);
                 all_diags.append(&mut loaded.diagnostics);
@@ -614,7 +786,7 @@ impl CemMlEngine for RealCemMlEngine {
 
     fn convert(&self, request: ConvertRequest) -> EngineResult<ConvertResponse> {
         let trace = crate::scheduler::SchedulerTrace::new();
-        let policy = scheduler_policy_from_context(&request.context);
+        let (policy, mut diagnostics) = scheduler_policy_for_convert(&request);
         let pool =
             crate::scheduler::WorkerPool::new(request.scheduler_scope_id, policy, trace.clone());
         let abort = crate::scheduler::AbortSignal::new();
@@ -628,11 +800,10 @@ impl CemMlEngine for RealCemMlEngine {
         let registry = LifecycleRegistry::with_builtin_adapters();
         let mut loaded_input: Option<LoadedInput> = None;
         let mut export_selection: Option<ExportSelection> = None;
-        let mut diagnostics = Vec::new();
         let mut primary: Option<Value> = None;
         pool.run_to_completion(&abort, |task| {
             if task.ends_with(":lifecycle-load") {
-                let mut scope_diagnostics = root_scope_execution_diagnostics(
+                let mut scope_diagnostics = root_scope_metadata_diagnostics(
                     &request.input.uri,
                     &request.input.root_scope,
                     "input",
@@ -645,7 +816,7 @@ impl CemMlEngine for RealCemMlEngine {
             }
 
             if task.ends_with(":select-export") {
-                let mut scope_diagnostics = root_scope_execution_diagnostics(
+                let mut scope_diagnostics = root_scope_metadata_diagnostics(
                     &request.input.uri,
                     &request.target_scope,
                     "output",
@@ -725,7 +896,12 @@ impl CemMlEngine for RealCemMlEngine {
         let loaded = load_input_through_lifecycle(&request.input, &request.context);
         let from_format = loaded.from_format;
         let scheduler_trace = crate::scheduler::SchedulerTrace::new();
-        let policy = scheduler_policy_from_context(&request.context);
+        let (policy, policy_diagnostics) = scheduler_policy_for_scope(
+            &request.context,
+            &request.input.uri,
+            &request.input.root_scope,
+            "input",
+        );
         let pool = crate::scheduler::WorkerPool::new(0, policy, scheduler_trace.clone());
         let abort = crate::scheduler::AbortSignal::new();
         for task in ["tokenize", "normalize", "schema", "ast", "validate"] {
@@ -735,11 +911,12 @@ impl CemMlEngine for RealCemMlEngine {
         }
         let run = run_pipeline_as(&loaded.bytes, from_format);
         pool.run_to_completion(&abort, |_| {});
-        let mut diagnostics = root_scope_execution_diagnostics(
+        let mut diagnostics = policy_diagnostics;
+        diagnostics.extend(root_scope_metadata_diagnostics(
             &request.input.uri,
             &request.input.root_scope,
             "input",
-        );
+        ));
         diagnostics.extend(loaded.diagnostics);
         diagnostics.extend(run.diagnostics);
         let report = Report::deterministic(
@@ -1018,7 +1195,7 @@ mod tests {
             .report
             .diagnostics
             .iter()
-            .any(|diag| diag.code == "cem.scope.budgets_unenforced"));
+            .any(|diag| diag.code == "cem.scope.budget_unenforced"));
     }
 
     #[test]
@@ -1307,6 +1484,34 @@ mod tests {
         );
         assert_eq!(scheduler_trace["events"][0]["scopeId"], 0);
         assert_eq!(scheduler_trace["events"][0]["task"], "tokenize");
+    }
+
+    #[test]
+    fn trace_applies_input_scope_scheduler_policy_and_budgets() {
+        let mut source = input(b"{p Hi}", "budgeted.cem");
+        source.root_scope.policy = Some("deterministic".to_owned());
+        source
+            .root_scope
+            .budgets
+            .insert("queueSize".to_owned(), "12".to_owned());
+        source
+            .root_scope
+            .budgets
+            .insert("pluginTimeBudgetMs".to_owned(), "7".to_owned());
+        let req = TraceRequest {
+            input: source,
+            projection: TraceProjection::Json,
+            context: ctx(),
+        };
+
+        let resp = RealCemMlEngine::new().trace(req).unwrap();
+        assert_eq!(resp.body["scheduler"]["policy"]["queueSize"], 12);
+        assert_eq!(resp.body["scheduler"]["policy"]["pluginTimeBudgetMs"], 7);
+        assert!(!resp.body["report"]["diagnostics"]
+            .as_array()
+            .unwrap()
+            .iter()
+            .any(|diag| diag["code"] == "cem.scope.budgets_unenforced"));
     }
 
     #[test]

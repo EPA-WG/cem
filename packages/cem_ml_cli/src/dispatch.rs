@@ -1746,7 +1746,7 @@ mod tests {
             .any(|diag| diag["code"] == "cem.scope.namespaces_unenforced"));
         assert!(diagnostics
             .iter()
-            .any(|diag| diag["code"] == "cem.scope.budgets_unenforced"));
+            .any(|diag| diag["code"] == "cem.scope.budget_unenforced"));
     }
 
     #[test]
@@ -2230,7 +2230,15 @@ mod tests {
         std::fs::write(
             &config_path,
             serde_json::json!({
-                "inputs": [{ "uri": input.display().to_string() }],
+                "inputs": [{
+                    "uri": input.display().to_string(),
+                    "rootScope": {
+                        "budgets": {
+                            "queueSize": "12",
+                            "pluginTimeBudgetMs": "7"
+                        }
+                    }
+                }],
                 "scheduler": {
                     "threadPool": "deterministic",
                     "maxParallelDocuments": 3
@@ -2249,6 +2257,8 @@ mod tests {
         assert_eq!(v["scheduler"]["threadPool"], "deterministic");
         assert_eq!(v["scheduler"]["maxParallelDocuments"], 3);
         assert_eq!(v["scheduler"]["policy"]["cpuWorkers"], 3);
+        assert_eq!(v["scheduler"]["policy"]["queueSize"], 12);
+        assert_eq!(v["scheduler"]["policy"]["pluginTimeBudgetMs"], 7);
     }
 
     #[test]

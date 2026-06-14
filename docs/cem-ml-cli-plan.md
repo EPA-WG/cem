@@ -97,10 +97,12 @@ the immediate CLI lifecycle contract.
    per-document tasks, so the trace reflects actual document work instead of report
    projection only. Convert can now write explicit side reports from scheduler traces
    returned by engine convert execution while preserving content-primary stdout/`--out`
-   behavior. Full input and output root-scope config reaches engine requests, and
-   unsupported policy, budget, module-map, namespace, and version fields emit
-   deterministic execution diagnostics instead of being silently ignored. Real runtime
-   behavior for those fields remains open.
+   behavior. Full input and output root-scope config reaches engine requests.
+   Recognized root-scope scheduler policy and budget fields derive the per-scope
+   worker policy for scheduled validate/check, trace, and convert execution, while
+   unknown budget keys, module-map, namespace, and version fields emit deterministic
+   execution diagnostics instead of being silently ignored. Real runtime behavior for
+   module maps, namespace/version semantics, and remaining budget hooks remains open.
 7. Update CLI flags without breaking current debug workflows:
     - keep `--from-format` and `--to-format` as aliases for built-in identities;
     - keep `--content-type` as the input content type for `parse`, `validate`, `check`,
