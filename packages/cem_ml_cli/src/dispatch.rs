@@ -3375,6 +3375,32 @@ mod tests {
             "configured run input should produce parse events: {body}"
         );
     }
+
+    #[test]
+    fn observe_events_fixture_file_uri_input_is_read() {
+        let p = write_fixture("observe-events-fixture-file-uri.cem", "{p | hi}");
+        let out_dir = std::env::temp_dir().join("cem-ml-cli-observe");
+        std::fs::create_dir_all(&out_dir).unwrap();
+        let out_path = out_dir.join("fixture-file-uri-events.jsonl");
+        let _ = std::fs::remove_file(&out_path);
+        let (outcome, _, stderr) = run(
+            &RealCemMlEngine::new(),
+            &[
+                "--observe-events",
+                out_path.to_str().unwrap(),
+                "fixture",
+                "validate",
+                &format!("file://{}", p.display()),
+            ],
+        );
+        assert_eq!(outcome.exit_code, EXIT_OK, "{stderr}");
+        let body = std::fs::read_to_string(&out_path).unwrap();
+        assert!(
+            body.lines()
+                .any(|line| line.contains(r#""channel":"parse""#)),
+            "fixture file URI input should produce parse events: {body}"
+        );
+    }
 }
 
 fn observable_inputs(
@@ -3507,7 +3533,7 @@ fn emit_observability_events(
     for input in inputs {
         let input = if input.bytes.is_empty() {
             let path = resolve_fixture_input_path(&input.uri);
-            let bytes = match fs::read(&path) {
+            let bytes = match read_input(&path) {
                 Ok(b) => b,
                 Err(e) => {
                     let _ = writeln!(
