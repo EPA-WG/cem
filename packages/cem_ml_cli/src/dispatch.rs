@@ -1190,6 +1190,20 @@ pub fn run_parse<E: CemMlEngine + ?Sized>(
         run_defaults(input_defaults.clone(), ScopeConfig::default()),
     ) {
         Ok(config) => config,
+        Err(CliRequestError::RunConfigDiagnostics {
+            config,
+            diagnostics,
+        }) => {
+            return handle_run_config_diagnostics_report(
+                config,
+                diagnostics,
+                args.fail_level,
+                &args.context,
+                &args.report,
+                REPORT_BASENAME_VALIDATE,
+                s,
+            );
+        }
         Err(err) => return handle_cli_request_error(err, s),
     };
     let input = match single_configured_input(
@@ -3175,6 +3189,52 @@ mod tests {
         assert_eq!(stdout_report["summary"]["fatalCount"], 1);
         let written = std::fs::read_to_string(&report_path).unwrap();
         let file_report: serde_json::Value = serde_json::from_str(&written).unwrap();
+        assert_eq!(
+            file_report["diagnostics"][0]["code"],
+            "cem.run_config.output_input_ref_unknown"
+        );
+    }
+
+    #[test]
+    fn parse_config_diagnostics_write_requested_report_before_document_parsing() {
+        let config_path = std::env::temp_dir().join("cem-ml-cli-tests/parse-bad-config.json");
+        let report_path =
+            std::env::temp_dir().join("cem-ml-cli-tests/parse-bad-config-report.json");
+        let _ = std::fs::remove_file(&report_path);
+        std::fs::write(
+            &config_path,
+            serde_json::json!({
+                "inputs": [{ "uri": "/definitely/not/read.cem" }],
+                "outputs": [{ "inputRef": "missing.cem" }]
+            })
+            .to_string(),
+        )
+        .unwrap();
+
+        let (outcome, stdout, stderr) = run(
+            &RealCemMlEngine::new(),
+            &[
+                "parse",
+                "--config",
+                config_path.to_str().unwrap(),
+                "--report-json",
+                report_path.to_str().unwrap(),
+            ],
+        );
+
+        assert_eq!(outcome.exit_code, EXIT_USAGE_OR_RESERVED);
+        assert!(stderr.contains("cem.run_config.output_input_ref_unknown"));
+        assert!(
+            !stderr.contains("I/O error"),
+            "config diagnostics must fail before input files are read: {stderr}"
+        );
+        let stdout_report: serde_json::Value = serde_json::from_str(stdout.trim()).unwrap();
+        assert_eq!(
+            stdout_report["diagnostics"][0]["code"],
+            "cem.run_config.output_input_ref_unknown"
+        );
+        let file_report: serde_json::Value =
+            serde_json::from_str(&std::fs::read_to_string(&report_path).unwrap()).unwrap();
         assert_eq!(
             file_report["diagnostics"][0]["code"],
             "cem.run_config.output_input_ref_unknown"
