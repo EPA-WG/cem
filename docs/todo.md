@@ -70,14 +70,15 @@ for the current architecture have landed; only deferred capability work remains 
       relative module-map paths against the config document path, including local `file://` config document bases.
       Config-file output destinations now normalize relative paths against the config document path, including local
       `file://` config document bases. Configured, positional, and
-      fixture-materialized input reads resolve local `file://` URIs, and primary output, side-report, and observability
-      event writes resolve local `file://` destinations to filesystem paths. Run-config normalization now validates
+      fixture-materialized input reads resolve local `file://` URIs, and primary output, per-output conversion,
+      side-report, and observability event writes resolve local `file://` destinations to filesystem paths. Run-config
+      normalization now validates
       root-scope module-map, namespace, and version-pin option shape before
       document parsing, while unreadable or malformed module maps, unknown future budget keys, and unsupported
       version-pin targets emit deterministic execution diagnostics instead of being silently ignored. Remote/custom
-      module-map URI values now emit an explicit unsupported-resolver diagnostic; configured, positional, and
-      fixture-materialized input reads now reject remote/custom input URI values; and CLI file-write paths now reject
-      remote/custom URI destinations instead
+      module-map URI values now emit an explicit unsupported-resolver diagnostic; config document reads and configured,
+      positional, and fixture-materialized input reads now reject remote/custom URI values; and CLI file-write paths now
+      reject remote/custom URI destinations instead
       of treating them as local paths. Keep this item open until real remote/custom module-map, input, and output
       resolver semantics drive runtime
       behavior, not just preservation, diagnostics, or explicit rejection.

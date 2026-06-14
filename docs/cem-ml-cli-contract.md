@@ -172,9 +172,9 @@ Current implementation status:
   module-map URIs, and local `file://` config document bases. Config-file output
   destinations normalize relative paths against the config document path, including
   local `file://` config document bases. Configured, positional, and fixture-materialized
-  input reads resolve local `file://` URIs, and primary output, side-report, and
-  observability event writes resolve local `file://` destinations to filesystem paths
-  and reject remote/custom URI destinations until a resolver is implemented.
+  input reads resolve local `file://` URIs, and primary output, per-output conversion,
+  side-report, and observability event writes resolve local `file://` destinations to
+  filesystem paths and reject remote/custom URI destinations until a resolver is implemented.
   Config document reads and configured, positional, and fixture-materialized input reads
   also reject remote/custom URI values until a resolver is implemented. Remote/custom module-map URI values emit an
   unsupported-resolver diagnostic until a resolver is implemented. Real remote/custom

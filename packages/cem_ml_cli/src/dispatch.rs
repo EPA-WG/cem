@@ -2965,6 +2965,25 @@ mod tests {
     }
 
     #[test]
+    fn output_spec_remote_uri_destination_is_rejected_without_resolver() {
+        let input = write_fixture("convert-output-remote-destination.cem", "{p Hi}");
+        let (outcome, stdout, stderr) = run(
+            &RealCemMlEngine::new(),
+            &[
+                "convert",
+                "--output-spec",
+                "dest=https://example.test/out.json",
+                input.to_str().unwrap(),
+            ],
+        );
+
+        assert_eq!(outcome.exit_code, EXIT_IO);
+        assert!(stdout.trim().is_empty());
+        assert!(stderr.contains("remote/custom URI resolvers are not implemented"));
+        assert!(stderr.contains("https://example.test/out.json"));
+    }
+
+    #[test]
     fn output_spec_namespace_identity_selects_cem_export_adapter() {
         let input = write_fixture("convert-output-namespace-input.cem", "{p Hi}");
         let out_path = std::env::temp_dir().join("cem-ml-cli-tests/convert-output-namespace.out");
