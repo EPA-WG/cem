@@ -1762,7 +1762,7 @@ mod tests {
                 "json",
                 "--input-spec",
                 &format!(
-                    "uri={},namespaces=html:https://www.w3.org/1999/xhtml,budgets=parseMs:5",
+                    "uri={},moduleMap=cem.modules.json,budgets=parseMs:5",
                     p.display()
                 ),
             ],
@@ -1772,7 +1772,7 @@ mod tests {
         let diagnostics = v["diagnostics"].as_array().unwrap();
         assert!(diagnostics
             .iter()
-            .any(|diag| diag["code"] == "cem.scope.namespaces_unenforced"));
+            .any(|diag| diag["code"] == "cem.scope.module_map_unenforced"));
         assert!(diagnostics
             .iter()
             .any(|diag| diag["code"] == "cem.scope.budget_unenforced"));

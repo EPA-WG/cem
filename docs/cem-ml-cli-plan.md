@@ -101,11 +101,13 @@ the immediate CLI lifecycle contract.
    Recognized root-scope scheduler policy and budget fields derive the per-scope
    worker policy for scheduled validate/check, trace, and convert execution, and
    effective `baseUri` values project relative report input and diagnostic URIs.
-   Run-config normalization validates root-scope module-map, namespace, and version-pin
-   option shape before document parsing, while unknown budget keys and
-   valid-but-not-yet-enforced module-map/namespace/version fields emit deterministic
-   execution diagnostics instead of being silently ignored. Real runtime behavior for
-   module maps, namespace/version semantics, and remaining budget hooks remains open.
+   Root-scope default and named namespace bindings seed schema validation's
+   document-root namespace context. Run-config normalization validates root-scope
+   module-map, namespace, and version-pin option shape before document parsing, while
+   unknown budget keys and valid-but-not-yet-enforced module-map/version fields emit
+   deterministic execution diagnostics instead of being silently ignored. Real runtime
+   behavior for module maps, version-pin semantics, and remaining budget hooks remains
+   open.
 7. Update CLI flags without breaking current debug workflows:
     - keep `--from-format` and `--to-format` as aliases for built-in identities;
     - keep `--content-type` as the input content type for `parse`, `validate`, `check`,

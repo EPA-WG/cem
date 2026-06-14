@@ -23,6 +23,7 @@ use crate::schema::xslt;
 use crate::schema::{FramePhase, SchemaFrame, SchemaMachine, ScopeId};
 use crate::source::ByteRange;
 use crate::source_map::SourceMapStack;
+use std::collections::BTreeMap;
 
 pub struct CemSchemaMachine<E: EventNormalizer> {
     schema: CompiledSchema,
@@ -188,6 +189,42 @@ impl<E: EventNormalizer> CemSchemaMachine<E> {
     /// metadata / a scope-policy rule.
     pub fn with_xslt_dispatch(mut self, opt_in: bool) -> Self {
         self.xslt_dispatch_opt_in = opt_in;
+        self
+    }
+
+    /// Seed the document-root namespace context from host/run configuration
+    /// before the first event is consumed. Inline `@ns`, `@default`, and
+    /// XML `xmlns*` declarations can still rebind these values from their
+    /// source position onward.
+    pub fn with_root_namespace_bindings(
+        mut self,
+        default_namespace: Option<&str>,
+        namespaces: &BTreeMap<String, String>,
+    ) -> Self {
+        let declared_at = ByteRange::new(0, 0);
+        let source_map = SourceMapStack::default();
+        if let Some(namespace_uri) = default_namespace {
+            if let Some(root) = self.ns_contexts.first_mut() {
+                root.declare(
+                    "",
+                    namespace_uri,
+                    declared_at,
+                    declared_at,
+                    source_map.clone(),
+                );
+            }
+        }
+        for (prefix, namespace_uri) in namespaces {
+            if let Some(root) = self.ns_contexts.first_mut() {
+                root.declare(
+                    prefix.clone(),
+                    namespace_uri.clone(),
+                    declared_at,
+                    declared_at,
+                    source_map.clone(),
+                );
+            }
+        }
         self
     }
 

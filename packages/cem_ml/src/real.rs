@@ -46,13 +46,25 @@ pub struct PipelineRun {
 
 fn run_pipeline_as(bytes: &[u8], from_format: InputFormat) -> PipelineRun {
     match from_format {
-        InputFormat::Cem => run_pipeline_with::<CemTokenizer>(bytes),
-        InputFormat::Html => run_pipeline_with::<HtmlTokenizer>(bytes),
-        InputFormat::Xml => run_pipeline_with::<XmlTokenizer>(bytes),
+        InputFormat::Cem => run_pipeline_with::<CemTokenizer>(bytes, None),
+        InputFormat::Html => run_pipeline_with::<HtmlTokenizer>(bytes, None),
+        InputFormat::Xml => run_pipeline_with::<XmlTokenizer>(bytes, None),
     }
 }
 
-fn run_pipeline_with<T>(bytes: &[u8]) -> PipelineRun
+fn run_pipeline_as_scoped(
+    bytes: &[u8],
+    from_format: InputFormat,
+    root_scope: &ScopeConfig,
+) -> PipelineRun {
+    match from_format {
+        InputFormat::Cem => run_pipeline_with::<CemTokenizer>(bytes, Some(root_scope)),
+        InputFormat::Html => run_pipeline_with::<HtmlTokenizer>(bytes, Some(root_scope)),
+        InputFormat::Xml => run_pipeline_with::<XmlTokenizer>(bytes, Some(root_scope)),
+    }
+}
+
+fn run_pipeline_with<T>(bytes: &[u8], root_scope: Option<&ScopeConfig>) -> PipelineRun
 where
     T: SchemaTokenizer + FromBytes,
 {
@@ -61,7 +73,14 @@ where
         let src = BytesSource::new(SourceId(1), bytes.to_vec());
         let tok = T::from_bytes(src);
         let normalizer = CemEventNormalizer::new(tok);
-        CemSchemaMachine::new(CompiledSchema::cem_core(), normalizer).run()
+        let mut machine = CemSchemaMachine::new(CompiledSchema::cem_core(), normalizer);
+        if let Some(root_scope) = root_scope {
+            machine = machine.with_root_namespace_bindings(
+                root_scope.default_namespace.as_deref(),
+                &root_scope.namespaces,
+            );
+        }
+        machine.run()
     };
 
     // AST + tokenizer-diag fold (separate parse so token-diags surface).
@@ -251,22 +270,6 @@ fn root_scope_metadata_diagnostics(
             uri,
             "cem.scope.version_pins_unenforced",
             "versionPins",
-            direction,
-        ));
-    }
-    if scope.default_namespace.is_some() {
-        diagnostics.push(unsupported_scope_diagnostic(
-            uri,
-            "cem.scope.default_namespace_unenforced",
-            "defaultNamespace",
-            direction,
-        ));
-    }
-    if !scope.namespaces.is_empty() {
-        diagnostics.push(unsupported_scope_diagnostic(
-            uri,
-            "cem.scope.namespaces_unenforced",
-            "namespaces",
             direction,
         ));
     }
@@ -513,7 +516,7 @@ fn run_scheduled_validation_documents(
                 .take()
                 .unwrap_or_else(|| load_input_through_lifecycle(input, context));
             input_diags.append(&mut loaded.diagnostics);
-            let run = run_pipeline_as(&loaded.bytes, loaded.from_format);
+            let run = run_pipeline_as_scoped(&loaded.bytes, loaded.from_format, &input.root_scope);
             input_diags.extend(run.diagnostics);
         });
         project_diagnostic_uris(&mut input_diags, input, context);
@@ -739,7 +742,7 @@ impl CemMlEngine for RealCemMlEngine {
     fn parse(&self, request: ParseRequest) -> EngineResult<ParseResponse> {
         let loaded = load_input_through_lifecycle(&request.input, &request.context);
         let from_format = loaded.from_format;
-        let run = run_pipeline_as(&loaded.bytes, from_format);
+        let run = run_pipeline_as_scoped(&loaded.bytes, from_format, &request.input.root_scope);
         let primary = match request.projection {
             ParseProjection::DomJson | ParseProjection::Json => projection::dom_json(&run.document),
             ParseProjection::Ast => projection::ast_json(&run.document),
@@ -792,7 +795,7 @@ impl CemMlEngine for RealCemMlEngine {
     fn inspect(&self, request: InspectRequest) -> EngineResult<InspectResponse> {
         let loaded = load_input_through_lifecycle(&request.input, &request.context);
         let from_format = loaded.from_format;
-        let run = run_pipeline_as(&loaded.bytes, from_format);
+        let run = run_pipeline_as_scoped(&loaded.bytes, from_format, &request.input.root_scope);
         let mut diagnostics = root_scope_execution_diagnostics(
             &request.input.uri,
             &request.input.root_scope,
@@ -922,7 +925,7 @@ impl CemMlEngine for RealCemMlEngine {
             }
 
             let from_format = loaded.from_format;
-            let run = run_pipeline_as(&loaded.bytes, from_format);
+            let run = run_pipeline_as_scoped(&loaded.bytes, from_format, &request.input.root_scope);
             primary = Some(match to_format {
                 LayerFormat::Cem => {
                     let formatted = formatter::format_transform(
@@ -979,7 +982,7 @@ impl CemMlEngine for RealCemMlEngine {
                 EngineError::Internal(format!("scheduler trace setup failed: {err}"))
             })?;
         }
-        let run = run_pipeline_as(&loaded.bytes, from_format);
+        let run = run_pipeline_as_scoped(&loaded.bytes, from_format, &request.input.root_scope);
         pool.run_to_completion(&abort, |_| {});
         let mut diagnostics = policy_diagnostics;
         diagnostics.extend(root_scope_metadata_diagnostics(
@@ -1021,7 +1024,8 @@ impl CemMlEngine for RealCemMlEngine {
             for input in &request.inputs {
                 let input = materialized_input(input)?;
                 let loaded = load_input_through_lifecycle(&input, &request.context);
-                let _ = run_pipeline_as(&loaded.bytes, loaded.from_format);
+                let _ =
+                    run_pipeline_as_scoped(&loaded.bytes, loaded.from_format, &input.root_scope);
             }
             let elapsed = t.elapsed().as_nanos();
             per_iter_ns.push(elapsed);
@@ -1064,7 +1068,7 @@ impl CemMlEngine for RealCemMlEngine {
                 root_scope_execution_diagnostics(&input.uri, &input.root_scope, "input");
             let loaded = load_input_through_lifecycle(&input, &request.context);
             input_diags.extend(loaded.diagnostics);
-            let run = run_pipeline_as(&loaded.bytes, loaded.from_format);
+            let run = run_pipeline_as_scoped(&loaded.bytes, loaded.from_format, &input.root_scope);
             input_diags.extend(run.diagnostics);
             project_diagnostic_uris(&mut input_diags, &input, &request.context);
             all_diags.extend(input_diags);
@@ -1090,7 +1094,7 @@ impl CemMlEngine for RealCemMlEngine {
                 root_scope_execution_diagnostics(&input.uri, &input.root_scope, "input");
             let loaded = load_input_through_lifecycle(&input, &request.context);
             input_diags.extend(loaded.diagnostics);
-            let run = run_pipeline_as(&loaded.bytes, loaded.from_format);
+            let run = run_pipeline_as_scoped(&loaded.bytes, loaded.from_format, &input.root_scope);
             let rendered = LightDomInterpreter::new().render(&run.document);
             artifacts.push(json!({
                 "input": input_uri(&input, &request.context),
@@ -1282,10 +1286,7 @@ mod tests {
     #[test]
     fn validate_reports_unenforced_root_scope_fields() {
         let mut source = input(b"{p Hi}", "scoped.cem");
-        source.root_scope.namespaces.insert(
-            "html".to_owned(),
-            "https://www.w3.org/1999/xhtml".to_owned(),
-        );
+        source.root_scope.module_map = Some("cem.modules.json".to_owned());
         source
             .root_scope
             .budgets
@@ -1303,12 +1304,39 @@ mod tests {
             .report
             .diagnostics
             .iter()
-            .any(|diag| diag.code == "cem.scope.namespaces_unenforced"));
+            .any(|diag| diag.code == "cem.scope.module_map_unenforced"));
         assert!(resp
             .report
             .diagnostics
             .iter()
             .any(|diag| diag.code == "cem.scope.budget_unenforced"));
+    }
+
+    #[test]
+    fn validate_applies_root_scope_namespaces_to_schema_validation() {
+        let mut source = input(b"{widget:panel Hi}", "scoped.cem");
+        source
+            .root_scope
+            .namespaces
+            .insert("widget".to_owned(), "urn:widgets".to_owned());
+        let req = ValidateRequest {
+            inputs: vec![source],
+            projection: ValidateProjection::Json,
+            fail_level: FailLevel::Validate,
+            context: ctx(),
+        };
+
+        let resp = RealCemMlEngine::new().validate(req).unwrap();
+        assert!(resp
+            .report
+            .diagnostics
+            .iter()
+            .any(|diag| diag.code == "cem.schema.unresolved_namespace"));
+        assert!(!resp
+            .report
+            .diagnostics
+            .iter()
+            .any(|diag| diag.code == "cem.scope.namespaces_unenforced"));
     }
 
     #[test]

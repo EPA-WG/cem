@@ -43,11 +43,12 @@ for the current architecture have landed; only deferred capability work remains 
       by engine convert execution while preserving content-primary stdout/`--out` behavior. Full input and output
       root-scope config now reaches engine requests. Recognized root-scope scheduler policy and budget fields now derive
       the per-scope worker policy for scheduled validate/check, trace, and convert execution, and effective `baseUri`
-      values now project relative report input and diagnostic URIs. Run-config normalization now validates root-scope
+      values now project relative report input and diagnostic URIs. Root-scope default and named namespace bindings now
+      seed schema validation's document-root namespace context. Run-config normalization now validates root-scope
       module-map, namespace, and version-pin option shape before document parsing, while unknown budget keys and
-      valid-but-not-yet-enforced module-map/namespace/version fields emit deterministic execution diagnostics instead of
-      being silently ignored. Keep this item open until module maps, namespace/version semantics, and the remaining
-      budget hooks drive their real runtime behavior, not just preservation and diagnostics.
+      valid-but-not-yet-enforced module-map/version fields emit deterministic execution diagnostics instead of being
+      silently ignored. Keep this item open until module maps, version-pin semantics, and the remaining budget hooks
+      drive their real runtime behavior, not just preservation and diagnostics.
 - [x] **Immediate goal: XSLT 1.0 lifecycle adapter.** Move the existing legacy custom-element XSLT 1.0 lowering
       (`cem_ml::legacy_custom_element`) behind the lifecycle adapter registry instead of the current one-off
       `convert --content-type custom-element-xslt` branch. `cem-ml validate --content-type custom-element-xslt <input>`
