@@ -2171,6 +2171,52 @@ mod tests {
     }
 
     #[test]
+    fn config_relative_module_map_is_resolved_against_config_path() {
+        let dir = std::env::temp_dir().join("cem-ml-cli-tests/config-module-map");
+        std::fs::create_dir_all(&dir).unwrap();
+        let input = dir.join("input.cem");
+        let config_path = dir.join("run.json");
+        std::fs::write(
+            &input,
+            r#"@schema src="ui/button"
+{p Hi}"#,
+        )
+        .unwrap();
+        std::fs::write(
+            dir.join("cem.modules.json"),
+            r#"{"schemas":{"ui/button":"./schemas/button.schema"}}"#,
+        )
+        .unwrap();
+        std::fs::write(
+            &config_path,
+            serde_json::json!({
+                "inputs": [{
+                    "uri": input.display().to_string(),
+                    "rootScope": {
+                        "moduleMap": "cem.modules.json"
+                    }
+                }]
+            })
+            .to_string(),
+        )
+        .unwrap();
+
+        let (outcome, stdout, stderr) = run(
+            &RealCemMlEngine::new(),
+            &["validate", "--config", config_path.to_str().unwrap()],
+        );
+        assert_eq!(outcome.exit_code, EXIT_OK, "{stderr}");
+        let v: serde_json::Value = serde_json::from_str(stdout.trim()).unwrap();
+        let diagnostics = v["diagnostics"].as_array().unwrap();
+        assert!(!diagnostics
+            .iter()
+            .any(|diag| diag["code"] == "cem.scope.module_map_unreadable"));
+        assert!(!diagnostics
+            .iter()
+            .any(|diag| diag["code"] == "cem.scope.module_map_invalid"));
+    }
+
+    #[test]
     fn root_scope_config_diagnostics_fail_before_document_parsing() {
         let config_path = std::env::temp_dir().join("cem-ml-cli-tests/bad-root-scope.json");
         std::fs::write(

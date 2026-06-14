@@ -177,6 +177,7 @@ pub fn normalize_run_config(
 ) -> RunConfigParseResponse {
     for input in &mut config.inputs {
         merge_scope_defaults(&mut input.root_scope, &defaults.input_scope);
+        resolve_scope_module_map(&mut input.root_scope, base_uri);
         if input.root_scope.default_content_type.is_none() {
             input.root_scope.default_content_type = infer_content_type_from_path(&input.uri);
         }
@@ -184,6 +185,7 @@ pub fn normalize_run_config(
 
     for output in &mut config.outputs {
         merge_scope_defaults(&mut output.root_scope, &defaults.output_scope);
+        resolve_scope_module_map(&mut output.root_scope, base_uri);
         if output.root_scope.default_content_type.is_none() {
             if let Some(destination) = output.destination.as_deref() {
                 output.root_scope.default_content_type = infer_content_type_from_path(destination);
@@ -621,6 +623,35 @@ fn merge_scope_defaults(scope: &mut ScopeConfig, defaults: &ScopeConfig) {
     scope.budgets = budgets;
 }
 
+fn resolve_scope_module_map(scope: &mut ScopeConfig, base_uri: Option<&str>) {
+    let Some(module_map) = scope.module_map.as_deref() else {
+        return;
+    };
+    let Some(resolved) = resolve_relative_path_like(module_map, base_uri) else {
+        return;
+    };
+    scope.module_map = Some(resolved);
+}
+
+fn resolve_relative_path_like(value: &str, base_uri: Option<&str>) -> Option<String> {
+    let trimmed = value.trim();
+    if trimmed.is_empty() || has_uri_scheme(trimmed) || std::path::Path::new(trimmed).is_absolute()
+    {
+        return None;
+    }
+    let base = base_uri?.trim();
+    if base.is_empty() || has_uri_scheme(base) {
+        return None;
+    }
+    let base_path = std::path::Path::new(base);
+    let base_dir = if base.ends_with('/') {
+        base_path
+    } else {
+        base_path.parent()?
+    };
+    Some(base_dir.join(trimmed).to_string_lossy().into_owned())
+}
+
 pub fn infer_content_type_from_path(path: &str) -> Option<String> {
     let ext = std::path::Path::new(path)
         .extension()
@@ -634,6 +665,20 @@ pub fn infer_content_type_from_path(path: &str) -> Option<String> {
         "json" => Some("application/json".to_owned()),
         _ => None,
     }
+}
+
+fn has_uri_scheme(value: &str) -> bool {
+    let Some((scheme, _)) = value.split_once(':') else {
+        return false;
+    };
+    !scheme.is_empty()
+        && scheme
+            .chars()
+            .next()
+            .is_some_and(|ch| ch.is_ascii_alphabetic())
+        && scheme
+            .chars()
+            .all(|ch| ch.is_ascii_alphanumeric() || matches!(ch, '+' | '-' | '.'))
 }
 
 #[cfg(test)]
@@ -798,6 +843,79 @@ mod tests {
         assert_eq!(
             response.config.outputs[0].root_scope.schema.as_deref(),
             Some("target-schema")
+        );
+    }
+
+    #[test]
+    fn normalize_run_config_resolves_relative_module_map_against_config_path() {
+        let response = normalize_run_config(
+            RunConfig {
+                inputs: vec![InputSpec {
+                    uri: "src/a.cem".to_owned(),
+                    root_scope: ScopeConfig {
+                        module_map: Some("cem.modules.json".to_owned()),
+                        ..ScopeConfig::default()
+                    },
+                }],
+                outputs: vec![OutputSpec {
+                    destination: Some("dist/a.cem".to_owned()),
+                    root_scope: ScopeConfig {
+                        module_map: Some("out.modules.json".to_owned()),
+                        ..ScopeConfig::default()
+                    },
+                    ..OutputSpec::default()
+                }],
+                scheduler: SchedulerConfig::default(),
+            },
+            RunConfigDefaults::default(),
+            Some("/workspace/configs/run.json"),
+        );
+
+        assert!(response.diagnostics.is_empty());
+        assert_eq!(
+            response.config.inputs[0].root_scope.module_map.as_deref(),
+            Some("/workspace/configs/cem.modules.json")
+        );
+        assert_eq!(
+            response.config.outputs[0].root_scope.module_map.as_deref(),
+            Some("/workspace/configs/out.modules.json")
+        );
+    }
+
+    #[test]
+    fn normalize_run_config_leaves_absolute_and_uri_module_maps_unchanged() {
+        let response = normalize_run_config(
+            RunConfig {
+                inputs: vec![
+                    InputSpec {
+                        uri: "src/a.cem".to_owned(),
+                        root_scope: ScopeConfig {
+                            module_map: Some("/workspace/cem.modules.json".to_owned()),
+                            ..ScopeConfig::default()
+                        },
+                    },
+                    InputSpec {
+                        uri: "src/b.cem".to_owned(),
+                        root_scope: ScopeConfig {
+                            module_map: Some("https://example.test/cem.modules.json".to_owned()),
+                            ..ScopeConfig::default()
+                        },
+                    },
+                ],
+                ..RunConfig::default()
+            },
+            RunConfigDefaults::default(),
+            Some("/workspace/configs/run.json"),
+        );
+
+        assert!(response.diagnostics.is_empty());
+        assert_eq!(
+            response.config.inputs[0].root_scope.module_map.as_deref(),
+            Some("/workspace/cem.modules.json")
+        );
+        assert_eq!(
+            response.config.inputs[1].root_scope.module_map.as_deref(),
+            Some("https://example.test/cem.modules.json")
         );
     }
 
