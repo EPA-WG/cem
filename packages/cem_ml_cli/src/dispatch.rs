@@ -2035,6 +2035,25 @@ mod tests {
     }
 
     #[test]
+    fn validate_input_spec_remote_uri_input_is_rejected_without_resolver() {
+        let (outcome, stdout, stderr) = run(
+            &RealCemMlEngine::new(),
+            &[
+                "validate",
+                "--format",
+                "json",
+                "--input-spec",
+                "uri=https://example.test/input.cem",
+            ],
+        );
+
+        assert_eq!(outcome.exit_code, EXIT_IO);
+        assert!(stdout.trim().is_empty());
+        assert!(stderr.contains("remote/custom URI resolvers are not implemented"));
+        assert!(stderr.contains("https://example.test/input.cem"));
+    }
+
+    #[test]
     fn validate_positional_file_uri_reads_local_input() {
         let p = write_fixture("validate-positional-file-uri.cem", "{p Hi}");
         let file_uri = format!("file://{}", p.display());
@@ -2048,6 +2067,50 @@ mod tests {
         assert_eq!(v["summary"]["hardViolationCount"], 0);
         assert_eq!(v["summary"]["inputCount"], 1);
         assert_eq!(v["inputs"][0], file_uri);
+    }
+
+    #[test]
+    fn validate_positional_remote_uri_input_is_rejected_without_resolver() {
+        let (outcome, stdout, stderr) = run(
+            &RealCemMlEngine::new(),
+            &[
+                "validate",
+                "--format",
+                "json",
+                "https://example.test/input.cem",
+            ],
+        );
+
+        assert_eq!(outcome.exit_code, EXIT_IO);
+        assert!(stdout.trim().is_empty());
+        assert!(stderr.contains("remote/custom URI resolvers are not implemented"));
+        assert!(stderr.contains("https://example.test/input.cem"));
+    }
+
+    #[test]
+    fn validate_config_remote_uri_input_is_rejected_without_resolver() {
+        let config_path =
+            std::env::temp_dir().join("cem-ml-cli-tests/validate-remote-uri-input-config.json");
+        std::fs::write(
+            &config_path,
+            serde_json::json!({
+                "inputs": [{
+                    "uri": "https://example.test/input.cem"
+                }]
+            })
+            .to_string(),
+        )
+        .unwrap();
+
+        let (outcome, stdout, stderr) = run(
+            &RealCemMlEngine::new(),
+            &["validate", "--config", config_path.to_str().unwrap()],
+        );
+
+        assert_eq!(outcome.exit_code, EXIT_IO);
+        assert!(stdout.trim().is_empty());
+        assert!(stderr.contains("remote/custom URI resolvers are not implemented"));
+        assert!(stderr.contains("https://example.test/input.cem"));
     }
 
     #[test]
