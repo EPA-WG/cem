@@ -3173,6 +3173,34 @@ mod tests {
     }
 
     #[test]
+    fn convert_to_unknown_content_type_and_schema_reports_full_target_identity() {
+        let p = write_fixture(
+            "convert-target-unknown-content-type-and-schema.cem",
+            "@doc cem-ml 1\n{p | Hi}",
+        );
+        let (outcome, stdout, stderr) = run(
+            &RealCemMlEngine::new(),
+            &[
+                "convert",
+                "--to-format",
+                "events",
+                "--to-content-type",
+                "application/unknown",
+                "--to-schema",
+                "https://example.test/ns/widgets/1",
+                p.to_str().unwrap(),
+            ],
+        );
+
+        assert_eq!(outcome.exit_code, EXIT_OK, "{stderr}");
+        let v: serde_json::Value = serde_json::from_str(stdout.trim()).unwrap();
+        assert!(v.is_array());
+        assert!(stderr.contains("cem.lifecycle.target_adapter_unsupported"));
+        assert!(stderr.contains("target content type `application/unknown`"));
+        assert!(stderr.contains("schema `https://example.test/ns/widgets/1`"));
+    }
+
+    #[test]
     fn convert_legacy_custom_element_content_type_routes_to_engine_lowering() {
         let p = write_fixture(
             "legacy-custom-element.html",

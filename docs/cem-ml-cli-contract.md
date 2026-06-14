@@ -149,9 +149,9 @@ Current implementation status:
   registry-owned for `convert --to-content-type application/cem+xml`,
   `convert --to-schema https://cem.dev/ns/core/1`, and
   `convert --to-content-type text/html` / `application/xhtml+xml`; unsupported target
-  schemas emit a deterministic lifecycle diagnostic while preserving the requested
-  fallback output projection. Remaining non-CEM schema/namespace-specific export
-  adapters are still pending.
+  identities emit a deterministic lifecycle diagnostic with the declared content type
+  and/or schema while preserving the requested fallback output projection. Remaining
+  non-CEM schema/namespace-specific export adapters are still pending.
 - Root-scope configuration is not complete yet. Current execution uses run-config identity
   fields for lifecycle dispatch and conversion output selection, recognized scheduler
   policy/budget fields for scheduled worker policy, `parseMs` for parser-backed

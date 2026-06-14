@@ -19,9 +19,10 @@ for the current architecture have landed; only deferred capability work remains 
       identity (`https://cem.dev/ns/core/1`) selects the CEM adapter when no content type is present, while explicit
       content type remains authoritative. CEM/HTML target export is registry-owned for `--to-content-type
       application/cem+xml`, `--to-schema https://cem.dev/ns/core/1`, `--to-content-type text/html`, and
-      `--to-content-type application/xhtml+xml`; unsupported target schemas now emit a deterministic lifecycle
-      diagnostic while preserving the requested fallback output projection. Keep this item open until remaining non-CEM
-      schema/namespace-specific selection and remaining non-CEM target export adapters are registry-owned too.
+      `--to-content-type application/xhtml+xml`; unsupported target identities now emit a deterministic lifecycle
+      diagnostic with the declared content type and/or schema while preserving the requested fallback output projection.
+      Keep this item open until remaining non-CEM schema/namespace-specific selection and remaining non-CEM target
+      export adapters are registry-owned too.
 - [ ] **Immediate goal: root-scope run configuration for lib + WASM + CLI.** Design homes:
       [`cem-ml-cli-contract.md`](cem-ml-cli-contract.md#major-requirement-root-scope-and-run-configuration) and
       [`cem-ml-cli-plan.md`](cem-ml-cli-plan.md#run-configuration-shape). Add a serializable `RunConfig` with input and
