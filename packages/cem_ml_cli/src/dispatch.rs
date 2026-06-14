@@ -1762,7 +1762,7 @@ mod tests {
                 "json",
                 "--input-spec",
                 &format!(
-                    "uri={},moduleMap=cem.modules.json,budgets=parseMs:5",
+                    "uri={},moduleMap=cem.modules.json,policy=strict,budgets=parseMs:5",
                     p.display()
                 ),
             ],
@@ -1770,9 +1770,12 @@ mod tests {
         assert_eq!(outcome.exit_code, EXIT_OK, "{stderr}");
         let v: serde_json::Value = serde_json::from_str(stdout.trim()).unwrap();
         let diagnostics = v["diagnostics"].as_array().unwrap();
-        assert!(diagnostics
+        assert!(!diagnostics
             .iter()
             .any(|diag| diag["code"] == "cem.scope.module_map_unenforced"));
+        assert!(diagnostics
+            .iter()
+            .any(|diag| diag["code"] == "cem.scope.policy_unenforced"));
         assert!(diagnostics
             .iter()
             .any(|diag| diag["code"] == "cem.scope.budget_unenforced"));

@@ -80,6 +80,7 @@ where
                 root_scope.default_namespace.as_deref(),
                 &root_scope.namespaces,
             );
+            machine = machine.with_root_module_map(root_scope.module_map.as_deref());
         }
         machine.run()
     };
@@ -319,7 +320,7 @@ fn root_scope_metadata_diagnostics(
     direction: &str,
 ) -> Vec<Diagnostic> {
     let mut diagnostics = Vec::new();
-    if scope.module_map.is_some() {
+    if direction == "output" && scope.module_map.is_some() {
         diagnostics.push(unsupported_scope_diagnostic(
             uri,
             "cem.scope.module_map_unenforced",
@@ -1437,6 +1438,7 @@ mod tests {
     fn validate_reports_unenforced_root_scope_fields() {
         let mut source = input(b"{p Hi}", "scoped.cem");
         source.root_scope.module_map = Some("cem.modules.json".to_owned());
+        source.root_scope.policy = Some("strict".to_owned());
         source
             .root_scope
             .budgets
@@ -1450,11 +1452,16 @@ mod tests {
 
         let resp = RealCemMlEngine::new().validate(req).unwrap();
         assert!(resp.report.summary.warning_count >= 2);
-        assert!(resp
+        assert!(!resp
             .report
             .diagnostics
             .iter()
             .any(|diag| diag.code == "cem.scope.module_map_unenforced"));
+        assert!(resp
+            .report
+            .diagnostics
+            .iter()
+            .any(|diag| diag.code == "cem.scope.policy_unenforced"));
         assert!(resp
             .report
             .diagnostics

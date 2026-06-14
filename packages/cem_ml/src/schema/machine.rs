@@ -84,6 +84,10 @@ pub struct CemSchemaMachine<E: EventNormalizer> {
     xslt_region_open_depth: Option<usize>,
     /// `xsl:stylesheet/@version` captured on the region root for version-pinning.
     pending_xslt_version: Option<String>,
+    /// Directory/base URI derived from the root-scope module map. Relative
+    /// schema `src` values resolve against this base before being recorded
+    /// as active schema sources.
+    schema_source_base: Option<String>,
     finished: bool,
 }
 
@@ -170,6 +174,7 @@ impl<E: EventNormalizer> CemSchemaMachine<E> {
             xslt_dispatch_opt_in: false,
             xslt_region_open_depth: None,
             pending_xslt_version: None,
+            schema_source_base: None,
             finished: false,
         }
     }
@@ -189,6 +194,15 @@ impl<E: EventNormalizer> CemSchemaMachine<E> {
     /// metadata / a scope-policy rule.
     pub fn with_xslt_dispatch(mut self, opt_in: bool) -> Self {
         self.xslt_dispatch_opt_in = opt_in;
+        self
+    }
+
+    /// Register the root-scope module map as the resolver identity for
+    /// relative schema `src` values. The map file itself is not loaded by
+    /// Tier A yet; its containing directory/base URI is enough to make
+    /// subsequent schema-source identities deterministic.
+    pub fn with_root_module_map(mut self, module_map: Option<&str>) -> Self {
+        self.schema_source_base = module_map.and_then(module_map_schema_base);
         self
     }
 
@@ -241,6 +255,35 @@ impl<E: EventNormalizer> CemSchemaMachine<E> {
     /// or to resolve a `cem:name` reference walking outward.
     pub fn schema_scopes(&self) -> &SchemaScopeContext {
         &self.schema_scopes
+    }
+
+    fn resolve_schema_source(&self, source: SchemaSource) -> SchemaSource {
+        match source {
+            SchemaSource::Uri(uri) => SchemaSource::Uri(self.resolve_schema_uri(uri)),
+            other => other,
+        }
+    }
+
+    fn resolve_schema_uri(&self, uri: String) -> String {
+        let trimmed = uri.trim();
+        if trimmed.is_empty()
+            || has_uri_scheme(trimmed)
+            || std::path::Path::new(trimmed).is_absolute()
+        {
+            return uri;
+        }
+        let Some(base) = self.schema_source_base.as_deref() else {
+            return uri;
+        };
+        if base.is_empty() {
+            return uri;
+        }
+        let relative = trimmed.trim_start_matches("./");
+        if base.ends_with('/') {
+            format!("{base}{relative}")
+        } else {
+            format!("{base}/{relative}")
+        }
     }
 
     /// Drain the entire event stream. Returns the diagnostics produced;
@@ -706,7 +749,8 @@ impl<E: EventNormalizer> CemSchemaMachine<E> {
         // host element's scope, which was already opened) and are
         // mutually exclusive.
         if attr.name == "cem:schema-src" {
-            self.apply_host_node_schema_switch(SchemaSource::Uri(value), false, attr.name_range);
+            let source = SchemaSource::Uri(self.resolve_schema_uri(value));
+            self.apply_host_node_schema_switch(source, false, attr.name_range);
             return;
         }
         if attr.name == "cem:schema-select" {
@@ -725,6 +769,7 @@ impl<E: EventNormalizer> CemSchemaMachine<E> {
         {
             match attr.name.as_str() {
                 "src" => {
+                    let value = self.resolve_schema_uri(value);
                     let already_select = self
                         .pending_schema_elements
                         .last()
@@ -1118,7 +1163,10 @@ impl<E: EventNormalizer> CemSchemaMachine<E> {
                 }
             }
             DirectiveKind::Schema => match parse_schema_source_body(&body) {
-                Ok(source) => self.schema_scopes.current_mut().set_active(source),
+                Ok(source) => {
+                    let source = self.resolve_schema_source(source);
+                    self.schema_scopes.current_mut().set_active(source);
+                }
                 Err(SchemaDirectiveError::ExclusiveSrcSelect) => {
                     self.diagnostics.push(Diagnostic {
                         uri: None,
@@ -1795,6 +1843,53 @@ mod tests {
     }
 
     #[test]
+    fn root_module_map_resolves_relative_schema_directive_src() {
+        let input = r#"@schema src="./button.schema"
+{section | body}"#;
+        let src = BytesSource::new(SourceId(1), input.as_bytes().to_vec());
+        let tok = CemTokenizer::from_source(src);
+        let normalizer = CemEventNormalizer::new(tok);
+        let mut saw_resolved_uri = false;
+        CemSchemaMachine::new(CompiledSchema::cem_core(), normalizer)
+            .with_root_module_map(Some("schemas/cem.modules.json"))
+            .run_with_observer(|m| {
+                if matches!(
+                    m.schema_scopes().current().active,
+                    SchemaSource::Uri(ref u) if u == "schemas/button.schema"
+                ) {
+                    saw_resolved_uri = true;
+                }
+            });
+        assert!(
+            saw_resolved_uri,
+            "relative @schema src should resolve against the root module-map directory"
+        );
+    }
+
+    #[test]
+    fn root_module_map_leaves_absolute_schema_sources_unchanged() {
+        let input = r#"{section @cem:schema-src="schema://external/button" | body}"#;
+        let src = BytesSource::new(SourceId(1), input.as_bytes().to_vec());
+        let tok = CemTokenizer::from_source(src);
+        let normalizer = CemEventNormalizer::new(tok);
+        let mut saw_original_uri = false;
+        CemSchemaMachine::new(CompiledSchema::cem_core(), normalizer)
+            .with_root_module_map(Some("schemas/cem.modules.json"))
+            .run_with_observer(|m| {
+                if matches!(
+                    m.schema_scopes().current().active,
+                    SchemaSource::Uri(ref u) if u == "schema://external/button"
+                ) {
+                    saw_original_uri = true;
+                }
+            });
+        assert!(
+            saw_original_uri,
+            "absolute schema sources should not be rewritten by moduleMap"
+        );
+    }
+
+    #[test]
     fn non_streamable_constraints_emit_unsupported_constraint() {
         use crate::schema::vocab::{NonStreamableConstraint, NonStreamableKind};
         let mut schema = CompiledSchema::cem_core();
@@ -1844,6 +1939,34 @@ fn parse_ns_body(body: &str) -> Option<(String, String)> {
         return None;
     }
     Some((prefix, uri))
+}
+
+fn module_map_schema_base(module_map: &str) -> Option<String> {
+    let trimmed = module_map.trim();
+    if trimmed.is_empty() {
+        return None;
+    }
+    if trimmed.ends_with('/') {
+        return Some(trimmed.to_owned());
+    }
+    trimmed
+        .rsplit_once('/')
+        .map(|(base, _)| base.to_owned())
+        .filter(|base| !base.is_empty())
+}
+
+fn has_uri_scheme(value: &str) -> bool {
+    let Some((scheme, _)) = value.split_once(':') else {
+        return false;
+    };
+    !scheme.is_empty()
+        && scheme
+            .chars()
+            .next()
+            .is_some_and(|ch| ch.is_ascii_alphabetic())
+        && scheme
+            .chars()
+            .all(|ch| ch.is_ascii_alphanumeric() || matches!(ch, '+' | '-' | '.'))
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
