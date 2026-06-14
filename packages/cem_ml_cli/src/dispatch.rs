@@ -3063,6 +3063,19 @@ mod tests {
     }
 
     #[test]
+    fn remote_uri_config_path_is_rejected_without_resolver() {
+        let (outcome, stdout, stderr) = run(
+            &RealCemMlEngine::new(),
+            &["validate", "--config", "https://example.test/run.json"],
+        );
+
+        assert_eq!(outcome.exit_code, EXIT_IO);
+        assert!(stdout.trim().is_empty());
+        assert!(stderr.contains("remote/custom URI resolvers are not implemented"));
+        assert!(stderr.contains("https://example.test/run.json"));
+    }
+
+    #[test]
     fn namespace_context_diagnostics_fail_before_document_parsing() {
         let (outcome, stdout, stderr) = run(
             &RealCemMlEngine::new(),
