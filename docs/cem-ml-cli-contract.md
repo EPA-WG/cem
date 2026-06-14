@@ -117,17 +117,18 @@ Current implementation status:
   by engine convert execution while preserving content-primary stdout/`--out` behavior.
   Full input and output root-scope config reaches engine requests. Recognized
   root-scope scheduler policy and budget fields derive the per-scope worker policy for
-  scheduled validate/check, trace, and convert execution, and effective `baseUri`
-  values project relative report input and diagnostic URIs. Root-scope default and
-  named namespace bindings seed schema validation's document-root namespace context.
-  Recognized CEM-ML root-scope version pins resolve against the embedded
-  document-format version. Input root-scope module maps provide the resolver base for
-  relative schema `src` identities. Run-config normalization validates root-scope
-  module-map, namespace, and version-pin option shape before document parsing, while
-  unknown budget keys, unsupported version-pin targets, and unsupported non-scheduler
-  budget hooks emit deterministic execution diagnostics instead of being silently
-  ignored. Full module-map loading/output resolver semantics and those remaining
-  budget hooks remain pending.
+  scheduled validate/check, trace, and convert execution; `parseMs` enforces a
+  parser-backed pipeline wall-clock budget; and effective `baseUri` values project
+  relative report input and diagnostic URIs. Root-scope default and named namespace
+  bindings seed schema validation's document-root namespace context. Recognized CEM-ML
+  root-scope version pins resolve against the embedded document-format version. Input
+  root-scope module maps provide the resolver base for relative schema `src`
+  identities. Run-config normalization validates root-scope module-map, namespace, and
+  version-pin option shape before document parsing, while unknown budget keys,
+  unsupported version-pin targets, and unsupported remaining budget hooks emit
+  deterministic execution diagnostics instead of being silently ignored. Full
+  module-map loading/output resolver semantics and those remaining budget hooks remain
+  pending.
 - `--schema` and `--content-type` are carried in `EngineContext` and emitted in reports.
   `cem_ml::lifecycle::LifecycleRegistry` now owns built-in input content-type dispatch
   for parser-backed commands (`parse`, `validate`, `check`, `inspect`, `convert`,
@@ -135,13 +136,14 @@ Current implementation status:
   `convert --to-content-type application/cem+xml`; schema-specific adapter selection
   is still pending.
 - Root-scope configuration is not complete yet. Current execution uses run-config identity
-  fields for lifecycle dispatch and conversion output selection, and recognized scheduler
-  policy/budget fields for scheduled worker policy. Effective `baseUri` values project
-  relative report input and diagnostic URIs. Default and named namespace maps seed
-  schema validation's root namespace context. Recognized CEM-ML version pins resolve
-  through the document-format version resolver. Input module maps resolve relative
-  schema-source identities; full module-map loading/output resolver semantics and
-  unsupported non-scheduler budget hooks remain planned requirements.
+  fields for lifecycle dispatch and conversion output selection, recognized scheduler
+  policy/budget fields for scheduled worker policy, and `parseMs` for parser-backed
+  wall-clock enforcement. Effective `baseUri` values project relative report input and
+  diagnostic URIs. Default and named namespace maps seed schema validation's root
+  namespace context. Recognized CEM-ML version pins resolve through the document-format
+  version resolver. Input module maps resolve relative schema-source identities; full
+  module-map loading/output resolver semantics and unsupported remaining budget hooks
+  remain planned requirements.
 - `validate` / `check` / `convert` route `custom-element-xslt` input through the first
   shared lifecycle adapter path, lowering legacy custom-element XSLT to canonical
   CEM-ML through `cem_ml::legacy_custom_element`; `convert --content-type

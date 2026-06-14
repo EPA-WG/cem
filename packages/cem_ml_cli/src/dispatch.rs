@@ -1762,7 +1762,7 @@ mod tests {
                 "json",
                 "--input-spec",
                 &format!(
-                    "uri={},moduleMap=cem.modules.json,policy=strict,budgets=parseMs:5",
+                    "uri={},moduleMap=cem.modules.json,policy=strict,budgets=layoutMs:5",
                     p.display()
                 ),
             ],
@@ -1803,6 +1803,27 @@ mod tests {
         assert!(!diagnostics
             .iter()
             .any(|diag| diag["code"] == "cem.scope.version_pins_unenforced"));
+    }
+
+    #[test]
+    fn input_spec_parse_ms_budget_is_enforced() {
+        let p = write_fixture("validate-input-spec-parse-budget.cem", r#"{p Hi}"#);
+        let (outcome, stdout, stderr) = run(
+            &RealCemMlEngine::new(),
+            &[
+                "validate",
+                "--format",
+                "json",
+                "--input-spec",
+                &format!("uri={},budgets=parseMs:0", p.display()),
+            ],
+        );
+        assert_eq!(outcome.exit_code, EXIT_HARD_FAILURE, "{stderr}");
+        let v: serde_json::Value = serde_json::from_str(stdout.trim()).unwrap();
+        let diagnostics = v["diagnostics"].as_array().unwrap();
+        assert!(diagnostics
+            .iter()
+            .any(|diag| diag["code"] == "cem.scope.budget_exceeded"));
     }
 
     #[test]

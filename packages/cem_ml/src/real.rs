@@ -69,6 +69,7 @@ fn run_pipeline_with<T>(bytes: &[u8], root_scope: Option<&ScopeConfig>) -> Pipel
 where
     T: SchemaTokenizer + FromBytes,
 {
+    let started_at = Instant::now();
     // Schema-machine pass.
     let schema_outcome = {
         let src = BytesSource::new(SourceId(1), bytes.to_vec());
@@ -109,6 +110,12 @@ where
 
     let mut diagnostics = document.diagnostics.clone();
     diagnostics.extend(rule_diags);
+    if let Some(root_scope) = root_scope {
+        diagnostics.extend(parse_budget_diagnostics(
+            root_scope,
+            started_at.elapsed().as_nanos(),
+        ));
+    }
     PipelineRun {
         document,
         diagnostics,
@@ -361,6 +368,37 @@ fn parse_u64_budget(field: &str, value: &str) -> Result<u64, String> {
         .map_err(|_| format!("budget `{field}` expects an unsigned integer, got `{value}`"))
 }
 
+fn parse_ms_budget(scope: &ScopeConfig) -> Option<(&str, Result<u64, String>)> {
+    scope
+        .budgets
+        .iter()
+        .find(|(field, _)| {
+            matches!(
+                normalize_scope_key(field).as_str(),
+                "parsems" | "parsetimebudgetms"
+            )
+        })
+        .map(|(field, value)| (field.as_str(), parse_u64_budget(field, value)))
+}
+
+fn parse_budget_diagnostics(scope: &ScopeConfig, elapsed_ns: u128) -> Vec<Diagnostic> {
+    let Some((field, Ok(budget_ms))) = parse_ms_budget(scope) else {
+        return Vec::new();
+    };
+    let budget_ns = (budget_ms as u128) * 1_000_000;
+    if elapsed_ns <= budget_ns {
+        return Vec::new();
+    }
+    vec![Diagnostic {
+        code: "cem.scope.budget_exceeded".to_owned(),
+        severity: Severity::Error,
+        message: format!(
+            "root-scope budget `{field}` exceeded: elapsed {elapsed_ns}ns > budget {budget_ns}ns"
+        ),
+        ..Diagnostic::default()
+    }]
+}
+
 fn root_scope_budget_diagnostics(
     uri: &str,
     scope: &ScopeConfig,
@@ -379,7 +417,8 @@ fn root_scope_budget_diagnostics(
                     ));
                 }
             }
-            "memory" | "memorybytes" | "pluginms" | "plugintimebudgetms" => {
+            "memory" | "memorybytes" | "pluginms" | "plugintimebudgetms" | "parsems"
+            | "parsetimebudgetms" => {
                 if let Err(message) = parse_u64_budget(field, value) {
                     diagnostics.push(scope_policy_diagnostic(
                         uri,
@@ -489,6 +528,16 @@ fn apply_scope_scheduler_fields(
                     direction,
                 )),
             },
+            "parsems" | "parsetimebudgetms" => {
+                if let Err(message) = parse_u64_budget(field, value) {
+                    diagnostics.push(scope_policy_diagnostic(
+                        uri,
+                        "cem.scope.budget_invalid",
+                        message,
+                        direction,
+                    ));
+                }
+            }
             "overflow" => match normalize_scope_key(value).as_str() {
                 "block" => policy.overflow = crate::scheduler::OverflowPolicy::Block,
                 "reject" => policy.overflow = crate::scheduler::OverflowPolicy::Reject,
@@ -1297,6 +1346,27 @@ mod tests {
     }
 
     #[test]
+    fn parse_enforces_root_scope_parse_ms_budget() {
+        let mut source = input(b"{p Hi}", "budgeted.cem");
+        source
+            .root_scope
+            .budgets
+            .insert("parseMs".to_owned(), "0".to_owned());
+        let req = ParseRequest {
+            input: source,
+            projection: ParseProjection::DomJson,
+            fail_level: FailLevel::Parse,
+            preserve_source_offsets: false,
+            context: ctx(),
+        };
+
+        let resp = RealCemMlEngine::new().parse(req).unwrap();
+        assert!(resp.diagnostics.iter().any(|diag| {
+            diag.code == "cem.scope.budget_exceeded" && diag.severity == Severity::Error
+        }));
+    }
+
+    #[test]
     fn parse_events_returns_event_array() {
         let req = ParseRequest {
             input: input(b"{p Hi}", "in"),
@@ -1442,7 +1512,7 @@ mod tests {
         source
             .root_scope
             .budgets
-            .insert("parseMs".to_owned(), "5".to_owned());
+            .insert("layoutMs".to_owned(), "5".to_owned());
         let req = ValidateRequest {
             inputs: vec![source],
             projection: ValidateProjection::Json,
