@@ -86,7 +86,9 @@ the immediate CLI lifecycle contract.
    override global input identity for lifecycle dispatch, and the first output spec can
    select conversion target identity/destination. CEM core schema identity
    (`https://cem.dev/ns/core/1`) now selects the CEM adapter when no content type is
-   present, while explicit content type remains authoritative. Config diagnostics for
+   present, while explicit content type remains authoritative. Unsupported target schemas
+   emit a deterministic lifecycle diagnostic while preserving the requested fallback
+   output projection. Config diagnostics for
    malformed JSON, unsupported config content type, duplicate input URIs, and unknown
    output input references fail before document parsing. `--observe-events` consumes the same
    normalized input list and lifecycle dispatch path as parser-backed commands, including

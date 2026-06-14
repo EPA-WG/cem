@@ -132,6 +132,17 @@ impl LifecycleRegistry {
                         ),
                         ..Diagnostic::default()
                     });
+                } else if let Some(schema) = identity.schema.as_deref().map(str::trim) {
+                    if !schema.is_empty() {
+                        selection.diagnostics.push(Diagnostic {
+                            code: TARGET_ADAPTER_UNSUPPORTED_CODE.to_owned(),
+                            severity: Severity::Warning,
+                            message: format!(
+                                "no lifecycle export adapter matched target schema `{schema}`"
+                            ),
+                            ..Diagnostic::default()
+                        });
+                    }
                 }
                 selection
             }
@@ -482,5 +493,25 @@ mod tests {
             selected.diagnostics[0].code,
             TARGET_ADAPTER_UNSUPPORTED_CODE
         );
+    }
+
+    #[test]
+    fn unknown_target_schema_preserves_fallback_with_warning() {
+        let target = FormatIdentity {
+            schema: Some("https://example.test/ns/widgets/1".to_owned()),
+            ..FormatIdentity::default()
+        };
+        let selected = LifecycleRegistry::with_builtin_adapters()
+            .select_export(Some(&target), LayerFormat::Events);
+        assert_eq!(selected.to_format, LayerFormat::Events);
+        assert_eq!(selected.adapter_id, None);
+        assert_eq!(selected.diagnostics.len(), 1);
+        assert_eq!(
+            selected.diagnostics[0].code,
+            TARGET_ADAPTER_UNSUPPORTED_CODE
+        );
+        assert!(selected.diagnostics[0]
+            .message
+            .contains("target schema `https://example.test/ns/widgets/1`"));
     }
 }
