@@ -1026,30 +1026,44 @@ fn resolve_report_target(p: &Path, basename: &str, ext: &str) -> std::path::Path
     }
 }
 
+fn write_report_target(p: &Path, basename: &str, ext: &str, contents: &[u8]) -> io::Result<()> {
+    let raw_target = resolve_report_target(p, basename, ext);
+    let target = local_file_uri_path(&raw_target, "report destination")?;
+    if let Some(parent) = target.parent() {
+        if !parent.as_os_str().is_empty() {
+            fs::create_dir_all(parent)?;
+        }
+    }
+    fs::write(target.as_ref(), contents)
+}
+
 fn write_report_files(
     report: &cem_ml::report::Report,
     report_opts: &cli::ReportOptions,
     basename: &str,
 ) -> io::Result<()> {
     if let Some(p) = &report_opts.report_json {
-        let raw_target = resolve_report_target(p, basename, "json");
-        let target = local_file_uri_path(&raw_target, "report destination")?;
-        if let Some(parent) = target.parent() {
-            if !parent.as_os_str().is_empty() {
-                fs::create_dir_all(parent)?;
-            }
-        }
-        fs::write(target.as_ref(), serde_json::to_string_pretty(report)?)?;
+        let body = serde_json::to_string_pretty(report)?;
+        write_report_target(p, basename, "json", body.as_bytes())?;
     }
     if let Some(p) = &report_opts.report_md {
-        let raw_target = resolve_report_target(p, basename, "md");
-        let target = local_file_uri_path(&raw_target, "report destination")?;
-        if let Some(parent) = target.parent() {
-            if !parent.as_os_str().is_empty() {
-                fs::create_dir_all(parent)?;
-            }
-        }
-        fs::write(target.as_ref(), render_report_markdown(report))?;
+        let body = render_report_markdown(report);
+        write_report_target(p, basename, "md", body.as_bytes())?;
+    }
+    Ok(())
+}
+
+fn write_benchmark_report_files(
+    body: &serde_json::Value,
+    report_opts: &cli::ReportOptions,
+) -> io::Result<()> {
+    if let Some(p) = &report_opts.report_json {
+        let body = serde_json::to_string_pretty(body)?;
+        write_report_target(p, REPORT_BASENAME_BENCH, "json", body.as_bytes())?;
+    }
+    if let Some(p) = &report_opts.report_md {
+        let body = render_benchmark_report_markdown(body);
+        write_report_target(p, REPORT_BASENAME_BENCH, "md", body.as_bytes())?;
     }
     Ok(())
 }
@@ -1147,6 +1161,11 @@ fn render_report_markdown(report: &cem_ml::report::Report) -> String {
         report.summary.hard_violation_count
     ));
     out
+}
+
+fn render_benchmark_report_markdown(body: &serde_json::Value) -> String {
+    let body = serde_json::to_string_pretty(body).unwrap_or_default();
+    format!("# cem-ml benchmark report\n\n```json\n{body}\n```\n")
 }
 
 fn fail_for_summary(fail_level: cli::FailLevel, report: &cem_ml::report::Report) -> bool {
@@ -1522,20 +1541,9 @@ pub fn run_bench<E: CemMlEngine + ?Sized>(
                 let json = serde_json::to_string_pretty(&resp.body).unwrap_or_default();
                 let _ = writeln!(s.stdout, "{json}");
             }
-            if let Some(p) = &args.report.report_json {
-                if let Err(e) = (|| -> io::Result<()> {
-                    let raw_target = resolve_report_target(p, REPORT_BASENAME_BENCH, "json");
-                    let target = local_file_uri_path(&raw_target, "report destination")?;
-                    if let Some(parent) = target.parent() {
-                        if !parent.as_os_str().is_empty() {
-                            fs::create_dir_all(parent)?;
-                        }
-                    }
-                    fs::write(target.as_ref(), serde_json::to_string_pretty(&resp.body)?)
-                })() {
-                    let _ = writeln!(s.stderr, "cem-ml: benchmark report write failure: {e}");
-                    return Outcome::code(EXIT_IO);
-                }
+            if let Err(e) = write_benchmark_report_files(&resp.body, &args.report) {
+                let _ = writeln!(s.stderr, "cem-ml: benchmark report write failure: {e}");
+                return Outcome::code(EXIT_IO);
             }
             if resp.budget_exceeded {
                 Outcome::code(EXIT_HARD_FAILURE)
@@ -2812,6 +2820,32 @@ mod tests {
     }
 
     #[test]
+    fn convert_remote_uri_markdown_report_destination_is_rejected_without_resolver() {
+        let input = write_fixture("convert-remote-md-report-input.cem", "{p Hi}");
+        let out_path =
+            std::env::temp_dir().join("cem-ml-cli-tests/convert-remote-md-report-output.json");
+        let _ = std::fs::remove_file(&out_path);
+        let (outcome, stdout, stderr) = run(
+            &RealCemMlEngine::new(),
+            &[
+                "convert",
+                "--out",
+                out_path.to_str().unwrap(),
+                "--report-md",
+                "https://example.test/convert.md",
+                input.to_str().unwrap(),
+            ],
+        );
+
+        assert_eq!(outcome.exit_code, EXIT_IO);
+        assert!(stdout.trim().is_empty());
+        assert!(out_path.is_file());
+        assert!(stderr.contains("convert report write failure"));
+        assert!(stderr.contains("remote/custom URI resolvers are not implemented"));
+        assert!(stderr.contains("https://example.test/convert.md"));
+    }
+
+    #[test]
     fn output_spec_convert_ms_budget_is_reported() {
         let input = write_fixture("convert-output-spec-budget.cem", "{p Hi}");
         let out_path =
@@ -3897,6 +3931,8 @@ mod tests {
                 "json",
                 "--report-json",
                 dir.to_str().unwrap(),
+                "--report-md",
+                dir.to_str().unwrap(),
                 p.to_str().unwrap(),
             ],
         );
@@ -3905,6 +3941,13 @@ mod tests {
             dir.join("cem-ml.bench.report.json").is_file(),
             "missing bench.report.json"
         );
+        assert!(
+            dir.join("cem-ml.bench.report.md").is_file(),
+            "missing bench.report.md"
+        );
+        let markdown = std::fs::read_to_string(dir.join("cem-ml.bench.report.md")).unwrap();
+        assert!(markdown.contains("# cem-ml benchmark report"));
+        assert!(markdown.contains("\"kind\": \"fake-bench\""));
     }
 
     #[test]
@@ -4009,6 +4052,28 @@ mod tests {
         assert!(stderr.contains("benchmark report write failure"));
         assert!(stderr.contains("remote/custom URI resolvers are not implemented"));
         assert!(stderr.contains("https://example.test/bench.json"));
+    }
+
+    #[test]
+    fn bench_remote_uri_markdown_report_destination_is_rejected_without_resolver() {
+        let p = write_fixture("bench-remote-md-report-destination.cem", "{x}");
+        let (outcome, stdout, stderr) = run(
+            &FakeEngine,
+            &[
+                "bench",
+                "--format",
+                "json",
+                "--report-md",
+                "https://example.test/bench.md",
+                p.to_str().unwrap(),
+            ],
+        );
+
+        assert_eq!(outcome.exit_code, EXIT_IO);
+        assert!(stdout.contains("\"kind\": \"fake-bench\""));
+        assert!(stderr.contains("benchmark report write failure"));
+        assert!(stderr.contains("remote/custom URI resolvers are not implemented"));
+        assert!(stderr.contains("https://example.test/bench.md"));
     }
 
     #[test]

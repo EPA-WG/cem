@@ -458,7 +458,7 @@ These are data shapes only. Parser-filled content remains blocked until the pars
     - Scheduler, worker-pool, transform, plugin, and source-map traces remain deferred.
 8. `cem-ml bench <input...>`
     - Supported formats: `text`, `json`.
-    - Supports `--iterations`, `--budget-ms`, `--profile`, `--cold-cache`, and `--report-json`.
+    - Supports `--iterations`, `--budget-ms`, `--profile`, `--cold-cache`, `--report-json`, and `--report-md`.
     - Benchmarking uses the engine boundary; parser performance work is deferred.
 9. `cem-ml fixture roundtrip [input...]`
     - Defaults to the canonical CEM-ML fixtures and HTML parity fixtures.

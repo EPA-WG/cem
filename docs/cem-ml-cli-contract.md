@@ -285,6 +285,7 @@ The deterministic default timestamp for feature tests is `1970-01-01T00:00:00.00
 - Fixture roundtrip JSON: `packages/cem_ml_cli/dist/cem-ml.roundtrip.report.json`
 - Fixture roundtrip Markdown: `packages/cem_ml_cli/dist/cem-ml.roundtrip.report.md`
 - Benchmark JSON (`cem-ml bench`): `packages/cem_ml_cli/dist/cem-ml.bench.report.json`
+- Benchmark Markdown (`cem-ml bench`): `packages/cem_ml_cli/dist/cem-ml.bench.report.md`
 
 JSON, XML, and CEM-native reports are structured projections. Text, Markdown, and HTML
 reports are reference-implementation convenience projections.
