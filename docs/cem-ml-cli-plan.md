@@ -100,7 +100,8 @@ the immediate CLI lifecycle contract.
    behavior. Full input and output root-scope config reaches engine requests.
    Recognized root-scope scheduler policy and budget fields derive the per-scope
    worker policy for scheduled validate/check, trace, and convert execution; `parseMs`
-   enforces a parser-backed pipeline wall-clock budget; and effective `baseUri` values
+   enforces a parser-backed pipeline wall-clock budget; `validateMs` and `checkMs`
+   enforce scheduled per-input document work budgets; and effective `baseUri` values
    project relative report input and diagnostic URIs. Root-scope default and named
    namespace bindings seed schema validation's document-root namespace context, and
    recognized CEM-ML root-scope version pins resolve against the embedded

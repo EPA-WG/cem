@@ -1862,6 +1862,30 @@ mod tests {
     }
 
     #[test]
+    fn input_spec_validate_ms_budget_is_enforced() {
+        let p = write_fixture("validate-input-spec-validate-budget.cem", r#"{p Hi}"#);
+        let (outcome, stdout, stderr) = run(
+            &RealCemMlEngine::new(),
+            &[
+                "validate",
+                "--format",
+                "json",
+                "--input-spec",
+                &format!("uri={},budgets=validateMs:0", p.display()),
+            ],
+        );
+        assert_eq!(outcome.exit_code, EXIT_HARD_FAILURE, "{stderr}");
+        let v: serde_json::Value = serde_json::from_str(stdout.trim()).unwrap();
+        let diagnostics = v["diagnostics"].as_array().unwrap();
+        assert!(diagnostics
+            .iter()
+            .any(|diag| diag["code"] == "cem.scope.budget_exceeded"));
+        assert!(!diagnostics
+            .iter()
+            .any(|diag| diag["code"] == "cem.scope.budget_unenforced"));
+    }
+
+    #[test]
     fn positional_input_identity_infers_content_type_from_extension() {
         let identity =
             positional_input_identity(Path::new("src/screen.html"), &ScopeConfig::default())

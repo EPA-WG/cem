@@ -478,21 +478,30 @@ fn module_map_entry_target(key: &str, value: &Value) -> Result<Option<String>, S
     Ok(None)
 }
 
-fn parse_ms_budget(scope: &ScopeConfig) -> Option<(&str, Result<u64, String>)> {
+fn scope_time_budget<'a>(
+    scope: &'a ScopeConfig,
+    aliases: &[&str],
+) -> Option<(&'a str, Result<u64, String>)> {
     scope
         .budgets
         .iter()
         .find(|(field, _)| {
-            matches!(
-                normalize_scope_key(field).as_str(),
-                "parsems" | "parsetimebudgetms"
-            )
+            let normalized = normalize_scope_key(field);
+            aliases.iter().any(|alias| *alias == normalized)
         })
         .map(|(field, value)| (field.as_str(), parse_u64_budget(field, value)))
 }
 
 fn parse_budget_diagnostics(scope: &ScopeConfig, elapsed_ns: u128) -> Vec<Diagnostic> {
-    let Some((field, Ok(budget_ms))) = parse_ms_budget(scope) else {
+    time_budget_diagnostics(scope, &["parsems", "parsetimebudgetms"], elapsed_ns)
+}
+
+fn time_budget_diagnostics(
+    scope: &ScopeConfig,
+    aliases: &[&str],
+    elapsed_ns: u128,
+) -> Vec<Diagnostic> {
+    let Some((field, Ok(budget_ms))) = scope_time_budget(scope, aliases) else {
         return Vec::new();
     };
     let budget_ns = (budget_ms as u128) * 1_000_000;
@@ -528,7 +537,8 @@ fn root_scope_budget_diagnostics(
                 }
             }
             "memory" | "memorybytes" | "pluginms" | "plugintimebudgetms" | "parsems"
-            | "parsetimebudgetms" => {
+            | "parsetimebudgetms" | "validatems" | "validatetimebudgetms" | "checkms"
+            | "checktimebudgetms" => {
                 if let Err(message) = parse_u64_budget(field, value) {
                     diagnostics.push(scope_policy_diagnostic(
                         uri,
@@ -638,7 +648,8 @@ fn apply_scope_scheduler_fields(
                     direction,
                 )),
             },
-            "parsems" | "parsetimebudgetms" => {
+            "parsems" | "parsetimebudgetms" | "validatems" | "validatetimebudgetms"
+            | "checkms" | "checktimebudgetms" => {
                 if let Err(message) = parse_u64_budget(field, value) {
                     diagnostics.push(scope_policy_diagnostic(
                         uri,
@@ -742,11 +753,13 @@ fn scheduler_policy_json(policy: crate::scheduler::ScopePolicy) -> Value {
 fn run_scheduled_validation_documents(
     context: &EngineContext,
     inputs: &[EngineInput],
+    budget_aliases: &[&str],
 ) -> EngineResult<(Vec<Diagnostic>, crate::scheduler::SchedulerTrace)> {
     let trace = crate::scheduler::SchedulerTrace::new();
     let abort = crate::scheduler::AbortSignal::new();
     let mut all_diags: Vec<Diagnostic> = Vec::new();
     for (index, input) in inputs.iter().enumerate() {
+        let started_at = Instant::now();
         let mut input_diags: Vec<Diagnostic> = Vec::new();
         let (policy, mut policy_diagnostics) =
             scheduler_policy_for_scope(context, &input.uri, &input.root_scope, "input");
@@ -777,6 +790,11 @@ fn run_scheduled_validation_documents(
             let run = run_pipeline_as_scoped(&loaded.bytes, loaded.from_format, &input.root_scope);
             input_diags.extend(run.diagnostics);
         });
+        input_diags.extend(time_budget_diagnostics(
+            &input.root_scope,
+            budget_aliases,
+            started_at.elapsed().as_nanos(),
+        ));
         project_diagnostic_uris(&mut input_diags, input, context);
         all_diags.extend(input_diags);
     }
@@ -1022,8 +1040,11 @@ impl CemMlEngine for RealCemMlEngine {
 
     fn validate(&self, request: ValidateRequest) -> EngineResult<ValidateResponse> {
         let inputs = input_uris(&request.inputs, &request.context);
-        let (all_diags, scheduler_trace) =
-            run_scheduled_validation_documents(&request.context, &request.inputs)?;
+        let (all_diags, scheduler_trace) = run_scheduled_validation_documents(
+            &request.context,
+            &request.inputs,
+            &["validatems", "validatetimebudgetms"],
+        )?;
         let report = Report::deterministic(
             inputs,
             all_diags,
@@ -1035,8 +1056,11 @@ impl CemMlEngine for RealCemMlEngine {
 
     fn check(&self, request: CheckRequest) -> EngineResult<CheckResponse> {
         let inputs = input_uris(&request.inputs, &request.context);
-        let (all_diags, scheduler_trace) =
-            run_scheduled_validation_documents(&request.context, &request.inputs)?;
+        let (all_diags, scheduler_trace) = run_scheduled_validation_documents(
+            &request.context,
+            &request.inputs,
+            &["checkms", "checktimebudgetms"],
+        )?;
         let report = Report::deterministic(
             inputs,
             all_diags,
@@ -1522,6 +1546,47 @@ mod tests {
 
         let resp = RealCemMlEngine::new().parse(req).unwrap();
         assert!(resp.diagnostics.iter().any(|diag| {
+            diag.code == "cem.scope.budget_exceeded" && diag.severity == Severity::Error
+        }));
+    }
+
+    #[test]
+    fn validate_enforces_root_scope_validate_ms_budget() {
+        let mut source = input(b"{p Hi}", "budgeted.cem");
+        source
+            .root_scope
+            .budgets
+            .insert("validateMs".to_owned(), "0".to_owned());
+        let req = ValidateRequest {
+            inputs: vec![source],
+            projection: ValidateProjection::Json,
+            fail_level: FailLevel::Validate,
+            context: ctx(),
+        };
+
+        let resp = RealCemMlEngine::new().validate(req).unwrap();
+        assert!(resp.report.diagnostics.iter().any(|diag| {
+            diag.code == "cem.scope.budget_exceeded" && diag.severity == Severity::Error
+        }));
+    }
+
+    #[test]
+    fn check_enforces_root_scope_check_ms_budget() {
+        let mut source = input(b"{p Hi}", "budgeted.cem");
+        source
+            .root_scope
+            .budgets
+            .insert("checkMs".to_owned(), "0".to_owned());
+        let req = CheckRequest {
+            inputs: vec![source],
+            projection: ValidateProjection::Json,
+            fail_level: FailLevel::Validate,
+            zero_hard_violations: false,
+            context: ctx(),
+        };
+
+        let resp = RealCemMlEngine::new().check(req).unwrap();
+        assert!(resp.report.diagnostics.iter().any(|diag| {
             diag.code == "cem.scope.budget_exceeded" && diag.severity == Severity::Error
         }));
     }

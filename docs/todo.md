@@ -43,8 +43,9 @@ for the current architecture have landed; only deferred capability work remains 
       by engine convert execution while preserving content-primary stdout/`--out` behavior. Full input and output
       root-scope config now reaches engine requests. Recognized root-scope scheduler policy and budget fields now derive
       the per-scope worker policy for scheduled validate/check, trace, and convert execution; `parseMs` enforces a
-      parser-backed pipeline wall-clock budget; and effective `baseUri` values now project relative report input and
-      diagnostic URIs. Root-scope default and named namespace bindings now seed schema validation's document-root
+      parser-backed pipeline wall-clock budget; `validateMs` and `checkMs` enforce scheduled per-input document work
+      budgets; and effective `baseUri` values now project relative report input and diagnostic URIs. Root-scope default
+      and named namespace bindings now seed schema validation's document-root
       namespace context, and recognized CEM-ML root-scope version pins now resolve against the embedded document-format
       version. Input root-scope module maps now provide the resolver base for relative schema `src` identities, load
       local JSON alias maps for schema-source specifier resolution, and normalize relative module-map paths against the
