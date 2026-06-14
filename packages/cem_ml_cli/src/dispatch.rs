@@ -1785,6 +1785,61 @@ mod tests {
     }
 
     #[test]
+    fn validate_unknown_input_identity_reports_unsupported_adapter() {
+        let p = write_fixture("validate-unknown-input-identity.cem", "{p Hi}");
+        let (outcome, stdout, stderr) = run(
+            &RealCemMlEngine::new(),
+            &[
+                "validate",
+                "--format",
+                "json",
+                "--content-type",
+                "application/unknown",
+                "--schema",
+                "https://example.test/ns/widgets/1",
+                p.to_str().unwrap(),
+            ],
+        );
+
+        assert_eq!(outcome.exit_code, EXIT_OK, "{stderr}");
+        let v: serde_json::Value = serde_json::from_str(stdout.trim()).unwrap();
+        let diagnostics = v["diagnostics"].as_array().unwrap();
+        assert!(diagnostics.iter().any(|diag| {
+            diag["code"] == "cem.lifecycle.adapter_unsupported"
+                && diag["message"].as_str().is_some_and(|message| {
+                    message.contains("content type `application/unknown`")
+                        && message.contains("schema `https://example.test/ns/widgets/1`")
+                })
+        }));
+    }
+
+    #[test]
+    fn validate_unknown_input_schema_reports_unsupported_adapter() {
+        let p = write_fixture("validate-unknown-input-schema.data", "{p Hi}");
+        let (outcome, stdout, stderr) = run(
+            &RealCemMlEngine::new(),
+            &[
+                "validate",
+                "--format",
+                "json",
+                "--schema",
+                "https://example.test/ns/widgets/1",
+                p.to_str().unwrap(),
+            ],
+        );
+
+        assert_eq!(outcome.exit_code, EXIT_OK, "{stderr}");
+        let v: serde_json::Value = serde_json::from_str(stdout.trim()).unwrap();
+        let diagnostics = v["diagnostics"].as_array().unwrap();
+        assert!(diagnostics.iter().any(|diag| {
+            diag["code"] == "cem.lifecycle.adapter_unsupported"
+                && diag["message"].as_str().is_some_and(|message| {
+                    message.contains("schema `https://example.test/ns/widgets/1`")
+                })
+        }));
+    }
+
+    #[test]
     fn validate_applies_base_uri_to_report_inputs_and_diagnostics() {
         let p = PathBuf::from("dist/target/cem_ml_cli/base-uri-input.cem");
         std::fs::create_dir_all(p.parent().unwrap()).unwrap();

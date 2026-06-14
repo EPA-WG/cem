@@ -145,8 +145,10 @@ Current implementation status:
   for parser-backed commands (`parse`, `validate`, `check`, `inspect`, `convert`,
   `trace`, `bench`, and fixture workflows). CEM core schema identity
   (`https://cem.dev/ns/core/1`) selects the CEM adapter when no content type is present,
-  while explicit content type remains authoritative. CEM/HTML target export selection is
-  registry-owned for `convert --to-content-type application/cem+xml`,
+  while explicit content type remains authoritative. Unsupported input identities emit
+  deterministic lifecycle diagnostics with the declared content type and/or schema while
+  preserving the fallback input format. CEM/HTML target export selection is registry-owned
+  for `convert --to-content-type application/cem+xml`,
   `convert --to-schema https://cem.dev/ns/core/1`, and
   `convert --to-content-type text/html` / `application/xhtml+xml`; unsupported target
   identities emit a deterministic lifecycle diagnostic with the declared content type

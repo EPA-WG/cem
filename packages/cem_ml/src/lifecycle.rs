@@ -8,6 +8,7 @@ use crate::engine::{EngineContext, EngineInput, FormatIdentity, InputFormat, Lay
 use crate::schema::ir::CEM_CORE_NAMESPACE;
 
 pub const ADAPTER_AMBIGUOUS_CODE: &str = "cem.lifecycle.adapter_ambiguous";
+pub const ADAPTER_UNSUPPORTED_CODE: &str = "cem.lifecycle.adapter_unsupported";
 pub const TARGET_ADAPTER_AMBIGUOUS_CODE: &str = "cem.lifecycle.target_adapter_ambiguous";
 pub const TARGET_ADAPTER_UNSUPPORTED_CODE: &str = "cem.lifecycle.target_adapter_unsupported";
 
@@ -75,7 +76,14 @@ impl LifecycleRegistry {
 
         match matches.as_slice() {
             [adapter] => adapter.load(input, &identity),
-            [] => passthrough_load(input, input.from_format.unwrap_or(InputFormat::Cem), None),
+            [] => {
+                let mut loaded =
+                    passthrough_load(input, input.from_format.unwrap_or(InputFormat::Cem), None);
+                if let Some(diagnostic) = unsupported_input_identity_diagnostic(input, &identity) {
+                    loaded.diagnostics.push(diagnostic);
+                }
+                loaded
+            }
             adapters => {
                 let ids = adapters
                     .iter()
@@ -234,6 +242,46 @@ fn unsupported_target_content_type_message(identity: &FormatIdentity) -> String 
     }
 }
 
+fn unsupported_input_identity_diagnostic(
+    input: &EngineInput,
+    identity: &FormatIdentity,
+) -> Option<Diagnostic> {
+    if let Some(content_type) = identity.content_type.as_deref().map(str::trim) {
+        if !content_type.is_empty() {
+            return Some(Diagnostic {
+                uri: Some(input.uri.clone()),
+                code: ADAPTER_UNSUPPORTED_CODE.to_owned(),
+                severity: Severity::Warning,
+                message: unsupported_input_content_type_message(identity),
+                ..Diagnostic::default()
+            });
+        }
+    }
+
+    identity
+        .schema
+        .as_deref()
+        .map(str::trim)
+        .filter(|schema| !schema.is_empty())
+        .map(|schema| Diagnostic {
+            uri: Some(input.uri.clone()),
+            code: ADAPTER_UNSUPPORTED_CODE.to_owned(),
+            severity: Severity::Warning,
+            message: format!("no lifecycle input adapter matched schema `{schema}`"),
+            ..Diagnostic::default()
+        })
+}
+
+fn unsupported_input_content_type_message(identity: &FormatIdentity) -> String {
+    let content_type = identity.content_type.as_deref().unwrap_or_default();
+    match identity.schema.as_deref().map(str::trim) {
+        Some(schema) if !schema.is_empty() => format!(
+            "no lifecycle input adapter matched content type `{content_type}` with schema `{schema}`"
+        ),
+        _ => format!("no lifecycle input adapter matched content type `{content_type}`"),
+    }
+}
+
 struct CemMlAdapter;
 
 impl LifecycleAdapter for CemMlAdapter {
@@ -388,6 +436,55 @@ mod tests {
             .load(&source, &context("application/unknown"));
         assert_eq!(loaded.from_format, InputFormat::Html);
         assert_eq!(loaded.adapter_id, None);
+        assert_eq!(loaded.diagnostics.len(), 1);
+        assert_eq!(loaded.diagnostics[0].code, ADAPTER_UNSUPPORTED_CODE);
+        assert!(loaded.diagnostics[0]
+            .message
+            .contains("content type `application/unknown`"));
+    }
+
+    #[test]
+    fn unknown_content_type_with_schema_reports_full_input_identity() {
+        let mut source = input(b"<p>Hi</p>");
+        source.from_format = Some(InputFormat::Html);
+        let loaded = LifecycleRegistry::with_builtin_adapters().load(
+            &source,
+            &EngineContext {
+                content_type: Some("application/unknown".to_owned()),
+                schema: Some("https://example.test/ns/widgets/1".to_owned()),
+                ..EngineContext::default()
+            },
+        );
+        assert_eq!(loaded.from_format, InputFormat::Html);
+        assert_eq!(loaded.adapter_id, None);
+        assert_eq!(loaded.diagnostics.len(), 1);
+        assert_eq!(loaded.diagnostics[0].code, ADAPTER_UNSUPPORTED_CODE);
+        assert!(loaded.diagnostics[0]
+            .message
+            .contains("content type `application/unknown`"));
+        assert!(loaded.diagnostics[0]
+            .message
+            .contains("schema `https://example.test/ns/widgets/1`"));
+    }
+
+    #[test]
+    fn unknown_schema_falls_back_to_input_format_with_warning() {
+        let mut source = input(b"<p>Hi</p>");
+        source.from_format = Some(InputFormat::Html);
+        let loaded = LifecycleRegistry::with_builtin_adapters().load(
+            &source,
+            &EngineContext {
+                schema: Some("https://example.test/ns/widgets/1".to_owned()),
+                ..EngineContext::default()
+            },
+        );
+        assert_eq!(loaded.from_format, InputFormat::Html);
+        assert_eq!(loaded.adapter_id, None);
+        assert_eq!(loaded.diagnostics.len(), 1);
+        assert_eq!(loaded.diagnostics[0].code, ADAPTER_UNSUPPORTED_CODE);
+        assert!(loaded.diagnostics[0]
+            .message
+            .contains("schema `https://example.test/ns/widgets/1`"));
     }
 
     #[test]

@@ -17,7 +17,9 @@ for the current architecture have landed; only deferred capability work remains 
       schema selection.
       Built-in input content-type dispatch is now registry-backed across parser-backed commands. CEM core schema
       identity (`https://cem.dev/ns/core/1`) selects the CEM adapter when no content type is present, while explicit
-      content type remains authoritative. CEM/HTML target export is registry-owned for `--to-content-type
+      content type remains authoritative. Unsupported input identities now emit deterministic lifecycle diagnostics with
+      the declared content type and/or schema while preserving the fallback input format. CEM/HTML target export is
+      registry-owned for `--to-content-type
       application/cem+xml`, `--to-schema https://cem.dev/ns/core/1`, `--to-content-type text/html`, and
       `--to-content-type application/xhtml+xml`; unsupported target identities now emit a deterministic lifecycle
       diagnostic with the declared content type and/or schema while preserving the requested fallback output projection.
