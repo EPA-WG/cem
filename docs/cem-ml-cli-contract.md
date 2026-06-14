@@ -104,7 +104,9 @@ Current implementation status:
   lifecycle dispatch, and the first output spec can select conversion target content
   type plus destination. Config diagnostics for malformed JSON, unsupported config
   content type, duplicate input URIs, and unknown output input references fail before
-  document parsing. Full multi-output fanout and shared scheduler execution remain
+  document parsing. `--observe-events` uses the same normalized input list and
+  lifecycle dispatch path as parser-backed commands, including `--input-spec` and
+  `--config` inputs. Full multi-output fanout and shared scheduler execution remain
   pending.
 - `--schema` and `--content-type` are carried in `EngineContext` and emitted in reports.
   `cem_ml::lifecycle::LifecycleRegistry` now owns built-in input content-type dispatch

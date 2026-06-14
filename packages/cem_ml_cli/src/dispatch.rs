@@ -1972,31 +1972,185 @@ mod tests {
             "sequence field must be present"
         );
     }
+
+    #[test]
+    fn observe_events_uses_input_spec_inputs() {
+        let p = write_fixture("observe-events-input-spec.html", "<button>Go</button>");
+        let out_dir = std::env::temp_dir().join("cem-ml-cli-observe");
+        std::fs::create_dir_all(&out_dir).unwrap();
+        let out_path = out_dir.join("input-spec-events.jsonl");
+        let _ = std::fs::remove_file(&out_path);
+        let (outcome, _, stderr) = run(
+            &RealCemMlEngine::new(),
+            &[
+                "--observe-events",
+                out_path.to_str().unwrap(),
+                "validate",
+                "--format",
+                "json",
+                "--input-spec",
+                &format!("uri={},contentType=text/html", p.display()),
+            ],
+        );
+        assert_eq!(outcome.exit_code, EXIT_OK, "{stderr}");
+        let body = std::fs::read_to_string(&out_path).unwrap();
+        assert!(
+            body.lines()
+                .any(|line| line.contains(r#""channel":"parse""#)),
+            "configured input spec should produce parse events: {body}"
+        );
+    }
+
+    #[test]
+    fn observe_events_uses_config_inputs() {
+        let p = write_fixture("observe-events-config.html", "<button>Go</button>");
+        let config_path = std::env::temp_dir().join("cem-ml-cli-tests/observe-events-config.json");
+        std::fs::write(
+            &config_path,
+            serde_json::json!({
+                "inputs": [{
+                    "uri": p.display().to_string(),
+                    "rootScope": { "defaultContentType": "text/html" }
+                }]
+            })
+            .to_string(),
+        )
+        .unwrap();
+        let out_dir = std::env::temp_dir().join("cem-ml-cli-observe");
+        std::fs::create_dir_all(&out_dir).unwrap();
+        let out_path = out_dir.join("config-events.jsonl");
+        let _ = std::fs::remove_file(&out_path);
+        let (outcome, _, stderr) = run(
+            &RealCemMlEngine::new(),
+            &[
+                "--observe-events",
+                out_path.to_str().unwrap(),
+                "validate",
+                "--format",
+                "json",
+                "--config",
+                config_path.to_str().unwrap(),
+            ],
+        );
+        assert_eq!(outcome.exit_code, EXIT_OK, "{stderr}");
+        let body = std::fs::read_to_string(&out_path).unwrap();
+        assert!(
+            body.lines()
+                .any(|line| line.contains(r#""channel":"parse""#)),
+            "configured run input should produce parse events: {body}"
+        );
+    }
 }
 
-/// Pull the input paths that the chosen subcommand would feed through
-/// the pipeline. Subcommands that do not consume a CEM-ML document
-/// (`version`, `fixture roundtrip`'s metadata-only shape, `transform`)
-/// yield an empty slice, which suppresses event emission.
 fn observable_inputs(
     command: &cli::Command,
-) -> Vec<(std::path::PathBuf, Option<cli::InputFormat>)> {
+) -> Result<(Vec<eng::EngineInput>, eng::EngineContext), CliRequestError> {
     match command {
-        cli::Command::Parse(a) => a.input.iter().map(|p| (p.clone(), a.from_format)).collect(),
-        cli::Command::Validate(a) => a
-            .inputs
-            .iter()
-            .map(|p| (p.clone(), a.from_format))
-            .collect(),
-        cli::Command::Check(a) => a
-            .inputs
-            .iter()
-            .map(|p| (p.clone(), a.from_format))
-            .collect(),
-        cli::Command::Inspect(a) => a.input.iter().map(|p| (p.clone(), a.from_format)).collect(),
-        cli::Command::Convert(a) => a.input.iter().map(|p| (p.clone(), a.from_format)).collect(),
-        cli::Command::Trace(a) => a.input.iter().map(|p| (p.clone(), a.from_format)).collect(),
-        _ => Vec::new(),
+        cli::Command::Parse(a) => {
+            let input_defaults = input_scope_defaults(&a.context);
+            let config = run_config(
+                &a.run,
+                run_defaults(input_defaults.clone(), ScopeConfig::default()),
+            )?;
+            let input = single_configured_input(
+                a.input.as_deref(),
+                a.from_format,
+                &config,
+                &input_defaults,
+            )?;
+            Ok((vec![input], context(&a.context)))
+        }
+        cli::Command::Validate(a) => {
+            let input_defaults = input_scope_defaults(&a.context);
+            let config = run_config(
+                &a.run,
+                run_defaults(input_defaults.clone(), ScopeConfig::default()),
+            )?;
+            let inputs =
+                collect_configured_inputs(&a.inputs, a.from_format, &config, &input_defaults)?;
+            Ok((inputs, context(&a.context)))
+        }
+        cli::Command::Check(a) => {
+            let input_defaults = input_scope_defaults(&a.context);
+            let config = run_config(
+                &a.run,
+                run_defaults(input_defaults.clone(), ScopeConfig::default()),
+            )?;
+            let inputs =
+                collect_configured_inputs(&a.inputs, a.from_format, &config, &input_defaults)?;
+            Ok((inputs, context(&a.context)))
+        }
+        cli::Command::Inspect(a) => {
+            let input_defaults = input_scope_defaults(&a.context);
+            let config = run_config(
+                &a.run,
+                run_defaults(input_defaults.clone(), ScopeConfig::default()),
+            )?;
+            let input = single_configured_input(
+                a.input.as_deref(),
+                a.from_format,
+                &config,
+                &input_defaults,
+            )?;
+            Ok((vec![input], context(&a.context)))
+        }
+        cli::Command::Convert(a) => {
+            let input_defaults = input_scope_defaults(&a.context);
+            let output_defaults = output_scope_defaults(a);
+            let config = run_config(
+                &a.run,
+                run_defaults(input_defaults.clone(), output_defaults),
+            )?;
+            let input = single_configured_input(
+                a.input.as_deref(),
+                a.from_format,
+                &config,
+                &input_defaults,
+            )?;
+            Ok((vec![input], context(&a.context)))
+        }
+        cli::Command::Trace(a) => {
+            let input_defaults = input_scope_defaults(&a.context);
+            let config = run_config(
+                &a.run,
+                run_defaults(input_defaults.clone(), ScopeConfig::default()),
+            )?;
+            let input = single_configured_input(
+                a.input.as_deref(),
+                a.from_format,
+                &config,
+                &input_defaults,
+            )?;
+            Ok((vec![input], context(&a.context)))
+        }
+        cli::Command::Bench(a) => {
+            let input_defaults = input_scope_defaults(&a.context);
+            let config = run_config(
+                &a.run,
+                run_defaults(input_defaults.clone(), ScopeConfig::default()),
+            )?;
+            let inputs = collect_configured_inputs(&a.inputs, None, &config, &input_defaults)?;
+            Ok((inputs, context(&a.context)))
+        }
+        cli::Command::Fixture(cli::FixtureCmd::Validate(a)) => {
+            let input_defaults = input_scope_defaults(&a.context);
+            let config = run_config(&a.run, run_defaults(input_defaults, ScopeConfig::default()))?;
+            let mut inputs = collect_fixture_inputs(&a.inputs);
+            for spec in &config.inputs {
+                inputs.push(engine_input_from_spec(spec, None)?);
+            }
+            Ok((inputs, context(&a.context)))
+        }
+        cli::Command::Fixture(cli::FixtureCmd::Roundtrip(a)) => {
+            let input_defaults = input_scope_defaults(&a.context);
+            let config = run_config(&a.run, run_defaults(input_defaults, ScopeConfig::default()))?;
+            let mut inputs = collect_fixture_inputs(&a.inputs);
+            for spec in &config.inputs {
+                inputs.push(engine_input_from_spec(spec, None)?);
+            }
+            Ok((inputs, context(&a.context)))
+        }
+        _ => Ok((Vec::new(), eng::EngineContext::default())),
     }
 }
 
@@ -2005,29 +2159,37 @@ fn emit_observability_events(
     target: &Path,
     s: &mut Streams<'_>,
 ) -> io::Result<()> {
-    let inputs = observable_inputs(command);
+    let (inputs, context) = match observable_inputs(command) {
+        Ok(v) => v,
+        Err(_) => return Ok(()),
+    };
     if inputs.is_empty() {
         return Ok(());
     }
 
     let mut all_events: Vec<cem_ml::observability::ReportEvent> = Vec::new();
-    for (path, from_format) in inputs {
-        let bytes = match fs::read(&path) {
-            Ok(b) => b,
-            Err(e) => {
-                let _ = writeln!(
-                    s.stderr,
-                    "cem-ml: --observe-events: cannot read {}: {e}",
-                    path.display()
-                );
-                continue;
-            }
+    let registry = cem_ml::lifecycle::LifecycleRegistry::with_builtin_adapters();
+    for input in inputs {
+        let input = if input.bytes.is_empty() {
+            let path = resolve_fixture_input_path(&input.uri);
+            let bytes = match fs::read(&path) {
+                Ok(b) => b,
+                Err(e) => {
+                    let _ = writeln!(
+                        s.stderr,
+                        "cem-ml: --observe-events: cannot read {}: {e}",
+                        input.uri
+                    );
+                    continue;
+                }
+            };
+            eng::EngineInput { bytes, ..input }
+        } else {
+            input
         };
-        let from = from_format
-            .map(to_engine_input_format)
-            .unwrap_or(cem_ml::engine::InputFormat::Cem);
+        let loaded = registry.load(&input, &context);
         let observer = cem_ml::observability::BufferingObserver::new();
-        let _ = cem_ml::real::observe_pipeline(&bytes, from, &observer);
+        let _ = cem_ml::real::observe_pipeline(&loaded.bytes, loaded.from_format, &observer);
         all_events.extend(observer.drain());
     }
 

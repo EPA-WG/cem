@@ -32,8 +32,9 @@ for the current architecture have landed; only deferred capability work remains 
       Positional inputs now receive the same normalized content-type identity path, including extension inference when
       no explicit `--content-type` is supplied. Config diagnostics now fail before document parsing for malformed JSON,
       unsupported config content types, duplicate input URIs, and unknown output input references, and validation-style
-      CLI commands represent those diagnostics in generated JSON/Markdown reports. Keep this item open until
-      config-file execution fans out multiple outputs, observability uses the same configured input list, and the
+      CLI commands represent those diagnostics in generated JSON/Markdown reports. The `--observe-events` path now uses
+      the same configured input list and lifecycle dispatch as parser-backed commands, including `--input-spec` and
+      `--config` inputs. Keep this item open until config-file execution fans out multiple outputs and the
       scheduler/thread-pool is owned by `RunConfig` during execution.
 - [x] **Immediate goal: XSLT 1.0 lifecycle adapter.** Move the existing legacy custom-element XSLT 1.0 lowering
       (`cem_ml::legacy_custom_element`) behind the lifecycle adapter registry instead of the current one-off

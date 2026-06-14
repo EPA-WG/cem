@@ -86,7 +86,9 @@ the immediate CLI lifecycle contract.
    override global input identity for lifecycle dispatch, and the first output spec can
    select conversion target identity/destination. Config diagnostics for malformed JSON,
    unsupported config content type, duplicate input URIs, and unknown output input
-   references fail before document parsing. Multi-output fanout and scheduler ownership
+   references fail before document parsing. `--observe-events` consumes the same
+   normalized input list and lifecycle dispatch path as parser-backed commands, including
+   `--input-spec` and `--config` inputs. Multi-output fanout and scheduler ownership
    remain open.
 7. Update CLI flags without breaking current debug workflows:
     - keep `--from-format` and `--to-format` as aliases for built-in identities;
