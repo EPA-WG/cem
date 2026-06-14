@@ -145,8 +145,8 @@ Current implementation status:
   while explicit content type remains authoritative. CEM/HTML target export selection is
   registry-owned for `convert --to-content-type application/cem+xml`,
   `convert --to-schema https://cem.dev/ns/core/1`, and
-  `convert --to-content-type text/html`; remaining schema/namespace-specific adapter
-  selection is still pending.
+  `convert --to-content-type text/html` / `application/xhtml+xml`; remaining
+  schema/namespace-specific adapter selection is still pending.
 - Root-scope configuration is not complete yet. Current execution uses run-config identity
   fields for lifecycle dispatch and conversion output selection, recognized scheduler
   policy/budget fields for scheduled worker policy, `parseMs` for parser-backed

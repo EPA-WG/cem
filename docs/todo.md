@@ -18,9 +18,9 @@ for the current architecture have landed; only deferred capability work remains 
       Built-in input content-type dispatch is now registry-backed across parser-backed commands. CEM core schema
       identity (`https://cem.dev/ns/core/1`) selects the CEM adapter when no content type is present, while explicit
       content type remains authoritative. CEM/HTML target export is registry-owned for `--to-content-type
-      application/cem+xml`, `--to-schema https://cem.dev/ns/core/1`, and `--to-content-type text/html`; keep this item
-      open until remaining schema/namespace-specific selection and remaining non-CEM target export adapters are
-      registry-owned too.
+      application/cem+xml`, `--to-schema https://cem.dev/ns/core/1`, `--to-content-type text/html`, and
+      `--to-content-type application/xhtml+xml`; keep this item open until remaining schema/namespace-specific selection
+      and remaining non-CEM target export adapters are registry-owned too.
 - [ ] **Immediate goal: root-scope run configuration for lib + WASM + CLI.** Design homes:
       [`cem-ml-cli-contract.md`](cem-ml-cli-contract.md#major-requirement-root-scope-and-run-configuration) and
       [`cem-ml-cli-plan.md`](cem-ml-cli-plan.md#run-configuration-shape). Add a serializable `RunConfig` with input and

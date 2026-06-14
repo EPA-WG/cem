@@ -433,7 +433,7 @@ These are data shapes only. Parser-filled content remains blocked until the pars
     - Supported input formats: `cem`, `html`, `xml`.
     - Supported output formats: `cem`, `html`, `dom-json`, `ast`, `events`.
     - `--to-content-type application/cem+xml` selects canonical CEM-ML export, and `--to-content-type text/html`
-      selects light-DOM HTML export.
+      / `application/xhtml+xml` selects light-DOM HTML export.
     - Schema-version conversion, rendered XML output, comment-preservation behavior, and broader target adapters remain
       deferred.
 7. `cem-ml trace <input>`

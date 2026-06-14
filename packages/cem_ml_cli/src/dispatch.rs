@@ -2748,6 +2748,24 @@ mod tests {
     }
 
     #[test]
+    fn convert_to_content_type_xhtml_selects_html_export_adapter() {
+        let p = write_fixture("convert-target-xhtml.cem", "@doc cem-ml 1\n{p | Hi}");
+        let (outcome, stdout, stderr) = run(
+            &RealCemMlEngine::new(),
+            &[
+                "convert",
+                "--to-content-type",
+                "application/xhtml+xml",
+                p.to_str().unwrap(),
+            ],
+        );
+        assert_eq!(outcome.exit_code, EXIT_OK, "{stderr}");
+        let v: serde_json::Value = serde_json::from_str(stdout.trim()).unwrap();
+        assert_eq!(v["kind"], "html");
+        assert_eq!(v["content"], "<p>Hi</p>");
+    }
+
+    #[test]
     fn convert_to_schema_cem_core_selects_cem_export_adapter() {
         let p = write_fixture("convert-target-schema.cem", "@doc cem-ml 1\n{p | Hi}");
         let (outcome, stdout, stderr) = run(

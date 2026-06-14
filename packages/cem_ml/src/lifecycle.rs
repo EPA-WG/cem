@@ -428,6 +428,19 @@ mod tests {
     }
 
     #[test]
+    fn xhtml_target_content_type_selects_html_export() {
+        let target = FormatIdentity {
+            content_type: Some("application/xhtml+xml".to_owned()),
+            ..FormatIdentity::default()
+        };
+        let selected = LifecycleRegistry::with_builtin_adapters()
+            .select_export(Some(&target), LayerFormat::DomJson);
+        assert_eq!(selected.to_format, LayerFormat::Html);
+        assert_eq!(selected.adapter_id, Some("html"));
+        assert!(selected.diagnostics.is_empty());
+    }
+
+    #[test]
     fn cem_core_schema_selects_cem_export_when_content_type_absent() {
         let target = FormatIdentity {
             schema: Some(CEM_CORE_NAMESPACE.to_owned()),
