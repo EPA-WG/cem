@@ -1809,14 +1809,40 @@ mod tests {
         format!("file://localhost{}", path.display())
     }
 
+    fn assert_stderr_contains_all(stderr: &str, expected: &[&str]) {
+        for needle in expected {
+            assert!(
+                stderr.contains(needle),
+                "stderr did not contain `{needle}`:\n{stderr}"
+            );
+        }
+    }
+
+    fn assert_remote_resolver_boundary(stderr: &str, uri: &str) {
+        assert_stderr_contains_all(
+            stderr,
+            &["remote/custom URI resolvers are not implemented", uri],
+        );
+    }
+
+    fn assert_remote_input_resolver_boundary(stderr: &str, uri: &str) {
+        assert_stderr_contains_all(
+            stderr,
+            &["remote/custom input URI resolvers are not implemented", uri],
+        );
+    }
+
+    fn assert_local_file_uri_boundary(stderr: &str, uri: &str) {
+        assert_stderr_contains_all(stderr, &["only local file:// URIs are supported", uri]);
+    }
+
     fn assert_remote_input_uri_rejected(args: &[&str], uri: &str) {
         let (outcome, stdout, stderr) = run(&FakeEngine, args);
 
         assert_eq!(outcome.exit_code, EXIT_IO);
         assert!(stdout.trim().is_empty());
-        assert!(stderr.contains("I/O error"));
-        assert!(stderr.contains("remote/custom URI resolvers are not implemented"));
-        assert!(stderr.contains(uri));
+        assert_stderr_contains_all(&stderr, &["I/O error"]);
+        assert_remote_resolver_boundary(&stderr, uri);
     }
 
     fn assert_non_local_file_uri_input_rejected(args: &[&str], uri: &str) {
@@ -1824,9 +1850,8 @@ mod tests {
 
         assert_eq!(outcome.exit_code, EXIT_IO);
         assert!(stdout.trim().is_empty());
-        assert!(stderr.contains("I/O error"));
-        assert!(stderr.contains("only local file:// URIs are supported"));
-        assert!(stderr.contains(uri));
+        assert_stderr_contains_all(&stderr, &["I/O error"]);
+        assert_local_file_uri_boundary(&stderr, uri);
     }
 
     fn assert_non_local_file_uri_output_rejected(args: &[&str], uri: &str) {
@@ -1834,9 +1859,8 @@ mod tests {
 
         assert_eq!(outcome.exit_code, EXIT_IO);
         assert!(stdout.trim().is_empty());
-        assert!(stderr.contains("write failure"));
-        assert!(stderr.contains("only local file:// URIs are supported"));
-        assert!(stderr.contains(uri));
+        assert_stderr_contains_all(&stderr, &["write failure"]);
+        assert_local_file_uri_boundary(&stderr, uri);
     }
 
     fn assert_remote_output_uri_rejected(args: &[&str], uri: &str) {
@@ -1844,9 +1868,8 @@ mod tests {
 
         assert_eq!(outcome.exit_code, EXIT_IO);
         assert!(stdout.trim().is_empty());
-        assert!(stderr.contains("write failure"));
-        assert!(stderr.contains("remote/custom URI resolvers are not implemented"));
-        assert!(stderr.contains(uri));
+        assert_stderr_contains_all(&stderr, &["write failure"]);
+        assert_remote_resolver_boundary(&stderr, uri);
     }
 
     #[test]
@@ -2142,9 +2165,8 @@ mod tests {
 
         assert_eq!(outcome.exit_code, EXIT_IO);
         assert!(stdout.trim().is_empty());
-        assert!(stderr.contains("write failure"));
-        assert!(stderr.contains("remote/custom URI resolvers are not implemented"));
-        assert!(stderr.contains("https://example.test/out.json"));
+        assert_stderr_contains_all(&stderr, &["write failure"]);
+        assert_remote_resolver_boundary(&stderr, "https://example.test/out.json");
     }
 
     #[test]
@@ -2196,9 +2218,8 @@ mod tests {
 
         assert_eq!(outcome.exit_code, EXIT_IO);
         assert!(stdout.contains("\"kind\": \"fake-parse\""));
-        assert!(stderr.contains("parse report write failure"));
-        assert!(stderr.contains("remote/custom URI resolvers are not implemented"));
-        assert!(stderr.contains("https://example.test/parse-report.json"));
+        assert_stderr_contains_all(&stderr, &["parse report write failure"]);
+        assert_remote_resolver_boundary(&stderr, "https://example.test/parse-report.json");
     }
 
     #[test]
@@ -2212,9 +2233,8 @@ mod tests {
 
         assert_eq!(outcome.exit_code, EXIT_IO);
         assert!(stdout.contains("\"kind\": \"fake-parse\""));
-        assert!(stderr.contains("parse report write failure"));
-        assert!(stderr.contains("remote/custom URI resolvers are not implemented"));
-        assert!(stderr.contains(uri));
+        assert_stderr_contains_all(&stderr, &["parse report write failure"]);
+        assert_remote_resolver_boundary(&stderr, uri);
     }
 
     #[test]
@@ -2455,8 +2475,7 @@ mod tests {
 
         assert_eq!(outcome.exit_code, EXIT_IO);
         assert!(stdout.trim().is_empty());
-        assert!(stderr.contains("remote/custom URI resolvers are not implemented"));
-        assert!(stderr.contains("https://example.test/input.cem"));
+        assert_remote_resolver_boundary(&stderr, "https://example.test/input.cem");
     }
 
     #[test]
@@ -2489,8 +2508,7 @@ mod tests {
 
         assert_eq!(outcome.exit_code, EXIT_IO);
         assert!(stdout.trim().is_empty());
-        assert!(stderr.contains("remote/custom URI resolvers are not implemented"));
-        assert!(stderr.contains("https://example.test/input.cem"));
+        assert_remote_resolver_boundary(&stderr, "https://example.test/input.cem");
     }
 
     #[test]
@@ -2532,8 +2550,7 @@ mod tests {
 
         assert_eq!(outcome.exit_code, EXIT_IO);
         assert!(stdout.trim().is_empty());
-        assert!(stderr.contains("remote/custom URI resolvers are not implemented"));
-        assert!(stderr.contains("https://example.test/input.cem"));
+        assert_remote_resolver_boundary(&stderr, "https://example.test/input.cem");
     }
 
     #[test]
@@ -2558,8 +2575,7 @@ mod tests {
 
         assert_eq!(outcome.exit_code, EXIT_IO);
         assert!(stdout.trim().is_empty());
-        assert!(stderr.contains("remote/custom URI resolvers are not implemented"));
-        assert!(stderr.contains("cem+vfs://workspace/input.cem"));
+        assert_remote_resolver_boundary(&stderr, "cem+vfs://workspace/input.cem");
     }
 
     #[test]
@@ -3301,8 +3317,7 @@ mod tests {
 
         assert_eq!(outcome.exit_code, EXIT_IO);
         assert!(stdout.trim().is_empty());
-        assert!(stderr.contains("remote/custom URI resolvers are not implemented"));
-        assert!(stderr.contains("https://example.test/out.json"));
+        assert_remote_resolver_boundary(&stderr, "https://example.test/out.json");
     }
 
     #[test]
@@ -3334,8 +3349,7 @@ mod tests {
 
         assert_eq!(outcome.exit_code, EXIT_IO);
         assert!(stdout.trim().is_empty());
-        assert!(stderr.contains("remote/custom URI resolvers are not implemented"));
-        assert!(stderr.contains("cem+vfs://workspace/out.json"));
+        assert_remote_resolver_boundary(&stderr, "cem+vfs://workspace/out.json");
     }
 
     #[test]
@@ -3523,9 +3537,8 @@ mod tests {
 
         assert_eq!(outcome.exit_code, EXIT_IO);
         assert!(stdout.trim().is_empty());
-        assert!(stderr.contains("write failure"));
-        assert!(stderr.contains("remote/custom URI resolvers are not implemented"));
-        assert!(stderr.contains("https://example.test/convert.json"));
+        assert_stderr_contains_all(&stderr, &["write failure"]);
+        assert_remote_resolver_boundary(&stderr, "https://example.test/convert.json");
     }
 
     #[test]
@@ -3549,9 +3562,8 @@ mod tests {
         assert_eq!(outcome.exit_code, EXIT_IO);
         assert!(stdout.trim().is_empty());
         assert!(out_path.is_file());
-        assert!(stderr.contains("convert report write failure"));
-        assert!(stderr.contains("remote/custom URI resolvers are not implemented"));
-        assert!(stderr.contains("https://example.test/convert.md"));
+        assert_stderr_contains_all(&stderr, &["convert report write failure"]);
+        assert_remote_resolver_boundary(&stderr, "https://example.test/convert.md");
     }
 
     #[test]
@@ -3576,9 +3588,8 @@ mod tests {
         assert_eq!(outcome.exit_code, EXIT_IO);
         assert!(stdout.trim().is_empty());
         assert!(out_path.is_file());
-        assert!(stderr.contains("convert report write failure"));
-        assert!(stderr.contains("remote/custom URI resolvers are not implemented"));
-        assert!(stderr.contains(uri));
+        assert_stderr_contains_all(&stderr, &["convert report write failure"]);
+        assert_remote_resolver_boundary(&stderr, uri);
     }
 
     #[test]
@@ -3798,8 +3809,7 @@ mod tests {
 
         assert_eq!(outcome.exit_code, EXIT_IO);
         assert!(stdout.trim().is_empty());
-        assert!(stderr.contains("remote/custom URI resolvers are not implemented"));
-        assert!(stderr.contains("https://example.test/out.json"));
+        assert_remote_resolver_boundary(&stderr, "https://example.test/out.json");
     }
 
     #[test]
@@ -3817,8 +3827,7 @@ mod tests {
 
         assert_eq!(outcome.exit_code, EXIT_IO);
         assert!(stdout.trim().is_empty());
-        assert!(stderr.contains("remote/custom URI resolvers are not implemented"));
-        assert!(stderr.contains("cem+vfs://workspace/out.json"));
+        assert_remote_resolver_boundary(&stderr, "cem+vfs://workspace/out.json");
     }
 
     #[test]
@@ -3839,8 +3848,7 @@ mod tests {
 
         assert_eq!(outcome.exit_code, EXIT_IO);
         assert!(stdout.trim().is_empty());
-        assert!(stderr.contains("only local file:// URIs are supported"));
-        assert!(stderr.contains("file://example.test/out.json"));
+        assert_local_file_uri_boundary(&stderr, "file://example.test/out.json");
     }
 
     #[test]
@@ -4088,8 +4096,7 @@ mod tests {
 
         assert_eq!(outcome.exit_code, EXIT_IO);
         assert!(stdout.trim().is_empty());
-        assert!(stderr.contains("remote/custom URI resolvers are not implemented"));
-        assert!(stderr.contains("https://example.test/run.json"));
+        assert_remote_resolver_boundary(&stderr, "https://example.test/run.json");
     }
 
     #[test]
@@ -4126,8 +4133,7 @@ mod tests {
 
         assert_eq!(outcome.exit_code, EXIT_IO);
         assert!(stdout.trim().is_empty());
-        assert!(stderr.contains("only local file:// URIs are supported"));
-        assert!(stderr.contains(uri));
+        assert_local_file_uri_boundary(&stderr, uri);
     }
 
     #[test]
@@ -4138,8 +4144,7 @@ mod tests {
 
         assert_eq!(outcome.exit_code, EXIT_IO);
         assert!(stdout.trim().is_empty());
-        assert!(stderr.contains("remote/custom URI resolvers are not implemented"));
-        assert!(stderr.contains(uri));
+        assert_remote_resolver_boundary(&stderr, uri);
     }
 
     #[test]
@@ -4396,7 +4401,7 @@ mod tests {
 
         assert_eq!(outcome.exit_code, EXIT_IO);
         assert!(stdout.trim().is_empty());
-        assert!(stderr.contains("remote/custom input URI resolvers are not implemented"));
+        assert_remote_input_resolver_boundary(&stderr, "https://example.test/fixture.cem");
     }
 
     #[test]
@@ -4406,8 +4411,7 @@ mod tests {
 
         assert_eq!(outcome.exit_code, EXIT_IO);
         assert!(stdout.trim().is_empty());
-        assert!(stderr.contains("remote/custom input URI resolvers are not implemented"));
-        assert!(stderr.contains(uri));
+        assert_remote_input_resolver_boundary(&stderr, uri);
     }
 
     #[test]
@@ -4417,8 +4421,7 @@ mod tests {
 
         assert_eq!(outcome.exit_code, EXIT_IO);
         assert!(stdout.trim().is_empty());
-        assert!(stderr.contains("only local file:// URIs are supported"));
-        assert!(stderr.contains(uri));
+        assert_local_file_uri_boundary(&stderr, uri);
     }
 
     #[test]
@@ -4493,8 +4496,7 @@ mod tests {
 
         assert_eq!(outcome.exit_code, EXIT_IO);
         assert!(stdout.trim().is_empty());
-        assert!(stderr.contains("remote/custom input URI resolvers are not implemented"));
-        assert!(stderr.contains(uri));
+        assert_remote_input_resolver_boundary(&stderr, uri);
     }
 
     #[test]
@@ -4505,8 +4507,7 @@ mod tests {
 
         assert_eq!(outcome.exit_code, EXIT_IO);
         assert!(stdout.trim().is_empty());
-        assert!(stderr.contains("remote/custom input URI resolvers are not implemented"));
-        assert!(stderr.contains(uri));
+        assert_remote_input_resolver_boundary(&stderr, uri);
     }
 
     #[test]
@@ -4517,8 +4518,7 @@ mod tests {
 
         assert_eq!(outcome.exit_code, EXIT_IO);
         assert!(stdout.trim().is_empty());
-        assert!(stderr.contains("only local file:// URIs are supported"));
-        assert!(stderr.contains(uri));
+        assert_local_file_uri_boundary(&stderr, uri);
     }
 
     #[test]
@@ -4652,9 +4652,8 @@ mod tests {
 
         assert_eq!(outcome.exit_code, EXIT_IO);
         assert!(stdout.trim().is_empty());
-        assert!(stderr.contains("write failure"));
-        assert!(stderr.contains("remote/custom URI resolvers are not implemented"));
-        assert!(stderr.contains("https://example.test/inspect.json"));
+        assert_stderr_contains_all(&stderr, &["write failure"]);
+        assert_remote_resolver_boundary(&stderr, "https://example.test/inspect.json");
     }
 
     #[test]
@@ -4773,9 +4772,8 @@ mod tests {
 
         assert_eq!(outcome.exit_code, EXIT_IO);
         assert!(stdout.trim().is_empty());
-        assert!(stderr.contains("write failure"));
-        assert!(stderr.contains("remote/custom URI resolvers are not implemented"));
-        assert!(stderr.contains("https://example.test/trace.json"));
+        assert_stderr_contains_all(&stderr, &["write failure"]);
+        assert_remote_resolver_boundary(&stderr, "https://example.test/trace.json");
     }
 
     #[test]
@@ -5183,9 +5181,11 @@ mod tests {
 
         assert_eq!(outcome.exit_code, EXIT_IO);
         assert!(stdout.trim().is_empty());
-        assert!(stderr.contains("report write failure"));
-        assert!(stderr.contains("remote/custom URI resolvers are not implemented"));
-        assert!(stderr.contains("https://example.test/fixture-roundtrip-report.json"));
+        assert_stderr_contains_all(&stderr, &["report write failure"]);
+        assert_remote_resolver_boundary(
+            &stderr,
+            "https://example.test/fixture-roundtrip-report.json",
+        );
     }
 
     #[test]
@@ -5196,9 +5196,8 @@ mod tests {
 
         assert_eq!(outcome.exit_code, EXIT_IO);
         assert!(stdout.trim().is_empty());
-        assert!(stderr.contains("report write failure"));
-        assert!(stderr.contains("remote/custom URI resolvers are not implemented"));
-        assert!(stderr.contains(uri));
+        assert_stderr_contains_all(&stderr, &["report write failure"]);
+        assert_remote_resolver_boundary(&stderr, uri);
     }
 
     #[test]
@@ -5215,9 +5214,8 @@ mod tests {
 
         assert_eq!(outcome.exit_code, EXIT_IO);
         assert!(stdout.trim().is_empty());
-        assert!(stderr.contains("report write failure"));
-        assert!(stderr.contains("remote/custom URI resolvers are not implemented"));
-        assert!(stderr.contains("https://example.test/fixture-report.json"));
+        assert_stderr_contains_all(&stderr, &["report write failure"]);
+        assert_remote_resolver_boundary(&stderr, "https://example.test/fixture-report.json");
     }
 
     #[test]
@@ -5228,9 +5226,8 @@ mod tests {
 
         assert_eq!(outcome.exit_code, EXIT_IO);
         assert!(stdout.trim().is_empty());
-        assert!(stderr.contains("report write failure"));
-        assert!(stderr.contains("remote/custom URI resolvers are not implemented"));
-        assert!(stderr.contains(uri));
+        assert_stderr_contains_all(&stderr, &["report write failure"]);
+        assert_remote_resolver_boundary(&stderr, uri);
     }
 
     #[test]
@@ -5386,9 +5383,8 @@ mod tests {
 
         assert_eq!(outcome.exit_code, EXIT_IO);
         assert!(stdout.trim().is_empty());
-        assert!(stderr.contains("report write failure"));
-        assert!(stderr.contains("remote/custom URI resolvers are not implemented"));
-        assert!(stderr.contains("https://example.test/report.json"));
+        assert_stderr_contains_all(&stderr, &["report write failure"]);
+        assert_remote_resolver_boundary(&stderr, "https://example.test/report.json");
     }
 
     #[test]
@@ -5402,9 +5398,8 @@ mod tests {
 
         assert_eq!(outcome.exit_code, EXIT_IO);
         assert!(stdout.trim().is_empty());
-        assert!(stderr.contains("report write failure"));
-        assert!(stderr.contains("only local file:// URIs are supported"));
-        assert!(stderr.contains(uri));
+        assert_stderr_contains_all(&stderr, &["report write failure"]);
+        assert_local_file_uri_boundary(&stderr, uri);
     }
 
     #[test]
@@ -5418,9 +5413,8 @@ mod tests {
 
         assert_eq!(outcome.exit_code, EXIT_IO);
         assert!(stdout.trim().is_empty());
-        assert!(stderr.contains("report write failure"));
-        assert!(stderr.contains("remote/custom URI resolvers are not implemented"));
-        assert!(stderr.contains(uri));
+        assert_stderr_contains_all(&stderr, &["report write failure"]);
+        assert_remote_resolver_boundary(&stderr, uri);
     }
 
     #[test]
@@ -5438,9 +5432,8 @@ mod tests {
 
         assert_eq!(outcome.exit_code, EXIT_IO);
         assert!(stdout.trim().is_empty());
-        assert!(stderr.contains("report write failure"));
-        assert!(stderr.contains("remote/custom URI resolvers are not implemented"));
-        assert!(stderr.contains("https://example.test/report.md"));
+        assert_stderr_contains_all(&stderr, &["report write failure"]);
+        assert_remote_resolver_boundary(&stderr, "https://example.test/report.md");
     }
 
     #[test]
@@ -5460,9 +5453,8 @@ mod tests {
 
         assert_eq!(outcome.exit_code, EXIT_IO);
         assert!(stdout.contains("\"kind\": \"fake-bench\""));
-        assert!(stderr.contains("benchmark report write failure"));
-        assert!(stderr.contains("remote/custom URI resolvers are not implemented"));
-        assert!(stderr.contains("https://example.test/bench.json"));
+        assert_stderr_contains_all(&stderr, &["benchmark report write failure"]);
+        assert_remote_resolver_boundary(&stderr, "https://example.test/bench.json");
     }
 
     #[test]
@@ -5483,9 +5475,8 @@ mod tests {
 
         assert_eq!(outcome.exit_code, EXIT_IO);
         assert!(stdout.contains("\"kind\": \"fake-bench\""));
-        assert!(stderr.contains("benchmark report write failure"));
-        assert!(stderr.contains("remote/custom URI resolvers are not implemented"));
-        assert!(stderr.contains(uri));
+        assert_stderr_contains_all(&stderr, &["benchmark report write failure"]);
+        assert_remote_resolver_boundary(&stderr, uri);
     }
 
     #[test]
@@ -5505,9 +5496,8 @@ mod tests {
 
         assert_eq!(outcome.exit_code, EXIT_IO);
         assert!(stdout.contains("\"kind\": \"fake-bench\""));
-        assert!(stderr.contains("benchmark report write failure"));
-        assert!(stderr.contains("remote/custom URI resolvers are not implemented"));
-        assert!(stderr.contains("https://example.test/bench.md"));
+        assert_stderr_contains_all(&stderr, &["benchmark report write failure"]);
+        assert_remote_resolver_boundary(&stderr, "https://example.test/bench.md");
     }
 
     #[test]
@@ -5609,9 +5599,8 @@ mod tests {
 
         assert_eq!(outcome.exit_code, EXIT_IO);
         assert!(stdout.is_empty());
-        assert!(stderr.contains("--observe-events failed"));
-        assert!(stderr.contains("remote/custom URI resolvers are not implemented"));
-        assert!(stderr.contains("https://example.test/events.jsonl"));
+        assert_stderr_contains_all(&stderr, &["--observe-events failed"]);
+        assert_remote_resolver_boundary(&stderr, "https://example.test/events.jsonl");
     }
 
     #[test]
@@ -5628,9 +5617,8 @@ mod tests {
 
         assert_eq!(outcome.exit_code, EXIT_IO);
         assert!(stdout.is_empty());
-        assert!(stderr.contains("--observe-events failed"));
-        assert!(stderr.contains("only local file:// URIs are supported"));
-        assert!(stderr.contains(uri));
+        assert_stderr_contains_all(&stderr, &["--observe-events failed"]);
+        assert_local_file_uri_boundary(&stderr, uri);
     }
 
     #[test]
@@ -5644,9 +5632,8 @@ mod tests {
 
         assert_eq!(outcome.exit_code, EXIT_IO);
         assert!(stdout.is_empty());
-        assert!(stderr.contains("--observe-events failed"));
-        assert!(stderr.contains("remote/custom URI resolvers are not implemented"));
-        assert!(stderr.contains(uri));
+        assert_stderr_contains_all(&stderr, &["--observe-events failed"]);
+        assert_remote_resolver_boundary(&stderr, uri);
     }
 
     #[test]

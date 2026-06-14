@@ -265,4 +265,44 @@ mod tests {
         );
         assert_eq!(value["diagnostics"], serde_json::json!([]));
     }
+
+    #[test]
+    fn normalize_run_config_preserves_uri_shaped_paths_at_api_boundary() {
+        let json = normalize_run_config(
+            r#"{
+                "inputs": [{
+                    "uri": "https://example.test/src/a.cem",
+                    "rootScope": {
+                        "moduleMap": "cem+vfs://workspace/cem.modules.json"
+                    }
+                }],
+                "outputs": [{
+                    "inputRef": "https://example.test/src/a.cem",
+                    "destination": "file://example.test/dist/a.json",
+                    "rootScope": {
+                        "moduleMap": "https://example.test/out.modules.json"
+                    }
+                }]
+            }"#,
+        );
+        let value: serde_json::Value = serde_json::from_str(&json).unwrap();
+
+        assert_eq!(
+            value["config"]["inputs"][0]["uri"],
+            "https://example.test/src/a.cem"
+        );
+        assert_eq!(
+            value["config"]["inputs"][0]["rootScope"]["moduleMap"],
+            "cem+vfs://workspace/cem.modules.json"
+        );
+        assert_eq!(
+            value["config"]["outputs"][0]["destination"],
+            "file://example.test/dist/a.json"
+        );
+        assert_eq!(
+            value["config"]["outputs"][0]["rootScope"]["moduleMap"],
+            "https://example.test/out.modules.json"
+        );
+        assert_eq!(value["diagnostics"], serde_json::json!([]));
+    }
 }

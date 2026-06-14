@@ -1012,6 +1012,50 @@ mod tests {
     }
 
     #[test]
+    fn normalize_run_config_preserves_uri_shaped_inputs_outputs_and_module_maps() {
+        let response = normalize_run_config(
+            RunConfig {
+                inputs: vec![InputSpec {
+                    uri: "https://example.test/src/a.cem".to_owned(),
+                    root_scope: ScopeConfig {
+                        module_map: Some("cem+vfs://workspace/cem.modules.json".to_owned()),
+                        ..ScopeConfig::default()
+                    },
+                }],
+                outputs: vec![OutputSpec {
+                    input_ref: Some("https://example.test/src/a.cem".to_owned()),
+                    destination: Some("cem+vfs://workspace/dist/a.json".to_owned()),
+                    root_scope: ScopeConfig {
+                        module_map: Some("file://example.test/out.modules.json".to_owned()),
+                        ..ScopeConfig::default()
+                    },
+                }],
+                ..RunConfig::default()
+            },
+            RunConfigDefaults::default(),
+            Some("/workspace/configs/run.json"),
+        );
+
+        assert!(response.diagnostics.is_empty());
+        assert_eq!(
+            response.config.inputs[0].uri,
+            "https://example.test/src/a.cem"
+        );
+        assert_eq!(
+            response.config.inputs[0].root_scope.module_map.as_deref(),
+            Some("cem+vfs://workspace/cem.modules.json")
+        );
+        assert_eq!(
+            response.config.outputs[0].destination.as_deref(),
+            Some("cem+vfs://workspace/dist/a.json")
+        );
+        assert_eq!(
+            response.config.outputs[0].root_scope.module_map.as_deref(),
+            Some("file://example.test/out.modules.json")
+        );
+    }
+
+    #[test]
     fn normalize_run_config_resolves_relative_output_destination_against_config_path() {
         let response = normalize_run_config(
             RunConfig {
