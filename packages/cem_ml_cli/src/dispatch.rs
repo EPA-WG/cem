@@ -3236,6 +3236,29 @@ mod tests {
     }
 
     #[test]
+    fn output_spec_file_uri_destination_writes_local_output() {
+        let input = write_fixture("convert-output-file-uri-destination.cem", "{p Hi}");
+        let out_path =
+            std::env::temp_dir().join("cem-ml-cli-tests/convert-output-file-uri-destination.json");
+        let _ = std::fs::remove_file(&out_path);
+        let (outcome, stdout, stderr) = run(
+            &FakeEngine,
+            &[
+                "convert",
+                "--output-spec",
+                &format!("dest={}", local_file_uri(&out_path)),
+                input.to_str().unwrap(),
+            ],
+        );
+
+        assert_eq!(outcome.exit_code, EXIT_OK, "{stderr}");
+        assert!(stdout.trim().is_empty());
+        let written = std::fs::read_to_string(&out_path).unwrap();
+        let v: serde_json::Value = serde_json::from_str(&written).unwrap();
+        assert_eq!(v["kind"], "fake-convert");
+    }
+
+    #[test]
     fn output_spec_remote_uri_destination_is_rejected_without_resolver() {
         let input = write_fixture("convert-output-remote-destination.cem", "{p Hi}");
         let (outcome, stdout, stderr) = run(
@@ -3805,6 +3828,35 @@ mod tests {
         assert!(!diagnostics
             .iter()
             .any(|diag| diag["code"] == "cem.scope.budget_unenforced"));
+    }
+
+    #[test]
+    fn fixture_roundtrip_positional_file_uri_reads_local_input() {
+        let p = write_fixture("fixture-roundtrip-file-uri-input.cem", "{p Hi}");
+        let file_uri = local_file_uri(&p);
+        let (outcome, stdout, stderr) = run(
+            &RealCemMlEngine::new(),
+            &["fixture", "roundtrip", &file_uri],
+        );
+
+        assert_eq!(outcome.exit_code, EXIT_OK, "{stderr}");
+        let v: serde_json::Value = serde_json::from_str(stdout.trim()).unwrap();
+        assert_eq!(v["report"]["summary"]["hardViolationCount"], 0);
+        assert_eq!(v["report"]["summary"]["inputCount"], 1);
+        assert_eq!(v["report"]["inputs"][0], file_uri);
+        assert_eq!(v["artifacts"][0]["input"], file_uri);
+    }
+
+    #[test]
+    fn fixture_roundtrip_remote_uri_input_is_rejected_without_resolver() {
+        let uri = "https://example.test/fixture-roundtrip.cem";
+        let (outcome, stdout, stderr) =
+            run(&RealCemMlEngine::new(), &["fixture", "roundtrip", uri]);
+
+        assert_eq!(outcome.exit_code, EXIT_IO);
+        assert!(stdout.trim().is_empty());
+        assert!(stderr.contains("remote/custom input URI resolvers are not implemented"));
+        assert!(stderr.contains(uri));
     }
 
     #[test]
@@ -4453,6 +4505,25 @@ mod tests {
             dir.join("cem-ml.roundtrip.report.md").is_file(),
             "missing roundtrip.report.md"
         );
+    }
+
+    #[test]
+    fn fixture_roundtrip_remote_uri_report_destination_is_rejected_without_resolver() {
+        let (outcome, stdout, stderr) = run(
+            &FakeEngine,
+            &[
+                "fixture",
+                "roundtrip",
+                "--report-json",
+                "https://example.test/fixture-roundtrip-report.json",
+            ],
+        );
+
+        assert_eq!(outcome.exit_code, EXIT_IO);
+        assert!(stdout.trim().is_empty());
+        assert!(stderr.contains("report write failure"));
+        assert!(stderr.contains("remote/custom URI resolvers are not implemented"));
+        assert!(stderr.contains("https://example.test/fixture-roundtrip-report.json"));
     }
 
     #[test]
