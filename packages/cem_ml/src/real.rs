@@ -136,8 +136,71 @@ fn snapshot(level: FailLevel, ctx: &EngineContext) -> ReportOptionsSnapshot {
     }
 }
 
-fn input_uris(inputs: &[EngineInput]) -> Vec<String> {
-    inputs.iter().map(|i| i.uri.clone()).collect()
+fn effective_base_uri<'a>(context: &'a EngineContext, scope: &'a ScopeConfig) -> Option<&'a str> {
+    scope
+        .base_uri
+        .as_deref()
+        .or(context.base_uri.as_deref())
+        .filter(|base| !base.trim().is_empty())
+}
+
+fn has_uri_scheme(value: &str) -> bool {
+    let Some((scheme, _)) = value.split_once(':') else {
+        return false;
+    };
+    !scheme.is_empty()
+        && scheme
+            .chars()
+            .next()
+            .is_some_and(|ch| ch.is_ascii_alphabetic())
+        && scheme
+            .chars()
+            .all(|ch| ch.is_ascii_alphanumeric() || matches!(ch, '+' | '-' | '.'))
+}
+
+fn resolve_uri(base_uri: Option<&str>, uri: &str) -> String {
+    if uri.is_empty()
+        || has_uri_scheme(uri)
+        || std::path::Path::new(uri).is_absolute()
+        || base_uri.is_none()
+    {
+        return uri.to_owned();
+    }
+    let base = base_uri.unwrap().trim();
+    if base.is_empty() {
+        return uri.to_owned();
+    }
+    let uri = uri.trim_start_matches("./");
+    if base.ends_with('/') {
+        format!("{base}{uri}")
+    } else {
+        format!("{base}/{uri}")
+    }
+}
+
+fn input_uri(input: &EngineInput, context: &EngineContext) -> String {
+    resolve_uri(effective_base_uri(context, &input.root_scope), &input.uri)
+}
+
+fn input_uris(inputs: &[EngineInput], context: &EngineContext) -> Vec<String> {
+    inputs
+        .iter()
+        .map(|input| input_uri(input, context))
+        .collect()
+}
+
+fn project_diagnostic_uris(
+    diagnostics: &mut [Diagnostic],
+    input: &EngineInput,
+    context: &EngineContext,
+) {
+    let display_uri = input_uri(input, context);
+    for diagnostic in diagnostics {
+        diagnostic.uri = Some(match diagnostic.uri.as_deref() {
+            Some(uri) => resolve_uri(effective_base_uri(context, &input.root_scope), uri),
+            None => display_uri.clone(),
+        });
+    }
 }
 
 fn unsupported_scope_diagnostic(uri: &str, code: &str, field: &str, direction: &str) -> Diagnostic {
@@ -423,9 +486,10 @@ fn run_scheduled_validation_documents(
     let abort = crate::scheduler::AbortSignal::new();
     let mut all_diags: Vec<Diagnostic> = Vec::new();
     for (index, input) in inputs.iter().enumerate() {
+        let mut input_diags: Vec<Diagnostic> = Vec::new();
         let (policy, mut policy_diagnostics) =
             scheduler_policy_for_scope(context, &input.uri, &input.root_scope, "input");
-        all_diags.append(&mut policy_diagnostics);
+        input_diags.append(&mut policy_diagnostics);
         let pool = crate::scheduler::WorkerPool::new(index as u32, policy, trace.clone());
         for task in ["lifecycle-load", "parse-validate"] {
             pool.submit(format!("{}:{task}", input.uri), &abort)
@@ -438,9 +502,9 @@ fn run_scheduled_validation_documents(
             if task.ends_with(":lifecycle-load") {
                 let mut scope_diagnostics =
                     root_scope_metadata_diagnostics(&input.uri, &input.root_scope, "input");
-                all_diags.append(&mut scope_diagnostics);
+                input_diags.append(&mut scope_diagnostics);
                 let mut loaded = load_input_through_lifecycle(input, context);
-                all_diags.append(&mut loaded.diagnostics);
+                input_diags.append(&mut loaded.diagnostics);
                 loaded_input = Some(loaded);
                 return;
             }
@@ -448,10 +512,12 @@ fn run_scheduled_validation_documents(
             let mut loaded = loaded_input
                 .take()
                 .unwrap_or_else(|| load_input_through_lifecycle(input, context));
-            all_diags.append(&mut loaded.diagnostics);
+            input_diags.append(&mut loaded.diagnostics);
             let run = run_pipeline_as(&loaded.bytes, loaded.from_format);
-            all_diags.extend(run.diagnostics);
+            input_diags.extend(run.diagnostics);
         });
+        project_diagnostic_uris(&mut input_diags, input, context);
+        all_diags.extend(input_diags);
     }
     Ok((all_diags, trace))
 }
@@ -686,6 +752,7 @@ impl CemMlEngine for RealCemMlEngine {
         );
         diagnostics.extend(loaded.diagnostics);
         diagnostics.extend(run.diagnostics);
+        project_diagnostic_uris(&mut diagnostics, &request.input, &request.context);
         Ok(ParseResponse {
             primary,
             diagnostics,
@@ -693,7 +760,7 @@ impl CemMlEngine for RealCemMlEngine {
     }
 
     fn validate(&self, request: ValidateRequest) -> EngineResult<ValidateResponse> {
-        let inputs = input_uris(&request.inputs);
+        let inputs = input_uris(&request.inputs, &request.context);
         let (all_diags, scheduler_trace) =
             run_scheduled_validation_documents(&request.context, &request.inputs)?;
         let report = Report::deterministic(
@@ -706,7 +773,7 @@ impl CemMlEngine for RealCemMlEngine {
     }
 
     fn check(&self, request: CheckRequest) -> EngineResult<CheckResponse> {
-        let inputs = input_uris(&request.inputs);
+        let inputs = input_uris(&request.inputs, &request.context);
         let (all_diags, scheduler_trace) =
             run_scheduled_validation_documents(&request.context, &request.inputs)?;
         let report = Report::deterministic(
@@ -733,6 +800,8 @@ impl CemMlEngine for RealCemMlEngine {
         );
         diagnostics.extend(loaded.diagnostics);
         diagnostics.extend(run.diagnostics);
+        project_diagnostic_uris(&mut diagnostics, &request.input, &request.context);
+        let display_uri = input_uri(&request.input, &request.context);
         let body = match request.show {
             InspectView::Summary => {
                 let elements = run
@@ -747,7 +816,7 @@ impl CemMlEngine for RealCemMlEngine {
                     .count();
                 json!({
                     "kind": "summary",
-                    "input": request.input.uri,
+                    "input": display_uri,
                     "elements": elements,
                     "attributes": attributes,
                     "diagnosticCount": diagnostics.len(),
@@ -757,7 +826,7 @@ impl CemMlEngine for RealCemMlEngine {
             InspectView::Events => projection::events_json_as(&loaded.bytes, from_format),
             InspectView::Diagnostics => json!({
                 "kind": "diagnostics",
-                "input": request.input.uri,
+                "input": display_uri,
                 "diagnostics": diagnostics,
             }),
             InspectView::SourceOffsets => {
@@ -772,7 +841,7 @@ impl CemMlEngine for RealCemMlEngine {
                 }
                 json!({
                     "kind": "source-offsets",
-                    "input": request.input.uri,
+                    "input": display_uri,
                     "offsets": offsets,
                 })
             }
@@ -885,6 +954,7 @@ impl CemMlEngine for RealCemMlEngine {
                 "scheduler did not dispatch convert task".to_owned(),
             ));
         };
+        project_diagnostic_uris(&mut diagnostics, &request.input, &request.context);
         Ok(ConvertResponse {
             primary,
             diagnostics,
@@ -919,15 +989,16 @@ impl CemMlEngine for RealCemMlEngine {
         ));
         diagnostics.extend(loaded.diagnostics);
         diagnostics.extend(run.diagnostics);
+        project_diagnostic_uris(&mut diagnostics, &request.input, &request.context);
         let report = Report::deterministic(
-            vec![request.input.uri.clone()],
+            vec![input_uri(&request.input, &request.context)],
             diagnostics,
             snapshot(FailLevel::Validate, &request.context),
         )
         .with_scheduler_trace(&scheduler_trace);
         let body = json!({
             "kind": "trace",
-            "input": request.input.uri,
+            "input": input_uri(&request.input, &request.context),
             "projection": request.projection,
             "scheduler": {
                 "threadPool": request.context.scheduler.thread_pool,
@@ -985,19 +1056,18 @@ impl CemMlEngine for RealCemMlEngine {
         &self,
         request: FixtureValidateRequest,
     ) -> EngineResult<FixtureValidateResponse> {
-        let inputs = input_uris(&request.inputs);
+        let inputs = input_uris(&request.inputs, &request.context);
         let mut all_diags: Vec<Diagnostic> = Vec::new();
         for input in &request.inputs {
             let input = materialized_input(input)?;
-            all_diags.extend(root_scope_execution_diagnostics(
-                &input.uri,
-                &input.root_scope,
-                "input",
-            ));
+            let mut input_diags =
+                root_scope_execution_diagnostics(&input.uri, &input.root_scope, "input");
             let loaded = load_input_through_lifecycle(&input, &request.context);
-            all_diags.extend(loaded.diagnostics);
+            input_diags.extend(loaded.diagnostics);
             let run = run_pipeline_as(&loaded.bytes, loaded.from_format);
-            all_diags.extend(run.diagnostics);
+            input_diags.extend(run.diagnostics);
+            project_diagnostic_uris(&mut input_diags, &input, &request.context);
+            all_diags.extend(input_diags);
         }
         let report = Report::deterministic(
             inputs,
@@ -1011,26 +1081,25 @@ impl CemMlEngine for RealCemMlEngine {
         &self,
         request: FixtureRoundtripRequest,
     ) -> EngineResult<FixtureRoundtripResponse> {
-        let inputs = input_uris(&request.inputs);
+        let inputs = input_uris(&request.inputs, &request.context);
         let mut artifacts: Vec<Value> = Vec::new();
         let mut all_diags: Vec<Diagnostic> = Vec::new();
         for input in &request.inputs {
             let input = materialized_input(input)?;
-            all_diags.extend(root_scope_execution_diagnostics(
-                &input.uri,
-                &input.root_scope,
-                "input",
-            ));
+            let mut input_diags =
+                root_scope_execution_diagnostics(&input.uri, &input.root_scope, "input");
             let loaded = load_input_through_lifecycle(&input, &request.context);
-            all_diags.extend(loaded.diagnostics);
+            input_diags.extend(loaded.diagnostics);
             let run = run_pipeline_as(&loaded.bytes, loaded.from_format);
             let rendered = LightDomInterpreter::new().render(&run.document);
             artifacts.push(json!({
-                "input": input.uri,
+                "input": input_uri(&input, &request.context),
                 "toFormat": request.to_format,
                 "rendered": rendered.rendered,
             }));
-            all_diags.extend(run.diagnostics);
+            input_diags.extend(run.diagnostics);
+            project_diagnostic_uris(&mut input_diags, &input, &request.context);
+            all_diags.extend(input_diags);
         }
         let report = Report::deterministic(
             inputs,
@@ -1122,6 +1191,50 @@ mod tests {
         let resp = RealCemMlEngine::new().validate(req).unwrap();
         assert_eq!(resp.report.summary.hard_violation_count, 0);
         assert_eq!(resp.report.summary.input_count, 1);
+    }
+
+    #[test]
+    fn validate_applies_context_base_uri_to_report_inputs_and_diagnostics() {
+        let req = ValidateRequest {
+            inputs: vec![input(b"{unknown}", "src/in.cem")],
+            projection: ValidateProjection::Json,
+            fail_level: FailLevel::Validate,
+            context: EngineContext {
+                base_uri: Some("file:///workspace/".to_owned()),
+                ..ctx()
+            },
+        };
+
+        let resp = RealCemMlEngine::new().validate(req).unwrap();
+        assert_eq!(resp.report.inputs[0], "file:///workspace/src/in.cem");
+        assert!(resp
+            .report
+            .diagnostics
+            .iter()
+            .all(|diag| diag.uri.as_deref() == Some("file:///workspace/src/in.cem")));
+    }
+
+    #[test]
+    fn input_root_scope_base_uri_overrides_context_base_uri() {
+        let mut source = input(b"{unknown}", "src/in.cem");
+        source.root_scope.base_uri = Some("file:///scope/".to_owned());
+        let req = ValidateRequest {
+            inputs: vec![source],
+            projection: ValidateProjection::Json,
+            fail_level: FailLevel::Validate,
+            context: EngineContext {
+                base_uri: Some("file:///workspace/".to_owned()),
+                ..ctx()
+            },
+        };
+
+        let resp = RealCemMlEngine::new().validate(req).unwrap();
+        assert_eq!(resp.report.inputs[0], "file:///scope/src/in.cem");
+        assert!(resp
+            .report
+            .diagnostics
+            .iter()
+            .all(|diag| diag.uri.as_deref() == Some("file:///scope/src/in.cem")));
     }
 
     #[test]

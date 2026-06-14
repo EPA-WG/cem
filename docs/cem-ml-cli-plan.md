@@ -99,12 +99,13 @@ the immediate CLI lifecycle contract.
    returned by engine convert execution while preserving content-primary stdout/`--out`
    behavior. Full input and output root-scope config reaches engine requests.
    Recognized root-scope scheduler policy and budget fields derive the per-scope
-   worker policy for scheduled validate/check, trace, and convert execution. Run-config
-   normalization validates root-scope module-map, namespace, and version-pin option shape
-   before document parsing, while unknown budget keys and valid-but-not-yet-enforced
-   module-map/namespace/version fields emit deterministic execution diagnostics instead
-   of being silently ignored. Real runtime behavior for module maps, namespace/version
-   semantics, and remaining budget hooks remains open.
+   worker policy for scheduled validate/check, trace, and convert execution, and
+   effective `baseUri` values project relative report input and diagnostic URIs.
+   Run-config normalization validates root-scope module-map, namespace, and version-pin
+   option shape before document parsing, while unknown budget keys and
+   valid-but-not-yet-enforced module-map/namespace/version fields emit deterministic
+   execution diagnostics instead of being silently ignored. Real runtime behavior for
+   module maps, namespace/version semantics, and remaining budget hooks remains open.
 7. Update CLI flags without breaking current debug workflows:
     - keep `--from-format` and `--to-format` as aliases for built-in identities;
     - keep `--content-type` as the input content type for `parse`, `validate`, `check`,
@@ -434,7 +435,7 @@ These are data shapes only. Parser-filled content remains blocked until the pars
 ## Phase 7 - File I/O And Reports
 
 1. Resolve inputs relative to cwd unless absolute.
-2. Apply `--base-uri` to emitted diagnostic/report URIs using the documented path normalization policy.
+2. `--base-uri` now applies to relative emitted diagnostic/report URIs.
 3. Write parent directories recursively for `--out`, `--report-json`, and `--report-md`.
 4. If a report destination has the expected file extension, write exactly that file.
 5. If a report destination is a directory, write the default report filename inside it.

@@ -1679,6 +1679,35 @@ mod tests {
     }
 
     #[test]
+    fn validate_applies_base_uri_to_report_inputs_and_diagnostics() {
+        let p = PathBuf::from("dist/target/cem_ml_cli/base-uri-input.cem");
+        std::fs::create_dir_all(p.parent().unwrap()).unwrap();
+        std::fs::write(&p, "{unknown}").unwrap();
+
+        let (outcome, stdout, stderr) = run(
+            &RealCemMlEngine::new(),
+            &[
+                "validate",
+                "--format",
+                "json",
+                "--base-uri",
+                "file:///repo/",
+                p.to_str().unwrap(),
+            ],
+        );
+
+        assert_eq!(outcome.exit_code, EXIT_HARD_FAILURE, "{stderr}");
+        let v: serde_json::Value = serde_json::from_str(stdout.trim()).unwrap();
+        let expected_uri = format!("file:///repo/{}", p.display());
+        assert_eq!(v["inputs"][0], expected_uri);
+        assert!(v["diagnostics"]
+            .as_array()
+            .unwrap()
+            .iter()
+            .all(|diag| diag["uri"] == expected_uri));
+    }
+
+    #[test]
     fn validate_accepts_input_spec_without_positional_input() {
         let p = write_fixture("validate-input-spec.html", r#"<button>Go</button>"#);
         let (outcome, stdout, stderr) = run(

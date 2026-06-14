@@ -42,11 +42,12 @@ for the current architecture have landed; only deferred capability work remains 
       work instead of report projection only. Convert can now write explicit side reports from scheduler traces returned
       by engine convert execution while preserving content-primary stdout/`--out` behavior. Full input and output
       root-scope config now reaches engine requests. Recognized root-scope scheduler policy and budget fields now derive
-      the per-scope worker policy for scheduled validate/check, trace, and convert execution. Run-config normalization
-      now validates root-scope module-map, namespace, and version-pin option shape before document parsing, while unknown
-      budget keys and valid-but-not-yet-enforced module-map/namespace/version fields emit deterministic execution
-      diagnostics instead of being silently ignored. Keep this item open until module maps, namespace/version semantics,
-      and the remaining budget hooks drive their real runtime behavior, not just preservation and diagnostics.
+      the per-scope worker policy for scheduled validate/check, trace, and convert execution, and effective `baseUri`
+      values now project relative report input and diagnostic URIs. Run-config normalization now validates root-scope
+      module-map, namespace, and version-pin option shape before document parsing, while unknown budget keys and
+      valid-but-not-yet-enforced module-map/namespace/version fields emit deterministic execution diagnostics instead of
+      being silently ignored. Keep this item open until module maps, namespace/version semantics, and the remaining
+      budget hooks drive their real runtime behavior, not just preservation and diagnostics.
 - [x] **Immediate goal: XSLT 1.0 lifecycle adapter.** Move the existing legacy custom-element XSLT 1.0 lowering
       (`cem_ml::legacy_custom_element`) behind the lifecycle adapter registry instead of the current one-off
       `convert --content-type custom-element-xslt` branch. `cem-ml validate --content-type custom-element-xslt <input>`

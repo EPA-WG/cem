@@ -117,7 +117,8 @@ Current implementation status:
   by engine convert execution while preserving content-primary stdout/`--out` behavior.
   Full input and output root-scope config reaches engine requests. Recognized
   root-scope scheduler policy and budget fields derive the per-scope worker policy for
-  scheduled validate/check, trace, and convert execution. Run-config normalization
+  scheduled validate/check, trace, and convert execution, and effective `baseUri`
+  values project relative report input and diagnostic URIs. Run-config normalization
   validates root-scope module-map, namespace, and version-pin option shape before
   document parsing, while unknown budget keys and valid-but-not-yet-enforced
   module-map/namespace/version fields emit deterministic execution diagnostics instead
@@ -131,8 +132,9 @@ Current implementation status:
   is still pending.
 - Root-scope configuration is not complete yet. Current execution uses run-config identity
   fields for lifecycle dispatch and conversion output selection, and recognized scheduler
-  policy/budget fields for scheduled worker policy. Module maps, explicit namespace maps,
-  and version pins are shape-validated during run-config normalization; their runtime
+  policy/budget fields for scheduled worker policy. Effective `baseUri` values project
+  relative report input and diagnostic URIs. Module maps, explicit namespace maps, and
+  version pins are shape-validated during run-config normalization; their runtime
   resolver/schema semantics and unsupported budget hooks remain planned requirements.
 - `validate` / `check` / `convert` route `custom-element-xslt` input through the first
   shared lifecycle adapter path, lowering legacy custom-element XSLT to canonical
