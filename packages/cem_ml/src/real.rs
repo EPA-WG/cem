@@ -175,32 +175,40 @@ fn scheduler_policy_json(policy: crate::scheduler::ScopePolicy) -> Value {
     })
 }
 
-fn scheduler_trace_for_documents(
+fn run_scheduled_validation_documents(
     context: &EngineContext,
     inputs: &[EngineInput],
-) -> EngineResult<crate::scheduler::SchedulerTrace> {
+) -> EngineResult<(Vec<Diagnostic>, crate::scheduler::SchedulerTrace)> {
     let trace = crate::scheduler::SchedulerTrace::new();
     let policy = scheduler_policy_from_context(context);
     let abort = crate::scheduler::AbortSignal::new();
+    let mut all_diags: Vec<Diagnostic> = Vec::new();
     for (index, input) in inputs.iter().enumerate() {
         let pool = crate::scheduler::WorkerPool::new(index as u32, policy, trace.clone());
-        for task in [
-            "read",
-            "lifecycle-load",
-            "tokenize",
-            "normalize",
-            "schema",
-            "ast",
-            "validate",
-        ] {
+        for task in ["lifecycle-load", "parse-validate"] {
             pool.submit(format!("{}:{task}", input.uri), &abort)
                 .map_err(|err| {
-                    EngineError::Internal(format!("scheduler trace setup failed: {err}"))
+                    EngineError::Internal(format!("scheduler dispatch failed: {err}"))
                 })?;
         }
-        pool.run_to_completion(&abort, |_| {});
+        let mut loaded_input: Option<LoadedInput> = None;
+        pool.run_to_completion(&abort, |task| {
+            if task.ends_with(":lifecycle-load") {
+                let mut loaded = load_input_through_lifecycle(input, context);
+                all_diags.append(&mut loaded.diagnostics);
+                loaded_input = Some(loaded);
+                return;
+            }
+
+            let mut loaded = loaded_input
+                .take()
+                .unwrap_or_else(|| load_input_through_lifecycle(input, context));
+            all_diags.append(&mut loaded.diagnostics);
+            let run = run_pipeline_as(&loaded.bytes, loaded.from_format);
+            all_diags.extend(run.diagnostics);
+        });
     }
-    Ok(trace)
+    Ok((all_diags, trace))
 }
 
 fn materialized_input(input: &EngineInput) -> EngineResult<EngineInput> {
@@ -435,14 +443,8 @@ impl CemMlEngine for RealCemMlEngine {
 
     fn validate(&self, request: ValidateRequest) -> EngineResult<ValidateResponse> {
         let inputs = input_uris(&request.inputs);
-        let scheduler_trace = scheduler_trace_for_documents(&request.context, &request.inputs)?;
-        let mut all_diags: Vec<Diagnostic> = Vec::new();
-        for input in &request.inputs {
-            let loaded = load_input_through_lifecycle(input, &request.context);
-            all_diags.extend(loaded.diagnostics);
-            let run = run_pipeline_as(&loaded.bytes, loaded.from_format);
-            all_diags.extend(run.diagnostics);
-        }
+        let (all_diags, scheduler_trace) =
+            run_scheduled_validation_documents(&request.context, &request.inputs)?;
         let report = Report::deterministic(
             inputs,
             all_diags,
@@ -454,14 +456,8 @@ impl CemMlEngine for RealCemMlEngine {
 
     fn check(&self, request: CheckRequest) -> EngineResult<CheckResponse> {
         let inputs = input_uris(&request.inputs);
-        let scheduler_trace = scheduler_trace_for_documents(&request.context, &request.inputs)?;
-        let mut all_diags: Vec<Diagnostic> = Vec::new();
-        for input in &request.inputs {
-            let loaded = load_input_through_lifecycle(input, &request.context);
-            all_diags.extend(loaded.diagnostics);
-            let run = run_pipeline_as(&loaded.bytes, loaded.from_format);
-            all_diags.extend(run.diagnostics);
-        }
+        let (all_diags, scheduler_trace) =
+            run_scheduled_validation_documents(&request.context, &request.inputs)?;
         let report = Report::deterministic(
             inputs,
             all_diags,
@@ -833,10 +829,12 @@ mod tests {
         let resp = RealCemMlEngine::new().validate(req).unwrap();
         let events = &resp.report.report_ast.scheduler_trace.events;
         assert_eq!(resp.report.summary.input_count, 2);
-        assert_eq!(resp.report.report_ast.scheduler_trace.event_count, 42);
+        assert_eq!(resp.report.report_ast.scheduler_trace.event_count, 12);
         assert!(events.iter().any(|event| event.scope_id == 0));
         assert!(events.iter().any(|event| event.scope_id == 1));
-        assert!(events.iter().any(|event| event.task == "two.cem:validate"));
+        assert!(events
+            .iter()
+            .any(|event| event.task == "two.cem:parse-validate"));
     }
 
     #[test]

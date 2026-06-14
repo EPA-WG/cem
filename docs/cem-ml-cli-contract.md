@@ -110,10 +110,12 @@ Current implementation status:
   records, using `inputRef` or the sole configured input for each output. Normalized
   `RunConfig.scheduler` flows into the engine execution context, and the trace worker
   policy is derived from that scheduler config. Validate/check reports embed a shared
-  run-level scheduler trace with per-document scope IDs. Convert can write explicit
-  side reports with the same scheduler projection while preserving content-primary
-  stdout/`--out` behavior. Direct parser task dispatch through the scheduler trace
-  remains pending.
+  run-level scheduler trace with per-document scope IDs. Validate/check execute
+  lifecycle loading and parser-backed validation through scheduler-dispatched
+  per-document tasks, so the trace reflects actual document work instead of report
+  projection only. Convert can write explicit side reports with the same scheduler
+  projection while preserving content-primary stdout/`--out` behavior. Engine-owned
+  scheduler traces for convert execution remain pending.
 - `--schema` and `--content-type` are carried in `EngineContext` and emitted in reports.
   `cem_ml::lifecycle::LifecycleRegistry` now owns built-in input content-type dispatch
   for parser-backed commands (`parse`, `validate`, `check`, `inspect`, `convert`,

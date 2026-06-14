@@ -37,9 +37,11 @@ for the current architecture have landed; only deferred capability work remains 
       `--config` inputs. Config-file convert execution now fans out multiple `outputs[]` records, using `inputRef` or
       the sole configured input for each output. Normalized `RunConfig.scheduler` now flows into engine execution
       context, the trace worker policy is derived from that scheduler config, and validate/check reports now embed a
-      shared run-level scheduler trace with per-document scope IDs. Convert can now write explicit side reports with the
-      same scheduler projection while preserving content-primary stdout/`--out` behavior. Keep this item open until the
-      scheduler trace drives parser task dispatch directly rather than report projection only.
+      shared run-level scheduler trace with per-document scope IDs. Validate/check now execute lifecycle loading and
+      parser-backed validation through scheduler-dispatched per-document tasks, so the trace reflects actual document
+      work instead of report projection only. Convert can now write explicit side reports with the same scheduler
+      projection while preserving content-primary stdout/`--out` behavior. Keep this item open until convert execution
+      carries an engine scheduler trace instead of CLI-side report projection.
 - [x] **Immediate goal: XSLT 1.0 lifecycle adapter.** Move the existing legacy custom-element XSLT 1.0 lowering
       (`cem_ml::legacy_custom_element`) behind the lifecycle adapter registry instead of the current one-off
       `convert --content-type custom-element-xslt` branch. `cem-ml validate --content-type custom-element-xslt <input>`
