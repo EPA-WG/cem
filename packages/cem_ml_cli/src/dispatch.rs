@@ -2628,6 +2628,31 @@ mod tests {
     }
 
     #[test]
+    fn validate_config_non_local_file_uri_input_is_rejected() {
+        let config_path = std::env::temp_dir()
+            .join("cem-ml-cli-tests/validate-non-local-file-uri-input-config.json");
+        std::fs::write(
+            &config_path,
+            serde_json::json!({
+                "inputs": [{
+                    "uri": "file://example.test/input.cem"
+                }]
+            })
+            .to_string(),
+        )
+        .unwrap();
+
+        let (outcome, stdout, stderr) = run(
+            &RealCemMlEngine::new(),
+            &["validate", "--config", config_path.to_str().unwrap()],
+        );
+
+        assert_eq!(outcome.exit_code, EXIT_IO);
+        assert!(stdout.trim().is_empty());
+        assert_local_file_uri_boundary(&stderr, "file://example.test/input.cem");
+    }
+
+    #[test]
     fn input_spec_inherits_global_content_type_default() {
         let p = write_fixture("validate-input-spec-default.html", r#"<button>Go</button>"#);
         let (outcome, stdout, stderr) = run(
@@ -3399,6 +3424,38 @@ mod tests {
         assert_eq!(outcome.exit_code, EXIT_IO);
         assert!(stdout.trim().is_empty());
         assert_remote_resolver_boundary(&stderr, "cem+vfs://workspace/out.json");
+    }
+
+    #[test]
+    fn convert_config_non_local_file_uri_destination_is_rejected() {
+        let input = write_fixture("convert-config-non-local-file-uri-dest-input.cem", "{p Hi}");
+        let config_path = std::env::temp_dir()
+            .join("cem-ml-cli-tests/convert-non-local-file-uri-dest-config.json");
+        std::fs::write(
+            &config_path,
+            serde_json::json!({
+                "inputs": [{
+                    "uri": input.display().to_string()
+                }],
+                "outputs": [{
+                    "destination": "file://example.test/out.json",
+                    "rootScope": {
+                        "defaultContentType": "application/cem+xml"
+                    }
+                }]
+            })
+            .to_string(),
+        )
+        .unwrap();
+
+        let (outcome, stdout, stderr) = run(
+            &RealCemMlEngine::new(),
+            &["convert", "--config", config_path.to_str().unwrap()],
+        );
+
+        assert_eq!(outcome.exit_code, EXIT_IO);
+        assert!(stdout.trim().is_empty());
+        assert_local_file_uri_boundary(&stderr, "file://example.test/out.json");
     }
 
     #[test]
