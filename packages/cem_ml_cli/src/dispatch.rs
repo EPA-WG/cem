@@ -2551,6 +2551,45 @@ mod tests {
     }
 
     #[test]
+    fn input_spec_module_map_localhost_file_uri_is_loaded() {
+        let p = write_fixture(
+            "validate-input-spec-module-map-localhost-file-uri.cem",
+            r#"@schema src="ui/button"
+{p Hi}"#,
+        );
+        let module_map = write_fixture(
+            "validate-input-spec-localhost-file-uri-cem.modules.json",
+            r#"{"schemas":{"ui/button":"./schemas/button.schema"}}"#,
+        );
+        let (outcome, stdout, stderr) = run(
+            &RealCemMlEngine::new(),
+            &[
+                "validate",
+                "--format",
+                "json",
+                "--input-spec",
+                &format!(
+                    "uri={},moduleMap={}",
+                    p.display(),
+                    localhost_file_uri(&module_map)
+                ),
+            ],
+        );
+        assert_eq!(outcome.exit_code, EXIT_OK, "{stderr}");
+        let v: serde_json::Value = serde_json::from_str(stdout.trim()).unwrap();
+        let diagnostics = v["diagnostics"].as_array().unwrap();
+        assert!(!diagnostics
+            .iter()
+            .any(|diag| diag["code"] == "cem.scope.module_map_unreadable"));
+        assert!(!diagnostics
+            .iter()
+            .any(|diag| diag["code"] == "cem.scope.module_map_invalid"));
+        assert!(!diagnostics
+            .iter()
+            .any(|diag| diag["code"] == "cem.scope.module_map_unenforced"));
+    }
+
+    #[test]
     fn input_spec_remote_module_map_uri_reports_unsupported_resolver() {
         let p = write_fixture(
             "validate-input-spec-remote-module-map.cem",
@@ -2583,6 +2622,39 @@ mod tests {
         assert!(!diagnostics.iter().any(|diag| diag["message"]
             .as_str()
             .is_some_and(|message| message.contains("No such file"))));
+    }
+
+    #[test]
+    fn input_spec_non_local_file_uri_module_map_reports_unreadable() {
+        let p = write_fixture(
+            "validate-input-spec-non-local-module-map.cem",
+            r#"@schema src="ui/button"
+{p Hi}"#,
+        );
+        let module_map = "file://example.test/cem.modules.json";
+        let (outcome, stdout, stderr) = run(
+            &RealCemMlEngine::new(),
+            &[
+                "validate",
+                "--format",
+                "json",
+                "--input-spec",
+                &format!("uri={},moduleMap={module_map}", p.display()),
+            ],
+        );
+
+        assert_eq!(outcome.exit_code, EXIT_OK, "{stderr}");
+        let v: serde_json::Value = serde_json::from_str(stdout.trim()).unwrap();
+        let diagnostics = v["diagnostics"].as_array().unwrap();
+        assert!(diagnostics.iter().any(|diag| {
+            diag["code"] == "cem.scope.module_map_unreadable"
+                && diag["message"]
+                    .as_str()
+                    .is_some_and(|message| message.contains("only local file://"))
+        }));
+        assert!(diagnostics.iter().any(|diag| diag["message"]
+            .as_str()
+            .is_some_and(|message| message.contains(module_map))));
     }
 
     #[test]
@@ -2620,6 +2692,58 @@ mod tests {
         assert!(!diagnostics
             .iter()
             .any(|diag| diag["code"] == "cem.scope.module_map_unenforced"));
+    }
+
+    #[test]
+    fn module_map_context_option_reports_resolver_boundary_diagnostics() {
+        let remote = write_fixture(
+            "validate-context-remote-module-map.cem",
+            r#"@schema src="ui/button"
+{p Hi}"#,
+        );
+        let non_local = write_fixture(
+            "validate-context-non-local-module-map.cem",
+            r#"@schema src="ui/button"
+{p Hi}"#,
+        );
+        let cases = [
+            (
+                "https://example.test/cem.modules.json",
+                remote.to_str().unwrap(),
+                "cem.scope.module_map_resolver_unsupported",
+                "remote/custom URI resolver",
+            ),
+            (
+                "file://example.test/cem.modules.json",
+                non_local.to_str().unwrap(),
+                "cem.scope.module_map_unreadable",
+                "only local file://",
+            ),
+        ];
+
+        for (module_map, input, code, message) in cases {
+            let (outcome, stdout, stderr) = run(
+                &RealCemMlEngine::new(),
+                &[
+                    "validate",
+                    "--format",
+                    "json",
+                    "--module-map",
+                    module_map,
+                    input,
+                ],
+            );
+
+            assert_eq!(outcome.exit_code, EXIT_OK, "{stderr}");
+            let v: serde_json::Value = serde_json::from_str(stdout.trim()).unwrap();
+            let diagnostics = v["diagnostics"].as_array().unwrap();
+            assert!(diagnostics.iter().any(|diag| {
+                diag["code"] == code
+                    && diag["message"]
+                        .as_str()
+                        .is_some_and(|text| text.contains(message))
+            }));
+        }
     }
 
     #[test]
@@ -3643,6 +3767,32 @@ mod tests {
         assert!(stdout.trim().is_empty());
         assert!(stderr.contains("remote/custom URI resolvers are not implemented"));
         assert!(stderr.contains("https://example.test/run.json"));
+    }
+
+    #[test]
+    fn localhost_file_uri_config_path_is_read() {
+        let input = write_fixture("validate-localhost-file-uri-config-input.cem", "{p Hi}");
+        let config_path =
+            std::env::temp_dir().join("cem-ml-cli-tests/validate-localhost-file-uri-config.json");
+        std::fs::write(
+            &config_path,
+            serde_json::json!({
+                "inputs": [{ "uri": input.display().to_string() }]
+            })
+            .to_string(),
+        )
+        .unwrap();
+        let config_uri = localhost_file_uri(&config_path);
+
+        let (outcome, stdout, stderr) = run(
+            &RealCemMlEngine::new(),
+            &["validate", "--config", &config_uri],
+        );
+
+        assert_eq!(outcome.exit_code, EXIT_OK, "{stderr}");
+        let v: serde_json::Value = serde_json::from_str(stdout.trim()).unwrap();
+        assert_eq!(v["summary"]["inputCount"], 1);
+        assert_eq!(v["inputs"][0], input.display().to_string());
     }
 
     #[test]
