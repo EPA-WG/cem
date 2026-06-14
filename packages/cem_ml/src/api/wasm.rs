@@ -89,11 +89,19 @@ pub fn convert_legacy_custom_element_template(source: &str) -> String {
 
 #[wasm_bindgen(js_name = "normalizeRunConfig")]
 pub fn normalize_run_config(json: &str) -> String {
-    match serde_json::from_str::<crate::run_config::RunConfig>(json) {
-        Ok(config) => serde_json::to_string(&config).unwrap_or_else(wasm_serialize_error),
+    let request = crate::run_config::RunConfigParseRequest {
+        bytes: json.as_bytes().to_vec(),
+        identity: crate::engine::FormatIdentity {
+            content_type: Some("application/json".to_owned()),
+            ..crate::engine::FormatIdentity::default()
+        },
+        base_uri: None,
+    };
+    match crate::run_config::parse_run_config(request) {
+        Ok(response) => serde_json::to_string(&response).unwrap_or_else(wasm_serialize_error),
         Err(error) => serde_json::json!({
             "error": {
-                "code": "cem.run_config.invalid_json",
+                "code": error.code,
                 "message": error.to_string()
             }
         })

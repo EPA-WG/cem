@@ -26,10 +26,12 @@ for the current architecture have landed; only deferred capability work remains 
       lib APIs, WASM APIs, CLI config files, and repeatable CSV CLI records. Keep scheduler/thread-pool configuration
       at run level so build/CI can validate or transform multiple documents in one shared runtime while preserving
       per-document root-scope diagnostics and budget accounting. The shared `cem_ml::run_config` model now exists,
-      WASM exposes JSON normalization plus CSV input/output spec parsing, and CLI `--config`, repeatable
-      `--input-spec`, and repeatable `--output-spec` map into engine input identities and the first conversion output
-      target/destination. Keep this item open until config-file execution fans out multiple outputs, observability uses
-      the same configured input list, and the scheduler/thread-pool is owned by `RunConfig` during execution.
+      `cem_ml` owns JSON config parsing by declared config content type plus CSV input/output spec parsing, WASM exposes
+      helpers over the same library parser, and CLI `--config`, `--config-content-type`, repeatable `--input-spec`, and
+      repeatable `--output-spec` map into engine input identities and the first conversion output target/destination.
+      Keep this item open until config diagnostics are represented in reports, config-file execution fans out multiple
+      outputs, observability uses the same configured input list, and the scheduler/thread-pool is owned by `RunConfig`
+      during execution.
 - [x] **Immediate goal: XSLT 1.0 lifecycle adapter.** Move the existing legacy custom-element XSLT 1.0 lowering
       (`cem_ml::legacy_custom_element`) behind the lifecycle adapter registry instead of the current one-off
       `convert --content-type custom-element-xslt` branch. `cem-ml validate --content-type custom-element-xslt <input>`

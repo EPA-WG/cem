@@ -81,7 +81,9 @@ Deliverables:
 - Root-scope run configuration shared by lib, WASM, and CLI: every document root is scope zero for its AST tree, with
   default content type, schema/version pins, default and named namespace bindings, module-map/resolver identity, base
   URI, scope policy, and budgets available as input/output options. APIs accept input/output spec arrays; CLI supports
-  config files for CI/build reproducibility and repeatable CSV records for concise one-liners.
+  config files for CI/build reproducibility and repeatable CSV records for concise one-liners. Config parsing and
+  normalization are owned by `cem_ml`; CLI, WASM, and Rust hosts provide raw config bytes or raw record strings plus
+  config format identity and consume the same normalized `RunConfig`.
 - Multi-document run context for build/CI validation and transformation: one invocation can process many inputs and
   outputs through a shared scheduler/thread-pool context while preserving per-document root-scope diagnostics,
   source maps, and resource accounting.

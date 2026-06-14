@@ -210,6 +210,13 @@ pub struct RunOptions {
     pub config: Option<PathBuf>,
 
     #[arg(
+        long = "config-content-type",
+        value_name = "TYPE",
+        help = "Content type of --config; inferred from extension when omitted"
+    )]
+    pub config_content_type: Option<String>,
+
+    #[arg(
         long = "input-spec",
         value_name = "CSV",
         action = clap::ArgAction::Append,
@@ -590,6 +597,14 @@ mod tests {
             "uri=in.html,contentType=text/html",
             "--output-spec",
             "dest=out.cem,contentType=application/cem+xml",
+        ])
+        .unwrap();
+        try_parse(&[
+            "validate",
+            "--config",
+            "cem-run.json",
+            "--config-content-type",
+            "application/json",
         ])
         .unwrap();
     }

@@ -94,14 +94,27 @@ fn engine_input_from_spec(
 
 fn run_config(options: &cli::RunOptions) -> Result<RunConfig, CliRequestError> {
     let mut config = if let Some(path) = &options.config {
-        let body = fs::read_to_string(path).map_err(|source| {
+        let bytes = fs::read(path).map_err(|source| {
             CliRequestError::Engine(EngineError::Io {
                 path: path.clone(),
                 source,
             })
         })?;
-        serde_json::from_str::<RunConfig>(&body)
-            .map_err(|error| CliRequestError::Usage(format!("invalid run config JSON: {error}")))?
+        let identity = eng::FormatIdentity {
+            content_type: options
+                .config_content_type
+                .clone()
+                .or_else(|| infer_config_content_type(path)),
+            schema: None,
+            base_uri: Some(path.display().to_string()),
+        };
+        run_config::parse_run_config(run_config::RunConfigParseRequest {
+            bytes,
+            identity,
+            base_uri: Some(path.display().to_string()),
+        })
+        .map_err(|error| CliRequestError::Usage(format!("invalid run config: {error}")))?
+        .config
     } else {
         RunConfig::default()
     };
@@ -118,6 +131,16 @@ fn run_config(options: &cli::RunOptions) -> Result<RunConfig, CliRequestError> {
     }
 
     Ok(config)
+}
+
+fn infer_config_content_type(path: &Path) -> Option<String> {
+    match path.extension().and_then(|ext| ext.to_str()) {
+        Some("json") => Some("application/json".to_owned()),
+        Some("yaml") | Some("yml") => Some("application/yaml".to_owned()),
+        Some("cem") => Some("application/cem+xml".to_owned()),
+        Some("csv") => Some("text/csv".to_owned()),
+        _ => None,
+    }
 }
 
 fn collect_configured_inputs(

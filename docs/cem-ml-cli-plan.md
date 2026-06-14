@@ -76,12 +76,16 @@ the immediate CLI lifecycle contract.
       parsed with deterministic escaping and map to the same input/output spec structs;
     - one run can contain multiple data sources and multiple outputs while preserving
       isolated root scopes per input.
-   **Current slice:** `cem_ml::run_config::RunConfig` and root `ScopeConfig` exist; CLI
-   accepts JSON `--config`, repeatable `--input-spec`, and repeatable `--output-spec`;
-   WASM exposes JSON normalization and CSV spec parsing helpers. Input specs override
-   global input identity for lifecycle dispatch, and the first output spec can select
-   conversion target identity/destination. Multi-output fanout and scheduler ownership
-   remain open.
+   - config parsing belongs to `cem_ml`: hosts pass raw config bytes / raw spec-record
+     strings plus config `FormatIdentity`, then consume the normalized `RunConfig`.
+   **Current slice:** `cem_ml::run_config::RunConfig` and root `ScopeConfig` exist;
+   `cem_ml::run_config::parse_run_config(bytes + FormatIdentity)` supports JSON config
+   documents by content type; CLI accepts `--config`, `--config-content-type`,
+   repeatable `--input-spec`, and repeatable `--output-spec`; WASM exposes JSON
+   normalization and CSV spec parsing helpers over the same library parser. Input specs
+   override global input identity for lifecycle dispatch, and the first output spec can
+   select conversion target identity/destination. Multi-output fanout and scheduler
+   ownership remain open.
 7. Update CLI flags without breaking current debug workflows:
     - keep `--from-format` and `--to-format` as aliases for built-in identities;
     - keep `--content-type` as the input content type for `parse`, `validate`, `check`,
@@ -133,6 +137,8 @@ ScopeConfig {
 The CLI config-file form should preserve this structure directly. A config file is the
 recommended interface for build/CI validation and multi-source transformation because it
 is reviewable, reproducible, and can represent nested maps without shell quoting hazards.
+The config document itself is parsed by `cem_ml` using its declared content type. The CLI
+may infer `application/json` from `.json`, but it does not own JSON semantics.
 
 CSV CLI options are a convenience for small invocations, not the primary source of
 truth. A future CLI should prefer repeatable records such as:
@@ -157,6 +163,10 @@ Critical constraints:
 - The scheduler/thread-pool context belongs to the run, not to one document. Work can be
   shared across documents, but scope policy, diagnostics, source-map stacks, and resource
   budget accounting remain per document/root scope.
+- Config diagnostics happen before document parsing. Invalid config content type,
+  malformed JSON, unresolved module maps, bad namespace maps, missing input sources, or
+  output references to unknown inputs must fail as configuration diagnostics instead of
+  document-level validation noise.
 
 ## Explicit Scope
 

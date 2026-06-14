@@ -67,6 +67,15 @@ Configuration surfaces:
 - Rust library and WASM APIs MUST accept structured arrays of input specs and output
   specs so one run can validate or transform multiple sources without collapsing their
   per-document root scopes.
+- Config parsing, validation, normalization, and defaulting MUST be implemented in
+  `cem_ml`. The CLI, WASM adapter, and Rust callers provide raw config bytes or raw
+  spec-record strings plus a declared config content type; they must not carry separate
+  config semantics.
+- Config files are structural data too: config bytes + config content type + config
+  schema/namespace identity are parsed through the CEM-ML-owned config lifecycle before
+  document parsing starts. JSON is the first supported config content type; CEM-native,
+  YAML, or CSV config documents can be added later as content-type adapters that produce
+  the same normalized `RunConfig`.
 - CLI MUST support a config-file surface for reproducible CI/build use. The file is the
   preferred shape for multi-source runs, module maps, namespace maps, and multiple
   outputs.
@@ -86,13 +95,15 @@ Current implementation status:
 - `parse`, `validate`, `check`, `inspect`, `convert`, and fixture flows already route
   through the `cem_ml::engine::CemMlEngine` trait.
 - `cem_ml::run_config::RunConfig` defines the shared structured shape for input specs,
-  output specs, root scope configuration, and scheduler configuration. CLI accepts JSON
-  `--config` files plus repeatable CSV `--input-spec` / `--output-spec` records; WASM
-  exposes helpers that normalize the JSON shape and parse the same CSV records. This is
-  the first execution slice: input specs override global input content-type/schema/base
-  URI during lifecycle dispatch, and the first output spec can select conversion target
-  content type plus destination. Full multi-output fanout and shared scheduler execution
-  remain pending.
+  output specs, root scope configuration, and scheduler configuration. `cem_ml` owns
+  `parse_run_config(bytes + FormatIdentity)`, plus repeatable CSV `InputSpec` /
+  `OutputSpec` record parsing. CLI accepts `--config`, `--config-content-type`,
+  repeatable `--input-spec`, and repeatable `--output-spec` by delegating parsing to
+  `cem_ml`; WASM exposes helpers over the same library parser. This is the first
+  execution slice: input specs override global input content-type/schema/base URI during
+  lifecycle dispatch, and the first output spec can select conversion target content
+  type plus destination. Full multi-output fanout and shared scheduler execution remain
+  pending.
 - `--schema` and `--content-type` are carried in `EngineContext` and emitted in reports.
   `cem_ml::lifecycle::LifecycleRegistry` now owns built-in input content-type dispatch
   for parser-backed commands (`parse`, `validate`, `check`, `inspect`, `convert`,
@@ -138,6 +149,8 @@ Current implementation status:
   base URI, scope policy, and resource budgets.
 - Multi-source configuration via config file, plus repeatable CSV option records for
   CLI one-liners. Config files are preferred for CI/build reproducibility.
+- Config-file content type via `--config-content-type`, inferred from extension when
+  omitted for known config formats.
 - Output format selection for CEM-native, XML, JSON, text, HTML, Markdown, DOM JSON, AST, events, and tree-shaped
   output where relevant.
 - Output destination handling for stdout and `--out`.

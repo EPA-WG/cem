@@ -6,6 +6,7 @@
 //! each document root as scope zero for diagnostics, source maps, schema
 //! selection, and resource policy accounting.
 
+use crate::diagnostics::Diagnostic;
 use crate::engine::FormatIdentity;
 use serde::{Deserialize, Serialize};
 use std::collections::BTreeMap;
@@ -83,6 +84,33 @@ impl ScopeConfig {
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
+pub struct RunConfigParseRequest {
+    pub bytes: Vec<u8>,
+    pub identity: FormatIdentity,
+    pub base_uri: Option<String>,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct RunConfigParseResponse {
+    pub config: RunConfig,
+    pub diagnostics: Vec<Diagnostic>,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct RunConfigError {
+    pub code: &'static str,
+    pub message: String,
+}
+
+impl std::fmt::Display for RunConfigError {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        write!(f, "{}: {}", self.code, self.message)
+    }
+}
+
+impl std::error::Error for RunConfigError {}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
 pub struct SpecParseError {
     pub message: String,
 }
@@ -94,6 +122,36 @@ impl std::fmt::Display for SpecParseError {
 }
 
 impl std::error::Error for SpecParseError {}
+
+pub fn parse_run_config(
+    request: RunConfigParseRequest,
+) -> Result<RunConfigParseResponse, RunConfigError> {
+    let content_type = request
+        .identity
+        .content_type
+        .as_deref()
+        .map(content_type_essence)
+        .unwrap_or_else(|| "application/json".to_owned());
+
+    match content_type.as_str() {
+        "application/json" | "text/json" => {
+            let config = serde_json::from_slice::<RunConfig>(&request.bytes).map_err(|error| {
+                run_config_error(
+                    "cem.run_config.invalid_json",
+                    format!("run config JSON could not be parsed: {error}"),
+                )
+            })?;
+            Ok(RunConfigParseResponse {
+                config,
+                diagnostics: Vec::new(),
+            })
+        }
+        other => Err(run_config_error(
+            "cem.run_config.unsupported_content_type",
+            format!("run config content type `{other}` is not supported yet; use application/json"),
+        )),
+    }
+}
 
 pub fn parse_input_spec_record(record: &str) -> Result<InputSpec, SpecParseError> {
     let fields = parse_key_value_record(record)?;
@@ -276,6 +334,22 @@ fn parse_error(message: impl Into<String>) -> SpecParseError {
     }
 }
 
+fn run_config_error(code: &'static str, message: impl Into<String>) -> RunConfigError {
+    RunConfigError {
+        code,
+        message: message.into(),
+    }
+}
+
+fn content_type_essence(content_type: &str) -> String {
+    content_type
+        .split(';')
+        .next()
+        .unwrap_or(content_type)
+        .trim()
+        .to_ascii_lowercase()
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -334,5 +408,44 @@ mod tests {
             Some("application/cem+xml")
         );
         assert_eq!(spec.root_scope.schema.as_deref(), Some("core"));
+    }
+
+    #[test]
+    fn json_run_config_parses_by_content_type() {
+        let response = parse_run_config(RunConfigParseRequest {
+            bytes: br#"{"inputs":[{"uri":"src/a.cem","rootScope":{"defaultContentType":"application/cem+xml"}}]}"#.to_vec(),
+            identity: FormatIdentity {
+                content_type: Some("application/json; charset=utf-8".to_owned()),
+                ..FormatIdentity::default()
+            },
+            base_uri: None,
+        })
+        .unwrap();
+
+        assert_eq!(response.config.inputs.len(), 1);
+        assert_eq!(response.config.inputs[0].uri, "src/a.cem");
+        assert_eq!(
+            response.config.inputs[0]
+                .root_scope
+                .default_content_type
+                .as_deref(),
+            Some("application/cem+xml")
+        );
+        assert!(response.diagnostics.is_empty());
+    }
+
+    #[test]
+    fn unsupported_run_config_content_type_is_rejected_before_document_work() {
+        let error = parse_run_config(RunConfigParseRequest {
+            bytes: b"{}".to_vec(),
+            identity: FormatIdentity {
+                content_type: Some("application/cem+xml".to_owned()),
+                ..FormatIdentity::default()
+            },
+            base_uri: None,
+        })
+        .unwrap_err();
+
+        assert_eq!(error.code, "cem.run_config.unsupported_content_type");
     }
 }
