@@ -104,7 +104,8 @@ Current implementation status:
   lifecycle dispatch, and the first output spec can select conversion target content
   type, schema, namespace identity, and destination. Config diagnostics for malformed JSON,
   unsupported config content type, duplicate input URIs, and unknown output input references fail before
-  document parsing. `--observe-events` uses the same normalized input list and
+  document parsing, and report-capable commands emit those diagnostics through requested JSON/Markdown reports.
+  `--observe-events` uses the same normalized input list and
   lifecycle dispatch path as parser-backed commands, including `--input-spec` and
   `--config` inputs. Config-file convert execution fans out multiple `outputs[]`
   records, using `inputRef` or the sole configured input for each output. Normalized

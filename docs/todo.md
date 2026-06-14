@@ -46,7 +46,7 @@ for the current architecture have landed; only deferred capability work remains 
       root-scope fields. Convert target identity now preserves command-level default/named namespace bindings and
       output-spec namespace-only identities when selecting export adapters. Config diagnostics now fail before
       document parsing for malformed JSON,
-      unsupported config content types, duplicate input URIs, and unknown output input references, and validation-style
+      unsupported config content types, duplicate input URIs, and unknown output input references, and report-capable
       CLI commands represent those diagnostics in generated JSON/Markdown reports. The `--observe-events` path now uses
       the same configured input list and lifecycle dispatch as parser-backed commands, including `--input-spec` and
       `--config` inputs. Config-file convert execution now fans out multiple `outputs[]` records, using `inputRef` or

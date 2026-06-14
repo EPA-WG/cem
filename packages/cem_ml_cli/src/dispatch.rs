@@ -1444,6 +1444,20 @@ pub fn run_convert<E: CemMlEngine + ?Sized>(
         run_defaults(input_defaults.clone(), output_defaults),
     ) {
         Ok(config) => config,
+        Err(CliRequestError::RunConfigDiagnostics {
+            config,
+            diagnostics,
+        }) => {
+            return handle_run_config_diagnostics_report(
+                config,
+                diagnostics,
+                cli::FailLevel::Validate,
+                &args.context,
+                &args.report,
+                REPORT_BASENAME_CONVERT,
+                s,
+            );
+        }
         Err(err) => return handle_cli_request_error(err, s),
     };
     if !config.outputs.is_empty() {
@@ -1541,6 +1555,20 @@ pub fn run_bench<E: CemMlEngine + ?Sized>(
         run_defaults(input_defaults.clone(), ScopeConfig::default()),
     ) {
         Ok(config) => config,
+        Err(CliRequestError::RunConfigDiagnostics {
+            config,
+            diagnostics,
+        }) => {
+            return handle_run_config_diagnostics_report(
+                config,
+                diagnostics,
+                cli::FailLevel::Validate,
+                &args.context,
+                &args.report,
+                REPORT_BASENAME_BENCH,
+                s,
+            );
+        }
         Err(err) => return handle_cli_request_error(err, s),
     };
     let inputs = match collect_configured_inputs(&args.inputs, None, &config, &input_defaults) {
@@ -3215,6 +3243,98 @@ mod tests {
             &RealCemMlEngine::new(),
             &[
                 "parse",
+                "--config",
+                config_path.to_str().unwrap(),
+                "--report-json",
+                report_path.to_str().unwrap(),
+            ],
+        );
+
+        assert_eq!(outcome.exit_code, EXIT_USAGE_OR_RESERVED);
+        assert!(stderr.contains("cem.run_config.output_input_ref_unknown"));
+        assert!(
+            !stderr.contains("I/O error"),
+            "config diagnostics must fail before input files are read: {stderr}"
+        );
+        let stdout_report: serde_json::Value = serde_json::from_str(stdout.trim()).unwrap();
+        assert_eq!(
+            stdout_report["diagnostics"][0]["code"],
+            "cem.run_config.output_input_ref_unknown"
+        );
+        let file_report: serde_json::Value =
+            serde_json::from_str(&std::fs::read_to_string(&report_path).unwrap()).unwrap();
+        assert_eq!(
+            file_report["diagnostics"][0]["code"],
+            "cem.run_config.output_input_ref_unknown"
+        );
+    }
+
+    #[test]
+    fn convert_config_diagnostics_write_requested_report_before_document_parsing() {
+        let config_path = std::env::temp_dir().join("cem-ml-cli-tests/convert-bad-config.json");
+        let report_path =
+            std::env::temp_dir().join("cem-ml-cli-tests/convert-bad-config-report.json");
+        let _ = std::fs::remove_file(&report_path);
+        std::fs::write(
+            &config_path,
+            serde_json::json!({
+                "inputs": [{ "uri": "/definitely/not/read.cem" }],
+                "outputs": [{ "inputRef": "missing.cem" }]
+            })
+            .to_string(),
+        )
+        .unwrap();
+
+        let (outcome, stdout, stderr) = run(
+            &RealCemMlEngine::new(),
+            &[
+                "convert",
+                "--config",
+                config_path.to_str().unwrap(),
+                "--report-json",
+                report_path.to_str().unwrap(),
+            ],
+        );
+
+        assert_eq!(outcome.exit_code, EXIT_USAGE_OR_RESERVED);
+        assert!(stderr.contains("cem.run_config.output_input_ref_unknown"));
+        assert!(
+            !stderr.contains("I/O error"),
+            "config diagnostics must fail before input files are read: {stderr}"
+        );
+        let stdout_report: serde_json::Value = serde_json::from_str(stdout.trim()).unwrap();
+        assert_eq!(
+            stdout_report["diagnostics"][0]["code"],
+            "cem.run_config.output_input_ref_unknown"
+        );
+        let file_report: serde_json::Value =
+            serde_json::from_str(&std::fs::read_to_string(&report_path).unwrap()).unwrap();
+        assert_eq!(
+            file_report["diagnostics"][0]["code"],
+            "cem.run_config.output_input_ref_unknown"
+        );
+    }
+
+    #[test]
+    fn bench_config_diagnostics_write_requested_report_before_document_parsing() {
+        let config_path = std::env::temp_dir().join("cem-ml-cli-tests/bench-bad-config.json");
+        let report_path =
+            std::env::temp_dir().join("cem-ml-cli-tests/bench-bad-config-report.json");
+        let _ = std::fs::remove_file(&report_path);
+        std::fs::write(
+            &config_path,
+            serde_json::json!({
+                "inputs": [{ "uri": "/definitely/not/read.cem" }],
+                "outputs": [{ "inputRef": "missing.cem" }]
+            })
+            .to_string(),
+        )
+        .unwrap();
+
+        let (outcome, stdout, stderr) = run(
+            &RealCemMlEngine::new(),
+            &[
+                "bench",
                 "--config",
                 config_path.to_str().unwrap(),
                 "--report-json",
