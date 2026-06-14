@@ -2223,6 +2223,25 @@ mod tests {
     }
 
     #[test]
+    fn parse_remote_uri_markdown_report_destination_is_rejected_without_resolver() {
+        let p = write_fixture("parse-remote-md-report.cem", "{x}");
+        let (outcome, stdout, stderr) = run(
+            &FakeEngine,
+            &[
+                "parse",
+                "--report-md",
+                "https://example.test/parse-report.md",
+                p.to_str().unwrap(),
+            ],
+        );
+
+        assert_eq!(outcome.exit_code, EXIT_IO);
+        assert!(stdout.contains("\"kind\": \"fake-parse\""));
+        assert_stderr_contains_all(&stderr, &["parse report write failure"]);
+        assert_remote_resolver_boundary(&stderr, "https://example.test/parse-report.md");
+    }
+
+    #[test]
     fn parse_custom_uri_report_destination_is_rejected_without_resolver() {
         let p = write_fixture("parse-custom-report.cem", "{x}");
         let uri = "cem+vfs://workspace/parse-report.json";
@@ -5271,6 +5290,27 @@ mod tests {
     }
 
     #[test]
+    fn fixture_roundtrip_remote_uri_markdown_report_destination_is_rejected_without_resolver() {
+        let (outcome, stdout, stderr) = run(
+            &FakeEngine,
+            &[
+                "fixture",
+                "roundtrip",
+                "--report-md",
+                "https://example.test/fixture-roundtrip-report.md",
+            ],
+        );
+
+        assert_eq!(outcome.exit_code, EXIT_IO);
+        assert!(stdout.trim().is_empty());
+        assert_stderr_contains_all(&stderr, &["report write failure"]);
+        assert_remote_resolver_boundary(
+            &stderr,
+            "https://example.test/fixture-roundtrip-report.md",
+        );
+    }
+
+    #[test]
     fn fixture_roundtrip_custom_uri_report_destination_is_rejected_without_resolver() {
         let uri = "cem+vfs://workspace/fixture-roundtrip-report.json";
         let (outcome, stdout, stderr) =
@@ -5322,6 +5362,24 @@ mod tests {
         assert!(stdout.trim().is_empty());
         assert_stderr_contains_all(&stderr, &["report write failure"]);
         assert_remote_resolver_boundary(&stderr, "https://example.test/fixture-report.json");
+    }
+
+    #[test]
+    fn fixture_validate_remote_uri_markdown_report_destination_is_rejected_without_resolver() {
+        let (outcome, stdout, stderr) = run(
+            &FakeEngine,
+            &[
+                "fixture",
+                "validate",
+                "--report-md",
+                "https://example.test/fixture-report.md",
+            ],
+        );
+
+        assert_eq!(outcome.exit_code, EXIT_IO);
+        assert!(stdout.trim().is_empty());
+        assert_stderr_contains_all(&stderr, &["report write failure"]);
+        assert_remote_resolver_boundary(&stderr, "https://example.test/fixture-report.md");
     }
 
     #[test]
