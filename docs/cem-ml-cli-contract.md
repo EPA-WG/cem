@@ -85,16 +85,24 @@ Current implementation status:
 
 - `parse`, `validate`, `check`, `inspect`, `convert`, and fixture flows already route
   through the `cem_ml::engine::CemMlEngine` trait.
+- `cem_ml::run_config::RunConfig` defines the shared structured shape for input specs,
+  output specs, root scope configuration, and scheduler configuration. CLI accepts JSON
+  `--config` files plus repeatable CSV `--input-spec` / `--output-spec` records; WASM
+  exposes helpers that normalize the JSON shape and parse the same CSV records. This is
+  the first execution slice: input specs override global input content-type/schema/base
+  URI during lifecycle dispatch, and the first output spec can select conversion target
+  content type plus destination. Full multi-output fanout and shared scheduler execution
+  remain pending.
 - `--schema` and `--content-type` are carried in `EngineContext` and emitted in reports.
   `cem_ml::lifecycle::LifecycleRegistry` now owns built-in input content-type dispatch
   for parser-backed commands (`parse`, `validate`, `check`, `inspect`, `convert`,
   `trace`, `bench`, and fixture workflows) and CEM target export selection for
   `convert --to-content-type application/cem+xml`; schema-specific adapter selection
   is still pending.
-- Root-scope configuration is not complete yet. Current CLI flags expose only schema,
-  content type, base URI, and conversion target identity; module maps, explicit namespace
-  maps, config-file input/output spec arrays, and shared multi-document scheduler
-  configuration are planned requirements.
+- Root-scope configuration is not complete yet. Current execution uses run-config identity
+  fields for lifecycle dispatch and first conversion output selection; module maps,
+  explicit namespace maps, multi-output fanout, and shared multi-document scheduler
+  execution remain planned requirements.
 - `validate` / `check` / `convert` route `custom-element-xslt` input through the first
   shared lifecycle adapter path, lowering legacy custom-element XSLT to canonical
   CEM-ML through `cem_ml::legacy_custom_element`; `convert --content-type

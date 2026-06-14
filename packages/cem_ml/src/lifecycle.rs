@@ -61,7 +61,10 @@ impl LifecycleRegistry {
     }
 
     pub fn load(&self, input: &EngineInput, context: &EngineContext) -> LoadedInput {
-        let identity = FormatIdentity::from(context);
+        let identity = input
+            .identity
+            .clone()
+            .unwrap_or_else(|| FormatIdentity::from(context));
         let matches: Vec<&dyn LifecycleAdapter> = self
             .adapters
             .iter()
@@ -296,6 +299,7 @@ mod tests {
             uri: "test-input".to_owned(),
             bytes: bytes.to_vec(),
             from_format: None,
+            identity: None,
         }
     }
 

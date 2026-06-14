@@ -155,6 +155,7 @@ fn materialized_input(input: &EngineInput) -> EngineResult<EngineInput> {
         uri: input.uri.clone(),
         bytes,
         from_format: input.from_format,
+        identity: input.identity.clone(),
     })
 }
 
@@ -663,6 +664,7 @@ mod tests {
             uri: uri.to_owned(),
             bytes: bytes.to_vec(),
             from_format: None,
+            identity: None,
         }
     }
 
@@ -750,6 +752,27 @@ mod tests {
         assert_eq!(resp.report.summary.hard_violation_count, 0);
         assert_eq!(resp.report.summary.error_count, 0);
         assert_eq!(resp.report.summary.warning_count, 0);
+    }
+
+    #[test]
+    fn input_identity_overrides_global_context_content_type() {
+        let mut source = input(br#"<button>Go</button>"#, "legacy.html");
+        source.identity = Some(FormatIdentity {
+            content_type: Some(crate::legacy_custom_element::TEMPLATE_LANG.to_owned()),
+            ..FormatIdentity::default()
+        });
+        let req = ValidateRequest {
+            inputs: vec![source],
+            projection: ValidateProjection::Json,
+            fail_level: FailLevel::Validate,
+            context: EngineContext {
+                content_type: Some("application/cem+xml".to_owned()),
+                ..ctx()
+            },
+        };
+        let resp = RealCemMlEngine::new().validate(req).unwrap();
+        assert_eq!(resp.report.summary.hard_violation_count, 0);
+        assert_eq!(resp.report.summary.error_count, 0);
     }
 
     #[test]
@@ -841,6 +864,7 @@ mod tests {
                 uri: "in.html".to_owned(),
                 bytes: br#"<button cem:action="primary" type="submit">Save</button>"#.to_vec(),
                 from_format: Some(InputFormat::Html),
+                identity: None,
             },
             to_format: LayerFormat::Cem,
             preserve_source_offsets: true,
@@ -881,6 +905,7 @@ mod tests {
                 uri: "in.xml".to_owned(),
                 bytes: br#"<button cem:action="primary" type="submit">Save</button>"#.to_vec(),
                 from_format: Some(InputFormat::Xml),
+                identity: None,
             },
             to_format: LayerFormat::Cem,
             preserve_source_offsets: true,
@@ -921,6 +946,7 @@ mod tests {
                 uri: "legacy.html".to_owned(),
                 bytes: br#"<if test="not($disabled)"><button>Go</button></if>"#.to_vec(),
                 from_format: None,
+                identity: None,
             },
             to_format: LayerFormat::Cem,
             preserve_source_offsets: false,
@@ -1018,6 +1044,7 @@ mod tests {
                     uri: workspace.join(p).to_string_lossy().into_owned(),
                     bytes: Vec::new(),
                     from_format: None,
+                    identity: None,
                 })
                 .collect();
         let req = FixtureValidateRequest {

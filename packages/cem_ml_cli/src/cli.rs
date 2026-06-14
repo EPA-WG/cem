@@ -200,10 +200,36 @@ pub struct ReportOptions {
     pub report_md: Option<PathBuf>,
 }
 
+#[derive(Args, Debug, Default, Clone)]
+pub struct RunOptions {
+    #[arg(
+        long = "config",
+        value_name = "FILE",
+        help = "Read structured run configuration JSON with inputs, outputs, and scheduler settings"
+    )]
+    pub config: Option<PathBuf>,
+
+    #[arg(
+        long = "input-spec",
+        value_name = "CSV",
+        action = clap::ArgAction::Append,
+        help = "Repeatable input spec record, e.g. uri=src/a.cem,contentType=application/cem+xml,schema=core"
+    )]
+    pub input_specs: Vec<String>,
+
+    #[arg(
+        long = "output-spec",
+        value_name = "CSV",
+        action = clap::ArgAction::Append,
+        help = "Repeatable output spec record, e.g. input=src/a.cem,dest=dist/a.cem,contentType=application/cem+xml"
+    )]
+    pub output_specs: Vec<String>,
+}
+
 #[derive(Args, Debug)]
 pub struct ParseArgs {
     #[arg(value_name = "INPUT", help = "Path to a CEM-ML/HTML/XML input")]
-    pub input: PathBuf,
+    pub input: Option<PathBuf>,
 
     #[arg(long, value_enum, default_value_t = ParseFormat::DomJson,
           help = "Output projection (dom-json|json|ast|events)")]
@@ -232,12 +258,14 @@ pub struct ParseArgs {
     #[command(flatten)]
     pub context: ContextOptions,
     #[command(flatten)]
+    pub run: RunOptions,
+    #[command(flatten)]
     pub report: ReportOptions,
 }
 
 #[derive(Args, Debug)]
 pub struct ValidateArgs {
-    #[arg(value_name = "INPUT", required = true, num_args = 1.., help = "One or more inputs")]
+    #[arg(value_name = "INPUT", num_args = 0.., help = "One or more inputs")]
     pub inputs: Vec<PathBuf>,
 
     #[arg(long, value_enum, default_value_t = ValidateFormat::Text,
@@ -253,12 +281,14 @@ pub struct ValidateArgs {
     #[command(flatten)]
     pub context: ContextOptions,
     #[command(flatten)]
+    pub run: RunOptions,
+    #[command(flatten)]
     pub report: ReportOptions,
 }
 
 #[derive(Args, Debug)]
 pub struct CheckArgs {
-    #[arg(value_name = "INPUT", required = true, num_args = 1..)]
+    #[arg(value_name = "INPUT", num_args = 0..)]
     pub inputs: Vec<PathBuf>,
 
     #[arg(long, value_enum, default_value_t = ValidateFormat::Text)]
@@ -276,13 +306,15 @@ pub struct CheckArgs {
     #[command(flatten)]
     pub context: ContextOptions,
     #[command(flatten)]
+    pub run: RunOptions,
+    #[command(flatten)]
     pub report: ReportOptions,
 }
 
 #[derive(Args, Debug)]
 pub struct InspectArgs {
     #[arg(value_name = "INPUT")]
-    pub input: PathBuf,
+    pub input: Option<PathBuf>,
 
     #[arg(long, value_enum, default_value_t = InspectView::Summary,
           help = "Which inspector view to render")]
@@ -296,12 +328,14 @@ pub struct InspectArgs {
 
     #[command(flatten)]
     pub context: ContextOptions,
+    #[command(flatten)]
+    pub run: RunOptions,
 }
 
 #[derive(Args, Debug)]
 pub struct ConvertArgs {
     #[arg(value_name = "INPUT")]
-    pub input: PathBuf,
+    pub input: Option<PathBuf>,
 
     #[arg(long = "from-format", value_enum, help = "Input syntax (cem|html|xml)")]
     pub from_format: Option<InputFormat>,
@@ -332,12 +366,14 @@ pub struct ConvertArgs {
 
     #[command(flatten)]
     pub context: ContextOptions,
+    #[command(flatten)]
+    pub run: RunOptions,
 }
 
 #[derive(Args, Debug)]
 pub struct TraceArgs {
     #[arg(value_name = "INPUT")]
-    pub input: PathBuf,
+    pub input: Option<PathBuf>,
 
     #[arg(long, value_enum, default_value_t = TraceFormat::Json,
           help = "Trace projection (json|xml|cem|text|html)")]
@@ -351,11 +387,13 @@ pub struct TraceArgs {
 
     #[command(flatten)]
     pub context: ContextOptions,
+    #[command(flatten)]
+    pub run: RunOptions,
 }
 
 #[derive(Args, Debug)]
 pub struct BenchArgs {
-    #[arg(value_name = "INPUT", required = true, num_args = 1..)]
+    #[arg(value_name = "INPUT", num_args = 0..)]
     pub inputs: Vec<PathBuf>,
 
     #[arg(long, value_enum, default_value_t = BenchFormat::Text,
@@ -380,6 +418,8 @@ pub struct BenchArgs {
     #[command(flatten)]
     pub context: ContextOptions,
     #[command(flatten)]
+    pub run: RunOptions,
+    #[command(flatten)]
     pub report: ReportOptions,
 }
 
@@ -398,6 +438,8 @@ pub struct FixtureValidateArgs {
     #[command(flatten)]
     pub context: ContextOptions,
     #[command(flatten)]
+    pub run: RunOptions,
+    #[command(flatten)]
     pub report: ReportOptions,
 }
 
@@ -412,6 +454,8 @@ pub struct FixtureRoundtripArgs {
 
     #[command(flatten)]
     pub context: ContextOptions,
+    #[command(flatten)]
+    pub run: RunOptions,
     #[command(flatten)]
     pub report: ReportOptions,
 }
@@ -533,6 +577,24 @@ mod tests {
     }
 
     #[test]
+    fn commands_accept_run_spec_options() {
+        try_parse(&[
+            "validate",
+            "--input-spec",
+            "uri=in.cem,contentType=application/cem+xml,schema=core",
+        ])
+        .unwrap();
+        try_parse(&[
+            "convert",
+            "--input-spec",
+            "uri=in.html,contentType=text/html",
+            "--output-spec",
+            "dest=out.cem,contentType=application/cem+xml",
+        ])
+        .unwrap();
+    }
+
+    #[test]
     fn quiet_and_verbose_conflict() {
         assert!(try_parse(&["--quiet", "--verbose", "version"]).is_err());
     }
@@ -582,7 +644,13 @@ mod tests {
 
     #[test]
     fn validate_requires_input() {
-        assert!(try_parse(&["validate"]).is_err());
+        let parsed = try_parse(&["validate"]).unwrap();
+        match parsed.command {
+            Command::Validate(args) => {
+                assert!(args.inputs.is_empty() && args.run.input_specs.is_empty())
+            }
+            _ => panic!("expected validate"),
+        }
     }
 
     #[test]

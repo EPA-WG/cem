@@ -23,6 +23,7 @@ pub mod projection;
 pub mod query;
 pub mod real;
 pub mod registry;
+pub mod run_config;
 pub mod scheduler;
 pub mod schema;
 pub mod source;

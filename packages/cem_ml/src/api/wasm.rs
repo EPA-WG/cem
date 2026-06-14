@@ -87,6 +87,58 @@ pub fn convert_legacy_custom_element_template(source: &str) -> String {
     })
 }
 
+#[wasm_bindgen(js_name = "normalizeRunConfig")]
+pub fn normalize_run_config(json: &str) -> String {
+    match serde_json::from_str::<crate::run_config::RunConfig>(json) {
+        Ok(config) => serde_json::to_string(&config).unwrap_or_else(wasm_serialize_error),
+        Err(error) => serde_json::json!({
+            "error": {
+                "code": "cem.run_config.invalid_json",
+                "message": error.to_string()
+            }
+        })
+        .to_string(),
+    }
+}
+
+#[wasm_bindgen(js_name = "parseInputSpecRecord")]
+pub fn parse_input_spec_record(record: &str) -> String {
+    match crate::run_config::parse_input_spec_record(record) {
+        Ok(spec) => serde_json::to_string(&spec).unwrap_or_else(wasm_serialize_error),
+        Err(error) => serde_json::json!({
+            "error": {
+                "code": "cem.run_config.invalid_input_spec",
+                "message": error.to_string()
+            }
+        })
+        .to_string(),
+    }
+}
+
+#[wasm_bindgen(js_name = "parseOutputSpecRecord")]
+pub fn parse_output_spec_record(record: &str) -> String {
+    match crate::run_config::parse_output_spec_record(record) {
+        Ok(spec) => serde_json::to_string(&spec).unwrap_or_else(wasm_serialize_error),
+        Err(error) => serde_json::json!({
+            "error": {
+                "code": "cem.run_config.invalid_output_spec",
+                "message": error.to_string()
+            }
+        })
+        .to_string(),
+    }
+}
+
+fn wasm_serialize_error(error: serde_json::Error) -> String {
+    serde_json::json!({
+        "error": {
+            "code": "cem.run_config.serialize_failed",
+            "message": error.to_string()
+        }
+    })
+    .to_string()
+}
+
 /// `EngineObserver` adapter that forwards every event to whichever
 /// JS callback is currently registered through `onParseEvent` /
 /// `onValidate` / `onTransform`. Embedders pass `&JsObserver` to

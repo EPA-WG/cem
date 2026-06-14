@@ -8,6 +8,7 @@
 use crate::cli;
 use crate::template_pass;
 use cem_ml::engine::{self as eng, CemMlEngine, EngineError};
+use cem_ml::run_config::{self, InputSpec, OutputSpec, RunConfig};
 use std::fs;
 use std::io::{self, Write};
 use std::path::{Path, PathBuf};
@@ -38,6 +39,11 @@ pub struct Streams<'a> {
     pub quiet: bool,
 }
 
+enum CliRequestError {
+    Usage(String),
+    Engine(EngineError),
+}
+
 fn read_input(path: &Path) -> io::Result<Vec<u8>> {
     fs::read(path)
 }
@@ -54,6 +60,7 @@ fn engine_input(
         uri: path.display().to_string(),
         bytes,
         from_format: from_format.map(to_engine_input_format),
+        identity: None,
     })
 }
 
@@ -62,6 +69,91 @@ fn placeholder_input(path: &Path, from_format: Option<cli::InputFormat>) -> eng:
         uri: path.display().to_string(),
         bytes: Vec::new(),
         from_format: from_format.map(to_engine_input_format),
+        identity: None,
+    }
+}
+
+fn engine_input_from_spec(
+    spec: &InputSpec,
+    from_format: Option<cli::InputFormat>,
+) -> Result<eng::EngineInput, CliRequestError> {
+    let path = Path::new(&spec.uri);
+    let bytes = read_input(path).map_err(|source| {
+        CliRequestError::Engine(EngineError::Io {
+            path: path.into(),
+            source,
+        })
+    })?;
+    Ok(eng::EngineInput {
+        uri: spec.uri.clone(),
+        bytes,
+        from_format: from_format.map(to_engine_input_format),
+        identity: Some(spec.root_scope.format_identity()),
+    })
+}
+
+fn run_config(options: &cli::RunOptions) -> Result<RunConfig, CliRequestError> {
+    let mut config = if let Some(path) = &options.config {
+        let body = fs::read_to_string(path).map_err(|source| {
+            CliRequestError::Engine(EngineError::Io {
+                path: path.clone(),
+                source,
+            })
+        })?;
+        serde_json::from_str::<RunConfig>(&body)
+            .map_err(|error| CliRequestError::Usage(format!("invalid run config JSON: {error}")))?
+    } else {
+        RunConfig::default()
+    };
+
+    for record in &options.input_specs {
+        let spec = run_config::parse_input_spec_record(record)
+            .map_err(|error| CliRequestError::Usage(format!("invalid --input-spec: {error}")))?;
+        config.inputs.push(spec);
+    }
+    for record in &options.output_specs {
+        let spec = run_config::parse_output_spec_record(record)
+            .map_err(|error| CliRequestError::Usage(format!("invalid --output-spec: {error}")))?;
+        config.outputs.push(spec);
+    }
+
+    Ok(config)
+}
+
+fn collect_configured_inputs(
+    paths: &[PathBuf],
+    from_format: Option<cli::InputFormat>,
+    config: &RunConfig,
+) -> Result<Vec<eng::EngineInput>, CliRequestError> {
+    let mut inputs = collect_inputs(paths, from_format).map_err(CliRequestError::Engine)?;
+    for spec in &config.inputs {
+        inputs.push(engine_input_from_spec(spec, from_format)?);
+    }
+    Ok(inputs)
+}
+
+fn single_configured_input(
+    path: Option<&Path>,
+    from_format: Option<cli::InputFormat>,
+    config: &RunConfig,
+) -> Result<eng::EngineInput, CliRequestError> {
+    let mut inputs = Vec::new();
+    if let Some(path) = path {
+        inputs.push(engine_input(path, from_format).map_err(CliRequestError::Engine)?);
+    }
+    for spec in &config.inputs {
+        inputs.push(engine_input_from_spec(spec, from_format)?);
+    }
+
+    match inputs.len() {
+        1 => Ok(inputs.remove(0)),
+        0 => Err(CliRequestError::Usage(
+            "expected one input path or --input-spec record".to_owned(),
+        )),
+        _ => Err(CliRequestError::Usage(
+            "expected exactly one input for this command; use validate/check/bench for multi-input runs"
+                .to_owned(),
+        )),
     }
 }
 
@@ -235,6 +327,42 @@ fn convert_target_identity(args: &cli::ConvertArgs) -> Option<eng::FormatIdentit
         schema: args.to_schema.clone(),
         base_uri: args.context.base_uri.clone(),
     })
+}
+
+fn convert_target_identity_with_config(
+    args: &cli::ConvertArgs,
+    config: &RunConfig,
+) -> Option<eng::FormatIdentity> {
+    if let Some(output) = config.outputs.first() {
+        let identity = output.root_scope.format_identity();
+        if identity.content_type.is_some()
+            || identity.schema.is_some()
+            || identity.base_uri.is_some()
+        {
+            return Some(identity);
+        }
+    }
+    convert_target_identity(args)
+}
+
+fn convert_output_destination(args: &cli::ConvertArgs, config: &RunConfig) -> Option<PathBuf> {
+    args.out.clone().or_else(|| {
+        config
+            .outputs
+            .first()
+            .and_then(|output: &OutputSpec| output.destination.as_ref())
+            .map(PathBuf::from)
+    })
+}
+
+fn handle_cli_request_error(err: CliRequestError, s: &mut Streams<'_>) -> Outcome {
+    match err {
+        CliRequestError::Usage(msg) => {
+            let _ = writeln!(s.stderr, "cem-ml: {msg}");
+            Outcome::code(EXIT_USAGE_OR_RESERVED)
+        }
+        CliRequestError::Engine(err) => handle_engine_error(err, s),
+    }
 }
 
 fn handle_engine_error(err: EngineError, s: &mut Streams<'_>) -> Outcome {
@@ -459,9 +587,13 @@ pub fn run_parse<E: CemMlEngine + ?Sized>(
     args: cli::ParseArgs,
     s: &mut Streams<'_>,
 ) -> Outcome {
-    let input = match engine_input(&args.input, args.from_format) {
+    let config = match run_config(&args.run) {
+        Ok(config) => config,
+        Err(err) => return handle_cli_request_error(err, s),
+    };
+    let input = match single_configured_input(args.input.as_deref(), args.from_format, &config) {
         Ok(i) => i,
-        Err(e) => return handle_engine_error(e, s),
+        Err(err) => return handle_cli_request_error(err, s),
     };
     let embedding_diags = template_pass::run(
         &input.bytes,
@@ -494,10 +626,20 @@ pub fn run_validate<E: CemMlEngine + ?Sized>(
     args: cli::ValidateArgs,
     s: &mut Streams<'_>,
 ) -> Outcome {
-    let inputs = match collect_inputs(&args.inputs, args.from_format) {
-        Ok(v) => v,
-        Err(e) => return handle_engine_error(e, s),
+    let config = match run_config(&args.run) {
+        Ok(config) => config,
+        Err(err) => return handle_cli_request_error(err, s),
     };
+    let inputs = match collect_configured_inputs(&args.inputs, args.from_format, &config) {
+        Ok(v) => v,
+        Err(err) => return handle_cli_request_error(err, s),
+    };
+    if inputs.is_empty() {
+        return handle_cli_request_error(
+            CliRequestError::Usage("validate requires at least one input or --input-spec".into()),
+            s,
+        );
+    }
     let embedding_diags = collect_embedding_diagnostics(&inputs);
     let req = eng::ValidateRequest {
         inputs,
@@ -532,10 +674,20 @@ pub fn run_check<E: CemMlEngine + ?Sized>(
     args: cli::CheckArgs,
     s: &mut Streams<'_>,
 ) -> Outcome {
-    let inputs = match collect_inputs(&args.inputs, args.from_format) {
-        Ok(v) => v,
-        Err(e) => return handle_engine_error(e, s),
+    let config = match run_config(&args.run) {
+        Ok(config) => config,
+        Err(err) => return handle_cli_request_error(err, s),
     };
+    let inputs = match collect_configured_inputs(&args.inputs, args.from_format, &config) {
+        Ok(v) => v,
+        Err(err) => return handle_cli_request_error(err, s),
+    };
+    if inputs.is_empty() {
+        return handle_cli_request_error(
+            CliRequestError::Usage("check requires at least one input or --input-spec".into()),
+            s,
+        );
+    }
     let embedding_diags = collect_embedding_diagnostics(&inputs);
     let req = eng::CheckRequest {
         inputs,
@@ -575,9 +727,13 @@ pub fn run_inspect<E: CemMlEngine + ?Sized>(
     args: cli::InspectArgs,
     s: &mut Streams<'_>,
 ) -> Outcome {
-    let input = match engine_input(&args.input, args.from_format) {
+    let config = match run_config(&args.run) {
+        Ok(config) => config,
+        Err(err) => return handle_cli_request_error(err, s),
+    };
+    let input = match single_configured_input(args.input.as_deref(), args.from_format, &config) {
         Ok(i) => i,
-        Err(e) => return handle_engine_error(e, s),
+        Err(err) => return handle_cli_request_error(err, s),
     };
     let req = eng::InspectRequest {
         input,
@@ -601,20 +757,25 @@ pub fn run_convert<E: CemMlEngine + ?Sized>(
     args: cli::ConvertArgs,
     s: &mut Streams<'_>,
 ) -> Outcome {
-    let input = match engine_input(&args.input, args.from_format) {
+    let config = match run_config(&args.run) {
+        Ok(config) => config,
+        Err(err) => return handle_cli_request_error(err, s),
+    };
+    let input = match single_configured_input(args.input.as_deref(), args.from_format, &config) {
         Ok(i) => i,
-        Err(e) => return handle_engine_error(e, s),
+        Err(err) => return handle_cli_request_error(err, s),
     };
     let req = eng::ConvertRequest {
         input,
         to_format: to_engine_layer_format(args.to_format),
         preserve_source_offsets: args.preserve_source_offsets,
         context: context(&args.context),
-        target: convert_target_identity(&args),
+        target: convert_target_identity_with_config(&args, &config),
     };
     match engine.convert(req) {
         Ok(resp) => {
-            if let Err(e) = write_primary(&resp.primary, args.out.as_deref(), s) {
+            let out = convert_output_destination(&args, &config);
+            if let Err(e) = write_primary(&resp.primary, out.as_deref(), s) {
                 let _ = writeln!(s.stderr, "cem-ml: write failure: {e}");
                 return Outcome::code(EXIT_IO);
             }
@@ -630,9 +791,13 @@ pub fn run_trace<E: CemMlEngine + ?Sized>(
     args: cli::TraceArgs,
     s: &mut Streams<'_>,
 ) -> Outcome {
-    let input = match engine_input(&args.input, args.from_format) {
+    let config = match run_config(&args.run) {
+        Ok(config) => config,
+        Err(err) => return handle_cli_request_error(err, s),
+    };
+    let input = match single_configured_input(args.input.as_deref(), args.from_format, &config) {
         Ok(i) => i,
-        Err(e) => return handle_engine_error(e, s),
+        Err(err) => return handle_cli_request_error(err, s),
     };
     let req = eng::TraceRequest {
         input,
@@ -656,10 +821,20 @@ pub fn run_bench<E: CemMlEngine + ?Sized>(
     args: cli::BenchArgs,
     s: &mut Streams<'_>,
 ) -> Outcome {
-    let inputs = match collect_inputs(&args.inputs, None) {
-        Ok(v) => v,
-        Err(e) => return handle_engine_error(e, s),
+    let config = match run_config(&args.run) {
+        Ok(config) => config,
+        Err(err) => return handle_cli_request_error(err, s),
     };
+    let inputs = match collect_configured_inputs(&args.inputs, None, &config) {
+        Ok(v) => v,
+        Err(err) => return handle_cli_request_error(err, s),
+    };
+    if inputs.is_empty() {
+        return handle_cli_request_error(
+            CliRequestError::Usage("bench requires at least one input or --input-spec".into()),
+            s,
+        );
+    }
     let req = eng::BenchRequest {
         inputs,
         projection: to_engine_bench_projection(args.format),
@@ -704,7 +879,17 @@ pub fn run_fixture_validate<E: CemMlEngine + ?Sized>(
     args: cli::FixtureValidateArgs,
     s: &mut Streams<'_>,
 ) -> Outcome {
-    let inputs = collect_fixture_inputs(&args.inputs);
+    let config = match run_config(&args.run) {
+        Ok(config) => config,
+        Err(err) => return handle_cli_request_error(err, s),
+    };
+    let mut inputs = collect_fixture_inputs(&args.inputs);
+    for spec in &config.inputs {
+        match engine_input_from_spec(spec, None) {
+            Ok(input) => inputs.push(input),
+            Err(err) => return handle_cli_request_error(err, s),
+        }
+    }
     let embedding_diags = match collect_fixture_embedding_diagnostics(&inputs) {
         Ok(v) => v,
         Err(e) => return handle_engine_error(e, s),
@@ -745,7 +930,17 @@ pub fn run_fixture_roundtrip<E: CemMlEngine + ?Sized>(
     args: cli::FixtureRoundtripArgs,
     s: &mut Streams<'_>,
 ) -> Outcome {
-    let inputs = collect_fixture_inputs(&args.inputs);
+    let config = match run_config(&args.run) {
+        Ok(config) => config,
+        Err(err) => return handle_cli_request_error(err, s),
+    };
+    let mut inputs = collect_fixture_inputs(&args.inputs);
+    for spec in &config.inputs {
+        match engine_input_from_spec(spec, None) {
+            Ok(input) => inputs.push(input),
+            Err(err) => return handle_cli_request_error(err, s),
+        }
+    }
     let req = eng::FixtureRoundtripRequest {
         inputs,
         to_format: to_engine_layer_format(args.to_format),
@@ -949,6 +1144,77 @@ mod tests {
         assert_eq!(v["options"]["schema"], "schema-uri");
         assert_eq!(v["options"]["contentType"], "application/cem");
         assert_eq!(v["options"]["baseUri"], "file:///x/");
+    }
+
+    #[test]
+    fn validate_accepts_input_spec_without_positional_input() {
+        let p = write_fixture("validate-input-spec.html", r#"<button>Go</button>"#);
+        let (outcome, stdout, stderr) = run(
+            &RealCemMlEngine::new(),
+            &[
+                "validate",
+                "--format",
+                "json",
+                "--input-spec",
+                &format!(
+                    "uri={},contentType={}",
+                    p.display(),
+                    cem_ml::legacy_custom_element::TEMPLATE_LANG
+                ),
+            ],
+        );
+        assert_eq!(outcome.exit_code, EXIT_OK, "{stderr}");
+        let v: serde_json::Value = serde_json::from_str(stdout.trim()).unwrap();
+        assert_eq!(v["summary"]["hardViolationCount"], 0);
+        assert_eq!(v["summary"]["inputCount"], 1);
+    }
+
+    #[test]
+    fn convert_config_input_and_output_specs_select_identity_and_destination() {
+        let input = write_fixture(
+            "convert-config-input.html",
+            r#"<if test="$ready"><button>Go</button></if>"#,
+        );
+        let out_path = std::env::temp_dir().join("cem-ml-cli-tests/convert-config-out.json");
+        let config_path = std::env::temp_dir().join("cem-ml-cli-tests/convert-config.json");
+        let _ = std::fs::remove_file(&out_path);
+        std::fs::write(
+            &config_path,
+            serde_json::json!({
+                "inputs": [{
+                    "uri": input.display().to_string(),
+                    "rootScope": {
+                        "defaultContentType": cem_ml::legacy_custom_element::TEMPLATE_LANG
+                    }
+                }],
+                "outputs": [{
+                    "destination": out_path.display().to_string(),
+                    "rootScope": {
+                        "defaultContentType": "application/cem+xml"
+                    }
+                }]
+            })
+            .to_string(),
+        )
+        .unwrap();
+
+        let (outcome, stdout, stderr) = run(
+            &RealCemMlEngine::new(),
+            &["convert", "--config", config_path.to_str().unwrap()],
+        );
+        assert_eq!(outcome.exit_code, EXIT_OK, "{stderr}");
+        assert!(stdout.trim().is_empty());
+        let written = std::fs::read_to_string(&out_path).unwrap();
+        let v: serde_json::Value = serde_json::from_str(&written).unwrap();
+        assert_eq!(v["kind"], "cem");
+        assert_eq!(v["content"], "{cem:if @test=\"ready\" | {button | Go}}\n");
+    }
+
+    #[test]
+    fn validate_without_positional_or_spec_is_usage_error() {
+        let (outcome, _, stderr) = run(&FakeEngine, &["validate"]);
+        assert_eq!(outcome.exit_code, EXIT_USAGE_OR_RESERVED);
+        assert!(stderr.contains("validate requires"));
     }
 
     #[test]
@@ -1320,7 +1586,7 @@ fn observable_inputs(
     command: &cli::Command,
 ) -> Vec<(std::path::PathBuf, Option<cli::InputFormat>)> {
     match command {
-        cli::Command::Parse(a) => vec![(a.input.clone(), a.from_format)],
+        cli::Command::Parse(a) => a.input.iter().map(|p| (p.clone(), a.from_format)).collect(),
         cli::Command::Validate(a) => a
             .inputs
             .iter()
@@ -1331,9 +1597,9 @@ fn observable_inputs(
             .iter()
             .map(|p| (p.clone(), a.from_format))
             .collect(),
-        cli::Command::Inspect(a) => vec![(a.input.clone(), a.from_format)],
-        cli::Command::Convert(a) => vec![(a.input.clone(), None)],
-        cli::Command::Trace(a) => vec![(a.input.clone(), None)],
+        cli::Command::Inspect(a) => a.input.iter().map(|p| (p.clone(), a.from_format)).collect(),
+        cli::Command::Convert(a) => a.input.iter().map(|p| (p.clone(), a.from_format)).collect(),
+        cli::Command::Trace(a) => a.input.iter().map(|p| (p.clone(), a.from_format)).collect(),
         _ => Vec::new(),
     }
 }

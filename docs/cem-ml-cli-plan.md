@@ -1,7 +1,8 @@
 # `cem-ml-cli` Implementation Plan
 
 **Status:** Parser-backed implementation exists for the current built-in CEM/HTML/XML surfaces. This document now
-tracks the next design step: schema + content-type lifecycle dispatch and the immediate XSLT 1.0 adapter.
+tracks the next design step: schema + content-type lifecycle dispatch, root-scope run configuration, and the remaining
+multi-output/scheduler execution work after the immediate XSLT 1.0 adapter landed.
 
 Phase 1 artifact: [`docs/cem-ml-parser-schema-adr.md`](./cem-ml-parser-schema-adr.md).
 
@@ -75,6 +76,12 @@ the immediate CLI lifecycle contract.
       parsed with deterministic escaping and map to the same input/output spec structs;
     - one run can contain multiple data sources and multiple outputs while preserving
       isolated root scopes per input.
+   **Current slice:** `cem_ml::run_config::RunConfig` and root `ScopeConfig` exist; CLI
+   accepts JSON `--config`, repeatable `--input-spec`, and repeatable `--output-spec`;
+   WASM exposes JSON normalization and CSV spec parsing helpers. Input specs override
+   global input identity for lifecycle dispatch, and the first output spec can select
+   conversion target identity/destination. Multi-output fanout and scheduler ownership
+   remain open.
 7. Update CLI flags without breaking current debug workflows:
     - keep `--from-format` and `--to-format` as aliases for built-in identities;
     - keep `--content-type` as the input content type for `parse`, `validate`, `check`,

@@ -115,6 +115,7 @@ pub struct EngineInput {
     pub uri: String,
     pub bytes: Vec<u8>,
     pub from_format: Option<InputFormat>,
+    pub identity: Option<FormatIdentity>,
 }
 
 #[derive(Debug, Clone)]
