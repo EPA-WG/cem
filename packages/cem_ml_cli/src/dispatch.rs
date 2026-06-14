@@ -1779,6 +1779,30 @@ mod tests {
     }
 
     #[test]
+    fn input_spec_version_pins_resolve_through_engine() {
+        let p = write_fixture("validate-input-spec-version-pin.cem", r#"{p Hi}"#);
+        let (outcome, stdout, stderr) = run(
+            &RealCemMlEngine::new(),
+            &[
+                "validate",
+                "--format",
+                "json",
+                "--input-spec",
+                &format!("uri={},versionPins=cem-ml:1", p.display()),
+            ],
+        );
+        assert_eq!(outcome.exit_code, EXIT_OK, "{stderr}");
+        let v: serde_json::Value = serde_json::from_str(stdout.trim()).unwrap();
+        let diagnostics = v["diagnostics"].as_array().unwrap();
+        assert!(diagnostics
+            .iter()
+            .any(|diag| diag["code"] == "cem.doc.version_resolved"));
+        assert!(!diagnostics
+            .iter()
+            .any(|diag| diag["code"] == "cem.scope.version_pins_unenforced"));
+    }
+
+    #[test]
     fn positional_input_identity_infers_content_type_from_extension() {
         let identity =
             positional_input_identity(Path::new("src/screen.html"), &ScopeConfig::default())

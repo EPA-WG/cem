@@ -13,6 +13,7 @@ use crate::interpreter::light_dom::LightDomInterpreter;
 use crate::lifecycle::{ExportSelection, LifecycleRegistry, LoadedInput};
 use crate::parser::builder::CemAstBuilder;
 use crate::parser::document::CemDocument;
+use crate::parser::format;
 use crate::projection;
 use crate::report::{Report, ReportOptionsSnapshot};
 use crate::run_config::ScopeConfig;
@@ -91,6 +92,9 @@ where
         let normalizer = CemEventNormalizer::new(tok);
         let mut doc = CemAstBuilder::new(normalizer).build();
         doc.diagnostics.extend(tok_diags);
+        if let Some(root_scope) = root_scope {
+            apply_root_scope_version_pins(&mut doc, root_scope);
+        }
         doc
     };
     document.diagnostics.extend(schema_outcome.diagnostics);
@@ -108,6 +112,63 @@ where
         document,
         diagnostics,
     }
+}
+
+fn apply_root_scope_version_pins(document: &mut CemDocument, scope: &ScopeConfig) {
+    for (target, constraint) in &scope.version_pins {
+        let target = target.trim();
+        let constraint = constraint.trim();
+        if !is_cem_ml_version_pin_target(target) {
+            document.diagnostics.push(Diagnostic {
+                code: "cem.scope.version_pin_target_unsupported".to_owned(),
+                severity: Severity::Warning,
+                message: format!(
+                    "root-scope version pin target `{target}` is not supported by this engine; \
+                     supported targets are `{}`, `{}`, and `application/cem+xml`",
+                    format::SUPPORTED_FORMAT_ID,
+                    format::SUPPORTED_CONTENT_TYPE
+                ),
+                ..Diagnostic::default()
+            });
+            continue;
+        }
+
+        match format::resolve_doc_directive(&format!(
+            "{} {constraint}",
+            format::SUPPORTED_FORMAT_ID
+        )) {
+            Ok(identity) => {
+                let message = format!(
+                    "resolved root-scope version pin {} {} -> embedded {}",
+                    identity.format_id, identity.content_type, identity.format_version
+                );
+                document.format_identity = Some(identity);
+                document.diagnostics.push(Diagnostic {
+                    code: format::VERSION_RESOLVED_CODE.to_owned(),
+                    severity: Severity::Info,
+                    message,
+                    ..Diagnostic::default()
+                });
+            }
+            Err(err) => {
+                document.diagnostics.push(Diagnostic {
+                    code: err.code().to_owned(),
+                    severity: Severity::Error,
+                    message: format!(
+                        "root-scope version pin `{target}:{constraint}` is invalid: {}",
+                        err.message()
+                    ),
+                    ..Diagnostic::default()
+                });
+            }
+        }
+    }
+}
+
+fn is_cem_ml_version_pin_target(target: &str) -> bool {
+    target == format::SUPPORTED_FORMAT_ID
+        || target == format::SUPPORTED_CONTENT_TYPE
+        || target == "application/cem+xml"
 }
 
 trait FromBytes: Sized {
@@ -265,14 +326,6 @@ fn root_scope_metadata_diagnostics(
     direction: &str,
 ) -> Vec<Diagnostic> {
     let mut diagnostics = Vec::new();
-    if !scope.version_pins.is_empty() {
-        diagnostics.push(unsupported_scope_diagnostic(
-            uri,
-            "cem.scope.version_pins_unenforced",
-            "versionPins",
-            direction,
-        ));
-    }
     if scope.module_map.is_some() {
         diagnostics.push(unsupported_scope_diagnostic(
             uri,
@@ -1337,6 +1390,76 @@ mod tests {
             .diagnostics
             .iter()
             .any(|diag| diag.code == "cem.scope.namespaces_unenforced"));
+    }
+
+    #[test]
+    fn validate_resolves_root_scope_version_pins() {
+        let mut source = input(b"{p Hi}", "versioned.cem");
+        source
+            .root_scope
+            .version_pins
+            .insert("cem-ml".to_owned(), "1".to_owned());
+        let req = ValidateRequest {
+            inputs: vec![source],
+            projection: ValidateProjection::Json,
+            fail_level: FailLevel::Validate,
+            context: ctx(),
+        };
+
+        let resp = RealCemMlEngine::new().validate(req).unwrap();
+        assert!(resp
+            .report
+            .diagnostics
+            .iter()
+            .any(|diag| diag.code == "cem.doc.version_resolved"));
+        assert!(!resp
+            .report
+            .diagnostics
+            .iter()
+            .any(|diag| diag.code == "cem.scope.version_pins_unenforced"));
+    }
+
+    #[test]
+    fn validate_reports_invalid_root_scope_version_pins() {
+        let mut source = input(b"{p Hi}", "versioned.cem");
+        source
+            .root_scope
+            .version_pins
+            .insert("cem-ml".to_owned(), "2".to_owned());
+        let req = ValidateRequest {
+            inputs: vec![source],
+            projection: ValidateProjection::Json,
+            fail_level: FailLevel::Validate,
+            context: ctx(),
+        };
+
+        let resp = RealCemMlEngine::new().validate(req).unwrap();
+        assert!(resp
+            .report
+            .diagnostics
+            .iter()
+            .any(|diag| diag.code == "cem.doc.version_unsupported"));
+    }
+
+    #[test]
+    fn validate_reports_unsupported_root_scope_version_pin_targets() {
+        let mut source = input(b"{p Hi}", "versioned.cem");
+        source
+            .root_scope
+            .version_pins
+            .insert("urn:other-format".to_owned(), "1".to_owned());
+        let req = ValidateRequest {
+            inputs: vec![source],
+            projection: ValidateProjection::Json,
+            fail_level: FailLevel::Validate,
+            context: ctx(),
+        };
+
+        let resp = RealCemMlEngine::new().validate(req).unwrap();
+        assert!(resp.report.diagnostics.iter().any(|diag| {
+            diag.code == "cem.scope.version_pin_target_unsupported"
+                && diag.severity == Severity::Warning
+        }));
     }
 
     #[test]

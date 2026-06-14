@@ -102,12 +102,13 @@ the immediate CLI lifecycle contract.
    worker policy for scheduled validate/check, trace, and convert execution, and
    effective `baseUri` values project relative report input and diagnostic URIs.
    Root-scope default and named namespace bindings seed schema validation's
-   document-root namespace context. Run-config normalization validates root-scope
-   module-map, namespace, and version-pin option shape before document parsing, while
-   unknown budget keys and valid-but-not-yet-enforced module-map/version fields emit
-   deterministic execution diagnostics instead of being silently ignored. Real runtime
-   behavior for module maps, version-pin semantics, and remaining budget hooks remains
-   open.
+   document-root namespace context, and recognized CEM-ML root-scope version pins
+   resolve against the embedded document-format version. Run-config normalization
+   validates root-scope module-map, namespace, and version-pin option shape before
+   document parsing, while unknown budget keys, unsupported version-pin targets, and
+   valid-but-not-yet-enforced module-map fields emit deterministic execution diagnostics
+   instead of being silently ignored. Real runtime behavior for module maps and
+   remaining budget hooks remains open.
 7. Update CLI flags without breaking current debug workflows:
     - keep `--from-format` and `--to-format` as aliases for built-in identities;
     - keep `--content-type` as the input content type for `parse`, `validate`, `check`,
