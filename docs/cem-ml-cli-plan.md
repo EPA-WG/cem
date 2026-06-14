@@ -1,8 +1,8 @@
 # `cem-ml-cli` Implementation Plan
 
 **Status:** Parser-backed implementation exists for the current built-in CEM/HTML/XML surfaces. This document now
-tracks the next design step: schema + content-type lifecycle dispatch, root-scope run configuration, and the remaining
-convert scheduler execution work after the immediate XSLT 1.0 adapter landed.
+tracks the next design step: schema + content-type lifecycle dispatch and the remaining root-scope policy/budget
+execution work after the immediate XSLT 1.0 adapter landed.
 
 Phase 1 artifact: [`docs/cem-ml-parser-schema-adr.md`](./cem-ml-parser-schema-adr.md).
 
@@ -95,9 +95,10 @@ the immediate CLI lifecycle contract.
    embed a shared run-level scheduler trace with per-document scope IDs. Validate/check
    execute lifecycle loading and parser-backed validation through scheduler-dispatched
    per-document tasks, so the trace reflects actual document work instead of report
-   projection only. Convert can now write explicit side reports with the same scheduler
-   projection while preserving content-primary stdout/`--out` behavior. Engine-owned
-   scheduler traces for convert execution remain open.
+   projection only. Convert can now write explicit side reports from scheduler traces
+   returned by engine convert execution while preserving content-primary stdout/`--out`
+   behavior. Root-scope policy, budget, module-map, and namespace fields remain open
+   beyond config parsing/identity normalization.
 7. Update CLI flags without breaking current debug workflows:
     - keep `--from-format` and `--to-format` as aliases for built-in identities;
     - keep `--content-type` as the input content type for `parse`, `validate`, `check`,

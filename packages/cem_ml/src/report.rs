@@ -134,6 +134,11 @@ impl Report {
         self
     }
 
+    pub fn with_scheduler_trace_report(mut self, trace: SchedulerTraceReport) -> Self {
+        self.report_ast.scheduler_trace = trace;
+        self
+    }
+
     pub fn set_scheduler_trace(&mut self, trace: &SchedulerTrace) {
         self.report_ast.scheduler_trace = SchedulerTraceReport::from_trace(trace);
     }

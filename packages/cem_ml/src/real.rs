@@ -10,7 +10,7 @@ use crate::engine::*;
 use crate::events::cem::CemEventNormalizer;
 use crate::formatter;
 use crate::interpreter::light_dom::LightDomInterpreter;
-use crate::lifecycle::{LifecycleRegistry, LoadedInput};
+use crate::lifecycle::{ExportSelection, LifecycleRegistry, LoadedInput};
 use crate::parser::builder::CemAstBuilder;
 use crate::parser::document::CemDocument;
 use crate::projection;
@@ -529,59 +529,99 @@ impl CemMlEngine for RealCemMlEngine {
     }
 
     fn convert(&self, request: ConvertRequest) -> EngineResult<ConvertResponse> {
-        let registry = LifecycleRegistry::with_builtin_adapters();
-        let loaded = registry.load(&request.input, &request.context);
-        let export = registry.select_export(request.target.as_ref(), request.to_format);
-        let to_format = export.to_format;
-        let mut diagnostics = loaded.diagnostics;
-        diagnostics.extend(export.diagnostics);
+        let trace = crate::scheduler::SchedulerTrace::new();
+        let policy = scheduler_policy_from_context(&request.context);
+        let pool =
+            crate::scheduler::WorkerPool::new(request.scheduler_scope_id, policy, trace.clone());
+        let abort = crate::scheduler::AbortSignal::new();
+        for task in ["lifecycle-load", "select-export", "convert"] {
+            pool.submit(format!("{}:{task}", request.input.uri), &abort)
+                .map_err(|err| {
+                    EngineError::Internal(format!("scheduler dispatch failed: {err}"))
+                })?;
+        }
 
-        if to_format == LayerFormat::Cem && loaded.from_format == InputFormat::Cem {
-            let mut content = String::from_utf8_lossy(&loaded.bytes).into_owned();
-            if !content.is_empty() && !content.ends_with('\n') {
-                content.push('\n');
+        let registry = LifecycleRegistry::with_builtin_adapters();
+        let mut loaded_input: Option<LoadedInput> = None;
+        let mut export_selection: Option<ExportSelection> = None;
+        let mut diagnostics = Vec::new();
+        let mut primary: Option<Value> = None;
+        pool.run_to_completion(&abort, |task| {
+            if task.ends_with(":lifecycle-load") {
+                let mut loaded = registry.load(&request.input, &request.context);
+                diagnostics.append(&mut loaded.diagnostics);
+                loaded_input = Some(loaded);
+                return;
             }
-            return Ok(ConvertResponse {
-                primary: json!({
+
+            if task.ends_with(":select-export") {
+                let mut export = registry.select_export(request.target.as_ref(), request.to_format);
+                diagnostics.append(&mut export.diagnostics);
+                export_selection = Some(export);
+                return;
+            }
+
+            let mut loaded = loaded_input
+                .take()
+                .unwrap_or_else(|| registry.load(&request.input, &request.context));
+            diagnostics.append(&mut loaded.diagnostics);
+            let mut export = export_selection.take().unwrap_or_else(|| {
+                registry.select_export(request.target.as_ref(), request.to_format)
+            });
+            diagnostics.append(&mut export.diagnostics);
+            let to_format = export.to_format;
+
+            if to_format == LayerFormat::Cem && loaded.from_format == InputFormat::Cem {
+                let mut content = String::from_utf8_lossy(&loaded.bytes).into_owned();
+                if !content.is_empty() && !content.ends_with('\n') {
+                    content.push('\n');
+                }
+                primary = Some(json!({
                     "kind": "cem",
                     "content": content,
                     "sourceMap": null,
                     "outputSpans": [],
-                }),
-                diagnostics,
-            });
-        }
-
-        let from_format = loaded.from_format;
-        let run = run_pipeline_as(&loaded.bytes, from_format);
-        let primary = match to_format {
-            LayerFormat::Cem => {
-                let formatted = formatter::format_transform(
-                    &run.document,
-                    match from_format {
-                        InputFormat::Cem => "application/cem",
-                        InputFormat::Html => "text/html",
-                        InputFormat::Xml => "application/xml",
-                    },
-                );
-                json!({
-                    "kind": "cem",
-                    "content": formatted.rendered,
-                    "sourceMap": formatted.source_map,
-                    "outputSpans": formatted.output_spans.iter().map(|span| json!({
-                        "outputRange": span.output_range,
-                        "origin": span.origin,
-                    })).collect::<Vec<_>>(),
-                })
+                }));
+                return;
             }
-            LayerFormat::DomJson => projection::dom_json(&run.document),
-            LayerFormat::Ast => projection::ast_json(&run.document),
-            LayerFormat::Events => projection::events_json_as(&loaded.bytes, from_format),
+
+            let from_format = loaded.from_format;
+            let run = run_pipeline_as(&loaded.bytes, from_format);
+            primary = Some(match to_format {
+                LayerFormat::Cem => {
+                    let formatted = formatter::format_transform(
+                        &run.document,
+                        match from_format {
+                            InputFormat::Cem => "application/cem",
+                            InputFormat::Html => "text/html",
+                            InputFormat::Xml => "application/xml",
+                        },
+                    );
+                    json!({
+                        "kind": "cem",
+                        "content": formatted.rendered,
+                        "sourceMap": formatted.source_map,
+                        "outputSpans": formatted.output_spans.iter().map(|span| json!({
+                            "outputRange": span.output_range,
+                            "origin": span.origin,
+                        })).collect::<Vec<_>>(),
+                    })
+                }
+                LayerFormat::DomJson => projection::dom_json(&run.document),
+                LayerFormat::Ast => projection::ast_json(&run.document),
+                LayerFormat::Events => projection::events_json_as(&loaded.bytes, from_format),
+            });
+            diagnostics.extend(run.diagnostics);
+        });
+        let Some(primary) = primary else {
+            return Err(EngineError::Internal(
+                "scheduler did not dispatch convert task".to_owned(),
+            ));
         };
-        diagnostics.extend(run.diagnostics);
         Ok(ConvertResponse {
             primary,
             diagnostics,
+            scheduler_trace: crate::report::SchedulerTraceReport::from_trace(&trace),
         })
     }
 
@@ -935,9 +975,11 @@ mod tests {
             preserve_source_offsets: false,
             context: ctx(),
             target: None,
+            scheduler_scope_id: 0,
         };
         let resp = RealCemMlEngine::new().convert(req).unwrap();
         assert_eq!(resp.primary["kind"], "document");
+        assert_eq!(resp.scheduler_trace.event_count, 9);
     }
 
     #[test]
@@ -953,6 +995,7 @@ mod tests {
             preserve_source_offsets: true,
             context: ctx(),
             target: None,
+            scheduler_scope_id: 0,
         };
         let resp = RealCemMlEngine::new().convert(req).unwrap();
         assert_eq!(resp.primary["kind"], "cem");
@@ -994,6 +1037,7 @@ mod tests {
             preserve_source_offsets: true,
             context: ctx(),
             target: None,
+            scheduler_scope_id: 0,
         };
         let resp = RealCemMlEngine::new().convert(req).unwrap();
         assert_eq!(resp.primary["kind"], "cem");
@@ -1038,6 +1082,7 @@ mod tests {
                 ..ctx()
             },
             target: None,
+            scheduler_scope_id: 0,
         };
         let resp = RealCemMlEngine::new().convert(req).unwrap();
         assert_eq!(resp.primary["kind"], "cem");
@@ -1059,6 +1104,7 @@ mod tests {
                 content_type: Some("application/cem+xml".to_owned()),
                 ..FormatIdentity::default()
             }),
+            scheduler_scope_id: 0,
         };
         let resp = RealCemMlEngine::new().convert(req).unwrap();
         assert_eq!(resp.primary["kind"], "cem");

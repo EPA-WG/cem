@@ -6,7 +6,7 @@
 
 use crate::diagnostics::{Diagnostic, Severity};
 use crate::engine::*;
-use crate::report::{Report, ReportOptionsSnapshot};
+use crate::report::{Report, ReportOptionsSnapshot, SchedulerTraceReport};
 use serde_json::json;
 
 #[derive(Debug, Default)]
@@ -108,6 +108,7 @@ impl CemMlEngine for FakeEngine {
         Ok(ConvertResponse {
             primary,
             diagnostics: vec![],
+            scheduler_trace: SchedulerTraceReport::default(),
         })
     }
 

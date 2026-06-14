@@ -1,5 +1,5 @@
 use crate::diagnostics::Diagnostic;
-use crate::report::Report;
+use crate::report::{Report, SchedulerTraceReport};
 use crate::run_config::SchedulerConfig;
 use serde::{Deserialize, Serialize};
 use serde_json::Value;
@@ -160,6 +160,7 @@ pub struct ConvertRequest {
     pub preserve_source_offsets: bool,
     pub context: EngineContext,
     pub target: Option<FormatIdentity>,
+    pub scheduler_scope_id: u32,
 }
 
 #[derive(Debug, Clone)]
@@ -223,6 +224,8 @@ pub struct InspectResponse {
 pub struct ConvertResponse {
     pub primary: Value,
     pub diagnostics: Vec<Diagnostic>,
+    #[serde(rename = "schedulerTrace", default)]
+    pub scheduler_trace: SchedulerTraceReport,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]

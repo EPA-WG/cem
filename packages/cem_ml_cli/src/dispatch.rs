@@ -558,6 +558,7 @@ fn run_convert_fanout<E: CemMlEngine + ?Sized>(
     };
     let mut report_inputs = Vec::new();
     let mut report_diagnostics = Vec::new();
+    let mut report_scheduler_trace = cem_ml::report::SchedulerTraceReport::default();
 
     for (index, output) in config.outputs.iter().enumerate() {
         let destination = match output.destination.as_ref().map(PathBuf::from) {
@@ -574,11 +575,16 @@ fn run_convert_fanout<E: CemMlEngine + ?Sized>(
                     preserve_source_offsets: args.preserve_source_offsets,
                     context: context_with_config(&args.context, config),
                     target: output_target_identity(output),
+                    scheduler_scope_id: index as u32,
                 };
                 match engine.convert(req) {
                     Ok(resp) => {
                         report_inputs.push(input_uri);
                         report_diagnostics.extend(resp.diagnostics.clone());
+                        append_convert_scheduler_trace(
+                            &mut report_scheduler_trace,
+                            &resp.scheduler_trace,
+                        );
                         if let Err(e) = write_primary(&resp.primary, args.out.as_deref(), s) {
                             let _ = writeln!(s.stderr, "cem-ml: write failure: {e}");
                             return Outcome::code(EXIT_IO);
@@ -586,9 +592,9 @@ fn run_convert_fanout<E: CemMlEngine + ?Sized>(
                         write_diagnostics(&resp.diagnostics, s);
                         if let Err(e) = write_convert_report_if_requested(
                             args,
-                            config,
                             &report_inputs,
                             &report_diagnostics,
+                            &report_scheduler_trace,
                         ) {
                             let _ = writeln!(s.stderr, "cem-ml: convert report write failure: {e}");
                             return Outcome::code(EXIT_IO);
@@ -619,11 +625,13 @@ fn run_convert_fanout<E: CemMlEngine + ?Sized>(
             preserve_source_offsets: args.preserve_source_offsets,
             context: context_with_config(&args.context, config),
             target: output_target_identity(output),
+            scheduler_scope_id: index as u32,
         };
         match engine.convert(req) {
             Ok(resp) => {
                 report_inputs.push(input_uri);
                 report_diagnostics.extend(resp.diagnostics.clone());
+                append_convert_scheduler_trace(&mut report_scheduler_trace, &resp.scheduler_trace);
                 if let Err(e) = write_primary(&resp.primary, Some(destination.as_path()), s) {
                     let _ = writeln!(s.stderr, "cem-ml: write failure: {e}");
                     return Outcome::code(EXIT_IO);
@@ -634,9 +642,12 @@ fn run_convert_fanout<E: CemMlEngine + ?Sized>(
         }
     }
 
-    if let Err(e) =
-        write_convert_report_if_requested(args, config, &report_inputs, &report_diagnostics)
-    {
+    if let Err(e) = write_convert_report_if_requested(
+        args,
+        &report_inputs,
+        &report_diagnostics,
+        &report_scheduler_trace,
+    ) {
         let _ = writeln!(s.stderr, "cem-ml: convert report write failure: {e}");
         return Outcome::code(EXIT_IO);
     }
@@ -899,57 +910,33 @@ fn handle_run_config_diagnostics_report(
     Outcome::code(EXIT_USAGE_OR_RESERVED)
 }
 
-fn scheduler_trace_for_convert_report(
-    config: &RunConfig,
-    input_uris: &[String],
-) -> Result<cem_ml::scheduler::SchedulerTrace, EngineError> {
-    let trace = cem_ml::scheduler::SchedulerTrace::new();
-    let mut policy = if config.scheduler.thread_pool.as_deref() == Some("host") {
-        cem_ml::scheduler::ScopePolicy::host_root()
-    } else {
-        cem_ml::scheduler::ScopePolicy {
-            cpu_workers: 1,
-            queue_size: 8,
-            io_streams: 4,
-            memory_bytes: 8 * 1024 * 1024,
-            plugin_time_budget_ms: None,
-            overflow: cem_ml::scheduler::OverflowPolicy::Reject,
-        }
-    };
-    if let Some(max_parallel_documents) = config.scheduler.max_parallel_documents {
-        policy.cpu_workers = max_parallel_documents.max(1);
+fn append_convert_scheduler_trace(
+    combined: &mut cem_ml::report::SchedulerTraceReport,
+    trace: &cem_ml::report::SchedulerTraceReport,
+) {
+    for event in &trace.events {
+        let mut event = event.clone();
+        event.sequence = combined.events.len() as u64;
+        combined.events.push(event);
     }
-    let abort = cem_ml::scheduler::AbortSignal::new();
-    for (index, uri) in input_uris.iter().enumerate() {
-        let pool = cem_ml::scheduler::WorkerPool::new(index as u32, policy, trace.clone());
-        for task in ["load", "convert", "write"] {
-            pool.submit(format!("{uri}:{task}"), &abort)
-                .map_err(|err| {
-                    EngineError::Internal(format!("scheduler trace setup failed: {err}"))
-                })?;
-        }
-        pool.run_to_completion(&abort, |_| {});
-    }
-    Ok(trace)
+    combined.event_count = combined.events.len() as u64;
 }
 
 fn write_convert_report_if_requested(
     args: &cli::ConvertArgs,
-    config: &RunConfig,
     input_uris: &[String],
     diagnostics: &[cem_ml::diagnostics::Diagnostic],
+    scheduler_trace: &cem_ml::report::SchedulerTraceReport,
 ) -> io::Result<()> {
     if !report_requested(&args.report) {
         return Ok(());
     }
-    let trace = scheduler_trace_for_convert_report(config, input_uris)
-        .map_err(|err| io::Error::other(err.to_string()))?;
     let report = cem_ml::report::Report::deterministic(
         input_uris.to_vec(),
         diagnostics.to_vec(),
         report_options_snapshot(cli::FailLevel::Validate, &args.context),
     )
-    .with_scheduler_trace(&trace);
+    .with_scheduler_trace_report(scheduler_trace.clone());
     write_report_files(&report, &args.report, REPORT_BASENAME_CONVERT)
 }
 
@@ -1239,6 +1226,7 @@ pub fn run_convert<E: CemMlEngine + ?Sized>(
         preserve_source_offsets: args.preserve_source_offsets,
         context: context_with_config(&args.context, &config),
         target: convert_target_identity_with_config(&args, &config),
+        scheduler_scope_id: 0,
     };
     match engine.convert(req) {
         Ok(resp) => {
@@ -1248,9 +1236,12 @@ pub fn run_convert<E: CemMlEngine + ?Sized>(
                 return Outcome::code(EXIT_IO);
             }
             write_diagnostics(&resp.diagnostics, s);
-            if let Err(e) =
-                write_convert_report_if_requested(&args, &config, &[input_uri], &resp.diagnostics)
-            {
+            if let Err(e) = write_convert_report_if_requested(
+                &args,
+                &[input_uri],
+                &resp.diagnostics,
+                &resp.scheduler_trace,
+            ) {
                 let _ = writeln!(s.stderr, "cem-ml: convert report write failure: {e}");
                 return Outcome::code(EXIT_IO);
             }
@@ -1851,8 +1842,13 @@ mod tests {
         assert_eq!(report["summary"]["inputCount"], 1);
         assert_eq!(
             report["reportAst"]["schedulerTrace"]["events"][0]["task"],
-            format!("{}:load", input.display())
+            format!("{}:lifecycle-load", input.display())
         );
+        assert!(report["reportAst"]["schedulerTrace"]["events"]
+            .as_array()
+            .unwrap()
+            .iter()
+            .any(|event| event["task"] == format!("{}:convert", input.display())));
     }
 
     #[test]
