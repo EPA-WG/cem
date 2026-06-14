@@ -12,6 +12,9 @@ pub const ADAPTER_UNSUPPORTED_CODE: &str = "cem.lifecycle.adapter_unsupported";
 pub const TARGET_ADAPTER_AMBIGUOUS_CODE: &str = "cem.lifecycle.target_adapter_ambiguous";
 pub const TARGET_ADAPTER_UNSUPPORTED_CODE: &str = "cem.lifecycle.target_adapter_unsupported";
 
+const HTML_NAMESPACE: &str = "http://www.w3.org/1999/xhtml";
+const SVG_NAMESPACE: &str = "http://www.w3.org/2000/svg";
+
 #[derive(Debug, Clone)]
 pub struct LoadedInput {
     pub bytes: Vec<u8>,
@@ -389,6 +392,10 @@ impl LifecycleAdapter for HtmlAdapter {
 
     fn matches_input(&self, identity: &FormatIdentity) -> bool {
         matches_content_type(identity, &["text/html", "application/xhtml+xml"])
+            || matches_namespace_without_content_type_or_schema(
+                identity,
+                &[HTML_NAMESPACE, SVG_NAMESPACE],
+            )
     }
 
     fn load(&self, input: &EngineInput, _: &FormatIdentity) -> LoadedInput {
@@ -597,6 +604,41 @@ mod tests {
     }
 
     #[test]
+    fn html_namespace_selects_html_input_when_content_type_and_schema_absent() {
+        let mut source = input(b"<p>Hi</p>");
+        source.identity = Some(FormatIdentity {
+            default_namespace: Some(HTML_NAMESPACE.to_owned()),
+            ..FormatIdentity::default()
+        });
+
+        let loaded =
+            LifecycleRegistry::with_builtin_adapters().load(&source, &EngineContext::default());
+
+        assert_eq!(loaded.from_format, InputFormat::Html);
+        assert_eq!(loaded.adapter_id, Some("html"));
+        assert!(loaded.diagnostics.is_empty());
+    }
+
+    #[test]
+    fn svg_namespace_selects_html_input_when_content_type_and_schema_absent() {
+        let mut source = input(b"<svg><title>Hi</title></svg>");
+        source.identity = Some(FormatIdentity {
+            namespaces: std::collections::BTreeMap::from([(
+                "svg".to_owned(),
+                SVG_NAMESPACE.to_owned(),
+            )]),
+            ..FormatIdentity::default()
+        });
+
+        let loaded =
+            LifecycleRegistry::with_builtin_adapters().load(&source, &EngineContext::default());
+
+        assert_eq!(loaded.from_format, InputFormat::Html);
+        assert_eq!(loaded.adapter_id, Some("html"));
+        assert!(loaded.diagnostics.is_empty());
+    }
+
+    #[test]
     fn unknown_namespace_falls_back_to_input_format_with_warning() {
         let mut source = input(b"<p>Hi</p>");
         source.from_format = Some(InputFormat::Html);
@@ -684,6 +726,35 @@ mod tests {
             .select_export(Some(&target), LayerFormat::DomJson);
         assert_eq!(selected.to_format, LayerFormat::Cem);
         assert_eq!(selected.adapter_id, Some("cem-ml"));
+        assert!(selected.diagnostics.is_empty());
+    }
+
+    #[test]
+    fn html_namespace_selects_html_export_when_content_type_and_schema_absent() {
+        let target = FormatIdentity {
+            default_namespace: Some(HTML_NAMESPACE.to_owned()),
+            ..FormatIdentity::default()
+        };
+        let selected = LifecycleRegistry::with_builtin_adapters()
+            .select_export(Some(&target), LayerFormat::DomJson);
+        assert_eq!(selected.to_format, LayerFormat::Html);
+        assert_eq!(selected.adapter_id, Some("html"));
+        assert!(selected.diagnostics.is_empty());
+    }
+
+    #[test]
+    fn svg_namespace_selects_html_export_when_content_type_and_schema_absent() {
+        let target = FormatIdentity {
+            namespaces: std::collections::BTreeMap::from([(
+                "svg".to_owned(),
+                SVG_NAMESPACE.to_owned(),
+            )]),
+            ..FormatIdentity::default()
+        };
+        let selected = LifecycleRegistry::with_builtin_adapters()
+            .select_export(Some(&target), LayerFormat::DomJson);
+        assert_eq!(selected.to_format, LayerFormat::Html);
+        assert_eq!(selected.adapter_id, Some("html"));
         assert!(selected.diagnostics.is_empty());
     }
 

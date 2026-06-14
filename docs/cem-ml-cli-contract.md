@@ -102,8 +102,8 @@ Current implementation status:
   `cem_ml`; WASM exposes helpers over the same library parser. This is the first
   execution slice: input specs override global input content-type/schema/base URI during
   lifecycle dispatch, and the first output spec can select conversion target content
-  type plus destination. Config diagnostics for malformed JSON, unsupported config
-  content type, duplicate input URIs, and unknown output input references fail before
+  type, schema, namespace identity, and destination. Config diagnostics for malformed JSON,
+  unsupported config content type, duplicate input URIs, and unknown output input references fail before
   document parsing. `--observe-events` uses the same normalized input list and
   lifecycle dispatch path as parser-backed commands, including `--input-spec` and
   `--config` inputs. Config-file convert execution fans out multiple `outputs[]`
@@ -145,12 +145,14 @@ Current implementation status:
   for parser-backed commands (`parse`, `validate`, `check`, `inspect`, `convert`,
   `trace`, `bench`, and fixture workflows). CEM core schema or namespace identity
   (`https://cem.dev/ns/core/1`) selects the CEM adapter when no content type is present,
-  while explicit content type remains authoritative. Unsupported input identities emit
-  deterministic lifecycle diagnostics with the declared content type, schema, and/or
-  namespace while preserving the fallback input format. CEM/HTML target export selection is registry-owned
-  for `convert --to-content-type application/cem+xml`,
+  and HTML/SVG namespace identity selects the HTML adapter when no content type or schema
+  is present, while explicit content type remains authoritative. Unsupported input identities
+  emit deterministic lifecycle diagnostics with the declared content type, schema, and/or
+  namespace while preserving the fallback input format. CEM/HTML target export selection is
+  registry-owned for `convert --to-content-type application/cem+xml`,
   `convert --to-schema https://cem.dev/ns/core/1`, and
-  `convert --to-content-type text/html` / `application/xhtml+xml`; unsupported target
+  `convert --to-content-type text/html` / `application/xhtml+xml`, plus namespace-only
+  CEM core and HTML/SVG targets; unsupported target
   identities emit a deterministic lifecycle diagnostic with the declared content type,
   schema, and/or namespace while preserving the requested fallback output projection. Remaining
   non-CEM schema/namespace-specific export adapters are still pending.

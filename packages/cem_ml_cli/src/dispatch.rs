@@ -1939,6 +1939,29 @@ mod tests {
     }
 
     #[test]
+    fn validate_html_namespace_selects_html_input_adapter() {
+        let p = write_fixture("validate-html-namespace.data", "<p>Hi</p>");
+        let (outcome, stdout, stderr) = run(
+            &RealCemMlEngine::new(),
+            &[
+                "validate",
+                "--format",
+                "json",
+                "--default-namespace",
+                "http://www.w3.org/1999/xhtml",
+                p.to_str().unwrap(),
+            ],
+        );
+
+        assert_eq!(outcome.exit_code, EXIT_OK, "{stderr}");
+        let v: serde_json::Value = serde_json::from_str(stdout.trim()).unwrap();
+        let diagnostics = v["diagnostics"].as_array().unwrap();
+        assert!(!diagnostics
+            .iter()
+            .any(|diag| diag["code"] == "cem.lifecycle.adapter_unsupported"));
+    }
+
+    #[test]
     fn validate_applies_base_uri_to_report_inputs_and_diagnostics() {
         let p = PathBuf::from("dist/target/cem_ml_cli/base-uri-input.cem");
         std::fs::create_dir_all(p.parent().unwrap()).unwrap();
@@ -3542,6 +3565,28 @@ mod tests {
         let v: serde_json::Value = serde_json::from_str(stdout.trim()).unwrap();
         assert_eq!(v["kind"], "cem");
         assert_eq!(v["content"], "@doc cem-ml 1\n{p | Hi}\n");
+    }
+
+    #[test]
+    fn convert_to_default_namespace_html_selects_html_export_adapter() {
+        let p = write_fixture(
+            "convert-target-html-default-namespace.cem",
+            "@doc cem-ml 1\n{p | Hi}",
+        );
+        let (outcome, stdout, stderr) = run(
+            &RealCemMlEngine::new(),
+            &[
+                "convert",
+                "--default-namespace",
+                "http://www.w3.org/1999/xhtml",
+                p.to_str().unwrap(),
+            ],
+        );
+
+        assert_eq!(outcome.exit_code, EXIT_OK, "{stderr}");
+        let v: serde_json::Value = serde_json::from_str(stdout.trim()).unwrap();
+        assert_eq!(v["kind"], "html");
+        assert_eq!(v["content"], "<p>Hi</p>");
     }
 
     #[test]

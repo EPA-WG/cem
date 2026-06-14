@@ -16,12 +16,14 @@ for the current architecture have landed; only deferred capability work remains 
       `--from-format` / `--to-format` as compatibility aliases while adding explicit input/output content-type and
       schema selection.
       Built-in input content-type dispatch is now registry-backed across parser-backed commands. CEM core schema or
-      namespace identity (`https://cem.dev/ns/core/1`) selects the CEM adapter when no content type is present, while
-      explicit content type remains authoritative. Unsupported input identities now emit deterministic lifecycle diagnostics with
-      the declared content type, schema, and/or namespace while preserving the fallback input format. CEM/HTML target export is
-      registry-owned for `--to-content-type
-      application/cem+xml`, `--to-schema https://cem.dev/ns/core/1`, `--to-content-type text/html`, and
-      `--to-content-type application/xhtml+xml`; unsupported target identities now emit a deterministic lifecycle
+      namespace identity (`https://cem.dev/ns/core/1`) selects the CEM adapter when no content type is present, and
+      HTML/SVG namespace identity selects the HTML adapter when no content type or schema is present, while
+      explicit content type remains authoritative. Unsupported input identities now emit deterministic lifecycle
+      diagnostics with the declared content type, schema, and/or namespace while preserving the fallback input format.
+      CEM/HTML target export is registry-owned for `--to-content-type application/cem+xml`,
+      `--to-schema https://cem.dev/ns/core/1`, `--to-content-type text/html`,
+      `--to-content-type application/xhtml+xml`, plus namespace-only CEM core and HTML/SVG targets; unsupported target
+      identities now emit a deterministic lifecycle
       diagnostic with the declared content type, schema, and/or namespace while preserving the requested fallback output projection.
       Keep this item open until remaining non-CEM schema/namespace-specific selection and remaining non-CEM target
       export adapters are registry-owned too.
