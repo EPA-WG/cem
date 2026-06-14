@@ -5,6 +5,7 @@
 
 use crate::diagnostics::{Diagnostic, Severity};
 use crate::engine::{EngineContext, EngineInput, FormatIdentity, InputFormat, LayerFormat};
+use crate::schema::ir::CEM_CORE_NAMESPACE;
 
 pub const ADAPTER_AMBIGUOUS_CODE: &str = "cem.lifecycle.adapter_ambiguous";
 pub const TARGET_ADAPTER_AMBIGUOUS_CODE: &str = "cem.lifecycle.target_adapter_ambiguous";
@@ -185,6 +186,27 @@ fn matches_content_type(identity: &FormatIdentity, allowed: &[&str]) -> bool {
         .unwrap_or(false)
 }
 
+fn has_content_type(identity: &FormatIdentity) -> bool {
+    identity
+        .content_type
+        .as_deref()
+        .map(|content_type| !content_type.trim().is_empty())
+        .unwrap_or(false)
+}
+
+fn matches_schema(identity: &FormatIdentity, allowed: &[&str]) -> bool {
+    identity
+        .schema
+        .as_deref()
+        .map(str::trim)
+        .map(|schema| allowed.contains(&schema))
+        .unwrap_or(false)
+}
+
+fn matches_schema_without_content_type(identity: &FormatIdentity, allowed: &[&str]) -> bool {
+    !has_content_type(identity) && matches_schema(identity, allowed)
+}
+
 fn content_type_essence(content_type: &str) -> String {
     content_type
         .split(';')
@@ -210,7 +232,7 @@ impl LifecycleAdapter for CemMlAdapter {
                 "text/cem",
                 "text/cem-ml",
             ],
-        )
+        ) || matches_schema_without_content_type(identity, &[CEM_CORE_NAMESPACE])
     }
 
     fn load(&self, input: &EngineInput, _: &FormatIdentity) -> LoadedInput {
@@ -364,9 +386,65 @@ mod tests {
     }
 
     #[test]
+    fn cem_core_schema_selects_cem_input_when_content_type_absent() {
+        let loaded = LifecycleRegistry::with_builtin_adapters().load(
+            &input(b"@doc cem-ml 1\n{p | Hi}"),
+            &EngineContext {
+                schema: Some(CEM_CORE_NAMESPACE.to_owned()),
+                ..EngineContext::default()
+            },
+        );
+        assert_eq!(loaded.from_format, InputFormat::Cem);
+        assert_eq!(loaded.adapter_id, Some("cem-ml"));
+        assert!(loaded.diagnostics.is_empty());
+    }
+
+    #[test]
+    fn content_type_takes_precedence_over_cem_core_schema_for_input() {
+        let loaded = LifecycleRegistry::with_builtin_adapters().load(
+            &input(b"<p>Hi</p>"),
+            &EngineContext {
+                content_type: Some("text/html".to_owned()),
+                schema: Some(CEM_CORE_NAMESPACE.to_owned()),
+                ..EngineContext::default()
+            },
+        );
+        assert_eq!(loaded.from_format, InputFormat::Html);
+        assert_eq!(loaded.adapter_id, Some("html"));
+        assert!(loaded.diagnostics.is_empty());
+    }
+
+    #[test]
     fn html_target_content_type_selects_html_export() {
         let target = FormatIdentity {
             content_type: Some("text/html; charset=utf-8".to_owned()),
+            ..FormatIdentity::default()
+        };
+        let selected = LifecycleRegistry::with_builtin_adapters()
+            .select_export(Some(&target), LayerFormat::DomJson);
+        assert_eq!(selected.to_format, LayerFormat::Html);
+        assert_eq!(selected.adapter_id, Some("html"));
+        assert!(selected.diagnostics.is_empty());
+    }
+
+    #[test]
+    fn cem_core_schema_selects_cem_export_when_content_type_absent() {
+        let target = FormatIdentity {
+            schema: Some(CEM_CORE_NAMESPACE.to_owned()),
+            ..FormatIdentity::default()
+        };
+        let selected = LifecycleRegistry::with_builtin_adapters()
+            .select_export(Some(&target), LayerFormat::DomJson);
+        assert_eq!(selected.to_format, LayerFormat::Cem);
+        assert_eq!(selected.adapter_id, Some("cem-ml"));
+        assert!(selected.diagnostics.is_empty());
+    }
+
+    #[test]
+    fn content_type_takes_precedence_over_cem_core_schema_for_export() {
+        let target = FormatIdentity {
+            content_type: Some("text/html".to_owned()),
+            schema: Some(CEM_CORE_NAMESPACE.to_owned()),
             ..FormatIdentity::default()
         };
         let selected = LifecycleRegistry::with_builtin_adapters()

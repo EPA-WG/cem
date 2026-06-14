@@ -140,9 +140,13 @@ Current implementation status:
 - `--schema` and `--content-type` are carried in `EngineContext` and emitted in reports.
   `cem_ml::lifecycle::LifecycleRegistry` now owns built-in input content-type dispatch
   for parser-backed commands (`parse`, `validate`, `check`, `inspect`, `convert`,
-  `trace`, `bench`, and fixture workflows) and CEM/HTML target export selection for
-  `convert --to-content-type application/cem+xml` and `convert --to-content-type text/html`;
-  schema-specific adapter selection is still pending.
+  `trace`, `bench`, and fixture workflows). CEM core schema identity
+  (`https://cem.dev/ns/core/1`) selects the CEM adapter when no content type is present,
+  while explicit content type remains authoritative. CEM/HTML target export selection is
+  registry-owned for `convert --to-content-type application/cem+xml`,
+  `convert --to-schema https://cem.dev/ns/core/1`, and
+  `convert --to-content-type text/html`; remaining schema/namespace-specific adapter
+  selection is still pending.
 - Root-scope configuration is not complete yet. Current execution uses run-config identity
   fields for lifecycle dispatch and conversion output selection, recognized scheduler
   policy/budget fields for scheduled worker policy, `parseMs` for parser-backed

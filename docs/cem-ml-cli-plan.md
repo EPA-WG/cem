@@ -84,9 +84,11 @@ the immediate CLI lifecycle contract.
    repeatable `--input-spec`, and repeatable `--output-spec`; WASM exposes JSON
    normalization and CSV spec parsing helpers over the same library parser. Input specs
    override global input identity for lifecycle dispatch, and the first output spec can
-   select conversion target identity/destination. Config diagnostics for malformed JSON,
-   unsupported config content type, duplicate input URIs, and unknown output input
-   references fail before document parsing. `--observe-events` consumes the same
+   select conversion target identity/destination. CEM core schema identity
+   (`https://cem.dev/ns/core/1`) now selects the CEM adapter when no content type is
+   present, while explicit content type remains authoritative. Config diagnostics for
+   malformed JSON, unsupported config content type, duplicate input URIs, and unknown
+   output input references fail before document parsing. `--observe-events` consumes the same
    normalized input list and lifecycle dispatch path as parser-backed commands, including
    `--input-spec` and `--config` inputs. Config-file convert execution fans out multiple
    `outputs[]` records, using `inputRef` or the sole configured input for each output.
