@@ -651,16 +651,62 @@ fn resolve_relative_path_like(value: &str, base_uri: Option<&str>) -> Option<Str
         return None;
     }
     let base = base_uri?.trim();
-    if base.is_empty() || has_uri_scheme(base) {
+    if base.is_empty() {
         return None;
     }
-    let base_path = std::path::Path::new(base);
+
+    let local_file_base;
+    let base_path = if has_uri_scheme(base) {
+        local_file_base = local_file_uri_to_path(base)?;
+        local_file_base.as_path()
+    } else {
+        std::path::Path::new(base)
+    };
     let base_dir = if base.ends_with('/') {
         base_path
     } else {
         base_path.parent()?
     };
     Some(base_dir.join(trimmed).to_string_lossy().into_owned())
+}
+
+fn local_file_uri_to_path(uri: &str) -> Option<std::path::PathBuf> {
+    let rest = uri.strip_prefix("file://")?;
+    let path = if let Some(localhost_path) = rest.strip_prefix("localhost/") {
+        format!("/{localhost_path}")
+    } else if rest.starts_with('/') {
+        rest.to_owned()
+    } else {
+        return None;
+    };
+    percent_decode_uri_path(&path).map(std::path::PathBuf::from)
+}
+
+fn percent_decode_uri_path(path: &str) -> Option<String> {
+    let bytes = path.as_bytes();
+    let mut decoded = Vec::with_capacity(bytes.len());
+    let mut index = 0;
+    while index < bytes.len() {
+        if bytes[index] == b'%' {
+            let high = *bytes.get(index + 1)?;
+            let low = *bytes.get(index + 2)?;
+            decoded.push((hex_value(high)? << 4) | hex_value(low)?);
+            index += 3;
+        } else {
+            decoded.push(bytes[index]);
+            index += 1;
+        }
+    }
+    String::from_utf8(decoded).ok()
+}
+
+fn hex_value(byte: u8) -> Option<u8> {
+    match byte {
+        b'0'..=b'9' => Some(byte - b'0'),
+        b'a'..=b'f' => Some(byte - b'a' + 10),
+        b'A'..=b'F' => Some(byte - b'A' + 10),
+        _ => None,
+    }
 }
 
 pub fn infer_content_type_from_path(path: &str) -> Option<String> {
@@ -959,6 +1005,46 @@ mod tests {
                 .default_content_type
                 .as_deref(),
             Some("application/cem+xml")
+        );
+    }
+
+    #[test]
+    fn normalize_run_config_resolves_relative_paths_against_local_file_uri_config_path() {
+        let response = normalize_run_config(
+            RunConfig {
+                inputs: vec![InputSpec {
+                    uri: "src/a.cem".to_owned(),
+                    root_scope: ScopeConfig {
+                        module_map: Some("cem.modules.json".to_owned()),
+                        ..ScopeConfig::default()
+                    },
+                }],
+                outputs: vec![OutputSpec {
+                    destination: Some("dist/a.cem".to_owned()),
+                    root_scope: ScopeConfig {
+                        module_map: Some("out.modules.json".to_owned()),
+                        ..ScopeConfig::default()
+                    },
+                    ..OutputSpec::default()
+                }],
+                ..RunConfig::default()
+            },
+            RunConfigDefaults::default(),
+            Some("file:///workspace/configs/with%20space/run.json"),
+        );
+
+        assert!(response.diagnostics.is_empty());
+        assert_eq!(
+            response.config.inputs[0].root_scope.module_map.as_deref(),
+            Some("/workspace/configs/with space/cem.modules.json")
+        );
+        assert_eq!(
+            response.config.outputs[0].root_scope.module_map.as_deref(),
+            Some("/workspace/configs/with space/out.modules.json")
+        );
+        assert_eq!(
+            response.config.outputs[0].destination.as_deref(),
+            Some("/workspace/configs/with space/dist/a.cem")
         );
     }
 

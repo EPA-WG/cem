@@ -114,9 +114,10 @@ the immediate CLI lifecycle contract.
    Input root-scope module maps provide the resolver base for
    relative schema `src` identities, load local JSON alias maps from paths and local
    `file://` URIs for schema-source specifier resolution, and normalize relative
-   module-map paths against the config document path. Config-file output destinations
-   normalize relative paths against the config document path, including local
-   `file://` config documents. Configured, positional, and fixture-materialized input
+   module-map paths against the config document path, including local `file://`
+   config document bases. Config-file output destinations normalize relative paths
+   against the config document path, including local `file://` config document bases.
+   Configured, positional, and fixture-materialized input
    reads resolve local `file://` URIs, and primary output, side-report, and
    observability event writes resolve local `file://` destinations to filesystem paths.
    Run-config normalization validates root-scope module-map,

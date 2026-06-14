@@ -159,10 +159,10 @@ Current implementation status:
   Default and named namespace maps seed schema validation's root namespace context.
   Recognized CEM-ML version pins resolve through the document-format
   version resolver. Input module maps resolve relative schema-source identities and
-  local JSON aliases, including config-relative module-map paths and local `file://`
-  module-map URIs. Config-file output
+  local JSON aliases, including config-relative module-map paths, local `file://`
+  module-map URIs, and local `file://` config document bases. Config-file output
   destinations normalize relative paths against the config document path, including
-  local `file://` config documents. Configured, positional, and fixture-materialized
+  local `file://` config document bases. Configured, positional, and fixture-materialized
   input reads resolve local `file://` URIs, and primary output, side-report, and
   observability event writes resolve local `file://` destinations to filesystem paths;
   remote/custom
