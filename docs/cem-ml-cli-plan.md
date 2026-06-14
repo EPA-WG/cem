@@ -88,8 +88,9 @@ the immediate CLI lifecycle contract.
    unsupported config content type, duplicate input URIs, and unknown output input
    references fail before document parsing. `--observe-events` consumes the same
    normalized input list and lifecycle dispatch path as parser-backed commands, including
-   `--input-spec` and `--config` inputs. Multi-output fanout and scheduler ownership
-   remain open.
+   `--input-spec` and `--config` inputs. Config-file convert execution fans out multiple
+   `outputs[]` records, using `inputRef` or the sole configured input for each output.
+   Scheduler ownership remains open.
 7. Update CLI flags without breaking current debug workflows:
     - keep `--from-format` and `--to-format` as aliases for built-in identities;
     - keep `--content-type` as the input content type for `parse`, `validate`, `check`,

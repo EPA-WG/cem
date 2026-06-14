@@ -473,6 +473,145 @@ fn convert_output_destination(args: &cli::ConvertArgs, config: &RunConfig) -> Op
     })
 }
 
+fn convert_configured_inputs(
+    args: &cli::ConvertArgs,
+    config: &RunConfig,
+    positional_defaults: &ScopeConfig,
+) -> Result<Vec<eng::EngineInput>, CliRequestError> {
+    let mut inputs = Vec::new();
+    if let Some(path) = args.input.as_deref() {
+        inputs.push(
+            engine_input(
+                path,
+                args.from_format,
+                positional_input_identity(path, positional_defaults),
+            )
+            .map_err(CliRequestError::Engine)?,
+        );
+    }
+    for spec in &config.inputs {
+        inputs.push(engine_input_from_spec(spec, args.from_format)?);
+    }
+    Ok(inputs)
+}
+
+fn convert_input_for_output(
+    output: &OutputSpec,
+    output_index: usize,
+    inputs: &[eng::EngineInput],
+) -> Result<eng::EngineInput, CliRequestError> {
+    if let Some(input_ref) = output.input_ref.as_deref() {
+        return inputs
+            .iter()
+            .find(|input| input.uri == input_ref)
+            .cloned()
+            .ok_or_else(|| {
+                CliRequestError::Usage(format!(
+                    "output spec at index {output_index} references unknown input `{input_ref}`"
+                ))
+            });
+    }
+
+    match inputs {
+        [input] => Ok(input.clone()),
+        [] => Err(CliRequestError::Usage(
+            "convert requires one input, --input-spec, or output input references".to_owned(),
+        )),
+        _ => Err(CliRequestError::Usage(format!(
+            "output spec at index {output_index} requires `input` when multiple inputs are configured"
+        ))),
+    }
+}
+
+fn output_target_identity(output: &OutputSpec) -> Option<eng::FormatIdentity> {
+    output.root_scope.format_identity_option()
+}
+
+fn run_convert_fanout<E: CemMlEngine + ?Sized>(
+    engine: &E,
+    args: &cli::ConvertArgs,
+    config: &RunConfig,
+    positional_defaults: &ScopeConfig,
+    s: &mut Streams<'_>,
+) -> Outcome {
+    if args.out.is_some() && config.outputs.len() > 1 {
+        return handle_cli_request_error(
+            CliRequestError::Usage(
+                "convert with multiple --output-spec records requires per-output `dest`, not --out"
+                    .to_owned(),
+            ),
+            s,
+        );
+    }
+
+    let inputs = match convert_configured_inputs(args, config, positional_defaults) {
+        Ok(inputs) => inputs,
+        Err(err) => return handle_cli_request_error(err, s),
+    };
+
+    for (index, output) in config.outputs.iter().enumerate() {
+        let destination = match output.destination.as_ref().map(PathBuf::from) {
+            Some(destination) => destination,
+            None if config.outputs.len() == 1 => {
+                let input = match convert_input_for_output(output, index, &inputs) {
+                    Ok(input) => input,
+                    Err(err) => return handle_cli_request_error(err, s),
+                };
+                let req = eng::ConvertRequest {
+                    input,
+                    to_format: to_engine_layer_format(args.to_format),
+                    preserve_source_offsets: args.preserve_source_offsets,
+                    context: context(&args.context),
+                    target: output_target_identity(output),
+                };
+                match engine.convert(req) {
+                    Ok(resp) => {
+                        if let Err(e) = write_primary(&resp.primary, args.out.as_deref(), s) {
+                            let _ = writeln!(s.stderr, "cem-ml: write failure: {e}");
+                            return Outcome::code(EXIT_IO);
+                        }
+                        write_diagnostics(&resp.diagnostics, s);
+                        return Outcome::ok();
+                    }
+                    Err(e) => return handle_engine_error(e, s),
+                }
+            }
+            None => {
+                return handle_cli_request_error(
+                    CliRequestError::Usage(format!(
+                        "output spec at index {index} requires `dest` for multi-output convert"
+                    )),
+                    s,
+                );
+            }
+        };
+
+        let input = match convert_input_for_output(output, index, &inputs) {
+            Ok(input) => input,
+            Err(err) => return handle_cli_request_error(err, s),
+        };
+        let req = eng::ConvertRequest {
+            input,
+            to_format: to_engine_layer_format(args.to_format),
+            preserve_source_offsets: args.preserve_source_offsets,
+            context: context(&args.context),
+            target: output_target_identity(output),
+        };
+        match engine.convert(req) {
+            Ok(resp) => {
+                if let Err(e) = write_primary(&resp.primary, Some(destination.as_path()), s) {
+                    let _ = writeln!(s.stderr, "cem-ml: write failure: {e}");
+                    return Outcome::code(EXIT_IO);
+                }
+                write_diagnostics(&resp.diagnostics, s);
+            }
+            Err(e) => return handle_engine_error(e, s),
+        }
+    }
+
+    Outcome::ok()
+}
+
 fn handle_cli_request_error(err: CliRequestError, s: &mut Streams<'_>) -> Outcome {
     match err {
         CliRequestError::Usage(msg) => {
@@ -990,6 +1129,9 @@ pub fn run_convert<E: CemMlEngine + ?Sized>(
         Ok(config) => config,
         Err(err) => return handle_cli_request_error(err, s),
     };
+    if !config.outputs.is_empty() {
+        return run_convert_fanout(engine, &args, &config, &input_defaults, s);
+    }
     let input = match single_configured_input(
         args.input.as_deref(),
         args.from_format,
@@ -1535,6 +1677,82 @@ mod tests {
         let v: serde_json::Value = serde_json::from_str(&written).unwrap();
         assert_eq!(v["kind"], "cem");
         assert_eq!(v["content"], "{cem:if @test=\"ready\" | {button | Go}}\n");
+    }
+
+    #[test]
+    fn convert_config_fans_out_multiple_outputs() {
+        let first = write_fixture("convert-fanout-first.cem", "{p First}");
+        let second = write_fixture("convert-fanout-second.cem", "{p Second}");
+        let first_out = std::env::temp_dir().join("cem-ml-cli-tests/convert-fanout-first.json");
+        let second_out = std::env::temp_dir().join("cem-ml-cli-tests/convert-fanout-second.json");
+        let config_path = std::env::temp_dir().join("cem-ml-cli-tests/convert-fanout.json");
+        let _ = std::fs::remove_file(&first_out);
+        let _ = std::fs::remove_file(&second_out);
+        std::fs::write(
+            &config_path,
+            serde_json::json!({
+                "inputs": [
+                    { "uri": first.display().to_string() },
+                    { "uri": second.display().to_string() }
+                ],
+                "outputs": [
+                    {
+                        "inputRef": first.display().to_string(),
+                        "destination": first_out.display().to_string(),
+                        "rootScope": { "defaultContentType": "application/cem+xml" }
+                    },
+                    {
+                        "inputRef": second.display().to_string(),
+                        "destination": second_out.display().to_string(),
+                        "rootScope": { "defaultContentType": "application/cem+xml" }
+                    }
+                ]
+            })
+            .to_string(),
+        )
+        .unwrap();
+
+        let (outcome, stdout, stderr) = run(
+            &RealCemMlEngine::new(),
+            &["convert", "--config", config_path.to_str().unwrap()],
+        );
+        assert_eq!(outcome.exit_code, EXIT_OK, "{stderr}");
+        assert!(stdout.trim().is_empty());
+
+        let first_written = std::fs::read_to_string(&first_out).unwrap();
+        let first_json: serde_json::Value = serde_json::from_str(&first_written).unwrap();
+        assert_eq!(first_json["content"], "{p First}\n");
+        let second_written = std::fs::read_to_string(&second_out).unwrap();
+        let second_json: serde_json::Value = serde_json::from_str(&second_written).unwrap();
+        assert_eq!(second_json["content"], "{p Second}\n");
+    }
+
+    #[test]
+    fn convert_config_multi_input_output_requires_input_ref() {
+        let first = write_fixture("convert-fanout-ambiguous-first.cem", "{p First}");
+        let second = write_fixture("convert-fanout-ambiguous-second.cem", "{p Second}");
+        let out_path = std::env::temp_dir().join("cem-ml-cli-tests/convert-fanout-ambiguous.json");
+        let config_path =
+            std::env::temp_dir().join("cem-ml-cli-tests/convert-fanout-ambiguous.json");
+        std::fs::write(
+            &config_path,
+            serde_json::json!({
+                "inputs": [
+                    { "uri": first.display().to_string() },
+                    { "uri": second.display().to_string() }
+                ],
+                "outputs": [{ "destination": out_path.display().to_string() }]
+            })
+            .to_string(),
+        )
+        .unwrap();
+
+        let (outcome, _, stderr) = run(
+            &RealCemMlEngine::new(),
+            &["convert", "--config", config_path.to_str().unwrap()],
+        );
+        assert_eq!(outcome.exit_code, EXIT_USAGE_OR_RESERVED);
+        assert!(stderr.contains("requires `input`"));
     }
 
     #[test]
