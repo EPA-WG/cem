@@ -122,11 +122,11 @@ the immediate CLI lifecycle contract.
    observability event writes resolve local `file://` destinations to filesystem paths.
    Run-config normalization validates root-scope module-map,
    namespace, and version-pin option shape before document parsing, while unreadable or
-   malformed module maps, unknown budget keys, unsupported version-pin targets, and
-   unsupported remaining budget hooks emit deterministic execution diagnostics instead
-   of being silently ignored. Remote/custom module-map resolver semantics,
-   remote/custom output resolver semantics, and those remaining budget hooks remain
-   open.
+   malformed module maps, unknown future budget keys, and unsupported version-pin
+   targets emit deterministic execution diagnostics instead of being silently ignored.
+   CLI file-write paths reject remote/custom URI destinations instead of treating them
+   as local paths. Remote/custom module-map resolver semantics and real remote/custom
+   output resolver semantics remain open.
 7. Update CLI flags without breaking current debug workflows:
     - keep `--from-format` and `--to-format` as aliases for built-in identities;
     - keep `--content-type` as the input content type for `parse`, `validate`, `check`,

@@ -755,16 +755,23 @@ fn primary_output_path(path: &Path) -> io::Result<Cow<'_, Path>> {
 
 fn local_file_uri_path<'a>(path: &'a Path, label: &str) -> io::Result<Cow<'a, Path>> {
     let raw = path.to_string_lossy();
-    if !raw.starts_with("file://") {
-        return Ok(Cow::Borrowed(path));
+    if raw.starts_with("file://") {
+        return local_file_uri_to_path(&raw).map(Cow::Owned).ok_or_else(|| {
+            io::Error::new(
+                io::ErrorKind::InvalidInput,
+                format!("unsupported {label} `{raw}`; only local file:// URIs are supported"),
+            )
+        });
     }
 
-    local_file_uri_to_path(&raw).map(Cow::Owned).ok_or_else(|| {
-        io::Error::new(
+    if uri_scheme(&raw).is_some() && !is_windows_drive_path(&raw) {
+        return Err(io::Error::new(
             io::ErrorKind::InvalidInput,
-            format!("unsupported {label} `{raw}`; only local file:// URIs are supported"),
-        )
-    })
+            format!("unsupported {label} `{raw}`; remote/custom URI resolvers are not implemented"),
+        ));
+    }
+
+    Ok(Cow::Borrowed(path))
 }
 
 fn local_file_uri_to_path(uri: &str) -> Option<PathBuf> {
@@ -778,6 +785,31 @@ fn local_file_uri_to_path(uri: &str) -> Option<PathBuf> {
     };
 
     percent_decode_uri_path(&path).map(PathBuf::from)
+}
+
+fn uri_scheme(value: &str) -> Option<&str> {
+    let (scheme, _) = value.split_once(':')?;
+    if !scheme.is_empty()
+        && scheme
+            .chars()
+            .next()
+            .is_some_and(|ch| ch.is_ascii_alphabetic())
+        && scheme
+            .chars()
+            .all(|ch| ch.is_ascii_alphanumeric() || matches!(ch, '+' | '-' | '.'))
+    {
+        Some(scheme)
+    } else {
+        None
+    }
+}
+
+fn is_windows_drive_path(value: &str) -> bool {
+    let bytes = value.as_bytes();
+    bytes.len() >= 3
+        && bytes[0].is_ascii_alphabetic()
+        && bytes[1] == b':'
+        && matches!(bytes[2], b'/' | b'\\')
 }
 
 fn percent_decode_uri_path(path: &str) -> Option<String> {
@@ -2210,6 +2242,39 @@ mod tests {
     }
 
     #[test]
+    fn convert_config_remote_uri_destination_is_rejected() {
+        let input = write_fixture("convert-config-remote-uri-dest-input.cem", "{p Hi}");
+        let config_path =
+            std::env::temp_dir().join("cem-ml-cli-tests/convert-remote-uri-dest-config.json");
+        std::fs::write(
+            &config_path,
+            serde_json::json!({
+                "inputs": [{
+                    "uri": input.display().to_string()
+                }],
+                "outputs": [{
+                    "destination": "https://example.test/out.json",
+                    "rootScope": {
+                        "defaultContentType": "application/cem+xml"
+                    }
+                }]
+            })
+            .to_string(),
+        )
+        .unwrap();
+
+        let (outcome, stdout, stderr) = run(
+            &RealCemMlEngine::new(),
+            &["convert", "--config", config_path.to_str().unwrap()],
+        );
+
+        assert_eq!(outcome.exit_code, EXIT_IO);
+        assert!(stdout.trim().is_empty());
+        assert!(stderr.contains("remote/custom URI resolvers are not implemented"));
+        assert!(stderr.contains("https://example.test/out.json"));
+    }
+
+    #[test]
     fn local_file_uri_output_path_decodes_percent_escaped_paths() {
         assert_eq!(
             local_file_uri_to_path("file:///tmp/cem%20ml/out.json").unwrap(),
@@ -2220,6 +2285,21 @@ mod tests {
             PathBuf::from("/tmp/cem#ml/out.json")
         );
         assert!(local_file_uri_to_path("file://example.test/tmp/out.json").is_none());
+    }
+
+    #[test]
+    fn local_file_uri_path_rejects_remote_or_custom_uri_schemes() {
+        let err = local_file_uri_path(
+            Path::new("https://example.test/out.json"),
+            "output destination",
+        )
+        .unwrap_err();
+        assert_eq!(err.kind(), io::ErrorKind::InvalidInput);
+        assert!(err
+            .to_string()
+            .contains("remote/custom URI resolvers are not implemented"));
+
+        assert!(local_file_uri_path(Path::new("relative/out.json"), "output destination").is_ok());
     }
 
     #[test]

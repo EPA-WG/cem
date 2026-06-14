@@ -129,14 +129,16 @@ Current implementation status:
   against the embedded document-format version. Input root-scope module maps provide
   the resolver base for relative schema `src` identities, load local JSON alias maps
   for schema-source specifier resolution, and normalize relative module-map paths
-  against the config document path. Config-file
-  output destinations normalize relative paths against the config document path.
+  against the config document path, including local `file://` config document bases.
+  Config-file output destinations normalize relative paths against the config document
+  path, including local `file://` config document bases.
   Run-config normalization validates root-scope module-map, namespace, and version-pin
   option shape before document parsing, while unreadable or malformed module maps,
-  unknown budget keys, unsupported version-pin targets, and unsupported remaining
-  budget hooks emit deterministic execution diagnostics instead of being silently
-  ignored. Remote/custom module-map resolver semantics, remote/custom output resolver
-  semantics, and those remaining budget hooks remain pending.
+  unknown future budget keys, and unsupported version-pin targets emit deterministic
+  execution diagnostics instead of being silently ignored. CLI file-write paths now
+  reject remote/custom URI destinations explicitly instead of treating them as local
+  paths. Remote/custom module-map resolver semantics and real remote/custom output
+  resolver semantics remain pending.
 - `--schema` and `--content-type` are carried in `EngineContext` and emitted in reports.
   `cem_ml::lifecycle::LifecycleRegistry` now owns built-in input content-type dispatch
   for parser-backed commands (`parse`, `validate`, `check`, `inspect`, `convert`,
@@ -164,10 +166,10 @@ Current implementation status:
   destinations normalize relative paths against the config document path, including
   local `file://` config document bases. Configured, positional, and fixture-materialized
   input reads resolve local `file://` URIs, and primary output, side-report, and
-  observability event writes resolve local `file://` destinations to filesystem paths;
-  remote/custom
-  module-map resolver semantics, remote/custom output resolver semantics, and
-  unsupported remaining budget hooks remain planned requirements.
+  observability event writes resolve local `file://` destinations to filesystem paths
+  and reject remote/custom URI destinations until a resolver is implemented;
+  remote/custom module-map resolver semantics and real remote/custom output resolver
+  semantics remain planned requirements.
 - `validate` / `check` / `convert` route `custom-element-xslt` input through the first
   shared lifecycle adapter path, lowering legacy custom-element XSLT to canonical
   CEM-ML through `cem_ml::legacy_custom_element`; `convert --content-type

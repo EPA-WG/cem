@@ -55,15 +55,17 @@ for the current architecture have landed; only deferred capability work remains 
       namespace context, and recognized CEM-ML root-scope version pins now resolve against the embedded document-format
       version. Input root-scope module maps now provide the resolver base for relative schema `src` identities, load
       local JSON alias maps from paths and local `file://` URIs for schema-source specifier resolution, and normalize
-      relative module-map paths against the config document path. Config-file output destinations now normalize relative
-      paths against the config document path, including local `file://` config documents. Configured, positional, and
+      relative module-map paths against the config document path, including local `file://` config document bases.
+      Config-file output destinations now normalize relative paths against the config document path, including local
+      `file://` config document bases. Configured, positional, and
       fixture-materialized input reads resolve local `file://` URIs, and primary output, side-report, and observability
       event writes resolve local `file://` destinations to filesystem paths. Run-config normalization now validates
       root-scope module-map, namespace, and version-pin option shape before
-      document parsing, while unreadable or malformed module maps, unknown budget keys, unsupported version-pin targets,
-      and unsupported remaining budget hooks emit deterministic execution diagnostics instead of being silently ignored.
-      Keep this item open until remote/custom module-map resolver semantics, remote/custom output resolver semantics, and
-      those remaining budget hooks drive their real runtime behavior, not just preservation and diagnostics.
+      document parsing, while unreadable or malformed module maps, unknown future budget keys, and unsupported
+      version-pin targets emit deterministic execution diagnostics instead of being silently ignored. CLI file-write
+      paths now reject remote/custom URI destinations instead of treating them as local paths. Keep this item open until
+      remote/custom module-map resolver semantics and real remote/custom output resolver semantics drive runtime
+      behavior, not just preservation, diagnostics, or explicit rejection.
 - [x] **Immediate goal: XSLT 1.0 lifecycle adapter.** Move the existing legacy custom-element XSLT 1.0 lowering
       (`cem_ml::legacy_custom_element`) behind the lifecycle adapter registry instead of the current one-off
       `convert --content-type custom-element-xslt` branch. `cem-ml validate --content-type custom-element-xslt <input>`
