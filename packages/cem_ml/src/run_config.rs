@@ -821,7 +821,7 @@ mod tests {
     #[test]
     fn output_spec_record_maps_target_scope() {
         let spec = parse_output_spec_record(
-            "input=src/a.cem,dest=dist/a.cem,contentType=application/cem+xml,schema=core",
+            "input=src/a.cem,dest=dist/a.cem,contentType=application/cem+xml,schema=core,defaultNs=https://cem.dev/ns/core/1,namespaces=html:http://www.w3.org/1999/xhtml",
         )
         .unwrap();
 
@@ -832,6 +832,14 @@ mod tests {
             Some("application/cem+xml")
         );
         assert_eq!(spec.root_scope.schema.as_deref(), Some("core"));
+        assert_eq!(
+            spec.root_scope.default_namespace.as_deref(),
+            Some("https://cem.dev/ns/core/1")
+        );
+        assert_eq!(
+            spec.root_scope.namespaces.get("html").map(String::as_str),
+            Some("http://www.w3.org/1999/xhtml")
+        );
     }
 
     #[test]

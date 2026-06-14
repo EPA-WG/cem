@@ -192,3 +192,77 @@ fn invoke(callback: Option<&Function>, event: &ReportEvent) {
     // abort because a JS observer threw.
     let _ = callback.call1(&JsValue::NULL, &JsValue::from_str(&json));
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn parse_input_spec_record_preserves_namespace_scope() {
+        let json = parse_input_spec_record(
+            "uri=src/a.data,defaultNs=http://www.w3.org/1999/xhtml,namespaces=svg:http://www.w3.org/2000/svg",
+        );
+        let value: serde_json::Value = serde_json::from_str(&json).unwrap();
+
+        assert_eq!(value["uri"], "src/a.data");
+        assert_eq!(
+            value["rootScope"]["defaultNamespace"],
+            "http://www.w3.org/1999/xhtml"
+        );
+        assert_eq!(
+            value["rootScope"]["namespaces"]["svg"],
+            "http://www.w3.org/2000/svg"
+        );
+    }
+
+    #[test]
+    fn parse_output_spec_record_preserves_namespace_target_scope() {
+        let json = parse_output_spec_record(
+            "dest=dist/a.out,defaultNs=https://cem.dev/ns/core/1,namespaces=html:http://www.w3.org/1999/xhtml",
+        );
+        let value: serde_json::Value = serde_json::from_str(&json).unwrap();
+
+        assert_eq!(value["destination"], "dist/a.out");
+        assert_eq!(
+            value["rootScope"]["defaultNamespace"],
+            "https://cem.dev/ns/core/1"
+        );
+        assert_eq!(
+            value["rootScope"]["namespaces"]["html"],
+            "http://www.w3.org/1999/xhtml"
+        );
+    }
+
+    #[test]
+    fn normalize_run_config_preserves_input_and_output_namespace_scopes() {
+        let json = normalize_run_config(
+            r#"{
+                "inputs": [{
+                    "uri": "src/a.data",
+                    "rootScope": {
+                        "defaultNamespace": "http://www.w3.org/1999/xhtml"
+                    }
+                }],
+                "outputs": [{
+                    "destination": "dist/a.out",
+                    "rootScope": {
+                        "namespaces": {
+                            "svg": "http://www.w3.org/2000/svg"
+                        }
+                    }
+                }]
+            }"#,
+        );
+        let value: serde_json::Value = serde_json::from_str(&json).unwrap();
+
+        assert_eq!(
+            value["config"]["inputs"][0]["rootScope"]["defaultNamespace"],
+            "http://www.w3.org/1999/xhtml"
+        );
+        assert_eq!(
+            value["config"]["outputs"][0]["rootScope"]["namespaces"]["svg"],
+            "http://www.w3.org/2000/svg"
+        );
+        assert_eq!(value["diagnostics"], serde_json::json!([]));
+    }
+}

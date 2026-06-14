@@ -2908,6 +2908,33 @@ mod tests {
     }
 
     #[test]
+    fn output_spec_html_namespace_identity_selects_html_export_adapter() {
+        let input = write_fixture("convert-output-html-namespace-input.cem", "{p Hi}");
+        let out_path =
+            std::env::temp_dir().join("cem-ml-cli-tests/convert-output-html-namespace.out");
+        let _ = std::fs::remove_file(&out_path);
+        let (outcome, stdout, stderr) = run(
+            &RealCemMlEngine::new(),
+            &[
+                "convert",
+                "--output-spec",
+                &format!(
+                    "dest={},defaultNs=http://www.w3.org/1999/xhtml",
+                    out_path.display()
+                ),
+                input.to_str().unwrap(),
+            ],
+        );
+
+        assert_eq!(outcome.exit_code, EXIT_OK, "{stderr}");
+        assert!(stdout.trim().is_empty());
+        let written = std::fs::read_to_string(&out_path).unwrap();
+        let v: serde_json::Value = serde_json::from_str(&written).unwrap();
+        assert_eq!(v["kind"], "html");
+        assert_eq!(v["content"], "<p>Hi</p>");
+    }
+
+    #[test]
     fn config_diagnostics_fail_before_document_parsing() {
         let config_path = std::env::temp_dir().join("cem-ml-cli-tests/bad-config.json");
         let report_path = std::env::temp_dir().join("cem-ml-cli-tests/bad-config-report.json");
