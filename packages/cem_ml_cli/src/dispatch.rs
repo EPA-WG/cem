@@ -407,6 +407,14 @@ fn context(c: &cli::ContextOptions) -> eng::EngineContext {
         schema: c.schema.clone(),
         content_type: c.content_type.clone(),
         base_uri: c.base_uri.clone(),
+        scheduler: Default::default(),
+    }
+}
+
+fn context_with_config(c: &cli::ContextOptions, config: &RunConfig) -> eng::EngineContext {
+    eng::EngineContext {
+        scheduler: config.scheduler.clone(),
+        ..context(c)
     }
 }
 
@@ -561,7 +569,7 @@ fn run_convert_fanout<E: CemMlEngine + ?Sized>(
                     input,
                     to_format: to_engine_layer_format(args.to_format),
                     preserve_source_offsets: args.preserve_source_offsets,
-                    context: context(&args.context),
+                    context: context_with_config(&args.context, config),
                     target: output_target_identity(output),
                 };
                 match engine.convert(req) {
@@ -594,7 +602,7 @@ fn run_convert_fanout<E: CemMlEngine + ?Sized>(
             input,
             to_format: to_engine_layer_format(args.to_format),
             preserve_source_offsets: args.preserve_source_offsets,
-            context: context(&args.context),
+            context: context_with_config(&args.context, config),
             target: output_target_identity(output),
         };
         match engine.convert(req) {
@@ -921,7 +929,7 @@ pub fn run_parse<E: CemMlEngine + ?Sized>(
         projection: to_engine_parse_projection(args.format),
         fail_level: to_engine_fail_level(args.fail_level),
         preserve_source_offsets: args.preserve_source_offsets,
-        context: context(&args.context),
+        context: context_with_config(&args.context, &config),
     };
     match engine.parse(req) {
         Ok(mut resp) => {
@@ -980,7 +988,7 @@ pub fn run_validate<E: CemMlEngine + ?Sized>(
         inputs,
         projection: to_engine_validate_projection(args.format),
         fail_level: to_engine_fail_level(args.fail_level),
-        context: context(&args.context),
+        context: context_with_config(&args.context, &config),
     };
     match engine.validate(req) {
         Ok(mut resp) => {
@@ -1048,7 +1056,7 @@ pub fn run_check<E: CemMlEngine + ?Sized>(
         projection: to_engine_validate_projection(args.format),
         fail_level: to_engine_fail_level(args.fail_level),
         zero_hard_violations: args.zero_hard_violations,
-        context: context(&args.context),
+        context: context_with_config(&args.context, &config),
     };
     match engine.check(req) {
         Ok(mut resp) => {
@@ -1101,7 +1109,7 @@ pub fn run_inspect<E: CemMlEngine + ?Sized>(
     let req = eng::InspectRequest {
         input,
         show: to_engine_inspect_view(args.show),
-        context: context(&args.context),
+        context: context_with_config(&args.context, &config),
     };
     match engine.inspect(req) {
         Ok(resp) => {
@@ -1145,7 +1153,7 @@ pub fn run_convert<E: CemMlEngine + ?Sized>(
         input,
         to_format: to_engine_layer_format(args.to_format),
         preserve_source_offsets: args.preserve_source_offsets,
-        context: context(&args.context),
+        context: context_with_config(&args.context, &config),
         target: convert_target_identity_with_config(&args, &config),
     };
     match engine.convert(req) {
@@ -1187,7 +1195,7 @@ pub fn run_trace<E: CemMlEngine + ?Sized>(
     let req = eng::TraceRequest {
         input,
         projection: to_engine_trace_projection(args.format),
-        context: context(&args.context),
+        context: context_with_config(&args.context, &config),
     };
     match engine.trace(req) {
         Ok(resp) => {
@@ -1231,7 +1239,7 @@ pub fn run_bench<E: CemMlEngine + ?Sized>(
         budget_ms: args.budget_ms,
         profile: args.profile.map(to_engine_bench_profile),
         cold_cache: args.cold_cache,
-        context: context(&args.context),
+        context: context_with_config(&args.context, &config),
     };
     match engine.bench(req) {
         Ok(resp) => {
@@ -1305,7 +1313,7 @@ pub fn run_fixture_validate<E: CemMlEngine + ?Sized>(
         inputs,
         fail_level: to_engine_fail_level(args.fail_level),
         zero_hard_violations: args.zero_hard_violations,
-        context: context(&args.context),
+        context: context_with_config(&args.context, &config),
     };
     match engine.fixture_validate(req) {
         Ok(mut resp) => {
@@ -1369,7 +1377,7 @@ pub fn run_fixture_roundtrip<E: CemMlEngine + ?Sized>(
     let req = eng::FixtureRoundtripRequest {
         inputs,
         to_format: to_engine_layer_format(args.to_format),
-        context: context(&args.context),
+        context: context_with_config(&args.context, &config),
     };
     match engine.fixture_roundtrip(req) {
         Ok(resp) => {
@@ -1990,6 +1998,34 @@ mod tests {
     }
 
     #[test]
+    fn trace_uses_run_config_scheduler() {
+        let input = write_fixture("trace-scheduler.cem", "{p Hi}");
+        let config_path = std::env::temp_dir().join("cem-ml-cli-tests/trace-scheduler.json");
+        std::fs::write(
+            &config_path,
+            serde_json::json!({
+                "inputs": [{ "uri": input.display().to_string() }],
+                "scheduler": {
+                    "threadPool": "deterministic",
+                    "maxParallelDocuments": 3
+                }
+            })
+            .to_string(),
+        )
+        .unwrap();
+
+        let (outcome, stdout, stderr) = run(
+            &RealCemMlEngine::new(),
+            &["trace", "--config", config_path.to_str().unwrap()],
+        );
+        assert_eq!(outcome.exit_code, EXIT_OK, "{stderr}");
+        let v: serde_json::Value = serde_json::from_str(stdout.trim()).unwrap();
+        assert_eq!(v["scheduler"]["threadPool"], "deterministic");
+        assert_eq!(v["scheduler"]["maxParallelDocuments"], 3);
+        assert_eq!(v["scheduler"]["policy"]["cpuWorkers"], 3);
+    }
+
+    #[test]
     fn convert_passes_target_identity_to_engine() {
         let p = write_fixture("convert-target.html", "<p>Hi</p>");
         let (outcome, stdout, _) = run(
@@ -2276,7 +2312,7 @@ fn observable_inputs(
                 &config,
                 &input_defaults,
             )?;
-            Ok((vec![input], context(&a.context)))
+            Ok((vec![input], context_with_config(&a.context, &config)))
         }
         cli::Command::Validate(a) => {
             let input_defaults = input_scope_defaults(&a.context);
@@ -2286,7 +2322,7 @@ fn observable_inputs(
             )?;
             let inputs =
                 collect_configured_inputs(&a.inputs, a.from_format, &config, &input_defaults)?;
-            Ok((inputs, context(&a.context)))
+            Ok((inputs, context_with_config(&a.context, &config)))
         }
         cli::Command::Check(a) => {
             let input_defaults = input_scope_defaults(&a.context);
@@ -2296,7 +2332,7 @@ fn observable_inputs(
             )?;
             let inputs =
                 collect_configured_inputs(&a.inputs, a.from_format, &config, &input_defaults)?;
-            Ok((inputs, context(&a.context)))
+            Ok((inputs, context_with_config(&a.context, &config)))
         }
         cli::Command::Inspect(a) => {
             let input_defaults = input_scope_defaults(&a.context);
@@ -2310,7 +2346,7 @@ fn observable_inputs(
                 &config,
                 &input_defaults,
             )?;
-            Ok((vec![input], context(&a.context)))
+            Ok((vec![input], context_with_config(&a.context, &config)))
         }
         cli::Command::Convert(a) => {
             let input_defaults = input_scope_defaults(&a.context);
@@ -2325,7 +2361,7 @@ fn observable_inputs(
                 &config,
                 &input_defaults,
             )?;
-            Ok((vec![input], context(&a.context)))
+            Ok((vec![input], context_with_config(&a.context, &config)))
         }
         cli::Command::Trace(a) => {
             let input_defaults = input_scope_defaults(&a.context);
@@ -2339,7 +2375,7 @@ fn observable_inputs(
                 &config,
                 &input_defaults,
             )?;
-            Ok((vec![input], context(&a.context)))
+            Ok((vec![input], context_with_config(&a.context, &config)))
         }
         cli::Command::Bench(a) => {
             let input_defaults = input_scope_defaults(&a.context);
@@ -2348,7 +2384,7 @@ fn observable_inputs(
                 run_defaults(input_defaults.clone(), ScopeConfig::default()),
             )?;
             let inputs = collect_configured_inputs(&a.inputs, None, &config, &input_defaults)?;
-            Ok((inputs, context(&a.context)))
+            Ok((inputs, context_with_config(&a.context, &config)))
         }
         cli::Command::Fixture(cli::FixtureCmd::Validate(a)) => {
             let input_defaults = input_scope_defaults(&a.context);
@@ -2357,7 +2393,7 @@ fn observable_inputs(
             for spec in &config.inputs {
                 inputs.push(engine_input_from_spec(spec, None)?);
             }
-            Ok((inputs, context(&a.context)))
+            Ok((inputs, context_with_config(&a.context, &config)))
         }
         cli::Command::Fixture(cli::FixtureCmd::Roundtrip(a)) => {
             let input_defaults = input_scope_defaults(&a.context);
@@ -2366,7 +2402,7 @@ fn observable_inputs(
             for spec in &config.inputs {
                 inputs.push(engine_input_from_spec(spec, None)?);
             }
-            Ok((inputs, context(&a.context)))
+            Ok((inputs, context_with_config(&a.context, &config)))
         }
         _ => Ok((Vec::new(), eng::EngineContext::default())),
     }

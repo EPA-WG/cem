@@ -143,6 +143,38 @@ fn load_input_through_lifecycle(input: &EngineInput, context: &EngineContext) ->
     LifecycleRegistry::with_builtin_adapters().load(input, context)
 }
 
+fn scheduler_policy_from_context(context: &EngineContext) -> crate::scheduler::ScopePolicy {
+    let mut policy = if context.scheduler.thread_pool.as_deref() == Some("host") {
+        crate::scheduler::ScopePolicy::host_root()
+    } else {
+        crate::scheduler::ScopePolicy {
+            cpu_workers: 1,
+            queue_size: 8,
+            io_streams: 4,
+            memory_bytes: 8 * 1024 * 1024,
+            plugin_time_budget_ms: None,
+            overflow: crate::scheduler::OverflowPolicy::Reject,
+        }
+    };
+
+    if let Some(max_parallel_documents) = context.scheduler.max_parallel_documents {
+        policy.cpu_workers = max_parallel_documents.max(1);
+    }
+
+    policy
+}
+
+fn scheduler_policy_json(policy: crate::scheduler::ScopePolicy) -> Value {
+    json!({
+        "cpuWorkers": policy.cpu_workers,
+        "queueSize": policy.queue_size,
+        "ioStreams": policy.io_streams,
+        "memoryBytes": policy.memory_bytes,
+        "pluginTimeBudgetMs": policy.plugin_time_budget_ms,
+        "overflow": policy.overflow,
+    })
+}
+
 fn materialized_input(input: &EngineInput) -> EngineResult<EngineInput> {
     if !input.bytes.is_empty() {
         return Ok(input.clone());
@@ -529,14 +561,7 @@ impl CemMlEngine for RealCemMlEngine {
         let loaded = load_input_through_lifecycle(&request.input, &request.context);
         let from_format = loaded.from_format;
         let scheduler_trace = crate::scheduler::SchedulerTrace::new();
-        let policy = crate::scheduler::ScopePolicy {
-            cpu_workers: 1,
-            queue_size: 8,
-            io_streams: 4,
-            memory_bytes: 8 * 1024 * 1024,
-            plugin_time_budget_ms: None,
-            overflow: crate::scheduler::OverflowPolicy::Reject,
-        };
+        let policy = scheduler_policy_from_context(&request.context);
         let pool = crate::scheduler::WorkerPool::new(0, policy, scheduler_trace.clone());
         let abort = crate::scheduler::AbortSignal::new();
         for task in ["tokenize", "normalize", "schema", "ast", "validate"] {
@@ -558,6 +583,11 @@ impl CemMlEngine for RealCemMlEngine {
             "kind": "trace",
             "input": request.input.uri,
             "projection": request.projection,
+            "scheduler": {
+                "threadPool": request.context.scheduler.thread_pool,
+                "maxParallelDocuments": request.context.scheduler.max_parallel_documents,
+                "policy": scheduler_policy_json(policy),
+            },
             "events": projection::events_json_as(&loaded.bytes, from_format),
             "report": report,
         });

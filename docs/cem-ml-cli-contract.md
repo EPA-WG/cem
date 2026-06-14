@@ -107,8 +107,10 @@ Current implementation status:
   document parsing. `--observe-events` uses the same normalized input list and
   lifecycle dispatch path as parser-backed commands, including `--input-spec` and
   `--config` inputs. Config-file convert execution fans out multiple `outputs[]`
-  records, using `inputRef` or the sole configured input for each output. Shared
-  scheduler execution remains pending.
+  records, using `inputRef` or the sole configured input for each output. Normalized
+  `RunConfig.scheduler` flows into the engine execution context, and the trace worker
+  policy is derived from that scheduler config. Shared multi-document scheduler
+  execution remains pending.
 - `--schema` and `--content-type` are carried in `EngineContext` and emitted in reports.
   `cem_ml::lifecycle::LifecycleRegistry` now owns built-in input content-type dispatch
   for parser-backed commands (`parse`, `validate`, `check`, `inspect`, `convert`,

@@ -35,8 +35,9 @@ for the current architecture have landed; only deferred capability work remains 
       CLI commands represent those diagnostics in generated JSON/Markdown reports. The `--observe-events` path now uses
       the same configured input list and lifecycle dispatch as parser-backed commands, including `--input-spec` and
       `--config` inputs. Config-file convert execution now fans out multiple `outputs[]` records, using `inputRef` or
-      the sole configured input for each output. Keep this item open until the scheduler/thread-pool is owned by
-      `RunConfig` during execution.
+      the sole configured input for each output. Normalized `RunConfig.scheduler` now flows into engine execution
+      context, and the trace worker policy is derived from that scheduler config. Keep this item open until shared
+      multi-document scheduling uses the same run-level scheduler context across validate/check/convert execution.
 - [x] **Immediate goal: XSLT 1.0 lifecycle adapter.** Move the existing legacy custom-element XSLT 1.0 lowering
       (`cem_ml::legacy_custom_element`) behind the lifecycle adapter registry instead of the current one-off
       `convert --content-type custom-element-xslt` branch. `cem-ml validate --content-type custom-element-xslt <input>`

@@ -1,5 +1,6 @@
 use crate::diagnostics::Diagnostic;
 use crate::report::Report;
+use crate::run_config::SchedulerConfig;
 use serde::{Deserialize, Serialize};
 use serde_json::Value;
 use std::path::PathBuf;
@@ -89,6 +90,7 @@ pub struct EngineContext {
     pub schema: Option<String>,
     pub content_type: Option<String>,
     pub base_uri: Option<String>,
+    pub scheduler: SchedulerConfig,
 }
 
 #[derive(Debug, Clone, Default, PartialEq, Eq, Serialize, Deserialize)]

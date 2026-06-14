@@ -90,7 +90,9 @@ the immediate CLI lifecycle contract.
    normalized input list and lifecycle dispatch path as parser-backed commands, including
    `--input-spec` and `--config` inputs. Config-file convert execution fans out multiple
    `outputs[]` records, using `inputRef` or the sole configured input for each output.
-   Scheduler ownership remains open.
+   Normalized `RunConfig.scheduler` flows into the engine execution context, and the
+   trace worker policy is derived from that scheduler config. Shared multi-document
+   scheduler execution across validate/check/convert remains open.
 7. Update CLI flags without breaking current debug workflows:
     - keep `--from-format` and `--to-format` as aliases for built-in identities;
     - keep `--content-type` as the input content type for `parse`, `validate`, `check`,
