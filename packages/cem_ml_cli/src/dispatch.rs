@@ -863,7 +863,11 @@ fn collect_fixture_embedding_diagnostics(
             continue;
         }
         let bytes = if input.bytes.is_empty() {
-            let path = resolve_fixture_input_path(&input.uri);
+            let path =
+                fixture_materialized_input_path(&input.uri).map_err(|e| EngineError::Io {
+                    path: input.uri.clone().into(),
+                    source: e,
+                })?;
             read_input(&path).map_err(|e| EngineError::Io {
                 path: input.uri.clone().into(),
                 source: e,
@@ -874,6 +878,16 @@ fn collect_fixture_embedding_diagnostics(
         diagnostics.extend(template_pass::run(&bytes, from, Some(&input.uri)));
     }
     Ok(diagnostics)
+}
+
+fn fixture_materialized_input_path(uri: &str) -> io::Result<PathBuf> {
+    if !uri.starts_with("file://") && uri_scheme(uri).is_some() && !is_windows_drive_path(uri) {
+        return Err(io::Error::new(
+            io::ErrorKind::InvalidInput,
+            "remote/custom input URI resolvers are not implemented",
+        ));
+    }
+    Ok(resolve_fixture_input_path(uri))
 }
 
 fn resolve_fixture_input_path(uri: &str) -> PathBuf {
@@ -2876,6 +2890,18 @@ mod tests {
     }
 
     #[test]
+    fn fixture_validate_remote_uri_input_is_rejected_without_resolver() {
+        let (outcome, stdout, stderr) = run(
+            &RealCemMlEngine::new(),
+            &["fixture", "validate", "https://example.test/fixture.cem"],
+        );
+
+        assert_eq!(outcome.exit_code, EXIT_IO);
+        assert!(stdout.trim().is_empty());
+        assert!(stderr.contains("remote/custom input URI resolvers are not implemented"));
+    }
+
+    #[test]
     fn fixture_validate_input_spec_fixture_validate_ms_budget_is_enforced() {
         let p = write_fixture("fixture-validate-budget.cem", "{p Hi}");
         let (outcome, stdout, stderr) = run(
@@ -3755,7 +3781,17 @@ fn emit_observability_events(
     let registry = cem_ml::lifecycle::LifecycleRegistry::with_builtin_adapters();
     for input in inputs {
         let input = if input.bytes.is_empty() {
-            let path = resolve_fixture_input_path(&input.uri);
+            let path = match fixture_materialized_input_path(&input.uri) {
+                Ok(path) => path,
+                Err(e) => {
+                    let _ = writeln!(
+                        s.stderr,
+                        "cem-ml: --observe-events: cannot read {}: {e}",
+                        input.uri
+                    );
+                    continue;
+                }
+            };
             let bytes = match read_input(&path) {
                 Ok(b) => b,
                 Err(e) => {

@@ -906,6 +906,15 @@ fn materialized_input(input: &EngineInput) -> EngineResult<EngineInput> {
                 source: std::io::Error::new(std::io::ErrorKind::InvalidInput, message),
             });
         }
+        None if has_uri_scheme(&input.uri) && !is_windows_drive_path(&input.uri) => {
+            return Err(EngineError::Io {
+                path: input.uri.clone().into(),
+                source: std::io::Error::new(
+                    std::io::ErrorKind::InvalidInput,
+                    "remote/custom input URI resolvers are not implemented",
+                ),
+            });
+        }
         None => PathBuf::from(&input.uri),
     };
     let bytes = std::fs::read(&input_path).map_err(|source| EngineError::Io {
@@ -2755,6 +2764,34 @@ mod tests {
         assert_eq!(resp.report.summary.hard_violation_count, 0);
         assert_eq!(resp.report.summary.input_count, 1);
         assert_eq!(resp.report.inputs[0], uri);
+    }
+
+    #[test]
+    fn fixture_validate_rejects_remote_input_uri_without_resolver() {
+        let req = FixtureValidateRequest {
+            inputs: vec![EngineInput {
+                uri: "https://example.test/fixture.cem".to_owned(),
+                bytes: Vec::new(),
+                from_format: Some(InputFormat::Cem),
+                identity: None,
+                root_scope: Default::default(),
+            }],
+            fail_level: FailLevel::Validate,
+            zero_hard_violations: true,
+            context: ctx(),
+        };
+
+        let err = RealCemMlEngine::new().fixture_validate(req).unwrap_err();
+
+        match err {
+            EngineError::Io { source, .. } => {
+                assert_eq!(source.kind(), std::io::ErrorKind::InvalidInput);
+                assert!(source
+                    .to_string()
+                    .contains("remote/custom input URI resolvers are not implemented"));
+            }
+            other => panic!("expected EngineError::Io, got {other:?}"),
+        }
     }
 
     #[test]

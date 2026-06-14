@@ -172,10 +172,11 @@ Current implementation status:
   local `file://` config document bases. Configured, positional, and fixture-materialized
   input reads resolve local `file://` URIs, and primary output, side-report, and
   observability event writes resolve local `file://` destinations to filesystem paths
-  and reject remote/custom URI destinations until a resolver is implemented. Remote/custom
-  module-map URI values emit an unsupported-resolver diagnostic until a resolver is
-  implemented. Real remote/custom module-map resolver semantics and real remote/custom
-  output resolver semantics remain planned requirements.
+  and reject remote/custom URI destinations until a resolver is implemented.
+  Fixture-materialized input reads also reject remote/custom input URI values until a
+  resolver is implemented. Remote/custom module-map URI values emit an
+  unsupported-resolver diagnostic until a resolver is implemented. Real remote/custom
+  module-map, input, and output resolver semantics remain planned requirements.
 - `validate` / `check` / `convert` route `custom-element-xslt` input through the first
   shared lifecycle adapter path, lowering legacy custom-element XSLT to canonical
   CEM-ML through `cem_ml::legacy_custom_element`; `convert --content-type

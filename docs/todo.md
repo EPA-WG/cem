@@ -67,9 +67,10 @@ for the current architecture have landed; only deferred capability work remains 
       root-scope module-map, namespace, and version-pin option shape before
       document parsing, while unreadable or malformed module maps, unknown future budget keys, and unsupported
       version-pin targets emit deterministic execution diagnostics instead of being silently ignored. Remote/custom
-      module-map URI values now emit an explicit unsupported-resolver diagnostic, and CLI file-write paths now reject
-      remote/custom URI destinations instead of treating them as local paths. Keep this item open until real
-      remote/custom module-map resolver semantics and real remote/custom output resolver semantics drive runtime
+      module-map URI values now emit an explicit unsupported-resolver diagnostic, fixture-materialized input reads now
+      reject remote/custom input URI values, and CLI file-write paths now reject remote/custom URI destinations instead
+      of treating them as local paths. Keep this item open until real remote/custom module-map, input, and output
+      resolver semantics drive runtime
       behavior, not just preservation, diagnostics, or explicit rejection.
 - [x] **Immediate goal: XSLT 1.0 lifecycle adapter.** Move the existing legacy custom-element XSLT 1.0 lowering
       (`cem_ml::legacy_custom_element`) behind the lifecycle adapter registry instead of the current one-off
