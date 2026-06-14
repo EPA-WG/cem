@@ -50,7 +50,8 @@ enum CliRequestError {
 }
 
 fn read_input(path: &Path) -> io::Result<Vec<u8>> {
-    fs::read(path)
+    let path = local_file_uri_path(path, "input URI")?;
+    fs::read(path.as_ref())
 }
 
 fn engine_input(
@@ -743,6 +744,10 @@ fn write_primary(
 }
 
 fn primary_output_path(path: &Path) -> io::Result<Cow<'_, Path>> {
+    local_file_uri_path(path, "output destination")
+}
+
+fn local_file_uri_path<'a>(path: &'a Path, label: &str) -> io::Result<Cow<'a, Path>> {
     let raw = path.to_string_lossy();
     if !raw.starts_with("file://") {
         return Ok(Cow::Borrowed(path));
@@ -751,9 +756,7 @@ fn primary_output_path(path: &Path) -> io::Result<Cow<'_, Path>> {
     local_file_uri_to_path(&raw).map(Cow::Owned).ok_or_else(|| {
         io::Error::new(
             io::ErrorKind::InvalidInput,
-            format!(
-                "unsupported output destination `{raw}`; only local file:// URIs are supported"
-            ),
+            format!("unsupported {label} `{raw}`; only local file:// URIs are supported"),
         )
     })
 }
@@ -1787,6 +1790,43 @@ mod tests {
         let v: serde_json::Value = serde_json::from_str(stdout.trim()).unwrap();
         assert_eq!(v["summary"]["hardViolationCount"], 0);
         assert_eq!(v["summary"]["inputCount"], 1);
+    }
+
+    #[test]
+    fn validate_input_spec_file_uri_reads_local_input() {
+        let p = write_fixture("validate-input-spec-file-uri.cem", "{p Hi}");
+        let (outcome, stdout, stderr) = run(
+            &RealCemMlEngine::new(),
+            &[
+                "validate",
+                "--format",
+                "json",
+                "--input-spec",
+                &format!("uri=file://{}", p.display()),
+            ],
+        );
+
+        assert_eq!(outcome.exit_code, EXIT_OK, "{stderr}");
+        let v: serde_json::Value = serde_json::from_str(stdout.trim()).unwrap();
+        assert_eq!(v["summary"]["hardViolationCount"], 0);
+        assert_eq!(v["summary"]["inputCount"], 1);
+        assert_eq!(v["inputs"][0], format!("file://{}", p.display()));
+    }
+
+    #[test]
+    fn validate_positional_file_uri_reads_local_input() {
+        let p = write_fixture("validate-positional-file-uri.cem", "{p Hi}");
+        let file_uri = format!("file://{}", p.display());
+        let (outcome, stdout, stderr) = run(
+            &RealCemMlEngine::new(),
+            &["validate", "--format", "json", &file_uri],
+        );
+
+        assert_eq!(outcome.exit_code, EXIT_OK, "{stderr}");
+        let v: serde_json::Value = serde_json::from_str(stdout.trim()).unwrap();
+        assert_eq!(v["summary"]["hardViolationCount"], 0);
+        assert_eq!(v["summary"]["inputCount"], 1);
+        assert_eq!(v["inputs"][0], file_uri);
     }
 
     #[test]

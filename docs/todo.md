@@ -56,9 +56,9 @@ for the current architecture have landed; only deferred capability work remains 
       version. Input root-scope module maps now provide the resolver base for relative schema `src` identities, load
       local JSON alias maps from paths and local `file://` URIs for schema-source specifier resolution, and normalize
       relative module-map paths against the config document path. Config-file output destinations now normalize relative
-      paths against the config document path, and primary output writes resolve local `file://` destinations to
-      filesystem paths. Run-config normalization now validates root-scope module-map, namespace, and version-pin option
-      shape before
+      paths against the config document path. Configured and positional input reads resolve local `file://` URIs, and
+      primary output writes resolve local `file://` destinations to filesystem paths. Run-config normalization now
+      validates root-scope module-map, namespace, and version-pin option shape before
       document parsing, while unreadable or malformed module maps, unknown budget keys, unsupported version-pin targets,
       and unsupported remaining budget hooks emit deterministic execution diagnostics instead of being silently ignored.
       Keep this item open until remote/custom module-map resolver semantics, remote/custom output resolver semantics, and
