@@ -455,15 +455,13 @@ fn local_file_uri_to_path(uri: &str) -> Option<Result<PathBuf, String>> {
     } else if rest.starts_with('/') {
         rest.to_owned()
     } else {
-        return Some(Err(
-            "only local file:// moduleMap URIs are supported".to_owned()
-        ));
+        return Some(Err("only local file:// URIs are supported".to_owned()));
     };
 
     Some(
         percent_decode_uri_path(&path)
             .map(PathBuf::from)
-            .ok_or_else(|| "file:// moduleMap URI contains an invalid percent escape".to_owned()),
+            .ok_or_else(|| "file:// URI contains an invalid percent escape".to_owned()),
     )
 }
 
@@ -878,7 +876,17 @@ fn materialized_input(input: &EngineInput) -> EngineResult<EngineInput> {
     if !input.bytes.is_empty() {
         return Ok(input.clone());
     }
-    let bytes = std::fs::read(&input.uri).map_err(|source| EngineError::Io {
+    let input_path = match local_file_uri_to_path(&input.uri) {
+        Some(Ok(path)) => path,
+        Some(Err(message)) => {
+            return Err(EngineError::Io {
+                path: input.uri.clone().into(),
+                source: std::io::Error::new(std::io::ErrorKind::InvalidInput, message),
+            });
+        }
+        None => PathBuf::from(&input.uri),
+    };
+    let bytes = std::fs::read(&input_path).map_err(|source| EngineError::Io {
         path: input.uri.clone().into(),
         source,
     })?;
@@ -2680,6 +2688,35 @@ mod tests {
         let resp = RealCemMlEngine::new().fixture_validate(req).unwrap();
         assert_eq!(resp.report.summary.hard_violation_count, 0);
         assert_eq!(resp.report.summary.input_count, 2);
+    }
+
+    #[test]
+    fn fixture_validate_reads_local_file_uri_paths_from_disk() {
+        let path = std::env::temp_dir().join(format!(
+            "cem-ml-fixture-file-uri-{}.cem",
+            std::process::id()
+        ));
+        std::fs::write(&path, "{p Hi}").unwrap();
+        let uri = format!("file://{}", path.display());
+        let req = FixtureValidateRequest {
+            inputs: vec![EngineInput {
+                uri: uri.clone(),
+                bytes: Vec::new(),
+                from_format: None,
+                identity: None,
+                root_scope: Default::default(),
+            }],
+            fail_level: FailLevel::Validate,
+            zero_hard_violations: true,
+            context: ctx(),
+        };
+
+        let resp = RealCemMlEngine::new().fixture_validate(req).unwrap();
+        let _ = std::fs::remove_file(path);
+
+        assert_eq!(resp.report.summary.hard_violation_count, 0);
+        assert_eq!(resp.report.summary.input_count, 1);
+        assert_eq!(resp.report.inputs[0], uri);
     }
 
     #[test]

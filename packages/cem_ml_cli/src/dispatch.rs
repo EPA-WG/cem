@@ -845,6 +845,9 @@ fn collect_fixture_embedding_diagnostics(
 }
 
 fn resolve_fixture_input_path(uri: &str) -> PathBuf {
+    if uri.starts_with("file://") {
+        return PathBuf::from(uri);
+    }
     let path = Path::new(uri);
     if path.is_absolute() || path.exists() {
         path.to_path_buf()
@@ -2686,6 +2689,20 @@ mod tests {
             "fixture validate must surface cem-ql template diagnostics"
         );
         assert!(v["summary"]["hardViolationCount"].as_u64().unwrap() > 0);
+    }
+
+    #[test]
+    fn fixture_validate_positional_file_uri_reads_local_input() {
+        let p = write_fixture("fixture-validate-file-uri.cem", "{p Hi}");
+        let file_uri = format!("file://{}", p.display());
+        let (outcome, stdout, stderr) =
+            run(&RealCemMlEngine::new(), &["fixture", "validate", &file_uri]);
+
+        assert_eq!(outcome.exit_code, EXIT_OK, "{stderr}");
+        let v: serde_json::Value = serde_json::from_str(stdout.trim()).unwrap();
+        assert_eq!(v["summary"]["hardViolationCount"], 0);
+        assert_eq!(v["summary"]["inputCount"], 1);
+        assert_eq!(v["inputs"][0], file_uri);
     }
 
     #[test]

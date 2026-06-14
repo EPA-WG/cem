@@ -162,9 +162,10 @@ Current implementation status:
   local JSON aliases, including config-relative module-map paths and local `file://`
   module-map URIs. Config-file output
   destinations normalize relative paths against the config document path, including
-  local `file://` config documents. Configured and positional input reads resolve local
-  `file://` URIs, and primary output, side-report, and observability event writes
-  resolve local `file://` destinations to filesystem paths; remote/custom
+  local `file://` config documents. Configured, positional, and fixture-materialized
+  input reads resolve local `file://` URIs, and primary output, side-report, and
+  observability event writes resolve local `file://` destinations to filesystem paths;
+  remote/custom
   module-map resolver semantics, remote/custom output resolver semantics, and
   unsupported remaining budget hooks remain planned requirements.
 - `validate` / `check` / `convert` route `custom-element-xslt` input through the first
