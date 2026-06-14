@@ -109,8 +109,9 @@ Current implementation status:
   `--config` inputs. Config-file convert execution fans out multiple `outputs[]`
   records, using `inputRef` or the sole configured input for each output. Normalized
   `RunConfig.scheduler` flows into the engine execution context, and the trace worker
-  policy is derived from that scheduler config. Shared multi-document scheduler
-  execution remains pending.
+  policy is derived from that scheduler config. Validate/check reports embed a shared
+  run-level scheduler trace with per-document scope IDs. Convert-side scheduler
+  projection remains pending until convert has explicit side-report output.
 - `--schema` and `--content-type` are carried in `EngineContext` and emitted in reports.
   `cem_ml::lifecycle::LifecycleRegistry` now owns built-in input content-type dispatch
   for parser-backed commands (`parse`, `validate`, `check`, `inspect`, `convert`,
