@@ -1999,6 +1999,41 @@ mod tests {
     }
 
     #[test]
+    fn input_spec_remote_module_map_uri_reports_unsupported_resolver() {
+        let p = write_fixture(
+            "validate-input-spec-remote-module-map.cem",
+            r#"@schema src="ui/button"
+{p Hi}"#,
+        );
+        let (outcome, stdout, stderr) = run(
+            &RealCemMlEngine::new(),
+            &[
+                "validate",
+                "--format",
+                "json",
+                "--input-spec",
+                &format!(
+                    "uri={},moduleMap=https://example.test/cem.modules.json",
+                    p.display()
+                ),
+            ],
+        );
+
+        assert_eq!(outcome.exit_code, EXIT_OK, "{stderr}");
+        let v: serde_json::Value = serde_json::from_str(stdout.trim()).unwrap();
+        let diagnostics = v["diagnostics"].as_array().unwrap();
+        assert!(diagnostics.iter().any(|diag| {
+            diag["code"] == "cem.scope.module_map_resolver_unsupported"
+                && diag["message"]
+                    .as_str()
+                    .is_some_and(|message| message.contains("remote/custom URI resolver"))
+        }));
+        assert!(!diagnostics.iter().any(|diag| diag["message"]
+            .as_str()
+            .is_some_and(|message| message.contains("No such file"))));
+    }
+
+    #[test]
     fn input_spec_version_pins_resolve_through_engine() {
         let p = write_fixture("validate-input-spec-version-pin.cem", r#"{p Hi}"#);
         let (outcome, stdout, stderr) = run(

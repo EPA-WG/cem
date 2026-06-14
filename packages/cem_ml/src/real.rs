@@ -400,6 +400,20 @@ fn load_root_module_map(scope: &ScopeConfig) -> (BTreeMap<String, String>, Vec<D
                 }],
             );
         }
+        None if has_uri_scheme(module_map) && !is_windows_drive_path(module_map) => {
+            return (
+                BTreeMap::new(),
+                vec![Diagnostic {
+                    code: "cem.scope.module_map_resolver_unsupported".to_owned(),
+                    severity: Severity::Warning,
+                    message: format!(
+                        "root-scope moduleMap `{module_map}` uses a remote/custom URI resolver, \
+                         but only local paths and local file:// URIs are supported"
+                    ),
+                    ..Diagnostic::default()
+                }],
+            );
+        }
         None => PathBuf::from(module_map),
     };
     let bytes = match std::fs::read(&module_map_path) {
@@ -463,6 +477,14 @@ fn local_file_uri_to_path(uri: &str) -> Option<Result<PathBuf, String>> {
             .map(PathBuf::from)
             .ok_or_else(|| "file:// URI contains an invalid percent escape".to_owned()),
     )
+}
+
+fn is_windows_drive_path(value: &str) -> bool {
+    let bytes = value.as_bytes();
+    bytes.len() >= 3
+        && bytes[0].is_ascii_alphabetic()
+        && bytes[1] == b':'
+        && matches!(bytes[2], b'/' | b'\\')
 }
 
 fn percent_decode_uri_path(path: &str) -> Option<String> {
@@ -1755,6 +1777,22 @@ mod tests {
         assert!(diagnostics
             .iter()
             .any(|diag| diag.code == "cem.scope.module_map_unreadable"));
+    }
+
+    #[test]
+    fn root_module_map_loader_reports_remote_uri_resolver_unsupported() {
+        let scope = ScopeConfig {
+            module_map: Some("https://example.test/cem.modules.json".to_owned()),
+            ..ScopeConfig::default()
+        };
+
+        let (entries, diagnostics) = load_root_module_map(&scope);
+
+        assert!(entries.is_empty());
+        assert!(diagnostics.iter().any(|diag| {
+            diag.code == "cem.scope.module_map_resolver_unsupported"
+                && diag.message.contains("remote/custom URI resolver")
+        }));
     }
 
     #[test]

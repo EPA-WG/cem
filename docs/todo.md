@@ -62,8 +62,9 @@ for the current architecture have landed; only deferred capability work remains 
       event writes resolve local `file://` destinations to filesystem paths. Run-config normalization now validates
       root-scope module-map, namespace, and version-pin option shape before
       document parsing, while unreadable or malformed module maps, unknown future budget keys, and unsupported
-      version-pin targets emit deterministic execution diagnostics instead of being silently ignored. CLI file-write
-      paths now reject remote/custom URI destinations instead of treating them as local paths. Keep this item open until
+      version-pin targets emit deterministic execution diagnostics instead of being silently ignored. Remote/custom
+      module-map URI values now emit an explicit unsupported-resolver diagnostic, and CLI file-write paths now reject
+      remote/custom URI destinations instead of treating them as local paths. Keep this item open until real
       remote/custom module-map resolver semantics and real remote/custom output resolver semantics drive runtime
       behavior, not just preservation, diagnostics, or explicit rejection.
 - [x] **Immediate goal: XSLT 1.0 lifecycle adapter.** Move the existing legacy custom-element XSLT 1.0 lowering

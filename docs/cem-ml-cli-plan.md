@@ -124,9 +124,10 @@ the immediate CLI lifecycle contract.
    namespace, and version-pin option shape before document parsing, while unreadable or
    malformed module maps, unknown future budget keys, and unsupported version-pin
    targets emit deterministic execution diagnostics instead of being silently ignored.
-   CLI file-write paths reject remote/custom URI destinations instead of treating them
-   as local paths. Remote/custom module-map resolver semantics and real remote/custom
-   output resolver semantics remain open.
+   Remote/custom module-map URI values emit an explicit unsupported-resolver diagnostic,
+   and CLI file-write paths reject remote/custom URI destinations instead of treating
+   them as local paths. Real remote/custom module-map resolver semantics and real
+   remote/custom output resolver semantics remain open.
 7. Update CLI flags without breaking current debug workflows:
     - keep `--from-format` and `--to-format` as aliases for built-in identities;
     - keep `--content-type` as the input content type for `parse`, `validate`, `check`,
