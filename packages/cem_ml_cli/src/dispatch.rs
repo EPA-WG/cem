@@ -1206,6 +1206,7 @@ pub fn run_parse<E: CemMlEngine + ?Sized>(
         input.from_format.unwrap_or(eng::InputFormat::Cem),
         Some(input.uri.as_str()),
     );
+    let input_uri = input.uri.clone();
     let req = eng::ParseRequest {
         input,
         projection: to_engine_parse_projection(args.format),
@@ -1221,6 +1222,18 @@ pub fn run_parse<E: CemMlEngine + ?Sized>(
             }
             resp.diagnostics.extend(embedding_diags);
             write_diagnostics(&resp.diagnostics, s);
+            if report_requested(&args.report) {
+                let report = cem_ml::report::Report::deterministic(
+                    vec![input_uri],
+                    resp.diagnostics,
+                    report_options_snapshot(args.fail_level, &args.context),
+                );
+                if let Err(e) = write_report_files(&report, &args.report, REPORT_BASENAME_VALIDATE)
+                {
+                    let _ = writeln!(s.stderr, "cem-ml: parse report write failure: {e}");
+                    return Outcome::code(EXIT_IO);
+                }
+            }
             Outcome::ok()
         }
         Err(e) => handle_engine_error(e, s),
@@ -1820,6 +1833,39 @@ mod tests {
     }
 
     #[test]
+    fn parse_writes_side_report_files_when_requested() {
+        let p = write_fixture("parse-report.cem", "{x}");
+        let report_dir = std::env::temp_dir().join("cem-ml-cli-tests/parse-report-dir");
+        let _ = std::fs::remove_dir_all(&report_dir);
+        let (outcome, stdout, stderr) = run(
+            &FakeEngine,
+            &[
+                "parse",
+                "--report-json",
+                report_dir.to_str().unwrap(),
+                "--report-md",
+                report_dir.to_str().unwrap(),
+                p.to_str().unwrap(),
+            ],
+        );
+
+        assert_eq!(outcome.exit_code, EXIT_OK, "{stderr}");
+        let primary: serde_json::Value = serde_json::from_str(stdout.trim()).unwrap();
+        assert_eq!(primary["kind"], "fake-parse");
+        let report_path = report_dir.join("cem-ml.report.json");
+        let markdown_path = report_dir.join("cem-ml.report.md");
+        assert!(report_path.is_file());
+        assert!(markdown_path.is_file());
+        let report: serde_json::Value =
+            serde_json::from_str(&std::fs::read_to_string(report_path).unwrap()).unwrap();
+        assert_eq!(report["summary"]["inputCount"], 1);
+        assert_eq!(report["diagnostics"][0]["code"], "fake.engine.placeholder");
+        let markdown = std::fs::read_to_string(markdown_path).unwrap();
+        assert!(markdown.contains("# cem-ml report"));
+        assert!(markdown.contains("- info: 1"));
+    }
+
+    #[test]
     fn parse_remote_uri_out_destination_is_rejected_without_resolver() {
         let p = write_fixture("parse-remote-out.cem", "{x}");
         let (outcome, stdout, stderr) = run(
@@ -1837,6 +1883,26 @@ mod tests {
         assert!(stderr.contains("write failure"));
         assert!(stderr.contains("remote/custom URI resolvers are not implemented"));
         assert!(stderr.contains("https://example.test/out.json"));
+    }
+
+    #[test]
+    fn parse_remote_uri_report_destination_is_rejected_without_resolver() {
+        let p = write_fixture("parse-remote-report.cem", "{x}");
+        let (outcome, stdout, stderr) = run(
+            &FakeEngine,
+            &[
+                "parse",
+                "--report-json",
+                "https://example.test/parse-report.json",
+                p.to_str().unwrap(),
+            ],
+        );
+
+        assert_eq!(outcome.exit_code, EXIT_IO);
+        assert!(stdout.contains("\"kind\": \"fake-parse\""));
+        assert!(stderr.contains("parse report write failure"));
+        assert!(stderr.contains("remote/custom URI resolvers are not implemented"));
+        assert!(stderr.contains("https://example.test/parse-report.json"));
     }
 
     #[test]

@@ -428,7 +428,8 @@ These are data shapes only. Parser-filled content remains blocked until the pars
     - Default format: `dom-json`.
     - Supported formats: `dom-json`, `json`, `ast`, `events`.
     - Default fail level: `parse`.
-    - Writes to stdout or `--out`.
+    - Writes primary output to stdout or `--out`.
+    - Supports parse diagnostic side reports with `--report-json` and `--report-md`.
 2. `cem-ml validate <input...>`
     - Supported structured formats: `json`, `xml`, `cem`.
     - Reference convenience formats: `text`, `html`, `markdown`.

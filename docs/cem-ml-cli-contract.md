@@ -282,6 +282,8 @@ The deterministic default timestamp for feature tests is `1970-01-01T00:00:00.00
 
 - Fixture validation JSON: `packages/cem_ml_cli/dist/cem-ml.report.json`
 - Fixture validation Markdown: `packages/cem_ml_cli/dist/cem-ml.report.md`
+- Parse JSON (`cem-ml parse`): `packages/cem_ml_cli/dist/cem-ml.report.json`
+- Parse Markdown (`cem-ml parse`): `packages/cem_ml_cli/dist/cem-ml.report.md`
 - Fixture roundtrip JSON: `packages/cem_ml_cli/dist/cem-ml.roundtrip.report.json`
 - Fixture roundtrip Markdown: `packages/cem_ml_cli/dist/cem-ml.roundtrip.report.md`
 - Benchmark JSON (`cem-ml bench`): `packages/cem_ml_cli/dist/cem-ml.bench.report.json`
