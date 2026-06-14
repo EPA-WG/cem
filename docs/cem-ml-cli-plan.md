@@ -138,8 +138,10 @@ the immediate CLI lifecycle contract.
       `inspect`, and `convert`;
     - add explicit target identity flags for conversion, for example
       `--to-content-type` and `--to-schema`;
-    - expose command-level namespace defaults with `--default-namespace` and
-      repeatable `--namespace PREFIX=URI`;
+    - expose command-level root-scope defaults with `--default-namespace`,
+      repeatable `--namespace PREFIX=URI`, `--module-map`, repeatable
+      `--version-pin NAME=CONSTRAINT`, `--scope-policy`, and repeatable
+      `--scope-budget NAME=VALUE`;
     - continue supporting `--schema` for input schema identity until split input/output schema
       flags land.
 8. Replace the current XSLT special case in `RealCemMlEngine::convert` with the adapter

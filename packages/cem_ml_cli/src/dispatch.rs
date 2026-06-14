@@ -459,8 +459,11 @@ fn input_scope_defaults(c: &cli::ContextOptions) -> ScopeConfig {
         schema: c.schema.clone(),
         default_namespace: c.default_namespace.clone(),
         namespaces: context_namespaces(c),
+        module_map: c.module_map.clone(),
         base_uri: c.base_uri.clone(),
-        ..ScopeConfig::default()
+        policy: c.scope_policy.clone(),
+        version_pins: context_key_values(&c.version_pins),
+        budgets: context_key_values(&c.scope_budgets),
     }
 }
 
@@ -470,8 +473,11 @@ fn output_scope_defaults(args: &cli::ConvertArgs) -> ScopeConfig {
         schema: args.to_schema.clone(),
         default_namespace: args.context.default_namespace.clone(),
         namespaces: context_namespaces(&args.context),
+        module_map: args.context.module_map.clone(),
         base_uri: args.context.base_uri.clone(),
-        ..ScopeConfig::default()
+        policy: args.context.scope_policy.clone(),
+        version_pins: context_key_values(&args.context.version_pins),
+        budgets: context_key_values(&args.context.scope_budgets),
     }
 }
 
@@ -479,6 +485,13 @@ fn context_namespaces(c: &cli::ContextOptions) -> BTreeMap<String, String> {
     c.namespaces
         .iter()
         .map(|binding| (binding.prefix.clone(), binding.uri.clone()))
+        .collect()
+}
+
+fn context_key_values(values: &[cli::ScopeKeyValue]) -> BTreeMap<String, String> {
+    values
+        .iter()
+        .map(|entry| (entry.key.clone(), entry.value.clone()))
         .collect()
 }
 
@@ -2229,7 +2242,18 @@ mod tests {
                 prefix: "widget".to_owned(),
                 uri: "urn:widgets".to_owned(),
             }],
+            module_map: Some("cem.modules.json".to_owned()),
+            version_pins: vec![cli::ScopeKeyValue {
+                key: "cem-ml".to_owned(),
+                value: "1".to_owned(),
+            }],
+            scope_policy: Some("deterministic".to_owned()),
+            scope_budgets: vec![cli::ScopeKeyValue {
+                key: "parseMs".to_owned(),
+                value: "5".to_owned(),
+            }],
             base_uri: Some("file:///workspace/".to_owned()),
+            ..cli::ContextOptions::default()
         };
 
         let defaults = input_scope_defaults(&context);
@@ -2242,6 +2266,13 @@ mod tests {
             scope.namespaces.get("widget").map(String::as_str),
             Some("urn:widgets")
         );
+        assert_eq!(scope.module_map.as_deref(), Some("cem.modules.json"));
+        assert_eq!(
+            scope.version_pins.get("cem-ml").map(String::as_str),
+            Some("1")
+        );
+        assert_eq!(scope.policy.as_deref(), Some("deterministic"));
+        assert_eq!(scope.budgets.get("parseMs").map(String::as_str), Some("5"));
         assert_eq!(scope.base_uri.as_deref(), Some("file:///workspace/"));
     }
 
@@ -3106,6 +3137,32 @@ mod tests {
         assert_eq!(outcome.exit_code, EXIT_HARD_FAILURE, "{stderr}");
         let v: serde_json::Value = serde_json::from_str(stdout.trim()).unwrap();
         assert_eq!(v["budgetExceeded"], true);
+        let diagnostics = v["diagnostics"].as_array().unwrap();
+        assert!(diagnostics
+            .iter()
+            .any(|diag| diag["code"] == "cem.scope.budget_exceeded"));
+        assert!(!diagnostics
+            .iter()
+            .any(|diag| diag["code"] == "cem.scope.budget_unenforced"));
+    }
+
+    #[test]
+    fn scope_budget_context_option_is_enforced_for_positional_input() {
+        let p = write_fixture("validate-context-scope-budget.cem", r#"{p Hi}"#);
+        let (outcome, stdout, stderr) = run(
+            &RealCemMlEngine::new(),
+            &[
+                "validate",
+                "--format",
+                "json",
+                "--scope-budget",
+                "validateMs=0",
+                p.to_str().unwrap(),
+            ],
+        );
+
+        assert_eq!(outcome.exit_code, EXIT_HARD_FAILURE, "{stderr}");
+        let v: serde_json::Value = serde_json::from_str(stdout.trim()).unwrap();
         let diagnostics = v["diagnostics"].as_array().unwrap();
         assert!(diagnostics
             .iter()

@@ -193,6 +193,36 @@ pub struct ContextOptions {
     pub namespaces: Vec<NamespaceBinding>,
 
     #[arg(
+        long = "module-map",
+        value_name = "PATH-OR-URI",
+        help = "Module-map path or URI for the input root scope"
+    )]
+    pub module_map: Option<String>,
+
+    #[arg(
+        long = "version-pin",
+        value_name = "NAME=CONSTRAINT",
+        action = clap::ArgAction::Append,
+        help = "Version pin for the input root scope; repeatable"
+    )]
+    pub version_pins: Vec<ScopeKeyValue>,
+
+    #[arg(
+        long = "scope-policy",
+        value_name = "NAME",
+        help = "Scheduler/resource policy name for the input root scope"
+    )]
+    pub scope_policy: Option<String>,
+
+    #[arg(
+        long = "scope-budget",
+        value_name = "NAME=VALUE",
+        action = clap::ArgAction::Append,
+        help = "Resource budget for the input root scope; repeatable"
+    )]
+    pub scope_budgets: Vec<ScopeKeyValue>,
+
+    #[arg(
         long,
         value_name = "URI",
         help = "Base URI for diagnostic/report URI normalization"
@@ -224,6 +254,34 @@ impl FromStr for NamespaceBinding {
         Ok(Self {
             prefix: prefix.to_owned(),
             uri: uri.to_owned(),
+        })
+    }
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct ScopeKeyValue {
+    pub key: String,
+    pub value: String,
+}
+
+impl FromStr for ScopeKeyValue {
+    type Err = String;
+
+    fn from_str(value: &str) -> Result<Self, Self::Err> {
+        let Some((key, field_value)) = value.split_once('=') else {
+            return Err("expected NAME=VALUE".to_owned());
+        };
+        let key = key.trim();
+        let field_value = field_value.trim();
+        if key.is_empty() {
+            return Err("name must not be empty".to_owned());
+        }
+        if field_value.is_empty() {
+            return Err("value must not be empty".to_owned());
+        }
+        Ok(Self {
+            key: key.to_owned(),
+            value: field_value.to_owned(),
         })
     }
 }
@@ -659,6 +717,38 @@ mod tests {
         );
         assert!(try_parse(&["validate", "--namespace", "=urn:default", "in.cem"]).is_err());
         assert!(try_parse(&["validate", "--namespace", "html", "in.cem"]).is_err());
+    }
+
+    #[test]
+    fn commands_accept_scope_context_options() {
+        let cli = try_parse(&[
+            "validate",
+            "--module-map",
+            "cem.modules.json",
+            "--version-pin",
+            "cem-ml=1",
+            "--scope-policy",
+            "deterministic",
+            "--scope-budget",
+            "parseMs=5",
+            "--scope-budget",
+            "validateMs=7",
+            "in.cem",
+        ])
+        .unwrap();
+
+        let Command::Validate(args) = cli.command else {
+            panic!("expected validate command");
+        };
+        assert_eq!(args.context.module_map.as_deref(), Some("cem.modules.json"));
+        assert_eq!(args.context.version_pins[0].key, "cem-ml");
+        assert_eq!(args.context.version_pins[0].value, "1");
+        assert_eq!(args.context.scope_policy.as_deref(), Some("deterministic"));
+        assert_eq!(args.context.scope_budgets.len(), 2);
+        assert_eq!(args.context.scope_budgets[0].key, "parseMs");
+        assert_eq!(args.context.scope_budgets[0].value, "5");
+        assert!(try_parse(&["validate", "--version-pin", "=1", "in.cem"]).is_err());
+        assert!(try_parse(&["validate", "--scope-budget", "parseMs", "in.cem"]).is_err());
     }
 
     #[test]

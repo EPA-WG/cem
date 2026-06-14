@@ -38,8 +38,9 @@ for the current architecture have landed; only deferred capability work remains 
       repeatable `--output-spec` map into engine input identities and the first conversion output target/destination.
       Positional inputs now receive the same normalized content-type identity path, including extension inference when
       no explicit `--content-type` is supplied; command-level `--default-namespace` and repeatable
-      `--namespace PREFIX=URI` flags now flow into positional input root scopes alongside `--schema`,
-      `--content-type`, and `--base-uri`, using the same run-config namespace validation as config/spec
+      `--namespace PREFIX=URI`, `--module-map`, repeatable `--version-pin NAME=CONSTRAINT`, `--scope-policy`, and
+      repeatable `--scope-budget NAME=VALUE` flags now flow into positional input root scopes alongside `--schema`,
+      `--content-type`, and `--base-uri`, using the same run-config default-scope validation as config/spec
       root-scope fields. Config diagnostics now fail before document parsing for malformed JSON,
       unsupported config content types, duplicate input URIs, and unknown output input references, and validation-style
       CLI commands represent those diagnostics in generated JSON/Markdown reports. The `--observe-events` path now uses
