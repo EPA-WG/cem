@@ -2253,6 +2253,21 @@ mod tests {
     }
 
     #[test]
+    fn parse_non_local_file_uri_markdown_report_destination_is_rejected() {
+        let p = write_fixture("parse-non-local-file-uri-md-report.cem", "{x}");
+        let uri = "file://example.test/parse-report.md";
+        let (outcome, stdout, stderr) = run(
+            &FakeEngine,
+            &["parse", "--report-md", uri, p.to_str().unwrap()],
+        );
+
+        assert_eq!(outcome.exit_code, EXIT_IO);
+        assert!(stdout.contains("\"kind\": \"fake-parse\""));
+        assert_stderr_contains_all(&stderr, &["parse report write failure"]);
+        assert_local_file_uri_boundary(&stderr, uri);
+    }
+
+    #[test]
     fn validate_emits_report_with_contract_field_names() {
         let p = write_fixture("validate.cem", "{x}");
         let (outcome, stdout, _) = run(&FakeEngine, &["validate", p.to_str().unwrap()]);
@@ -3631,6 +3646,32 @@ mod tests {
         assert!(out_path.is_file());
         assert_stderr_contains_all(&stderr, &["convert report write failure"]);
         assert_remote_resolver_boundary(&stderr, uri);
+    }
+
+    #[test]
+    fn convert_non_local_file_uri_markdown_report_destination_is_rejected() {
+        let input = write_fixture("convert-non-local-file-uri-md-report-input.cem", "{p Hi}");
+        let out_path = std::env::temp_dir()
+            .join("cem-ml-cli-tests/convert-non-local-file-uri-md-report-output.json");
+        let _ = std::fs::remove_file(&out_path);
+        let uri = "file://example.test/convert-report.md";
+        let (outcome, stdout, stderr) = run(
+            &RealCemMlEngine::new(),
+            &[
+                "convert",
+                "--out",
+                out_path.to_str().unwrap(),
+                "--report-md",
+                uri,
+                input.to_str().unwrap(),
+            ],
+        );
+
+        assert_eq!(outcome.exit_code, EXIT_IO);
+        assert!(stdout.trim().is_empty());
+        assert!(out_path.is_file());
+        assert_stderr_contains_all(&stderr, &["convert report write failure"]);
+        assert_local_file_uri_boundary(&stderr, uri);
     }
 
     #[test]
@@ -5254,6 +5295,18 @@ mod tests {
     }
 
     #[test]
+    fn fixture_roundtrip_non_local_file_uri_markdown_report_destination_is_rejected() {
+        let uri = "file://example.test/fixture-roundtrip-report.md";
+        let (outcome, stdout, stderr) =
+            run(&FakeEngine, &["fixture", "roundtrip", "--report-md", uri]);
+
+        assert_eq!(outcome.exit_code, EXIT_IO);
+        assert!(stdout.trim().is_empty());
+        assert_stderr_contains_all(&stderr, &["report write failure"]);
+        assert_local_file_uri_boundary(&stderr, uri);
+    }
+
+    #[test]
     fn fixture_validate_remote_uri_report_destination_is_rejected_without_resolver() {
         let (outcome, stdout, stderr) = run(
             &FakeEngine,
@@ -5293,6 +5346,18 @@ mod tests {
         assert!(stdout.trim().is_empty());
         assert_stderr_contains_all(&stderr, &["report write failure"]);
         assert_remote_resolver_boundary(&stderr, uri);
+    }
+
+    #[test]
+    fn fixture_validate_non_local_file_uri_markdown_report_destination_is_rejected() {
+        let uri = "file://example.test/fixture-report.md";
+        let (outcome, stdout, stderr) =
+            run(&FakeEngine, &["fixture", "validate", "--report-md", uri]);
+
+        assert_eq!(outcome.exit_code, EXIT_IO);
+        assert!(stdout.trim().is_empty());
+        assert_stderr_contains_all(&stderr, &["report write failure"]);
+        assert_local_file_uri_boundary(&stderr, uri);
     }
 
     #[test]
@@ -5517,6 +5582,24 @@ mod tests {
     }
 
     #[test]
+    fn validate_non_local_file_uri_markdown_report_destination_is_rejected() {
+        let p = write_fixture(
+            "validate-non-local-file-uri-md-report-destination.cem",
+            "{x}",
+        );
+        let uri = "file://example.test/report.md";
+        let (outcome, stdout, stderr) = run(
+            &FakeEngine,
+            &["validate", "--report-md", uri, p.to_str().unwrap()],
+        );
+
+        assert_eq!(outcome.exit_code, EXIT_IO);
+        assert!(stdout.trim().is_empty());
+        assert_stderr_contains_all(&stderr, &["report write failure"]);
+        assert_local_file_uri_boundary(&stderr, uri);
+    }
+
+    #[test]
     fn bench_remote_uri_report_destination_is_rejected_without_resolver() {
         let p = write_fixture("bench-remote-report-destination.cem", "{x}");
         let (outcome, stdout, stderr) = run(
@@ -5600,6 +5683,28 @@ mod tests {
         assert!(stdout.contains("\"kind\": \"fake-bench\""));
         assert_stderr_contains_all(&stderr, &["benchmark report write failure"]);
         assert_remote_resolver_boundary(&stderr, uri);
+    }
+
+    #[test]
+    fn bench_non_local_file_uri_markdown_report_destination_is_rejected() {
+        let p = write_fixture("bench-non-local-file-uri-md-report-destination.cem", "{x}");
+        let uri = "file://example.test/bench.md";
+        let (outcome, stdout, stderr) = run(
+            &FakeEngine,
+            &[
+                "bench",
+                "--format",
+                "json",
+                "--report-md",
+                uri,
+                p.to_str().unwrap(),
+            ],
+        );
+
+        assert_eq!(outcome.exit_code, EXIT_IO);
+        assert!(stdout.contains("\"kind\": \"fake-bench\""));
+        assert_stderr_contains_all(&stderr, &["benchmark report write failure"]);
+        assert_local_file_uri_boundary(&stderr, uri);
     }
 
     #[test]
