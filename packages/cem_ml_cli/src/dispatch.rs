@@ -1812,6 +1812,26 @@ mod tests {
     }
 
     #[test]
+    fn parse_remote_uri_out_destination_is_rejected_without_resolver() {
+        let p = write_fixture("parse-remote-out.cem", "{x}");
+        let (outcome, stdout, stderr) = run(
+            &FakeEngine,
+            &[
+                "parse",
+                "--out",
+                "https://example.test/out.json",
+                p.to_str().unwrap(),
+            ],
+        );
+
+        assert_eq!(outcome.exit_code, EXIT_IO);
+        assert!(stdout.trim().is_empty());
+        assert!(stderr.contains("write failure"));
+        assert!(stderr.contains("remote/custom URI resolvers are not implemented"));
+        assert!(stderr.contains("https://example.test/out.json"));
+    }
+
+    #[test]
     fn validate_emits_report_with_contract_field_names() {
         let p = write_fixture("validate.cem", "{x}");
         let (outcome, stdout, _) = run(&FakeEngine, &["validate", p.to_str().unwrap()]);
