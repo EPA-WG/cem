@@ -175,6 +175,34 @@ fn scheduler_policy_json(policy: crate::scheduler::ScopePolicy) -> Value {
     })
 }
 
+fn scheduler_trace_for_documents(
+    context: &EngineContext,
+    inputs: &[EngineInput],
+) -> EngineResult<crate::scheduler::SchedulerTrace> {
+    let trace = crate::scheduler::SchedulerTrace::new();
+    let policy = scheduler_policy_from_context(context);
+    let abort = crate::scheduler::AbortSignal::new();
+    for (index, input) in inputs.iter().enumerate() {
+        let pool = crate::scheduler::WorkerPool::new(index as u32, policy, trace.clone());
+        for task in [
+            "read",
+            "lifecycle-load",
+            "tokenize",
+            "normalize",
+            "schema",
+            "ast",
+            "validate",
+        ] {
+            pool.submit(format!("{}:{task}", input.uri), &abort)
+                .map_err(|err| {
+                    EngineError::Internal(format!("scheduler trace setup failed: {err}"))
+                })?;
+        }
+        pool.run_to_completion(&abort, |_| {});
+    }
+    Ok(trace)
+}
+
 fn materialized_input(input: &EngineInput) -> EngineResult<EngineInput> {
     if !input.bytes.is_empty() {
         return Ok(input.clone());
@@ -407,6 +435,7 @@ impl CemMlEngine for RealCemMlEngine {
 
     fn validate(&self, request: ValidateRequest) -> EngineResult<ValidateResponse> {
         let inputs = input_uris(&request.inputs);
+        let scheduler_trace = scheduler_trace_for_documents(&request.context, &request.inputs)?;
         let mut all_diags: Vec<Diagnostic> = Vec::new();
         for input in &request.inputs {
             let loaded = load_input_through_lifecycle(input, &request.context);
@@ -418,12 +447,14 @@ impl CemMlEngine for RealCemMlEngine {
             inputs,
             all_diags,
             snapshot(request.fail_level, &request.context),
-        );
+        )
+        .with_scheduler_trace(&scheduler_trace);
         Ok(ValidateResponse { report })
     }
 
     fn check(&self, request: CheckRequest) -> EngineResult<CheckResponse> {
         let inputs = input_uris(&request.inputs);
+        let scheduler_trace = scheduler_trace_for_documents(&request.context, &request.inputs)?;
         let mut all_diags: Vec<Diagnostic> = Vec::new();
         for input in &request.inputs {
             let loaded = load_input_through_lifecycle(input, &request.context);
@@ -435,7 +466,8 @@ impl CemMlEngine for RealCemMlEngine {
             inputs,
             all_diags,
             snapshot(request.fail_level, &request.context),
-        );
+        )
+        .with_scheduler_trace(&scheduler_trace);
         let hard_violation_count = report.summary.hard_violation_count;
         Ok(CheckResponse {
             report,
@@ -782,6 +814,29 @@ mod tests {
         assert_eq!(resp.report.summary.hard_violation_count, 0);
         assert_eq!(resp.report.summary.error_count, 0);
         assert_eq!(resp.report.summary.warning_count, 0);
+    }
+
+    #[test]
+    fn validate_report_embeds_run_level_scheduler_trace_for_each_input_scope() {
+        let req = ValidateRequest {
+            inputs: vec![input(b"{p One}", "one.cem"), input(b"{p Two}", "two.cem")],
+            projection: ValidateProjection::Json,
+            fail_level: FailLevel::Validate,
+            context: EngineContext {
+                scheduler: crate::run_config::SchedulerConfig {
+                    thread_pool: Some("deterministic".to_owned()),
+                    max_parallel_documents: Some(3),
+                },
+                ..ctx()
+            },
+        };
+        let resp = RealCemMlEngine::new().validate(req).unwrap();
+        let events = &resp.report.report_ast.scheduler_trace.events;
+        assert_eq!(resp.report.summary.input_count, 2);
+        assert_eq!(resp.report.report_ast.scheduler_trace.event_count, 42);
+        assert!(events.iter().any(|event| event.scope_id == 0));
+        assert!(events.iter().any(|event| event.scope_id == 1));
+        assert!(events.iter().any(|event| event.task == "two.cem:validate"));
     }
 
     #[test]
