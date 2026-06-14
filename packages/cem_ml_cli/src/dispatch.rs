@@ -1875,6 +1875,28 @@ mod tests {
     }
 
     #[test]
+    fn parse_file_uri_out_destination_writes_local_output() {
+        let p = write_fixture("parse-file-uri-out.cem", "{x}");
+        let out_path = std::env::temp_dir().join("cem-ml-cli-tests/parse-file-uri-out.json");
+        let _ = std::fs::remove_file(&out_path);
+        let (outcome, stdout, stderr) = run(
+            &FakeEngine,
+            &[
+                "parse",
+                "--out",
+                &format!("file://{}", out_path.display()),
+                p.to_str().unwrap(),
+            ],
+        );
+
+        assert_eq!(outcome.exit_code, EXIT_OK, "{stderr}");
+        assert!(stdout.trim().is_empty());
+        let written = std::fs::read_to_string(&out_path).unwrap();
+        let v: serde_json::Value = serde_json::from_str(&written).unwrap();
+        assert_eq!(v["kind"], "fake-parse");
+    }
+
+    #[test]
     fn parse_writes_side_report_files_when_requested() {
         let p = write_fixture("parse-report.cem", "{x}");
         let report_dir = std::env::temp_dir().join("cem-ml-cli-tests/parse-report-dir");
@@ -2928,6 +2950,48 @@ mod tests {
     }
 
     #[test]
+    fn convert_file_uri_out_destination_writes_local_output() {
+        let input = write_fixture("convert-file-uri-out.cem", "{p Hi}");
+        let out_path = std::env::temp_dir().join("cem-ml-cli-tests/convert-file-uri-out.json");
+        let _ = std::fs::remove_file(&out_path);
+        let (outcome, stdout, stderr) = run(
+            &FakeEngine,
+            &[
+                "convert",
+                "--out",
+                &format!("file://{}", out_path.display()),
+                input.to_str().unwrap(),
+            ],
+        );
+
+        assert_eq!(outcome.exit_code, EXIT_OK, "{stderr}");
+        assert!(stdout.trim().is_empty());
+        let written = std::fs::read_to_string(&out_path).unwrap();
+        let v: serde_json::Value = serde_json::from_str(&written).unwrap();
+        assert_eq!(v["kind"], "fake-convert");
+    }
+
+    #[test]
+    fn convert_remote_uri_out_destination_is_rejected_without_resolver() {
+        let input = write_fixture("convert-remote-out.cem", "{p Hi}");
+        let (outcome, stdout, stderr) = run(
+            &FakeEngine,
+            &[
+                "convert",
+                "--out",
+                "https://example.test/convert.json",
+                input.to_str().unwrap(),
+            ],
+        );
+
+        assert_eq!(outcome.exit_code, EXIT_IO);
+        assert!(stdout.trim().is_empty());
+        assert!(stderr.contains("write failure"));
+        assert!(stderr.contains("remote/custom URI resolvers are not implemented"));
+        assert!(stderr.contains("https://example.test/convert.json"));
+    }
+
+    #[test]
     fn convert_remote_uri_markdown_report_destination_is_rejected_without_resolver() {
         let input = write_fixture("convert-remote-md-report-input.cem", "{p Hi}");
         let out_path =
@@ -3798,6 +3862,28 @@ mod tests {
     }
 
     #[test]
+    fn inspect_file_uri_out_destination_writes_local_output() {
+        let p = write_fixture("inspect-file-uri-out.cem", "{x}");
+        let out_path = std::env::temp_dir().join("cem-ml-cli-tests/inspect-file-uri-out.json");
+        let _ = std::fs::remove_file(&out_path);
+        let (outcome, stdout, stderr) = run(
+            &FakeEngine,
+            &[
+                "inspect",
+                "--out",
+                &format!("file://{}", out_path.display()),
+                p.to_str().unwrap(),
+            ],
+        );
+
+        assert_eq!(outcome.exit_code, EXIT_OK, "{stderr}");
+        assert!(stdout.trim().is_empty());
+        let written = std::fs::read_to_string(&out_path).unwrap();
+        let v: serde_json::Value = serde_json::from_str(&written).unwrap();
+        assert_eq!(v["kind"], "fake-inspect");
+    }
+
+    #[test]
     fn inspect_input_spec_inspect_ms_budget_is_reported() {
         let p = write_fixture("inspect-budget.cem", "{p Hi}");
         let (outcome, stdout, stderr) = run(
@@ -3877,6 +3963,28 @@ mod tests {
         assert!(stderr.contains("write failure"));
         assert!(stderr.contains("remote/custom URI resolvers are not implemented"));
         assert!(stderr.contains("https://example.test/trace.json"));
+    }
+
+    #[test]
+    fn trace_file_uri_out_destination_writes_local_output() {
+        let p = write_fixture("trace-file-uri-out.cem", "{x}");
+        let out_path = std::env::temp_dir().join("cem-ml-cli-tests/trace-file-uri-out.json");
+        let _ = std::fs::remove_file(&out_path);
+        let (outcome, stdout, stderr) = run(
+            &FakeEngine,
+            &[
+                "trace",
+                "--out",
+                &format!("file://{}", out_path.display()),
+                p.to_str().unwrap(),
+            ],
+        );
+
+        assert_eq!(outcome.exit_code, EXIT_OK, "{stderr}");
+        assert!(stdout.trim().is_empty());
+        let written = std::fs::read_to_string(&out_path).unwrap();
+        let v: serde_json::Value = serde_json::from_str(&written).unwrap();
+        assert_eq!(v["kind"], "fake-trace");
     }
 
     #[test]
@@ -4205,6 +4313,52 @@ mod tests {
     }
 
     #[test]
+    fn fixture_roundtrip_file_uri_dir_uses_roundtrip_basename() {
+        let dir = std::env::temp_dir().join("cem-ml-cli-tests/fr-file-uri-dir");
+        let _ = std::fs::remove_dir_all(&dir);
+        let (outcome, _, stderr) = run(
+            &FakeEngine,
+            &[
+                "fixture",
+                "roundtrip",
+                "--report-json",
+                &format!("file://{}", dir.display()),
+                "--report-md",
+                &format!("file://{}", dir.display()),
+            ],
+        );
+
+        assert_eq!(outcome.exit_code, EXIT_OK, "{stderr}");
+        assert!(
+            dir.join("cem-ml.roundtrip.report.json").is_file(),
+            "missing roundtrip.report.json"
+        );
+        assert!(
+            dir.join("cem-ml.roundtrip.report.md").is_file(),
+            "missing roundtrip.report.md"
+        );
+    }
+
+    #[test]
+    fn fixture_validate_remote_uri_report_destination_is_rejected_without_resolver() {
+        let (outcome, stdout, stderr) = run(
+            &FakeEngine,
+            &[
+                "fixture",
+                "validate",
+                "--report-json",
+                "https://example.test/fixture-report.json",
+            ],
+        );
+
+        assert_eq!(outcome.exit_code, EXIT_IO);
+        assert!(stdout.trim().is_empty());
+        assert!(stderr.contains("report write failure"));
+        assert!(stderr.contains("remote/custom URI resolvers are not implemented"));
+        assert!(stderr.contains("https://example.test/fixture-report.json"));
+    }
+
+    #[test]
     fn bench_with_dir_uses_bench_basename() {
         let p = write_fixture("bench-dir.cem", "{x}");
         let dir = std::env::temp_dir().join("cem-ml-cli-tests/bench-dir");
@@ -4299,6 +4453,27 @@ mod tests {
     }
 
     #[test]
+    fn markdown_report_explicit_file_uri_path_writes_local_report() {
+        let p = write_fixture("validate-explicit-md-file-uri.cem", "{x}");
+        let md_path = std::env::temp_dir().join("cem-ml-cli-tests/custom-file-uri-name.md");
+        let _ = std::fs::remove_file(&md_path);
+        let (outcome, _, stderr) = run(
+            &FakeEngine,
+            &[
+                "validate",
+                "--report-md",
+                &format!("file://{}", md_path.display()),
+                p.to_str().unwrap(),
+            ],
+        );
+
+        assert_eq!(outcome.exit_code, EXIT_OK, "{stderr}");
+        let markdown = std::fs::read_to_string(&md_path).unwrap();
+        assert!(markdown.contains("# cem-ml report"));
+        assert!(markdown.contains("- inputs: 1"));
+    }
+
+    #[test]
     fn validate_remote_uri_report_destination_is_rejected_without_resolver() {
         let p = write_fixture("validate-remote-report-destination.cem", "{x}");
         let (outcome, stdout, stderr) = run(
@@ -4316,6 +4491,26 @@ mod tests {
         assert!(stderr.contains("report write failure"));
         assert!(stderr.contains("remote/custom URI resolvers are not implemented"));
         assert!(stderr.contains("https://example.test/report.json"));
+    }
+
+    #[test]
+    fn validate_remote_uri_markdown_report_destination_is_rejected_without_resolver() {
+        let p = write_fixture("validate-remote-md-report-destination.cem", "{x}");
+        let (outcome, stdout, stderr) = run(
+            &FakeEngine,
+            &[
+                "validate",
+                "--report-md",
+                "https://example.test/report.md",
+                p.to_str().unwrap(),
+            ],
+        );
+
+        assert_eq!(outcome.exit_code, EXIT_IO);
+        assert!(stdout.trim().is_empty());
+        assert!(stderr.contains("report write failure"));
+        assert!(stderr.contains("remote/custom URI resolvers are not implemented"));
+        assert!(stderr.contains("https://example.test/report.md"));
     }
 
     #[test]
