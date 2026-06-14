@@ -84,8 +84,10 @@ the immediate CLI lifecycle contract.
    repeatable `--input-spec`, and repeatable `--output-spec`; WASM exposes JSON
    normalization and CSV spec parsing helpers over the same library parser. Input specs
    override global input identity for lifecycle dispatch, and the first output spec can
-   select conversion target identity/destination. Multi-output fanout and scheduler
-   ownership remain open.
+   select conversion target identity/destination. Config diagnostics for malformed JSON,
+   unsupported config content type, duplicate input URIs, and unknown output input
+   references fail before document parsing. Multi-output fanout and scheduler ownership
+   remain open.
 7. Update CLI flags without breaking current debug workflows:
     - keep `--from-format` and `--to-format` as aliases for built-in identities;
     - keep `--content-type` as the input content type for `parse`, `validate`, `check`,

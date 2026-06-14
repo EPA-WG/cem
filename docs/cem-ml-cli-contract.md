@@ -102,7 +102,9 @@ Current implementation status:
   `cem_ml`; WASM exposes helpers over the same library parser. This is the first
   execution slice: input specs override global input content-type/schema/base URI during
   lifecycle dispatch, and the first output spec can select conversion target content
-  type plus destination. Full multi-output fanout and shared scheduler execution remain
+  type plus destination. Config diagnostics for malformed JSON, unsupported config
+  content type, duplicate input URIs, and unknown output input references fail before
+  document parsing. Full multi-output fanout and shared scheduler execution remain
   pending.
 - `--schema` and `--content-type` are carried in `EngineContext` and emitted in reports.
   `cem_ml::lifecycle::LifecycleRegistry` now owns built-in input content-type dispatch

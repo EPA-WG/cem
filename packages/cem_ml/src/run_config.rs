@@ -6,7 +6,7 @@
 //! each document root as scope zero for diagnostics, source maps, schema
 //! selection, and resource policy accounting.
 
-use crate::diagnostics::Diagnostic;
+use crate::diagnostics::{Diagnostic, Severity};
 use crate::engine::FormatIdentity;
 use serde::{Deserialize, Serialize};
 use std::collections::BTreeMap;
@@ -141,9 +141,10 @@ pub fn parse_run_config(
                     format!("run config JSON could not be parsed: {error}"),
                 )
             })?;
+            let diagnostics = validate_run_config(&config, request.base_uri.as_deref());
             Ok(RunConfigParseResponse {
                 config,
-                diagnostics: Vec::new(),
+                diagnostics,
             })
         }
         other => Err(run_config_error(
@@ -184,6 +185,41 @@ pub fn parse_output_spec_record(record: &str) -> Result<OutputSpec, SpecParseErr
     }
 
     Ok(spec)
+}
+
+pub fn validate_run_config(config: &RunConfig, base_uri: Option<&str>) -> Vec<Diagnostic> {
+    let mut diagnostics = Vec::new();
+    let mut input_uris = std::collections::BTreeSet::new();
+
+    for (index, input) in config.inputs.iter().enumerate() {
+        if input.uri.trim().is_empty() {
+            diagnostics.push(config_diagnostic(
+                "cem.run_config.input_uri_missing",
+                format!("input spec at index {index} requires `uri`"),
+                base_uri,
+            ));
+        } else if !input_uris.insert(input.uri.clone()) {
+            diagnostics.push(config_diagnostic(
+                "cem.run_config.input_uri_duplicate",
+                format!("input URI `{}` is declared more than once", input.uri),
+                base_uri,
+            ));
+        }
+    }
+
+    for (index, output) in config.outputs.iter().enumerate() {
+        if let Some(input_ref) = output.input_ref.as_deref() {
+            if !input_uris.contains(input_ref) {
+                diagnostics.push(config_diagnostic(
+                    "cem.run_config.output_input_ref_unknown",
+                    format!("output spec at index {index} references unknown input `{input_ref}`"),
+                    base_uri,
+                ));
+            }
+        }
+    }
+
+    diagnostics
 }
 
 fn apply_scope_field(
@@ -350,6 +386,16 @@ fn content_type_essence(content_type: &str) -> String {
         .to_ascii_lowercase()
 }
 
+fn config_diagnostic(code: &str, message: String, base_uri: Option<&str>) -> Diagnostic {
+    Diagnostic {
+        uri: base_uri.map(str::to_owned),
+        code: code.to_owned(),
+        severity: Severity::Fatal,
+        message,
+        ..Diagnostic::default()
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -432,6 +478,48 @@ mod tests {
             Some("application/cem+xml")
         );
         assert!(response.diagnostics.is_empty());
+    }
+
+    #[test]
+    fn run_config_validation_reports_unknown_output_input_ref() {
+        let response = parse_run_config(RunConfigParseRequest {
+            bytes: br#"{"inputs":[{"uri":"src/a.cem"}],"outputs":[{"inputRef":"missing.cem"}]}"#
+                .to_vec(),
+            identity: FormatIdentity {
+                content_type: Some("application/json".to_owned()),
+                ..FormatIdentity::default()
+            },
+            base_uri: Some("file:///run-config.json".to_owned()),
+        })
+        .unwrap();
+
+        assert_eq!(response.diagnostics.len(), 1);
+        assert_eq!(
+            response.diagnostics[0].code,
+            "cem.run_config.output_input_ref_unknown"
+        );
+        assert_eq!(
+            response.diagnostics[0].uri.as_deref(),
+            Some("file:///run-config.json")
+        );
+    }
+
+    #[test]
+    fn run_config_validation_reports_duplicate_inputs() {
+        let response = parse_run_config(RunConfigParseRequest {
+            bytes: br#"{"inputs":[{"uri":"src/a.cem"},{"uri":"src/a.cem"}]}"#.to_vec(),
+            identity: FormatIdentity {
+                content_type: Some("application/json".to_owned()),
+                ..FormatIdentity::default()
+            },
+            base_uri: None,
+        })
+        .unwrap();
+
+        assert!(response
+            .diagnostics
+            .iter()
+            .any(|diag| diag.code == "cem.run_config.input_uri_duplicate"));
     }
 
     #[test]

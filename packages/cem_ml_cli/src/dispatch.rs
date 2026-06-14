@@ -113,8 +113,22 @@ fn run_config(options: &cli::RunOptions) -> Result<RunConfig, CliRequestError> {
             identity,
             base_uri: Some(path.display().to_string()),
         })
-        .map_err(|error| CliRequestError::Usage(format!("invalid run config: {error}")))?
-        .config
+        .map_err(|error| CliRequestError::Usage(format!("invalid run config: {error}")))
+        .and_then(|response| {
+            if response.diagnostics.is_empty() {
+                Ok(response.config)
+            } else {
+                let messages = response
+                    .diagnostics
+                    .iter()
+                    .map(|diag| format!("{}: {}", diag.code, diag.message))
+                    .collect::<Vec<_>>()
+                    .join("; ");
+                Err(CliRequestError::Usage(format!(
+                    "invalid run config: {messages}"
+                )))
+            }
+        })?
     } else {
         RunConfig::default()
     };
@@ -1231,6 +1245,31 @@ mod tests {
         let v: serde_json::Value = serde_json::from_str(&written).unwrap();
         assert_eq!(v["kind"], "cem");
         assert_eq!(v["content"], "{cem:if @test=\"ready\" | {button | Go}}\n");
+    }
+
+    #[test]
+    fn config_diagnostics_fail_before_document_parsing() {
+        let config_path = std::env::temp_dir().join("cem-ml-cli-tests/bad-config.json");
+        std::fs::write(
+            &config_path,
+            serde_json::json!({
+                "inputs": [{ "uri": "/definitely/not/read.cem" }],
+                "outputs": [{ "inputRef": "missing.cem" }]
+            })
+            .to_string(),
+        )
+        .unwrap();
+
+        let (outcome, _, stderr) = run(
+            &RealCemMlEngine::new(),
+            &["validate", "--config", config_path.to_str().unwrap()],
+        );
+        assert_eq!(outcome.exit_code, EXIT_USAGE_OR_RESERVED);
+        assert!(stderr.contains("cem.run_config.output_input_ref_unknown"));
+        assert!(
+            !stderr.contains("I/O error"),
+            "config diagnostics must fail before input files are read: {stderr}"
+        );
     }
 
     #[test]

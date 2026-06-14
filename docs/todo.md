@@ -29,9 +29,10 @@ for the current architecture have landed; only deferred capability work remains 
       `cem_ml` owns JSON config parsing by declared config content type plus CSV input/output spec parsing, WASM exposes
       helpers over the same library parser, and CLI `--config`, `--config-content-type`, repeatable `--input-spec`, and
       repeatable `--output-spec` map into engine input identities and the first conversion output target/destination.
-      Keep this item open until config diagnostics are represented in reports, config-file execution fans out multiple
-      outputs, observability uses the same configured input list, and the scheduler/thread-pool is owned by `RunConfig`
-      during execution.
+      Config diagnostics now fail before document parsing for malformed JSON, unsupported config content types,
+      duplicate input URIs, and unknown output input references. Keep this item open until config diagnostics are
+      represented in reports, config-file execution fans out multiple outputs, observability uses the same configured
+      input list, and the scheduler/thread-pool is owned by `RunConfig` during execution.
 - [x] **Immediate goal: XSLT 1.0 lifecycle adapter.** Move the existing legacy custom-element XSLT 1.0 lowering
       (`cem_ml::legacy_custom_element`) behind the lifecycle adapter registry instead of the current one-off
       `convert --content-type custom-element-xslt` branch. `cem-ml validate --content-type custom-element-xslt <input>`
