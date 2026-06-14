@@ -119,13 +119,15 @@ Current implementation status:
   root-scope scheduler policy and budget fields derive the per-scope worker policy for
   scheduled validate/check, trace, and convert execution; `parseMs` enforces a
   parser-backed pipeline wall-clock budget; `validateMs` and `checkMs` enforce
-  scheduled per-input document work budgets; and effective `baseUri` values project
-  relative report input and diagnostic URIs. Root-scope default and named namespace
-  bindings seed schema validation's document-root namespace context. Recognized CEM-ML
-  root-scope version pins resolve against the embedded document-format version. Input
-  root-scope module maps provide the resolver base for relative schema `src`
-  identities, load local JSON alias maps for schema-source specifier resolution, and
-  normalize relative module-map paths against the config document path. Config-file
+  scheduled per-input document work budgets; `convertMs` enforces input/output-scope
+  convert work budgets; `traceMs` and `inspectMs` enforce trace and inspect work
+  budgets; and effective `baseUri` values project relative report input and diagnostic
+  URIs. Root-scope default and named namespace bindings seed schema validation's
+  document-root namespace context. Recognized CEM-ML root-scope version pins resolve
+  against the embedded document-format version. Input root-scope module maps provide
+  the resolver base for relative schema `src` identities, load local JSON alias maps
+  for schema-source specifier resolution, and normalize relative module-map paths
+  against the config document path. Config-file
   output destinations normalize relative paths against the config document path.
   Run-config normalization validates root-scope module-map, namespace, and version-pin
   option shape before document parsing, while unreadable or malformed module maps,
@@ -142,8 +144,10 @@ Current implementation status:
 - Root-scope configuration is not complete yet. Current execution uses run-config identity
   fields for lifecycle dispatch and conversion output selection, recognized scheduler
   policy/budget fields for scheduled worker policy, `parseMs` for parser-backed
-  wall-clock enforcement, and `validateMs` / `checkMs` for scheduled per-input document
-  work budgets. Effective `baseUri` values project relative report input and
+  wall-clock enforcement, `validateMs` / `checkMs` for scheduled per-input document
+  work budgets, `convertMs` for input/output-scope convert work budgets, and
+  `traceMs` / `inspectMs` for trace and inspect work budgets. Effective `baseUri`
+  values project relative report input and
   diagnostic URIs. Default and named namespace maps seed schema validation's root
   namespace context. Recognized CEM-ML version pins resolve through the document-format
   version resolver. Input module maps resolve relative schema-source identities and

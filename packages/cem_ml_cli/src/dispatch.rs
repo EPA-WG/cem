@@ -2069,6 +2069,42 @@ mod tests {
     }
 
     #[test]
+    fn output_spec_convert_ms_budget_is_reported() {
+        let input = write_fixture("convert-output-spec-budget.cem", "{p Hi}");
+        let out_path =
+            std::env::temp_dir().join("cem-ml-cli-tests/convert-output-spec-budget.json");
+        let report_path =
+            std::env::temp_dir().join("cem-ml-cli-tests/convert-output-spec-budget-report.json");
+        let _ = std::fs::remove_file(&out_path);
+        let _ = std::fs::remove_file(&report_path);
+
+        let (outcome, stdout, stderr) = run(
+            &RealCemMlEngine::new(),
+            &[
+                "convert",
+                "--output-spec",
+                &format!("dest={},budgets=convertMs:0", out_path.display()),
+                "--report-json",
+                report_path.to_str().unwrap(),
+                input.to_str().unwrap(),
+            ],
+        );
+
+        assert_eq!(outcome.exit_code, EXIT_OK, "{stderr}");
+        assert!(stdout.trim().is_empty());
+        assert!(out_path.is_file());
+        let report: serde_json::Value =
+            serde_json::from_str(&std::fs::read_to_string(&report_path).unwrap()).unwrap();
+        let diagnostics = report["diagnostics"].as_array().unwrap();
+        assert!(diagnostics
+            .iter()
+            .any(|diag| diag["code"] == "cem.scope.budget_exceeded"));
+        assert!(!diagnostics
+            .iter()
+            .any(|diag| diag["code"] == "cem.scope.budget_unenforced"));
+    }
+
+    #[test]
     fn convert_fanout_writes_side_report_for_each_output() {
         let first = write_fixture("convert-fanout-report-first.cem", "{p First}");
         let second = write_fixture("convert-fanout-report-second.cem", "{p Second}");
@@ -2481,6 +2517,30 @@ mod tests {
     }
 
     #[test]
+    fn inspect_input_spec_inspect_ms_budget_is_reported() {
+        let p = write_fixture("inspect-budget.cem", "{p Hi}");
+        let (outcome, stdout, stderr) = run(
+            &RealCemMlEngine::new(),
+            &[
+                "inspect",
+                "--show",
+                "diagnostics",
+                "--input-spec",
+                &format!("uri={},budgets=inspectMs:0", p.display()),
+            ],
+        );
+        assert_eq!(outcome.exit_code, EXIT_OK, "{stderr}");
+        let v: serde_json::Value = serde_json::from_str(stdout.trim()).unwrap();
+        let diagnostics = v["diagnostics"].as_array().unwrap();
+        assert!(diagnostics
+            .iter()
+            .any(|diag| diag["code"] == "cem.scope.budget_exceeded"));
+        assert!(!diagnostics
+            .iter()
+            .any(|diag| diag["code"] == "cem.scope.budget_unenforced"));
+    }
+
+    #[test]
     fn trace_uses_run_config_scheduler() {
         let input = write_fixture("trace-scheduler.cem", "{p Hi}");
         let config_path = std::env::temp_dir().join("cem-ml-cli-tests/trace-scheduler.json");
@@ -2516,6 +2576,41 @@ mod tests {
         assert_eq!(v["scheduler"]["policy"]["cpuWorkers"], 3);
         assert_eq!(v["scheduler"]["policy"]["queueSize"], 12);
         assert_eq!(v["scheduler"]["policy"]["pluginTimeBudgetMs"], 7);
+    }
+
+    #[test]
+    fn trace_config_trace_ms_budget_is_reported() {
+        let input = write_fixture("trace-budget.cem", "{p Hi}");
+        let config_path = std::env::temp_dir().join("cem-ml-cli-tests/trace-budget.json");
+        std::fs::write(
+            &config_path,
+            serde_json::json!({
+                "inputs": [{
+                    "uri": input.display().to_string(),
+                    "rootScope": {
+                        "budgets": {
+                            "traceMs": "0"
+                        }
+                    }
+                }]
+            })
+            .to_string(),
+        )
+        .unwrap();
+
+        let (outcome, stdout, stderr) = run(
+            &RealCemMlEngine::new(),
+            &["trace", "--config", config_path.to_str().unwrap()],
+        );
+        assert_eq!(outcome.exit_code, EXIT_OK, "{stderr}");
+        let v: serde_json::Value = serde_json::from_str(stdout.trim()).unwrap();
+        let diagnostics = v["report"]["diagnostics"].as_array().unwrap();
+        assert!(diagnostics
+            .iter()
+            .any(|diag| diag["code"] == "cem.scope.budget_exceeded"));
+        assert!(!diagnostics
+            .iter()
+            .any(|diag| diag["code"] == "cem.scope.budget_unenforced"));
     }
 
     #[test]

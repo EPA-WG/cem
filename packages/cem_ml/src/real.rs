@@ -538,7 +538,8 @@ fn root_scope_budget_diagnostics(
             }
             "memory" | "memorybytes" | "pluginms" | "plugintimebudgetms" | "parsems"
             | "parsetimebudgetms" | "validatems" | "validatetimebudgetms" | "checkms"
-            | "checktimebudgetms" => {
+            | "checktimebudgetms" | "convertms" | "converttimebudgetms" | "tracems"
+            | "tracetimebudgetms" | "inspectms" | "inspecttimebudgetms" => {
                 if let Err(message) = parse_u64_budget(field, value) {
                     diagnostics.push(scope_policy_diagnostic(
                         uri,
@@ -649,7 +650,8 @@ fn apply_scope_scheduler_fields(
                 )),
             },
             "parsems" | "parsetimebudgetms" | "validatems" | "validatetimebudgetms"
-            | "checkms" | "checktimebudgetms" => {
+            | "checkms" | "checktimebudgetms" | "convertms" | "converttimebudgetms"
+            | "tracems" | "tracetimebudgetms" | "inspectms" | "inspecttimebudgetms" => {
                 if let Err(message) = parse_u64_budget(field, value) {
                     diagnostics.push(scope_policy_diagnostic(
                         uri,
@@ -1075,6 +1077,7 @@ impl CemMlEngine for RealCemMlEngine {
     }
 
     fn inspect(&self, request: InspectRequest) -> EngineResult<InspectResponse> {
+        let started_at = Instant::now();
         let loaded = load_input_through_lifecycle(&request.input, &request.context);
         let from_format = loaded.from_format;
         let run = run_pipeline_as_scoped(&loaded.bytes, from_format, &request.input.root_scope);
@@ -1085,6 +1088,11 @@ impl CemMlEngine for RealCemMlEngine {
         );
         diagnostics.extend(loaded.diagnostics);
         diagnostics.extend(run.diagnostics);
+        diagnostics.extend(time_budget_diagnostics(
+            &request.input.root_scope,
+            &["inspectms", "inspecttimebudgetms"],
+            started_at.elapsed().as_nanos(),
+        ));
         project_diagnostic_uris(&mut diagnostics, &request.input, &request.context);
         let display_uri = input_uri(&request.input, &request.context);
         let body = match request.show {
@@ -1139,6 +1147,7 @@ impl CemMlEngine for RealCemMlEngine {
     }
 
     fn convert(&self, request: ConvertRequest) -> EngineResult<ConvertResponse> {
+        let started_at = Instant::now();
         let trace = crate::scheduler::SchedulerTrace::new();
         let (policy, mut diagnostics) = scheduler_policy_for_convert(&request);
         let pool =
@@ -1239,6 +1248,17 @@ impl CemMlEngine for RealCemMlEngine {
                 "scheduler did not dispatch convert task".to_owned(),
             ));
         };
+        let elapsed_ns = started_at.elapsed().as_nanos();
+        diagnostics.extend(time_budget_diagnostics(
+            &request.input.root_scope,
+            &["convertms", "converttimebudgetms"],
+            elapsed_ns,
+        ));
+        diagnostics.extend(time_budget_diagnostics(
+            &request.target_scope,
+            &["convertms", "converttimebudgetms"],
+            elapsed_ns,
+        ));
         project_diagnostic_uris(&mut diagnostics, &request.input, &request.context);
         Ok(ConvertResponse {
             primary,
@@ -1248,6 +1268,7 @@ impl CemMlEngine for RealCemMlEngine {
     }
 
     fn trace(&self, request: TraceRequest) -> EngineResult<TraceResponse> {
+        let started_at = Instant::now();
         let loaded = load_input_through_lifecycle(&request.input, &request.context);
         let from_format = loaded.from_format;
         let scheduler_trace = crate::scheduler::SchedulerTrace::new();
@@ -1274,6 +1295,11 @@ impl CemMlEngine for RealCemMlEngine {
         ));
         diagnostics.extend(loaded.diagnostics);
         diagnostics.extend(run.diagnostics);
+        diagnostics.extend(time_budget_diagnostics(
+            &request.input.root_scope,
+            &["tracems", "tracetimebudgetms"],
+            started_at.elapsed().as_nanos(),
+        ));
         project_diagnostic_uris(&mut diagnostics, &request.input, &request.context);
         let report = Report::deterministic(
             vec![input_uri(&request.input, &request.context)],
@@ -1589,6 +1615,91 @@ mod tests {
         assert!(resp.report.diagnostics.iter().any(|diag| {
             diag.code == "cem.scope.budget_exceeded" && diag.severity == Severity::Error
         }));
+    }
+
+    #[test]
+    fn convert_enforces_root_scope_convert_ms_budget() {
+        let mut source = input(b"{p Hi}", "budgeted.cem");
+        source
+            .root_scope
+            .budgets
+            .insert("convertMs".to_owned(), "0".to_owned());
+        let req = ConvertRequest {
+            input: source,
+            to_format: LayerFormat::DomJson,
+            preserve_source_offsets: false,
+            context: ctx(),
+            target: None,
+            target_scope: Default::default(),
+            scheduler_scope_id: 0,
+        };
+
+        let resp = RealCemMlEngine::new().convert(req).unwrap();
+        assert!(resp.diagnostics.iter().any(|diag| {
+            diag.code == "cem.scope.budget_exceeded" && diag.severity == Severity::Error
+        }));
+    }
+
+    #[test]
+    fn convert_enforces_target_scope_convert_ms_budget() {
+        let mut target_scope = ScopeConfig::default();
+        target_scope
+            .budgets
+            .insert("convertMs".to_owned(), "0".to_owned());
+        let req = ConvertRequest {
+            input: input(b"{p Hi}", "budgeted.cem"),
+            to_format: LayerFormat::DomJson,
+            preserve_source_offsets: false,
+            context: ctx(),
+            target: None,
+            target_scope,
+            scheduler_scope_id: 0,
+        };
+
+        let resp = RealCemMlEngine::new().convert(req).unwrap();
+        assert!(resp.diagnostics.iter().any(|diag| {
+            diag.code == "cem.scope.budget_exceeded" && diag.severity == Severity::Error
+        }));
+    }
+
+    #[test]
+    fn trace_enforces_root_scope_trace_ms_budget() {
+        let mut source = input(b"{p Hi}", "budgeted.cem");
+        source
+            .root_scope
+            .budgets
+            .insert("traceMs".to_owned(), "0".to_owned());
+        let req = TraceRequest {
+            input: source,
+            projection: TraceProjection::Json,
+            context: ctx(),
+        };
+
+        let resp = RealCemMlEngine::new().trace(req).unwrap();
+        let diagnostics = resp.body["report"]["diagnostics"].as_array().unwrap();
+        assert!(diagnostics
+            .iter()
+            .any(|diag| diag["code"] == "cem.scope.budget_exceeded"));
+    }
+
+    #[test]
+    fn inspect_enforces_root_scope_inspect_ms_budget() {
+        let mut source = input(b"{p Hi}", "budgeted.cem");
+        source
+            .root_scope
+            .budgets
+            .insert("inspectMs".to_owned(), "0".to_owned());
+        let req = InspectRequest {
+            input: source,
+            show: InspectView::Diagnostics,
+            context: ctx(),
+        };
+
+        let resp = RealCemMlEngine::new().inspect(req).unwrap();
+        let diagnostics = resp.body["diagnostics"].as_array().unwrap();
+        assert!(diagnostics
+            .iter()
+            .any(|diag| diag["code"] == "cem.scope.budget_exceeded"));
     }
 
     #[test]
