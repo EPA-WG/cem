@@ -1926,6 +1926,42 @@ mod tests {
     }
 
     #[test]
+    fn convert_config_relative_destination_is_resolved_against_config_path() {
+        let input = write_fixture("convert-config-relative-dest-input.cem", "{p Hi}");
+        let dir = std::env::temp_dir().join("cem-ml-cli-tests/convert-relative-dest");
+        let config_path = dir.join("run.json");
+        let out_path = dir.join("dist/out.json");
+        std::fs::create_dir_all(&dir).unwrap();
+        let _ = std::fs::remove_file(&out_path);
+        std::fs::write(
+            &config_path,
+            serde_json::json!({
+                "inputs": [{
+                    "uri": input.display().to_string()
+                }],
+                "outputs": [{
+                    "destination": "dist/out.json",
+                    "rootScope": {
+                        "defaultContentType": "application/cem+xml"
+                    }
+                }]
+            })
+            .to_string(),
+        )
+        .unwrap();
+
+        let (outcome, stdout, stderr) = run(
+            &RealCemMlEngine::new(),
+            &["convert", "--config", config_path.to_str().unwrap()],
+        );
+        assert_eq!(outcome.exit_code, EXIT_OK, "{stderr}");
+        assert!(stdout.trim().is_empty());
+        let written = std::fs::read_to_string(&out_path).unwrap();
+        let v: serde_json::Value = serde_json::from_str(&written).unwrap();
+        assert_eq!(v["content"], "{p Hi}\n");
+    }
+
+    #[test]
     fn convert_config_fans_out_multiple_outputs() {
         let first = write_fixture("convert-fanout-first.cem", "{p First}");
         let second = write_fixture("convert-fanout-second.cem", "{p Second}");

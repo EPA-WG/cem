@@ -186,6 +186,7 @@ pub fn normalize_run_config(
     for output in &mut config.outputs {
         merge_scope_defaults(&mut output.root_scope, &defaults.output_scope);
         resolve_scope_module_map(&mut output.root_scope, base_uri);
+        resolve_output_destination(output, base_uri);
         if output.root_scope.default_content_type.is_none() {
             if let Some(destination) = output.destination.as_deref() {
                 output.root_scope.default_content_type = infer_content_type_from_path(destination);
@@ -633,6 +634,16 @@ fn resolve_scope_module_map(scope: &mut ScopeConfig, base_uri: Option<&str>) {
     scope.module_map = Some(resolved);
 }
 
+fn resolve_output_destination(output: &mut OutputSpec, base_uri: Option<&str>) {
+    let Some(destination) = output.destination.as_deref() else {
+        return;
+    };
+    let Some(resolved) = resolve_relative_path_like(destination, base_uri) else {
+        return;
+    };
+    output.destination = Some(resolved);
+}
+
 fn resolve_relative_path_like(value: &str, base_uri: Option<&str>) -> Option<String> {
     let trimmed = value.trim();
     if trimmed.is_empty() || has_uri_scheme(trimmed) || std::path::Path::new(trimmed).is_absolute()
@@ -916,6 +927,38 @@ mod tests {
         assert_eq!(
             response.config.inputs[1].root_scope.module_map.as_deref(),
             Some("https://example.test/cem.modules.json")
+        );
+    }
+
+    #[test]
+    fn normalize_run_config_resolves_relative_output_destination_against_config_path() {
+        let response = normalize_run_config(
+            RunConfig {
+                inputs: vec![InputSpec {
+                    uri: "src/a.cem".to_owned(),
+                    ..InputSpec::default()
+                }],
+                outputs: vec![OutputSpec {
+                    destination: Some("dist/a.cem".to_owned()),
+                    ..OutputSpec::default()
+                }],
+                ..RunConfig::default()
+            },
+            RunConfigDefaults::default(),
+            Some("/workspace/configs/run.json"),
+        );
+
+        assert!(response.diagnostics.is_empty());
+        assert_eq!(
+            response.config.outputs[0].destination.as_deref(),
+            Some("/workspace/configs/dist/a.cem")
+        );
+        assert_eq!(
+            response.config.outputs[0]
+                .root_scope
+                .default_content_type
+                .as_deref(),
+            Some("application/cem+xml")
         );
     }
 

@@ -107,12 +107,14 @@ the immediate CLI lifecycle contract.
    document-format version. Input root-scope module maps provide the resolver base for
    relative schema `src` identities, load local JSON alias maps for schema-source
    specifier resolution, and normalize relative module-map paths against the config
-   document path. Run-config normalization validates root-scope module-map, namespace,
-   and version-pin option shape before document parsing, while unreadable or malformed
-   module maps, unknown budget keys, unsupported version-pin targets, and unsupported
-   remaining budget hooks emit deterministic execution diagnostics instead of being
-   silently ignored. Remote/custom module-map resolver semantics, output resolver
-   semantics, and those remaining budget hooks remain open.
+   document path. Config-file output destinations normalize relative paths against the
+   config document path. Run-config normalization validates root-scope module-map,
+   namespace, and version-pin option shape before document parsing, while unreadable or
+   malformed module maps, unknown budget keys, unsupported version-pin targets, and
+   unsupported remaining budget hooks emit deterministic execution diagnostics instead
+   of being silently ignored. Remote/custom module-map resolver semantics,
+   remote/custom output resolver semantics, and those remaining budget hooks remain
+   open.
 7. Update CLI flags without breaking current debug workflows:
     - keep `--from-format` and `--to-format` as aliases for built-in identities;
     - keep `--content-type` as the input content type for `parse`, `validate`, `check`,
