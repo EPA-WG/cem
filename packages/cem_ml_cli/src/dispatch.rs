@@ -1801,6 +1801,20 @@ mod tests {
         p
     }
 
+    fn local_file_uri(path: &Path) -> String {
+        format!("file://{}", path.display())
+    }
+
+    fn assert_remote_input_uri_rejected(args: &[&str], uri: &str) {
+        let (outcome, stdout, stderr) = run(&FakeEngine, args);
+
+        assert_eq!(outcome.exit_code, EXIT_IO);
+        assert!(stdout.trim().is_empty());
+        assert!(stderr.contains("I/O error"));
+        assert!(stderr.contains("remote/custom URI resolvers are not implemented"));
+        assert!(stderr.contains(uri));
+    }
+
     #[test]
     fn version_subcommand_prints_version_and_exits_zero() {
         let (outcome, stdout, _) = run(&NotImplementedEngine, &["version"]);
@@ -1841,6 +1855,12 @@ mod tests {
     }
 
     #[test]
+    fn parse_remote_uri_input_is_rejected_without_resolver() {
+        let uri = "https://example.test/input.cem";
+        assert_remote_input_uri_rejected(&["parse", uri], uri);
+    }
+
+    #[test]
     fn parse_with_fake_engine_emits_json_to_stdout() {
         let p = write_fixture("parse-fake.cem", "{x}");
         let (outcome, stdout, _) = run(&FakeEngine, &["parse", p.to_str().unwrap()]);
@@ -1848,6 +1868,17 @@ mod tests {
         let v: serde_json::Value = serde_json::from_str(stdout.trim()).expect("valid JSON");
         assert_eq!(v["kind"], "fake-parse");
         assert_eq!(v["projection"], "dom-json");
+    }
+
+    #[test]
+    fn parse_file_uri_input_reads_local_input() {
+        let p = write_fixture("parse-file-uri-input.cem", "{x}");
+        let file_uri = local_file_uri(&p);
+        let (outcome, stdout, stderr) = run(&FakeEngine, &["parse", &file_uri]);
+
+        assert_eq!(outcome.exit_code, EXIT_OK, "{stderr}");
+        let v: serde_json::Value = serde_json::from_str(stdout.trim()).expect("valid JSON");
+        assert_eq!(v["input"], file_uri);
     }
 
     #[test]
@@ -2243,6 +2274,23 @@ mod tests {
         assert!(stdout.trim().is_empty());
         assert!(stderr.contains("remote/custom URI resolvers are not implemented"));
         assert!(stderr.contains("https://example.test/input.cem"));
+    }
+
+    #[test]
+    fn check_positional_remote_uri_input_is_rejected_without_resolver() {
+        let uri = "https://example.test/check.cem";
+        assert_remote_input_uri_rejected(&["check", "--format", "json", uri], uri);
+    }
+
+    #[test]
+    fn check_positional_file_uri_input_reads_local_input() {
+        let p = write_fixture("check-file-uri-input.cem", "{x}");
+        let file_uri = local_file_uri(&p);
+        let (outcome, stdout, stderr) = run(&FakeEngine, &["check", "--format", "json", &file_uri]);
+
+        assert_eq!(outcome.exit_code, EXIT_OK, "{stderr}");
+        let v: serde_json::Value = serde_json::from_str(stdout.trim()).expect("valid JSON");
+        assert_eq!(v["inputs"][0], file_uri);
     }
 
     #[test]
@@ -2972,6 +3020,23 @@ mod tests {
     }
 
     #[test]
+    fn convert_remote_uri_input_is_rejected_without_resolver() {
+        let uri = "https://example.test/convert.cem";
+        assert_remote_input_uri_rejected(&["convert", uri], uri);
+    }
+
+    #[test]
+    fn convert_file_uri_input_reads_local_input() {
+        let input = write_fixture("convert-file-uri-input.cem", "{p Hi}");
+        let file_uri = local_file_uri(&input);
+        let (outcome, stdout, stderr) = run(&FakeEngine, &["convert", &file_uri]);
+
+        assert_eq!(outcome.exit_code, EXIT_OK, "{stderr}");
+        let v: serde_json::Value = serde_json::from_str(stdout.trim()).expect("valid JSON");
+        assert_eq!(v["input"], file_uri);
+    }
+
+    #[test]
     fn convert_remote_uri_out_destination_is_rejected_without_resolver() {
         let input = write_fixture("convert-remote-out.cem", "{p Hi}");
         let (outcome, stdout, stderr) = run(
@@ -3577,6 +3642,23 @@ mod tests {
     }
 
     #[test]
+    fn bench_remote_uri_input_is_rejected_without_resolver() {
+        let uri = "https://example.test/bench.cem";
+        assert_remote_input_uri_rejected(&["bench", "--format", "json", uri], uri);
+    }
+
+    #[test]
+    fn bench_file_uri_input_reads_local_input() {
+        let input = write_fixture("bench-file-uri-input.cem", "{x}");
+        let file_uri = local_file_uri(&input);
+        let (outcome, stdout, stderr) = run(&FakeEngine, &["bench", "--format", "json", &file_uri]);
+
+        assert_eq!(outcome.exit_code, EXIT_OK, "{stderr}");
+        let v: serde_json::Value = serde_json::from_str(stdout.trim()).expect("valid JSON");
+        assert_eq!(v["inputs"][0], file_uri);
+    }
+
+    #[test]
     fn validate_writes_report_files_when_requested() {
         let p = write_fixture("validate-rep.cem", "{x}");
         let json_path = std::env::temp_dir().join("cem-ml-cli-tests/v.report.json");
@@ -3862,6 +3944,23 @@ mod tests {
     }
 
     #[test]
+    fn inspect_remote_uri_input_is_rejected_without_resolver() {
+        let uri = "https://example.test/inspect.cem";
+        assert_remote_input_uri_rejected(&["inspect", uri], uri);
+    }
+
+    #[test]
+    fn inspect_file_uri_input_reads_local_input() {
+        let input = write_fixture("inspect-file-uri-input.cem", "{x}");
+        let file_uri = local_file_uri(&input);
+        let (outcome, stdout, stderr) = run(&FakeEngine, &["inspect", &file_uri]);
+
+        assert_eq!(outcome.exit_code, EXIT_OK, "{stderr}");
+        let v: serde_json::Value = serde_json::from_str(stdout.trim()).expect("valid JSON");
+        assert_eq!(v["input"], file_uri);
+    }
+
+    #[test]
     fn inspect_file_uri_out_destination_writes_local_output() {
         let p = write_fixture("inspect-file-uri-out.cem", "{x}");
         let out_path = std::env::temp_dir().join("cem-ml-cli-tests/inspect-file-uri-out.json");
@@ -3963,6 +4062,23 @@ mod tests {
         assert!(stderr.contains("write failure"));
         assert!(stderr.contains("remote/custom URI resolvers are not implemented"));
         assert!(stderr.contains("https://example.test/trace.json"));
+    }
+
+    #[test]
+    fn trace_remote_uri_input_is_rejected_without_resolver() {
+        let uri = "https://example.test/trace.cem";
+        assert_remote_input_uri_rejected(&["trace", uri], uri);
+    }
+
+    #[test]
+    fn trace_file_uri_input_reads_local_input() {
+        let input = write_fixture("trace-file-uri-input.cem", "{x}");
+        let file_uri = local_file_uri(&input);
+        let (outcome, stdout, stderr) = run(&FakeEngine, &["trace", &file_uri]);
+
+        assert_eq!(outcome.exit_code, EXIT_OK, "{stderr}");
+        let v: serde_json::Value = serde_json::from_str(stdout.trim()).expect("valid JSON");
+        assert_eq!(v["input"], file_uri);
     }
 
     #[test]
