@@ -260,8 +260,8 @@ fn collect_inputs(
         .collect()
 }
 
-fn collect_fixture_inputs(paths: &[PathBuf]) -> Vec<eng::EngineInput> {
-    if paths.is_empty() {
+fn collect_fixture_inputs(paths: &[PathBuf], use_defaults: bool) -> Vec<eng::EngineInput> {
+    if paths.is_empty() && use_defaults {
         default_fixture_inputs()
     } else {
         paths
@@ -1397,7 +1397,7 @@ pub fn run_fixture_validate<E: CemMlEngine + ?Sized>(
         }
         Err(err) => return handle_cli_request_error(err, s),
     };
-    let mut inputs = collect_fixture_inputs(&args.inputs);
+    let mut inputs = collect_fixture_inputs(&args.inputs, config.inputs.is_empty());
     for spec in &config.inputs {
         match engine_input_from_spec(spec, None) {
             Ok(input) => inputs.push(input),
@@ -1466,7 +1466,7 @@ pub fn run_fixture_roundtrip<E: CemMlEngine + ?Sized>(
         }
         Err(err) => return handle_cli_request_error(err, s),
     };
-    let mut inputs = collect_fixture_inputs(&args.inputs);
+    let mut inputs = collect_fixture_inputs(&args.inputs, config.inputs.is_empty());
     for spec in &config.inputs {
         match engine_input_from_spec(spec, None) {
             Ok(input) => inputs.push(input),
@@ -1855,6 +1855,7 @@ mod tests {
         );
         assert_eq!(outcome.exit_code, EXIT_HARD_FAILURE, "{stderr}");
         let v: serde_json::Value = serde_json::from_str(stdout.trim()).unwrap();
+        assert_eq!(v["summary"]["inputCount"], 1);
         let diagnostics = v["diagnostics"].as_array().unwrap();
         assert!(diagnostics
             .iter()
@@ -2416,11 +2417,14 @@ mod tests {
 
     #[test]
     fn fixture_inputs_infer_format_from_extension() {
-        let inputs = collect_fixture_inputs(&[
-            PathBuf::from("examples/cem-ml/login.cem"),
-            PathBuf::from("examples/semantic/login.html"),
-            PathBuf::from("examples/cem-ml/namespace-rebinding/default-html-svg-html.xml"),
-        ]);
+        let inputs = collect_fixture_inputs(
+            &[
+                PathBuf::from("examples/cem-ml/login.cem"),
+                PathBuf::from("examples/semantic/login.html"),
+                PathBuf::from("examples/cem-ml/namespace-rebinding/default-html-svg-html.xml"),
+            ],
+            false,
+        );
         assert_eq!(inputs[0].from_format, Some(eng::InputFormat::Cem));
         assert_eq!(inputs[1].from_format, Some(eng::InputFormat::Html));
         assert_eq!(inputs[2].from_format, Some(eng::InputFormat::Xml));
@@ -2449,6 +2453,53 @@ mod tests {
             "fixture validate must surface cem-ql template diagnostics"
         );
         assert!(v["summary"]["hardViolationCount"].as_u64().unwrap() > 0);
+    }
+
+    #[test]
+    fn fixture_validate_input_spec_fixture_validate_ms_budget_is_enforced() {
+        let p = write_fixture("fixture-validate-budget.cem", "{p Hi}");
+        let (outcome, stdout, stderr) = run(
+            &RealCemMlEngine::new(),
+            &[
+                "fixture",
+                "validate",
+                "--input-spec",
+                &format!("uri={},budgets=fixtureValidateMs:0", p.display()),
+            ],
+        );
+        assert_eq!(outcome.exit_code, EXIT_HARD_FAILURE, "{stderr}");
+        let v: serde_json::Value = serde_json::from_str(stdout.trim()).unwrap();
+        let diagnostics = v["diagnostics"].as_array().unwrap();
+        assert!(diagnostics
+            .iter()
+            .any(|diag| diag["code"] == "cem.scope.budget_exceeded"));
+        assert!(!diagnostics
+            .iter()
+            .any(|diag| diag["code"] == "cem.scope.budget_unenforced"));
+    }
+
+    #[test]
+    fn fixture_roundtrip_input_spec_fixture_roundtrip_ms_budget_is_reported() {
+        let p = write_fixture("fixture-roundtrip-budget.cem", "{p Hi}");
+        let (outcome, stdout, stderr) = run(
+            &RealCemMlEngine::new(),
+            &[
+                "fixture",
+                "roundtrip",
+                "--input-spec",
+                &format!("uri={},budgets=fixtureRoundtripMs:0", p.display()),
+            ],
+        );
+        assert_eq!(outcome.exit_code, EXIT_OK, "{stderr}");
+        let v: serde_json::Value = serde_json::from_str(stdout.trim()).unwrap();
+        assert_eq!(v["report"]["summary"]["inputCount"], 1);
+        let diagnostics = v["report"]["diagnostics"].as_array().unwrap();
+        assert!(diagnostics
+            .iter()
+            .any(|diag| diag["code"] == "cem.scope.budget_exceeded"));
+        assert!(!diagnostics
+            .iter()
+            .any(|diag| diag["code"] == "cem.scope.budget_unenforced"));
     }
 
     #[test]
@@ -3002,7 +3053,7 @@ fn observable_inputs(
         cli::Command::Fixture(cli::FixtureCmd::Validate(a)) => {
             let input_defaults = input_scope_defaults(&a.context);
             let config = run_config(&a.run, run_defaults(input_defaults, ScopeConfig::default()))?;
-            let mut inputs = collect_fixture_inputs(&a.inputs);
+            let mut inputs = collect_fixture_inputs(&a.inputs, config.inputs.is_empty());
             for spec in &config.inputs {
                 inputs.push(engine_input_from_spec(spec, None)?);
             }
@@ -3011,7 +3062,7 @@ fn observable_inputs(
         cli::Command::Fixture(cli::FixtureCmd::Roundtrip(a)) => {
             let input_defaults = input_scope_defaults(&a.context);
             let config = run_config(&a.run, run_defaults(input_defaults, ScopeConfig::default()))?;
-            let mut inputs = collect_fixture_inputs(&a.inputs);
+            let mut inputs = collect_fixture_inputs(&a.inputs, config.inputs.is_empty());
             for spec in &config.inputs {
                 inputs.push(engine_input_from_spec(spec, None)?);
             }

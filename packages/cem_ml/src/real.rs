@@ -540,7 +540,8 @@ fn root_scope_budget_diagnostics(
             | "parsetimebudgetms" | "validatems" | "validatetimebudgetms" | "checkms"
             | "checktimebudgetms" | "convertms" | "converttimebudgetms" | "tracems"
             | "tracetimebudgetms" | "inspectms" | "inspecttimebudgetms" | "benchms"
-            | "benchtimebudgetms" => {
+            | "benchtimebudgetms" | "fixturevalidatems" | "fixturevalidatetimebudgetms"
+            | "fixtureroundtripms" | "fixtureroundtriptimebudgetms" => {
                 if let Err(message) = parse_u64_budget(field, value) {
                     diagnostics.push(scope_policy_diagnostic(
                         uri,
@@ -653,7 +654,9 @@ fn apply_scope_scheduler_fields(
             "parsems" | "parsetimebudgetms" | "validatems" | "validatetimebudgetms"
             | "checkms" | "checktimebudgetms" | "convertms" | "converttimebudgetms"
             | "tracems" | "tracetimebudgetms" | "inspectms" | "inspecttimebudgetms"
-            | "benchms" | "benchtimebudgetms" => {
+            | "benchms" | "benchtimebudgetms" | "fixturevalidatems"
+            | "fixturevalidatetimebudgetms" | "fixtureroundtripms"
+            | "fixtureroundtriptimebudgetms" => {
                 if let Err(message) = parse_u64_budget(field, value) {
                     diagnostics.push(scope_policy_diagnostic(
                         uri,
@@ -1387,12 +1390,18 @@ impl CemMlEngine for RealCemMlEngine {
         let mut all_diags: Vec<Diagnostic> = Vec::new();
         for input in &request.inputs {
             let input = materialized_input(input)?;
+            let started_at = Instant::now();
             let mut input_diags =
                 root_scope_execution_diagnostics(&input.uri, &input.root_scope, "input");
             let loaded = load_input_through_lifecycle(&input, &request.context);
             input_diags.extend(loaded.diagnostics);
             let run = run_pipeline_as_scoped(&loaded.bytes, loaded.from_format, &input.root_scope);
             input_diags.extend(run.diagnostics);
+            input_diags.extend(time_budget_diagnostics(
+                &input.root_scope,
+                &["fixturevalidatems", "fixturevalidatetimebudgetms"],
+                started_at.elapsed().as_nanos(),
+            ));
             project_diagnostic_uris(&mut input_diags, &input, &request.context);
             all_diags.extend(input_diags);
         }
@@ -1413,6 +1422,7 @@ impl CemMlEngine for RealCemMlEngine {
         let mut all_diags: Vec<Diagnostic> = Vec::new();
         for input in &request.inputs {
             let input = materialized_input(input)?;
+            let started_at = Instant::now();
             let mut input_diags =
                 root_scope_execution_diagnostics(&input.uri, &input.root_scope, "input");
             let loaded = load_input_through_lifecycle(&input, &request.context);
@@ -1425,6 +1435,11 @@ impl CemMlEngine for RealCemMlEngine {
                 "rendered": rendered.rendered,
             }));
             input_diags.extend(run.diagnostics);
+            input_diags.extend(time_budget_diagnostics(
+                &input.root_scope,
+                &["fixtureroundtripms", "fixtureroundtriptimebudgetms"],
+                started_at.elapsed().as_nanos(),
+            ));
             project_diagnostic_uris(&mut input_diags, &input, &request.context);
             all_diags.extend(input_diags);
         }
@@ -1740,6 +1755,49 @@ mod tests {
         assert!(diagnostics
             .iter()
             .any(|diag| diag["code"] == "cem.scope.budget_exceeded"));
+    }
+
+    #[test]
+    fn fixture_validate_enforces_root_scope_fixture_validate_ms_budget() {
+        let mut source = input(b"{p Hi}", "budgeted.cem");
+        source
+            .root_scope
+            .budgets
+            .insert("fixtureValidateMs".to_owned(), "0".to_owned());
+        let req = FixtureValidateRequest {
+            inputs: vec![source],
+            fail_level: FailLevel::Validate,
+            zero_hard_violations: false,
+            context: ctx(),
+        };
+
+        let resp = RealCemMlEngine::new().fixture_validate(req).unwrap();
+        assert!(resp
+            .report
+            .diagnostics
+            .iter()
+            .any(|diag| diag.code == "cem.scope.budget_exceeded"));
+    }
+
+    #[test]
+    fn fixture_roundtrip_enforces_root_scope_fixture_roundtrip_ms_budget() {
+        let mut source = input(b"{p Hi}", "budgeted.cem");
+        source
+            .root_scope
+            .budgets
+            .insert("fixtureRoundtripMs".to_owned(), "0".to_owned());
+        let req = FixtureRoundtripRequest {
+            inputs: vec![source],
+            to_format: LayerFormat::DomJson,
+            context: ctx(),
+        };
+
+        let resp = RealCemMlEngine::new().fixture_roundtrip(req).unwrap();
+        assert!(resp
+            .report
+            .diagnostics
+            .iter()
+            .any(|diag| diag.code == "cem.scope.budget_exceeded"));
     }
 
     #[test]

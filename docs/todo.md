@@ -44,9 +44,9 @@ for the current architecture have landed; only deferred capability work remains 
       root-scope config now reaches engine requests. Recognized root-scope scheduler policy and budget fields now derive
       the per-scope worker policy for scheduled validate/check, trace, and convert execution; `parseMs` enforces a
       parser-backed pipeline wall-clock budget; `validateMs` and `checkMs` enforce scheduled per-input document work
-      budgets; `convertMs` enforces input/output-scope convert work budgets; `traceMs`, `inspectMs`, and `benchMs`
-      enforce trace, inspect, and benchmark workflow budgets; and effective `baseUri` values now project relative report
-      input and diagnostic URIs.
+      budgets; `convertMs` enforces input/output-scope convert work budgets; `traceMs`, `inspectMs`, `benchMs`,
+      `fixtureValidateMs`, and `fixtureRoundtripMs` enforce trace, inspect, benchmark, and fixture workflow budgets; and
+      effective `baseUri` values now project relative report input and diagnostic URIs.
       Root-scope default and named namespace bindings now seed schema validation's document-root
       namespace context, and recognized CEM-ML root-scope version pins now resolve against the embedded document-format
       version. Input root-scope module maps now provide the resolver base for relative schema `src` identities, load

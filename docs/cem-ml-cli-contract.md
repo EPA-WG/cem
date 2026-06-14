@@ -120,10 +120,11 @@ Current implementation status:
   scheduled validate/check, trace, and convert execution; `parseMs` enforces a
   parser-backed pipeline wall-clock budget; `validateMs` and `checkMs` enforce
   scheduled per-input document work budgets; `convertMs` enforces input/output-scope
-  convert work budgets; `traceMs`, `inspectMs`, and `benchMs` enforce trace, inspect,
-  and benchmark workflow budgets; and effective `baseUri` values project relative report
-  input and diagnostic URIs. Root-scope default and named namespace bindings seed
-  schema validation's document-root namespace context. Recognized CEM-ML root-scope version pins resolve
+  convert work budgets; `traceMs`, `inspectMs`, `benchMs`, `fixtureValidateMs`, and
+  `fixtureRoundtripMs` enforce trace, inspect, benchmark, and fixture workflow budgets;
+  and effective `baseUri` values project relative report input and diagnostic URIs.
+  Root-scope default and named namespace bindings seed schema validation's
+  document-root namespace context. Recognized CEM-ML root-scope version pins resolve
   against the embedded document-format version. Input root-scope module maps provide
   the resolver base for relative schema `src` identities, load local JSON alias maps
   for schema-source specifier resolution, and normalize relative module-map paths
@@ -146,9 +147,11 @@ Current implementation status:
   policy/budget fields for scheduled worker policy, `parseMs` for parser-backed
   wall-clock enforcement, `validateMs` / `checkMs` for scheduled per-input document
   work budgets, `convertMs` for input/output-scope convert work budgets, and
-  `traceMs` / `inspectMs` / `benchMs` for trace, inspect, and benchmark workflow budgets.
-  Effective `baseUri` values project relative report input and diagnostic URIs. Default and named namespace maps seed schema validation's root
-  namespace context. Recognized CEM-ML version pins resolve through the document-format
+  `traceMs` / `inspectMs` / `benchMs` / `fixtureValidateMs` / `fixtureRoundtripMs` for
+  trace, inspect, benchmark, and fixture workflow budgets.
+  Effective `baseUri` values project relative report input and diagnostic URIs.
+  Default and named namespace maps seed schema validation's root namespace context.
+  Recognized CEM-ML version pins resolve through the document-format
   version resolver. Input module maps resolve relative schema-source identities and
   local JSON aliases, including config-relative module-map paths. Config-file output
   destinations normalize relative paths against the config document path; remote/custom
