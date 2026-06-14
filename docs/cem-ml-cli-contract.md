@@ -213,7 +213,9 @@ Current implementation status:
 - Command-level input root-scope defaults include `--content-type`, `--schema`,
   `--default-namespace`, repeatable `--namespace PREFIX=URI`, and `--base-uri`;
   config files or `--input-spec` records remain the preferred shape for richer
-  per-input namespace maps and resolver settings.
+  per-input namespace maps and resolver settings. These command-level namespace
+  defaults use the same run-config namespace validation as `rootScope.defaultNamespace`
+  and `rootScope.namespaces`.
 - Multi-source configuration via config file, plus repeatable CSV option records for
   CLI one-liners. Config files are preferred for CI/build reproducibility.
 - Config-file content type via `--config-content-type`, inferred from extension when

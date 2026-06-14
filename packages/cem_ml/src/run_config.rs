@@ -194,7 +194,8 @@ pub fn normalize_run_config(
         }
     }
 
-    let diagnostics = validate_run_config(&config, base_uri);
+    let mut diagnostics = validate_run_config_defaults(&defaults, base_uri);
+    diagnostics.extend(validate_run_config(&config, base_uri));
     RunConfigParseResponse {
         config,
         diagnostics,
@@ -280,6 +281,28 @@ pub fn validate_run_config(config: &RunConfig, base_uri: Option<&str>) -> Vec<Di
         );
     }
 
+    diagnostics
+}
+
+fn validate_run_config_defaults(
+    defaults: &RunConfigDefaults,
+    base_uri: Option<&str>,
+) -> Vec<Diagnostic> {
+    let mut diagnostics = Vec::new();
+    validate_scope_config(
+        &defaults.input_scope,
+        "input default",
+        0,
+        base_uri,
+        &mut diagnostics,
+    );
+    validate_scope_config(
+        &defaults.output_scope,
+        "output default",
+        0,
+        base_uri,
+        &mut diagnostics,
+    );
     diagnostics
 }
 
@@ -1137,6 +1160,42 @@ mod tests {
         assert!(codes.contains(&"cem.run_config.scope_module_map_invalid"));
         assert!(codes.contains(&"cem.run_config.scope_namespace_invalid"));
         assert!(codes.contains(&"cem.run_config.scope_version_pin_invalid"));
+        assert!(response
+            .diagnostics
+            .iter()
+            .all(|diag| diag.uri.as_deref() == Some("file:///run-config.json")));
+    }
+
+    #[test]
+    fn normalize_run_config_validates_default_scope_fields() {
+        let response = normalize_run_config(
+            RunConfig::default(),
+            RunConfigDefaults {
+                input_scope: ScopeConfig {
+                    namespaces: BTreeMap::from([("xml".to_owned(), "urn:not-xml".to_owned())]),
+                    ..ScopeConfig::default()
+                },
+                output_scope: ScopeConfig {
+                    default_namespace: Some(String::new()),
+                    ..ScopeConfig::default()
+                },
+            },
+            Some("file:///run-config.json"),
+        );
+
+        assert_eq!(response.diagnostics.len(), 2);
+        assert!(response
+            .diagnostics
+            .iter()
+            .all(|diag| diag.code == "cem.run_config.scope_namespace_invalid"));
+        assert!(response
+            .diagnostics
+            .iter()
+            .any(|diag| diag.message.contains("input default scope")));
+        assert!(response
+            .diagnostics
+            .iter()
+            .any(|diag| diag.message.contains("output default scope")));
         assert!(response
             .diagnostics
             .iter()

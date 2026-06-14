@@ -2751,6 +2751,31 @@ mod tests {
     }
 
     #[test]
+    fn namespace_context_diagnostics_fail_before_document_parsing() {
+        let (outcome, stdout, stderr) = run(
+            &RealCemMlEngine::new(),
+            &[
+                "validate",
+                "--namespace",
+                "xml=urn:not-xml",
+                "/definitely/not/read.cem",
+            ],
+        );
+
+        assert_eq!(outcome.exit_code, EXIT_USAGE_OR_RESERVED);
+        assert!(stderr.contains("cem.run_config.scope_namespace_invalid"));
+        assert!(
+            !stderr.contains("I/O error"),
+            "namespace diagnostics must fail before positional inputs are read: {stderr}"
+        );
+        let report: serde_json::Value = serde_json::from_str(stdout.trim()).unwrap();
+        let diagnostics = report["diagnostics"].as_array().unwrap();
+        assert!(diagnostics
+            .iter()
+            .any(|diag| diag["code"] == "cem.run_config.scope_namespace_invalid"));
+    }
+
+    #[test]
     fn config_relative_module_map_is_resolved_against_config_path() {
         let dir = std::env::temp_dir().join("cem-ml-cli-tests/config-module-map");
         std::fs::create_dir_all(&dir).unwrap();
