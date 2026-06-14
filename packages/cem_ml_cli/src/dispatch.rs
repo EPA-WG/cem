@@ -2152,6 +2152,43 @@ mod tests {
     }
 
     #[test]
+    fn module_map_context_option_is_loaded_for_positional_input() {
+        let p = write_fixture(
+            "validate-context-module-map.cem",
+            r#"@schema src="ui/button"
+{p Hi}"#,
+        );
+        let module_map = write_fixture(
+            "validate-context-cem.modules.json",
+            r#"{"schemas":{"ui/button":"./schemas/button.schema"}}"#,
+        );
+        let (outcome, stdout, stderr) = run(
+            &RealCemMlEngine::new(),
+            &[
+                "validate",
+                "--format",
+                "json",
+                "--module-map",
+                module_map.to_str().unwrap(),
+                p.to_str().unwrap(),
+            ],
+        );
+
+        assert_eq!(outcome.exit_code, EXIT_OK, "{stderr}");
+        let v: serde_json::Value = serde_json::from_str(stdout.trim()).unwrap();
+        let diagnostics = v["diagnostics"].as_array().unwrap();
+        assert!(!diagnostics
+            .iter()
+            .any(|diag| diag["code"] == "cem.scope.module_map_unreadable"));
+        assert!(!diagnostics
+            .iter()
+            .any(|diag| diag["code"] == "cem.scope.module_map_invalid"));
+        assert!(!diagnostics
+            .iter()
+            .any(|diag| diag["code"] == "cem.scope.module_map_unenforced"));
+    }
+
+    #[test]
     fn input_spec_version_pins_resolve_through_engine() {
         let p = write_fixture("validate-input-spec-version-pin.cem", r#"{p Hi}"#);
         let (outcome, stdout, stderr) = run(
@@ -2164,6 +2201,32 @@ mod tests {
                 &format!("uri={},versionPins=cem-ml:1", p.display()),
             ],
         );
+        assert_eq!(outcome.exit_code, EXIT_OK, "{stderr}");
+        let v: serde_json::Value = serde_json::from_str(stdout.trim()).unwrap();
+        let diagnostics = v["diagnostics"].as_array().unwrap();
+        assert!(diagnostics
+            .iter()
+            .any(|diag| diag["code"] == "cem.doc.version_resolved"));
+        assert!(!diagnostics
+            .iter()
+            .any(|diag| diag["code"] == "cem.scope.version_pins_unenforced"));
+    }
+
+    #[test]
+    fn version_pin_context_option_resolves_for_positional_input() {
+        let p = write_fixture("validate-context-version-pin.cem", r#"{p Hi}"#);
+        let (outcome, stdout, stderr) = run(
+            &RealCemMlEngine::new(),
+            &[
+                "validate",
+                "--format",
+                "json",
+                "--version-pin",
+                "cem-ml=1",
+                p.to_str().unwrap(),
+            ],
+        );
+
         assert_eq!(outcome.exit_code, EXIT_OK, "{stderr}");
         let v: serde_json::Value = serde_json::from_str(stdout.trim()).unwrap();
         let diagnostics = v["diagnostics"].as_array().unwrap();
