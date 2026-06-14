@@ -159,8 +159,10 @@ Current implementation status:
   Default and named namespace maps seed schema validation's root namespace context.
   Recognized CEM-ML version pins resolve through the document-format
   version resolver. Input module maps resolve relative schema-source identities and
-  local JSON aliases, including config-relative module-map paths. Config-file output
-  destinations normalize relative paths against the config document path; remote/custom
+  local JSON aliases, including config-relative module-map paths and local `file://`
+  module-map URIs. Config-file output
+  destinations normalize relative paths against the config document path, and primary
+  output writes resolve local `file://` destinations to filesystem paths; remote/custom
   module-map resolver semantics, remote/custom output resolver semantics, and
   unsupported remaining budget hooks remain planned requirements.
 - `validate` / `check` / `convert` route `custom-element-xslt` input through the first

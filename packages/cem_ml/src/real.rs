@@ -27,6 +27,7 @@ use crate::tokenizer::SchemaTokenizer;
 use crate::validation::{RuleContext, RuleRegistry};
 use serde_json::{json, Value};
 use std::collections::BTreeMap;
+use std::path::PathBuf;
 use std::time::Instant;
 
 #[derive(Debug, Default, Clone)]
@@ -384,7 +385,24 @@ fn load_root_module_map(scope: &ScopeConfig) -> (BTreeMap<String, String>, Vec<D
     if module_map.is_empty() {
         return (BTreeMap::new(), Vec::new());
     }
-    let bytes = match std::fs::read(module_map) {
+    let module_map_path = match local_file_uri_to_path(module_map) {
+        Some(Ok(path)) => path,
+        Some(Err(message)) => {
+            return (
+                BTreeMap::new(),
+                vec![Diagnostic {
+                    code: "cem.scope.module_map_unreadable".to_owned(),
+                    severity: Severity::Warning,
+                    message: format!(
+                        "root-scope moduleMap `{module_map}` could not be read: {message}"
+                    ),
+                    ..Diagnostic::default()
+                }],
+            );
+        }
+        None => PathBuf::from(module_map),
+    };
+    let bytes = match std::fs::read(&module_map_path) {
         Ok(bytes) => bytes,
         Err(error) => {
             return (
@@ -427,6 +445,52 @@ fn load_root_module_map(scope: &ScopeConfig) -> (BTreeMap<String, String>, Vec<D
                 ..Diagnostic::default()
             }],
         ),
+    }
+}
+
+fn local_file_uri_to_path(uri: &str) -> Option<Result<PathBuf, String>> {
+    let rest = uri.strip_prefix("file://")?;
+    let path = if let Some(localhost_path) = rest.strip_prefix("localhost/") {
+        format!("/{localhost_path}")
+    } else if rest.starts_with('/') {
+        rest.to_owned()
+    } else {
+        return Some(Err(
+            "only local file:// moduleMap URIs are supported".to_owned()
+        ));
+    };
+
+    Some(
+        percent_decode_uri_path(&path)
+            .map(PathBuf::from)
+            .ok_or_else(|| "file:// moduleMap URI contains an invalid percent escape".to_owned()),
+    )
+}
+
+fn percent_decode_uri_path(path: &str) -> Option<String> {
+    let bytes = path.as_bytes();
+    let mut decoded = Vec::with_capacity(bytes.len());
+    let mut index = 0;
+    while index < bytes.len() {
+        if bytes[index] == b'%' {
+            let high = *bytes.get(index + 1)?;
+            let low = *bytes.get(index + 2)?;
+            decoded.push((hex_value(high)? << 4) | hex_value(low)?);
+            index += 3;
+        } else {
+            decoded.push(bytes[index]);
+            index += 1;
+        }
+    }
+    String::from_utf8(decoded).ok()
+}
+
+fn hex_value(byte: u8) -> Option<u8> {
+    match byte {
+        b'0'..=b'9' => Some(byte - b'0'),
+        b'a'..=b'f' => Some(byte - b'a' + 10),
+        b'A'..=b'F' => Some(byte - b'A' + 10),
+        _ => None,
     }
 }
 
@@ -1642,6 +1706,47 @@ mod tests {
         assert!(diagnostics
             .iter()
             .any(|diag| diag.code == "cem.scope.module_map_invalid"));
+    }
+
+    #[test]
+    fn root_module_map_loader_reads_local_file_uri() {
+        let path = std::env::temp_dir().join(format!(
+            "cem-ml-file-uri-module-map-{}.json",
+            std::process::id()
+        ));
+        std::fs::write(
+            &path,
+            r#"{"schemas":{"ui/button":"./schemas/button.schema"}}"#,
+        )
+        .unwrap();
+        let scope = ScopeConfig {
+            module_map: Some(format!("file://{}", path.display())),
+            ..ScopeConfig::default()
+        };
+
+        let (entries, diagnostics) = load_root_module_map(&scope);
+        let _ = std::fs::remove_file(path);
+
+        assert!(diagnostics.is_empty());
+        assert_eq!(
+            entries.get("ui/button").map(String::as_str),
+            Some("./schemas/button.schema")
+        );
+    }
+
+    #[test]
+    fn root_module_map_loader_reports_non_local_file_uri() {
+        let scope = ScopeConfig {
+            module_map: Some("file://example.test/cem.modules.json".to_owned()),
+            ..ScopeConfig::default()
+        };
+
+        let (entries, diagnostics) = load_root_module_map(&scope);
+
+        assert!(entries.is_empty());
+        assert!(diagnostics
+            .iter()
+            .any(|diag| diag.code == "cem.scope.module_map_unreadable"));
     }
 
     #[test]

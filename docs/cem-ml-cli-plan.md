@@ -112,10 +112,12 @@ the immediate CLI lifecycle contract.
    schema validation's document-root namespace context, and recognized CEM-ML
    root-scope version pins resolve against the embedded document-format version.
    Input root-scope module maps provide the resolver base for
-   relative schema `src` identities, load local JSON alias maps for schema-source
-   specifier resolution, and normalize relative module-map paths against the config
-   document path. Config-file output destinations normalize relative paths against the
-   config document path. Run-config normalization validates root-scope module-map,
+   relative schema `src` identities, load local JSON alias maps from paths and local
+   `file://` URIs for schema-source specifier resolution, and normalize relative
+   module-map paths against the config document path. Config-file output destinations
+   normalize relative paths against the config document path, and primary output writes
+   resolve local `file://` destinations to filesystem paths. Run-config normalization
+   validates root-scope module-map,
    namespace, and version-pin option shape before document parsing, while unreadable or
    malformed module maps, unknown budget keys, unsupported version-pin targets, and
    unsupported remaining budget hooks emit deterministic execution diagnostics instead

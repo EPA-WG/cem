@@ -9,6 +9,7 @@ use crate::cli;
 use crate::template_pass;
 use cem_ml::engine::{self as eng, CemMlEngine, EngineError};
 use cem_ml::run_config::{self, InputSpec, OutputSpec, RunConfig, RunConfigDefaults, ScopeConfig};
+use std::borrow::Cow;
 use std::fs;
 use std::io::{self, Write};
 use std::path::{Path, PathBuf};
@@ -726,18 +727,75 @@ fn write_primary(
     let serialized = serde_json::to_string_pretty(primary).unwrap_or_else(|_| String::new());
     match out {
         Some(path) => {
+            let path = primary_output_path(path)?;
             if let Some(parent) = path.parent() {
                 if !parent.as_os_str().is_empty() {
                     fs::create_dir_all(parent)?;
                 }
             }
-            fs::write(path, serialized.as_bytes())?;
+            fs::write(path.as_ref(), serialized.as_bytes())?;
         }
         None => {
             writeln!(s.stdout, "{serialized}")?;
         }
     }
     Ok(())
+}
+
+fn primary_output_path(path: &Path) -> io::Result<Cow<'_, Path>> {
+    let raw = path.to_string_lossy();
+    if !raw.starts_with("file://") {
+        return Ok(Cow::Borrowed(path));
+    }
+
+    local_file_uri_to_path(&raw).map(Cow::Owned).ok_or_else(|| {
+        io::Error::new(
+            io::ErrorKind::InvalidInput,
+            format!(
+                "unsupported output destination `{raw}`; only local file:// URIs are supported"
+            ),
+        )
+    })
+}
+
+fn local_file_uri_to_path(uri: &str) -> Option<PathBuf> {
+    let rest = uri.strip_prefix("file://")?;
+    let path = if let Some(localhost_path) = rest.strip_prefix("localhost/") {
+        format!("/{localhost_path}")
+    } else if rest.starts_with('/') {
+        rest.to_owned()
+    } else {
+        return None;
+    };
+
+    percent_decode_uri_path(&path).map(PathBuf::from)
+}
+
+fn percent_decode_uri_path(path: &str) -> Option<String> {
+    let bytes = path.as_bytes();
+    let mut decoded = Vec::with_capacity(bytes.len());
+    let mut index = 0;
+    while index < bytes.len() {
+        if bytes[index] == b'%' {
+            let high = *bytes.get(index + 1)?;
+            let low = *bytes.get(index + 2)?;
+            decoded.push((hex_value(high)? << 4) | hex_value(low)?);
+            index += 3;
+        } else {
+            decoded.push(bytes[index]);
+            index += 1;
+        }
+    }
+    String::from_utf8(decoded).ok()
+}
+
+fn hex_value(byte: u8) -> Option<u8> {
+    match byte {
+        b'0'..=b'9' => Some(byte - b'0'),
+        b'a'..=b'f' => Some(byte - b'a' + 10),
+        b'A'..=b'F' => Some(byte - b'A' + 10),
+        _ => None,
+    }
 }
 
 /// Tokenize each input and run the cem-ql template embedding pass
@@ -1818,6 +1876,45 @@ mod tests {
     }
 
     #[test]
+    fn input_spec_module_map_file_uri_is_loaded() {
+        let p = write_fixture(
+            "validate-input-spec-module-map-file-uri.cem",
+            r#"@schema src="ui/button"
+{p Hi}"#,
+        );
+        let module_map = write_fixture(
+            "validate-input-spec-file-uri-cem.modules.json",
+            r#"{"schemas":{"ui/button":"./schemas/button.schema"}}"#,
+        );
+        let (outcome, stdout, stderr) = run(
+            &RealCemMlEngine::new(),
+            &[
+                "validate",
+                "--format",
+                "json",
+                "--input-spec",
+                &format!(
+                    "uri={},moduleMap=file://{}",
+                    p.display(),
+                    module_map.display()
+                ),
+            ],
+        );
+        assert_eq!(outcome.exit_code, EXIT_OK, "{stderr}");
+        let v: serde_json::Value = serde_json::from_str(stdout.trim()).unwrap();
+        let diagnostics = v["diagnostics"].as_array().unwrap();
+        assert!(!diagnostics
+            .iter()
+            .any(|diag| diag["code"] == "cem.scope.module_map_unreadable"));
+        assert!(!diagnostics
+            .iter()
+            .any(|diag| diag["code"] == "cem.scope.module_map_invalid"));
+        assert!(!diagnostics
+            .iter()
+            .any(|diag| diag["code"] == "cem.scope.module_map_unenforced"));
+    }
+
+    #[test]
     fn input_spec_version_pins_resolve_through_engine() {
         let p = write_fixture("validate-input-spec-version-pin.cem", r#"{p Hi}"#);
         let (outcome, stdout, stderr) = run(
@@ -1985,6 +2082,54 @@ mod tests {
         let written = std::fs::read_to_string(&out_path).unwrap();
         let v: serde_json::Value = serde_json::from_str(&written).unwrap();
         assert_eq!(v["content"], "{p Hi}\n");
+    }
+
+    #[test]
+    fn convert_config_file_uri_destination_writes_local_output() {
+        let input = write_fixture("convert-config-file-uri-dest-input.cem", "{p Hi}");
+        let out_path = std::env::temp_dir().join("cem-ml-cli-tests/convert-file-uri-dest.json");
+        let config_path =
+            std::env::temp_dir().join("cem-ml-cli-tests/convert-file-uri-dest-config.json");
+        let _ = std::fs::remove_file(&out_path);
+        std::fs::write(
+            &config_path,
+            serde_json::json!({
+                "inputs": [{
+                    "uri": input.display().to_string()
+                }],
+                "outputs": [{
+                    "destination": format!("file://{}", out_path.display()),
+                    "rootScope": {
+                        "defaultContentType": "application/cem+xml"
+                    }
+                }]
+            })
+            .to_string(),
+        )
+        .unwrap();
+
+        let (outcome, stdout, stderr) = run(
+            &RealCemMlEngine::new(),
+            &["convert", "--config", config_path.to_str().unwrap()],
+        );
+        assert_eq!(outcome.exit_code, EXIT_OK, "{stderr}");
+        assert!(stdout.trim().is_empty());
+        let written = std::fs::read_to_string(&out_path).unwrap();
+        let v: serde_json::Value = serde_json::from_str(&written).unwrap();
+        assert_eq!(v["content"], "{p Hi}\n");
+    }
+
+    #[test]
+    fn local_file_uri_output_path_decodes_percent_escaped_paths() {
+        assert_eq!(
+            local_file_uri_to_path("file:///tmp/cem%20ml/out.json").unwrap(),
+            PathBuf::from("/tmp/cem ml/out.json")
+        );
+        assert_eq!(
+            local_file_uri_to_path("file://localhost/tmp/cem%23ml/out.json").unwrap(),
+            PathBuf::from("/tmp/cem#ml/out.json")
+        );
+        assert!(local_file_uri_to_path("file://example.test/tmp/out.json").is_none());
     }
 
     #[test]
