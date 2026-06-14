@@ -78,6 +78,8 @@ impl ScopeConfig {
         FormatIdentity {
             content_type: self.default_content_type.clone(),
             schema: self.schema.clone(),
+            default_namespace: self.default_namespace.clone(),
+            namespaces: self.namespaces.clone(),
             base_uri: self.base_uri.clone(),
         }
     }
@@ -86,6 +88,8 @@ impl ScopeConfig {
         let identity = self.format_identity();
         (identity.content_type.is_some()
             || identity.schema.is_some()
+            || identity.default_namespace.is_some()
+            || !identity.namespaces.is_empty()
             || identity.base_uri.is_some())
         .then_some(identity)
     }

@@ -143,6 +143,8 @@ fn run_config(
                 .or_else(|| infer_config_content_type(config_path.as_ref()))
                 .or_else(|| infer_config_content_type(path)),
             schema: None,
+            default_namespace: None,
+            namespaces: BTreeMap::new(),
             base_uri: Some(config_source_uri.clone()),
         };
         run_config::parse_run_config(run_config::RunConfigParseRequest {
@@ -510,6 +512,8 @@ fn convert_target_identity(args: &cli::ConvertArgs) -> Option<eng::FormatIdentit
     Some(eng::FormatIdentity {
         content_type: args.to_content_type.clone(),
         schema: args.to_schema.clone(),
+        default_namespace: None,
+        namespaces: BTreeMap::new(),
         base_uri: args.context.base_uri.clone(),
     })
 }

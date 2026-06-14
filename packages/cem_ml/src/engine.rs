@@ -3,6 +3,7 @@ use crate::report::{Report, SchedulerTraceReport};
 use crate::run_config::{SchedulerConfig, ScopeConfig};
 use serde::{Deserialize, Serialize};
 use serde_json::Value;
+use std::collections::BTreeMap;
 use std::path::PathBuf;
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
@@ -99,6 +100,10 @@ pub struct FormatIdentity {
     #[serde(rename = "contentType")]
     pub content_type: Option<String>,
     pub schema: Option<String>,
+    #[serde(rename = "defaultNamespace", default)]
+    pub default_namespace: Option<String>,
+    #[serde(default)]
+    pub namespaces: BTreeMap<String, String>,
     #[serde(rename = "baseUri")]
     pub base_uri: Option<String>,
 }
@@ -108,6 +113,8 @@ impl From<&EngineContext> for FormatIdentity {
         Self {
             content_type: context.content_type.clone(),
             schema: context.schema.clone(),
+            default_namespace: None,
+            namespaces: BTreeMap::new(),
             base_uri: context.base_uri.clone(),
         }
     }

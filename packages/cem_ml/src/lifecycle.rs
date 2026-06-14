@@ -112,7 +112,7 @@ impl LifecycleRegistry {
         let Some(identity) = target else {
             return export_selection(fallback, None);
         };
-        if identity.content_type.is_none() && identity.schema.is_none() {
+        if identity_is_empty(identity) {
             return export_selection(fallback, None);
         }
 
@@ -148,6 +148,15 @@ impl LifecycleRegistry {
                             ..Diagnostic::default()
                         });
                     }
+                } else if let Some(namespace) = namespace_identity_summary(identity) {
+                    selection.diagnostics.push(Diagnostic {
+                        code: TARGET_ADAPTER_UNSUPPORTED_CODE.to_owned(),
+                        severity: Severity::Warning,
+                        message: format!(
+                            "no lifecycle export adapter matched target namespace `{namespace}`"
+                        ),
+                        ..Diagnostic::default()
+                    });
                 }
                 selection
             }
@@ -223,6 +232,53 @@ fn matches_schema_without_content_type(identity: &FormatIdentity, allowed: &[&st
     !has_content_type(identity) && matches_schema(identity, allowed)
 }
 
+fn identity_is_empty(identity: &FormatIdentity) -> bool {
+    identity.content_type.is_none()
+        && identity.schema.is_none()
+        && identity.default_namespace.is_none()
+        && identity.namespaces.is_empty()
+        && identity.base_uri.is_none()
+}
+
+fn matches_namespace_without_content_type_or_schema(
+    identity: &FormatIdentity,
+    allowed: &[&str],
+) -> bool {
+    !has_content_type(identity)
+        && identity
+            .schema
+            .as_deref()
+            .map(str::trim)
+            .filter(|schema| !schema.is_empty())
+            .is_none()
+        && namespace_values(identity).any(|namespace| allowed.contains(&namespace))
+}
+
+fn namespace_values(identity: &FormatIdentity) -> impl Iterator<Item = &str> {
+    identity
+        .default_namespace
+        .as_deref()
+        .into_iter()
+        .chain(identity.namespaces.values().map(String::as_str))
+        .map(str::trim)
+        .filter(|namespace| !namespace.is_empty())
+}
+
+fn namespace_identity_summary(identity: &FormatIdentity) -> Option<String> {
+    identity
+        .default_namespace
+        .as_deref()
+        .map(str::trim)
+        .filter(|namespace| !namespace.is_empty())
+        .map(str::to_owned)
+        .or_else(|| {
+            identity.namespaces.iter().find_map(|(prefix, namespace)| {
+                let namespace = namespace.trim();
+                (!namespace.is_empty()).then(|| format!("{prefix}={namespace}"))
+            })
+        })
+}
+
 fn content_type_essence(content_type: &str) -> String {
     content_type
         .split(';')
@@ -270,6 +326,15 @@ fn unsupported_input_identity_diagnostic(
             message: format!("no lifecycle input adapter matched schema `{schema}`"),
             ..Diagnostic::default()
         })
+        .or_else(|| {
+            namespace_identity_summary(identity).map(|namespace| Diagnostic {
+                uri: Some(input.uri.clone()),
+                code: ADAPTER_UNSUPPORTED_CODE.to_owned(),
+                severity: Severity::Warning,
+                message: format!("no lifecycle input adapter matched namespace `{namespace}`"),
+                ..Diagnostic::default()
+            })
+        })
 }
 
 fn unsupported_input_content_type_message(identity: &FormatIdentity) -> String {
@@ -299,6 +364,7 @@ impl LifecycleAdapter for CemMlAdapter {
                 "text/cem-ml",
             ],
         ) || matches_schema_without_content_type(identity, &[CEM_CORE_NAMESPACE])
+            || matches_namespace_without_content_type_or_schema(identity, &[CEM_CORE_NAMESPACE])
     }
 
     fn load(&self, input: &EngineInput, _: &FormatIdentity) -> LoadedInput {
@@ -515,6 +581,46 @@ mod tests {
     }
 
     #[test]
+    fn cem_core_namespace_selects_cem_input_when_content_type_and_schema_absent() {
+        let mut source = input(b"@doc cem-ml 1\n{p | Hi}");
+        source.identity = Some(FormatIdentity {
+            default_namespace: Some(CEM_CORE_NAMESPACE.to_owned()),
+            ..FormatIdentity::default()
+        });
+
+        let loaded =
+            LifecycleRegistry::with_builtin_adapters().load(&source, &EngineContext::default());
+
+        assert_eq!(loaded.from_format, InputFormat::Cem);
+        assert_eq!(loaded.adapter_id, Some("cem-ml"));
+        assert!(loaded.diagnostics.is_empty());
+    }
+
+    #[test]
+    fn unknown_namespace_falls_back_to_input_format_with_warning() {
+        let mut source = input(b"<p>Hi</p>");
+        source.from_format = Some(InputFormat::Html);
+        source.identity = Some(FormatIdentity {
+            namespaces: std::collections::BTreeMap::from([(
+                "widget".to_owned(),
+                "https://example.test/ns/widgets/1".to_owned(),
+            )]),
+            ..FormatIdentity::default()
+        });
+
+        let loaded =
+            LifecycleRegistry::with_builtin_adapters().load(&source, &EngineContext::default());
+
+        assert_eq!(loaded.from_format, InputFormat::Html);
+        assert_eq!(loaded.adapter_id, None);
+        assert_eq!(loaded.diagnostics.len(), 1);
+        assert_eq!(loaded.diagnostics[0].code, ADAPTER_UNSUPPORTED_CODE);
+        assert!(loaded.diagnostics[0]
+            .message
+            .contains("namespace `widget=https://example.test/ns/widgets/1`"));
+    }
+
+    #[test]
     fn content_type_takes_precedence_over_cem_core_schema_for_input() {
         let loaded = LifecycleRegistry::with_builtin_adapters().load(
             &input(b"<p>Hi</p>"),
@@ -559,6 +665,19 @@ mod tests {
     fn cem_core_schema_selects_cem_export_when_content_type_absent() {
         let target = FormatIdentity {
             schema: Some(CEM_CORE_NAMESPACE.to_owned()),
+            ..FormatIdentity::default()
+        };
+        let selected = LifecycleRegistry::with_builtin_adapters()
+            .select_export(Some(&target), LayerFormat::DomJson);
+        assert_eq!(selected.to_format, LayerFormat::Cem);
+        assert_eq!(selected.adapter_id, Some("cem-ml"));
+        assert!(selected.diagnostics.is_empty());
+    }
+
+    #[test]
+    fn cem_core_namespace_selects_cem_export_when_content_type_and_schema_absent() {
+        let target = FormatIdentity {
+            default_namespace: Some(CEM_CORE_NAMESPACE.to_owned()),
             ..FormatIdentity::default()
         };
         let selected = LifecycleRegistry::with_builtin_adapters()

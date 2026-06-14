@@ -15,14 +15,14 @@ for the current architecture have landed; only deferred capability work remains 
       that validates bytes, loads normalized events / CEM AST, and exports to the requested target identity. Keep
       `--from-format` / `--to-format` as compatibility aliases while adding explicit input/output content-type and
       schema selection.
-      Built-in input content-type dispatch is now registry-backed across parser-backed commands. CEM core schema
-      identity (`https://cem.dev/ns/core/1`) selects the CEM adapter when no content type is present, while explicit
-      content type remains authoritative. Unsupported input identities now emit deterministic lifecycle diagnostics with
-      the declared content type and/or schema while preserving the fallback input format. CEM/HTML target export is
+      Built-in input content-type dispatch is now registry-backed across parser-backed commands. CEM core schema or
+      namespace identity (`https://cem.dev/ns/core/1`) selects the CEM adapter when no content type is present, while
+      explicit content type remains authoritative. Unsupported input identities now emit deterministic lifecycle diagnostics with
+      the declared content type, schema, and/or namespace while preserving the fallback input format. CEM/HTML target export is
       registry-owned for `--to-content-type
       application/cem+xml`, `--to-schema https://cem.dev/ns/core/1`, `--to-content-type text/html`, and
       `--to-content-type application/xhtml+xml`; unsupported target identities now emit a deterministic lifecycle
-      diagnostic with the declared content type and/or schema while preserving the requested fallback output projection.
+      diagnostic with the declared content type, schema, and/or namespace while preserving the requested fallback output projection.
       Keep this item open until remaining non-CEM schema/namespace-specific selection and remaining non-CEM target
       export adapters are registry-owned too.
 - [ ] **Immediate goal: root-scope run configuration for lib + WASM + CLI.** Design homes:
