@@ -14,6 +14,7 @@ pub const TARGET_ADAPTER_UNSUPPORTED_CODE: &str = "cem.lifecycle.target_adapter_
 
 const HTML_NAMESPACE: &str = "http://www.w3.org/1999/xhtml";
 const SVG_NAMESPACE: &str = "http://www.w3.org/2000/svg";
+const XSLT_NAMESPACE: &str = "http://www.w3.org/1999/XSL/Transform";
 
 #[derive(Debug, Clone)]
 pub struct LoadedInput {
@@ -448,6 +449,7 @@ impl LifecycleAdapter for LegacyCustomElementXsltAdapter {
             .as_deref()
             .map(crate::legacy_custom_element::is_legacy_custom_element_content_type)
             .unwrap_or(false)
+            || matches_namespace_without_content_type_or_schema(identity, &[XSLT_NAMESPACE])
     }
 
     fn load(&self, input: &EngineInput, _: &FormatIdentity) -> LoadedInput {
@@ -501,6 +503,19 @@ mod tests {
         let loaded = LifecycleRegistry::with_builtin_adapters().load(
             &input(br#"<if test="$ready"><button>Go</button></if>"#),
             &context("custom-element-xslt"),
+        );
+        assert_eq!(loaded.from_format, InputFormat::Cem);
+        assert_eq!(loaded.adapter_id, Some("legacy-custom-element-xslt"));
+        assert!(String::from_utf8(loaded.bytes)
+            .unwrap()
+            .contains("{cem:if @test=\"ready\""));
+    }
+
+    #[test]
+    fn builtins_load_standard_xslt_content_type_to_cem() {
+        let loaded = LifecycleRegistry::with_builtin_adapters().load(
+            &input(br#"<xsl:if test="$ready"><button>Go</button></xsl:if>"#),
+            &context("application/xslt+xml"),
         );
         assert_eq!(loaded.from_format, InputFormat::Cem);
         assert_eq!(loaded.adapter_id, Some("legacy-custom-element-xslt"));
@@ -634,6 +649,48 @@ mod tests {
             namespaces: std::collections::BTreeMap::from([(
                 "svg".to_owned(),
                 SVG_NAMESPACE.to_owned(),
+            )]),
+            ..FormatIdentity::default()
+        });
+
+        let loaded =
+            LifecycleRegistry::with_builtin_adapters().load(&source, &EngineContext::default());
+
+        assert_eq!(loaded.from_format, InputFormat::Html);
+        assert_eq!(loaded.adapter_id, Some("html"));
+        assert!(loaded.diagnostics.is_empty());
+    }
+
+    #[test]
+    fn xslt_namespace_selects_legacy_xslt_input_when_content_type_and_schema_absent() {
+        let mut source = input(br#"<xsl:if test="$ready"><button>Go</button></xsl:if>"#);
+        source.identity = Some(FormatIdentity {
+            namespaces: std::collections::BTreeMap::from([(
+                "xsl".to_owned(),
+                XSLT_NAMESPACE.to_owned(),
+            )]),
+            ..FormatIdentity::default()
+        });
+
+        let loaded =
+            LifecycleRegistry::with_builtin_adapters().load(&source, &EngineContext::default());
+
+        assert_eq!(loaded.from_format, InputFormat::Cem);
+        assert_eq!(loaded.adapter_id, Some("legacy-custom-element-xslt"));
+        assert!(loaded.diagnostics.is_empty());
+        assert!(String::from_utf8(loaded.bytes)
+            .unwrap()
+            .contains("{cem:if @test=\"ready\""));
+    }
+
+    #[test]
+    fn content_type_takes_precedence_over_xslt_namespace_for_input() {
+        let mut source = input(b"<p>Hi</p>");
+        source.identity = Some(FormatIdentity {
+            content_type: Some("text/html".to_owned()),
+            namespaces: std::collections::BTreeMap::from([(
+                "xsl".to_owned(),
+                XSLT_NAMESPACE.to_owned(),
             )]),
             ..FormatIdentity::default()
         });

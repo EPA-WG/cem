@@ -2908,6 +2908,32 @@ mod tests {
     }
 
     #[test]
+    fn validate_xslt_namespace_selects_legacy_xslt_input_adapter() {
+        let p = write_fixture(
+            "validate-xslt-namespace.data",
+            r#"<xsl:if test="$ready"><button>Go</button></xsl:if>"#,
+        );
+        let (outcome, stdout, stderr) = run(
+            &RealCemMlEngine::new(),
+            &[
+                "validate",
+                "--format",
+                "json",
+                "--namespace",
+                "xsl=http://www.w3.org/1999/XSL/Transform",
+                p.to_str().unwrap(),
+            ],
+        );
+
+        assert_eq!(outcome.exit_code, EXIT_OK, "{stderr}");
+        let v: serde_json::Value = serde_json::from_str(stdout.trim()).unwrap();
+        let diagnostics = v["diagnostics"].as_array().unwrap();
+        assert!(!diagnostics
+            .iter()
+            .any(|diag| diag["code"] == "cem.lifecycle.adapter_unsupported"));
+    }
+
+    #[test]
     fn validate_applies_base_uri_to_report_inputs_and_diagnostics() {
         let p = PathBuf::from("dist/target/cem_ml_cli/base-uri-input.cem");
         std::fs::create_dir_all(p.parent().unwrap()).unwrap();
@@ -5996,6 +6022,31 @@ mod tests {
         assert_eq!(
             v["content"].as_str().unwrap(),
             "{cem:if @test=\"not (disabled)\" | {button | Go}}\n"
+        );
+    }
+
+    #[test]
+    fn convert_xslt_namespace_routes_to_engine_lowering() {
+        let p = write_fixture(
+            "legacy-custom-element-xsl-namespace.data",
+            r#"<xsl:if test="$ready"><button>Go</button></xsl:if>"#,
+        );
+        let (outcome, stdout, stderr) = run(
+            &RealCemMlEngine::new(),
+            &[
+                "convert",
+                "--namespace",
+                "xsl=http://www.w3.org/1999/XSL/Transform",
+                "--to-content-type",
+                "application/cem+xml",
+                p.to_str().unwrap(),
+            ],
+        );
+        assert_eq!(outcome.exit_code, EXIT_OK, "{stderr}");
+        let v: serde_json::Value = serde_json::from_str(stdout.trim()).unwrap();
+        assert_eq!(
+            v["content"].as_str().unwrap(),
+            "{cem:if @test=\"ready\" | {button | Go}}\n"
         );
     }
 

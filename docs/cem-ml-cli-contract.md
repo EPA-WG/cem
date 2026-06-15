@@ -152,7 +152,9 @@ Current implementation status:
   `trace`, `bench`, and fixture workflows). CEM core schema or namespace identity
   (`https://cem.dev/ns/core/1`) selects the CEM adapter when no content type is present,
   and HTML/SVG namespace identity selects the HTML adapter when no content type or schema
-  is present, while explicit content type remains authoritative. Unsupported input identities
+  is present. XSLT namespace identity (`http://www.w3.org/1999/XSL/Transform`) selects the
+  legacy custom-element XSLT compatibility adapter when no content type or schema is present,
+  while explicit content type remains authoritative. Unsupported input identities
   emit deterministic lifecycle diagnostics with the declared content type, schema, and/or
   namespace while preserving the fallback input format. CEM/HTML target export selection is
   registry-owned for `convert --to-content-type application/cem+xml`,

@@ -87,10 +87,12 @@ the immediate CLI lifecycle contract.
    select conversion target identity/destination. CEM core schema or namespace identity
    (`https://cem.dev/ns/core/1`) now selects the CEM adapter when no content type is
    present, and HTML/SVG namespace identity selects the HTML adapter when no content type
-   or schema is present, while explicit content type remains authoritative. Unsupported input and
-   target identities emit deterministic lifecycle diagnostics with the declared content
-   type, schema, and/or namespace while preserving the requested fallback input format
-   or output projection. Config diagnostics for
+   or schema is present. XSLT namespace identity (`http://www.w3.org/1999/XSL/Transform`)
+   selects the legacy custom-element XSLT compatibility adapter when no content type or
+   schema is present, while explicit content type remains authoritative. Unsupported input
+   and target identities emit deterministic lifecycle diagnostics with the declared
+   content type, schema, and/or namespace while preserving the requested fallback input
+   format or output projection. Config diagnostics for
    malformed JSON, unsupported config content type, duplicate input URIs, and unknown
    output input references fail before document parsing. `--observe-events` consumes the same
    normalized input list and lifecycle dispatch path as parser-backed commands, including

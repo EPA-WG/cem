@@ -17,17 +17,19 @@ for the current architecture have landed; only deferred capability work remains 
       schema selection.
       Built-in input content-type dispatch is now registry-backed across parser-backed commands. CEM core schema or
       namespace identity (`https://cem.dev/ns/core/1`) selects the CEM adapter when no content type is present, and
-      HTML/SVG namespace identity selects the HTML adapter when no content type or schema is present, while
-      explicit content type remains authoritative. Unsupported input identities now emit deterministic lifecycle
-      diagnostics with the declared content type, schema, and/or namespace while preserving the fallback input format.
+      HTML/SVG namespace identity selects the HTML adapter when no content type or schema is present. XSLT namespace
+      identity (`http://www.w3.org/1999/XSL/Transform`) selects the legacy custom-element XSLT compatibility adapter
+      when no content type or schema is present, while explicit content type remains authoritative. Unsupported input
+      identities now emit deterministic lifecycle diagnostics with the declared content type, schema, and/or namespace
+      while preserving the fallback input format.
       CEM/HTML target export is registry-owned for `--to-content-type application/cem+xml`,
       `--to-schema https://cem.dev/ns/core/1`, `--to-content-type text/html`,
       `--to-content-type application/xhtml+xml`, XML target export is registry-owned for
       `--to-content-type application/xml` / `text/xml`, plus namespace-only CEM core and HTML/SVG targets; unsupported target
       identities now emit a deterministic lifecycle
       diagnostic with the declared content type, schema, and/or namespace while preserving the requested fallback output projection.
-      Keep this item open until remaining non-CEM schema/namespace-specific selection and remaining non-CEM target
-      export adapters are registry-owned too.
+      Keep this item open until broader target adapters beyond current CEM, HTML, and XML output surfaces are
+      registry-owned too.
 - [x] **Immediate goal: root-scope run configuration for lib + WASM + CLI.** Design homes:
       [`cem-ml-cli-contract.md`](cem-ml-cli-contract.md#major-requirement-root-scope-and-run-configuration) and
       [`cem-ml-cli-plan.md`](cem-ml-cli-plan.md#run-configuration-shape). Add a serializable `RunConfig` with input and
