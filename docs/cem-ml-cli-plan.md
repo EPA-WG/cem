@@ -528,6 +528,17 @@ These are data shapes only. Parser-filled content remains blocked until the pars
     - Planned options: `--data-content-type`, `--data-schema`, `--template`, `--template-content-type`,
       `--template-schema`, `--to-content-type`, `--to-schema`, and `--out`.
     - XML+XSLT execution, CEM template execution, and transform engine APIs remain deferred.
+    - Before execution is implemented, add a design/API slice that defines:
+        - `TransformRequest` with separate data input, template input/resource, target identity, target scope,
+          scheduler scope IDs, and shared engine context.
+        - `TransformResponse` with primary rendered document content/projection, diagnostics, and scheduler trace.
+        - Template identity dispatch for supported template content types such as `application/xslt+xml` and/or
+          CEM-native templates.
+        - Resolver semantics for reading templates and writing transform outputs, matching the existing local-only
+          default plus registered resolver behavior.
+        - Report and source-map behavior for diagnostics that may originate from data, template compilation, template
+          execution, or output export.
+        - Run-config fan-out semantics for data/template/output pairing before adding config/spec execution.
 8. `cem-ml trace <input>`
     - Supported structured formats: `json`, `xml`, `cem`.
     - Reference convenience formats: `text`, `html`.

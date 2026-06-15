@@ -90,6 +90,54 @@ and resource policy accounting isolated. This is required for validating or tran
 many data sources in one CLI invocation without paying one full runtime setup cost per
 document.
 
+## Future Requirement: Transform Runtime Boundary
+
+`cem-ml transform` is reserved for data + template -> document workflows. Runtime support
+must be designed before implementation and must not reuse `convert` semantics:
+
+- `convert` request shape: one document input, optional target identity, and document
+  export/projection output.
+- `transform` request shape: one data input, one template input, one target identity,
+  and document output produced by applying the template to the data.
+
+The future Rust/WASM engine API should model transform as a first-class request/response
+pair instead of smuggling template information through `ConvertRequest` or CLI-only
+options. The request shape must include:
+
+- data `EngineInput` with its own root scope and format identity;
+- template resource URI/bytes with its own root scope and format identity;
+- target `FormatIdentity` and output `ScopeConfig`;
+- scheduler scope IDs for data load, template load/compile, execution, and output;
+- optional preservation of source-map frames from both data and template inputs;
+- the shared `EngineContext`, including resolver registry and scheduler settings.
+
+Supported template content types must be explicit adapter capabilities. The first
+runtime design should decide whether `application/xslt+xml`, CEM-native templates, or
+both are in scope. Unsupported template identity combinations must fail with
+deterministic diagnostics before execution, just as unsupported input/output identities
+do for parser-backed commands.
+
+Template reads and transform outputs must use the shared resolver layer. Local paths and
+local `file://` URIs use existing local resolver behavior; remote/custom template URIs
+require registered resolvers. Output writes must follow the same local-only default and
+registered-resolver behavior as `convert --out`, side reports, and configured output
+destinations.
+
+Transform responses must preserve the content-primary command contract:
+
+- primary rendered document bytes/projection go to `--out` when provided, otherwise
+  stdout;
+- JSON/Markdown reports are side outputs, not replacements for primary content;
+- diagnostics include data/template/target identity and source-map frame context where
+  available;
+- scheduler traces distinguish data loading, template loading/compilation, execution,
+  and output export;
+- config/spec fan-out must define whether one data input can pair with multiple
+  templates, one template can apply to multiple data inputs, or both.
+
+Until that design is accepted, `cem-ml transform ...` must remain parseable but reserved
+and exit with code `2`.
+
 Current implementation status:
 
 - `parse`, `validate`, `check`, `inspect`, `convert`, and fixture flows already route
