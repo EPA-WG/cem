@@ -128,9 +128,10 @@ the immediate CLI lifecycle contract.
    namespace, and version-pin option shape before document parsing, while unreadable or
    malformed module maps, unknown future budget keys, and unsupported version-pin
    targets emit deterministic execution diagnostics instead of being silently ignored.
-   Remote/custom module-map URI values and fixture-materialized input reads use
-   registered `EngineContext` resolvers when a host installs one; default CLI behavior
-   still emits explicit unsupported-resolver diagnostics or rejections. Primary output,
+   Remote/custom module-map URI values, config document reads, configured and
+   positional input reads, and fixture-materialized input reads use registered
+   `EngineContext` resolvers when a host installs one; default CLI behavior still emits
+   explicit unsupported-resolver diagnostics or rejections. Primary output,
    side-report, and observability event writes use registered write resolvers when a
    host installs one; default CLI behavior still rejects remote/custom destinations
    instead of treating them as local paths.
@@ -150,17 +151,21 @@ the immediate CLI lifecycle contract.
     - Done: converted module-map loading in `cem_ml::real` to registered resolver
       reads. The resolved module-map URI provides the base for relative schema `src`
       identities while command-facing diagnostics remain stable.
-    - Partial: fixture and benchmark materialized inputs can read through registered
-      input resolvers. Config-document reads plus configured, positional, and
-      observability input reads still need one purpose-aware resolver read path.
+    - Done: config-document reads plus configured/positional input helpers use
+      purpose-aware resolver reads when the runtime context provides a matching
+      resolver. Existing fixture and benchmark materialized-input reads remain
+      resolver-aware; config-backed fixture observability collection reuses the same
+      helper path.
+    - Remaining: empty fixture placeholder materialization for pre-engine observability
+      and template-embedding diagnostics is still local-only until the resolver
+      registration slice can provide a runtime resolver in those fallback paths.
     - Done: converted output writes to resolver writes for `--out`,
       config/output-spec destinations, side reports, and `--observe-events`. Default
       CLI context keeps rejecting remote/custom writes until a host or CLI option
       registers a resolver for that scheme, purpose, and direction.
-    - Add host adapters in layers: local filesystem first, in-memory/custom scheme
-      test resolver second, WASM callback resolver third, and optional CLI remote
-      resolver registration last. The default CLI behavior stays local-only until a
-      resolver is explicitly registered.
+    - Add host adapters in layers: WASM callback resolver first, optional CLI remote or
+      custom-scheme resolver registration second. The default CLI behavior stays
+      local-only until a resolver is explicitly registered.
     - Keep security policy explicit: resolver registration is per scheme and purpose;
       read permission does not imply write permission, and remote output writes are not
       enabled by default.

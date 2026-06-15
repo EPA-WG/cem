@@ -10,7 +10,7 @@ use crate::template_pass;
 use cem_ml::engine::{self as eng, CemMlEngine, EngineError};
 use cem_ml::resolver::{
     is_windows_drive_path, local_file_uri_to_path, local_path_or_file_uri, uri_scheme,
-    ResolveDirection, ResolvePurpose, ResolveRequest, ResolverDiagnostic,
+    ResolveDirection, ResolvePurpose, ResolveRequest, ResolvedRead, ResolverDiagnostic,
 };
 use cem_ml::run_config::{self, InputSpec, OutputSpec, RunConfig, RunConfigDefaults, ScopeConfig};
 use std::collections::BTreeMap;
@@ -58,18 +58,89 @@ fn read_input(path: &Path) -> io::Result<Vec<u8>> {
     fs::read(path.as_ref())
 }
 
+fn read_source(
+    context: &eng::EngineContext,
+    path: &Path,
+    label: &str,
+    purpose: ResolvePurpose,
+    content_type_hint: Option<&str>,
+) -> io::Result<ResolvedRead> {
+    let raw = path.to_string_lossy();
+    if raw.starts_with("file://") {
+        if let Some(path) = local_file_uri_to_path(&raw) {
+            return Ok(ResolvedRead {
+                uri: raw.into_owned(),
+                bytes: fs::read(path)?,
+                content_type: None,
+            });
+        }
+        if let Some(read) = read_registered_source(context, &raw, purpose, content_type_hint)? {
+            return Ok(read);
+        }
+        return Err(io::Error::new(
+            io::ErrorKind::InvalidInput,
+            format!("unsupported {label} `{raw}`; only local file:// URIs are supported"),
+        ));
+    }
+
+    if uri_scheme(&raw).is_some() && !is_windows_drive_path(&raw) {
+        if let Some(read) = read_registered_source(context, &raw, purpose, content_type_hint)? {
+            return Ok(read);
+        }
+        return Err(io::Error::new(
+            io::ErrorKind::InvalidInput,
+            format!("unsupported {label} `{raw}`; remote/custom URI resolvers are not implemented"),
+        ));
+    }
+
+    Ok(ResolvedRead {
+        uri: raw.into_owned(),
+        bytes: fs::read(path)?,
+        content_type: None,
+    })
+}
+
+fn read_registered_source(
+    context: &eng::EngineContext,
+    uri: &str,
+    purpose: ResolvePurpose,
+    content_type_hint: Option<&str>,
+) -> io::Result<Option<ResolvedRead>> {
+    let mut request = ResolveRequest::new(uri, purpose, ResolveDirection::Read);
+    if let Some(content_type_hint) = content_type_hint {
+        request = request.with_content_type_hint(content_type_hint);
+    }
+    match context.resolver_registry.read(&request) {
+        Ok(read) => Ok(Some(read)),
+        Err(ResolverDiagnostic::UnsupportedResolver { .. }) => Ok(None),
+        Err(error) => Err(io::Error::other(error)),
+    }
+}
+
 fn engine_input(
+    context: &eng::EngineContext,
     path: &Path,
     from_format: Option<cli::InputFormat>,
     root_scope: ScopeConfig,
 ) -> Result<eng::EngineInput, EngineError> {
-    let bytes = read_input(path).map_err(|e| EngineError::Io {
+    let mut root_scope = root_scope;
+    let read = read_source(
+        context,
+        path,
+        "input URI",
+        ResolvePurpose::Input,
+        root_scope.default_content_type.as_deref(),
+    )
+    .map_err(|e| EngineError::Io {
         path: path.to_path_buf(),
         source: e,
     })?;
+    if root_scope.default_content_type.is_none() {
+        root_scope.default_content_type = read.content_type.clone();
+    }
     Ok(eng::EngineInput {
         uri: path.display().to_string(),
-        bytes,
+        bytes: read.bytes,
         from_format: from_format.map(to_engine_input_format),
         identity: root_scope.format_identity_option(),
         root_scope,
@@ -100,22 +171,34 @@ fn placeholder_input(
 }
 
 fn engine_input_from_spec(
+    context: &eng::EngineContext,
     spec: &InputSpec,
     from_format: Option<cli::InputFormat>,
 ) -> Result<eng::EngineInput, CliRequestError> {
     let path = Path::new(&spec.uri);
-    let bytes = read_input(path).map_err(|source| {
+    let mut root_scope = spec.root_scope.clone();
+    let read = read_source(
+        context,
+        path,
+        "input URI",
+        ResolvePurpose::Input,
+        root_scope.default_content_type.as_deref(),
+    )
+    .map_err(|source| {
         CliRequestError::Engine(EngineError::Io {
             path: path.into(),
             source,
         })
     })?;
+    if root_scope.default_content_type.is_none() {
+        root_scope.default_content_type = read.content_type.clone();
+    }
     Ok(eng::EngineInput {
         uri: spec.uri.clone(),
-        bytes,
+        bytes: read.bytes,
         from_format: from_format.map(to_engine_input_format),
-        identity: spec.root_scope.format_identity_option(),
-        root_scope: spec.root_scope.clone(),
+        identity: root_scope.format_identity_option(),
+        root_scope,
     })
 }
 
@@ -123,35 +206,55 @@ fn run_config(
     options: &cli::RunOptions,
     defaults: RunConfigDefaults,
 ) -> Result<RunConfig, CliRequestError> {
+    run_config_with_context(&eng::EngineContext::default(), options, defaults)
+}
+
+fn run_config_with_context(
+    context: &eng::EngineContext,
+    options: &cli::RunOptions,
+    defaults: RunConfigDefaults,
+) -> Result<RunConfig, CliRequestError> {
     let mut config_base_uri = None;
     let mut config = if let Some(path) = &options.config {
-        let config_path = local_path_or_file_uri(path, "config path").map_err(|source| {
-            CliRequestError::Engine(EngineError::Io {
-                path: path.clone(),
-                source,
-            })
-        })?;
+        let local_config_path = local_path_or_file_uri(path, "config path").ok();
         let config_source_uri = path.display().to_string();
-        config_base_uri = Some(config_path.display().to_string());
-        let bytes = fs::read(config_path.as_ref()).map_err(|source| {
+        let read = read_source(
+            context,
+            path,
+            "config path",
+            ResolvePurpose::Config,
+            options.config_content_type.as_deref(),
+        )
+        .map_err(|source| {
             CliRequestError::Engine(EngineError::Io {
                 path: path.clone(),
                 source,
             })
         })?;
+        config_base_uri = Some(
+            local_config_path
+                .as_ref()
+                .map(|path| path.display().to_string())
+                .unwrap_or_else(|| read.uri.clone()),
+        );
         let identity = eng::FormatIdentity {
             content_type: options
                 .config_content_type
                 .clone()
-                .or_else(|| infer_config_content_type(config_path.as_ref()))
-                .or_else(|| infer_config_content_type(path)),
+                .or_else(|| {
+                    local_config_path
+                        .as_ref()
+                        .and_then(|path| infer_config_content_type(path.as_ref()))
+                })
+                .or_else(|| infer_config_content_type(path))
+                .or_else(|| read.content_type.clone()),
             schema: None,
             default_namespace: None,
             namespaces: BTreeMap::new(),
             base_uri: Some(config_source_uri.clone()),
         };
         run_config::parse_run_config(run_config::RunConfigParseRequest {
-            bytes,
+            bytes: read.bytes,
             identity,
             base_uri: Some(config_source_uri.clone()),
         })
@@ -215,20 +318,22 @@ fn infer_config_content_type(path: &Path) -> Option<String> {
 }
 
 fn collect_configured_inputs(
+    context: &eng::EngineContext,
     paths: &[PathBuf],
     from_format: Option<cli::InputFormat>,
     config: &RunConfig,
     positional_defaults: &ScopeConfig,
 ) -> Result<Vec<eng::EngineInput>, CliRequestError> {
-    let mut inputs =
-        collect_inputs(paths, from_format, positional_defaults).map_err(CliRequestError::Engine)?;
+    let mut inputs = collect_inputs(context, paths, from_format, positional_defaults)
+        .map_err(CliRequestError::Engine)?;
     for spec in &config.inputs {
-        inputs.push(engine_input_from_spec(spec, from_format)?);
+        inputs.push(engine_input_from_spec(context, spec, from_format)?);
     }
     Ok(inputs)
 }
 
 fn single_configured_input(
+    context: &eng::EngineContext,
     path: Option<&Path>,
     from_format: Option<cli::InputFormat>,
     config: &RunConfig,
@@ -238,6 +343,7 @@ fn single_configured_input(
     if let Some(path) = path {
         inputs.push(
             engine_input(
+                context,
                 path,
                 from_format,
                 positional_input_scope(path, positional_defaults),
@@ -246,7 +352,7 @@ fn single_configured_input(
         );
     }
     for spec in &config.inputs {
-        inputs.push(engine_input_from_spec(spec, from_format)?);
+        inputs.push(engine_input_from_spec(context, spec, from_format)?);
     }
 
     match inputs.len() {
@@ -262,6 +368,7 @@ fn single_configured_input(
 }
 
 fn collect_inputs(
+    context: &eng::EngineContext,
     paths: &[std::path::PathBuf],
     from_format: Option<cli::InputFormat>,
     positional_defaults: &ScopeConfig,
@@ -270,6 +377,7 @@ fn collect_inputs(
         .iter()
         .map(|p| {
             engine_input(
+                context,
                 p,
                 from_format,
                 positional_input_scope(p, positional_defaults),
@@ -567,6 +675,7 @@ fn convert_output_destination(args: &cli::ConvertArgs, config: &RunConfig) -> Op
 }
 
 fn convert_configured_inputs(
+    context: &eng::EngineContext,
     args: &cli::ConvertArgs,
     config: &RunConfig,
     positional_defaults: &ScopeConfig,
@@ -575,6 +684,7 @@ fn convert_configured_inputs(
     if let Some(path) = args.input.as_deref() {
         inputs.push(
             engine_input(
+                context,
                 path,
                 args.from_format,
                 positional_input_scope(path, positional_defaults),
@@ -583,7 +693,7 @@ fn convert_configured_inputs(
         );
     }
     for spec in &config.inputs {
-        inputs.push(engine_input_from_spec(spec, args.from_format)?);
+        inputs.push(engine_input_from_spec(context, spec, args.from_format)?);
     }
     Ok(inputs)
 }
@@ -637,14 +747,15 @@ fn run_convert_fanout<E: CemMlEngine + ?Sized>(
         );
     }
 
-    let inputs = match convert_configured_inputs(args, config, positional_defaults) {
+    let engine_context = context_with_config(&args.context, config);
+    let inputs = match convert_configured_inputs(&engine_context, args, config, positional_defaults)
+    {
         Ok(inputs) => inputs,
         Err(err) => return handle_cli_request_error(err, s),
     };
     let mut report_inputs = Vec::new();
     let mut report_diagnostics = Vec::new();
     let mut report_scheduler_trace = cem_ml::report::SchedulerTraceReport::default();
-    let engine_context = context_with_config(&args.context, config);
 
     for (index, output) in config.outputs.iter().enumerate() {
         let destination = match output.destination.as_ref().map(PathBuf::from) {
@@ -1204,7 +1315,9 @@ pub fn run_parse<E: CemMlEngine + ?Sized>(
         }
         Err(err) => return handle_cli_request_error(err, s),
     };
+    let engine_context = context_with_config(&args.context, &config);
     let input = match single_configured_input(
+        &engine_context,
         args.input.as_deref(),
         args.from_format,
         &config,
@@ -1219,7 +1332,6 @@ pub fn run_parse<E: CemMlEngine + ?Sized>(
         Some(input.uri.as_str()),
     );
     let input_uri = input.uri.clone();
-    let engine_context = context_with_config(&args.context, &config);
     let req = eng::ParseRequest {
         input,
         projection: to_engine_parse_projection(args.format),
@@ -1284,11 +1396,17 @@ pub fn run_validate<E: CemMlEngine + ?Sized>(
         }
         Err(err) => return handle_cli_request_error(err, s),
     };
-    let inputs =
-        match collect_configured_inputs(&args.inputs, args.from_format, &config, &input_defaults) {
-            Ok(v) => v,
-            Err(err) => return handle_cli_request_error(err, s),
-        };
+    let engine_context = context_with_config(&args.context, &config);
+    let inputs = match collect_configured_inputs(
+        &engine_context,
+        &args.inputs,
+        args.from_format,
+        &config,
+        &input_defaults,
+    ) {
+        Ok(v) => v,
+        Err(err) => return handle_cli_request_error(err, s),
+    };
     if inputs.is_empty() {
         return handle_cli_request_error(
             CliRequestError::Usage("validate requires at least one input or --input-spec".into()),
@@ -1296,7 +1414,6 @@ pub fn run_validate<E: CemMlEngine + ?Sized>(
         );
     }
     let embedding_diags = collect_embedding_diagnostics(&inputs);
-    let engine_context = context_with_config(&args.context, &config);
     let req = eng::ValidateRequest {
         inputs,
         projection: to_engine_validate_projection(args.format),
@@ -1356,11 +1473,17 @@ pub fn run_check<E: CemMlEngine + ?Sized>(
         }
         Err(err) => return handle_cli_request_error(err, s),
     };
-    let inputs =
-        match collect_configured_inputs(&args.inputs, args.from_format, &config, &input_defaults) {
-            Ok(v) => v,
-            Err(err) => return handle_cli_request_error(err, s),
-        };
+    let engine_context = context_with_config(&args.context, &config);
+    let inputs = match collect_configured_inputs(
+        &engine_context,
+        &args.inputs,
+        args.from_format,
+        &config,
+        &input_defaults,
+    ) {
+        Ok(v) => v,
+        Err(err) => return handle_cli_request_error(err, s),
+    };
     if inputs.is_empty() {
         return handle_cli_request_error(
             CliRequestError::Usage("check requires at least one input or --input-spec".into()),
@@ -1368,7 +1491,6 @@ pub fn run_check<E: CemMlEngine + ?Sized>(
         );
     }
     let embedding_diags = collect_embedding_diagnostics(&inputs);
-    let engine_context = context_with_config(&args.context, &config);
     let req = eng::CheckRequest {
         inputs,
         projection: to_engine_validate_projection(args.format),
@@ -1419,7 +1541,9 @@ pub fn run_inspect<E: CemMlEngine + ?Sized>(
         Ok(config) => config,
         Err(err) => return handle_cli_request_error(err, s),
     };
+    let engine_context = context_with_config(&args.context, &config);
     let input = match single_configured_input(
+        &engine_context,
         args.input.as_deref(),
         args.from_format,
         &config,
@@ -1428,7 +1552,6 @@ pub fn run_inspect<E: CemMlEngine + ?Sized>(
         Ok(i) => i,
         Err(err) => return handle_cli_request_error(err, s),
     };
-    let engine_context = context_with_config(&args.context, &config);
     let req = eng::InspectRequest {
         input,
         show: to_engine_inspect_view(args.show),
@@ -1477,7 +1600,9 @@ pub fn run_convert<E: CemMlEngine + ?Sized>(
     if !config.outputs.is_empty() {
         return run_convert_fanout(engine, &args, &config, &input_defaults, s);
     }
+    let engine_context = context_with_config(&args.context, &config);
     let input = match single_configured_input(
+        &engine_context,
         args.input.as_deref(),
         args.from_format,
         &config,
@@ -1487,7 +1612,6 @@ pub fn run_convert<E: CemMlEngine + ?Sized>(
         Err(err) => return handle_cli_request_error(err, s),
     };
     let input_uri = input.uri.clone();
-    let engine_context = context_with_config(&args.context, &config);
     let req = eng::ConvertRequest {
         input,
         to_format: to_engine_layer_format(args.to_format),
@@ -1534,7 +1658,9 @@ pub fn run_trace<E: CemMlEngine + ?Sized>(
         Ok(config) => config,
         Err(err) => return handle_cli_request_error(err, s),
     };
+    let engine_context = context_with_config(&args.context, &config);
     let input = match single_configured_input(
+        &engine_context,
         args.input.as_deref(),
         args.from_format,
         &config,
@@ -1543,7 +1669,6 @@ pub fn run_trace<E: CemMlEngine + ?Sized>(
         Ok(i) => i,
         Err(err) => return handle_cli_request_error(err, s),
     };
-    let engine_context = context_with_config(&args.context, &config);
     let req = eng::TraceRequest {
         input,
         projection: to_engine_trace_projection(args.format),
@@ -1588,7 +1713,14 @@ pub fn run_bench<E: CemMlEngine + ?Sized>(
         }
         Err(err) => return handle_cli_request_error(err, s),
     };
-    let inputs = match collect_configured_inputs(&args.inputs, None, &config, &input_defaults) {
+    let engine_context = context_with_config(&args.context, &config);
+    let inputs = match collect_configured_inputs(
+        &engine_context,
+        &args.inputs,
+        None,
+        &config,
+        &input_defaults,
+    ) {
         Ok(v) => v,
         Err(err) => return handle_cli_request_error(err, s),
     };
@@ -1598,7 +1730,6 @@ pub fn run_bench<E: CemMlEngine + ?Sized>(
             s,
         );
     }
-    let engine_context = context_with_config(&args.context, &config);
     let req = eng::BenchRequest {
         inputs,
         projection: to_engine_bench_projection(args.format),
@@ -1656,10 +1787,11 @@ pub fn run_fixture_validate<E: CemMlEngine + ?Sized>(
         }
         Err(err) => return handle_cli_request_error(err, s),
     };
+    let engine_context = context_with_config(&args.context, &config);
     let mut inputs =
         collect_fixture_inputs(&args.inputs, config.inputs.is_empty(), &input_defaults);
     for spec in &config.inputs {
-        match engine_input_from_spec(spec, None) {
+        match engine_input_from_spec(&engine_context, spec, None) {
             Ok(input) => inputs.push(input),
             Err(err) => return handle_cli_request_error(err, s),
         }
@@ -1668,7 +1800,6 @@ pub fn run_fixture_validate<E: CemMlEngine + ?Sized>(
         Ok(v) => v,
         Err(e) => return handle_engine_error(e, s),
     };
-    let engine_context = context_with_config(&args.context, &config);
     let req = eng::FixtureValidateRequest {
         inputs,
         fail_level: to_engine_fail_level(args.fail_level),
@@ -1731,15 +1862,15 @@ pub fn run_fixture_roundtrip<E: CemMlEngine + ?Sized>(
         }
         Err(err) => return handle_cli_request_error(err, s),
     };
+    let engine_context = context_with_config(&args.context, &config);
     let mut inputs =
         collect_fixture_inputs(&args.inputs, config.inputs.is_empty(), &input_defaults);
     for spec in &config.inputs {
-        match engine_input_from_spec(spec, None) {
+        match engine_input_from_spec(&engine_context, spec, None) {
             Ok(input) => inputs.push(input),
             Err(err) => return handle_cli_request_error(err, s),
         }
     }
-    let engine_context = context_with_config(&args.context, &config);
     let req = eng::FixtureRoundtripRequest {
         inputs,
         to_format: to_engine_layer_format(args.to_format),
@@ -1804,6 +1935,35 @@ mod tests {
         writes: Arc<Mutex<Vec<(String, Vec<u8>)>>>,
     }
 
+    #[derive(Debug, Clone)]
+    struct StaticReadResolver {
+        uri: &'static str,
+        bytes: &'static [u8],
+        content_type: Option<&'static str>,
+    }
+
+    impl ResourceResolver for StaticReadResolver {
+        fn read(&self, _request: &ResolveRequest) -> Result<ResolvedRead, ResolverDiagnostic> {
+            Ok(ResolvedRead {
+                uri: self.uri.to_owned(),
+                bytes: self.bytes.to_vec(),
+                content_type: self.content_type.map(str::to_owned),
+            })
+        }
+
+        fn write(
+            &self,
+            request: &ResolveRequest,
+            _bytes: &[u8],
+        ) -> Result<ResolvedWrite, ResolverDiagnostic> {
+            Err(ResolverDiagnostic::UnsupportedResolver {
+                uri: request.uri.clone(),
+                purpose: request.purpose,
+                direction: ResolveDirection::Write,
+            })
+        }
+    }
+
     impl ResourceResolver for RecordingWriteResolver {
         fn read(&self, request: &ResolveRequest) -> Result<ResolvedRead, ResolverDiagnostic> {
             Err(ResolverDiagnostic::UnsupportedResolver {
@@ -1852,6 +2012,18 @@ mod tests {
             },
             writes,
         )
+    }
+
+    fn context_with_read_resolver(
+        purpose: ResolvePurpose,
+        resolver: impl ResourceResolver + 'static,
+    ) -> eng::EngineContext {
+        let mut resolver_registry = ResolverRegistry::new();
+        resolver_registry.register("cem+vfs", purpose, ResolveDirection::Read, resolver);
+        eng::EngineContext {
+            resolver_registry,
+            ..eng::EngineContext::default()
+        }
     }
 
     fn run<E: CemMlEngine + ?Sized>(engine: &E, args: &[&str]) -> (Outcome, String, String) {
@@ -3612,6 +3784,59 @@ mod tests {
         assert_eq!(writes.len(), 1);
         assert_eq!(writes[0].0, "cem+vfs://out/result.json");
         assert!(String::from_utf8_lossy(&writes[0].1).contains(r#""ok": true"#));
+    }
+
+    #[test]
+    fn custom_uri_input_uses_registered_read_resolver() {
+        let context = context_with_read_resolver(
+            ResolvePurpose::Input,
+            StaticReadResolver {
+                uri: "cem+vfs://inputs/source.cem",
+                bytes: b"{main | Loaded}",
+                content_type: Some("application/cem+xml"),
+            },
+        );
+
+        let input = engine_input(
+            &context,
+            Path::new("cem+vfs://inputs/source.cem"),
+            None,
+            ScopeConfig::default(),
+        )
+        .unwrap();
+
+        assert_eq!(input.uri, "cem+vfs://inputs/source.cem");
+        assert_eq!(input.bytes, b"{main | Loaded}");
+        assert_eq!(
+            input.root_scope.default_content_type.as_deref(),
+            Some("application/cem+xml")
+        );
+    }
+
+    #[test]
+    fn custom_uri_config_uses_registered_read_resolver() {
+        let context = context_with_read_resolver(
+            ResolvePurpose::Config,
+            StaticReadResolver {
+                uri: "cem+vfs://configs/run.json",
+                bytes: br#"{"inputs":[{"uri":"local.cem"}]}"#,
+                content_type: Some("application/json"),
+            },
+        );
+        let config = match run_config_with_context(
+            &context,
+            &cli::RunOptions {
+                config: Some(PathBuf::from("cem+vfs://configs/run.json")),
+                ..cli::RunOptions::default()
+            },
+            RunConfigDefaults::default(),
+        ) {
+            Ok(config) => config,
+            Err(_) => panic!("custom resolver config should parse"),
+        };
+
+        assert_eq!(config.inputs.len(), 1);
+        assert_eq!(config.inputs[0].uri, "local.cem");
     }
 
     #[test]
@@ -6245,13 +6470,15 @@ fn observable_inputs(
                 &a.run,
                 run_defaults(input_defaults.clone(), ScopeConfig::default()),
             )?;
+            let context = context_with_config(&a.context, &config);
             let input = single_configured_input(
+                &context,
                 a.input.as_deref(),
                 a.from_format,
                 &config,
                 &input_defaults,
             )?;
-            Ok((vec![input], context_with_config(&a.context, &config)))
+            Ok((vec![input], context))
         }
         cli::Command::Validate(a) => {
             let input_defaults = input_scope_defaults(&a.context);
@@ -6259,9 +6486,15 @@ fn observable_inputs(
                 &a.run,
                 run_defaults(input_defaults.clone(), ScopeConfig::default()),
             )?;
-            let inputs =
-                collect_configured_inputs(&a.inputs, a.from_format, &config, &input_defaults)?;
-            Ok((inputs, context_with_config(&a.context, &config)))
+            let context = context_with_config(&a.context, &config);
+            let inputs = collect_configured_inputs(
+                &context,
+                &a.inputs,
+                a.from_format,
+                &config,
+                &input_defaults,
+            )?;
+            Ok((inputs, context))
         }
         cli::Command::Check(a) => {
             let input_defaults = input_scope_defaults(&a.context);
@@ -6269,9 +6502,15 @@ fn observable_inputs(
                 &a.run,
                 run_defaults(input_defaults.clone(), ScopeConfig::default()),
             )?;
-            let inputs =
-                collect_configured_inputs(&a.inputs, a.from_format, &config, &input_defaults)?;
-            Ok((inputs, context_with_config(&a.context, &config)))
+            let context = context_with_config(&a.context, &config);
+            let inputs = collect_configured_inputs(
+                &context,
+                &a.inputs,
+                a.from_format,
+                &config,
+                &input_defaults,
+            )?;
+            Ok((inputs, context))
         }
         cli::Command::Inspect(a) => {
             let input_defaults = input_scope_defaults(&a.context);
@@ -6279,13 +6518,15 @@ fn observable_inputs(
                 &a.run,
                 run_defaults(input_defaults.clone(), ScopeConfig::default()),
             )?;
+            let context = context_with_config(&a.context, &config);
             let input = single_configured_input(
+                &context,
                 a.input.as_deref(),
                 a.from_format,
                 &config,
                 &input_defaults,
             )?;
-            Ok((vec![input], context_with_config(&a.context, &config)))
+            Ok((vec![input], context))
         }
         cli::Command::Convert(a) => {
             let input_defaults = input_scope_defaults(&a.context);
@@ -6294,13 +6535,15 @@ fn observable_inputs(
                 &a.run,
                 run_defaults(input_defaults.clone(), output_defaults),
             )?;
+            let context = context_with_config(&a.context, &config);
             let input = single_configured_input(
+                &context,
                 a.input.as_deref(),
                 a.from_format,
                 &config,
                 &input_defaults,
             )?;
-            Ok((vec![input], context_with_config(&a.context, &config)))
+            Ok((vec![input], context))
         }
         cli::Command::Trace(a) => {
             let input_defaults = input_scope_defaults(&a.context);
@@ -6308,13 +6551,15 @@ fn observable_inputs(
                 &a.run,
                 run_defaults(input_defaults.clone(), ScopeConfig::default()),
             )?;
+            let context = context_with_config(&a.context, &config);
             let input = single_configured_input(
+                &context,
                 a.input.as_deref(),
                 a.from_format,
                 &config,
                 &input_defaults,
             )?;
-            Ok((vec![input], context_with_config(&a.context, &config)))
+            Ok((vec![input], context))
         }
         cli::Command::Bench(a) => {
             let input_defaults = input_scope_defaults(&a.context);
@@ -6322,8 +6567,10 @@ fn observable_inputs(
                 &a.run,
                 run_defaults(input_defaults.clone(), ScopeConfig::default()),
             )?;
-            let inputs = collect_configured_inputs(&a.inputs, None, &config, &input_defaults)?;
-            Ok((inputs, context_with_config(&a.context, &config)))
+            let context = context_with_config(&a.context, &config);
+            let inputs =
+                collect_configured_inputs(&context, &a.inputs, None, &config, &input_defaults)?;
+            Ok((inputs, context))
         }
         cli::Command::Fixture(cli::FixtureCmd::Validate(a)) => {
             let input_defaults = input_scope_defaults(&a.context);
@@ -6331,12 +6578,13 @@ fn observable_inputs(
                 &a.run,
                 run_defaults(input_defaults.clone(), ScopeConfig::default()),
             )?;
+            let context = context_with_config(&a.context, &config);
             let mut inputs =
                 collect_fixture_inputs(&a.inputs, config.inputs.is_empty(), &input_defaults);
             for spec in &config.inputs {
-                inputs.push(engine_input_from_spec(spec, None)?);
+                inputs.push(engine_input_from_spec(&context, spec, None)?);
             }
-            Ok((inputs, context_with_config(&a.context, &config)))
+            Ok((inputs, context))
         }
         cli::Command::Fixture(cli::FixtureCmd::Roundtrip(a)) => {
             let input_defaults = input_scope_defaults(&a.context);
@@ -6344,12 +6592,13 @@ fn observable_inputs(
                 &a.run,
                 run_defaults(input_defaults.clone(), ScopeConfig::default()),
             )?;
+            let context = context_with_config(&a.context, &config);
             let mut inputs =
                 collect_fixture_inputs(&a.inputs, config.inputs.is_empty(), &input_defaults);
             for spec in &config.inputs {
-                inputs.push(engine_input_from_spec(spec, None)?);
+                inputs.push(engine_input_from_spec(&context, spec, None)?);
             }
-            Ok((inputs, context_with_config(&a.context, &config)))
+            Ok((inputs, context))
         }
         _ => Ok((Vec::new(), eng::EngineContext::default())),
     }

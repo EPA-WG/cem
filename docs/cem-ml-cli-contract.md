@@ -139,9 +139,11 @@ Current implementation status:
   execution diagnostics instead of being silently ignored. Remote/custom module-map
   URI values now load through registered `EngineContext` resolvers when available and
   otherwise emit an explicit unsupported-resolver diagnostic instead of being treated
-  as local paths. Primary output, side-report, and observability event destinations now
-  write through registered resolvers when available; the default CLI context registers
-  none, so remote/custom URI destinations still reject explicitly.
+  as local paths. Config document reads plus configured and positional input reads use
+  the same resolver-aware read path when a runtime context provides a resolver. Primary
+  output, side-report, and observability event destinations now write through registered
+  resolvers when available; the default CLI context registers none, so remote/custom
+  URI sources and destinations still reject explicitly.
 - `--schema` and `--content-type` are carried in `EngineContext` and emitted in reports.
   `cem_ml::lifecycle::LifecycleRegistry` now owns built-in input content-type dispatch
   for parser-backed commands (`parse`, `validate`, `check`, `inspect`, `convert`,
@@ -176,12 +178,11 @@ Current implementation status:
   local `file://` config document bases. Configured, positional, and fixture-materialized
   input reads resolve local `file://` URIs, and primary output, per-output conversion,
   side-report, and observability event writes resolve local `file://` destinations to
-  filesystem paths or registered write resolvers. The default CLI context registers no
-  remote/custom write resolvers, so URI destinations still reject explicitly unless a
-  host installs one. Config document reads and configured/positional input reads also reject remote/custom URI values
-  until they are routed through the shared resolver path. Fixture/benchmark materialized input reads and remote/custom
-  module-map URI values use registered `EngineContext` resolvers when available and otherwise preserve the current
-  deterministic rejection or unsupported-resolver diagnostic.
+  filesystem paths. Config document reads, configured and positional input reads,
+  fixture/benchmark materialized input reads, remote/custom module-map URI values, and
+  output/report/observability destinations all have resolver-aware helper paths. The
+  default CLI context registers no remote/custom resolvers, so these URI sources and
+  destinations still reject explicitly unless a host or future CLI option installs one.
 - `validate` / `check` / `convert` route `custom-element-xslt` input through the first
   shared lifecycle adapter path, lowering legacy custom-element XSLT to canonical
   CEM-ML through `cem_ml::legacy_custom_element`; `convert --content-type
