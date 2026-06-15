@@ -704,9 +704,7 @@ fn emit_element(
         _ => {}
     }
 
-    if element_disposition(name) == LegacyElementDisposition::Tier3Handoff
-        && (is_xslt_element(&element.tag) || name == "function")
-    {
+    if is_tier3_handoff_element(&element.tag) {
         diagnostics.push(diag(
             UNSUPPORTED_CONSTRUCT_CODE,
             format!(
@@ -3103,6 +3101,12 @@ fn is_xslt_element(tag: &str) -> bool {
     tag.starts_with("xsl:")
 }
 
+fn is_tier3_handoff_element(tag: &str) -> bool {
+    let name = local_name(tag);
+    element_disposition(name) == LegacyElementDisposition::Tier3Handoff
+        && (is_xslt_element(tag) || tag.starts_with("func:") || tag.starts_with("msxsl:"))
+}
+
 fn decode_html_entities(input: &str) -> String {
     if !input.contains('&') {
         return input.to_owned();
@@ -3571,6 +3575,27 @@ mod tests {
         assert_eq!(result.source, "");
         assert_eq!(result.diagnostics.len(), 1);
         assert_eq!(result.diagnostics[0].code, UNSUPPORTED_CONSTRUCT_CODE);
+    }
+
+    #[test]
+    fn reports_non_transpilable_tier3_boundaries() {
+        for input in [
+            r#"<func:function name="demo:thing"/>"#,
+            r#"<msxsl:script language="JScript">function run(){return 1;}</msxsl:script>"#,
+            r#"<xsl:element name="{concat('x','y')}">Hi</xsl:element>"#,
+        ] {
+            let result = convert(input);
+            assert_eq!(result.source, "");
+            assert_eq!(result.diagnostics.len(), 1, "{input}");
+            assert_eq!(result.diagnostics[0].code, UNSUPPORTED_CONSTRUCT_CODE);
+        }
+    }
+
+    #[test]
+    fn plain_output_script_is_not_tier3_handoff() {
+        let result = convert(r#"<script type="text/plain">ok</script>"#);
+        assert_eq!(result.source, r#"{script @type="text/plain" | ok}"#);
+        assert!(result.diagnostics.is_empty());
     }
 
     #[test]

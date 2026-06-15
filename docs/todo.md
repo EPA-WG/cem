@@ -117,9 +117,10 @@ Design homes:
       in `cem_ml::legacy_custom_element::emit_call`; expands to the idiomatic HTML boolean attribute
       test `not (attr = "false") and (attr = "" or attr = "attr" or attr = "true")`. Allowlist entry
       removed from `legacy-compat-manifest.json`.
-- [ ] Tier 3 XSLT remains an explicit handoff/deferred scope outside the bounded compatibility profile: unresolved
+- [x] Tier 3 XSLT remains an explicit handoff/deferred scope outside the bounded compatibility profile: unresolved
       dynamic construction names outside the scalar AVT subset, EXSLT `func:function`, and `msxsl:script` are
-      non-transpilable in the legacy custom-element bridge.
+      non-transpilable in the legacy custom-element bridge and emit deterministic conversion diagnostics instead of
+      lowering silently.
 
 ## Phase 4 — CEM Component Set
 
