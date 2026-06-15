@@ -162,7 +162,7 @@ Current implementation status:
   identities emit a deterministic lifecycle diagnostic with the declared content type,
   schema, and/or namespace while preserving the requested fallback output projection. Remaining
   non-CEM schema/namespace-specific export adapters are still pending.
-- Root-scope configuration is not complete yet. Current execution uses run-config identity
+- Root-scope configuration is complete for the current CLI/lib/WASM contract. Current execution uses run-config identity
   fields for lifecycle dispatch and conversion output selection, recognized scheduler
   policy/budget fields for scheduled worker policy, `parseMs` for parser-backed
   wall-clock enforcement, `validateMs` / `checkMs` for scheduled per-input document

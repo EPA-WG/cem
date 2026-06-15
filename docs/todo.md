@@ -27,7 +27,7 @@ for the current architecture have landed; only deferred capability work remains 
       diagnostic with the declared content type, schema, and/or namespace while preserving the requested fallback output projection.
       Keep this item open until remaining non-CEM schema/namespace-specific selection and remaining non-CEM target
       export adapters are registry-owned too.
-- [ ] **Immediate goal: root-scope run configuration for lib + WASM + CLI.** Design homes:
+- [x] **Immediate goal: root-scope run configuration for lib + WASM + CLI.** Design homes:
       [`cem-ml-cli-contract.md`](cem-ml-cli-contract.md#major-requirement-root-scope-and-run-configuration) and
       [`cem-ml-cli-plan.md`](cem-ml-cli-plan.md#run-configuration-shape). Add a serializable `RunConfig` with input and
       output spec arrays, root `ScopeConfig` per input/output, module-map/resolver identity, default and named namespace
@@ -79,7 +79,7 @@ for the current architecture have landed; only deferred capability work remains 
       module-map URI values now emit an explicit unsupported-resolver diagnostic; config document reads and configured,
       positional, and fixture-materialized input reads now reject remote/custom URI values when no resolver is
       registered; and CLI file-write paths now reject remote/custom URI destinations instead of treating them as local
-      paths. The next resolver implementation slice is now designed in
+      paths. The resolver implementation is documented in
       [`cem-ml-cli-contract.md` §Resolver Semantics](cem-ml-cli-contract.md#resolver-semantics) and
       [`cem-ml-cli-plan.md` §Run Configuration Shape](cem-ml-cli-plan.md#run-configuration-shape). The shared
       `cem_ml::resolver` request/response types, local path/local `file://` handling, `ResourceResolver`, and
