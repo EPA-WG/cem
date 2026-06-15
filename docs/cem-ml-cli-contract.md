@@ -256,13 +256,16 @@ I/O messages, but they must not replace the underlying resolver code or URI.
 - Validate one or more inputs and emit human-readable or machine-readable diagnostics.
 - Run CI-oriented checks with hard-violation behavior.
 - Inspect parsed output as summary, tree, AST, events, diagnostics, or source-offset views.
-- Convert/export supported inputs into declared external formats or debug projections through the same internal AST.
+- Convert/export supported documents from one declared document format into another declared document format, or into
+  debug projections through the same internal AST.
+- Reserve transform execution for applying a template/stylesheet to data to produce a document; the CLI shape is
+  parseable, but runtime execution is not implemented.
 - Trace parser and validator work with deterministic text or JSON output.
 - Benchmark parse and validate work with deterministic text or JSON reports.
 - Validate the default semantic fixture set or explicitly provided fixture paths.
 - Round trip fixtures through parser-backed projections until transform/render snapshots exist.
 - Print help and version information.
-- Reserve transform, schema, and plugin workflows until their subsystems are designed.
+- Reserve schema and plugin workflows until their subsystems are designed.
 
 ## Planned Option Behavior
 
@@ -284,6 +287,28 @@ I/O messages, but they must not replace the underlying resolver code or URI.
 - For `convert`, command-level `--to-content-type`, `--to-schema`, `--default-namespace`,
   repeatable `--namespace PREFIX=URI`, and `--base-uri` also form the default output
   target identity unless an `--output-spec` / config output supplies a richer output root scope.
+- `convert` is the implemented document-to-document conversion command, for example:
+
+  ```bash
+  cem-ml convert input.xml \
+    --content-type application/xml \
+    --to-content-type application/cem+xml \
+    --out output.cem
+  ```
+
+- `transform` is reserved for data + template -> document workflows. Its future command shape is:
+
+  ```bash
+  cem-ml transform data.xml \
+    --data-content-type application/xml \
+    --template view.xsl \
+    --template-content-type application/xslt+xml \
+    --to-content-type text/html \
+    --out view.html
+  ```
+
+  It also accepts `--data-schema`, `--template-schema`, and `--to-schema`. Dispatch still exits with code `2` and
+  reports that transform is reserved / not yet implemented.
 - Multi-source configuration via config file, plus repeatable CSV option records for
   CLI one-liners. Config files are preferred for CI/build reproducibility.
 - Config-file content type via `--config-content-type`, inferred from extension when

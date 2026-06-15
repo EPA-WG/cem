@@ -59,8 +59,8 @@ pub enum Command {
     #[command(about = "Print the cem-ml-cli version")]
     Version,
 
-    #[command(about = "Reserved: transform pipeline (not yet implemented)")]
-    Transform,
+    #[command(about = "Reserved: apply a template/stylesheet to data (not yet implemented)")]
+    Transform(TransformArgs),
     #[command(subcommand, about = "Reserved: schema workflows (not yet implemented)")]
     Schema(SchemaCmd),
     #[command(subcommand, about = "Reserved: plugin workflows (not yet implemented)")]
@@ -533,6 +533,64 @@ pub struct ConvertArgs {
 }
 
 #[derive(Args, Debug)]
+pub struct TransformArgs {
+    #[arg(value_name = "DATA", help = "Path to source data for the template")]
+    pub data: PathBuf,
+
+    #[arg(
+        long = "data-content-type",
+        value_name = "TYPE",
+        help = "Content type of DATA"
+    )]
+    pub data_content_type: Option<String>,
+
+    #[arg(
+        long = "data-schema",
+        value_name = "URI-OR-FILE",
+        help = "Schema URI or file for DATA"
+    )]
+    pub data_schema: Option<String>,
+
+    #[arg(
+        long = "template",
+        value_name = "FILE",
+        help = "Template or stylesheet to apply to DATA"
+    )]
+    pub template: PathBuf,
+
+    #[arg(
+        long = "template-content-type",
+        value_name = "TYPE",
+        help = "Content type of --template"
+    )]
+    pub template_content_type: Option<String>,
+
+    #[arg(
+        long = "template-schema",
+        value_name = "URI-OR-FILE",
+        help = "Schema URI or file for --template"
+    )]
+    pub template_schema: Option<String>,
+
+    #[arg(
+        long = "to-content-type",
+        value_name = "TYPE",
+        help = "Target document content type"
+    )]
+    pub to_content_type: Option<String>,
+
+    #[arg(
+        long = "to-schema",
+        value_name = "URI-OR-FILE",
+        help = "Target schema URI or file"
+    )]
+    pub to_schema: Option<String>,
+
+    #[arg(long, value_name = "FILE", help = "Write target document to file")]
+    pub out: Option<PathBuf>,
+}
+
+#[derive(Args, Debug)]
 pub struct TraceArgs {
     #[arg(value_name = "INPUT")]
     pub input: Option<PathBuf>,
@@ -739,6 +797,88 @@ mod tests {
     }
 
     #[test]
+    fn convert_document_to_document_example_parses() {
+        let cli = try_parse(&[
+            "convert",
+            "input.xml",
+            "--content-type",
+            "application/xml",
+            "--to-content-type",
+            "application/cem+xml",
+            "--out",
+            "output.cem",
+        ])
+        .unwrap();
+
+        let Command::Convert(args) = cli.command else {
+            panic!("expected convert command");
+        };
+        assert_eq!(args.input, Some(PathBuf::from("input.xml")));
+        assert_eq!(
+            args.context.content_type.as_deref(),
+            Some("application/xml")
+        );
+        assert_eq!(args.to_content_type.as_deref(), Some("application/cem+xml"));
+        assert_eq!(args.out, Some(PathBuf::from("output.cem")));
+    }
+
+    #[test]
+    fn transform_template_shape_parses() {
+        let cli = try_parse(&[
+            "transform",
+            "data.xml",
+            "--data-content-type",
+            "application/xml",
+            "--data-schema",
+            "data.rng",
+            "--template",
+            "view.xsl",
+            "--template-content-type",
+            "application/xslt+xml",
+            "--template-schema",
+            "xslt.rng",
+            "--to-content-type",
+            "text/html",
+            "--to-schema",
+            "html.rng",
+            "--out",
+            "view.html",
+        ])
+        .unwrap();
+
+        let Command::Transform(args) = cli.command else {
+            panic!("expected transform command");
+        };
+        assert_eq!(args.data, PathBuf::from("data.xml"));
+        assert_eq!(args.data_content_type.as_deref(), Some("application/xml"));
+        assert_eq!(args.data_schema.as_deref(), Some("data.rng"));
+        assert_eq!(args.template, PathBuf::from("view.xsl"));
+        assert_eq!(
+            args.template_content_type.as_deref(),
+            Some("application/xslt+xml")
+        );
+        assert_eq!(args.template_schema.as_deref(), Some("xslt.rng"));
+        assert_eq!(args.to_content_type.as_deref(), Some("text/html"));
+        assert_eq!(args.to_schema.as_deref(), Some("html.rng"));
+        assert_eq!(args.out, Some(PathBuf::from("view.html")));
+    }
+
+    #[test]
+    fn transform_requires_template() {
+        assert!(try_parse(&[
+            "transform",
+            "data.xml",
+            "--data-content-type",
+            "application/xml",
+            "--to-content-type",
+            "text/html",
+            "--out",
+            "view.html",
+        ])
+        .is_err());
+    }
+
+    #[test]
     fn commands_accept_namespace_context_options() {
         let cli = try_parse(&[
             "validate",
@@ -911,7 +1051,7 @@ mod tests {
 
     #[test]
     fn reserved_subcommands_parse() {
-        try_parse(&["transform"]).unwrap();
+        try_parse(&["transform", "data.xml", "--template", "view.xsl"]).unwrap();
         try_parse(&["schema", "emit"]).unwrap();
         try_parse(&["schema", "sample"]).unwrap();
         try_parse(&["schema", "replace"]).unwrap();

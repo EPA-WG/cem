@@ -247,6 +247,30 @@ cem-ml convert \
   --output-spec 'input=src/a.cem,dest=dist/a.cem,contentType=application/cem+xml,schema=https://cem.dev/ns/core/1'
 ```
 
+`convert` is the implemented document-to-document command. The direct one-input shape remains:
+
+```bash
+cem-ml convert input.xml \
+  --content-type application/xml \
+  --to-content-type application/cem+xml \
+  --out output.cem
+```
+
+`transform` is reserved for data + template -> document workflows. Its command shape is parseable now, but dispatch
+continues to return the reserved/not-yet-implemented usage exit:
+
+```bash
+cem-ml transform data.xml \
+  --data-content-type application/xml \
+  --template view.xsl \
+  --template-content-type application/xslt+xml \
+  --to-content-type text/html \
+  --out view.html
+```
+
+The reserved transform shape also accepts `--data-schema URI-OR-FILE`, `--template-schema URI-OR-FILE`, and
+`--to-schema URI-OR-FILE`. XML+XSLT execution remains deferred.
+
 Critical constraints:
 
 - CSV cannot be parsed by naive comma splitting. Use a real CSV parser or a constrained
@@ -413,6 +437,7 @@ These are data shapes only. Parser-filled content remains blocked until the pars
     - `trace <input>`
     - `fixture validate [input...]`
     - `fixture roundtrip [input...]`
+    - `transform <data> --template <file>`
     - `version`
     - `help`
 2. Preserve common options:
@@ -436,8 +461,9 @@ These are data shapes only. Parser-filled content remains blocked until the pars
     - `--quiet`
     - `--verbose`
     - `--no-color`
-3. Reserve these commands with exit code `2` until their subsystem plans exist:
-    - `transform`
+3. Reserve these commands with exit code `2` until their subsystem plans or implementations exist:
+    - `transform <data> --template <file>` with `--data-content-type`, `--data-schema`,
+      `--template-content-type`, `--template-schema`, `--to-content-type`, `--to-schema`, and `--out`
     - `schema emit`
     - `schema sample`
     - `schema replace`
@@ -490,22 +516,28 @@ These are data shapes only. Parser-filled content remains blocked until the pars
     - Supported `--show`: `summary`, `ast`, `events`, `diagnostics`, `source-offsets`, `tree`.
     - Scope, schema-binding, plugin, and source-map views remain deferred.
 6. `cem-ml convert <input>`
+    - Converts a supported document in one declared document format into another declared document format.
     - Supported input formats: `cem`, `html`, `xml`.
     - Supported output formats: `cem`, `html`, `xml`, `dom-json`, `ast`, `events`.
     - `--to-content-type application/cem+xml` selects canonical CEM-ML export, and `--to-content-type text/html`
       / `application/xhtml+xml` selects light-DOM HTML export; `--to-content-type application/xml` / `text/xml`
       selects rendered XML output.
     - Schema-version conversion and broader target adapters remain deferred.
-7. `cem-ml trace <input>`
+7. `cem-ml transform <data> --template <file>`
+    - Reserved for applying a template/stylesheet to data and producing a document.
+    - Planned options: `--data-content-type`, `--data-schema`, `--template`, `--template-content-type`,
+      `--template-schema`, `--to-content-type`, `--to-schema`, and `--out`.
+    - XML+XSLT execution, CEM template execution, and transform engine APIs remain deferred.
+8. `cem-ml trace <input>`
     - Supported structured formats: `json`, `xml`, `cem`.
     - Reference convenience formats: `text`, `html`.
     - Parser and validator trace records remain placeholder output shapes until parser implementation exists.
     - Scheduler, worker-pool, transform, plugin, and source-map traces remain deferred.
-8. `cem-ml bench <input...>`
+9. `cem-ml bench <input...>`
     - Supported formats: `text`, `json`.
     - Supports `--iterations`, `--budget-ms`, `--profile`, `--cold-cache`, `--report-json`, and `--report-md`.
     - Benchmarking uses the engine boundary; parser performance work is deferred.
-9. `cem-ml fixture roundtrip [input...]`
+10. `cem-ml fixture roundtrip [input...]`
     - Defaults to the canonical CEM-ML fixtures and HTML parity fixtures.
     - Supports `--to-format cem|html|dom-json|ast|events`.
     - Transform/render snapshots remain deferred.

@@ -2131,7 +2131,7 @@ pub fn run_version(s: &mut Streams<'_>) -> Outcome {
 pub fn run_reserved(name: &str, s: &mut Streams<'_>) -> Outcome {
     let _ = writeln!(
         s.stderr,
-        "cem-ml: `{name}` is reserved until its subsystem plan exists (exit 2 per cem-ml-cli-contract.md)."
+        "cem-ml: `{name}` is reserved and not yet implemented (exit 2 per cem-ml-cli-contract.md)."
     );
     Outcome::code(EXIT_USAGE_OR_RESERVED)
 }
@@ -2353,9 +2353,26 @@ mod tests {
 
     #[test]
     fn reserved_transform_exits_two() {
-        let (outcome, _, stderr) = run(&NotImplementedEngine, &["transform"]);
+        let (outcome, _, stderr) = run(
+            &NotImplementedEngine,
+            &[
+                "transform",
+                "data.xml",
+                "--data-content-type",
+                "application/xml",
+                "--template",
+                "view.xsl",
+                "--template-content-type",
+                "application/xslt+xml",
+                "--to-content-type",
+                "text/html",
+                "--out",
+                "view.html",
+            ],
+        );
         assert_eq!(outcome.exit_code, EXIT_USAGE_OR_RESERVED);
         assert!(stderr.contains("reserved"));
+        assert!(stderr.contains("not yet implemented"));
     }
 
     #[test]
@@ -7151,7 +7168,7 @@ pub fn dispatch<E: CemMlEngine + ?Sized>(
         cli::Command::Fixture(cli::FixtureCmd::Validate(a)) => run_fixture_validate(engine, a, s),
         cli::Command::Fixture(cli::FixtureCmd::Roundtrip(a)) => run_fixture_roundtrip(engine, a, s),
         cli::Command::Version => run_version(s),
-        cli::Command::Transform => run_reserved("transform", s),
+        cli::Command::Transform(_) => run_reserved("transform", s),
         cli::Command::Schema(cli::SchemaCmd::Emit) => run_reserved("schema emit", s),
         cli::Command::Schema(cli::SchemaCmd::Sample) => run_reserved("schema sample", s),
         cli::Command::Schema(cli::SchemaCmd::Replace) => run_reserved("schema replace", s),
