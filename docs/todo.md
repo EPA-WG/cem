@@ -106,6 +106,13 @@ for the current architecture have landed; only deferred capability work remains 
       peer language behind explicit dispatch, not the primary model or a browser-native dependency —
       so the engine can add XSLT 3/4 later without breaking content. Building the XSLT 3/4 engine
       remains out of scope for the current release.
+- [ ] **Wishlist (future — NOT in the immediate release timeline):** runtime support for the reserved
+      `cem-ml transform` data + template -> document command. Design homes:
+      [`cem-ml-cli-contract.md`](cem-ml-cli-contract.md#planned-option-behavior) and
+      [`cem-ml-cli-plan.md`](cem-ml-cli-plan.md#phase-6---command-behavior). Before implementation, define the
+      engine/API boundary for transform requests and responses, supported template content types, template execution
+      semantics, resolver behavior for template reads and output writes, diagnostics/report shape, source-map handling,
+      and output behavior for stdout, `--out`, side reports, and config/spec fan-out.
 
 ## Phase 3.1 — Substrate / Legacy Compatibility Follow-Up
 
