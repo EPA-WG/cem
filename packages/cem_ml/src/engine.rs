@@ -177,6 +177,33 @@ pub struct ConvertRequest {
 }
 
 #[derive(Debug, Clone)]
+pub struct TemplateInput {
+    pub uri: String,
+    pub bytes: Vec<u8>,
+    pub identity: Option<FormatIdentity>,
+    pub root_scope: ScopeConfig,
+}
+
+#[derive(Debug, Clone, Copy, Default, PartialEq, Eq)]
+pub struct TransformSchedulerScopeIds {
+    pub data_load: u32,
+    pub template_load: u32,
+    pub execution: u32,
+    pub output: u32,
+}
+
+#[derive(Debug, Clone)]
+pub struct TransformRequest {
+    pub data: EngineInput,
+    pub template: TemplateInput,
+    pub preserve_source_offsets: bool,
+    pub context: EngineContext,
+    pub target: Option<FormatIdentity>,
+    pub target_scope: ScopeConfig,
+    pub scheduler_scope_ids: TransformSchedulerScopeIds,
+}
+
+#[derive(Debug, Clone)]
 pub struct TraceRequest {
     pub input: EngineInput,
     pub projection: TraceProjection,
@@ -235,6 +262,14 @@ pub struct InspectResponse {
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct ConvertResponse {
+    pub primary: Value,
+    pub diagnostics: Vec<Diagnostic>,
+    #[serde(rename = "schedulerTrace", default)]
+    pub scheduler_trace: SchedulerTraceReport,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct TransformResponse {
     pub primary: Value,
     pub diagnostics: Vec<Diagnostic>,
     #[serde(rename = "schedulerTrace", default)]
@@ -306,6 +341,9 @@ pub trait CemMlEngine {
     fn check(&self, request: CheckRequest) -> EngineResult<CheckResponse>;
     fn inspect(&self, request: InspectRequest) -> EngineResult<InspectResponse>;
     fn convert(&self, request: ConvertRequest) -> EngineResult<ConvertResponse>;
+    fn transform(&self, _: TransformRequest) -> EngineResult<TransformResponse> {
+        Err(EngineError::NotImplemented)
+    }
     fn trace(&self, request: TraceRequest) -> EngineResult<TraceResponse>;
     fn bench(&self, request: BenchRequest) -> EngineResult<BenchResponse>;
     fn fixture_validate(
@@ -351,5 +389,94 @@ impl CemMlEngine for NotImplementedEngine {
         _: FixtureRoundtripRequest,
     ) -> EngineResult<FixtureRoundtripResponse> {
         Err(EngineError::NotImplemented)
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    fn engine_input(uri: &str, content_type: &str) -> EngineInput {
+        let root_scope = ScopeConfig {
+            default_content_type: Some(content_type.to_owned()),
+            ..ScopeConfig::default()
+        };
+        EngineInput {
+            uri: uri.to_owned(),
+            bytes: Vec::new(),
+            from_format: None,
+            identity: root_scope.format_identity_option(),
+            root_scope,
+        }
+    }
+
+    fn template_input(uri: &str, content_type: &str) -> TemplateInput {
+        let root_scope = ScopeConfig {
+            default_content_type: Some(content_type.to_owned()),
+            ..ScopeConfig::default()
+        };
+        TemplateInput {
+            uri: uri.to_owned(),
+            bytes: Vec::new(),
+            identity: root_scope.format_identity_option(),
+            root_scope,
+        }
+    }
+
+    #[test]
+    fn transform_request_models_data_template_and_target_separately() {
+        let target_scope = ScopeConfig {
+            default_content_type: Some("text/html".to_owned()),
+            ..ScopeConfig::default()
+        };
+        let request = TransformRequest {
+            data: engine_input("data.xml", "application/xml"),
+            template: template_input("view.xsl", "application/xslt+xml"),
+            preserve_source_offsets: true,
+            context: EngineContext::default(),
+            target: target_scope.format_identity_option(),
+            target_scope,
+            scheduler_scope_ids: TransformSchedulerScopeIds {
+                data_load: 1,
+                template_load: 2,
+                execution: 3,
+                output: 4,
+            },
+        };
+
+        assert_eq!(request.data.uri, "data.xml");
+        assert_eq!(request.template.uri, "view.xsl");
+        assert_eq!(
+            request
+                .template
+                .identity
+                .as_ref()
+                .and_then(|identity| identity.content_type.as_deref()),
+            Some("application/xslt+xml")
+        );
+        assert_eq!(
+            request
+                .target
+                .as_ref()
+                .and_then(|identity| identity.content_type.as_deref()),
+            Some("text/html")
+        );
+        assert_eq!(request.scheduler_scope_ids.execution, 3);
+    }
+
+    #[test]
+    fn transform_defaults_to_not_implemented() {
+        let request = TransformRequest {
+            data: engine_input("data.xml", "application/xml"),
+            template: template_input("view.xsl", "application/xslt+xml"),
+            preserve_source_offsets: false,
+            context: EngineContext::default(),
+            target: None,
+            target_scope: ScopeConfig::default(),
+            scheduler_scope_ids: TransformSchedulerScopeIds::default(),
+        };
+
+        let err = NotImplementedEngine.transform(request).unwrap_err();
+        assert!(matches!(err, EngineError::NotImplemented));
     }
 }
