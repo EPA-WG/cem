@@ -5,6 +5,7 @@
 //! with `@epa-wg/custom-element`.
 
 pub mod light_dom;
+pub mod xml;
 
 use crate::diagnostics::Diagnostic;
 use crate::parser::CemAstNode;
@@ -15,6 +16,7 @@ use crate::source_map::SourceMapStack;
 pub enum OutputTarget {
     LightDomCustomElements,
     CanonicalCemMl,
+    Xml,
     DomJson,
 }
 

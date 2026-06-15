@@ -107,6 +107,7 @@ pub enum InputFormat {
 pub enum LayerFormat {
     Cem,
     Html,
+    Xml,
     DomJson,
     Ast,
     Events,
@@ -500,7 +501,7 @@ pub struct ConvertArgs {
     pub from_format: Option<InputFormat>,
 
     #[arg(long = "to-format", value_enum, default_value_t = LayerFormat::DomJson,
-          help = "Output layer (cem|html|dom-json|ast|events)")]
+          help = "Output layer (cem|html|xml|dom-json|ast|events)")]
     pub to_format: LayerFormat,
 
     #[arg(
@@ -711,10 +712,10 @@ mod tests {
 
     #[test]
     fn convert_to_format_restricted_to_layer_formats() {
-        for fmt in ["cem", "html", "dom-json", "ast", "events"] {
+        for fmt in ["cem", "html", "xml", "dom-json", "ast", "events"] {
             try_parse(&["convert", "--to-format", fmt, "in.cem"]).expect(fmt);
         }
-        for fmt in ["json", "xml", "text"] {
+        for fmt in ["json", "text"] {
             assert!(
                 try_parse(&["convert", "--to-format", fmt, "in.cem"]).is_err(),
                 "rejected: {fmt}"

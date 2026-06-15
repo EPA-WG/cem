@@ -28,6 +28,7 @@ pub enum InputFormat {
 pub enum LayerFormat {
     Cem,
     Html,
+    Xml,
     DomJson,
     Ast,
     Events,

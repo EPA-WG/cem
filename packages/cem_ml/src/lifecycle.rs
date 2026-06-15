@@ -425,6 +425,14 @@ impl LifecycleAdapter for XmlAdapter {
     fn load(&self, input: &EngineInput, _: &FormatIdentity) -> LoadedInput {
         passthrough_load(input, InputFormat::Xml, Some(self.id()))
     }
+
+    fn matches_target(&self, identity: &FormatIdentity) -> bool {
+        self.matches_input(identity)
+    }
+
+    fn target_format(&self) -> Option<LayerFormat> {
+        Some(LayerFormat::Xml)
+    }
 }
 
 struct LegacyCustomElementXsltAdapter;
@@ -700,6 +708,32 @@ mod tests {
             .select_export(Some(&target), LayerFormat::DomJson);
         assert_eq!(selected.to_format, LayerFormat::Html);
         assert_eq!(selected.adapter_id, Some("html"));
+        assert!(selected.diagnostics.is_empty());
+    }
+
+    #[test]
+    fn xml_target_content_type_selects_xml_export() {
+        let target = FormatIdentity {
+            content_type: Some("application/xml; charset=utf-8".to_owned()),
+            ..FormatIdentity::default()
+        };
+        let selected = LifecycleRegistry::with_builtin_adapters()
+            .select_export(Some(&target), LayerFormat::DomJson);
+        assert_eq!(selected.to_format, LayerFormat::Xml);
+        assert_eq!(selected.adapter_id, Some("xml"));
+        assert!(selected.diagnostics.is_empty());
+    }
+
+    #[test]
+    fn text_xml_target_content_type_selects_xml_export() {
+        let target = FormatIdentity {
+            content_type: Some("text/xml".to_owned()),
+            ..FormatIdentity::default()
+        };
+        let selected = LifecycleRegistry::with_builtin_adapters()
+            .select_export(Some(&target), LayerFormat::DomJson);
+        assert_eq!(selected.to_format, LayerFormat::Xml);
+        assert_eq!(selected.adapter_id, Some("xml"));
         assert!(selected.diagnostics.is_empty());
     }
 

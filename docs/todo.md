@@ -22,7 +22,8 @@ for the current architecture have landed; only deferred capability work remains 
       diagnostics with the declared content type, schema, and/or namespace while preserving the fallback input format.
       CEM/HTML target export is registry-owned for `--to-content-type application/cem+xml`,
       `--to-schema https://cem.dev/ns/core/1`, `--to-content-type text/html`,
-      `--to-content-type application/xhtml+xml`, plus namespace-only CEM core and HTML/SVG targets; unsupported target
+      `--to-content-type application/xhtml+xml`, XML target export is registry-owned for
+      `--to-content-type application/xml` / `text/xml`, plus namespace-only CEM core and HTML/SVG targets; unsupported target
       identities now emit a deterministic lifecycle
       diagnostic with the declared content type, schema, and/or namespace while preserving the requested fallback output projection.
       Keep this item open until remaining non-CEM schema/namespace-specific selection and remaining non-CEM target

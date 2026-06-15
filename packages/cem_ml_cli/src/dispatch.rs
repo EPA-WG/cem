@@ -587,6 +587,7 @@ fn to_engine_layer_format(f: cli::LayerFormat) -> eng::LayerFormat {
     match f {
         cli::LayerFormat::Cem => eng::LayerFormat::Cem,
         cli::LayerFormat::Html => eng::LayerFormat::Html,
+        cli::LayerFormat::Xml => eng::LayerFormat::Xml,
         cli::LayerFormat::DomJson => eng::LayerFormat::DomJson,
         cli::LayerFormat::Ast => eng::LayerFormat::Ast,
         cli::LayerFormat::Events => eng::LayerFormat::Events,
@@ -4755,6 +4756,33 @@ mod tests {
     }
 
     #[test]
+    fn output_spec_xml_content_type_selects_xml_export_adapter() {
+        let input = write_fixture(
+            "convert-output-xml-content-type-input.cem",
+            "{p @id=one | Hi}",
+        );
+        let out_path =
+            std::env::temp_dir().join("cem-ml-cli-tests/convert-output-xml-content-type.out");
+        let _ = std::fs::remove_file(&out_path);
+        let (outcome, stdout, stderr) = run(
+            &RealCemMlEngine::new(),
+            &[
+                "convert",
+                "--output-spec",
+                &format!("dest={},contentType=application/xml", out_path.display()),
+                input.to_str().unwrap(),
+            ],
+        );
+
+        assert_eq!(outcome.exit_code, EXIT_OK, "{stderr}");
+        assert!(stdout.trim().is_empty());
+        let written = std::fs::read_to_string(&out_path).unwrap();
+        let v: serde_json::Value = serde_json::from_str(&written).unwrap();
+        assert_eq!(v["kind"], "xml");
+        assert_eq!(v["content"], r#"<p id="one">Hi</p>"#);
+    }
+
+    #[test]
     fn config_diagnostics_fail_before_document_parsing() {
         let config_path = std::env::temp_dir().join("cem-ml-cli-tests/bad-config.json");
         let report_path = std::env::temp_dir().join("cem-ml-cli-tests/bad-config-report.json");
@@ -5773,6 +5801,37 @@ mod tests {
         let v: serde_json::Value = serde_json::from_str(stdout.trim()).unwrap();
         assert_eq!(v["kind"], "html");
         assert_eq!(v["content"], "<p>Hi</p>");
+    }
+
+    #[test]
+    fn convert_to_content_type_xml_selects_xml_export_adapter() {
+        let p = write_fixture("convert-target-xml.cem", "@doc cem-ml 1\n{p @id=one | Hi}");
+        let (outcome, stdout, stderr) = run(
+            &RealCemMlEngine::new(),
+            &[
+                "convert",
+                "--to-content-type",
+                "application/xml",
+                p.to_str().unwrap(),
+            ],
+        );
+        assert_eq!(outcome.exit_code, EXIT_OK, "{stderr}");
+        let v: serde_json::Value = serde_json::from_str(stdout.trim()).unwrap();
+        assert_eq!(v["kind"], "xml");
+        assert_eq!(v["content"], r#"<p id="one">Hi</p>"#);
+    }
+
+    #[test]
+    fn convert_to_format_xml_renders_xml() {
+        let p = write_fixture("convert-format-xml.cem", "{input @required}");
+        let (outcome, stdout, stderr) = run(
+            &RealCemMlEngine::new(),
+            &["convert", "--to-format", "xml", p.to_str().unwrap()],
+        );
+        assert_eq!(outcome.exit_code, EXIT_OK, "{stderr}");
+        let v: serde_json::Value = serde_json::from_str(stdout.trim()).unwrap();
+        assert_eq!(v["kind"], "xml");
+        assert_eq!(v["content"], r#"<input required=""/>"#);
     }
 
     #[test]

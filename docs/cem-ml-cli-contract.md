@@ -157,7 +157,8 @@ Current implementation status:
   namespace while preserving the fallback input format. CEM/HTML target export selection is
   registry-owned for `convert --to-content-type application/cem+xml`,
   `convert --to-schema https://cem.dev/ns/core/1`, and
-  `convert --to-content-type text/html` / `application/xhtml+xml`, plus namespace-only
+  `convert --to-content-type text/html` / `application/xhtml+xml`, XML target export is
+  registry-owned for `convert --to-content-type application/xml` / `text/xml`, plus namespace-only
   CEM core and HTML/SVG targets; unsupported target
   identities emit a deterministic lifecycle diagnostic with the declared content type,
   schema, and/or namespace while preserving the requested fallback output projection. Remaining

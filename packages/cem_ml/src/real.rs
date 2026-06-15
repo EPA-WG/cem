@@ -10,6 +10,7 @@ use crate::engine::*;
 use crate::events::cem::CemEventNormalizer;
 use crate::formatter;
 use crate::interpreter::light_dom::LightDomInterpreter;
+use crate::interpreter::xml::XmlInterpreter;
 use crate::lifecycle::{ExportSelection, LifecycleRegistry, LoadedInput};
 use crate::parser::builder::CemAstBuilder;
 use crate::parser::document::CemDocument;
@@ -1497,6 +1498,27 @@ impl CemMlEngine for RealCemMlEngine {
                     diagnostics.extend(rendered.diagnostics);
                     json!({
                         "kind": "html",
+                        "content": rendered.rendered,
+                        "sourceMap": source_map,
+                        "outputSpans": output_spans,
+                    })
+                }
+                LayerFormat::Xml => {
+                    let rendered = XmlInterpreter::new().render(&run.document);
+                    let output_spans = rendered
+                        .output_spans
+                        .iter()
+                        .map(|span| {
+                            json!({
+                                "outputRange": span.output_range,
+                                "origin": span.origin,
+                            })
+                        })
+                        .collect::<Vec<_>>();
+                    let source_map = rendered.source_map.clone();
+                    diagnostics.extend(rendered.diagnostics);
+                    json!({
+                        "kind": "xml",
                         "content": rendered.rendered,
                         "sourceMap": source_map,
                         "outputSpans": output_spans,
