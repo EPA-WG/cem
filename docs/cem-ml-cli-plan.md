@@ -232,11 +232,54 @@ ScopeConfig {
 }
 ```
 
-The CLI config-file form should preserve this structure directly. A config file is the
-recommended interface for build/CI validation and multi-source transformation because it
-is reviewable, reproducible, and can represent nested maps without shell quoting hazards.
-The config document itself is parsed by `cem_ml` using its declared content type. The CLI
-may infer `application/json` from `.json`, but it does not own JSON semantics.
+The CLI config-file form should preserve this structure directly for implemented
+parse/validate/convert workflows. A config file is the recommended interface for
+build/CI validation because it is reviewable, reproducible, and can represent nested maps
+without shell quoting hazards. The config document itself is parsed by `cem_ml` using its
+declared content type. The CLI may infer `application/json` from `.json`, but it does not
+own JSON semantics.
+
+Transform graph configuration is CEM-ML-first, not JSON-first. Do not add JSON
+`transforms[]` as the first graph config surface. The future transform config shape uses
+nested CEM-ML nodes:
+
+```cem
+{run |
+  {import @id="book" @src="inputs/*.xml" @content-type="application/xml" |
+    {transform @id="base" @src="templates/book.xslt" @template-content-type="application/xslt+xml" |
+      {export @out="book/chapters/{stem}.html" @content-type="text/html"}
+
+      {transform @id="html" @src="templates/book2html.xslt" |
+        {export @out="book/chapters/{stem}.html" @content-type="text/html"}
+      }
+
+      {transform @id="chart1" @src="illustrations/chart1.xslt" |
+        {export @out="book/chapters/{stem}/img/chart1.svg" @content-type="image/svg+xml"}
+      }
+
+      {transform @id="chart2" @src="illustrations/chart2.xslt" |
+        {export @out="book/chapters/{stem}/img/chart2.svg" @content-type="image/svg+xml"}
+      }
+    }
+  }
+}
+```
+
+Initial graph semantics:
+
+- `import` creates initial artifact nodes from external resources.
+- `transform` consumes its parent artifact by default and produces a child artifact.
+- `export` consumes its parent artifact and writes it without mutating sibling branches.
+- sibling nodes branch from the same parent artifact.
+- `@id` names import/transform artifacts; IDs are unique across the graph.
+- `@input` overrides the primary input artifact for a transform.
+- `@with:*` adds named secondary artifacts for explicit cross-input joins.
+- references must resolve to existing artifacts and must not create cycles.
+- one import source match produces one artifact, and one transform produces one artifact,
+  until explicit future split/group/reduce/flat-map transform kinds are designed.
+- output paths use named bindings such as `{stem}`, `{path}`, and `{index}`; repeated
+  resolved output paths are configuration errors unless an explicit overwrite policy is
+  added later.
 
 CSV CLI options are a convenience for small invocations, not the primary source of
 truth. A future CLI should prefer repeatable records such as:
@@ -532,16 +575,18 @@ These are data shapes only. Parser-filled content remains blocked until the pars
       `--template-schema`, `--to-content-type`, `--to-schema`, and `--out`.
     - XML+XSLT execution, CEM template execution, and transform engine APIs remain deferred.
     - Before execution is implemented, add a design/API slice that defines:
-        - `TransformRequest` with separate data input, template input/resource, target identity, target scope,
+        - CEM-ML config parsing/lowering for nested `run`, `import`, `transform`, and `export` graph nodes.
+        - `TransformRequest` or successor graph request with import nodes, transform stage nodes, export nodes,
           scheduler scope IDs, and shared engine context.
-        - `TransformResponse` with primary rendered document content/projection, diagnostics, and scheduler trace.
+        - `TransformResponse` with rendered/exported artifacts, diagnostics, and scheduler trace.
         - Template identity dispatch for supported template content types such as `application/xslt+xml` and/or
           CEM-native templates.
         - Resolver semantics for reading templates with the dedicated `template` resolver purpose and writing transform
           outputs with the existing local-only default plus registered resolver behavior.
         - Report and source-map behavior for diagnostics that may originate from data, template compilation, template
           execution, or output export.
-        - Run-config fan-out semantics for data/template/output pairing before adding config/spec execution.
+        - Graph validation for duplicate IDs, unresolved refs, cycles, unsupported joins, unsupported cardinality
+          changes, and duplicate output destinations before adding execution.
 8. `cem-ml trace <input>`
     - Supported structured formats: `json`, `xml`, `cem`.
     - Reference convenience formats: `text`, `html`.

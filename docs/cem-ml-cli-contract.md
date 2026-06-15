@@ -73,9 +73,11 @@ Configuration surfaces:
   config semantics.
 - Config files are structural data too: config bytes + config content type + config
   schema/namespace identity are parsed through the CEM-ML-owned config lifecycle before
-  document parsing starts. JSON is the first supported config content type; CEM-native,
-  YAML, or CSV config documents can be added later as content-type adapters that produce
-  the same normalized `RunConfig`.
+  document parsing starts. JSON is the current supported config content type for the
+  implemented parser-backed run-config surface. Transform graph configuration is
+  CEM-ML-first: do not add JSON `transforms[]` as the first transform graph surface.
+  YAML or CSV config documents can be added later as content-type adapters that produce
+  the same normalized graph/run model.
 - CLI MUST support a config-file surface for reproducible CI/build use. The file is the
   preferred shape for multi-source runs, module maps, namespace maps, and multiple
   outputs.
@@ -97,18 +99,86 @@ must be designed before implementation and must not reuse `convert` semantics:
 
 - `convert` request shape: one document input, optional target identity, and document
   export/projection output.
-- `transform` request shape: one data input, one template input, one target identity,
-  and document output produced by applying the template to the data.
+- `transform` request shape: a CEM-ML-authored directed graph of import, transform, and
+  export nodes. The CLI one-liner remains a shorthand for the single-import,
+  single-template-transform, single-export graph.
 
-The future Rust/WASM engine API should model transform as a first-class request/response
-pair instead of smuggling template information through `ConvertRequest` or CLI-only
-options. The request shape must include:
+Transform config MUST use CEM-ML nesting as the primary graph syntax:
 
-- data `EngineInput` with its own root scope and format identity;
-- template resource URI/bytes with its own root scope and format identity;
-- target `FormatIdentity` and output `ScopeConfig`;
-- scheduler scope IDs for data load, template load/compile, execution, and output;
-- optional preservation of source-map frames from both data and template inputs;
+```cem
+{run |
+  {import @id="book" @src="inputs/*.xml" @content-type="application/xml" |
+    {transform @id="base" @src="templates/book.xslt" @template-content-type="application/xslt+xml" |
+      {export @out="book/chapters/{stem}.html" @content-type="text/html"}
+
+      {transform @id="html" @src="templates/book2html.xslt" |
+        {export @out="book/chapters/{stem}.html" @content-type="text/html"}
+      }
+
+      {transform @id="chart1" @src="illustrations/chart1.xslt" |
+        {export @out="book/chapters/{stem}/img/chart1.svg" @content-type="image/svg+xml"}
+      }
+    }
+  }
+}
+```
+
+Graph semantics:
+
+- `import` reads resources and creates initial artifact nodes.
+- `transform` consumes the current parent artifact and creates a child artifact.
+- `export` consumes the current parent artifact and writes it; it does not mutate the
+  artifact for sibling nodes.
+- sibling transform/export nodes are branches from the same parent artifact.
+- nesting encodes dependency and default data flow, not imperative mutation.
+- the graph must be acyclic.
+- one import produces one artifact per matched source in the first implementation.
+- one transform consumes one primary artifact and produces one artifact in the first
+  implementation.
+- cardinality-changing stages such as split, group, reduce, and flat-map are future
+  explicit transform kinds.
+- output path templates should use named bindings such as `{stem}`, `{path}`, and
+  `{index}` instead of positional `*` propagation.
+
+Cross-input joins are allowed through explicit references, not inference. A transform
+without `@input` consumes its parent artifact. A transform with `@input` consumes that
+named primary artifact. Additional joins use named `@with:*` bindings:
+
+```cem
+{run |
+  {import @id="orders" @src="data/orders.xml" @content-type="application/xml"}
+  {import @id="customers" @src="data/customers.xml" @content-type="application/xml"}
+
+  {transform
+    @id="report"
+    @src="templates/report.xslt"
+    @input="orders"
+    @with:customers="customers"
+    |
+    {export @out="dist/report.html" @content-type="text/html"}
+  }
+}
+```
+
+Reference semantics:
+
+- IDs are unique across import and transform nodes in one config graph.
+- `@input` and `@with:*` must reference existing import/transform IDs.
+- references must not create cycles.
+- secondary artifacts are passed to the transform engine as named inputs.
+- document order must not imply joins; joins are explicit only.
+
+The future Rust/WASM engine API should model transform as a first-class graph
+request/response pair instead of smuggling template information through
+`ConvertRequest` or CLI-only options. The graph-lowered request shape must include:
+
+- imported data `EngineInput` nodes with their own root scopes and format identities;
+- transform stage nodes with template resources, stage kind, parameters, and named
+  primary/secondary input refs;
+- export nodes with target `FormatIdentity`, output `ScopeConfig`, and destination;
+- scheduler scope IDs for import, template load/compile, transform execution, and
+  export;
+- optional preservation of source-map frames from import and template inputs;
 - the shared `EngineContext`, including resolver registry and scheduler settings.
 
 Supported template content types must be explicit adapter capabilities. The first
@@ -134,8 +204,8 @@ Transform responses must preserve the content-primary command contract:
   available;
 - scheduler traces distinguish data loading, template loading/compilation, execution,
   and output export;
-- config/spec fan-out must define whether one data input can pair with multiple
-  templates, one template can apply to multiple data inputs, or both.
+- graph validation must reject duplicate IDs, unresolved references, cycles, ambiguous
+  output paths, and unsupported cardinality-changing stages before execution.
 
 Until that design is accepted, `cem-ml transform ...` must remain parseable but reserved
 and exit with code `2`.
