@@ -16,6 +16,10 @@ use crate::parser::document::CemDocument;
 use crate::parser::format;
 use crate::projection;
 use crate::report::{Report, ReportOptionsSnapshot};
+use crate::resolver::{
+    has_uri_scheme, is_windows_drive_path, parse_local_file_uri, ResolveDirection, ResolvePurpose,
+    ResolveRequest, ResolvedRead, ResolverDiagnostic,
+};
 use crate::run_config::ScopeConfig;
 use crate::schema::machine::CemSchemaMachine;
 use crate::schema::vocab::CompiledSchema;
@@ -49,11 +53,7 @@ pub struct PipelineRun {
 }
 
 fn run_pipeline_as(bytes: &[u8], from_format: InputFormat) -> PipelineRun {
-    match from_format {
-        InputFormat::Cem => run_pipeline_with::<CemTokenizer>(bytes, None),
-        InputFormat::Html => run_pipeline_with::<HtmlTokenizer>(bytes, None),
-        InputFormat::Xml => run_pipeline_with::<XmlTokenizer>(bytes, None),
-    }
+    run_pipeline_as_with_context(bytes, from_format, None, None)
 }
 
 fn run_pipeline_as_scoped(
@@ -61,21 +61,43 @@ fn run_pipeline_as_scoped(
     from_format: InputFormat,
     root_scope: &ScopeConfig,
 ) -> PipelineRun {
+    run_pipeline_as_with_context(bytes, from_format, Some(root_scope), None)
+}
+
+fn run_pipeline_as_scoped_with_context(
+    bytes: &[u8],
+    from_format: InputFormat,
+    root_scope: &ScopeConfig,
+    context: &EngineContext,
+) -> PipelineRun {
+    run_pipeline_as_with_context(bytes, from_format, Some(root_scope), Some(context))
+}
+
+fn run_pipeline_as_with_context(
+    bytes: &[u8],
+    from_format: InputFormat,
+    root_scope: Option<&ScopeConfig>,
+    context: Option<&EngineContext>,
+) -> PipelineRun {
     match from_format {
-        InputFormat::Cem => run_pipeline_with::<CemTokenizer>(bytes, Some(root_scope)),
-        InputFormat::Html => run_pipeline_with::<HtmlTokenizer>(bytes, Some(root_scope)),
-        InputFormat::Xml => run_pipeline_with::<XmlTokenizer>(bytes, Some(root_scope)),
+        InputFormat::Cem => run_pipeline_with::<CemTokenizer>(bytes, root_scope, context),
+        InputFormat::Html => run_pipeline_with::<HtmlTokenizer>(bytes, root_scope, context),
+        InputFormat::Xml => run_pipeline_with::<XmlTokenizer>(bytes, root_scope, context),
     }
 }
 
-fn run_pipeline_with<T>(bytes: &[u8], root_scope: Option<&ScopeConfig>) -> PipelineRun
+fn run_pipeline_with<T>(
+    bytes: &[u8],
+    root_scope: Option<&ScopeConfig>,
+    context: Option<&EngineContext>,
+) -> PipelineRun
 where
     T: SchemaTokenizer + FromBytes,
 {
     let started_at = Instant::now();
-    let (module_map_entries, module_map_diagnostics) = root_scope
-        .map(load_root_module_map)
-        .unwrap_or_else(|| (BTreeMap::new(), Vec::new()));
+    let module_map = root_scope
+        .map(|scope| load_root_module_map(scope, context))
+        .unwrap_or_default();
     // Schema-machine pass.
     let schema_outcome = {
         let src = BytesSource::new(SourceId(1), bytes.to_vec());
@@ -88,8 +110,11 @@ where
                 &root_scope.namespaces,
             );
             machine = machine.with_root_module_map_entries(
-                root_scope.module_map.as_deref(),
-                &module_map_entries,
+                module_map
+                    .uri
+                    .as_deref()
+                    .or(root_scope.module_map.as_deref()),
+                &module_map.entries,
             );
         }
         machine.run()
@@ -109,7 +134,7 @@ where
         doc
     };
     document.diagnostics.extend(schema_outcome.diagnostics);
-    document.diagnostics.extend(module_map_diagnostics);
+    document.diagnostics.extend(module_map.diagnostics);
 
     // Validation rule registry.
     let registry = RuleRegistry::with_tier_a_rules();
@@ -242,20 +267,6 @@ fn effective_base_uri<'a>(context: &'a EngineContext, scope: &'a ScopeConfig) ->
         .filter(|base| !base.trim().is_empty())
 }
 
-fn has_uri_scheme(value: &str) -> bool {
-    let Some((scheme, _)) = value.split_once(':') else {
-        return false;
-    };
-    !scheme.is_empty()
-        && scheme
-            .chars()
-            .next()
-            .is_some_and(|ch| ch.is_ascii_alphabetic())
-        && scheme
-            .chars()
-            .all(|ch| ch.is_ascii_alphanumeric() || matches!(ch, '+' | '-' | '.'))
-}
-
 fn resolve_uri(base_uri: Option<&str>, uri: &str) -> String {
     if uri.is_empty()
         || has_uri_scheme(uri)
@@ -378,66 +389,66 @@ fn parse_u64_budget(field: &str, value: &str) -> Result<u64, String> {
         .map_err(|_| format!("budget `{field}` expects an unsigned integer, got `{value}`"))
 }
 
-fn load_root_module_map(scope: &ScopeConfig) -> (BTreeMap<String, String>, Vec<Diagnostic>) {
+#[derive(Debug, Default)]
+struct LoadedModuleMap {
+    entries: BTreeMap<String, String>,
+    diagnostics: Vec<Diagnostic>,
+    uri: Option<String>,
+}
+
+fn load_root_module_map(scope: &ScopeConfig, context: Option<&EngineContext>) -> LoadedModuleMap {
     let Some(module_map) = scope.module_map.as_deref().map(str::trim) else {
-        return (BTreeMap::new(), Vec::new());
+        return LoadedModuleMap::default();
     };
     if module_map.is_empty() {
-        return (BTreeMap::new(), Vec::new());
+        return LoadedModuleMap::default();
     }
-    let module_map_path = match local_file_uri_to_path(module_map) {
-        Some(Ok(path)) => path,
-        Some(Err(message)) => {
-            return (
-                BTreeMap::new(),
-                vec![Diagnostic {
-                    code: "cem.scope.module_map_unreadable".to_owned(),
-                    severity: Severity::Warning,
-                    message: format!(
-                        "root-scope moduleMap `{module_map}` could not be read: {message}"
-                    ),
-                    ..Diagnostic::default()
-                }],
-            );
+
+    let (bytes, resolved_uri) = match parse_local_file_uri(module_map) {
+        Some(Ok(path)) => match std::fs::read(&path) {
+            Ok(bytes) => (bytes, module_map.to_owned()),
+            Err(error) => {
+                return unreadable_module_map(module_map, error);
+            }
+        },
+        Some(Err(error)) => {
+            match read_registered_resource(
+                context,
+                module_map,
+                ResolvePurpose::ModuleMap,
+                Some("application/json"),
+            ) {
+                Ok(Some(read)) => (read.bytes, read.uri),
+                Ok(None) => return unreadable_module_map(module_map, error),
+                Err(error) => return resolver_module_map_error(module_map, error),
+            }
         }
         None if has_uri_scheme(module_map) && !is_windows_drive_path(module_map) => {
-            return (
-                BTreeMap::new(),
-                vec![Diagnostic {
-                    code: "cem.scope.module_map_resolver_unsupported".to_owned(),
-                    severity: Severity::Warning,
-                    message: format!(
-                        "root-scope moduleMap `{module_map}` uses a remote/custom URI resolver, \
-                         but only local paths and local file:// URIs are supported"
-                    ),
-                    ..Diagnostic::default()
-                }],
-            );
+            match read_registered_resource(
+                context,
+                module_map,
+                ResolvePurpose::ModuleMap,
+                Some("application/json"),
+            ) {
+                Ok(Some(read)) => (read.bytes, read.uri),
+                Ok(None) => return unsupported_module_map_resolver(module_map),
+                Err(error) => return resolver_module_map_error(module_map, error),
+            }
         }
-        None => PathBuf::from(module_map),
+        None => match std::fs::read(module_map) {
+            Ok(bytes) => (bytes, module_map.to_owned()),
+            Err(error) => {
+                return unreadable_module_map(module_map, error);
+            }
+        },
     };
-    let bytes = match std::fs::read(&module_map_path) {
-        Ok(bytes) => bytes,
-        Err(error) => {
-            return (
-                BTreeMap::new(),
-                vec![Diagnostic {
-                    code: "cem.scope.module_map_unreadable".to_owned(),
-                    severity: Severity::Warning,
-                    message: format!(
-                        "root-scope moduleMap `{module_map}` could not be read: {error}"
-                    ),
-                    ..Diagnostic::default()
-                }],
-            );
-        }
-    };
+
     let value = match serde_json::from_slice::<Value>(&bytes) {
         Ok(value) => value,
         Err(error) => {
-            return (
-                BTreeMap::new(),
-                vec![Diagnostic {
+            return LoadedModuleMap {
+                entries: BTreeMap::new(),
+                diagnostics: vec![Diagnostic {
                     code: "cem.scope.module_map_invalid".to_owned(),
                     severity: Severity::Warning,
                     message: format!(
@@ -445,72 +456,64 @@ fn load_root_module_map(scope: &ScopeConfig) -> (BTreeMap<String, String>, Vec<D
                     ),
                     ..Diagnostic::default()
                 }],
-            );
+                uri: Some(resolved_uri),
+            };
         }
     };
     match module_map_aliases(&value) {
-        Ok(entries) => (entries, Vec::new()),
-        Err(message) => (
-            BTreeMap::new(),
-            vec![Diagnostic {
+        Ok(entries) => LoadedModuleMap {
+            entries,
+            diagnostics: Vec::new(),
+            uri: Some(resolved_uri),
+        },
+        Err(message) => LoadedModuleMap {
+            entries: BTreeMap::new(),
+            diagnostics: vec![Diagnostic {
                 code: "cem.scope.module_map_invalid".to_owned(),
                 severity: Severity::Warning,
                 message: format!("root-scope moduleMap `{module_map}` is invalid: {message}"),
                 ..Diagnostic::default()
             }],
-        ),
+            uri: Some(resolved_uri),
+        },
     }
 }
 
-fn local_file_uri_to_path(uri: &str) -> Option<Result<PathBuf, String>> {
-    let rest = uri.strip_prefix("file://")?;
-    let path = if let Some(localhost_path) = rest.strip_prefix("localhost/") {
-        format!("/{localhost_path}")
-    } else if rest.starts_with('/') {
-        rest.to_owned()
-    } else {
-        return Some(Err("only local file:// URIs are supported".to_owned()));
-    };
-
-    Some(
-        percent_decode_uri_path(&path)
-            .map(PathBuf::from)
-            .ok_or_else(|| "file:// URI contains an invalid percent escape".to_owned()),
-    )
+fn unreadable_module_map(module_map: &str, error: impl std::fmt::Display) -> LoadedModuleMap {
+    LoadedModuleMap {
+        entries: BTreeMap::new(),
+        diagnostics: vec![Diagnostic {
+            code: "cem.scope.module_map_unreadable".to_owned(),
+            severity: Severity::Warning,
+            message: format!("root-scope moduleMap `{module_map}` could not be read: {error}"),
+            ..Diagnostic::default()
+        }],
+        uri: Some(module_map.to_owned()),
+    }
 }
 
-fn is_windows_drive_path(value: &str) -> bool {
-    let bytes = value.as_bytes();
-    bytes.len() >= 3
-        && bytes[0].is_ascii_alphabetic()
-        && bytes[1] == b':'
-        && matches!(bytes[2], b'/' | b'\\')
+fn unsupported_module_map_resolver(module_map: &str) -> LoadedModuleMap {
+    LoadedModuleMap {
+        entries: BTreeMap::new(),
+        diagnostics: vec![Diagnostic {
+            code: "cem.scope.module_map_resolver_unsupported".to_owned(),
+            severity: Severity::Warning,
+            message: format!(
+                "root-scope moduleMap `{module_map}` uses a remote/custom URI resolver, \
+                 but only local paths and local file:// URIs are supported"
+            ),
+            ..Diagnostic::default()
+        }],
+        uri: Some(module_map.to_owned()),
+    }
 }
 
-fn percent_decode_uri_path(path: &str) -> Option<String> {
-    let bytes = path.as_bytes();
-    let mut decoded = Vec::with_capacity(bytes.len());
-    let mut index = 0;
-    while index < bytes.len() {
-        if bytes[index] == b'%' {
-            let high = *bytes.get(index + 1)?;
-            let low = *bytes.get(index + 2)?;
-            decoded.push((hex_value(high)? << 4) | hex_value(low)?);
-            index += 3;
-        } else {
-            decoded.push(bytes[index]);
-            index += 1;
+fn resolver_module_map_error(module_map: &str, error: ResolverDiagnostic) -> LoadedModuleMap {
+    match error {
+        ResolverDiagnostic::UnsupportedResolver { .. } => {
+            unsupported_module_map_resolver(module_map)
         }
-    }
-    String::from_utf8(decoded).ok()
-}
-
-fn hex_value(byte: u8) -> Option<u8> {
-    match byte {
-        b'0'..=b'9' => Some(byte - b'0'),
-        b'a'..=b'f' => Some(byte - b'a' + 10),
-        b'A'..=b'F' => Some(byte - b'A' + 10),
-        _ => None,
+        other => unreadable_module_map(module_map, other),
     }
 }
 
@@ -880,7 +883,12 @@ fn run_scheduled_validation_documents(
                 .take()
                 .unwrap_or_else(|| load_input_through_lifecycle(input, context));
             input_diags.append(&mut loaded.diagnostics);
-            let run = run_pipeline_as_scoped(&loaded.bytes, loaded.from_format, &input.root_scope);
+            let run = run_pipeline_as_scoped_with_context(
+                &loaded.bytes,
+                loaded.from_format,
+                &input.root_scope,
+                context,
+            );
             input_diags.extend(run.diagnostics);
         });
         input_diags.extend(time_budget_diagnostics(
@@ -894,19 +902,69 @@ fn run_scheduled_validation_documents(
     Ok((all_diags, trace))
 }
 
-fn materialized_input(input: &EngineInput) -> EngineResult<EngineInput> {
+fn read_registered_resource(
+    context: Option<&EngineContext>,
+    uri: &str,
+    purpose: ResolvePurpose,
+    content_type_hint: Option<&str>,
+) -> Result<Option<ResolvedRead>, ResolverDiagnostic> {
+    if !has_uri_scheme(uri) || is_windows_drive_path(uri) {
+        return Ok(None);
+    }
+    let Some(context) = context else {
+        return Ok(None);
+    };
+
+    let mut request = ResolveRequest::new(uri, purpose, ResolveDirection::Read);
+    if let Some(content_type_hint) = content_type_hint {
+        request = request.with_content_type_hint(content_type_hint);
+    }
+    match context.resolver_registry.read(&request) {
+        Ok(read) => Ok(Some(read)),
+        Err(ResolverDiagnostic::UnsupportedResolver { .. }) => Ok(None),
+        Err(error) => Err(error),
+    }
+}
+
+fn materialized_input(input: &EngineInput, context: &EngineContext) -> EngineResult<EngineInput> {
     if !input.bytes.is_empty() {
         return Ok(input.clone());
     }
-    let input_path = match local_file_uri_to_path(&input.uri) {
+    let input_path = match parse_local_file_uri(&input.uri) {
         Some(Ok(path)) => path,
-        Some(Err(message)) => {
+        Some(Err(error)) => {
+            if let Some(read) = read_registered_resource(
+                Some(context),
+                &input.uri,
+                ResolvePurpose::Input,
+                input
+                    .identity
+                    .as_ref()
+                    .and_then(|identity| identity.content_type.as_deref()),
+            )
+            .map_err(|error| resolver_input_error(input, error))?
+            {
+                return Ok(resolved_engine_input(input, read));
+            }
             return Err(EngineError::Io {
                 path: input.uri.clone().into(),
-                source: std::io::Error::new(std::io::ErrorKind::InvalidInput, message),
+                source: std::io::Error::new(std::io::ErrorKind::InvalidInput, error),
             });
         }
         None if has_uri_scheme(&input.uri) && !is_windows_drive_path(&input.uri) => {
+            if let Some(read) = read_registered_resource(
+                Some(context),
+                &input.uri,
+                ResolvePurpose::Input,
+                input
+                    .identity
+                    .as_ref()
+                    .and_then(|identity| identity.content_type.as_deref()),
+            )
+            .map_err(|error| resolver_input_error(input, error))?
+            {
+                return Ok(resolved_engine_input(input, read));
+            }
             return Err(EngineError::Io {
                 path: input.uri.clone().into(),
                 source: std::io::Error::new(
@@ -928,6 +986,31 @@ fn materialized_input(input: &EngineInput) -> EngineResult<EngineInput> {
         identity: input.identity.clone(),
         root_scope: input.root_scope.clone(),
     })
+}
+
+fn resolved_engine_input(input: &EngineInput, read: ResolvedRead) -> EngineInput {
+    let mut identity = input.identity.clone();
+    if let Some(content_type) = read.content_type {
+        let mut resolved_identity = identity.unwrap_or_default();
+        if resolved_identity.content_type.is_none() {
+            resolved_identity.content_type = Some(content_type);
+        }
+        identity = Some(resolved_identity);
+    }
+    EngineInput {
+        uri: read.uri,
+        bytes: read.bytes,
+        from_format: input.from_format,
+        identity,
+        root_scope: input.root_scope.clone(),
+    }
+}
+
+fn resolver_input_error(input: &EngineInput, error: ResolverDiagnostic) -> EngineError {
+    EngineError::Io {
+        path: input.uri.clone().into(),
+        source: std::io::Error::new(std::io::ErrorKind::InvalidInput, error),
+    }
 }
 
 /// Run the full Tier A pipeline (`tokenize → normalize → schema → AST →
@@ -1166,7 +1249,12 @@ impl CemMlEngine for RealCemMlEngine {
     fn parse(&self, request: ParseRequest) -> EngineResult<ParseResponse> {
         let loaded = load_input_through_lifecycle(&request.input, &request.context);
         let from_format = loaded.from_format;
-        let run = run_pipeline_as_scoped(&loaded.bytes, from_format, &request.input.root_scope);
+        let run = run_pipeline_as_scoped_with_context(
+            &loaded.bytes,
+            from_format,
+            &request.input.root_scope,
+            &request.context,
+        );
         let primary = match request.projection {
             ParseProjection::DomJson | ParseProjection::Json => projection::dom_json(&run.document),
             ParseProjection::Ast => projection::ast_json(&run.document),
@@ -1226,7 +1314,12 @@ impl CemMlEngine for RealCemMlEngine {
         let started_at = Instant::now();
         let loaded = load_input_through_lifecycle(&request.input, &request.context);
         let from_format = loaded.from_format;
-        let run = run_pipeline_as_scoped(&loaded.bytes, from_format, &request.input.root_scope);
+        let run = run_pipeline_as_scoped_with_context(
+            &loaded.bytes,
+            from_format,
+            &request.input.root_scope,
+            &request.context,
+        );
         let mut diagnostics = root_scope_execution_diagnostics(
             &request.input.uri,
             &request.input.root_scope,
@@ -1362,7 +1455,12 @@ impl CemMlEngine for RealCemMlEngine {
             }
 
             let from_format = loaded.from_format;
-            let run = run_pipeline_as_scoped(&loaded.bytes, from_format, &request.input.root_scope);
+            let run = run_pipeline_as_scoped_with_context(
+                &loaded.bytes,
+                from_format,
+                &request.input.root_scope,
+                &request.context,
+            );
             primary = Some(match to_format {
                 LayerFormat::Cem => {
                     let formatted = formatter::format_transform(
@@ -1452,7 +1550,12 @@ impl CemMlEngine for RealCemMlEngine {
                 EngineError::Internal(format!("scheduler trace setup failed: {err}"))
             })?;
         }
-        let run = run_pipeline_as_scoped(&loaded.bytes, from_format, &request.input.root_scope);
+        let run = run_pipeline_as_scoped_with_context(
+            &loaded.bytes,
+            from_format,
+            &request.input.root_scope,
+            &request.context,
+        );
         pool.run_to_completion(&abort, |_| {});
         let mut diagnostics = policy_diagnostics;
         diagnostics.extend(root_scope_metadata_diagnostics(
@@ -1498,11 +1601,15 @@ impl CemMlEngine for RealCemMlEngine {
         for _ in 0..iterations {
             let t = Instant::now();
             for input in &request.inputs {
-                let input = materialized_input(input)?;
+                let input = materialized_input(input, &request.context)?;
                 let input_started_at = Instant::now();
                 let loaded = load_input_through_lifecycle(&input, &request.context);
-                let _ =
-                    run_pipeline_as_scoped(&loaded.bytes, loaded.from_format, &input.root_scope);
+                let _ = run_pipeline_as_scoped_with_context(
+                    &loaded.bytes,
+                    loaded.from_format,
+                    &input.root_scope,
+                    &request.context,
+                );
                 let mut budget_diags = time_budget_diagnostics(
                     &input.root_scope,
                     &["benchms", "benchtimebudgetms"],
@@ -1551,13 +1658,18 @@ impl CemMlEngine for RealCemMlEngine {
         let inputs = input_uris(&request.inputs, &request.context);
         let mut all_diags: Vec<Diagnostic> = Vec::new();
         for input in &request.inputs {
-            let input = materialized_input(input)?;
+            let input = materialized_input(input, &request.context)?;
             let started_at = Instant::now();
             let mut input_diags =
                 root_scope_execution_diagnostics(&input.uri, &input.root_scope, "input");
             let loaded = load_input_through_lifecycle(&input, &request.context);
             input_diags.extend(loaded.diagnostics);
-            let run = run_pipeline_as_scoped(&loaded.bytes, loaded.from_format, &input.root_scope);
+            let run = run_pipeline_as_scoped_with_context(
+                &loaded.bytes,
+                loaded.from_format,
+                &input.root_scope,
+                &request.context,
+            );
             input_diags.extend(run.diagnostics);
             input_diags.extend(time_budget_diagnostics(
                 &input.root_scope,
@@ -1583,13 +1695,18 @@ impl CemMlEngine for RealCemMlEngine {
         let mut artifacts: Vec<Value> = Vec::new();
         let mut all_diags: Vec<Diagnostic> = Vec::new();
         for input in &request.inputs {
-            let input = materialized_input(input)?;
+            let input = materialized_input(input, &request.context)?;
             let started_at = Instant::now();
             let mut input_diags =
                 root_scope_execution_diagnostics(&input.uri, &input.root_scope, "input");
             let loaded = load_input_through_lifecycle(&input, &request.context);
             input_diags.extend(loaded.diagnostics);
-            let run = run_pipeline_as_scoped(&loaded.bytes, loaded.from_format, &input.root_scope);
+            let run = run_pipeline_as_scoped_with_context(
+                &loaded.bytes,
+                loaded.from_format,
+                &input.root_scope,
+                &request.context,
+            );
             let rendered = LightDomInterpreter::new().render(&run.document);
             artifacts.push(json!({
                 "input": input_uri(&input, &request.context),
@@ -1617,6 +1734,36 @@ impl CemMlEngine for RealCemMlEngine {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::resolver::{ResolverRegistry, ResourceResolver};
+
+    #[derive(Debug)]
+    struct StaticReadResolver {
+        resolved_uri: &'static str,
+        bytes: &'static [u8],
+        content_type: Option<&'static str>,
+    }
+
+    impl ResourceResolver for StaticReadResolver {
+        fn read(&self, _request: &ResolveRequest) -> Result<ResolvedRead, ResolverDiagnostic> {
+            Ok(ResolvedRead {
+                uri: self.resolved_uri.to_owned(),
+                bytes: self.bytes.to_vec(),
+                content_type: self.content_type.map(str::to_owned),
+            })
+        }
+
+        fn write(
+            &self,
+            request: &ResolveRequest,
+            _bytes: &[u8],
+        ) -> Result<crate::resolver::ResolvedWrite, ResolverDiagnostic> {
+            Err(ResolverDiagnostic::UnsupportedResolver {
+                uri: request.uri.clone(),
+                purpose: request.purpose,
+                direction: ResolveDirection::Write,
+            })
+        }
+    }
 
     fn input(bytes: &[u8], uri: &str) -> EngineInput {
         EngineInput {
@@ -1630,6 +1777,19 @@ mod tests {
 
     fn ctx() -> EngineContext {
         EngineContext::default()
+    }
+
+    fn context_with_resolver(
+        scheme: &str,
+        purpose: ResolvePurpose,
+        resolver: impl ResourceResolver + 'static,
+    ) -> EngineContext {
+        let mut resolver_registry = ResolverRegistry::new();
+        resolver_registry.register(scheme, purpose, ResolveDirection::Read, resolver);
+        EngineContext {
+            resolver_registry,
+            ..ctx()
+        }
     }
 
     #[test]
@@ -1738,11 +1898,12 @@ mod tests {
             ..ScopeConfig::default()
         };
 
-        let (entries, diagnostics) = load_root_module_map(&scope);
+        let loaded = load_root_module_map(&scope, None);
         let _ = std::fs::remove_file(path);
 
-        assert!(entries.is_empty());
-        assert!(diagnostics
+        assert!(loaded.entries.is_empty());
+        assert!(loaded
+            .diagnostics
             .iter()
             .any(|diag| diag.code == "cem.scope.module_map_invalid"));
     }
@@ -1763,12 +1924,12 @@ mod tests {
             ..ScopeConfig::default()
         };
 
-        let (entries, diagnostics) = load_root_module_map(&scope);
+        let loaded = load_root_module_map(&scope, None);
         let _ = std::fs::remove_file(path);
 
-        assert!(diagnostics.is_empty());
+        assert!(loaded.diagnostics.is_empty());
         assert_eq!(
-            entries.get("ui/button").map(String::as_str),
+            loaded.entries.get("ui/button").map(String::as_str),
             Some("./schemas/button.schema")
         );
     }
@@ -1780,10 +1941,11 @@ mod tests {
             ..ScopeConfig::default()
         };
 
-        let (entries, diagnostics) = load_root_module_map(&scope);
+        let loaded = load_root_module_map(&scope, None);
 
-        assert!(entries.is_empty());
-        assert!(diagnostics
+        assert!(loaded.entries.is_empty());
+        assert!(loaded
+            .diagnostics
             .iter()
             .any(|diag| diag.code == "cem.scope.module_map_unreadable"));
     }
@@ -1795,13 +1957,42 @@ mod tests {
             ..ScopeConfig::default()
         };
 
-        let (entries, diagnostics) = load_root_module_map(&scope);
+        let loaded = load_root_module_map(&scope, None);
 
-        assert!(entries.is_empty());
-        assert!(diagnostics.iter().any(|diag| {
+        assert!(loaded.entries.is_empty());
+        assert!(loaded.diagnostics.iter().any(|diag| {
             diag.code == "cem.scope.module_map_resolver_unsupported"
                 && diag.message.contains("remote/custom URI resolver")
         }));
+    }
+
+    #[test]
+    fn root_module_map_loader_reads_custom_resolver_uri() {
+        let scope = ScopeConfig {
+            module_map: Some("cem+vfs://workspace/maps/cem.modules.json".to_owned()),
+            ..ScopeConfig::default()
+        };
+        let context = context_with_resolver(
+            "cem+vfs",
+            ResolvePurpose::ModuleMap,
+            StaticReadResolver {
+                resolved_uri: "cem+vfs://workspace/maps/cem.modules.json",
+                bytes: br#"{"schemas":{"ui/button":"./schemas/button.schema"}}"#,
+                content_type: Some("application/json"),
+            },
+        );
+
+        let loaded = load_root_module_map(&scope, Some(&context));
+
+        assert!(loaded.diagnostics.is_empty());
+        assert_eq!(
+            loaded.entries.get("ui/button").map(String::as_str),
+            Some("./schemas/button.schema")
+        );
+        assert_eq!(
+            loaded.uri.as_deref(),
+            Some("cem+vfs://workspace/maps/cem.modules.json")
+        );
     }
 
     #[test]
@@ -2792,6 +2983,35 @@ mod tests {
             }
             other => panic!("expected EngineError::Io, got {other:?}"),
         }
+    }
+
+    #[test]
+    fn fixture_validate_reads_custom_resolver_input_uri() {
+        let req = FixtureValidateRequest {
+            inputs: vec![EngineInput {
+                uri: "cem+vfs://fixtures/login.cem".to_owned(),
+                bytes: Vec::new(),
+                from_format: Some(InputFormat::Cem),
+                identity: None,
+                root_scope: Default::default(),
+            }],
+            fail_level: FailLevel::Validate,
+            zero_hard_violations: true,
+            context: context_with_resolver(
+                "cem+vfs",
+                ResolvePurpose::Input,
+                StaticReadResolver {
+                    resolved_uri: "cem+vfs://fixtures/login.cem",
+                    bytes: b"{main | Loaded}",
+                    content_type: Some("application/cem+xml"),
+                },
+            ),
+        };
+
+        let resp = RealCemMlEngine::new().fixture_validate(req).unwrap();
+
+        assert_eq!(resp.report.summary.input_count, 1);
+        assert_eq!(resp.report.summary.hard_violation_count, 0);
     }
 
     #[test]

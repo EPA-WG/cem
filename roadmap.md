@@ -83,7 +83,9 @@ Deliverables:
   URI, scope policy, and budgets available as input/output options. APIs accept input/output spec arrays; CLI supports
   config files for CI/build reproducibility and repeatable CSV records for concise one-liners. Config parsing and
   normalization are owned by `cem_ml`; CLI, WASM, and Rust hosts provide raw config bytes or raw record strings plus
-  config format identity and consume the same normalized `RunConfig`.
+  config format identity and consume the same normalized `RunConfig`. Remote/custom module-map, input, and output
+  URI handling is host-backed resolver behavior: local filesystem resolution is built in, while network or custom
+  schemes require explicit resolver registration by scheme and operation purpose.
 - Multi-document run context for build/CI validation and transformation: one invocation can process many inputs and
   outputs through a shared scheduler/thread-pool context while preserving per-document root-scope diagnostics,
   source maps, and resource accounting.

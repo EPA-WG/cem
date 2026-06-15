@@ -8,6 +8,7 @@
 
 use crate::diagnostics::{Diagnostic, Severity};
 use crate::engine::FormatIdentity;
+use crate::resolver::{has_uri_scheme, local_file_uri_to_path};
 use serde::{Deserialize, Serialize};
 use std::collections::BTreeMap;
 
@@ -697,45 +698,6 @@ fn resolve_relative_path_like(value: &str, base_uri: Option<&str>) -> Option<Str
     Some(base_dir.join(trimmed).to_string_lossy().into_owned())
 }
 
-fn local_file_uri_to_path(uri: &str) -> Option<std::path::PathBuf> {
-    let rest = uri.strip_prefix("file://")?;
-    let path = if let Some(localhost_path) = rest.strip_prefix("localhost/") {
-        format!("/{localhost_path}")
-    } else if rest.starts_with('/') {
-        rest.to_owned()
-    } else {
-        return None;
-    };
-    percent_decode_uri_path(&path).map(std::path::PathBuf::from)
-}
-
-fn percent_decode_uri_path(path: &str) -> Option<String> {
-    let bytes = path.as_bytes();
-    let mut decoded = Vec::with_capacity(bytes.len());
-    let mut index = 0;
-    while index < bytes.len() {
-        if bytes[index] == b'%' {
-            let high = *bytes.get(index + 1)?;
-            let low = *bytes.get(index + 2)?;
-            decoded.push((hex_value(high)? << 4) | hex_value(low)?);
-            index += 3;
-        } else {
-            decoded.push(bytes[index]);
-            index += 1;
-        }
-    }
-    String::from_utf8(decoded).ok()
-}
-
-fn hex_value(byte: u8) -> Option<u8> {
-    match byte {
-        b'0'..=b'9' => Some(byte - b'0'),
-        b'a'..=b'f' => Some(byte - b'a' + 10),
-        b'A'..=b'F' => Some(byte - b'A' + 10),
-        _ => None,
-    }
-}
-
 pub fn infer_content_type_from_path(path: &str) -> Option<String> {
     let ext = std::path::Path::new(path)
         .extension()
@@ -749,20 +711,6 @@ pub fn infer_content_type_from_path(path: &str) -> Option<String> {
         "json" => Some("application/json".to_owned()),
         _ => None,
     }
-}
-
-fn has_uri_scheme(value: &str) -> bool {
-    let Some((scheme, _)) = value.split_once(':') else {
-        return false;
-    };
-    !scheme.is_empty()
-        && scheme
-            .chars()
-            .next()
-            .is_some_and(|ch| ch.is_ascii_alphabetic())
-        && scheme
-            .chars()
-            .all(|ch| ch.is_ascii_alphanumeric() || matches!(ch, '+' | '-' | '.'))
 }
 
 #[cfg(test)]

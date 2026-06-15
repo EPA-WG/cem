@@ -137,10 +137,11 @@ Current implementation status:
   option shape before document parsing, while unreadable or malformed module maps,
   unknown future budget keys, and unsupported version-pin targets emit deterministic
   execution diagnostics instead of being silently ignored. Remote/custom module-map
-  URI values now emit an explicit unsupported-resolver diagnostic instead of being
-  treated as local paths, and CLI file-write paths reject remote/custom URI
-  destinations explicitly. Real remote/custom module-map resolver semantics and real
-  remote/custom output resolver semantics remain pending.
+  URI values now load through registered `EngineContext` resolvers when available and
+  otherwise emit an explicit unsupported-resolver diagnostic instead of being treated
+  as local paths. Primary output, side-report, and observability event destinations now
+  write through registered resolvers when available; the default CLI context registers
+  none, so remote/custom URI destinations still reject explicitly.
 - `--schema` and `--content-type` are carried in `EngineContext` and emitted in reports.
   `cem_ml::lifecycle::LifecycleRegistry` now owns built-in input content-type dispatch
   for parser-backed commands (`parse`, `validate`, `check`, `inspect`, `convert`,
@@ -175,11 +176,12 @@ Current implementation status:
   local `file://` config document bases. Configured, positional, and fixture-materialized
   input reads resolve local `file://` URIs, and primary output, per-output conversion,
   side-report, and observability event writes resolve local `file://` destinations to
-  filesystem paths and reject remote/custom URI destinations until a resolver is implemented.
-  Config document reads and configured, positional, and fixture-materialized input reads
-  also reject remote/custom URI values until a resolver is implemented. Remote/custom module-map URI values emit an
-  unsupported-resolver diagnostic until a resolver is implemented. Real remote/custom
-  module-map, input, and output resolver semantics remain planned requirements.
+  filesystem paths or registered write resolvers. The default CLI context registers no
+  remote/custom write resolvers, so URI destinations still reject explicitly unless a
+  host installs one. Config document reads and configured/positional input reads also reject remote/custom URI values
+  until they are routed through the shared resolver path. Fixture/benchmark materialized input reads and remote/custom
+  module-map URI values use registered `EngineContext` resolvers when available and otherwise preserve the current
+  deterministic rejection or unsupported-resolver diagnostic.
 - `validate` / `check` / `convert` route `custom-element-xslt` input through the first
   shared lifecycle adapter path, lowering legacy custom-element XSLT to canonical
   CEM-ML through `cem_ml::legacy_custom_element`; `convert --content-type
@@ -187,6 +189,55 @@ Current implementation status:
   CEM-ML export from the declared target identity through the lifecycle registry.
 - `schema` and `plugin` CLI command groups are reserved until the registry and plugin
   lifecycle surfaces are promoted from library internals to command-line workflows.
+
+## Resolver Semantics
+
+Resolver behavior is a shared runtime contract, not a CLI-only path parser. The
+`cem_ml` library owns URI classification, purpose-aware resolver request/response
+types, and deterministic resolver diagnostics. Host surfaces provide concrete resolver
+implementations:
+
+- Rust hosts pass a resolver registry into execution context.
+- WASM hosts expose callback-backed read/write resolvers for browser, worker, or Node
+  embedding.
+- The CLI installs the local filesystem resolver by default and can later install
+  opt-in remote or custom-scheme resolvers. It must not silently fetch network resources
+  or write remote destinations without an explicit registered resolver.
+
+Every resolver operation carries a purpose so hosts can apply policy by capability:
+
+- `config` reads the run configuration document before parsing it.
+- `input` reads configured, positional, or fixture-materialized document inputs.
+- `moduleMap` reads root-scope module-map JSON and establishes the base URI for relative
+  schema-source identities.
+- `output` writes primary output or per-output conversion artifacts.
+- `report` writes JSON or Markdown side reports.
+- `observeEvents` writes JSONL observability event streams.
+
+Resolver requests include the declared URI, the effective base URI for relative values,
+the operation purpose, the direction (`read` or `write`), an optional content-type hint,
+and the root-scope or output-scope identity that caused the request. Resolver responses
+return normalized/final URI, bytes for reads or write acknowledgement for writes,
+optional content type, and optional cache metadata. Reports and diagnostics should keep
+the declared URI visible while also allowing a normalized URI when it differs.
+
+Built-in semantics:
+
+- Plain filesystem paths and local `file://` URIs are handled by the local filesystem
+  resolver.
+- `file://localhost/...` is equivalent to a local `file://` URI.
+- Non-local `file://host/...`, `http://...`, `https://...`, and custom schemes are
+  delegated to registered resolvers by scheme and purpose.
+- If no resolver is registered for a scheme/purpose pair, the operation fails with a
+  deterministic resolver diagnostic instead of falling back to local path behavior.
+- Relative URI/path values are resolved against the effective base URI before resolver
+  dispatch. For config-derived values, the config document URI is the base unless an
+  explicit root-scope base URI overrides report/diagnostic projection only.
+
+Error mapping must stay stable across CLI, Rust, and WASM hosts. Resolver failures use
+diagnostics such as unsupported resolver, permission denied, not found, invalid URI,
+read failure, and write failure; CLI commands may wrap those diagnostics in command-level
+I/O messages, but they must not replace the underlying resolver code or URI.
 
 ## Functional Surface
 

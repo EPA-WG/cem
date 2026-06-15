@@ -128,11 +128,42 @@ the immediate CLI lifecycle contract.
    namespace, and version-pin option shape before document parsing, while unreadable or
    malformed module maps, unknown future budget keys, and unsupported version-pin
    targets emit deterministic execution diagnostics instead of being silently ignored.
-   Remote/custom module-map URI values emit an explicit unsupported-resolver diagnostic,
-   fixture-materialized input reads reject remote/custom input URI values, and CLI
-   file-write paths reject remote/custom URI destinations instead of treating them as
-   local paths. Real remote/custom module-map, input, and output resolver semantics
-   remain open.
+   Remote/custom module-map URI values and fixture-materialized input reads use
+   registered `EngineContext` resolvers when a host installs one; default CLI behavior
+   still emits explicit unsupported-resolver diagnostics or rejections. Primary output,
+   side-report, and observability event writes use registered write resolvers when a
+   host installs one; default CLI behavior still rejects remote/custom destinations
+   instead of treating them as local paths.
+
+   **Resolver implementation plan:** URI handling is being promoted into the shared
+   `cem_ml::resolver` boundary instead of command-specific path checks.
+    - Done: added `ResolvePurpose` (`config`, `input`, `moduleMap`, `output`,
+      `report`, `observeEvents`), `ResolveDirection`, `ResolveRequest`,
+      `ResolvedRead`, `ResolvedWrite`, `ResolverDiagnostic`, `ResourceResolver`,
+      and `ResolverRegistry` in `cem_ml`.
+    - Done: moved local path and local `file://` parsing into the library resolver
+      module. The CLI, run-config normalization, and current real-engine
+      module-map/materialized-input paths call the same local resolver code.
+    - Done: threaded the resolver registry through non-serialized `EngineContext`.
+      `RunConfig` remains serializable; host-only resolver objects live in runtime
+      context only.
+    - Done: converted module-map loading in `cem_ml::real` to registered resolver
+      reads. The resolved module-map URI provides the base for relative schema `src`
+      identities while command-facing diagnostics remain stable.
+    - Partial: fixture and benchmark materialized inputs can read through registered
+      input resolvers. Config-document reads plus configured, positional, and
+      observability input reads still need one purpose-aware resolver read path.
+    - Done: converted output writes to resolver writes for `--out`,
+      config/output-spec destinations, side reports, and `--observe-events`. Default
+      CLI context keeps rejecting remote/custom writes until a host or CLI option
+      registers a resolver for that scheme, purpose, and direction.
+    - Add host adapters in layers: local filesystem first, in-memory/custom scheme
+      test resolver second, WASM callback resolver third, and optional CLI remote
+      resolver registration last. The default CLI behavior stays local-only until a
+      resolver is explicitly registered.
+    - Keep security policy explicit: resolver registration is per scheme and purpose;
+      read permission does not imply write permission, and remote output writes are not
+      enabled by default.
 7. Update CLI flags without breaking current debug workflows:
     - keep `--from-format` and `--to-format` as aliases for built-in identities;
     - keep `--content-type` as the input content type for `parse`, `validate`, `check`,

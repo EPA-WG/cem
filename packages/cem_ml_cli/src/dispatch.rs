@@ -8,8 +8,11 @@
 use crate::cli;
 use crate::template_pass;
 use cem_ml::engine::{self as eng, CemMlEngine, EngineError};
+use cem_ml::resolver::{
+    is_windows_drive_path, local_file_uri_to_path, local_path_or_file_uri, uri_scheme,
+    ResolveDirection, ResolvePurpose, ResolveRequest, ResolverDiagnostic,
+};
 use cem_ml::run_config::{self, InputSpec, OutputSpec, RunConfig, RunConfigDefaults, ScopeConfig};
-use std::borrow::Cow;
 use std::collections::BTreeMap;
 use std::fs;
 use std::io::{self, Write};
@@ -51,7 +54,7 @@ enum CliRequestError {
 }
 
 fn read_input(path: &Path) -> io::Result<Vec<u8>> {
-    let path = local_file_uri_path(path, "input URI")?;
+    let path = local_path_or_file_uri(path, "input URI")?;
     fs::read(path.as_ref())
 }
 
@@ -122,7 +125,7 @@ fn run_config(
 ) -> Result<RunConfig, CliRequestError> {
     let mut config_base_uri = None;
     let mut config = if let Some(path) = &options.config {
-        let config_path = local_file_uri_path(path, "config path").map_err(|source| {
+        let config_path = local_path_or_file_uri(path, "config path").map_err(|source| {
             CliRequestError::Engine(EngineError::Io {
                 path: path.clone(),
                 source,
@@ -445,6 +448,7 @@ fn context(c: &cli::ContextOptions) -> eng::EngineContext {
         content_type: c.content_type.clone(),
         base_uri: c.base_uri.clone(),
         scheduler: Default::default(),
+        resolver_registry: Default::default(),
     }
 }
 
@@ -640,6 +644,7 @@ fn run_convert_fanout<E: CemMlEngine + ?Sized>(
     let mut report_inputs = Vec::new();
     let mut report_diagnostics = Vec::new();
     let mut report_scheduler_trace = cem_ml::report::SchedulerTraceReport::default();
+    let engine_context = context_with_config(&args.context, config);
 
     for (index, output) in config.outputs.iter().enumerate() {
         let destination = match output.destination.as_ref().map(PathBuf::from) {
@@ -654,7 +659,7 @@ fn run_convert_fanout<E: CemMlEngine + ?Sized>(
                     input,
                     to_format: to_engine_layer_format(args.to_format),
                     preserve_source_offsets: args.preserve_source_offsets,
-                    context: context_with_config(&args.context, config),
+                    context: engine_context.clone(),
                     target: output_target_identity(output),
                     target_scope: output.root_scope.clone(),
                     scheduler_scope_id: index as u32,
@@ -667,12 +672,15 @@ fn run_convert_fanout<E: CemMlEngine + ?Sized>(
                             &mut report_scheduler_trace,
                             &resp.scheduler_trace,
                         );
-                        if let Err(e) = write_primary(&resp.primary, args.out.as_deref(), s) {
+                        if let Err(e) =
+                            write_primary(&engine_context, &resp.primary, args.out.as_deref(), s)
+                        {
                             let _ = writeln!(s.stderr, "cem-ml: write failure: {e}");
                             return Outcome::code(EXIT_IO);
                         }
                         write_diagnostics(&resp.diagnostics, s);
                         if let Err(e) = write_convert_report_if_requested(
+                            &engine_context,
                             args,
                             &report_inputs,
                             &report_diagnostics,
@@ -705,7 +713,7 @@ fn run_convert_fanout<E: CemMlEngine + ?Sized>(
             input,
             to_format: to_engine_layer_format(args.to_format),
             preserve_source_offsets: args.preserve_source_offsets,
-            context: context_with_config(&args.context, config),
+            context: engine_context.clone(),
             target: output_target_identity(output),
             target_scope: output.root_scope.clone(),
             scheduler_scope_id: index as u32,
@@ -715,7 +723,12 @@ fn run_convert_fanout<E: CemMlEngine + ?Sized>(
                 report_inputs.push(input_uri);
                 report_diagnostics.extend(resp.diagnostics.clone());
                 append_convert_scheduler_trace(&mut report_scheduler_trace, &resp.scheduler_trace);
-                if let Err(e) = write_primary(&resp.primary, Some(destination.as_path()), s) {
+                if let Err(e) = write_primary(
+                    &engine_context,
+                    &resp.primary,
+                    Some(destination.as_path()),
+                    s,
+                ) {
                     let _ = writeln!(s.stderr, "cem-ml: write failure: {e}");
                     return Outcome::code(EXIT_IO);
                 }
@@ -726,6 +739,7 @@ fn run_convert_fanout<E: CemMlEngine + ?Sized>(
     }
 
     if let Err(e) = write_convert_report_if_requested(
+        &engine_context,
         args,
         &report_inputs,
         &report_diagnostics,
@@ -784,6 +798,7 @@ fn handle_engine_error(err: EngineError, s: &mut Streams<'_>) -> Outcome {
 }
 
 fn write_primary(
+    context: &eng::EngineContext,
     primary: &serde_json::Value,
     out: Option<&Path>,
     s: &mut Streams<'_>,
@@ -791,13 +806,13 @@ fn write_primary(
     let serialized = serde_json::to_string_pretty(primary).unwrap_or_else(|_| String::new());
     match out {
         Some(path) => {
-            let path = primary_output_path(path)?;
-            if let Some(parent) = path.parent() {
-                if !parent.as_os_str().is_empty() {
-                    fs::create_dir_all(parent)?;
-                }
-            }
-            fs::write(path.as_ref(), serialized.as_bytes())?;
+            write_destination(
+                context,
+                path,
+                "output destination",
+                ResolvePurpose::Output,
+                serialized.as_bytes(),
+            )?;
         }
         None => {
             writeln!(s.stdout, "{serialized}")?;
@@ -806,93 +821,60 @@ fn write_primary(
     Ok(())
 }
 
-fn primary_output_path(path: &Path) -> io::Result<Cow<'_, Path>> {
-    local_file_uri_path(path, "output destination")
-}
-
-fn local_file_uri_path<'a>(path: &'a Path, label: &str) -> io::Result<Cow<'a, Path>> {
+fn write_destination(
+    context: &eng::EngineContext,
+    path: &Path,
+    label: &str,
+    purpose: ResolvePurpose,
+    contents: &[u8],
+) -> io::Result<()> {
     let raw = path.to_string_lossy();
     if raw.starts_with("file://") {
-        return local_file_uri_to_path(&raw).map(Cow::Owned).ok_or_else(|| {
-            io::Error::new(
-                io::ErrorKind::InvalidInput,
-                format!("unsupported {label} `{raw}`; only local file:// URIs are supported"),
-            )
-        });
+        if let Some(path) = local_file_uri_to_path(&raw) {
+            return write_local_destination(&path, contents);
+        }
+        if write_registered_destination(context, &raw, purpose, contents)? {
+            return Ok(());
+        }
+        return Err(io::Error::new(
+            io::ErrorKind::InvalidInput,
+            format!("unsupported {label} `{raw}`; only local file:// URIs are supported"),
+        ));
     }
 
     if uri_scheme(&raw).is_some() && !is_windows_drive_path(&raw) {
+        if write_registered_destination(context, &raw, purpose, contents)? {
+            return Ok(());
+        }
         return Err(io::Error::new(
             io::ErrorKind::InvalidInput,
             format!("unsupported {label} `{raw}`; remote/custom URI resolvers are not implemented"),
         ));
     }
 
-    Ok(Cow::Borrowed(path))
+    write_local_destination(path, contents)
 }
 
-fn local_file_uri_to_path(uri: &str) -> Option<PathBuf> {
-    let rest = uri.strip_prefix("file://")?;
-    let path = if let Some(localhost_path) = rest.strip_prefix("localhost/") {
-        format!("/{localhost_path}")
-    } else if rest.starts_with('/') {
-        rest.to_owned()
-    } else {
-        return None;
-    };
-
-    percent_decode_uri_path(&path).map(PathBuf::from)
-}
-
-fn uri_scheme(value: &str) -> Option<&str> {
-    let (scheme, _) = value.split_once(':')?;
-    if !scheme.is_empty()
-        && scheme
-            .chars()
-            .next()
-            .is_some_and(|ch| ch.is_ascii_alphabetic())
-        && scheme
-            .chars()
-            .all(|ch| ch.is_ascii_alphanumeric() || matches!(ch, '+' | '-' | '.'))
-    {
-        Some(scheme)
-    } else {
-        None
-    }
-}
-
-fn is_windows_drive_path(value: &str) -> bool {
-    let bytes = value.as_bytes();
-    bytes.len() >= 3
-        && bytes[0].is_ascii_alphabetic()
-        && bytes[1] == b':'
-        && matches!(bytes[2], b'/' | b'\\')
-}
-
-fn percent_decode_uri_path(path: &str) -> Option<String> {
-    let bytes = path.as_bytes();
-    let mut decoded = Vec::with_capacity(bytes.len());
-    let mut index = 0;
-    while index < bytes.len() {
-        if bytes[index] == b'%' {
-            let high = *bytes.get(index + 1)?;
-            let low = *bytes.get(index + 2)?;
-            decoded.push((hex_value(high)? << 4) | hex_value(low)?);
-            index += 3;
-        } else {
-            decoded.push(bytes[index]);
-            index += 1;
+fn write_local_destination(path: &Path, contents: &[u8]) -> io::Result<()> {
+    if let Some(parent) = path.parent() {
+        if !parent.as_os_str().is_empty() {
+            fs::create_dir_all(parent)?;
         }
     }
-    String::from_utf8(decoded).ok()
+    fs::write(path, contents)
 }
 
-fn hex_value(byte: u8) -> Option<u8> {
-    match byte {
-        b'0'..=b'9' => Some(byte - b'0'),
-        b'a'..=b'f' => Some(byte - b'a' + 10),
-        b'A'..=b'F' => Some(byte - b'A' + 10),
-        _ => None,
+fn write_registered_destination(
+    context: &eng::EngineContext,
+    uri: &str,
+    purpose: ResolvePurpose,
+    contents: &[u8],
+) -> io::Result<bool> {
+    let request = ResolveRequest::new(uri, purpose, ResolveDirection::Write);
+    match context.resolver_registry.write(&request, contents) {
+        Ok(_) => Ok(true),
+        Err(ResolverDiagnostic::UnsupportedResolver { .. }) => Ok(false),
+        Err(error) => Err(io::Error::other(error)),
     }
 }
 
@@ -1026,44 +1008,52 @@ fn resolve_report_target(p: &Path, basename: &str, ext: &str) -> std::path::Path
     }
 }
 
-fn write_report_target(p: &Path, basename: &str, ext: &str, contents: &[u8]) -> io::Result<()> {
+fn write_report_target(
+    context: &eng::EngineContext,
+    p: &Path,
+    basename: &str,
+    ext: &str,
+    contents: &[u8],
+) -> io::Result<()> {
     let raw_target = resolve_report_target(p, basename, ext);
-    let target = local_file_uri_path(&raw_target, "report destination")?;
-    if let Some(parent) = target.parent() {
-        if !parent.as_os_str().is_empty() {
-            fs::create_dir_all(parent)?;
-        }
-    }
-    fs::write(target.as_ref(), contents)
+    write_destination(
+        context,
+        &raw_target,
+        "report destination",
+        ResolvePurpose::Report,
+        contents,
+    )
 }
 
 fn write_report_files(
+    context: &eng::EngineContext,
     report: &cem_ml::report::Report,
     report_opts: &cli::ReportOptions,
     basename: &str,
 ) -> io::Result<()> {
     if let Some(p) = &report_opts.report_json {
         let body = serde_json::to_string_pretty(report)?;
-        write_report_target(p, basename, "json", body.as_bytes())?;
+        write_report_target(context, p, basename, "json", body.as_bytes())?;
     }
     if let Some(p) = &report_opts.report_md {
         let body = render_report_markdown(report);
-        write_report_target(p, basename, "md", body.as_bytes())?;
+        write_report_target(context, p, basename, "md", body.as_bytes())?;
     }
     Ok(())
 }
 
 fn write_benchmark_report_files(
+    context: &eng::EngineContext,
     body: &serde_json::Value,
     report_opts: &cli::ReportOptions,
 ) -> io::Result<()> {
     if let Some(p) = &report_opts.report_json {
         let body = serde_json::to_string_pretty(body)?;
-        write_report_target(p, REPORT_BASENAME_BENCH, "json", body.as_bytes())?;
+        write_report_target(context, p, REPORT_BASENAME_BENCH, "json", body.as_bytes())?;
     }
     if let Some(p) = &report_opts.report_md {
         let body = render_benchmark_report_markdown(body);
-        write_report_target(p, REPORT_BASENAME_BENCH, "md", body.as_bytes())?;
+        write_report_target(context, p, REPORT_BASENAME_BENCH, "md", body.as_bytes())?;
     }
     Ok(())
 }
@@ -1106,7 +1096,14 @@ fn handle_run_config_diagnostics_report(
         diagnostics,
         report_options_snapshot(fail_level, context),
     );
-    if let Err(e) = write_report_files(&report, report_opts, basename) {
+    let engine_context = eng::EngineContext {
+        schema: context.schema.clone(),
+        content_type: context.content_type.clone(),
+        base_uri: context.base_uri.clone(),
+        scheduler: Default::default(),
+        resolver_registry: Default::default(),
+    };
+    if let Err(e) = write_report_files(&engine_context, &report, report_opts, basename) {
         let _ = writeln!(s.stderr, "cem-ml: report write failure: {e}");
         return Outcome::code(EXIT_IO);
     }
@@ -1130,6 +1127,7 @@ fn append_convert_scheduler_trace(
 }
 
 fn write_convert_report_if_requested(
+    context: &eng::EngineContext,
     args: &cli::ConvertArgs,
     input_uris: &[String],
     diagnostics: &[cem_ml::diagnostics::Diagnostic],
@@ -1144,7 +1142,7 @@ fn write_convert_report_if_requested(
         report_options_snapshot(cli::FailLevel::Validate, &args.context),
     )
     .with_scheduler_trace_report(scheduler_trace.clone());
-    write_report_files(&report, &args.report, REPORT_BASENAME_CONVERT)
+    write_report_files(context, &report, &args.report, REPORT_BASENAME_CONVERT)
 }
 
 fn render_report_markdown(report: &cem_ml::report::Report) -> String {
@@ -1221,16 +1219,17 @@ pub fn run_parse<E: CemMlEngine + ?Sized>(
         Some(input.uri.as_str()),
     );
     let input_uri = input.uri.clone();
+    let engine_context = context_with_config(&args.context, &config);
     let req = eng::ParseRequest {
         input,
         projection: to_engine_parse_projection(args.format),
         fail_level: to_engine_fail_level(args.fail_level),
         preserve_source_offsets: args.preserve_source_offsets,
-        context: context_with_config(&args.context, &config),
+        context: engine_context.clone(),
     };
     match engine.parse(req) {
         Ok(mut resp) => {
-            if let Err(e) = write_primary(&resp.primary, args.out.as_deref(), s) {
+            if let Err(e) = write_primary(&engine_context, &resp.primary, args.out.as_deref(), s) {
                 let _ = writeln!(s.stderr, "cem-ml: write failure: {e}");
                 return Outcome::code(EXIT_IO);
             }
@@ -1242,8 +1241,12 @@ pub fn run_parse<E: CemMlEngine + ?Sized>(
                     resp.diagnostics,
                     report_options_snapshot(args.fail_level, &args.context),
                 );
-                if let Err(e) = write_report_files(&report, &args.report, REPORT_BASENAME_VALIDATE)
-                {
+                if let Err(e) = write_report_files(
+                    &engine_context,
+                    &report,
+                    &args.report,
+                    REPORT_BASENAME_VALIDATE,
+                ) {
                     let _ = writeln!(s.stderr, "cem-ml: parse report write failure: {e}");
                     return Outcome::code(EXIT_IO);
                 }
@@ -1293,17 +1296,22 @@ pub fn run_validate<E: CemMlEngine + ?Sized>(
         );
     }
     let embedding_diags = collect_embedding_diagnostics(&inputs);
+    let engine_context = context_with_config(&args.context, &config);
     let req = eng::ValidateRequest {
         inputs,
         projection: to_engine_validate_projection(args.format),
         fail_level: to_engine_fail_level(args.fail_level),
-        context: context_with_config(&args.context, &config),
+        context: engine_context.clone(),
     };
     match engine.validate(req) {
         Ok(mut resp) => {
             merge_embedding_diagnostics(&mut resp.report, embedding_diags);
-            if let Err(e) = write_report_files(&resp.report, &args.report, REPORT_BASENAME_VALIDATE)
-            {
+            if let Err(e) = write_report_files(
+                &engine_context,
+                &resp.report,
+                &args.report,
+                REPORT_BASENAME_VALIDATE,
+            ) {
                 let _ = writeln!(s.stderr, "cem-ml: report write failure: {e}");
                 return Outcome::code(EXIT_IO);
             }
@@ -1360,19 +1368,24 @@ pub fn run_check<E: CemMlEngine + ?Sized>(
         );
     }
     let embedding_diags = collect_embedding_diagnostics(&inputs);
+    let engine_context = context_with_config(&args.context, &config);
     let req = eng::CheckRequest {
         inputs,
         projection: to_engine_validate_projection(args.format),
         fail_level: to_engine_fail_level(args.fail_level),
         zero_hard_violations: args.zero_hard_violations,
-        context: context_with_config(&args.context, &config),
+        context: engine_context.clone(),
     };
     match engine.check(req) {
         Ok(mut resp) => {
             merge_embedding_diagnostics(&mut resp.report, embedding_diags);
             resp.hard_violation_count = resp.report.summary.hard_violation_count;
-            if let Err(e) = write_report_files(&resp.report, &args.report, REPORT_BASENAME_VALIDATE)
-            {
+            if let Err(e) = write_report_files(
+                &engine_context,
+                &resp.report,
+                &args.report,
+                REPORT_BASENAME_VALIDATE,
+            ) {
                 let _ = writeln!(s.stderr, "cem-ml: report write failure: {e}");
                 return Outcome::code(EXIT_IO);
             }
@@ -1415,14 +1428,15 @@ pub fn run_inspect<E: CemMlEngine + ?Sized>(
         Ok(i) => i,
         Err(err) => return handle_cli_request_error(err, s),
     };
+    let engine_context = context_with_config(&args.context, &config);
     let req = eng::InspectRequest {
         input,
         show: to_engine_inspect_view(args.show),
-        context: context_with_config(&args.context, &config),
+        context: engine_context.clone(),
     };
     match engine.inspect(req) {
         Ok(resp) => {
-            if let Err(e) = write_primary(&resp.body, args.out.as_deref(), s) {
+            if let Err(e) = write_primary(&engine_context, &resp.body, args.out.as_deref(), s) {
                 let _ = writeln!(s.stderr, "cem-ml: write failure: {e}");
                 return Outcome::code(EXIT_IO);
             }
@@ -1473,11 +1487,12 @@ pub fn run_convert<E: CemMlEngine + ?Sized>(
         Err(err) => return handle_cli_request_error(err, s),
     };
     let input_uri = input.uri.clone();
+    let engine_context = context_with_config(&args.context, &config);
     let req = eng::ConvertRequest {
         input,
         to_format: to_engine_layer_format(args.to_format),
         preserve_source_offsets: args.preserve_source_offsets,
-        context: context_with_config(&args.context, &config),
+        context: engine_context.clone(),
         target: convert_target_identity_with_config(&args, &config),
         target_scope: convert_target_scope_with_config(&args, &config),
         scheduler_scope_id: 0,
@@ -1485,12 +1500,13 @@ pub fn run_convert<E: CemMlEngine + ?Sized>(
     match engine.convert(req) {
         Ok(resp) => {
             let out = convert_output_destination(&args, &config);
-            if let Err(e) = write_primary(&resp.primary, out.as_deref(), s) {
+            if let Err(e) = write_primary(&engine_context, &resp.primary, out.as_deref(), s) {
                 let _ = writeln!(s.stderr, "cem-ml: write failure: {e}");
                 return Outcome::code(EXIT_IO);
             }
             write_diagnostics(&resp.diagnostics, s);
             if let Err(e) = write_convert_report_if_requested(
+                &engine_context,
                 &args,
                 &[input_uri],
                 &resp.diagnostics,
@@ -1527,14 +1543,15 @@ pub fn run_trace<E: CemMlEngine + ?Sized>(
         Ok(i) => i,
         Err(err) => return handle_cli_request_error(err, s),
     };
+    let engine_context = context_with_config(&args.context, &config);
     let req = eng::TraceRequest {
         input,
         projection: to_engine_trace_projection(args.format),
-        context: context_with_config(&args.context, &config),
+        context: engine_context.clone(),
     };
     match engine.trace(req) {
         Ok(resp) => {
-            if let Err(e) = write_primary(&resp.body, args.out.as_deref(), s) {
+            if let Err(e) = write_primary(&engine_context, &resp.body, args.out.as_deref(), s) {
                 let _ = writeln!(s.stderr, "cem-ml: write failure: {e}");
                 return Outcome::code(EXIT_IO);
             }
@@ -1581,6 +1598,7 @@ pub fn run_bench<E: CemMlEngine + ?Sized>(
             s,
         );
     }
+    let engine_context = context_with_config(&args.context, &config);
     let req = eng::BenchRequest {
         inputs,
         projection: to_engine_bench_projection(args.format),
@@ -1588,7 +1606,7 @@ pub fn run_bench<E: CemMlEngine + ?Sized>(
         budget_ms: args.budget_ms,
         profile: args.profile.map(to_engine_bench_profile),
         cold_cache: args.cold_cache,
-        context: context_with_config(&args.context, &config),
+        context: engine_context.clone(),
     };
     match engine.bench(req) {
         Ok(resp) => {
@@ -1596,7 +1614,8 @@ pub fn run_bench<E: CemMlEngine + ?Sized>(
                 let json = serde_json::to_string_pretty(&resp.body).unwrap_or_default();
                 let _ = writeln!(s.stdout, "{json}");
             }
-            if let Err(e) = write_benchmark_report_files(&resp.body, &args.report) {
+            if let Err(e) = write_benchmark_report_files(&engine_context, &resp.body, &args.report)
+            {
                 let _ = writeln!(s.stderr, "cem-ml: benchmark report write failure: {e}");
                 return Outcome::code(EXIT_IO);
             }
@@ -1649,17 +1668,22 @@ pub fn run_fixture_validate<E: CemMlEngine + ?Sized>(
         Ok(v) => v,
         Err(e) => return handle_engine_error(e, s),
     };
+    let engine_context = context_with_config(&args.context, &config);
     let req = eng::FixtureValidateRequest {
         inputs,
         fail_level: to_engine_fail_level(args.fail_level),
         zero_hard_violations: args.zero_hard_violations,
-        context: context_with_config(&args.context, &config),
+        context: engine_context.clone(),
     };
     match engine.fixture_validate(req) {
         Ok(mut resp) => {
             merge_embedding_diagnostics(&mut resp.report, embedding_diags);
-            if let Err(e) = write_report_files(&resp.report, &args.report, REPORT_BASENAME_VALIDATE)
-            {
+            if let Err(e) = write_report_files(
+                &engine_context,
+                &resp.report,
+                &args.report,
+                REPORT_BASENAME_VALIDATE,
+            ) {
                 let _ = writeln!(s.stderr, "cem-ml: report write failure: {e}");
                 return Outcome::code(EXIT_IO);
             }
@@ -1715,16 +1739,20 @@ pub fn run_fixture_roundtrip<E: CemMlEngine + ?Sized>(
             Err(err) => return handle_cli_request_error(err, s),
         }
     }
+    let engine_context = context_with_config(&args.context, &config);
     let req = eng::FixtureRoundtripRequest {
         inputs,
         to_format: to_engine_layer_format(args.to_format),
-        context: context_with_config(&args.context, &config),
+        context: engine_context.clone(),
     };
     match engine.fixture_roundtrip(req) {
         Ok(resp) => {
-            if let Err(e) =
-                write_report_files(&resp.report, &args.report, REPORT_BASENAME_ROUNDTRIP)
-            {
+            if let Err(e) = write_report_files(
+                &engine_context,
+                &resp.report,
+                &args.report,
+                REPORT_BASENAME_ROUNDTRIP,
+            ) {
                 let _ = writeln!(s.stderr, "cem-ml: report write failure: {e}");
                 return Outcome::code(EXIT_IO);
             }
@@ -1765,12 +1793,65 @@ mod tests {
     use cem_ml::engine::NotImplementedEngine;
     use cem_ml::fake::FakeEngine;
     use cem_ml::real::RealCemMlEngine;
+    use cem_ml::resolver::{ResolvedRead, ResolvedWrite, ResolverRegistry, ResourceResolver};
     use clap::Parser;
     use std::io::Cursor;
     use std::path::PathBuf;
+    use std::sync::{Arc, Mutex};
+
+    #[derive(Debug, Clone)]
+    struct RecordingWriteResolver {
+        writes: Arc<Mutex<Vec<(String, Vec<u8>)>>>,
+    }
+
+    impl ResourceResolver for RecordingWriteResolver {
+        fn read(&self, request: &ResolveRequest) -> Result<ResolvedRead, ResolverDiagnostic> {
+            Err(ResolverDiagnostic::UnsupportedResolver {
+                uri: request.uri.clone(),
+                purpose: request.purpose,
+                direction: ResolveDirection::Read,
+            })
+        }
+
+        fn write(
+            &self,
+            request: &ResolveRequest,
+            bytes: &[u8],
+        ) -> Result<ResolvedWrite, ResolverDiagnostic> {
+            self.writes
+                .lock()
+                .unwrap()
+                .push((request.uri.clone(), bytes.to_vec()));
+            Ok(ResolvedWrite {
+                uri: request.uri.clone(),
+            })
+        }
+    }
 
     fn parse_cli(args: &[&str]) -> cli::Cli {
         cli::Cli::try_parse_from(std::iter::once("cem-ml").chain(args.iter().copied())).unwrap()
+    }
+
+    fn context_with_write_resolver(
+        purpose: ResolvePurpose,
+    ) -> (eng::EngineContext, Arc<Mutex<Vec<(String, Vec<u8>)>>>) {
+        let writes = Arc::new(Mutex::new(Vec::new()));
+        let mut resolver_registry = ResolverRegistry::new();
+        resolver_registry.register(
+            "cem+vfs",
+            purpose,
+            ResolveDirection::Write,
+            RecordingWriteResolver {
+                writes: writes.clone(),
+            },
+        );
+        (
+            eng::EngineContext {
+                resolver_registry,
+                ..eng::EngineContext::default()
+            },
+            writes,
+        )
     }
 
     fn run<E: CemMlEngine + ?Sized>(engine: &E, args: &[&str]) -> (Outcome, String, String) {
@@ -3478,8 +3559,8 @@ mod tests {
     }
 
     #[test]
-    fn local_file_uri_path_rejects_remote_or_custom_uri_schemes() {
-        let err = local_file_uri_path(
+    fn local_path_or_file_uri_rejects_remote_or_custom_uri_schemes() {
+        let err = local_path_or_file_uri(
             Path::new("https://example.test/out.json"),
             "output destination",
         )
@@ -3489,12 +3570,14 @@ mod tests {
             .to_string()
             .contains("remote/custom URI resolvers are not implemented"));
 
-        assert!(local_file_uri_path(Path::new("relative/out.json"), "output destination").is_ok());
+        assert!(
+            local_path_or_file_uri(Path::new("relative/out.json"), "output destination").is_ok()
+        );
     }
 
     #[test]
-    fn local_file_uri_path_rejects_non_local_file_uri_hosts() {
-        let err = local_file_uri_path(
+    fn local_path_or_file_uri_rejects_non_local_file_uri_hosts() {
+        let err = local_path_or_file_uri(
             Path::new("file://example.test/out.json"),
             "output destination",
         )
@@ -3504,6 +3587,50 @@ mod tests {
         assert!(err
             .to_string()
             .contains("only local file:// URIs are supported"));
+    }
+
+    #[test]
+    fn custom_uri_primary_output_uses_registered_write_resolver() {
+        let (context, writes) = context_with_write_resolver(ResolvePurpose::Output);
+        let mut stdout = Cursor::new(Vec::new());
+        let mut stderr = Cursor::new(Vec::new());
+        let mut streams = Streams {
+            stdout: &mut stdout,
+            stderr: &mut stderr,
+            quiet: false,
+        };
+
+        write_primary(
+            &context,
+            &serde_json::json!({"ok": true}),
+            Some(Path::new("cem+vfs://out/result.json")),
+            &mut streams,
+        )
+        .unwrap();
+
+        let writes = writes.lock().unwrap();
+        assert_eq!(writes.len(), 1);
+        assert_eq!(writes[0].0, "cem+vfs://out/result.json");
+        assert!(String::from_utf8_lossy(&writes[0].1).contains(r#""ok": true"#));
+    }
+
+    #[test]
+    fn custom_uri_report_destination_uses_registered_write_resolver() {
+        let (context, writes) = context_with_write_resolver(ResolvePurpose::Report);
+
+        write_destination(
+            &context,
+            Path::new("cem+vfs://reports/cem-ml.report.json"),
+            "report destination",
+            ResolvePurpose::Report,
+            br#"{"summary":{}}"#,
+        )
+        .unwrap();
+
+        let writes = writes.lock().unwrap();
+        assert_eq!(writes.len(), 1);
+        assert_eq!(writes[0].0, "cem+vfs://reports/cem-ml.report.json");
+        assert_eq!(writes[0].1, br#"{"summary":{}}"#);
     }
 
     #[test]
@@ -6287,13 +6414,13 @@ fn emit_observability_events(
         s.stdout.write_all(jsonl.as_bytes())?;
         s.stdout.flush()?;
     } else {
-        let target = local_file_uri_path(target, "observability event destination")?;
-        if let Some(parent) = target.parent() {
-            if !parent.as_os_str().is_empty() {
-                fs::create_dir_all(parent)?;
-            }
-        }
-        fs::write(target.as_ref(), jsonl.as_bytes())?;
+        write_destination(
+            &context,
+            target,
+            "observability event destination",
+            ResolvePurpose::ObserveEvents,
+            jsonl.as_bytes(),
+        )?;
     }
     Ok(())
 }

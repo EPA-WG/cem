@@ -79,9 +79,16 @@ for the current architecture have landed; only deferred capability work remains 
       module-map URI values now emit an explicit unsupported-resolver diagnostic; config document reads and configured,
       positional, and fixture-materialized input reads now reject remote/custom URI values; and CLI file-write paths now
       reject remote/custom URI destinations instead
-      of treating them as local paths. Keep this item open until real remote/custom module-map, input, and output
-      resolver semantics drive runtime
-      behavior, not just preservation, diagnostics, or explicit rejection.
+      of treating them as local paths. The next resolver implementation slice is now designed in
+      [`cem-ml-cli-contract.md` §Resolver Semantics](cem-ml-cli-contract.md#resolver-semantics) and
+      [`cem-ml-cli-plan.md` §Run Configuration Shape](cem-ml-cli-plan.md#run-configuration-shape). The shared
+      `cem_ml::resolver` request/response types, local path/local `file://` handling, `ResourceResolver`, and
+      `ResolverRegistry` now exist; `EngineContext` carries the registry; CLI/run-config/real-engine local URI parsing
+      uses that shared code; registered resolvers can now read custom module-map URIs and fixture/benchmark
+      materialized input URIs; and registered write resolvers can now handle primary output, side-report, and
+      observability destinations. Keep this item open until config-document reads, configured/positional input reads,
+      WASM callbacks, and opt-in CLI remote/custom resolver registration are implemented instead of relying on
+      deterministic diagnostics or explicit rejection.
 - [x] **Immediate goal: XSLT 1.0 lifecycle adapter.** Move the existing legacy custom-element XSLT 1.0 lowering
       (`cem_ml::legacy_custom_element`) behind the lifecycle adapter registry instead of the current one-off
       `convert --content-type custom-element-xslt` branch. `cem-ml validate --content-type custom-element-xslt <input>`

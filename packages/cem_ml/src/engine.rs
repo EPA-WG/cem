@@ -1,5 +1,6 @@
 use crate::diagnostics::Diagnostic;
 use crate::report::{Report, SchedulerTraceReport};
+use crate::resolver::ResolverRegistry;
 use crate::run_config::{SchedulerConfig, ScopeConfig};
 use serde::{Deserialize, Serialize};
 use serde_json::Value;
@@ -93,6 +94,7 @@ pub struct EngineContext {
     pub content_type: Option<String>,
     pub base_uri: Option<String>,
     pub scheduler: SchedulerConfig,
+    pub resolver_registry: ResolverRegistry,
 }
 
 #[derive(Debug, Clone, Default, PartialEq, Eq, Serialize, Deserialize)]
