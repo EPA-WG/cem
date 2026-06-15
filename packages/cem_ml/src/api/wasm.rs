@@ -7,6 +7,10 @@
 //! the event as a JSON string (the canonical wire form documented in
 //! `cem-ml-stack-design-impl.md` §3.12.1 and modelled by
 //! `packages/cem_ml/schema/observability/report-event.schema.json`).
+//! Resolver callbacks follow the same registration pattern through
+//! `onResolveRead` and `onResolveWrite`; [`JsResourceResolver`] adapts
+//! those callbacks to the shared `ResourceResolver` trait for Rust-side
+//! WASM entrypoints.
 //!
 //! ```js
 //! import init, { onParseEvent, offParseEvent } from "@epa-wg/cem-ml/wasm";
@@ -16,8 +20,13 @@
 //!   const event = JSON.parse(json);
 //!   console.log(event.channel, event.sequence, event.byteOffset);
 //! });
+//! onResolveRead((json) => {
+//!   const request = JSON.parse(json);
+//!   return { uri: request.uri, bytes: new TextEncoder().encode("<cem />") };
+//! });
 //! // later:
 //! offParseEvent();
+//! offResolveRead();
 //! ```
 //!
 //! The same adapter also exposes the bounded legacy custom-element
@@ -31,15 +40,21 @@
 
 use std::cell::RefCell;
 
-use js_sys::Function;
-use wasm_bindgen::prelude::*;
+use js_sys::{Array, ArrayBuffer, Function, Reflect, Uint8Array};
+use wasm_bindgen::{prelude::*, JsCast};
 
 use crate::observability::{EngineObserver, ReportEvent};
+use crate::resolver::{
+    ResolveDirection, ResolvePurpose, ResolveRequest, ResolvedRead, ResolvedWrite,
+    ResolverDiagnostic, ResolverRegistry, ResourceResolver,
+};
 
 thread_local! {
     static PARSE_OBSERVER: RefCell<Option<Function>> = const { RefCell::new(None) };
     static VALIDATE_OBSERVER: RefCell<Option<Function>> = const { RefCell::new(None) };
     static TRANSFORM_OBSERVER: RefCell<Option<Function>> = const { RefCell::new(None) };
+    static RESOLVER_READ: RefCell<Option<Function>> = const { RefCell::new(None) };
+    static RESOLVER_WRITE: RefCell<Option<Function>> = const { RefCell::new(None) };
 }
 
 #[wasm_bindgen(js_name = "onParseEvent")]
@@ -70,6 +85,26 @@ pub fn on_transform(callback: Function) {
 #[wasm_bindgen(js_name = "offTransform")]
 pub fn off_transform() {
     TRANSFORM_OBSERVER.with(|cell| *cell.borrow_mut() = None);
+}
+
+#[wasm_bindgen(js_name = "onResolveRead")]
+pub fn on_resolve_read(callback: Function) {
+    RESOLVER_READ.with(|cell| *cell.borrow_mut() = Some(callback));
+}
+
+#[wasm_bindgen(js_name = "offResolveRead")]
+pub fn off_resolve_read() {
+    RESOLVER_READ.with(|cell| *cell.borrow_mut() = None);
+}
+
+#[wasm_bindgen(js_name = "onResolveWrite")]
+pub fn on_resolve_write(callback: Function) {
+    RESOLVER_WRITE.with(|cell| *cell.borrow_mut() = Some(callback));
+}
+
+#[wasm_bindgen(js_name = "offResolveWrite")]
+pub fn off_resolve_write() {
+    RESOLVER_WRITE.with(|cell| *cell.borrow_mut() = None);
 }
 
 #[wasm_bindgen(js_name = "convertLegacyCustomElementTemplate")]
@@ -145,6 +180,249 @@ fn wasm_serialize_error(error: serde_json::Error) -> String {
         }
     })
     .to_string()
+}
+
+/// `ResourceResolver` adapter that forwards read/write requests to
+/// JavaScript callbacks registered with `onResolveRead` and
+/// `onResolveWrite`.
+///
+/// Rust-side WASM entrypoints can install this resolver into an
+/// `EngineContext` using [`resolver_registry_for_schemes`]. The JS read
+/// callback receives a request JSON string and returns either a string
+/// body or an object with `uri`, `bytes`, and optional `contentType`.
+/// `bytes` may be a string, `Uint8Array`, `ArrayBuffer`, or numeric array.
+/// The JS write callback receives request JSON plus a `Uint8Array` payload
+/// and returns nothing, a URI string, or an object with an optional `uri`.
+#[derive(Debug, Clone)]
+pub struct JsResourceResolver;
+
+impl ResourceResolver for JsResourceResolver {
+    fn read(&self, request: &ResolveRequest) -> Result<ResolvedRead, ResolverDiagnostic> {
+        let Some(callback) = RESOLVER_READ.with(|cell| cell.borrow().clone()) else {
+            return Err(unsupported(request));
+        };
+        let request_json = request_json(request)?;
+        let response = callback
+            .call1(&JsValue::NULL, &JsValue::from_str(&request_json))
+            .map_err(|error| js_io(request, error_message(&error)))?;
+        if response.is_null() || response.is_undefined() {
+            return Err(unsupported(request));
+        }
+        read_response(request, response)
+    }
+
+    fn write(
+        &self,
+        request: &ResolveRequest,
+        bytes: &[u8],
+    ) -> Result<ResolvedWrite, ResolverDiagnostic> {
+        let Some(callback) = RESOLVER_WRITE.with(|cell| cell.borrow().clone()) else {
+            return Err(unsupported(request));
+        };
+        let request_json = request_json(request)?;
+        let payload = Uint8Array::from(bytes);
+        let response = callback
+            .call2(
+                &JsValue::NULL,
+                &JsValue::from_str(&request_json),
+                payload.as_ref(),
+            )
+            .map_err(|error| js_io(request, error_message(&error)))?;
+        write_response(request, response)
+    }
+}
+
+pub fn resolver_registry_for_schemes(schemes: &[&str]) -> ResolverRegistry {
+    let mut registry = ResolverRegistry::new();
+    for scheme in schemes {
+        for purpose in RESOLVE_PURPOSES {
+            registry.register(*scheme, purpose, ResolveDirection::Read, JsResourceResolver);
+            registry.register(
+                *scheme,
+                purpose,
+                ResolveDirection::Write,
+                JsResourceResolver,
+            );
+        }
+    }
+    registry
+}
+
+pub fn context_with_resolver_schemes(schemes: &[&str]) -> crate::engine::EngineContext {
+    crate::engine::EngineContext {
+        resolver_registry: resolver_registry_for_schemes(schemes),
+        ..crate::engine::EngineContext::default()
+    }
+}
+
+const RESOLVE_PURPOSES: [ResolvePurpose; 6] = [
+    ResolvePurpose::Config,
+    ResolvePurpose::Input,
+    ResolvePurpose::ModuleMap,
+    ResolvePurpose::Output,
+    ResolvePurpose::Report,
+    ResolvePurpose::ObserveEvents,
+];
+
+#[derive(serde::Serialize)]
+#[serde(rename_all = "camelCase")]
+struct WasmResolveRequest<'a> {
+    uri: &'a str,
+    base_uri: Option<&'a str>,
+    purpose: &'static str,
+    direction: &'static str,
+    content_type_hint: Option<&'a str>,
+}
+
+fn request_json(request: &ResolveRequest) -> Result<String, ResolverDiagnostic> {
+    serde_json::to_string(&WasmResolveRequest {
+        uri: &request.uri,
+        base_uri: request.base_uri.as_deref(),
+        purpose: request.purpose.as_str(),
+        direction: request.direction.as_str(),
+        content_type_hint: request.content_type_hint.as_deref(),
+    })
+    .map_err(|error| js_io(request, error.to_string()))
+}
+
+fn read_response(
+    request: &ResolveRequest,
+    response: JsValue,
+) -> Result<ResolvedRead, ResolverDiagnostic> {
+    if let Some(text) = response.as_string() {
+        return Ok(ResolvedRead {
+            uri: request.uri.clone(),
+            bytes: text.into_bytes(),
+            content_type: None,
+        });
+    }
+    if let Some(message) = response_error(&response) {
+        return Err(js_io(request, message));
+    }
+
+    let uri =
+        optional_string_property(request, &response, "uri")?.unwrap_or_else(|| request.uri.clone());
+    let bytes_value = property(request, &response, "bytes")?;
+    if bytes_value.is_null() || bytes_value.is_undefined() {
+        return Err(js_io(
+            request,
+            "resolver read response must include bytes".to_owned(),
+        ));
+    }
+    let bytes = bytes_from_js(request, &bytes_value)?;
+    let content_type = optional_string_property(request, &response, "contentType")?;
+    Ok(ResolvedRead {
+        uri,
+        bytes,
+        content_type,
+    })
+}
+
+fn write_response(
+    request: &ResolveRequest,
+    response: JsValue,
+) -> Result<ResolvedWrite, ResolverDiagnostic> {
+    if response.is_null() || response.is_undefined() {
+        return Ok(ResolvedWrite {
+            uri: request.uri.clone(),
+        });
+    }
+    if let Some(uri) = response.as_string() {
+        return Ok(ResolvedWrite { uri });
+    }
+    if let Some(message) = response_error(&response) {
+        return Err(js_io(request, message));
+    }
+    Ok(ResolvedWrite {
+        uri: optional_string_property(request, &response, "uri")?
+            .unwrap_or_else(|| request.uri.clone()),
+    })
+}
+
+fn bytes_from_js(request: &ResolveRequest, value: &JsValue) -> Result<Vec<u8>, ResolverDiagnostic> {
+    if let Some(text) = value.as_string() {
+        return Ok(text.into_bytes());
+    }
+    if value.is_instance_of::<Uint8Array>()
+        || value.is_instance_of::<ArrayBuffer>()
+        || Array::is_array(value)
+    {
+        let array = Uint8Array::new(value);
+        let mut bytes = vec![0; array.length() as usize];
+        array.copy_to(&mut bytes);
+        return Ok(bytes);
+    }
+    Err(js_io(
+        request,
+        "resolver read response bytes must be a string, Uint8Array, ArrayBuffer, or number array"
+            .to_owned(),
+    ))
+}
+
+fn property(
+    request: &ResolveRequest,
+    value: &JsValue,
+    name: &str,
+) -> Result<JsValue, ResolverDiagnostic> {
+    Reflect::get(value, &JsValue::from_str(name)).map_err(|error| {
+        js_io(
+            request,
+            format!(
+                "resolver response property `{name}` could not be read: {}",
+                error_message(&error)
+            ),
+        )
+    })
+}
+
+fn optional_string_property(
+    request: &ResolveRequest,
+    value: &JsValue,
+    name: &str,
+) -> Result<Option<String>, ResolverDiagnostic> {
+    let property = property(request, value, name)?;
+    if property.is_null() || property.is_undefined() {
+        return Ok(None);
+    }
+    property.as_string().map(Some).ok_or_else(|| {
+        js_io(
+            request,
+            format!("resolver response property `{name}` must be a string"),
+        )
+    })
+}
+
+fn response_error(value: &JsValue) -> Option<String> {
+    let error = Reflect::get(value, &JsValue::from_str("error")).ok()?;
+    if error.is_null() || error.is_undefined() {
+        return None;
+    }
+    Some(error_message(&error))
+}
+
+fn unsupported(request: &ResolveRequest) -> ResolverDiagnostic {
+    ResolverDiagnostic::UnsupportedResolver {
+        uri: request.uri.clone(),
+        purpose: request.purpose,
+        direction: request.direction,
+    }
+}
+
+fn js_io(request: &ResolveRequest, message: String) -> ResolverDiagnostic {
+    ResolverDiagnostic::Io {
+        uri: request.uri.clone(),
+        message,
+    }
+}
+
+fn error_message(error: &JsValue) -> String {
+    if let Some(message) = error.as_string() {
+        return message;
+    }
+    js_sys::JSON::stringify(error)
+        .ok()
+        .and_then(|value| value.as_string())
+        .unwrap_or_else(|| "JavaScript resolver callback failed".to_owned())
 }
 
 /// `EngineObserver` adapter that forwards every event to whichever

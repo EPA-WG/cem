@@ -8,8 +8,9 @@
 //! AC mapping:
 //!
 //! - [`wasm`] exposes the AC-O-1 observer surface (`onParseEvent`,
-//!   `onValidate`, `onTransform`) to JS callers per AC-C-1 (browser /
-//!   Node parity with the Rust surface).
+//!   `onValidate`, `onTransform`) and callback-backed resolver surface
+//!   (`onResolveRead`, `onResolveWrite`) to JS callers per AC-C-1
+//!   (browser / Node parity with the Rust surface).
 
 #[cfg(target_arch = "wasm32")]
 pub mod wasm;

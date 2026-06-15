@@ -163,9 +163,11 @@ the immediate CLI lifecycle contract.
       config/output-spec destinations, side reports, and `--observe-events`. Default
       CLI context keeps rejecting remote/custom writes until a host or CLI option
       registers a resolver for that scheme, purpose, and direction.
-    - Add host adapters in layers: WASM callback resolver first, optional CLI remote or
-      custom-scheme resolver registration second. The default CLI behavior stays
-      local-only until a resolver is explicitly registered.
+    - Done: added WASM `onResolveRead` / `onResolveWrite` callback registration plus
+      `JsResourceResolver` and resolver-registry helpers for Rust-side WASM
+      entrypoints.
+    - Remaining: add optional CLI remote or custom-scheme resolver registration. The
+      default CLI behavior stays local-only until a resolver is explicitly registered.
     - Keep security policy explicit: resolver registration is per scheme and purpose;
       read permission does not imply write permission, and remote output writes are not
       enabled by default.

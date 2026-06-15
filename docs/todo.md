@@ -86,10 +86,10 @@ for the current architecture have landed; only deferred capability work remains 
       `ResolverRegistry` now exist; `EngineContext` carries the registry; CLI/run-config/real-engine local URI parsing
       uses that shared code; registered resolvers can now read custom config documents, configured/positional inputs,
       module-map URIs, fixture/benchmark materialized input URIs, and fixture placeholder materialization for
-      pre-engine observability/template diagnostics; and registered write resolvers can now handle primary output,
-      side-report, and observability destinations. Keep this item open until WASM callbacks and opt-in CLI
-      remote/custom resolver registration are implemented instead of relying on deterministic diagnostics or explicit
-      rejection.
+      pre-engine observability/template diagnostics; registered write resolvers can now handle primary output,
+      side-report, and observability destinations; and WASM hosts can register callback-backed read/write resolvers
+      through `onResolveRead` / `onResolveWrite`. Keep this item open until opt-in CLI remote/custom resolver
+      registration is implemented instead of relying on deterministic diagnostics or explicit rejection.
 - [x] **Immediate goal: XSLT 1.0 lifecycle adapter.** Move the existing legacy custom-element XSLT 1.0 lowering
       (`cem_ml::legacy_custom_element`) behind the lifecycle adapter registry instead of the current one-off
       `convert --content-type custom-element-xslt` branch. `cem-ml validate --content-type custom-element-xslt <input>`

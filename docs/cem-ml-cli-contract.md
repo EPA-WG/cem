@@ -200,7 +200,8 @@ implementations:
 
 - Rust hosts pass a resolver registry into execution context.
 - WASM hosts expose callback-backed read/write resolvers for browser, worker, or Node
-  embedding.
+  embedding through `onResolveRead` and `onResolveWrite`; Rust-side WASM entrypoints
+  install `JsResourceResolver` into the execution context for selected URI schemes.
 - The CLI installs the local filesystem resolver by default and can later install
   opt-in remote or custom-scheme resolvers. It must not silently fetch network resources
   or write remote destinations without an explicit registered resolver.
