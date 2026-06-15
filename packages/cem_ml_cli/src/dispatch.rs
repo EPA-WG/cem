@@ -315,6 +315,34 @@ fn engine_input_from_spec(
     })
 }
 
+fn template_input(
+    context: &eng::EngineContext,
+    path: &Path,
+    root_scope: ScopeConfig,
+) -> Result<eng::TemplateInput, EngineError> {
+    let mut root_scope = root_scope;
+    let read = read_source(
+        context,
+        path,
+        "template URI",
+        ResolvePurpose::Input,
+        root_scope.default_content_type.as_deref(),
+    )
+    .map_err(|e| EngineError::Io {
+        path: path.to_path_buf(),
+        source: e,
+    })?;
+    if root_scope.default_content_type.is_none() {
+        root_scope.default_content_type = read.content_type.clone();
+    }
+    Ok(eng::TemplateInput {
+        uri: path.display().to_string(),
+        bytes: read.bytes,
+        identity: root_scope.format_identity_option(),
+        root_scope,
+    })
+}
+
 fn run_config_with_context(
     context: &eng::EngineContext,
     options: &cli::RunOptions,
@@ -844,6 +872,57 @@ fn convert_target_identity_with_config(
 
 fn convert_target_scope(args: &cli::ConvertArgs) -> ScopeConfig {
     output_scope_defaults(args)
+}
+
+fn transform_data_scope(args: &cli::TransformArgs) -> ScopeConfig {
+    ScopeConfig {
+        default_content_type: args
+            .data_content_type
+            .clone()
+            .or_else(|| run_config::infer_content_type_from_path(&args.data.display().to_string())),
+        schema: args.data_schema.clone(),
+        ..ScopeConfig::default()
+    }
+}
+
+fn transform_template_scope(args: &cli::TransformArgs) -> ScopeConfig {
+    ScopeConfig {
+        default_content_type: args.template_content_type.clone().or_else(|| {
+            run_config::infer_content_type_from_path(&args.template.display().to_string())
+        }),
+        schema: args.template_schema.clone(),
+        ..ScopeConfig::default()
+    }
+}
+
+fn transform_target_scope(args: &cli::TransformArgs) -> ScopeConfig {
+    ScopeConfig {
+        default_content_type: args.to_content_type.clone(),
+        schema: args.to_schema.clone(),
+        ..ScopeConfig::default()
+    }
+}
+
+// Reserved transform dispatch does not call this until runtime support is enabled.
+#[allow(dead_code)]
+fn transform_request_from_args(
+    context: &eng::EngineContext,
+    args: &cli::TransformArgs,
+) -> Result<eng::TransformRequest, CliRequestError> {
+    let data = engine_input(context, &args.data, None, transform_data_scope(args))
+        .map_err(CliRequestError::Engine)?;
+    let template = template_input(context, &args.template, transform_template_scope(args))
+        .map_err(CliRequestError::Engine)?;
+    let target_scope = transform_target_scope(args);
+    Ok(eng::TransformRequest {
+        data,
+        template,
+        preserve_source_offsets: false,
+        context: context.clone(),
+        target: target_scope.format_identity_option(),
+        target_scope,
+        scheduler_scope_ids: eng::TransformSchedulerScopeIds::default(),
+    })
 }
 
 fn convert_target_scope_with_config(args: &cli::ConvertArgs, config: &RunConfig) -> ScopeConfig {
@@ -2373,6 +2452,143 @@ mod tests {
         assert_eq!(outcome.exit_code, EXIT_USAGE_OR_RESERVED);
         assert!(stderr.contains("reserved"));
         assert!(stderr.contains("not yet implemented"));
+    }
+
+    #[test]
+    fn transform_request_helper_reads_data_template_and_sets_identities() {
+        let data = write_fixture("transform-helper-data.xml", "<items/>");
+        let template = write_fixture(
+            "transform-helper-view.xsl",
+            r#"<xsl:stylesheet version="1.0"/>"#,
+        );
+        let parsed = parse_cli(&[
+            "transform",
+            data.to_str().unwrap(),
+            "--data-content-type",
+            "application/xml",
+            "--template",
+            template.to_str().unwrap(),
+            "--template-content-type",
+            "application/xslt+xml",
+            "--to-content-type",
+            "text/html",
+            "--out",
+            "view.html",
+        ]);
+        let cli::Command::Transform(args) = parsed.command else {
+            panic!("expected transform command");
+        };
+
+        let request = match transform_request_from_args(&eng::EngineContext::default(), &args) {
+            Ok(request) => request,
+            Err(_) => panic!("transform request helper should succeed"),
+        };
+
+        assert_eq!(request.data.bytes, b"<items/>");
+        assert_eq!(
+            request.template.bytes,
+            br#"<xsl:stylesheet version="1.0"/>"#
+        );
+        assert_eq!(
+            request
+                .data
+                .identity
+                .as_ref()
+                .and_then(|identity| identity.content_type.as_deref()),
+            Some("application/xml")
+        );
+        assert_eq!(
+            request
+                .template
+                .identity
+                .as_ref()
+                .and_then(|identity| identity.content_type.as_deref()),
+            Some("application/xslt+xml")
+        );
+        assert_eq!(
+            request
+                .target
+                .as_ref()
+                .and_then(|identity| identity.content_type.as_deref()),
+            Some("text/html")
+        );
+    }
+
+    #[test]
+    fn transform_request_helper_reads_custom_template_with_registered_resolver() {
+        let data = write_fixture("transform-helper-custom-template-data.xml", "<items/>");
+        let template_uri = "cem+vfs://workspace/view.xsl";
+        let context = context_with_read_resolver(
+            ResolvePurpose::Input,
+            StaticReadResolver {
+                uri: template_uri,
+                bytes: br#"<xsl:stylesheet version="1.0"/>"#,
+                content_type: Some("application/xslt+xml"),
+            },
+        );
+        let parsed = parse_cli(&[
+            "transform",
+            data.to_str().unwrap(),
+            "--data-content-type",
+            "application/xml",
+            "--template",
+            template_uri,
+            "--to-content-type",
+            "text/html",
+            "--out",
+            "view.html",
+        ]);
+        let cli::Command::Transform(args) = parsed.command else {
+            panic!("expected transform command");
+        };
+
+        let request = match transform_request_from_args(&context, &args) {
+            Ok(request) => request,
+            Err(_) => panic!("transform request helper should read registered template"),
+        };
+
+        assert_eq!(request.template.uri, template_uri);
+        assert_eq!(
+            request.template.bytes,
+            br#"<xsl:stylesheet version="1.0"/>"#
+        );
+        assert_eq!(
+            request.template.root_scope.default_content_type.as_deref(),
+            Some("application/xslt+xml")
+        );
+    }
+
+    #[test]
+    fn transform_request_helper_rejects_remote_template_without_resolver() {
+        let data = write_fixture("transform-helper-remote-template-data.xml", "<items/>");
+        let template_uri = "https://example.test/view.xsl";
+        let parsed = parse_cli(&[
+            "transform",
+            data.to_str().unwrap(),
+            "--data-content-type",
+            "application/xml",
+            "--template",
+            template_uri,
+            "--to-content-type",
+            "text/html",
+            "--out",
+            "view.html",
+        ]);
+        let cli::Command::Transform(args) = parsed.command else {
+            panic!("expected transform command");
+        };
+
+        let err = transform_request_from_args(&eng::EngineContext::default(), &args)
+            .err()
+            .expect("remote template should be rejected without resolver");
+
+        let CliRequestError::Engine(EngineError::Io { path, source }) = err else {
+            panic!("expected engine I/O error for remote template");
+        };
+        assert_eq!(path, PathBuf::from(template_uri));
+        let message = source.to_string();
+        assert!(message.contains("remote/custom URI resolvers are not implemented"));
+        assert!(message.contains(template_uri));
     }
 
     #[test]
