@@ -20,6 +20,8 @@ pub struct RunConfig {
     #[serde(default)]
     pub outputs: Vec<OutputSpec>,
     #[serde(default)]
+    pub resolvers: Vec<ResolverSpec>,
+    #[serde(default)]
     pub scheduler: SchedulerConfig,
 }
 
@@ -40,6 +42,17 @@ pub struct OutputSpec {
     pub destination: Option<String>,
     #[serde(default)]
     pub root_scope: ScopeConfig,
+}
+
+#[derive(Debug, Clone, Default, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct ResolverSpec {
+    pub uri_prefix: String,
+    pub local_root: String,
+    #[serde(default)]
+    pub read: bool,
+    #[serde(default)]
+    pub write: bool,
 }
 
 #[derive(Debug, Clone, Default, PartialEq, Eq, Serialize, Deserialize)]
@@ -793,7 +806,7 @@ mod tests {
     #[test]
     fn json_run_config_parses_by_content_type() {
         let response = parse_run_config(RunConfigParseRequest {
-            bytes: br#"{"inputs":[{"uri":"src/a.cem","rootScope":{"defaultContentType":"application/cem+xml"}}]}"#.to_vec(),
+            bytes: br#"{"resolvers":[{"uriPrefix":"cem+vfs://workspace","localRoot":"/tmp/cem-vfs","read":true}],"inputs":[{"uri":"src/a.cem","rootScope":{"defaultContentType":"application/cem+xml"}}]}"#.to_vec(),
             identity: FormatIdentity {
                 content_type: Some("application/json; charset=utf-8".to_owned()),
                 ..FormatIdentity::default()
@@ -811,6 +824,13 @@ mod tests {
                 .as_deref(),
             Some("application/cem+xml")
         );
+        assert_eq!(response.config.resolvers.len(), 1);
+        assert_eq!(
+            response.config.resolvers[0].uri_prefix,
+            "cem+vfs://workspace"
+        );
+        assert!(response.config.resolvers[0].read);
+        assert!(!response.config.resolvers[0].write);
         assert!(response.diagnostics.is_empty());
     }
 
@@ -835,6 +855,7 @@ mod tests {
                     destination: Some("dist/a.cem".to_owned()),
                     ..OutputSpec::default()
                 }],
+                resolvers: Vec::new(),
                 scheduler: SchedulerConfig::default(),
             },
             RunConfigDefaults {
@@ -905,6 +926,7 @@ mod tests {
                     },
                     ..OutputSpec::default()
                 }],
+                resolvers: Vec::new(),
                 scheduler: SchedulerConfig::default(),
             },
             RunConfigDefaults::default(),

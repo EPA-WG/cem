@@ -130,11 +130,13 @@ the immediate CLI lifecycle contract.
    targets emit deterministic execution diagnostics instead of being silently ignored.
    Remote/custom module-map URI values, config document reads, configured and
    positional input reads, and fixture-materialized input reads use registered
-   `EngineContext` resolvers when a host installs one; default CLI behavior still emits
-   explicit unsupported-resolver diagnostics or rejections. Primary output,
-   side-report, and observability event writes use registered write resolvers when a
-   host installs one; default CLI behavior still rejects remote/custom destinations
-   instead of treating them as local paths.
+   `EngineContext` resolvers when a host installs one. Default CLI behavior stays
+   local-only, while `--resolver-read-map URI-PREFIX=DIR`, `--resolver-write-map
+   URI-PREFIX=DIR`, and run-config `resolvers` entries explicitly map remote/custom
+   URI prefixes to local filesystem roots. Primary output, side-report, and
+   observability event writes use registered write resolvers when a host installs one;
+   default CLI behavior still rejects remote/custom destinations instead of treating
+   them as local paths unless a write map is registered.
 
    **Resolver implementation plan:** URI handling is being promoted into the shared
    `cem_ml::resolver` boundary instead of command-specific path checks.
@@ -166,8 +168,10 @@ the immediate CLI lifecycle contract.
     - Done: added WASM `onResolveRead` / `onResolveWrite` callback registration plus
       `JsResourceResolver` and resolver-registry helpers for Rust-side WASM
       entrypoints.
-    - Remaining: add optional CLI remote or custom-scheme resolver registration. The
-      default CLI behavior stays local-only until a resolver is explicitly registered.
+    - Done: added optional CLI local mirror resolver registration through
+      `--resolver-read-map`, `--resolver-write-map`, and run-config `resolvers`
+      entries. The default CLI behavior stays local-only until a resolver is explicitly
+      registered.
     - Keep security policy explicit: resolver registration is per scheme and purpose;
       read permission does not imply write permission, and remote output writes are not
       enabled by default.

@@ -10,10 +10,13 @@ use crate::template_pass;
 use cem_ml::engine::{self as eng, CemMlEngine, EngineError};
 use cem_ml::resolver::{
     is_windows_drive_path, local_file_uri_to_path, local_path_or_file_uri, uri_scheme,
-    ResolveDirection, ResolvePurpose, ResolveRequest, ResolvedRead, ResolverDiagnostic,
+    ResolveDirection, ResolvePurpose, ResolveRequest, ResolvedRead, ResolvedWrite,
+    ResolverDiagnostic, ResolverRegistry, ResourceResolver,
 };
-use cem_ml::run_config::{self, InputSpec, OutputSpec, RunConfig, RunConfigDefaults, ScopeConfig};
-use std::collections::BTreeMap;
+use cem_ml::run_config::{
+    self, InputSpec, OutputSpec, ResolverSpec, RunConfig, RunConfigDefaults, ScopeConfig,
+};
+use std::collections::{BTreeMap, BTreeSet};
 use std::fs;
 use std::io::{self, Write};
 use std::path::{Path, PathBuf};
@@ -47,10 +50,125 @@ pub struct Streams<'a> {
 enum CliRequestError {
     Usage(String),
     RunConfigDiagnostics {
-        config: Option<RunConfig>,
+        config: Option<Box<RunConfig>>,
         diagnostics: Vec<cem_ml::diagnostics::Diagnostic>,
     },
     Engine(EngineError),
+}
+
+const READ_PURPOSES: [ResolvePurpose; 3] = [
+    ResolvePurpose::Config,
+    ResolvePurpose::Input,
+    ResolvePurpose::ModuleMap,
+];
+
+const WRITE_PURPOSES: [ResolvePurpose; 3] = [
+    ResolvePurpose::Output,
+    ResolvePurpose::Report,
+    ResolvePurpose::ObserveEvents,
+];
+
+#[derive(Debug, Clone)]
+struct LocalMirrorMapping {
+    uri_prefix: String,
+    local_root: PathBuf,
+}
+
+#[derive(Debug, Clone)]
+struct LocalMirrorResolver {
+    mappings: Vec<LocalMirrorMapping>,
+}
+
+impl LocalMirrorResolver {
+    fn new(mappings: Vec<LocalMirrorMapping>) -> Self {
+        let mut mappings = mappings;
+        mappings.sort_by_key(|mapping| std::cmp::Reverse(mapping.uri_prefix.len()));
+        Self { mappings }
+    }
+
+    fn schemes(&self) -> BTreeSet<String> {
+        self.mappings
+            .iter()
+            .filter_map(|mapping| uri_scheme(&mapping.uri_prefix).map(str::to_owned))
+            .collect()
+    }
+
+    fn local_path(&self, request: &ResolveRequest) -> Result<PathBuf, ResolverDiagnostic> {
+        let Some(mapping) = self
+            .mappings
+            .iter()
+            .find(|mapping| request.uri.starts_with(&mapping.uri_prefix))
+        else {
+            return Err(ResolverDiagnostic::UnsupportedResolver {
+                uri: request.uri.clone(),
+                purpose: request.purpose,
+                direction: request.direction,
+            });
+        };
+        let suffix = request
+            .uri
+            .strip_prefix(&mapping.uri_prefix)
+            .unwrap_or_default()
+            .trim_start_matches('/');
+        local_mirror_path(&mapping.local_root, suffix).map_err(|message| ResolverDiagnostic::Io {
+            uri: request.uri.clone(),
+            message,
+        })
+    }
+}
+
+impl ResourceResolver for LocalMirrorResolver {
+    fn read(&self, request: &ResolveRequest) -> Result<ResolvedRead, ResolverDiagnostic> {
+        let path = self.local_path(request)?;
+        fs::read(&path)
+            .map(|bytes| ResolvedRead {
+                uri: request.uri.clone(),
+                bytes,
+                content_type: request.content_type_hint.clone(),
+            })
+            .map_err(|error| ResolverDiagnostic::Io {
+                uri: request.uri.clone(),
+                message: error.to_string(),
+            })
+    }
+
+    fn write(
+        &self,
+        request: &ResolveRequest,
+        bytes: &[u8],
+    ) -> Result<ResolvedWrite, ResolverDiagnostic> {
+        let path = self.local_path(request)?;
+        if let Some(parent) = path.parent() {
+            fs::create_dir_all(parent).map_err(|error| ResolverDiagnostic::Io {
+                uri: request.uri.clone(),
+                message: error.to_string(),
+            })?;
+        }
+        fs::write(&path, bytes).map_err(|error| ResolverDiagnostic::Io {
+            uri: request.uri.clone(),
+            message: error.to_string(),
+        })?;
+        Ok(ResolvedWrite {
+            uri: request.uri.clone(),
+        })
+    }
+}
+
+fn local_mirror_path(root: &Path, suffix: &str) -> Result<PathBuf, String> {
+    if suffix.contains('?') || suffix.contains('#') || suffix.contains('\\') {
+        return Err("resolver URI suffix contains unsupported path characters".to_owned());
+    }
+    let mut path = root.to_path_buf();
+    for segment in suffix.split('/') {
+        if segment.is_empty() || segment == "." {
+            continue;
+        }
+        if segment == ".." {
+            return Err("resolver URI suffix must not escape the local root".to_owned());
+        }
+        path.push(segment);
+    }
+    Ok(path)
 }
 
 fn read_source(
@@ -197,13 +315,6 @@ fn engine_input_from_spec(
     })
 }
 
-fn run_config(
-    options: &cli::RunOptions,
-    defaults: RunConfigDefaults,
-) -> Result<RunConfig, CliRequestError> {
-    run_config_with_context(&eng::EngineContext::default(), options, defaults)
-}
-
 fn run_config_with_context(
     context: &eng::EngineContext,
     options: &cli::RunOptions,
@@ -282,7 +393,7 @@ fn run_config_with_context(
         Ok(response.config)
     } else {
         Err(CliRequestError::RunConfigDiagnostics {
-            config: Some(response.config),
+            config: Some(Box::new(response.config)),
             diagnostics: response.diagnostics,
         })
     }
@@ -546,20 +657,103 @@ fn to_engine_bench_profile(p: cli::BenchProfile) -> eng::BenchProfile {
 }
 
 fn context(c: &cli::ContextOptions) -> eng::EngineContext {
-    eng::EngineContext {
+    let mut context = eng::EngineContext {
         schema: c.schema.clone(),
         content_type: c.content_type.clone(),
         base_uri: c.base_uri.clone(),
         scheduler: Default::default(),
         resolver_registry: Default::default(),
-    }
+    };
+    register_cli_resolvers(&mut context.resolver_registry, c, None);
+    context
 }
 
 fn context_with_config(c: &cli::ContextOptions, config: &RunConfig) -> eng::EngineContext {
-    eng::EngineContext {
+    let mut context = eng::EngineContext {
         scheduler: config.scheduler.clone(),
         ..context(c)
+    };
+    register_cli_resolvers(&mut context.resolver_registry, c, Some(config));
+    context
+}
+
+fn register_cli_resolvers(
+    registry: &mut ResolverRegistry,
+    c: &cli::ContextOptions,
+    config: Option<&RunConfig>,
+) {
+    let mut read_mappings = c
+        .resolver_read_maps
+        .iter()
+        .map(mapping_from_cli)
+        .collect::<Vec<_>>();
+    let mut write_mappings = c
+        .resolver_write_maps
+        .iter()
+        .map(mapping_from_cli)
+        .collect::<Vec<_>>();
+    if let Some(config) = config {
+        for spec in &config.resolvers {
+            if spec.read {
+                read_mappings.push(mapping_from_spec(spec));
+            }
+            if spec.write {
+                write_mappings.push(mapping_from_spec(spec));
+            }
+        }
     }
+    register_resolver_mappings(
+        registry,
+        read_mappings,
+        ResolveDirection::Read,
+        &READ_PURPOSES,
+    );
+    register_resolver_mappings(
+        registry,
+        write_mappings,
+        ResolveDirection::Write,
+        &WRITE_PURPOSES,
+    );
+}
+
+fn register_resolver_mappings(
+    registry: &mut ResolverRegistry,
+    mappings: Vec<LocalMirrorMapping>,
+    direction: ResolveDirection,
+    purposes: &[ResolvePurpose],
+) {
+    if mappings.is_empty() {
+        return;
+    }
+    let resolver = LocalMirrorResolver::new(mappings);
+    for scheme in resolver.schemes() {
+        for purpose in purposes {
+            registry.register(scheme.clone(), *purpose, direction, resolver.clone());
+        }
+    }
+}
+
+fn mapping_from_cli(mapping: &cli::ResolverMap) -> LocalMirrorMapping {
+    LocalMirrorMapping {
+        uri_prefix: mapping.uri_prefix.clone(),
+        local_root: mapping.local_root.clone(),
+    }
+}
+
+fn mapping_from_spec(spec: &ResolverSpec) -> LocalMirrorMapping {
+    LocalMirrorMapping {
+        uri_prefix: spec.uri_prefix.clone(),
+        local_root: PathBuf::from(&spec.local_root),
+    }
+}
+
+fn run_config_for_context(
+    context_options: &cli::ContextOptions,
+    options: &cli::RunOptions,
+    defaults: RunConfigDefaults,
+) -> Result<RunConfig, CliRequestError> {
+    let engine_context = context(context_options);
+    run_config_with_context(&engine_context, options, defaults)
 }
 
 fn input_scope_defaults(c: &cli::ContextOptions) -> ScopeConfig {
@@ -1202,14 +1396,17 @@ fn report_options_snapshot(
     }
 }
 
-fn run_config_diagnostic_inputs(config: Option<RunConfig>) -> Vec<String> {
+fn run_config_diagnostic_inputs(config: Option<Box<RunConfig>>) -> Vec<String> {
     config
-        .map(|config| config.inputs.into_iter().map(|input| input.uri).collect())
+        .map(|config| {
+            let config = *config;
+            config.inputs.into_iter().map(|input| input.uri).collect()
+        })
         .unwrap_or_default()
 }
 
 fn handle_run_config_diagnostics_report(
-    config: Option<RunConfig>,
+    config: Option<Box<RunConfig>>,
     diagnostics: Vec<cem_ml::diagnostics::Diagnostic>,
     fail_level: cli::FailLevel,
     context: &cli::ContextOptions,
@@ -1224,13 +1421,7 @@ fn handle_run_config_diagnostics_report(
         diagnostics,
         report_options_snapshot(fail_level, context),
     );
-    let engine_context = eng::EngineContext {
-        schema: context.schema.clone(),
-        content_type: context.content_type.clone(),
-        base_uri: context.base_uri.clone(),
-        scheduler: Default::default(),
-        resolver_registry: Default::default(),
-    };
+    let engine_context = self::context(context);
     if let Err(e) = write_report_files(&engine_context, &report, report_opts, basename) {
         let _ = writeln!(s.stderr, "cem-ml: report write failure: {e}");
         return Outcome::code(EXIT_IO);
@@ -1311,7 +1502,8 @@ pub fn run_parse<E: CemMlEngine + ?Sized>(
     s: &mut Streams<'_>,
 ) -> Outcome {
     let input_defaults = input_scope_defaults(&args.context);
-    let config = match run_config(
+    let config = match run_config_for_context(
+        &args.context,
         &args.run,
         run_defaults(input_defaults.clone(), ScopeConfig::default()),
     ) {
@@ -1392,7 +1584,8 @@ pub fn run_validate<E: CemMlEngine + ?Sized>(
     s: &mut Streams<'_>,
 ) -> Outcome {
     let input_defaults = input_scope_defaults(&args.context);
-    let config = match run_config(
+    let config = match run_config_for_context(
+        &args.context,
         &args.run,
         run_defaults(input_defaults.clone(), ScopeConfig::default()),
     ) {
@@ -1469,7 +1662,8 @@ pub fn run_check<E: CemMlEngine + ?Sized>(
     s: &mut Streams<'_>,
 ) -> Outcome {
     let input_defaults = input_scope_defaults(&args.context);
-    let config = match run_config(
+    let config = match run_config_for_context(
+        &args.context,
         &args.run,
         run_defaults(input_defaults.clone(), ScopeConfig::default()),
     ) {
@@ -1551,7 +1745,8 @@ pub fn run_inspect<E: CemMlEngine + ?Sized>(
     s: &mut Streams<'_>,
 ) -> Outcome {
     let input_defaults = input_scope_defaults(&args.context);
-    let config = match run_config(
+    let config = match run_config_for_context(
+        &args.context,
         &args.run,
         run_defaults(input_defaults.clone(), ScopeConfig::default()),
     ) {
@@ -1593,7 +1788,8 @@ pub fn run_convert<E: CemMlEngine + ?Sized>(
 ) -> Outcome {
     let input_defaults = input_scope_defaults(&args.context);
     let output_defaults = output_scope_defaults(&args);
-    let config = match run_config(
+    let config = match run_config_for_context(
+        &args.context,
         &args.run,
         run_defaults(input_defaults.clone(), output_defaults),
     ) {
@@ -1668,7 +1864,8 @@ pub fn run_trace<E: CemMlEngine + ?Sized>(
     s: &mut Streams<'_>,
 ) -> Outcome {
     let input_defaults = input_scope_defaults(&args.context);
-    let config = match run_config(
+    let config = match run_config_for_context(
+        &args.context,
         &args.run,
         run_defaults(input_defaults.clone(), ScopeConfig::default()),
     ) {
@@ -1709,7 +1906,8 @@ pub fn run_bench<E: CemMlEngine + ?Sized>(
     s: &mut Streams<'_>,
 ) -> Outcome {
     let input_defaults = input_scope_defaults(&args.context);
-    let config = match run_config(
+    let config = match run_config_for_context(
+        &args.context,
         &args.run,
         run_defaults(input_defaults.clone(), ScopeConfig::default()),
     ) {
@@ -1783,7 +1981,8 @@ pub fn run_fixture_validate<E: CemMlEngine + ?Sized>(
     s: &mut Streams<'_>,
 ) -> Outcome {
     let input_defaults = input_scope_defaults(&args.context);
-    let config = match run_config(
+    let config = match run_config_for_context(
+        &args.context,
         &args.run,
         run_defaults(input_defaults.clone(), ScopeConfig::default()),
     ) {
@@ -1858,7 +2057,8 @@ pub fn run_fixture_roundtrip<E: CemMlEngine + ?Sized>(
     s: &mut Streams<'_>,
 ) -> Outcome {
     let input_defaults = input_scope_defaults(&args.context);
-    let config = match run_config(
+    let config = match run_config_for_context(
+        &args.context,
         &args.run,
         run_defaults(input_defaults.clone(), ScopeConfig::default()),
     ) {
@@ -3854,6 +4054,103 @@ mod tests {
 
         assert_eq!(config.inputs.len(), 1);
         assert_eq!(config.inputs[0].uri, "local.cem");
+    }
+
+    #[test]
+    fn resolver_read_map_loads_custom_config_and_input() {
+        let root = std::env::temp_dir().join("cem-ml-cli-tests/resolver-read-map");
+        std::fs::create_dir_all(&root).unwrap();
+        std::fs::write(root.join("input.cem"), "{p | Loaded}").unwrap();
+        std::fs::write(
+            root.join("run.json"),
+            serde_json::json!({
+                "inputs": [{
+                    "uri": "cem+vfs://workspace/input.cem"
+                }]
+            })
+            .to_string(),
+        )
+        .unwrap();
+
+        let map = format!("cem+vfs://workspace={}", root.display());
+        let (outcome, stdout, stderr) = run(
+            &FakeEngine,
+            &[
+                "validate",
+                "--format",
+                "json",
+                "--resolver-read-map",
+                &map,
+                "--config",
+                "cem+vfs://workspace/run.json",
+            ],
+        );
+
+        assert_eq!(outcome.exit_code, EXIT_OK, "{stderr}");
+        assert!(stderr.trim().is_empty());
+        assert!(stdout.contains("cem+vfs://workspace/input.cem"));
+    }
+
+    #[test]
+    fn run_config_resolver_spec_loads_custom_input() {
+        let root = std::env::temp_dir().join("cem-ml-cli-tests/config-resolver-read-map");
+        std::fs::create_dir_all(&root).unwrap();
+        std::fs::write(root.join("input.cem"), "{p | Loaded}").unwrap();
+        let config_path = write_fixture(
+            "config-resolver-read-map.json",
+            &serde_json::json!({
+                "resolvers": [{
+                    "uriPrefix": "cem+vfs://workspace",
+                    "localRoot": root.display().to_string(),
+                    "read": true
+                }],
+                "inputs": [{
+                    "uri": "cem+vfs://workspace/input.cem"
+                }]
+            })
+            .to_string(),
+        );
+
+        let (outcome, stdout, stderr) = run(
+            &FakeEngine,
+            &[
+                "validate",
+                "--format",
+                "json",
+                "--config",
+                config_path.to_str().unwrap(),
+            ],
+        );
+
+        assert_eq!(outcome.exit_code, EXIT_OK, "{stderr}");
+        assert!(stderr.trim().is_empty());
+        assert!(stdout.contains("cem+vfs://workspace/input.cem"));
+    }
+
+    #[test]
+    fn resolver_write_map_writes_custom_primary_output() {
+        let input = write_fixture("resolver-write-map-input.cem", "{p | Loaded}");
+        let root = std::env::temp_dir().join("cem-ml-cli-tests/resolver-write-map");
+        let out_path = root.join("out/result.json");
+        let _ = std::fs::remove_file(&out_path);
+        let map = format!("cem+vfs://workspace={}", root.display());
+
+        let (outcome, stdout, stderr) = run(
+            &FakeEngine,
+            &[
+                "parse",
+                "--resolver-write-map",
+                &map,
+                "--out",
+                "cem+vfs://workspace/out/result.json",
+                input.to_str().unwrap(),
+            ],
+        );
+
+        assert_eq!(outcome.exit_code, EXIT_OK, "{stderr}");
+        assert!(stdout.trim().is_empty());
+        let written = std::fs::read_to_string(out_path).unwrap();
+        assert!(written.contains(r#""kind": "fake-parse""#));
     }
 
     #[test]
@@ -6509,7 +6806,8 @@ fn observable_inputs(
     match command {
         cli::Command::Parse(a) => {
             let input_defaults = input_scope_defaults(&a.context);
-            let config = run_config(
+            let config = run_config_for_context(
+                &a.context,
                 &a.run,
                 run_defaults(input_defaults.clone(), ScopeConfig::default()),
             )?;
@@ -6525,7 +6823,8 @@ fn observable_inputs(
         }
         cli::Command::Validate(a) => {
             let input_defaults = input_scope_defaults(&a.context);
-            let config = run_config(
+            let config = run_config_for_context(
+                &a.context,
                 &a.run,
                 run_defaults(input_defaults.clone(), ScopeConfig::default()),
             )?;
@@ -6541,7 +6840,8 @@ fn observable_inputs(
         }
         cli::Command::Check(a) => {
             let input_defaults = input_scope_defaults(&a.context);
-            let config = run_config(
+            let config = run_config_for_context(
+                &a.context,
                 &a.run,
                 run_defaults(input_defaults.clone(), ScopeConfig::default()),
             )?;
@@ -6557,7 +6857,8 @@ fn observable_inputs(
         }
         cli::Command::Inspect(a) => {
             let input_defaults = input_scope_defaults(&a.context);
-            let config = run_config(
+            let config = run_config_for_context(
+                &a.context,
                 &a.run,
                 run_defaults(input_defaults.clone(), ScopeConfig::default()),
             )?;
@@ -6574,7 +6875,8 @@ fn observable_inputs(
         cli::Command::Convert(a) => {
             let input_defaults = input_scope_defaults(&a.context);
             let output_defaults = output_scope_defaults(a);
-            let config = run_config(
+            let config = run_config_for_context(
+                &a.context,
                 &a.run,
                 run_defaults(input_defaults.clone(), output_defaults),
             )?;
@@ -6590,7 +6892,8 @@ fn observable_inputs(
         }
         cli::Command::Trace(a) => {
             let input_defaults = input_scope_defaults(&a.context);
-            let config = run_config(
+            let config = run_config_for_context(
+                &a.context,
                 &a.run,
                 run_defaults(input_defaults.clone(), ScopeConfig::default()),
             )?;
@@ -6606,7 +6909,8 @@ fn observable_inputs(
         }
         cli::Command::Bench(a) => {
             let input_defaults = input_scope_defaults(&a.context);
-            let config = run_config(
+            let config = run_config_for_context(
+                &a.context,
                 &a.run,
                 run_defaults(input_defaults.clone(), ScopeConfig::default()),
             )?;
@@ -6617,7 +6921,8 @@ fn observable_inputs(
         }
         cli::Command::Fixture(cli::FixtureCmd::Validate(a)) => {
             let input_defaults = input_scope_defaults(&a.context);
-            let config = run_config(
+            let config = run_config_for_context(
+                &a.context,
                 &a.run,
                 run_defaults(input_defaults.clone(), ScopeConfig::default()),
             )?;
@@ -6631,7 +6936,8 @@ fn observable_inputs(
         }
         cli::Command::Fixture(cli::FixtureCmd::Roundtrip(a)) => {
             let input_defaults = input_scope_defaults(&a.context);
-            let config = run_config(
+            let config = run_config_for_context(
+                &a.context,
                 &a.run,
                 run_defaults(input_defaults.clone(), ScopeConfig::default()),
             )?;

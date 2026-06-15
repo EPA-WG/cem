@@ -87,9 +87,10 @@ for the current architecture have landed; only deferred capability work remains 
       uses that shared code; registered resolvers can now read custom config documents, configured/positional inputs,
       module-map URIs, fixture/benchmark materialized input URIs, and fixture placeholder materialization for
       pre-engine observability/template diagnostics; registered write resolvers can now handle primary output,
-      side-report, and observability destinations; and WASM hosts can register callback-backed read/write resolvers
-      through `onResolveRead` / `onResolveWrite`. Keep this item open until opt-in CLI remote/custom resolver
-      registration is implemented instead of relying on deterministic diagnostics or explicit rejection.
+      side-report, and observability destinations; WASM hosts can register callback-backed read/write resolvers through
+      `onResolveRead` / `onResolveWrite`; and the CLI can opt into local mirror resolver maps with
+      `--resolver-read-map`, `--resolver-write-map`, or run-config `resolvers` entries while remaining local-only by
+      default.
 - [x] **Immediate goal: XSLT 1.0 lifecycle adapter.** Move the existing legacy custom-element XSLT 1.0 lowering
       (`cem_ml::legacy_custom_element`) behind the lifecycle adapter registry instead of the current one-off
       `convert --content-type custom-element-xslt` branch. `cem-ml validate --content-type custom-element-xslt <input>`

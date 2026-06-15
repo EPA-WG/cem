@@ -228,6 +228,22 @@ pub struct ContextOptions {
         help = "Base URI for diagnostic/report URI normalization"
     )]
     pub base_uri: Option<String>,
+
+    #[arg(
+        long = "resolver-read-map",
+        value_name = "URI-PREFIX=DIR",
+        action = clap::ArgAction::Append,
+        help = "Resolve matching remote/custom read URIs from a local directory; repeatable"
+    )]
+    pub resolver_read_maps: Vec<ResolverMap>,
+
+    #[arg(
+        long = "resolver-write-map",
+        value_name = "URI-PREFIX=DIR",
+        action = clap::ArgAction::Append,
+        help = "Resolve matching remote/custom write URIs to a local directory; repeatable"
+    )]
+    pub resolver_write_maps: Vec<ResolverMap>,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -254,6 +270,39 @@ impl FromStr for NamespaceBinding {
         Ok(Self {
             prefix: prefix.to_owned(),
             uri: uri.to_owned(),
+        })
+    }
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct ResolverMap {
+    pub uri_prefix: String,
+    pub local_root: PathBuf,
+}
+
+impl FromStr for ResolverMap {
+    type Err = String;
+
+    fn from_str(value: &str) -> Result<Self, Self::Err> {
+        let Some((uri_prefix, local_root)) = value.split_once('=') else {
+            return Err("expected URI-PREFIX=DIR".to_owned());
+        };
+        let uri_prefix = uri_prefix.trim();
+        let local_root = local_root.trim();
+        if uri_prefix.is_empty() {
+            return Err("resolver URI prefix must not be empty".to_owned());
+        }
+        if local_root.is_empty() {
+            return Err("resolver local root must not be empty".to_owned());
+        }
+        if cem_ml::resolver::uri_scheme(uri_prefix).is_none()
+            || cem_ml::resolver::is_windows_drive_path(uri_prefix)
+        {
+            return Err("resolver URI prefix must include a remote/custom URI scheme".to_owned());
+        }
+        Ok(Self {
+            uri_prefix: uri_prefix.to_owned(),
+            local_root: PathBuf::from(local_root),
         })
     }
 }
@@ -749,6 +798,51 @@ mod tests {
         assert_eq!(args.context.scope_budgets[0].value, "5");
         assert!(try_parse(&["validate", "--version-pin", "=1", "in.cem"]).is_err());
         assert!(try_parse(&["validate", "--scope-budget", "parseMs", "in.cem"]).is_err());
+    }
+
+    #[test]
+    fn commands_accept_resolver_map_context_options() {
+        let cli = try_parse(&[
+            "validate",
+            "--resolver-read-map",
+            "cem+vfs://workspace=/tmp/cem-vfs",
+            "--resolver-write-map",
+            "https://example.test/out=/tmp/cem-out",
+            "in.cem",
+        ])
+        .unwrap();
+
+        let Command::Validate(args) = cli.command else {
+            panic!("expected validate command");
+        };
+        assert_eq!(args.context.resolver_read_maps.len(), 1);
+        assert_eq!(
+            args.context.resolver_read_maps[0].uri_prefix,
+            "cem+vfs://workspace"
+        );
+        assert_eq!(
+            args.context.resolver_read_maps[0].local_root,
+            PathBuf::from("/tmp/cem-vfs")
+        );
+        assert_eq!(args.context.resolver_write_maps.len(), 1);
+        assert_eq!(
+            args.context.resolver_write_maps[0].uri_prefix,
+            "https://example.test/out"
+        );
+        assert!(try_parse(&[
+            "validate",
+            "--resolver-read-map",
+            "relative=/tmp/cem-vfs",
+            "in.cem"
+        ])
+        .is_err());
+        assert!(try_parse(&[
+            "validate",
+            "--resolver-write-map",
+            "cem+vfs://workspace",
+            "in.cem"
+        ])
+        .is_err());
     }
 
     #[test]

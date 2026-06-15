@@ -142,8 +142,10 @@ Current implementation status:
   as local paths. Config document reads plus configured and positional input reads use
   the same resolver-aware read path when a runtime context provides a resolver. Primary
   output, side-report, and observability event destinations now write through registered
-  resolvers when available; the default CLI context registers none, so remote/custom
-  URI sources and destinations still reject explicitly.
+  resolvers when available. The default CLI context remains local-only, but
+  `--resolver-read-map URI-PREFIX=DIR`, `--resolver-write-map URI-PREFIX=DIR`, and
+  run-config `resolvers` entries can explicitly map remote/custom URI prefixes to local
+  filesystem roots for reads or writes.
 - `--schema` and `--content-type` are carried in `EngineContext` and emitted in reports.
   `cem_ml::lifecycle::LifecycleRegistry` now owns built-in input content-type dispatch
   for parser-backed commands (`parse`, `validate`, `check`, `inspect`, `convert`,
@@ -182,7 +184,8 @@ Current implementation status:
   fixture/benchmark materialized input reads, remote/custom module-map URI values, and
   output/report/observability destinations all have resolver-aware helper paths. The
   default CLI context registers no remote/custom resolvers, so these URI sources and
-  destinations still reject explicitly unless a host or future CLI option installs one.
+  destinations still reject explicitly unless a host, CLI resolver-map option, or
+  run-config `resolvers` entry installs one.
 - `validate` / `check` / `convert` route `custom-element-xslt` input through the first
   shared lifecycle adapter path, lowering legacy custom-element XSLT to canonical
   CEM-ML through `cem_ml::legacy_custom_element`; `convert --content-type
@@ -202,9 +205,11 @@ implementations:
 - WASM hosts expose callback-backed read/write resolvers for browser, worker, or Node
   embedding through `onResolveRead` and `onResolveWrite`; Rust-side WASM entrypoints
   install `JsResourceResolver` into the execution context for selected URI schemes.
-- The CLI installs the local filesystem resolver by default and can later install
-  opt-in remote or custom-scheme resolvers. It must not silently fetch network resources
-  or write remote destinations without an explicit registered resolver.
+- The CLI stays local-only by default and installs opt-in local mirror resolvers from
+  `--resolver-read-map URI-PREFIX=DIR`, `--resolver-write-map URI-PREFIX=DIR`, or
+  run-config `resolvers` entries. These maps do not fetch network resources; they map a
+  remote/custom URI prefix to a local filesystem root. Read maps do not imply write
+  permission, and write maps do not imply read permission.
 
 Every resolver operation carries a purpose so hosts can apply policy by capability:
 
