@@ -85,10 +85,10 @@ for the current architecture have landed; only deferred capability work remains 
       `cem_ml::resolver` request/response types, local path/local `file://` handling, `ResourceResolver`, and
       `ResolverRegistry` now exist; `EngineContext` carries the registry; CLI/run-config/real-engine local URI parsing
       uses that shared code; registered resolvers can now read custom config documents, configured/positional inputs,
-      module-map URIs, and fixture/benchmark materialized input URIs; and registered write resolvers can now handle
-      primary output, side-report, and observability destinations. Keep this item open until WASM callbacks, opt-in CLI
-      remote/custom resolver registration, and resolver-backed fixture placeholder materialization for pre-engine
-      observability/template diagnostics are implemented instead of relying on deterministic diagnostics or explicit
+      module-map URIs, fixture/benchmark materialized input URIs, and fixture placeholder materialization for
+      pre-engine observability/template diagnostics; and registered write resolvers can now handle primary output,
+      side-report, and observability destinations. Keep this item open until WASM callbacks and opt-in CLI
+      remote/custom resolver registration are implemented instead of relying on deterministic diagnostics or explicit
       rejection.
 - [x] **Immediate goal: XSLT 1.0 lifecycle adapter.** Move the existing legacy custom-element XSLT 1.0 lowering
       (`cem_ml::legacy_custom_element`) behind the lifecycle adapter registry instead of the current one-off

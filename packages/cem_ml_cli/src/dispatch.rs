@@ -53,11 +53,6 @@ enum CliRequestError {
     Engine(EngineError),
 }
 
-fn read_input(path: &Path) -> io::Result<Vec<u8>> {
-    let path = local_path_or_file_uri(path, "input URI")?;
-    fs::read(path.as_ref())
-}
-
 fn read_source(
     context: &eng::EngineContext,
     path: &Path,
@@ -1004,6 +999,7 @@ fn collect_embedding_diagnostics(
 }
 
 fn collect_fixture_embedding_diagnostics(
+    context: &eng::EngineContext,
     inputs: &[eng::EngineInput],
 ) -> Result<Vec<cem_ml::diagnostics::Diagnostic>, EngineError> {
     let mut diagnostics = Vec::new();
@@ -1013,15 +1009,7 @@ fn collect_fixture_embedding_diagnostics(
             continue;
         }
         let bytes = if input.bytes.is_empty() {
-            let path =
-                fixture_materialized_input_path(&input.uri).map_err(|e| EngineError::Io {
-                    path: input.uri.clone().into(),
-                    source: e,
-                })?;
-            read_input(&path).map_err(|e| EngineError::Io {
-                path: input.uri.clone().into(),
-                source: e,
-            })?
+            materialize_fixture_input(context, input)?.bytes
         } else {
             input.bytes.clone()
         };
@@ -1030,14 +1018,43 @@ fn collect_fixture_embedding_diagnostics(
     Ok(diagnostics)
 }
 
-fn fixture_materialized_input_path(uri: &str) -> io::Result<PathBuf> {
-    if !uri.starts_with("file://") && uri_scheme(uri).is_some() && !is_windows_drive_path(uri) {
-        return Err(io::Error::new(
-            io::ErrorKind::InvalidInput,
-            "remote/custom input URI resolvers are not implemented",
-        ));
+fn materialize_fixture_input(
+    context: &eng::EngineContext,
+    input: &eng::EngineInput,
+) -> Result<eng::EngineInput, EngineError> {
+    if !input.bytes.is_empty() {
+        return Ok(input.clone());
     }
-    Ok(resolve_fixture_input_path(uri))
+
+    let path = fixture_materialized_input_path(&input.uri);
+    let read = read_source(
+        context,
+        &path,
+        "input URI",
+        ResolvePurpose::Input,
+        input.root_scope.default_content_type.as_deref(),
+    )
+    .map_err(|source| EngineError::Io {
+        path: input.uri.clone().into(),
+        source,
+    })?;
+    let mut root_scope = input.root_scope.clone();
+    if root_scope.default_content_type.is_none() {
+        root_scope.default_content_type = read.content_type;
+    }
+    Ok(eng::EngineInput {
+        bytes: read.bytes,
+        identity: root_scope.format_identity_option(),
+        root_scope,
+        ..input.clone()
+    })
+}
+
+fn fixture_materialized_input_path(uri: &str) -> PathBuf {
+    if uri.starts_with("file://") || (uri_scheme(uri).is_some() && !is_windows_drive_path(uri)) {
+        return PathBuf::from(uri);
+    }
+    resolve_fixture_input_path(uri)
 }
 
 fn resolve_fixture_input_path(uri: &str) -> PathBuf {
@@ -1796,7 +1813,7 @@ pub fn run_fixture_validate<E: CemMlEngine + ?Sized>(
             Err(err) => return handle_cli_request_error(err, s),
         }
     }
-    let embedding_diags = match collect_fixture_embedding_diagnostics(&inputs) {
+    let embedding_diags = match collect_fixture_embedding_diagnostics(&engine_context, &inputs) {
         Ok(v) => v,
         Err(e) => return handle_engine_error(e, s),
     };
@@ -2081,7 +2098,7 @@ mod tests {
     fn assert_remote_input_resolver_boundary(stderr: &str, uri: &str) {
         assert_stderr_contains_all(
             stderr,
-            &["remote/custom input URI resolvers are not implemented", uri],
+            &["remote/custom", "URI resolvers are not implemented", uri],
         );
     }
 
@@ -3837,6 +3854,32 @@ mod tests {
 
         assert_eq!(config.inputs.len(), 1);
         assert_eq!(config.inputs[0].uri, "local.cem");
+    }
+
+    #[test]
+    fn fixture_placeholder_uses_registered_read_resolver() {
+        let context = context_with_read_resolver(
+            ResolvePurpose::Input,
+            StaticReadResolver {
+                uri: "cem+vfs://fixtures/source.cem",
+                bytes: b"{main | Loaded}",
+                content_type: Some("application/cem+xml"),
+            },
+        );
+        let input = placeholder_input(
+            Path::new("cem+vfs://fixtures/source.cem"),
+            Some(cli::InputFormat::Cem),
+            ScopeConfig::default(),
+        );
+
+        let materialized = materialize_fixture_input(&context, &input).unwrap();
+
+        assert_eq!(materialized.uri, "cem+vfs://fixtures/source.cem");
+        assert_eq!(materialized.bytes, b"{main | Loaded}");
+        assert_eq!(
+            materialized.root_scope.default_content_type.as_deref(),
+            Some("application/cem+xml")
+        );
     }
 
     #[test]
@@ -6621,29 +6664,25 @@ fn emit_observability_events(
     let registry = cem_ml::lifecycle::LifecycleRegistry::with_builtin_adapters();
     for input in inputs {
         let input = if input.bytes.is_empty() {
-            let path = match fixture_materialized_input_path(&input.uri) {
-                Ok(path) => path,
-                Err(e) => {
+            match materialize_fixture_input(&context, &input) {
+                Ok(input) => input,
+                Err(EngineError::Io { source, .. }) => {
                     let _ = writeln!(
                         s.stderr,
-                        "cem-ml: --observe-events: cannot read {}: {e}",
+                        "cem-ml: --observe-events: cannot read {}: {source}",
                         input.uri
                     );
                     continue;
                 }
-            };
-            let bytes = match read_input(&path) {
-                Ok(b) => b,
-                Err(e) => {
+                Err(error) => {
                     let _ = writeln!(
                         s.stderr,
-                        "cem-ml: --observe-events: cannot read {}: {e}",
+                        "cem-ml: --observe-events: cannot read {}: {error}",
                         input.uri
                     );
                     continue;
                 }
-            };
-            eng::EngineInput { bytes, ..input }
+            }
         } else {
             input
         };

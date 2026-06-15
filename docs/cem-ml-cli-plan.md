@@ -156,9 +156,9 @@ the immediate CLI lifecycle contract.
       resolver. Existing fixture and benchmark materialized-input reads remain
       resolver-aware; config-backed fixture observability collection reuses the same
       helper path.
-    - Remaining: empty fixture placeholder materialization for pre-engine observability
-      and template-embedding diagnostics is still local-only until the resolver
-      registration slice can provide a runtime resolver in those fallback paths.
+    - Done: empty fixture placeholder materialization for pre-engine observability and
+      template-embedding diagnostics now uses the same input resolver path while
+      preserving repo-relative fixture lookup for ordinary paths.
     - Done: converted output writes to resolver writes for `--out`,
       config/output-spec destinations, side reports, and `--observe-events`. Default
       CLI context keeps rejecting remote/custom writes until a host or CLI option
