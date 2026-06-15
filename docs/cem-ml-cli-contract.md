@@ -117,11 +117,13 @@ both are in scope. Unsupported template identity combinations must fail with
 deterministic diagnostics before execution, just as unsupported input/output identities
 do for parser-backed commands.
 
-Template reads and transform outputs must use the shared resolver layer. Local paths and
-local `file://` URIs use existing local resolver behavior; remote/custom template URIs
-require registered resolvers. Output writes must follow the same local-only default and
-registered-resolver behavior as `convert --out`, side reports, and configured output
-destinations.
+Template reads and transform outputs must use the shared resolver layer. Template reads
+use the dedicated resolver purpose `template`, separate from ordinary data `input`
+reads, so hosts can authorize executable/semi-executable template resources separately
+from data. Local paths and local `file://` URIs use existing local resolver behavior;
+remote/custom template URIs require registered template resolvers. Output writes must
+follow the same local-only default and registered-resolver behavior as `convert --out`,
+side reports, and configured output destinations.
 
 Transform responses must preserve the content-primary command contract:
 
@@ -188,8 +190,10 @@ Current implementation status:
   URI values now load through registered `EngineContext` resolvers when available and
   otherwise emit an explicit unsupported-resolver diagnostic instead of being treated
   as local paths. Config document reads plus configured and positional input reads use
-  the same resolver-aware read path when a runtime context provides a resolver. Primary
-  output, side-report, and observability event destinations now write through registered
+  the same resolver-aware read path when a runtime context provides a resolver.
+  Reserved transform request construction uses the dedicated `template` read purpose
+  for template resources, not the ordinary `input` purpose. Primary output,
+  side-report, and observability event destinations now write through registered
   resolvers when available. The default CLI context remains local-only, but
   `--resolver-read-map URI-PREFIX=DIR`, `--resolver-write-map URI-PREFIX=DIR`, and
   run-config `resolvers` entries can explicitly map remote/custom URI prefixes to local

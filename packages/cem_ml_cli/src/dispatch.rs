@@ -56,9 +56,10 @@ enum CliRequestError {
     Engine(EngineError),
 }
 
-const READ_PURPOSES: [ResolvePurpose; 3] = [
+const READ_PURPOSES: [ResolvePurpose; 4] = [
     ResolvePurpose::Config,
     ResolvePurpose::Input,
+    ResolvePurpose::Template,
     ResolvePurpose::ModuleMap,
 ];
 
@@ -325,7 +326,7 @@ fn template_input(
         context,
         path,
         "template URI",
-        ResolvePurpose::Input,
+        ResolvePurpose::Template,
         root_scope.default_content_type.as_deref(),
     )
     .map_err(|e| EngineError::Io {
@@ -2519,7 +2520,7 @@ mod tests {
         let data = write_fixture("transform-helper-custom-template-data.xml", "<items/>");
         let template_uri = "cem+vfs://workspace/view.xsl";
         let context = context_with_read_resolver(
-            ResolvePurpose::Input,
+            ResolvePurpose::Template,
             StaticReadResolver {
                 uri: template_uri,
                 bytes: br#"<xsl:stylesheet version="1.0"/>"#,
@@ -2556,6 +2557,50 @@ mod tests {
             request.template.root_scope.default_content_type.as_deref(),
             Some("application/xslt+xml")
         );
+    }
+
+    #[test]
+    fn transform_request_helper_does_not_use_input_resolver_for_template() {
+        let data = write_fixture(
+            "transform-helper-input-purpose-template-data.xml",
+            "<items/>",
+        );
+        let template_uri = "cem+vfs://workspace/view.xsl";
+        let context = context_with_read_resolver(
+            ResolvePurpose::Input,
+            StaticReadResolver {
+                uri: template_uri,
+                bytes: br#"<xsl:stylesheet version="1.0"/>"#,
+                content_type: Some("application/xslt+xml"),
+            },
+        );
+        let parsed = parse_cli(&[
+            "transform",
+            data.to_str().unwrap(),
+            "--data-content-type",
+            "application/xml",
+            "--template",
+            template_uri,
+            "--to-content-type",
+            "text/html",
+            "--out",
+            "view.html",
+        ]);
+        let cli::Command::Transform(args) = parsed.command else {
+            panic!("expected transform command");
+        };
+
+        let err = transform_request_from_args(&context, &args)
+            .err()
+            .expect("input resolver must not satisfy template reads");
+
+        let CliRequestError::Engine(EngineError::Io { path, source }) = err else {
+            panic!("expected engine I/O error for custom template");
+        };
+        assert_eq!(path, PathBuf::from(template_uri));
+        let message = source.to_string();
+        assert!(message.contains("remote/custom URI resolvers are not implemented"));
+        assert!(message.contains(template_uri));
     }
 
     #[test]

@@ -142,7 +142,7 @@ the immediate CLI lifecycle contract.
 
    **Resolver implementation plan:** URI handling is being promoted into the shared
    `cem_ml::resolver` boundary instead of command-specific path checks.
-    - Done: added `ResolvePurpose` (`config`, `input`, `moduleMap`, `output`,
+    - Done: added `ResolvePurpose` (`config`, `input`, `template`, `moduleMap`, `output`,
       `report`, `observeEvents`), `ResolveDirection`, `ResolveRequest`,
       `ResolvedRead`, `ResolvedWrite`, `ResolverDiagnostic`, `ResourceResolver`,
       and `ResolverRegistry` in `cem_ml`.
@@ -160,6 +160,9 @@ the immediate CLI lifecycle contract.
       resolver. Existing fixture and benchmark materialized-input reads remain
       resolver-aware; config-backed fixture observability collection reuses the same
       helper path.
+    - Done: reserved transform request construction reads template resources through
+      the dedicated `template` resolver purpose so template access can be authorized
+      independently from data input access before runtime execution is enabled.
     - Done: empty fixture placeholder materialization for pre-engine observability and
       template-embedding diagnostics now uses the same input resolver path while
       preserving repo-relative fixture lookup for ordinary paths.
@@ -534,8 +537,8 @@ These are data shapes only. Parser-filled content remains blocked until the pars
         - `TransformResponse` with primary rendered document content/projection, diagnostics, and scheduler trace.
         - Template identity dispatch for supported template content types such as `application/xslt+xml` and/or
           CEM-native templates.
-        - Resolver semantics for reading templates and writing transform outputs, matching the existing local-only
-          default plus registered resolver behavior.
+        - Resolver semantics for reading templates with the dedicated `template` resolver purpose and writing transform
+          outputs with the existing local-only default plus registered resolver behavior.
         - Report and source-map behavior for diagnostics that may originate from data, template compilation, template
           execution, or output export.
         - Run-config fan-out semantics for data/template/output pairing before adding config/spec execution.

@@ -15,6 +15,7 @@ use std::sync::Arc;
 pub enum ResolvePurpose {
     Config,
     Input,
+    Template,
     ModuleMap,
     Output,
     Report,
@@ -26,6 +27,7 @@ impl ResolvePurpose {
         match self {
             Self::Config => "config",
             Self::Input => "input",
+            Self::Template => "template",
             Self::ModuleMap => "moduleMap",
             Self::Output => "output",
             Self::Report => "report",
@@ -532,6 +534,7 @@ mod tests {
             request.content_type_hint.as_deref(),
             Some("application/cem+xml")
         );
+        assert_eq!(ResolvePurpose::Template.as_str(), "template");
     }
 
     #[test]
