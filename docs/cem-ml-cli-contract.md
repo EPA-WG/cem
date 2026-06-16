@@ -388,6 +388,11 @@ Current API state: `TransformTemplateCompileRequest` carries
 `TransformTemplateModuleOptions`, and the stable model includes import
 declarations, entrypoint declarations, param declarations, module limits, module
 cache keys, and reserved diagnostic codes for module compile/runtime failures.
+The engine now parses and lowers the v1 CEM-native template declaration schema
+before adapter compilation: `module` declarations provide resolver-backed
+imports, module params, named entrypoints, and template-local params in
+`TransformTemplateModuleOptions`. Plain CEM fragment templates without the
+native-template schema continue to compile as declaration-free fragments.
 Compile requests now also carry `TransformTemplateModulePreflight`, populated by
 the real engine before adapter compilation. The preflight reads declared imports
 through the template resolver, resolves relative imports against the importing
@@ -395,9 +400,8 @@ template URI, records resolved module bytes/identity/content hashes, constructs
 the dependency graph cache key input, rejects duplicate import aliases, rejects
 reserved includes, and rejects direct self-import cycles. Existing runtime
 executors still receive default module options in the current graph/runtime paths,
-so adapter-owned module syntax parsing/lowering from this schema, public export
-validation, transitive module execution, and recursive call limits remain
-deferred.
+so public export validation, transitive module execution, and recursive call
+limits remain deferred.
 
 `cem_ml` remains the stable API contract and cannot directly call
 `cem_ql::render` while `cem_ql` depends on `cem_ml`; executable renderers must be

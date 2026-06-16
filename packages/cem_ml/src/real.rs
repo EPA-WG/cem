@@ -30,14 +30,15 @@ use crate::tokenizer::html::HtmlTokenizer;
 use crate::tokenizer::xml::XmlTokenizer;
 use crate::tokenizer::SchemaTokenizer;
 use crate::transform_template::{
-    TransformTemplateAdapter, TransformTemplateAdapterLookup, TransformTemplateCompileRequest,
+    parse_cem_native_template_module_options, TransformTemplateAdapter,
+    TransformTemplateAdapterLookup, TransformTemplateCompileRequest,
     TransformTemplateCompiledArtifact, TransformTemplateDataArtifact,
     TransformTemplateModuleCacheKey, TransformTemplateModuleDependencyKind,
     TransformTemplateModuleImport, TransformTemplateModuleOptions,
-    TransformTemplateModulePreflight, TransformTemplateOutputArtifact,
-    TransformTemplateRenderRequest, TransformTemplateResolvedModule,
-    TRANSFORM_TEMPLATE_IMPORT_ALIAS_DUPLICATE_CODE, TRANSFORM_TEMPLATE_IMPORT_CYCLE_CODE,
-    TRANSFORM_TEMPLATE_INCLUDE_RESERVED_CODE,
+    TransformTemplateModuleParseRequest, TransformTemplateModulePreflight,
+    TransformTemplateOutputArtifact, TransformTemplateRenderRequest,
+    TransformTemplateResolvedModule, TRANSFORM_TEMPLATE_IMPORT_ALIAS_DUPLICATE_CODE,
+    TRANSFORM_TEMPLATE_IMPORT_CYCLE_CODE, TRANSFORM_TEMPLATE_INCLUDE_RESERVED_CODE,
 };
 use crate::validation::{RuleContext, RuleRegistry};
 use serde_json::{json, Value};
@@ -1012,12 +1013,14 @@ fn compile_transform_template(
     spec: TransformTemplateCompileSpec<'_>,
     diagnostics: &mut Vec<Diagnostic>,
 ) -> Option<TransformTemplateCompiledArtifact> {
+    let module_options =
+        lower_transform_template_module_options(spec.template, spec.module_options, diagnostics)?;
     let module_preflight = preflight_transform_template_modules(
         spec.context,
         spec.adapter.id(),
         spec.template,
         spec.entrypoint,
-        &spec.module_options,
+        &module_options,
         spec.execution_policy,
         diagnostics,
     )?;
@@ -1026,7 +1029,7 @@ fn compile_transform_template(
         entrypoint: spec.entrypoint,
         params: spec.params,
         data_bindings: spec.data_bindings,
-        module_options: spec.module_options,
+        module_options,
         module_preflight,
         execution_policy: spec.execution_policy,
     }) {
@@ -1039,6 +1042,34 @@ fn compile_transform_template(
             None
         }
     }
+}
+
+fn lower_transform_template_module_options(
+    template: &TemplateInput,
+    overlay_options: TransformTemplateModuleOptions,
+    diagnostics: &mut Vec<Diagnostic>,
+) -> Option<TransformTemplateModuleOptions> {
+    let mut response =
+        parse_cem_native_template_module_options(TransformTemplateModuleParseRequest {
+            template: template.clone(),
+        });
+    let has_fatal = response
+        .diagnostics
+        .iter()
+        .any(|diagnostic| diagnostic.severity == Severity::Fatal);
+    diagnostics.append(&mut response.diagnostics);
+    if has_fatal {
+        return None;
+    }
+
+    let mut module_options = response.module_options;
+    module_options.imports.extend(overlay_options.imports);
+    module_options
+        .entrypoints
+        .extend(overlay_options.entrypoints);
+    module_options.params.extend(overlay_options.params);
+    module_options.limits = overlay_options.limits;
+    Some(module_options)
 }
 
 fn preflight_transform_template_modules(
@@ -2863,6 +2894,39 @@ mod tests {
             .expect("cache key")
             .dependency_graph_hash
             .starts_with("cem-bin/1+blake3:"));
+    }
+
+    #[test]
+    fn template_module_options_are_lowered_from_native_template_declarations() {
+        let template = TemplateInput {
+            uri: "templates/page.cem".to_owned(),
+            bytes: br#"{@doc cem-ml 1}
+{module |
+  {import @as="ui" @src="ui.cem" @content-type="text/cem-ml"}
+  {template @name="card" @visibility="public"}
+}"#
+            .to_vec(),
+            identity: Some(FormatIdentity {
+                schema: Some(crate::transform_template::CEM_NATIVE_TEMPLATE_SCHEMA_URI.to_owned()),
+                ..FormatIdentity::default()
+            }),
+            root_scope: ScopeConfig::default(),
+        };
+        let mut diagnostics = Vec::new();
+
+        let options = lower_transform_template_module_options(
+            &template,
+            TransformTemplateModuleOptions::default(),
+            &mut diagnostics,
+        )
+        .expect("module declarations should lower");
+
+        assert!(diagnostics.is_empty(), "{diagnostics:?}");
+        assert_eq!(options.imports.len(), 1);
+        assert_eq!(options.imports[0].alias, "ui");
+        assert_eq!(options.imports[0].uri, "ui.cem");
+        assert_eq!(options.entrypoints.len(), 1);
+        assert_eq!(options.entrypoints[0].name, "card");
     }
 
     #[test]

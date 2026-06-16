@@ -10,11 +10,17 @@ use crate::engine::{
     FormatIdentity, TemplateInput, TransformDiagnosticOrigin, TransformExecutionPolicy,
     TransformTemplateEntrypoint, TransformTemplateKind,
 };
+use crate::events::cem::CemEventNormalizer;
+use crate::parser::builder::CemAstBuilder;
+use crate::parser::document::CemDocument;
+use crate::parser::{AstNodeId, CemAstNode};
 use crate::run_config::ScopeConfig;
+use crate::source::{BytesSource, SourceId};
+use crate::tokenizer::cem::CemTokenizer;
 use serde::{Deserialize, Serialize};
 use serde_json::Value;
 use std::any::Any;
-use std::collections::BTreeMap;
+use std::collections::{BTreeMap, BTreeSet};
 use std::fmt;
 use std::sync::Arc;
 
@@ -126,6 +132,27 @@ pub const TRANSFORM_TEMPLATE_INCLUDE_RESERVED_CODE: &str =
     "cem.transform_template.include_reserved";
 pub const TRANSFORM_TEMPLATE_IMPORT_ALIAS_DUPLICATE_CODE: &str =
     "cem.transform_template.import_alias_duplicate";
+pub const TRANSFORM_TEMPLATE_DECLARATION_UNSUPPORTED_CODE: &str =
+    "cem.transform_template.declaration_unsupported";
+pub const TRANSFORM_TEMPLATE_DECLARATION_REQUIRED_CODE: &str =
+    "cem.transform_template.declaration_required";
+pub const TRANSFORM_TEMPLATE_DECLARATION_DUPLICATE_CODE: &str =
+    "cem.transform_template.declaration_duplicate";
+pub const TRANSFORM_TEMPLATE_DECLARATION_INVALID_CODE: &str =
+    "cem.transform_template.declaration_invalid";
+
+#[derive(Debug, Clone)]
+pub struct TransformTemplateModuleParseRequest {
+    pub template: TemplateInput,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct TransformTemplateModuleParseResponse {
+    pub module_options: TransformTemplateModuleOptions,
+    pub diagnostics: Vec<Diagnostic>,
+    pub module_declared: bool,
+}
 
 #[derive(Debug, Clone, Copy, Default, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(rename_all = "kebab-case")]
@@ -201,6 +228,378 @@ pub struct TransformTemplateModuleOptions {
     pub params: Vec<TransformTemplateModuleParamDeclaration>,
     #[serde(default)]
     pub limits: TransformTemplateModuleLimits,
+}
+
+pub fn parse_cem_native_template_module_options(
+    request: TransformTemplateModuleParseRequest,
+) -> TransformTemplateModuleParseResponse {
+    let explicit_template_schema = template_has_native_module_schema(&request.template);
+    let mut tokenizer =
+        CemTokenizer::from_source(BytesSource::new(SourceId(1), request.template.bytes));
+    let tokenizer_diagnostics = tokenizer.take_diagnostics();
+    let normalizer = CemEventNormalizer::new(tokenizer);
+    let document = CemAstBuilder::new(normalizer).build();
+    let mut parser = NativeTemplateModuleLowerer {
+        document: &document,
+        template_uri: request.template.uri.as_str(),
+        options: TransformTemplateModuleOptions::default(),
+        diagnostics: Vec::new(),
+        module_count: 0,
+        saw_doc_directive: false,
+        explicit_template_schema,
+    };
+    parser.lower_document();
+    parser.validate_declarations();
+
+    let module_declared = parser.module_count > 0;
+    let mut diagnostics = parser.diagnostics;
+    if module_declared || explicit_template_schema {
+        diagnostics.extend(tokenizer_diagnostics);
+        diagnostics.extend(document.diagnostics.clone());
+    }
+
+    TransformTemplateModuleParseResponse {
+        module_options: if module_declared {
+            parser.options
+        } else {
+            TransformTemplateModuleOptions::default()
+        },
+        diagnostics,
+        module_declared,
+    }
+}
+
+fn template_has_native_module_schema(template: &TemplateInput) -> bool {
+    template.identity.as_ref().is_some_and(|identity| {
+        identity.schema.as_deref().map(str::trim) == Some(CEM_NATIVE_TEMPLATE_SCHEMA_URI)
+            || identity.default_namespace.as_deref().map(str::trim)
+                == Some(CEM_NATIVE_TEMPLATE_NAMESPACE_URI)
+    })
+}
+
+struct NativeTemplateModuleLowerer<'a> {
+    document: &'a CemDocument,
+    template_uri: &'a str,
+    options: TransformTemplateModuleOptions,
+    diagnostics: Vec<Diagnostic>,
+    module_count: usize,
+    saw_doc_directive: bool,
+    explicit_template_schema: bool,
+}
+
+impl NativeTemplateModuleLowerer<'_> {
+    fn lower_document(&mut self) {
+        let Some(CemAstNode::Document { root_children, .. }) = self.document.root() else {
+            self.push_diag(
+                TRANSFORM_TEMPLATE_DECLARATION_REQUIRED_CODE,
+                "CEM-native template has no document root",
+            );
+            return;
+        };
+
+        for child in root_children {
+            let Some(name) = template_element_name(self.document, *child) else {
+                continue;
+            };
+            match name {
+                "@doc" => self.saw_doc_directive = true,
+                "module" => {
+                    self.module_count += 1;
+                    self.lower_module(*child);
+                }
+                other if self.explicit_template_schema => self.push_diag(
+                    TRANSFORM_TEMPLATE_DECLARATION_UNSUPPORTED_CODE,
+                    format!(
+                        "top-level `{other}` is not valid in CEM-native template module schema"
+                    ),
+                ),
+                _ => {}
+            }
+        }
+
+        if self.explicit_template_schema && self.module_count == 0 {
+            self.push_diag(
+                TRANSFORM_TEMPLATE_DECLARATION_REQUIRED_CODE,
+                "CEM-native template schema requires one top-level `module` node",
+            );
+        } else if self.module_count > 1 {
+            self.push_diag(
+                TRANSFORM_TEMPLATE_DECLARATION_DUPLICATE_CODE,
+                "CEM-native template schema allows only one top-level `module` node",
+            );
+        }
+    }
+
+    fn lower_module(&mut self, module_id: AstNodeId) {
+        let Some(CemAstNode::Element { children, .. }) = self.document.get(module_id) else {
+            return;
+        };
+
+        for child in children {
+            let Some(name) = template_element_name(self.document, *child) else {
+                continue;
+            };
+            match name {
+                "import" => self.lower_import(*child),
+                "param" => self.lower_param(*child, None),
+                "template" => self.lower_template(*child),
+                "body" => {}
+                "include" => self.push_diag(
+                    TRANSFORM_TEMPLATE_INCLUDE_RESERVED_CODE,
+                    "`include` is reserved in CEM-native template modules; use `import`",
+                ),
+                other => self.push_diag(
+                    TRANSFORM_TEMPLATE_DECLARATION_UNSUPPORTED_CODE,
+                    format!("`{other}` is not valid inside CEM-native template `module`"),
+                ),
+            }
+        }
+    }
+
+    fn lower_import(&mut self, import_id: AstNodeId) {
+        let attrs = template_collect_attrs(self.document, import_id);
+        let Some(alias) = required_attr(&attrs, "as") else {
+            self.push_missing_attr("import", "as");
+            return;
+        };
+        let Some(uri) = required_attr(&attrs, "src") else {
+            self.push_missing_attr("import", "src");
+            return;
+        };
+        let identity = import_identity_from_attrs(&attrs);
+        self.options.imports.push(TransformTemplateModuleImport {
+            alias,
+            uri,
+            identity,
+            kind: TransformTemplateModuleDependencyKind::Import,
+        });
+        self.reject_decl_children(import_id, "import");
+    }
+
+    fn lower_param(&mut self, param_id: AstNodeId, owner_entrypoint: Option<&str>) {
+        let attrs = template_collect_attrs(self.document, param_id);
+        let Some(name) = required_attr(&attrs, "name") else {
+            self.push_missing_attr("param", "name");
+            return;
+        };
+        let visibility = self.parse_visibility(attr_value(&attrs, "", "visibility").as_deref());
+        let required = parse_bool_attr(attr_value(&attrs, "", "required").as_deref())
+            .unwrap_or_else(|message| {
+                self.push_diag(TRANSFORM_TEMPLATE_DECLARATION_INVALID_CODE, message);
+                false
+            });
+        let declaration_name = match owner_entrypoint {
+            Some(entrypoint) => format!("{entrypoint}.{name}"),
+            None => name,
+        };
+        self.options
+            .params
+            .push(TransformTemplateModuleParamDeclaration {
+                name: declaration_name,
+                default_value: attr_value(&attrs, "", "default").map(Value::String),
+                required,
+                visibility,
+            });
+        self.reject_decl_children(param_id, "param");
+    }
+
+    fn lower_template(&mut self, template_id: AstNodeId) {
+        let attrs = template_collect_attrs(self.document, template_id);
+        let Some(name) = required_attr(&attrs, "name") else {
+            self.push_missing_attr("template", "name");
+            return;
+        };
+        let visibility = self.parse_visibility(attr_value(&attrs, "", "visibility").as_deref());
+        self.options
+            .entrypoints
+            .push(TransformTemplateModuleEntrypointDeclaration {
+                name: name.clone(),
+                visibility,
+            });
+
+        let Some(CemAstNode::Element { children, .. }) = self.document.get(template_id) else {
+            return;
+        };
+        for child in children {
+            let Some(child_name) = template_element_name(self.document, *child) else {
+                continue;
+            };
+            match child_name {
+                "param" => self.lower_param(*child, Some(&name)),
+                "body" => {}
+                other => self.push_diag(
+                    TRANSFORM_TEMPLATE_DECLARATION_UNSUPPORTED_CODE,
+                    format!(
+                        "`{other}` is not valid inside CEM-native template declaration `{name}`"
+                    ),
+                ),
+            }
+        }
+    }
+
+    fn validate_declarations(&mut self) {
+        let mut aliases = BTreeSet::new();
+        for import in self.options.imports.clone() {
+            if !aliases.insert(import.alias.clone()) {
+                self.push_diag(
+                    TRANSFORM_TEMPLATE_IMPORT_ALIAS_DUPLICATE_CODE,
+                    format!(
+                        "template module import alias `{}` is declared more than once",
+                        import.alias
+                    ),
+                );
+            }
+        }
+
+        let mut entrypoints = BTreeSet::new();
+        for entrypoint in self.options.entrypoints.clone() {
+            if !entrypoints.insert(entrypoint.name.clone()) {
+                self.push_diag(
+                    TRANSFORM_TEMPLATE_DECLARATION_DUPLICATE_CODE,
+                    format!(
+                        "template entrypoint `{}` is declared more than once",
+                        entrypoint.name
+                    ),
+                );
+            }
+        }
+
+        let mut params = BTreeSet::new();
+        for param in self.options.params.clone() {
+            if !params.insert(param.name.clone()) {
+                self.push_diag(
+                    TRANSFORM_TEMPLATE_DECLARATION_DUPLICATE_CODE,
+                    format!("template param `{}` is declared more than once", param.name),
+                );
+            }
+        }
+    }
+
+    fn reject_decl_children(&mut self, ast_id: AstNodeId, parent_name: &str) {
+        let Some(CemAstNode::Element { children, .. }) = self.document.get(ast_id) else {
+            return;
+        };
+        for child in children {
+            if let Some(name) = template_element_name(self.document, *child) {
+                self.push_diag(
+                    TRANSFORM_TEMPLATE_DECLARATION_UNSUPPORTED_CODE,
+                    format!("`{parent_name}` declarations cannot contain `{name}`"),
+                );
+            }
+        }
+    }
+
+    fn parse_visibility(&mut self, value: Option<&str>) -> TransformTemplateModuleVisibility {
+        match value.map(str::trim).filter(|value| !value.is_empty()) {
+            None | Some("private") => TransformTemplateModuleVisibility::Private,
+            Some("public") => TransformTemplateModuleVisibility::Public,
+            Some(other) => {
+                self.push_diag(
+                    TRANSFORM_TEMPLATE_DECLARATION_INVALID_CODE,
+                    format!("unsupported template declaration visibility `{other}`; use `private` or `public`"),
+                );
+                TransformTemplateModuleVisibility::Private
+            }
+        }
+    }
+
+    fn push_missing_attr(&mut self, element: &str, attr: &str) {
+        self.push_diag(
+            TRANSFORM_TEMPLATE_DECLARATION_REQUIRED_CODE,
+            format!("CEM-native template `{element}` declaration requires `@{attr}`"),
+        );
+    }
+
+    fn push_diag(&mut self, code: &str, message: impl Into<String>) {
+        self.diagnostics.push(Diagnostic {
+            uri: Some(self.template_uri.to_owned()),
+            code: code.to_owned(),
+            severity: Severity::Fatal,
+            message: message.into(),
+            ..Diagnostic::default()
+        });
+    }
+}
+
+fn template_element_name(doc: &CemDocument, node_id: AstNodeId) -> Option<&str> {
+    match doc.get(node_id) {
+        Some(CemAstNode::Element { expanded_name, .. }) if !expanded_name.local_name.is_empty() => {
+            Some(expanded_name.local_name.as_str())
+        }
+        _ => None,
+    }
+}
+
+fn template_collect_attrs(
+    doc: &CemDocument,
+    node_id: AstNodeId,
+) -> BTreeMap<(String, String), Option<String>> {
+    let mut attrs = BTreeMap::new();
+    let Some(CemAstNode::Element { attributes, .. }) = doc.get(node_id) else {
+        return attrs;
+    };
+    for attr_id in attributes {
+        let Some(CemAstNode::Attribute {
+            expanded_name,
+            value,
+            ..
+        }) = doc.get(*attr_id)
+        else {
+            continue;
+        };
+        attrs.insert(
+            (
+                expanded_name.namespace_uri.clone(),
+                expanded_name.local_name.clone(),
+            ),
+            value.clone(),
+        );
+    }
+    attrs
+}
+
+fn attr_value(
+    attrs: &BTreeMap<(String, String), Option<String>>,
+    prefix: &str,
+    local: &str,
+) -> Option<String> {
+    attrs
+        .get(&(prefix.to_owned(), local.to_owned()))
+        .cloned()
+        .flatten()
+}
+
+fn required_attr(
+    attrs: &BTreeMap<(String, String), Option<String>>,
+    local: &str,
+) -> Option<String> {
+    attr_value(attrs, "", local).filter(|value| !value.trim().is_empty())
+}
+
+fn import_identity_from_attrs(
+    attrs: &BTreeMap<(String, String), Option<String>>,
+) -> Option<FormatIdentity> {
+    let content_type =
+        attr_value(attrs, "", "content-type").or_else(|| attr_value(attrs, "", "contentType"));
+    let schema = attr_value(attrs, "", "schema");
+    if content_type.is_none() && schema.is_none() {
+        return None;
+    }
+    Some(FormatIdentity {
+        content_type,
+        schema,
+        ..FormatIdentity::default()
+    })
+}
+
+fn parse_bool_attr(value: Option<&str>) -> Result<bool, String> {
+    match value.map(str::trim).filter(|value| !value.is_empty()) {
+        None | Some("false") => Ok(false),
+        Some("true") => Ok(true),
+        Some(other) => Err(format!(
+            "unsupported boolean value `{other}`; use `true` or `false`"
+        )),
+    }
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
@@ -722,6 +1121,15 @@ mod tests {
     use super::*;
     use serde_json::json;
 
+    fn template_input(uri: &str, source: &str, identity: Option<FormatIdentity>) -> TemplateInput {
+        TemplateInput {
+            uri: uri.to_owned(),
+            bytes: source.as_bytes().to_vec(),
+            identity,
+            root_scope: ScopeConfig::default(),
+        }
+    }
+
     #[test]
     fn builtins_select_cem_native_and_xslt_template_adapters() {
         let registry = TransformTemplateAdapterRegistry::with_builtin_adapters();
@@ -875,6 +1283,153 @@ mod tests {
                 kind: TransformTemplateKind::CemNative,
             })
         );
+    }
+
+    #[test]
+    fn cem_native_template_module_parser_lowers_declarations() {
+        let response = parse_cem_native_template_module_options(
+            TransformTemplateModuleParseRequest {
+                template: template_input(
+                    "templates/page.cem",
+                    r#"{@doc cem-ml 1}
+{module @version="1" |
+  {import @as="ui" @src="ui.cem" @content-type="text/cem-ml" @schema="https://cem.dev/ns/template/cem-native/1"}
+  {param @name="locale" @default="en-US" @visibility="public"}
+  {template @name="card" @visibility="public" |
+    {param @name="title" @required="true"}
+    {body | {article | {$title}}}
+  }
+}"#,
+                    Some(FormatIdentity {
+                        schema: Some(CEM_NATIVE_TEMPLATE_SCHEMA_URI.to_owned()),
+                        ..FormatIdentity::default()
+                    }),
+                ),
+            },
+        );
+
+        assert!(
+            response.diagnostics.is_empty(),
+            "{:?}",
+            response.diagnostics
+        );
+        assert!(response.module_declared);
+        assert_eq!(response.module_options.imports.len(), 1);
+        assert_eq!(response.module_options.imports[0].alias, "ui");
+        assert_eq!(response.module_options.imports[0].uri, "ui.cem");
+        assert_eq!(
+            response.module_options.imports[0]
+                .identity
+                .as_ref()
+                .and_then(|identity| identity.content_type.as_deref()),
+            Some("text/cem-ml")
+        );
+        assert_eq!(
+            response.module_options.entrypoints,
+            vec![TransformTemplateModuleEntrypointDeclaration {
+                name: "card".to_owned(),
+                visibility: TransformTemplateModuleVisibility::Public,
+            }]
+        );
+        assert_eq!(response.module_options.params.len(), 2);
+        assert_eq!(response.module_options.params[0].name, "locale");
+        assert_eq!(
+            response.module_options.params[0].default_value,
+            Some(Value::String("en-US".to_owned()))
+        );
+        assert_eq!(
+            response.module_options.params[0].visibility,
+            TransformTemplateModuleVisibility::Public
+        );
+        assert_eq!(response.module_options.params[1].name, "card.title");
+        assert!(response.module_options.params[1].required);
+    }
+
+    #[test]
+    fn cem_native_template_module_parser_ignores_plain_fragments_without_schema() {
+        let response =
+            parse_cem_native_template_module_options(TransformTemplateModuleParseRequest {
+                template: template_input(
+                    "templates/fragment.cem",
+                    r#"{span | {$datadom.attributes.label}}"#,
+                    Some(FormatIdentity {
+                        content_type: Some("text/cem-ml".to_owned()),
+                        ..FormatIdentity::default()
+                    }),
+                ),
+            });
+
+        assert!(
+            response.diagnostics.is_empty(),
+            "{:?}",
+            response.diagnostics
+        );
+        assert!(!response.module_declared);
+        assert!(response.module_options.imports.is_empty());
+        assert!(response.module_options.entrypoints.is_empty());
+        assert!(response.module_options.params.is_empty());
+    }
+
+    #[test]
+    fn cem_native_template_module_parser_reports_declaration_errors() {
+        let response =
+            parse_cem_native_template_module_options(TransformTemplateModuleParseRequest {
+                template: template_input(
+                    "templates/bad.cem",
+                    r#"{@doc cem-ml 1}
+{module |
+  {include @src="legacy.cem"}
+  {import @as="ui" @src="ui.cem"}
+  {import @as="ui" @src="ui-2.cem"}
+  {param @name="locale" @required="maybe"}
+  {template @name="card"}
+  {template @name="card"}
+}"#,
+                    Some(FormatIdentity {
+                        schema: Some(CEM_NATIVE_TEMPLATE_SCHEMA_URI.to_owned()),
+                        ..FormatIdentity::default()
+                    }),
+                ),
+            });
+
+        assert!(response.module_declared);
+        assert!(response
+            .diagnostics
+            .iter()
+            .any(|diag| diag.code == TRANSFORM_TEMPLATE_INCLUDE_RESERVED_CODE));
+        assert!(response
+            .diagnostics
+            .iter()
+            .any(|diag| diag.code == TRANSFORM_TEMPLATE_IMPORT_ALIAS_DUPLICATE_CODE));
+        assert!(response
+            .diagnostics
+            .iter()
+            .any(|diag| diag.code == TRANSFORM_TEMPLATE_DECLARATION_DUPLICATE_CODE));
+        assert!(response
+            .diagnostics
+            .iter()
+            .any(|diag| diag.code == TRANSFORM_TEMPLATE_DECLARATION_INVALID_CODE));
+    }
+
+    #[test]
+    fn cem_native_template_schema_requires_module_root() {
+        let response =
+            parse_cem_native_template_module_options(TransformTemplateModuleParseRequest {
+                template: template_input(
+                    "templates/not-module.cem",
+                    r#"{article | {$title}}"#,
+                    Some(FormatIdentity {
+                        schema: Some(CEM_NATIVE_TEMPLATE_SCHEMA_URI.to_owned()),
+                        ..FormatIdentity::default()
+                    }),
+                ),
+            });
+
+        assert!(!response.module_declared);
+        assert!(response
+            .diagnostics
+            .iter()
+            .any(|diag| diag.code == TRANSFORM_TEMPLATE_DECLARATION_REQUIRED_CODE));
     }
 
     #[test]
