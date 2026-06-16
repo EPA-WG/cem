@@ -789,7 +789,7 @@ fn emit_xsl_instruction_attributes(
         }
         match local_name(&element.tag) {
             "attribute" => attrs.push_str(&emit_xsl_attribute(element, ctx, diagnostics)),
-            "copy-of" if attr_value(element, "select") == Some("@*") => {
+            "copy-of" if copy_of_select_copies_current_attributes(element) => {
                 if let Some(current) = &ctx.item {
                     attrs.push_str(&attrs_from_current(current));
                 }
@@ -1316,6 +1316,19 @@ fn emit_xsl_copy_of(
         return String::new();
     };
     let select = select.trim();
+    if copy_of_select_is_attribute_node_union(select) {
+        if let Some(current) = &ctx.item {
+            return child_node_members_with_parent(&current.children, current)
+                .iter()
+                .map(|member| match member {
+                    ApplyMember::Item(item) => serialize_item_node_to_cem(item, ctx, diagnostics),
+                    ApplyMember::Current(item) => {
+                        serialize_current_item_to_cem(item, ctx, diagnostics)
+                    }
+                })
+                .collect();
+        }
+    }
     if let Some(name) = select.strip_prefix('$') {
         if let Some(nodes) = ctx.node_sets.get(name) {
             return nodes
@@ -1346,6 +1359,24 @@ fn emit_xsl_copy_of(
         format!("<xsl:copy-of select=\"{select}\"> is outside the bounded copy subset"),
     ));
     String::new()
+}
+
+fn copy_of_select_copies_current_attributes(element: &LegacyElement) -> bool {
+    attr_value(element, "select")
+        .is_some_and(|select| select.split('|').any(|part| part.trim() == "@*"))
+}
+
+fn copy_of_select_is_attribute_node_union(select: &str) -> bool {
+    let mut has_attributes = false;
+    let mut has_child_nodes = false;
+    for part in select.split('|').map(str::trim) {
+        match part {
+            "@*" => has_attributes = true,
+            "node()" | "./node()" => has_child_nodes = true,
+            _ => {}
+        }
+    }
+    has_attributes && has_child_nodes
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -3495,6 +3526,18 @@ mod tests {
         assert_eq!(
             result.source,
             "{doc | {wrap | before{item | A}after}}{out | before{item | A}after}"
+        );
+        assert!(result.diagnostics.is_empty());
+    }
+
+    #[test]
+    fn copy_of_attribute_and_node_union_preserves_identity_shape() {
+        let result = convert(
+            r#"<doc><item id="a">before<child>B</child>after</item></doc><xsl:stylesheet version="1.0"><xsl:template match="/"><out><xsl:apply-templates select="//item"/></out></xsl:template><xsl:template match="item"><xsl:copy><xsl:copy-of select="@*|node()"/></xsl:copy></xsl:template></xsl:stylesheet>"#,
+        );
+        assert_eq!(
+            result.source,
+            "{doc | {item @id=\"a\" | before{child | B}after}}{out | {item @id=\"a\" | before{child | B}after}}"
         );
         assert!(result.diagnostics.is_empty());
     }
