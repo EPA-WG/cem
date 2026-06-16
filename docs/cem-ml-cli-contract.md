@@ -78,6 +78,11 @@ Configuration surfaces:
   CEM-ML-first: do not add JSON `transforms[]` as the first transform graph surface.
   YAML or CSV config documents can be added later as content-type adapters that produce
   the same normalized graph/run model.
+- CLI configuration has its own schema identity and validation contract. The existing
+  JSON `RunConfig` surface should publish a JSON Schema for CI/tooling validation. The
+  CEM-ML transform graph config should publish a CEM-native CLI config schema, separate
+  from the CEM core document schema and separate from template schemas, for the
+  `run` / `import` / `transform` / `export` element set and its attributes.
 - CLI MUST support a config-file surface for reproducible CI/build use. The file is the
   preferred shape for multi-source runs, module maps, namespace maps, and multiple
   outputs.
@@ -215,6 +220,15 @@ parser also records `templateKind` on transform nodes when identity is explicit 
 can be inferred from `@src`, and emits deterministic diagnostics for unsupported or
 missing template identity. They classify only; they do not compile or execute
 templates.
+
+CEM-native template execution should land before XSLT parity expansion, in this order:
+
+1. Minimal CEM-native runtime: support pure CEM-QL evaluation and CEM-ML fragments
+   with embedded CEM-QL, with one implicit template entrypoint per template resource.
+2. Native template/module layer: add named templates, explicit entrypoints, params,
+   imports/includes, visibility, caching, and recursion/cycle limits.
+3. XSLT parity expansion: deepen XSLT support after the native named-template/module
+   substrate exists, so migration has a first-class native landing zone.
 
 Template reads and transform outputs must use the shared resolver layer. Template reads
 use the dedicated resolver purpose `template`, separate from ordinary data `input`
