@@ -175,17 +175,20 @@ Current implementation slice:
 - The parser validates missing required operation attributes, duplicate IDs,
   unresolved explicit refs, cycles, wildcard output patterns, and duplicate output
   destinations.
+- `cem_ml::engine::TransformGraphRequest` and `TransformGraphResponse` define the
+  graph-shaped engine boundary for loaded imports, template-backed transform stages,
+  export nodes, graph dependencies, scheduler scope IDs, diagnostics, artifacts, and
+  scheduler trace.
 - This is a config and validation boundary only. It does not execute transforms,
   read templates, import data, write outputs, or change `cem-ml transform`
   dispatch, which remains reserved.
 
-The future Rust/WASM engine API should model transform as a first-class graph
-request/response pair instead of smuggling template information through
-`ConvertRequest` or CLI-only options. The graph-lowered request shape must include:
+The Rust/WASM engine API models transform as a first-class graph request/response
+pair instead of smuggling template information through `ConvertRequest` or CLI-only
+options. The graph-lowered request shape includes:
 
 - imported data `EngineInput` nodes with their own root scopes and format identities;
-- transform stage nodes with template resources, stage kind, parameters, and named
-  primary/secondary input refs;
+- transform stage nodes with template resources and named primary/secondary input refs;
 - export nodes with target `FormatIdentity`, output `ScopeConfig`, and destination;
 - scheduler scope IDs for import, template load/compile, transform execution, and
   export;

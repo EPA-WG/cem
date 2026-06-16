@@ -578,10 +578,10 @@ These are data shapes only. Parser-filled content remains blocked until the pars
       `run` / `import` / `transform` / `export` graph config and validates missing required operation
       attributes, duplicate IDs, unresolved refs, cycles, wildcard output patterns, and duplicate output
       destinations. It is not connected to `cem-ml transform` execution.
+    - Current engine API slice: `cem_ml::engine::TransformGraphRequest` and `TransformGraphResponse` model
+      loaded import nodes, template-backed transform stages, export nodes, graph dependencies, scheduler scope IDs,
+      emitted artifacts, diagnostics, and scheduler trace. The default engine method still returns not implemented.
     - Before execution is implemented, add a design/API slice that defines:
-        - `TransformRequest` or successor graph request with import nodes, transform stage nodes, export nodes,
-          scheduler scope IDs, and shared engine context.
-        - `TransformResponse` with rendered/exported artifacts, diagnostics, and scheduler trace.
         - Template identity dispatch for supported template content types such as `application/xslt+xml` and/or
           CEM-native templates.
         - Resolver semantics for reading templates with the dedicated `template` resolver purpose and writing transform

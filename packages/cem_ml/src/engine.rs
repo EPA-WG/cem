@@ -204,6 +204,63 @@ pub struct TransformRequest {
 }
 
 #[derive(Debug, Clone)]
+pub struct TransformGraphRequest {
+    pub imports: Vec<TransformGraphImport>,
+    pub stages: Vec<TransformGraphStage>,
+    pub exports: Vec<TransformGraphExport>,
+    pub edges: Vec<TransformGraphDependency>,
+    pub preserve_source_offsets: bool,
+    pub context: EngineContext,
+}
+
+#[derive(Debug, Clone)]
+pub struct TransformGraphImport {
+    pub id: String,
+    pub input: EngineInput,
+    pub scheduler_scope_id: u32,
+}
+
+#[derive(Debug, Clone)]
+pub struct TransformGraphStage {
+    pub id: String,
+    pub template: TemplateInput,
+    pub primary_input: String,
+    pub secondary_inputs: BTreeMap<String, String>,
+    pub scheduler_scope_ids: TransformStageSchedulerScopeIds,
+}
+
+#[derive(Debug, Clone, Copy, Default, PartialEq, Eq)]
+pub struct TransformStageSchedulerScopeIds {
+    pub template_load: u32,
+    pub execution: u32,
+}
+
+#[derive(Debug, Clone)]
+pub struct TransformGraphExport {
+    pub id: String,
+    pub input: String,
+    pub destination: Option<String>,
+    pub target: Option<FormatIdentity>,
+    pub target_scope: ScopeConfig,
+    pub scheduler_scope_id: u32,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct TransformGraphDependency {
+    pub from: String,
+    pub to: String,
+    pub role: TransformGraphDependencyRole,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "kebab-case")]
+pub enum TransformGraphDependencyRole {
+    Parent,
+    PrimaryInput,
+    SecondaryInput,
+}
+
+#[derive(Debug, Clone)]
 pub struct TraceRequest {
     pub input: EngineInput,
     pub projection: TraceProjection,
@@ -277,6 +334,26 @@ pub struct TransformResponse {
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct TransformGraphResponse {
+    #[serde(default)]
+    pub artifacts: Vec<TransformGraphArtifact>,
+    pub diagnostics: Vec<Diagnostic>,
+    #[serde(rename = "schedulerTrace", default)]
+    pub scheduler_trace: SchedulerTraceReport,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct TransformGraphArtifact {
+    pub export_id: String,
+    #[serde(default)]
+    pub destination: Option<String>,
+    #[serde(default)]
+    pub identity: Option<FormatIdentity>,
+    pub primary: Value,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct TraceResponse {
     pub body: Value,
 }
@@ -342,6 +419,9 @@ pub trait CemMlEngine {
     fn inspect(&self, request: InspectRequest) -> EngineResult<InspectResponse>;
     fn convert(&self, request: ConvertRequest) -> EngineResult<ConvertResponse>;
     fn transform(&self, _: TransformRequest) -> EngineResult<TransformResponse> {
+        Err(EngineError::NotImplemented)
+    }
+    fn transform_graph(&self, _: TransformGraphRequest) -> EngineResult<TransformGraphResponse> {
         Err(EngineError::NotImplemented)
     }
     fn trace(&self, request: TraceRequest) -> EngineResult<TraceResponse>;
@@ -465,6 +545,90 @@ mod tests {
     }
 
     #[test]
+    fn transform_graph_request_models_import_stage_export_and_join_edges() {
+        let target_scope = ScopeConfig {
+            default_content_type: Some("text/html".to_owned()),
+            ..ScopeConfig::default()
+        };
+        let mut secondary_inputs = BTreeMap::new();
+        secondary_inputs.insert("stats".to_owned(), "stats".to_owned());
+
+        let request = TransformGraphRequest {
+            imports: vec![
+                TransformGraphImport {
+                    id: "book".to_owned(),
+                    input: engine_input("book.xml", "application/xml"),
+                    scheduler_scope_id: 1,
+                },
+                TransformGraphImport {
+                    id: "stats".to_owned(),
+                    input: engine_input("stats.xml", "application/xml"),
+                    scheduler_scope_id: 2,
+                },
+            ],
+            stages: vec![TransformGraphStage {
+                id: "report".to_owned(),
+                template: template_input("report.xsl", "application/xslt+xml"),
+                primary_input: "book".to_owned(),
+                secondary_inputs,
+                scheduler_scope_ids: TransformStageSchedulerScopeIds {
+                    template_load: 3,
+                    execution: 4,
+                },
+            }],
+            exports: vec![TransformGraphExport {
+                id: "html".to_owned(),
+                input: "report".to_owned(),
+                destination: Some("dist/report.html".to_owned()),
+                target: target_scope.format_identity_option(),
+                target_scope,
+                scheduler_scope_id: 5,
+            }],
+            edges: vec![
+                TransformGraphDependency {
+                    from: "book".to_owned(),
+                    to: "report".to_owned(),
+                    role: TransformGraphDependencyRole::PrimaryInput,
+                },
+                TransformGraphDependency {
+                    from: "stats".to_owned(),
+                    to: "report".to_owned(),
+                    role: TransformGraphDependencyRole::SecondaryInput,
+                },
+                TransformGraphDependency {
+                    from: "report".to_owned(),
+                    to: "html".to_owned(),
+                    role: TransformGraphDependencyRole::Parent,
+                },
+            ],
+            preserve_source_offsets: true,
+            context: EngineContext::default(),
+        };
+
+        assert_eq!(request.imports.len(), 2);
+        assert_eq!(request.stages[0].primary_input, "book");
+        assert_eq!(
+            request.stages[0]
+                .secondary_inputs
+                .get("stats")
+                .map(String::as_str),
+            Some("stats")
+        );
+        assert_eq!(
+            request.exports[0]
+                .target
+                .as_ref()
+                .and_then(|identity| identity.content_type.as_deref()),
+            Some("text/html")
+        );
+        assert!(request.edges.iter().any(|edge| {
+            edge.from == "stats"
+                && edge.to == "report"
+                && edge.role == TransformGraphDependencyRole::SecondaryInput
+        }));
+    }
+
+    #[test]
     fn transform_defaults_to_not_implemented() {
         let request = TransformRequest {
             data: engine_input("data.xml", "application/xml"),
@@ -477,6 +641,21 @@ mod tests {
         };
 
         let err = NotImplementedEngine.transform(request).unwrap_err();
+        assert!(matches!(err, EngineError::NotImplemented));
+    }
+
+    #[test]
+    fn transform_graph_defaults_to_not_implemented() {
+        let request = TransformGraphRequest {
+            imports: Vec::new(),
+            stages: Vec::new(),
+            exports: Vec::new(),
+            edges: Vec::new(),
+            preserve_source_offsets: false,
+            context: EngineContext::default(),
+        };
+
+        let err = NotImplementedEngine.transform_graph(request).unwrap_err();
         assert!(matches!(err, EngineError::NotImplemented));
     }
 }
