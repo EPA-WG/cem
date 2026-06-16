@@ -889,6 +889,42 @@ fn load_transform_data_artifact(
     )
 }
 
+fn collect_transform_graph_join(
+    join: &TransformGraphJoin,
+    artifacts: &BTreeMap<String, TransformTemplateDataArtifact>,
+) -> TransformTemplateDataArtifact {
+    match join.mode {
+        TransformGraphJoinMode::Collect => {
+            let items = join
+                .inputs
+                .iter()
+                .filter_map(|input| {
+                    artifacts.get(&input.artifact_id).map(|artifact| {
+                        json!({
+                            "artifactId": artifact.artifact_id.clone(),
+                            "uri": artifact.uri.clone(),
+                            "identity": artifact.identity.clone(),
+                            "primary": artifact.value.clone(),
+                            "bindings": input.bindings.clone(),
+                        })
+                    })
+                })
+                .collect::<Vec<_>>();
+            TransformTemplateDataArtifact {
+                artifact_id: join.id.clone(),
+                uri: None,
+                identity: None,
+                value: json!({
+                    "kind": "collection",
+                    "mode": "collect",
+                    "count": items.len(),
+                    "items": items,
+                }),
+            }
+        }
+    }
+}
+
 fn select_transform_template_adapter(
     context: &EngineContext,
     template: &TemplateInput,
@@ -1950,9 +1986,41 @@ impl CemMlEngine for RealCemMlEngine {
             });
         }
 
+        let mut completed_joins = BTreeSet::new();
         let mut completed_stages = BTreeSet::new();
-        while completed_stages.len() < request.stages.len() {
+        while completed_joins.len() + completed_stages.len()
+            < request.joins.len() + request.stages.len()
+        {
             let mut progressed = false;
+
+            for join in &request.joins {
+                if completed_joins.contains(&join.id) {
+                    continue;
+                }
+                if !join
+                    .inputs
+                    .iter()
+                    .all(|input| artifacts.contains_key(&input.artifact_id))
+                {
+                    continue;
+                }
+
+                progressed = true;
+                let pool = crate::scheduler::WorkerPool::new(
+                    join.scheduler_scope_id,
+                    scheduler_policy_from_context(&request.context),
+                    trace.clone(),
+                );
+                pool.submit(format!("{}:join", join.id), &abort)
+                    .map_err(|err| {
+                        EngineError::Internal(format!("scheduler dispatch failed: {err}"))
+                    })?;
+                pool.run_to_completion(&abort, |_| {
+                    let artifact = collect_transform_graph_join(join, &artifacts);
+                    artifacts.insert(join.id.clone(), artifact);
+                });
+                completed_joins.insert(join.id.clone());
+            }
 
             for stage in &request.stages {
                 if completed_stages.contains(&stage.id) {

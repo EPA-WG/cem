@@ -16,8 +16,9 @@ Namespace URI: `https://cem.dev/ns/cli/transform-config/1`
 | Element | Required attributes | Optional attributes | Child elements |
 | ------- | ------------------- | ------------------- | -------------- |
 | `run` | none | none | `import` |
-| `import` | `src` | `id`, `content-type`, `contentType`, `schema` | `transform`, `export` |
-| `transform` | `src` | `id`, `input`, `with:*`, `template-content-type`, `templateContentType`, `template-schema`, `templateSchema` | `transform`, `export` |
+| `import` | `src` | `id`, `content-type`, `contentType`, `schema` | `join`, `transform`, `export` |
+| `join` | `mode` | `id`, `input` | `transform`, `export` |
+| `transform` | `src` | `id`, `input`, `with:*`, `template-content-type`, `templateContentType`, `template-schema`, `templateSchema` | `join`, `transform`, `export` |
 | `export` | `out` | `id`, `content-type`, `contentType`, `schema` | none |
 
 ## Graph Semantics
@@ -25,11 +26,15 @@ Namespace URI: `https://cem.dev/ns/cli/transform-config/1`
 - A document must contain exactly one top-level `run` element.
 - `run` contains one or more import branches.
 - `import` creates a source node from `@src`.
+- `join @mode="collect"` creates one collection artifact from all artifacts in
+  its primary input.
 - `transform` creates a template application node from `@src`.
 - `export` creates a sink node from `@out`.
 - Nested operation nodes create parent graph edges.
 - `@input` creates an explicit primary input edge to an existing graph node.
 - `@with:*` creates named side-input edges to existing graph nodes.
+- `join` is the only supported cardinality-changing operation in this slice,
+  and `collect` is the only supported join mode.
 - Graph node IDs are explicit `@id` values or parser-generated fallback IDs.
 - Duplicate IDs, unknown references, cycles, missing required attributes, and
   duplicate output destinations are schema validation failures.

@@ -318,6 +318,10 @@ pub fn validate_transform_graph_runtime_contract(
         validate_graph_id("import", &import.id, &mut ids, &mut diagnostics);
         artifacts.insert(import.id.clone());
     }
+    for join in &request.joins {
+        validate_graph_id("join", &join.id, &mut ids, &mut diagnostics);
+        artifacts.insert(join.id.clone());
+    }
     for stage in &request.stages {
         validate_graph_id("transform", &stage.id, &mut ids, &mut diagnostics);
         artifacts.insert(stage.id.clone());
@@ -348,6 +352,17 @@ pub fn validate_transform_graph_runtime_contract(
                 &stage.id,
                 &format!("secondaryInputs.{name}"),
                 artifact_id,
+                &artifacts,
+                &mut diagnostics,
+            );
+        }
+    }
+    for join in &request.joins {
+        for (index, input) in join.inputs.iter().enumerate() {
+            validate_artifact_ref(
+                &join.id,
+                &format!("inputs.{index}"),
+                &input.artifact_id,
                 &artifacts,
                 &mut diagnostics,
             );
@@ -630,6 +645,7 @@ pub struct TransformRequest {
 #[derive(Debug, Clone)]
 pub struct TransformGraphRequest {
     pub imports: Vec<TransformGraphImport>,
+    pub joins: Vec<TransformGraphJoin>,
     pub stages: Vec<TransformGraphStage>,
     pub exports: Vec<TransformGraphExport>,
     pub edges: Vec<TransformGraphDependency>,
@@ -643,6 +659,26 @@ pub struct TransformGraphImport {
     pub id: String,
     pub input: EngineInput,
     pub scheduler_scope_id: u32,
+}
+
+#[derive(Debug, Clone)]
+pub struct TransformGraphJoin {
+    pub id: String,
+    pub mode: TransformGraphJoinMode,
+    pub inputs: Vec<TransformGraphJoinInput>,
+    pub scheduler_scope_id: u32,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "kebab-case")]
+pub enum TransformGraphJoinMode {
+    Collect,
+}
+
+#[derive(Debug, Clone)]
+pub struct TransformGraphJoinInput {
+    pub artifact_id: String,
+    pub bindings: BTreeMap<String, String>,
 }
 
 #[derive(Debug, Clone)]
@@ -1128,6 +1164,7 @@ mod tests {
                 input: engine_input("book.xml", "application/xml"),
                 scheduler_scope_id: 1,
             }],
+            joins: Vec::new(),
             stages: vec![
                 TransformGraphStage {
                     id: "book".to_owned(),
@@ -1266,6 +1303,21 @@ mod tests {
                     scheduler_scope_id: 2,
                 },
             ],
+            joins: vec![TransformGraphJoin {
+                id: "all-inputs".to_owned(),
+                mode: TransformGraphJoinMode::Collect,
+                inputs: vec![
+                    TransformGraphJoinInput {
+                        artifact_id: "book".to_owned(),
+                        bindings: BTreeMap::from([("stem".to_owned(), "book".to_owned())]),
+                    },
+                    TransformGraphJoinInput {
+                        artifact_id: "stats".to_owned(),
+                        bindings: BTreeMap::from([("stem".to_owned(), "stats".to_owned())]),
+                    },
+                ],
+                scheduler_scope_id: 3,
+            }],
             stages: vec![TransformGraphStage {
                 id: "report".to_owned(),
                 template: template_input("report.xsl", "application/xslt+xml"),
@@ -1278,8 +1330,8 @@ mod tests {
                 primary_input: "book".to_owned(),
                 secondary_inputs,
                 scheduler_scope_ids: TransformStageSchedulerScopeIds {
-                    template_load: 3,
-                    execution: 4,
+                    template_load: 4,
+                    execution: 5,
                 },
             }],
             exports: vec![TransformGraphExport {
@@ -1288,7 +1340,7 @@ mod tests {
                 destination: Some("dist/report.html".to_owned()),
                 target: target_scope.format_identity_option(),
                 target_scope,
-                scheduler_scope_id: 5,
+                scheduler_scope_id: 6,
             }],
             edges: vec![
                 TransformGraphDependency {
@@ -1302,6 +1354,11 @@ mod tests {
                     role: TransformGraphDependencyRole::SecondaryInput,
                 },
                 TransformGraphDependency {
+                    from: "book".to_owned(),
+                    to: "all-inputs".to_owned(),
+                    role: TransformGraphDependencyRole::PrimaryInput,
+                },
+                TransformGraphDependency {
                     from: "report".to_owned(),
                     to: "html".to_owned(),
                     role: TransformGraphDependencyRole::Parent,
@@ -1313,6 +1370,8 @@ mod tests {
         };
 
         assert_eq!(request.imports.len(), 2);
+        assert_eq!(request.joins[0].mode, TransformGraphJoinMode::Collect);
+        assert_eq!(request.joins[0].inputs.len(), 2);
         assert_eq!(request.stages[0].primary_input, "book");
         assert!(request.stages[0].template_entrypoint.is_implicit());
         assert_eq!(
@@ -1364,6 +1423,7 @@ mod tests {
     fn transform_graph_defaults_to_not_implemented() {
         let request = TransformGraphRequest {
             imports: Vec::new(),
+            joins: Vec::new(),
             stages: Vec::new(),
             exports: Vec::new(),
             edges: Vec::new(),

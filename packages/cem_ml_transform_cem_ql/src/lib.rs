@@ -425,6 +425,7 @@ mod tests {
                 },
                 scheduler_scope_id: 20,
             }],
+            joins: Vec::new(),
             stages: vec![
                 TransformGraphStage {
                     id: "html".to_owned(),
@@ -545,6 +546,7 @@ mod tests {
                 },
                 scheduler_scope_id: 30,
             }],
+            joins: Vec::new(),
             stages: vec![
                 TransformGraphStage {
                     id: "stats".to_owned(),

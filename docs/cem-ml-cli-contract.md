@@ -290,8 +290,9 @@ deterministic diagnostics for unsupported or missing template identity. CLI disp
 executes the one-to-one CEM-native path through the host-registered CEM-QL adapter.
 Programmatic graph execution is available through `RealCemMlEngine::transform_graph`;
 CLI config graph dispatch is available for concrete CEM-native graph paths, local
-filename import globs, and resolver-backed filename import globs. XSLT execution,
-recursive globs, and multi-artifact join semantics remain deferred.
+filename import globs, resolver-backed filename import globs, and explicit
+`join @mode="collect"` nodes. XSLT execution, recursive globs, and richer join
+modes such as grouped, zipped, and key-matched joins remain deferred.
 
 The first concrete executable CEM-native adapter lives in
 `cem_ml_transform_cem_ql`, outside `cem_ml`, so it can depend on both `cem_ml` and
@@ -573,7 +574,8 @@ I/O messages, but they must not replace the underlying resolver code or URI.
   It also accepts `--data-schema`, `--template-schema`, `--to-schema`, shared context options, and
   `--report-json` / `--report-md`. The current CLI runtime executes the one-to-one CEM-native path and CEM-ML
   `--config` graph dispatch for concrete paths plus local and resolver-backed filename import globs with source-derived
-  output bindings. XML+XSLT execution, recursive globs, and multi-artifact join semantics remain deferred.
+  output bindings and explicit `join @mode="collect"` aggregation. XML+XSLT execution, recursive globs, and richer
+  multi-artifact join modes remain deferred.
 - Multi-source configuration via config file, plus repeatable CSV option records for
   CLI one-liners. Config files are preferred for CI/build reproducibility.
 - Config-file content type via `--config-content-type`, inferred from extension when

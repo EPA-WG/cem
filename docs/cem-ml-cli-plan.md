@@ -608,16 +608,18 @@ These are data shapes only. Parser-filled content remains blocked until the pars
       `--template-schema`, `--to-content-type`, `--to-schema`, `--out`, shared context options, `--report-json`, and
       `--report-md`.
     - Current CLI runtime supports the minimal one-to-one CEM-native path through the CEM-QL executable adapter and
-      `--config` graph dispatch for concrete paths plus local and resolver-backed filename import globs.
+      `--config` graph dispatch for concrete paths plus local and resolver-backed filename import globs and explicit
+      `join @mode="collect"` aggregation.
       `RealCemMlEngine::transform_graph` executes CEM-native graph requests; XML+XSLT execution remains deferred.
     - Current config slice: `cem_ml::transform_config::parse_transform_graph_config` parses CEM-ML
-      `run` / `import` / `transform` / `export` graph config and validates missing required operation
+      `run` / `import` / `join` / `transform` / `export` graph config and validates missing required operation
       attributes, duplicate IDs, unresolved refs, cycles, and wildcard output patterns. CLI dispatch lowers this config
       into `TransformGraphRequest`, resolving relative resource and export paths against the config document path and
       validating duplicate destinations after output bindings resolve.
     - Current engine API slice: `cem_ml::engine::TransformGraphRequest` and `TransformGraphResponse` model
-      loaded import nodes, template-backed transform stages, export nodes, graph dependencies, scheduler scope IDs,
-      emitted artifacts, diagnostics, and scheduler trace. The default trait method still returns not implemented.
+      loaded import nodes, collect join nodes, template-backed transform stages, export nodes, graph dependencies,
+      scheduler scope IDs, emitted artifacts, diagnostics, and scheduler trace. The default trait method still returns
+      not implemented.
     - Current design/API slice:
         - Template identity dispatch now supports both XSLT template identities (`application/xslt+xml`, `text/xsl`,
           and legacy custom-element XSLT content types) and CEM-native template identities (`application/cem+xml`,
@@ -664,8 +666,8 @@ These are data shapes only. Parser-filled content remains blocked until the pars
           imports/includes, visibility, caching, and recursion/cycle limits; then expand XSLT parity using that native
           substrate.
         - The CLI transform graph config has its own schema identity,
-          `https://cem.dev/ns/cli/transform-config/1`, for `run` / `import` / `transform` / `export`; do not validate
-          transform config as ordinary CEM core content or as a template document.
+          `https://cem.dev/ns/cli/transform-config/1`, for `run` / `import` / `join` / `transform` / `export`; do not
+          validate transform config as ordinary CEM core content or as a template document.
         - Resolver semantics for reading templates with the dedicated `template` resolver purpose and writing transform
           outputs with the existing local-only default plus registered resolver behavior. Primary one-line CLI output
           writes to `--out` or stdout; report side outputs write through the existing report resolver path.
@@ -674,8 +676,10 @@ These are data shapes only. Parser-filled content remains blocked until the pars
         - CLI graph config source bindings are source-derived and immutable in this slice: `{src}`, `{path}`, `{dir}`,
           `{file}`, `{stem}`, `{ext}`, and `{index}`. Imports create bindings, one-to-one transforms preserve them, and
           exports consume them. Local and resolver-backed filename globs with one `*` are expanded by the CLI host.
-          Resolver-backed globs require explicit list-capable resolvers, sort matches by resolved URI, and enforce a
-          deterministic max-entry guard. Recursive globs and multi-artifact joins remain deferred.
+          Explicit `join @mode="collect"` nodes aggregate all artifacts from their primary input into one collection
+          artifact and expose a downstream `{count}` binding. Resolver-backed globs require explicit list-capable
+          resolvers, sort matches by resolved URI, and enforce a deterministic max-entry guard. Recursive globs and
+          richer multi-artifact join modes remain deferred.
         - Report and source-map behavior for diagnostics that may originate from data, template compilation, template
           execution, or output export. Current CLI report destinations suppress diagnostic stderr and use
           `cem-ml.transform.report` as the default report basename. Graph transform reports include
@@ -688,9 +692,9 @@ These are data shapes only. Parser-filled content remains blocked until the pars
       Execution is available through the programmatic engine API, the CLI one-liner, and CLI CEM-ML graph config dispatch
       when a host registers an executable adapter. `transform_graph` executes loaded in-memory graph requests and returns
       export artifacts; the CLI host writes configured graph exports through the resolver layer.
-      Next implementation boundary: design recursive glob semantics and multi-artifact join semantics. The crate
-      dependency cycle is avoided by keeping the concrete CEM-QL adapter in `cem_ml_transform_cem_ql` rather than in
-      `cem_ml`.
+      Next implementation boundary: design recursive glob semantics and richer multi-artifact join modes such as
+      grouped, zipped, and key-matched joins. The crate dependency cycle is avoided by keeping the concrete CEM-QL
+      adapter in `cem_ml_transform_cem_ql` rather than in `cem_ml`.
 8. `cem-ml trace <input>`
     - Supported structured formats: `json`, `xml`, `cem`.
     - Reference convenience formats: `text`, `html`.

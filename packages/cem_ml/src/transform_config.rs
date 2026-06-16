@@ -1,8 +1,9 @@
 //! CEM-ML transform graph configuration.
 //!
 //! This module owns the future `cem-ml transform` config syntax boundary. It
-//! parses CEM-ML-authored `run` / `import` / `transform` / `export` trees into
-//! a graph model and validates graph shape. It does not execute templates.
+//! parses CEM-ML-authored `run` / `import` / `join` / `transform` / `export`
+//! trees into a graph model and validates graph shape. It does not execute
+//! templates.
 
 use crate::diagnostics::{Diagnostic, Severity};
 use crate::engine::{
@@ -41,6 +42,12 @@ pub const TRANSFORM_CONFIG_SCHEMA_ELEMENTS: &[TransformConfigElementSchema] = &[
         local_name: "import",
         required_attributes: &["src"],
         optional_attributes: &["id", "content-type", "contentType", "schema"],
+        child_elements: &["join", "transform", "export"],
+    },
+    TransformConfigElementSchema {
+        local_name: "join",
+        required_attributes: &["mode"],
+        optional_attributes: &["id", "input"],
         child_elements: &["transform", "export"],
     },
     TransformConfigElementSchema {
@@ -55,7 +62,7 @@ pub const TRANSFORM_CONFIG_SCHEMA_ELEMENTS: &[TransformConfigElementSchema] = &[
             "template-schema",
             "templateSchema",
         ],
-        child_elements: &["transform", "export"],
+        child_elements: &["join", "transform", "export"],
     },
     TransformConfigElementSchema {
         local_name: "export",
@@ -94,6 +101,8 @@ pub struct TransformGraphNode {
     #[serde(default)]
     pub template_kind: Option<TransformTemplateKind>,
     #[serde(default)]
+    pub join_mode: Option<TransformGraphJoinMode>,
+    #[serde(default)]
     pub input_ref: Option<String>,
     #[serde(default)]
     pub with: BTreeMap<String, String>,
@@ -103,6 +112,7 @@ pub struct TransformGraphNode {
 #[serde(rename_all = "kebab-case")]
 pub enum TransformGraphNodeKind {
     Import,
+    Join,
     Transform,
     Export,
 }
@@ -111,10 +121,17 @@ impl TransformGraphNodeKind {
     fn as_str(self) -> &'static str {
         match self {
             TransformGraphNodeKind::Import => "import",
+            TransformGraphNodeKind::Join => "join",
             TransformGraphNodeKind::Transform => "transform",
             TransformGraphNodeKind::Export => "export",
         }
     }
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "kebab-case")]
+pub enum TransformGraphJoinMode {
+    Collect,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
@@ -288,7 +305,7 @@ impl GraphLowerer<'_> {
                 continue;
             };
             match name {
-                "import" | "transform" | "export" => {
+                "import" | "join" | "transform" | "export" => {
                     self.lower_operation(*child, parent_graph_id.clone());
                 }
                 other => self.push_diag(
@@ -305,6 +322,7 @@ impl GraphLowerer<'_> {
         };
         let kind = match name {
             "import" => TransformGraphNodeKind::Import,
+            "join" => TransformGraphNodeKind::Join,
             "transform" => TransformGraphNodeKind::Transform,
             "export" => TransformGraphNodeKind::Export,
             _ => return,
@@ -312,6 +330,17 @@ impl GraphLowerer<'_> {
         let attrs = collect_attrs(self.document, ast_id);
         let id = attr_value(&attrs, "", "id").unwrap_or_else(|| format!("{}:{ast_id}", name));
         let input_ref = attr_value(&attrs, "", "input");
+        let join_mode = if kind == TransformGraphNodeKind::Join {
+            match parse_join_mode(attr_value(&attrs, "", "mode").as_deref(), &id) {
+                Ok(mode) => mode,
+                Err((code, message)) => {
+                    self.push_diag(code, message);
+                    None
+                }
+            }
+        } else {
+            None
+        };
         let mut node = TransformGraphNode {
             id: id.clone(),
             kind,
@@ -325,6 +354,7 @@ impl GraphLowerer<'_> {
             template_schema: attr_value(&attrs, "", "template-schema")
                 .or_else(|| attr_value(&attrs, "", "templateSchema")),
             template_kind: None,
+            join_mode,
             input_ref,
             with: with_refs(&attrs),
         };
@@ -440,6 +470,10 @@ impl GraphLowerer<'_> {
                         ),
                     );
                 }
+            }
+            TransformGraphNodeKind::Join => {
+                // Join mode validation happens during lowering so missing and
+                // unsupported modes produce precise diagnostics.
             }
             TransformGraphNodeKind::Export => {
                 if node.out.as_deref().unwrap_or("").trim().is_empty() {
@@ -635,6 +669,25 @@ fn with_refs(attrs: &BTreeMap<(String, String), Option<String>>) -> BTreeMap<Str
         .collect()
 }
 
+fn parse_join_mode(
+    value: Option<&str>,
+    node_id: &str,
+) -> Result<Option<TransformGraphJoinMode>, (&'static str, String)> {
+    let Some(value) = value.map(str::trim).filter(|value| !value.is_empty()) else {
+        return Err((
+            "cem.transform_config.join_mode_missing",
+            format!("join node `{node_id}` requires `@mode`; use `collect`"),
+        ));
+    };
+    match value {
+        "collect" => Ok(Some(TransformGraphJoinMode::Collect)),
+        other => Err((
+            "cem.transform_config.join_mode_unsupported",
+            format!("join node `{node_id}` uses unsupported `@mode` `{other}`; only `collect` is supported"),
+        )),
+    }
+}
+
 fn content_type_essence(content_type: &str) -> String {
     content_type
         .split(';')
@@ -684,11 +737,18 @@ mod tests {
             .iter()
             .find(|element| element.local_name == "transform")
             .expect("transform schema");
+        let join = TRANSFORM_CONFIG_SCHEMA_ELEMENTS
+            .iter()
+            .find(|element| element.local_name == "join")
+            .expect("join schema");
 
         assert_eq!(TRANSFORM_CONFIG_SCHEMA_URI, TRANSFORM_CONFIG_NAMESPACE_URI);
         assert_eq!(run.child_elements, &["import"]);
+        assert_eq!(join.required_attributes, &["mode"]);
+        assert_eq!(join.child_elements, &["transform", "export"]);
         assert_eq!(transform.required_attributes, &["src"]);
         assert!(transform.optional_attributes.contains(&"with:*"));
+        assert!(transform.child_elements.contains(&"join"));
         assert!(transform.child_elements.contains(&"export"));
     }
 
@@ -879,12 +939,46 @@ mod tests {
     }
 
     #[test]
+    fn parses_collect_join_nodes() {
+        let response = parse(
+            r#"{@doc cem-ml 1}
+{run |
+  {import @id=chapter @src="chapters/*.cem" |
+    {join @id=book @mode="collect" |
+      {export @id=json @out="book.json"}
+    }
+  }
+}"#,
+        );
+
+        let join = response
+            .graph
+            .nodes
+            .iter()
+            .find(|node| node.id == "book")
+            .expect("join node");
+        assert_eq!(join.kind, TransformGraphNodeKind::Join);
+        assert_eq!(join.join_mode, Some(TransformGraphJoinMode::Collect));
+        assert!(response.graph.edges.iter().any(|edge| {
+            edge.from == "chapter"
+                && edge.to == "book"
+                && edge.role == TransformGraphEdgeRole::Parent
+        }));
+        assert!(response.graph.edges.iter().any(|edge| {
+            edge.from == "book" && edge.to == "json" && edge.role == TransformGraphEdgeRole::Parent
+        }));
+    }
+
+    #[test]
     fn validates_missing_required_attrs_duplicate_ids_refs_and_outputs() {
         let response = parse(
             r#"{@doc cem-ml 1}
 {run |
   {import @id=a}
   {import @id=a @src="other.xml"}
+  {import @id=source2 @src="source2.xml" |
+    {join @id=bad-join @mode="zip"}
+  }
   {import @id=source @src="source.xml" |
     {transform @id=t @with:missing=unknown |
       {export @id=out1 @out="out/*.html"}
@@ -898,6 +992,7 @@ mod tests {
             "cem.transform_config.import_src_missing",
             "cem.transform_config.id_duplicate",
             "cem.transform_config.transform_src_missing",
+            "cem.transform_config.join_mode_unsupported",
             "cem.transform_config.ref_unknown",
             "cem.transform_config.output_pattern_wildcard",
         ] {

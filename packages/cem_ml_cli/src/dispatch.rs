@@ -17,7 +17,8 @@ use cem_ml::run_config::{
     self, InputSpec, OutputSpec, ResolverSpec, RunConfig, RunConfigDefaults, ScopeConfig,
 };
 use cem_ml::transform_config::{
-    self, TransformGraphConfig, TransformGraphEdgeRole, TransformGraphNode, TransformGraphNodeKind,
+    self, TransformGraphConfig, TransformGraphEdgeRole, TransformGraphJoinMode, TransformGraphNode,
+    TransformGraphNodeKind,
 };
 use cem_ml_transform_cem_ql::register_cem_ql_template_adapter;
 use std::collections::{BTreeMap, BTreeSet};
@@ -1492,6 +1493,12 @@ fn to_engine_dependency_role(role: TransformGraphEdgeRole) -> eng::TransformGrap
     }
 }
 
+fn to_engine_join_mode(mode: TransformGraphJoinMode) -> eng::TransformGraphJoinMode {
+    match mode {
+        TransformGraphJoinMode::Collect => eng::TransformGraphJoinMode::Collect,
+    }
+}
+
 fn transform_graph_request_from_config(
     context: &eng::EngineContext,
     graph: &TransformGraphConfig,
@@ -1499,6 +1506,7 @@ fn transform_graph_request_from_config(
     config_source_uri: &str,
 ) -> Result<eng::TransformGraphRequest, CliRequestError> {
     let mut imports = Vec::new();
+    let mut joins = Vec::new();
     let mut stages = Vec::new();
     let mut exports = Vec::new();
     let mut edges = Vec::new();
@@ -1540,6 +1548,43 @@ fn transform_graph_request_from_config(
                     });
                 }
                 variants.insert(node.id.clone(), import_variants);
+            }
+            TransformGraphNodeKind::Join => {
+                let mode = node.join_mode.ok_or_else(|| {
+                    CliRequestError::Usage(format!("join node `{}` requires @mode", node.id))
+                })?;
+                let (input_ref, input_role) = transform_graph_primary_ref(graph, node)?;
+                let input_variants =
+                    transform_graph_variants_for_ref(&variants, &node.id, "input", &input_ref)?;
+                let input_count = input_variants.len();
+                let join_inputs = input_variants
+                    .iter()
+                    .map(|variant| eng::TransformGraphJoinInput {
+                        artifact_id: variant.id.clone(),
+                        bindings: variant.bindings.clone(),
+                    })
+                    .collect::<Vec<_>>();
+                joins.push(eng::TransformGraphJoin {
+                    id: node.id.clone(),
+                    mode: to_engine_join_mode(mode),
+                    inputs: join_inputs,
+                    scheduler_scope_id: next_scope_id,
+                });
+                next_scope_id += 1;
+                for variant in input_variants {
+                    edges.push(eng::TransformGraphDependency {
+                        from: variant.id,
+                        to: node.id.clone(),
+                        role: to_engine_dependency_role(input_role),
+                    });
+                }
+                variants.insert(
+                    node.id.clone(),
+                    vec![TransformGraphArtifactVariant {
+                        id: node.id.clone(),
+                        bindings: BTreeMap::from([("count".to_owned(), input_count.to_string())]),
+                    }],
+                );
             }
             TransformGraphNodeKind::Transform => {
                 let src = node.src.as_ref().ok_or_else(|| {
@@ -1662,6 +1707,7 @@ fn transform_graph_request_from_config(
 
     Ok(eng::TransformGraphRequest {
         imports,
+        joins,
         stages,
         exports,
         edges,
@@ -3688,6 +3734,45 @@ mod tests {
             std::fs::read_to_string(root.join("out/1-ch02.html")).unwrap(),
             "<article>document</article>"
         );
+    }
+
+    #[test]
+    fn transform_config_collect_join_feeds_single_transform() {
+        let root = std::env::temp_dir().join("cem-ml-cli-tests/transform-config-collect-join");
+        let _ = std::fs::remove_dir_all(&root);
+        std::fs::create_dir_all(root.join("inputs")).unwrap();
+        std::fs::write(root.join("inputs/ch02.cem"), "{p @id=\"two\"}").unwrap();
+        std::fs::write(root.join("inputs/ch01.cem"), "{p @id=\"one\"}").unwrap();
+        std::fs::write(root.join("summary.cem"), "{article | {$input.count}}").unwrap();
+        let config = root.join("graph.cem");
+        std::fs::write(
+            &config,
+            r#"{run |
+  {import @id=chapters @src="inputs/*.cem" @content-type="text/cem-ml" |
+    {join @id=book @mode="collect" |
+      {transform @id=summary @src="summary.cem" @template-content-type="text/cem-ml" |
+        {export @id=html @out="out/book-{count}.html" @content-type="text/html"}
+      }
+    }
+  }
+}"#,
+        )
+        .unwrap();
+
+        let (outcome, stdout, stderr) = run(
+            &RealCemMlEngine::new(),
+            &["transform", "--config", config.to_str().unwrap()],
+        );
+
+        assert_eq!(outcome.exit_code, EXIT_OK);
+        assert!(stdout.is_empty(), "{stdout}");
+        assert!(stderr.trim().is_empty(), "{stderr}");
+        assert_eq!(
+            std::fs::read_to_string(root.join("out/book-2.html")).unwrap(),
+            "<article>2</article>"
+        );
+        assert!(!root.join("out/book-0.html").exists());
+        assert!(!root.join("out/book-1.html").exists());
     }
 
     #[test]
