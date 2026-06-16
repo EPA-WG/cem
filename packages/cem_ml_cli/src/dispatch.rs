@@ -16,6 +16,7 @@ use cem_ml::resolver::{
 use cem_ml::run_config::{
     self, InputSpec, OutputSpec, ResolverSpec, RunConfig, RunConfigDefaults, ScopeConfig,
 };
+use cem_ml_transform_cem_ql::register_cem_ql_template_adapter;
 use std::collections::{BTreeMap, BTreeSet};
 use std::fs;
 use std::io::{self, Write};
@@ -693,6 +694,7 @@ fn context(c: &cli::ContextOptions) -> eng::EngineContext {
         base_uri: c.base_uri.clone(),
         ..eng::EngineContext::default()
     };
+    register_cli_transform_template_adapters(&mut context);
     register_cli_resolvers(&mut context.resolver_registry, c, None);
     context
 }
@@ -704,6 +706,10 @@ fn context_with_config(c: &cli::ContextOptions, config: &RunConfig) -> eng::Engi
     };
     register_cli_resolvers(&mut context.resolver_registry, c, Some(config));
     context
+}
+
+fn register_cli_transform_template_adapters(context: &mut eng::EngineContext) {
+    register_cem_ql_template_adapter(&mut context.template_adapter_registry);
 }
 
 fn register_cli_resolvers(
@@ -2604,6 +2610,49 @@ mod tests {
         assert_eq!(
             request.template.root_scope.default_content_type.as_deref(),
             Some("text/cem-ml")
+        );
+    }
+
+    #[test]
+    fn cli_context_registers_executable_cem_ql_transform_adapter() {
+        let data = write_fixture("transform-helper-cli-adapter-data.cem", "{p Hi}");
+        let template = write_fixture("transform-helper-cli-adapter-view.cem", "{p | Hello}");
+        let parsed = parse_cli(&[
+            "transform",
+            data.to_str().unwrap(),
+            "--data-content-type",
+            "text/cem-ml",
+            "--template",
+            template.to_str().unwrap(),
+            "--template-content-type",
+            "text/cem-ml",
+            "--to-content-type",
+            "text/html",
+            "--out",
+            "view.html",
+        ]);
+        let cli::Command::Transform(args) = parsed.command else {
+            panic!("expected transform command");
+        };
+        let context = context(&cli::ContextOptions::default());
+
+        let request = match transform_request_from_args(&context, &args) {
+            Ok(request) => request,
+            Err(_) => panic!("transform request helper should accept CEM-native templates"),
+        };
+        let template_identity = request.template.identity.as_ref().unwrap();
+        let adapter = match request
+            .context
+            .template_adapter_registry
+            .select_adapter(template_identity)
+        {
+            cem_ml::transform_template::TransformTemplateAdapterLookup::Matched(adapter) => adapter,
+            other => panic!("expected executable CEM-QL adapter, got {other:?}"),
+        };
+
+        assert_eq!(
+            adapter.id(),
+            cem_ml_transform_cem_ql::CEM_QL_TEMPLATE_ADAPTER_ID
         );
     }
 

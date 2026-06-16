@@ -126,8 +126,10 @@ for the current architecture have landed; only deferred capability work remains 
       `cem_ml` and `cem_ql`, and compiles/renders CEM-ML fragments through `cem_ql::render` while carrying the compiled
       payload in-process on the adapter artifact. `RealCemMlEngine::transform` now runs the minimal one-to-one
       programmatic engine path when a host registers an executable adapter: data is loaded through lifecycle, parsed to
-      DOM JSON, compiled/rendered through the selected adapter, and returned as content-primary output. Runtime preflight
-      validation now rejects deferred first-slice features and bad programmatic graph refs/destinations before execution.
+      DOM JSON, compiled/rendered through the selected adapter, and returned as content-primary output. The CLI host
+      context now registers the CEM-QL executable adapter for transform request construction, while CLI dispatch remains
+      reserved. Runtime preflight validation now rejects deferred first-slice features and bad programmatic graph
+      refs/destinations before execution.
       Before runtime
       implementation, keep the checked-in CEM-native CLI transform-config schema
       (`packages/cem_ml/schema/cli/transform-config.md`,
