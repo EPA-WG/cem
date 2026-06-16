@@ -358,7 +358,12 @@ minimal CEM-QL-fragment executor already implements these behaviors.
   params are validated as JSON shapes before adapter compilation. Params are
   non-nullable by default; `@nullable="true"` allows an explicit JSON `null`
   caller value or literal `@default="null"`. Explicit `null` is still considered
-  provided for requiredness. `@default` is literal: `any`/`string` keep the
+  provided for requiredness. String-valued caller params from CLI/config inputs
+  are normalized at the module contract boundary: nullable literal `null` becomes
+  JSON null, `boolean` accepts `true`/`false`, and
+  `number`/`integer`/`array`/`object`/`json` parse JSON before validation;
+  non-nullable `any`/`string` params keep text such as `null` as a string.
+  `@default` is literal: `any`/`string` keep the
   attribute text as a string, `boolean` accepts only `true`/`false`, and
   `number`/`integer`/`array`/`object`/`json` parse JSON and must match the
   declared type. Default expressions remain reserved behind `@default-expr` /

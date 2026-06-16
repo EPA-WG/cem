@@ -35,6 +35,7 @@ use crate::transform_template::{
     TransformTemplateCompiledArtifact, TransformTemplateDataArtifact,
     TransformTemplateModuleCacheKey, TransformTemplateModuleDependencyKind,
     TransformTemplateModuleImport, TransformTemplateModuleOptions,
+    TransformTemplateModuleParamDeclaration, TransformTemplateModuleParamType,
     TransformTemplateModuleParseRequest, TransformTemplateModulePreflight,
     TransformTemplateModuleVisibility, TransformTemplateOutputArtifact,
     TransformTemplateRenderRequest, TransformTemplateResolvedModule,
@@ -1019,10 +1020,15 @@ fn compile_transform_template(
 ) -> Option<TransformTemplateCompiledArtifact> {
     let module_options =
         lower_transform_template_module_options(spec.template, spec.module_options, diagnostics)?;
+    let params = normalize_transform_template_module_params(
+        spec.params,
+        spec.entrypoint.name.as_deref(),
+        &module_options,
+    );
     validate_transform_template_module_contract(
         spec.template,
         spec.entrypoint,
-        spec.params,
+        &params,
         &module_options,
         diagnostics,
     )?;
@@ -1044,7 +1050,7 @@ fn compile_transform_template(
     match spec.adapter.compile(TransformTemplateCompileRequest {
         template: spec.template,
         entrypoint: spec.entrypoint,
-        params: spec.params,
+        params: &params,
         data_bindings: spec.data_bindings,
         module_options,
         module_preflight,
@@ -1087,6 +1093,65 @@ fn lower_transform_template_module_options(
     module_options.params.extend(overlay_options.params);
     module_options.limits = overlay_options.limits;
     Some(module_options)
+}
+
+fn normalize_transform_template_module_params(
+    params: &BTreeMap<String, Value>,
+    selected_entrypoint: Option<&str>,
+    module_options: &TransformTemplateModuleOptions,
+) -> BTreeMap<String, Value> {
+    let mut normalized = params.clone();
+    for declaration in &module_options.params {
+        for name in accepted_param_names(declaration, selected_entrypoint) {
+            let Some(value) = normalized.get(name) else {
+                continue;
+            };
+            let coerced = coerce_transform_template_param_value(declaration, value);
+            normalized.insert(name.to_owned(), coerced);
+        }
+    }
+    normalized
+}
+
+fn coerce_transform_template_param_value(
+    declaration: &TransformTemplateModuleParamDeclaration,
+    value: &Value,
+) -> Value {
+    let Value::String(raw) = value else {
+        return value.clone();
+    };
+
+    if declaration.nullable && raw.trim() == "null" {
+        return Value::Null;
+    }
+
+    match declaration.value_type {
+        TransformTemplateModuleParamType::Any | TransformTemplateModuleParamType::String => {
+            value.clone()
+        }
+        TransformTemplateModuleParamType::Boolean => match raw.trim() {
+            "true" => Value::Bool(true),
+            "false" => Value::Bool(false),
+            _ => value.clone(),
+        },
+        TransformTemplateModuleParamType::Number
+        | TransformTemplateModuleParamType::Integer
+        | TransformTemplateModuleParamType::Array
+        | TransformTemplateModuleParamType::Object
+        | TransformTemplateModuleParamType::Json => {
+            let Ok(parsed) = serde_json::from_str::<Value>(raw) else {
+                return value.clone();
+            };
+            if declaration
+                .value_type
+                .accepts(&parsed, declaration.nullable)
+            {
+                parsed
+            } else {
+                value.clone()
+            }
+        }
+    }
 }
 
 fn validate_transform_template_module_contract(
@@ -1260,7 +1325,7 @@ fn validate_transform_template_module_contract(
 }
 
 fn accepted_param_names<'a>(
-    declaration: &'a crate::transform_template::TransformTemplateModuleParamDeclaration,
+    declaration: &'a TransformTemplateModuleParamDeclaration,
     selected_entrypoint: Option<&'a str>,
 ) -> Vec<&'a str> {
     let mut accepted_names = Vec::new();
@@ -3821,6 +3886,178 @@ mod tests {
         assert!(diagnostics
             .iter()
             .any(|diag| diag.code == TRANSFORM_TEMPLATE_PARAM_REQUIRED_CODE));
+    }
+
+    #[test]
+    fn template_module_contract_coerces_declared_string_params() {
+        let template = template("main.cem", b"{main}");
+        let options = TransformTemplateModuleOptions {
+            entrypoints: vec![
+                crate::transform_template::TransformTemplateModuleEntrypointDeclaration {
+                    name: "card".to_owned(),
+                    visibility: TransformTemplateModuleVisibility::Public,
+                },
+            ],
+            params: vec![
+                TransformTemplateModuleParamDeclaration {
+                    name: "enabled".to_owned(),
+                    value_type: TransformTemplateModuleParamType::Boolean,
+                    nullable: false,
+                    default_value: None,
+                    required: false,
+                    visibility: TransformTemplateModuleVisibility::Public,
+                },
+                TransformTemplateModuleParamDeclaration {
+                    name: "options".to_owned(),
+                    value_type: TransformTemplateModuleParamType::Object,
+                    nullable: false,
+                    default_value: None,
+                    required: false,
+                    visibility: TransformTemplateModuleVisibility::Public,
+                },
+                TransformTemplateModuleParamDeclaration {
+                    name: "raw".to_owned(),
+                    value_type: TransformTemplateModuleParamType::Any,
+                    nullable: false,
+                    default_value: None,
+                    required: false,
+                    visibility: TransformTemplateModuleVisibility::Public,
+                },
+                TransformTemplateModuleParamDeclaration {
+                    name: "maybe".to_owned(),
+                    value_type: TransformTemplateModuleParamType::Any,
+                    nullable: true,
+                    default_value: None,
+                    required: false,
+                    visibility: TransformTemplateModuleVisibility::Public,
+                },
+                TransformTemplateModuleParamDeclaration {
+                    name: "card.count".to_owned(),
+                    value_type: TransformTemplateModuleParamType::Integer,
+                    nullable: false,
+                    default_value: None,
+                    required: false,
+                    visibility: TransformTemplateModuleVisibility::Private,
+                },
+                TransformTemplateModuleParamDeclaration {
+                    name: "card.subtitle".to_owned(),
+                    value_type: TransformTemplateModuleParamType::String,
+                    nullable: true,
+                    default_value: None,
+                    required: false,
+                    visibility: TransformTemplateModuleVisibility::Private,
+                },
+                TransformTemplateModuleParamDeclaration {
+                    name: "card.tags".to_owned(),
+                    value_type: TransformTemplateModuleParamType::Array,
+                    nullable: false,
+                    default_value: None,
+                    required: false,
+                    visibility: TransformTemplateModuleVisibility::Private,
+                },
+            ],
+            ..TransformTemplateModuleOptions::default()
+        };
+        let params = BTreeMap::from([
+            ("enabled".to_owned(), json!("true")),
+            ("options".to_owned(), json!(r#"{"compact":true}"#)),
+            ("raw".to_owned(), json!("null")),
+            ("maybe".to_owned(), json!("null")),
+            ("count".to_owned(), json!("42")),
+            ("subtitle".to_owned(), json!("null")),
+            ("tags".to_owned(), json!(r#"["a","b"]"#)),
+        ]);
+
+        let normalized =
+            normalize_transform_template_module_params(&params, Some("card"), &options);
+
+        assert_eq!(normalized.get("enabled"), Some(&json!(true)));
+        assert_eq!(normalized.get("options"), Some(&json!({"compact": true})));
+        assert_eq!(normalized.get("raw"), Some(&json!("null")));
+        assert_eq!(normalized.get("maybe"), Some(&Value::Null));
+        assert_eq!(normalized.get("count"), Some(&json!(42)));
+        assert_eq!(normalized.get("subtitle"), Some(&Value::Null));
+        assert_eq!(normalized.get("tags"), Some(&json!(["a", "b"])));
+
+        let mut diagnostics = Vec::new();
+        let validated = validate_transform_template_module_contract(
+            &template,
+            &TransformTemplateEntrypoint::named("card"),
+            &normalized,
+            &options,
+            &mut diagnostics,
+        );
+
+        assert!(validated.is_some(), "{diagnostics:?}");
+        assert!(diagnostics.is_empty(), "{diagnostics:?}");
+    }
+
+    #[test]
+    fn template_module_contract_rejects_uncoercible_string_params() {
+        let template = template("main.cem", b"{main}");
+        let options = TransformTemplateModuleOptions {
+            entrypoints: vec![
+                crate::transform_template::TransformTemplateModuleEntrypointDeclaration {
+                    name: "card".to_owned(),
+                    visibility: TransformTemplateModuleVisibility::Public,
+                },
+            ],
+            params: vec![
+                TransformTemplateModuleParamDeclaration {
+                    name: "enabled".to_owned(),
+                    value_type: TransformTemplateModuleParamType::Boolean,
+                    nullable: false,
+                    default_value: None,
+                    required: false,
+                    visibility: TransformTemplateModuleVisibility::Public,
+                },
+                TransformTemplateModuleParamDeclaration {
+                    name: "options".to_owned(),
+                    value_type: TransformTemplateModuleParamType::Object,
+                    nullable: false,
+                    default_value: None,
+                    required: false,
+                    visibility: TransformTemplateModuleVisibility::Public,
+                },
+                TransformTemplateModuleParamDeclaration {
+                    name: "card.count".to_owned(),
+                    value_type: TransformTemplateModuleParamType::Integer,
+                    nullable: false,
+                    default_value: None,
+                    required: false,
+                    visibility: TransformTemplateModuleVisibility::Private,
+                },
+            ],
+            ..TransformTemplateModuleOptions::default()
+        };
+        let params = BTreeMap::from([
+            ("enabled".to_owned(), json!("yes")),
+            ("options".to_owned(), json!("not json")),
+            ("count".to_owned(), json!("1.5")),
+        ]);
+        let normalized =
+            normalize_transform_template_module_params(&params, Some("card"), &options);
+        let mut diagnostics = Vec::new();
+
+        let validated = validate_transform_template_module_contract(
+            &template,
+            &TransformTemplateEntrypoint::named("card"),
+            &normalized,
+            &options,
+            &mut diagnostics,
+        );
+
+        assert!(validated.is_none());
+        assert_eq!(normalized.get("enabled"), Some(&json!("yes")));
+        assert_eq!(normalized.get("options"), Some(&json!("not json")));
+        assert_eq!(normalized.get("count"), Some(&json!("1.5")));
+        assert_eq!(
+            diagnostics
+                .iter()
+                .filter(|diag| diag.code == TRANSFORM_TEMPLATE_PARAM_TYPE_CODE)
+                .count(),
+            3
+        );
     }
 
     #[test]

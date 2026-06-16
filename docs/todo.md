@@ -175,6 +175,10 @@ for the current architecture have landed; only deferred capability work remains 
       non-nullable by default; `@nullable="true"` allows explicit JSON `null` caller values and literal
       `@default="null"`; explicit `null` remains provided for requiredness; `@default` is literal only, with raw strings
       for `any`/`string`, `true`/`false` for `boolean`, and parsed JSON for `number`/`integer`/`array`/`object`/`json`;
+      string-valued caller params from CLI/config inputs are normalized at the module contract boundary before adapter
+      compile, with nullable literal `null` becoming JSON null, `boolean` accepting `true`/`false`,
+      `number`/`integer`/`array`/`object`/`json` parsing JSON, and non-nullable `any`/`string` keeping text such as
+      `null` as a string;
       `@default-expr` / `@defaultExpr` is reserved and fatal until expression context, resolver policy, and reporting are
       defined;
       portable data bindings are primary `input`, named secondary graph inputs, and params; the CEM-QL data document also exposes those host bindings as top-level fields while retaining

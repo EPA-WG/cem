@@ -42,6 +42,11 @@ Namespace URI: `https://cem.dev/ns/template/cem-native/1`
   `true` or `false`. For `number`, `integer`, `array`, `object`, and `json`, the
   literal is parsed as JSON and must match the declared type. The literal `null`
   is accepted only when `@nullable="true"`.
+- String-valued caller params from CLI/config inputs are normalized before
+  adapter compile using the same declared type surface: nullable literal `null`
+  becomes JSON null, `boolean` accepts `true`/`false`, and
+  `number`, `integer`, `array`, `object`, and `json` parse JSON; non-nullable
+  `any` and `string` keep text such as `null` as a string.
 - `@default-expr` / `@defaultExpr` is reserved for future expression defaults and
   is a fatal declaration diagnostic in this schema version. It must not be
   evaluated by adapters yet.

@@ -685,7 +685,11 @@ These are data shapes only. Parser-filled content remains blocked until the pars
             - Support v1 param `@type` values `any`, `string`, `boolean`, `number`, `integer`, `array`, `object`, and
               `json`. Omitted `@type` means `any`. Typed caller params are validated as JSON shapes before adapter
               compilation. Params are non-nullable by default; `@nullable="true"` allows explicit JSON `null` caller
-              values and literal `@default="null"`. Explicit `null` remains provided for requiredness. Keep `@default`
+              values and literal `@default="null"`. Explicit `null` remains provided for requiredness. Normalize
+              string-valued caller params from CLI/config inputs at the module contract boundary: nullable literal
+              `null` becomes JSON null, `boolean` accepts `true`/`false`, and
+              `number`/`integer`/`array`/`object`/`json` parse JSON before validation; non-nullable `any`/`string` keep
+              text such as `null` as a string. Keep `@default`
               literal: `any`/`string` are raw strings, `boolean` is `true`/`false`, and
               `number`/`integer`/`array`/`object`/`json` parse JSON. Reserve `@default-expr` / `@defaultExpr` for future
               expression defaults and reject it until expression context, resolver policy, and reporting are defined.
