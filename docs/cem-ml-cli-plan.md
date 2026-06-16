@@ -682,6 +682,11 @@ These are data shapes only. Parser-filled content remains blocked until the pars
               and unknown params are fatal unless an adapter declares an extension bucket. A param key with value `null`
               counts as provided; only omitted keys use defaults or fail required-param checks. Selected-entrypoint
               local and qualified param names are aliases, and providing both aliases is fatal.
+            - Support v1 param `@type` values `any`, `string`, `boolean`, `number`, `integer`, `array`, `object`, and
+              `json`. Omitted `@type` means `any`. Typed caller params are validated as JSON shapes before adapter
+              compilation; explicit `null` remains provided but only satisfies `any`/`json` until nullable type syntax is
+              designed. Keep `@default` literal: `any`/`string` are raw strings, `boolean` is `true`/`false`, and
+              `number`/`integer`/`array`/`object`/`json` parse JSON. Default expressions remain reserved.
             - Keep portable data bindings explicit: primary artifact as `input`, named secondary artifacts under their
               graph labels, and params under their names. The CEM-QL data document also exposes those host bindings as
               top-level fields while retaining the legacy `datadom.attributes.*` projection. Direct primary-object
@@ -701,13 +706,13 @@ These are data shapes only. Parser-filled content remains blocked until the pars
               arbitrary template writes.
         - Current native module API slice: `TransformTemplateCompileRequest` carries
           `TransformTemplateModuleOptions`; the stable model includes import declarations, entrypoint declarations with
-          explicit visibility, param declarations with defaults/required flags, non-executing call-site records, module
+          explicit visibility, param declarations with types/defaults/required flags, non-executing call-site records, module
           limits, module cache keys, and reserved diagnostic codes for private/missing entrypoints, unknown calls,
-          unknown or missing required params, import cycles, recursion limits, and reserved includes. The real engine now
+          unknown, missing required, or type-mismatched params, import cycles, recursion limits, and reserved includes. The real engine now
           parses/lowers v1 CEM-native template declarations into module options before adapter compilation, while leaving
           plain CEM fragment templates declaration-free. It validates named entrypoint requests against public
-          declarations, rejects unknown caller params, reports missing required params, and validates same-module and
-          imported public `call` targets before adapter compilation. Compile requests also carry
+          declarations, rejects unknown caller params, validates typed caller/default param values, reports missing
+          required params, and validates same-module and imported public `call` targets before adapter compilation. Compile requests also carry
           `TransformTemplateModulePreflight`, which the real engine builds before adapter compilation by reading declared
           imports through the template resolver, resolving relative imports against the importing template URI, carrying
           resolved module bytes/identity/content hashes with `parentUri` for non-root import edges, building the
@@ -732,7 +737,8 @@ These are data shapes only. Parser-filled content remains blocked until the pars
         - The v1 CEM-native template declaration schema now has its own identity,
           `https://cem.dev/ns/template/cem-native/1`, and checked-in schema artifact
           `packages/cem_ml/schema/template/cem-native-template.md`. Its declaration vocabulary is `module`, `import`,
-          `param`, `template`, `body`, and `call`; `include` remains intentionally absent/reserved. Built-in and CEM-QL
+          `param`, `template`, `body`, and `call`; `param @type` defines the first JSON-shape type surface and `include`
+          remains intentionally absent/reserved. Built-in and CEM-QL
           executable template adapters recognize this schema identity while preserving legacy CEM core identity fallback
           for existing CEM-native template selection.
         - The CLI transform graph config has its own schema identity,

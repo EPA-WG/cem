@@ -170,6 +170,11 @@ for the current architecture have landed; only deferred capability work remains 
       declarations are private by default; params are immutable with template defaults and fatal unknown names unless an
       adapter declares an extension bucket; explicit `null` caller params count as provided and do not fall back to
       defaults; selected-entrypoint local and qualified param names are aliases, and providing both aliases is fatal;
+      v1 param `@type` supports `any`, `string`, `boolean`, `number`, `integer`, `array`, `object`, and `json`, with
+      omitted `@type` as `any`; typed caller params are validated as JSON shapes before adapter compilation; explicit
+      `null` remains provided but only satisfies `any`/`json` until nullable syntax is designed; `@default` is literal
+      only, with raw strings for `any`/`string`, `true`/`false` for `boolean`, and parsed JSON for
+      `number`/`integer`/`array`/`object`/`json`; default expressions remain reserved;
       portable data bindings are primary `input`, named secondary graph inputs, and params; the CEM-QL data document also exposes those host bindings as top-level fields while retaining
       `datadom.attributes.*` compatibility; imports come before includes and load isolated modules through the `template` resolver; includes remain
       reserved; module cache keys include adapter ID, resolved URI, identity, content hash, selected entrypoint, execution
@@ -177,8 +182,9 @@ for the current architecture have landed; only deferred capability work remains 
       runtime/scheduler limits; multiple outputs stay modeled by graph branches and exports.
       The native template module API shape now exists on `TransformTemplateCompileRequest` through
       `TransformTemplateModuleOptions`, import declarations, entrypoint declarations with explicit visibility, param
-      declarations, module limits, cache keys, non-executing call-site records, and reserved diagnostics for
-      private/missing entrypoints, unknown calls, unknown params, import cycles, recursion limits, and reserved includes.
+      declarations with types/defaults/required flags, module limits, cache keys, non-executing call-site records, and
+      reserved diagnostics for private/missing entrypoints, unknown calls, unknown/missing/type-mismatched params, import
+      cycles, recursion limits, and reserved includes.
       `TransformTemplateModulePreflight` now carries
       recursive resolver-backed import reads, resolved module bytes/identity/content hashes with `parentUri` for
       non-root import edges, dependency graph cache-key input, and compile-time diagnostics for duplicate aliases per
@@ -201,11 +207,11 @@ for the current architecture have landed; only deferred capability work remains 
       identity
       (`https://cem.dev/ns/template/cem-native/1`) and checked-in artifact
       `packages/cem_ml/schema/template/cem-native-template.md`, covering `module`, `import`, `param`, `template`,
-      `body`, and `call` while keeping `include` reserved. The real engine now parses/lowers that schema into
+      `body`, and `call`, including the first `param @type` JSON-shape surface, while keeping `include` reserved. The real engine now parses/lowers that schema into
       `TransformTemplateModuleOptions` before adapter compilation while preserving declaration-free CEM fragment
-      templates. It validates named entrypoint requests against public declarations, rejects unknown caller params, and
-      reports missing required caller params before adapter compilation. It also validates same-module and imported
-      public `call` targets. Next implementation boundary is broader CEM-native/XSLT semantic parity. The separate
+      templates. It validates named entrypoint requests against public declarations, rejects unknown caller params,
+      validates typed caller/default param values, and reports missing required caller params before adapter compilation.
+      It also validates same-module and imported public `call` targets. Next implementation boundary is broader CEM-native/XSLT semantic parity. The separate
       adapter crate avoids the dependency cycle where `cem_ql` currently depends on `cem_ml`.
 - [ ] **Wishlist (future — schema/tooling):** wire CLI config schemas into generated/published artifacts. The JSON
       `RunConfig` config-file surface uses schema identity `https://cem.dev/ns/cli/run-config/1` and has checked-in JSON

@@ -353,6 +353,14 @@ minimal CEM-QL-fragment executor already implements these behaviors.
   required-param diagnostics. For a selected named entrypoint, the local param name
   and its qualified `entrypoint.name` form are aliases; either form may be used
   alone, but providing both aliases is a fatal duplicate-param diagnostic.
+- Param declarations may declare `@type`: `any`, `string`, `boolean`, `number`,
+  `integer`, `array`, `object`, or `json`. Omitted `@type` is `any`. Typed caller
+  params are validated as JSON shapes before adapter compilation. Explicit `null`
+  is still considered provided, but it only satisfies `any`/`json`; other typed
+  params reject it until a nullable type syntax exists. `@default` is literal:
+  `any`/`string` keep the attribute text as a string, `boolean` accepts only
+  `true`/`false`, and `number`/`integer`/`array`/`object`/`json` parse JSON and
+  must match the declared type. Default expressions remain reserved.
 - Data bindings are explicit adapter inputs. The stable binding set for the native
   module layer should include the primary artifact under `input`, named secondary
   artifacts under their `@with:*` labels, and declared params under their names.
@@ -390,8 +398,9 @@ schema. It defines the declaration vocabulary:
   `param`, named `template`, and one default `body`.
 - `import @as @src` declares a resolver-backed module dependency. Optional
   `@content-type` / `@contentType` and `@schema` provide identity hints.
-- `param @name` declares an immutable render parameter. Optional `@default`,
-  `@required`, and `@visibility` describe defaults and API surface.
+- `param @name` declares an immutable render parameter. Optional `@type`,
+  `@default`, `@required`, and `@visibility` describe JSON shape, literal
+  defaults, requiredness, and API surface.
 - `template @name` declares a named entrypoint. Optional `@visibility="public"`
   exports it across module boundaries; otherwise it is private.
 - `body` holds the implicit entrypoint body or the body of a named template.
@@ -411,10 +420,10 @@ imports, module params, named entrypoints, and template-local params in
 as non-executing call records. Plain CEM fragment templates without the
 native-template schema continue to compile as declaration-free fragments.
 The real engine validates named entrypoint requests against public declarations,
-rejects unknown caller params, and reports missing required params before adapter
-compilation. It also validates same-module `call @template` targets and imported
-`call @from @template` targets against public entrypoints from resolver-backed
-import modules.
+rejects unknown caller params, validates typed caller/default param values, and
+reports missing required params before adapter compilation. It also validates
+same-module `call @template` targets and imported `call @from @template` targets
+against public entrypoints from resolver-backed import modules.
 The `cem_ml_transform_cem_ql` executable adapter now preserves the selected
 entrypoint, caller params, and param declarations in the compiled payload. During
 render, caller params override declaration defaults, module-level defaults apply

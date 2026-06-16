@@ -18,7 +18,7 @@ Namespace URI: `https://cem.dev/ns/template/cem-native/1`
 | ------- | ------------------- | ------------------- | -------------- |
 | `module` | none | `version` | `import`, `param`, `template`, `body` |
 | `import` | `as`, `src` | `content-type`, `contentType`, `schema` | none |
-| `param` | `name` | `default`, `required`, `visibility` | none |
+| `param` | `name` | `default`, `required`, `type`, `visibility` | none |
 | `template` | `name` | `visibility` | `param`, `body` |
 | `body` | none | none | `*` |
 | `call` | `template` | `from`, `with:*` | none |
@@ -33,9 +33,14 @@ Namespace URI: `https://cem.dev/ns/template/cem-native/1`
 - `template @name="NAME"` declares an explicit named entrypoint.
 - Declarations are private by default. `@visibility="public"` is required for
   cross-module template entrypoints.
-- `param` declarations are immutable for a render call. `@default` provides a
-  template default value; `@required="true"` requires a caller value when no
-  default is present.
+- `param` declarations are immutable for a render call. `@type` may be `any`,
+  `string`, `boolean`, `number`, `integer`, `array`, `object`, or `json`; omitted
+  `@type` means `any`.
+- `@default` provides a literal template default value. For `any` and `string`,
+  the attribute text is a string value. For `boolean`, the literal must be
+  `true` or `false`. For `number`, `integer`, `array`, `object`, and `json`, the
+  literal is parsed as JSON and must match the declared type.
+- `@required="true"` requires a caller value when no default is present.
 - `import @as="ALIAS" @src="URI"` loads a separate module through the template
   resolver. The imported module's private declarations remain isolated.
 - `content-type`/`contentType` and `schema` on `import` provide identity hints
@@ -51,9 +56,9 @@ Namespace URI: `https://cem.dev/ns/template/cem-native/1`
 
 - `include` is intentionally not part of this schema. Lexical include remains a
   reserved future feature.
-- Transitive import execution, public export validation, param type validation,
-  recursive call execution, and recursion-limit enforcement are runtime adapter
-  work after this schema contract.
+- Default expressions remain reserved. Defaults are literal values only until the
+  template adapter contract defines expression context, resolver access, and
+  failure reporting for default evaluation.
 
 ## Example
 

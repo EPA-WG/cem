@@ -51,7 +51,7 @@ pub const CEM_NATIVE_TEMPLATE_SCHEMA_ELEMENTS: &[TransformTemplateNativeElementS
     TransformTemplateNativeElementSchema {
         local_name: "param",
         required_attributes: &["name"],
-        optional_attributes: &["default", "required", "visibility"],
+        optional_attributes: &["default", "required", "type", "visibility"],
         child_elements: &[],
     },
     TransformTemplateNativeElementSchema {
@@ -129,6 +129,7 @@ pub const TRANSFORM_TEMPLATE_PARAM_UNKNOWN_CODE: &str = "cem.transform_template.
 pub const TRANSFORM_TEMPLATE_PARAM_REQUIRED_CODE: &str = "cem.transform_template.param_required";
 pub const TRANSFORM_TEMPLATE_PARAM_DUPLICATE_ALIAS_CODE: &str =
     "cem.transform_template.param_duplicate_alias";
+pub const TRANSFORM_TEMPLATE_PARAM_TYPE_CODE: &str = "cem.transform_template.param_type";
 pub const TRANSFORM_TEMPLATE_CALL_UNKNOWN_CODE: &str = "cem.transform_template.call_unknown";
 pub const TRANSFORM_TEMPLATE_IMPORT_CYCLE_CODE: &str = "cem.transform_template.import_cycle";
 pub const TRANSFORM_TEMPLATE_IMPORT_DEPTH_CODE: &str = "cem.transform_template.import_depth";
@@ -198,12 +199,63 @@ pub struct TransformTemplateModuleEntrypointDeclaration {
 #[serde(rename_all = "camelCase")]
 pub struct TransformTemplateModuleParamDeclaration {
     pub name: String,
+    #[serde(
+        default,
+        rename = "type",
+        skip_serializing_if = "TransformTemplateModuleParamType::is_any"
+    )]
+    pub value_type: TransformTemplateModuleParamType,
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub default_value: Option<Value>,
     #[serde(default)]
     pub required: bool,
     #[serde(default)]
     pub visibility: TransformTemplateModuleVisibility,
+}
+
+#[derive(Debug, Clone, Copy, Default, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "kebab-case")]
+pub enum TransformTemplateModuleParamType {
+    #[default]
+    Any,
+    String,
+    Boolean,
+    Number,
+    Integer,
+    Array,
+    Object,
+    Json,
+}
+
+impl TransformTemplateModuleParamType {
+    pub fn is_any(value: &Self) -> bool {
+        *value == Self::Any
+    }
+
+    pub fn accepts(self, value: &Value) -> bool {
+        match self {
+            Self::Any | Self::Json => true,
+            Self::String => value.is_string(),
+            Self::Boolean => value.is_boolean(),
+            Self::Number => value.is_number(),
+            Self::Integer => value.as_i64().is_some() || value.as_u64().is_some(),
+            Self::Array => value.is_array(),
+            Self::Object => value.is_object(),
+        }
+    }
+
+    pub fn as_contract_name(self) -> &'static str {
+        match self {
+            Self::Any => "any",
+            Self::String => "string",
+            Self::Boolean => "boolean",
+            Self::Number => "number",
+            Self::Integer => "integer",
+            Self::Array => "array",
+            Self::Object => "object",
+            Self::Json => "json",
+        }
+    }
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
@@ -400,6 +452,9 @@ impl NativeTemplateModuleLowerer<'_> {
             return;
         };
         let visibility = self.parse_visibility(attr_value(&attrs, "", "visibility").as_deref());
+        let value_type = self.parse_param_type(attr_value(&attrs, "", "type").as_deref());
+        let default_value = attr_value(&attrs, "", "default")
+            .and_then(|value| self.parse_param_default(&name, value_type, &value));
         let required = parse_bool_attr(attr_value(&attrs, "", "required").as_deref())
             .unwrap_or_else(|message| {
                 self.push_diag(TRANSFORM_TEMPLATE_DECLARATION_INVALID_CODE, message);
@@ -413,7 +468,8 @@ impl NativeTemplateModuleLowerer<'_> {
             .params
             .push(TransformTemplateModuleParamDeclaration {
                 name: declaration_name,
-                default_value: attr_value(&attrs, "", "default").map(Value::String),
+                value_type,
+                default_value,
                 required,
                 visibility,
             });
@@ -554,6 +610,84 @@ impl NativeTemplateModuleLowerer<'_> {
                 TransformTemplateModuleVisibility::Private
             }
         }
+    }
+
+    fn parse_param_type(&mut self, value: Option<&str>) -> TransformTemplateModuleParamType {
+        match value.map(str::trim).filter(|value| !value.is_empty()) {
+            None | Some("any") => TransformTemplateModuleParamType::Any,
+            Some("string") => TransformTemplateModuleParamType::String,
+            Some("boolean") => TransformTemplateModuleParamType::Boolean,
+            Some("number") => TransformTemplateModuleParamType::Number,
+            Some("integer") => TransformTemplateModuleParamType::Integer,
+            Some("array") => TransformTemplateModuleParamType::Array,
+            Some("object") => TransformTemplateModuleParamType::Object,
+            Some("json") => TransformTemplateModuleParamType::Json,
+            Some(other) => {
+                self.push_diag(
+                    TRANSFORM_TEMPLATE_DECLARATION_INVALID_CODE,
+                    format!(
+                        "unsupported template param type `{other}`; use `any`, `string`, `boolean`, `number`, `integer`, `array`, `object`, or `json`"
+                    ),
+                );
+                TransformTemplateModuleParamType::Any
+            }
+        }
+    }
+
+    fn parse_param_default(
+        &mut self,
+        name: &str,
+        value_type: TransformTemplateModuleParamType,
+        value: &str,
+    ) -> Option<Value> {
+        let default_value = match value_type {
+            TransformTemplateModuleParamType::Any | TransformTemplateModuleParamType::String => {
+                Value::String(value.to_owned())
+            }
+            TransformTemplateModuleParamType::Boolean => match value.trim() {
+                "true" => Value::Bool(true),
+                "false" => Value::Bool(false),
+                _ => {
+                    self.push_param_default_invalid(name, value_type, value);
+                    return None;
+                }
+            },
+            TransformTemplateModuleParamType::Number
+            | TransformTemplateModuleParamType::Integer
+            | TransformTemplateModuleParamType::Array
+            | TransformTemplateModuleParamType::Object
+            | TransformTemplateModuleParamType::Json => {
+                match serde_json::from_str::<Value>(value) {
+                    Ok(parsed) => parsed,
+                    Err(_) => {
+                        self.push_param_default_invalid(name, value_type, value);
+                        return None;
+                    }
+                }
+            }
+        };
+
+        if value_type.accepts(&default_value) {
+            Some(default_value)
+        } else {
+            self.push_param_default_invalid(name, value_type, value);
+            None
+        }
+    }
+
+    fn push_param_default_invalid(
+        &mut self,
+        name: &str,
+        value_type: TransformTemplateModuleParamType,
+        value: &str,
+    ) {
+        self.push_diag(
+            TRANSFORM_TEMPLATE_DECLARATION_INVALID_CODE,
+            format!(
+                "template param `{name}` default `{value}` is not a valid {} value",
+                value_type.as_contract_name()
+            ),
+        );
     }
 
     fn push_missing_attr(&mut self, element: &str, attr: &str) {
@@ -1224,6 +1358,7 @@ mod tests {
             serde_json::from_value(json!({"name": "card"})).expect("entrypoint defaults");
         let param: TransformTemplateModuleParamDeclaration = serde_json::from_value(json!({
             "name": "locale",
+            "type": "string",
             "defaultValue": "en-US"
         }))
         .expect("param defaults");
@@ -1246,6 +1381,10 @@ mod tests {
         assert_eq!(
             options.params[0].visibility,
             TransformTemplateModuleVisibility::Private
+        );
+        assert_eq!(
+            options.params[0].value_type,
+            TransformTemplateModuleParamType::String
         );
         assert!(!options.params[0].required);
         assert_eq!(options.limits.max_import_depth, 32);
@@ -1270,6 +1409,10 @@ mod tests {
             .iter()
             .find(|element| element.local_name == "call")
             .expect("call schema");
+        let param = CEM_NATIVE_TEMPLATE_SCHEMA_ELEMENTS
+            .iter()
+            .find(|element| element.local_name == "param")
+            .expect("param schema");
 
         assert_eq!(
             CEM_NATIVE_TEMPLATE_SCHEMA_URI,
@@ -1281,6 +1424,7 @@ mod tests {
         );
         assert_eq!(import.required_attributes, &["as", "src"]);
         assert!(import.optional_attributes.contains(&"content-type"));
+        assert!(param.optional_attributes.contains(&"type"));
         assert_eq!(template.required_attributes, &["name"]);
         assert!(template.optional_attributes.contains(&"visibility"));
         assert_eq!(call.required_attributes, &["template"]);
@@ -1351,8 +1495,10 @@ mod tests {
 {module @version="1" |
   {import @as="ui" @src="ui.cem" @content-type="text/cem-ml" @schema="https://cem.dev/ns/template/cem-native/1"}
   {param @name="locale" @default="en-US" @visibility="public"}
+  {param @name="enabled" @type="boolean" @default="true"}
   {template @name="card" @visibility="public" |
-    {param @name="title" @required="true"}
+    {param @name="title" @type="string" @required="true"}
+    {param @name="count" @type="integer" @default="3"}
     {body | {article | {$title} {call @template="badge"} {call @from="ui" @template="icon"}}}
   }
 }"#,
@@ -1387,7 +1533,7 @@ mod tests {
                 visibility: TransformTemplateModuleVisibility::Public,
             }]
         );
-        assert_eq!(response.module_options.params.len(), 2);
+        assert_eq!(response.module_options.params.len(), 4);
         assert_eq!(response.module_options.params[0].name, "locale");
         assert_eq!(
             response.module_options.params[0].default_value,
@@ -1397,8 +1543,30 @@ mod tests {
             response.module_options.params[0].visibility,
             TransformTemplateModuleVisibility::Public
         );
-        assert_eq!(response.module_options.params[1].name, "card.title");
-        assert!(response.module_options.params[1].required);
+        assert_eq!(response.module_options.params[1].name, "enabled");
+        assert_eq!(
+            response.module_options.params[1].value_type,
+            TransformTemplateModuleParamType::Boolean
+        );
+        assert_eq!(
+            response.module_options.params[1].default_value,
+            Some(Value::Bool(true))
+        );
+        assert_eq!(response.module_options.params[2].name, "card.title");
+        assert_eq!(
+            response.module_options.params[2].value_type,
+            TransformTemplateModuleParamType::String
+        );
+        assert!(response.module_options.params[2].required);
+        assert_eq!(response.module_options.params[3].name, "card.count");
+        assert_eq!(
+            response.module_options.params[3].value_type,
+            TransformTemplateModuleParamType::Integer
+        );
+        assert_eq!(
+            response.module_options.params[3].default_value,
+            Some(Value::Number(3.into()))
+        );
         assert_eq!(
             response.module_options.calls,
             vec![
@@ -1453,6 +1621,8 @@ mod tests {
   {import @as="ui" @src="ui.cem"}
   {import @as="ui" @src="ui-2.cem"}
   {param @name="locale" @required="maybe"}
+  {param @name="count" @type="integer" @default="1.5"}
+  {param @name="mode" @type="token"}
   {template @name="card"}
   {template @name="card"}
 }"#,

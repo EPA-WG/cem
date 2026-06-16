@@ -42,7 +42,7 @@ use crate::transform_template::{
     TRANSFORM_TEMPLATE_IMPORT_ALIAS_DUPLICATE_CODE, TRANSFORM_TEMPLATE_IMPORT_CYCLE_CODE,
     TRANSFORM_TEMPLATE_IMPORT_DEPTH_CODE, TRANSFORM_TEMPLATE_INCLUDE_RESERVED_CODE,
     TRANSFORM_TEMPLATE_PARAM_DUPLICATE_ALIAS_CODE, TRANSFORM_TEMPLATE_PARAM_REQUIRED_CODE,
-    TRANSFORM_TEMPLATE_PARAM_UNKNOWN_CODE,
+    TRANSFORM_TEMPLATE_PARAM_TYPE_CODE, TRANSFORM_TEMPLATE_PARAM_UNKNOWN_CODE,
 };
 use crate::validation::{RuleContext, RuleRegistry};
 use serde_json::{json, Value};
@@ -1178,6 +1178,50 @@ fn validate_transform_template_module_contract(
                 ),
             ));
             has_fatal = true;
+        }
+    }
+
+    let mut checked_typed_params = BTreeSet::new();
+    for declaration in &module_options.params {
+        let accepted_names = accepted_param_names(declaration, selected_entrypoint);
+        if accepted_names.is_empty() {
+            continue;
+        }
+
+        let display_name = accepted_names[0];
+        if !checked_typed_params.insert(display_name.to_owned()) {
+            continue;
+        }
+
+        if let Some(default_value) = &declaration.default_value {
+            if !declaration.value_type.accepts(default_value) {
+                diagnostics.push(template_module_diagnostic(
+                    Some(&template.uri),
+                    TRANSFORM_TEMPLATE_PARAM_TYPE_CODE,
+                    format!(
+                        "template param `{display_name}` default value does not match declared type `{}`",
+                        declaration.value_type.as_contract_name()
+                    ),
+                ));
+                has_fatal = true;
+            }
+        }
+
+        for name in accepted_names {
+            let Some(value) = params.get(name) else {
+                continue;
+            };
+            if !declaration.value_type.accepts(value) {
+                diagnostics.push(template_module_diagnostic(
+                    Some(&template.uri),
+                    TRANSFORM_TEMPLATE_PARAM_TYPE_CODE,
+                    format!(
+                        "template param `{name}` value does not match declared type `{}`",
+                        declaration.value_type.as_contract_name()
+                    ),
+                ));
+                has_fatal = true;
+            }
         }
     }
 
@@ -3527,12 +3571,14 @@ mod tests {
             params: vec![
                 crate::transform_template::TransformTemplateModuleParamDeclaration {
                     name: "locale".to_owned(),
+                    value_type: crate::transform_template::TransformTemplateModuleParamType::Any,
                     default_value: None,
                     required: true,
                     visibility: TransformTemplateModuleVisibility::Public,
                 },
                 crate::transform_template::TransformTemplateModuleParamDeclaration {
                     name: "card.title".to_owned(),
+                    value_type: crate::transform_template::TransformTemplateModuleParamType::Any,
                     default_value: None,
                     required: true,
                     visibility: TransformTemplateModuleVisibility::Private,
@@ -3571,6 +3617,7 @@ mod tests {
             params: vec![
                 crate::transform_template::TransformTemplateModuleParamDeclaration {
                     name: "card.title".to_owned(),
+                    value_type: crate::transform_template::TransformTemplateModuleParamType::Any,
                     default_value: None,
                     required: true,
                     visibility: TransformTemplateModuleVisibility::Private,
@@ -3606,6 +3653,7 @@ mod tests {
             params: vec![
                 crate::transform_template::TransformTemplateModuleParamDeclaration {
                     name: "card.title".to_owned(),
+                    value_type: crate::transform_template::TransformTemplateModuleParamType::Any,
                     default_value: None,
                     required: true,
                     visibility: TransformTemplateModuleVisibility::Private,
@@ -3649,12 +3697,14 @@ mod tests {
             params: vec![
                 crate::transform_template::TransformTemplateModuleParamDeclaration {
                     name: "locale".to_owned(),
+                    value_type: crate::transform_template::TransformTemplateModuleParamType::Any,
                     default_value: None,
                     required: true,
                     visibility: TransformTemplateModuleVisibility::Public,
                 },
                 crate::transform_template::TransformTemplateModuleParamDeclaration {
                     name: "card.title".to_owned(),
+                    value_type: crate::transform_template::TransformTemplateModuleParamType::Any,
                     default_value: None,
                     required: true,
                     visibility: TransformTemplateModuleVisibility::Private,
@@ -3693,6 +3743,7 @@ mod tests {
             params: vec![
                 crate::transform_template::TransformTemplateModuleParamDeclaration {
                     name: "card.title".to_owned(),
+                    value_type: crate::transform_template::TransformTemplateModuleParamType::Any,
                     default_value: None,
                     required: true,
                     visibility: TransformTemplateModuleVisibility::Private,
@@ -3718,6 +3769,56 @@ mod tests {
         assert!(diagnostics
             .iter()
             .any(|diag| diag.code == TRANSFORM_TEMPLATE_PARAM_REQUIRED_CODE));
+    }
+
+    #[test]
+    fn template_module_contract_rejects_param_type_mismatches() {
+        let template = template("main.cem", b"{main}");
+        let options = TransformTemplateModuleOptions {
+            entrypoints: vec![
+                crate::transform_template::TransformTemplateModuleEntrypointDeclaration {
+                    name: "card".to_owned(),
+                    visibility: TransformTemplateModuleVisibility::Public,
+                },
+            ],
+            params: vec![
+                crate::transform_template::TransformTemplateModuleParamDeclaration {
+                    name: "locale".to_owned(),
+                    value_type: crate::transform_template::TransformTemplateModuleParamType::String,
+                    default_value: Some(json!(true)),
+                    required: false,
+                    visibility: TransformTemplateModuleVisibility::Public,
+                },
+                crate::transform_template::TransformTemplateModuleParamDeclaration {
+                    name: "card.count".to_owned(),
+                    value_type:
+                        crate::transform_template::TransformTemplateModuleParamType::Integer,
+                    default_value: None,
+                    required: false,
+                    visibility: TransformTemplateModuleVisibility::Private,
+                },
+            ],
+            ..TransformTemplateModuleOptions::default()
+        };
+        let params = BTreeMap::from([("count".to_owned(), json!(1.5))]);
+        let mut diagnostics = Vec::new();
+
+        let validated = validate_transform_template_module_contract(
+            &template,
+            &TransformTemplateEntrypoint::named("card"),
+            &params,
+            &options,
+            &mut diagnostics,
+        );
+
+        assert!(validated.is_none());
+        assert_eq!(
+            diagnostics
+                .iter()
+                .filter(|diag| diag.code == TRANSFORM_TEMPLATE_PARAM_TYPE_CODE)
+                .count(),
+            2
+        );
     }
 
     #[test]
