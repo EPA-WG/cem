@@ -269,6 +269,12 @@ The first concrete executable CEM-native adapter lives in
 `cem_ql` without introducing a cycle. It compiles CEM-ML template fragments through
 `cem_ql::render::compile_template`, carries the compiled payload in-process on the
 adapter artifact, and renders through `cem_ql::render::render_compiled_template`.
+`RealCemMlEngine::transform` uses that registered executable adapter path for the
+minimal one-to-one programmatic engine runtime: the data document is loaded through
+the lifecycle layer, parsed to DOM JSON, passed as the primary transform data
+artifact, compiled/rendered by the selected adapter, and returned as
+`TransformResponse.primary`. `cem-ml transform ...` remains a reserved CLI command
+until output/report resolver behavior is wired.
 For the first runtime slice, data-driven templates should read input values through
 the always-available `$datadom` binding, for example
 `$datadom.attributes.label`; direct `$label`-style host bindings require declared

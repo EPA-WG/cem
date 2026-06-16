@@ -124,18 +124,20 @@ for the current architecture have landed; only deferred capability work remains 
       template adapters take precedence over selector-only adapters for the same identity; multiple executable matches
       remain ambiguous. `cem_ml_transform_cem_ql` now provides the first executable CEM-native adapter crate, above both
       `cem_ml` and `cem_ql`, and compiles/renders CEM-ML fragments through `cem_ql::render` while carrying the compiled
-      payload in-process on the adapter artifact. Runtime preflight validation now rejects deferred first-slice features
-      and bad programmatic graph refs/destinations before any future executor runs. Before runtime
+      payload in-process on the adapter artifact. `RealCemMlEngine::transform` now runs the minimal one-to-one
+      programmatic engine path when a host registers an executable adapter: data is loaded through lifecycle, parsed to
+      DOM JSON, compiled/rendered through the selected adapter, and returned as content-primary output. Runtime preflight
+      validation now rejects deferred first-slice features and bad programmatic graph refs/destinations before execution.
+      Before runtime
       implementation, keep the checked-in CEM-native CLI transform-config schema
       (`packages/cem_ml/schema/cli/transform-config.md`,
       `https://cem.dev/ns/cli/transform-config/1`) separate from CEM core document schemas and template schemas.
       Runtime order: start with pure CEM-QL evaluation plus CEM-ML fragments
       with embedded CEM-QL and one implicit entrypoint; then add native named templates/modules, explicit entrypoints,
       params, imports/includes, visibility, caching, and recursion/cycle limits; then expand XSLT parity on that native
-      substrate. Next runtime implementation work is wiring `RealCemMlEngine::transform` to use the registered
-      executable adapter for the minimal CEM-QL/CEM-ML fragment runtime, then adding resolver-backed template reads,
-      resolver-backed output writes, and diagnostics/report/source-map projection before enabling CLI execution. The
-      separate adapter crate avoids the dependency cycle where `cem_ql` currently depends on `cem_ml`.
+      substrate. Next runtime implementation work is adding resolver-backed output writes and diagnostics/report/source-map
+      projection before enabling CLI execution, then expanding graph execution on the same adapter path. The separate
+      adapter crate avoids the dependency cycle where `cem_ql` currently depends on `cem_ml`.
 - [ ] **Wishlist (future — schema/tooling):** wire CLI config schemas into generated/published artifacts. The JSON
       `RunConfig` config-file surface uses schema identity `https://cem.dev/ns/cli/run-config/1` and has checked-in JSON
       Schema `packages/cem_ml/schema/cli/run-config.schema.json`

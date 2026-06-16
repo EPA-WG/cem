@@ -244,7 +244,12 @@ pub fn unsupported_identity_error_message(identity: &FormatIdentity) -> String {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use cem_ml::engine::{TemplateInput, TransformExecutionPolicy, TransformTemplateEntrypoint};
+    use cem_ml::engine::CemMlEngine;
+    use cem_ml::engine::{
+        EngineInput, TemplateInput, TransformExecutionPolicy, TransformRequest,
+        TransformSchedulerScopeIds, TransformTemplateEntrypoint,
+    };
+    use cem_ml::real::RealCemMlEngine;
     use cem_ml::run_config::ScopeConfig;
     use cem_ml::transform_template::TransformTemplateAdapterLookup;
 
@@ -320,5 +325,74 @@ mod tests {
             }
             other => panic!("expected built-in plus runtime adapter ambiguity, got {other:?}"),
         }
+    }
+
+    #[test]
+    fn real_engine_transform_uses_registered_cem_ql_adapter() {
+        let context = engine_context_with_cem_ql_template_adapter();
+        let template_identity = FormatIdentity {
+            content_type: Some("text/cem-ml".to_owned()),
+            ..FormatIdentity::default()
+        };
+        let request = TransformRequest {
+            data: EngineInput {
+                uri: "data.cem".to_owned(),
+                bytes: b"{p @id=\"guide\"}".to_vec(),
+                from_format: None,
+                identity: Some(FormatIdentity {
+                    content_type: Some("text/cem-ml".to_owned()),
+                    ..FormatIdentity::default()
+                }),
+                root_scope: ScopeConfig::default(),
+            },
+            template: TemplateInput {
+                uri: "template.cem".to_owned(),
+                bytes: br#"{p | {$datadom.attributes.kind}}"#.to_vec(),
+                identity: Some(template_identity),
+                root_scope: ScopeConfig::default(),
+            },
+            template_kind: TransformTemplateKind::CemNative,
+            template_entrypoint: TransformTemplateEntrypoint::implicit(),
+            params: BTreeMap::new(),
+            preserve_source_offsets: false,
+            context,
+            target: Some(FormatIdentity {
+                content_type: Some("text/html".to_owned()),
+                ..FormatIdentity::default()
+            }),
+            target_scope: ScopeConfig::default(),
+            scheduler_scope_ids: TransformSchedulerScopeIds {
+                data_load: 10,
+                template_load: 11,
+                execution: 12,
+                output: 13,
+            },
+            execution_policy: TransformExecutionPolicy::default(),
+        };
+
+        let response = RealCemMlEngine::new()
+            .transform(request)
+            .expect("transform should run through registered adapter");
+
+        assert_eq!(
+            response.primary,
+            Value::String("<p>document</p>".to_owned())
+        );
+        assert!(
+            response.diagnostics.is_empty(),
+            "{:?}",
+            response.diagnostics
+        );
+        assert_eq!(response.scheduler_trace.event_count, 12);
+        let scopes = response
+            .scheduler_trace
+            .events
+            .iter()
+            .map(|event| event.scope_id)
+            .collect::<Vec<_>>();
+        assert!(scopes.contains(&10));
+        assert!(scopes.contains(&11));
+        assert!(scopes.contains(&12));
+        assert!(scopes.contains(&13));
     }
 }

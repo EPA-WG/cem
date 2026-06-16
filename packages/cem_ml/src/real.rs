@@ -29,6 +29,9 @@ use crate::tokenizer::cem::CemTokenizer;
 use crate::tokenizer::html::HtmlTokenizer;
 use crate::tokenizer::xml::XmlTokenizer;
 use crate::tokenizer::SchemaTokenizer;
+use crate::transform_template::{
+    TransformTemplateAdapterLookup, TransformTemplateDataArtifact, TransformTemplateRenderRequest,
+};
 use crate::validation::{RuleContext, RuleRegistry};
 use serde_json::{json, Value};
 use std::collections::BTreeMap;
@@ -836,6 +839,15 @@ fn scheduler_policy_for_convert(
     (policy, diagnostics)
 }
 
+fn scheduler_policy_for_transform_scope(
+    context: &EngineContext,
+    uri: &str,
+    scope: &ScopeConfig,
+    direction: &str,
+) -> (crate::scheduler::ScopePolicy, Vec<Diagnostic>) {
+    scheduler_policy_for_scope(context, uri, scope, direction)
+}
+
 fn scheduler_policy_json(policy: crate::scheduler::ScopePolicy) -> Value {
     json!({
         "cpuWorkers": policy.cpu_workers,
@@ -1548,6 +1560,275 @@ impl CemMlEngine for RealCemMlEngine {
         ));
         project_diagnostic_uris(&mut diagnostics, &request.input, &request.context);
         Ok(ConvertResponse {
+            primary,
+            diagnostics,
+            scheduler_trace: crate::report::SchedulerTraceReport::from_trace(&trace),
+        })
+    }
+
+    fn transform(&self, request: TransformRequest) -> EngineResult<TransformResponse> {
+        let started_at = Instant::now();
+        let trace = crate::scheduler::SchedulerTrace::new();
+        let abort = crate::scheduler::AbortSignal::new();
+        let mut diagnostics = validate_transform_request_runtime_contract(&request);
+
+        let (data_policy, mut data_scope_diags) = scheduler_policy_for_transform_scope(
+            &request.context,
+            &request.data.uri,
+            &request.data.root_scope,
+            "input",
+        );
+        diagnostics.append(&mut data_scope_diags);
+        let (template_policy, mut template_scope_diags) = scheduler_policy_for_transform_scope(
+            &request.context,
+            &request.template.uri,
+            &request.template.root_scope,
+            "template",
+        );
+        diagnostics.append(&mut template_scope_diags);
+        let (output_policy, mut output_scope_diags) = scheduler_policy_for_transform_scope(
+            &request.context,
+            &request.data.uri,
+            &request.target_scope,
+            "output",
+        );
+        diagnostics.append(&mut output_scope_diags);
+
+        if diagnostics
+            .iter()
+            .any(|diagnostic| diagnostic.severity.is_hard_violation())
+        {
+            return Ok(TransformResponse {
+                primary: Value::Null,
+                diagnostics,
+                scheduler_trace: crate::report::SchedulerTraceReport::from_trace(&trace),
+            });
+        }
+
+        let data_pool = crate::scheduler::WorkerPool::new(
+            request.scheduler_scope_ids.data_load,
+            data_policy,
+            trace.clone(),
+        );
+        let template_pool = crate::scheduler::WorkerPool::new(
+            request.scheduler_scope_ids.template_load,
+            template_policy,
+            trace.clone(),
+        );
+        let execution_pool = crate::scheduler::WorkerPool::new(
+            request.scheduler_scope_ids.execution,
+            scheduler_policy_from_context(&request.context),
+            trace.clone(),
+        );
+        let output_pool = crate::scheduler::WorkerPool::new(
+            request.scheduler_scope_ids.output,
+            output_policy,
+            trace.clone(),
+        );
+
+        for (pool, task) in [
+            (&data_pool, format!("{}:data-load", request.data.uri)),
+            (
+                &template_pool,
+                format!("{}:template-compile", request.template.uri),
+            ),
+            (
+                &execution_pool,
+                format!("{}:template-execution", request.template.uri),
+            ),
+            (&output_pool, format!("{}:output", request.data.uri)),
+        ] {
+            pool.submit(task, &abort).map_err(|err| {
+                EngineError::Internal(format!("scheduler dispatch failed: {err}"))
+            })?;
+        }
+
+        let mut primary_input: Option<TransformTemplateDataArtifact> = None;
+        data_pool.run_to_completion(&abort, |_| {
+            let mut data_diagnostics = Vec::new();
+            let mut scope_diagnostics = root_scope_metadata_diagnostics(
+                &request.data.uri,
+                &request.data.root_scope,
+                "input",
+            );
+            data_diagnostics.append(&mut scope_diagnostics);
+            let mut loaded = load_input_through_lifecycle(&request.data, &request.context);
+            data_diagnostics.append(&mut loaded.diagnostics);
+            let run = run_pipeline_as_scoped_with_context(
+                &loaded.bytes,
+                loaded.from_format,
+                &request.data.root_scope,
+                &request.context,
+            );
+            let data_value = projection::dom_json(&run.document);
+            data_diagnostics.extend(run.diagnostics);
+            project_diagnostic_uris(&mut data_diagnostics, &request.data, &request.context);
+            diagnostics.append(&mut data_diagnostics);
+            primary_input = Some(TransformTemplateDataArtifact {
+                artifact_id: "data".to_owned(),
+                uri: Some(input_uri(&request.data, &request.context)),
+                identity: request.data.identity.clone(),
+                value: data_value,
+            });
+        });
+
+        if diagnostics
+            .iter()
+            .any(|diagnostic| diagnostic.severity.is_hard_violation())
+        {
+            return Ok(TransformResponse {
+                primary: Value::Null,
+                diagnostics,
+                scheduler_trace: crate::report::SchedulerTraceReport::from_trace(&trace),
+            });
+        }
+
+        let adapter = match request.template.identity.as_ref() {
+            Some(identity) => match request
+                .context
+                .template_adapter_registry
+                .select_adapter(identity)
+            {
+                TransformTemplateAdapterLookup::Matched(adapter) => Some(adapter),
+                TransformTemplateAdapterLookup::Ambiguous(ids) => {
+                    diagnostics.push(Diagnostic {
+                        uri: Some(request.template.uri.clone()),
+                        code: "cem.transform_template.adapter_ambiguous".to_owned(),
+                        severity: Severity::Fatal,
+                        message: format!(
+                            "multiple transform template adapters matched template identity: {}",
+                            ids.join(", ")
+                        ),
+                        ..Diagnostic::default()
+                    });
+                    None
+                }
+                TransformTemplateAdapterLookup::Unsupported => {
+                    diagnostics.push(Diagnostic {
+                        uri: Some(request.template.uri.clone()),
+                        code: TRANSFORM_TEMPLATE_UNSUPPORTED_CODE.to_owned(),
+                        severity: Severity::Fatal,
+                        message: "no transform template adapter matched template identity"
+                            .to_owned(),
+                        ..Diagnostic::default()
+                    });
+                    None
+                }
+            },
+            None => {
+                diagnostics.push(Diagnostic {
+                    uri: Some(request.template.uri.clone()),
+                    code: TRANSFORM_TEMPLATE_UNSUPPORTED_CODE.to_owned(),
+                    severity: Severity::Fatal,
+                    message: "transform template identity is required for execution".to_owned(),
+                    ..Diagnostic::default()
+                });
+                None
+            }
+        };
+
+        let mut compiled = None;
+        if let Some(adapter) = adapter.as_ref() {
+            template_pool.run_to_completion(&abort, |_| {
+                match adapter.compile(crate::transform_template::TransformTemplateCompileRequest {
+                    template: &request.template,
+                    entrypoint: &request.template_entrypoint,
+                    params: &request.params,
+                    execution_policy: request.execution_policy,
+                }) {
+                    Ok(mut response) => {
+                        diagnostics.append(&mut response.diagnostics);
+                        compiled = Some(response.artifact);
+                    }
+                    Err(err) => diagnostics.push(err.diagnostic(Some(&request.template.uri))),
+                }
+            });
+        }
+
+        if diagnostics
+            .iter()
+            .any(|diagnostic| diagnostic.severity.is_hard_violation())
+        {
+            return Ok(TransformResponse {
+                primary: Value::Null,
+                diagnostics,
+                scheduler_trace: crate::report::SchedulerTraceReport::from_trace(&trace),
+            });
+        }
+
+        let Some(adapter) = adapter else {
+            return Ok(TransformResponse {
+                primary: Value::Null,
+                diagnostics,
+                scheduler_trace: crate::report::SchedulerTraceReport::from_trace(&trace),
+            });
+        };
+        let Some(compiled) = compiled else {
+            return Err(EngineError::Internal(
+                "scheduler did not dispatch transform template compile task".to_owned(),
+            ));
+        };
+        let Some(primary_input) = primary_input else {
+            return Err(EngineError::Internal(
+                "scheduler did not dispatch transform data load task".to_owned(),
+            ));
+        };
+
+        let secondary_inputs = BTreeMap::new();
+        let mut rendered = None;
+        execution_pool.run_to_completion(&abort, |_| {
+            match adapter.render(TransformTemplateRenderRequest {
+                compiled: &compiled,
+                primary_input: &primary_input,
+                secondary_inputs: &secondary_inputs,
+                target: request.target.as_ref(),
+                target_scope: &request.target_scope,
+                execution_policy: request.execution_policy,
+            }) {
+                Ok(mut response) => {
+                    diagnostics.append(&mut response.diagnostics);
+                    rendered = Some(response.output.value);
+                }
+                Err(err) => diagnostics.push(err.diagnostic(Some(&request.template.uri))),
+            }
+        });
+
+        if diagnostics
+            .iter()
+            .any(|diagnostic| diagnostic.severity.is_hard_violation())
+        {
+            return Ok(TransformResponse {
+                primary: Value::Null,
+                diagnostics,
+                scheduler_trace: crate::report::SchedulerTraceReport::from_trace(&trace),
+            });
+        }
+
+        let primary = rendered.ok_or_else(|| {
+            EngineError::Internal(
+                "scheduler did not dispatch transform template execution task".to_owned(),
+            )
+        })?;
+        output_pool.run_to_completion(&abort, |_| {});
+
+        let elapsed_ns = started_at.elapsed().as_nanos();
+        diagnostics.extend(time_budget_diagnostics(
+            &request.data.root_scope,
+            &["transformms", "transformtimebudgetms"],
+            elapsed_ns,
+        ));
+        diagnostics.extend(time_budget_diagnostics(
+            &request.template.root_scope,
+            &["transformms", "transformtimebudgetms"],
+            elapsed_ns,
+        ));
+        diagnostics.extend(time_budget_diagnostics(
+            &request.target_scope,
+            &["transformms", "transformtimebudgetms"],
+            elapsed_ns,
+        ));
+
+        Ok(TransformResponse {
             primary,
             diagnostics,
             scheduler_trace: crate::report::SchedulerTraceReport::from_trace(&trace),
