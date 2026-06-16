@@ -1,0 +1,41 @@
+{
+    "name": "cem_ml_transform_cem_ql",
+    "$schema": "../../node_modules/nx/schemas/project-schema.json",
+    "projectType": "library",
+    "sourceRoot": "packages/cem_ml_transform_cem_ql/src",
+    "targets": {
+        "build": {
+            "cache": true,
+            "executor": "@monodon/rust:check",
+            "outputs": ["{options.target-dir}"],
+            "options": {
+                "package": "cem-ml-transform-cem-ql",
+                "target-dir": "dist/target/cem_ml_transform_cem_ql"
+            }
+        },
+        "test": {
+            "cache": true,
+            "executor": "@monodon/rust:test",
+            "outputs": ["{options.target-dir}"],
+            "options": {
+                "package": "cem-ml-transform-cem-ql",
+                "target-dir": "dist/target/cem_ml_transform_cem_ql"
+            },
+            "configurations": {
+                "production": {
+                    "release": true
+                }
+            }
+        },
+        "lint": {
+            "cache": true,
+            "executor": "@monodon/rust:lint",
+            "outputs": ["{options.target-dir}"],
+            "options": {
+                "package": "cem-ml-transform-cem-ql",
+                "target-dir": "dist/target/cem_ml_transform_cem_ql"
+            }
+        }
+    },
+    "tags": ["scope:cem-ml", "scope:cem-ql", "type:lib", "lang:rust"]
+}

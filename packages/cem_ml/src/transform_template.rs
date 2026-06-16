@@ -13,6 +13,7 @@ use crate::engine::{
 use crate::run_config::ScopeConfig;
 use serde::{Deserialize, Serialize};
 use serde_json::Value;
+use std::any::Any;
 use std::collections::BTreeMap;
 use std::fmt;
 use std::sync::Arc;
@@ -28,6 +29,14 @@ pub enum TransformTemplateAdapterResolution {
     Matched(TransformTemplateAdapterSelection),
     Ambiguous(Vec<&'static str>),
     Unsupported,
+}
+
+#[derive(Debug, Clone, Copy, Default, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "kebab-case")]
+pub enum TransformTemplateAdapterCapability {
+    #[default]
+    SelectorOnly,
+    Executable,
 }
 
 #[derive(Clone)]
@@ -55,7 +64,7 @@ pub struct TransformTemplateCompileRequest<'a> {
     pub execution_policy: TransformExecutionPolicy,
 }
 
-#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[derive(Clone, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct TransformTemplateCompiledArtifact {
     pub adapter_id: String,
@@ -65,6 +74,71 @@ pub struct TransformTemplateCompiledArtifact {
     pub entrypoint: TransformTemplateEntrypoint,
     #[serde(default, skip_serializing_if = "Value::is_null")]
     pub opaque: Value,
+    #[serde(skip)]
+    native_payload: Option<Arc<dyn Any + Send + Sync>>,
+}
+
+impl fmt::Debug for TransformTemplateCompiledArtifact {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        f.debug_struct("TransformTemplateCompiledArtifact")
+            .field("adapter_id", &self.adapter_id)
+            .field("kind", &self.kind)
+            .field("template_uri", &self.template_uri)
+            .field("identity", &self.identity)
+            .field("entrypoint", &self.entrypoint)
+            .field("opaque", &self.opaque)
+            .field("has_native_payload", &self.native_payload.is_some())
+            .finish()
+    }
+}
+
+impl PartialEq for TransformTemplateCompiledArtifact {
+    fn eq(&self, other: &Self) -> bool {
+        self.adapter_id == other.adapter_id
+            && self.kind == other.kind
+            && self.template_uri == other.template_uri
+            && self.identity == other.identity
+            && self.entrypoint == other.entrypoint
+            && self.opaque == other.opaque
+    }
+}
+
+impl TransformTemplateCompiledArtifact {
+    pub fn new(
+        adapter_id: impl Into<String>,
+        kind: TransformTemplateKind,
+        template_uri: impl Into<String>,
+        identity: Option<FormatIdentity>,
+        entrypoint: TransformTemplateEntrypoint,
+        opaque: Value,
+    ) -> Self {
+        Self {
+            adapter_id: adapter_id.into(),
+            kind,
+            template_uri: template_uri.into(),
+            identity,
+            entrypoint,
+            opaque,
+            native_payload: None,
+        }
+    }
+
+    pub fn with_native_payload<T>(mut self, payload: T) -> Self
+    where
+        T: Any + Send + Sync,
+    {
+        self.native_payload = Some(Arc::new(payload));
+        self
+    }
+
+    pub fn native_payload<T>(&self) -> Option<&T>
+    where
+        T: Any + Send + Sync,
+    {
+        self.native_payload
+            .as_ref()
+            .and_then(|payload| payload.downcast_ref::<T>())
+    }
 }
 
 #[derive(Debug, Clone)]
@@ -227,6 +301,10 @@ pub type TransformTemplateAdapterResult<T> = Result<T, TransformTemplateAdapterE
 pub trait TransformTemplateAdapter: Send + Sync {
     fn id(&self) -> &'static str;
     fn kind(&self) -> TransformTemplateKind;
+    fn capability(&self) -> TransformTemplateAdapterCapability {
+        TransformTemplateAdapterCapability::SelectorOnly
+    }
+
     fn matches_template(&self, identity: &FormatIdentity) -> bool;
 
     fn compile(
@@ -307,13 +385,18 @@ impl TransformTemplateAdapterRegistry {
             .adapters
             .iter()
             .filter(|adapter| adapter.matches_template(identity))
+            .cloned()
+            .collect::<Vec<_>>();
+        let candidates = preferred_adapter_matches(&matches);
+        let selections = candidates
+            .iter()
             .map(|adapter| TransformTemplateAdapterSelection {
                 adapter_id: adapter.id(),
                 kind: adapter.kind(),
             })
             .collect::<Vec<_>>();
 
-        match matches.as_slice() {
+        match selections.as_slice() {
             [selection] => TransformTemplateAdapterResolution::Matched(selection.clone()),
             [] => TransformTemplateAdapterResolution::Unsupported,
             many => TransformTemplateAdapterResolution::Ambiguous(
@@ -329,14 +412,29 @@ impl TransformTemplateAdapterRegistry {
             .filter(|adapter| adapter.matches_template(identity))
             .cloned()
             .collect::<Vec<_>>();
+        let candidates = preferred_adapter_matches(&matches);
 
-        match matches.as_slice() {
+        match candidates.as_slice() {
             [adapter] => TransformTemplateAdapterLookup::Matched(Arc::clone(adapter)),
             [] => TransformTemplateAdapterLookup::Unsupported,
             many => TransformTemplateAdapterLookup::Ambiguous(
                 many.iter().map(|adapter| adapter.id()).collect(),
             ),
         }
+    }
+}
+
+fn preferred_adapter_matches(
+    matches: &[Arc<dyn TransformTemplateAdapter>],
+) -> Vec<&Arc<dyn TransformTemplateAdapter>> {
+    let executable = matches
+        .iter()
+        .filter(|adapter| adapter.capability() == TransformTemplateAdapterCapability::Executable)
+        .collect::<Vec<_>>();
+    if executable.is_empty() {
+        matches.iter().collect()
+    } else {
+        executable
     }
 }
 
@@ -547,14 +645,14 @@ mod tests {
             Some("template.cem".to_owned())
         );
 
-        let compiled = TransformTemplateCompiledArtifact {
-            adapter_id: adapter.id().to_owned(),
-            kind: adapter.kind(),
-            template_uri: template.uri.clone(),
-            identity: template.identity.clone(),
-            entrypoint: TransformTemplateEntrypoint::implicit(),
-            opaque: Value::Null,
-        };
+        let compiled = TransformTemplateCompiledArtifact::new(
+            adapter.id(),
+            adapter.kind(),
+            template.uri.clone(),
+            template.identity.clone(),
+            TransformTemplateEntrypoint::implicit(),
+            Value::Null,
+        );
         let primary_input = TransformTemplateDataArtifact {
             artifact_id: "data".to_owned(),
             uri: Some("data.xml".to_owned()),
@@ -591,6 +689,10 @@ mod tests {
             TransformTemplateKind::CemNative
         }
 
+        fn capability(&self) -> TransformTemplateAdapterCapability {
+            TransformTemplateAdapterCapability::Executable
+        }
+
         fn matches_template(&self, identity: &FormatIdentity) -> bool {
             identity.content_type.as_deref() == Some("application/vnd.cem.template+cem;version=2")
         }
@@ -600,17 +702,18 @@ mod tests {
             request: TransformTemplateCompileRequest<'_>,
         ) -> TransformTemplateAdapterResult<TransformTemplateCompileResponse> {
             Ok(TransformTemplateCompileResponse {
-                artifact: TransformTemplateCompiledArtifact {
-                    adapter_id: self.id().to_owned(),
-                    kind: self.kind(),
-                    template_uri: request.template.uri.clone(),
-                    identity: request.template.identity.clone(),
-                    entrypoint: request.entrypoint.clone(),
-                    opaque: json!({
+                artifact: TransformTemplateCompiledArtifact::new(
+                    self.id(),
+                    self.kind(),
+                    request.template.uri.clone(),
+                    request.template.identity.clone(),
+                    request.entrypoint.clone(),
+                    json!({
                         "bytes": request.template.bytes.len(),
                         "params": request.params.len(),
                     }),
-                },
+                )
+                .with_native_payload("compiled-runtime-template"),
                 diagnostics: Vec::new(),
             })
         }
@@ -689,5 +792,44 @@ mod tests {
                 "secondaryInputs": 0
             })
         );
+    }
+
+    #[test]
+    fn executable_template_adapter_wins_over_selector_only_builtin() {
+        let mut registry = TransformTemplateAdapterRegistry::with_builtin_adapters();
+        registry.register(ExecutableCemNativeAdapter);
+        let identity = FormatIdentity {
+            content_type: Some("text/cem-ml".to_owned()),
+            ..FormatIdentity::default()
+        };
+
+        assert_eq!(
+            registry.select(&identity),
+            TransformTemplateAdapterResolution::Matched(TransformTemplateAdapterSelection {
+                adapter_id: "executable-cem-native-template",
+                kind: TransformTemplateKind::CemNative,
+            })
+        );
+    }
+
+    #[derive(Debug)]
+    struct ExecutableCemNativeAdapter;
+
+    impl TransformTemplateAdapter for ExecutableCemNativeAdapter {
+        fn id(&self) -> &'static str {
+            "executable-cem-native-template"
+        }
+
+        fn kind(&self) -> TransformTemplateKind {
+            TransformTemplateKind::CemNative
+        }
+
+        fn capability(&self) -> TransformTemplateAdapterCapability {
+            TransformTemplateAdapterCapability::Executable
+        }
+
+        fn matches_template(&self, identity: &FormatIdentity) -> bool {
+            identity.content_type.as_deref() == Some("text/cem-ml")
+        }
     }
 }

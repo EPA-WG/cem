@@ -128,6 +128,15 @@ dependencies = [
 ]
 
 [[package]]
+name = "cem-ml-transform-cem-ql"
+version = "0.1.0"
+dependencies = [
+ "cem-ml",
+ "cem-ql",
+ "serde_json",
+]
+
+[[package]]
 name = "cem-ql"
 version = "0.1.0"
 dependencies = [

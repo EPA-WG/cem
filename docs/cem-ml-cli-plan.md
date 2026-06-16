@@ -606,6 +606,13 @@ These are data shapes only. Parser-filled content remains blocked until the pars
           primary data artifact, optional secondary artifacts, and a target identity/scope. Static built-in adapters keep
           the current behavior by returning deterministic adapter-not-implemented errors until a runtime executor is
           registered.
+        - Executable template adapters take precedence over selector-only adapters for the same identity, so a host can
+          install an actual CEM-native executor without making the built-in selector capability ambiguous. Multiple
+          executable matches remain ambiguous.
+        - `cem_ml_transform_cem_ql` is the first executable CEM-native adapter crate. It sits above both `cem_ml` and
+          `cem_ql`, registers a CEM-QL-backed template adapter, compiles CEM-ML fragments through
+          `cem_ql::render::compile_template`, carries the compiled payload in the adapter artifact, and renders via
+          `cem_ql::render::render_compiled_template`.
         - `TransformExecutionPolicy` records the first runtime contract:
           `runtimePhase=cem-ql-fragment`, `cardinality=one-to-one`,
           `duplicateDestinationPolicy=reject`, `failurePolicy=fail-fast`, and
@@ -634,9 +641,10 @@ These are data shapes only. Parser-filled content remains blocked until the pars
           changes, and duplicate output destinations before adding execution.
       Execution remains deferred: the default engine methods still return not implemented, and CLI dispatch still
       exits through the reserved usage path.
-      Next implementation boundary: decide where the concrete CEM-QL/CEM-native template adapter lives, then connect
-      `cem_ql::render` through that registered transform-template adapter without creating a crate dependency cycle
-      (`cem_ql` currently depends on `cem_ml`; `cem_ml` cannot directly depend on `cem_ql`).
+      Next implementation boundary: wire `RealCemMlEngine::transform` to use the registered executable adapter for the
+      minimal one-to-one CEM-native runtime, then connect CLI dispatch after resolver-backed output/report behavior is
+      explicit. The crate dependency cycle is avoided by keeping the concrete CEM-QL adapter in
+      `cem_ml_transform_cem_ql` rather than in `cem_ml`.
 8. `cem-ml trace <input>`
     - Supported structured formats: `json`, `xml`, `cem`.
     - Reference convenience formats: `text`, `html`.
