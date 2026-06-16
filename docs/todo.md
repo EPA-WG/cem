@@ -140,7 +140,7 @@ for the current architecture have landed; only deferred capability work remains 
       one `*` in the file name, derives `{src}`, `{path}`, `{dir}`, `{file}`, `{stem}`, `{ext}`, and `{index}` bindings,
       preserves those bindings through one-to-one transform branches, and applies them to export `@out` templates.
       Transform graph reports now include `reportAst.transformGraph` export metadata for resolved export IDs,
-      destinations, content identities, and output kinds.
+      destinations, content identities, output kinds, source-map presence, and output-span counts.
       Keep the checked-in CEM-native CLI transform-config schema
       (`packages/cem_ml/schema/cli/transform-config.md`,
       `https://cem.dev/ns/cli/transform-config/1`) separate from CEM core document schemas and template schemas.
@@ -148,7 +148,7 @@ for the current architecture have landed; only deferred capability work remains 
       with embedded CEM-QL and one implicit entrypoint; then add local filename-glob input enumeration plus named
       path-template expansion for graph configs; then add native named templates/modules, explicit entrypoints, params,
       imports/includes, visibility, caching, and recursion/cycle limits; then expand XSLT parity on that native
-      substrate. Next runtime implementation work is richer source-map projection for branched artifacts,
+      substrate. Next runtime implementation work is full source-map payload projection for branched artifacts,
       resolver-backed glob enumeration, recursive glob semantics, and multi-artifact join semantics before XSLT parity.
       The separate adapter crate avoids the dependency cycle where `cem_ql`
       currently depends on `cem_ml`.

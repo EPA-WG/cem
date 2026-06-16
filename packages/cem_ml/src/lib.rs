@@ -182,6 +182,8 @@ mod tests {
                 content_type: Some("text/html".into()),
                 schema: None,
                 output_kind: "document".into(),
+                has_source_map: true,
+                output_span_count: 2,
             }],
         });
 
@@ -202,6 +204,14 @@ mod tests {
         assert_eq!(
             v["reportAst"]["transformGraph"]["exports"][0]["outputKind"],
             "document"
+        );
+        assert_eq!(
+            v["reportAst"]["transformGraph"]["exports"][0]["hasSourceMap"],
+            true
+        );
+        assert_eq!(
+            v["reportAst"]["transformGraph"]["exports"][0]["outputSpanCount"],
+            2
         );
     }
 }

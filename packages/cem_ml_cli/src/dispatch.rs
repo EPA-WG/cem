@@ -2213,6 +2213,20 @@ fn transform_graph_output_kind(primary: &serde_json::Value) -> String {
     }
 }
 
+fn transform_graph_has_source_map(primary: &serde_json::Value) -> bool {
+    primary
+        .get("sourceMap")
+        .is_some_and(|source_map| !source_map.is_null())
+}
+
+fn transform_graph_output_span_count(primary: &serde_json::Value) -> u64 {
+    primary
+        .get("outputSpans")
+        .and_then(serde_json::Value::as_array)
+        .map(|spans| spans.len() as u64)
+        .unwrap_or(0)
+}
+
 fn transform_graph_report_from_artifacts(
     artifacts: &[eng::TransformGraphArtifact],
 ) -> cem_ml::report::TransformGraphReport {
@@ -2230,6 +2244,8 @@ fn transform_graph_report_from_artifacts(
                 .as_ref()
                 .and_then(|identity| identity.schema.clone()),
             output_kind: transform_graph_output_kind(&artifact.primary),
+            has_source_map: transform_graph_has_source_map(&artifact.primary),
+            output_span_count: transform_graph_output_span_count(&artifact.primary),
         })
         .collect::<Vec<_>>();
     cem_ml::report::TransformGraphReport {
@@ -2263,6 +2279,11 @@ fn render_report_markdown(report: &cem_ml::report::Report) -> String {
             if let Some(content_type) = export.content_type.as_deref() {
                 out.push_str(&format!(" ({content_type})"));
             }
+            out.push_str(&format!(
+                " [sourceMap: {}, outputSpans: {}]",
+                if export.has_source_map { "yes" } else { "no" },
+                export.output_span_count
+            ));
             out.push('\n');
         }
     }
@@ -3476,6 +3497,14 @@ mod tests {
             "document"
         );
         assert_eq!(
+            report["reportAst"]["transformGraph"]["exports"][0]["hasSourceMap"],
+            false
+        );
+        assert_eq!(
+            report["reportAst"]["transformGraph"]["exports"][0]["outputSpanCount"],
+            0
+        );
+        assert_eq!(
             report["reportAst"]["transformGraph"]["exports"][1]["contentType"],
             "image/svg+xml"
         );
@@ -3522,6 +3551,7 @@ mod tests {
         assert!(markdown.contains("main ->"));
         assert!(markdown.contains("out/data.html"));
         assert!(markdown.contains("(text/html)"));
+        assert!(markdown.contains("[sourceMap: no, outputSpans: 0]"));
     }
 
     #[test]

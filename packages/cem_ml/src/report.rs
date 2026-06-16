@@ -106,6 +106,10 @@ pub struct TransformGraphExportReport {
     #[serde(skip_serializing_if = "Option::is_none")]
     pub schema: Option<String>,
     pub output_kind: String,
+    #[serde(rename = "hasSourceMap")]
+    pub has_source_map: bool,
+    #[serde(rename = "outputSpanCount")]
+    pub output_span_count: u64,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
