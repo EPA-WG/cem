@@ -9,15 +9,20 @@ use std::collections::BTreeMap;
 
 use cem_ml::diagnostics::{Diagnostic, Severity};
 use cem_ml::engine::{
-    EngineContext, FormatIdentity, TransformTemplateKind, TRANSFORM_TEMPLATE_UNSUPPORTED_CODE,
+    EngineContext, FormatIdentity, TemplateInput, TransformTemplateKind,
+    TRANSFORM_TEMPLATE_UNSUPPORTED_CODE,
 };
+use cem_ml::run_config::ScopeConfig;
 use cem_ml::transform_template::{
-    TransformTemplateAdapter, TransformTemplateAdapterCapability, TransformTemplateAdapterError,
+    parse_cem_native_template_module_options, TransformTemplateAdapter,
+    TransformTemplateAdapterCapability, TransformTemplateAdapterError,
     TransformTemplateAdapterExecutionPhase, TransformTemplateAdapterRegistry,
     TransformTemplateAdapterResult, TransformTemplateCompileRequest,
     TransformTemplateCompileResponse, TransformTemplateCompiledArtifact,
-    TransformTemplateDataArtifact, TransformTemplateOutputArtifact, TransformTemplateRenderRequest,
-    TransformTemplateRenderResponse, CEM_NATIVE_TEMPLATE_SCHEMA_URI,
+    TransformTemplateDataArtifact, TransformTemplateModuleOptions,
+    TransformTemplateModuleParseRequest, TransformTemplateOutputArtifact,
+    TransformTemplateRenderRequest, TransformTemplateRenderResponse,
+    CEM_NATIVE_TEMPLATE_SCHEMA_URI,
 };
 use cem_ql::eval::{AtomValue, Item, ItemStream};
 use cem_ql::render::{
@@ -86,7 +91,11 @@ impl TransformTemplateAdapter for CemQlTransformTemplateAdapter {
                 ),
             )
         })?;
-        let host_bindings = host_binding_names(request.params, request.data_bindings);
+        let host_bindings = host_binding_names(
+            request.params,
+            request.data_bindings,
+            &request.module_options,
+        );
         let artifact = compile_template(
             source,
             &CompileTemplateOptions {
@@ -220,14 +229,35 @@ fn content_type_essence(content_type: &str) -> String {
         .to_ascii_lowercase()
 }
 
-fn host_binding_names(params: &BTreeMap<String, Value>, data_bindings: &[String]) -> Vec<String> {
+fn host_binding_names(
+    params: &BTreeMap<String, Value>,
+    data_bindings: &[String],
+    module_options: &TransformTemplateModuleOptions,
+) -> Vec<String> {
     let mut bindings = data_bindings.to_vec();
     for name in params.keys() {
-        if !bindings.iter().any(|binding| binding == name) {
-            bindings.push(name.clone());
+        push_binding_name(&mut bindings, name);
+    }
+    extend_module_param_binding_names(&mut bindings, module_options);
+    bindings
+}
+
+fn extend_module_param_binding_names(
+    bindings: &mut Vec<String>,
+    module_options: &TransformTemplateModuleOptions,
+) {
+    for param in &module_options.params {
+        push_binding_name(bindings, &param.name);
+        if let Some((_, local)) = param.name.split_once('.') {
+            push_binding_name(bindings, local);
         }
     }
-    bindings
+}
+
+fn push_binding_name(bindings: &mut Vec<String>, name: &str) {
+    if !bindings.iter().any(|binding| binding == name) {
+        bindings.push(name.to_owned());
+    }
 }
 
 fn compile_preflighted_modules(
@@ -247,10 +277,18 @@ fn compile_preflighted_modules(
                     format!("template module `{}` is not valid UTF-8: {err}", module.uri),
                 )
             })?;
+            let module_options = parse_imported_module_options(
+                adapter_id,
+                module.uri.clone(),
+                module.bytes.clone(),
+                module.identity.clone(),
+            )?;
+            let mut module_host_bindings = host_bindings.to_vec();
+            extend_module_param_binding_names(&mut module_host_bindings, &module_options);
             let artifact = compile_template(
                 source,
                 &CompileTemplateOptions {
-                    host_bindings: host_bindings.to_vec(),
+                    host_bindings: module_host_bindings,
                 },
             );
             let entrypoints = extract_template_entrypoints(&artifact);
@@ -263,6 +301,37 @@ fn compile_preflighted_modules(
             })
         })
         .collect()
+}
+
+fn parse_imported_module_options(
+    adapter_id: &'static str,
+    uri: String,
+    bytes: Vec<u8>,
+    identity: Option<FormatIdentity>,
+) -> TransformTemplateAdapterResult<TransformTemplateModuleOptions> {
+    let response = parse_cem_native_template_module_options(TransformTemplateModuleParseRequest {
+        template: TemplateInput {
+            uri: uri.clone(),
+            bytes,
+            identity,
+            root_scope: ScopeConfig::default(),
+        },
+    });
+    if let Some(diagnostic) = response
+        .diagnostics
+        .iter()
+        .find(|diagnostic| diagnostic.severity == Severity::Fatal)
+    {
+        return Err(TransformTemplateAdapterError::failed(
+            adapter_id,
+            TransformTemplateAdapterExecutionPhase::Compile,
+            format!(
+                "template module `{uri}` declarations failed to lower: {}",
+                diagnostic.message
+            ),
+        ));
+    }
+    Ok(response.module_options)
 }
 
 fn extract_template_entrypoints(artifact: &TemplateArtifact) -> CemQlTemplateEntrypoints {
@@ -441,9 +510,10 @@ fn render_call_node(
         return Vec::new();
     };
 
-    let mut plan = render_compiled_template(target, data);
+    let call_data = call_data_with_bindings(data, attributes);
+    let mut plan = render_compiled_template(target, &call_data);
     diagnostics.append(&mut plan.diagnostics);
-    expand_call_nodes(&plan.nodes, payload, data, depth + 1, diagnostics)
+    expand_call_nodes(&plan.nodes, payload, &call_data, depth + 1, diagnostics)
 }
 
 fn render_attr(attributes: &[RenderPlanAttribute], name: &str) -> Option<String> {
@@ -452,6 +522,26 @@ fn render_attr(attributes: &[RenderPlanAttribute], name: &str) -> Option<String>
         .find(|attribute| attribute.name == name)
         .map(|attribute| attribute.value.trim().to_owned())
         .filter(|value| !value.is_empty())
+}
+
+fn call_data_with_bindings(
+    data: &TemplateData,
+    attributes: &[RenderPlanAttribute],
+) -> TemplateData {
+    let mut data = data.clone();
+    for attribute in attributes {
+        let Some(name) = attribute.name.strip_prefix("with:") else {
+            continue;
+        };
+        if name.trim().is_empty() {
+            continue;
+        }
+        data.bindings.insert(
+            name.to_owned(),
+            ItemStream::once(Item::Atomic(AtomValue::String(attribute.value.clone()))),
+        );
+    }
+    data
 }
 
 fn literal_attribute(
@@ -752,6 +842,79 @@ mod tests {
     }
 
     #[test]
+    fn adapter_passes_with_bindings_to_same_module_calls() {
+        let adapter = CemQlTransformTemplateAdapter;
+        let identity = FormatIdentity {
+            schema: Some(cem_ml::transform_template::CEM_NATIVE_TEMPLATE_SCHEMA_URI.to_owned()),
+            ..FormatIdentity::default()
+        };
+        let template = TemplateInput {
+            uri: "template.cem".to_owned(),
+            bytes: br#"{@doc cem-ml 1}
+{module |
+  {template @name="helper" |
+    {param @name="title"}
+    {body | {span | {$title}}}
+  }
+  {body | {div | {call @template="helper" @with:title="Hello"}}}
+}"#
+            .to_vec(),
+            identity: Some(identity),
+            root_scope: ScopeConfig::default(),
+        };
+        let params = BTreeMap::new();
+        let data_bindings = Vec::new();
+        let compiled = adapter
+            .compile(TransformTemplateCompileRequest {
+                template: &template,
+                entrypoint: &TransformTemplateEntrypoint::implicit(),
+                params: &params,
+                data_bindings: &data_bindings,
+                module_options: cem_ml::transform_template::TransformTemplateModuleOptions {
+                    params: vec![cem_ml::transform_template::TransformTemplateModuleParamDeclaration {
+                        name: "helper.title".to_owned(),
+                        default_value: None,
+                        required: false,
+                        visibility: cem_ml::transform_template::TransformTemplateModuleVisibility::Private,
+                    }],
+                    ..Default::default()
+                },
+                module_preflight: Default::default(),
+                execution_policy: TransformExecutionPolicy::default(),
+            })
+            .expect("module template should compile")
+            .artifact;
+        let primary_input = TransformTemplateDataArtifact {
+            artifact_id: "data".to_owned(),
+            uri: None,
+            identity: None,
+            value: Value::Null,
+        };
+        let secondary_inputs = BTreeMap::new();
+
+        let rendered = adapter
+            .render(TransformTemplateRenderRequest {
+                compiled: &compiled,
+                primary_input: &primary_input,
+                secondary_inputs: &secondary_inputs,
+                target: None,
+                target_scope: &ScopeConfig::default(),
+                execution_policy: TransformExecutionPolicy::default(),
+            })
+            .expect("module template should render");
+
+        assert_eq!(
+            rendered.output.value,
+            Value::String("<div><span>Hello</span></div>".to_owned())
+        );
+        assert!(
+            rendered.diagnostics.is_empty(),
+            "{:?}",
+            rendered.diagnostics
+        );
+    }
+
+    #[test]
     fn adapter_dispatches_imported_module_calls_during_render() {
         let adapter = CemQlTransformTemplateAdapter;
         let identity = FormatIdentity {
@@ -817,6 +980,83 @@ mod tests {
         assert_eq!(
             rendered.output.value,
             Value::String("<div><span>Icon</span></div>".to_owned())
+        );
+        assert!(
+            rendered.diagnostics.is_empty(),
+            "{:?}",
+            rendered.diagnostics
+        );
+    }
+
+    #[test]
+    fn adapter_passes_with_bindings_to_imported_module_calls() {
+        let adapter = CemQlTransformTemplateAdapter;
+        let identity = FormatIdentity {
+            schema: Some(cem_ml::transform_template::CEM_NATIVE_TEMPLATE_SCHEMA_URI.to_owned()),
+            ..FormatIdentity::default()
+        };
+        let template = TemplateInput {
+            uri: "template.cem".to_owned(),
+            bytes: br#"{@doc cem-ml 1}
+{module |
+  {body | {div | {call @from="ui" @template="icon" @with:title="Imported"}}}
+}"#
+            .to_vec(),
+            identity: Some(identity.clone()),
+            root_scope: ScopeConfig::default(),
+        };
+        let params = BTreeMap::new();
+        let data_bindings = Vec::new();
+        let compiled = adapter
+            .compile(TransformTemplateCompileRequest {
+                template: &template,
+                entrypoint: &TransformTemplateEntrypoint::implicit(),
+                params: &params,
+                data_bindings: &data_bindings,
+                module_options: Default::default(),
+                module_preflight: TransformTemplateModulePreflight {
+                    resolved_imports: vec![TransformTemplateResolvedModule {
+                        alias: "ui".to_owned(),
+                        uri: "templates/ui.cem".to_owned(),
+                        identity: Some(identity),
+                        content_hash: "cem-bin/1+blake3:ui".to_owned(),
+                        bytes: br#"{@doc cem-ml 1}
+{module |
+  {template @name="icon" @visibility="public" |
+    {param @name="title"}
+    {body | {span | {$title}}}
+  }
+}"#
+                        .to_vec(),
+                    }],
+                    cache_key: None,
+                },
+                execution_policy: TransformExecutionPolicy::default(),
+            })
+            .expect("module template should compile")
+            .artifact;
+        let primary_input = TransformTemplateDataArtifact {
+            artifact_id: "data".to_owned(),
+            uri: None,
+            identity: None,
+            value: Value::Null,
+        };
+        let secondary_inputs = BTreeMap::new();
+
+        let rendered = adapter
+            .render(TransformTemplateRenderRequest {
+                compiled: &compiled,
+                primary_input: &primary_input,
+                secondary_inputs: &secondary_inputs,
+                target: None,
+                target_scope: &ScopeConfig::default(),
+                execution_policy: TransformExecutionPolicy::default(),
+            })
+            .expect("module template should render");
+
+        assert_eq!(
+            rendered.output.value,
+            Value::String("<div><span>Imported</span></div>".to_owned())
         );
         assert!(
             rendered.diagnostics.is_empty(),
