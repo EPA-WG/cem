@@ -347,7 +347,10 @@ minimal CEM-QL-fragment executor already implements these behaviors.
   API.
 - Params are immutable per render call. Template declarations may provide defaults;
   caller-provided params override defaults by name. Unknown params are fatal unless
-  the selected adapter explicitly declares an extension bucket for them.
+  the selected adapter explicitly declares an extension bucket for them. A caller
+  param is considered provided when its key is present, including when the value is
+  `null`; only omitted param keys use declaration defaults or trigger missing
+  required-param diagnostics.
 - Data bindings are explicit adapter inputs. The stable binding set for the native
   module layer should include the primary artifact under `input`, named secondary
   artifacts under their `@with:*` labels, and declared params under their names.
@@ -413,8 +416,9 @@ import modules.
 The `cem_ml_transform_cem_ql` executable adapter now preserves the selected
 entrypoint, caller params, and param declarations in the compiled payload. During
 render, caller params override declaration defaults, module-level defaults apply
-when omitted, and named entrypoint-local params are exposed through their local
-names inside the selected template or called imported template.
+when omitted, explicit `null` values remain bound as caller values, and named
+entrypoint-local params are exposed through their local names inside the selected
+template or called imported template.
 Compile requests now also carry `TransformTemplateModulePreflight`, populated by
 the real engine before adapter compilation. The preflight recursively reads
 declared imports through the template resolver, resolves relative imports against

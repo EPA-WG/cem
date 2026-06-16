@@ -168,8 +168,8 @@ for the current architecture have landed; only deferred capability work remains 
       Native template module semantics should start with an adapter-owned module contract rather than changing the base
       CEM-ML AST: implicit entrypoint means module default render; explicit entrypoints select public exported templates;
       declarations are private by default; params are immutable with template defaults and fatal unknown names unless an
-      adapter declares an extension bucket; portable data bindings are primary `input`, named secondary graph inputs, and
-      params; the CEM-QL data document also exposes those host bindings as top-level fields while retaining
+      adapter declares an extension bucket; explicit `null` caller params count as provided and do not fall back to
+      defaults; portable data bindings are primary `input`, named secondary graph inputs, and params; the CEM-QL data document also exposes those host bindings as top-level fields while retaining
       `datadom.attributes.*` compatibility; imports come before includes and load isolated modules through the `template` resolver; includes remain
       reserved; module cache keys include adapter ID, resolved URI, identity, content hash, selected entrypoint, execution
       policy, and dependency graph hash; import cycles are fatal compile diagnostics; recursive calls require explicit
@@ -189,8 +189,8 @@ for the current architecture have landed; only deferred capability work remains 
       `@with:*` whole-expression attributes preserve their evaluated CEM-QL item stream for the invoked template, while
       literal and mixed attribute-value-template forms remain string bindings. It also preserves the selected entrypoint,
       caller params, and param declarations in the compiled payload; caller params override declaration defaults, omitted
-      defaults are applied during render, and named entrypoint-local params bind through their local names inside the
-      invoked template. The CEM-QL renderer declares stable primary `input` at compile time and makes primary/secondary
+      defaults are applied during render, explicit `null` remains bound as a caller value, and named entrypoint-local
+      params bind through their local names inside the invoked template. The CEM-QL renderer declares stable primary `input` at compile time and makes primary/secondary
       host bindings available as top-level data-document fields while preserving `datadom.attributes.*` compatibility.
       Same-module recursive calls, including recursive calls inside an imported module, are bounded by
       the module recursion limit and report `cem.transform_template.recursion_limit` when exceeded. The CEM-native

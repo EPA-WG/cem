@@ -1485,6 +1485,91 @@ mod tests {
     }
 
     #[test]
+    fn adapter_treats_explicit_null_params_as_default_overrides() {
+        let adapter = CemQlTransformTemplateAdapter;
+        let identity = FormatIdentity {
+            schema: Some(cem_ml::transform_template::CEM_NATIVE_TEMPLATE_SCHEMA_URI.to_owned()),
+            ..FormatIdentity::default()
+        };
+        let template = TemplateInput {
+            uri: "template.cem".to_owned(),
+            bytes: br#"{@doc cem-ml 1}
+{module |
+  {param @name="locale" @default="en-US"}
+  {template @name="card" @visibility="public" |
+    {param @name="title" @default="Untitled"}
+    {body | {p | {$locale}:{$title}}}
+  }
+}"#
+            .to_vec(),
+            identity: Some(identity),
+            root_scope: ScopeConfig::default(),
+        };
+        let params = BTreeMap::from([("title".to_owned(), Value::Null)]);
+        let data_bindings = Vec::new();
+        let compiled = adapter
+            .compile(TransformTemplateCompileRequest {
+                template: &template,
+                entrypoint: &TransformTemplateEntrypoint::named("card"),
+                params: &params,
+                data_bindings: &data_bindings,
+                module_options: cem_ml::transform_template::TransformTemplateModuleOptions {
+                    entrypoints: vec![cem_ml::transform_template::TransformTemplateModuleEntrypointDeclaration {
+                        name: "card".to_owned(),
+                        visibility: cem_ml::transform_template::TransformTemplateModuleVisibility::Public,
+                    }],
+                    params: vec![
+                        cem_ml::transform_template::TransformTemplateModuleParamDeclaration {
+                            name: "locale".to_owned(),
+                            default_value: Some(Value::String("en-US".to_owned())),
+                            required: false,
+                            visibility: cem_ml::transform_template::TransformTemplateModuleVisibility::Private,
+                        },
+                        cem_ml::transform_template::TransformTemplateModuleParamDeclaration {
+                            name: "card.title".to_owned(),
+                            default_value: Some(Value::String("Untitled".to_owned())),
+                            required: false,
+                            visibility: cem_ml::transform_template::TransformTemplateModuleVisibility::Private,
+                        },
+                    ],
+                    ..Default::default()
+                },
+                module_preflight: Default::default(),
+                execution_policy: TransformExecutionPolicy::default(),
+            })
+            .expect("module template should compile")
+            .artifact;
+        let primary_input = TransformTemplateDataArtifact {
+            artifact_id: "data".to_owned(),
+            uri: None,
+            identity: None,
+            value: Value::Null,
+        };
+        let secondary_inputs = BTreeMap::new();
+
+        let rendered = adapter
+            .render(TransformTemplateRenderRequest {
+                compiled: &compiled,
+                primary_input: &primary_input,
+                secondary_inputs: &secondary_inputs,
+                target: None,
+                target_scope: &ScopeConfig::default(),
+                execution_policy: TransformExecutionPolicy::default(),
+            })
+            .expect("module template should render");
+
+        assert_eq!(
+            rendered.output.value,
+            Value::String("<p>en-US:</p>".to_owned())
+        );
+        assert!(
+            rendered.diagnostics.is_empty(),
+            "{:?}",
+            rendered.diagnostics
+        );
+    }
+
+    #[test]
     fn adapter_stops_recursive_same_module_calls_at_limit() {
         let adapter = CemQlTransformTemplateAdapter;
         let identity = FormatIdentity {

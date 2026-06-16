@@ -679,7 +679,8 @@ These are data shapes only. Parser-filled content remains blocked until the pars
               public exported templates and fail during compile/validation when missing or private.
             - Make declarations private by default; require explicit public visibility for cross-module use.
             - Make params immutable for each render call. Template defaults are allowed, caller params override by name,
-              and unknown params are fatal unless an adapter declares an extension bucket.
+              and unknown params are fatal unless an adapter declares an extension bucket. A param key with value `null`
+              counts as provided; only omitted keys use defaults or fail required-param checks.
             - Keep portable data bindings explicit: primary artifact as `input`, named secondary artifacts under their
               graph labels, and params under their names. The CEM-QL data document also exposes those host bindings as
               top-level fields while retaining the legacy `datadom.attributes.*` projection. Direct primary-object
@@ -718,8 +719,8 @@ These are data shapes only. Parser-filled content remains blocked until the pars
           `@with:*` whole-expression attributes preserve their evaluated CEM-QL item stream for the invoked template,
           while literal and mixed attribute-value-template forms remain string bindings. The adapter also preserves the
           selected entrypoint, caller params, and param declarations in its compiled payload; caller params override
-          declaration defaults, omitted defaults are applied during render, and named entrypoint-local params bind through
-          their local names inside the invoked template. The CEM-QL renderer declares the stable primary `input` binding
+          declaration defaults, omitted defaults are applied during render, explicit `null` stays bound as a caller
+          value, and named entrypoint-local params bind through their local names inside the invoked template. The CEM-QL renderer declares the stable primary `input` binding
           at compile time and makes primary/secondary host bindings available as top-level fields on the synthesized data
           document while preserving `datadom.attributes.*` compatibility. Same-module recursive calls, including
           recursive calls inside an

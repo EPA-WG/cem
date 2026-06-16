@@ -3522,6 +3522,50 @@ mod tests {
     }
 
     #[test]
+    fn template_module_contract_treats_explicit_null_params_as_provided() {
+        let template = template("main.cem", b"{main}");
+        let options = TransformTemplateModuleOptions {
+            entrypoints: vec![
+                crate::transform_template::TransformTemplateModuleEntrypointDeclaration {
+                    name: "card".to_owned(),
+                    visibility: TransformTemplateModuleVisibility::Public,
+                },
+            ],
+            params: vec![
+                crate::transform_template::TransformTemplateModuleParamDeclaration {
+                    name: "locale".to_owned(),
+                    default_value: None,
+                    required: true,
+                    visibility: TransformTemplateModuleVisibility::Public,
+                },
+                crate::transform_template::TransformTemplateModuleParamDeclaration {
+                    name: "card.title".to_owned(),
+                    default_value: None,
+                    required: true,
+                    visibility: TransformTemplateModuleVisibility::Private,
+                },
+            ],
+            ..TransformTemplateModuleOptions::default()
+        };
+        let params = BTreeMap::from([
+            ("locale".to_owned(), Value::Null),
+            ("title".to_owned(), Value::Null),
+        ]);
+        let mut diagnostics = Vec::new();
+
+        let validated = validate_transform_template_module_contract(
+            &template,
+            &TransformTemplateEntrypoint::named("card"),
+            &params,
+            &options,
+            &mut diagnostics,
+        );
+
+        assert!(validated.is_some(), "{diagnostics:?}");
+        assert!(diagnostics.is_empty(), "{diagnostics:?}");
+    }
+
+    #[test]
     fn template_module_contract_rejects_unknown_and_missing_params() {
         let template = template("main.cem", b"{main}");
         let options = TransformTemplateModuleOptions {
