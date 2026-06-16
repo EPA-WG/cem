@@ -109,12 +109,12 @@ for the current architecture have landed; only deferred capability work remains 
 - [ ] **Wishlist (future — NOT in the immediate release timeline):** runtime support for the reserved
       `cem-ml transform` data + template -> document command. Design homes:
       [`cem-ml-cli-contract.md`](cem-ml-cli-contract.md#planned-option-behavior) and
-      [`cem-ml-cli-plan.md`](cem-ml-cli-plan.md#phase-6---command-behavior). Before implementation, define the
-      CEM-ML graph config parser/lowering for nested `run` / `import` / `transform` / `export` nodes, explicit
-      cross-input joins through `@input` and `@with:*`, the engine/API boundary for graph transform requests and
-      responses, supported template content types, template execution semantics, resolver behavior for template reads
-      and output writes, diagnostics/report shape, source-map handling, and output behavior for stdout, `--out`, side
-      reports, duplicate destinations, and graph validation.
+      [`cem-ml-cli-plan.md`](cem-ml-cli-plan.md#phase-6---command-behavior). The CEM-ML graph config parser/lowering
+      boundary now exists for nested `run` / `import` / `transform` / `export` nodes and explicit cross-input joins
+      through `@input` and `@with:*`. Before runtime implementation, define the engine/API boundary for graph
+      transform requests and responses, supported template content types, template execution semantics, resolver
+      behavior for template reads and output writes, diagnostics/report shape, source-map handling, and output behavior
+      for stdout, `--out`, side reports, duplicate destinations, and graph validation.
 
 ## Phase 3.1 — Substrate / Legacy Compatibility Follow-Up
 

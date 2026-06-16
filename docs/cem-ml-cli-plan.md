@@ -574,8 +574,11 @@ These are data shapes only. Parser-filled content remains blocked until the pars
     - Planned options: `--data-content-type`, `--data-schema`, `--template`, `--template-content-type`,
       `--template-schema`, `--to-content-type`, `--to-schema`, and `--out`.
     - XML+XSLT execution, CEM template execution, and transform engine APIs remain deferred.
+    - Current config slice: `cem_ml::transform_config::parse_transform_graph_config` parses CEM-ML
+      `run` / `import` / `transform` / `export` graph config and validates missing required operation
+      attributes, duplicate IDs, unresolved refs, cycles, wildcard output patterns, and duplicate output
+      destinations. It is not connected to `cem-ml transform` execution.
     - Before execution is implemented, add a design/API slice that defines:
-        - CEM-ML config parsing/lowering for nested `run`, `import`, `transform`, and `export` graph nodes.
         - `TransformRequest` or successor graph request with import nodes, transform stage nodes, export nodes,
           scheduler scope IDs, and shared engine context.
         - `TransformResponse` with rendered/exported artifacts, diagnostics, and scheduler trace.

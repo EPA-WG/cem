@@ -168,6 +168,17 @@ Reference semantics:
 - secondary artifacts are passed to the transform engine as named inputs.
 - document order must not imply joins; joins are explicit only.
 
+Current implementation slice:
+
+- `cem_ml::transform_config::parse_transform_graph_config` parses CEM-ML config
+  bytes into import, transform, and export graph nodes plus dependency edges.
+- The parser validates missing required operation attributes, duplicate IDs,
+  unresolved explicit refs, cycles, wildcard output patterns, and duplicate output
+  destinations.
+- This is a config and validation boundary only. It does not execute transforms,
+  read templates, import data, write outputs, or change `cem-ml transform`
+  dispatch, which remains reserved.
+
 The future Rust/WASM engine API should model transform as a first-class graph
 request/response pair instead of smuggling template information through
 `ConvertRequest` or CLI-only options. The graph-lowered request shape must include:

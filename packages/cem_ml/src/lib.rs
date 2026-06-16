@@ -30,6 +30,7 @@ pub mod schema;
 pub mod source;
 pub mod source_map;
 pub mod tokenizer;
+pub mod transform_config;
 pub mod validation;
 
 #[cfg(feature = "fake-engine")]
