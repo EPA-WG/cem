@@ -893,8 +893,12 @@ fn collect_transform_graph_join(
     join: &TransformGraphJoin,
     artifacts: &BTreeMap<String, TransformTemplateDataArtifact>,
 ) -> TransformTemplateDataArtifact {
+    let mode = match join.mode {
+        TransformGraphJoinMode::Collect => "collect",
+        TransformGraphJoinMode::GroupBy => "group-by",
+    };
     match join.mode {
-        TransformGraphJoinMode::Collect => {
+        TransformGraphJoinMode::Collect | TransformGraphJoinMode::GroupBy => {
             let items = join
                 .inputs
                 .iter()
@@ -916,8 +920,9 @@ fn collect_transform_graph_join(
                 identity: None,
                 value: json!({
                     "kind": "collection",
-                    "mode": "collect",
+                    "mode": mode,
                     "count": items.len(),
+                    "bindings": join.bindings.clone(),
                     "items": items,
                 }),
             }

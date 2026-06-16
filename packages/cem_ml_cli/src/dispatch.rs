@@ -1135,6 +1135,12 @@ struct TransformGraphImportMatch {
     bindings: BTreeMap<String, String>,
 }
 
+type TransformGraphJoinGroup = (
+    String,
+    Vec<TransformGraphArtifactVariant>,
+    BTreeMap<String, String>,
+);
+
 fn transform_config_diagnostic(
     uri: &str,
     code: &str,
@@ -1595,7 +1601,66 @@ fn to_engine_dependency_role(role: TransformGraphEdgeRole) -> eng::TransformGrap
 fn to_engine_join_mode(mode: TransformGraphJoinMode) -> eng::TransformGraphJoinMode {
     match mode {
         TransformGraphJoinMode::Collect => eng::TransformGraphJoinMode::Collect,
+        TransformGraphJoinMode::GroupBy => eng::TransformGraphJoinMode::GroupBy,
     }
+}
+
+fn transform_graph_group_by_join_variants(
+    node: &TransformGraphNode,
+    input_variants: Vec<TransformGraphArtifactVariant>,
+    config_source_uri: &str,
+) -> Result<Vec<TransformGraphJoinGroup>, CliRequestError> {
+    let by = node.join_by.as_deref().unwrap_or("").trim();
+    if by.is_empty() {
+        return Err(transform_config_error(
+            config_source_uri,
+            "cem.transform_config.join_by_missing",
+            format!(
+                "join node `{}` with `@mode=\"group-by\"` requires `@by`",
+                node.id
+            ),
+        ));
+    }
+    if matches!(by, "count" | "key") {
+        return Err(transform_config_error(
+            config_source_uri,
+            "cem.transform_config.join_by_reserved",
+            format!(
+                "join node `{}` uses reserved grouping binding `{by}`",
+                node.id
+            ),
+        ));
+    }
+
+    let mut groups: BTreeMap<String, Vec<TransformGraphArtifactVariant>> = BTreeMap::new();
+    for variant in input_variants {
+        let Some(value) = variant.bindings.get(by) else {
+            return Err(transform_config_error(
+                config_source_uri,
+                "cem.transform_config.join_by_unknown",
+                format!(
+                    "join node `{}` groups by unknown binding `{by}` on artifact `{}`",
+                    node.id, variant.id
+                ),
+            ));
+        };
+        groups.entry(value.clone()).or_default().push(variant);
+    }
+
+    let group_count = groups.len();
+    Ok(groups
+        .into_iter()
+        .enumerate()
+        .map(|(index, (key, variants))| {
+            let id = transform_graph_variant_id(&node.id, index, group_count);
+            let mut bindings = BTreeMap::from([
+                ("count".to_owned(), variants.len().to_string()),
+                ("key".to_owned(), key.clone()),
+            ]);
+            bindings.insert(by.to_owned(), key);
+            (id, variants, bindings)
+        })
+        .collect())
 }
 
 fn transform_graph_request_from_config(
@@ -1655,35 +1720,51 @@ fn transform_graph_request_from_config(
                 let (input_ref, input_role) = transform_graph_primary_ref(graph, node)?;
                 let input_variants =
                     transform_graph_variants_for_ref(&variants, &node.id, "input", &input_ref)?;
-                let input_count = input_variants.len();
-                let join_inputs = input_variants
-                    .iter()
-                    .map(|variant| eng::TransformGraphJoinInput {
-                        artifact_id: variant.id.clone(),
-                        bindings: variant.bindings.clone(),
-                    })
-                    .collect::<Vec<_>>();
-                joins.push(eng::TransformGraphJoin {
-                    id: node.id.clone(),
-                    mode: to_engine_join_mode(mode),
-                    inputs: join_inputs,
-                    scheduler_scope_id: next_scope_id,
-                });
-                next_scope_id += 1;
-                for variant in input_variants {
-                    edges.push(eng::TransformGraphDependency {
-                        from: variant.id,
-                        to: node.id.clone(),
-                        role: to_engine_dependency_role(input_role),
+                let grouped_variants = match mode {
+                    TransformGraphJoinMode::Collect => {
+                        let input_count = input_variants.len();
+                        vec![(
+                            node.id.clone(),
+                            input_variants,
+                            BTreeMap::from([("count".to_owned(), input_count.to_string())]),
+                        )]
+                    }
+                    TransformGraphJoinMode::GroupBy => transform_graph_group_by_join_variants(
+                        node,
+                        input_variants,
+                        config_source_uri,
+                    )?,
+                };
+                let mut output_variants = Vec::new();
+                for (join_id, input_variants, bindings) in grouped_variants {
+                    let join_inputs = input_variants
+                        .iter()
+                        .map(|variant| eng::TransformGraphJoinInput {
+                            artifact_id: variant.id.clone(),
+                            bindings: variant.bindings.clone(),
+                        })
+                        .collect::<Vec<_>>();
+                    joins.push(eng::TransformGraphJoin {
+                        id: join_id.clone(),
+                        mode: to_engine_join_mode(mode),
+                        inputs: join_inputs,
+                        bindings: bindings.clone(),
+                        scheduler_scope_id: next_scope_id,
+                    });
+                    next_scope_id += 1;
+                    for variant in input_variants {
+                        edges.push(eng::TransformGraphDependency {
+                            from: variant.id,
+                            to: join_id.clone(),
+                            role: to_engine_dependency_role(input_role),
+                        });
+                    }
+                    output_variants.push(TransformGraphArtifactVariant {
+                        id: join_id,
+                        bindings,
                     });
                 }
-                variants.insert(
-                    node.id.clone(),
-                    vec![TransformGraphArtifactVariant {
-                        id: node.id.clone(),
-                        bindings: BTreeMap::from([("count".to_owned(), input_count.to_string())]),
-                    }],
-                );
+                variants.insert(node.id.clone(), output_variants);
             }
             TransformGraphNodeKind::Transform => {
                 let src = node.src.as_ref().ok_or_else(|| {
@@ -3992,6 +4073,50 @@ mod tests {
         );
         assert!(!root.join("out/book-0.html").exists());
         assert!(!root.join("out/book-1.html").exists());
+    }
+
+    #[test]
+    fn transform_config_group_by_join_feeds_grouped_transforms() {
+        let root = std::env::temp_dir().join("cem-ml-cli-tests/transform-config-group-by-join");
+        let _ = std::fs::remove_dir_all(&root);
+        std::fs::create_dir_all(root.join("inputs/part-a")).unwrap();
+        std::fs::create_dir_all(root.join("inputs/part-b")).unwrap();
+        std::fs::write(root.join("inputs/part-a/ch01.cem"), "{p @id=\"one\"}").unwrap();
+        std::fs::write(root.join("inputs/part-a/ch02.cem"), "{p @id=\"two\"}").unwrap();
+        std::fs::write(root.join("inputs/part-b/ch03.cem"), "{p @id=\"three\"}").unwrap();
+        std::fs::write(root.join("summary.cem"), "{article | {$input.count}}").unwrap();
+        let config = root.join("graph.cem");
+        std::fs::write(
+            &config,
+            r#"{run |
+  {import @id=chapters @src="inputs/**/*.cem" @content-type="text/cem-ml" |
+    {join @id=section @mode="group-by" @by="dir" |
+      {transform @id=summary @src="summary.cem" @template-content-type="text/cem-ml" |
+        {export @id=html @out="out/{dir}/summary-{count}.html" @content-type="text/html"}
+      }
+    }
+  }
+}"#,
+        )
+        .unwrap();
+
+        let (outcome, stdout, stderr) = run(
+            &RealCemMlEngine::new(),
+            &["transform", "--config", config.to_str().unwrap()],
+        );
+
+        assert_eq!(outcome.exit_code, EXIT_OK);
+        assert!(stdout.is_empty(), "{stdout}");
+        assert!(stderr.trim().is_empty(), "{stderr}");
+        assert_eq!(
+            std::fs::read_to_string(root.join("out/inputs/part-a/summary-2.html")).unwrap(),
+            "<article>2</article>"
+        );
+        assert_eq!(
+            std::fs::read_to_string(root.join("out/inputs/part-b/summary-1.html")).unwrap(),
+            "<article>1</article>"
+        );
+        assert!(!root.join("out/inputs/part-a/summary-0.html").exists());
     }
 
     #[test]

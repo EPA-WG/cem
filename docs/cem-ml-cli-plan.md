@@ -611,7 +611,8 @@ These are data shapes only. Parser-filled content remains blocked until the pars
       `--report-md`.
     - Current CLI runtime supports the minimal one-to-one CEM-native path through the CEM-QL executable adapter and
       `--config` graph dispatch for concrete paths plus local and resolver-backed filename import globs, optional `**`
-      recursive import glob segments, and explicit `join @mode="collect"` aggregation.
+      recursive import glob segments, explicit `join @mode="collect"` aggregation, and source-binding
+      `join @mode="group-by" @by="..."` aggregation.
       `RealCemMlEngine::transform_graph` executes CEM-native graph requests; XML+XSLT execution remains deferred.
     - Current config slice: `cem_ml::transform_config::parse_transform_graph_config` parses CEM-ML
       `run` / `import` / `join` / `transform` / `export` graph config and validates missing required operation
@@ -619,9 +620,9 @@ These are data shapes only. Parser-filled content remains blocked until the pars
       into `TransformGraphRequest`, resolving relative resource and export paths against the config document path and
       validating duplicate destinations after output bindings resolve.
     - Current engine API slice: `cem_ml::engine::TransformGraphRequest` and `TransformGraphResponse` model
-      loaded import nodes, collect join nodes, template-backed transform stages, export nodes, graph dependencies,
-      scheduler scope IDs, emitted artifacts, diagnostics, and scheduler trace. The default trait method still returns
-      not implemented.
+      loaded import nodes, collect and source-binding group-by join nodes, template-backed transform stages, export
+      nodes, graph dependencies, scheduler scope IDs, emitted artifacts, diagnostics, and scheduler trace. The default
+      trait method still returns not implemented.
     - Current design/API slice:
         - Template identity dispatch now supports both XSLT template identities (`application/xslt+xml`, `text/xsl`,
           and legacy custom-element XSLT content types) and CEM-native template identities (`application/cem+xml`,
@@ -680,8 +681,10 @@ These are data shapes only. Parser-filled content remains blocked until the pars
           exports consume them. Local and resolver-backed filename globs with exactly one `*` in the file name and an
           optional single `**` directory segment are expanded by the CLI host. Explicit `join @mode="collect"` nodes
           aggregate all artifacts from their primary input into one collection artifact and expose a downstream `{count}`
-          binding. Resolver-backed globs require explicit list-capable resolvers, sort matches by resolved URI, and
-          enforce a deterministic max-entry guard. Richer multi-artifact join modes remain deferred.
+          binding. Source-binding `join @mode="group-by" @by="NAME"` nodes aggregate one collection artifact per
+          distinct binding value and expose downstream `{key}`, `{count}`, and `{NAME}` bindings. Resolver-backed globs
+          require explicit list-capable resolvers, sort matches by resolved URI, and enforce a deterministic max-entry
+          guard. Zipped joins and cross-input/key-matched joins remain deferred.
         - Report and source-map behavior for diagnostics that may originate from data, template compilation, template
           execution, or output export. Current CLI report destinations suppress diagnostic stderr and use
           `cem-ml.transform.report` as the default report basename. Graph transform reports include
@@ -694,9 +697,8 @@ These are data shapes only. Parser-filled content remains blocked until the pars
       Execution is available through the programmatic engine API, the CLI one-liner, and CLI CEM-ML graph config dispatch
       when a host registers an executable adapter. `transform_graph` executes loaded in-memory graph requests and returns
       export artifacts; the CLI host writes configured graph exports through the resolver layer.
-      Next implementation boundary: design richer multi-artifact join modes such as grouped, zipped, and key-matched
-      joins. The crate dependency cycle is avoided by keeping the concrete CEM-QL adapter in
-      `cem_ml_transform_cem_ql` rather than in `cem_ml`.
+      Next implementation boundary: design zipped joins and cross-input/key-matched joins. The crate dependency cycle is
+      avoided by keeping the concrete CEM-QL adapter in `cem_ml_transform_cem_ql` rather than in `cem_ml`.
 8. `cem-ml trace <input>`
     - Supported structured formats: `json`, `xml`, `cem`.
     - Reference convenience formats: `text`, `html`.

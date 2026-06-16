@@ -47,7 +47,7 @@ pub const TRANSFORM_CONFIG_SCHEMA_ELEMENTS: &[TransformConfigElementSchema] = &[
     TransformConfigElementSchema {
         local_name: "join",
         required_attributes: &["mode"],
-        optional_attributes: &["id", "input"],
+        optional_attributes: &["id", "input", "by"],
         child_elements: &["transform", "export"],
     },
     TransformConfigElementSchema {
@@ -103,6 +103,8 @@ pub struct TransformGraphNode {
     #[serde(default)]
     pub join_mode: Option<TransformGraphJoinMode>,
     #[serde(default)]
+    pub join_by: Option<String>,
+    #[serde(default)]
     pub input_ref: Option<String>,
     #[serde(default)]
     pub with: BTreeMap<String, String>,
@@ -132,6 +134,7 @@ impl TransformGraphNodeKind {
 #[serde(rename_all = "kebab-case")]
 pub enum TransformGraphJoinMode {
     Collect,
+    GroupBy,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
@@ -330,6 +333,7 @@ impl GraphLowerer<'_> {
         let attrs = collect_attrs(self.document, ast_id);
         let id = attr_value(&attrs, "", "id").unwrap_or_else(|| format!("{}:{ast_id}", name));
         let input_ref = attr_value(&attrs, "", "input");
+        let join_by = attr_value(&attrs, "", "by");
         let join_mode = if kind == TransformGraphNodeKind::Join {
             match parse_join_mode(attr_value(&attrs, "", "mode").as_deref(), &id) {
                 Ok(mode) => mode,
@@ -355,6 +359,7 @@ impl GraphLowerer<'_> {
                 .or_else(|| attr_value(&attrs, "", "templateSchema")),
             template_kind: None,
             join_mode,
+            join_by,
             input_ref,
             with: with_refs(&attrs),
         };
@@ -474,6 +479,17 @@ impl GraphLowerer<'_> {
             TransformGraphNodeKind::Join => {
                 // Join mode validation happens during lowering so missing and
                 // unsupported modes produce precise diagnostics.
+                if node.join_mode == Some(TransformGraphJoinMode::GroupBy)
+                    && node.join_by.as_deref().unwrap_or("").trim().is_empty()
+                {
+                    self.push_diag(
+                        "cem.transform_config.join_by_missing",
+                        format!(
+                            "join node `{}` with `@mode=\"group-by\"` requires `@by`",
+                            node.id
+                        ),
+                    );
+                }
             }
             TransformGraphNodeKind::Export => {
                 if node.out.as_deref().unwrap_or("").trim().is_empty() {
@@ -681,9 +697,12 @@ fn parse_join_mode(
     };
     match value {
         "collect" => Ok(Some(TransformGraphJoinMode::Collect)),
+        "group-by" => Ok(Some(TransformGraphJoinMode::GroupBy)),
         other => Err((
             "cem.transform_config.join_mode_unsupported",
-            format!("join node `{node_id}` uses unsupported `@mode` `{other}`; only `collect` is supported"),
+            format!(
+                "join node `{node_id}` uses unsupported `@mode` `{other}`; use `collect` or `group-by`"
+            ),
         )),
     }
 }
@@ -745,6 +764,7 @@ mod tests {
         assert_eq!(TRANSFORM_CONFIG_SCHEMA_URI, TRANSFORM_CONFIG_NAMESPACE_URI);
         assert_eq!(run.child_elements, &["import"]);
         assert_eq!(join.required_attributes, &["mode"]);
+        assert!(join.optional_attributes.contains(&"by"));
         assert_eq!(join.child_elements, &["transform", "export"]);
         assert_eq!(transform.required_attributes, &["src"]);
         assert!(transform.optional_attributes.contains(&"with:*"));
@@ -970,6 +990,30 @@ mod tests {
     }
 
     #[test]
+    fn parses_group_by_join_nodes() {
+        let response = parse(
+            r#"{@doc cem-ml 1}
+{run |
+  {import @id=chapter @src="chapters/**/*.cem" |
+    {join @id=section @mode="group-by" @by="dir" |
+      {export @id=json @out="sections/{dir}.json"}
+    }
+  }
+}"#,
+        );
+
+        let join = response
+            .graph
+            .nodes
+            .iter()
+            .find(|node| node.id == "section")
+            .expect("join node");
+        assert_eq!(join.kind, TransformGraphNodeKind::Join);
+        assert_eq!(join.join_mode, Some(TransformGraphJoinMode::GroupBy));
+        assert_eq!(join.join_by.as_deref(), Some("dir"));
+    }
+
+    #[test]
     fn validates_missing_required_attrs_duplicate_ids_refs_and_outputs() {
         let response = parse(
             r#"{@doc cem-ml 1}
@@ -978,6 +1022,7 @@ mod tests {
   {import @id=a @src="other.xml"}
   {import @id=source2 @src="source2.xml" |
     {join @id=bad-join @mode="zip"}
+    {join @id=bad-group @mode="group-by"}
   }
   {import @id=source @src="source.xml" |
     {transform @id=t @with:missing=unknown |
@@ -993,6 +1038,7 @@ mod tests {
             "cem.transform_config.id_duplicate",
             "cem.transform_config.transform_src_missing",
             "cem.transform_config.join_mode_unsupported",
+            "cem.transform_config.join_by_missing",
             "cem.transform_config.ref_unknown",
             "cem.transform_config.output_pattern_wildcard",
         ] {

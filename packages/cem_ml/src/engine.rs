@@ -666,6 +666,7 @@ pub struct TransformGraphJoin {
     pub id: String,
     pub mode: TransformGraphJoinMode,
     pub inputs: Vec<TransformGraphJoinInput>,
+    pub bindings: BTreeMap<String, String>,
     pub scheduler_scope_id: u32,
 }
 
@@ -673,6 +674,7 @@ pub struct TransformGraphJoin {
 #[serde(rename_all = "kebab-case")]
 pub enum TransformGraphJoinMode {
     Collect,
+    GroupBy,
 }
 
 #[derive(Debug, Clone)]
@@ -1316,6 +1318,7 @@ mod tests {
                         bindings: BTreeMap::from([("stem".to_owned(), "stats".to_owned())]),
                     },
                 ],
+                bindings: BTreeMap::from([("count".to_owned(), "2".to_owned())]),
                 scheduler_scope_id: 3,
             }],
             stages: vec![TransformGraphStage {

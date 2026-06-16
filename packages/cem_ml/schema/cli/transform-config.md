@@ -17,7 +17,7 @@ Namespace URI: `https://cem.dev/ns/cli/transform-config/1`
 | ------- | ------------------- | ------------------- | -------------- |
 | `run` | none | none | `import` |
 | `import` | `src` | `id`, `content-type`, `contentType`, `schema` | `join`, `transform`, `export` |
-| `join` | `mode` | `id`, `input` | `transform`, `export` |
+| `join` | `mode` | `id`, `input`, `by` | `transform`, `export` |
 | `transform` | `src` | `id`, `input`, `with:*`, `template-content-type`, `templateContentType`, `template-schema`, `templateSchema` | `join`, `transform`, `export` |
 | `export` | `out` | `id`, `content-type`, `contentType`, `schema` | none |
 
@@ -28,13 +28,15 @@ Namespace URI: `https://cem.dev/ns/cli/transform-config/1`
 - `import` creates a source node from `@src`.
 - `join @mode="collect"` creates one collection artifact from all artifacts in
   its primary input.
+- `join @mode="group-by" @by="NAME"` creates one collection artifact for each
+  distinct source binding value named by `@by`.
 - `transform` creates a template application node from `@src`.
 - `export` creates a sink node from `@out`.
 - Nested operation nodes create parent graph edges.
 - `@input` creates an explicit primary input edge to an existing graph node.
 - `@with:*` creates named side-input edges to existing graph nodes.
-- `join` is the only supported cardinality-changing operation in this slice,
-  and `collect` is the only supported join mode.
+- `join` is the only supported cardinality-changing operation in this slice.
+  Supported join modes are `collect` and source-binding `group-by`.
 - Graph node IDs are explicit `@id` values or parser-generated fallback IDs.
 - Duplicate IDs, unknown references, cycles, missing required attributes, and
   duplicate output destinations are schema validation failures.
