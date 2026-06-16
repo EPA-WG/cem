@@ -393,6 +393,9 @@ before adapter compilation: `module` declarations provide resolver-backed
 imports, module params, named entrypoints, and template-local params in
 `TransformTemplateModuleOptions`. Plain CEM fragment templates without the
 native-template schema continue to compile as declaration-free fragments.
+The real engine validates named entrypoint requests against public declarations,
+rejects unknown caller params, and reports missing required params before adapter
+compilation.
 Compile requests now also carry `TransformTemplateModulePreflight`, populated by
 the real engine before adapter compilation. The preflight reads declared imports
 through the template resolver, resolves relative imports against the importing
@@ -400,7 +403,7 @@ template URI, records resolved module bytes/identity/content hashes, constructs
 the dependency graph cache key input, rejects duplicate import aliases, rejects
 reserved includes, and rejects direct self-import cycles. Existing runtime
 executors still receive default module options in the current graph/runtime paths,
-so public export validation, transitive module execution, and recursive call
+so native call-site validation, transitive module execution, and recursive call
 limits remain deferred.
 
 `cem_ml` remains the stable API contract and cannot directly call

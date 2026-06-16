@@ -697,14 +697,17 @@ These are data shapes only. Parser-filled content remains blocked until the pars
         - Current native module API slice: `TransformTemplateCompileRequest` carries
           `TransformTemplateModuleOptions`; the stable model includes import declarations, entrypoint declarations with
           explicit visibility, param declarations with defaults/required flags, module limits, module cache keys, and
-          reserved diagnostic codes for private/missing entrypoints, unknown params, import cycles, recursion limits, and
-          reserved includes. The real engine now parses/lowers v1 CEM-native template declarations into module options
-          before adapter compilation, while leaving plain CEM fragment templates declaration-free. Compile requests also
-          carry `TransformTemplateModulePreflight`, which the real engine builds before adapter compilation by reading
-          declared imports through the template resolver, resolving relative imports against the template URI, carrying
-          resolved module bytes/identity/content hashes, building the dependency graph cache-key input, and rejecting
-          duplicate aliases, reserved includes, and direct self-import cycles. Public export validation, transitive
-          module execution, and recursive call limits remain deferred.
+          reserved diagnostic codes for private/missing entrypoints, unknown or missing required params, import cycles,
+          recursion limits, and reserved includes. The real engine now parses/lowers v1 CEM-native template declarations
+          into module options before adapter compilation, while leaving plain CEM fragment templates declaration-free. It
+          validates named entrypoint requests against public declarations, rejects unknown caller params, and reports
+          missing required params before adapter compilation. Compile requests also carry
+          `TransformTemplateModulePreflight`, which the real engine builds before adapter compilation by reading declared
+          imports through the template resolver,
+          resolving relative imports against the template URI, carrying resolved module bytes/identity/content hashes,
+          building the dependency graph cache-key input, and rejecting duplicate aliases, reserved includes, and direct
+          self-import cycles. Native call-site validation, transitive module execution, and recursive call limits remain
+          deferred.
         - The v1 CEM-native template declaration schema now has its own identity,
           `https://cem.dev/ns/template/cem-native/1`, and checked-in schema artifact
           `packages/cem_ml/schema/template/cem-native-template.md`. Its declaration vocabulary is `module`, `import`,
@@ -745,10 +748,10 @@ These are data shapes only. Parser-filled content remains blocked until the pars
       Execution is available through the programmatic engine API, the CLI one-liner, and CLI CEM-ML graph config dispatch
       when a host registers an executable adapter. `transform_graph` executes loaded in-memory graph requests and returns
       export artifacts; the CLI host writes configured graph exports through the resolver layer.
-      Next implementation boundary: validate public exports and params against requested entrypoints/call sites, then
-      teach executable adapters to consume preflighted modules before expanding recursive calls and broader XSLT parity.
-      The crate dependency cycle is avoided by keeping the concrete CEM-QL adapter in `cem_ml_transform_cem_ql` rather
-      than in `cem_ml`.
+      Next implementation boundary: validate native `call` sites against same-module and imported public entrypoints,
+      then teach executable adapters to consume preflighted modules before expanding recursive calls and broader XSLT
+      parity. The crate dependency cycle is avoided by keeping the concrete CEM-QL adapter in `cem_ml_transform_cem_ql`
+      rather than in `cem_ml`.
 8. `cem-ml trace <input>`
     - Supported structured formats: `json`, `xml`, `cem`.
     - Reference convenience formats: `text`, `html`.

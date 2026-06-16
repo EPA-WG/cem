@@ -184,8 +184,9 @@ for the current architecture have landed; only deferred capability work remains 
       `packages/cem_ml/schema/template/cem-native-template.md`, covering `module`, `import`, `param`, `template`,
       `body`, and `call` while keeping `include` reserved. The real engine now parses/lowers that schema into
       `TransformTemplateModuleOptions` before adapter compilation while preserving declaration-free CEM fragment
-      templates. Next implementation boundary is public export validation, param/call-site validation, transitive module
-      execution, and recursive call limits before XSLT parity expansion.
+      templates. It validates named entrypoint requests against public declarations, rejects unknown caller params, and
+      reports missing required caller params before adapter compilation. Next implementation boundary is native call-site
+      validation, transitive module execution, and recursive call limits before XSLT parity expansion.
       The separate adapter crate avoids the dependency cycle where `cem_ql`
       currently depends on `cem_ml`.
 - [ ] **Wishlist (future — schema/tooling):** wire CLI config schemas into generated/published artifacts. The JSON
