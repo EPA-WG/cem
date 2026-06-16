@@ -59,7 +59,7 @@ pub enum Command {
     #[command(about = "Print the cem-ml-cli version")]
     Version,
 
-    #[command(about = "Reserved: apply a template/stylesheet to data (not yet implemented)")]
+    #[command(about = "Apply a template/stylesheet to data")]
     Transform(TransformArgs),
     #[command(subcommand, about = "Reserved: schema workflows (not yet implemented)")]
     Schema(SchemaCmd),
@@ -588,6 +588,11 @@ pub struct TransformArgs {
 
     #[arg(long, value_name = "FILE", help = "Write target document to file")]
     pub out: Option<PathBuf>,
+
+    #[command(flatten)]
+    pub context: ContextOptions,
+    #[command(flatten)]
+    pub report: ReportOptions,
 }
 
 #[derive(Args, Debug)]

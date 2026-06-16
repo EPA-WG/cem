@@ -101,10 +101,10 @@ and resource policy accounting isolated. This is required for validating or tran
 many data sources in one CLI invocation without paying one full runtime setup cost per
 document.
 
-## Future Requirement: Transform Runtime Boundary
+## Transform Runtime Boundary
 
-`cem-ml transform` is reserved for data + template -> document workflows. Runtime support
-must be designed before implementation and must not reuse `convert` semantics:
+`cem-ml transform` is the data + template -> document command. It must not reuse
+`convert` semantics:
 
 - `convert` request shape: one document input, optional target identity, and document
   export/projection output.
@@ -188,9 +188,8 @@ Current implementation slice:
   graph-shaped engine boundary for loaded imports, template-backed transform stages,
   export nodes, graph dependencies, scheduler scope IDs, diagnostics, artifacts, and
   scheduler trace.
-- This is a config and validation boundary only. It does not execute transforms,
-  read templates, import data, write outputs, or change `cem-ml transform`
-  dispatch, which remains reserved.
+- This graph API is a config and validation boundary only. It does not yet execute
+  transform graphs, import graph data, or write graph exports.
 
 The Rust/WASM engine API models transform as a first-class graph request/response
 pair instead of smuggling template information through `ConvertRequest` or CLI-only
@@ -237,7 +236,8 @@ slice:
   only, no params yet, known artifact refs, unique graph IDs, and duplicate output
   destination rejection.
 - The default `CemMlEngine::transform` and `transform_graph` methods still return
-  `NotImplemented`; these types define the runtime contract before execution exists.
+  `NotImplemented`. `RealCemMlEngine::transform` implements the first one-to-one
+  CEM-native template slice when an executable adapter is available.
 
 Supported template content types must be explicit adapter capabilities, not
 hard-coded parser assumptions. The first runtime design supports both XSLT templates
@@ -255,14 +255,15 @@ and CEM-native templates through the transform-template adapter registry:
 
 Current implementation slice: `cem_ml::engine::TransformTemplateKind` and
 `classify_transform_template_identity_with_registry` encode that adapter selection
-boundary for the reserved CLI one-liner request helper and graph stages.
+boundary for the CLI one-liner request helper and graph stages.
 `EngineContext` carries a `template_adapter_registry` with built-in adapters by
 default, and hosts may register runtime adapters for newer template content
 types/schemas. The registry can also return the matched adapter object for future
 compile/render calls. The CEM-ML graph config parser records `templateKind` on
 transform nodes when identity is explicit or can be inferred from `@src`, and emits
 deterministic diagnostics for unsupported or missing template identity. CLI dispatch
-still reserves transform execution; no built-in adapter compiles or renders yet.
+executes the one-to-one CEM-native path through the host-registered CEM-QL adapter;
+graph dispatch and XSLT execution remain deferred.
 
 The first concrete executable CEM-native adapter lives in
 `cem_ml_transform_cem_ql`, outside `cem_ml`, so it can depend on both `cem_ml` and
@@ -274,8 +275,7 @@ minimal one-to-one programmatic engine runtime: the data document is loaded thro
 the lifecycle layer, parsed to DOM JSON, passed as the primary transform data
 artifact, compiled/rendered by the selected adapter, and returned as
 `TransformResponse.primary`. The CLI host context registers the same executable
-CEM-QL adapter for transform request construction, but `cem-ml transform ...`
-remains a reserved CLI command until output/report resolver behavior is wired.
+CEM-QL adapter for transform request construction and dispatch.
 For the first runtime slice, data-driven templates should read input values through
 the always-available `$datadom` binding, for example
 `$datadom.attributes.label`; direct `$label`-style host bindings require declared
@@ -316,8 +316,11 @@ Transform responses must preserve the content-primary command contract:
 - runtime preflight already rejects the unsupported first-slice cases that can appear
   in programmatic engine requests even if the CEM-ML config parser was bypassed.
 
-Until execution is implemented, `cem-ml transform ...` must remain parseable but
-reserved and exit with code `2`.
+The single-template CLI path writes the primary rendered document to `--out` when
+provided, otherwise stdout. Diagnostics and warnings are written to stderr unless
+`--report-json` or `--report-md` is provided; when a report destination is provided,
+diagnostics are recorded in the report side output instead. Transform report
+directory destinations use the default basename `cem-ml.transform.report`.
 
 Current implementation status:
 
@@ -527,7 +530,7 @@ I/O messages, but they must not replace the underlying resolver code or URI.
     --out output.cem
   ```
 
-- `transform` is reserved for data + template -> document workflows. Its future command shape is:
+- `transform` is the data + template -> document workflow. Its direct command shape is:
 
   ```bash
   cem-ml transform data.xml \
@@ -538,8 +541,9 @@ I/O messages, but they must not replace the underlying resolver code or URI.
     --out view.html
   ```
 
-  It also accepts `--data-schema`, `--template-schema`, and `--to-schema`. Dispatch still exits with code `2` and
-  reports that transform is reserved / not yet implemented.
+  It also accepts `--data-schema`, `--template-schema`, `--to-schema`, shared context options, and
+  `--report-json` / `--report-md`. The current runtime executes the one-to-one CEM-native path; XML+XSLT execution and
+  transform graph execution remain deferred.
 - Multi-source configuration via config file, plus repeatable CSV option records for
   CLI one-liners. Config files are preferred for CI/build reproducibility.
 - Config-file content type via `--config-content-type`, inferred from extension when
@@ -616,7 +620,7 @@ reports are reference-implementation convenience projections.
 - `1`: parse, validation, strict-mode, or benchmark budget failure
 - `2`: CLI usage error, including reserved commands
 - `3`: schema resolution error, reserved
-- `4`: transform failure, reserved
+- `4`: transform failure
 - `5`: plugin failure, reserved
 - `6`: I/O failure
 - `7`: unexpected internal failure

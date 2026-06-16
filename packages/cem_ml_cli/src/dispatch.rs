@@ -909,8 +909,6 @@ fn transform_target_scope(args: &cli::TransformArgs) -> ScopeConfig {
     }
 }
 
-// Reserved transform dispatch does not call this until runtime support is enabled.
-#[allow(dead_code)]
 fn transform_request_from_args(
     context: &eng::EngineContext,
     args: &cli::TransformArgs,
@@ -939,7 +937,12 @@ fn transform_request_from_args(
         context: context.clone(),
         target: target_scope.format_identity_option(),
         target_scope,
-        scheduler_scope_ids: eng::TransformSchedulerScopeIds::default(),
+        scheduler_scope_ids: eng::TransformSchedulerScopeIds {
+            data_load: 0,
+            template_load: 1,
+            execution: 2,
+            output: 3,
+        },
         execution_policy: eng::TransformExecutionPolicy::default(),
     })
 }
@@ -1220,6 +1223,36 @@ fn write_primary(
     Ok(())
 }
 
+fn write_document_primary(
+    context: &eng::EngineContext,
+    primary: &serde_json::Value,
+    out: Option<&Path>,
+    s: &mut Streams<'_>,
+) -> io::Result<()> {
+    let bytes;
+    let body = match primary {
+        serde_json::Value::String(value) => value.as_bytes(),
+        _ => {
+            bytes = serde_json::to_vec_pretty(primary)?;
+            &bytes
+        }
+    };
+    match out {
+        Some(path) => write_destination(
+            context,
+            path,
+            "output destination",
+            ResolvePurpose::Output,
+            body,
+        )?,
+        None => {
+            s.stdout.write_all(body)?;
+            s.stdout.flush()?;
+        }
+    }
+    Ok(())
+}
+
 fn write_destination(
     context: &eng::EngineContext,
     path: &Path,
@@ -1420,6 +1453,7 @@ pub const REPORT_BASENAME_VALIDATE: &str = "cem-ml.report";
 pub const REPORT_BASENAME_ROUNDTRIP: &str = "cem-ml.roundtrip.report";
 pub const REPORT_BASENAME_BENCH: &str = "cem-ml.bench.report";
 pub const REPORT_BASENAME_CONVERT: &str = "cem-ml.convert.report";
+pub const REPORT_BASENAME_TRANSFORM: &str = "cem-ml.transform.report";
 
 fn resolve_report_target(p: &Path, basename: &str, ext: &str) -> std::path::PathBuf {
     if p.extension().is_some() {
@@ -1561,6 +1595,24 @@ fn write_convert_report_if_requested(
     )
     .with_scheduler_trace_report(scheduler_trace.clone());
     write_report_files(context, &report, &args.report, REPORT_BASENAME_CONVERT)
+}
+
+fn write_transform_report_if_requested(
+    context: &eng::EngineContext,
+    args: &cli::TransformArgs,
+    diagnostics: &[cem_ml::diagnostics::Diagnostic],
+    scheduler_trace: &cem_ml::report::SchedulerTraceReport,
+) -> io::Result<()> {
+    if !report_requested(&args.report) {
+        return Ok(());
+    }
+    let report = cem_ml::report::Report::deterministic(
+        vec![args.data.display().to_string()],
+        diagnostics.to_vec(),
+        report_options_snapshot(cli::FailLevel::Validate, &args.context),
+    )
+    .with_scheduler_trace_report(scheduler_trace.clone());
+    write_report_files(context, &report, &args.report, REPORT_BASENAME_TRANSFORM)
 }
 
 fn render_report_markdown(report: &cem_ml::report::Report) -> String {
@@ -1949,6 +2001,50 @@ pub fn run_convert<E: CemMlEngine + ?Sized>(
                 &resp.scheduler_trace,
             ) {
                 let _ = writeln!(s.stderr, "cem-ml: convert report write failure: {e}");
+                return Outcome::code(EXIT_IO);
+            }
+            Outcome::ok()
+        }
+        Err(e) => handle_engine_error(e, s),
+    }
+}
+
+pub fn run_transform<E: CemMlEngine + ?Sized>(
+    engine: &E,
+    args: cli::TransformArgs,
+    s: &mut Streams<'_>,
+) -> Outcome {
+    let engine_context = context(&args.context);
+    let req = match transform_request_from_args(&engine_context, &args) {
+        Ok(req) => req,
+        Err(err) => return handle_cli_request_error(err, s),
+    };
+    match engine.transform(req) {
+        Ok(resp) => {
+            let report_requested = report_requested(&args.report);
+            if let Err(e) = write_transform_report_if_requested(
+                &engine_context,
+                &args,
+                &resp.diagnostics,
+                &resp.scheduler_trace,
+            ) {
+                let _ = writeln!(s.stderr, "cem-ml: transform report write failure: {e}");
+                return Outcome::code(EXIT_IO);
+            }
+            if !report_requested {
+                write_diagnostics(&resp.diagnostics, s);
+            }
+            if resp
+                .diagnostics
+                .iter()
+                .any(|diagnostic| diagnostic.severity.is_hard_violation())
+            {
+                return Outcome::code(EXIT_HARD_FAILURE);
+            }
+            if let Err(e) =
+                write_document_primary(&engine_context, &resp.primary, args.out.as_deref(), s)
+            {
+                let _ = writeln!(s.stderr, "cem-ml: write failure: {e}");
                 return Outcome::code(EXIT_IO);
             }
             Outcome::ok()
@@ -2450,27 +2546,131 @@ mod tests {
     }
 
     #[test]
-    fn reserved_transform_exits_two() {
-        let (outcome, _, stderr) = run(
-            &NotImplementedEngine,
+    fn transform_writes_document_to_stdout_by_default() {
+        let data = write_fixture("transform-run-data.cem", "{p @id=\"source\"}");
+        let template = write_fixture(
+            "transform-run-template.cem",
+            "{section | {$datadom.attributes.kind}}",
+        );
+
+        let (outcome, stdout, stderr) = run(
+            &RealCemMlEngine::new(),
             &[
                 "transform",
-                "data.xml",
+                data.to_str().unwrap(),
                 "--data-content-type",
-                "application/xml",
+                "text/cem-ml",
                 "--template",
-                "view.xsl",
+                template.to_str().unwrap(),
                 "--template-content-type",
-                "application/xslt+xml",
+                "text/cem-ml",
+                "--to-content-type",
+                "text/html",
+            ],
+        );
+
+        assert_eq!(outcome.exit_code, EXIT_OK);
+        assert_eq!(stdout, "<section>document</section>");
+        assert!(stderr.trim().is_empty(), "{stderr}");
+    }
+
+    #[test]
+    fn transform_writes_document_to_out_when_requested() {
+        let data = write_fixture("transform-run-out-data.cem", "{p @id=\"source\"}");
+        let template = write_fixture("transform-run-out-template.cem", "{section | Done}");
+        let out = std::env::temp_dir().join("cem-ml-cli-tests/transform-out.html");
+        let _ = std::fs::remove_file(&out);
+
+        let (outcome, stdout, stderr) = run(
+            &RealCemMlEngine::new(),
+            &[
+                "transform",
+                data.to_str().unwrap(),
+                "--data-content-type",
+                "text/cem-ml",
+                "--template",
+                template.to_str().unwrap(),
+                "--template-content-type",
+                "text/cem-ml",
                 "--to-content-type",
                 "text/html",
                 "--out",
-                "view.html",
+                out.to_str().unwrap(),
             ],
         );
-        assert_eq!(outcome.exit_code, EXIT_USAGE_OR_RESERVED);
-        assert!(stderr.contains("reserved"));
-        assert!(stderr.contains("not yet implemented"));
+
+        assert_eq!(outcome.exit_code, EXIT_OK);
+        assert!(stdout.is_empty());
+        assert!(stderr.trim().is_empty(), "{stderr}");
+        assert_eq!(
+            std::fs::read_to_string(out).unwrap(),
+            "<section>Done</section>"
+        );
+    }
+
+    #[test]
+    fn transform_warnings_go_to_stderr_without_report_destination() {
+        let data = write_fixture("transform-run-warning-data.cem", "{p @label=\"source\"}");
+        let template = write_fixture("transform-run-warning-template.cem", "{section | Done}");
+
+        let (outcome, stdout, stderr) = run(
+            &RealCemMlEngine::new(),
+            &[
+                "transform",
+                data.to_str().unwrap(),
+                "--data-content-type",
+                "text/cem-ml",
+                "--template",
+                template.to_str().unwrap(),
+                "--template-content-type",
+                "text/cem-ml",
+                "--to-content-type",
+                "text/html",
+            ],
+        );
+
+        assert_eq!(outcome.exit_code, EXIT_OK);
+        assert_eq!(stdout, "<section>Done</section>");
+        assert_stderr_contains_all(&stderr, &["warning", "unknown_html_attribute"]);
+    }
+
+    #[test]
+    fn transform_report_destination_suppresses_warning_stderr() {
+        let data = write_fixture(
+            "transform-run-report-warning-data.cem",
+            "{p @label=\"source\"}",
+        );
+        let template = write_fixture(
+            "transform-run-report-warning-template.cem",
+            "{section | Done}",
+        );
+        let report_path = std::env::temp_dir().join("cem-ml-cli-tests/transform-report.json");
+        let _ = std::fs::remove_file(&report_path);
+
+        let (outcome, stdout, stderr) = run(
+            &RealCemMlEngine::new(),
+            &[
+                "transform",
+                data.to_str().unwrap(),
+                "--data-content-type",
+                "text/cem-ml",
+                "--template",
+                template.to_str().unwrap(),
+                "--template-content-type",
+                "text/cem-ml",
+                "--to-content-type",
+                "text/html",
+                "--report-json",
+                report_path.to_str().unwrap(),
+            ],
+        );
+
+        assert_eq!(outcome.exit_code, EXIT_OK);
+        assert_eq!(stdout, "<section>Done</section>");
+        assert!(stderr.trim().is_empty(), "{stderr}");
+        let report: serde_json::Value =
+            serde_json::from_str(&std::fs::read_to_string(report_path).unwrap()).unwrap();
+        assert_eq!(report["summary"]["warningCount"], 1);
     }
 
     #[test]
@@ -7605,7 +7805,7 @@ pub fn dispatch<E: CemMlEngine + ?Sized>(
         cli::Command::Fixture(cli::FixtureCmd::Validate(a)) => run_fixture_validate(engine, a, s),
         cli::Command::Fixture(cli::FixtureCmd::Roundtrip(a)) => run_fixture_roundtrip(engine, a, s),
         cli::Command::Version => run_version(s),
-        cli::Command::Transform(_) => run_reserved("transform", s),
+        cli::Command::Transform(a) => run_transform(engine, a, s),
         cli::Command::Schema(cli::SchemaCmd::Emit) => run_reserved("schema emit", s),
         cli::Command::Schema(cli::SchemaCmd::Sample) => run_reserved("schema sample", s),
         cli::Command::Schema(cli::SchemaCmd::Replace) => run_reserved("schema replace", s),

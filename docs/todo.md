@@ -106,7 +106,7 @@ for the current architecture have landed; only deferred capability work remains 
       peer language behind explicit dispatch, not the primary model or a browser-native dependency —
       so the engine can add XSLT 3/4 later without breaking content. Building the XSLT 3/4 engine
       remains out of scope for the current release.
-- [ ] **Wishlist (future — NOT in the immediate release timeline):** runtime support for the reserved
+- [ ] **Wishlist (future — NOT in the immediate release timeline):** expanded runtime support for the
       `cem-ml transform` data + template -> document command. Design homes:
       [`cem-ml-cli-contract.md`](cem-ml-cli-contract.md#planned-option-behavior) and
       [`cem-ml-cli-plan.md`](cem-ml-cli-plan.md#phase-6---command-behavior). The CEM-ML graph config parser/lowering
@@ -127,19 +127,19 @@ for the current architecture have landed; only deferred capability work remains 
       payload in-process on the adapter artifact. `RealCemMlEngine::transform` now runs the minimal one-to-one
       programmatic engine path when a host registers an executable adapter: data is loaded through lifecycle, parsed to
       DOM JSON, compiled/rendered through the selected adapter, and returned as content-primary output. The CLI host
-      context now registers the CEM-QL executable adapter for transform request construction, while CLI dispatch remains
-      reserved. Runtime preflight validation now rejects deferred first-slice features and bad programmatic graph
-      refs/destinations before execution.
-      Before runtime
-      implementation, keep the checked-in CEM-native CLI transform-config schema
+      context now registers the CEM-QL executable adapter and dispatches the one-to-one CEM-native path. Transform CLI
+      primary output writes to `--out` or stdout by default; warnings/diagnostics write to stderr unless a
+      `--report-json`/`--report-md` destination is provided. Runtime preflight validation now rejects deferred
+      first-slice features and bad programmatic graph refs/destinations before execution.
+      Keep the checked-in CEM-native CLI transform-config schema
       (`packages/cem_ml/schema/cli/transform-config.md`,
       `https://cem.dev/ns/cli/transform-config/1`) separate from CEM core document schemas and template schemas.
       Runtime order: start with pure CEM-QL evaluation plus CEM-ML fragments
       with embedded CEM-QL and one implicit entrypoint; then add native named templates/modules, explicit entrypoints,
       params, imports/includes, visibility, caching, and recursion/cycle limits; then expand XSLT parity on that native
-      substrate. Next runtime implementation work is adding resolver-backed output writes and diagnostics/report/source-map
-      projection before enabling CLI execution, then expanding graph execution on the same adapter path. The separate
-      adapter crate avoids the dependency cycle where `cem_ql` currently depends on `cem_ml`.
+      substrate. Next runtime implementation work is expanding graph execution on the same adapter path, then adding
+      richer diagnostics/report/source-map projection for branched artifacts before XSLT parity. The separate adapter
+      crate avoids the dependency cycle where `cem_ql` currently depends on `cem_ml`.
 - [ ] **Wishlist (future — schema/tooling):** wire CLI config schemas into generated/published artifacts. The JSON
       `RunConfig` config-file surface uses schema identity `https://cem.dev/ns/cli/run-config/1` and has checked-in JSON
       Schema `packages/cem_ml/schema/cli/run-config.schema.json`

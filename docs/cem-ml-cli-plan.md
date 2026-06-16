@@ -170,9 +170,8 @@ the immediate CLI lifecycle contract.
       resolver. Existing fixture and benchmark materialized-input reads remain
       resolver-aware; config-backed fixture observability collection reuses the same
       helper path.
-    - Done: reserved transform request construction reads template resources through
-      the dedicated `template` resolver purpose so template access can be authorized
-      independently from data input access before runtime execution is enabled.
+    - Done: transform request construction reads template resources through the dedicated `template` resolver purpose
+      so template access can be authorized independently from data input access.
     - Done: empty fixture placeholder materialization for pre-engine observability and
       template-embedding diagnostics now uses the same input resolver path while
       preserving repo-relative fixture lookup for ordinary paths.
@@ -312,8 +311,8 @@ cem-ml convert input.xml \
   --out output.cem
 ```
 
-`transform` is reserved for data + template -> document workflows. Its command shape is parseable now, but dispatch
-continues to return the reserved/not-yet-implemented usage exit:
+`transform` is the data + template -> document command. The current CLI runtime supports the one-to-one CEM-native
+template path; XML+XSLT execution and graph execution remain deferred:
 
 ```bash
 cem-ml transform data.xml \
@@ -324,8 +323,10 @@ cem-ml transform data.xml \
   --out view.html
 ```
 
-The reserved transform shape also accepts `--data-schema URI-OR-FILE`, `--template-schema URI-OR-FILE`, and
-`--to-schema URI-OR-FILE`. XML+XSLT execution remains deferred.
+The transform shape also accepts `--data-schema URI-OR-FILE`, `--template-schema URI-OR-FILE`,
+`--to-schema URI-OR-FILE`, shared context options, and `--report-json` / `--report-md`. The rendered document writes to
+`--out` when provided, otherwise stdout. Diagnostics and warnings write to stderr unless a report destination is
+provided.
 
 Critical constraints:
 
@@ -373,7 +374,7 @@ Critical constraints:
     - `1`: parse, validation, strict-mode, or benchmark budget failure
     - `2`: CLI usage error
     - `3`: schema resolution error, reserved
-    - `4`: transform failure, reserved
+    - `4`: transform failure
     - `5`: plugin failure, reserved
     - `6`: I/O failure
     - `7`: unexpected internal failure
@@ -580,10 +581,12 @@ These are data shapes only. Parser-filled content remains blocked until the pars
       selects rendered XML output.
     - Schema-version conversion and broader target adapters remain deferred.
 7. `cem-ml transform <data> --template <file>`
-    - Reserved for applying a template/stylesheet to data and producing a document.
-    - Planned options: `--data-content-type`, `--data-schema`, `--template`, `--template-content-type`,
-      `--template-schema`, `--to-content-type`, `--to-schema`, and `--out`.
-    - XML+XSLT execution, CEM template execution, and transform engine APIs remain deferred.
+    - Applies a template/stylesheet to data and produces a document.
+    - Supported options: `--data-content-type`, `--data-schema`, `--template`, `--template-content-type`,
+      `--template-schema`, `--to-content-type`, `--to-schema`, `--out`, shared context options, `--report-json`, and
+      `--report-md`.
+    - Current runtime supports the minimal one-to-one CEM-native path through the CEM-QL executable adapter. XML+XSLT
+      execution and graph execution remain deferred.
     - Current config slice: `cem_ml::transform_config::parse_transform_graph_config` parses CEM-ML
       `run` / `import` / `transform` / `export` graph config and validates missing required operation
       attributes, duplicate IDs, unresolved refs, cycles, wildcard output patterns, and duplicate output
@@ -617,9 +620,8 @@ These are data shapes only. Parser-filled content remains blocked until the pars
           adapter is registered in `TransformRequest.context`: data is loaded through lifecycle, parsed to DOM JSON,
           passed as the primary transform data artifact, compiled by the selected adapter, rendered, and returned as the
           content-primary `TransformResponse.primary`.
-        - The CLI host context registers the CEM-QL executable adapter so transform request construction and future
-          dispatch use the same adapter registry shape as programmatic hosts. CLI dispatch still exits through the
-          reserved usage path.
+        - The CLI host context registers the CEM-QL executable adapter so transform request construction and dispatch
+          use the same adapter registry shape as programmatic hosts.
         - `TransformExecutionPolicy` records the first runtime contract:
           `runtimePhase=cem-ql-fragment`, `cardinality=one-to-one`,
           `duplicateDestinationPolicy=reject`, `failurePolicy=fail-fast`, and
@@ -641,16 +643,17 @@ These are data shapes only. Parser-filled content remains blocked until the pars
           `https://cem.dev/ns/cli/transform-config/1`, for `run` / `import` / `transform` / `export`; do not validate
           transform config as ordinary CEM core content or as a template document.
         - Resolver semantics for reading templates with the dedicated `template` resolver purpose and writing transform
-          outputs with the existing local-only default plus registered resolver behavior.
+          outputs with the existing local-only default plus registered resolver behavior. Primary output writes to
+          `--out` or stdout; report side outputs write through the existing report resolver path.
         - Report and source-map behavior for diagnostics that may originate from data, template compilation, template
-          execution, or output export.
+          execution, or output export. Current CLI report destinations suppress diagnostic stderr and use
+          `cem-ml.transform.report` as the default report basename.
         - Graph validation for duplicate IDs, unresolved refs, cycles, unsupported joins, unsupported cardinality
           changes, and duplicate output destinations before adding execution.
-      Execution is available only through the programmatic engine API when a host registers an executable adapter. The
-      CLI host registers the adapter, but `transform_graph` and CLI dispatch still exit through the
-      reserved/not-implemented path.
-      Next implementation boundary: connect CLI dispatch after resolver-backed output/report behavior is explicit, and
-      then expand graph execution on the same adapter path. The crate dependency cycle is avoided by keeping the
+      Execution is available through the programmatic engine API and the CLI one-liner when a host registers an
+      executable adapter. `transform_graph` still exits through the reserved/not-implemented path.
+      Next implementation boundary: expand graph execution on the same adapter path, then add richer source-map/report
+      projection for branched artifacts. The crate dependency cycle is avoided by keeping the
       concrete CEM-QL adapter in `cem_ml_transform_cem_ql` rather than in `cem_ml`.
 8. `cem-ml trace <input>`
     - Supported structured formats: `json`, `xml`, `cem`.
@@ -725,8 +728,8 @@ coverage; the parser stack design only owns the layer outputs that feed CLI proj
     - reserved commands
     - file read failure exit `6`
 4. Maintain a feature coverage matrix in the test module docs or test manifest with rows for:
-    - command surface: `parse`, `validate`, `check`, `inspect`, `convert`, `trace`, `bench`, `fixture validate`,
-      `fixture roundtrip`, `help`, `version`, and reserved `transform`, `schema`, and `plugin` workflows
+    - command surface: `parse`, `validate`, `check`, `inspect`, `convert`, `transform`, `trace`, `bench`,
+      `fixture validate`, `fixture roundtrip`, `help`, `version`, and reserved `schema` and `plugin` workflows
     - option groups: fail level, output format, report destinations, output file, schema/content-type/base URI,
       default namespace and named namespace bindings, quiet/verbose/no-color, zero hard violations, source-offset
       preservation, inspect views, benchmark controls, and fixture defaults
