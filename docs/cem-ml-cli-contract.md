@@ -364,6 +364,26 @@ minimal CEM-QL-fragment executor already implements these behaviors.
   should continue to be modeled by graph branches and export nodes rather than by
   arbitrary template writes.
 
+The v1 CEM-native template declaration schema is
+`https://cem.dev/ns/template/cem-native/1`, with checked-in schema artifact
+`packages/cem_ml/schema/template/cem-native-template.md`. This schema is owned by
+the CEM-native template adapter family and is not the base CEM core document
+schema. It defines the declaration vocabulary:
+
+- `module` is the template resource root and may contain `import`, module-level
+  `param`, named `template`, and one default `body`.
+- `import @as @src` declares a resolver-backed module dependency. Optional
+  `@content-type` / `@contentType` and `@schema` provide identity hints.
+- `param @name` declares an immutable render parameter. Optional `@default`,
+  `@required`, and `@visibility` describe defaults and API surface.
+- `template @name` declares a named entrypoint. Optional `@visibility="public"`
+  exports it across module boundaries; otherwise it is private.
+- `body` holds the implicit entrypoint body or the body of a named template.
+- `call @template` invokes a same-module template; `call @from @template`
+  invokes a public template from an imported module. `@with:*` passes named
+  bindings.
+- `include` is intentionally absent and remains reserved.
+
 Current API state: `TransformTemplateCompileRequest` carries
 `TransformTemplateModuleOptions`, and the stable model includes import
 declarations, entrypoint declarations, param declarations, module limits, module
@@ -375,8 +395,9 @@ template URI, records resolved module bytes/identity/content hashes, constructs
 the dependency graph cache key input, rejects duplicate import aliases, rejects
 reserved includes, and rejects direct self-import cycles. Existing runtime
 executors still receive default module options in the current graph/runtime paths,
-so adapter-owned module syntax parsing, public export validation, transitive
-module execution, and recursive call limits remain deferred.
+so adapter-owned module syntax parsing/lowering from this schema, public export
+validation, transitive module execution, and recursive call limits remain
+deferred.
 
 `cem_ml` remains the stable API contract and cannot directly call
 `cem_ql::render` while `cem_ql` depends on `cem_ml`; executable renderers must be

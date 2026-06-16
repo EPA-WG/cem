@@ -18,6 +18,56 @@ use std::collections::BTreeMap;
 use std::fmt;
 use std::sync::Arc;
 
+pub const CEM_NATIVE_TEMPLATE_SCHEMA_URI: &str = "https://cem.dev/ns/template/cem-native/1";
+pub const CEM_NATIVE_TEMPLATE_NAMESPACE_URI: &str = CEM_NATIVE_TEMPLATE_SCHEMA_URI;
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct TransformTemplateNativeElementSchema {
+    pub local_name: &'static str,
+    pub required_attributes: &'static [&'static str],
+    pub optional_attributes: &'static [&'static str],
+    pub child_elements: &'static [&'static str],
+}
+
+pub const CEM_NATIVE_TEMPLATE_SCHEMA_ELEMENTS: &[TransformTemplateNativeElementSchema] = &[
+    TransformTemplateNativeElementSchema {
+        local_name: "module",
+        required_attributes: &[],
+        optional_attributes: &["version"],
+        child_elements: &["import", "param", "template", "body"],
+    },
+    TransformTemplateNativeElementSchema {
+        local_name: "import",
+        required_attributes: &["as", "src"],
+        optional_attributes: &["content-type", "contentType", "schema"],
+        child_elements: &[],
+    },
+    TransformTemplateNativeElementSchema {
+        local_name: "param",
+        required_attributes: &["name"],
+        optional_attributes: &["default", "required", "visibility"],
+        child_elements: &[],
+    },
+    TransformTemplateNativeElementSchema {
+        local_name: "template",
+        required_attributes: &["name"],
+        optional_attributes: &["visibility"],
+        child_elements: &["param", "body"],
+    },
+    TransformTemplateNativeElementSchema {
+        local_name: "body",
+        required_attributes: &[],
+        optional_attributes: &[],
+        child_elements: &["*"],
+    },
+    TransformTemplateNativeElementSchema {
+        local_name: "call",
+        required_attributes: &["template"],
+        optional_attributes: &["from", "with:*"],
+        child_elements: &[],
+    },
+];
+
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct TransformTemplateAdapterSelection {
     pub adapter_id: &'static str,
@@ -503,7 +553,10 @@ impl TransformTemplateAdapterRegistry {
                 "text/cem",
                 "text/cem-ml",
             ],
-            &[crate::schema::ir::CEM_CORE_NAMESPACE],
+            &[
+                CEM_NATIVE_TEMPLATE_SCHEMA_URI,
+                crate::schema::ir::CEM_CORE_NAMESPACE,
+            ],
             &[crate::schema::ir::CEM_CORE_NAMESPACE],
         ));
         registry.register(StaticTransformTemplateAdapter::new(
@@ -733,6 +786,95 @@ mod tests {
         assert!(!options.params[0].required);
         assert_eq!(options.limits.max_import_depth, 32);
         assert_eq!(options.limits.max_recursion_depth, 64);
+    }
+
+    #[test]
+    fn cem_native_template_schema_shape_declares_module_surface() {
+        let module = CEM_NATIVE_TEMPLATE_SCHEMA_ELEMENTS
+            .iter()
+            .find(|element| element.local_name == "module")
+            .expect("module schema");
+        let import = CEM_NATIVE_TEMPLATE_SCHEMA_ELEMENTS
+            .iter()
+            .find(|element| element.local_name == "import")
+            .expect("import schema");
+        let template = CEM_NATIVE_TEMPLATE_SCHEMA_ELEMENTS
+            .iter()
+            .find(|element| element.local_name == "template")
+            .expect("template schema");
+        let call = CEM_NATIVE_TEMPLATE_SCHEMA_ELEMENTS
+            .iter()
+            .find(|element| element.local_name == "call")
+            .expect("call schema");
+
+        assert_eq!(
+            CEM_NATIVE_TEMPLATE_SCHEMA_URI,
+            CEM_NATIVE_TEMPLATE_NAMESPACE_URI
+        );
+        assert_eq!(
+            module.child_elements,
+            &["import", "param", "template", "body"]
+        );
+        assert_eq!(import.required_attributes, &["as", "src"]);
+        assert!(import.optional_attributes.contains(&"content-type"));
+        assert_eq!(template.required_attributes, &["name"]);
+        assert!(template.optional_attributes.contains(&"visibility"));
+        assert_eq!(call.required_attributes, &["template"]);
+        assert!(call.optional_attributes.contains(&"from"));
+        assert!(call.optional_attributes.contains(&"with:*"));
+    }
+
+    #[test]
+    fn cem_native_template_schema_artifact_matches_shape_table() {
+        let artifact = include_str!("../schema/template/cem-native-template.md");
+
+        assert!(artifact.contains(CEM_NATIVE_TEMPLATE_SCHEMA_URI));
+        assert!(artifact.contains(CEM_NATIVE_TEMPLATE_NAMESPACE_URI));
+        for element in CEM_NATIVE_TEMPLATE_SCHEMA_ELEMENTS {
+            assert!(
+                artifact.contains(&format!("| `{}` |", element.local_name)),
+                "artifact should document `{}`",
+                element.local_name
+            );
+            for attribute in element
+                .required_attributes
+                .iter()
+                .chain(element.optional_attributes.iter())
+            {
+                assert!(
+                    artifact.contains(&format!("`{attribute}`")),
+                    "artifact should document `{}` attribute on `{}`",
+                    attribute,
+                    element.local_name
+                );
+            }
+            for child in element.child_elements {
+                assert!(
+                    artifact.contains(&format!("`{child}`")),
+                    "artifact should document `{}` child on `{}`",
+                    child,
+                    element.local_name
+                );
+            }
+        }
+    }
+
+    #[test]
+    fn builtins_accept_cem_native_template_schema_identity() {
+        let registry = TransformTemplateAdapterRegistry::with_builtin_adapters();
+        let identity = FormatIdentity {
+            schema: Some(CEM_NATIVE_TEMPLATE_SCHEMA_URI.to_owned()),
+            default_namespace: Some(CEM_NATIVE_TEMPLATE_NAMESPACE_URI.to_owned()),
+            ..FormatIdentity::default()
+        };
+
+        assert_eq!(
+            registry.select(&identity),
+            TransformTemplateAdapterResolution::Matched(TransformTemplateAdapterSelection {
+                adapter_id: "cem-native-template",
+                kind: TransformTemplateKind::CemNative,
+            })
+        );
     }
 
     #[test]

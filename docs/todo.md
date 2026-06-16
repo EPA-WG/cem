@@ -179,8 +179,11 @@ for the current architecture have landed; only deferred capability work remains 
       import cycles, recursion limits, and reserved includes. `TransformTemplateModulePreflight` now carries
       resolver-backed import reads, resolved module bytes/identity/content hashes, dependency graph cache-key input, and
       compile-time diagnostics for duplicate aliases, reserved includes, and direct self-import cycles. Module execution
-      remains deferred. Next implementation boundary is the adapter-owned native module syntax/semantic layer:
-      declaration parsing, public export validation, transitive module execution, and recursive call limits before XSLT
+      remains deferred. The CEM-native template declaration schema now has its own identity
+      (`https://cem.dev/ns/template/cem-native/1`) and checked-in artifact
+      `packages/cem_ml/schema/template/cem-native-template.md`, covering `module`, `import`, `param`, `template`,
+      `body`, and `call` while keeping `include` reserved. Next implementation boundary is parsing/lowering that schema
+      into module options, public export validation, transitive module execution, and recursive call limits before XSLT
       parity expansion.
       The separate adapter crate avoids the dependency cycle where `cem_ql`
       currently depends on `cem_ml`.

@@ -6,7 +6,9 @@ This is the source-of-truth schema artifact for the CEM-native CLI transform
 graph config. It is separate from the CEM core document schema and separate
 from CEM-native template schemas. The graph config describes import,
 transformation, and export wiring; it does not define template execution
-semantics.
+semantics. The CEM-native template declaration schema is
+`https://cem.dev/ns/template/cem-native/1` and lives at
+`packages/cem_ml/schema/template/cem-native-template.md`.
 
 Schema URI: `https://cem.dev/ns/cli/transform-config/1`
 Namespace URI: `https://cem.dev/ns/cli/transform-config/1`

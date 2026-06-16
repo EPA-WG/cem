@@ -16,7 +16,7 @@ use cem_ml::transform_template::{
     TransformTemplateAdapterResult, TransformTemplateCompileRequest,
     TransformTemplateCompileResponse, TransformTemplateCompiledArtifact,
     TransformTemplateDataArtifact, TransformTemplateOutputArtifact, TransformTemplateRenderRequest,
-    TransformTemplateRenderResponse,
+    TransformTemplateRenderResponse, CEM_NATIVE_TEMPLATE_SCHEMA_URI,
 };
 use cem_ql::eval::{AtomValue, Item, ItemStream};
 use cem_ql::render::{
@@ -147,7 +147,8 @@ fn matches_cem_native_identity(identity: &FormatIdentity) -> bool {
         .map(str::trim)
         .unwrap_or_default();
     if !schema.is_empty() {
-        return schema == cem_ml::schema::ir::CEM_CORE_NAMESPACE;
+        return schema == CEM_NATIVE_TEMPLATE_SCHEMA_URI
+            || schema == cem_ml::schema::ir::CEM_CORE_NAMESPACE;
     }
 
     identity.default_namespace.as_deref() == Some(cem_ml::schema::ir::CEM_CORE_NAMESPACE)
@@ -335,6 +336,25 @@ mod tests {
                 assert_eq!(adapter.id(), CEM_QL_TEMPLATE_ADAPTER_ID)
             }
             other => panic!("expected built-in plus runtime adapter ambiguity, got {other:?}"),
+        }
+    }
+
+    #[test]
+    fn adapter_accepts_cem_native_template_schema_identity() {
+        let context = engine_context_with_cem_ql_template_adapter();
+        let identity = FormatIdentity {
+            schema: Some(cem_ml::transform_template::CEM_NATIVE_TEMPLATE_SCHEMA_URI.to_owned()),
+            default_namespace: Some(
+                cem_ml::transform_template::CEM_NATIVE_TEMPLATE_NAMESPACE_URI.to_owned(),
+            ),
+            ..FormatIdentity::default()
+        };
+
+        match context.template_adapter_registry.select_adapter(&identity) {
+            TransformTemplateAdapterLookup::Matched(adapter) => {
+                assert_eq!(adapter.id(), CEM_QL_TEMPLATE_ADAPTER_ID)
+            }
+            other => panic!("expected schema identity adapter match, got {other:?}"),
         }
     }
 
