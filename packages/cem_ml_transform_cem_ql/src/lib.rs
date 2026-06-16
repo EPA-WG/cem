@@ -20,9 +20,10 @@ use cem_ml::transform_template::{
     TransformTemplateAdapterResult, TransformTemplateCompileRequest,
     TransformTemplateCompileResponse, TransformTemplateCompiledArtifact,
     TransformTemplateDataArtifact, TransformTemplateModuleOptions,
-    TransformTemplateModuleParseRequest, TransformTemplateOutputArtifact,
-    TransformTemplateRenderRequest, TransformTemplateRenderResponse,
-    CEM_NATIVE_TEMPLATE_SCHEMA_URI, TRANSFORM_TEMPLATE_RECURSION_LIMIT_CODE,
+    TransformTemplateModuleParseRequest, TransformTemplateModulePreflight,
+    TransformTemplateOutputArtifact, TransformTemplateRenderRequest,
+    TransformTemplateRenderResponse, CEM_NATIVE_TEMPLATE_SCHEMA_URI,
+    TRANSFORM_TEMPLATE_RECURSION_LIMIT_CODE,
 };
 use cem_ql::eval::{AtomValue, Item, ItemStream};
 use cem_ql::render::{
@@ -48,10 +49,12 @@ struct CemQlCompiledTemplatePayload {
 #[derive(Debug, Clone)]
 struct CemQlCompiledTemplateModulePayload {
     alias: String,
+    parent_uri: Option<String>,
     uri: String,
     content_hash: String,
     artifact: TemplateArtifact,
     entrypoints: CemQlTemplateEntrypoints,
+    imports: BTreeMap<String, String>,
 }
 
 #[derive(Debug, Clone, Default)]
@@ -294,12 +297,26 @@ fn compile_preflighted_modules(
             let entrypoints = extract_template_entrypoints(&artifact);
             Ok(CemQlCompiledTemplateModulePayload {
                 alias: module.alias.clone(),
+                parent_uri: module.parent_uri.clone(),
                 uri: module.uri.clone(),
                 content_hash: module.content_hash.clone(),
                 artifact,
                 entrypoints,
+                imports: imported_module_aliases(&request.module_preflight, module.uri.as_str()),
             })
         })
+        .collect()
+}
+
+fn imported_module_aliases(
+    module_preflight: &TransformTemplateModulePreflight,
+    parent_uri: &str,
+) -> BTreeMap<String, String> {
+    module_preflight
+        .resolved_imports
+        .iter()
+        .filter(|module| module.parent_uri.as_deref() == Some(parent_uri))
+        .map(|module| (module.alias.clone(), module.uri.clone()))
         .collect()
 }
 
@@ -507,13 +524,28 @@ fn render_call_node(
     let from = render_attr(attributes, "from");
 
     let (target, target_module) = match from.as_deref() {
-        Some(alias) => {
-            let module = payload.modules.iter().find(|module| module.alias == alias);
-            (
-                module.and_then(|module| module.entrypoints.named.get(&template)),
-                module,
-            )
-        }
+        Some(alias) => match current_module {
+            Some(current) => {
+                let module = current
+                    .imports
+                    .get(alias)
+                    .and_then(|uri| payload.modules.iter().find(|module| module.uri == *uri));
+                (
+                    module.and_then(|module| module.entrypoints.named.get(&template)),
+                    module,
+                )
+            }
+            None => {
+                let module = payload
+                    .modules
+                    .iter()
+                    .find(|module| module.parent_uri.is_none() && module.alias == alias);
+                (
+                    module.and_then(|module| module.entrypoints.named.get(&template)),
+                    module,
+                )
+            }
+        },
         None => match current_module {
             Some(module) => (module.entrypoints.named.get(&template), Some(module)),
             None => (payload.entrypoints.named.get(&template), None),
@@ -777,6 +809,7 @@ mod tests {
                 module_preflight: TransformTemplateModulePreflight {
                     resolved_imports: vec![TransformTemplateResolvedModule {
                         alias: "ui".to_owned(),
+                        parent_uri: None,
                         uri: "templates/ui.cem".to_owned(),
                         identity: Some(identity),
                         content_hash: "cem-bin/1+blake3:test".to_owned(),
@@ -1183,6 +1216,7 @@ mod tests {
                 module_preflight: TransformTemplateModulePreflight {
                     resolved_imports: vec![TransformTemplateResolvedModule {
                         alias: "ui".to_owned(),
+                        parent_uri: None,
                         uri: "templates/ui.cem".to_owned(),
                         identity: Some(identity),
                         content_hash: "cem-bin/1+blake3:ui".to_owned(),
@@ -1258,6 +1292,7 @@ mod tests {
                 module_preflight: TransformTemplateModulePreflight {
                     resolved_imports: vec![TransformTemplateResolvedModule {
                         alias: "ui".to_owned(),
+                        parent_uri: None,
                         uri: "templates/ui.cem".to_owned(),
                         identity: Some(identity),
                         content_hash: "cem-bin/1+blake3:ui".to_owned(),
@@ -1307,6 +1342,98 @@ mod tests {
     }
 
     #[test]
+    fn adapter_dispatches_nested_import_calls_inside_imported_modules() {
+        let adapter = CemQlTransformTemplateAdapter;
+        let identity = FormatIdentity {
+            schema: Some(cem_ml::transform_template::CEM_NATIVE_TEMPLATE_SCHEMA_URI.to_owned()),
+            ..FormatIdentity::default()
+        };
+        let template = TemplateInput {
+            uri: "template.cem".to_owned(),
+            bytes: br#"{@doc cem-ml 1}
+{module |
+  {body | {div | {call @from="ui" @template="card"}}}
+}"#
+            .to_vec(),
+            identity: Some(identity.clone()),
+            root_scope: ScopeConfig::default(),
+        };
+        let params = BTreeMap::new();
+        let data_bindings = Vec::new();
+        let compiled = adapter
+            .compile(TransformTemplateCompileRequest {
+                template: &template,
+                entrypoint: &TransformTemplateEntrypoint::implicit(),
+                params: &params,
+                data_bindings: &data_bindings,
+                module_options: Default::default(),
+                module_preflight: TransformTemplateModulePreflight {
+                    resolved_imports: vec![
+                        TransformTemplateResolvedModule {
+                            alias: "ui".to_owned(),
+                            parent_uri: None,
+                            uri: "templates/ui.cem".to_owned(),
+                            identity: Some(identity.clone()),
+                            content_hash: "cem-bin/1+blake3:ui".to_owned(),
+                            bytes: br#"{@doc cem-ml 1}
+{module |
+  {import @as="icons" @src="icons.cem"}
+  {template @name="card" @visibility="public" |
+    {body | {section | Card {call @from="icons" @template="check"}}}
+  }
+}"#
+                            .to_vec(),
+                        },
+                        TransformTemplateResolvedModule {
+                            alias: "icons".to_owned(),
+                            parent_uri: Some("templates/ui.cem".to_owned()),
+                            uri: "templates/icons.cem".to_owned(),
+                            identity: Some(identity),
+                            content_hash: "cem-bin/1+blake3:icons".to_owned(),
+                            bytes: br#"{@doc cem-ml 1}
+{module |
+  {template @name="check" @visibility="public" | {body | {span | Check}}}
+}"#
+                            .to_vec(),
+                        },
+                    ],
+                    cache_key: None,
+                },
+                execution_policy: TransformExecutionPolicy::default(),
+            })
+            .expect("module template should compile")
+            .artifact;
+        let primary_input = TransformTemplateDataArtifact {
+            artifact_id: "data".to_owned(),
+            uri: None,
+            identity: None,
+            value: Value::Null,
+        };
+        let secondary_inputs = BTreeMap::new();
+
+        let rendered = adapter
+            .render(TransformTemplateRenderRequest {
+                compiled: &compiled,
+                primary_input: &primary_input,
+                secondary_inputs: &secondary_inputs,
+                target: None,
+                target_scope: &ScopeConfig::default(),
+                execution_policy: TransformExecutionPolicy::default(),
+            })
+            .expect("module template should render");
+
+        assert_eq!(
+            rendered.output.value,
+            Value::String("<div><section>Card <span>Check</span></section></div>".to_owned())
+        );
+        assert!(
+            rendered.diagnostics.is_empty(),
+            "{:?}",
+            rendered.diagnostics
+        );
+    }
+
+    #[test]
     fn adapter_bounds_recursive_calls_inside_imported_modules() {
         let adapter = CemQlTransformTemplateAdapter;
         let identity = FormatIdentity {
@@ -1341,6 +1468,7 @@ mod tests {
                 module_preflight: TransformTemplateModulePreflight {
                     resolved_imports: vec![TransformTemplateResolvedModule {
                         alias: "ui".to_owned(),
+                        parent_uri: None,
                         uri: "templates/ui.cem".to_owned(),
                         identity: Some(identity),
                         content_hash: "cem-bin/1+blake3:ui".to_owned(),
@@ -1416,6 +1544,7 @@ mod tests {
                 module_preflight: TransformTemplateModulePreflight {
                     resolved_imports: vec![TransformTemplateResolvedModule {
                         alias: "ui".to_owned(),
+                        parent_uri: None,
                         uri: "templates/ui.cem".to_owned(),
                         identity: Some(identity),
                         content_hash: "cem-bin/1+blake3:ui".to_owned(),
@@ -1490,6 +1619,7 @@ mod tests {
                 module_preflight: TransformTemplateModulePreflight {
                     resolved_imports: vec![TransformTemplateResolvedModule {
                         alias: "ui".to_owned(),
+                        parent_uri: None,
                         uri: "templates/ui.cem".to_owned(),
                         identity: Some(identity),
                         content_hash: "cem-bin/1+blake3:test".to_owned(),

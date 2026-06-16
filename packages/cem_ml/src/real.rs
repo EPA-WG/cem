@@ -40,8 +40,8 @@ use crate::transform_template::{
     TransformTemplateRenderRequest, TransformTemplateResolvedModule,
     TRANSFORM_TEMPLATE_CALL_UNKNOWN_CODE, TRANSFORM_TEMPLATE_ENTRYPOINT_NOT_PUBLIC_CODE,
     TRANSFORM_TEMPLATE_IMPORT_ALIAS_DUPLICATE_CODE, TRANSFORM_TEMPLATE_IMPORT_CYCLE_CODE,
-    TRANSFORM_TEMPLATE_INCLUDE_RESERVED_CODE, TRANSFORM_TEMPLATE_PARAM_REQUIRED_CODE,
-    TRANSFORM_TEMPLATE_PARAM_UNKNOWN_CODE,
+    TRANSFORM_TEMPLATE_IMPORT_DEPTH_CODE, TRANSFORM_TEMPLATE_INCLUDE_RESERVED_CODE,
+    TRANSFORM_TEMPLATE_PARAM_REQUIRED_CODE, TRANSFORM_TEMPLATE_PARAM_UNKNOWN_CODE,
 };
 use crate::validation::{RuleContext, RuleRegistry};
 use serde_json::{json, Value};
@@ -1204,33 +1204,80 @@ fn validate_transform_template_call_sites(
     module_preflight: &TransformTemplateModulePreflight,
     diagnostics: &mut Vec<Diagnostic>,
 ) -> Option<()> {
-    if module_options.calls.is_empty() {
-        return Some(());
+    let imported_modules = parse_imported_template_modules(module_preflight, diagnostics)?;
+    let mut has_fatal = !validate_module_call_sites(
+        &template.uri,
+        module_options,
+        None,
+        module_preflight,
+        &imported_modules,
+        diagnostics,
+    );
+
+    for module in &module_preflight.resolved_imports {
+        let Some(imported_options) = imported_modules.get(&module.uri) else {
+            continue;
+        };
+        if !validate_module_call_sites(
+            &module.uri,
+            imported_options,
+            Some(module.uri.as_str()),
+            module_preflight,
+            &imported_modules,
+            diagnostics,
+        ) {
+            has_fatal = true;
+        }
     }
 
+    if has_fatal {
+        None
+    } else {
+        Some(())
+    }
+}
+
+fn validate_module_call_sites(
+    module_uri: &str,
+    module_options: &TransformTemplateModuleOptions,
+    parent_uri: Option<&str>,
+    module_preflight: &TransformTemplateModulePreflight,
+    imported_modules: &BTreeMap<String, TransformTemplateModuleOptions>,
+    diagnostics: &mut Vec<Diagnostic>,
+) -> bool {
+    if module_options.calls.is_empty() {
+        return true;
+    }
     let mut has_fatal = false;
     let local_entrypoints: BTreeSet<&str> = module_options
         .entrypoints
         .iter()
         .map(|entrypoint| entrypoint.name.as_str())
         .collect();
-    let referenced_imports: BTreeSet<&str> = module_options
-        .calls
-        .iter()
-        .filter_map(|call| call.from.as_deref())
-        .collect();
-    let imported_modules =
-        parse_imported_template_modules(module_preflight, &referenced_imports, diagnostics)?;
 
     for call in &module_options.calls {
         match call.from.as_deref() {
             Some(alias) => {
-                let Some(imported_options) = imported_modules.get(alias) else {
+                let Some(imported_module) =
+                    find_preflight_import(module_preflight, parent_uri, alias)
+                else {
                     diagnostics.push(template_module_diagnostic(
-                        Some(&template.uri),
+                        Some(module_uri),
                         TRANSFORM_TEMPLATE_CALL_UNKNOWN_CODE,
                         format!(
                             "template call to `{}` references unknown import alias `{alias}`",
+                            call.template
+                        ),
+                    ));
+                    has_fatal = true;
+                    continue;
+                };
+                let Some(imported_options) = imported_modules.get(&imported_module.uri) else {
+                    diagnostics.push(template_module_diagnostic(
+                        Some(module_uri),
+                        TRANSFORM_TEMPLATE_CALL_UNKNOWN_CODE,
+                        format!(
+                            "template call to `{}` references unresolved import alias `{alias}`",
                             call.template
                         ),
                     ));
@@ -1242,7 +1289,7 @@ fn validate_transform_template_call_sites(
                         && entrypoint.visibility == TransformTemplateModuleVisibility::Public
                 }) {
                     diagnostics.push(template_module_diagnostic(
-                        Some(&template.uri),
+                        Some(module_uri),
                         TRANSFORM_TEMPLATE_ENTRYPOINT_NOT_PUBLIC_CODE,
                         format!(
                             "template call to `{alias}:{}` does not target a public imported entrypoint",
@@ -1255,7 +1302,7 @@ fn validate_transform_template_call_sites(
             None => {
                 if !local_entrypoints.contains(call.template.as_str()) {
                     diagnostics.push(template_module_diagnostic(
-                        Some(&template.uri),
+                        Some(module_uri),
                         TRANSFORM_TEMPLATE_CALL_UNKNOWN_CODE,
                         format!(
                             "template call to `{}` does not target a declared same-module entrypoint",
@@ -1268,25 +1315,17 @@ fn validate_transform_template_call_sites(
         }
     }
 
-    if has_fatal {
-        None
-    } else {
-        Some(())
-    }
+    !has_fatal
 }
 
 fn parse_imported_template_modules(
     module_preflight: &TransformTemplateModulePreflight,
-    referenced_imports: &BTreeSet<&str>,
     diagnostics: &mut Vec<Diagnostic>,
 ) -> Option<BTreeMap<String, TransformTemplateModuleOptions>> {
     let mut imported_modules = BTreeMap::new();
     let mut has_fatal = false;
 
     for module in &module_preflight.resolved_imports {
-        if !referenced_imports.contains(module.alias.as_str()) {
-            continue;
-        }
         let mut response =
             parse_cem_native_template_module_options(TransformTemplateModuleParseRequest {
                 template: TemplateInput {
@@ -1304,7 +1343,7 @@ fn parse_imported_template_modules(
             has_fatal = true;
         }
         diagnostics.append(&mut response.diagnostics);
-        imported_modules.insert(module.alias.clone(), response.module_options);
+        imported_modules.insert(module.uri.clone(), response.module_options);
     }
 
     if has_fatal {
@@ -1312,6 +1351,17 @@ fn parse_imported_template_modules(
     } else {
         Some(imported_modules)
     }
+}
+
+fn find_preflight_import<'a>(
+    module_preflight: &'a TransformTemplateModulePreflight,
+    parent_uri: Option<&str>,
+    alias: &str,
+) -> Option<&'a TransformTemplateResolvedModule> {
+    module_preflight
+        .resolved_imports
+        .iter()
+        .find(|module| module.parent_uri.as_deref() == parent_uri && module.alias == alias)
 }
 
 fn preflight_transform_template_modules(
@@ -1323,73 +1373,23 @@ fn preflight_transform_template_modules(
     execution_policy: TransformExecutionPolicy,
     diagnostics: &mut Vec<Diagnostic>,
 ) -> Option<TransformTemplateModulePreflight> {
+    let mut ancestry = vec![template.uri.clone()];
     let mut seen_aliases = BTreeSet::new();
     let mut resolved_imports = Vec::new();
     let mut dependency_hash_input = Vec::new();
-    let mut has_fatal = false;
-
-    for import in &module_options.imports {
-        if import.kind == TransformTemplateModuleDependencyKind::IncludeReserved {
-            diagnostics.push(template_module_diagnostic(
-                Some(&import.uri),
-                TRANSFORM_TEMPLATE_INCLUDE_RESERVED_CODE,
-                format!(
-                    "template module import `{}` uses reserved include semantics; use `import`",
-                    import.alias
-                ),
-            ));
-            has_fatal = true;
-            continue;
-        }
-
-        if !seen_aliases.insert(import.alias.clone()) {
-            diagnostics.push(template_module_diagnostic(
-                Some(&import.uri),
-                TRANSFORM_TEMPLATE_IMPORT_ALIAS_DUPLICATE_CODE,
-                format!(
-                    "template module import alias `{}` is declared more than once",
-                    import.alias
-                ),
-            ));
-            has_fatal = true;
-            continue;
-        }
-
-        match read_template_module_import(context, template, import) {
-            Ok(module) => {
-                if module.uri == template.uri {
-                    diagnostics.push(template_module_diagnostic(
-                        Some(&module.uri),
-                        TRANSFORM_TEMPLATE_IMPORT_CYCLE_CODE,
-                        format!(
-                            "template module `{}` imports itself through alias `{}`",
-                            template.uri, import.alias
-                        ),
-                    ));
-                    has_fatal = true;
-                    continue;
-                }
-                dependency_hash_input.extend_from_slice(import.alias.as_bytes());
-                dependency_hash_input.push(0);
-                dependency_hash_input.extend_from_slice(module.uri.as_bytes());
-                dependency_hash_input.push(0);
-                dependency_hash_input.extend_from_slice(module.content_hash.as_bytes());
-                dependency_hash_input.push(0);
-                resolved_imports.push(module);
-            }
-            Err(error) => {
-                diagnostics.push(template_module_diagnostic(
-                    Some(&import.uri),
-                    error.code(),
-                    format!(
-                        "template module import `{}` could not be read: {error}",
-                        import.alias
-                    ),
-                ));
-                has_fatal = true;
-            }
-        }
-    }
+    let has_fatal = !preflight_template_module_imports(
+        context,
+        template,
+        &module_options.imports,
+        None,
+        module_options.limits.max_import_depth,
+        0,
+        &mut ancestry,
+        &mut seen_aliases,
+        &mut resolved_imports,
+        &mut dependency_hash_input,
+        diagnostics,
+    );
 
     if has_fatal {
         return None;
@@ -1412,10 +1412,150 @@ fn preflight_transform_template_modules(
     })
 }
 
+#[allow(clippy::too_many_arguments)]
+fn preflight_template_module_imports(
+    context: &EngineContext,
+    importing_template: &TemplateInput,
+    imports: &[TransformTemplateModuleImport],
+    parent_uri: Option<&str>,
+    max_import_depth: u32,
+    depth: u32,
+    ancestry: &mut Vec<String>,
+    seen_alias_scopes: &mut BTreeSet<(Option<String>, String)>,
+    resolved_imports: &mut Vec<TransformTemplateResolvedModule>,
+    dependency_hash_input: &mut Vec<u8>,
+    diagnostics: &mut Vec<Diagnostic>,
+) -> bool {
+    let mut has_fatal = false;
+
+    for import in imports {
+        if import.kind == TransformTemplateModuleDependencyKind::IncludeReserved {
+            diagnostics.push(template_module_diagnostic(
+                Some(&import.uri),
+                TRANSFORM_TEMPLATE_INCLUDE_RESERVED_CODE,
+                format!(
+                    "template module import `{}` uses reserved include semantics; use `import`",
+                    import.alias
+                ),
+            ));
+            has_fatal = true;
+            continue;
+        }
+
+        let alias_scope = (parent_uri.map(str::to_owned), import.alias.clone());
+        if !seen_alias_scopes.insert(alias_scope) {
+            diagnostics.push(template_module_diagnostic(
+                Some(&import.uri),
+                TRANSFORM_TEMPLATE_IMPORT_ALIAS_DUPLICATE_CODE,
+                format!(
+                    "template module import alias `{}` is declared more than once",
+                    import.alias
+                ),
+            ));
+            has_fatal = true;
+            continue;
+        }
+
+        if depth >= max_import_depth {
+            diagnostics.push(template_module_diagnostic(
+                Some(&import.uri),
+                TRANSFORM_TEMPLATE_IMPORT_DEPTH_CODE,
+                format!(
+                    "template module import `{}` exceeds max import depth {max_import_depth}",
+                    import.alias
+                ),
+            ));
+            has_fatal = true;
+            continue;
+        }
+
+        match read_template_module_import(context, importing_template, import, parent_uri) {
+            Ok(module) => {
+                if ancestry.iter().any(|uri| uri == &module.uri) {
+                    diagnostics.push(template_module_diagnostic(
+                        Some(&module.uri),
+                        TRANSFORM_TEMPLATE_IMPORT_CYCLE_CODE,
+                        format!(
+                            "template module import `{}` creates an import cycle through `{}`",
+                            import.alias, module.uri
+                        ),
+                    ));
+                    has_fatal = true;
+                    continue;
+                }
+                let module_template = TemplateInput {
+                    uri: module.uri.clone(),
+                    bytes: module.bytes.clone(),
+                    identity: module.identity.clone(),
+                    root_scope: ScopeConfig::default(),
+                };
+                let mut parse_response =
+                    parse_cem_native_template_module_options(TransformTemplateModuleParseRequest {
+                        template: module_template.clone(),
+                    });
+                let module_has_fatal = parse_response
+                    .diagnostics
+                    .iter()
+                    .any(|diagnostic| diagnostic.severity == Severity::Fatal);
+                diagnostics.append(&mut parse_response.diagnostics);
+                if module_has_fatal {
+                    has_fatal = true;
+                    continue;
+                }
+
+                if let Some(parent) = parent_uri {
+                    dependency_hash_input.extend_from_slice(parent.as_bytes());
+                }
+                dependency_hash_input.push(0);
+                dependency_hash_input.extend_from_slice(import.alias.as_bytes());
+                dependency_hash_input.push(0);
+                dependency_hash_input.extend_from_slice(module.uri.as_bytes());
+                dependency_hash_input.push(0);
+                dependency_hash_input.extend_from_slice(module.content_hash.as_bytes());
+                dependency_hash_input.push(0);
+
+                let module_uri = module.uri.clone();
+                resolved_imports.push(module);
+                ancestry.push(module_uri.clone());
+                if !preflight_template_module_imports(
+                    context,
+                    &module_template,
+                    &parse_response.module_options.imports,
+                    Some(module_uri.as_str()),
+                    max_import_depth,
+                    depth + 1,
+                    ancestry,
+                    seen_alias_scopes,
+                    resolved_imports,
+                    dependency_hash_input,
+                    diagnostics,
+                ) {
+                    has_fatal = true;
+                }
+                ancestry.pop();
+            }
+            Err(error) => {
+                diagnostics.push(template_module_diagnostic(
+                    Some(&import.uri),
+                    error.code(),
+                    format!(
+                        "template module import `{}` could not be read: {error}",
+                        import.alias
+                    ),
+                ));
+                has_fatal = true;
+            }
+        }
+    }
+
+    !has_fatal
+}
+
 fn read_template_module_import(
     context: &EngineContext,
     template: &TemplateInput,
     import: &TransformTemplateModuleImport,
+    parent_uri: Option<&str>,
 ) -> Result<TransformTemplateResolvedModule, ResolverDiagnostic> {
     let content_type_hint = import
         .identity
@@ -1434,6 +1574,7 @@ fn read_template_module_import(
     let content_hash = content_hash(&read.bytes);
     Ok(TransformTemplateResolvedModule {
         alias: import.alias.clone(),
+        parent_uri: parent_uri.map(str::to_owned),
         uri: read.uri,
         identity,
         content_hash,
@@ -3041,6 +3182,60 @@ mod tests {
         }
     }
 
+    #[derive(Debug)]
+    struct MapReadResolver {
+        entries: Vec<(&'static str, &'static [u8], Option<&'static str>)>,
+    }
+
+    impl ResourceResolver for MapReadResolver {
+        fn read(&self, request: &ResolveRequest) -> Result<ResolvedRead, ResolverDiagnostic> {
+            let uri = resolve_test_uri(request);
+            let Some((resolved_uri, bytes, content_type)) = self
+                .entries
+                .iter()
+                .find(|(entry_uri, _, _)| *entry_uri == uri)
+            else {
+                return Err(ResolverDiagnostic::UnsupportedResolver {
+                    uri: request.uri.clone(),
+                    purpose: request.purpose,
+                    direction: ResolveDirection::Read,
+                });
+            };
+
+            Ok(ResolvedRead {
+                uri: (*resolved_uri).to_owned(),
+                bytes: bytes.to_vec(),
+                content_type: content_type.map(str::to_owned),
+            })
+        }
+
+        fn write(
+            &self,
+            request: &ResolveRequest,
+            _bytes: &[u8],
+        ) -> Result<crate::resolver::ResolvedWrite, ResolverDiagnostic> {
+            Err(ResolverDiagnostic::UnsupportedResolver {
+                uri: request.uri.clone(),
+                purpose: request.purpose,
+                direction: ResolveDirection::Write,
+            })
+        }
+    }
+
+    fn resolve_test_uri(request: &ResolveRequest) -> String {
+        if has_uri_scheme(&request.uri) {
+            return request.uri.clone();
+        }
+        request
+            .base_uri
+            .as_deref()
+            .and_then(|base| {
+                base.rsplit_once('/')
+                    .map(|(dir, _)| format!("{dir}/{}", request.uri))
+            })
+            .unwrap_or_else(|| request.uri.clone())
+    }
+
     fn input(bytes: &[u8], uri: &str) -> EngineInput {
         EngineInput {
             uri: uri.to_owned(),
@@ -3131,6 +3326,88 @@ mod tests {
         assert!(preflight.resolved_imports[0]
             .content_hash
             .starts_with("cem-bin/1+blake3:"));
+        assert!(preflight
+            .cache_key
+            .expect("cache key")
+            .dependency_graph_hash
+            .starts_with("cem-bin/1+blake3:"));
+    }
+
+    #[test]
+    fn template_module_preflight_reads_nested_imports_with_parent_scope() {
+        let context = context_with_resolver(
+            "cem+vfs",
+            ResolvePurpose::Template,
+            MapReadResolver {
+                entries: vec![
+                    (
+                        "cem+vfs://templates/ui.cem",
+                        br#"{@doc cem-ml 1}
+{module |
+  {import @as="icons" @src="icons.cem"}
+  {template @name="card" @visibility="public" | {body | {call @from="icons" @template="check"}}}
+}"#,
+                        Some("text/cem-ml"),
+                    ),
+                    (
+                        "cem+vfs://templates/icons.cem",
+                        br#"{@doc cem-ml 1}
+{module |
+  {template @name="check" @visibility="public" | {body | {span | Check}}}
+}"#,
+                        Some("text/cem-ml"),
+                    ),
+                ],
+            },
+        );
+        let template = template("cem+vfs://templates/main.cem", b"{main}");
+        let options = TransformTemplateModuleOptions {
+            imports: vec![TransformTemplateModuleImport {
+                alias: "ui".to_owned(),
+                uri: "ui.cem".to_owned(),
+                identity: None,
+                kind: TransformTemplateModuleDependencyKind::Import,
+            }],
+            calls: vec![crate::transform_template::TransformTemplateModuleCallSite {
+                owner_entrypoint: None,
+                from: Some("ui".to_owned()),
+                template: "card".to_owned(),
+            }],
+            ..TransformTemplateModuleOptions::default()
+        };
+        let mut diagnostics = Vec::new();
+
+        let preflight = preflight_transform_template_modules(
+            &context,
+            "adapter",
+            &template,
+            &TransformTemplateEntrypoint::implicit(),
+            &options,
+            TransformExecutionPolicy::default(),
+            &mut diagnostics,
+        )
+        .expect("preflight should resolve nested imports");
+        let validated = validate_transform_template_call_sites(
+            &template,
+            &options,
+            &preflight,
+            &mut diagnostics,
+        );
+
+        assert!(validated.is_some(), "{diagnostics:?}");
+        assert!(diagnostics.is_empty(), "{diagnostics:?}");
+        assert_eq!(preflight.resolved_imports.len(), 2);
+        assert_eq!(preflight.resolved_imports[0].alias, "ui");
+        assert_eq!(preflight.resolved_imports[0].parent_uri, None);
+        assert_eq!(preflight.resolved_imports[1].alias, "icons");
+        assert_eq!(
+            preflight.resolved_imports[1].parent_uri.as_deref(),
+            Some("cem+vfs://templates/ui.cem")
+        );
+        assert_eq!(
+            preflight.resolved_imports[1].uri,
+            "cem+vfs://templates/icons.cem"
+        );
         assert!(preflight
             .cache_key
             .expect("cache key")
@@ -3560,6 +3837,102 @@ mod tests {
         assert!(diagnostics
             .iter()
             .any(|diag| diag.code == TRANSFORM_TEMPLATE_IMPORT_CYCLE_CODE));
+    }
+
+    #[test]
+    fn template_module_preflight_rejects_nested_import_cycles() {
+        let context = context_with_resolver(
+            "cem+vfs",
+            ResolvePurpose::Template,
+            MapReadResolver {
+                entries: vec![
+                    (
+                        "cem+vfs://templates/ui.cem",
+                        br#"{@doc cem-ml 1}
+{module | {import @as="main" @src="main.cem"}}"#,
+                        Some("text/cem-ml"),
+                    ),
+                    (
+                        "cem+vfs://templates/main.cem",
+                        br#"{@doc cem-ml 1}
+{module | {body | {span | Main}}}"#,
+                        Some("text/cem-ml"),
+                    ),
+                ],
+            },
+        );
+        let template = template("cem+vfs://templates/main.cem", b"{main}");
+        let options = TransformTemplateModuleOptions {
+            imports: vec![TransformTemplateModuleImport {
+                alias: "ui".to_owned(),
+                uri: "ui.cem".to_owned(),
+                identity: None,
+                kind: TransformTemplateModuleDependencyKind::Import,
+            }],
+            ..TransformTemplateModuleOptions::default()
+        };
+        let mut diagnostics = Vec::new();
+
+        let preflight = preflight_transform_template_modules(
+            &context,
+            "adapter",
+            &template,
+            &TransformTemplateEntrypoint::implicit(),
+            &options,
+            TransformExecutionPolicy::default(),
+            &mut diagnostics,
+        );
+
+        assert!(preflight.is_none());
+        assert!(diagnostics
+            .iter()
+            .any(|diag| diag.code == TRANSFORM_TEMPLATE_IMPORT_CYCLE_CODE));
+    }
+
+    #[test]
+    fn template_module_preflight_enforces_import_depth_limit() {
+        let context = context_with_resolver(
+            "cem+vfs",
+            ResolvePurpose::Template,
+            MapReadResolver {
+                entries: vec![(
+                    "cem+vfs://templates/ui.cem",
+                    br#"{@doc cem-ml 1}
+{module | {import @as="icons" @src="icons.cem"}}"#,
+                    Some("text/cem-ml"),
+                )],
+            },
+        );
+        let template = template("cem+vfs://templates/main.cem", b"{main}");
+        let options = TransformTemplateModuleOptions {
+            imports: vec![TransformTemplateModuleImport {
+                alias: "ui".to_owned(),
+                uri: "ui.cem".to_owned(),
+                identity: None,
+                kind: TransformTemplateModuleDependencyKind::Import,
+            }],
+            limits: crate::transform_template::TransformTemplateModuleLimits {
+                max_import_depth: 1,
+                max_recursion_depth: 64,
+            },
+            ..TransformTemplateModuleOptions::default()
+        };
+        let mut diagnostics = Vec::new();
+
+        let preflight = preflight_transform_template_modules(
+            &context,
+            "adapter",
+            &template,
+            &TransformTemplateEntrypoint::implicit(),
+            &options,
+            TransformExecutionPolicy::default(),
+            &mut diagnostics,
+        );
+
+        assert!(preflight.is_none());
+        assert!(diagnostics
+            .iter()
+            .any(|diag| diag.code == TRANSFORM_TEMPLATE_IMPORT_DEPTH_CODE));
     }
 
     #[test]

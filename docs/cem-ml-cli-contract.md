@@ -400,23 +400,24 @@ compilation. It also validates same-module `call @template` targets and imported
 `call @from @template` targets against public entrypoints from resolver-backed
 import modules.
 Compile requests now also carry `TransformTemplateModulePreflight`, populated by
-the real engine before adapter compilation. The preflight reads declared imports
-through the template resolver, resolves relative imports against the importing
-template URI, records resolved module bytes/identity/content hashes, constructs
-the dependency graph cache key input, rejects duplicate import aliases, rejects
-reserved includes, and rejects direct self-import cycles. The CEM-QL executable
-adapter compiles preflighted modules into its native payload and exposes import
-metadata on the compiled artifact. It dispatches validated same-module and direct
-imported module calls during render with the current data context. When an
-imported module's public entrypoint renders, unqualified calls resolve against
-that imported module's own named templates rather than the root module. Call
-`@with:*` whole-expression attributes preserve their evaluated CEM-QL item stream
-for the invoked template; literal and mixed attribute-value-template forms remain
-string bindings.
+the real engine before adapter compilation. The preflight recursively reads
+declared imports through the template resolver, resolves relative imports against
+the importing template URI, records resolved module bytes/identity/content hashes
+with `parentUri` for non-root import edges, constructs the dependency graph cache
+key input, rejects duplicate import aliases per importing module, rejects
+reserved includes, enforces import-depth limits, and rejects import cycles. The
+CEM-QL executable adapter compiles preflighted modules into its native payload
+and exposes import metadata on the compiled artifact. It dispatches validated
+same-module and imported module calls during render with the current data
+context. When an imported module's public entrypoint renders, unqualified calls
+resolve against that imported module's own named templates, and `call @from`
+resolves against that module's own import aliases rather than the root module.
+Call `@with:*` whole-expression attributes preserve their evaluated CEM-QL item
+stream for the invoked template; literal and mixed attribute-value-template forms
+remain string bindings.
 Same-module recursive calls, including recursive calls that occur while rendering
 an imported module, are bounded by the module recursion limit and report
-`cem.transform_template.recursion_limit` when exceeded. Preflight and execution
-for imports declared by imported modules remain deferred.
+`cem.transform_template.recursion_limit` when exceeded.
 
 `cem_ml` remains the stable API contract and cannot directly call
 `cem_ql::render` while `cem_ql` depends on `cem_ml`; executable renderers must be

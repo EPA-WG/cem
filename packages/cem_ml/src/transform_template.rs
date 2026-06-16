@@ -129,6 +129,7 @@ pub const TRANSFORM_TEMPLATE_PARAM_UNKNOWN_CODE: &str = "cem.transform_template.
 pub const TRANSFORM_TEMPLATE_PARAM_REQUIRED_CODE: &str = "cem.transform_template.param_required";
 pub const TRANSFORM_TEMPLATE_CALL_UNKNOWN_CODE: &str = "cem.transform_template.call_unknown";
 pub const TRANSFORM_TEMPLATE_IMPORT_CYCLE_CODE: &str = "cem.transform_template.import_cycle";
+pub const TRANSFORM_TEMPLATE_IMPORT_DEPTH_CODE: &str = "cem.transform_template.import_depth";
 pub const TRANSFORM_TEMPLATE_RECURSION_LIMIT_CODE: &str = "cem.transform_template.recursion_limit";
 pub const TRANSFORM_TEMPLATE_INCLUDE_RESERVED_CODE: &str =
     "cem.transform_template.include_reserved";
@@ -669,6 +670,8 @@ pub struct TransformTemplateModuleCacheKey {
 #[serde(rename_all = "camelCase")]
 pub struct TransformTemplateResolvedModule {
     pub alias: String,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub parent_uri: Option<String>,
     pub uri: String,
     #[serde(default)]
     pub identity: Option<FormatIdentity>,

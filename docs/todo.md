@@ -178,15 +178,16 @@ for the current architecture have landed; only deferred capability work remains 
       declarations, module limits, cache keys, non-executing call-site records, and reserved diagnostics for
       private/missing entrypoints, unknown calls, unknown params, import cycles, recursion limits, and reserved includes.
       `TransformTemplateModulePreflight` now carries
-      resolver-backed import reads, resolved module bytes/identity/content hashes, dependency graph cache-key input, and
-      compile-time diagnostics for duplicate aliases, reserved includes, and direct self-import cycles. The CEM-QL
-      executable adapter now compiles preflighted modules into its native payload and exposes import metadata on the
-      compiled artifact. It dispatches validated same-module and direct imported module calls during render with the
-      current data context; when an imported module's public entrypoint renders, unqualified calls resolve against that
-      imported module's own named templates rather than the root module. Call `@with:*` whole-expression attributes
-      preserve their evaluated CEM-QL item stream for the invoked template, while literal and mixed
-      attribute-value-template forms remain string bindings. Same-module recursive calls, including recursive calls
-      inside an imported module, are bounded by the module recursion limit and report
+      recursive resolver-backed import reads, resolved module bytes/identity/content hashes with `parentUri` for
+      non-root import edges, dependency graph cache-key input, and compile-time diagnostics for duplicate aliases per
+      importing module, reserved includes, import-depth overflow, and import cycles. The CEM-QL executable adapter now
+      compiles preflighted modules into its native payload and exposes import metadata on the compiled artifact. It
+      dispatches validated same-module and imported module calls during render with the current data context; when an
+      imported module's public entrypoint renders, unqualified calls resolve against that imported module's own named
+      templates, and `call @from` resolves against that module's own import aliases rather than the root module. Call
+      `@with:*` whole-expression attributes preserve their evaluated CEM-QL item stream for the invoked template, while
+      literal and mixed attribute-value-template forms remain string bindings. Same-module recursive calls, including
+      recursive calls inside an imported module, are bounded by the module recursion limit and report
       `cem.transform_template.recursion_limit` when exceeded. The CEM-native template declaration schema now has its own
       identity
       (`https://cem.dev/ns/template/cem-native/1`) and checked-in artifact
@@ -195,9 +196,8 @@ for the current architecture have landed; only deferred capability work remains 
       `TransformTemplateModuleOptions` before adapter compilation while preserving declaration-free CEM fragment
       templates. It validates named entrypoint requests against public declarations, rejects unknown caller params, and
       reports missing required caller params before adapter compilation. It also validates same-module and imported
-      public `call` targets. Next implementation boundary is preflight, cache-key hashing, validation, and execution for
-      imports declared by imported modules before XSLT parity expansion. The separate adapter crate avoids the dependency
-      cycle where `cem_ql` currently depends on `cem_ml`.
+      public `call` targets. Next implementation boundary is broader CEM-native/XSLT semantic parity. The separate
+      adapter crate avoids the dependency cycle where `cem_ql` currently depends on `cem_ml`.
 - [ ] **Wishlist (future — schema/tooling):** wire CLI config schemas into generated/published artifacts. The JSON
       `RunConfig` config-file surface uses schema identity `https://cem.dev/ns/cli/run-config/1` and has checked-in JSON
       Schema `packages/cem_ml/schema/cli/run-config.schema.json`
