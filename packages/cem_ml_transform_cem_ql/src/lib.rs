@@ -66,7 +66,7 @@ impl TransformTemplateAdapter for CemQlTransformTemplateAdapter {
                 ),
             )
         })?;
-        let host_bindings = host_binding_names(request.params);
+        let host_bindings = host_binding_names(request.params, request.data_bindings);
         let artifact = compile_template(source, &CompileTemplateOptions { host_bindings });
         let opaque = json!({
             "engine": "cem-ql",
@@ -166,8 +166,14 @@ fn content_type_essence(content_type: &str) -> String {
         .to_ascii_lowercase()
 }
 
-fn host_binding_names(params: &BTreeMap<String, Value>) -> Vec<String> {
-    params.keys().cloned().collect()
+fn host_binding_names(params: &BTreeMap<String, Value>, data_bindings: &[String]) -> Vec<String> {
+    let mut bindings = data_bindings.to_vec();
+    for name in params.keys() {
+        if !bindings.iter().any(|binding| binding == name) {
+            bindings.push(name.clone());
+        }
+    }
+    bindings
 }
 
 fn template_data_from_artifacts(
@@ -246,8 +252,9 @@ mod tests {
     use super::*;
     use cem_ml::engine::CemMlEngine;
     use cem_ml::engine::{
-        EngineInput, TemplateInput, TransformExecutionPolicy, TransformRequest,
-        TransformSchedulerScopeIds, TransformTemplateEntrypoint,
+        EngineInput, TemplateInput, TransformExecutionPolicy, TransformGraphExport,
+        TransformGraphImport, TransformGraphRequest, TransformGraphStage, TransformRequest,
+        TransformSchedulerScopeIds, TransformStageSchedulerScopeIds, TransformTemplateEntrypoint,
     };
     use cem_ml::real::RealCemMlEngine;
     use cem_ml::run_config::ScopeConfig;
@@ -268,11 +275,13 @@ mod tests {
             root_scope: ScopeConfig::default(),
         };
         let params = BTreeMap::new();
+        let data_bindings = Vec::new();
         let compiled = adapter
             .compile(TransformTemplateCompileRequest {
                 template: &template,
                 entrypoint: &TransformTemplateEntrypoint::implicit(),
                 params: &params,
+                data_bindings: &data_bindings,
                 execution_policy: TransformExecutionPolicy::default(),
             })
             .expect("template should compile")
@@ -394,5 +403,216 @@ mod tests {
         assert!(scopes.contains(&11));
         assert!(scopes.contains(&12));
         assert!(scopes.contains(&13));
+    }
+
+    #[test]
+    fn real_engine_transform_graph_executes_branched_cem_native_outputs() {
+        let context = engine_context_with_cem_ql_template_adapter();
+        let data_identity = FormatIdentity {
+            content_type: Some("text/cem-ml".to_owned()),
+            ..FormatIdentity::default()
+        };
+        let template_identity = data_identity.clone();
+        let request = TransformGraphRequest {
+            imports: vec![TransformGraphImport {
+                id: "book".to_owned(),
+                input: EngineInput {
+                    uri: "book.cem".to_owned(),
+                    bytes: b"{p @id=\"guide\"}".to_vec(),
+                    from_format: None,
+                    identity: Some(data_identity),
+                    root_scope: ScopeConfig::default(),
+                },
+                scheduler_scope_id: 20,
+            }],
+            stages: vec![
+                TransformGraphStage {
+                    id: "html".to_owned(),
+                    template: TemplateInput {
+                        uri: "html.cem".to_owned(),
+                        bytes: br#"{article | {$datadom.attributes.kind}}"#.to_vec(),
+                        identity: Some(template_identity.clone()),
+                        root_scope: ScopeConfig::default(),
+                    },
+                    template_kind: TransformTemplateKind::CemNative,
+                    template_entrypoint: TransformTemplateEntrypoint::implicit(),
+                    params: BTreeMap::new(),
+                    primary_input: "book".to_owned(),
+                    secondary_inputs: BTreeMap::new(),
+                    scheduler_scope_ids: TransformStageSchedulerScopeIds {
+                        template_load: 21,
+                        execution: 22,
+                    },
+                },
+                TransformGraphStage {
+                    id: "chart".to_owned(),
+                    template: TemplateInput {
+                        uri: "chart.cem".to_owned(),
+                        bytes: br#"{svg | {$datadom.attributes.kind}}"#.to_vec(),
+                        identity: Some(template_identity),
+                        root_scope: ScopeConfig::default(),
+                    },
+                    template_kind: TransformTemplateKind::CemNative,
+                    template_entrypoint: TransformTemplateEntrypoint::implicit(),
+                    params: BTreeMap::new(),
+                    primary_input: "book".to_owned(),
+                    secondary_inputs: BTreeMap::new(),
+                    scheduler_scope_ids: TransformStageSchedulerScopeIds {
+                        template_load: 23,
+                        execution: 24,
+                    },
+                },
+            ],
+            exports: vec![
+                TransformGraphExport {
+                    id: "main".to_owned(),
+                    input: "html".to_owned(),
+                    destination: Some("dist/book.html".to_owned()),
+                    target: Some(FormatIdentity {
+                        content_type: Some("text/html".to_owned()),
+                        ..FormatIdentity::default()
+                    }),
+                    target_scope: ScopeConfig::default(),
+                    scheduler_scope_id: 25,
+                },
+                TransformGraphExport {
+                    id: "chart-svg".to_owned(),
+                    input: "chart".to_owned(),
+                    destination: Some("dist/book/chart.svg".to_owned()),
+                    target: Some(FormatIdentity {
+                        content_type: Some("image/svg+xml".to_owned()),
+                        ..FormatIdentity::default()
+                    }),
+                    target_scope: ScopeConfig::default(),
+                    scheduler_scope_id: 26,
+                },
+            ],
+            edges: Vec::new(),
+            preserve_source_offsets: false,
+            context,
+            execution_policy: TransformExecutionPolicy::default(),
+        };
+
+        let response = RealCemMlEngine::new()
+            .transform_graph(request)
+            .expect("transform graph should execute through registered adapter");
+
+        assert!(
+            response.diagnostics.is_empty(),
+            "{:?}",
+            response.diagnostics
+        );
+        assert_eq!(response.artifacts.len(), 2);
+        assert_eq!(
+            response.artifacts[0].primary,
+            Value::String("<article>document</article>".to_owned())
+        );
+        assert_eq!(
+            response.artifacts[1].primary,
+            Value::String("<svg>document</svg>".to_owned())
+        );
+        assert_eq!(
+            response.artifacts[1]
+                .identity
+                .as_ref()
+                .and_then(|identity| identity.content_type.as_deref()),
+            Some("image/svg+xml")
+        );
+        assert!(response
+            .scheduler_trace
+            .events
+            .iter()
+            .any(|event| event.scope_id == 26 && event.task == "chart-svg:export"));
+    }
+
+    #[test]
+    fn real_engine_transform_graph_passes_secondary_inputs_to_stage() {
+        let context = engine_context_with_cem_ql_template_adapter();
+        let data_identity = FormatIdentity {
+            content_type: Some("text/cem-ml".to_owned()),
+            ..FormatIdentity::default()
+        };
+        let template_identity = data_identity.clone();
+        let request = TransformGraphRequest {
+            imports: vec![TransformGraphImport {
+                id: "book".to_owned(),
+                input: EngineInput {
+                    uri: "book.cem".to_owned(),
+                    bytes: b"{p @id=\"guide\"}".to_vec(),
+                    from_format: None,
+                    identity: Some(data_identity),
+                    root_scope: ScopeConfig::default(),
+                },
+                scheduler_scope_id: 30,
+            }],
+            stages: vec![
+                TransformGraphStage {
+                    id: "stats".to_owned(),
+                    template: TemplateInput {
+                        uri: "stats.cem".to_owned(),
+                        bytes: br#"{span | {$datadom.attributes.kind}}"#.to_vec(),
+                        identity: Some(template_identity.clone()),
+                        root_scope: ScopeConfig::default(),
+                    },
+                    template_kind: TransformTemplateKind::CemNative,
+                    template_entrypoint: TransformTemplateEntrypoint::implicit(),
+                    params: BTreeMap::new(),
+                    primary_input: "book".to_owned(),
+                    secondary_inputs: BTreeMap::new(),
+                    scheduler_scope_ids: TransformStageSchedulerScopeIds {
+                        template_load: 31,
+                        execution: 32,
+                    },
+                },
+                TransformGraphStage {
+                    id: "report".to_owned(),
+                    template: TemplateInput {
+                        uri: "report.cem".to_owned(),
+                        bytes: br#"{section | {$stats}}"#.to_vec(),
+                        identity: Some(template_identity),
+                        root_scope: ScopeConfig::default(),
+                    },
+                    template_kind: TransformTemplateKind::CemNative,
+                    template_entrypoint: TransformTemplateEntrypoint::implicit(),
+                    params: BTreeMap::new(),
+                    primary_input: "book".to_owned(),
+                    secondary_inputs: BTreeMap::from([("stats".to_owned(), "stats".to_owned())]),
+                    scheduler_scope_ids: TransformStageSchedulerScopeIds {
+                        template_load: 33,
+                        execution: 34,
+                    },
+                },
+            ],
+            exports: vec![TransformGraphExport {
+                id: "main".to_owned(),
+                input: "report".to_owned(),
+                destination: None,
+                target: Some(FormatIdentity {
+                    content_type: Some("text/html".to_owned()),
+                    ..FormatIdentity::default()
+                }),
+                target_scope: ScopeConfig::default(),
+                scheduler_scope_id: 35,
+            }],
+            edges: Vec::new(),
+            preserve_source_offsets: false,
+            context,
+            execution_policy: TransformExecutionPolicy::default(),
+        };
+
+        let response = RealCemMlEngine::new()
+            .transform_graph(request)
+            .expect("transform graph should execute secondary input join");
+
+        assert!(
+            response.diagnostics.is_empty(),
+            "{:?}",
+            response.diagnostics
+        );
+        assert_eq!(response.artifacts.len(), 1);
+        assert_eq!(
+            response.artifacts[0].primary,
+            Value::String("<section>&lt;span&gt;document&lt;/span&gt;</section>".to_owned())
+        );
     }
 }

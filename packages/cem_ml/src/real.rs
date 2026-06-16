@@ -30,12 +30,15 @@ use crate::tokenizer::html::HtmlTokenizer;
 use crate::tokenizer::xml::XmlTokenizer;
 use crate::tokenizer::SchemaTokenizer;
 use crate::transform_template::{
-    TransformTemplateAdapterLookup, TransformTemplateDataArtifact, TransformTemplateRenderRequest,
+    TransformTemplateAdapter, TransformTemplateAdapterLookup, TransformTemplateCompileRequest,
+    TransformTemplateCompiledArtifact, TransformTemplateDataArtifact,
+    TransformTemplateOutputArtifact, TransformTemplateRenderRequest,
 };
 use crate::validation::{RuleContext, RuleRegistry};
 use serde_json::{json, Value};
-use std::collections::BTreeMap;
+use std::collections::{BTreeMap, BTreeSet};
 use std::path::PathBuf;
+use std::sync::Arc;
 use std::time::Instant;
 
 #[derive(Debug, Default, Clone)]
@@ -848,6 +851,150 @@ fn scheduler_policy_for_transform_scope(
     scheduler_policy_for_scope(context, uri, scope, direction)
 }
 
+fn has_hard_transform_diagnostic(diagnostics: &[Diagnostic]) -> bool {
+    diagnostics
+        .iter()
+        .any(|diagnostic| diagnostic.severity.is_hard_violation())
+}
+
+fn load_transform_data_artifact(
+    input: &EngineInput,
+    context: &EngineContext,
+    artifact_id: impl Into<String>,
+) -> (TransformTemplateDataArtifact, Vec<Diagnostic>) {
+    let mut diagnostics = Vec::new();
+    let mut scope_diagnostics =
+        root_scope_metadata_diagnostics(&input.uri, &input.root_scope, "input");
+    diagnostics.append(&mut scope_diagnostics);
+    let mut loaded = load_input_through_lifecycle(input, context);
+    diagnostics.append(&mut loaded.diagnostics);
+    let run = run_pipeline_as_scoped_with_context(
+        &loaded.bytes,
+        loaded.from_format,
+        &input.root_scope,
+        context,
+    );
+    let value = projection::dom_json(&run.document);
+    diagnostics.extend(run.diagnostics);
+    project_diagnostic_uris(&mut diagnostics, input, context);
+
+    (
+        TransformTemplateDataArtifact {
+            artifact_id: artifact_id.into(),
+            uri: Some(input_uri(input, context)),
+            identity: input.identity.clone(),
+            value,
+        },
+        diagnostics,
+    )
+}
+
+fn select_transform_template_adapter(
+    context: &EngineContext,
+    template: &TemplateInput,
+    diagnostics: &mut Vec<Diagnostic>,
+) -> Option<Arc<dyn TransformTemplateAdapter>> {
+    match template.identity.as_ref() {
+        Some(identity) => match context.template_adapter_registry.select_adapter(identity) {
+            TransformTemplateAdapterLookup::Matched(adapter) => Some(adapter),
+            TransformTemplateAdapterLookup::Ambiguous(ids) => {
+                diagnostics.push(Diagnostic {
+                    uri: Some(template.uri.clone()),
+                    code: "cem.transform_template.adapter_ambiguous".to_owned(),
+                    severity: Severity::Fatal,
+                    message: format!(
+                        "multiple transform template adapters matched template identity: {}",
+                        ids.join(", ")
+                    ),
+                    ..Diagnostic::default()
+                });
+                None
+            }
+            TransformTemplateAdapterLookup::Unsupported => {
+                diagnostics.push(Diagnostic {
+                    uri: Some(template.uri.clone()),
+                    code: TRANSFORM_TEMPLATE_UNSUPPORTED_CODE.to_owned(),
+                    severity: Severity::Fatal,
+                    message: "no transform template adapter matched template identity".to_owned(),
+                    ..Diagnostic::default()
+                });
+                None
+            }
+        },
+        None => {
+            diagnostics.push(Diagnostic {
+                uri: Some(template.uri.clone()),
+                code: TRANSFORM_TEMPLATE_UNSUPPORTED_CODE.to_owned(),
+                severity: Severity::Fatal,
+                message: "transform template identity is required for execution".to_owned(),
+                ..Diagnostic::default()
+            });
+            None
+        }
+    }
+}
+
+fn compile_transform_template(
+    adapter: &Arc<dyn TransformTemplateAdapter>,
+    template: &TemplateInput,
+    entrypoint: &TransformTemplateEntrypoint,
+    params: &BTreeMap<String, Value>,
+    data_bindings: &[String],
+    execution_policy: TransformExecutionPolicy,
+    diagnostics: &mut Vec<Diagnostic>,
+) -> Option<TransformTemplateCompiledArtifact> {
+    match adapter.compile(TransformTemplateCompileRequest {
+        template,
+        entrypoint,
+        params,
+        data_bindings,
+        execution_policy,
+    }) {
+        Ok(mut response) => {
+            diagnostics.append(&mut response.diagnostics);
+            Some(response.artifact)
+        }
+        Err(err) => {
+            diagnostics.push(err.diagnostic(Some(&template.uri)));
+            None
+        }
+    }
+}
+
+struct TransformStageRenderSpec<'a> {
+    adapter: &'a Arc<dyn TransformTemplateAdapter>,
+    compiled: &'a TransformTemplateCompiledArtifact,
+    primary_input: &'a TransformTemplateDataArtifact,
+    secondary_inputs: &'a BTreeMap<String, TransformTemplateDataArtifact>,
+    target: Option<&'a FormatIdentity>,
+    target_scope: &'a ScopeConfig,
+    execution_policy: TransformExecutionPolicy,
+    diagnostic_uri: &'a str,
+}
+
+fn render_transform_stage(
+    spec: TransformStageRenderSpec<'_>,
+    diagnostics: &mut Vec<Diagnostic>,
+) -> Option<TransformTemplateOutputArtifact> {
+    match spec.adapter.render(TransformTemplateRenderRequest {
+        compiled: spec.compiled,
+        primary_input: spec.primary_input,
+        secondary_inputs: spec.secondary_inputs,
+        target: spec.target,
+        target_scope: spec.target_scope,
+        execution_policy: spec.execution_policy,
+    }) {
+        Ok(mut response) => {
+            diagnostics.append(&mut response.diagnostics);
+            Some(response.output)
+        }
+        Err(err) => {
+            diagnostics.push(err.diagnostic(Some(spec.diagnostic_uri)));
+            None
+        }
+    }
+}
+
 fn scheduler_policy_json(policy: crate::scheduler::ScopePolicy) -> Value {
     json!({
         "cpuWorkers": policy.cpu_workers,
@@ -1594,10 +1741,7 @@ impl CemMlEngine for RealCemMlEngine {
         );
         diagnostics.append(&mut output_scope_diags);
 
-        if diagnostics
-            .iter()
-            .any(|diagnostic| diagnostic.severity.is_hard_violation())
-        {
+        if has_hard_transform_diagnostic(&diagnostics) {
             return Ok(TransformResponse {
                 primary: Value::Null,
                 diagnostics,
@@ -1645,37 +1789,13 @@ impl CemMlEngine for RealCemMlEngine {
 
         let mut primary_input: Option<TransformTemplateDataArtifact> = None;
         data_pool.run_to_completion(&abort, |_| {
-            let mut data_diagnostics = Vec::new();
-            let mut scope_diagnostics = root_scope_metadata_diagnostics(
-                &request.data.uri,
-                &request.data.root_scope,
-                "input",
-            );
-            data_diagnostics.append(&mut scope_diagnostics);
-            let mut loaded = load_input_through_lifecycle(&request.data, &request.context);
-            data_diagnostics.append(&mut loaded.diagnostics);
-            let run = run_pipeline_as_scoped_with_context(
-                &loaded.bytes,
-                loaded.from_format,
-                &request.data.root_scope,
-                &request.context,
-            );
-            let data_value = projection::dom_json(&run.document);
-            data_diagnostics.extend(run.diagnostics);
-            project_diagnostic_uris(&mut data_diagnostics, &request.data, &request.context);
+            let (artifact, mut data_diagnostics) =
+                load_transform_data_artifact(&request.data, &request.context, "data");
             diagnostics.append(&mut data_diagnostics);
-            primary_input = Some(TransformTemplateDataArtifact {
-                artifact_id: "data".to_owned(),
-                uri: Some(input_uri(&request.data, &request.context)),
-                identity: request.data.identity.clone(),
-                value: data_value,
-            });
+            primary_input = Some(artifact);
         });
 
-        if diagnostics
-            .iter()
-            .any(|diagnostic| diagnostic.severity.is_hard_violation())
-        {
+        if has_hard_transform_diagnostic(&diagnostics) {
             return Ok(TransformResponse {
                 primary: Value::Null,
                 diagnostics,
@@ -1683,72 +1803,29 @@ impl CemMlEngine for RealCemMlEngine {
             });
         }
 
-        let adapter = match request.template.identity.as_ref() {
-            Some(identity) => match request
-                .context
-                .template_adapter_registry
-                .select_adapter(identity)
-            {
-                TransformTemplateAdapterLookup::Matched(adapter) => Some(adapter),
-                TransformTemplateAdapterLookup::Ambiguous(ids) => {
-                    diagnostics.push(Diagnostic {
-                        uri: Some(request.template.uri.clone()),
-                        code: "cem.transform_template.adapter_ambiguous".to_owned(),
-                        severity: Severity::Fatal,
-                        message: format!(
-                            "multiple transform template adapters matched template identity: {}",
-                            ids.join(", ")
-                        ),
-                        ..Diagnostic::default()
-                    });
-                    None
-                }
-                TransformTemplateAdapterLookup::Unsupported => {
-                    diagnostics.push(Diagnostic {
-                        uri: Some(request.template.uri.clone()),
-                        code: TRANSFORM_TEMPLATE_UNSUPPORTED_CODE.to_owned(),
-                        severity: Severity::Fatal,
-                        message: "no transform template adapter matched template identity"
-                            .to_owned(),
-                        ..Diagnostic::default()
-                    });
-                    None
-                }
-            },
-            None => {
-                diagnostics.push(Diagnostic {
-                    uri: Some(request.template.uri.clone()),
-                    code: TRANSFORM_TEMPLATE_UNSUPPORTED_CODE.to_owned(),
-                    severity: Severity::Fatal,
-                    message: "transform template identity is required for execution".to_owned(),
-                    ..Diagnostic::default()
-                });
-                None
-            }
-        };
+        let adapter = select_transform_template_adapter(
+            &request.context,
+            &request.template,
+            &mut diagnostics,
+        );
 
         let mut compiled = None;
+        let data_bindings = vec!["input".to_owned()];
         if let Some(adapter) = adapter.as_ref() {
             template_pool.run_to_completion(&abort, |_| {
-                match adapter.compile(crate::transform_template::TransformTemplateCompileRequest {
-                    template: &request.template,
-                    entrypoint: &request.template_entrypoint,
-                    params: &request.params,
-                    execution_policy: request.execution_policy,
-                }) {
-                    Ok(mut response) => {
-                        diagnostics.append(&mut response.diagnostics);
-                        compiled = Some(response.artifact);
-                    }
-                    Err(err) => diagnostics.push(err.diagnostic(Some(&request.template.uri))),
-                }
+                compiled = compile_transform_template(
+                    adapter,
+                    &request.template,
+                    &request.template_entrypoint,
+                    &request.params,
+                    &data_bindings,
+                    request.execution_policy,
+                    &mut diagnostics,
+                );
             });
         }
 
-        if diagnostics
-            .iter()
-            .any(|diagnostic| diagnostic.severity.is_hard_violation())
-        {
+        if has_hard_transform_diagnostic(&diagnostics) {
             return Ok(TransformResponse {
                 primary: Value::Null,
                 diagnostics,
@@ -1777,26 +1854,23 @@ impl CemMlEngine for RealCemMlEngine {
         let secondary_inputs = BTreeMap::new();
         let mut rendered = None;
         execution_pool.run_to_completion(&abort, |_| {
-            match adapter.render(TransformTemplateRenderRequest {
-                compiled: &compiled,
-                primary_input: &primary_input,
-                secondary_inputs: &secondary_inputs,
-                target: request.target.as_ref(),
-                target_scope: &request.target_scope,
-                execution_policy: request.execution_policy,
-            }) {
-                Ok(mut response) => {
-                    diagnostics.append(&mut response.diagnostics);
-                    rendered = Some(response.output.value);
-                }
-                Err(err) => diagnostics.push(err.diagnostic(Some(&request.template.uri))),
-            }
+            rendered = render_transform_stage(
+                TransformStageRenderSpec {
+                    adapter: &adapter,
+                    compiled: &compiled,
+                    primary_input: &primary_input,
+                    secondary_inputs: &secondary_inputs,
+                    target: request.target.as_ref(),
+                    target_scope: &request.target_scope,
+                    execution_policy: request.execution_policy,
+                    diagnostic_uri: &request.template.uri,
+                },
+                &mut diagnostics,
+            )
+            .map(|output| output.value);
         });
 
-        if diagnostics
-            .iter()
-            .any(|diagnostic| diagnostic.severity.is_hard_violation())
-        {
+        if has_hard_transform_diagnostic(&diagnostics) {
             return Ok(TransformResponse {
                 primary: Value::Null,
                 diagnostics,
@@ -1830,6 +1904,266 @@ impl CemMlEngine for RealCemMlEngine {
 
         Ok(TransformResponse {
             primary,
+            diagnostics,
+            scheduler_trace: crate::report::SchedulerTraceReport::from_trace(&trace),
+        })
+    }
+
+    fn transform_graph(
+        &self,
+        request: TransformGraphRequest,
+    ) -> EngineResult<TransformGraphResponse> {
+        let started_at = Instant::now();
+        let trace = crate::scheduler::SchedulerTrace::new();
+        let abort = crate::scheduler::AbortSignal::new();
+        let mut diagnostics = validate_transform_graph_runtime_contract(&request);
+        let mut artifacts: BTreeMap<String, TransformTemplateDataArtifact> = BTreeMap::new();
+        let mut exported = Vec::new();
+
+        for import in &request.imports {
+            let (policy, mut scope_diagnostics) = scheduler_policy_for_transform_scope(
+                &request.context,
+                &import.input.uri,
+                &import.input.root_scope,
+                "input",
+            );
+            diagnostics.append(&mut scope_diagnostics);
+            let pool =
+                crate::scheduler::WorkerPool::new(import.scheduler_scope_id, policy, trace.clone());
+            pool.submit(format!("{}:import", import.id), &abort)
+                .map_err(|err| {
+                    EngineError::Internal(format!("scheduler dispatch failed: {err}"))
+                })?;
+            pool.run_to_completion(&abort, |_| {
+                let (artifact, mut import_diagnostics) =
+                    load_transform_data_artifact(&import.input, &request.context, &import.id);
+                diagnostics.append(&mut import_diagnostics);
+                artifacts.insert(import.id.clone(), artifact);
+            });
+        }
+
+        if has_hard_transform_diagnostic(&diagnostics) {
+            return Ok(TransformGraphResponse {
+                artifacts: exported,
+                diagnostics,
+                scheduler_trace: crate::report::SchedulerTraceReport::from_trace(&trace),
+            });
+        }
+
+        let mut completed_stages = BTreeSet::new();
+        while completed_stages.len() < request.stages.len() {
+            let mut progressed = false;
+
+            for stage in &request.stages {
+                if completed_stages.contains(&stage.id) {
+                    continue;
+                }
+                let Some(primary_input) = artifacts.get(&stage.primary_input).cloned() else {
+                    continue;
+                };
+                if !stage
+                    .secondary_inputs
+                    .values()
+                    .all(|artifact_id| artifacts.contains_key(artifact_id))
+                {
+                    continue;
+                }
+
+                progressed = true;
+                let (template_policy, mut template_scope_diagnostics) =
+                    scheduler_policy_for_transform_scope(
+                        &request.context,
+                        &stage.template.uri,
+                        &stage.template.root_scope,
+                        "template",
+                    );
+                diagnostics.append(&mut template_scope_diagnostics);
+                let adapter = select_transform_template_adapter(
+                    &request.context,
+                    &stage.template,
+                    &mut diagnostics,
+                );
+                if has_hard_transform_diagnostic(&diagnostics) {
+                    return Ok(TransformGraphResponse {
+                        artifacts: exported,
+                        diagnostics,
+                        scheduler_trace: crate::report::SchedulerTraceReport::from_trace(&trace),
+                    });
+                }
+                let Some(adapter) = adapter else {
+                    return Ok(TransformGraphResponse {
+                        artifacts: exported,
+                        diagnostics,
+                        scheduler_trace: crate::report::SchedulerTraceReport::from_trace(&trace),
+                    });
+                };
+
+                let template_pool = crate::scheduler::WorkerPool::new(
+                    stage.scheduler_scope_ids.template_load,
+                    template_policy,
+                    trace.clone(),
+                );
+                template_pool
+                    .submit(format!("{}:template-compile", stage.id), &abort)
+                    .map_err(|err| {
+                        EngineError::Internal(format!("scheduler dispatch failed: {err}"))
+                    })?;
+                let mut compiled = None;
+                let mut data_bindings = vec!["input".to_owned()];
+                data_bindings.extend(stage.secondary_inputs.keys().cloned());
+                template_pool.run_to_completion(&abort, |_| {
+                    compiled = compile_transform_template(
+                        &adapter,
+                        &stage.template,
+                        &stage.template_entrypoint,
+                        &stage.params,
+                        &data_bindings,
+                        request.execution_policy,
+                        &mut diagnostics,
+                    );
+                });
+
+                if has_hard_transform_diagnostic(&diagnostics) {
+                    return Ok(TransformGraphResponse {
+                        artifacts: exported,
+                        diagnostics,
+                        scheduler_trace: crate::report::SchedulerTraceReport::from_trace(&trace),
+                    });
+                }
+                let Some(compiled) = compiled else {
+                    return Err(EngineError::Internal(format!(
+                        "scheduler did not dispatch transform graph template compile task `{}`",
+                        stage.id
+                    )));
+                };
+
+                let mut secondary_inputs = BTreeMap::new();
+                for (name, artifact_id) in &stage.secondary_inputs {
+                    if let Some(artifact) = artifacts.get(artifact_id) {
+                        secondary_inputs.insert(name.clone(), artifact.clone());
+                    }
+                }
+
+                let execution_pool = crate::scheduler::WorkerPool::new(
+                    stage.scheduler_scope_ids.execution,
+                    scheduler_policy_from_context(&request.context),
+                    trace.clone(),
+                );
+                execution_pool
+                    .submit(format!("{}:template-execution", stage.id), &abort)
+                    .map_err(|err| {
+                        EngineError::Internal(format!("scheduler dispatch failed: {err}"))
+                    })?;
+                let mut rendered = None;
+                execution_pool.run_to_completion(&abort, |_| {
+                    rendered = render_transform_stage(
+                        TransformStageRenderSpec {
+                            adapter: &adapter,
+                            compiled: &compiled,
+                            primary_input: &primary_input,
+                            secondary_inputs: &secondary_inputs,
+                            target: None,
+                            target_scope: &ScopeConfig::default(),
+                            execution_policy: request.execution_policy,
+                            diagnostic_uri: &stage.template.uri,
+                        },
+                        &mut diagnostics,
+                    );
+                });
+
+                if has_hard_transform_diagnostic(&diagnostics) {
+                    return Ok(TransformGraphResponse {
+                        artifacts: exported,
+                        diagnostics,
+                        scheduler_trace: crate::report::SchedulerTraceReport::from_trace(&trace),
+                    });
+                }
+                let Some(output) = rendered else {
+                    return Err(EngineError::Internal(format!(
+                        "scheduler did not dispatch transform graph execution task `{}`",
+                        stage.id
+                    )));
+                };
+                artifacts.insert(
+                    stage.id.clone(),
+                    TransformTemplateDataArtifact {
+                        artifact_id: stage.id.clone(),
+                        uri: output.uri,
+                        identity: output.identity,
+                        value: output.value,
+                    },
+                );
+                completed_stages.insert(stage.id.clone());
+            }
+
+            if !progressed {
+                diagnostics.push(Diagnostic {
+                    code: "cem.transform_runtime.graph_order_invalid".to_owned(),
+                    severity: Severity::Fatal,
+                    message:
+                        "transform graph stages could not be ordered from their declared inputs"
+                            .to_owned(),
+                    ..Diagnostic::default()
+                });
+                return Ok(TransformGraphResponse {
+                    artifacts: exported,
+                    diagnostics,
+                    scheduler_trace: crate::report::SchedulerTraceReport::from_trace(&trace),
+                });
+            }
+        }
+
+        for export in &request.exports {
+            let (policy, mut output_scope_diagnostics) = scheduler_policy_for_transform_scope(
+                &request.context,
+                export.destination.as_deref().unwrap_or(&export.id),
+                &export.target_scope,
+                "output",
+            );
+            diagnostics.append(&mut output_scope_diagnostics);
+            let pool =
+                crate::scheduler::WorkerPool::new(export.scheduler_scope_id, policy, trace.clone());
+            pool.submit(format!("{}:export", export.id), &abort)
+                .map_err(|err| {
+                    EngineError::Internal(format!("scheduler dispatch failed: {err}"))
+                })?;
+            pool.run_to_completion(&abort, |_| {
+                if let Some(artifact) = artifacts.get(&export.input) {
+                    exported.push(TransformGraphArtifact {
+                        export_id: export.id.clone(),
+                        destination: export.destination.clone(),
+                        identity: export.target.clone().or_else(|| artifact.identity.clone()),
+                        primary: artifact.value.clone(),
+                    });
+                }
+            });
+        }
+
+        let elapsed_ns = started_at.elapsed().as_nanos();
+        for import in &request.imports {
+            diagnostics.extend(time_budget_diagnostics(
+                &import.input.root_scope,
+                &["transformms", "transformtimebudgetms"],
+                elapsed_ns,
+            ));
+        }
+        for stage in &request.stages {
+            diagnostics.extend(time_budget_diagnostics(
+                &stage.template.root_scope,
+                &["transformms", "transformtimebudgetms"],
+                elapsed_ns,
+            ));
+        }
+        for export in &request.exports {
+            diagnostics.extend(time_budget_diagnostics(
+                &export.target_scope,
+                &["transformms", "transformtimebudgetms"],
+                elapsed_ns,
+            ));
+        }
+
+        Ok(TransformGraphResponse {
+            artifacts: exported,
             diagnostics,
             scheduler_trace: crate::report::SchedulerTraceReport::from_trace(&trace),
         })

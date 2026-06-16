@@ -61,6 +61,7 @@ pub struct TransformTemplateCompileRequest<'a> {
     pub template: &'a TemplateInput,
     pub entrypoint: &'a TransformTemplateEntrypoint,
     pub params: &'a BTreeMap<String, Value>,
+    pub data_bindings: &'a [String],
     pub execution_policy: TransformExecutionPolicy,
 }
 
@@ -623,11 +624,13 @@ mod tests {
             root_scope: ScopeConfig::default(),
         };
         let params = BTreeMap::new();
+        let data_bindings = Vec::new();
         let compile_error = adapter
             .compile(TransformTemplateCompileRequest {
                 template: &template,
                 entrypoint: &TransformTemplateEntrypoint::implicit(),
                 params: &params,
+                data_bindings: &data_bindings,
                 execution_policy: TransformExecutionPolicy::default(),
             })
             .expect_err("static adapter should not compile templates");
@@ -756,11 +759,13 @@ mod tests {
             root_scope: ScopeConfig::default(),
         };
         let params = BTreeMap::new();
+        let data_bindings = Vec::new();
         let compiled = adapter
             .compile(TransformTemplateCompileRequest {
                 template: &template,
                 entrypoint: &TransformTemplateEntrypoint::implicit(),
                 params: &params,
+                data_bindings: &data_bindings,
                 execution_policy: TransformExecutionPolicy::default(),
             })
             .expect("runtime adapter should compile")

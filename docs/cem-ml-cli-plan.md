@@ -312,7 +312,8 @@ cem-ml convert input.xml \
 ```
 
 `transform` is the data + template -> document command. The current CLI runtime supports the one-to-one CEM-native
-template path; XML+XSLT execution and graph execution remain deferred:
+template path; programmatic graph execution exists in the engine, while CLI graph config dispatch and XML+XSLT
+execution remain deferred:
 
 ```bash
 cem-ml transform data.xml \
@@ -585,15 +586,16 @@ These are data shapes only. Parser-filled content remains blocked until the pars
     - Supported options: `--data-content-type`, `--data-schema`, `--template`, `--template-content-type`,
       `--template-schema`, `--to-content-type`, `--to-schema`, `--out`, shared context options, `--report-json`, and
       `--report-md`.
-    - Current runtime supports the minimal one-to-one CEM-native path through the CEM-QL executable adapter. XML+XSLT
-      execution and graph execution remain deferred.
+    - Current CLI runtime supports the minimal one-to-one CEM-native path through the CEM-QL executable adapter.
+      Programmatic `RealCemMlEngine::transform_graph` now executes in-memory CEM-native graph requests; CLI graph
+      config dispatch and XML+XSLT execution remain deferred.
     - Current config slice: `cem_ml::transform_config::parse_transform_graph_config` parses CEM-ML
       `run` / `import` / `transform` / `export` graph config and validates missing required operation
       attributes, duplicate IDs, unresolved refs, cycles, wildcard output patterns, and duplicate output
       destinations. It is not connected to `cem-ml transform` execution.
     - Current engine API slice: `cem_ml::engine::TransformGraphRequest` and `TransformGraphResponse` model
       loaded import nodes, template-backed transform stages, export nodes, graph dependencies, scheduler scope IDs,
-      emitted artifacts, diagnostics, and scheduler trace. The default engine method still returns not implemented.
+      emitted artifacts, diagnostics, and scheduler trace. The default trait method still returns not implemented.
     - Current design/API slice:
         - Template identity dispatch now supports both XSLT template identities (`application/xslt+xml`, `text/xsl`,
           and legacy custom-element XSLT content types) and CEM-native template identities (`application/cem+xml`,
@@ -605,10 +607,10 @@ These are data shapes only. Parser-filled content remains blocked until the pars
           CEM-native and XSLT adapters, and is carried by `EngineContext` so hosts can register newer CEM-native
           template iterations at runtime.
         - `TransformTemplateAdapter` now defines the execution-facing plugin boundary: adapters can compile a
-          `TemplateInput` plus entrypoint/params into an opaque compiled artifact, then render that artifact against a
-          primary data artifact, optional secondary artifacts, and a target identity/scope. Static built-in adapters keep
-          the current behavior by returning deterministic adapter-not-implemented errors until a runtime executor is
-          registered.
+          `TemplateInput` plus entrypoint/params and declared data binding names into an opaque compiled artifact, then
+          render that artifact against a primary data artifact, optional secondary artifacts, and a target
+          identity/scope. Static built-in adapters keep the current behavior by returning deterministic
+          adapter-not-implemented errors until a runtime executor is registered.
         - Executable template adapters take precedence over selector-only adapters for the same identity, so a host can
           install an actual CEM-native executor without making the built-in selector capability ambiguous. Multiple
           executable matches remain ambiguous.
@@ -643,17 +645,21 @@ These are data shapes only. Parser-filled content remains blocked until the pars
           `https://cem.dev/ns/cli/transform-config/1`, for `run` / `import` / `transform` / `export`; do not validate
           transform config as ordinary CEM core content or as a template document.
         - Resolver semantics for reading templates with the dedicated `template` resolver purpose and writing transform
-          outputs with the existing local-only default plus registered resolver behavior. Primary output writes to
-          `--out` or stdout; report side outputs write through the existing report resolver path.
+          outputs with the existing local-only default plus registered resolver behavior. Primary one-line CLI output
+          writes to `--out` or stdout; report side outputs write through the existing report resolver path.
+          Programmatic graph execution currently returns export artifacts in-memory and does not write export
+          destinations yet.
         - Report and source-map behavior for diagnostics that may originate from data, template compilation, template
           execution, or output export. Current CLI report destinations suppress diagnostic stderr and use
           `cem-ml.transform.report` as the default report basename.
         - Graph validation for duplicate IDs, unresolved refs, cycles, unsupported joins, unsupported cardinality
           changes, and duplicate output destinations before adding execution.
       Execution is available through the programmatic engine API and the CLI one-liner when a host registers an
-      executable adapter. `transform_graph` still exits through the reserved/not-implemented path.
-      Next implementation boundary: expand graph execution on the same adapter path, then add richer source-map/report
-      projection for branched artifacts. The crate dependency cycle is avoided by keeping the
+      executable adapter. `transform_graph` executes loaded in-memory graph requests and returns export artifacts; CLI
+      config graph dispatch remains deferred.
+      Next implementation boundary: lower CEM-ML transform config to `TransformGraphRequest` in the CLI host, write
+      graph export destinations through the resolver layer, then add richer source-map/report projection for branched
+      artifacts. The crate dependency cycle is avoided by keeping the
       concrete CEM-QL adapter in `cem_ml_transform_cem_ql` rather than in `cem_ml`.
 8. `cem-ml trace <input>`
     - Supported structured formats: `json`, `xml`, `cem`.
