@@ -47,7 +47,7 @@ pub const TRANSFORM_CONFIG_SCHEMA_ELEMENTS: &[TransformConfigElementSchema] = &[
     TransformConfigElementSchema {
         local_name: "join",
         required_attributes: &["mode"],
-        optional_attributes: &["id", "input", "by"],
+        optional_attributes: &["id", "input", "by", "with:*"],
         child_elements: &["transform", "export"],
     },
     TransformConfigElementSchema {
@@ -135,6 +135,7 @@ impl TransformGraphNodeKind {
 pub enum TransformGraphJoinMode {
     Collect,
     GroupBy,
+    MatchBy,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
@@ -479,13 +480,24 @@ impl GraphLowerer<'_> {
             TransformGraphNodeKind::Join => {
                 // Join mode validation happens during lowering so missing and
                 // unsupported modes produce precise diagnostics.
-                if node.join_mode == Some(TransformGraphJoinMode::GroupBy)
-                    && node.join_by.as_deref().unwrap_or("").trim().is_empty()
+                if matches!(
+                    node.join_mode,
+                    Some(TransformGraphJoinMode::GroupBy | TransformGraphJoinMode::MatchBy)
+                ) && node.join_by.as_deref().unwrap_or("").trim().is_empty()
                 {
                     self.push_diag(
                         "cem.transform_config.join_by_missing",
                         format!(
-                            "join node `{}` with `@mode=\"group-by\"` requires `@by`",
+                            "join node `{}` with `@mode` requiring keys must declare `@by`",
+                            node.id
+                        ),
+                    );
+                }
+                if node.join_mode == Some(TransformGraphJoinMode::MatchBy) && node.with.is_empty() {
+                    self.push_diag(
+                        "cem.transform_config.join_with_missing",
+                        format!(
+                            "join node `{}` with `@mode=\"match-by\"` requires at least one `@with:*` input",
                             node.id
                         ),
                     );
@@ -698,10 +710,11 @@ fn parse_join_mode(
     match value {
         "collect" => Ok(Some(TransformGraphJoinMode::Collect)),
         "group-by" => Ok(Some(TransformGraphJoinMode::GroupBy)),
+        "match-by" => Ok(Some(TransformGraphJoinMode::MatchBy)),
         other => Err((
             "cem.transform_config.join_mode_unsupported",
             format!(
-                "join node `{node_id}` uses unsupported `@mode` `{other}`; use `collect` or `group-by`"
+                "join node `{node_id}` uses unsupported `@mode` `{other}`; use `collect`, `group-by`, or `match-by`"
             ),
         )),
     }
@@ -765,6 +778,7 @@ mod tests {
         assert_eq!(run.child_elements, &["import"]);
         assert_eq!(join.required_attributes, &["mode"]);
         assert!(join.optional_attributes.contains(&"by"));
+        assert!(join.optional_attributes.contains(&"with:*"));
         assert_eq!(join.child_elements, &["transform", "export"]);
         assert_eq!(transform.required_attributes, &["src"]);
         assert!(transform.optional_attributes.contains(&"with:*"));
@@ -1014,6 +1028,35 @@ mod tests {
     }
 
     #[test]
+    fn parses_match_by_join_nodes() {
+        let response = parse(
+            r#"{@doc cem-ml 1}
+{run |
+  {import @id=orders @src="orders/*.cem" |
+    {join @id=report @mode="match-by" @by="customerId" @with:customers=customers |
+      {export @id=json @out="reports/{customerId}.json"}
+    }
+  }
+  {import @id=customers @src="customers/*.cem"}
+}"#,
+        );
+
+        let join = response
+            .graph
+            .nodes
+            .iter()
+            .find(|node| node.id == "report")
+            .expect("join node");
+        assert_eq!(join.kind, TransformGraphNodeKind::Join);
+        assert_eq!(join.join_mode, Some(TransformGraphJoinMode::MatchBy));
+        assert_eq!(join.join_by.as_deref(), Some("customerId"));
+        assert_eq!(
+            join.with.get("customers").map(String::as_str),
+            Some("customers")
+        );
+    }
+
+    #[test]
     fn validates_missing_required_attrs_duplicate_ids_refs_and_outputs() {
         let response = parse(
             r#"{@doc cem-ml 1}
@@ -1023,6 +1066,7 @@ mod tests {
   {import @id=source2 @src="source2.xml" |
     {join @id=bad-join @mode="zip"}
     {join @id=bad-group @mode="group-by"}
+    {join @id=bad-match @mode="match-by" @by="id"}
   }
   {import @id=source @src="source.xml" |
     {transform @id=t @with:missing=unknown |
@@ -1039,6 +1083,7 @@ mod tests {
             "cem.transform_config.transform_src_missing",
             "cem.transform_config.join_mode_unsupported",
             "cem.transform_config.join_by_missing",
+            "cem.transform_config.join_with_missing",
             "cem.transform_config.ref_unknown",
             "cem.transform_config.output_pattern_wildcard",
         ] {

@@ -293,8 +293,9 @@ Programmatic graph execution is available through `RealCemMlEngine::transform_gr
 CLI config graph dispatch is available for concrete CEM-native graph paths, local
 filename import globs, resolver-backed filename import globs, optional `**`
 recursive import glob segments, explicit `join @mode="collect"` nodes, and
-source-binding `join @mode="group-by" @by="..."` nodes. XSLT execution, zipped
-joins, and cross-input/key-matched joins remain deferred.
+source-binding `join @mode="group-by" @by="..."` and same-binding
+`join @mode="match-by" @by="..." @with:...` nodes. XSLT execution and zipped
+joins remain deferred.
 
 The first concrete executable CEM-native adapter lives in
 `cem_ml_transform_cem_ql`, outside `cem_ml`, so it can depend on both `cem_ml` and
@@ -577,8 +578,8 @@ I/O messages, but they must not replace the underlying resolver code or URI.
   `--report-json` / `--report-md`. The current CLI runtime executes the one-to-one CEM-native path and CEM-ML
   `--config` graph dispatch for concrete paths plus local and resolver-backed filename import globs, optional `**`
   recursive import glob segments, source-derived output bindings, explicit `join @mode="collect"` aggregation, and
-  source-binding `join @mode="group-by" @by="..."` aggregation. XML+XSLT execution, zipped joins, and
-  cross-input/key-matched joins remain deferred.
+  source-binding `join @mode="group-by" @by="..."` aggregation, and same-binding
+  `join @mode="match-by" @by="..." @with:...` aggregation. XML+XSLT execution and zipped joins remain deferred.
 - Multi-source configuration via config file, plus repeatable CSV option records for
   CLI one-liners. Config files are preferred for CI/build reproducibility.
 - Config-file content type via `--config-content-type`, inferred from extension when

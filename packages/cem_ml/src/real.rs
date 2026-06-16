@@ -896,21 +896,35 @@ fn collect_transform_graph_join(
     let mode = match join.mode {
         TransformGraphJoinMode::Collect => "collect",
         TransformGraphJoinMode::GroupBy => "group-by",
+        TransformGraphJoinMode::MatchBy => "match-by",
     };
     match join.mode {
-        TransformGraphJoinMode::Collect | TransformGraphJoinMode::GroupBy => {
+        TransformGraphJoinMode::Collect
+        | TransformGraphJoinMode::GroupBy
+        | TransformGraphJoinMode::MatchBy => {
+            let mut by_input = join
+                .input_names
+                .iter()
+                .map(|name| (name.clone(), Vec::new()))
+                .collect::<BTreeMap<_, _>>();
             let items = join
                 .inputs
                 .iter()
                 .filter_map(|input| {
                     artifacts.get(&input.artifact_id).map(|artifact| {
-                        json!({
+                        let item = json!({
+                            "input": input.input_name.clone(),
                             "artifactId": artifact.artifact_id.clone(),
                             "uri": artifact.uri.clone(),
                             "identity": artifact.identity.clone(),
                             "primary": artifact.value.clone(),
                             "bindings": input.bindings.clone(),
-                        })
+                        });
+                        by_input
+                            .entry(input.input_name.clone())
+                            .or_default()
+                            .push(item.clone());
+                        item
                     })
                 })
                 .collect::<Vec<_>>();
@@ -923,6 +937,7 @@ fn collect_transform_graph_join(
                     "mode": mode,
                     "count": items.len(),
                     "bindings": join.bindings.clone(),
+                    "inputs": by_input,
                     "items": items,
                 }),
             }

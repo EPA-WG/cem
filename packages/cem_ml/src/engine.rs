@@ -665,6 +665,7 @@ pub struct TransformGraphImport {
 pub struct TransformGraphJoin {
     pub id: String,
     pub mode: TransformGraphJoinMode,
+    pub input_names: Vec<String>,
     pub inputs: Vec<TransformGraphJoinInput>,
     pub bindings: BTreeMap<String, String>,
     pub scheduler_scope_id: u32,
@@ -675,10 +676,12 @@ pub struct TransformGraphJoin {
 pub enum TransformGraphJoinMode {
     Collect,
     GroupBy,
+    MatchBy,
 }
 
 #[derive(Debug, Clone)]
 pub struct TransformGraphJoinInput {
+    pub input_name: String,
     pub artifact_id: String,
     pub bindings: BTreeMap<String, String>,
 }
@@ -1308,12 +1311,15 @@ mod tests {
             joins: vec![TransformGraphJoin {
                 id: "all-inputs".to_owned(),
                 mode: TransformGraphJoinMode::Collect,
+                input_names: vec!["primary".to_owned(), "stats".to_owned()],
                 inputs: vec![
                     TransformGraphJoinInput {
+                        input_name: "primary".to_owned(),
                         artifact_id: "book".to_owned(),
                         bindings: BTreeMap::from([("stem".to_owned(), "book".to_owned())]),
                     },
                     TransformGraphJoinInput {
+                        input_name: "stats".to_owned(),
                         artifact_id: "stats".to_owned(),
                         bindings: BTreeMap::from([("stem".to_owned(), "stats".to_owned())]),
                     },

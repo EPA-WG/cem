@@ -1137,7 +1137,7 @@ struct TransformGraphImportMatch {
 
 type TransformGraphJoinGroup = (
     String,
-    Vec<TransformGraphArtifactVariant>,
+    Vec<(String, TransformGraphArtifactVariant)>,
     BTreeMap<String, String>,
 );
 
@@ -1602,23 +1602,20 @@ fn to_engine_join_mode(mode: TransformGraphJoinMode) -> eng::TransformGraphJoinM
     match mode {
         TransformGraphJoinMode::Collect => eng::TransformGraphJoinMode::Collect,
         TransformGraphJoinMode::GroupBy => eng::TransformGraphJoinMode::GroupBy,
+        TransformGraphJoinMode::MatchBy => eng::TransformGraphJoinMode::MatchBy,
     }
 }
 
-fn transform_graph_group_by_join_variants(
+fn transform_graph_join_by(
     node: &TransformGraphNode,
-    input_variants: Vec<TransformGraphArtifactVariant>,
     config_source_uri: &str,
-) -> Result<Vec<TransformGraphJoinGroup>, CliRequestError> {
+) -> Result<String, CliRequestError> {
     let by = node.join_by.as_deref().unwrap_or("").trim();
     if by.is_empty() {
         return Err(transform_config_error(
             config_source_uri,
             "cem.transform_config.join_by_missing",
-            format!(
-                "join node `{}` with `@mode=\"group-by\"` requires `@by`",
-                node.id
-            ),
+            format!("join node `{}` with keyed `@mode` requires `@by`", node.id),
         ));
     }
     if matches!(by, "count" | "key") {
@@ -1631,10 +1628,19 @@ fn transform_graph_group_by_join_variants(
             ),
         ));
     }
+    Ok(by.to_owned())
+}
+
+fn transform_graph_group_by_join_groups(
+    node: &TransformGraphNode,
+    input_variants: Vec<TransformGraphArtifactVariant>,
+    config_source_uri: &str,
+) -> Result<Vec<TransformGraphJoinGroup>, CliRequestError> {
+    let by = transform_graph_join_by(node, config_source_uri)?;
 
     let mut groups: BTreeMap<String, Vec<TransformGraphArtifactVariant>> = BTreeMap::new();
     for variant in input_variants {
-        let Some(value) = variant.bindings.get(by) else {
+        let Some(value) = variant.bindings.get(&by) else {
             return Err(transform_config_error(
                 config_source_uri,
                 "cem.transform_config.join_by_unknown",
@@ -1658,7 +1664,98 @@ fn transform_graph_group_by_join_variants(
                 ("key".to_owned(), key.clone()),
             ]);
             bindings.insert(by.to_owned(), key);
-            (id, variants, bindings)
+            let inputs = variants
+                .into_iter()
+                .map(|variant| ("primary".to_owned(), variant))
+                .collect();
+            (id, inputs, bindings)
+        })
+        .collect())
+}
+
+fn transform_graph_match_by_join_groups(
+    node: &TransformGraphNode,
+    primary_variants: Vec<TransformGraphArtifactVariant>,
+    variants: &BTreeMap<String, Vec<TransformGraphArtifactVariant>>,
+    config_source_uri: &str,
+) -> Result<Vec<TransformGraphJoinGroup>, CliRequestError> {
+    let by = transform_graph_join_by(node, config_source_uri)?;
+    if node.with.is_empty() {
+        return Err(transform_config_error(
+            config_source_uri,
+            "cem.transform_config.join_with_missing",
+            format!(
+                "join node `{}` with `@mode=\"match-by\"` requires at least one `@with:*` input",
+                node.id
+            ),
+        ));
+    }
+
+    let mut primary_groups: BTreeMap<String, Vec<TransformGraphArtifactVariant>> = BTreeMap::new();
+    for variant in primary_variants {
+        let Some(value) = variant.bindings.get(&by) else {
+            return Err(transform_config_error(
+                config_source_uri,
+                "cem.transform_config.join_by_unknown",
+                format!(
+                    "join node `{}` matches by unknown binding `{by}` on artifact `{}`",
+                    node.id, variant.id
+                ),
+            ));
+        };
+        primary_groups
+            .entry(value.clone())
+            .or_default()
+            .push(variant);
+    }
+
+    let mut secondary_groups = BTreeMap::new();
+    for (name, target) in &node.with {
+        let secondary_variants =
+            transform_graph_variants_for_ref(variants, &node.id, &format!("with:{name}"), target)?;
+        let mut by_key: BTreeMap<String, Vec<TransformGraphArtifactVariant>> = BTreeMap::new();
+        for variant in secondary_variants {
+            let Some(value) = variant.bindings.get(&by) else {
+                return Err(transform_config_error(
+                    config_source_uri,
+                    "cem.transform_config.join_by_unknown",
+                    format!(
+                        "join node `{}` matches by unknown binding `{by}` on artifact `{}`",
+                        node.id, variant.id
+                    ),
+                ));
+            };
+            by_key.entry(value.clone()).or_default().push(variant);
+        }
+        secondary_groups.insert(name.clone(), by_key);
+    }
+
+    let group_count = primary_groups.len();
+    Ok(primary_groups
+        .into_iter()
+        .enumerate()
+        .map(|(index, (key, primary))| {
+            let id = transform_graph_variant_id(&node.id, index, group_count);
+            let mut inputs = primary
+                .into_iter()
+                .map(|variant| ("primary".to_owned(), variant))
+                .collect::<Vec<_>>();
+            for (name, by_key) in &secondary_groups {
+                if let Some(matches) = by_key.get(&key) {
+                    inputs.extend(
+                        matches
+                            .iter()
+                            .cloned()
+                            .map(|variant| (name.clone(), variant)),
+                    );
+                }
+            }
+            let mut bindings = BTreeMap::from([
+                ("count".to_owned(), inputs.len().to_string()),
+                ("key".to_owned(), key.clone()),
+            ]);
+            bindings.insert(by.clone(), key);
+            (id, inputs, bindings)
         })
         .collect())
 }
@@ -1723,23 +1820,46 @@ fn transform_graph_request_from_config(
                 let grouped_variants = match mode {
                     TransformGraphJoinMode::Collect => {
                         let input_count = input_variants.len();
+                        let inputs = input_variants
+                            .into_iter()
+                            .map(|variant| ("primary".to_owned(), variant))
+                            .collect();
                         vec![(
                             node.id.clone(),
-                            input_variants,
+                            inputs,
                             BTreeMap::from([("count".to_owned(), input_count.to_string())]),
                         )]
                     }
-                    TransformGraphJoinMode::GroupBy => transform_graph_group_by_join_variants(
+                    TransformGraphJoinMode::GroupBy => transform_graph_group_by_join_groups(
                         node,
                         input_variants,
+                        config_source_uri,
+                    )?,
+                    TransformGraphJoinMode::MatchBy => transform_graph_match_by_join_groups(
+                        node,
+                        input_variants,
+                        &variants,
                         config_source_uri,
                     )?,
                 };
                 let mut output_variants = Vec::new();
                 for (join_id, input_variants, bindings) in grouped_variants {
+                    let input_names = if mode == TransformGraphJoinMode::MatchBy {
+                        std::iter::once("primary".to_owned())
+                            .chain(node.with.keys().cloned())
+                            .collect::<Vec<_>>()
+                    } else {
+                        input_variants
+                            .iter()
+                            .map(|(input_name, _)| input_name.clone())
+                            .collect::<BTreeSet<_>>()
+                            .into_iter()
+                            .collect::<Vec<_>>()
+                    };
                     let join_inputs = input_variants
                         .iter()
-                        .map(|variant| eng::TransformGraphJoinInput {
+                        .map(|(input_name, variant)| eng::TransformGraphJoinInput {
+                            input_name: input_name.clone(),
                             artifact_id: variant.id.clone(),
                             bindings: variant.bindings.clone(),
                         })
@@ -1747,12 +1867,13 @@ fn transform_graph_request_from_config(
                     joins.push(eng::TransformGraphJoin {
                         id: join_id.clone(),
                         mode: to_engine_join_mode(mode),
+                        input_names,
                         inputs: join_inputs,
                         bindings: bindings.clone(),
                         scheduler_scope_id: next_scope_id,
                     });
                     next_scope_id += 1;
-                    for variant in input_variants {
+                    for (_, variant) in input_variants {
                         edges.push(eng::TransformGraphDependency {
                             from: variant.id,
                             to: join_id.clone(),
@@ -4117,6 +4238,51 @@ mod tests {
             "<article>1</article>"
         );
         assert!(!root.join("out/inputs/part-a/summary-0.html").exists());
+    }
+
+    #[test]
+    fn transform_config_match_by_join_feeds_keyed_transforms() {
+        let root = std::env::temp_dir().join("cem-ml-cli-tests/transform-config-match-by-join");
+        let _ = std::fs::remove_dir_all(&root);
+        std::fs::create_dir_all(root.join("orders")).unwrap();
+        std::fs::create_dir_all(root.join("customers")).unwrap();
+        std::fs::write(root.join("orders/alice.cem"), "{p @id=\"one\"}").unwrap();
+        std::fs::write(root.join("orders/bob.cem"), "{p @id=\"two\"}").unwrap();
+        std::fs::write(root.join("customers/alice.cem"), "{p @id=\"alice\"}").unwrap();
+        std::fs::write(root.join("summary.cem"), "{article | {$input.count}}").unwrap();
+        let config = root.join("graph.cem");
+        std::fs::write(
+            &config,
+            r#"{run |
+  {import @id=customers @src="customers/*.cem" @content-type="text/cem-ml"}
+  {import @id=orders @src="orders/*.cem" @content-type="text/cem-ml" |
+    {join @id=report @mode="match-by" @by="stem" @with:customers=customers |
+      {transform @id=summary @src="summary.cem" @template-content-type="text/cem-ml" |
+        {export @id=html @out="out/{stem}-{count}.html" @content-type="text/html"}
+      }
+    }
+  }
+}"#,
+        )
+        .unwrap();
+
+        let (outcome, stdout, stderr) = run(
+            &RealCemMlEngine::new(),
+            &["transform", "--config", config.to_str().unwrap()],
+        );
+
+        assert_eq!(outcome.exit_code, EXIT_OK);
+        assert!(stdout.is_empty(), "{stdout}");
+        assert!(stderr.trim().is_empty(), "{stderr}");
+        assert_eq!(
+            std::fs::read_to_string(root.join("out/alice-2.html")).unwrap(),
+            "<article>2</article>"
+        );
+        assert_eq!(
+            std::fs::read_to_string(root.join("out/bob-1.html")).unwrap(),
+            "<article>1</article>"
+        );
+        assert!(!root.join("out/bob-2.html").exists());
     }
 
     #[test]
