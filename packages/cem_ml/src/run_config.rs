@@ -816,6 +816,42 @@ mod tests {
     }
 
     #[test]
+    fn run_config_json_schema_artifact_matches_constants() {
+        let schema: serde_json::Value =
+            serde_json::from_str(include_str!("../schema/cli/run-config.schema.json"))
+                .expect("run config JSON Schema parses");
+
+        assert_eq!(
+            schema.get("$id").and_then(serde_json::Value::as_str),
+            Some(RUN_CONFIG_JSON_SCHEMA_URI)
+        );
+        assert_eq!(
+            schema
+                .pointer("/properties/inputs/items/$ref")
+                .and_then(serde_json::Value::as_str),
+            Some("#/$defs/inputSpec")
+        );
+        assert_eq!(
+            schema
+                .pointer("/properties/outputs/items/$ref")
+                .and_then(serde_json::Value::as_str),
+            Some("#/$defs/outputSpec")
+        );
+        assert_eq!(
+            schema
+                .pointer("/$defs/scopeConfig/properties/defaultContentType/type")
+                .and_then(serde_json::Value::as_str),
+            Some("string")
+        );
+        assert_eq!(
+            schema
+                .pointer("/$defs/resolverSpec/required/0")
+                .and_then(serde_json::Value::as_str),
+            Some("uriPrefix")
+        );
+    }
+
+    #[test]
     fn json_run_config_parses_by_content_type() {
         let response = parse_run_config(RunConfigParseRequest {
             bytes: br#"{"resolvers":[{"uriPrefix":"cem+vfs://workspace","localRoot":"/tmp/cem-vfs","read":true}],"inputs":[{"uri":"src/a.cem","rootScope":{"defaultContentType":"application/cem+xml"}}]}"#.to_vec(),

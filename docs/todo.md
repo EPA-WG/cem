@@ -113,20 +113,22 @@ for the current architecture have landed; only deferred capability work remains 
       boundary now exists for nested `run` / `import` / `transform` / `export` nodes and explicit cross-input joins
       through `@input` and `@with:*`, and the engine graph request/response boundary exists as not-implemented API
       structs. Template identity classification now supports both XSLT and CEM-native templates. Before runtime
-      implementation, publish the CEM-native CLI transform-config schema
-      (`https://cem.dev/ns/cli/transform-config/1`), separate from CEM core document schemas and template schemas.
+      implementation, keep the checked-in CEM-native CLI transform-config schema
+      (`packages/cem_ml/schema/cli/transform-config.md`,
+      `https://cem.dev/ns/cli/transform-config/1`) separate from CEM core document schemas and template schemas.
       Runtime order: start with pure CEM-QL evaluation plus CEM-ML fragments
       with embedded CEM-QL and one implicit entrypoint; then add native named templates/modules, explicit entrypoints,
       params, imports/includes, visibility, caching, and recursion/cycle limits; then expand XSLT parity on that native
       substrate. Also define resolver behavior for template reads and output writes, diagnostics/report shape,
       source-map handling, and output behavior for stdout, `--out`, side reports, duplicate destinations, and graph
       validation.
-- [ ] **Wishlist (future — schema/tooling):** publish CLI config schemas. The JSON `RunConfig` config-file surface
-      uses schema identity `https://cem.dev/ns/cli/run-config/1` and needs JSON Schema
-      `https://cem.dev/schema/cli/run-config.schema.json` for CI/editor validation. The CEM-ML transform graph config
+- [ ] **Wishlist (future — schema/tooling):** wire CLI config schemas into generated/published artifacts. The JSON
+      `RunConfig` config-file surface uses schema identity `https://cem.dev/ns/cli/run-config/1` and has checked-in JSON
+      Schema `packages/cem_ml/schema/cli/run-config.schema.json`
+      (`https://cem.dev/schema/cli/run-config.schema.json`) for CI/editor validation. The CEM-ML transform graph config
       uses schema identity `https://cem.dev/ns/cli/transform-config/1` for the CLI config element set (`run`, `import`,
-      `transform`, `export`) and must not reuse CEM core document schema or CEM-native template schema as its validation
-      identity.
+      `transform`, `export`) and has checked-in schema artifact `packages/cem_ml/schema/cli/transform-config.md`; it must
+      not reuse CEM core document schema or CEM-native template schema as its validation identity.
 
 ## Phase 3.1 — Substrate / Legacy Compatibility Follow-Up
 

@@ -700,6 +700,41 @@ mod tests {
     }
 
     #[test]
+    fn transform_config_schema_artifact_matches_shape_table() {
+        let artifact = include_str!("../schema/cli/transform-config.md");
+
+        assert!(artifact.contains(TRANSFORM_CONFIG_SCHEMA_URI));
+        assert!(artifact.contains(TRANSFORM_CONFIG_NAMESPACE_URI));
+        for element in TRANSFORM_CONFIG_SCHEMA_ELEMENTS {
+            assert!(
+                artifact.contains(&format!("| `{}` |", element.local_name)),
+                "artifact should document `{}`",
+                element.local_name
+            );
+            for attribute in element
+                .required_attributes
+                .iter()
+                .chain(element.optional_attributes.iter())
+            {
+                assert!(
+                    artifact.contains(&format!("`{attribute}`")),
+                    "artifact should document `{}` attribute on `{}`",
+                    attribute,
+                    element.local_name
+                );
+            }
+            for child in element.child_elements {
+                assert!(
+                    artifact.contains(&format!("`{child}`")),
+                    "artifact should document `{}` child on `{}`",
+                    child,
+                    element.local_name
+                );
+            }
+        }
+    }
+
+    #[test]
     fn accepts_transform_config_schema_identity() {
         let response = parse_transform_graph_config(TransformGraphParseRequest {
             bytes: br#"{@doc cem-ml 1}{run | {import @id=book @src="book.xml"}}"#.to_vec(),

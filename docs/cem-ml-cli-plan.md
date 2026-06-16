@@ -130,13 +130,16 @@ the immediate CLI lifecycle contract.
    namespace, and version-pin option shape before document parsing, while unreadable or
    malformed module maps, unknown future budget keys, and unsupported version-pin
    targets emit deterministic execution diagnostics instead of being silently ignored.
-   Follow-up schema work: publish JSON Schema
-   `https://cem.dev/schema/cli/run-config.schema.json` for the JSON `RunConfig`
-   surface (`https://cem.dev/ns/cli/run-config/1`) and publish the CEM-native CLI
-   transform-config schema (`https://cem.dev/ns/cli/transform-config/1`) for the
-   `run` / `import` / `transform` / `export` graph syntax. The transform-config
-   schema must be separate from CEM core document schemas and from CEM-native template
-   schemas.
+   Schema artifacts: the JSON `RunConfig` surface
+   (`https://cem.dev/ns/cli/run-config/1`) has checked-in JSON Schema
+   `packages/cem_ml/schema/cli/run-config.schema.json`
+   (`https://cem.dev/schema/cli/run-config.schema.json`), and the CEM-native CLI
+   transform graph config has checked-in schema artifact
+   `packages/cem_ml/schema/cli/transform-config.md`
+   (`https://cem.dev/ns/cli/transform-config/1`) for the `run` / `import` /
+   `transform` / `export` graph syntax. The transform-config schema is separate from
+   CEM core document schemas and from CEM-native template schemas. Follow-up schema
+   work is generated/published distribution wiring for these artifacts.
    Remote/custom module-map URI values, config document reads, configured and
    positional input reads, and fixture-materialized input reads use registered
    `EngineContext` resolvers when a host installs one. Default CLI behavior stays
