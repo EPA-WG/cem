@@ -706,8 +706,9 @@ These are data shapes only. Parser-filled content remains blocked until the pars
           `TransformTemplateModulePreflight`, which the real engine builds before adapter compilation by reading declared
           imports through the template resolver, resolving relative imports against the template URI, carrying resolved
           module bytes/identity/content hashes, building the dependency graph cache-key input, and rejecting duplicate
-          aliases, reserved includes, and direct self-import cycles. Transitive module execution and recursive call
-          limits remain deferred.
+          aliases, reserved includes, and direct self-import cycles. The CEM-QL executable adapter now compiles
+          preflighted modules into its native payload and exposes import metadata on the compiled artifact. Render-time
+          module call dispatch, transitive module execution, and recursive call limits remain deferred.
         - The v1 CEM-native template declaration schema now has its own identity,
           `https://cem.dev/ns/template/cem-native/1`, and checked-in schema artifact
           `packages/cem_ml/schema/template/cem-native-template.md`. Its declaration vocabulary is `module`, `import`,
@@ -748,9 +749,9 @@ These are data shapes only. Parser-filled content remains blocked until the pars
       Execution is available through the programmatic engine API, the CLI one-liner, and CLI CEM-ML graph config dispatch
       when a host registers an executable adapter. `transform_graph` executes loaded in-memory graph requests and returns
       export artifacts; the CLI host writes configured graph exports through the resolver layer.
-      Next implementation boundary: teach executable adapters to consume preflighted modules before expanding recursive
-      calls and broader XSLT parity. The crate dependency cycle is avoided by keeping the concrete CEM-QL adapter in
-      `cem_ml_transform_cem_ql` rather than in `cem_ml`.
+      Next implementation boundary: dispatch validated native module calls during render, then expand transitive module
+      execution, recursive call limits, and broader XSLT parity. The crate dependency cycle is avoided by keeping the
+      concrete CEM-QL adapter in `cem_ml_transform_cem_ql` rather than in `cem_ml`.
 8. `cem-ml trace <input>`
     - Supported structured formats: `json`, `xml`, `cem`.
     - Reference convenience formats: `text`, `html`.

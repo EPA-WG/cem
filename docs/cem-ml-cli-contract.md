@@ -404,9 +404,10 @@ the real engine before adapter compilation. The preflight reads declared imports
 through the template resolver, resolves relative imports against the importing
 template URI, records resolved module bytes/identity/content hashes, constructs
 the dependency graph cache key input, rejects duplicate import aliases, rejects
-reserved includes, and rejects direct self-import cycles. Existing runtime
-executors still receive default module options in the current graph/runtime paths,
-so transitive module execution and recursive call limits remain deferred.
+reserved includes, and rejects direct self-import cycles. The CEM-QL executable
+adapter compiles preflighted modules into its native payload and exposes import
+metadata on the compiled artifact; render-time module call dispatch, transitive
+module execution, and recursive call limits remain deferred.
 
 `cem_ml` remains the stable API contract and cannot directly call
 `cem_ql::render` while `cem_ql` depends on `cem_ml`; executable renderers must be

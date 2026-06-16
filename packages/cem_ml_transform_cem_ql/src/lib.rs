@@ -33,6 +33,15 @@ pub struct CemQlTransformTemplateAdapter;
 #[derive(Debug, Clone)]
 struct CemQlCompiledTemplatePayload {
     artifact: TemplateArtifact,
+    modules: Vec<CemQlCompiledTemplateModulePayload>,
+}
+
+#[derive(Debug, Clone)]
+struct CemQlCompiledTemplateModulePayload {
+    alias: String,
+    uri: String,
+    content_hash: String,
+    artifact: TemplateArtifact,
 }
 
 impl TransformTemplateAdapter for CemQlTransformTemplateAdapter {
@@ -67,11 +76,36 @@ impl TransformTemplateAdapter for CemQlTransformTemplateAdapter {
             )
         })?;
         let host_bindings = host_binding_names(request.params, request.data_bindings);
-        let artifact = compile_template(source, &CompileTemplateOptions { host_bindings });
+        let artifact = compile_template(
+            source,
+            &CompileTemplateOptions {
+                host_bindings: host_bindings.clone(),
+            },
+        );
+        let modules = compile_preflighted_modules(self.id(), &request, &host_bindings)?;
+        let module_diagnostics = modules
+            .iter()
+            .map(|module| module.artifact.diagnostics.len())
+            .sum::<usize>();
+        let module_metadata = modules
+            .iter()
+            .map(|module| {
+                json!({
+                    "alias": module.alias,
+                    "uri": module.uri,
+                    "contentHash": module.content_hash,
+                    "diagnostics": module.artifact.diagnostics.len(),
+                })
+            })
+            .collect::<Vec<_>>();
         let opaque = json!({
             "engine": "cem-ql",
             "templateBytes": request.template.bytes.len(),
             "diagnostics": artifact.diagnostics.len(),
+            "moduleImports": modules.len(),
+            "moduleDiagnostics": module_diagnostics,
+            "modules": module_metadata,
+            "moduleCacheKey": request.module_preflight.cache_key.clone(),
         });
 
         Ok(TransformTemplateCompileResponse {
@@ -83,7 +117,7 @@ impl TransformTemplateAdapter for CemQlTransformTemplateAdapter {
                 request.entrypoint.clone(),
                 opaque,
             )
-            .with_native_payload(CemQlCompiledTemplatePayload { artifact }),
+            .with_native_payload(CemQlCompiledTemplatePayload { artifact, modules }),
             diagnostics: Vec::new(),
         })
     }
@@ -102,6 +136,7 @@ impl TransformTemplateAdapter for CemQlTransformTemplateAdapter {
                     "compiled template artifact was not produced by the CEM-QL adapter",
                 )
             })?;
+        let _preflighted_module_count = payload.modules.len();
         let data = template_data_from_artifacts(request.primary_input, request.secondary_inputs);
         let plan = render_compiled_template(&payload.artifact, &data);
         let rendered = render_plan_to_html(&plan);
@@ -175,6 +210,39 @@ fn host_binding_names(params: &BTreeMap<String, Value>, data_bindings: &[String]
         }
     }
     bindings
+}
+
+fn compile_preflighted_modules(
+    adapter_id: &'static str,
+    request: &TransformTemplateCompileRequest<'_>,
+    host_bindings: &[String],
+) -> TransformTemplateAdapterResult<Vec<CemQlCompiledTemplateModulePayload>> {
+    request
+        .module_preflight
+        .resolved_imports
+        .iter()
+        .map(|module| {
+            let source = std::str::from_utf8(&module.bytes).map_err(|err| {
+                TransformTemplateAdapterError::failed(
+                    adapter_id,
+                    TransformTemplateAdapterExecutionPhase::Compile,
+                    format!("template module `{}` is not valid UTF-8: {err}", module.uri),
+                )
+            })?;
+            let artifact = compile_template(
+                source,
+                &CompileTemplateOptions {
+                    host_bindings: host_bindings.to_vec(),
+                },
+            );
+            Ok(CemQlCompiledTemplateModulePayload {
+                alias: module.alias.clone(),
+                uri: module.uri.clone(),
+                content_hash: module.content_hash.clone(),
+                artifact,
+            })
+        })
+        .collect()
 }
 
 fn template_data_from_artifacts(
@@ -259,7 +327,10 @@ mod tests {
     };
     use cem_ml::real::RealCemMlEngine;
     use cem_ml::run_config::ScopeConfig;
-    use cem_ml::transform_template::TransformTemplateAdapterLookup;
+    use cem_ml::transform_template::{
+        TransformTemplateAdapterLookup, TransformTemplateModulePreflight,
+        TransformTemplateResolvedModule,
+    };
 
     #[test]
     fn adapter_compiles_and_renders_cem_native_template() {
@@ -321,6 +392,102 @@ mod tests {
                 .and_then(|identity| identity.content_type),
             Some("text/html".to_owned())
         );
+    }
+
+    #[test]
+    fn adapter_compiles_preflighted_modules_into_payload() {
+        let adapter = CemQlTransformTemplateAdapter;
+        let identity = FormatIdentity {
+            content_type: Some("text/cem-ml".to_owned()),
+            ..FormatIdentity::default()
+        };
+        let template = TemplateInput {
+            uri: "template.cem".to_owned(),
+            bytes: br#"{article | Main}"#.to_vec(),
+            identity: Some(identity.clone()),
+            root_scope: ScopeConfig::default(),
+        };
+        let params = BTreeMap::new();
+        let data_bindings = Vec::new();
+
+        let compiled = adapter
+            .compile(TransformTemplateCompileRequest {
+                template: &template,
+                entrypoint: &TransformTemplateEntrypoint::implicit(),
+                params: &params,
+                data_bindings: &data_bindings,
+                module_options: Default::default(),
+                module_preflight: TransformTemplateModulePreflight {
+                    resolved_imports: vec![TransformTemplateResolvedModule {
+                        alias: "ui".to_owned(),
+                        uri: "templates/ui.cem".to_owned(),
+                        identity: Some(identity),
+                        content_hash: "cem-bin/1+blake3:test".to_owned(),
+                        bytes: br#"{span | Imported}"#.to_vec(),
+                    }],
+                    cache_key: None,
+                },
+                execution_policy: TransformExecutionPolicy::default(),
+            })
+            .expect("template and import should compile")
+            .artifact;
+
+        assert_eq!(compiled.opaque["moduleImports"], 1);
+        assert_eq!(compiled.opaque["modules"][0]["alias"], "ui");
+        assert_eq!(
+            compiled.opaque["modules"][0]["contentHash"],
+            "cem-bin/1+blake3:test"
+        );
+        let payload = compiled
+            .native_payload::<CemQlCompiledTemplatePayload>()
+            .expect("CEM-QL payload");
+        assert_eq!(payload.modules.len(), 1);
+        assert_eq!(payload.modules[0].alias, "ui");
+        assert!(!payload.modules[0].artifact.nodes.is_empty());
+    }
+
+    #[test]
+    fn adapter_rejects_non_utf8_preflighted_modules() {
+        let adapter = CemQlTransformTemplateAdapter;
+        let identity = FormatIdentity {
+            content_type: Some("text/cem-ml".to_owned()),
+            ..FormatIdentity::default()
+        };
+        let template = TemplateInput {
+            uri: "template.cem".to_owned(),
+            bytes: br#"{article | Main}"#.to_vec(),
+            identity: Some(identity.clone()),
+            root_scope: ScopeConfig::default(),
+        };
+        let params = BTreeMap::new();
+        let data_bindings = Vec::new();
+
+        let error = adapter
+            .compile(TransformTemplateCompileRequest {
+                template: &template,
+                entrypoint: &TransformTemplateEntrypoint::implicit(),
+                params: &params,
+                data_bindings: &data_bindings,
+                module_options: Default::default(),
+                module_preflight: TransformTemplateModulePreflight {
+                    resolved_imports: vec![TransformTemplateResolvedModule {
+                        alias: "ui".to_owned(),
+                        uri: "templates/ui.cem".to_owned(),
+                        identity: Some(identity),
+                        content_hash: "cem-bin/1+blake3:test".to_owned(),
+                        bytes: vec![0xff],
+                    }],
+                    cache_key: None,
+                },
+                execution_policy: TransformExecutionPolicy::default(),
+            })
+            .expect_err("invalid module bytes should fail compile");
+
+        assert_eq!(
+            error.diagnostic_origin(),
+            cem_ml::engine::TransformDiagnosticOrigin::TemplateCompile
+        );
+        assert!(error.to_string().contains("templates/ui.cem"));
     }
 
     #[test]
