@@ -534,8 +534,26 @@ pub struct ConvertArgs {
 
 #[derive(Args, Debug)]
 pub struct TransformArgs {
-    #[arg(value_name = "DATA", help = "Path to source data for the template")]
-    pub data: PathBuf,
+    #[arg(
+        value_name = "DATA",
+        required_unless_present = "config",
+        help = "Path to source data for the template"
+    )]
+    pub data: Option<PathBuf>,
+
+    #[arg(
+        long = "config",
+        value_name = "FILE",
+        help = "Read CEM-ML transform graph configuration"
+    )]
+    pub config: Option<PathBuf>,
+
+    #[arg(
+        long = "config-content-type",
+        value_name = "TYPE",
+        help = "Content type of --config; inferred from extension when omitted"
+    )]
+    pub config_content_type: Option<String>,
 
     #[arg(
         long = "data-content-type",
@@ -554,9 +572,10 @@ pub struct TransformArgs {
     #[arg(
         long = "template",
         value_name = "FILE",
+        required_unless_present = "config",
         help = "Template or stylesheet to apply to DATA"
     )]
-    pub template: PathBuf,
+    pub template: Option<PathBuf>,
 
     #[arg(
         long = "template-content-type",
@@ -854,10 +873,10 @@ mod tests {
         let Command::Transform(args) = cli.command else {
             panic!("expected transform command");
         };
-        assert_eq!(args.data, PathBuf::from("data.xml"));
+        assert_eq!(args.data, Some(PathBuf::from("data.xml")));
         assert_eq!(args.data_content_type.as_deref(), Some("application/xml"));
         assert_eq!(args.data_schema.as_deref(), Some("data.rng"));
-        assert_eq!(args.template, PathBuf::from("view.xsl"));
+        assert_eq!(args.template, Some(PathBuf::from("view.xsl")));
         assert_eq!(
             args.template_content_type.as_deref(),
             Some("application/xslt+xml")
@@ -866,6 +885,26 @@ mod tests {
         assert_eq!(args.to_content_type.as_deref(), Some("text/html"));
         assert_eq!(args.to_schema.as_deref(), Some("html.rng"));
         assert_eq!(args.out, Some(PathBuf::from("view.html")));
+    }
+
+    #[test]
+    fn transform_config_parses() {
+        let cli = try_parse(&[
+            "transform",
+            "--config",
+            "graph.cem",
+            "--config-content-type",
+            "text/cem-ml",
+        ])
+        .unwrap();
+
+        let Command::Transform(args) = cli.command else {
+            panic!("expected transform command");
+        };
+        assert_eq!(args.data, None);
+        assert_eq!(args.template, None);
+        assert_eq!(args.config, Some(PathBuf::from("graph.cem")));
+        assert_eq!(args.config_content_type.as_deref(), Some("text/cem-ml"));
     }
 
     #[test]

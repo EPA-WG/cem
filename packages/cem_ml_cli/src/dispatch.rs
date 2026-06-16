@@ -16,6 +16,9 @@ use cem_ml::resolver::{
 use cem_ml::run_config::{
     self, InputSpec, OutputSpec, ResolverSpec, RunConfig, RunConfigDefaults, ScopeConfig,
 };
+use cem_ml::transform_config::{
+    self, TransformGraphConfig, TransformGraphEdgeRole, TransformGraphNode, TransformGraphNodeKind,
+};
 use cem_ml_transform_cem_ql::register_cem_ql_template_adapter;
 use std::collections::{BTreeMap, BTreeSet};
 use std::fs;
@@ -880,22 +883,23 @@ fn convert_target_scope(args: &cli::ConvertArgs) -> ScopeConfig {
     output_scope_defaults(args)
 }
 
-fn transform_data_scope(args: &cli::TransformArgs) -> ScopeConfig {
+fn transform_data_scope(args: &cli::TransformArgs, data: &Path) -> ScopeConfig {
     ScopeConfig {
         default_content_type: args
             .data_content_type
             .clone()
-            .or_else(|| run_config::infer_content_type_from_path(&args.data.display().to_string())),
+            .or_else(|| run_config::infer_content_type_from_path(&data.display().to_string())),
         schema: args.data_schema.clone(),
         ..ScopeConfig::default()
     }
 }
 
-fn transform_template_scope(args: &cli::TransformArgs) -> ScopeConfig {
+fn transform_template_scope(args: &cli::TransformArgs, template: &Path) -> ScopeConfig {
     ScopeConfig {
-        default_content_type: args.template_content_type.clone().or_else(|| {
-            run_config::infer_content_type_from_path(&args.template.display().to_string())
-        }),
+        default_content_type: args
+            .template_content_type
+            .clone()
+            .or_else(|| run_config::infer_content_type_from_path(&template.display().to_string())),
         schema: args.template_schema.clone(),
         ..ScopeConfig::default()
     }
@@ -913,10 +917,26 @@ fn transform_request_from_args(
     context: &eng::EngineContext,
     args: &cli::TransformArgs,
 ) -> Result<eng::TransformRequest, CliRequestError> {
-    let data = engine_input(context, &args.data, None, transform_data_scope(args))
-        .map_err(CliRequestError::Engine)?;
-    let template = template_input(context, &args.template, transform_template_scope(args))
-        .map_err(CliRequestError::Engine)?;
+    let data_path = args
+        .data
+        .as_deref()
+        .ok_or_else(|| CliRequestError::Usage("transform requires DATA or --config".into()))?;
+    let template_path = args.template.as_deref().ok_or_else(|| {
+        CliRequestError::Usage("transform requires --template or --config".into())
+    })?;
+    let data = engine_input(
+        context,
+        data_path,
+        None,
+        transform_data_scope(args, data_path),
+    )
+    .map_err(CliRequestError::Engine)?;
+    let template = template_input(
+        context,
+        template_path,
+        transform_template_scope(args, template_path),
+    )
+    .map_err(CliRequestError::Engine)?;
     let template_identity = template
         .identity
         .clone()
@@ -945,6 +965,249 @@ fn transform_request_from_args(
         },
         execution_policy: eng::TransformExecutionPolicy::default(),
     })
+}
+
+fn transform_graph_config_from_args(
+    context: &eng::EngineContext,
+    args: &cli::TransformArgs,
+) -> Result<(TransformGraphConfig, String, Option<PathBuf>), CliRequestError> {
+    let config_path = args.config.as_ref().ok_or_else(|| {
+        CliRequestError::Usage("transform graph execution requires --config".into())
+    })?;
+    let local_config_path = local_path_or_file_uri(config_path, "config path")
+        .ok()
+        .map(|path| path.into_owned());
+    let config_source_uri = config_path.display().to_string();
+    let read = read_source(
+        context,
+        config_path,
+        "config path",
+        ResolvePurpose::Config,
+        args.config_content_type.as_deref(),
+    )
+    .map_err(|source| {
+        CliRequestError::Engine(EngineError::Io {
+            path: config_path.clone(),
+            source,
+        })
+    })?;
+    let identity = eng::FormatIdentity {
+        content_type: args
+            .config_content_type
+            .clone()
+            .or_else(|| {
+                local_config_path
+                    .as_ref()
+                    .and_then(|path| infer_config_content_type(path))
+            })
+            .or_else(|| infer_config_content_type(config_path))
+            .or_else(|| read.content_type.clone()),
+        schema: Some(transform_config::TRANSFORM_CONFIG_SCHEMA_URI.to_owned()),
+        default_namespace: None,
+        namespaces: BTreeMap::new(),
+        base_uri: Some(config_source_uri.clone()),
+    };
+    let response = transform_config::parse_transform_graph_config(
+        transform_config::TransformGraphParseRequest {
+            bytes: read.bytes,
+            identity,
+            base_uri: Some(config_source_uri.clone()),
+        },
+    )
+    .map_err(|error| CliRequestError::RunConfigDiagnostics {
+        config: None,
+        diagnostics: vec![run_config_error_diagnostic(
+            error.code,
+            error.message,
+            Some(config_source_uri.clone()),
+        )],
+    })?;
+    if !response.diagnostics.is_empty() {
+        return Err(CliRequestError::RunConfigDiagnostics {
+            config: None,
+            diagnostics: response.diagnostics,
+        });
+    }
+    Ok((response.graph, config_source_uri, local_config_path))
+}
+
+fn transform_graph_path(raw: &str, config_local_path: Option<&Path>) -> PathBuf {
+    let path = Path::new(raw);
+    if path.is_absolute() || uri_scheme(raw).is_some() && !is_windows_drive_path(raw) {
+        return path.to_path_buf();
+    }
+    config_local_path
+        .and_then(Path::parent)
+        .map(|parent| parent.join(path))
+        .unwrap_or_else(|| path.to_path_buf())
+}
+
+fn transform_graph_scope(
+    content_type: Option<String>,
+    schema: Option<String>,
+    path: &Path,
+) -> ScopeConfig {
+    ScopeConfig {
+        default_content_type: content_type
+            .or_else(|| run_config::infer_content_type_from_path(&path.display().to_string())),
+        schema,
+        ..ScopeConfig::default()
+    }
+}
+
+fn transform_graph_primary_input(
+    graph: &TransformGraphConfig,
+    node: &TransformGraphNode,
+) -> Result<String, CliRequestError> {
+    if let Some(input_ref) = node.input_ref.as_ref() {
+        return Ok(input_ref.clone());
+    }
+    graph
+        .edges
+        .iter()
+        .find(|edge| {
+            edge.to == node.id
+                && matches!(
+                    edge.role,
+                    TransformGraphEdgeRole::Input | TransformGraphEdgeRole::Parent
+                )
+        })
+        .map(|edge| edge.from.clone())
+        .ok_or_else(|| {
+            CliRequestError::Usage(format!(
+                "transform graph node `{}` requires an input edge",
+                node.id
+            ))
+        })
+}
+
+fn transform_graph_request_from_config(
+    context: &eng::EngineContext,
+    graph: &TransformGraphConfig,
+    config_local_path: Option<&Path>,
+) -> Result<eng::TransformGraphRequest, CliRequestError> {
+    let mut imports = Vec::new();
+    let mut stages = Vec::new();
+    let mut exports = Vec::new();
+    let mut next_scope_id = 0u32;
+
+    for node in &graph.nodes {
+        match node.kind {
+            TransformGraphNodeKind::Import => {
+                let src = node.src.as_ref().ok_or_else(|| {
+                    CliRequestError::Usage(format!("import node `{}` requires @src", node.id))
+                })?;
+                let path = transform_graph_path(src, config_local_path);
+                let scope =
+                    transform_graph_scope(node.content_type.clone(), node.schema.clone(), &path);
+                let input =
+                    engine_input(context, &path, None, scope).map_err(CliRequestError::Engine)?;
+                imports.push(eng::TransformGraphImport {
+                    id: node.id.clone(),
+                    input,
+                    scheduler_scope_id: next_scope_id,
+                });
+                next_scope_id += 1;
+            }
+            TransformGraphNodeKind::Transform => {
+                let src = node.src.as_ref().ok_or_else(|| {
+                    CliRequestError::Usage(format!(
+                        "transform node `{}` requires template @src",
+                        node.id
+                    ))
+                })?;
+                let path = transform_graph_path(src, config_local_path);
+                let scope = transform_graph_scope(
+                    node.template_content_type.clone(),
+                    node.template_schema.clone(),
+                    &path,
+                );
+                let template =
+                    template_input(context, &path, scope).map_err(CliRequestError::Engine)?;
+                let template_identity = template
+                    .identity
+                    .clone()
+                    .unwrap_or_else(|| template.root_scope.format_identity());
+                let template_kind = match node.template_kind {
+                    Some(kind) => kind,
+                    None => eng::classify_transform_template_identity_with_registry(
+                        &template_identity,
+                        &context.template_adapter_registry,
+                    )
+                    .map_err(|error| CliRequestError::Usage(error.to_string()))?,
+                };
+                let template_load = next_scope_id;
+                let execution = next_scope_id + 1;
+                next_scope_id += 2;
+                stages.push(eng::TransformGraphStage {
+                    id: node.id.clone(),
+                    template,
+                    template_kind,
+                    template_entrypoint: eng::TransformTemplateEntrypoint::implicit(),
+                    params: BTreeMap::new(),
+                    primary_input: transform_graph_primary_input(graph, node)?,
+                    secondary_inputs: node.with.clone(),
+                    scheduler_scope_ids: eng::TransformStageSchedulerScopeIds {
+                        template_load,
+                        execution,
+                    },
+                });
+            }
+            TransformGraphNodeKind::Export => {
+                let out = node.out.as_ref().ok_or_else(|| {
+                    CliRequestError::Usage(format!("export node `{}` requires @out", node.id))
+                })?;
+                let path = transform_graph_path(out, config_local_path);
+                let target_scope =
+                    transform_graph_scope(node.content_type.clone(), node.schema.clone(), &path);
+                let target = target_scope.format_identity_option();
+                exports.push(eng::TransformGraphExport {
+                    id: node.id.clone(),
+                    input: transform_graph_primary_input(graph, node)?,
+                    destination: Some(path.display().to_string()),
+                    target,
+                    target_scope,
+                    scheduler_scope_id: next_scope_id,
+                });
+                next_scope_id += 1;
+            }
+        }
+    }
+
+    let edges = graph
+        .edges
+        .iter()
+        .map(|edge| eng::TransformGraphDependency {
+            from: edge.from.clone(),
+            to: edge.to.clone(),
+            role: match edge.role {
+                TransformGraphEdgeRole::Parent => eng::TransformGraphDependencyRole::Parent,
+                TransformGraphEdgeRole::Input => eng::TransformGraphDependencyRole::PrimaryInput,
+                TransformGraphEdgeRole::With => eng::TransformGraphDependencyRole::SecondaryInput,
+            },
+        })
+        .collect();
+
+    Ok(eng::TransformGraphRequest {
+        imports,
+        stages,
+        exports,
+        edges,
+        preserve_source_offsets: false,
+        context: context.clone(),
+        execution_policy: eng::TransformExecutionPolicy::default(),
+    })
+}
+
+fn transform_graph_request_from_args(
+    context: &eng::EngineContext,
+    args: &cli::TransformArgs,
+) -> Result<(eng::TransformGraphRequest, String), CliRequestError> {
+    let (graph, config_source_uri, local_config_path) =
+        transform_graph_config_from_args(context, args)?;
+    let request =
+        transform_graph_request_from_config(context, &graph, local_config_path.as_deref())?;
+    Ok((request, config_source_uri))
 }
 
 fn convert_target_scope_with_config(args: &cli::ConvertArgs, config: &RunConfig) -> ScopeConfig {
@@ -1600,6 +1863,7 @@ fn write_convert_report_if_requested(
 fn write_transform_report_if_requested(
     context: &eng::EngineContext,
     args: &cli::TransformArgs,
+    input_uris: &[String],
     diagnostics: &[cem_ml::diagnostics::Diagnostic],
     scheduler_trace: &cem_ml::report::SchedulerTraceReport,
 ) -> io::Result<()> {
@@ -1607,7 +1871,7 @@ fn write_transform_report_if_requested(
         return Ok(());
     }
     let report = cem_ml::report::Report::deterministic(
-        vec![args.data.display().to_string()],
+        input_uris.to_vec(),
         diagnostics.to_vec(),
         report_options_snapshot(cli::FailLevel::Validate, &args.context),
     )
@@ -2009,11 +2273,69 @@ pub fn run_convert<E: CemMlEngine + ?Sized>(
     }
 }
 
+fn write_transform_graph_artifacts(
+    context: &eng::EngineContext,
+    artifacts: &[eng::TransformGraphArtifact],
+    s: &mut Streams<'_>,
+) -> io::Result<()> {
+    for artifact in artifacts {
+        let out = artifact.destination.as_deref().map(Path::new);
+        write_document_primary(context, &artifact.primary, out, s)?;
+    }
+    Ok(())
+}
+
+fn run_transform_graph<E: CemMlEngine + ?Sized>(
+    engine: &E,
+    args: &cli::TransformArgs,
+    s: &mut Streams<'_>,
+) -> Outcome {
+    let engine_context = context(&args.context);
+    let (req, config_source_uri) = match transform_graph_request_from_args(&engine_context, args) {
+        Ok(req) => req,
+        Err(err) => return handle_cli_request_error(err, s),
+    };
+    match engine.transform_graph(req) {
+        Ok(resp) => {
+            let requested_report = report_requested(&args.report);
+            if let Err(e) = write_transform_report_if_requested(
+                &engine_context,
+                args,
+                &[config_source_uri],
+                &resp.diagnostics,
+                &resp.scheduler_trace,
+            ) {
+                let _ = writeln!(s.stderr, "cem-ml: transform report write failure: {e}");
+                return Outcome::code(EXIT_IO);
+            }
+            if !requested_report {
+                write_diagnostics(&resp.diagnostics, s);
+            }
+            if resp
+                .diagnostics
+                .iter()
+                .any(|diagnostic| diagnostic.severity.is_hard_violation())
+            {
+                return Outcome::code(EXIT_HARD_FAILURE);
+            }
+            if let Err(e) = write_transform_graph_artifacts(&engine_context, &resp.artifacts, s) {
+                let _ = writeln!(s.stderr, "cem-ml: write failure: {e}");
+                return Outcome::code(EXIT_IO);
+            }
+            Outcome::ok()
+        }
+        Err(e) => handle_engine_error(e, s),
+    }
+}
+
 pub fn run_transform<E: CemMlEngine + ?Sized>(
     engine: &E,
     args: cli::TransformArgs,
     s: &mut Streams<'_>,
 ) -> Outcome {
+    if args.config.is_some() {
+        return run_transform_graph(engine, &args, s);
+    }
     let engine_context = context(&args.context);
     let req = match transform_request_from_args(&engine_context, &args) {
         Ok(req) => req,
@@ -2025,6 +2347,11 @@ pub fn run_transform<E: CemMlEngine + ?Sized>(
             if let Err(e) = write_transform_report_if_requested(
                 &engine_context,
                 &args,
+                &[args
+                    .data
+                    .as_ref()
+                    .map(|path| path.display().to_string())
+                    .unwrap_or_default()],
                 &resp.diagnostics,
                 &resp.scheduler_trace,
             ) {
@@ -2606,6 +2933,100 @@ mod tests {
             std::fs::read_to_string(out).unwrap(),
             "<section>Done</section>"
         );
+    }
+
+    #[test]
+    fn transform_config_executes_branched_cem_native_exports() {
+        let root = std::env::temp_dir().join("cem-ml-cli-tests/transform-config-run");
+        let _ = std::fs::remove_dir_all(&root);
+        std::fs::create_dir_all(&root).unwrap();
+        std::fs::write(root.join("data.cem"), "{p @id=\"source\"}").unwrap();
+        std::fs::write(
+            root.join("html.cem"),
+            "{article | {$datadom.attributes.kind}}",
+        )
+        .unwrap();
+        std::fs::write(root.join("chart.cem"), "{svg | {$datadom.attributes.kind}}").unwrap();
+        let config = root.join("graph.cem");
+        std::fs::write(
+            &config,
+            r#"{run |
+  {import @id=book @src="data.cem" @content-type="text/cem-ml" |
+    {transform @id=html @src="html.cem" @template-content-type="text/cem-ml" |
+      {export @id=main @out="out/book.html" @content-type="text/html"}
+    }
+    {transform @id=chart @src="chart.cem" @template-content-type="text/cem-ml" |
+      {export @id=chart-out @out="out/book/chart.svg" @content-type="image/svg+xml"}
+    }
+  }
+}"#,
+        )
+        .unwrap();
+
+        let (outcome, stdout, stderr) = run(
+            &RealCemMlEngine::new(),
+            &["transform", "--config", config.to_str().unwrap()],
+        );
+
+        assert_eq!(outcome.exit_code, EXIT_OK);
+        assert!(stdout.is_empty(), "{stdout}");
+        assert!(stderr.trim().is_empty(), "{stderr}");
+        assert_eq!(
+            std::fs::read_to_string(root.join("out/book.html")).unwrap(),
+            "<article>document</article>"
+        );
+        assert_eq!(
+            std::fs::read_to_string(root.join("out/book/chart.svg")).unwrap(),
+            "<svg>document</svg>"
+        );
+    }
+
+    #[test]
+    fn transform_config_request_helper_resolves_relative_paths_from_config_dir() {
+        let root = std::env::temp_dir().join("cem-ml-cli-tests/transform-config-helper");
+        let _ = std::fs::remove_dir_all(&root);
+        std::fs::create_dir_all(&root).unwrap();
+        std::fs::write(root.join("data.cem"), "{p}").unwrap();
+        std::fs::write(root.join("view.cem"), "{section | OK}").unwrap();
+        let config = root.join("graph.cem");
+        std::fs::write(
+            &config,
+            r#"{run |
+  {import @id=book @src="data.cem" @content-type="text/cem-ml" |
+    {transform @id=html @src="view.cem" @template-content-type="text/cem-ml" |
+      {export @id=main @out="out/book.html" @content-type="text/html"}
+    }
+  }
+}"#,
+        )
+        .unwrap();
+        let parsed = parse_cli(&["transform", "--config", config.to_str().unwrap()]);
+        let cli::Command::Transform(args) = parsed.command else {
+            panic!("expected transform command");
+        };
+        let context = context(&cli::ContextOptions::default());
+
+        let (request, config_source_uri) = match transform_graph_request_from_args(&context, &args)
+        {
+            Ok(request) => request,
+            Err(_) => panic!("transform config should lower to graph request"),
+        };
+
+        assert_eq!(config_source_uri, config.display().to_string());
+        assert_eq!(
+            request.imports[0].input.uri,
+            root.join("data.cem").display().to_string()
+        );
+        assert_eq!(
+            request.stages[0].template.uri,
+            root.join("view.cem").display().to_string()
+        );
+        assert_eq!(
+            request.exports[0].destination.as_deref(),
+            Some(root.join("out/book.html").display().to_string().as_str())
+        );
+        assert_eq!(request.stages[0].primary_input, "book");
+        assert_eq!(request.exports[0].input, "html");
     }
 
     #[test]

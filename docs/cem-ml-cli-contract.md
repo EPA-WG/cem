@@ -191,8 +191,11 @@ Current implementation slice:
 - `RealCemMlEngine::transform_graph` executes the first in-memory graph runtime slice
   for CEM-native template stages when an executable adapter is registered. It imports
   graph data, executes one-to-one stages once their primary and secondary artifacts
-  are available, and returns export artifacts in the response. It does not yet write
-  graph export destinations through the resolver layer.
+  are available, and returns export artifacts in the response.
+- `cem-ml transform --config FILE` lowers transform config into `TransformGraphRequest`
+  in the CLI host, resolves relative import/template/export paths against the config
+  document path, and writes graph export artifacts to configured destinations through
+  the resolver layer.
 
 The Rust/WASM engine API models transform as a first-class graph request/response
 pair instead of smuggling template information through `ConvertRequest` or CLI-only
@@ -268,7 +271,9 @@ transform nodes when identity is explicit or can be inferred from `@src`, and em
 deterministic diagnostics for unsupported or missing template identity. CLI dispatch
 executes the one-to-one CEM-native path through the host-registered CEM-QL adapter.
 Programmatic graph execution is available through `RealCemMlEngine::transform_graph`;
-CLI config graph dispatch and XSLT execution remain deferred.
+CLI config graph dispatch is available for concrete CEM-native graph paths. XSLT
+execution, input glob enumeration, and named output path-template expansion remain
+deferred.
 
 The first concrete executable CEM-native adapter lives in
 `cem_ml_transform_cem_ql`, outside `cem_ml`, so it can depend on both `cem_ml` and
@@ -547,8 +552,9 @@ I/O messages, but they must not replace the underlying resolver code or URI.
   ```
 
   It also accepts `--data-schema`, `--template-schema`, `--to-schema`, shared context options, and
-  `--report-json` / `--report-md`. The current CLI runtime executes the one-to-one CEM-native path; programmatic graph
-  execution exists in the engine, while CLI graph config dispatch and XML+XSLT execution remain deferred.
+  `--report-json` / `--report-md`. The current CLI runtime executes the one-to-one CEM-native path and CEM-ML
+  `--config` graph dispatch for concrete paths. XML+XSLT execution, input glob enumeration, and named output
+  path-template expansion remain deferred.
 - Multi-source configuration via config file, plus repeatable CSV option records for
   CLI one-liners. Config files are preferred for CI/build reproducibility.
 - Config-file content type via `--config-content-type`, inferred from extension when
