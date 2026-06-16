@@ -42,7 +42,10 @@ mod tests {
     use super::*;
     use diagnostics::{Diagnostic, Severity};
     use engine::FailLevel;
-    use report::{Report, ReportOptionsSnapshot, DETERMINISTIC_TIMESTAMP};
+    use report::{
+        Report, ReportOptionsSnapshot, TransformGraphExportReport, TransformGraphReport,
+        DETERMINISTIC_TIMESTAMP,
+    };
 
     fn diag(sev: Severity) -> Diagnostic {
         Diagnostic {
@@ -156,6 +159,49 @@ mod tests {
             v.pointer("/reportAst/schedulerTrace/eventCount")
                 .and_then(|v| v.as_u64()),
             Some(0)
+        );
+    }
+
+    #[test]
+    fn report_serializes_optional_transform_graph_projection() {
+        let mut report = Report::deterministic(
+            vec!["graph.cem".into()],
+            vec![],
+            ReportOptionsSnapshot {
+                fail_level: FailLevel::Validate,
+                schema: None,
+                content_type: None,
+                base_uri: None,
+            },
+        );
+        report.report_ast.transform_graph = Some(TransformGraphReport {
+            export_count: 1,
+            exports: vec![TransformGraphExportReport {
+                export_id: "main".into(),
+                destination: Some("out/page.html".into()),
+                content_type: Some("text/html".into()),
+                schema: None,
+                output_kind: "document".into(),
+            }],
+        });
+
+        let v = serde_json::to_value(&report).unwrap();
+        assert_eq!(v["reportAst"]["transformGraph"]["exportCount"], 1);
+        assert_eq!(
+            v["reportAst"]["transformGraph"]["exports"][0]["exportId"],
+            "main"
+        );
+        assert_eq!(
+            v["reportAst"]["transformGraph"]["exports"][0]["destination"],
+            "out/page.html"
+        );
+        assert_eq!(
+            v["reportAst"]["transformGraph"]["exports"][0]["contentType"],
+            "text/html"
+        );
+        assert_eq!(
+            v["reportAst"]["transformGraph"]["exports"][0]["outputKind"],
+            "document"
         );
     }
 }

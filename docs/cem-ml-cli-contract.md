@@ -625,6 +625,18 @@ Reports keep deterministic field names:
 - `options.schema`
 - `options.contentType`
 - `options.baseUri`
+- `reportAst.schedulerTrace.eventCount`
+- `reportAst.schedulerTrace.events[]`
+- optional `reportAst.transformGraph.exportCount`
+- optional `reportAst.transformGraph.exports[]`
+
+Transform graph export report entries keep:
+
+- `exportId`
+- optional `destination`
+- optional `contentType`
+- optional `schema`
+- `outputKind`
 
 The deterministic default timestamp for feature tests is `1970-01-01T00:00:00.000Z`.
 

@@ -2183,17 +2183,59 @@ fn write_transform_report_if_requested(
     input_uris: &[String],
     diagnostics: &[cem_ml::diagnostics::Diagnostic],
     scheduler_trace: &cem_ml::report::SchedulerTraceReport,
+    transform_graph: Option<cem_ml::report::TransformGraphReport>,
 ) -> io::Result<()> {
     if !report_requested(&args.report) {
         return Ok(());
     }
-    let report = cem_ml::report::Report::deterministic(
+    let mut report = cem_ml::report::Report::deterministic(
         input_uris.to_vec(),
         diagnostics.to_vec(),
         report_options_snapshot(cli::FailLevel::Validate, &args.context),
     )
     .with_scheduler_trace_report(scheduler_trace.clone());
+    report.report_ast.transform_graph = transform_graph;
     write_report_files(context, &report, &args.report, REPORT_BASENAME_TRANSFORM)
+}
+
+fn transform_graph_output_kind(primary: &serde_json::Value) -> String {
+    match primary {
+        serde_json::Value::String(_) => "document".to_owned(),
+        serde_json::Value::Object(map) => map
+            .get("kind")
+            .and_then(serde_json::Value::as_str)
+            .unwrap_or("object")
+            .to_owned(),
+        serde_json::Value::Array(_) => "array".to_owned(),
+        serde_json::Value::Bool(_) => "boolean".to_owned(),
+        serde_json::Value::Number(_) => "number".to_owned(),
+        serde_json::Value::Null => "null".to_owned(),
+    }
+}
+
+fn transform_graph_report_from_artifacts(
+    artifacts: &[eng::TransformGraphArtifact],
+) -> cem_ml::report::TransformGraphReport {
+    let exports = artifacts
+        .iter()
+        .map(|artifact| cem_ml::report::TransformGraphExportReport {
+            export_id: artifact.export_id.clone(),
+            destination: artifact.destination.clone(),
+            content_type: artifact
+                .identity
+                .as_ref()
+                .and_then(|identity| identity.content_type.clone()),
+            schema: artifact
+                .identity
+                .as_ref()
+                .and_then(|identity| identity.schema.clone()),
+            output_kind: transform_graph_output_kind(&artifact.primary),
+        })
+        .collect::<Vec<_>>();
+    cem_ml::report::TransformGraphReport {
+        export_count: exports.len() as u64,
+        exports,
+    }
 }
 
 fn render_report_markdown(report: &cem_ml::report::Report) -> String {
@@ -2209,6 +2251,21 @@ fn render_report_markdown(report: &cem_ml::report::Report) -> String {
         "- hardViolations: {}\n",
         report.summary.hard_violation_count
     ));
+    if let Some(transform_graph) = &report.report_ast.transform_graph {
+        out.push_str("\n## transform graph\n\n");
+        out.push_str(&format!("- exports: {}\n", transform_graph.export_count));
+        for export in &transform_graph.exports {
+            out.push_str(&format!(
+                "- {} -> {}",
+                export.export_id,
+                export.destination.as_deref().unwrap_or("<stdout>")
+            ));
+            if let Some(content_type) = export.content_type.as_deref() {
+                out.push_str(&format!(" ({content_type})"));
+            }
+            out.push('\n');
+        }
+    }
     out
 }
 
@@ -2621,6 +2678,7 @@ fn run_transform_graph<E: CemMlEngine + ?Sized>(
                 &[config_source_uri],
                 &resp.diagnostics,
                 &resp.scheduler_trace,
+                Some(transform_graph_report_from_artifacts(&resp.artifacts)),
             ) {
                 let _ = writeln!(s.stderr, "cem-ml: transform report write failure: {e}");
                 return Outcome::code(EXIT_IO);
@@ -2671,6 +2729,7 @@ pub fn run_transform<E: CemMlEngine + ?Sized>(
                     .unwrap_or_default()],
                 &resp.diagnostics,
                 &resp.scheduler_trace,
+                None,
             ) {
                 let _ = writeln!(s.stderr, "cem-ml: transform report write failure: {e}");
                 return Outcome::code(EXIT_IO);
@@ -3351,6 +3410,118 @@ mod tests {
             std::fs::read_to_string(root.join("out/ch02/img/chart-1.cem.svg")).unwrap(),
             "<svg>document</svg>"
         );
+    }
+
+    #[test]
+    fn transform_config_report_records_graph_exports() {
+        let root = std::env::temp_dir().join("cem-ml-cli-tests/transform-config-report");
+        let _ = std::fs::remove_dir_all(&root);
+        std::fs::create_dir_all(&root).unwrap();
+        std::fs::write(root.join("data.cem"), "{p @id=\"source\"}").unwrap();
+        std::fs::write(
+            root.join("html.cem"),
+            "{article | {$datadom.attributes.kind}}",
+        )
+        .unwrap();
+        std::fs::write(root.join("svg.cem"), "{svg | {$datadom.attributes.kind}}").unwrap();
+        let config = root.join("graph.cem");
+        let report = root.join("report.json");
+        std::fs::write(
+            &config,
+            r#"{run |
+  {import @id=book @src="data.cem" @content-type="text/cem-ml" |
+    {transform @id=html @src="html.cem" @template-content-type="text/cem-ml" |
+      {export @id=main @out="out/{stem}.html" @content-type="text/html"}
+    }
+    {transform @id=svg @src="svg.cem" @template-content-type="text/cem-ml" |
+      {export @id=chart @out="out/{stem}.svg" @content-type="image/svg+xml"}
+    }
+  }
+}"#,
+        )
+        .unwrap();
+
+        let (outcome, stdout, stderr) = run(
+            &RealCemMlEngine::new(),
+            &[
+                "transform",
+                "--config",
+                config.to_str().unwrap(),
+                "--report-json",
+                report.to_str().unwrap(),
+            ],
+        );
+
+        assert_eq!(outcome.exit_code, EXIT_OK);
+        assert!(stdout.is_empty(), "{stdout}");
+        assert!(stderr.trim().is_empty(), "{stderr}");
+        let report: serde_json::Value =
+            serde_json::from_str(&std::fs::read_to_string(report).unwrap()).unwrap();
+        assert_eq!(report["summary"]["inputCount"], 1);
+        assert_eq!(report["reportAst"]["transformGraph"]["exportCount"], 2);
+        assert_eq!(
+            report["reportAst"]["transformGraph"]["exports"][0]["exportId"],
+            "main"
+        );
+        assert_eq!(
+            report["reportAst"]["transformGraph"]["exports"][0]["destination"],
+            root.join("out/data.html").display().to_string()
+        );
+        assert_eq!(
+            report["reportAst"]["transformGraph"]["exports"][0]["contentType"],
+            "text/html"
+        );
+        assert_eq!(
+            report["reportAst"]["transformGraph"]["exports"][0]["outputKind"],
+            "document"
+        );
+        assert_eq!(
+            report["reportAst"]["transformGraph"]["exports"][1]["contentType"],
+            "image/svg+xml"
+        );
+    }
+
+    #[test]
+    fn transform_config_markdown_report_lists_graph_exports() {
+        let root = std::env::temp_dir().join("cem-ml-cli-tests/transform-config-report-md");
+        let _ = std::fs::remove_dir_all(&root);
+        std::fs::create_dir_all(&root).unwrap();
+        std::fs::write(root.join("data.cem"), "{p}").unwrap();
+        std::fs::write(root.join("view.cem"), "{section | OK}").unwrap();
+        let config = root.join("graph.cem");
+        let report = root.join("report.md");
+        std::fs::write(
+            &config,
+            r#"{run |
+  {import @id=book @src="data.cem" @content-type="text/cem-ml" |
+    {transform @id=html @src="view.cem" @template-content-type="text/cem-ml" |
+      {export @id=main @out="out/{stem}.html" @content-type="text/html"}
+    }
+  }
+}"#,
+        )
+        .unwrap();
+
+        let (outcome, stdout, stderr) = run(
+            &RealCemMlEngine::new(),
+            &[
+                "transform",
+                "--config",
+                config.to_str().unwrap(),
+                "--report-md",
+                report.to_str().unwrap(),
+            ],
+        );
+
+        assert_eq!(outcome.exit_code, EXIT_OK);
+        assert!(stdout.is_empty(), "{stdout}");
+        assert!(stderr.trim().is_empty(), "{stderr}");
+        let markdown = std::fs::read_to_string(report).unwrap();
+        assert!(markdown.contains("## transform graph"));
+        assert!(markdown.contains("- exports: 1"));
+        assert!(markdown.contains("main ->"));
+        assert!(markdown.contains("out/data.html"));
+        assert!(markdown.contains("(text/html)"));
     }
 
     #[test]
