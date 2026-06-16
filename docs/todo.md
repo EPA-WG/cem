@@ -111,9 +111,9 @@ for the current architecture have landed; only deferred capability work remains 
       [`cem-ml-cli-contract.md`](cem-ml-cli-contract.md#planned-option-behavior) and
       [`cem-ml-cli-plan.md`](cem-ml-cli-plan.md#phase-6---command-behavior). The CEM-ML graph config parser/lowering
       boundary now exists for nested `run` / `import` / `join` / `transform` / `export` nodes, explicit collect joins,
-      source-binding group-by joins, same-binding match-by joins, and cross-input references through `@input` and
-      `@with:*`, and the engine graph request/response boundary now has a first in-memory CEM-native execution slice for
-      loaded programmatic requests.
+      source-binding group-by joins, same-binding match-by joins, positional zip joins, and cross-input references
+      through `@input` and `@with:*`, and the engine graph request/response boundary now has a first in-memory
+      CEM-native execution slice for loaded programmatic requests.
       Template identity classification now supports both
       XSLT and CEM-native templates through
       `TransformTemplateAdapterRegistry`; CEM-native templates are insulated as registered template content-type/schema
@@ -151,6 +151,9 @@ for the current architecture have landed; only deferred capability work remains 
       Same-binding `join @mode="match-by" @by="NAME" @with:LABEL="NODE"` graph nodes aggregate one collection artifact
       per primary key, attach same-key named secondary artifacts, and expose downstream `{key}`, `{count}`, and `{NAME}`
       bindings. Missing secondary matches produce empty named secondary collections rather than fatal errors.
+      Positional `join @mode="zip" @with:LABEL="NODE"` graph nodes aggregate one collection artifact per index across
+      primary and named secondary artifact streams, expose downstream `{index}` and `{count}` bindings, and fail when any
+      input stream has a different count.
       Transform graph reports now include `reportAst.transformGraph` export metadata for resolved export IDs,
       destinations, content identities, output kinds, source-map presence, output-span counts, and sidecar refs. Graph
       exports with artifact source maps write `{destination}.map` sidecars through the output resolver.
@@ -161,7 +164,7 @@ for the current architecture have landed; only deferred capability work remains 
       with embedded CEM-QL and one implicit entrypoint; then add local filename-glob input enumeration plus named
       path-template expansion for graph configs; then add native named templates/modules, explicit entrypoints, params,
       imports/includes, visibility, caching, and recursion/cycle limits; then expand XSLT parity on that native
-      substrate. Next runtime implementation work is zipped joins before XSLT parity.
+      substrate. Next runtime implementation work is CEM-native template semantics before XSLT parity.
       The separate adapter crate avoids the dependency cycle where `cem_ql`
       currently depends on `cem_ml`.
 - [ ] **Wishlist (future — schema/tooling):** wire CLI config schemas into generated/published artifacts. The JSON

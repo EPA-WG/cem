@@ -613,7 +613,8 @@ These are data shapes only. Parser-filled content remains blocked until the pars
       `--config` graph dispatch for concrete paths plus local and resolver-backed filename import globs, optional `**`
       recursive import glob segments, explicit `join @mode="collect"` aggregation, and source-binding
       `join @mode="group-by" @by="..."` aggregation, and same-binding
-      `join @mode="match-by" @by="..." @with:...` aggregation.
+      `join @mode="match-by" @by="..." @with:...` aggregation, and positional
+      `join @mode="zip" @with:...` aggregation.
       `RealCemMlEngine::transform_graph` executes CEM-native graph requests; XML+XSLT execution remains deferred.
     - Current config slice: `cem_ml::transform_config::parse_transform_graph_config` parses CEM-ML
       `run` / `import` / `join` / `transform` / `export` graph config and validates missing required operation
@@ -686,9 +687,11 @@ These are data shapes only. Parser-filled content remains blocked until the pars
           distinct binding value and expose downstream `{key}`, `{count}`, and `{NAME}` bindings. Same-binding
           `join @mode="match-by" @by="NAME" @with:LABEL="NODE"` nodes aggregate one collection artifact per primary key,
           attach same-key named secondary artifacts, and expose downstream `{key}`, `{count}`, and `{NAME}` bindings.
-          Missing secondary matches produce empty named secondary collections rather than fatal errors. Resolver-backed
-          globs require explicit list-capable resolvers, sort matches by resolved URI, and enforce a deterministic
-          max-entry guard. Zipped joins remain deferred.
+          Missing secondary matches produce empty named secondary collections rather than fatal errors. Positional
+          `join @mode="zip" @with:LABEL="NODE"` nodes aggregate one collection artifact per index across primary and
+          named secondary artifact streams, expose downstream `{index}` and `{count}` bindings, and fail when any input
+          stream has a different count. Resolver-backed globs require explicit list-capable resolvers, sort matches by
+          resolved URI, and enforce a deterministic max-entry guard.
         - Report and source-map behavior for diagnostics that may originate from data, template compilation, template
           execution, or output export. Current CLI report destinations suppress diagnostic stderr and use
           `cem-ml.transform.report` as the default report basename. Graph transform reports include
@@ -701,8 +704,8 @@ These are data shapes only. Parser-filled content remains blocked until the pars
       Execution is available through the programmatic engine API, the CLI one-liner, and CLI CEM-ML graph config dispatch
       when a host registers an executable adapter. `transform_graph` executes loaded in-memory graph requests and returns
       export artifacts; the CLI host writes configured graph exports through the resolver layer.
-      Next implementation boundary: design zipped joins. The crate dependency cycle is avoided by keeping the concrete
-      CEM-QL adapter in `cem_ml_transform_cem_ql` rather than in `cem_ml`.
+      Next implementation boundary: expand CEM-native template semantics before XSLT parity. The crate dependency cycle
+      is avoided by keeping the concrete CEM-QL adapter in `cem_ml_transform_cem_ql` rather than in `cem_ml`.
 8. `cem-ml trace <input>`
     - Supported structured formats: `json`, `xml`, `cem`.
     - Reference convenience formats: `text`, `html`.

@@ -897,11 +897,13 @@ fn collect_transform_graph_join(
         TransformGraphJoinMode::Collect => "collect",
         TransformGraphJoinMode::GroupBy => "group-by",
         TransformGraphJoinMode::MatchBy => "match-by",
+        TransformGraphJoinMode::Zip => "zip",
     };
     match join.mode {
         TransformGraphJoinMode::Collect
         | TransformGraphJoinMode::GroupBy
-        | TransformGraphJoinMode::MatchBy => {
+        | TransformGraphJoinMode::MatchBy
+        | TransformGraphJoinMode::Zip => {
             let mut by_input = join
                 .input_names
                 .iter()

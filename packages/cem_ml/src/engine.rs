@@ -677,6 +677,7 @@ pub enum TransformGraphJoinMode {
     Collect,
     GroupBy,
     MatchBy,
+    Zip,
 }
 
 #[derive(Debug, Clone)]

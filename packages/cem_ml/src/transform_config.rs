@@ -136,6 +136,7 @@ pub enum TransformGraphJoinMode {
     Collect,
     GroupBy,
     MatchBy,
+    Zip,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
@@ -493,11 +494,15 @@ impl GraphLowerer<'_> {
                         ),
                     );
                 }
-                if node.join_mode == Some(TransformGraphJoinMode::MatchBy) && node.with.is_empty() {
+                if matches!(
+                    node.join_mode,
+                    Some(TransformGraphJoinMode::MatchBy | TransformGraphJoinMode::Zip)
+                ) && node.with.is_empty()
+                {
                     self.push_diag(
                         "cem.transform_config.join_with_missing",
                         format!(
-                            "join node `{}` with `@mode=\"match-by\"` requires at least one `@with:*` input",
+                            "join node `{}` with `@mode` requiring secondary inputs must declare at least one `@with:*` input",
                             node.id
                         ),
                     );
@@ -711,10 +716,11 @@ fn parse_join_mode(
         "collect" => Ok(Some(TransformGraphJoinMode::Collect)),
         "group-by" => Ok(Some(TransformGraphJoinMode::GroupBy)),
         "match-by" => Ok(Some(TransformGraphJoinMode::MatchBy)),
+        "zip" => Ok(Some(TransformGraphJoinMode::Zip)),
         other => Err((
             "cem.transform_config.join_mode_unsupported",
             format!(
-                "join node `{node_id}` uses unsupported `@mode` `{other}`; use `collect`, `group-by`, or `match-by`"
+                "join node `{node_id}` uses unsupported `@mode` `{other}`; use `collect`, `group-by`, `match-by`, or `zip`"
             ),
         )),
     }
@@ -1057,6 +1063,34 @@ mod tests {
     }
 
     #[test]
+    fn parses_zip_join_nodes() {
+        let response = parse(
+            r#"{@doc cem-ml 1}
+{run |
+  {import @id=chapters @src="chapters/*.cem" |
+    {join @id=pages @mode="zip" @with:metadata=metadata |
+      {export @id=html @out="pages/{index}.html"}
+    }
+  }
+  {import @id=metadata @src="metadata/*.cem"}
+}"#,
+        );
+
+        let join = response
+            .graph
+            .nodes
+            .iter()
+            .find(|node| node.id == "pages")
+            .expect("join node");
+        assert_eq!(join.kind, TransformGraphNodeKind::Join);
+        assert_eq!(join.join_mode, Some(TransformGraphJoinMode::Zip));
+        assert_eq!(
+            join.with.get("metadata").map(String::as_str),
+            Some("metadata")
+        );
+    }
+
+    #[test]
     fn validates_missing_required_attrs_duplicate_ids_refs_and_outputs() {
         let response = parse(
             r#"{@doc cem-ml 1}
@@ -1064,9 +1098,10 @@ mod tests {
   {import @id=a}
   {import @id=a @src="other.xml"}
   {import @id=source2 @src="source2.xml" |
-    {join @id=bad-join @mode="zip"}
+    {join @id=bad-join @mode="merge"}
     {join @id=bad-group @mode="group-by"}
     {join @id=bad-match @mode="match-by" @by="id"}
+    {join @id=bad-zip @mode="zip"}
   }
   {import @id=source @src="source.xml" |
     {transform @id=t @with:missing=unknown |

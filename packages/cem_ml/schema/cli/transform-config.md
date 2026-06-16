@@ -33,6 +33,9 @@ Namespace URI: `https://cem.dev/ns/cli/transform-config/1`
 - `join @mode="match-by" @by="NAME" @with:LABEL="NODE"` creates one collection
   artifact for each primary input key and attaches same-key named secondary
   input artifacts.
+- `join @mode="zip" @with:LABEL="NODE"` creates one collection artifact for
+  each positional tuple across primary and named secondary input artifacts.
+  Unequal input counts are a schema validation failure.
 - `transform` creates a template application node from `@src`.
 - `export` creates a sink node from `@out`.
 - Nested operation nodes create parent graph edges.
@@ -40,7 +43,7 @@ Namespace URI: `https://cem.dev/ns/cli/transform-config/1`
 - `@with:*` creates named side-input edges to existing graph nodes.
 - `join` is the only supported cardinality-changing operation in this slice.
   Supported join modes are `collect`, source-binding `group-by`, and
-  same-binding `match-by`.
+  same-binding `match-by`, and positional `zip`.
 - Graph node IDs are explicit `@id` values or parser-generated fallback IDs.
 - Duplicate IDs, unknown references, cycles, missing required attributes, and
   duplicate output destinations are schema validation failures.

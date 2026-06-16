@@ -1603,6 +1603,7 @@ fn to_engine_join_mode(mode: TransformGraphJoinMode) -> eng::TransformGraphJoinM
         TransformGraphJoinMode::Collect => eng::TransformGraphJoinMode::Collect,
         TransformGraphJoinMode::GroupBy => eng::TransformGraphJoinMode::GroupBy,
         TransformGraphJoinMode::MatchBy => eng::TransformGraphJoinMode::MatchBy,
+        TransformGraphJoinMode::Zip => eng::TransformGraphJoinMode::Zip,
     }
 }
 
@@ -1760,6 +1761,61 @@ fn transform_graph_match_by_join_groups(
         .collect())
 }
 
+fn transform_graph_zip_join_groups(
+    node: &TransformGraphNode,
+    primary_variants: Vec<TransformGraphArtifactVariant>,
+    variants: &BTreeMap<String, Vec<TransformGraphArtifactVariant>>,
+    config_source_uri: &str,
+) -> Result<Vec<TransformGraphJoinGroup>, CliRequestError> {
+    if node.with.is_empty() {
+        return Err(transform_config_error(
+            config_source_uri,
+            "cem.transform_config.join_with_missing",
+            format!(
+                "join node `{}` with `@mode=\"zip\"` requires at least one `@with:*` input",
+                node.id
+            ),
+        ));
+    }
+
+    let primary_count = primary_variants.len();
+    let mut secondary_inputs = BTreeMap::new();
+    for (name, target) in &node.with {
+        let secondary_variants =
+            transform_graph_variants_for_ref(variants, &node.id, &format!("with:{name}"), target)?;
+        if secondary_variants.len() != primary_count {
+            return Err(transform_config_error(
+                config_source_uri,
+                "cem.transform_config.join_zip_count_mismatch",
+                format!(
+                    "join node `{}` cannot zip primary input count {} with `@with:{name}` count {}; zip joins require equal input counts",
+                    node.id,
+                    primary_count,
+                    secondary_variants.len()
+                ),
+            ));
+        }
+        secondary_inputs.insert(name.clone(), secondary_variants);
+    }
+
+    Ok(primary_variants
+        .into_iter()
+        .enumerate()
+        .map(|(index, primary)| {
+            let id = transform_graph_variant_id(&node.id, index, primary_count);
+            let mut inputs = vec![("primary".to_owned(), primary)];
+            for (name, secondary_variants) in &secondary_inputs {
+                inputs.push((name.clone(), secondary_variants[index].clone()));
+            }
+            let bindings = BTreeMap::from([
+                ("count".to_owned(), inputs.len().to_string()),
+                ("index".to_owned(), index.to_string()),
+            ]);
+            (id, inputs, bindings)
+        })
+        .collect())
+}
+
 fn transform_graph_request_from_config(
     context: &eng::EngineContext,
     graph: &TransformGraphConfig,
@@ -1841,10 +1897,19 @@ fn transform_graph_request_from_config(
                         &variants,
                         config_source_uri,
                     )?,
+                    TransformGraphJoinMode::Zip => transform_graph_zip_join_groups(
+                        node,
+                        input_variants,
+                        &variants,
+                        config_source_uri,
+                    )?,
                 };
                 let mut output_variants = Vec::new();
                 for (join_id, input_variants, bindings) in grouped_variants {
-                    let input_names = if mode == TransformGraphJoinMode::MatchBy {
+                    let input_names = if matches!(
+                        mode,
+                        TransformGraphJoinMode::MatchBy | TransformGraphJoinMode::Zip
+                    ) {
                         std::iter::once("primary".to_owned())
                             .chain(node.with.keys().cloned())
                             .collect::<Vec<_>>()
@@ -1873,11 +1938,16 @@ fn transform_graph_request_from_config(
                         scheduler_scope_id: next_scope_id,
                     });
                     next_scope_id += 1;
-                    for (_, variant) in input_variants {
+                    for (input_name, variant) in input_variants {
+                        let role = if input_name == "primary" {
+                            to_engine_dependency_role(input_role)
+                        } else {
+                            eng::TransformGraphDependencyRole::SecondaryInput
+                        };
                         edges.push(eng::TransformGraphDependency {
                             from: variant.id,
                             to: join_id.clone(),
-                            role: to_engine_dependency_role(input_role),
+                            role,
                         });
                     }
                     output_variants.push(TransformGraphArtifactVariant {
@@ -4283,6 +4353,92 @@ mod tests {
             "<article>1</article>"
         );
         assert!(!root.join("out/bob-2.html").exists());
+    }
+
+    #[test]
+    fn transform_config_zip_join_feeds_positional_transforms() {
+        let root = std::env::temp_dir().join("cem-ml-cli-tests/transform-config-zip-join");
+        let _ = std::fs::remove_dir_all(&root);
+        std::fs::create_dir_all(root.join("pages")).unwrap();
+        std::fs::create_dir_all(root.join("metadata")).unwrap();
+        std::fs::write(root.join("pages/001.cem"), "{p @id=\"one\"}").unwrap();
+        std::fs::write(root.join("pages/002.cem"), "{p @id=\"two\"}").unwrap();
+        std::fs::write(root.join("metadata/001.cem"), "{p @id=\"meta-one\"}").unwrap();
+        std::fs::write(root.join("metadata/002.cem"), "{p @id=\"meta-two\"}").unwrap();
+        std::fs::write(root.join("summary.cem"), "{article | {$input.count}}").unwrap();
+        let config = root.join("graph.cem");
+        std::fs::write(
+            &config,
+            r#"{run |
+  {import @id=metadata @src="metadata/*.cem" @content-type="text/cem-ml"}
+  {import @id=pages @src="pages/*.cem" @content-type="text/cem-ml" |
+    {join @id=page @mode="zip" @with:metadata=metadata |
+      {transform @id=summary @src="summary.cem" @template-content-type="text/cem-ml" |
+        {export @id=html @out="out/{index}-{count}.html" @content-type="text/html"}
+      }
+    }
+  }
+}"#,
+        )
+        .unwrap();
+
+        let (outcome, stdout, stderr) = run(
+            &RealCemMlEngine::new(),
+            &["transform", "--config", config.to_str().unwrap()],
+        );
+
+        assert_eq!(outcome.exit_code, EXIT_OK);
+        assert!(stdout.is_empty(), "{stdout}");
+        assert!(stderr.trim().is_empty(), "{stderr}");
+        assert_eq!(
+            std::fs::read_to_string(root.join("out/0-2.html")).unwrap(),
+            "<article>2</article>"
+        );
+        assert_eq!(
+            std::fs::read_to_string(root.join("out/1-2.html")).unwrap(),
+            "<article>2</article>"
+        );
+        assert!(!root.join("out/2-2.html").exists());
+    }
+
+    #[test]
+    fn transform_config_zip_join_rejects_count_mismatch() {
+        let root = std::env::temp_dir().join("cem-ml-cli-tests/transform-config-zip-join-mismatch");
+        let _ = std::fs::remove_dir_all(&root);
+        std::fs::create_dir_all(root.join("pages")).unwrap();
+        std::fs::create_dir_all(root.join("metadata")).unwrap();
+        std::fs::write(root.join("pages/001.cem"), "{p @id=\"one\"}").unwrap();
+        std::fs::write(root.join("pages/002.cem"), "{p @id=\"two\"}").unwrap();
+        std::fs::write(root.join("metadata/001.cem"), "{p @id=\"meta-one\"}").unwrap();
+        std::fs::write(root.join("summary.cem"), "{article | {$input.count}}").unwrap();
+        let config = root.join("graph.cem");
+        std::fs::write(
+            &config,
+            r#"{run |
+  {import @id=metadata @src="metadata/*.cem" @content-type="text/cem-ml"}
+  {import @id=pages @src="pages/*.cem" @content-type="text/cem-ml" |
+    {join @id=page @mode="zip" @with:metadata=metadata |
+      {transform @id=summary @src="summary.cem" @template-content-type="text/cem-ml" |
+        {export @id=html @out="out/{index}-{count}.html" @content-type="text/html"}
+      }
+    }
+  }
+}"#,
+        )
+        .unwrap();
+
+        let (outcome, stdout, stderr) = run(
+            &RealCemMlEngine::new(),
+            &["transform", "--config", config.to_str().unwrap()],
+        );
+
+        assert_eq!(outcome.exit_code, EXIT_USAGE_OR_RESERVED);
+        assert!(stdout.is_empty(), "{stdout}");
+        assert!(
+            stderr.contains("cem.transform_config.join_zip_count_mismatch"),
+            "{stderr}"
+        );
+        assert!(!root.join("out/0-2.html").exists());
     }
 
     #[test]
