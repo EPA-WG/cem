@@ -416,7 +416,7 @@ fn render_payload_template(
     data: &TemplateData,
 ) -> RenderPlan {
     let mut plan = render_compiled_template(&payload.artifact, data);
-    let nodes = expand_call_nodes(&plan.nodes, payload, data, 0, &mut plan.diagnostics);
+    let nodes = expand_call_nodes(&plan.nodes, payload, None, data, 0, &mut plan.diagnostics);
     RenderPlan {
         nodes,
         diagnostics: plan.diagnostics,
@@ -426,19 +426,21 @@ fn render_payload_template(
 fn expand_call_nodes(
     nodes: &[RenderPlanNode],
     payload: &CemQlCompiledTemplatePayload,
+    current_module: Option<&CemQlCompiledTemplateModulePayload>,
     data: &TemplateData,
     depth: u32,
     diagnostics: &mut Vec<Diagnostic>,
 ) -> Vec<RenderPlanNode> {
     nodes
         .iter()
-        .flat_map(|node| expand_call_node(node, payload, data, depth, diagnostics))
+        .flat_map(|node| expand_call_node(node, payload, current_module, data, depth, diagnostics))
         .collect()
 }
 
 fn expand_call_node(
     node: &RenderPlanNode,
     payload: &CemQlCompiledTemplatePayload,
+    current_module: Option<&CemQlCompiledTemplateModulePayload>,
     data: &TemplateData,
     depth: u32,
     diagnostics: &mut Vec<Diagnostic>,
@@ -454,13 +456,21 @@ fn expand_call_node(
     };
 
     if local_name(tag) == "call" {
-        return render_call_node(attributes, payload, data, depth, diagnostics, source_map);
+        return render_call_node(
+            attributes,
+            payload,
+            current_module,
+            data,
+            depth,
+            diagnostics,
+            source_map,
+        );
     }
 
     vec![RenderPlanNode::Element {
         tag: tag.clone(),
         attributes: attributes.clone(),
-        children: expand_call_nodes(children, payload, data, depth, diagnostics),
+        children: expand_call_nodes(children, payload, current_module, data, depth, diagnostics),
         source_map: source_map.clone(),
     }]
 }
@@ -468,6 +478,7 @@ fn expand_call_node(
 fn render_call_node(
     attributes: &[RenderPlanAttribute],
     payload: &CemQlCompiledTemplatePayload,
+    current_module: Option<&CemQlCompiledTemplateModulePayload>,
     data: &TemplateData,
     depth: u32,
     diagnostics: &mut Vec<Diagnostic>,
@@ -495,13 +506,18 @@ fn render_call_node(
     };
     let from = render_attr(attributes, "from");
 
-    let target = match from.as_deref() {
-        Some(alias) => payload
-            .modules
-            .iter()
-            .find(|module| module.alias == alias)
-            .and_then(|module| module.entrypoints.named.get(&template)),
-        None => payload.entrypoints.named.get(&template),
+    let (target, target_module) = match from.as_deref() {
+        Some(alias) => {
+            let module = payload.modules.iter().find(|module| module.alias == alias);
+            (
+                module.and_then(|module| module.entrypoints.named.get(&template)),
+                module,
+            )
+        }
+        None => match current_module {
+            Some(module) => (module.entrypoints.named.get(&template), Some(module)),
+            None => (payload.entrypoints.named.get(&template), None),
+        },
     };
 
     let Some(target) = target else {
@@ -516,7 +532,14 @@ fn render_call_node(
     let call_data = call_data_with_bindings(data, attributes);
     let mut plan = render_compiled_template(target, &call_data);
     diagnostics.append(&mut plan.diagnostics);
-    expand_call_nodes(&plan.nodes, payload, &call_data, depth + 1, diagnostics)
+    expand_call_nodes(
+        &plan.nodes,
+        payload,
+        target_module,
+        &call_data,
+        depth + 1,
+        diagnostics,
+    )
 }
 
 fn render_attr(attributes: &[RenderPlanAttribute], name: &str) -> Option<String> {
@@ -1203,6 +1226,165 @@ mod tests {
             "{:?}",
             rendered.diagnostics
         );
+    }
+
+    #[test]
+    fn adapter_dispatches_same_module_calls_inside_imported_modules() {
+        let adapter = CemQlTransformTemplateAdapter;
+        let identity = FormatIdentity {
+            schema: Some(cem_ml::transform_template::CEM_NATIVE_TEMPLATE_SCHEMA_URI.to_owned()),
+            ..FormatIdentity::default()
+        };
+        let template = TemplateInput {
+            uri: "template.cem".to_owned(),
+            bytes: br#"{@doc cem-ml 1}
+{module |
+  {template @name="helper" | {body | {i | Root}}}
+  {body | {div | {call @from="ui" @template="icon"}}}
+}"#
+            .to_vec(),
+            identity: Some(identity.clone()),
+            root_scope: ScopeConfig::default(),
+        };
+        let params = BTreeMap::new();
+        let data_bindings = Vec::new();
+        let compiled = adapter
+            .compile(TransformTemplateCompileRequest {
+                template: &template,
+                entrypoint: &TransformTemplateEntrypoint::implicit(),
+                params: &params,
+                data_bindings: &data_bindings,
+                module_options: Default::default(),
+                module_preflight: TransformTemplateModulePreflight {
+                    resolved_imports: vec![TransformTemplateResolvedModule {
+                        alias: "ui".to_owned(),
+                        uri: "templates/ui.cem".to_owned(),
+                        identity: Some(identity),
+                        content_hash: "cem-bin/1+blake3:ui".to_owned(),
+                        bytes: br#"{@doc cem-ml 1}
+{module |
+  {template @name="icon" @visibility="public" |
+    {body | {span | Icon {call @template="helper"}}}
+  }
+  {template @name="helper" | {body | {i | Imported}}}
+}"#
+                        .to_vec(),
+                    }],
+                    cache_key: None,
+                },
+                execution_policy: TransformExecutionPolicy::default(),
+            })
+            .expect("module template should compile")
+            .artifact;
+        let primary_input = TransformTemplateDataArtifact {
+            artifact_id: "data".to_owned(),
+            uri: None,
+            identity: None,
+            value: Value::Null,
+        };
+        let secondary_inputs = BTreeMap::new();
+
+        let rendered = adapter
+            .render(TransformTemplateRenderRequest {
+                compiled: &compiled,
+                primary_input: &primary_input,
+                secondary_inputs: &secondary_inputs,
+                target: None,
+                target_scope: &ScopeConfig::default(),
+                execution_policy: TransformExecutionPolicy::default(),
+            })
+            .expect("module template should render");
+
+        assert_eq!(
+            rendered.output.value,
+            Value::String("<div><span>Icon <i>Imported</i></span></div>".to_owned())
+        );
+        assert!(
+            rendered.diagnostics.is_empty(),
+            "{:?}",
+            rendered.diagnostics
+        );
+    }
+
+    #[test]
+    fn adapter_bounds_recursive_calls_inside_imported_modules() {
+        let adapter = CemQlTransformTemplateAdapter;
+        let identity = FormatIdentity {
+            schema: Some(cem_ml::transform_template::CEM_NATIVE_TEMPLATE_SCHEMA_URI.to_owned()),
+            ..FormatIdentity::default()
+        };
+        let template = TemplateInput {
+            uri: "template.cem".to_owned(),
+            bytes: br#"{@doc cem-ml 1}
+{module |
+  {body | {div | {call @from="ui" @template="loop"}}}
+}"#
+            .to_vec(),
+            identity: Some(identity.clone()),
+            root_scope: ScopeConfig::default(),
+        };
+        let params = BTreeMap::new();
+        let data_bindings = Vec::new();
+        let compiled = adapter
+            .compile(TransformTemplateCompileRequest {
+                template: &template,
+                entrypoint: &TransformTemplateEntrypoint::implicit(),
+                params: &params,
+                data_bindings: &data_bindings,
+                module_options: cem_ml::transform_template::TransformTemplateModuleOptions {
+                    limits: cem_ml::transform_template::TransformTemplateModuleLimits {
+                        max_import_depth: 32,
+                        max_recursion_depth: 2,
+                    },
+                    ..Default::default()
+                },
+                module_preflight: TransformTemplateModulePreflight {
+                    resolved_imports: vec![TransformTemplateResolvedModule {
+                        alias: "ui".to_owned(),
+                        uri: "templates/ui.cem".to_owned(),
+                        identity: Some(identity),
+                        content_hash: "cem-bin/1+blake3:ui".to_owned(),
+                        bytes: br#"{@doc cem-ml 1}
+{module |
+  {template @name="loop" @visibility="public" |
+    {body | {span | Loop {call @template="loop"}}}
+  }
+}"#
+                        .to_vec(),
+                    }],
+                    cache_key: None,
+                },
+                execution_policy: TransformExecutionPolicy::default(),
+            })
+            .expect("module template should compile")
+            .artifact;
+        let primary_input = TransformTemplateDataArtifact {
+            artifact_id: "data".to_owned(),
+            uri: None,
+            identity: None,
+            value: Value::Null,
+        };
+        let secondary_inputs = BTreeMap::new();
+
+        let rendered = adapter
+            .render(TransformTemplateRenderRequest {
+                compiled: &compiled,
+                primary_input: &primary_input,
+                secondary_inputs: &secondary_inputs,
+                target: None,
+                target_scope: &ScopeConfig::default(),
+                execution_policy: TransformExecutionPolicy::default(),
+            })
+            .expect("module template should render with recursion diagnostic");
+
+        assert_eq!(
+            rendered.output.value,
+            Value::String("<div><span>Loop <span>Loop </span></span></div>".to_owned())
+        );
+        assert!(rendered
+            .diagnostics
+            .iter()
+            .any(|diagnostic| diagnostic.code == TRANSFORM_TEMPLATE_RECURSION_LIMIT_CODE));
     }
 
     #[test]
