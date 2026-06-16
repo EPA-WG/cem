@@ -112,9 +112,10 @@ for the current architecture have landed; only deferred capability work remains 
       [`cem-ml-cli-plan.md`](cem-ml-cli-plan.md#phase-6---command-behavior). The CEM-ML graph config parser/lowering
       boundary now exists for nested `run` / `import` / `transform` / `export` nodes and explicit cross-input joins
       through `@input` and `@with:*`, and the engine graph request/response boundary exists as not-implemented API
-      structs. Before runtime implementation, define supported template content types, template execution semantics,
-      resolver behavior for template reads and output writes, diagnostics/report shape, source-map handling, and output
-      behavior for stdout, `--out`, side reports, duplicate destinations, and graph validation.
+      structs. Template identity classification now supports both XSLT and CEM-native templates. Before runtime
+      implementation, define template execution semantics, resolver behavior for template reads and output writes,
+      diagnostics/report shape, source-map handling, and output behavior for stdout, `--out`, side reports, duplicate
+      destinations, and graph validation.
 
 ## Phase 3.1 — Substrate / Legacy Compatibility Follow-Up
 

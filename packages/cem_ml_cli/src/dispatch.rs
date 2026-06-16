@@ -914,10 +914,17 @@ fn transform_request_from_args(
         .map_err(CliRequestError::Engine)?;
     let template = template_input(context, &args.template, transform_template_scope(args))
         .map_err(CliRequestError::Engine)?;
+    let template_identity = template
+        .identity
+        .clone()
+        .unwrap_or_else(|| template.root_scope.format_identity());
+    let template_kind = eng::classify_transform_template_identity(&template_identity)
+        .map_err(|error| CliRequestError::Usage(error.to_string()))?;
     let target_scope = transform_target_scope(args);
     Ok(eng::TransformRequest {
         data,
         template,
+        template_kind,
         preserve_source_offsets: false,
         context: context.clone(),
         target: target_scope.format_identity_option(),
@@ -2506,6 +2513,7 @@ mod tests {
                 .and_then(|identity| identity.content_type.as_deref()),
             Some("application/xslt+xml")
         );
+        assert_eq!(request.template_kind, eng::TransformTemplateKind::Xslt);
         assert_eq!(
             request
                 .target
@@ -2553,9 +2561,44 @@ mod tests {
             request.template.bytes,
             br#"<xsl:stylesheet version="1.0"/>"#
         );
+        assert_eq!(request.template_kind, eng::TransformTemplateKind::Xslt);
         assert_eq!(
             request.template.root_scope.default_content_type.as_deref(),
             Some("application/xslt+xml")
+        );
+    }
+
+    #[test]
+    fn transform_request_helper_accepts_cem_native_template_identity() {
+        let data = write_fixture("transform-helper-cem-template-data.xml", "<items/>");
+        let template = write_fixture("transform-helper-view.cem", "{template | {p Hello}}");
+        let parsed = parse_cli(&[
+            "transform",
+            data.to_str().unwrap(),
+            "--data-content-type",
+            "application/xml",
+            "--template",
+            template.to_str().unwrap(),
+            "--template-content-type",
+            "text/cem-ml",
+            "--to-content-type",
+            "text/html",
+            "--out",
+            "view.html",
+        ]);
+        let cli::Command::Transform(args) = parsed.command else {
+            panic!("expected transform command");
+        };
+
+        let request = match transform_request_from_args(&eng::EngineContext::default(), &args) {
+            Ok(request) => request,
+            Err(_) => panic!("transform request helper should accept CEM-native templates"),
+        };
+
+        assert_eq!(request.template_kind, eng::TransformTemplateKind::CemNative);
+        assert_eq!(
+            request.template.root_scope.default_content_type.as_deref(),
+            Some("text/cem-ml")
         );
     }
 
@@ -2601,6 +2644,38 @@ mod tests {
         let message = source.to_string();
         assert!(message.contains("remote/custom URI resolvers are not implemented"));
         assert!(message.contains(template_uri));
+    }
+
+    #[test]
+    fn transform_request_helper_rejects_unknown_template_identity() {
+        let data = write_fixture("transform-helper-unknown-template-data.xml", "<items/>");
+        let template = write_fixture("transform-helper-view.bin", "template");
+        let parsed = parse_cli(&[
+            "transform",
+            data.to_str().unwrap(),
+            "--data-content-type",
+            "application/xml",
+            "--template",
+            template.to_str().unwrap(),
+            "--template-content-type",
+            "application/octet-stream",
+            "--to-content-type",
+            "text/html",
+            "--out",
+            "view.html",
+        ]);
+        let cli::Command::Transform(args) = parsed.command else {
+            panic!("expected transform command");
+        };
+
+        let err = transform_request_from_args(&eng::EngineContext::default(), &args)
+            .err()
+            .expect("unknown template identity should fail");
+        let CliRequestError::Usage(message) = err else {
+            panic!("expected usage error");
+        };
+        assert!(message.contains(eng::TRANSFORM_TEMPLATE_UNSUPPORTED_CODE));
+        assert!(message.contains("application/octet-stream"));
     }
 
     #[test]

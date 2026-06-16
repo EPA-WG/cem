@@ -196,10 +196,22 @@ options. The graph-lowered request shape includes:
 - the shared `EngineContext`, including resolver registry and scheduler settings.
 
 Supported template content types must be explicit adapter capabilities. The first
-runtime design should decide whether `application/xslt+xml`, CEM-native templates, or
-both are in scope. Unsupported template identity combinations must fail with
-deterministic diagnostics before execution, just as unsupported input/output identities
-do for parser-backed commands.
+runtime design supports both XSLT templates and CEM-native templates:
+
+- XSLT template identities include `application/xslt+xml`, `text/xsl`, and the
+  existing legacy custom-element XSLT content types such as
+  `text/custom-element-xslt`.
+- CEM-native template identities include `application/cem+xml`, `application/cem`,
+  `text/cem`, `text/cem-ml`, and CEM core schema/namespace identity when no content
+  type is present.
+- Unsupported template identity combinations fail with deterministic diagnostics
+  before execution, just as unsupported input/output identities do for parser-backed
+  commands.
+
+Current implementation slice: `cem_ml::engine::TransformTemplateKind` and
+`classify_transform_template_identity` encode that adapter selection boundary for
+both the reserved CLI one-liner request helper and graph stages. They classify only;
+they do not compile or execute templates.
 
 Template reads and transform outputs must use the shared resolver layer. Template reads
 use the dedicated resolver purpose `template`, separate from ordinary data `input`

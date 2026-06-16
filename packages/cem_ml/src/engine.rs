@@ -123,6 +123,111 @@ impl From<&EngineContext> for FormatIdentity {
     }
 }
 
+pub const TRANSFORM_TEMPLATE_UNSUPPORTED_CODE: &str = "cem.transform_template.identity_unsupported";
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "kebab-case")]
+pub enum TransformTemplateKind {
+    Xslt,
+    CemNative,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct TransformTemplateIdentityError {
+    pub code: &'static str,
+    pub message: String,
+}
+
+impl std::fmt::Display for TransformTemplateIdentityError {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        write!(f, "{}: {}", self.code, self.message)
+    }
+}
+
+impl std::error::Error for TransformTemplateIdentityError {}
+
+pub fn classify_transform_template_identity(
+    identity: &FormatIdentity,
+) -> Result<TransformTemplateKind, TransformTemplateIdentityError> {
+    if let Some(content_type) = identity.content_type.as_deref() {
+        if crate::legacy_custom_element::is_legacy_custom_element_content_type(content_type) {
+            return Ok(TransformTemplateKind::Xslt);
+        }
+        if is_cem_native_template_content_type(content_type) {
+            return Ok(TransformTemplateKind::CemNative);
+        }
+        return Err(transform_template_identity_error(format!(
+            "no transform template adapter matched content type `{}`",
+            content_type_essence(content_type)
+        )));
+    }
+
+    let schema = identity
+        .schema
+        .as_deref()
+        .map(str::trim)
+        .unwrap_or_default();
+    if !schema.is_empty() {
+        if schema == crate::schema::ir::CEM_CORE_NAMESPACE {
+            return Ok(TransformTemplateKind::CemNative);
+        }
+        return Err(transform_template_identity_error(format!(
+            "no transform template adapter matched schema `{schema}`"
+        )));
+    }
+
+    if identity
+        .default_namespace
+        .as_deref()
+        .is_some_and(|uri| uri == crate::schema::ir::CEM_CORE_NAMESPACE)
+        || identity
+            .namespaces
+            .values()
+            .any(|uri| uri == crate::schema::ir::CEM_CORE_NAMESPACE)
+    {
+        return Ok(TransformTemplateKind::CemNative);
+    }
+
+    if identity
+        .default_namespace
+        .as_deref()
+        .is_some_and(crate::schema::xslt::is_xslt_namespace)
+        || identity
+            .namespaces
+            .values()
+            .any(|uri| crate::schema::xslt::is_xslt_namespace(uri))
+    {
+        return Ok(TransformTemplateKind::Xslt);
+    }
+
+    Err(transform_template_identity_error(
+        "transform template identity requires a supported content type, schema, or namespace",
+    ))
+}
+
+fn is_cem_native_template_content_type(content_type: &str) -> bool {
+    matches!(
+        content_type_essence(content_type).as_str(),
+        "application/cem+xml" | "application/cem" | "text/cem" | "text/cem-ml"
+    )
+}
+
+fn content_type_essence(content_type: &str) -> String {
+    content_type
+        .split(';')
+        .next()
+        .unwrap_or(content_type)
+        .trim()
+        .to_ascii_lowercase()
+}
+
+fn transform_template_identity_error(message: impl Into<String>) -> TransformTemplateIdentityError {
+    TransformTemplateIdentityError {
+        code: TRANSFORM_TEMPLATE_UNSUPPORTED_CODE,
+        message: message.into(),
+    }
+}
+
 #[derive(Debug, Clone)]
 pub struct EngineInput {
     pub uri: String,
@@ -196,6 +301,7 @@ pub struct TransformSchedulerScopeIds {
 pub struct TransformRequest {
     pub data: EngineInput,
     pub template: TemplateInput,
+    pub template_kind: TransformTemplateKind,
     pub preserve_source_offsets: bool,
     pub context: EngineContext,
     pub target: Option<FormatIdentity>,
@@ -224,6 +330,7 @@ pub struct TransformGraphImport {
 pub struct TransformGraphStage {
     pub id: String,
     pub template: TemplateInput,
+    pub template_kind: TransformTemplateKind,
     pub primary_input: String,
     pub secondary_inputs: BTreeMap<String, String>,
     pub scheduler_scope_ids: TransformStageSchedulerScopeIds,
@@ -504,6 +611,66 @@ mod tests {
     }
 
     #[test]
+    fn transform_template_identity_classifies_xslt_and_cem_native_templates() {
+        let xslt = FormatIdentity {
+            content_type: Some("application/xslt+xml; charset=utf-8".to_owned()),
+            ..FormatIdentity::default()
+        };
+        let legacy_xslt = FormatIdentity {
+            content_type: Some("text/custom-element-xslt".to_owned()),
+            ..FormatIdentity::default()
+        };
+        let cem_content_type = FormatIdentity {
+            content_type: Some("text/cem-ml".to_owned()),
+            ..FormatIdentity::default()
+        };
+        let cem_schema = FormatIdentity {
+            schema: Some(crate::schema::ir::CEM_CORE_NAMESPACE.to_owned()),
+            ..FormatIdentity::default()
+        };
+        let xslt_namespace = FormatIdentity {
+            namespaces: BTreeMap::from([(
+                "xsl".to_owned(),
+                crate::schema::xslt::XSL_NAMESPACE.to_owned(),
+            )]),
+            ..FormatIdentity::default()
+        };
+
+        assert_eq!(
+            classify_transform_template_identity(&xslt),
+            Ok(TransformTemplateKind::Xslt)
+        );
+        assert_eq!(
+            classify_transform_template_identity(&legacy_xslt),
+            Ok(TransformTemplateKind::Xslt)
+        );
+        assert_eq!(
+            classify_transform_template_identity(&cem_content_type),
+            Ok(TransformTemplateKind::CemNative)
+        );
+        assert_eq!(
+            classify_transform_template_identity(&cem_schema),
+            Ok(TransformTemplateKind::CemNative)
+        );
+        assert_eq!(
+            classify_transform_template_identity(&xslt_namespace),
+            Ok(TransformTemplateKind::Xslt)
+        );
+    }
+
+    #[test]
+    fn transform_template_identity_rejects_unknown_template_identity() {
+        let unknown = FormatIdentity {
+            content_type: Some("application/octet-stream".to_owned()),
+            ..FormatIdentity::default()
+        };
+
+        let error = classify_transform_template_identity(&unknown).unwrap_err();
+        assert_eq!(error.code, TRANSFORM_TEMPLATE_UNSUPPORTED_CODE);
+        assert!(error.message.contains("application/octet-stream"));
+    }
+
+    #[test]
     fn transform_request_models_data_template_and_target_separately() {
         let target_scope = ScopeConfig {
             default_content_type: Some("text/html".to_owned()),
@@ -512,6 +679,7 @@ mod tests {
         let request = TransformRequest {
             data: engine_input("data.xml", "application/xml"),
             template: template_input("view.xsl", "application/xslt+xml"),
+            template_kind: TransformTemplateKind::Xslt,
             preserve_source_offsets: true,
             context: EngineContext::default(),
             target: target_scope.format_identity_option(),
@@ -526,6 +694,7 @@ mod tests {
 
         assert_eq!(request.data.uri, "data.xml");
         assert_eq!(request.template.uri, "view.xsl");
+        assert_eq!(request.template_kind, TransformTemplateKind::Xslt);
         assert_eq!(
             request
                 .template
@@ -569,6 +738,7 @@ mod tests {
             stages: vec![TransformGraphStage {
                 id: "report".to_owned(),
                 template: template_input("report.xsl", "application/xslt+xml"),
+                template_kind: TransformTemplateKind::Xslt,
                 primary_input: "book".to_owned(),
                 secondary_inputs,
                 scheduler_scope_ids: TransformStageSchedulerScopeIds {
@@ -633,6 +803,7 @@ mod tests {
         let request = TransformRequest {
             data: engine_input("data.xml", "application/xml"),
             template: template_input("view.xsl", "application/xslt+xml"),
+            template_kind: TransformTemplateKind::Xslt,
             preserve_source_offsets: false,
             context: EngineContext::default(),
             target: None,
