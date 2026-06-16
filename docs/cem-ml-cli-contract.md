@@ -207,6 +207,11 @@ options. The graph-lowered request shape includes:
 The runtime API design is intentionally conservative for the first implementation
 slice:
 
+- CEM-native templates are not part of the base CEM-ML document lifecycle. They are
+  selected through `TransformTemplateAdapterRegistry`, whose adapters match template
+  content type, schema, and namespace identity. Built-in adapters cover the current
+  CEM-native and XSLT identities; hosts can register newer CEM-native template
+  iterations at runtime.
 - `TransformExecutionPolicy` defaults to `runtimePhase=cem-ql-fragment`,
   `cardinality=one-to-one`, `duplicateDestinationPolicy=reject`,
   `failurePolicy=fail-fast`, and `outputPolicy=content-primary`.
@@ -225,8 +230,9 @@ slice:
 - The default `CemMlEngine::transform` and `transform_graph` methods still return
   `NotImplemented`; these types define the runtime contract before execution exists.
 
-Supported template content types must be explicit adapter capabilities. The first
-runtime design supports both XSLT templates and CEM-native templates:
+Supported template content types must be explicit adapter capabilities, not
+hard-coded parser assumptions. The first runtime design supports both XSLT templates
+and CEM-native templates through the transform-template adapter registry:
 
 - XSLT template identities include `application/xslt+xml`, `text/xsl`, and the
   existing legacy custom-element XSLT content types such as
@@ -239,12 +245,14 @@ runtime design supports both XSLT templates and CEM-native templates:
   commands.
 
 Current implementation slice: `cem_ml::engine::TransformTemplateKind` and
-`classify_transform_template_identity` encode that adapter selection boundary for
-the reserved CLI one-liner request helper and graph stages. The CEM-ML graph config
-parser also records `templateKind` on transform nodes when identity is explicit or
-can be inferred from `@src`, and emits deterministic diagnostics for unsupported or
-missing template identity. They classify only; they do not compile or execute
-templates.
+`classify_transform_template_identity_with_registry` encode that adapter selection
+boundary for the reserved CLI one-liner request helper and graph stages.
+`EngineContext` carries a `template_adapter_registry` with built-in adapters by
+default, and hosts may register runtime adapters for newer template content
+types/schemas. The CEM-ML graph config parser also records `templateKind` on
+transform nodes when identity is explicit or can be inferred from `@src`, and emits
+deterministic diagnostics for unsupported or missing template identity. They classify
+only; they do not compile or execute templates.
 
 CEM-native template execution should land before XSLT parity expansion, in this order:
 

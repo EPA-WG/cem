@@ -2,6 +2,9 @@ use crate::diagnostics::{Diagnostic, Severity};
 use crate::report::{Report, SchedulerTraceReport};
 use crate::resolver::ResolverRegistry;
 use crate::run_config::{SchedulerConfig, ScopeConfig};
+use crate::transform_template::{
+    TransformTemplateAdapterRegistry, TransformTemplateAdapterResolution,
+};
 use serde::{Deserialize, Serialize};
 use serde_json::Value;
 use std::collections::{BTreeMap, BTreeSet};
@@ -89,13 +92,27 @@ pub enum BenchProfile {
     Memory,
 }
 
-#[derive(Debug, Clone, Default)]
+#[derive(Debug, Clone)]
 pub struct EngineContext {
     pub schema: Option<String>,
     pub content_type: Option<String>,
     pub base_uri: Option<String>,
     pub scheduler: SchedulerConfig,
     pub resolver_registry: ResolverRegistry,
+    pub template_adapter_registry: TransformTemplateAdapterRegistry,
+}
+
+impl Default for EngineContext {
+    fn default() -> Self {
+        Self {
+            schema: None,
+            content_type: None,
+            base_uri: None,
+            scheduler: SchedulerConfig::default(),
+            resolver_registry: ResolverRegistry::default(),
+            template_adapter_registry: TransformTemplateAdapterRegistry::with_builtin_adapters(),
+        }
+    }
 }
 
 #[derive(Debug, Clone, Default, PartialEq, Eq, Serialize, Deserialize)]
@@ -230,60 +247,50 @@ impl std::error::Error for TransformTemplateIdentityError {}
 pub fn classify_transform_template_identity(
     identity: &FormatIdentity,
 ) -> Result<TransformTemplateKind, TransformTemplateIdentityError> {
+    classify_transform_template_identity_with_registry(
+        identity,
+        &TransformTemplateAdapterRegistry::with_builtin_adapters(),
+    )
+}
+
+pub fn classify_transform_template_identity_with_registry(
+    identity: &FormatIdentity,
+    registry: &TransformTemplateAdapterRegistry,
+) -> Result<TransformTemplateKind, TransformTemplateIdentityError> {
+    match registry.select(identity) {
+        TransformTemplateAdapterResolution::Matched(selection) => Ok(selection.kind),
+        TransformTemplateAdapterResolution::Ambiguous(ids) => {
+            Err(transform_template_identity_error(format!(
+                "transform template identity matched multiple adapters: {}",
+                ids.join(", ")
+            )))
+        }
+        TransformTemplateAdapterResolution::Unsupported => Err(transform_template_identity_error(
+            unsupported_transform_template_identity_message(identity),
+        )),
+    }
+}
+
+fn unsupported_transform_template_identity_message(identity: &FormatIdentity) -> String {
     if let Some(content_type) = identity.content_type.as_deref() {
-        if crate::legacy_custom_element::is_legacy_custom_element_content_type(content_type) {
-            return Ok(TransformTemplateKind::Xslt);
-        }
-        if is_cem_native_template_content_type(content_type) {
-            return Ok(TransformTemplateKind::CemNative);
-        }
-        return Err(transform_template_identity_error(format!(
+        return format!(
             "no transform template adapter matched content type `{}`",
             content_type_essence(content_type)
-        )));
+        );
     }
-
-    let schema = identity
-        .schema
-        .as_deref()
-        .map(str::trim)
-        .unwrap_or_default();
-    if !schema.is_empty() {
-        if schema == crate::schema::ir::CEM_CORE_NAMESPACE {
-            return Ok(TransformTemplateKind::CemNative);
+    if let Some(schema) = identity.schema.as_deref().map(str::trim) {
+        if !schema.is_empty() {
+            return format!("no transform template adapter matched schema `{schema}`");
         }
-        return Err(transform_template_identity_error(format!(
-            "no transform template adapter matched schema `{schema}`"
-        )));
     }
-
-    if identity
+    if let Some(namespace) = identity
         .default_namespace
         .as_deref()
-        .is_some_and(|uri| uri == crate::schema::ir::CEM_CORE_NAMESPACE)
-        || identity
-            .namespaces
-            .values()
-            .any(|uri| uri == crate::schema::ir::CEM_CORE_NAMESPACE)
+        .or_else(|| identity.namespaces.values().next().map(String::as_str))
     {
-        return Ok(TransformTemplateKind::CemNative);
+        return format!("no transform template adapter matched namespace `{namespace}`");
     }
-
-    if identity
-        .default_namespace
-        .as_deref()
-        .is_some_and(crate::schema::xslt::is_xslt_namespace)
-        || identity
-            .namespaces
-            .values()
-            .any(|uri| crate::schema::xslt::is_xslt_namespace(uri))
-    {
-        return Ok(TransformTemplateKind::Xslt);
-    }
-
-    Err(transform_template_identity_error(
-        "transform template identity requires a supported content type, schema, or namespace",
-    ))
+    "transform template identity requires a supported content type, schema, or namespace".to_owned()
 }
 
 pub fn validate_transform_request_runtime_contract(request: &TransformRequest) -> Vec<Diagnostic> {
@@ -377,13 +384,6 @@ pub fn validate_transform_graph_runtime_contract(
     }
 
     diagnostics
-}
-
-fn is_cem_native_template_content_type(content_type: &str) -> bool {
-    matches!(
-        content_type_essence(content_type).as_str(),
-        "application/cem+xml" | "application/cem" | "text/cem" | "text/cem-ml"
-    )
 }
 
 fn content_type_essence(content_type: &str) -> String {
@@ -993,6 +993,61 @@ mod tests {
         let error = classify_transform_template_identity(&unknown).unwrap_err();
         assert_eq!(error.code, TRANSFORM_TEMPLATE_UNSUPPORTED_CODE);
         assert!(error.message.contains("application/octet-stream"));
+    }
+
+    #[test]
+    fn transform_template_identity_uses_runtime_adapter_registry() {
+        let mut registry = TransformTemplateAdapterRegistry::new();
+        registry.register(
+            crate::transform_template::StaticTransformTemplateAdapter::new(
+                "cem-native-template-v2",
+                TransformTemplateKind::CemNative,
+                &[],
+                &["https://cem.dev/ns/template/cem-native/2"],
+                &[],
+            ),
+        );
+        let identity = FormatIdentity {
+            schema: Some("https://cem.dev/ns/template/cem-native/2".to_owned()),
+            ..FormatIdentity::default()
+        };
+
+        assert_eq!(
+            classify_transform_template_identity_with_registry(&identity, &registry),
+            Ok(TransformTemplateKind::CemNative)
+        );
+    }
+
+    #[test]
+    fn transform_template_identity_rejects_ambiguous_runtime_adapters() {
+        let mut registry = TransformTemplateAdapterRegistry::new();
+        registry.register(
+            crate::transform_template::StaticTransformTemplateAdapter::new(
+                "one",
+                TransformTemplateKind::CemNative,
+                &["text/cem-ml"],
+                &[],
+                &[],
+            ),
+        );
+        registry.register(
+            crate::transform_template::StaticTransformTemplateAdapter::new(
+                "two",
+                TransformTemplateKind::CemNative,
+                &["text/cem-ml"],
+                &[],
+                &[],
+            ),
+        );
+        let identity = FormatIdentity {
+            content_type: Some("text/cem-ml".to_owned()),
+            ..FormatIdentity::default()
+        };
+
+        let error = classify_transform_template_identity_with_registry(&identity, &registry)
+            .expect_err("ambiguous template adapters should fail");
+        assert_eq!(error.code, TRANSFORM_TEMPLATE_UNSUPPORTED_CODE);
+        assert!(error.message.contains("one, two"));
     }
 
     #[test]

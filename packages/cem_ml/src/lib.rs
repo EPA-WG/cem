@@ -31,6 +31,7 @@ pub mod source;
 pub mod source_map;
 pub mod tokenizer;
 pub mod transform_config;
+pub mod transform_template;
 pub mod validation;
 
 #[cfg(feature = "fake-engine")]

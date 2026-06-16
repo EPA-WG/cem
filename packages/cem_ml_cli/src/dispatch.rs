@@ -691,8 +691,7 @@ fn context(c: &cli::ContextOptions) -> eng::EngineContext {
         schema: c.schema.clone(),
         content_type: c.content_type.clone(),
         base_uri: c.base_uri.clone(),
-        scheduler: Default::default(),
-        resolver_registry: Default::default(),
+        ..eng::EngineContext::default()
     };
     register_cli_resolvers(&mut context.resolver_registry, c, None);
     context
@@ -918,8 +917,11 @@ fn transform_request_from_args(
         .identity
         .clone()
         .unwrap_or_else(|| template.root_scope.format_identity());
-    let template_kind = eng::classify_transform_template_identity(&template_identity)
-        .map_err(|error| CliRequestError::Usage(error.to_string()))?;
+    let template_kind = eng::classify_transform_template_identity_with_registry(
+        &template_identity,
+        &context.template_adapter_registry,
+    )
+    .map_err(|error| CliRequestError::Usage(error.to_string()))?;
     let target_scope = transform_target_scope(args);
     Ok(eng::TransformRequest {
         data,
@@ -2602,6 +2604,53 @@ mod tests {
         assert_eq!(
             request.template.root_scope.default_content_type.as_deref(),
             Some("text/cem-ml")
+        );
+    }
+
+    #[test]
+    fn transform_request_helper_uses_runtime_template_adapter_registry() {
+        let data = write_fixture(
+            "transform-helper-custom-template-schema-data.xml",
+            "<items/>",
+        );
+        let template = write_fixture("transform-helper-view-v2.cem", "{template | {p Hello}}");
+        let parsed = parse_cli(&[
+            "transform",
+            data.to_str().unwrap(),
+            "--data-content-type",
+            "application/xml",
+            "--template",
+            template.to_str().unwrap(),
+            "--template-schema",
+            "https://cem.dev/ns/template/cem-native/2",
+            "--to-content-type",
+            "text/html",
+            "--out",
+            "view.html",
+        ]);
+        let cli::Command::Transform(args) = parsed.command else {
+            panic!("expected transform command");
+        };
+        let mut context = eng::EngineContext::default();
+        context.template_adapter_registry.register(
+            cem_ml::transform_template::StaticTransformTemplateAdapter::new(
+                "cem-native-template-v2",
+                eng::TransformTemplateKind::CemNative,
+                &[],
+                &["https://cem.dev/ns/template/cem-native/2"],
+                &[],
+            ),
+        );
+
+        let request = match transform_request_from_args(&context, &args) {
+            Ok(request) => request,
+            Err(_) => panic!("transform request helper should use runtime template adapter"),
+        };
+
+        assert_eq!(request.template_kind, eng::TransformTemplateKind::CemNative);
+        assert_eq!(
+            request.template.root_scope.schema.as_deref(),
+            Some("https://cem.dev/ns/template/cem-native/2")
         );
     }
 
