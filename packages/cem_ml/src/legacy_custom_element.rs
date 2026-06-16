@@ -1105,20 +1105,21 @@ fn emit_stylesheet(
     diagnostics: &mut Vec<LegacyConversionDiagnostic>,
 ) -> String {
     let scoped = with_variable_scope(&element.children, ctx, diagnostics);
+    let document = stylesheet_document_item(ctx, element);
     if let Some(root) = &ctx.templates.root {
         let root_ctx = EmitCtx {
-            item: Some(CurrentItem {
-                kind: CurrentItemKind::Document,
-                tag: "#document".to_owned(),
-                text: String::new(),
-                attrs: HashMap::new(),
-                children: source_document_nodes(&ctx.root_nodes, element),
-                parent: None,
-                position: 1,
-            }),
+            item: Some(document),
             ..scoped
         };
         return emit_children(&root.children, &root_ctx, diagnostics);
+    }
+    if let Some(template) = find_matching_template(&document, None, &ctx.templates) {
+        let root_ctx = EmitCtx {
+            item: Some(document),
+            ..scoped
+        };
+        let root_ctx = with_template_param_defaults(&template.children, &root_ctx, diagnostics);
+        return emit_children(&template.children, &root_ctx, diagnostics);
     }
     element
         .children
@@ -1460,7 +1461,7 @@ fn matches_item_pattern(pattern: &str, member: &CurrentItem) -> bool {
 
 fn matches_single_item_pattern(pattern: &str, member: &CurrentItem) -> bool {
     match member.kind {
-        CurrentItemKind::Document => pattern == "/",
+        CurrentItemKind::Document => pattern == "/" || pattern == "node()",
         CurrentItemKind::Attribute => pattern == "@*" || pattern == "node()" || pattern == ".",
         CurrentItemKind::Text => pattern == "text()" || pattern == "node()" || pattern == ".",
         CurrentItemKind::Element => {
@@ -1533,6 +1534,18 @@ fn source_document_nodes(nodes: &[LegacyNode], stylesheet: &LegacyElement) -> Ve
         })
         .cloned()
         .collect()
+}
+
+fn stylesheet_document_item(ctx: &EmitCtx, stylesheet: &LegacyElement) -> CurrentItem {
+    CurrentItem {
+        kind: CurrentItemKind::Document,
+        tag: "#document".to_owned(),
+        text: String::new(),
+        attrs: HashMap::new(),
+        children: source_document_nodes(&ctx.root_nodes, stylesheet),
+        parent: None,
+        position: 1,
+    }
 }
 
 fn select_current_members(select: &str, ctx: &EmitCtx) -> Option<Vec<ApplyMember>> {
@@ -3490,6 +3503,27 @@ mod tests {
         assert_eq!(
             result.source,
             "{doc | {item @id=\"a\" | before{child | B}after}}{out | {row | {seen | a}{seen | before}{seen | B}{seen | after}}}"
+        );
+        assert!(result.diagnostics.is_empty());
+    }
+
+    #[test]
+    fn node_match_pattern_can_dispatch_the_document_root() {
+        let result = convert(
+            r#"<doc><item>A</item></doc><xsl:stylesheet version="1.0"><xsl:template match="node()"><seen><xsl:value-of select="name()"/></seen></xsl:template></xsl:stylesheet>"#,
+        );
+        assert_eq!(result.source, "{doc | {item | A}}{seen | #document}");
+        assert!(result.diagnostics.is_empty());
+    }
+
+    #[test]
+    fn identity_match_pattern_can_copy_from_the_document_root() {
+        let result = convert(
+            r#"<doc><item id="a">A</item></doc><xsl:stylesheet version="1.0"><xsl:template match="@*|node()"><xsl:copy><xsl:copy-of select="@*|node()"/></xsl:copy></xsl:template></xsl:stylesheet>"#,
+        );
+        assert_eq!(
+            result.source,
+            "{doc | {item @id=\"a\" | A}}{doc | {item @id=\"a\" | A}}"
         );
         assert!(result.diagnostics.is_empty());
     }
