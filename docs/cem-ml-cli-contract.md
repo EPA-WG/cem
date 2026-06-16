@@ -212,6 +212,11 @@ slice:
   content type, schema, and namespace identity. Built-in adapters cover the current
   CEM-native and XSLT identities; hosts can register newer CEM-native template
   iterations at runtime.
+- `TransformTemplateAdapter` is also the future execution plugin boundary. Adapters
+  may compile a `TemplateInput` plus entrypoint/params into an opaque compiled
+  artifact, then render it against a primary data artifact, optional secondary
+  artifacts, and a target identity/scope. The static built-in adapters currently
+  return deterministic adapter-not-implemented errors for compile/render.
 - `TransformExecutionPolicy` defaults to `runtimePhase=cem-ql-fragment`,
   `cardinality=one-to-one`, `duplicateDestinationPolicy=reject`,
   `failurePolicy=fail-fast`, and `outputPolicy=content-primary`.
@@ -249,10 +254,11 @@ Current implementation slice: `cem_ml::engine::TransformTemplateKind` and
 boundary for the reserved CLI one-liner request helper and graph stages.
 `EngineContext` carries a `template_adapter_registry` with built-in adapters by
 default, and hosts may register runtime adapters for newer template content
-types/schemas. The CEM-ML graph config parser also records `templateKind` on
+types/schemas. The registry can also return the matched adapter object for future
+compile/render calls. The CEM-ML graph config parser records `templateKind` on
 transform nodes when identity is explicit or can be inferred from `@src`, and emits
-deterministic diagnostics for unsupported or missing template identity. They classify
-only; they do not compile or execute templates.
+deterministic diagnostics for unsupported or missing template identity. CLI dispatch
+still reserves transform execution; no built-in adapter compiles or renders yet.
 
 CEM-native template execution should land before XSLT parity expansion, in this order:
 
@@ -262,6 +268,11 @@ CEM-native template execution should land before XSLT parity expansion, in this 
    imports/includes, visibility, caching, and recursion/cycle limits.
 3. XSLT parity expansion: deepen XSLT support after the native named-template/module
    substrate exists, so migration has a first-class native landing zone.
+
+The concrete CEM-QL/CEM-native executor must be registered as an adapter from a
+crate or host layer that can depend on `cem_ql`; `cem_ml` remains the stable API
+contract and cannot directly call `cem_ql::render` while `cem_ql` depends on
+`cem_ml`.
 
 Template reads and transform outputs must use the shared resolver layer. Template reads
 use the dedicated resolver purpose `template`, separate from ordinary data `input`

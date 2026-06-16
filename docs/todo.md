@@ -118,8 +118,10 @@ for the current architecture have landed; only deferred capability work remains 
       extended by hosts with newer CEM-native template iterations at runtime. The runtime API now records the first
       execution contract: CEM-QL-fragment phase, one-to-one cardinality, reject duplicate destinations, fail-fast
       execution, content-primary output, implicit template entrypoint, future params, and stable diagnostic origins for
-      config/import/template/export phases. Runtime preflight validation now rejects deferred first-slice features and
-      bad programmatic graph refs/destinations before any future executor runs. Before runtime
+      config/import/template/export phases. `TransformTemplateAdapter` also has the future compile/render plugin
+      boundary with opaque compiled artifacts and primary/secondary data artifacts; static built-in adapters still
+      return deterministic adapter-not-implemented errors. Runtime preflight validation now rejects deferred first-slice
+      features and bad programmatic graph refs/destinations before any future executor runs. Before runtime
       implementation, keep the checked-in CEM-native CLI transform-config schema
       (`packages/cem_ml/schema/cli/transform-config.md`,
       `https://cem.dev/ns/cli/transform-config/1`) separate from CEM core document schemas and template schemas.
@@ -128,8 +130,9 @@ for the current architecture have landed; only deferred capability work remains 
       params, imports/includes, visibility, caching, and recursion/cycle limits; then expand XSLT parity on that native
       substrate. Next runtime implementation work is the minimal CEM-QL/CEM-ML fragment executor plus resolver-backed
       template reads, resolver-backed output writes, and diagnostics/report/source-map projection. That work needs a
-      registered template adapter boundary because `cem_ql` currently depends on `cem_ml`, so
-      `cem_ml::real::RealCemMlEngine` cannot directly call `cem_ql::render` without a crate dependency cycle.
+      registered template adapter boundary. The next design decision is where the concrete CEM-QL/CEM-native adapter
+      lives, because `cem_ql` currently depends on `cem_ml`, so `cem_ml::real::RealCemMlEngine` cannot directly call
+      `cem_ql::render` without a crate dependency cycle.
 - [ ] **Wishlist (future — schema/tooling):** wire CLI config schemas into generated/published artifacts. The JSON
       `RunConfig` config-file surface uses schema identity `https://cem.dev/ns/cli/run-config/1` and has checked-in JSON
       Schema `packages/cem_ml/schema/cli/run-config.schema.json`

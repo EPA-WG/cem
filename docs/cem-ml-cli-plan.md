@@ -601,6 +601,11 @@ These are data shapes only. Parser-filled content remains blocked until the pars
           adapters. `TransformTemplateAdapterRegistry` owns content-type/schema/namespace matching, has built-in
           CEM-native and XSLT adapters, and is carried by `EngineContext` so hosts can register newer CEM-native
           template iterations at runtime.
+        - `TransformTemplateAdapter` now defines the execution-facing plugin boundary: adapters can compile a
+          `TemplateInput` plus entrypoint/params into an opaque compiled artifact, then render that artifact against a
+          primary data artifact, optional secondary artifacts, and a target identity/scope. Static built-in adapters keep
+          the current behavior by returning deterministic adapter-not-implemented errors until a runtime executor is
+          registered.
         - `TransformExecutionPolicy` records the first runtime contract:
           `runtimePhase=cem-ql-fragment`, `cardinality=one-to-one`,
           `duplicateDestinationPolicy=reject`, `failurePolicy=fail-fast`, and
@@ -629,9 +634,9 @@ These are data shapes only. Parser-filled content remains blocked until the pars
           changes, and duplicate output destinations before adding execution.
       Execution remains deferred: the default engine methods still return not implemented, and CLI dispatch still
       exits through the reserved usage path.
-      Next implementation boundary: connect the `cem_ql::render` CEM-native template renderer through a registered
-      transform-template adapter without creating a crate dependency cycle (`cem_ql` currently depends on `cem_ml`;
-      `cem_ml` cannot directly depend on `cem_ql`).
+      Next implementation boundary: decide where the concrete CEM-QL/CEM-native template adapter lives, then connect
+      `cem_ql::render` through that registered transform-template adapter without creating a crate dependency cycle
+      (`cem_ql` currently depends on `cem_ml`; `cem_ml` cannot directly depend on `cem_ql`).
 8. `cem-ml trace <input>`
     - Supported structured formats: `json`, `xml`, `cem`.
     - Reference convenience formats: `text`, `html`.

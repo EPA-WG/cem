@@ -5,7 +5,15 @@
 //! dispatch pluggable so CEM-native template iterations can ship as built-in
 //! adapters or be installed by hosts at runtime.
 
-use crate::engine::{FormatIdentity, TransformTemplateKind};
+use crate::diagnostics::{Diagnostic, Severity};
+use crate::engine::{
+    FormatIdentity, TemplateInput, TransformDiagnosticOrigin, TransformExecutionPolicy,
+    TransformTemplateEntrypoint, TransformTemplateKind,
+};
+use crate::run_config::ScopeConfig;
+use serde::{Deserialize, Serialize};
+use serde_json::Value;
+use std::collections::BTreeMap;
 use std::fmt;
 use std::sync::Arc;
 
@@ -22,10 +30,226 @@ pub enum TransformTemplateAdapterResolution {
     Unsupported,
 }
 
+#[derive(Clone)]
+pub enum TransformTemplateAdapterLookup {
+    Matched(Arc<dyn TransformTemplateAdapter>),
+    Ambiguous(Vec<&'static str>),
+    Unsupported,
+}
+
+impl fmt::Debug for TransformTemplateAdapterLookup {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        match self {
+            Self::Matched(adapter) => f.debug_tuple("Matched").field(&adapter.id()).finish(),
+            Self::Ambiguous(ids) => f.debug_tuple("Ambiguous").field(ids).finish(),
+            Self::Unsupported => f.write_str("Unsupported"),
+        }
+    }
+}
+
+#[derive(Debug, Clone)]
+pub struct TransformTemplateCompileRequest<'a> {
+    pub template: &'a TemplateInput,
+    pub entrypoint: &'a TransformTemplateEntrypoint,
+    pub params: &'a BTreeMap<String, Value>,
+    pub execution_policy: TransformExecutionPolicy,
+}
+
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct TransformTemplateCompiledArtifact {
+    pub adapter_id: String,
+    pub kind: TransformTemplateKind,
+    pub template_uri: String,
+    pub identity: Option<FormatIdentity>,
+    pub entrypoint: TransformTemplateEntrypoint,
+    #[serde(default, skip_serializing_if = "Value::is_null")]
+    pub opaque: Value,
+}
+
+#[derive(Debug, Clone)]
+pub struct TransformTemplateCompileResponse {
+    pub artifact: TransformTemplateCompiledArtifact,
+    pub diagnostics: Vec<Diagnostic>,
+}
+
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct TransformTemplateDataArtifact {
+    pub artifact_id: String,
+    pub uri: Option<String>,
+    pub identity: Option<FormatIdentity>,
+    pub value: Value,
+}
+
+#[derive(Debug, Clone)]
+pub struct TransformTemplateRenderRequest<'a> {
+    pub compiled: &'a TransformTemplateCompiledArtifact,
+    pub primary_input: &'a TransformTemplateDataArtifact,
+    pub secondary_inputs: &'a BTreeMap<String, TransformTemplateDataArtifact>,
+    pub target: Option<&'a FormatIdentity>,
+    pub target_scope: &'a ScopeConfig,
+    pub execution_policy: TransformExecutionPolicy,
+}
+
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct TransformTemplateOutputArtifact {
+    pub uri: Option<String>,
+    pub identity: Option<FormatIdentity>,
+    pub value: Value,
+}
+
+#[derive(Debug, Clone)]
+pub struct TransformTemplateRenderResponse {
+    pub output: TransformTemplateOutputArtifact,
+    pub diagnostics: Vec<Diagnostic>,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "kebab-case")]
+pub enum TransformTemplateAdapterExecutionPhase {
+    Compile,
+    Render,
+}
+
+impl TransformTemplateAdapterExecutionPhase {
+    pub fn diagnostic_origin(self) -> TransformDiagnosticOrigin {
+        match self {
+            Self::Compile => TransformDiagnosticOrigin::TemplateCompile,
+            Self::Render => TransformDiagnosticOrigin::TemplateExecution,
+        }
+    }
+
+    fn label(self) -> &'static str {
+        match self {
+            Self::Compile => "compile",
+            Self::Render => "render",
+        }
+    }
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub enum TransformTemplateAdapterError {
+    NotImplemented {
+        adapter_id: &'static str,
+        phase: TransformTemplateAdapterExecutionPhase,
+    },
+    Failed {
+        adapter_id: &'static str,
+        phase: TransformTemplateAdapterExecutionPhase,
+        message: String,
+    },
+}
+
+impl TransformTemplateAdapterError {
+    pub const NOT_IMPLEMENTED_CODE: &'static str = "cem.transform_template.adapter_not_implemented";
+    pub const FAILED_CODE: &'static str = "cem.transform_template.adapter_failed";
+
+    pub fn not_implemented(
+        adapter_id: &'static str,
+        phase: TransformTemplateAdapterExecutionPhase,
+    ) -> Self {
+        Self::NotImplemented { adapter_id, phase }
+    }
+
+    pub fn failed(
+        adapter_id: &'static str,
+        phase: TransformTemplateAdapterExecutionPhase,
+        message: impl Into<String>,
+    ) -> Self {
+        Self::Failed {
+            adapter_id,
+            phase,
+            message: message.into(),
+        }
+    }
+
+    pub fn adapter_id(&self) -> &'static str {
+        match self {
+            Self::NotImplemented { adapter_id, .. } | Self::Failed { adapter_id, .. } => adapter_id,
+        }
+    }
+
+    pub fn phase(&self) -> TransformTemplateAdapterExecutionPhase {
+        match self {
+            Self::NotImplemented { phase, .. } | Self::Failed { phase, .. } => *phase,
+        }
+    }
+
+    pub fn code(&self) -> &'static str {
+        match self {
+            Self::NotImplemented { .. } => Self::NOT_IMPLEMENTED_CODE,
+            Self::Failed { .. } => Self::FAILED_CODE,
+        }
+    }
+
+    pub fn diagnostic_origin(&self) -> TransformDiagnosticOrigin {
+        self.phase().diagnostic_origin()
+    }
+
+    pub fn diagnostic(&self, uri: Option<&str>) -> Diagnostic {
+        Diagnostic {
+            uri: uri.map(str::to_owned),
+            code: self.code().to_owned(),
+            severity: Severity::Fatal,
+            message: self.to_string(),
+            ..Diagnostic::default()
+        }
+    }
+}
+
+impl fmt::Display for TransformTemplateAdapterError {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        match self {
+            Self::NotImplemented { adapter_id, phase } => write!(
+                f,
+                "transform template adapter `{adapter_id}` does not implement {}",
+                phase.label()
+            ),
+            Self::Failed {
+                adapter_id,
+                phase,
+                message,
+            } => write!(
+                f,
+                "transform template adapter `{adapter_id}` failed during {}: {message}",
+                phase.label()
+            ),
+        }
+    }
+}
+
+impl std::error::Error for TransformTemplateAdapterError {}
+
+pub type TransformTemplateAdapterResult<T> = Result<T, TransformTemplateAdapterError>;
+
 pub trait TransformTemplateAdapter: Send + Sync {
     fn id(&self) -> &'static str;
     fn kind(&self) -> TransformTemplateKind;
     fn matches_template(&self, identity: &FormatIdentity) -> bool;
+
+    fn compile(
+        &self,
+        request: TransformTemplateCompileRequest<'_>,
+    ) -> TransformTemplateAdapterResult<TransformTemplateCompileResponse> {
+        let _ = request;
+        Err(TransformTemplateAdapterError::not_implemented(
+            self.id(),
+            TransformTemplateAdapterExecutionPhase::Compile,
+        ))
+    }
+
+    fn render(
+        &self,
+        request: TransformTemplateRenderRequest<'_>,
+    ) -> TransformTemplateAdapterResult<TransformTemplateRenderResponse> {
+        let _ = request;
+        Err(TransformTemplateAdapterError::not_implemented(
+            self.id(),
+            TransformTemplateAdapterExecutionPhase::Render,
+        ))
+    }
 }
 
 #[derive(Clone, Default)]
@@ -94,6 +318,23 @@ impl TransformTemplateAdapterRegistry {
             [] => TransformTemplateAdapterResolution::Unsupported,
             many => TransformTemplateAdapterResolution::Ambiguous(
                 many.iter().map(|selection| selection.adapter_id).collect(),
+            ),
+        }
+    }
+
+    pub fn select_adapter(&self, identity: &FormatIdentity) -> TransformTemplateAdapterLookup {
+        let matches = self
+            .adapters
+            .iter()
+            .filter(|adapter| adapter.matches_template(identity))
+            .cloned()
+            .collect::<Vec<_>>();
+
+        match matches.as_slice() {
+            [adapter] => TransformTemplateAdapterLookup::Matched(Arc::clone(adapter)),
+            [] => TransformTemplateAdapterLookup::Unsupported,
+            many => TransformTemplateAdapterLookup::Ambiguous(
+                many.iter().map(|adapter| adapter.id()).collect(),
             ),
         }
     }
@@ -184,6 +425,7 @@ fn content_type_essence(content_type: &str) -> String {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use serde_json::json;
 
     #[test]
     fn builtins_select_cem_native_and_xslt_template_adapters() {
@@ -262,6 +504,190 @@ mod tests {
         assert_eq!(
             registry.select(&identity),
             TransformTemplateAdapterResolution::Ambiguous(vec!["one", "two"])
+        );
+    }
+
+    #[test]
+    fn builtin_template_adapter_compile_and_render_are_reserved_by_default() {
+        let registry = TransformTemplateAdapterRegistry::with_builtin_adapters();
+        let identity = FormatIdentity {
+            content_type: Some("text/cem-ml".to_owned()),
+            ..FormatIdentity::default()
+        };
+        let adapter = match registry.select_adapter(&identity) {
+            TransformTemplateAdapterLookup::Matched(adapter) => adapter,
+            other => panic!("expected matched adapter, got {other:?}"),
+        };
+        let template = TemplateInput {
+            uri: "template.cem".to_owned(),
+            bytes: b"{ $title }".to_vec(),
+            identity: Some(identity),
+            root_scope: ScopeConfig::default(),
+        };
+        let params = BTreeMap::new();
+        let compile_error = adapter
+            .compile(TransformTemplateCompileRequest {
+                template: &template,
+                entrypoint: &TransformTemplateEntrypoint::implicit(),
+                params: &params,
+                execution_policy: TransformExecutionPolicy::default(),
+            })
+            .expect_err("static adapter should not compile templates");
+
+        assert_eq!(
+            compile_error.code(),
+            TransformTemplateAdapterError::NOT_IMPLEMENTED_CODE
+        );
+        assert_eq!(
+            compile_error.diagnostic_origin(),
+            TransformDiagnosticOrigin::TemplateCompile
+        );
+        assert_eq!(
+            compile_error.diagnostic(Some("template.cem")).uri,
+            Some("template.cem".to_owned())
+        );
+
+        let compiled = TransformTemplateCompiledArtifact {
+            adapter_id: adapter.id().to_owned(),
+            kind: adapter.kind(),
+            template_uri: template.uri.clone(),
+            identity: template.identity.clone(),
+            entrypoint: TransformTemplateEntrypoint::implicit(),
+            opaque: Value::Null,
+        };
+        let primary_input = TransformTemplateDataArtifact {
+            artifact_id: "data".to_owned(),
+            uri: Some("data.xml".to_owned()),
+            identity: None,
+            value: json!({"title": "Example"}),
+        };
+        let secondary_inputs = BTreeMap::new();
+        let render_error = adapter
+            .render(TransformTemplateRenderRequest {
+                compiled: &compiled,
+                primary_input: &primary_input,
+                secondary_inputs: &secondary_inputs,
+                target: None,
+                target_scope: &ScopeConfig::default(),
+                execution_policy: TransformExecutionPolicy::default(),
+            })
+            .expect_err("static adapter should not render templates");
+
+        assert_eq!(
+            render_error.diagnostic_origin(),
+            TransformDiagnosticOrigin::TemplateExecution
+        );
+    }
+
+    #[derive(Debug)]
+    struct RuntimeAdapter;
+
+    impl TransformTemplateAdapter for RuntimeAdapter {
+        fn id(&self) -> &'static str {
+            "runtime-cem-native-template"
+        }
+
+        fn kind(&self) -> TransformTemplateKind {
+            TransformTemplateKind::CemNative
+        }
+
+        fn matches_template(&self, identity: &FormatIdentity) -> bool {
+            identity.content_type.as_deref() == Some("application/vnd.cem.template+cem;version=2")
+        }
+
+        fn compile(
+            &self,
+            request: TransformTemplateCompileRequest<'_>,
+        ) -> TransformTemplateAdapterResult<TransformTemplateCompileResponse> {
+            Ok(TransformTemplateCompileResponse {
+                artifact: TransformTemplateCompiledArtifact {
+                    adapter_id: self.id().to_owned(),
+                    kind: self.kind(),
+                    template_uri: request.template.uri.clone(),
+                    identity: request.template.identity.clone(),
+                    entrypoint: request.entrypoint.clone(),
+                    opaque: json!({
+                        "bytes": request.template.bytes.len(),
+                        "params": request.params.len(),
+                    }),
+                },
+                diagnostics: Vec::new(),
+            })
+        }
+
+        fn render(
+            &self,
+            request: TransformTemplateRenderRequest<'_>,
+        ) -> TransformTemplateAdapterResult<TransformTemplateRenderResponse> {
+            Ok(TransformTemplateRenderResponse {
+                output: TransformTemplateOutputArtifact {
+                    uri: None,
+                    identity: request.target.cloned(),
+                    value: json!({
+                        "adapter": request.compiled.adapter_id,
+                        "primary": request.primary_input.value,
+                        "secondaryInputs": request.secondary_inputs.len(),
+                    }),
+                },
+                diagnostics: Vec::new(),
+            })
+        }
+    }
+
+    #[test]
+    fn runtime_template_adapter_can_compile_and_render_through_registry_selection() {
+        let mut registry = TransformTemplateAdapterRegistry::new();
+        registry.register(RuntimeAdapter);
+        let identity = FormatIdentity {
+            content_type: Some("application/vnd.cem.template+cem;version=2".to_owned()),
+            ..FormatIdentity::default()
+        };
+        let adapter = match registry.select_adapter(&identity) {
+            TransformTemplateAdapterLookup::Matched(adapter) => adapter,
+            other => panic!("expected matched adapter, got {other:?}"),
+        };
+        let template = TemplateInput {
+            uri: "template-v2.cem".to_owned(),
+            bytes: b"{ $title }".to_vec(),
+            identity: Some(identity),
+            root_scope: ScopeConfig::default(),
+        };
+        let params = BTreeMap::new();
+        let compiled = adapter
+            .compile(TransformTemplateCompileRequest {
+                template: &template,
+                entrypoint: &TransformTemplateEntrypoint::implicit(),
+                params: &params,
+                execution_policy: TransformExecutionPolicy::default(),
+            })
+            .expect("runtime adapter should compile")
+            .artifact;
+        let primary_input = TransformTemplateDataArtifact {
+            artifact_id: "data".to_owned(),
+            uri: Some("data.xml".to_owned()),
+            identity: None,
+            value: json!({"title": "Example"}),
+        };
+        let secondary_inputs = BTreeMap::new();
+        let rendered = adapter
+            .render(TransformTemplateRenderRequest {
+                compiled: &compiled,
+                primary_input: &primary_input,
+                secondary_inputs: &secondary_inputs,
+                target: None,
+                target_scope: &ScopeConfig::default(),
+                execution_policy: TransformExecutionPolicy::default(),
+            })
+            .expect("runtime adapter should render");
+
+        assert_eq!(compiled.adapter_id, "runtime-cem-native-template");
+        assert_eq!(
+            rendered.output.value,
+            json!({
+                "adapter": "runtime-cem-native-template",
+                "primary": {"title": "Example"},
+                "secondaryInputs": 0
+            })
         );
     }
 }
