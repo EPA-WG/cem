@@ -210,8 +210,11 @@ runtime design supports both XSLT templates and CEM-native templates:
 
 Current implementation slice: `cem_ml::engine::TransformTemplateKind` and
 `classify_transform_template_identity` encode that adapter selection boundary for
-both the reserved CLI one-liner request helper and graph stages. They classify only;
-they do not compile or execute templates.
+the reserved CLI one-liner request helper and graph stages. The CEM-ML graph config
+parser also records `templateKind` on transform nodes when identity is explicit or
+can be inferred from `@src`, and emits deterministic diagnostics for unsupported or
+missing template identity. They classify only; they do not compile or execute
+templates.
 
 Template reads and transform outputs must use the shared resolver layer. Template reads
 use the dedicated resolver purpose `template`, separate from ordinary data `input`

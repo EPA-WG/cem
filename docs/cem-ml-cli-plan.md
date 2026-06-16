@@ -585,7 +585,8 @@ These are data shapes only. Parser-filled content remains blocked until the pars
         - Template identity dispatch now supports both XSLT template identities (`application/xslt+xml`, `text/xsl`,
           and legacy custom-element XSLT content types) and CEM-native template identities (`application/cem+xml`,
           `application/cem`, `text/cem`, `text/cem-ml`, and CEM core schema/namespace identity when no content type is
-          present). `TransformTemplateKind` records the selected adapter class; compilation/execution remains deferred.
+          present). `TransformTemplateKind` records the selected adapter class on request/stage models and graph config
+          transform nodes; compilation/execution remains deferred.
         - Resolver semantics for reading templates with the dedicated `template` resolver purpose and writing transform
           outputs with the existing local-only default plus registered resolver behavior.
         - Report and source-map behavior for diagnostics that may originate from data, template compilation, template

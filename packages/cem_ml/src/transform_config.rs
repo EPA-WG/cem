@@ -5,11 +5,15 @@
 //! a graph model and validates graph shape. It does not execute templates.
 
 use crate::diagnostics::{Diagnostic, Severity};
-use crate::engine::FormatIdentity;
+use crate::engine::{
+    classify_transform_template_identity, FormatIdentity, TransformTemplateKind,
+    TRANSFORM_TEMPLATE_UNSUPPORTED_CODE,
+};
 use crate::events::cem::CemEventNormalizer;
 use crate::parser::builder::CemAstBuilder;
 use crate::parser::document::CemDocument;
 use crate::parser::{AstNodeId, CemAstNode};
+use crate::run_config;
 use crate::source::{BytesSource, SourceId};
 use crate::tokenizer::cem::CemTokenizer;
 use serde::{Deserialize, Serialize};
@@ -41,6 +45,8 @@ pub struct TransformGraphNode {
     pub template_content_type: Option<String>,
     #[serde(default)]
     pub template_schema: Option<String>,
+    #[serde(default)]
+    pub template_kind: Option<TransformTemplateKind>,
     #[serde(default)]
     pub input_ref: Option<String>,
     #[serde(default)]
@@ -233,7 +239,7 @@ impl GraphLowerer<'_> {
         let attrs = collect_attrs(self.document, ast_id);
         let id = attr_value(&attrs, "", "id").unwrap_or_else(|| format!("{}:{ast_id}", name));
         let input_ref = attr_value(&attrs, "", "input");
-        let node = TransformGraphNode {
+        let mut node = TransformGraphNode {
             id: id.clone(),
             kind,
             src: attr_value(&attrs, "", "src"),
@@ -245,9 +251,13 @@ impl GraphLowerer<'_> {
                 .or_else(|| attr_value(&attrs, "", "templateContentType")),
             template_schema: attr_value(&attrs, "", "template-schema")
                 .or_else(|| attr_value(&attrs, "", "templateSchema")),
+            template_kind: None,
             input_ref,
             with: with_refs(&attrs),
         };
+        if kind == TransformGraphNodeKind::Transform {
+            self.classify_template_kind(&mut node);
+        }
 
         if node.input_ref.is_none() {
             if let Some(parent_id) = parent_graph_id {
@@ -348,6 +358,14 @@ impl GraphLowerer<'_> {
                         "cem.transform_config.transform_src_missing",
                         format!("transform node `{}` requires template `@src`", node.id),
                     );
+                } else if node.template_kind.is_none() {
+                    self.push_diag(
+                        "cem.transform_config.template_identity_missing",
+                        format!(
+                            "transform node `{}` requires a supported template identity via `@template-content-type`, `@template-schema`, or `@src` extension",
+                            node.id
+                        ),
+                    );
                 }
             }
             TransformGraphNodeKind::Export => {
@@ -447,6 +465,31 @@ impl GraphLowerer<'_> {
             message: message.into(),
             ..Diagnostic::default()
         });
+    }
+
+    fn classify_template_kind(&mut self, node: &mut TransformGraphNode) {
+        let identity = FormatIdentity {
+            content_type: node.template_content_type.clone().or_else(|| {
+                node.src
+                    .as_deref()
+                    .and_then(run_config::infer_content_type_from_path)
+            }),
+            schema: node.template_schema.clone(),
+            ..FormatIdentity::default()
+        };
+
+        let has_identity = identity.content_type.is_some() || identity.schema.is_some();
+        if !has_identity {
+            return;
+        }
+
+        match classify_transform_template_identity(&identity) {
+            Ok(kind) => node.template_kind = Some(kind),
+            Err(error) => self.push_diag(
+                TRANSFORM_TEMPLATE_UNSUPPORTED_CODE,
+                format!("transform node `{}`: {}", node.id, error.message),
+            ),
+        }
     }
 }
 
@@ -592,6 +635,24 @@ mod tests {
                 .and_then(|node| node.template_content_type.as_deref()),
             Some("application/xslt+xml")
         );
+        assert_eq!(
+            response
+                .graph
+                .nodes
+                .iter()
+                .find(|node| node.id == "base")
+                .and_then(|node| node.template_kind),
+            Some(TransformTemplateKind::Xslt)
+        );
+        assert_eq!(
+            response
+                .graph
+                .nodes
+                .iter()
+                .find(|node| node.id == "chart")
+                .and_then(|node| node.template_kind),
+            Some(TransformTemplateKind::Xslt)
+        );
         assert!(response.graph.edges.iter().any(|edge| {
             edge.from == "book" && edge.to == "base" && edge.role == TransformGraphEdgeRole::Parent
         }));
@@ -601,6 +662,34 @@ mod tests {
         assert!(response.graph.edges.iter().any(|edge| {
             edge.from == "base" && edge.to == "chart" && edge.role == TransformGraphEdgeRole::Parent
         }));
+    }
+
+    #[test]
+    fn classifies_cem_native_template_from_src_extension() {
+        let response = parse(
+            r#"{@doc cem-ml 1}
+{run |
+  {import @id=book @src="inputs/book.xml" |
+    {transform @id=render @src="templates/book.cem" |
+      {export @id=html @out="out/{stem}.html"}
+    }
+  }
+}"#,
+        );
+
+        assert_eq!(
+            response
+                .graph
+                .nodes
+                .iter()
+                .find(|node| node.id == "render")
+                .and_then(|node| node.template_kind),
+            Some(TransformTemplateKind::CemNative)
+        );
+        assert!(!has_diag(
+            &response,
+            "cem.transform_config.template_identity_missing"
+        ));
     }
 
     #[test]
@@ -656,6 +745,41 @@ mod tests {
         ] {
             assert!(has_diag(&response, code), "missing diagnostic {code}");
         }
+    }
+
+    #[test]
+    fn validates_unknown_template_identity() {
+        let response = parse(
+            r#"{@doc cem-ml 1}
+{run |
+  {import @id=source @src="source.xml" |
+    {transform @id=t @src="templates/view.bin" @template-content-type="application/octet-stream" |
+      {export @id=out @out="out/{stem}.html"}
+    }
+  }
+}"#,
+        );
+
+        assert!(has_diag(&response, TRANSFORM_TEMPLATE_UNSUPPORTED_CODE));
+    }
+
+    #[test]
+    fn validates_missing_template_identity_when_src_extension_is_unknown() {
+        let response = parse(
+            r#"{@doc cem-ml 1}
+{run |
+  {import @id=source @src="source.xml" |
+    {transform @id=t @src="templates/view.unknown" |
+      {export @id=out @out="out/{stem}.html"}
+    }
+  }
+}"#,
+        );
+
+        assert!(has_diag(
+            &response,
+            "cem.transform_config.template_identity_missing"
+        ));
     }
 
     #[test]
