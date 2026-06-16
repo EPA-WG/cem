@@ -409,8 +409,10 @@ adapter compiles preflighted modules into its native payload and exposes import
 metadata on the compiled artifact. It dispatches validated same-module and direct
 imported module calls during render with the current data context. Call
 `@with:*` attributes are rendered as string bindings for the invoked template.
-Typed/non-string `@with:*` values, transitive module execution, and broader
-recursive call-limit semantics remain deferred.
+Same-module recursive calls are bounded by the module recursion limit and report
+`cem.transform_template.recursion_limit` when exceeded. Typed/non-string
+`@with:*` values, transitive module execution, and transitive recursion behavior
+remain deferred.
 
 `cem_ml` remains the stable API contract and cannot directly call
 `cem_ql::render` while `cem_ql` depends on `cem_ml`; executable renderers must be

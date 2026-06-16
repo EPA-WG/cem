@@ -710,7 +710,9 @@ These are data shapes only. Parser-filled content remains blocked until the pars
           preflighted modules into its native payload and exposes import metadata on the compiled artifact. It dispatches
           validated same-module and direct imported module calls during render with the current data context. Call
           `@with:*` attributes are rendered as string bindings for the invoked template. Typed/non-string `@with:*`
-          values, transitive module execution, and broader recursive call-limit semantics remain deferred.
+          values remain deferred. Same-module recursive calls are bounded by the module recursion limit and report
+          `cem.transform_template.recursion_limit` when exceeded. Transitive module execution and transitive recursion
+          behavior remain deferred.
         - The v1 CEM-native template declaration schema now has its own identity,
           `https://cem.dev/ns/template/cem-native/1`, and checked-in schema artifact
           `packages/cem_ml/schema/template/cem-native-template.md`. Its declaration vocabulary is `module`, `import`,
@@ -752,8 +754,8 @@ These are data shapes only. Parser-filled content remains blocked until the pars
       when a host registers an executable adapter. `transform_graph` executes loaded in-memory graph requests and returns
       export artifacts; the CLI host writes configured graph exports through the resolver layer.
       Next implementation boundary: typed/non-string call `@with:*` parameter/data binding semantics, then expand
-      transitive module execution, recursive call-limit behavior, and broader XSLT parity. The crate dependency cycle is
-      avoided by keeping the concrete CEM-QL adapter in `cem_ml_transform_cem_ql` rather than in `cem_ml`.
+      transitive module execution and transitive recursion behavior before broader XSLT parity. The crate dependency
+      cycle is avoided by keeping the concrete CEM-QL adapter in `cem_ml_transform_cem_ql` rather than in `cem_ml`.
 8. `cem-ml trace <input>`
     - Supported structured formats: `json`, `xml`, `cem`.
     - Reference convenience formats: `text`, `html`.

@@ -22,7 +22,7 @@ use cem_ml::transform_template::{
     TransformTemplateDataArtifact, TransformTemplateModuleOptions,
     TransformTemplateModuleParseRequest, TransformTemplateOutputArtifact,
     TransformTemplateRenderRequest, TransformTemplateRenderResponse,
-    CEM_NATIVE_TEMPLATE_SCHEMA_URI,
+    CEM_NATIVE_TEMPLATE_SCHEMA_URI, TRANSFORM_TEMPLATE_RECURSION_LIMIT_CODE,
 };
 use cem_ql::eval::{AtomValue, Item, ItemStream};
 use cem_ql::render::{
@@ -475,8 +475,11 @@ fn render_call_node(
 ) -> Vec<RenderPlanNode> {
     if depth >= payload.max_recursion_depth {
         diagnostics.push(module_render_diagnostic(
-            "cem.transform_template.recursion_limit",
-            "native template call recursion limit exceeded",
+            TRANSFORM_TEMPLATE_RECURSION_LIMIT_CODE,
+            format!(
+                "native template call recursion limit exceeded at depth {depth}; max depth is {}",
+                payload.max_recursion_depth
+            ),
             source_map.clone(),
         ));
         return Vec::new();
@@ -912,6 +915,73 @@ mod tests {
             "{:?}",
             rendered.diagnostics
         );
+    }
+
+    #[test]
+    fn adapter_stops_recursive_same_module_calls_at_limit() {
+        let adapter = CemQlTransformTemplateAdapter;
+        let identity = FormatIdentity {
+            schema: Some(cem_ml::transform_template::CEM_NATIVE_TEMPLATE_SCHEMA_URI.to_owned()),
+            ..FormatIdentity::default()
+        };
+        let template = TemplateInput {
+            uri: "template.cem".to_owned(),
+            bytes: br#"{@doc cem-ml 1}
+{module |
+  {template @name="loop" | {body | {span | Loop {call @template="loop"}}}}
+  {body | {div | {call @template="loop"}}}
+}"#
+            .to_vec(),
+            identity: Some(identity),
+            root_scope: ScopeConfig::default(),
+        };
+        let params = BTreeMap::new();
+        let data_bindings = Vec::new();
+        let compiled = adapter
+            .compile(TransformTemplateCompileRequest {
+                template: &template,
+                entrypoint: &TransformTemplateEntrypoint::implicit(),
+                params: &params,
+                data_bindings: &data_bindings,
+                module_options: cem_ml::transform_template::TransformTemplateModuleOptions {
+                    limits: cem_ml::transform_template::TransformTemplateModuleLimits {
+                        max_import_depth: 32,
+                        max_recursion_depth: 2,
+                    },
+                    ..Default::default()
+                },
+                module_preflight: Default::default(),
+                execution_policy: TransformExecutionPolicy::default(),
+            })
+            .expect("module template should compile")
+            .artifact;
+        let primary_input = TransformTemplateDataArtifact {
+            artifact_id: "data".to_owned(),
+            uri: None,
+            identity: None,
+            value: Value::Null,
+        };
+        let secondary_inputs = BTreeMap::new();
+
+        let rendered = adapter
+            .render(TransformTemplateRenderRequest {
+                compiled: &compiled,
+                primary_input: &primary_input,
+                secondary_inputs: &secondary_inputs,
+                target: None,
+                target_scope: &ScopeConfig::default(),
+                execution_policy: TransformExecutionPolicy::default(),
+            })
+            .expect("module template should render with recursion diagnostic");
+
+        assert_eq!(
+            rendered.output.value,
+            Value::String("<div><span>Loop <span>Loop </span></span></div>".to_owned())
+        );
+        assert!(rendered
+            .diagnostics
+            .iter()
+            .any(|diagnostic| diagnostic.code == TRANSFORM_TEMPLATE_RECURSION_LIMIT_CODE));
     }
 
     #[test]

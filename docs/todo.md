@@ -182,8 +182,10 @@ for the current architecture have landed; only deferred capability work remains 
       compile-time diagnostics for duplicate aliases, reserved includes, and direct self-import cycles. The CEM-QL
       executable adapter now compiles preflighted modules into its native payload and exposes import metadata on the
       compiled artifact. It dispatches validated same-module and direct imported module calls during render with the
-      current data context; call `@with:*` attributes are rendered as string bindings for the invoked template. The
-      CEM-native template declaration schema now has its own identity
+      current data context; call `@with:*` attributes are rendered as string bindings for the invoked template.
+      Same-module recursive calls are bounded by the module recursion limit and report
+      `cem.transform_template.recursion_limit` when exceeded. The CEM-native template declaration schema now has its own
+      identity
       (`https://cem.dev/ns/template/cem-native/1`) and checked-in artifact
       `packages/cem_ml/schema/template/cem-native-template.md`, covering `module`, `import`, `param`, `template`,
       `body`, and `call` while keeping `include` reserved. The real engine now parses/lowers that schema into
@@ -191,7 +193,7 @@ for the current architecture have landed; only deferred capability work remains 
       templates. It validates named entrypoint requests against public declarations, rejects unknown caller params, and
       reports missing required caller params before adapter compilation. It also validates same-module and imported
       public `call` targets. Next implementation boundary is typed/non-string call `@with:*` parameter/data binding
-      semantics, then transitive module execution and recursive call limits before XSLT parity expansion.
+      semantics, then transitive module execution and transitive recursion behavior before XSLT parity expansion.
       The separate adapter crate avoids the dependency cycle where `cem_ql`
       currently depends on `cem_ml`.
 - [ ] **Wishlist (future — schema/tooling):** wire CLI config schemas into generated/published artifacts. The JSON
