@@ -10,8 +10,8 @@ use crate::template_pass;
 use cem_ml::engine::{self as eng, CemMlEngine, EngineError};
 use cem_ml::resolver::{
     is_windows_drive_path, local_file_uri_to_path, local_path_or_file_uri, uri_scheme,
-    ResolveDirection, ResolvePurpose, ResolveRequest, ResolvedRead, ResolvedWrite,
-    ResolverDiagnostic, ResolverRegistry, ResourceResolver,
+    ResolveDirection, ResolveListRequest, ResolvePurpose, ResolveRequest, ResolvedListEntry,
+    ResolvedRead, ResolvedWrite, ResolverDiagnostic, ResolverRegistry, ResourceResolver,
 };
 use cem_ml::run_config::{
     self, InputSpec, OutputSpec, ResolverSpec, RunConfig, RunConfigDefaults, ScopeConfig,
@@ -73,6 +73,8 @@ const WRITE_PURPOSES: [ResolvePurpose; 3] = [
     ResolvePurpose::ObserveEvents,
 ];
 
+const TRANSFORM_GRAPH_IMPORT_GLOB_MAX_ENTRIES: usize = 1024;
+
 #[derive(Debug, Clone)]
 struct LocalMirrorMapping {
     uri_prefix: String,
@@ -99,26 +101,38 @@ impl LocalMirrorResolver {
     }
 
     fn local_path(&self, request: &ResolveRequest) -> Result<PathBuf, ResolverDiagnostic> {
-        let Some(mapping) = self
-            .mappings
-            .iter()
-            .find(|mapping| request.uri.starts_with(&mapping.uri_prefix))
-        else {
-            return Err(ResolverDiagnostic::UnsupportedResolver {
-                uri: request.uri.clone(),
-                purpose: request.purpose,
-                direction: request.direction,
-            });
-        };
-        let suffix = request
-            .uri
-            .strip_prefix(&mapping.uri_prefix)
-            .unwrap_or_default()
-            .trim_start_matches('/');
-        local_mirror_path(&mapping.local_root, suffix).map_err(|message| ResolverDiagnostic::Io {
+        let (mapping, suffix) =
+            self.mapping_for(&request.uri, request.purpose, request.direction)?;
+        local_mirror_path(&mapping.local_root, &suffix).map_err(|message| ResolverDiagnostic::Io {
             uri: request.uri.clone(),
             message,
         })
+    }
+
+    fn mapping_for(
+        &self,
+        uri: &str,
+        purpose: ResolvePurpose,
+        direction: ResolveDirection,
+    ) -> Result<(&LocalMirrorMapping, String), ResolverDiagnostic> {
+        let Some(mapping) = self
+            .mappings
+            .iter()
+            .find(|mapping| uri.starts_with(&mapping.uri_prefix))
+        else {
+            return Err(ResolverDiagnostic::UnsupportedResolver {
+                uri: uri.to_owned(),
+                purpose,
+                direction,
+            });
+        };
+        Ok((
+            mapping,
+            uri.strip_prefix(&mapping.uri_prefix)
+                .unwrap_or_default()
+                .trim_start_matches('/')
+                .to_owned(),
+        ))
     }
 }
 
@@ -157,6 +171,65 @@ impl ResourceResolver for LocalMirrorResolver {
             uri: request.uri.clone(),
         })
     }
+
+    fn list(
+        &self,
+        request: &ResolveListRequest,
+    ) -> Result<Vec<ResolvedListEntry>, ResolverDiagnostic> {
+        let (mapping, suffix) =
+            self.mapping_for(&request.uri, request.purpose, ResolveDirection::List)?;
+        let pattern_path = local_mirror_path(&mapping.local_root, &suffix).map_err(|message| {
+            ResolverDiagnostic::Io {
+                uri: request.uri.clone(),
+                message,
+            }
+        })?;
+        let pattern_file = pattern_path
+            .file_name()
+            .map(|value| value.to_string_lossy().into_owned())
+            .unwrap_or_default();
+        let (prefix, suffix_match) = pattern_file.split_once('*').unwrap_or(("", ""));
+        let parent = pattern_path
+            .parent()
+            .filter(|path| !path.as_os_str().is_empty())
+            .map(Path::to_path_buf)
+            .unwrap_or_else(|| PathBuf::from("."));
+        let mut entries = Vec::new();
+        for entry in fs::read_dir(&parent).map_err(|error| ResolverDiagnostic::Io {
+            uri: request.uri.clone(),
+            message: error.to_string(),
+        })? {
+            let entry = entry.map_err(|error| ResolverDiagnostic::Io {
+                uri: request.uri.clone(),
+                message: error.to_string(),
+            })?;
+            let file_name = entry.file_name().to_string_lossy().into_owned();
+            if !file_name.starts_with(prefix) || !file_name.ends_with(suffix_match) {
+                continue;
+            }
+            let path = entry.path();
+            if !path.is_file() {
+                continue;
+            }
+            let relative =
+                path.strip_prefix(&mapping.local_root)
+                    .map_err(|error| ResolverDiagnostic::Io {
+                        uri: request.uri.clone(),
+                        message: error.to_string(),
+                    })?;
+            entries.push(ResolvedListEntry {
+                uri: local_mirror_uri(&mapping.uri_prefix, relative),
+                content_type: request.content_type_hint.clone(),
+            });
+        }
+        entries.sort_by(|left, right| left.uri.cmp(&right.uri));
+        if let Some(max_entries) = request.max_entries {
+            if entries.len() > max_entries {
+                entries.truncate(max_entries + 1);
+            }
+        }
+        Ok(entries)
+    }
 }
 
 fn local_mirror_path(root: &Path, suffix: &str) -> Result<PathBuf, String> {
@@ -174,6 +247,18 @@ fn local_mirror_path(root: &Path, suffix: &str) -> Result<PathBuf, String> {
         path.push(segment);
     }
     Ok(path)
+}
+
+fn local_mirror_uri(prefix: &str, relative: &Path) -> String {
+    let relative = path_display_slash(relative);
+    if relative.is_empty() {
+        return prefix.to_owned();
+    }
+    if prefix.ends_with('/') {
+        format!("{prefix}{relative}")
+    } else {
+        format!("{prefix}/{relative}")
+    }
 }
 
 fn read_source(
@@ -767,6 +852,14 @@ fn register_resolver_mappings(
     for scheme in resolver.schemes() {
         for purpose in purposes {
             registry.register(scheme.clone(), *purpose, direction, resolver.clone());
+            if direction == ResolveDirection::Read {
+                registry.register(
+                    scheme.clone(),
+                    *purpose,
+                    ResolveDirection::List,
+                    resolver.clone(),
+                );
+            }
         }
     }
 }
@@ -1123,6 +1216,7 @@ fn transform_graph_source_bindings(
 }
 
 fn transform_graph_expand_import_paths(
+    context: &eng::EngineContext,
     raw: &str,
     config_local_path: Option<&Path>,
     config_source_uri: &str,
@@ -1136,38 +1230,21 @@ fn transform_graph_expand_import_paths(
     }
 
     if uri_scheme(raw).is_some() && !is_windows_drive_path(raw) {
-        return Err(transform_config_error(
-            config_source_uri,
-            "cem.transform_config.import_glob_uri_unsupported",
-            format!("import glob `{raw}` requires a local filesystem path"),
-        ));
+        return transform_graph_expand_resolver_import_paths(context, raw, config_source_uri);
     }
 
+    transform_graph_validate_import_glob(raw, config_source_uri)?;
     let pattern_path = transform_graph_path(raw, config_local_path);
     let pattern_file = pattern_path
         .file_name()
         .map(|value| value.to_string_lossy().into_owned())
         .unwrap_or_default();
-    if pattern_file.matches('*').count() != 1 {
-        return Err(transform_config_error(
-            config_source_uri,
-            "cem.transform_config.import_glob_unsupported",
-            format!("import glob `{raw}` must contain exactly one `*` in the file name"),
-        ));
-    }
 
     let parent = pattern_path
         .parent()
         .filter(|path| !path.as_os_str().is_empty())
         .map(Path::to_path_buf)
         .unwrap_or_else(|| PathBuf::from("."));
-    if parent.to_string_lossy().contains('*') {
-        return Err(transform_config_error(
-            config_source_uri,
-            "cem.transform_config.import_glob_unsupported",
-            format!("import glob `{raw}` can only use `*` in the file name"),
-        ));
-    }
 
     let (prefix, suffix) = pattern_file.split_once('*').unwrap_or(("", ""));
     let mut matches = Vec::new();
@@ -1208,6 +1285,84 @@ fn transform_graph_expand_import_paths(
             path,
         })
         .collect())
+}
+
+fn transform_graph_expand_resolver_import_paths(
+    context: &eng::EngineContext,
+    raw: &str,
+    config_source_uri: &str,
+) -> Result<Vec<TransformGraphImportMatch>, CliRequestError> {
+    transform_graph_validate_import_glob(raw, config_source_uri)?;
+    let request = ResolveListRequest::new(raw, ResolvePurpose::Input)
+        .with_max_entries(TRANSFORM_GRAPH_IMPORT_GLOB_MAX_ENTRIES + 1);
+    let mut entries = match context.resolver_registry.list(&request) {
+        Ok(entries) => entries,
+        Err(ResolverDiagnostic::UnsupportedResolver { .. }) => {
+            return Err(transform_config_error(
+                config_source_uri,
+                "cem.transform_config.import_glob_resolver_unsupported",
+                format!("import glob `{raw}` requires a resolver with list support"),
+            ));
+        }
+        Err(error) => {
+            return Err(transform_config_error(
+                config_source_uri,
+                "cem.transform_config.import_glob_resolver_error",
+                format!("import glob `{raw}` failed during resolver listing: {error}"),
+            ));
+        }
+    };
+    entries.sort_by(|left, right| left.uri.cmp(&right.uri));
+    if entries.is_empty() {
+        return Err(transform_config_error(
+            config_source_uri,
+            "cem.transform_config.import_glob_empty",
+            format!("import glob `{raw}` matched no files"),
+        ));
+    }
+    if entries.len() > TRANSFORM_GRAPH_IMPORT_GLOB_MAX_ENTRIES {
+        return Err(transform_config_error(
+            config_source_uri,
+            "cem.transform_config.import_glob_too_many",
+            format!(
+                "import glob `{raw}` matched more than {TRANSFORM_GRAPH_IMPORT_GLOB_MAX_ENTRIES} files"
+            ),
+        ));
+    }
+
+    Ok(entries
+        .into_iter()
+        .enumerate()
+        .map(|(index, entry)| {
+            let path = PathBuf::from(&entry.uri);
+            TransformGraphImportMatch {
+                bindings: transform_graph_source_bindings(&path, None, index),
+                path,
+            }
+        })
+        .collect())
+}
+
+fn transform_graph_validate_import_glob(
+    raw: &str,
+    config_source_uri: &str,
+) -> Result<(), CliRequestError> {
+    let (dir, file) = raw.rsplit_once('/').unwrap_or(("", raw));
+    if file.matches('*').count() != 1 {
+        return Err(transform_config_error(
+            config_source_uri,
+            "cem.transform_config.import_glob_unsupported",
+            format!("import glob `{raw}` must contain exactly one `*` in the file name"),
+        ));
+    }
+    if dir.contains('*') {
+        return Err(transform_config_error(
+            config_source_uri,
+            "cem.transform_config.import_glob_unsupported",
+            format!("import glob `{raw}` can only use `*` in the file name"),
+        ));
+    }
+    Ok(())
 }
 
 fn transform_graph_variant_id(base: &str, index: usize, count: usize) -> String {
@@ -1356,8 +1511,12 @@ fn transform_graph_request_from_config(
                 let src = node.src.as_ref().ok_or_else(|| {
                     CliRequestError::Usage(format!("import node `{}` requires @src", node.id))
                 })?;
-                let matches =
-                    transform_graph_expand_import_paths(src, config_local_path, config_source_uri)?;
+                let matches = transform_graph_expand_import_paths(
+                    context,
+                    src,
+                    config_local_path,
+                    config_source_uri,
+                )?;
                 let match_count = matches.len();
                 let mut import_variants = Vec::new();
                 for (index, import_match) in matches.into_iter().enumerate() {
@@ -3479,6 +3638,55 @@ mod tests {
         assert_eq!(
             std::fs::read_to_string(root.join("out/ch02/img/chart-1.cem.svg")).unwrap(),
             "<svg>document</svg>"
+        );
+    }
+
+    #[test]
+    fn transform_config_resolver_glob_exports_apply_source_bindings() {
+        let root = std::env::temp_dir().join("cem-ml-cli-tests/transform-config-resolver-glob");
+        let _ = std::fs::remove_dir_all(&root);
+        std::fs::create_dir_all(root.join("mirror/inputs")).unwrap();
+        std::fs::write(root.join("mirror/inputs/ch02.cem"), "{p @id=\"two\"}").unwrap();
+        std::fs::write(root.join("mirror/inputs/ch01.cem"), "{p @id=\"one\"}").unwrap();
+        std::fs::write(
+            root.join("page.cem"),
+            "{article | {$datadom.attributes.kind}}",
+        )
+        .unwrap();
+        let config = root.join("graph.cem");
+        std::fs::write(
+            &config,
+            r#"{run |
+  {import @id=book @src="cem+vfs://workspace/inputs/*.cem" @content-type="text/cem-ml" |
+    {transform @id=page @src="page.cem" @template-content-type="text/cem-ml" |
+      {export @id=html @out="out/{index}-{stem}.html" @content-type="text/html"}
+    }
+  }
+}"#,
+        )
+        .unwrap();
+
+        let (outcome, stdout, stderr) = run(
+            &RealCemMlEngine::new(),
+            &[
+                "transform",
+                "--config",
+                config.to_str().unwrap(),
+                "--resolver-read-map",
+                &format!("cem+vfs://workspace={}", root.join("mirror").display()),
+            ],
+        );
+
+        assert_eq!(outcome.exit_code, EXIT_OK);
+        assert!(stdout.is_empty(), "{stdout}");
+        assert!(stderr.trim().is_empty(), "{stderr}");
+        assert_eq!(
+            std::fs::read_to_string(root.join("out/0-ch01.html")).unwrap(),
+            "<article>document</article>"
+        );
+        assert_eq!(
+            std::fs::read_to_string(root.join("out/1-ch02.html")).unwrap(),
+            "<article>document</article>"
         );
     }
 

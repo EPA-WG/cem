@@ -136,9 +136,11 @@ for the current architecture have landed; only deferred capability work remains 
       now imports in-memory graph inputs, executes one-to-one CEM-native stages after their primary and secondary
       artifacts are available, and returns response export artifacts. The CLI host now lowers CEM-ML transform config
       into graph requests, resolves relative import/template/export paths against the config document path, and writes
-      graph export destinations through the resolver layer. The CLI host also expands local filesystem import globs with
-      one `*` in the file name, derives `{src}`, `{path}`, `{dir}`, `{file}`, `{stem}`, `{ext}`, and `{index}` bindings,
-      preserves those bindings through one-to-one transform branches, and applies them to export `@out` templates.
+      graph export destinations through the resolver layer. The CLI host also expands local filesystem and
+      resolver-backed import globs with one `*` in the file name, derives `{src}`, `{path}`, `{dir}`, `{file}`, `{stem}`,
+      `{ext}`, and `{index}` bindings, preserves those bindings through one-to-one transform branches, and applies them
+      to export `@out` templates. Resolver-backed glob expansion requires an explicit list-capable resolver, sorts by
+      resolved URI, and enforces a deterministic max-entry guard.
       Transform graph reports now include `reportAst.transformGraph` export metadata for resolved export IDs,
       destinations, content identities, output kinds, source-map presence, output-span counts, and sidecar refs. Graph
       exports with artifact source maps write `{destination}.map` sidecars through the output resolver.
@@ -149,8 +151,8 @@ for the current architecture have landed; only deferred capability work remains 
       with embedded CEM-QL and one implicit entrypoint; then add local filename-glob input enumeration plus named
       path-template expansion for graph configs; then add native named templates/modules, explicit entrypoints, params,
       imports/includes, visibility, caching, and recursion/cycle limits; then expand XSLT parity on that native
-      substrate. Next runtime implementation work is resolver-backed glob enumeration, recursive glob semantics, and
-      multi-artifact join semantics before XSLT parity.
+      substrate. Next runtime implementation work is recursive glob semantics and multi-artifact join semantics before
+      XSLT parity.
       The separate adapter crate avoids the dependency cycle where `cem_ql`
       currently depends on `cem_ml`.
 - [ ] **Wishlist (future — schema/tooling):** wire CLI config schemas into generated/published artifacts. The JSON

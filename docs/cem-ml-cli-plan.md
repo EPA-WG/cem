@@ -608,8 +608,8 @@ These are data shapes only. Parser-filled content remains blocked until the pars
       `--template-schema`, `--to-content-type`, `--to-schema`, `--out`, shared context options, `--report-json`, and
       `--report-md`.
     - Current CLI runtime supports the minimal one-to-one CEM-native path through the CEM-QL executable adapter and
-      `--config` graph dispatch for concrete paths plus local filename import globs. `RealCemMlEngine::transform_graph`
-      executes CEM-native graph requests; XML+XSLT execution remains deferred.
+      `--config` graph dispatch for concrete paths plus local and resolver-backed filename import globs.
+      `RealCemMlEngine::transform_graph` executes CEM-native graph requests; XML+XSLT execution remains deferred.
     - Current config slice: `cem_ml::transform_config::parse_transform_graph_config` parses CEM-ML
       `run` / `import` / `transform` / `export` graph config and validates missing required operation
       attributes, duplicate IDs, unresolved refs, cycles, and wildcard output patterns. CLI dispatch lowers this config
@@ -673,8 +673,9 @@ These are data shapes only. Parser-filled content remains blocked until the pars
           layer. Programmatic graph execution still returns artifacts in-memory.
         - CLI graph config source bindings are source-derived and immutable in this slice: `{src}`, `{path}`, `{dir}`,
           `{file}`, `{stem}`, `{ext}`, and `{index}`. Imports create bindings, one-to-one transforms preserve them, and
-          exports consume them. Local filename globs with one `*` are expanded by the CLI host; resolver-backed globs,
-          recursive globs, and multi-artifact joins remain deferred.
+          exports consume them. Local and resolver-backed filename globs with one `*` are expanded by the CLI host.
+          Resolver-backed globs require explicit list-capable resolvers, sort matches by resolved URI, and enforce a
+          deterministic max-entry guard. Recursive globs and multi-artifact joins remain deferred.
         - Report and source-map behavior for diagnostics that may originate from data, template compilation, template
           execution, or output export. Current CLI report destinations suppress diagnostic stderr and use
           `cem-ml.transform.report` as the default report basename. Graph transform reports include
@@ -687,7 +688,7 @@ These are data shapes only. Parser-filled content remains blocked until the pars
       Execution is available through the programmatic engine API, the CLI one-liner, and CLI CEM-ML graph config dispatch
       when a host registers an executable adapter. `transform_graph` executes loaded in-memory graph requests and returns
       export artifacts; the CLI host writes configured graph exports through the resolver layer.
-      Next implementation boundary: design resolver-backed glob enumeration and multi-artifact join semantics. The crate
+      Next implementation boundary: design recursive glob semantics and multi-artifact join semantics. The crate
       dependency cycle is avoided by keeping the concrete CEM-QL adapter in `cem_ml_transform_cem_ql` rather than in
       `cem_ml`.
 8. `cem-ml trace <input>`

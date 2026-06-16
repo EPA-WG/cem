@@ -210,8 +210,10 @@ Current implementation slice:
   in the CLI host, resolves relative import/template/export paths against the config
   document path, and writes graph export artifacts to configured destinations through
   the resolver layer. The first CLI expansion slice supports local filesystem import
-  globs with one `*` in the file name, source-derived output bindings, and one-to-one
-  binding propagation through transform stages.
+  globs and resolver-backed import globs with one `*` in the file name, source-derived
+  output bindings, and one-to-one binding propagation through transform stages. Resolver
+  glob expansion requires an explicit list-capable resolver and is bounded by a
+  deterministic max-entry guard.
 
 The Rust/WASM engine API models transform as a first-class graph request/response
 pair instead of smuggling template information through `ConvertRequest` or CLI-only
@@ -287,9 +289,9 @@ transform nodes when identity is explicit or can be inferred from `@src`, and em
 deterministic diagnostics for unsupported or missing template identity. CLI dispatch
 executes the one-to-one CEM-native path through the host-registered CEM-QL adapter.
 Programmatic graph execution is available through `RealCemMlEngine::transform_graph`;
-CLI config graph dispatch is available for concrete CEM-native graph paths and local
-filename import globs. XSLT execution, resolver-backed glob enumeration, recursive
-globs, and multi-artifact join semantics remain deferred.
+CLI config graph dispatch is available for concrete CEM-native graph paths, local
+filename import globs, and resolver-backed filename import globs. XSLT execution,
+recursive globs, and multi-artifact join semantics remain deferred.
 
 The first concrete executable CEM-native adapter lives in
 `cem_ml_transform_cem_ql`, outside `cem_ml`, so it can depend on both `cem_ml` and
@@ -472,7 +474,8 @@ implementations:
   `--resolver-read-map URI-PREFIX=DIR`, `--resolver-write-map URI-PREFIX=DIR`, or
   run-config `resolvers` entries. These maps do not fetch network resources; they map a
   remote/custom URI prefix to a local filesystem root. Read maps do not imply write
-  permission, and write maps do not imply read permission.
+  permission, and write maps do not imply read permission. CLI read maps also install
+  list support for resolver-backed transform import globs.
 
 Every resolver operation carries a purpose so hosts can apply policy by capability:
 
@@ -485,9 +488,9 @@ Every resolver operation carries a purpose so hosts can apply policy by capabili
 - `observeEvents` writes JSONL observability event streams.
 
 Resolver requests include the declared URI, the effective base URI for relative values,
-the operation purpose, the direction (`read` or `write`), an optional content-type hint,
+the operation purpose, the direction (`read`, `write`, or `list`), an optional content-type hint,
 and the root-scope or output-scope identity that caused the request. Resolver responses
-return normalized/final URI, bytes for reads or write acknowledgement for writes,
+return normalized/final URI, bytes for reads, write acknowledgement for writes, or sorted URI entries for lists,
 optional content type, and optional cache metadata. Reports and diagnostics should keep
 the declared URI visible while also allowing a normalized URI when it differs.
 
@@ -569,9 +572,8 @@ I/O messages, but they must not replace the underlying resolver code or URI.
 
   It also accepts `--data-schema`, `--template-schema`, `--to-schema`, shared context options, and
   `--report-json` / `--report-md`. The current CLI runtime executes the one-to-one CEM-native path and CEM-ML
-  `--config` graph dispatch for concrete paths plus local filename import globs with source-derived output bindings.
-  XML+XSLT execution, resolver-backed glob enumeration, recursive globs, and multi-artifact join semantics remain
-  deferred.
+  `--config` graph dispatch for concrete paths plus local and resolver-backed filename import globs with source-derived
+  output bindings. XML+XSLT execution, recursive globs, and multi-artifact join semantics remain deferred.
 - Multi-source configuration via config file, plus repeatable CSV option records for
   CLI one-liners. Config files are preferred for CI/build reproducibility.
 - Config-file content type via `--config-content-type`, inferred from extension when

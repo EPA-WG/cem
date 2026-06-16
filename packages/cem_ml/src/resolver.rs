@@ -46,6 +46,7 @@ impl fmt::Display for ResolvePurpose {
 pub enum ResolveDirection {
     Read,
     Write,
+    List,
 }
 
 impl ResolveDirection {
@@ -53,6 +54,7 @@ impl ResolveDirection {
         match self {
             Self::Read => "read",
             Self::Write => "write",
+            Self::List => "list",
         }
     }
 }
@@ -102,6 +104,48 @@ impl ResolveRequest {
 pub struct ResolvedRead {
     pub uri: String,
     pub bytes: Vec<u8>,
+    pub content_type: Option<String>,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct ResolveListRequest {
+    pub uri: String,
+    pub base_uri: Option<String>,
+    pub purpose: ResolvePurpose,
+    pub content_type_hint: Option<String>,
+    pub max_entries: Option<usize>,
+}
+
+impl ResolveListRequest {
+    pub fn new(uri: impl Into<String>, purpose: ResolvePurpose) -> Self {
+        Self {
+            uri: uri.into(),
+            base_uri: None,
+            purpose,
+            content_type_hint: None,
+            max_entries: None,
+        }
+    }
+
+    pub fn with_base_uri(mut self, base_uri: impl Into<String>) -> Self {
+        self.base_uri = Some(base_uri.into());
+        self
+    }
+
+    pub fn with_content_type_hint(mut self, content_type_hint: impl Into<String>) -> Self {
+        self.content_type_hint = Some(content_type_hint.into());
+        self
+    }
+
+    pub fn with_max_entries(mut self, max_entries: usize) -> Self {
+        self.max_entries = Some(max_entries);
+        self
+    }
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct ResolvedListEntry {
+    pub uri: String,
     pub content_type: Option<String>,
 }
 
@@ -175,6 +219,16 @@ pub trait ResourceResolver: Send + Sync {
         request: &ResolveRequest,
         bytes: &[u8],
     ) -> Result<ResolvedWrite, ResolverDiagnostic>;
+    fn list(
+        &self,
+        request: &ResolveListRequest,
+    ) -> Result<Vec<ResolvedListEntry>, ResolverDiagnostic> {
+        Err(ResolverDiagnostic::UnsupportedResolver {
+            uri: request.uri.clone(),
+            purpose: request.purpose,
+            direction: ResolveDirection::List,
+        })
+    }
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord, Hash)]
@@ -275,6 +329,22 @@ impl ResolverRegistry {
             });
         };
         resolver.write(request, bytes)
+    }
+
+    pub fn list(
+        &self,
+        request: &ResolveListRequest,
+    ) -> Result<Vec<ResolvedListEntry>, ResolverDiagnostic> {
+        let scheme = list_request_scheme(request)?;
+        let Some(resolver) = self.resolver_for(scheme, request.purpose, ResolveDirection::List)
+        else {
+            return Err(ResolverDiagnostic::UnsupportedResolver {
+                uri: request.uri.clone(),
+                purpose: request.purpose,
+                direction: ResolveDirection::List,
+            });
+        };
+        resolver.list(request)
     }
 }
 
@@ -381,6 +451,14 @@ fn request_scheme(request: &ResolveRequest) -> Result<&str, ResolverDiagnostic> 
     })
 }
 
+fn list_request_scheme(request: &ResolveListRequest) -> Result<&str, ResolverDiagnostic> {
+    uri_scheme(&request.uri).ok_or_else(|| ResolverDiagnostic::UnsupportedResolver {
+        uri: request.uri.clone(),
+        purpose: request.purpose,
+        direction: ResolveDirection::List,
+    })
+}
+
 fn normalize_scheme(scheme: impl AsRef<str>) -> String {
     scheme
         .as_ref()
@@ -440,6 +518,16 @@ mod tests {
             Ok(ResolvedWrite {
                 uri: format!("{}#{}b", request.uri, bytes.len()),
             })
+        }
+
+        fn list(
+            &self,
+            request: &ResolveListRequest,
+        ) -> Result<Vec<ResolvedListEntry>, ResolverDiagnostic> {
+            Ok(vec![ResolvedListEntry {
+                uri: request.uri.replace('*', "a"),
+                content_type: request.content_type_hint.clone(),
+            }])
         }
     }
 
@@ -577,6 +665,22 @@ mod tests {
             )
             .unwrap();
         assert_eq!(write.uri, "cem+vfs://root/out.json#2b");
+
+        registry.register(
+            "cem+vfs",
+            ResolvePurpose::Input,
+            ResolveDirection::List,
+            EchoResolver,
+        );
+        let listed = registry
+            .list(
+                &ResolveListRequest::new("cem+vfs://root/*.cem", ResolvePurpose::Input)
+                    .with_content_type_hint("text/cem-ml")
+                    .with_max_entries(10),
+            )
+            .unwrap();
+        assert_eq!(listed[0].uri, "cem+vfs://root/a.cem");
+        assert_eq!(listed[0].content_type.as_deref(), Some("text/cem-ml"));
 
         let err = registry
             .write(
