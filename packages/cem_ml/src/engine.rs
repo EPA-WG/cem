@@ -132,6 +132,87 @@ pub enum TransformTemplateKind {
     CemNative,
 }
 
+#[derive(Debug, Clone, Copy, Default, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "kebab-case")]
+pub enum TransformRuntimePhase {
+    #[default]
+    CemQlFragment,
+    CemNativeModules,
+    XsltParity,
+}
+
+#[derive(Debug, Clone, Copy, Default, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "kebab-case")]
+pub enum TransformCardinalityMode {
+    #[default]
+    OneToOne,
+}
+
+#[derive(Debug, Clone, Copy, Default, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "kebab-case")]
+pub enum TransformDuplicateDestinationPolicy {
+    #[default]
+    Reject,
+}
+
+#[derive(Debug, Clone, Copy, Default, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "kebab-case")]
+pub enum TransformFailurePolicy {
+    #[default]
+    FailFast,
+}
+
+#[derive(Debug, Clone, Copy, Default, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "kebab-case")]
+pub enum TransformOutputPolicy {
+    #[default]
+    ContentPrimary,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "kebab-case")]
+pub enum TransformDiagnosticOrigin {
+    Config,
+    Import,
+    TemplateLoad,
+    TemplateCompile,
+    TemplateExecution,
+    Export,
+}
+
+#[derive(Debug, Clone, Copy, Default, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct TransformExecutionPolicy {
+    pub runtime_phase: TransformRuntimePhase,
+    pub cardinality: TransformCardinalityMode,
+    pub duplicate_destination_policy: TransformDuplicateDestinationPolicy,
+    pub failure_policy: TransformFailurePolicy,
+    pub output_policy: TransformOutputPolicy,
+}
+
+#[derive(Debug, Clone, Default, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct TransformTemplateEntrypoint {
+    #[serde(default)]
+    pub name: Option<String>,
+}
+
+impl TransformTemplateEntrypoint {
+    pub fn implicit() -> Self {
+        Self { name: None }
+    }
+
+    pub fn named(name: impl Into<String>) -> Self {
+        Self {
+            name: Some(name.into()),
+        }
+    }
+
+    pub fn is_implicit(&self) -> bool {
+        self.name.is_none()
+    }
+}
+
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct TransformTemplateIdentityError {
     pub code: &'static str,
@@ -302,11 +383,14 @@ pub struct TransformRequest {
     pub data: EngineInput,
     pub template: TemplateInput,
     pub template_kind: TransformTemplateKind,
+    pub template_entrypoint: TransformTemplateEntrypoint,
+    pub params: BTreeMap<String, Value>,
     pub preserve_source_offsets: bool,
     pub context: EngineContext,
     pub target: Option<FormatIdentity>,
     pub target_scope: ScopeConfig,
     pub scheduler_scope_ids: TransformSchedulerScopeIds,
+    pub execution_policy: TransformExecutionPolicy,
 }
 
 #[derive(Debug, Clone)]
@@ -317,6 +401,7 @@ pub struct TransformGraphRequest {
     pub edges: Vec<TransformGraphDependency>,
     pub preserve_source_offsets: bool,
     pub context: EngineContext,
+    pub execution_policy: TransformExecutionPolicy,
 }
 
 #[derive(Debug, Clone)]
@@ -331,6 +416,8 @@ pub struct TransformGraphStage {
     pub id: String,
     pub template: TemplateInput,
     pub template_kind: TransformTemplateKind,
+    pub template_entrypoint: TransformTemplateEntrypoint,
+    pub params: BTreeMap<String, Value>,
     pub primary_input: String,
     pub secondary_inputs: BTreeMap<String, String>,
     pub scheduler_scope_ids: TransformStageSchedulerScopeIds,
@@ -671,6 +758,26 @@ mod tests {
     }
 
     #[test]
+    fn transform_execution_policy_defaults_to_first_runtime_slice() {
+        let policy = TransformExecutionPolicy::default();
+
+        assert_eq!(policy.runtime_phase, TransformRuntimePhase::CemQlFragment);
+        assert_eq!(policy.cardinality, TransformCardinalityMode::OneToOne);
+        assert_eq!(
+            policy.duplicate_destination_policy,
+            TransformDuplicateDestinationPolicy::Reject
+        );
+        assert_eq!(policy.failure_policy, TransformFailurePolicy::FailFast);
+        assert_eq!(policy.output_policy, TransformOutputPolicy::ContentPrimary);
+        assert!(TransformTemplateEntrypoint::implicit().is_implicit());
+        assert!(!TransformTemplateEntrypoint::named("main").is_implicit());
+        assert_eq!(
+            serde_json::to_value(TransformDiagnosticOrigin::TemplateCompile).unwrap(),
+            serde_json::Value::String("template-compile".to_owned())
+        );
+    }
+
+    #[test]
     fn transform_request_models_data_template_and_target_separately() {
         let target_scope = ScopeConfig {
             default_content_type: Some("text/html".to_owned()),
@@ -680,6 +787,8 @@ mod tests {
             data: engine_input("data.xml", "application/xml"),
             template: template_input("view.xsl", "application/xslt+xml"),
             template_kind: TransformTemplateKind::Xslt,
+            template_entrypoint: TransformTemplateEntrypoint::implicit(),
+            params: BTreeMap::new(),
             preserve_source_offsets: true,
             context: EngineContext::default(),
             target: target_scope.format_identity_option(),
@@ -690,11 +799,14 @@ mod tests {
                 execution: 3,
                 output: 4,
             },
+            execution_policy: TransformExecutionPolicy::default(),
         };
 
         assert_eq!(request.data.uri, "data.xml");
         assert_eq!(request.template.uri, "view.xsl");
         assert_eq!(request.template_kind, TransformTemplateKind::Xslt);
+        assert!(request.template_entrypoint.is_implicit());
+        assert!(request.params.is_empty());
         assert_eq!(
             request
                 .template
@@ -711,6 +823,10 @@ mod tests {
             Some("text/html")
         );
         assert_eq!(request.scheduler_scope_ids.execution, 3);
+        assert_eq!(
+            request.execution_policy.runtime_phase,
+            TransformRuntimePhase::CemQlFragment
+        );
     }
 
     #[test]
@@ -739,6 +855,11 @@ mod tests {
                 id: "report".to_owned(),
                 template: template_input("report.xsl", "application/xslt+xml"),
                 template_kind: TransformTemplateKind::Xslt,
+                template_entrypoint: TransformTemplateEntrypoint::implicit(),
+                params: BTreeMap::from([(
+                    "locale".to_owned(),
+                    serde_json::Value::String("en-US".to_owned()),
+                )]),
                 primary_input: "book".to_owned(),
                 secondary_inputs,
                 scheduler_scope_ids: TransformStageSchedulerScopeIds {
@@ -773,10 +894,16 @@ mod tests {
             ],
             preserve_source_offsets: true,
             context: EngineContext::default(),
+            execution_policy: TransformExecutionPolicy::default(),
         };
 
         assert_eq!(request.imports.len(), 2);
         assert_eq!(request.stages[0].primary_input, "book");
+        assert!(request.stages[0].template_entrypoint.is_implicit());
+        assert_eq!(
+            request.stages[0].params.get("locale"),
+            Some(&serde_json::Value::String("en-US".to_owned()))
+        );
         assert_eq!(
             request.stages[0]
                 .secondary_inputs
@@ -809,6 +936,9 @@ mod tests {
             target: None,
             target_scope: ScopeConfig::default(),
             scheduler_scope_ids: TransformSchedulerScopeIds::default(),
+            template_entrypoint: TransformTemplateEntrypoint::implicit(),
+            params: BTreeMap::new(),
+            execution_policy: TransformExecutionPolicy::default(),
         };
 
         let err = NotImplementedEngine.transform(request).unwrap_err();
@@ -824,6 +954,7 @@ mod tests {
             edges: Vec::new(),
             preserve_source_offsets: false,
             context: EngineContext::default(),
+            execution_policy: TransformExecutionPolicy::default(),
         };
 
         let err = NotImplementedEngine.transform_graph(request).unwrap_err();

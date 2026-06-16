@@ -925,11 +925,14 @@ fn transform_request_from_args(
         data,
         template,
         template_kind,
+        template_entrypoint: eng::TransformTemplateEntrypoint::implicit(),
+        params: BTreeMap::new(),
         preserve_source_offsets: false,
         context: context.clone(),
         target: target_scope.format_identity_option(),
         target_scope,
         scheduler_scope_ids: eng::TransformSchedulerScopeIds::default(),
+        execution_policy: eng::TransformExecutionPolicy::default(),
     })
 }
 

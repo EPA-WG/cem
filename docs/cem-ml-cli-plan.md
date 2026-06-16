@@ -591,12 +591,21 @@ These are data shapes only. Parser-filled content remains blocked until the pars
     - Current engine API slice: `cem_ml::engine::TransformGraphRequest` and `TransformGraphResponse` model
       loaded import nodes, template-backed transform stages, export nodes, graph dependencies, scheduler scope IDs,
       emitted artifacts, diagnostics, and scheduler trace. The default engine method still returns not implemented.
-    - Before execution is implemented, add a design/API slice that defines:
+    - Current design/API slice:
         - Template identity dispatch now supports both XSLT template identities (`application/xslt+xml`, `text/xsl`,
           and legacy custom-element XSLT content types) and CEM-native template identities (`application/cem+xml`,
           `application/cem`, `text/cem`, `text/cem-ml`, and CEM core schema/namespace identity when no content type is
           present). `TransformTemplateKind` records the selected adapter class on request/stage models and graph config
           transform nodes; compilation/execution remains deferred.
+        - `TransformExecutionPolicy` records the first runtime contract:
+          `runtimePhase=cem-ql-fragment`, `cardinality=one-to-one`,
+          `duplicateDestinationPolicy=reject`, `failurePolicy=fail-fast`, and
+          `outputPolicy=content-primary`.
+        - `TransformTemplateEntrypoint` and `params` exist on transform requests/stages so the API has a place for
+          future named-template/module execution. The first runtime phase supports only the implicit entrypoint and may
+          reject params until the module layer lands.
+        - `TransformDiagnosticOrigin` reserves stable report/source-map origin categories for `config`, `import`,
+          `template-load`, `template-compile`, `template-execution`, and `export`.
         - CEM-native runtime order: first support pure CEM-QL evaluation plus CEM-ML fragments with embedded CEM-QL and
           one implicit entrypoint; then add native named templates/modules, explicit entrypoints, params,
           imports/includes, visibility, caching, and recursion/cycle limits; then expand XSLT parity using that native
@@ -610,6 +619,8 @@ These are data shapes only. Parser-filled content remains blocked until the pars
           execution, or output export.
         - Graph validation for duplicate IDs, unresolved refs, cycles, unsupported joins, unsupported cardinality
           changes, and duplicate output destinations before adding execution.
+      Execution remains deferred: the default engine methods still return not implemented, and CLI dispatch still
+      exits through the reserved usage path.
 8. `cem-ml trace <input>`
     - Supported structured formats: `json`, `xml`, `cem`.
     - Reference convenience formats: `text`, `html`.

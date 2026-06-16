@@ -204,6 +204,22 @@ options. The graph-lowered request shape includes:
 - optional preservation of source-map frames from import and template inputs;
 - the shared `EngineContext`, including resolver registry and scheduler settings.
 
+The runtime API design is intentionally conservative for the first implementation
+slice:
+
+- `TransformExecutionPolicy` defaults to `runtimePhase=cem-ql-fragment`,
+  `cardinality=one-to-one`, `duplicateDestinationPolicy=reject`,
+  `failurePolicy=fail-fast`, and `outputPolicy=content-primary`.
+- `TransformTemplateEntrypoint` is present on single-template requests and graph
+  stages, but the first runtime phase only supports the implicit entrypoint.
+- `params` is present on transform requests/stages for future named-template/module
+  work; the first runtime phase can reject non-empty params until that layer lands.
+- `TransformDiagnosticOrigin` reserves stable report/source-map origin categories:
+  `config`, `import`, `template-load`, `template-compile`, `template-execution`,
+  and `export`.
+- The default `CemMlEngine::transform` and `transform_graph` methods still return
+  `NotImplemented`; these types define the runtime contract before execution exists.
+
 Supported template content types must be explicit adapter capabilities. The first
 runtime design supports both XSLT templates and CEM-native templates:
 
@@ -254,8 +270,8 @@ Transform responses must preserve the content-primary command contract:
 - graph validation must reject duplicate IDs, unresolved references, cycles, ambiguous
   output paths, and unsupported cardinality-changing stages before execution.
 
-Until that design is accepted, `cem-ml transform ...` must remain parseable but reserved
-and exit with code `2`.
+Until execution is implemented, `cem-ml transform ...` must remain parseable but
+reserved and exit with code `2`.
 
 Current implementation status:
 
