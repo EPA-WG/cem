@@ -322,6 +322,48 @@ CEM-native template execution should land before XSLT parity expansion, in this 
 3. XSLT parity expansion: deepen XSLT support after the native named-template/module
    substrate exists, so migration has a first-class native landing zone.
 
+The native template/module layer has the following recommended contract. This is
+the target for the next runtime/API slice; it is not a promise that the current
+minimal CEM-QL-fragment executor already implements these behaviors.
+
+- A template resource compiles as a module owned by the selected template adapter.
+  Module syntax, declarations, and schema rules are part of the template
+  content-type/schema plugin, not the stable base CEM-ML document AST.
+- The implicit entrypoint is the module default render entrypoint. Explicit
+  `TransformTemplateEntrypoint::named("name")` selects a public named template
+  exported by the module. Missing or private entrypoints fail during template
+  compile/validation, before rendering data.
+- Declarations are private by default. Public visibility must be explicit. This
+  keeps helper templates and local params from becoming an accidental cross-module
+  API.
+- Params are immutable per render call. Template declarations may provide defaults;
+  caller-provided params override defaults by name. Unknown params are fatal unless
+  the selected adapter explicitly declares an extension bucket for them.
+- Data bindings are explicit adapter inputs. The stable binding set for the native
+  module layer should include the primary artifact under `input`, named secondary
+  artifacts under their `@with:*` labels, and declared params under their names.
+  Any direct convenience bindings derived from the primary object are adapter
+  compatibility behavior and must not be required by portable templates.
+- Imports should be implemented before includes. `import` loads a separate module
+  through the template resolver, keeps that module's private declarations isolated,
+  and exposes only public exports under an explicit alias or namespace. `include`
+  is reserved for a later lexical merge feature and should remain unsupported until
+  the import/caching/cycle rules are proven.
+- Module resolution uses the same resolver registry with purpose `template`.
+  Relative imports resolve against the importing template's resolved URI. Resolver
+  diagnostics use the `template-load` origin; compile failures use
+  `template-compile`; render failures use `template-execution`.
+- Template module caching is keyed by adapter ID, resolved template URI, template
+  identity, content hash, selected entrypoint, execution policy, and the resolved
+  dependency graph hash. Cache entries must not cross adapter versions or template
+  schema versions.
+- Cycles in the import graph are fatal compile-time diagnostics. Recursive template
+  calls are allowed only through explicit named-template calls and must be bounded
+  by scheduler/runtime limits. The default failure policy remains fail-fast.
+- Output remains content-primary for this layer. Multi-output/report side effects
+  should continue to be modeled by graph branches and export nodes rather than by
+  arbitrary template writes.
+
 `cem_ml` remains the stable API contract and cannot directly call
 `cem_ql::render` while `cem_ql` depends on `cem_ml`; executable renderers must be
 registered by crates or hosts above both layers.

@@ -670,6 +670,30 @@ These are data shapes only. Parser-filled content remains blocked until the pars
           one implicit entrypoint; then add native named templates/modules, explicit entrypoints, params,
           imports/includes, visibility, caching, and recursion/cycle limits; then expand XSLT parity using that native
           substrate.
+        - Native template/module contract for the next runtime/API slice:
+            - Compile each template resource as an adapter-owned module. Module syntax and schema rules belong to the
+              selected template content-type/schema adapter, not to the stable base CEM-ML document AST.
+            - Treat the implicit entrypoint as the module default render entrypoint. Explicit named entrypoints select
+              public exported templates and fail during compile/validation when missing or private.
+            - Make declarations private by default; require explicit public visibility for cross-module use.
+            - Make params immutable for each render call. Template defaults are allowed, caller params override by name,
+              and unknown params are fatal unless an adapter declares an extension bucket.
+            - Keep portable data bindings explicit: primary artifact as `input`, named secondary artifacts under their
+              graph labels, and params under their names. Direct primary-object convenience bindings are adapter
+              compatibility behavior, not a portable template requirement.
+            - Implement `import` before `include`. Imports load separate modules through the template resolver, isolate
+              private declarations, expose public exports under an alias/namespace, and reject dependency cycles.
+              Includes remain reserved until the import, cache, and cycle rules are proven.
+            - Resolve relative imports against the importing template URI with resolver purpose `template`; report
+              resolver, compile, and render failures through `template-load`, `template-compile`, and
+              `template-execution` origins respectively.
+            - Cache compiled modules by adapter ID, resolved URI, template identity, content hash, selected entrypoint,
+              execution policy, and resolved dependency graph hash. Cache entries must not cross adapter or template
+              schema versions.
+            - Allow recursive named-template calls only with explicit runtime/scheduler limits; keep fail-fast as the
+              default failure policy.
+            - Keep output content-primary. Use graph branches and export nodes for multiple files/reports instead of
+              arbitrary template writes.
         - The CLI transform graph config has its own schema identity,
           `https://cem.dev/ns/cli/transform-config/1`, for `run` / `import` / `join` / `transform` / `export`; do not
           validate transform config as ordinary CEM core content or as a template document.
@@ -704,8 +728,9 @@ These are data shapes only. Parser-filled content remains blocked until the pars
       Execution is available through the programmatic engine API, the CLI one-liner, and CLI CEM-ML graph config dispatch
       when a host registers an executable adapter. `transform_graph` executes loaded in-memory graph requests and returns
       export artifacts; the CLI host writes configured graph exports through the resolver layer.
-      Next implementation boundary: expand CEM-native template semantics before XSLT parity. The crate dependency cycle
-      is avoided by keeping the concrete CEM-QL adapter in `cem_ml_transform_cem_ql` rather than in `cem_ml`.
+      Next implementation boundary: add the native template module API shape around imports, public named entrypoints,
+      params, cache keys, and cycle/recursion diagnostics before implementing module execution. The crate dependency
+      cycle is avoided by keeping the concrete CEM-QL adapter in `cem_ml_transform_cem_ql` rather than in `cem_ml`.
 8. `cem-ml trace <input>`
     - Supported structured formats: `json`, `xml`, `cem`.
     - Reference convenience formats: `text`, `html`.

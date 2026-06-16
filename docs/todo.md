@@ -165,6 +165,16 @@ for the current architecture have landed; only deferred capability work remains 
       path-template expansion for graph configs; then add native named templates/modules, explicit entrypoints, params,
       imports/includes, visibility, caching, and recursion/cycle limits; then expand XSLT parity on that native
       substrate. Next runtime implementation work is CEM-native template semantics before XSLT parity.
+      Native template module semantics should start with an adapter-owned module contract rather than changing the base
+      CEM-ML AST: implicit entrypoint means module default render; explicit entrypoints select public exported templates;
+      declarations are private by default; params are immutable with template defaults and fatal unknown names unless an
+      adapter declares an extension bucket; portable data bindings are primary `input`, named secondary graph inputs, and
+      params; imports come before includes and load isolated modules through the `template` resolver; includes remain
+      reserved; module cache keys include adapter ID, resolved URI, identity, content hash, selected entrypoint, execution
+      policy, and dependency graph hash; import cycles are fatal compile diagnostics; recursive calls require explicit
+      runtime/scheduler limits; multiple outputs stay modeled by graph branches and exports.
+      Next implementation boundary is the native template module API shape for imports, public named entrypoints, params,
+      cache keys, and cycle/recursion diagnostics before module execution.
       The separate adapter crate avoids the dependency cycle where `cem_ql`
       currently depends on `cem_ml`.
 - [ ] **Wishlist (future — schema/tooling):** wire CLI config schemas into generated/published artifacts. The JSON
