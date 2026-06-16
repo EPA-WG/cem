@@ -22,6 +22,7 @@ use cem_ml::transform_config::{
 };
 use cem_ml_transform_cem_ql::register_cem_ql_template_adapter;
 use std::collections::{BTreeMap, BTreeSet};
+use std::ffi::OsStr;
 use std::fs;
 use std::io::{self, Write};
 use std::path::{Path, PathBuf};
@@ -190,28 +191,14 @@ impl ResourceResolver for LocalMirrorResolver {
             .map(|value| value.to_string_lossy().into_owned())
             .unwrap_or_default();
         let (prefix, suffix_match) = pattern_file.split_once('*').unwrap_or(("", ""));
-        let parent = pattern_path
-            .parent()
-            .filter(|path| !path.as_os_str().is_empty())
-            .map(Path::to_path_buf)
-            .unwrap_or_else(|| PathBuf::from("."));
-        let mut entries = Vec::new();
-        for entry in fs::read_dir(&parent).map_err(|error| ResolverDiagnostic::Io {
-            uri: request.uri.clone(),
-            message: error.to_string(),
-        })? {
-            let entry = entry.map_err(|error| ResolverDiagnostic::Io {
+        let parent = transform_graph_glob_parent(&pattern_path);
+        let paths = transform_graph_collect_import_glob_matches(&parent, prefix, suffix_match)
+            .map_err(|error| ResolverDiagnostic::Io {
                 uri: request.uri.clone(),
                 message: error.to_string(),
             })?;
-            let file_name = entry.file_name().to_string_lossy().into_owned();
-            if !file_name.starts_with(prefix) || !file_name.ends_with(suffix_match) {
-                continue;
-            }
-            let path = entry.path();
-            if !path.is_file() {
-                continue;
-            }
+        let mut entries = Vec::new();
+        for path in paths {
             let relative =
                 path.strip_prefix(&mapping.local_root)
                     .map_err(|error| ResolverDiagnostic::Io {
@@ -1182,6 +1169,123 @@ fn transform_graph_binding_path(path: &Path, config_local_path: Option<&Path>) -
     path.to_path_buf()
 }
 
+fn transform_graph_glob_parent(pattern_path: &Path) -> PathBuf {
+    pattern_path
+        .parent()
+        .filter(|path| !path.as_os_str().is_empty())
+        .map(Path::to_path_buf)
+        .unwrap_or_else(|| PathBuf::from("."))
+}
+
+fn transform_graph_split_recursive_glob_parent(parent: &Path) -> Option<(PathBuf, PathBuf)> {
+    let recursive = OsStr::new("**");
+    let mut root = PathBuf::new();
+    let mut suffix = PathBuf::new();
+    let mut seen_recursive = false;
+
+    for component in parent.components() {
+        if component.as_os_str() == recursive {
+            seen_recursive = true;
+            continue;
+        }
+        if seen_recursive {
+            suffix.push(component.as_os_str());
+        } else {
+            root.push(component.as_os_str());
+        }
+    }
+
+    seen_recursive.then(|| {
+        if root.as_os_str().is_empty() {
+            root.push(".");
+        }
+        (root, suffix)
+    })
+}
+
+fn transform_graph_file_name_matches(file_name: &str, prefix: &str, suffix: &str) -> bool {
+    file_name.starts_with(prefix) && file_name.ends_with(suffix)
+}
+
+fn transform_graph_collect_one_level_import_glob_matches(
+    parent: &Path,
+    prefix: &str,
+    suffix: &str,
+) -> io::Result<Vec<PathBuf>> {
+    let mut matches = Vec::new();
+    for entry in fs::read_dir(parent)? {
+        let entry = entry?;
+        let file_type = entry.file_type()?;
+        if !file_type.is_file() {
+            continue;
+        }
+        let file_name = entry.file_name().to_string_lossy().into_owned();
+        if transform_graph_file_name_matches(&file_name, prefix, suffix) {
+            matches.push(entry.path());
+        }
+    }
+    Ok(matches)
+}
+
+fn transform_graph_collect_recursive_import_glob_matches(
+    current: &Path,
+    suffix_dir: &Path,
+    prefix: &str,
+    suffix: &str,
+    matches: &mut Vec<PathBuf>,
+) -> io::Result<()> {
+    let candidate_parent = if suffix_dir.as_os_str().is_empty() {
+        current.to_path_buf()
+    } else {
+        current.join(suffix_dir)
+    };
+    if candidate_parent.is_dir() {
+        matches.extend(transform_graph_collect_one_level_import_glob_matches(
+            &candidate_parent,
+            prefix,
+            suffix,
+        )?);
+    }
+
+    for entry in fs::read_dir(current)? {
+        let entry = entry?;
+        let file_type = entry.file_type()?;
+        if file_type.is_dir() {
+            transform_graph_collect_recursive_import_glob_matches(
+                &entry.path(),
+                suffix_dir,
+                prefix,
+                suffix,
+                matches,
+            )?;
+        }
+    }
+    Ok(())
+}
+
+fn transform_graph_collect_import_glob_matches(
+    parent: &Path,
+    prefix: &str,
+    suffix: &str,
+) -> io::Result<Vec<PathBuf>> {
+    let mut matches =
+        if let Some((root, suffix_dir)) = transform_graph_split_recursive_glob_parent(parent) {
+            let mut matches = Vec::new();
+            transform_graph_collect_recursive_import_glob_matches(
+                &root,
+                &suffix_dir,
+                prefix,
+                suffix,
+                &mut matches,
+            )?;
+            matches
+        } else {
+            transform_graph_collect_one_level_import_glob_matches(parent, prefix, suffix)?
+        };
+    matches.sort();
+    Ok(matches)
+}
+
 fn transform_graph_source_bindings(
     path: &Path,
     config_local_path: Option<&Path>,
@@ -1241,35 +1345,16 @@ fn transform_graph_expand_import_paths(
         .map(|value| value.to_string_lossy().into_owned())
         .unwrap_or_default();
 
-    let parent = pattern_path
-        .parent()
-        .filter(|path| !path.as_os_str().is_empty())
-        .map(Path::to_path_buf)
-        .unwrap_or_else(|| PathBuf::from("."));
+    let parent = transform_graph_glob_parent(&pattern_path);
 
     let (prefix, suffix) = pattern_file.split_once('*').unwrap_or(("", ""));
-    let mut matches = Vec::new();
-    for entry in fs::read_dir(&parent).map_err(|source| {
-        CliRequestError::Engine(EngineError::Io {
-            path: parent.clone(),
-            source,
-        })
-    })? {
-        let entry = entry.map_err(|source| {
+    let matches =
+        transform_graph_collect_import_glob_matches(&parent, prefix, suffix).map_err(|source| {
             CliRequestError::Engine(EngineError::Io {
                 path: parent.clone(),
                 source,
             })
         })?;
-        let file_name = entry.file_name().to_string_lossy().into_owned();
-        if file_name.starts_with(prefix) && file_name.ends_with(suffix) {
-            let path = entry.path();
-            if path.is_file() {
-                matches.push(path);
-            }
-        }
-    }
-    matches.sort();
     if matches.is_empty() {
         return Err(transform_config_error(
             config_source_uri,
@@ -1356,11 +1441,25 @@ fn transform_graph_validate_import_glob(
             format!("import glob `{raw}` must contain exactly one `*` in the file name"),
         ));
     }
-    if dir.contains('*') {
+    let mut recursive_segments = 0;
+    for segment in dir.split('/') {
+        if segment == "**" {
+            recursive_segments += 1;
+            continue;
+        }
+        if segment.contains('*') {
+            return Err(transform_config_error(
+                config_source_uri,
+                "cem.transform_config.import_glob_unsupported",
+                format!("import glob `{raw}` can only use `**` as a complete directory segment"),
+            ));
+        }
+    }
+    if recursive_segments > 1 {
         return Err(transform_config_error(
             config_source_uri,
             "cem.transform_config.import_glob_unsupported",
-            format!("import glob `{raw}` can only use `*` in the file name"),
+            format!("import glob `{raw}` can contain at most one `**` directory segment"),
         ));
     }
     Ok(())
@@ -3688,6 +3787,62 @@ mod tests {
     }
 
     #[test]
+    fn transform_config_recursive_glob_exports_apply_source_bindings() {
+        let root =
+            std::env::temp_dir().join("cem-ml-cli-tests/transform-config-recursive-bindings");
+        let _ = std::fs::remove_dir_all(&root);
+        std::fs::create_dir_all(root.join("inputs/part-a")).unwrap();
+        std::fs::create_dir_all(root.join("inputs/part-b/nested")).unwrap();
+        std::fs::write(root.join("inputs/ch00.cem"), "{p @id=\"zero\"}").unwrap();
+        std::fs::write(root.join("inputs/part-a/ch01.cem"), "{p @id=\"one\"}").unwrap();
+        std::fs::write(
+            root.join("inputs/part-b/nested/ch02.cem"),
+            "{p @id=\"two\"}",
+        )
+        .unwrap();
+        std::fs::write(root.join("inputs/part-b/nested/skip.txt"), "skip").unwrap();
+        std::fs::write(
+            root.join("page.cem"),
+            "{article | {$datadom.attributes.kind}}",
+        )
+        .unwrap();
+        let config = root.join("graph.cem");
+        std::fs::write(
+            &config,
+            r#"{run |
+  {import @id=book @src="inputs/**/*.cem" @content-type="text/cem-ml" |
+    {transform @id=page @src="page.cem" @template-content-type="text/cem-ml" |
+      {export @id=html @out="out/{dir}/{stem}-{index}.html" @content-type="text/html"}
+    }
+  }
+}"#,
+        )
+        .unwrap();
+
+        let (outcome, stdout, stderr) = run(
+            &RealCemMlEngine::new(),
+            &["transform", "--config", config.to_str().unwrap()],
+        );
+
+        assert_eq!(outcome.exit_code, EXIT_OK);
+        assert!(stdout.is_empty(), "{stdout}");
+        assert!(stderr.trim().is_empty(), "{stderr}");
+        assert_eq!(
+            std::fs::read_to_string(root.join("out/inputs/ch00-0.html")).unwrap(),
+            "<article>document</article>"
+        );
+        assert_eq!(
+            std::fs::read_to_string(root.join("out/inputs/part-a/ch01-1.html")).unwrap(),
+            "<article>document</article>"
+        );
+        assert_eq!(
+            std::fs::read_to_string(root.join("out/inputs/part-b/nested/ch02-2.html")).unwrap(),
+            "<article>document</article>"
+        );
+        assert!(!root.join("out/inputs/part-b/nested/skip-3.html").exists());
+    }
+
+    #[test]
     fn transform_config_resolver_glob_exports_apply_source_bindings() {
         let root = std::env::temp_dir().join("cem-ml-cli-tests/transform-config-resolver-glob");
         let _ = std::fs::remove_dir_all(&root);
@@ -3732,6 +3887,70 @@ mod tests {
         );
         assert_eq!(
             std::fs::read_to_string(root.join("out/1-ch02.html")).unwrap(),
+            "<article>document</article>"
+        );
+    }
+
+    #[test]
+    fn transform_config_resolver_recursive_glob_exports_apply_source_bindings() {
+        let root =
+            std::env::temp_dir().join("cem-ml-cli-tests/transform-config-resolver-recursive-glob");
+        let _ = std::fs::remove_dir_all(&root);
+        std::fs::create_dir_all(root.join("mirror/inputs/part-a")).unwrap();
+        std::fs::create_dir_all(root.join("mirror/inputs/part-b/nested")).unwrap();
+        std::fs::write(root.join("mirror/inputs/ch00.cem"), "{p @id=\"zero\"}").unwrap();
+        std::fs::write(
+            root.join("mirror/inputs/part-a/ch01.cem"),
+            "{p @id=\"one\"}",
+        )
+        .unwrap();
+        std::fs::write(
+            root.join("mirror/inputs/part-b/nested/ch02.cem"),
+            "{p @id=\"two\"}",
+        )
+        .unwrap();
+        std::fs::write(
+            root.join("page.cem"),
+            "{article | {$datadom.attributes.kind}}",
+        )
+        .unwrap();
+        let config = root.join("graph.cem");
+        std::fs::write(
+            &config,
+            r#"{run |
+  {import @id=book @src="cem+vfs://workspace/inputs/**/*.cem" @content-type="text/cem-ml" |
+    {transform @id=page @src="page.cem" @template-content-type="text/cem-ml" |
+      {export @id=html @out="out/{index}-{stem}.html" @content-type="text/html"}
+    }
+  }
+}"#,
+        )
+        .unwrap();
+
+        let (outcome, stdout, stderr) = run(
+            &RealCemMlEngine::new(),
+            &[
+                "transform",
+                "--config",
+                config.to_str().unwrap(),
+                "--resolver-read-map",
+                &format!("cem+vfs://workspace={}", root.join("mirror").display()),
+            ],
+        );
+
+        assert_eq!(outcome.exit_code, EXIT_OK);
+        assert!(stdout.is_empty(), "{stdout}");
+        assert!(stderr.trim().is_empty(), "{stderr}");
+        assert_eq!(
+            std::fs::read_to_string(root.join("out/0-ch00.html")).unwrap(),
+            "<article>document</article>"
+        );
+        assert_eq!(
+            std::fs::read_to_string(root.join("out/1-ch01.html")).unwrap(),
+            "<article>document</article>"
+        );
+        assert_eq!(
+            std::fs::read_to_string(root.join("out/2-ch02.html")).unwrap(),
             "<article>document</article>"
         );
     }

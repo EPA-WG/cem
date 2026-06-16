@@ -210,8 +210,9 @@ Current implementation slice:
   in the CLI host, resolves relative import/template/export paths against the config
   document path, and writes graph export artifacts to configured destinations through
   the resolver layer. The first CLI expansion slice supports local filesystem import
-  globs and resolver-backed import globs with one `*` in the file name, source-derived
-  output bindings, and one-to-one binding propagation through transform stages. Resolver
+  globs and resolver-backed import globs with exactly one `*` in the file name plus an optional
+  single `**` directory segment for recursive descent, source-derived output bindings, and
+  one-to-one binding propagation through transform stages. Resolver
   glob expansion requires an explicit list-capable resolver and is bounded by a
   deterministic max-entry guard.
 
@@ -290,9 +291,10 @@ deterministic diagnostics for unsupported or missing template identity. CLI disp
 executes the one-to-one CEM-native path through the host-registered CEM-QL adapter.
 Programmatic graph execution is available through `RealCemMlEngine::transform_graph`;
 CLI config graph dispatch is available for concrete CEM-native graph paths, local
-filename import globs, resolver-backed filename import globs, and explicit
-`join @mode="collect"` nodes. XSLT execution, recursive globs, and richer join
-modes such as grouped, zipped, and key-matched joins remain deferred.
+filename import globs, resolver-backed filename import globs, optional `**`
+recursive import glob segments, and explicit `join @mode="collect"` nodes. XSLT
+execution and richer join modes such as grouped, zipped, and key-matched joins
+remain deferred.
 
 The first concrete executable CEM-native adapter lives in
 `cem_ml_transform_cem_ql`, outside `cem_ml`, so it can depend on both `cem_ml` and
@@ -573,9 +575,9 @@ I/O messages, but they must not replace the underlying resolver code or URI.
 
   It also accepts `--data-schema`, `--template-schema`, `--to-schema`, shared context options, and
   `--report-json` / `--report-md`. The current CLI runtime executes the one-to-one CEM-native path and CEM-ML
-  `--config` graph dispatch for concrete paths plus local and resolver-backed filename import globs with source-derived
-  output bindings and explicit `join @mode="collect"` aggregation. XML+XSLT execution, recursive globs, and richer
-  multi-artifact join modes remain deferred.
+  `--config` graph dispatch for concrete paths plus local and resolver-backed filename import globs, optional `**`
+  recursive import glob segments, source-derived output bindings, and explicit `join @mode="collect"` aggregation.
+  XML+XSLT execution and richer multi-artifact join modes remain deferred.
 - Multi-source configuration via config file, plus repeatable CSV option records for
   CLI one-liners. Config files are preferred for CI/build reproducibility.
 - Config-file content type via `--config-content-type`, inferred from extension when
