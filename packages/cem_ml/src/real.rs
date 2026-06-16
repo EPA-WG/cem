@@ -1194,7 +1194,10 @@ fn validate_transform_template_module_contract(
         }
 
         if let Some(default_value) = &declaration.default_value {
-            if !declaration.value_type.accepts(default_value) {
+            if !declaration
+                .value_type
+                .accepts(default_value, declaration.nullable)
+            {
                 diagnostics.push(template_module_diagnostic(
                     Some(&template.uri),
                     TRANSFORM_TEMPLATE_PARAM_TYPE_CODE,
@@ -1211,7 +1214,7 @@ fn validate_transform_template_module_contract(
             let Some(value) = params.get(name) else {
                 continue;
             };
-            if !declaration.value_type.accepts(value) {
+            if !declaration.value_type.accepts(value, declaration.nullable) {
                 diagnostics.push(template_module_diagnostic(
                     Some(&template.uri),
                     TRANSFORM_TEMPLATE_PARAM_TYPE_CODE,
@@ -3572,6 +3575,7 @@ mod tests {
                 crate::transform_template::TransformTemplateModuleParamDeclaration {
                     name: "locale".to_owned(),
                     value_type: crate::transform_template::TransformTemplateModuleParamType::Any,
+                    nullable: false,
                     default_value: None,
                     required: true,
                     visibility: TransformTemplateModuleVisibility::Public,
@@ -3579,6 +3583,7 @@ mod tests {
                 crate::transform_template::TransformTemplateModuleParamDeclaration {
                     name: "card.title".to_owned(),
                     value_type: crate::transform_template::TransformTemplateModuleParamType::Any,
+                    nullable: false,
                     default_value: None,
                     required: true,
                     visibility: TransformTemplateModuleVisibility::Private,
@@ -3618,6 +3623,7 @@ mod tests {
                 crate::transform_template::TransformTemplateModuleParamDeclaration {
                     name: "card.title".to_owned(),
                     value_type: crate::transform_template::TransformTemplateModuleParamType::Any,
+                    nullable: false,
                     default_value: None,
                     required: true,
                     visibility: TransformTemplateModuleVisibility::Private,
@@ -3654,6 +3660,7 @@ mod tests {
                 crate::transform_template::TransformTemplateModuleParamDeclaration {
                     name: "card.title".to_owned(),
                     value_type: crate::transform_template::TransformTemplateModuleParamType::Any,
+                    nullable: false,
                     default_value: None,
                     required: true,
                     visibility: TransformTemplateModuleVisibility::Private,
@@ -3698,6 +3705,7 @@ mod tests {
                 crate::transform_template::TransformTemplateModuleParamDeclaration {
                     name: "locale".to_owned(),
                     value_type: crate::transform_template::TransformTemplateModuleParamType::Any,
+                    nullable: true,
                     default_value: None,
                     required: true,
                     visibility: TransformTemplateModuleVisibility::Public,
@@ -3705,6 +3713,7 @@ mod tests {
                 crate::transform_template::TransformTemplateModuleParamDeclaration {
                     name: "card.title".to_owned(),
                     value_type: crate::transform_template::TransformTemplateModuleParamType::Any,
+                    nullable: true,
                     default_value: None,
                     required: true,
                     visibility: TransformTemplateModuleVisibility::Private,
@@ -3731,6 +3740,48 @@ mod tests {
     }
 
     #[test]
+    fn template_module_contract_rejects_non_nullable_null_params_as_type_mismatch() {
+        let template = template("main.cem", b"{main}");
+        let options = TransformTemplateModuleOptions {
+            entrypoints: vec![
+                crate::transform_template::TransformTemplateModuleEntrypointDeclaration {
+                    name: "card".to_owned(),
+                    visibility: TransformTemplateModuleVisibility::Public,
+                },
+            ],
+            params: vec![
+                crate::transform_template::TransformTemplateModuleParamDeclaration {
+                    name: "card.title".to_owned(),
+                    value_type: crate::transform_template::TransformTemplateModuleParamType::String,
+                    nullable: false,
+                    default_value: None,
+                    required: true,
+                    visibility: TransformTemplateModuleVisibility::Private,
+                },
+            ],
+            ..TransformTemplateModuleOptions::default()
+        };
+        let params = BTreeMap::from([("title".to_owned(), Value::Null)]);
+        let mut diagnostics = Vec::new();
+
+        let validated = validate_transform_template_module_contract(
+            &template,
+            &TransformTemplateEntrypoint::named("card"),
+            &params,
+            &options,
+            &mut diagnostics,
+        );
+
+        assert!(validated.is_none());
+        assert!(diagnostics
+            .iter()
+            .any(|diag| diag.code == TRANSFORM_TEMPLATE_PARAM_TYPE_CODE));
+        assert!(!diagnostics
+            .iter()
+            .any(|diag| diag.code == TRANSFORM_TEMPLATE_PARAM_REQUIRED_CODE));
+    }
+
+    #[test]
     fn template_module_contract_rejects_unknown_and_missing_params() {
         let template = template("main.cem", b"{main}");
         let options = TransformTemplateModuleOptions {
@@ -3744,6 +3795,7 @@ mod tests {
                 crate::transform_template::TransformTemplateModuleParamDeclaration {
                     name: "card.title".to_owned(),
                     value_type: crate::transform_template::TransformTemplateModuleParamType::Any,
+                    nullable: false,
                     default_value: None,
                     required: true,
                     visibility: TransformTemplateModuleVisibility::Private,
@@ -3785,6 +3837,7 @@ mod tests {
                 crate::transform_template::TransformTemplateModuleParamDeclaration {
                     name: "locale".to_owned(),
                     value_type: crate::transform_template::TransformTemplateModuleParamType::String,
+                    nullable: false,
                     default_value: Some(json!(true)),
                     required: false,
                     visibility: TransformTemplateModuleVisibility::Public,
@@ -3793,6 +3846,7 @@ mod tests {
                     name: "card.count".to_owned(),
                     value_type:
                         crate::transform_template::TransformTemplateModuleParamType::Integer,
+                    nullable: false,
                     default_value: None,
                     required: false,
                     visibility: TransformTemplateModuleVisibility::Private,

@@ -1122,6 +1122,7 @@ mod tests {
                     params: vec![cem_ml::transform_template::TransformTemplateModuleParamDeclaration {
                         name: "helper.title".to_owned(),
                         value_type: TransformTemplateModuleParamType::Any,
+                        nullable: false,
                         default_value: None,
                         required: false,
                         visibility: cem_ml::transform_template::TransformTemplateModuleVisibility::Private,
@@ -1196,6 +1197,7 @@ mod tests {
                     params: vec![cem_ml::transform_template::TransformTemplateModuleParamDeclaration {
                         name: "helper.enabled".to_owned(),
                         value_type: TransformTemplateModuleParamType::Any,
+                        nullable: false,
                         default_value: None,
                         required: false,
                         visibility: cem_ml::transform_template::TransformTemplateModuleVisibility::Private,
@@ -1270,6 +1272,7 @@ mod tests {
                     params: vec![cem_ml::transform_template::TransformTemplateModuleParamDeclaration {
                         name: "helper.settings".to_owned(),
                         value_type: TransformTemplateModuleParamType::Any,
+                        nullable: false,
                         default_value: None,
                         required: false,
                         visibility: cem_ml::transform_template::TransformTemplateModuleVisibility::Private,
@@ -1352,6 +1355,7 @@ mod tests {
                         cem_ml::transform_template::TransformTemplateModuleParamDeclaration {
                             name: "locale".to_owned(),
                             value_type: TransformTemplateModuleParamType::Any,
+                            nullable: false,
                             default_value: Some(Value::String("en-US".to_owned())),
                             required: false,
                             visibility: cem_ml::transform_template::TransformTemplateModuleVisibility::Private,
@@ -1359,6 +1363,7 @@ mod tests {
                         cem_ml::transform_template::TransformTemplateModuleParamDeclaration {
                             name: "card.title".to_owned(),
                             value_type: TransformTemplateModuleParamType::Any,
+                            nullable: false,
                             default_value: Some(Value::String("Untitled".to_owned())),
                             required: false,
                             visibility: cem_ml::transform_template::TransformTemplateModuleVisibility::Private,
@@ -1439,6 +1444,7 @@ mod tests {
                         cem_ml::transform_template::TransformTemplateModuleParamDeclaration {
                             name: "card.enabled".to_owned(),
                             value_type: TransformTemplateModuleParamType::Boolean,
+                            nullable: false,
                             default_value: Some(Value::Bool(true)),
                             required: false,
                             visibility: cem_ml::transform_template::TransformTemplateModuleVisibility::Private,
@@ -1446,6 +1452,7 @@ mod tests {
                         cem_ml::transform_template::TransformTemplateModuleParamDeclaration {
                             name: "card.count".to_owned(),
                             value_type: TransformTemplateModuleParamType::Integer,
+                            nullable: false,
                             default_value: Some(Value::Number(Number::from(3))),
                             required: false,
                             visibility: cem_ml::transform_template::TransformTemplateModuleVisibility::Private,
@@ -1481,6 +1488,81 @@ mod tests {
             rendered.output.value,
             Value::String("<p>Enabled:3</p>".to_owned())
         );
+        assert!(
+            rendered.diagnostics.is_empty(),
+            "{:?}",
+            rendered.diagnostics
+        );
+    }
+
+    #[test]
+    fn adapter_applies_nullable_typed_param_defaults() {
+        let adapter = CemQlTransformTemplateAdapter;
+        let identity = FormatIdentity {
+            schema: Some(cem_ml::transform_template::CEM_NATIVE_TEMPLATE_SCHEMA_URI.to_owned()),
+            ..FormatIdentity::default()
+        };
+        let template = TemplateInput {
+            uri: "template.cem".to_owned(),
+            bytes: br#"{@doc cem-ml 1}
+{module |
+  {template @name="card" @visibility="public" |
+    {param @name="subtitle" @type="string" @nullable="true" @default="null"}
+    {body | {p | A{$subtitle}B}}
+  }
+}"#
+            .to_vec(),
+            identity: Some(identity),
+            root_scope: ScopeConfig::default(),
+        };
+        let params = BTreeMap::new();
+        let data_bindings = Vec::new();
+        let compiled = adapter
+            .compile(TransformTemplateCompileRequest {
+                template: &template,
+                entrypoint: &TransformTemplateEntrypoint::named("card"),
+                params: &params,
+                data_bindings: &data_bindings,
+                module_options: cem_ml::transform_template::TransformTemplateModuleOptions {
+                    entrypoints: vec![cem_ml::transform_template::TransformTemplateModuleEntrypointDeclaration {
+                        name: "card".to_owned(),
+                        visibility: cem_ml::transform_template::TransformTemplateModuleVisibility::Public,
+                    }],
+                    params: vec![cem_ml::transform_template::TransformTemplateModuleParamDeclaration {
+                        name: "card.subtitle".to_owned(),
+                        value_type: TransformTemplateModuleParamType::String,
+                        nullable: true,
+                        default_value: Some(Value::Null),
+                        required: false,
+                        visibility: cem_ml::transform_template::TransformTemplateModuleVisibility::Private,
+                    }],
+                    ..Default::default()
+                },
+                module_preflight: Default::default(),
+                execution_policy: TransformExecutionPolicy::default(),
+            })
+            .expect("module template should compile")
+            .artifact;
+        let primary_input = TransformTemplateDataArtifact {
+            artifact_id: "data".to_owned(),
+            uri: None,
+            identity: None,
+            value: Value::Null,
+        };
+        let secondary_inputs = BTreeMap::new();
+
+        let rendered = adapter
+            .render(TransformTemplateRenderRequest {
+                compiled: &compiled,
+                primary_input: &primary_input,
+                secondary_inputs: &secondary_inputs,
+                target: None,
+                target_scope: &ScopeConfig::default(),
+                execution_policy: TransformExecutionPolicy::default(),
+            })
+            .expect("module template should render");
+
+        assert_eq!(rendered.output.value, Value::String("<p>AB</p>".to_owned()));
         assert!(
             rendered.diagnostics.is_empty(),
             "{:?}",
@@ -1529,6 +1611,7 @@ mod tests {
                         cem_ml::transform_template::TransformTemplateModuleParamDeclaration {
                             name: "locale".to_owned(),
                             value_type: TransformTemplateModuleParamType::Any,
+                            nullable: false,
                             default_value: Some(Value::String("en-US".to_owned())),
                             required: false,
                             visibility: cem_ml::transform_template::TransformTemplateModuleVisibility::Private,
@@ -1536,6 +1619,7 @@ mod tests {
                         cem_ml::transform_template::TransformTemplateModuleParamDeclaration {
                             name: "card.title".to_owned(),
                             value_type: TransformTemplateModuleParamType::Any,
+                            nullable: false,
                             default_value: Some(Value::String("Untitled".to_owned())),
                             required: false,
                             visibility: cem_ml::transform_template::TransformTemplateModuleVisibility::Private,
@@ -1619,6 +1703,7 @@ mod tests {
                         cem_ml::transform_template::TransformTemplateModuleParamDeclaration {
                             name: "locale".to_owned(),
                             value_type: TransformTemplateModuleParamType::Any,
+                            nullable: false,
                             default_value: Some(Value::String("en-US".to_owned())),
                             required: false,
                             visibility: cem_ml::transform_template::TransformTemplateModuleVisibility::Private,
@@ -1626,6 +1711,7 @@ mod tests {
                         cem_ml::transform_template::TransformTemplateModuleParamDeclaration {
                             name: "card.title".to_owned(),
                             value_type: TransformTemplateModuleParamType::Any,
+                            nullable: false,
                             default_value: Some(Value::String("Untitled".to_owned())),
                             required: false,
                             visibility: cem_ml::transform_template::TransformTemplateModuleVisibility::Private,
@@ -1706,6 +1792,7 @@ mod tests {
                         cem_ml::transform_template::TransformTemplateModuleParamDeclaration {
                             name: "locale".to_owned(),
                             value_type: TransformTemplateModuleParamType::Any,
+                            nullable: false,
                             default_value: Some(Value::String("en-US".to_owned())),
                             required: false,
                             visibility: cem_ml::transform_template::TransformTemplateModuleVisibility::Private,
@@ -1713,6 +1800,7 @@ mod tests {
                         cem_ml::transform_template::TransformTemplateModuleParamDeclaration {
                             name: "card.title".to_owned(),
                             value_type: TransformTemplateModuleParamType::Any,
+                            nullable: true,
                             default_value: Some(Value::String("Untitled".to_owned())),
                             required: false,
                             visibility: cem_ml::transform_template::TransformTemplateModuleVisibility::Private,

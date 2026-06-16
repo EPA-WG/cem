@@ -355,12 +355,13 @@ minimal CEM-QL-fragment executor already implements these behaviors.
   alone, but providing both aliases is a fatal duplicate-param diagnostic.
 - Param declarations may declare `@type`: `any`, `string`, `boolean`, `number`,
   `integer`, `array`, `object`, or `json`. Omitted `@type` is `any`. Typed caller
-  params are validated as JSON shapes before adapter compilation. Explicit `null`
-  is still considered provided, but it only satisfies `any`/`json`; other typed
-  params reject it until a nullable type syntax exists. `@default` is literal:
-  `any`/`string` keep the attribute text as a string, `boolean` accepts only
-  `true`/`false`, and `number`/`integer`/`array`/`object`/`json` parse JSON and
-  must match the declared type. Default expressions remain reserved.
+  params are validated as JSON shapes before adapter compilation. Params are
+  non-nullable by default; `@nullable="true"` allows an explicit JSON `null`
+  caller value or literal `@default="null"`. Explicit `null` is still considered
+  provided for requiredness. `@default` is literal: `any`/`string` keep the
+  attribute text as a string, `boolean` accepts only `true`/`false`, and
+  `number`/`integer`/`array`/`object`/`json` parse JSON and must match the
+  declared type. Default expressions remain reserved.
 - Data bindings are explicit adapter inputs. The stable binding set for the native
   module layer should include the primary artifact under `input`, named secondary
   artifacts under their `@with:*` labels, and declared params under their names.
@@ -399,8 +400,8 @@ schema. It defines the declaration vocabulary:
 - `import @as @src` declares a resolver-backed module dependency. Optional
   `@content-type` / `@contentType` and `@schema` provide identity hints.
 - `param @name` declares an immutable render parameter. Optional `@type`,
-  `@default`, `@required`, and `@visibility` describe JSON shape, literal
-  defaults, requiredness, and API surface.
+  `@nullable`, `@default`, `@required`, and `@visibility` describe JSON shape,
+  nullability, literal defaults, requiredness, and API surface.
 - `template @name` declares a named entrypoint. Optional `@visibility="public"`
   exports it across module boundaries; otherwise it is private.
 - `body` holds the implicit entrypoint body or the body of a named template.

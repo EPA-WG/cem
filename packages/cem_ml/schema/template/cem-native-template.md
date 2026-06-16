@@ -18,7 +18,7 @@ Namespace URI: `https://cem.dev/ns/template/cem-native/1`
 | ------- | ------------------- | ------------------- | -------------- |
 | `module` | none | `version` | `import`, `param`, `template`, `body` |
 | `import` | `as`, `src` | `content-type`, `contentType`, `schema` | none |
-| `param` | `name` | `default`, `required`, `type`, `visibility` | none |
+| `param` | `name` | `default`, `nullable`, `required`, `type`, `visibility` | none |
 | `template` | `name` | `visibility` | `param`, `body` |
 | `body` | none | none | `*` |
 | `call` | `template` | `from`, `with:*` | none |
@@ -35,11 +35,13 @@ Namespace URI: `https://cem.dev/ns/template/cem-native/1`
   cross-module template entrypoints.
 - `param` declarations are immutable for a render call. `@type` may be `any`,
   `string`, `boolean`, `number`, `integer`, `array`, `object`, or `json`; omitted
-  `@type` means `any`.
+  `@type` means `any`. Typed params are non-nullable by default; `@nullable="true"`
+  allows an explicit JSON `null` caller value or default.
 - `@default` provides a literal template default value. For `any` and `string`,
   the attribute text is a string value. For `boolean`, the literal must be
   `true` or `false`. For `number`, `integer`, `array`, `object`, and `json`, the
-  literal is parsed as JSON and must match the declared type.
+  literal is parsed as JSON and must match the declared type. The literal `null`
+  is accepted only when `@nullable="true"`.
 - `@required="true"` requires a caller value when no default is present.
 - `import @as="ALIAS" @src="URI"` loads a separate module through the template
   resolver. The imported module's private declarations remain isolated.
