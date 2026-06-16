@@ -910,6 +910,71 @@ mod tests {
     }
 
     #[test]
+    fn adapter_binds_primary_input_and_secondary_labels() {
+        let adapter = CemQlTransformTemplateAdapter;
+        let identity = FormatIdentity {
+            content_type: Some("text/cem-ml".to_owned()),
+            ..FormatIdentity::default()
+        };
+        let template = TemplateInput {
+            uri: "template.cem".to_owned(),
+            bytes: br#"{span | {$input.label}:{$meta.count}}"#.to_vec(),
+            identity: Some(identity),
+            root_scope: ScopeConfig::default(),
+        };
+        let params = BTreeMap::new();
+        let data_bindings = vec!["input".to_owned(), "meta".to_owned()];
+        let compiled = adapter
+            .compile(TransformTemplateCompileRequest {
+                template: &template,
+                entrypoint: &TransformTemplateEntrypoint::implicit(),
+                params: &params,
+                data_bindings: &data_bindings,
+                module_options: Default::default(),
+                module_preflight: Default::default(),
+                execution_policy: TransformExecutionPolicy::default(),
+            })
+            .expect("template should compile")
+            .artifact;
+        let primary_input = TransformTemplateDataArtifact {
+            artifact_id: "data".to_owned(),
+            uri: Some("data.json".to_owned()),
+            identity: None,
+            value: json_object([("label", Value::String("orders".to_owned()))]),
+        };
+        let secondary_inputs = BTreeMap::from([(
+            "meta".to_owned(),
+            TransformTemplateDataArtifact {
+                artifact_id: "meta".to_owned(),
+                uri: Some("meta.json".to_owned()),
+                identity: None,
+                value: json_object([("count", Value::Number(3.into()))]),
+            },
+        )]);
+
+        let rendered = adapter
+            .render(TransformTemplateRenderRequest {
+                compiled: &compiled,
+                primary_input: &primary_input,
+                secondary_inputs: &secondary_inputs,
+                target: None,
+                target_scope: &ScopeConfig::default(),
+                execution_policy: TransformExecutionPolicy::default(),
+            })
+            .expect("template should render");
+
+        assert_eq!(
+            rendered.output.value,
+            Value::String("<span>orders:3</span>".to_owned())
+        );
+        assert!(
+            rendered.diagnostics.is_empty(),
+            "{:?}",
+            rendered.diagnostics
+        );
+    }
+
+    #[test]
     fn adapter_compiles_preflighted_modules_into_payload() {
         let adapter = CemQlTransformTemplateAdapter;
         let identity = FormatIdentity {
@@ -2281,7 +2346,7 @@ mod tests {
                     id: "report".to_owned(),
                     template: TemplateInput {
                         uri: "report.cem".to_owned(),
-                        bytes: br#"{section | {$stats}}"#.to_vec(),
+                        bytes: br#"{section | {$input.kind}:{$stats}}"#.to_vec(),
                         identity: Some(template_identity),
                         root_scope: ScopeConfig::default(),
                     },
@@ -2325,7 +2390,9 @@ mod tests {
         assert_eq!(response.artifacts.len(), 1);
         assert_eq!(
             response.artifacts[0].primary,
-            Value::String("<section>&lt;span&gt;document&lt;/span&gt;</section>".to_owned())
+            Value::String(
+                "<section>document:&lt;span&gt;document&lt;/span&gt;</section>".to_owned()
+            )
         );
     }
 }

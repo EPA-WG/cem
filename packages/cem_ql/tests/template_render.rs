@@ -165,6 +165,27 @@ fn render_template_selects_from_data_document() {
 }
 
 #[test]
+fn render_template_selects_top_level_host_binding_from_data_document() {
+    let input = record([(
+        "attributes",
+        vec![record([(
+            "kind",
+            vec![Item::Atomic(AtomValue::String("document".to_owned()))],
+        )])],
+    )]);
+    let data = TemplateData::default().with_binding("input", ItemStream::once(input));
+
+    let rendered = render_template("{span | {$input.attributes.kind}}", &data);
+
+    assert_eq!(rendered.rendered, "<span>document</span>");
+    assert!(
+        rendered.diagnostics.is_empty(),
+        "{:?}",
+        rendered.diagnostics
+    );
+}
+
+#[test]
 fn render_template_uses_explicit_structured_data_document() {
     let datadom = record([
         (
@@ -781,13 +802,3 @@ fn render_template_for_each_without_select_diagnoses() {
         rendered.diagnostics
     );
 }
-
-
-
-
-
-
-
-
-
-

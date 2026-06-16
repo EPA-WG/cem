@@ -315,10 +315,12 @@ the lifecycle layer, parsed to DOM JSON, passed as the primary transform data
 artifact, compiled/rendered by the selected adapter, and returned as
 `TransformResponse.primary`. The CLI host context registers the same executable
 CEM-QL adapter for transform request construction and dispatch.
-For the first runtime slice, data-driven templates should read input values through
-the always-available `$datadom` binding, for example
-`$datadom.attributes.label`; direct `$label`-style host bindings require declared
-params/host bindings and remain part of the later native module/params layer.
+Data-driven CEM-native templates should read the primary artifact through
+`$input`, named secondary artifacts through their graph labels, and params through
+their declared names. The CEM-QL renderer also preserves the legacy compatibility
+projection `$datadom.attributes.*`; direct `$label`-style primary-object
+convenience bindings are adapter compatibility behavior, not the portable
+template contract.
 
 CEM-native template execution should land before XSLT parity expansion, in this order:
 
@@ -349,8 +351,10 @@ minimal CEM-QL-fragment executor already implements these behaviors.
 - Data bindings are explicit adapter inputs. The stable binding set for the native
   module layer should include the primary artifact under `input`, named secondary
   artifacts under their `@with:*` labels, and declared params under their names.
-  Any direct convenience bindings derived from the primary object are adapter
-  compatibility behavior and must not be required by portable templates.
+  The CEM-QL data document also exposes these host bindings as top-level fields
+  while retaining the legacy `datadom.attributes.*` projection. Any direct
+  convenience bindings derived from the primary object are adapter compatibility
+  behavior and must not be required by portable templates.
 - Imports should be implemented before includes. `import` loads a separate module
   through the template resolver, keeps that module's private declarations isolated,
   and exposes only public exports under an explicit alias or namespace. `include`

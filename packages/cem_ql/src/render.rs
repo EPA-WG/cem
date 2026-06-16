@@ -21,6 +21,8 @@ use crate::ir::CompiledQuery;
 
 /// Binding name under which the `/datadom` data document is exposed to expressions.
 const DATA_DOCUMENT_BINDING: &str = "datadom";
+/// Stable transform primary artifact binding.
+const PRIMARY_INPUT_BINDING: &str = "input";
 /// Loop-position binding name. The legacy HTML+XSLT bridge rewrites XPath `position()` to
 /// `$position`; `cem:for-each` binds it to the 1-based iteration index.
 const POSITION_BINDING: &str = "position";
@@ -190,6 +192,7 @@ pub fn compile_template(source: &str, options: &CompileTemplateOptions) -> Templ
     // The `/datadom` data document is always available to expressions for functional
     // selection (e.g. `datadom.attributes.label`), so declare it at compile time.
     declared_bindings.insert(DATA_DOCUMENT_BINDING.to_owned(), ItemStream::empty());
+    declared_bindings.insert(PRIMARY_INPUT_BINDING.to_owned(), ItemStream::empty());
     // `{attribute @name=X}` / `{slice @name=X}` declarations introduce `$X` bindings, so
     // declare them too — the render engine owns declaration metadata, so the host runtime
     // no longer needs to scan the template to make `{$X}` compile.
@@ -217,11 +220,7 @@ pub fn compile_template(source: &str, options: &CompileTemplateOptions) -> Templ
 
 pub fn render_compiled_template(artifact: &TemplateArtifact, data: &TemplateData) -> RenderPlan {
     let mut policy_bindings = data.bindings.clone();
-    let datadom = data
-        .bindings
-        .get(DATA_DOCUMENT_BINDING)
-        .cloned()
-        .unwrap_or_else(|| build_data_document(&data.bindings));
+    let datadom = data_document_with_host_bindings(&data.bindings);
     policy_bindings.insert(DATA_DOCUMENT_BINDING.to_owned(), datadom);
     seed_declaration_defaults(&artifact.nodes, &mut policy_bindings);
     let mut renderer = PlanRenderer {
@@ -263,6 +262,14 @@ pub fn render_template(source: &str, data: &TemplateData) -> RenderedTemplate {
 /// `datadom.attributes.<name>`, the functional-parity equivalent of the legacy
 /// `/datadom/attributes` XPath model — navigated with cem-ql record/pipeline access
 /// (`record_field`) rather than an XPath engine.
+fn data_document_with_host_bindings(bindings: &BTreeMap<String, ItemStream>) -> ItemStream {
+    let synthesized = build_data_document(bindings);
+    let Some(explicit) = bindings.get(DATA_DOCUMENT_BINDING) else {
+        return synthesized;
+    };
+    merge_data_documents(explicit.clone(), synthesized)
+}
+
 fn build_data_document(bindings: &BTreeMap<String, ItemStream>) -> ItemStream {
     let attributes: BTreeMap<String, Vec<Item>> = bindings
         .iter()
@@ -270,8 +277,31 @@ fn build_data_document(bindings: &BTreeMap<String, ItemStream>) -> ItemStream {
         .map(|(name, stream)| (name.clone(), stream.items.clone()))
         .collect();
     let mut datadom = BTreeMap::new();
+    for (name, stream) in bindings
+        .iter()
+        .filter(|(name, _)| name.as_str() != DATA_DOCUMENT_BINDING)
+    {
+        datadom.insert(name.clone(), stream.items.clone());
+    }
     datadom.insert("attributes".to_owned(), vec![Item::Record(attributes)]);
     ItemStream::once(Item::Record(datadom))
+}
+
+fn merge_data_documents(mut explicit: ItemStream, synthesized: ItemStream) -> ItemStream {
+    let Some(Item::Record(synthesized_fields)) = synthesized.items.first() else {
+        return explicit;
+    };
+    for item in &mut explicit.items {
+        let Item::Record(explicit_fields) = item else {
+            continue;
+        };
+        for (name, values) in synthesized_fields {
+            explicit_fields
+                .entry(name.clone())
+                .or_insert_with(|| values.clone());
+        }
+    }
+    explicit
 }
 
 pub fn render_plan_to_html(plan: &RenderPlan) -> String {

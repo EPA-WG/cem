@@ -681,8 +681,9 @@ These are data shapes only. Parser-filled content remains blocked until the pars
             - Make params immutable for each render call. Template defaults are allowed, caller params override by name,
               and unknown params are fatal unless an adapter declares an extension bucket.
             - Keep portable data bindings explicit: primary artifact as `input`, named secondary artifacts under their
-              graph labels, and params under their names. Direct primary-object convenience bindings are adapter
-              compatibility behavior, not a portable template requirement.
+              graph labels, and params under their names. The CEM-QL data document also exposes those host bindings as
+              top-level fields while retaining the legacy `datadom.attributes.*` projection. Direct primary-object
+              convenience bindings are adapter compatibility behavior, not a portable template requirement.
             - Implement `import` before `include`. Imports load separate modules through the template resolver, isolate
               private declarations, expose public exports under an alias/namespace, and reject dependency cycles.
               Includes remain reserved until the import, cache, and cycle rules are proven.
@@ -718,7 +719,10 @@ These are data shapes only. Parser-filled content remains blocked until the pars
           while literal and mixed attribute-value-template forms remain string bindings. The adapter also preserves the
           selected entrypoint, caller params, and param declarations in its compiled payload; caller params override
           declaration defaults, omitted defaults are applied during render, and named entrypoint-local params bind through
-          their local names inside the invoked template. Same-module recursive calls, including recursive calls inside an
+          their local names inside the invoked template. The CEM-QL renderer declares the stable primary `input` binding
+          at compile time and makes primary/secondary host bindings available as top-level fields on the synthesized data
+          document while preserving `datadom.attributes.*` compatibility. Same-module recursive calls, including
+          recursive calls inside an
           imported module, are bounded by the module recursion limit and report `cem.transform_template.recursion_limit`
           when exceeded.
         - The v1 CEM-native template declaration schema now has its own identity,
