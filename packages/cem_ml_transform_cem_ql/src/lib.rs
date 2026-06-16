@@ -20,10 +20,10 @@ use cem_ml::transform_template::{
     TransformTemplateAdapterResult, TransformTemplateCompileRequest,
     TransformTemplateCompileResponse, TransformTemplateCompiledArtifact,
     TransformTemplateDataArtifact, TransformTemplateModuleOptions,
-    TransformTemplateModuleParseRequest, TransformTemplateModulePreflight,
-    TransformTemplateOutputArtifact, TransformTemplateRenderRequest,
-    TransformTemplateRenderResponse, CEM_NATIVE_TEMPLATE_SCHEMA_URI,
-    TRANSFORM_TEMPLATE_RECURSION_LIMIT_CODE,
+    TransformTemplateModuleParamDeclaration, TransformTemplateModuleParseRequest,
+    TransformTemplateModulePreflight, TransformTemplateOutputArtifact,
+    TransformTemplateRenderRequest, TransformTemplateRenderResponse,
+    CEM_NATIVE_TEMPLATE_SCHEMA_URI, TRANSFORM_TEMPLATE_RECURSION_LIMIT_CODE,
 };
 use cem_ql::eval::{AtomValue, Item, ItemStream};
 use cem_ql::render::{
@@ -41,6 +41,9 @@ pub struct CemQlTransformTemplateAdapter;
 #[derive(Debug, Clone)]
 struct CemQlCompiledTemplatePayload {
     artifact: TemplateArtifact,
+    selected_entrypoint: Option<String>,
+    params: BTreeMap<String, Value>,
+    param_declarations: Vec<TransformTemplateModuleParamDeclaration>,
     entrypoints: CemQlTemplateEntrypoints,
     modules: Vec<CemQlCompiledTemplateModulePayload>,
     max_recursion_depth: u32,
@@ -55,6 +58,7 @@ struct CemQlCompiledTemplateModulePayload {
     artifact: TemplateArtifact,
     entrypoints: CemQlTemplateEntrypoints,
     imports: BTreeMap<String, String>,
+    param_declarations: Vec<TransformTemplateModuleParamDeclaration>,
 }
 
 #[derive(Debug, Clone, Default)]
@@ -145,6 +149,9 @@ impl TransformTemplateAdapter for CemQlTransformTemplateAdapter {
             )
             .with_native_payload(CemQlCompiledTemplatePayload {
                 artifact: render_artifact,
+                selected_entrypoint: request.entrypoint.name.clone(),
+                params: request.params.clone(),
+                param_declarations: request.module_options.params.clone(),
                 entrypoints,
                 modules,
                 max_recursion_depth: request.module_options.limits.max_recursion_depth,
@@ -303,6 +310,7 @@ fn compile_preflighted_modules(
                 artifact,
                 entrypoints,
                 imports: imported_module_aliases(&request.module_preflight, module.uri.as_str()),
+                param_declarations: module_options.params,
             })
         })
         .collect()
@@ -432,12 +440,34 @@ fn render_payload_template(
     payload: &CemQlCompiledTemplatePayload,
     data: &TemplateData,
 ) -> RenderPlan {
-    let mut plan = render_compiled_template(&payload.artifact, data);
-    let nodes = expand_call_nodes(&plan.nodes, payload, None, data, 0, &mut plan.diagnostics);
+    let data = root_template_data_with_params(payload, data);
+    let mut plan = render_compiled_template(&payload.artifact, &data);
+    let nodes = expand_call_nodes(&plan.nodes, payload, None, &data, 0, &mut plan.diagnostics);
     RenderPlan {
         nodes,
         diagnostics: plan.diagnostics,
     }
+}
+
+fn root_template_data_with_params(
+    payload: &CemQlCompiledTemplatePayload,
+    data: &TemplateData,
+) -> TemplateData {
+    let mut data = data.clone();
+    for (name, value) in &payload.params {
+        bind_param_value(
+            &mut data,
+            payload.selected_entrypoint.as_deref(),
+            name,
+            value,
+        );
+    }
+    apply_param_declarations(
+        &mut data,
+        &payload.param_declarations,
+        payload.selected_entrypoint.as_deref(),
+    );
+    data
 }
 
 fn expand_call_nodes(
@@ -561,7 +591,12 @@ fn render_call_node(
         return Vec::new();
     };
 
-    let call_data = call_data_with_bindings(data, attributes);
+    let mut call_data = call_data_with_bindings(data, attributes);
+    apply_param_declarations(
+        &mut call_data,
+        param_declarations_for_module(payload, target_module),
+        Some(template.as_str()),
+    );
     let mut plan = render_compiled_template(target, &call_data);
     diagnostics.append(&mut plan.diagnostics);
     expand_call_nodes(
@@ -572,6 +607,97 @@ fn render_call_node(
         depth + 1,
         diagnostics,
     )
+}
+
+fn param_declarations_for_module<'a>(
+    payload: &'a CemQlCompiledTemplatePayload,
+    module: Option<&'a CemQlCompiledTemplateModulePayload>,
+) -> &'a [TransformTemplateModuleParamDeclaration] {
+    module
+        .map(|module| module.param_declarations.as_slice())
+        .unwrap_or(payload.param_declarations.as_slice())
+}
+
+fn bind_param_value(
+    data: &mut TemplateData,
+    selected_entrypoint: Option<&str>,
+    name: &str,
+    value: &Value,
+) {
+    let stream = value_to_stream(value);
+    data.bindings.insert(name.to_owned(), stream.clone());
+    if let Some((qualified, local)) = entrypoint_param_aliases(name, selected_entrypoint) {
+        data.bindings
+            .entry(qualified)
+            .or_insert_with(|| stream.clone());
+        data.bindings.entry(local).or_insert(stream);
+    }
+}
+
+fn apply_param_declarations(
+    data: &mut TemplateData,
+    declarations: &[TransformTemplateModuleParamDeclaration],
+    selected_entrypoint: Option<&str>,
+) {
+    for declaration in declarations {
+        if let Some((qualified, local)) =
+            entrypoint_param_aliases(&declaration.name, selected_entrypoint)
+        {
+            normalize_param_aliases(data, qualified.as_str(), local.as_str());
+            if !data.bindings.contains_key(&qualified) && !data.bindings.contains_key(&local) {
+                if let Some(default_value) = &declaration.default_value {
+                    let stream = value_to_stream(default_value);
+                    data.bindings.insert(qualified, stream.clone());
+                    data.bindings.insert(local, stream);
+                }
+            }
+            continue;
+        }
+
+        if declaration.name.contains('.') {
+            continue;
+        }
+        if !data.bindings.contains_key(&declaration.name) {
+            if let Some(default_value) = &declaration.default_value {
+                data.bindings
+                    .insert(declaration.name.clone(), value_to_stream(default_value));
+            }
+        }
+    }
+}
+
+fn normalize_param_aliases(data: &mut TemplateData, qualified: &str, local: &str) {
+    match (
+        data.bindings.get(qualified).cloned(),
+        data.bindings.get(local).cloned(),
+    ) {
+        (Some(stream), None) => {
+            data.bindings.insert(local.to_owned(), stream);
+        }
+        (None, Some(stream)) => {
+            data.bindings.insert(qualified.to_owned(), stream);
+        }
+        _ => {}
+    }
+}
+
+fn entrypoint_param_aliases(
+    name: &str,
+    selected_entrypoint: Option<&str>,
+) -> Option<(String, String)> {
+    let entrypoint = selected_entrypoint?;
+    if let Some(local) = name
+        .strip_prefix(entrypoint)
+        .and_then(|remaining| remaining.strip_prefix('.'))
+        .filter(|local| !local.trim().is_empty())
+    {
+        return Some((name.to_owned(), local.to_owned()));
+    }
+
+    if !name.contains('.') && !name.trim().is_empty() {
+        return Some((format!("{entrypoint}.{name}"), name.to_owned()));
+    }
+    None
 }
 
 fn render_attr(attributes: &[RenderPlanAttribute], name: &str) -> Option<String> {
@@ -1112,6 +1238,179 @@ mod tests {
         assert_eq!(
             rendered.output.value,
             Value::String("<div><span>Enabled</span></div>".to_owned())
+        );
+        assert!(
+            rendered.diagnostics.is_empty(),
+            "{:?}",
+            rendered.diagnostics
+        );
+    }
+
+    #[test]
+    fn adapter_applies_named_entrypoint_param_defaults() {
+        let adapter = CemQlTransformTemplateAdapter;
+        let identity = FormatIdentity {
+            schema: Some(cem_ml::transform_template::CEM_NATIVE_TEMPLATE_SCHEMA_URI.to_owned()),
+            ..FormatIdentity::default()
+        };
+        let template = TemplateInput {
+            uri: "template.cem".to_owned(),
+            bytes: br#"{@doc cem-ml 1}
+{module |
+  {param @name="locale" @default="en-US"}
+  {template @name="card" @visibility="public" |
+    {param @name="title" @default="Untitled"}
+    {body | {p | {$locale}:{$title}}}
+  }
+}"#
+            .to_vec(),
+            identity: Some(identity),
+            root_scope: ScopeConfig::default(),
+        };
+        let params = BTreeMap::new();
+        let data_bindings = Vec::new();
+        let compiled = adapter
+            .compile(TransformTemplateCompileRequest {
+                template: &template,
+                entrypoint: &TransformTemplateEntrypoint::named("card"),
+                params: &params,
+                data_bindings: &data_bindings,
+                module_options: cem_ml::transform_template::TransformTemplateModuleOptions {
+                    entrypoints: vec![cem_ml::transform_template::TransformTemplateModuleEntrypointDeclaration {
+                        name: "card".to_owned(),
+                        visibility: cem_ml::transform_template::TransformTemplateModuleVisibility::Public,
+                    }],
+                    params: vec![
+                        cem_ml::transform_template::TransformTemplateModuleParamDeclaration {
+                            name: "locale".to_owned(),
+                            default_value: Some(Value::String("en-US".to_owned())),
+                            required: false,
+                            visibility: cem_ml::transform_template::TransformTemplateModuleVisibility::Private,
+                        },
+                        cem_ml::transform_template::TransformTemplateModuleParamDeclaration {
+                            name: "card.title".to_owned(),
+                            default_value: Some(Value::String("Untitled".to_owned())),
+                            required: false,
+                            visibility: cem_ml::transform_template::TransformTemplateModuleVisibility::Private,
+                        },
+                    ],
+                    ..Default::default()
+                },
+                module_preflight: Default::default(),
+                execution_policy: TransformExecutionPolicy::default(),
+            })
+            .expect("module template should compile")
+            .artifact;
+        let primary_input = TransformTemplateDataArtifact {
+            artifact_id: "data".to_owned(),
+            uri: None,
+            identity: None,
+            value: Value::Null,
+        };
+        let secondary_inputs = BTreeMap::new();
+
+        let rendered = adapter
+            .render(TransformTemplateRenderRequest {
+                compiled: &compiled,
+                primary_input: &primary_input,
+                secondary_inputs: &secondary_inputs,
+                target: None,
+                target_scope: &ScopeConfig::default(),
+                execution_policy: TransformExecutionPolicy::default(),
+            })
+            .expect("module template should render");
+
+        assert_eq!(
+            rendered.output.value,
+            Value::String("<p>en-US:Untitled</p>".to_owned())
+        );
+        assert!(
+            rendered.diagnostics.is_empty(),
+            "{:?}",
+            rendered.diagnostics
+        );
+    }
+
+    #[test]
+    fn adapter_binds_caller_params_for_named_entrypoints() {
+        let adapter = CemQlTransformTemplateAdapter;
+        let identity = FormatIdentity {
+            schema: Some(cem_ml::transform_template::CEM_NATIVE_TEMPLATE_SCHEMA_URI.to_owned()),
+            ..FormatIdentity::default()
+        };
+        let template = TemplateInput {
+            uri: "template.cem".to_owned(),
+            bytes: br#"{@doc cem-ml 1}
+{module |
+  {param @name="locale" @default="en-US"}
+  {template @name="card" @visibility="public" |
+    {param @name="title" @default="Untitled"}
+    {body | {p | {$locale}:{$title}}}
+  }
+}"#
+            .to_vec(),
+            identity: Some(identity),
+            root_scope: ScopeConfig::default(),
+        };
+        let params = BTreeMap::from([
+            ("locale".to_owned(), Value::String("fr-FR".to_owned())),
+            ("title".to_owned(), Value::String("Intro".to_owned())),
+        ]);
+        let data_bindings = Vec::new();
+        let compiled = adapter
+            .compile(TransformTemplateCompileRequest {
+                template: &template,
+                entrypoint: &TransformTemplateEntrypoint::named("card"),
+                params: &params,
+                data_bindings: &data_bindings,
+                module_options: cem_ml::transform_template::TransformTemplateModuleOptions {
+                    entrypoints: vec![cem_ml::transform_template::TransformTemplateModuleEntrypointDeclaration {
+                        name: "card".to_owned(),
+                        visibility: cem_ml::transform_template::TransformTemplateModuleVisibility::Public,
+                    }],
+                    params: vec![
+                        cem_ml::transform_template::TransformTemplateModuleParamDeclaration {
+                            name: "locale".to_owned(),
+                            default_value: Some(Value::String("en-US".to_owned())),
+                            required: false,
+                            visibility: cem_ml::transform_template::TransformTemplateModuleVisibility::Private,
+                        },
+                        cem_ml::transform_template::TransformTemplateModuleParamDeclaration {
+                            name: "card.title".to_owned(),
+                            default_value: Some(Value::String("Untitled".to_owned())),
+                            required: false,
+                            visibility: cem_ml::transform_template::TransformTemplateModuleVisibility::Private,
+                        },
+                    ],
+                    ..Default::default()
+                },
+                module_preflight: Default::default(),
+                execution_policy: TransformExecutionPolicy::default(),
+            })
+            .expect("module template should compile")
+            .artifact;
+        let primary_input = TransformTemplateDataArtifact {
+            artifact_id: "data".to_owned(),
+            uri: None,
+            identity: None,
+            value: Value::Null,
+        };
+        let secondary_inputs = BTreeMap::new();
+
+        let rendered = adapter
+            .render(TransformTemplateRenderRequest {
+                compiled: &compiled,
+                primary_input: &primary_input,
+                secondary_inputs: &secondary_inputs,
+                target: None,
+                target_scope: &ScopeConfig::default(),
+                execution_policy: TransformExecutionPolicy::default(),
+            })
+            .expect("module template should render");
+
+        assert_eq!(
+            rendered.output.value,
+            Value::String("<p>fr-FR:Intro</p>".to_owned())
         );
         assert!(
             rendered.diagnostics.is_empty(),
@@ -1740,6 +2039,81 @@ mod tests {
         assert!(scopes.contains(&11));
         assert!(scopes.contains(&12));
         assert!(scopes.contains(&13));
+    }
+
+    #[test]
+    fn real_engine_transform_binds_cem_native_template_params() {
+        let context = engine_context_with_cem_ql_template_adapter();
+        let request = TransformRequest {
+            data: EngineInput {
+                uri: "data.cem".to_owned(),
+                bytes: b"{p}".to_vec(),
+                from_format: None,
+                identity: Some(FormatIdentity {
+                    content_type: Some("text/cem-ml".to_owned()),
+                    ..FormatIdentity::default()
+                }),
+                root_scope: ScopeConfig::default(),
+            },
+            template: TemplateInput {
+                uri: "template.cem".to_owned(),
+                bytes: br#"{@doc cem-ml 1}
+{module |
+  {param @name="locale" @default="en-US" @visibility="public"}
+  {template @name="card" @visibility="public" |
+    {param @name="title" @default="Untitled"}
+    {body | {p | {$locale}:{$title}}}
+  }
+}"#
+                .to_vec(),
+                identity: Some(FormatIdentity {
+                    schema: Some(
+                        cem_ml::transform_template::CEM_NATIVE_TEMPLATE_SCHEMA_URI.to_owned(),
+                    ),
+                    ..FormatIdentity::default()
+                }),
+                root_scope: ScopeConfig::default(),
+            },
+            template_kind: TransformTemplateKind::CemNative,
+            template_entrypoint: TransformTemplateEntrypoint::named("card"),
+            params: BTreeMap::from([
+                ("locale".to_owned(), Value::String("fr-FR".to_owned())),
+                ("title".to_owned(), Value::String("Intro".to_owned())),
+            ]),
+            preserve_source_offsets: false,
+            context,
+            target: Some(FormatIdentity {
+                content_type: Some("text/html".to_owned()),
+                ..FormatIdentity::default()
+            }),
+            target_scope: ScopeConfig::default(),
+            scheduler_scope_ids: TransformSchedulerScopeIds {
+                data_load: 10,
+                template_load: 11,
+                execution: 12,
+                output: 13,
+            },
+            execution_policy: TransformExecutionPolicy {
+                runtime_phase: cem_ml::engine::TransformRuntimePhase::CemNativeModules,
+                ..TransformExecutionPolicy::default()
+            },
+        };
+
+        let response = RealCemMlEngine::new()
+            .transform(request)
+            .expect("transform should bind CEM-native params");
+
+        assert_eq!(
+            response.primary,
+            Value::String("<p>fr-FR:Intro</p>".to_owned()),
+            "{:?}",
+            response.diagnostics
+        );
+        assert!(
+            response.diagnostics.is_empty(),
+            "{:?}",
+            response.diagnostics
+        );
     }
 
     #[test]

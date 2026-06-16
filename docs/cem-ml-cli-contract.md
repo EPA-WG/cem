@@ -247,19 +247,26 @@ slice:
   rejecting multiple executable matches as ambiguous.
 - `TransformExecutionPolicy` defaults to `runtimePhase=cem-ql-fragment`,
   `cardinality=one-to-one`, `duplicateDestinationPolicy=reject`,
-  `failurePolicy=fail-fast`, and `outputPolicy=content-primary`.
+  `failurePolicy=fail-fast`, and `outputPolicy=content-primary`. The current
+  runtime accepts both `cem-ql-fragment` for fragment templates and
+  `cem-native-modules` for declared CEM-native module templates.
 - `TransformTemplateEntrypoint` is present on single-template requests and graph
-  stages, but the first runtime phase only supports the implicit entrypoint.
-- `params` is present on transform requests/stages for future named-template/module
-  work; the first runtime phase can reject non-empty params until that layer lands.
+  stages. `cem-ql-fragment` remains implicit-entrypoint only;
+  `cem-native-modules` accepts validated public named entrypoints from the
+  CEM-native template declaration schema.
+- `params` is present on transform requests/stages. `cem-ql-fragment` rejects
+  non-empty params; `cem-native-modules` validates caller params against declared
+  module/template params before compilation and passes them to the executable
+  adapter.
 - `TransformDiagnosticOrigin` reserves stable report/source-map origin categories:
   `config`, `import`, `template-load`, `template-compile`, `template-execution`,
   and `export`.
 - `validate_transform_request_runtime_contract` and
   `validate_transform_graph_runtime_contract` perform pre-execution runtime
-  validation for the first slice: CEM-native templates only, implicit entrypoint
-  only, no params yet, known artifact refs, unique graph IDs, and duplicate output
-  destination rejection.
+  validation for the supported phases: `cem-ql-fragment` is CEM-native,
+  implicit-entrypoint, no-params only; `cem-native-modules` is the CEM-native
+  declaration/module phase; graph validation also checks known artifact refs,
+  unique graph IDs, and duplicate output destination rejection.
 - The default `CemMlEngine::transform` and `transform_graph` methods still return
   `NotImplemented`. `RealCemMlEngine::transform` implements the first one-to-one
   CEM-native template slice, and `RealCemMlEngine::transform_graph` implements the
@@ -399,6 +406,11 @@ rejects unknown caller params, and reports missing required params before adapte
 compilation. It also validates same-module `call @template` targets and imported
 `call @from @template` targets against public entrypoints from resolver-backed
 import modules.
+The `cem_ml_transform_cem_ql` executable adapter now preserves the selected
+entrypoint, caller params, and param declarations in the compiled payload. During
+render, caller params override declaration defaults, module-level defaults apply
+when omitted, and named entrypoint-local params are exposed through their local
+names inside the selected template or called imported template.
 Compile requests now also carry `TransformTemplateModulePreflight`, populated by
 the real engine before adapter compilation. The preflight recursively reads
 declared imports through the template resolver, resolves relative imports against

@@ -656,15 +656,17 @@ These are data shapes only. Parser-filled content remains blocked until the pars
         - `TransformExecutionPolicy` records the first runtime contract:
           `runtimePhase=cem-ql-fragment`, `cardinality=one-to-one`,
           `duplicateDestinationPolicy=reject`, `failurePolicy=fail-fast`, and
-          `outputPolicy=content-primary`.
+          `outputPolicy=content-primary`. The runtime now accepts both `cem-ql-fragment` and `cem-native-modules`; the
+          former stays the fragment/implicit-entrypoint phase and the latter is the declared CEM-native module phase.
         - `TransformTemplateEntrypoint` and `params` exist on transform requests/stages so the API has a place for
-          future named-template/module execution. The first runtime phase supports only the implicit entrypoint and may
-          reject params until the module layer lands.
+          named-template/module execution. The `cem-ql-fragment` phase supports only the implicit entrypoint and rejects
+          params; the `cem-native-modules` phase accepts validated public named entrypoints and declared params.
         - `TransformDiagnosticOrigin` reserves stable report/source-map origin categories for `config`, `import`,
           `template-load`, `template-compile`, `template-execution`, and `export`.
         - `validate_transform_request_runtime_contract` and
-          `validate_transform_graph_runtime_contract` now enforce the first-slice runtime preflight: CEM-native
-          templates only, implicit entrypoint only, no params yet, known artifact refs, unique graph IDs, and duplicate
+          `validate_transform_graph_runtime_contract` now enforce the supported runtime preflight:
+          `cem-ql-fragment` is CEM-native, implicit-entrypoint, no-params only; `cem-native-modules` is the CEM-native
+          declaration/module phase; graph validation also checks known artifact refs, unique graph IDs, and duplicate
           output destination rejection.
         - CEM-native runtime order: first support pure CEM-QL evaluation plus CEM-ML fragments with embedded CEM-QL and
           one implicit entrypoint; then add native named templates/modules, explicit entrypoints, params,
@@ -713,9 +715,12 @@ These are data shapes only. Parser-filled content remains blocked until the pars
           module's public entrypoint renders, unqualified calls resolve against that imported module's own named
           templates, and `call @from` resolves against that module's own import aliases rather than the root module. Call
           `@with:*` whole-expression attributes preserve their evaluated CEM-QL item stream for the invoked template,
-          while literal and mixed attribute-value-template forms remain string bindings. Same-module recursive calls,
-          including recursive calls inside an imported module, are bounded by the module recursion limit and report
-          `cem.transform_template.recursion_limit` when exceeded.
+          while literal and mixed attribute-value-template forms remain string bindings. The adapter also preserves the
+          selected entrypoint, caller params, and param declarations in its compiled payload; caller params override
+          declaration defaults, omitted defaults are applied during render, and named entrypoint-local params bind through
+          their local names inside the invoked template. Same-module recursive calls, including recursive calls inside an
+          imported module, are bounded by the module recursion limit and report `cem.transform_template.recursion_limit`
+          when exceeded.
         - The v1 CEM-native template declaration schema now has its own identity,
           `https://cem.dev/ns/template/cem-native/1`, and checked-in schema artifact
           `packages/cem_ml/schema/template/cem-native-template.md`. Its declaration vocabulary is `module`, `import`,

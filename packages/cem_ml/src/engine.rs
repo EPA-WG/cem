@@ -419,11 +419,14 @@ fn transform_template_identity_error(message: impl Into<String>) -> TransformTem
 
 fn validate_transform_execution_policy(policy: &TransformExecutionPolicy) -> Vec<Diagnostic> {
     let mut diagnostics = Vec::new();
-    if policy.runtime_phase != TransformRuntimePhase::CemQlFragment {
+    if !matches!(
+        policy.runtime_phase,
+        TransformRuntimePhase::CemQlFragment | TransformRuntimePhase::CemNativeModules
+    ) {
         diagnostics.push(transform_runtime_diagnostic(
             None,
             "cem.transform_runtime.phase_unsupported",
-            "transform runtime currently supports only the `cem-ql-fragment` phase",
+            "transform runtime currently supports only the `cem-ql-fragment` and `cem-native-modules` phases",
         ));
     }
     if policy.cardinality != TransformCardinalityMode::OneToOne {
@@ -1126,6 +1129,28 @@ mod tests {
             target_scope: ScopeConfig::default(),
             scheduler_scope_ids: TransformSchedulerScopeIds::default(),
             execution_policy: TransformExecutionPolicy::default(),
+        };
+
+        assert!(validate_transform_request_runtime_contract(&request).is_empty());
+    }
+
+    #[test]
+    fn transform_runtime_contract_accepts_native_module_phase() {
+        let request = TransformRequest {
+            data: engine_input("data.xml", "application/xml"),
+            template: template_input("view.cem", "text/cem-ml"),
+            template_kind: TransformTemplateKind::CemNative,
+            template_entrypoint: TransformTemplateEntrypoint::named("main"),
+            params: BTreeMap::from([("locale".to_owned(), serde_json::json!("en-US"))]),
+            preserve_source_offsets: true,
+            context: EngineContext::default(),
+            target: None,
+            target_scope: ScopeConfig::default(),
+            scheduler_scope_ids: TransformSchedulerScopeIds::default(),
+            execution_policy: TransformExecutionPolicy {
+                runtime_phase: TransformRuntimePhase::CemNativeModules,
+                ..TransformExecutionPolicy::default()
+            },
         };
 
         assert!(validate_transform_request_runtime_contract(&request).is_empty());

@@ -186,9 +186,12 @@ for the current architecture have landed; only deferred capability work remains 
       imported module's public entrypoint renders, unqualified calls resolve against that imported module's own named
       templates, and `call @from` resolves against that module's own import aliases rather than the root module. Call
       `@with:*` whole-expression attributes preserve their evaluated CEM-QL item stream for the invoked template, while
-      literal and mixed attribute-value-template forms remain string bindings. Same-module recursive calls, including
-      recursive calls inside an imported module, are bounded by the module recursion limit and report
-      `cem.transform_template.recursion_limit` when exceeded. The CEM-native template declaration schema now has its own
+      literal and mixed attribute-value-template forms remain string bindings. It also preserves the selected entrypoint,
+      caller params, and param declarations in the compiled payload; caller params override declaration defaults, omitted
+      defaults are applied during render, and named entrypoint-local params bind through their local names inside the
+      invoked template. Same-module recursive calls, including recursive calls inside an imported module, are bounded by
+      the module recursion limit and report `cem.transform_template.recursion_limit` when exceeded. The CEM-native
+      template declaration schema now has its own
       identity
       (`https://cem.dev/ns/template/cem-native/1`) and checked-in artifact
       `packages/cem_ml/schema/template/cem-native-template.md`, covering `module`, `import`, `param`, `template`,
