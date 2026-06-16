@@ -3483,6 +3483,18 @@ mod tests {
     }
 
     #[test]
+    fn identity_match_pattern_dispatches_over_attributes_text_and_elements() {
+        let result = convert(
+            r#"<doc><item id="a">before<child>B</child>after</item></doc><xsl:stylesheet version="1.0"><xsl:template match="/"><out><xsl:apply-templates select="//item"/></out></xsl:template><xsl:template match="item"><row><xsl:apply-templates select="@*|node()"/></row></xsl:template><xsl:template match="@*|node()"><seen><xsl:value-of select="."/></seen></xsl:template></xsl:stylesheet>"#,
+        );
+        assert_eq!(
+            result.source,
+            "{doc | {item @id=\"a\" | before{child | B}after}}{out | {row | {seen | a}{seen | before}{seen | B}{seen | after}}}"
+        );
+        assert!(result.diagnostics.is_empty());
+    }
+
+    #[test]
     fn unrolls_for_each_over_current_attribute_and_child_union() {
         let result = convert(
             r#"<doc><item id="a"><child>Beta</child></item></doc><xsl:stylesheet version="1.0"><xsl:template match="/"><xsl:apply-templates select="//item"/></xsl:template><xsl:template match="item"><xsl:for-each select="@*|*"><b><xsl:value-of select="name()"/>:<xsl:value-of select="."/></b></xsl:for-each></xsl:template></xsl:stylesheet>"#,
