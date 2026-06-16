@@ -487,8 +487,8 @@ Exit criteria: an ADR exists and no parser code has been added.
     - `reportAst.schedulerTrace.eventCount`
     - `reportAst.schedulerTrace.events[]`
     - optional `reportAst.transformGraph.exportCount`
-    - optional `reportAst.transformGraph.exports[]`, with `exportId`, `destination`, `contentType`, `schema`, and
-      `outputKind`, `hasSourceMap`, and `outputSpanCount`
+    - optional `reportAst.transformGraph.exports[]`, with `exportId`, `destination`, `contentType`, `schema`,
+      `outputKind`, `hasSourceMap`, `outputSpanCount`, and optional `sourceMapRef`
     - event nodes with source module state, event sequence, source-map stack at event time, and visible partial
       hierarchy
 4. Use a deterministic default timestamp for feature tests:
@@ -678,16 +678,18 @@ These are data shapes only. Parser-filled content remains blocked until the pars
         - Report and source-map behavior for diagnostics that may originate from data, template compilation, template
           execution, or output export. Current CLI report destinations suppress diagnostic stderr and use
           `cem-ml.transform.report` as the default report basename. Graph transform reports include
-          `reportAst.transformGraph` export metadata for resolved export IDs, destinations, content identities, and
-          output kinds, plus source-map presence and output-span counts when artifacts expose those fields.
+          `reportAst.transformGraph` export metadata for resolved export IDs, destinations, content identities, output
+          kinds, source-map presence, output-span counts, and sidecar refs when artifacts expose source-map fields and
+          have export destinations. For those exports, the CLI writes `{destination}.map` with the artifact `sourceMap`
+          JSON payload through the output resolver.
         - Graph validation for duplicate IDs, unresolved refs, cycles, unsupported joins, unsupported cardinality
           changes, unknown output bindings, and duplicate resolved output destinations before writes.
       Execution is available through the programmatic engine API, the CLI one-liner, and CLI CEM-ML graph config dispatch
       when a host registers an executable adapter. `transform_graph` executes loaded in-memory graph requests and returns
       export artifacts; the CLI host writes configured graph exports through the resolver layer.
-      Next implementation boundary: add full source-map payload projection for branched artifacts, then design
-      resolver-backed glob enumeration and multi-artifact join semantics. The crate dependency cycle is avoided by
-      keeping the concrete CEM-QL adapter in `cem_ml_transform_cem_ql` rather than in `cem_ml`.
+      Next implementation boundary: design resolver-backed glob enumeration and multi-artifact join semantics. The crate
+      dependency cycle is avoided by keeping the concrete CEM-QL adapter in `cem_ml_transform_cem_ql` rather than in
+      `cem_ml`.
 8. `cem-ml trace <input>`
     - Supported structured formats: `json`, `xml`, `cem`.
     - Reference convenience formats: `text`, `html`.

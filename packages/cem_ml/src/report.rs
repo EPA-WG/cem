@@ -110,6 +110,8 @@ pub struct TransformGraphExportReport {
     pub has_source_map: bool,
     #[serde(rename = "outputSpanCount")]
     pub output_span_count: u64,
+    #[serde(rename = "sourceMapRef", skip_serializing_if = "Option::is_none")]
+    pub source_map_ref: Option<String>,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]

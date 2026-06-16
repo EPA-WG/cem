@@ -184,6 +184,7 @@ mod tests {
                 output_kind: "document".into(),
                 has_source_map: true,
                 output_span_count: 2,
+                source_map_ref: Some("out/page.html.map".into()),
             }],
         });
 
@@ -212,6 +213,10 @@ mod tests {
         assert_eq!(
             v["reportAst"]["transformGraph"]["exports"][0]["outputSpanCount"],
             2
+        );
+        assert_eq!(
+            v["reportAst"]["transformGraph"]["exports"][0]["sourceMapRef"],
+            "out/page.html.map"
         );
     }
 }
