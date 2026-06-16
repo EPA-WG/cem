@@ -698,8 +698,12 @@ These are data shapes only. Parser-filled content remains blocked until the pars
           `TransformTemplateModuleOptions`; the stable model includes import declarations, entrypoint declarations with
           explicit visibility, param declarations with defaults/required flags, module limits, module cache keys, and
           reserved diagnostic codes for private/missing entrypoints, unknown params, import cycles, recursion limits, and
-          reserved includes. Existing runtime executors receive default module options, so module execution remains
-          deferred.
+          reserved includes. Compile requests also carry `TransformTemplateModulePreflight`, which the real engine
+          builds before adapter compilation by reading declared imports through the template resolver, resolving relative
+          imports against the template URI, carrying resolved module bytes/identity/content hashes, building the
+          dependency graph cache-key input, and rejecting duplicate aliases, reserved includes, and direct self-import
+          cycles. Existing runtime executors receive default module options, so adapter-owned module syntax parsing,
+          public export validation, transitive module execution, and recursive call limits remain deferred.
         - The CLI transform graph config has its own schema identity,
           `https://cem.dev/ns/cli/transform-config/1`, for `run` / `import` / `join` / `transform` / `export`; do not
           validate transform config as ordinary CEM core content or as a template document.
@@ -734,10 +738,10 @@ These are data shapes only. Parser-filled content remains blocked until the pars
       Execution is available through the programmatic engine API, the CLI one-liner, and CLI CEM-ML graph config dispatch
       when a host registers an executable adapter. `transform_graph` executes loaded in-memory graph requests and returns
       export artifacts; the CLI host writes configured graph exports through the resolver layer.
-      Next implementation boundary: add native template import preflight around resolver-backed module reads,
-      dependency-graph cache-key construction, and compile-time diagnostics for reserved includes and import cycles
-      before implementing module execution. The crate dependency cycle is avoided by keeping the concrete CEM-QL adapter
-      in `cem_ml_transform_cem_ql` rather than in `cem_ml`.
+      Next implementation boundary: define and implement the adapter-owned native module syntax/semantic layer that
+      declares imports, public exports, entrypoints, params, and calls, then teach executable adapters to consume
+      preflighted modules before expanding recursive calls and broader XSLT parity. The crate dependency cycle is avoided
+      by keeping the concrete CEM-QL adapter in `cem_ml_transform_cem_ql` rather than in `cem_ml`.
 8. `cem-ml trace <input>`
     - Supported structured formats: `json`, `xml`, `cem`.
     - Reference convenience formats: `text`, `html`.

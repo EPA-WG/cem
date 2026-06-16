@@ -176,9 +176,12 @@ for the current architecture have landed; only deferred capability work remains 
       The native template module API shape now exists on `TransformTemplateCompileRequest` through
       `TransformTemplateModuleOptions`, import declarations, entrypoint declarations with explicit visibility, param
       declarations, module limits, cache keys, and reserved diagnostics for private/missing entrypoints, unknown params,
-      import cycles, recursion limits, and reserved includes. Module execution remains deferred.
-      Next implementation boundary is native template import preflight: resolver-backed module reads, dependency graph
-      cache-key construction, and compile-time diagnostics for reserved includes/import cycles before module execution.
+      import cycles, recursion limits, and reserved includes. `TransformTemplateModulePreflight` now carries
+      resolver-backed import reads, resolved module bytes/identity/content hashes, dependency graph cache-key input, and
+      compile-time diagnostics for duplicate aliases, reserved includes, and direct self-import cycles. Module execution
+      remains deferred. Next implementation boundary is the adapter-owned native module syntax/semantic layer:
+      declaration parsing, public export validation, transitive module execution, and recursive call limits before XSLT
+      parity expansion.
       The separate adapter crate avoids the dependency cycle where `cem_ql`
       currently depends on `cem_ml`.
 - [ ] **Wishlist (future — schema/tooling):** wire CLI config schemas into generated/published artifacts. The JSON

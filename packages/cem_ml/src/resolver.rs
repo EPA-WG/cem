@@ -444,19 +444,23 @@ pub fn is_windows_drive_path(value: &str) -> bool {
 }
 
 fn request_scheme(request: &ResolveRequest) -> Result<&str, ResolverDiagnostic> {
-    uri_scheme(&request.uri).ok_or_else(|| ResolverDiagnostic::UnsupportedResolver {
-        uri: request.uri.clone(),
-        purpose: request.purpose,
-        direction: request.direction,
-    })
+    uri_scheme(&request.uri)
+        .or_else(|| request.base_uri.as_deref().and_then(uri_scheme))
+        .ok_or_else(|| ResolverDiagnostic::UnsupportedResolver {
+            uri: request.uri.clone(),
+            purpose: request.purpose,
+            direction: request.direction,
+        })
 }
 
 fn list_request_scheme(request: &ResolveListRequest) -> Result<&str, ResolverDiagnostic> {
-    uri_scheme(&request.uri).ok_or_else(|| ResolverDiagnostic::UnsupportedResolver {
-        uri: request.uri.clone(),
-        purpose: request.purpose,
-        direction: ResolveDirection::List,
-    })
+    uri_scheme(&request.uri)
+        .or_else(|| request.base_uri.as_deref().and_then(uri_scheme))
+        .ok_or_else(|| ResolverDiagnostic::UnsupportedResolver {
+            uri: request.uri.clone(),
+            purpose: request.purpose,
+            direction: ResolveDirection::List,
+        })
 }
 
 fn normalize_scheme(scheme: impl AsRef<str>) -> String {

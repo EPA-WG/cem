@@ -283,6 +283,7 @@ mod tests {
                 params: &params,
                 data_bindings: &data_bindings,
                 module_options: Default::default(),
+                module_preflight: Default::default(),
                 execution_policy: TransformExecutionPolicy::default(),
             })
             .expect("template should compile")

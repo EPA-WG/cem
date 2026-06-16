@@ -63,6 +63,7 @@ pub struct TransformTemplateCompileRequest<'a> {
     pub params: &'a BTreeMap<String, Value>,
     pub data_bindings: &'a [String],
     pub module_options: TransformTemplateModuleOptions,
+    pub module_preflight: TransformTemplateModulePreflight,
     pub execution_policy: TransformExecutionPolicy,
 }
 
@@ -73,6 +74,8 @@ pub const TRANSFORM_TEMPLATE_IMPORT_CYCLE_CODE: &str = "cem.transform_template.i
 pub const TRANSFORM_TEMPLATE_RECURSION_LIMIT_CODE: &str = "cem.transform_template.recursion_limit";
 pub const TRANSFORM_TEMPLATE_INCLUDE_RESERVED_CODE: &str =
     "cem.transform_template.include_reserved";
+pub const TRANSFORM_TEMPLATE_IMPORT_ALIAS_DUPLICATE_CODE: &str =
+    "cem.transform_template.import_alias_duplicate";
 
 #[derive(Debug, Clone, Copy, Default, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(rename_all = "kebab-case")]
@@ -161,6 +164,26 @@ pub struct TransformTemplateModuleCacheKey {
     pub entrypoint: TransformTemplateEntrypoint,
     pub execution_policy: TransformExecutionPolicy,
     pub dependency_graph_hash: String,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct TransformTemplateResolvedModule {
+    pub alias: String,
+    pub uri: String,
+    #[serde(default)]
+    pub identity: Option<FormatIdentity>,
+    pub content_hash: String,
+    pub bytes: Vec<u8>,
+}
+
+#[derive(Debug, Clone, Default, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct TransformTemplateModulePreflight {
+    #[serde(default)]
+    pub resolved_imports: Vec<TransformTemplateResolvedModule>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub cache_key: Option<TransformTemplateModuleCacheKey>,
 }
 
 impl TransformTemplateModuleCacheKey {
@@ -815,6 +838,7 @@ mod tests {
                 params: &params,
                 data_bindings: &data_bindings,
                 module_options: Default::default(),
+                module_preflight: Default::default(),
                 execution_policy: TransformExecutionPolicy::default(),
             })
             .expect_err("static adapter should not compile templates");
@@ -953,6 +977,7 @@ mod tests {
                 params: &params,
                 data_bindings: &data_bindings,
                 module_options: Default::default(),
+                module_preflight: Default::default(),
                 execution_policy: TransformExecutionPolicy::default(),
             })
             .expect("runtime adapter should compile")
@@ -1027,6 +1052,7 @@ mod tests {
                 params: &params,
                 data_bindings: &data_bindings,
                 module_options,
+                module_preflight: Default::default(),
                 execution_policy: TransformExecutionPolicy::default(),
             })
             .expect("runtime adapter should receive module options")

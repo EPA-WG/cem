@@ -32,7 +32,12 @@ use crate::tokenizer::SchemaTokenizer;
 use crate::transform_template::{
     TransformTemplateAdapter, TransformTemplateAdapterLookup, TransformTemplateCompileRequest,
     TransformTemplateCompiledArtifact, TransformTemplateDataArtifact,
-    TransformTemplateOutputArtifact, TransformTemplateRenderRequest,
+    TransformTemplateModuleCacheKey, TransformTemplateModuleDependencyKind,
+    TransformTemplateModuleImport, TransformTemplateModuleOptions,
+    TransformTemplateModulePreflight, TransformTemplateOutputArtifact,
+    TransformTemplateRenderRequest, TransformTemplateResolvedModule,
+    TRANSFORM_TEMPLATE_IMPORT_ALIAS_DUPLICATE_CODE, TRANSFORM_TEMPLATE_IMPORT_CYCLE_CODE,
+    TRANSFORM_TEMPLATE_INCLUDE_RESERVED_CODE,
 };
 use crate::validation::{RuleContext, RuleRegistry};
 use serde_json::{json, Value};
@@ -992,31 +997,293 @@ fn select_transform_template_adapter(
     }
 }
 
-fn compile_transform_template(
-    adapter: &Arc<dyn TransformTemplateAdapter>,
-    template: &TemplateInput,
-    entrypoint: &TransformTemplateEntrypoint,
-    params: &BTreeMap<String, Value>,
-    data_bindings: &[String],
+struct TransformTemplateCompileSpec<'a> {
+    context: &'a EngineContext,
+    adapter: &'a Arc<dyn TransformTemplateAdapter>,
+    template: &'a TemplateInput,
+    entrypoint: &'a TransformTemplateEntrypoint,
+    params: &'a BTreeMap<String, Value>,
+    data_bindings: &'a [String],
+    module_options: TransformTemplateModuleOptions,
     execution_policy: TransformExecutionPolicy,
+}
+
+fn compile_transform_template(
+    spec: TransformTemplateCompileSpec<'_>,
     diagnostics: &mut Vec<Diagnostic>,
 ) -> Option<TransformTemplateCompiledArtifact> {
-    match adapter.compile(TransformTemplateCompileRequest {
-        template,
-        entrypoint,
-        params,
-        data_bindings,
-        module_options: Default::default(),
-        execution_policy,
+    let module_preflight = preflight_transform_template_modules(
+        spec.context,
+        spec.adapter.id(),
+        spec.template,
+        spec.entrypoint,
+        &spec.module_options,
+        spec.execution_policy,
+        diagnostics,
+    )?;
+    match spec.adapter.compile(TransformTemplateCompileRequest {
+        template: spec.template,
+        entrypoint: spec.entrypoint,
+        params: spec.params,
+        data_bindings: spec.data_bindings,
+        module_options: spec.module_options,
+        module_preflight,
+        execution_policy: spec.execution_policy,
     }) {
         Ok(mut response) => {
             diagnostics.append(&mut response.diagnostics);
             Some(response.artifact)
         }
         Err(err) => {
-            diagnostics.push(err.diagnostic(Some(&template.uri)));
+            diagnostics.push(err.diagnostic(Some(&spec.template.uri)));
             None
         }
+    }
+}
+
+fn preflight_transform_template_modules(
+    context: &EngineContext,
+    adapter_id: &str,
+    template: &TemplateInput,
+    entrypoint: &TransformTemplateEntrypoint,
+    module_options: &TransformTemplateModuleOptions,
+    execution_policy: TransformExecutionPolicy,
+    diagnostics: &mut Vec<Diagnostic>,
+) -> Option<TransformTemplateModulePreflight> {
+    let mut seen_aliases = BTreeSet::new();
+    let mut resolved_imports = Vec::new();
+    let mut dependency_hash_input = Vec::new();
+    let mut has_fatal = false;
+
+    for import in &module_options.imports {
+        if import.kind == TransformTemplateModuleDependencyKind::IncludeReserved {
+            diagnostics.push(template_module_diagnostic(
+                Some(&import.uri),
+                TRANSFORM_TEMPLATE_INCLUDE_RESERVED_CODE,
+                format!(
+                    "template module import `{}` uses reserved include semantics; use `import`",
+                    import.alias
+                ),
+            ));
+            has_fatal = true;
+            continue;
+        }
+
+        if !seen_aliases.insert(import.alias.clone()) {
+            diagnostics.push(template_module_diagnostic(
+                Some(&import.uri),
+                TRANSFORM_TEMPLATE_IMPORT_ALIAS_DUPLICATE_CODE,
+                format!(
+                    "template module import alias `{}` is declared more than once",
+                    import.alias
+                ),
+            ));
+            has_fatal = true;
+            continue;
+        }
+
+        match read_template_module_import(context, template, import) {
+            Ok(module) => {
+                if module.uri == template.uri {
+                    diagnostics.push(template_module_diagnostic(
+                        Some(&module.uri),
+                        TRANSFORM_TEMPLATE_IMPORT_CYCLE_CODE,
+                        format!(
+                            "template module `{}` imports itself through alias `{}`",
+                            template.uri, import.alias
+                        ),
+                    ));
+                    has_fatal = true;
+                    continue;
+                }
+                dependency_hash_input.extend_from_slice(import.alias.as_bytes());
+                dependency_hash_input.push(0);
+                dependency_hash_input.extend_from_slice(module.uri.as_bytes());
+                dependency_hash_input.push(0);
+                dependency_hash_input.extend_from_slice(module.content_hash.as_bytes());
+                dependency_hash_input.push(0);
+                resolved_imports.push(module);
+            }
+            Err(error) => {
+                diagnostics.push(template_module_diagnostic(
+                    Some(&import.uri),
+                    error.code(),
+                    format!(
+                        "template module import `{}` could not be read: {error}",
+                        import.alias
+                    ),
+                ));
+                has_fatal = true;
+            }
+        }
+    }
+
+    if has_fatal {
+        return None;
+    }
+
+    let template_hash = content_hash(&template.bytes);
+    let dependency_graph_hash = content_hash(&dependency_hash_input);
+    let cache_key = TransformTemplateModuleCacheKey::new(
+        adapter_id,
+        template.uri.clone(),
+        template.identity.clone(),
+        template_hash,
+        entrypoint.clone(),
+        execution_policy,
+        dependency_graph_hash,
+    );
+    Some(TransformTemplateModulePreflight {
+        resolved_imports,
+        cache_key: Some(cache_key),
+    })
+}
+
+fn read_template_module_import(
+    context: &EngineContext,
+    template: &TemplateInput,
+    import: &TransformTemplateModuleImport,
+) -> Result<TransformTemplateResolvedModule, ResolverDiagnostic> {
+    let content_type_hint = import
+        .identity
+        .as_ref()
+        .and_then(|identity| identity.content_type.as_deref().map(str::to_owned));
+    let read =
+        read_template_import_source(context, template, &import.uri, content_type_hint.as_deref())?;
+    let mut identity = import.identity.clone();
+    if let Some(content_type) = read.content_type.clone() {
+        let mut resolved_identity = identity.unwrap_or_default();
+        if resolved_identity.content_type.is_none() {
+            resolved_identity.content_type = Some(content_type);
+        }
+        identity = Some(resolved_identity);
+    }
+    let content_hash = content_hash(&read.bytes);
+    Ok(TransformTemplateResolvedModule {
+        alias: import.alias.clone(),
+        uri: read.uri,
+        identity,
+        content_hash,
+        bytes: read.bytes,
+    })
+}
+
+fn read_template_import_source(
+    context: &EngineContext,
+    template: &TemplateInput,
+    import_uri: &str,
+    content_type_hint: Option<&str>,
+) -> Result<ResolvedRead, ResolverDiagnostic> {
+    let base_uri = template.uri.as_str();
+    if has_uri_scheme(import_uri) && !is_windows_drive_path(import_uri) {
+        if let Some(path) = parse_local_file_uri(import_uri)
+            .transpose()
+            .map_err(|error| ResolverDiagnostic::InvalidFileUri {
+                uri: import_uri.to_owned(),
+                message: error.to_string(),
+            })?
+        {
+            return read_local_template_import(import_uri, path, content_type_hint);
+        }
+        if let Some(read) =
+            read_registered_template_import(context, import_uri, None, content_type_hint)?
+        {
+            return Ok(read);
+        }
+        return Err(ResolverDiagnostic::UnsupportedResolver {
+            uri: import_uri.to_owned(),
+            purpose: ResolvePurpose::Template,
+            direction: ResolveDirection::Read,
+        });
+    }
+
+    if has_uri_scheme(base_uri) && !is_windows_drive_path(base_uri) {
+        if let Some(base_path) = parse_local_file_uri(base_uri)
+            .transpose()
+            .map_err(|error| ResolverDiagnostic::InvalidFileUri {
+                uri: base_uri.to_owned(),
+                message: error.to_string(),
+            })?
+        {
+            let path = base_path
+                .parent()
+                .map(|parent| parent.join(import_uri))
+                .unwrap_or_else(|| PathBuf::from(import_uri));
+            let uri = path.to_string_lossy().into_owned();
+            return read_local_template_import(&uri, path, content_type_hint);
+        }
+        if let Some(read) =
+            read_registered_template_import(context, import_uri, Some(base_uri), content_type_hint)?
+        {
+            return Ok(read);
+        }
+        return Err(ResolverDiagnostic::UnsupportedResolver {
+            uri: import_uri.to_owned(),
+            purpose: ResolvePurpose::Template,
+            direction: ResolveDirection::Read,
+        });
+    }
+
+    let path = PathBuf::from(base_uri)
+        .parent()
+        .map(|parent| parent.join(import_uri))
+        .unwrap_or_else(|| PathBuf::from(import_uri));
+    let uri = path.to_string_lossy().into_owned();
+    read_local_template_import(&uri, path, content_type_hint)
+}
+
+fn read_registered_template_import(
+    context: &EngineContext,
+    uri: &str,
+    base_uri: Option<&str>,
+    content_type_hint: Option<&str>,
+) -> Result<Option<ResolvedRead>, ResolverDiagnostic> {
+    let mut request = ResolveRequest::new(uri, ResolvePurpose::Template, ResolveDirection::Read);
+    if let Some(base_uri) = base_uri {
+        request = request.with_base_uri(base_uri);
+    }
+    if let Some(content_type_hint) = content_type_hint {
+        request = request.with_content_type_hint(content_type_hint);
+    }
+    match context.resolver_registry.read(&request) {
+        Ok(read) => Ok(Some(read)),
+        Err(ResolverDiagnostic::UnsupportedResolver { .. }) => Ok(None),
+        Err(error) => Err(error),
+    }
+}
+
+fn read_local_template_import(
+    uri: &str,
+    path: PathBuf,
+    content_type_hint: Option<&str>,
+) -> Result<ResolvedRead, ResolverDiagnostic> {
+    std::fs::read(&path)
+        .map(|bytes| ResolvedRead {
+            uri: uri.to_owned(),
+            bytes,
+            content_type: content_type_hint.map(str::to_owned),
+        })
+        .map_err(|error| ResolverDiagnostic::Io {
+            uri: uri.to_owned(),
+            message: error.to_string(),
+        })
+}
+
+fn content_hash(bytes: &[u8]) -> String {
+    format!("cem-bin/1+blake3:{}", blake3::hash(bytes).to_hex())
+}
+
+fn template_module_diagnostic(
+    uri: Option<&str>,
+    code: &str,
+    message: impl Into<String>,
+) -> Diagnostic {
+    Diagnostic {
+        uri: uri.map(str::to_owned),
+        code: code.to_owned(),
+        severity: Severity::Fatal,
+        message: message.into(),
+        ..Diagnostic::default()
     }
 }
 
@@ -1873,12 +2140,16 @@ impl CemMlEngine for RealCemMlEngine {
         if let Some(adapter) = adapter.as_ref() {
             template_pool.run_to_completion(&abort, |_| {
                 compiled = compile_transform_template(
-                    adapter,
-                    &request.template,
-                    &request.template_entrypoint,
-                    &request.params,
-                    &data_bindings,
-                    request.execution_policy,
+                    TransformTemplateCompileSpec {
+                        context: &request.context,
+                        adapter,
+                        template: &request.template,
+                        entrypoint: &request.template_entrypoint,
+                        params: &request.params,
+                        data_bindings: &data_bindings,
+                        module_options: TransformTemplateModuleOptions::default(),
+                        execution_policy: request.execution_policy,
+                    },
                     &mut diagnostics,
                 );
             });
@@ -2104,12 +2375,16 @@ impl CemMlEngine for RealCemMlEngine {
                 data_bindings.extend(stage.secondary_inputs.keys().cloned());
                 template_pool.run_to_completion(&abort, |_| {
                     compiled = compile_transform_template(
-                        &adapter,
-                        &stage.template,
-                        &stage.template_entrypoint,
-                        &stage.params,
-                        &data_bindings,
-                        request.execution_policy,
+                        TransformTemplateCompileSpec {
+                            context: &request.context,
+                            adapter: &adapter,
+                            template: &stage.template,
+                            entrypoint: &stage.template_entrypoint,
+                            params: &stage.params,
+                            data_bindings: &data_bindings,
+                            module_options: TransformTemplateModuleOptions::default(),
+                            execution_policy: request.execution_policy,
+                        },
                         &mut diagnostics,
                     );
                 });
@@ -2518,6 +2793,192 @@ mod tests {
             resolver_registry,
             ..ctx()
         }
+    }
+
+    fn template(uri: &str, bytes: &[u8]) -> TemplateInput {
+        TemplateInput {
+            uri: uri.to_owned(),
+            bytes: bytes.to_vec(),
+            identity: Some(FormatIdentity {
+                content_type: Some("text/cem-ml".to_owned()),
+                ..FormatIdentity::default()
+            }),
+            root_scope: ScopeConfig::default(),
+        }
+    }
+
+    #[test]
+    fn template_module_preflight_reads_relative_imports_through_template_resolver() {
+        let context = context_with_resolver(
+            "cem+vfs",
+            ResolvePurpose::Template,
+            StaticReadResolver {
+                resolved_uri: "cem+vfs://templates/ui.cem",
+                bytes: b"{template @name=\"card\"}",
+                content_type: Some("text/cem-ml"),
+            },
+        );
+        let template = template("cem+vfs://templates/main.cem", b"{main}");
+        let options = TransformTemplateModuleOptions {
+            imports: vec![TransformTemplateModuleImport {
+                alias: "ui".to_owned(),
+                uri: "ui.cem".to_owned(),
+                identity: None,
+                kind: TransformTemplateModuleDependencyKind::Import,
+            }],
+            ..TransformTemplateModuleOptions::default()
+        };
+        let mut diagnostics = Vec::new();
+
+        let preflight = preflight_transform_template_modules(
+            &context,
+            "adapter",
+            &template,
+            &TransformTemplateEntrypoint::implicit(),
+            &options,
+            TransformExecutionPolicy::default(),
+            &mut diagnostics,
+        )
+        .expect("preflight should resolve import");
+
+        assert!(diagnostics.is_empty(), "{diagnostics:?}");
+        assert_eq!(preflight.resolved_imports.len(), 1);
+        assert_eq!(preflight.resolved_imports[0].alias, "ui");
+        assert_eq!(
+            preflight.resolved_imports[0].uri,
+            "cem+vfs://templates/ui.cem"
+        );
+        assert_eq!(
+            preflight.resolved_imports[0]
+                .identity
+                .as_ref()
+                .and_then(|identity| identity.content_type.as_deref()),
+            Some("text/cem-ml")
+        );
+        assert!(preflight.resolved_imports[0]
+            .content_hash
+            .starts_with("cem-bin/1+blake3:"));
+        assert!(preflight
+            .cache_key
+            .expect("cache key")
+            .dependency_graph_hash
+            .starts_with("cem-bin/1+blake3:"));
+    }
+
+    #[test]
+    fn template_module_preflight_rejects_reserved_includes() {
+        let template = template("main.cem", b"{main}");
+        let options = TransformTemplateModuleOptions {
+            imports: vec![TransformTemplateModuleImport {
+                alias: "ui".to_owned(),
+                uri: "ui.cem".to_owned(),
+                identity: None,
+                kind: TransformTemplateModuleDependencyKind::IncludeReserved,
+            }],
+            ..TransformTemplateModuleOptions::default()
+        };
+        let mut diagnostics = Vec::new();
+
+        let preflight = preflight_transform_template_modules(
+            &ctx(),
+            "adapter",
+            &template,
+            &TransformTemplateEntrypoint::implicit(),
+            &options,
+            TransformExecutionPolicy::default(),
+            &mut diagnostics,
+        );
+
+        assert!(preflight.is_none());
+        assert!(diagnostics
+            .iter()
+            .any(|diag| diag.code == TRANSFORM_TEMPLATE_INCLUDE_RESERVED_CODE));
+    }
+
+    #[test]
+    fn template_module_preflight_rejects_duplicate_import_aliases() {
+        let context = context_with_resolver(
+            "cem+vfs",
+            ResolvePurpose::Template,
+            StaticReadResolver {
+                resolved_uri: "cem+vfs://templates/ui.cem",
+                bytes: b"{template @name=\"card\"}",
+                content_type: Some("text/cem-ml"),
+            },
+        );
+        let template = template("cem+vfs://templates/main.cem", b"{main}");
+        let options = TransformTemplateModuleOptions {
+            imports: vec![
+                TransformTemplateModuleImport {
+                    alias: "ui".to_owned(),
+                    uri: "ui.cem".to_owned(),
+                    identity: None,
+                    kind: TransformTemplateModuleDependencyKind::Import,
+                },
+                TransformTemplateModuleImport {
+                    alias: "ui".to_owned(),
+                    uri: "ui-2.cem".to_owned(),
+                    identity: None,
+                    kind: TransformTemplateModuleDependencyKind::Import,
+                },
+            ],
+            ..TransformTemplateModuleOptions::default()
+        };
+        let mut diagnostics = Vec::new();
+
+        let preflight = preflight_transform_template_modules(
+            &context,
+            "adapter",
+            &template,
+            &TransformTemplateEntrypoint::implicit(),
+            &options,
+            TransformExecutionPolicy::default(),
+            &mut diagnostics,
+        );
+
+        assert!(preflight.is_none());
+        assert!(diagnostics
+            .iter()
+            .any(|diag| diag.code == TRANSFORM_TEMPLATE_IMPORT_ALIAS_DUPLICATE_CODE));
+    }
+
+    #[test]
+    fn template_module_preflight_rejects_direct_import_cycles() {
+        let context = context_with_resolver(
+            "cem+vfs",
+            ResolvePurpose::Template,
+            StaticReadResolver {
+                resolved_uri: "cem+vfs://templates/main.cem",
+                bytes: b"{main}",
+                content_type: Some("text/cem-ml"),
+            },
+        );
+        let template = template("cem+vfs://templates/main.cem", b"{main}");
+        let options = TransformTemplateModuleOptions {
+            imports: vec![TransformTemplateModuleImport {
+                alias: "self".to_owned(),
+                uri: "main.cem".to_owned(),
+                identity: None,
+                kind: TransformTemplateModuleDependencyKind::Import,
+            }],
+            ..TransformTemplateModuleOptions::default()
+        };
+        let mut diagnostics = Vec::new();
+
+        let preflight = preflight_transform_template_modules(
+            &context,
+            "adapter",
+            &template,
+            &TransformTemplateEntrypoint::implicit(),
+            &options,
+            TransformExecutionPolicy::default(),
+            &mut diagnostics,
+        );
+
+        assert!(preflight.is_none());
+        assert!(diagnostics
+            .iter()
+            .any(|diag| diag.code == TRANSFORM_TEMPLATE_IMPORT_CYCLE_CODE));
     }
 
     #[test]
