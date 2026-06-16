@@ -476,7 +476,6 @@ impl GraphLowerer<'_> {
     }
 
     fn validate_outputs(&mut self, nodes: &[TransformGraphNode]) {
-        let mut destinations = BTreeSet::new();
         for node in nodes {
             if node.kind != TransformGraphNodeKind::Export {
                 continue;
@@ -491,12 +490,6 @@ impl GraphLowerer<'_> {
                         "export node `{}` uses `*` in `@out`; use named path templates such as `{{stem}}`",
                         node.id
                     ),
-                );
-            }
-            if !destinations.insert(out.to_owned()) {
-                self.push_diag(
-                    "cem.transform_config.output_duplicate",
-                    format!("export destination pattern `{out}` is declared more than once"),
                 );
             }
         }
@@ -907,7 +900,6 @@ mod tests {
             "cem.transform_config.transform_src_missing",
             "cem.transform_config.ref_unknown",
             "cem.transform_config.output_pattern_wildcard",
-            "cem.transform_config.output_duplicate",
         ] {
             assert!(has_diag(&response, code), "missing diagnostic {code}");
         }

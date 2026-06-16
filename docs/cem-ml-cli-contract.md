@@ -149,6 +149,20 @@ Graph semantics:
 - output path templates should use named bindings such as `{stem}`, `{path}`, and
   `{index}` instead of positional `*` propagation.
 
+Source-derived binding names:
+
+- `{src}` is the resolved source path used by the CLI host.
+- `{path}` is the matched path relative to the config document directory when possible.
+- `{dir}` is the directory portion of `{path}`.
+- `{file}` is the file name with extension.
+- `{stem}` is the file name without its final extension.
+- `{ext}` is the final extension without the dot.
+- `{index}` is the stable zero-based index of the match within a sorted import match list.
+
+Bindings are attached to imported artifacts, preserved by one-to-one transform stages,
+and consumed by export `@out` templates. Missing bindings are hard config errors.
+Duplicate resolved output destinations are hard runtime errors before writes begin.
+
 Cross-input joins are allowed through explicit references, not inference. A transform
 without `@input` consumes its parent artifact. A transform with `@input` consumes that
 named primary artifact. Additional joins use named `@with:*` bindings:
@@ -182,8 +196,8 @@ Current implementation slice:
 - `cem_ml::transform_config::parse_transform_graph_config` parses CEM-ML config
   bytes into import, transform, and export graph nodes plus dependency edges.
 - The parser validates missing required operation attributes, duplicate IDs,
-  unresolved explicit refs, cycles, wildcard output patterns, and duplicate output
-  destinations.
+  unresolved explicit refs, cycles, and wildcard output patterns. Duplicate output
+  destinations are validated after bindings are resolved.
 - `cem_ml::engine::TransformGraphRequest` and `TransformGraphResponse` define the
   graph-shaped engine boundary for loaded imports, template-backed transform stages,
   export nodes, graph dependencies, scheduler scope IDs, diagnostics, artifacts, and
@@ -195,7 +209,9 @@ Current implementation slice:
 - `cem-ml transform --config FILE` lowers transform config into `TransformGraphRequest`
   in the CLI host, resolves relative import/template/export paths against the config
   document path, and writes graph export artifacts to configured destinations through
-  the resolver layer.
+  the resolver layer. The first CLI expansion slice supports local filesystem import
+  globs with one `*` in the file name, source-derived output bindings, and one-to-one
+  binding propagation through transform stages.
 
 The Rust/WASM engine API models transform as a first-class graph request/response
 pair instead of smuggling template information through `ConvertRequest` or CLI-only
@@ -271,9 +287,9 @@ transform nodes when identity is explicit or can be inferred from `@src`, and em
 deterministic diagnostics for unsupported or missing template identity. CLI dispatch
 executes the one-to-one CEM-native path through the host-registered CEM-QL adapter.
 Programmatic graph execution is available through `RealCemMlEngine::transform_graph`;
-CLI config graph dispatch is available for concrete CEM-native graph paths. XSLT
-execution, input glob enumeration, and named output path-template expansion remain
-deferred.
+CLI config graph dispatch is available for concrete CEM-native graph paths and local
+filename import globs. XSLT execution, resolver-backed glob enumeration, recursive
+globs, and multi-artifact join semantics remain deferred.
 
 The first concrete executable CEM-native adapter lives in
 `cem_ml_transform_cem_ql`, outside `cem_ml`, so it can depend on both `cem_ml` and
@@ -553,8 +569,9 @@ I/O messages, but they must not replace the underlying resolver code or URI.
 
   It also accepts `--data-schema`, `--template-schema`, `--to-schema`, shared context options, and
   `--report-json` / `--report-md`. The current CLI runtime executes the one-to-one CEM-native path and CEM-ML
-  `--config` graph dispatch for concrete paths. XML+XSLT execution, input glob enumeration, and named output
-  path-template expansion remain deferred.
+  `--config` graph dispatch for concrete paths plus local filename import globs with source-derived output bindings.
+  XML+XSLT execution, resolver-backed glob enumeration, recursive globs, and multi-artifact join semantics remain
+  deferred.
 - Multi-source configuration via config file, plus repeatable CSV option records for
   CLI one-liners. Config files are preferred for CI/build reproducibility.
 - Config-file content type via `--config-content-type`, inferred from extension when

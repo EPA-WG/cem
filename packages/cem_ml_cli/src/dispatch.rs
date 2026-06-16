@@ -1042,6 +1042,221 @@ fn transform_graph_path(raw: &str, config_local_path: Option<&Path>) -> PathBuf 
         .unwrap_or_else(|| path.to_path_buf())
 }
 
+#[derive(Debug, Clone)]
+struct TransformGraphArtifactVariant {
+    id: String,
+    bindings: BTreeMap<String, String>,
+}
+
+#[derive(Debug, Clone)]
+struct TransformGraphImportMatch {
+    path: PathBuf,
+    bindings: BTreeMap<String, String>,
+}
+
+fn transform_config_diagnostic(
+    uri: &str,
+    code: &str,
+    message: impl Into<String>,
+) -> cem_ml::diagnostics::Diagnostic {
+    cem_ml::diagnostics::Diagnostic {
+        uri: Some(uri.to_owned()),
+        code: code.to_owned(),
+        severity: cem_ml::diagnostics::Severity::Fatal,
+        message: message.into(),
+        ..cem_ml::diagnostics::Diagnostic::default()
+    }
+}
+
+fn transform_config_error(uri: &str, code: &str, message: impl Into<String>) -> CliRequestError {
+    CliRequestError::RunConfigDiagnostics {
+        config: None,
+        diagnostics: vec![transform_config_diagnostic(uri, code, message)],
+    }
+}
+
+fn path_display_slash(path: &Path) -> String {
+    path.to_string_lossy().replace('\\', "/")
+}
+
+fn transform_graph_binding_path(path: &Path, config_local_path: Option<&Path>) -> PathBuf {
+    if let Some(config_dir) = config_local_path.and_then(Path::parent) {
+        if let Ok(relative) = path.strip_prefix(config_dir) {
+            return relative.to_path_buf();
+        }
+    }
+    path.to_path_buf()
+}
+
+fn transform_graph_source_bindings(
+    path: &Path,
+    config_local_path: Option<&Path>,
+    index: usize,
+) -> BTreeMap<String, String> {
+    let binding_path = transform_graph_binding_path(path, config_local_path);
+    let file = path
+        .file_name()
+        .map(|value| value.to_string_lossy().into_owned())
+        .unwrap_or_default();
+    let stem = path
+        .file_stem()
+        .map(|value| value.to_string_lossy().into_owned())
+        .unwrap_or_default();
+    let ext = path
+        .extension()
+        .map(|value| value.to_string_lossy().into_owned())
+        .unwrap_or_default();
+    let dir = binding_path
+        .parent()
+        .map(path_display_slash)
+        .unwrap_or_default();
+
+    BTreeMap::from([
+        ("src".to_owned(), path.display().to_string()),
+        ("path".to_owned(), path_display_slash(&binding_path)),
+        ("dir".to_owned(), dir),
+        ("file".to_owned(), file),
+        ("stem".to_owned(), stem),
+        ("ext".to_owned(), ext),
+        ("index".to_owned(), index.to_string()),
+    ])
+}
+
+fn transform_graph_expand_import_paths(
+    raw: &str,
+    config_local_path: Option<&Path>,
+    config_source_uri: &str,
+) -> Result<Vec<TransformGraphImportMatch>, CliRequestError> {
+    if !raw.contains('*') {
+        let path = transform_graph_path(raw, config_local_path);
+        return Ok(vec![TransformGraphImportMatch {
+            bindings: transform_graph_source_bindings(&path, config_local_path, 0),
+            path,
+        }]);
+    }
+
+    if uri_scheme(raw).is_some() && !is_windows_drive_path(raw) {
+        return Err(transform_config_error(
+            config_source_uri,
+            "cem.transform_config.import_glob_uri_unsupported",
+            format!("import glob `{raw}` requires a local filesystem path"),
+        ));
+    }
+
+    let pattern_path = transform_graph_path(raw, config_local_path);
+    let pattern_file = pattern_path
+        .file_name()
+        .map(|value| value.to_string_lossy().into_owned())
+        .unwrap_or_default();
+    if pattern_file.matches('*').count() != 1 {
+        return Err(transform_config_error(
+            config_source_uri,
+            "cem.transform_config.import_glob_unsupported",
+            format!("import glob `{raw}` must contain exactly one `*` in the file name"),
+        ));
+    }
+
+    let parent = pattern_path
+        .parent()
+        .filter(|path| !path.as_os_str().is_empty())
+        .map(Path::to_path_buf)
+        .unwrap_or_else(|| PathBuf::from("."));
+    if parent.to_string_lossy().contains('*') {
+        return Err(transform_config_error(
+            config_source_uri,
+            "cem.transform_config.import_glob_unsupported",
+            format!("import glob `{raw}` can only use `*` in the file name"),
+        ));
+    }
+
+    let (prefix, suffix) = pattern_file.split_once('*').unwrap_or(("", ""));
+    let mut matches = Vec::new();
+    for entry in fs::read_dir(&parent).map_err(|source| {
+        CliRequestError::Engine(EngineError::Io {
+            path: parent.clone(),
+            source,
+        })
+    })? {
+        let entry = entry.map_err(|source| {
+            CliRequestError::Engine(EngineError::Io {
+                path: parent.clone(),
+                source,
+            })
+        })?;
+        let file_name = entry.file_name().to_string_lossy().into_owned();
+        if file_name.starts_with(prefix) && file_name.ends_with(suffix) {
+            let path = entry.path();
+            if path.is_file() {
+                matches.push(path);
+            }
+        }
+    }
+    matches.sort();
+    if matches.is_empty() {
+        return Err(transform_config_error(
+            config_source_uri,
+            "cem.transform_config.import_glob_empty",
+            format!("import glob `{raw}` matched no files"),
+        ));
+    }
+
+    Ok(matches
+        .into_iter()
+        .enumerate()
+        .map(|(index, path)| TransformGraphImportMatch {
+            bindings: transform_graph_source_bindings(&path, config_local_path, index),
+            path,
+        })
+        .collect())
+}
+
+fn transform_graph_variant_id(base: &str, index: usize, count: usize) -> String {
+    if count == 1 {
+        base.to_owned()
+    } else {
+        format!("{base}:{index}")
+    }
+}
+
+fn transform_graph_expand_path_template(
+    template: &str,
+    bindings: &BTreeMap<String, String>,
+    config_source_uri: &str,
+) -> Result<String, CliRequestError> {
+    let mut out = String::new();
+    let mut rest = template;
+    while let Some(open) = rest.find('{') {
+        out.push_str(&rest[..open]);
+        let after_open = &rest[open + 1..];
+        let Some(close) = after_open.find('}') else {
+            return Err(transform_config_error(
+                config_source_uri,
+                "cem.transform_config.output_binding_unclosed",
+                format!("output path template `{template}` has an unclosed binding"),
+            ));
+        };
+        let name = &after_open[..close];
+        if name.trim().is_empty() {
+            return Err(transform_config_error(
+                config_source_uri,
+                "cem.transform_config.output_binding_empty",
+                format!("output path template `{template}` has an empty binding"),
+            ));
+        }
+        let Some(value) = bindings.get(name) else {
+            return Err(transform_config_error(
+                config_source_uri,
+                "cem.transform_config.output_binding_unknown",
+                format!("output path template `{template}` references unknown binding `{name}`"),
+            ));
+        };
+        out.push_str(value);
+        rest = &after_open[close + 1..];
+    }
+    out.push_str(rest);
+    Ok(out)
+}
+
 fn transform_graph_scope(
     content_type: Option<String>,
     schema: Option<String>,
@@ -1055,12 +1270,12 @@ fn transform_graph_scope(
     }
 }
 
-fn transform_graph_primary_input(
+fn transform_graph_primary_ref(
     graph: &TransformGraphConfig,
     node: &TransformGraphNode,
-) -> Result<String, CliRequestError> {
+) -> Result<(String, TransformGraphEdgeRole), CliRequestError> {
     if let Some(input_ref) = node.input_ref.as_ref() {
-        return Ok(input_ref.clone());
+        return Ok((input_ref.clone(), TransformGraphEdgeRole::Input));
     }
     graph
         .edges
@@ -1072,7 +1287,7 @@ fn transform_graph_primary_input(
                     TransformGraphEdgeRole::Input | TransformGraphEdgeRole::Parent
                 )
         })
-        .map(|edge| edge.from.clone())
+        .map(|edge| (edge.from.clone(), edge.role))
         .ok_or_else(|| {
             CliRequestError::Usage(format!(
                 "transform graph node `{}` requires an input edge",
@@ -1081,14 +1296,58 @@ fn transform_graph_primary_input(
         })
 }
 
+fn transform_graph_variants_for_ref(
+    variants: &BTreeMap<String, Vec<TransformGraphArtifactVariant>>,
+    owner_id: &str,
+    field: &str,
+    target: &str,
+) -> Result<Vec<TransformGraphArtifactVariant>, CliRequestError> {
+    variants.get(target).cloned().ok_or_else(|| {
+        CliRequestError::Usage(format!(
+            "transform graph node `{owner_id}` references unknown artifact `{target}` via `{field}`"
+        ))
+    })
+}
+
+fn transform_graph_single_variant_for_ref(
+    variants: &BTreeMap<String, Vec<TransformGraphArtifactVariant>>,
+    owner_id: &str,
+    field: &str,
+    target: &str,
+    config_source_uri: &str,
+) -> Result<TransformGraphArtifactVariant, CliRequestError> {
+    let matches = transform_graph_variants_for_ref(variants, owner_id, field, target)?;
+    if matches.len() != 1 {
+        return Err(transform_config_error(
+            config_source_uri,
+            "cem.transform_config.join_multi_artifact_unsupported",
+            format!(
+                "node `{owner_id}` references multi-artifact `{target}` via `{field}`; explicit join semantics are not implemented"
+            ),
+        ));
+    }
+    Ok(matches[0].clone())
+}
+
+fn to_engine_dependency_role(role: TransformGraphEdgeRole) -> eng::TransformGraphDependencyRole {
+    match role {
+        TransformGraphEdgeRole::Parent => eng::TransformGraphDependencyRole::Parent,
+        TransformGraphEdgeRole::Input => eng::TransformGraphDependencyRole::PrimaryInput,
+        TransformGraphEdgeRole::With => eng::TransformGraphDependencyRole::SecondaryInput,
+    }
+}
+
 fn transform_graph_request_from_config(
     context: &eng::EngineContext,
     graph: &TransformGraphConfig,
     config_local_path: Option<&Path>,
+    config_source_uri: &str,
 ) -> Result<eng::TransformGraphRequest, CliRequestError> {
     let mut imports = Vec::new();
     let mut stages = Vec::new();
     let mut exports = Vec::new();
+    let mut edges = Vec::new();
+    let mut variants: BTreeMap<String, Vec<TransformGraphArtifactVariant>> = BTreeMap::new();
     let mut next_scope_id = 0u32;
 
     for node in &graph.nodes {
@@ -1097,17 +1356,31 @@ fn transform_graph_request_from_config(
                 let src = node.src.as_ref().ok_or_else(|| {
                     CliRequestError::Usage(format!("import node `{}` requires @src", node.id))
                 })?;
-                let path = transform_graph_path(src, config_local_path);
-                let scope =
-                    transform_graph_scope(node.content_type.clone(), node.schema.clone(), &path);
-                let input =
-                    engine_input(context, &path, None, scope).map_err(CliRequestError::Engine)?;
-                imports.push(eng::TransformGraphImport {
-                    id: node.id.clone(),
-                    input,
-                    scheduler_scope_id: next_scope_id,
-                });
-                next_scope_id += 1;
+                let matches =
+                    transform_graph_expand_import_paths(src, config_local_path, config_source_uri)?;
+                let match_count = matches.len();
+                let mut import_variants = Vec::new();
+                for (index, import_match) in matches.into_iter().enumerate() {
+                    let import_id = transform_graph_variant_id(&node.id, index, match_count);
+                    let scope = transform_graph_scope(
+                        node.content_type.clone(),
+                        node.schema.clone(),
+                        &import_match.path,
+                    );
+                    let input = engine_input(context, &import_match.path, None, scope)
+                        .map_err(CliRequestError::Engine)?;
+                    imports.push(eng::TransformGraphImport {
+                        id: import_id.clone(),
+                        input,
+                        scheduler_scope_id: next_scope_id,
+                    });
+                    next_scope_id += 1;
+                    import_variants.push(TransformGraphArtifactVariant {
+                        id: import_id,
+                        bindings: import_match.bindings,
+                    });
+                }
+                variants.insert(node.id.clone(), import_variants);
             }
             TransformGraphNodeKind::Transform => {
                 let src = node.src.as_ref().ok_or_else(|| {
@@ -1136,57 +1409,97 @@ fn transform_graph_request_from_config(
                     )
                     .map_err(|error| CliRequestError::Usage(error.to_string()))?,
                 };
-                let template_load = next_scope_id;
-                let execution = next_scope_id + 1;
-                next_scope_id += 2;
-                stages.push(eng::TransformGraphStage {
-                    id: node.id.clone(),
-                    template,
-                    template_kind,
-                    template_entrypoint: eng::TransformTemplateEntrypoint::implicit(),
-                    params: BTreeMap::new(),
-                    primary_input: transform_graph_primary_input(graph, node)?,
-                    secondary_inputs: node.with.clone(),
-                    scheduler_scope_ids: eng::TransformStageSchedulerScopeIds {
-                        template_load,
-                        execution,
-                    },
-                });
+                let (primary_ref, primary_role) = transform_graph_primary_ref(graph, node)?;
+                let primary_variants =
+                    transform_graph_variants_for_ref(&variants, &node.id, "input", &primary_ref)?;
+                let variant_count = primary_variants.len();
+                let mut stage_variants = Vec::new();
+                for (index, primary_variant) in primary_variants.into_iter().enumerate() {
+                    let stage_id = transform_graph_variant_id(&node.id, index, variant_count);
+                    let template_load = next_scope_id;
+                    let execution = next_scope_id + 1;
+                    next_scope_id += 2;
+                    let mut secondary_inputs = BTreeMap::new();
+                    for (name, target) in &node.with {
+                        let secondary = transform_graph_single_variant_for_ref(
+                            &variants,
+                            &node.id,
+                            &format!("with:{name}"),
+                            target,
+                            config_source_uri,
+                        )?;
+                        secondary_inputs.insert(name.clone(), secondary.id.clone());
+                        edges.push(eng::TransformGraphDependency {
+                            from: secondary.id,
+                            to: stage_id.clone(),
+                            role: eng::TransformGraphDependencyRole::SecondaryInput,
+                        });
+                    }
+                    stages.push(eng::TransformGraphStage {
+                        id: stage_id.clone(),
+                        template: template.clone(),
+                        template_kind,
+                        template_entrypoint: eng::TransformTemplateEntrypoint::implicit(),
+                        params: BTreeMap::new(),
+                        primary_input: primary_variant.id.clone(),
+                        secondary_inputs,
+                        scheduler_scope_ids: eng::TransformStageSchedulerScopeIds {
+                            template_load,
+                            execution,
+                        },
+                    });
+                    edges.push(eng::TransformGraphDependency {
+                        from: primary_variant.id,
+                        to: stage_id.clone(),
+                        role: to_engine_dependency_role(primary_role),
+                    });
+                    stage_variants.push(TransformGraphArtifactVariant {
+                        id: stage_id,
+                        bindings: primary_variant.bindings,
+                    });
+                }
+                variants.insert(node.id.clone(), stage_variants);
             }
             TransformGraphNodeKind::Export => {
                 let out = node.out.as_ref().ok_or_else(|| {
                     CliRequestError::Usage(format!("export node `{}` requires @out", node.id))
                 })?;
-                let path = transform_graph_path(out, config_local_path);
-                let target_scope =
-                    transform_graph_scope(node.content_type.clone(), node.schema.clone(), &path);
-                let target = target_scope.format_identity_option();
-                exports.push(eng::TransformGraphExport {
-                    id: node.id.clone(),
-                    input: transform_graph_primary_input(graph, node)?,
-                    destination: Some(path.display().to_string()),
-                    target,
-                    target_scope,
-                    scheduler_scope_id: next_scope_id,
-                });
-                next_scope_id += 1;
+                let (input_ref, input_role) = transform_graph_primary_ref(graph, node)?;
+                let input_variants =
+                    transform_graph_variants_for_ref(&variants, &node.id, "input", &input_ref)?;
+                let variant_count = input_variants.len();
+                for (index, input_variant) in input_variants.into_iter().enumerate() {
+                    let export_id = transform_graph_variant_id(&node.id, index, variant_count);
+                    let resolved_out = transform_graph_expand_path_template(
+                        out,
+                        &input_variant.bindings,
+                        config_source_uri,
+                    )?;
+                    let path = transform_graph_path(&resolved_out, config_local_path);
+                    let target_scope = transform_graph_scope(
+                        node.content_type.clone(),
+                        node.schema.clone(),
+                        &path,
+                    );
+                    let target = target_scope.format_identity_option();
+                    exports.push(eng::TransformGraphExport {
+                        id: export_id.clone(),
+                        input: input_variant.id.clone(),
+                        destination: Some(path.display().to_string()),
+                        target,
+                        target_scope,
+                        scheduler_scope_id: next_scope_id,
+                    });
+                    next_scope_id += 1;
+                    edges.push(eng::TransformGraphDependency {
+                        from: input_variant.id,
+                        to: export_id,
+                        role: to_engine_dependency_role(input_role),
+                    });
+                }
             }
         }
     }
-
-    let edges = graph
-        .edges
-        .iter()
-        .map(|edge| eng::TransformGraphDependency {
-            from: edge.from.clone(),
-            to: edge.to.clone(),
-            role: match edge.role {
-                TransformGraphEdgeRole::Parent => eng::TransformGraphDependencyRole::Parent,
-                TransformGraphEdgeRole::Input => eng::TransformGraphDependencyRole::PrimaryInput,
-                TransformGraphEdgeRole::With => eng::TransformGraphDependencyRole::SecondaryInput,
-            },
-        })
-        .collect();
 
     Ok(eng::TransformGraphRequest {
         imports,
@@ -1205,8 +1518,12 @@ fn transform_graph_request_from_args(
 ) -> Result<(eng::TransformGraphRequest, String), CliRequestError> {
     let (graph, config_source_uri, local_config_path) =
         transform_graph_config_from_args(context, args)?;
-    let request =
-        transform_graph_request_from_config(context, &graph, local_config_path.as_deref())?;
+    let request = transform_graph_request_from_config(
+        context,
+        &graph,
+        local_config_path.as_deref(),
+        &config_source_uri,
+    )?;
     Ok((request, config_source_uri))
 }
 
@@ -2979,6 +3296,133 @@ mod tests {
             std::fs::read_to_string(root.join("out/book/chart.svg")).unwrap(),
             "<svg>document</svg>"
         );
+    }
+
+    #[test]
+    fn transform_config_glob_exports_apply_source_bindings() {
+        let root = std::env::temp_dir().join("cem-ml-cli-tests/transform-config-bindings");
+        let _ = std::fs::remove_dir_all(&root);
+        std::fs::create_dir_all(root.join("inputs")).unwrap();
+        std::fs::write(root.join("inputs/ch01.cem"), "{p @id=\"one\"}").unwrap();
+        std::fs::write(root.join("inputs/ch02.cem"), "{p @id=\"two\"}").unwrap();
+        std::fs::write(
+            root.join("page.cem"),
+            "{article | {$datadom.attributes.kind}}",
+        )
+        .unwrap();
+        std::fs::write(root.join("chart.cem"), "{svg | {$datadom.attributes.kind}}").unwrap();
+        let config = root.join("graph.cem");
+        std::fs::write(
+            &config,
+            r#"{run |
+  {import @id=book @src="inputs/*.cem" @content-type="text/cem-ml" |
+    {transform @id=page @src="page.cem" @template-content-type="text/cem-ml" |
+      {export @id=html @out="out/{stem}.html" @content-type="text/html"}
+    }
+    {transform @id=chart @src="chart.cem" @template-content-type="text/cem-ml" |
+      {export @id=svg @out="out/{stem}/img/chart-{index}.{ext}.svg" @content-type="image/svg+xml"}
+    }
+  }
+}"#,
+        )
+        .unwrap();
+
+        let (outcome, stdout, stderr) = run(
+            &RealCemMlEngine::new(),
+            &["transform", "--config", config.to_str().unwrap()],
+        );
+
+        assert_eq!(outcome.exit_code, EXIT_OK);
+        assert!(stdout.is_empty(), "{stdout}");
+        assert!(stderr.trim().is_empty(), "{stderr}");
+        assert_eq!(
+            std::fs::read_to_string(root.join("out/ch01.html")).unwrap(),
+            "<article>document</article>"
+        );
+        assert_eq!(
+            std::fs::read_to_string(root.join("out/ch02.html")).unwrap(),
+            "<article>document</article>"
+        );
+        assert_eq!(
+            std::fs::read_to_string(root.join("out/ch01/img/chart-0.cem.svg")).unwrap(),
+            "<svg>document</svg>"
+        );
+        assert_eq!(
+            std::fs::read_to_string(root.join("out/ch02/img/chart-1.cem.svg")).unwrap(),
+            "<svg>document</svg>"
+        );
+    }
+
+    #[test]
+    fn transform_config_missing_output_binding_is_usage_error() {
+        let root = std::env::temp_dir().join("cem-ml-cli-tests/transform-config-missing-binding");
+        let _ = std::fs::remove_dir_all(&root);
+        std::fs::create_dir_all(&root).unwrap();
+        std::fs::write(root.join("data.cem"), "{p}").unwrap();
+        std::fs::write(root.join("view.cem"), "{section | OK}").unwrap();
+        let config = root.join("graph.cem");
+        std::fs::write(
+            &config,
+            r#"{run |
+  {import @id=book @src="data.cem" @content-type="text/cem-ml" |
+    {transform @id=html @src="view.cem" @template-content-type="text/cem-ml" |
+      {export @id=main @out="out/{chapter}.html" @content-type="text/html"}
+    }
+  }
+}"#,
+        )
+        .unwrap();
+
+        let (outcome, stdout, stderr) = run(
+            &RealCemMlEngine::new(),
+            &["transform", "--config", config.to_str().unwrap()],
+        );
+
+        assert_eq!(outcome.exit_code, EXIT_USAGE_OR_RESERVED);
+        assert!(stdout.is_empty(), "{stdout}");
+        assert_stderr_contains_all(
+            &stderr,
+            &[
+                "invalid run config",
+                "output_binding_unknown",
+                "unknown binding `chapter`",
+            ],
+        );
+    }
+
+    #[test]
+    fn transform_config_duplicate_resolved_outputs_fail_before_write() {
+        let root = std::env::temp_dir().join("cem-ml-cli-tests/transform-config-duplicate-output");
+        let _ = std::fs::remove_dir_all(&root);
+        std::fs::create_dir_all(&root).unwrap();
+        std::fs::write(root.join("data.cem"), "{p}").unwrap();
+        std::fs::write(root.join("page.cem"), "{article | OK}").unwrap();
+        std::fs::write(root.join("alt.cem"), "{section | OK}").unwrap();
+        let config = root.join("graph.cem");
+        std::fs::write(
+            &config,
+            r#"{run |
+  {import @id=book @src="data.cem" @content-type="text/cem-ml" |
+    {transform @id=page @src="page.cem" @template-content-type="text/cem-ml" |
+      {export @id=main @out="out/{stem}.html" @content-type="text/html"}
+    }
+    {transform @id=alt @src="alt.cem" @template-content-type="text/cem-ml" |
+      {export @id=alt-out @out="out/{stem}.html" @content-type="text/html"}
+    }
+  }
+}"#,
+        )
+        .unwrap();
+
+        let (outcome, stdout, stderr) = run(
+            &RealCemMlEngine::new(),
+            &["transform", "--config", config.to_str().unwrap()],
+        );
+
+        assert_eq!(outcome.exit_code, EXIT_HARD_FAILURE);
+        assert!(stdout.is_empty(), "{stdout}");
+        assert_stderr_contains_all(&stderr, &["duplicate_destination", "out/data.html"]);
+        assert!(!root.join("out/data.html").exists());
     }
 
     #[test]

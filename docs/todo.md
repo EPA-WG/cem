@@ -136,17 +136,19 @@ for the current architecture have landed; only deferred capability work remains 
       now imports in-memory graph inputs, executes one-to-one CEM-native stages after their primary and secondary
       artifacts are available, and returns response export artifacts. The CLI host now lowers CEM-ML transform config
       into graph requests, resolves relative import/template/export paths against the config document path, and writes
-      graph export destinations through the resolver layer.
+      graph export destinations through the resolver layer. The CLI host also expands local filesystem import globs with
+      one `*` in the file name, derives `{src}`, `{path}`, `{dir}`, `{file}`, `{stem}`, `{ext}`, and `{index}` bindings,
+      preserves those bindings through one-to-one transform branches, and applies them to export `@out` templates.
       Keep the checked-in CEM-native CLI transform-config schema
       (`packages/cem_ml/schema/cli/transform-config.md`,
       `https://cem.dev/ns/cli/transform-config/1`) separate from CEM core document schemas and template schemas.
       Runtime order: start with pure CEM-QL evaluation plus CEM-ML fragments
-      with embedded CEM-QL and one implicit entrypoint; then add input enumeration plus named path-template expansion
-      for graph configs; then add native named templates/modules, explicit entrypoints, params, imports/includes,
-      visibility, caching, and recursion/cycle limits; then expand XSLT parity on that native substrate. Next runtime
-      implementation work is richer diagnostics/report/source-map projection for branched artifacts, wildcard/glob input
-      expansion, and named output path-template expansion before XSLT parity. The separate adapter crate avoids the
-      dependency cycle where `cem_ql`
+      with embedded CEM-QL and one implicit entrypoint; then add local filename-glob input enumeration plus named
+      path-template expansion for graph configs; then add native named templates/modules, explicit entrypoints, params,
+      imports/includes, visibility, caching, and recursion/cycle limits; then expand XSLT parity on that native
+      substrate. Next runtime implementation work is richer diagnostics/report/source-map projection for branched
+      artifacts, resolver-backed glob enumeration, recursive glob semantics, and multi-artifact join semantics before
+      XSLT parity. The separate adapter crate avoids the dependency cycle where `cem_ql`
       currently depends on `cem_ml`.
 - [ ] **Wishlist (future — schema/tooling):** wire CLI config schemas into generated/published artifacts. The JSON
       `RunConfig` config-file surface uses schema identity `https://cem.dev/ns/cli/run-config/1` and has checked-in JSON

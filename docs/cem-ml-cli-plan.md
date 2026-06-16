@@ -289,6 +289,11 @@ Initial graph semantics:
 - output paths use named bindings such as `{stem}`, `{path}`, and `{index}`; repeated
   resolved output paths are configuration errors unless an explicit overwrite policy is
   added later.
+- CLI graph config dispatch currently expands local filesystem import globs with one
+  `*` in the file name. Match order is sorted and creates source bindings: `{src}`,
+  `{path}`, `{dir}`, `{file}`, `{stem}`, `{ext}`, and `{index}`. One-to-one transform
+  stages preserve those bindings for all sibling export branches. Unknown output
+  bindings fail as config errors; duplicate resolved destinations fail before writes.
 
 CSV CLI options are a convenience for small invocations, not the primary source of
 truth. A future CLI should prefer repeatable records such as:
@@ -598,13 +603,13 @@ These are data shapes only. Parser-filled content remains blocked until the pars
       `--template-schema`, `--to-content-type`, `--to-schema`, `--out`, shared context options, `--report-json`, and
       `--report-md`.
     - Current CLI runtime supports the minimal one-to-one CEM-native path through the CEM-QL executable adapter and
-      `--config` graph dispatch for concrete paths. `RealCemMlEngine::transform_graph` executes CEM-native graph
-      requests; XML+XSLT execution remains deferred.
+      `--config` graph dispatch for concrete paths plus local filename import globs. `RealCemMlEngine::transform_graph`
+      executes CEM-native graph requests; XML+XSLT execution remains deferred.
     - Current config slice: `cem_ml::transform_config::parse_transform_graph_config` parses CEM-ML
       `run` / `import` / `transform` / `export` graph config and validates missing required operation
-      attributes, duplicate IDs, unresolved refs, cycles, wildcard output patterns, and duplicate output
-      destinations. CLI dispatch lowers this config into `TransformGraphRequest`, resolving relative resource and export
-      paths against the config document path.
+      attributes, duplicate IDs, unresolved refs, cycles, and wildcard output patterns. CLI dispatch lowers this config
+      into `TransformGraphRequest`, resolving relative resource and export paths against the config document path and
+      validating duplicate destinations after output bindings resolve.
     - Current engine API slice: `cem_ml::engine::TransformGraphRequest` and `TransformGraphResponse` model
       loaded import nodes, template-backed transform stages, export nodes, graph dependencies, scheduler scope IDs,
       emitted artifacts, diagnostics, and scheduler trace. The default trait method still returns not implemented.
@@ -661,17 +666,21 @@ These are data shapes only. Parser-filled content remains blocked until the pars
           writes to `--out` or stdout; report side outputs write through the existing report resolver path.
           CLI graph config execution writes export artifacts to configured `@out` destinations through the resolver
           layer. Programmatic graph execution still returns artifacts in-memory.
+        - CLI graph config source bindings are source-derived and immutable in this slice: `{src}`, `{path}`, `{dir}`,
+          `{file}`, `{stem}`, `{ext}`, and `{index}`. Imports create bindings, one-to-one transforms preserve them, and
+          exports consume them. Local filename globs with one `*` are expanded by the CLI host; resolver-backed globs,
+          recursive globs, and multi-artifact joins remain deferred.
         - Report and source-map behavior for diagnostics that may originate from data, template compilation, template
           execution, or output export. Current CLI report destinations suppress diagnostic stderr and use
           `cem-ml.transform.report` as the default report basename.
         - Graph validation for duplicate IDs, unresolved refs, cycles, unsupported joins, unsupported cardinality
-          changes, and duplicate output destinations before adding execution.
+          changes, unknown output bindings, and duplicate resolved output destinations before writes.
       Execution is available through the programmatic engine API, the CLI one-liner, and CLI CEM-ML graph config dispatch
       when a host registers an executable adapter. `transform_graph` executes loaded in-memory graph requests and returns
       export artifacts; the CLI host writes configured graph exports through the resolver layer.
-      Next implementation boundary: add input enumeration and named path-template expansion for graph configs, then add
-      richer source-map/report projection for branched artifacts. The crate dependency cycle is avoided by keeping the
-      concrete CEM-QL adapter in `cem_ml_transform_cem_ql` rather than in `cem_ml`.
+      Next implementation boundary: add richer source-map/report projection for branched artifacts, then design
+      resolver-backed glob enumeration and multi-artifact join semantics. The crate dependency cycle is avoided by
+      keeping the concrete CEM-QL adapter in `cem_ml_transform_cem_ql` rather than in `cem_ml`.
 8. `cem-ml trace <input>`
     - Supported structured formats: `json`, `xml`, `cem`.
     - Reference convenience formats: `text`, `html`.
