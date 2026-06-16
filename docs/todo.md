@@ -258,7 +258,8 @@ to proven web component names, states, attributes, and accessibility behavior in
       attribute extraction, static `if`/`when` folding for known current-node tests, default template fallbacks, basic
       no-`select` and explicit `node()` child-node `xsl:apply-templates` traversal in document order, template
       priority, scalar and node-set template params, multi-key `xsl:sort`, literal `count`/`sum` over
-      supported node selections, bounded current-node copy/copy-of/attribute construction, scalar-AVT `xsl:element`
+      supported node selections, bounded current-node copy/copy-of/attribute construction, explicit `node()`
+      child-node `xsl:copy-of` serialization in document order, scalar-AVT `xsl:element`
       construction, `hasBoolAttribute()` boolean-attribute rewriting, and recursion safety. The copied material
       component templates now convert without unexpected diagnostics in both the Rust engine manifest gate and the
       browser/WASM custom-element gate. Future XPath/function expansion is sample-driven follow-up, not a blocker for

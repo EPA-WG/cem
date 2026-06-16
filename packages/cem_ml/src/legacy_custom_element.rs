@@ -3476,6 +3476,18 @@ mod tests {
     }
 
     #[test]
+    fn copy_of_node_select_serializes_child_nodes_in_document_order() {
+        let result = convert(
+            r#"<doc><wrap>before<item>A</item>after</wrap></doc><xsl:stylesheet version="1.0"><xsl:template match="/"><xsl:apply-templates select="//wrap"/></xsl:template><xsl:template match="wrap"><out><xsl:copy-of select="node()"/></out></xsl:template></xsl:stylesheet>"#,
+        );
+        assert_eq!(
+            result.source,
+            "{doc | {wrap | before{item | A}after}}{out | before{item | A}after}"
+        );
+        assert!(result.diagnostics.is_empty());
+    }
+
+    #[test]
     fn lowers_dynamic_xsl_element_name_from_current_item_variable() {
         let result = convert(
             r#"<doc><alpha/><beta/></doc><xsl:stylesheet version="1.0"><xsl:template match="/"><out><xsl:apply-templates select="//doc/*"/></out></xsl:template><xsl:template match="*"><xsl:variable name="p" select="name()"/><xsl:element name="{$p}"><xsl:attribute name="xv"><xsl:value-of select="$p"/></xsl:attribute></xsl:element></xsl:template></xsl:stylesheet>"#,
@@ -3634,7 +3646,7 @@ mod tests {
 
     #[test]
     fn reports_unsupported_tier3_constructs() {
-        let result = convert(r#"<xsl:copy-of select="node()"/>"#);
+        let result = convert(r#"<xsl:copy-of select="processing-instruction()"/>"#);
         assert_eq!(result.source, "");
         assert_eq!(result.diagnostics.len(), 1);
         assert_eq!(result.diagnostics[0].code, UNSUPPORTED_CONSTRUCT_CODE);
