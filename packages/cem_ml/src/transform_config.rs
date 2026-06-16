@@ -19,6 +19,52 @@ use crate::tokenizer::cem::CemTokenizer;
 use serde::{Deserialize, Serialize};
 use std::collections::{BTreeMap, BTreeSet};
 
+pub const TRANSFORM_CONFIG_SCHEMA_URI: &str = "https://cem.dev/ns/cli/transform-config/1";
+pub const TRANSFORM_CONFIG_NAMESPACE_URI: &str = TRANSFORM_CONFIG_SCHEMA_URI;
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct TransformConfigElementSchema {
+    pub local_name: &'static str,
+    pub required_attributes: &'static [&'static str],
+    pub optional_attributes: &'static [&'static str],
+    pub child_elements: &'static [&'static str],
+}
+
+pub const TRANSFORM_CONFIG_SCHEMA_ELEMENTS: &[TransformConfigElementSchema] = &[
+    TransformConfigElementSchema {
+        local_name: "run",
+        required_attributes: &[],
+        optional_attributes: &[],
+        child_elements: &["import"],
+    },
+    TransformConfigElementSchema {
+        local_name: "import",
+        required_attributes: &["src"],
+        optional_attributes: &["id", "content-type", "contentType", "schema"],
+        child_elements: &["transform", "export"],
+    },
+    TransformConfigElementSchema {
+        local_name: "transform",
+        required_attributes: &["src"],
+        optional_attributes: &[
+            "id",
+            "input",
+            "with:*",
+            "template-content-type",
+            "templateContentType",
+            "template-schema",
+            "templateSchema",
+        ],
+        child_elements: &["transform", "export"],
+    },
+    TransformConfigElementSchema {
+        local_name: "export",
+        required_attributes: &["out"],
+        optional_attributes: &["id", "content-type", "contentType", "schema"],
+        child_elements: &[],
+    },
+];
+
 #[derive(Debug, Clone, Default, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct TransformGraphConfig {
@@ -135,6 +181,7 @@ pub fn parse_transform_graph_config(
             ),
         ));
     }
+    validate_config_identity(&request.identity)?;
 
     let mut tokenizer = CemTokenizer::from_source(BytesSource::new(SourceId(1), request.bytes));
     let mut diagnostics = tokenizer.take_diagnostics();
@@ -156,6 +203,32 @@ pub fn parse_transform_graph_config(
         graph: lowerer.graph,
         diagnostics: lowerer.diagnostics,
     })
+}
+
+fn validate_config_identity(identity: &FormatIdentity) -> Result<(), TransformGraphConfigError> {
+    if let Some(schema) = identity.schema.as_deref().map(str::trim) {
+        if !schema.is_empty() && schema != TRANSFORM_CONFIG_SCHEMA_URI {
+            return Err(transform_config_error(
+                "cem.transform_config.unsupported_schema_identity",
+                format!(
+                    "transform graph config schema `{schema}` is not supported; expected `{TRANSFORM_CONFIG_SCHEMA_URI}`"
+                ),
+            ));
+        }
+    }
+
+    if let Some(default_namespace) = identity.default_namespace.as_deref().map(str::trim) {
+        if !default_namespace.is_empty() && default_namespace != TRANSFORM_CONFIG_NAMESPACE_URI {
+            return Err(transform_config_error(
+                "cem.transform_config.unsupported_schema_identity",
+                format!(
+                    "transform graph config namespace `{default_namespace}` is not supported; expected `{TRANSFORM_CONFIG_NAMESPACE_URI}`"
+                ),
+            ));
+        }
+    }
+
+    Ok(())
 }
 
 struct GraphLowerer<'a> {
@@ -606,6 +679,64 @@ mod tests {
 
     fn has_diag(response: &TransformGraphParseResponse, code: &str) -> bool {
         response.diagnostics.iter().any(|diag| diag.code == code)
+    }
+
+    #[test]
+    fn schema_shape_declares_transform_config_surface() {
+        let run = TRANSFORM_CONFIG_SCHEMA_ELEMENTS
+            .iter()
+            .find(|element| element.local_name == "run")
+            .expect("run schema");
+        let transform = TRANSFORM_CONFIG_SCHEMA_ELEMENTS
+            .iter()
+            .find(|element| element.local_name == "transform")
+            .expect("transform schema");
+
+        assert_eq!(TRANSFORM_CONFIG_SCHEMA_URI, TRANSFORM_CONFIG_NAMESPACE_URI);
+        assert_eq!(run.child_elements, &["import"]);
+        assert_eq!(transform.required_attributes, &["src"]);
+        assert!(transform.optional_attributes.contains(&"with:*"));
+        assert!(transform.child_elements.contains(&"export"));
+    }
+
+    #[test]
+    fn accepts_transform_config_schema_identity() {
+        let response = parse_transform_graph_config(TransformGraphParseRequest {
+            bytes: br#"{@doc cem-ml 1}{run | {import @id=book @src="book.xml"}}"#.to_vec(),
+            identity: FormatIdentity {
+                content_type: Some("text/cem-ml".to_owned()),
+                schema: Some(TRANSFORM_CONFIG_SCHEMA_URI.to_owned()),
+                default_namespace: Some(TRANSFORM_CONFIG_NAMESPACE_URI.to_owned()),
+                ..FormatIdentity::default()
+            },
+            base_uri: None,
+        })
+        .expect("transform config schema identity accepted");
+
+        assert_eq!(response.graph.nodes.len(), 1);
+    }
+
+    #[test]
+    fn rejects_cem_core_schema_identity_for_transform_config() {
+        let error = parse_transform_graph_config(TransformGraphParseRequest {
+            bytes: br#"{@doc cem-ml 1}{run | {import @id=book @src="book.xml"}}"#.to_vec(),
+            identity: FormatIdentity {
+                content_type: Some("text/cem-ml".to_owned()),
+                schema: Some(crate::schema::ir::CEM_CORE_NAMESPACE.to_owned()),
+                ..FormatIdentity::default()
+            },
+            base_uri: None,
+        })
+        .expect_err("CEM core schema is not transform config schema");
+
+        assert_eq!(
+            error.code,
+            "cem.transform_config.unsupported_schema_identity"
+        );
+        assert!(error
+            .message
+            .contains(crate::schema::ir::CEM_CORE_NAMESPACE));
+        assert!(error.message.contains(TRANSFORM_CONFIG_SCHEMA_URI));
     }
 
     #[test]

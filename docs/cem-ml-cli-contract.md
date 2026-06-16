@@ -79,10 +79,12 @@ Configuration surfaces:
   YAML or CSV config documents can be added later as content-type adapters that produce
   the same normalized graph/run model.
 - CLI configuration has its own schema identity and validation contract. The existing
-  JSON `RunConfig` surface should publish a JSON Schema for CI/tooling validation. The
-  CEM-ML transform graph config should publish a CEM-native CLI config schema, separate
-  from the CEM core document schema and separate from template schemas, for the
-  `run` / `import` / `transform` / `export` element set and its attributes.
+  JSON `RunConfig` surface has schema identity `https://cem.dev/ns/cli/run-config/1`
+  and should publish JSON Schema `https://cem.dev/schema/cli/run-config.schema.json`
+  for CI/tooling validation. The CEM-ML transform graph config has schema identity
+  `https://cem.dev/ns/cli/transform-config/1`, separate from the CEM core document
+  schema and separate from template schemas, for the `run` / `import` / `transform`
+  / `export` element set and its attributes.
 - CLI MUST support a config-file surface for reproducible CI/build use. The file is the
   preferred shape for multi-source runs, module maps, namespace maps, and multiple
   outputs.

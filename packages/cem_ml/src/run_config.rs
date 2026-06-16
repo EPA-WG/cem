@@ -12,6 +12,9 @@ use crate::resolver::{has_uri_scheme, local_file_uri_to_path};
 use serde::{Deserialize, Serialize};
 use std::collections::BTreeMap;
 
+pub const RUN_CONFIG_SCHEMA_URI: &str = "https://cem.dev/ns/cli/run-config/1";
+pub const RUN_CONFIG_JSON_SCHEMA_URI: &str = "https://cem.dev/schema/cli/run-config.schema.json";
+
 #[derive(Debug, Clone, Default, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct RunConfig {
@@ -800,6 +803,15 @@ mod tests {
         assert_eq!(
             spec.root_scope.namespaces.get("html").map(String::as_str),
             Some("http://www.w3.org/1999/xhtml")
+        );
+    }
+
+    #[test]
+    fn run_config_schema_identity_constants_are_stable() {
+        assert_eq!(RUN_CONFIG_SCHEMA_URI, "https://cem.dev/ns/cli/run-config/1");
+        assert_eq!(
+            RUN_CONFIG_JSON_SCHEMA_URI,
+            "https://cem.dev/schema/cli/run-config.schema.json"
         );
     }
 

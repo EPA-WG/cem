@@ -130,10 +130,13 @@ the immediate CLI lifecycle contract.
    namespace, and version-pin option shape before document parsing, while unreadable or
    malformed module maps, unknown future budget keys, and unsupported version-pin
    targets emit deterministic execution diagnostics instead of being silently ignored.
-   Follow-up schema work: publish a JSON Schema for the JSON `RunConfig` surface and a
-   CEM-native CLI transform-config schema for the `run` / `import` / `transform` /
-   `export` graph syntax. The transform-config schema must be separate from CEM core
-   document schemas and from CEM-native template schemas.
+   Follow-up schema work: publish JSON Schema
+   `https://cem.dev/schema/cli/run-config.schema.json` for the JSON `RunConfig`
+   surface (`https://cem.dev/ns/cli/run-config/1`) and publish the CEM-native CLI
+   transform-config schema (`https://cem.dev/ns/cli/transform-config/1`) for the
+   `run` / `import` / `transform` / `export` graph syntax. The transform-config
+   schema must be separate from CEM core document schemas and from CEM-native template
+   schemas.
    Remote/custom module-map URI values, config document reads, configured and
    positional input reads, and fixture-materialized input reads use registered
    `EngineContext` resolvers when a host installs one. Default CLI behavior stays
@@ -595,8 +598,9 @@ These are data shapes only. Parser-filled content remains blocked until the pars
           one implicit entrypoint; then add native named templates/modules, explicit entrypoints, params,
           imports/includes, visibility, caching, and recursion/cycle limits; then expand XSLT parity using that native
           substrate.
-        - The CLI transform graph config must have its own schema identity for `run` / `import` / `transform` /
-          `export`; do not validate transform config as ordinary CEM core content or as a template document.
+        - The CLI transform graph config has its own schema identity,
+          `https://cem.dev/ns/cli/transform-config/1`, for `run` / `import` / `transform` / `export`; do not validate
+          transform config as ordinary CEM core content or as a template document.
         - Resolver semantics for reading templates with the dedicated `template` resolver purpose and writing transform
           outputs with the existing local-only default plus registered resolver behavior.
         - Report and source-map behavior for diagnostics that may originate from data, template compilation, template
