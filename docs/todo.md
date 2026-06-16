@@ -175,8 +175,9 @@ for the current architecture have landed; only deferred capability work remains 
       runtime/scheduler limits; multiple outputs stay modeled by graph branches and exports.
       The native template module API shape now exists on `TransformTemplateCompileRequest` through
       `TransformTemplateModuleOptions`, import declarations, entrypoint declarations with explicit visibility, param
-      declarations, module limits, cache keys, and reserved diagnostics for private/missing entrypoints, unknown params,
-      import cycles, recursion limits, and reserved includes. `TransformTemplateModulePreflight` now carries
+      declarations, module limits, cache keys, non-executing call-site records, and reserved diagnostics for
+      private/missing entrypoints, unknown calls, unknown params, import cycles, recursion limits, and reserved includes.
+      `TransformTemplateModulePreflight` now carries
       resolver-backed import reads, resolved module bytes/identity/content hashes, dependency graph cache-key input, and
       compile-time diagnostics for duplicate aliases, reserved includes, and direct self-import cycles. Module execution
       remains deferred. The CEM-native template declaration schema now has its own identity
@@ -185,8 +186,9 @@ for the current architecture have landed; only deferred capability work remains 
       `body`, and `call` while keeping `include` reserved. The real engine now parses/lowers that schema into
       `TransformTemplateModuleOptions` before adapter compilation while preserving declaration-free CEM fragment
       templates. It validates named entrypoint requests against public declarations, rejects unknown caller params, and
-      reports missing required caller params before adapter compilation. Next implementation boundary is native call-site
-      validation, transitive module execution, and recursive call limits before XSLT parity expansion.
+      reports missing required caller params before adapter compilation. It also validates same-module and imported
+      public `call` targets. Next implementation boundary is teaching executable adapters to consume preflighted modules,
+      then transitive module execution and recursive call limits before XSLT parity expansion.
       The separate adapter crate avoids the dependency cycle where `cem_ql`
       currently depends on `cem_ml`.
 - [ ] **Wishlist (future — schema/tooling):** wire CLI config schemas into generated/published artifacts. The JSON

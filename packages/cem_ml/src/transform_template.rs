@@ -127,6 +127,7 @@ pub const TRANSFORM_TEMPLATE_ENTRYPOINT_NOT_PUBLIC_CODE: &str =
     "cem.transform_template.entrypoint_not_public";
 pub const TRANSFORM_TEMPLATE_PARAM_UNKNOWN_CODE: &str = "cem.transform_template.param_unknown";
 pub const TRANSFORM_TEMPLATE_PARAM_REQUIRED_CODE: &str = "cem.transform_template.param_required";
+pub const TRANSFORM_TEMPLATE_CALL_UNKNOWN_CODE: &str = "cem.transform_template.call_unknown";
 pub const TRANSFORM_TEMPLATE_IMPORT_CYCLE_CODE: &str = "cem.transform_template.import_cycle";
 pub const TRANSFORM_TEMPLATE_RECURSION_LIMIT_CODE: &str = "cem.transform_template.recursion_limit";
 pub const TRANSFORM_TEMPLATE_INCLUDE_RESERVED_CODE: &str =
@@ -202,6 +203,16 @@ pub struct TransformTemplateModuleParamDeclaration {
     pub visibility: TransformTemplateModuleVisibility,
 }
 
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct TransformTemplateModuleCallSite {
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub owner_entrypoint: Option<String>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub from: Option<String>,
+    pub template: String,
+}
+
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct TransformTemplateModuleLimits {
@@ -227,6 +238,8 @@ pub struct TransformTemplateModuleOptions {
     pub entrypoints: Vec<TransformTemplateModuleEntrypointDeclaration>,
     #[serde(default)]
     pub params: Vec<TransformTemplateModuleParamDeclaration>,
+    #[serde(default)]
+    pub calls: Vec<TransformTemplateModuleCallSite>,
     #[serde(default)]
     pub limits: TransformTemplateModuleLimits,
 }
@@ -344,7 +357,7 @@ impl NativeTemplateModuleLowerer<'_> {
                 "import" => self.lower_import(*child),
                 "param" => self.lower_param(*child, None),
                 "template" => self.lower_template(*child),
-                "body" => {}
+                "body" => self.collect_body_calls(*child, None),
                 "include" => self.push_diag(
                     TRANSFORM_TEMPLATE_INCLUDE_RESERVED_CODE,
                     "`include` is reserved in CEM-native template modules; use `import`",
@@ -427,7 +440,7 @@ impl NativeTemplateModuleLowerer<'_> {
             };
             match child_name {
                 "param" => self.lower_param(*child, Some(&name)),
-                "body" => {}
+                "body" => self.collect_body_calls(*child, Some(&name)),
                 other => self.push_diag(
                     TRANSFORM_TEMPLATE_DECLARATION_UNSUPPORTED_CODE,
                     format!(
@@ -436,6 +449,42 @@ impl NativeTemplateModuleLowerer<'_> {
                 ),
             }
         }
+    }
+
+    fn collect_body_calls(&mut self, body_id: AstNodeId, owner_entrypoint: Option<&str>) {
+        let Some(CemAstNode::Element { children, .. }) = self.document.get(body_id) else {
+            return;
+        };
+        for child in children {
+            self.collect_calls_in_subtree(*child, owner_entrypoint);
+        }
+    }
+
+    fn collect_calls_in_subtree(&mut self, node_id: AstNodeId, owner_entrypoint: Option<&str>) {
+        let Some(CemAstNode::Element { children, .. }) = self.document.get(node_id) else {
+            return;
+        };
+        if template_element_name(self.document, node_id) == Some("call") {
+            self.lower_call(node_id, owner_entrypoint);
+            self.reject_decl_children(node_id, "call");
+            return;
+        }
+        for child in children {
+            self.collect_calls_in_subtree(*child, owner_entrypoint);
+        }
+    }
+
+    fn lower_call(&mut self, call_id: AstNodeId, owner_entrypoint: Option<&str>) {
+        let attrs = template_collect_attrs(self.document, call_id);
+        let Some(template) = required_attr(&attrs, "template") else {
+            self.push_missing_attr("call", "template");
+            return;
+        };
+        self.options.calls.push(TransformTemplateModuleCallSite {
+            owner_entrypoint: owner_entrypoint.map(str::to_owned),
+            from: attr_value(&attrs, "", "from").filter(|value| !value.trim().is_empty()),
+            template,
+        });
     }
 
     fn validate_declarations(&mut self) {
@@ -1177,6 +1226,7 @@ mod tests {
             imports: vec![import],
             entrypoints: vec![entrypoint],
             params: vec![param],
+            calls: Vec::new(),
             limits: TransformTemplateModuleLimits::default(),
         };
 
@@ -1298,7 +1348,7 @@ mod tests {
   {param @name="locale" @default="en-US" @visibility="public"}
   {template @name="card" @visibility="public" |
     {param @name="title" @required="true"}
-    {body | {article | {$title}}}
+    {body | {article | {$title} {call @template="badge"} {call @from="ui" @template="icon"}}}
   }
 }"#,
                     Some(FormatIdentity {
@@ -1344,6 +1394,21 @@ mod tests {
         );
         assert_eq!(response.module_options.params[1].name, "card.title");
         assert!(response.module_options.params[1].required);
+        assert_eq!(
+            response.module_options.calls,
+            vec![
+                TransformTemplateModuleCallSite {
+                    owner_entrypoint: Some("card".to_owned()),
+                    from: None,
+                    template: "badge".to_owned(),
+                },
+                TransformTemplateModuleCallSite {
+                    owner_entrypoint: Some("card".to_owned()),
+                    from: Some("ui".to_owned()),
+                    template: "icon".to_owned(),
+                },
+            ]
+        );
     }
 
     #[test]

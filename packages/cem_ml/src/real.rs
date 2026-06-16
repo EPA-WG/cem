@@ -38,9 +38,10 @@ use crate::transform_template::{
     TransformTemplateModuleParseRequest, TransformTemplateModulePreflight,
     TransformTemplateModuleVisibility, TransformTemplateOutputArtifact,
     TransformTemplateRenderRequest, TransformTemplateResolvedModule,
-    TRANSFORM_TEMPLATE_ENTRYPOINT_NOT_PUBLIC_CODE, TRANSFORM_TEMPLATE_IMPORT_ALIAS_DUPLICATE_CODE,
-    TRANSFORM_TEMPLATE_IMPORT_CYCLE_CODE, TRANSFORM_TEMPLATE_INCLUDE_RESERVED_CODE,
-    TRANSFORM_TEMPLATE_PARAM_REQUIRED_CODE, TRANSFORM_TEMPLATE_PARAM_UNKNOWN_CODE,
+    TRANSFORM_TEMPLATE_CALL_UNKNOWN_CODE, TRANSFORM_TEMPLATE_ENTRYPOINT_NOT_PUBLIC_CODE,
+    TRANSFORM_TEMPLATE_IMPORT_ALIAS_DUPLICATE_CODE, TRANSFORM_TEMPLATE_IMPORT_CYCLE_CODE,
+    TRANSFORM_TEMPLATE_INCLUDE_RESERVED_CODE, TRANSFORM_TEMPLATE_PARAM_REQUIRED_CODE,
+    TRANSFORM_TEMPLATE_PARAM_UNKNOWN_CODE,
 };
 use crate::validation::{RuleContext, RuleRegistry};
 use serde_json::{json, Value};
@@ -1033,6 +1034,12 @@ fn compile_transform_template(
         spec.execution_policy,
         diagnostics,
     )?;
+    validate_transform_template_call_sites(
+        spec.template,
+        &module_options,
+        &module_preflight,
+        diagnostics,
+    )?;
     match spec.adapter.compile(TransformTemplateCompileRequest {
         template: spec.template,
         entrypoint: spec.entrypoint,
@@ -1090,7 +1097,8 @@ fn validate_transform_template_module_contract(
 ) -> Option<()> {
     let has_module_contract = !module_options.imports.is_empty()
         || !module_options.entrypoints.is_empty()
-        || !module_options.params.is_empty();
+        || !module_options.params.is_empty()
+        || !module_options.calls.is_empty();
     if !has_module_contract {
         return Some(());
     }
@@ -1187,6 +1195,122 @@ fn validate_transform_template_module_contract(
         None
     } else {
         Some(())
+    }
+}
+
+fn validate_transform_template_call_sites(
+    template: &TemplateInput,
+    module_options: &TransformTemplateModuleOptions,
+    module_preflight: &TransformTemplateModulePreflight,
+    diagnostics: &mut Vec<Diagnostic>,
+) -> Option<()> {
+    if module_options.calls.is_empty() {
+        return Some(());
+    }
+
+    let mut has_fatal = false;
+    let local_entrypoints: BTreeSet<&str> = module_options
+        .entrypoints
+        .iter()
+        .map(|entrypoint| entrypoint.name.as_str())
+        .collect();
+    let referenced_imports: BTreeSet<&str> = module_options
+        .calls
+        .iter()
+        .filter_map(|call| call.from.as_deref())
+        .collect();
+    let imported_modules =
+        parse_imported_template_modules(module_preflight, &referenced_imports, diagnostics)?;
+
+    for call in &module_options.calls {
+        match call.from.as_deref() {
+            Some(alias) => {
+                let Some(imported_options) = imported_modules.get(alias) else {
+                    diagnostics.push(template_module_diagnostic(
+                        Some(&template.uri),
+                        TRANSFORM_TEMPLATE_CALL_UNKNOWN_CODE,
+                        format!(
+                            "template call to `{}` references unknown import alias `{alias}`",
+                            call.template
+                        ),
+                    ));
+                    has_fatal = true;
+                    continue;
+                };
+                if !imported_options.entrypoints.iter().any(|entrypoint| {
+                    entrypoint.name == call.template
+                        && entrypoint.visibility == TransformTemplateModuleVisibility::Public
+                }) {
+                    diagnostics.push(template_module_diagnostic(
+                        Some(&template.uri),
+                        TRANSFORM_TEMPLATE_ENTRYPOINT_NOT_PUBLIC_CODE,
+                        format!(
+                            "template call to `{alias}:{}` does not target a public imported entrypoint",
+                            call.template
+                        ),
+                    ));
+                    has_fatal = true;
+                }
+            }
+            None => {
+                if !local_entrypoints.contains(call.template.as_str()) {
+                    diagnostics.push(template_module_diagnostic(
+                        Some(&template.uri),
+                        TRANSFORM_TEMPLATE_CALL_UNKNOWN_CODE,
+                        format!(
+                            "template call to `{}` does not target a declared same-module entrypoint",
+                            call.template
+                        ),
+                    ));
+                    has_fatal = true;
+                }
+            }
+        }
+    }
+
+    if has_fatal {
+        None
+    } else {
+        Some(())
+    }
+}
+
+fn parse_imported_template_modules(
+    module_preflight: &TransformTemplateModulePreflight,
+    referenced_imports: &BTreeSet<&str>,
+    diagnostics: &mut Vec<Diagnostic>,
+) -> Option<BTreeMap<String, TransformTemplateModuleOptions>> {
+    let mut imported_modules = BTreeMap::new();
+    let mut has_fatal = false;
+
+    for module in &module_preflight.resolved_imports {
+        if !referenced_imports.contains(module.alias.as_str()) {
+            continue;
+        }
+        let mut response =
+            parse_cem_native_template_module_options(TransformTemplateModuleParseRequest {
+                template: TemplateInput {
+                    uri: module.uri.clone(),
+                    bytes: module.bytes.clone(),
+                    identity: module.identity.clone(),
+                    root_scope: ScopeConfig::default(),
+                },
+            });
+        if response
+            .diagnostics
+            .iter()
+            .any(|diagnostic| diagnostic.severity == Severity::Fatal)
+        {
+            has_fatal = true;
+        }
+        diagnostics.append(&mut response.diagnostics);
+        imported_modules.insert(module.alias.clone(), response.module_options);
+    }
+
+    if has_fatal {
+        None
+    } else {
+        Some(imported_modules)
     }
 }
 
@@ -3158,6 +3282,168 @@ mod tests {
         assert!(diagnostics
             .iter()
             .any(|diag| diag.code == TRANSFORM_TEMPLATE_PARAM_REQUIRED_CODE));
+    }
+
+    #[test]
+    fn template_module_call_validation_accepts_same_module_private_entrypoints() {
+        let template = template("main.cem", b"{main}");
+        let options = TransformTemplateModuleOptions {
+            entrypoints: vec![
+                crate::transform_template::TransformTemplateModuleEntrypointDeclaration {
+                    name: "helper".to_owned(),
+                    visibility: TransformTemplateModuleVisibility::Private,
+                },
+            ],
+            calls: vec![crate::transform_template::TransformTemplateModuleCallSite {
+                owner_entrypoint: Some("card".to_owned()),
+                from: None,
+                template: "helper".to_owned(),
+            }],
+            ..TransformTemplateModuleOptions::default()
+        };
+        let mut diagnostics = Vec::new();
+
+        let validated = validate_transform_template_call_sites(
+            &template,
+            &options,
+            &TransformTemplateModulePreflight::default(),
+            &mut diagnostics,
+        );
+
+        assert!(validated.is_some(), "{diagnostics:?}");
+        assert!(diagnostics.is_empty(), "{diagnostics:?}");
+    }
+
+    #[test]
+    fn template_module_call_validation_rejects_unknown_same_module_entrypoints() {
+        let template = template("main.cem", b"{main}");
+        let options = TransformTemplateModuleOptions {
+            calls: vec![crate::transform_template::TransformTemplateModuleCallSite {
+                owner_entrypoint: Some("card".to_owned()),
+                from: None,
+                template: "missing".to_owned(),
+            }],
+            ..TransformTemplateModuleOptions::default()
+        };
+        let mut diagnostics = Vec::new();
+
+        let validated = validate_transform_template_call_sites(
+            &template,
+            &options,
+            &TransformTemplateModulePreflight::default(),
+            &mut diagnostics,
+        );
+
+        assert!(validated.is_none());
+        assert!(diagnostics
+            .iter()
+            .any(|diag| diag.code == TRANSFORM_TEMPLATE_CALL_UNKNOWN_CODE));
+    }
+
+    #[test]
+    fn template_module_call_validation_accepts_imported_public_entrypoints() {
+        let context = context_with_resolver(
+            "cem+vfs",
+            ResolvePurpose::Template,
+            StaticReadResolver {
+                resolved_uri: "cem+vfs://templates/ui.cem",
+                bytes: br#"{@doc cem-ml 1}
+{module |
+  {template @name="icon" @visibility="public" | {body | {span | Icon}}}
+}"#,
+                content_type: Some("text/cem-ml"),
+            },
+        );
+        let template = template("cem+vfs://templates/main.cem", b"{main}");
+        let options = TransformTemplateModuleOptions {
+            imports: vec![TransformTemplateModuleImport {
+                alias: "ui".to_owned(),
+                uri: "ui.cem".to_owned(),
+                identity: None,
+                kind: TransformTemplateModuleDependencyKind::Import,
+            }],
+            calls: vec![crate::transform_template::TransformTemplateModuleCallSite {
+                owner_entrypoint: Some("card".to_owned()),
+                from: Some("ui".to_owned()),
+                template: "icon".to_owned(),
+            }],
+            ..TransformTemplateModuleOptions::default()
+        };
+        let mut diagnostics = Vec::new();
+        let preflight = preflight_transform_template_modules(
+            &context,
+            "adapter",
+            &template,
+            &TransformTemplateEntrypoint::implicit(),
+            &options,
+            TransformExecutionPolicy::default(),
+            &mut diagnostics,
+        )
+        .expect("preflight should resolve import");
+
+        let validated = validate_transform_template_call_sites(
+            &template,
+            &options,
+            &preflight,
+            &mut diagnostics,
+        );
+
+        assert!(validated.is_some(), "{diagnostics:?}");
+        assert!(diagnostics.is_empty(), "{diagnostics:?}");
+    }
+
+    #[test]
+    fn template_module_call_validation_rejects_imported_private_entrypoints() {
+        let context = context_with_resolver(
+            "cem+vfs",
+            ResolvePurpose::Template,
+            StaticReadResolver {
+                resolved_uri: "cem+vfs://templates/ui.cem",
+                bytes: br#"{@doc cem-ml 1}
+{module |
+  {template @name="icon" | {body | {span | Icon}}}
+}"#,
+                content_type: Some("text/cem-ml"),
+            },
+        );
+        let template = template("cem+vfs://templates/main.cem", b"{main}");
+        let options = TransformTemplateModuleOptions {
+            imports: vec![TransformTemplateModuleImport {
+                alias: "ui".to_owned(),
+                uri: "ui.cem".to_owned(),
+                identity: None,
+                kind: TransformTemplateModuleDependencyKind::Import,
+            }],
+            calls: vec![crate::transform_template::TransformTemplateModuleCallSite {
+                owner_entrypoint: Some("card".to_owned()),
+                from: Some("ui".to_owned()),
+                template: "icon".to_owned(),
+            }],
+            ..TransformTemplateModuleOptions::default()
+        };
+        let mut diagnostics = Vec::new();
+        let preflight = preflight_transform_template_modules(
+            &context,
+            "adapter",
+            &template,
+            &TransformTemplateEntrypoint::implicit(),
+            &options,
+            TransformExecutionPolicy::default(),
+            &mut diagnostics,
+        )
+        .expect("preflight should resolve import");
+
+        let validated = validate_transform_template_call_sites(
+            &template,
+            &options,
+            &preflight,
+            &mut diagnostics,
+        );
+
+        assert!(validated.is_none());
+        assert!(diagnostics
+            .iter()
+            .any(|diag| diag.code == TRANSFORM_TEMPLATE_ENTRYPOINT_NOT_PUBLIC_CODE));
     }
 
     #[test]
