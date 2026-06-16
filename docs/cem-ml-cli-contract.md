@@ -406,8 +406,10 @@ template URI, records resolved module bytes/identity/content hashes, constructs
 the dependency graph cache key input, rejects duplicate import aliases, rejects
 reserved includes, and rejects direct self-import cycles. The CEM-QL executable
 adapter compiles preflighted modules into its native payload and exposes import
-metadata on the compiled artifact; render-time module call dispatch, transitive
-module execution, and recursive call limits remain deferred.
+metadata on the compiled artifact. It dispatches validated same-module and direct
+imported module calls during render with the current data context. Call
+`@with:*` parameter binding, transitive module execution, and broader recursive
+call-limit semantics remain deferred.
 
 `cem_ml` remains the stable API contract and cannot directly call
 `cem_ql::render` while `cem_ql` depends on `cem_ml`; executable renderers must be

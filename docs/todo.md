@@ -181,16 +181,17 @@ for the current architecture have landed; only deferred capability work remains 
       resolver-backed import reads, resolved module bytes/identity/content hashes, dependency graph cache-key input, and
       compile-time diagnostics for duplicate aliases, reserved includes, and direct self-import cycles. The CEM-QL
       executable adapter now compiles preflighted modules into its native payload and exposes import metadata on the
-      compiled artifact; render-time module call dispatch remains deferred. The CEM-native template declaration schema
-      now has its own identity
+      compiled artifact. It dispatches validated same-module and direct imported module calls during render with the
+      current data context; call `@with:*` binding remains deferred. The CEM-native template declaration schema now has
+      its own identity
       (`https://cem.dev/ns/template/cem-native/1`) and checked-in artifact
       `packages/cem_ml/schema/template/cem-native-template.md`, covering `module`, `import`, `param`, `template`,
       `body`, and `call` while keeping `include` reserved. The real engine now parses/lowers that schema into
       `TransformTemplateModuleOptions` before adapter compilation while preserving declaration-free CEM fragment
       templates. It validates named entrypoint requests against public declarations, rejects unknown caller params, and
       reports missing required caller params before adapter compilation. It also validates same-module and imported
-      public `call` targets. Next implementation boundary is dispatching validated native module calls during render,
-      then transitive module execution and recursive call limits before XSLT parity expansion.
+      public `call` targets. Next implementation boundary is call `@with:*` parameter/data binding semantics, then
+      transitive module execution and recursive call limits before XSLT parity expansion.
       The separate adapter crate avoids the dependency cycle where `cem_ql`
       currently depends on `cem_ml`.
 - [ ] **Wishlist (future — schema/tooling):** wire CLI config schemas into generated/published artifacts. The JSON

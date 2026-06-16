@@ -7,6 +7,7 @@
 
 use std::collections::BTreeMap;
 
+use cem_ml::diagnostics::{Diagnostic, Severity};
 use cem_ml::engine::{
     EngineContext, FormatIdentity, TransformTemplateKind, TRANSFORM_TEMPLATE_UNSUPPORTED_CODE,
 };
@@ -21,7 +22,8 @@ use cem_ml::transform_template::{
 use cem_ql::eval::{AtomValue, Item, ItemStream};
 use cem_ql::render::{
     compile_template, render_compiled_template, render_plan_to_html, CompileTemplateOptions,
-    TemplateArtifact, TemplateData,
+    RenderPlan, RenderPlanAttribute, RenderPlanNode, TemplateArtifact, TemplateAttributeValue,
+    TemplateData, TemplateNode,
 };
 use serde_json::{json, Map, Number, Value};
 
@@ -33,7 +35,9 @@ pub struct CemQlTransformTemplateAdapter;
 #[derive(Debug, Clone)]
 struct CemQlCompiledTemplatePayload {
     artifact: TemplateArtifact,
+    entrypoints: CemQlTemplateEntrypoints,
     modules: Vec<CemQlCompiledTemplateModulePayload>,
+    max_recursion_depth: u32,
 }
 
 #[derive(Debug, Clone)]
@@ -42,6 +46,13 @@ struct CemQlCompiledTemplateModulePayload {
     uri: String,
     content_hash: String,
     artifact: TemplateArtifact,
+    entrypoints: CemQlTemplateEntrypoints,
+}
+
+#[derive(Debug, Clone, Default)]
+struct CemQlTemplateEntrypoints {
+    implicit: Option<TemplateArtifact>,
+    named: BTreeMap<String, TemplateArtifact>,
 }
 
 impl TransformTemplateAdapter for CemQlTransformTemplateAdapter {
@@ -82,6 +93,9 @@ impl TransformTemplateAdapter for CemQlTransformTemplateAdapter {
                 host_bindings: host_bindings.clone(),
             },
         );
+        let entrypoints = extract_template_entrypoints(&artifact);
+        let render_artifact =
+            select_entrypoint_artifact(&artifact, &entrypoints, request.entrypoint.name.as_deref());
         let modules = compile_preflighted_modules(self.id(), &request, &host_bindings)?;
         let module_diagnostics = modules
             .iter()
@@ -117,7 +131,12 @@ impl TransformTemplateAdapter for CemQlTransformTemplateAdapter {
                 request.entrypoint.clone(),
                 opaque,
             )
-            .with_native_payload(CemQlCompiledTemplatePayload { artifact, modules }),
+            .with_native_payload(CemQlCompiledTemplatePayload {
+                artifact: render_artifact,
+                entrypoints,
+                modules,
+                max_recursion_depth: request.module_options.limits.max_recursion_depth,
+            }),
             diagnostics: Vec::new(),
         })
     }
@@ -136,9 +155,8 @@ impl TransformTemplateAdapter for CemQlTransformTemplateAdapter {
                     "compiled template artifact was not produced by the CEM-QL adapter",
                 )
             })?;
-        let _preflighted_module_count = payload.modules.len();
         let data = template_data_from_artifacts(request.primary_input, request.secondary_inputs);
-        let plan = render_compiled_template(&payload.artifact, &data);
+        let plan = render_payload_template(payload, &data);
         let rendered = render_plan_to_html(&plan);
         let identity = request.target.cloned().or_else(|| {
             Some(FormatIdentity {
@@ -235,14 +253,239 @@ fn compile_preflighted_modules(
                     host_bindings: host_bindings.to_vec(),
                 },
             );
+            let entrypoints = extract_template_entrypoints(&artifact);
             Ok(CemQlCompiledTemplateModulePayload {
                 alias: module.alias.clone(),
                 uri: module.uri.clone(),
                 content_hash: module.content_hash.clone(),
                 artifact,
+                entrypoints,
             })
         })
         .collect()
+}
+
+fn extract_template_entrypoints(artifact: &TemplateArtifact) -> CemQlTemplateEntrypoints {
+    let mut entrypoints = CemQlTemplateEntrypoints::default();
+    let Some(module) = artifact.nodes.iter().find_map(module_node_children) else {
+        entrypoints.implicit = Some(artifact.clone());
+        return entrypoints;
+    };
+
+    for node in module {
+        let TemplateNode::Element {
+            tag,
+            attributes,
+            children,
+            ..
+        } = node
+        else {
+            continue;
+        };
+        match local_name(tag) {
+            "body" => {
+                entrypoints.implicit = Some(artifact_from_nodes(artifact, children.clone()));
+            }
+            "template" => {
+                let Some(name) = literal_attribute(attributes, "name") else {
+                    continue;
+                };
+                if let Some(body) = children.iter().find_map(body_node_children) {
+                    entrypoints
+                        .named
+                        .insert(name, artifact_from_nodes(artifact, body.clone()));
+                }
+            }
+            _ => {}
+        }
+    }
+
+    entrypoints
+}
+
+fn module_node_children(node: &TemplateNode) -> Option<&Vec<TemplateNode>> {
+    let TemplateNode::Element { tag, children, .. } = node else {
+        return None;
+    };
+    (local_name(tag) == "module").then_some(children)
+}
+
+fn body_node_children(node: &TemplateNode) -> Option<&Vec<TemplateNode>> {
+    let TemplateNode::Element { tag, children, .. } = node else {
+        return None;
+    };
+    (local_name(tag) == "body").then_some(children)
+}
+
+fn artifact_from_nodes(source: &TemplateArtifact, nodes: Vec<TemplateNode>) -> TemplateArtifact {
+    TemplateArtifact {
+        nodes,
+        diagnostics: source.diagnostics.clone(),
+    }
+}
+
+fn select_entrypoint_artifact(
+    fallback: &TemplateArtifact,
+    entrypoints: &CemQlTemplateEntrypoints,
+    selected: Option<&str>,
+) -> TemplateArtifact {
+    match selected {
+        Some(name) => entrypoints
+            .named
+            .get(name)
+            .cloned()
+            .unwrap_or_else(|| fallback.clone()),
+        None => entrypoints
+            .implicit
+            .clone()
+            .unwrap_or_else(|| fallback.clone()),
+    }
+}
+
+fn render_payload_template(
+    payload: &CemQlCompiledTemplatePayload,
+    data: &TemplateData,
+) -> RenderPlan {
+    let mut plan = render_compiled_template(&payload.artifact, data);
+    let nodes = expand_call_nodes(&plan.nodes, payload, data, 0, &mut plan.diagnostics);
+    RenderPlan {
+        nodes,
+        diagnostics: plan.diagnostics,
+    }
+}
+
+fn expand_call_nodes(
+    nodes: &[RenderPlanNode],
+    payload: &CemQlCompiledTemplatePayload,
+    data: &TemplateData,
+    depth: u32,
+    diagnostics: &mut Vec<Diagnostic>,
+) -> Vec<RenderPlanNode> {
+    nodes
+        .iter()
+        .flat_map(|node| expand_call_node(node, payload, data, depth, diagnostics))
+        .collect()
+}
+
+fn expand_call_node(
+    node: &RenderPlanNode,
+    payload: &CemQlCompiledTemplatePayload,
+    data: &TemplateData,
+    depth: u32,
+    diagnostics: &mut Vec<Diagnostic>,
+) -> Vec<RenderPlanNode> {
+    let RenderPlanNode::Element {
+        tag,
+        attributes,
+        children,
+        source_map,
+    } = node
+    else {
+        return vec![node.clone()];
+    };
+
+    if local_name(tag) == "call" {
+        return render_call_node(attributes, payload, data, depth, diagnostics, source_map);
+    }
+
+    vec![RenderPlanNode::Element {
+        tag: tag.clone(),
+        attributes: attributes.clone(),
+        children: expand_call_nodes(children, payload, data, depth, diagnostics),
+        source_map: source_map.clone(),
+    }]
+}
+
+fn render_call_node(
+    attributes: &[RenderPlanAttribute],
+    payload: &CemQlCompiledTemplatePayload,
+    data: &TemplateData,
+    depth: u32,
+    diagnostics: &mut Vec<Diagnostic>,
+    source_map: &cem_ml::source_map::SourceMapStack,
+) -> Vec<RenderPlanNode> {
+    if depth >= payload.max_recursion_depth {
+        diagnostics.push(module_render_diagnostic(
+            "cem.transform_template.recursion_limit",
+            "native template call recursion limit exceeded",
+            source_map.clone(),
+        ));
+        return Vec::new();
+    }
+
+    let Some(template) = render_attr(attributes, "template") else {
+        diagnostics.push(module_render_diagnostic(
+            "cem.transform_template.call_unknown",
+            "native template call is missing a `template` target",
+            source_map.clone(),
+        ));
+        return Vec::new();
+    };
+    let from = render_attr(attributes, "from");
+
+    let target = match from.as_deref() {
+        Some(alias) => payload
+            .modules
+            .iter()
+            .find(|module| module.alias == alias)
+            .and_then(|module| module.entrypoints.named.get(&template)),
+        None => payload.entrypoints.named.get(&template),
+    };
+
+    let Some(target) = target else {
+        diagnostics.push(module_render_diagnostic(
+            "cem.transform_template.call_unknown",
+            format!("native template call target `{template}` was not compiled"),
+            source_map.clone(),
+        ));
+        return Vec::new();
+    };
+
+    let mut plan = render_compiled_template(target, data);
+    diagnostics.append(&mut plan.diagnostics);
+    expand_call_nodes(&plan.nodes, payload, data, depth + 1, diagnostics)
+}
+
+fn render_attr(attributes: &[RenderPlanAttribute], name: &str) -> Option<String> {
+    attributes
+        .iter()
+        .find(|attribute| attribute.name == name)
+        .map(|attribute| attribute.value.trim().to_owned())
+        .filter(|value| !value.is_empty())
+}
+
+fn literal_attribute(
+    attributes: &[cem_ql::render::TemplateAttribute],
+    name: &str,
+) -> Option<String> {
+    attributes
+        .iter()
+        .find(|attribute| attribute.name == name)
+        .and_then(|attribute| match &attribute.value {
+            Some(TemplateAttributeValue::Literal(value)) => Some(value.clone()),
+            _ => None,
+        })
+        .filter(|value| !value.trim().is_empty())
+}
+
+fn local_name(name: &str) -> &str {
+    name.rsplit_once(':')
+        .map(|(_, local)| local)
+        .unwrap_or(name)
+}
+
+fn module_render_diagnostic(
+    code: &str,
+    message: impl Into<String>,
+    source_map: cem_ml::source_map::SourceMapStack,
+) -> Diagnostic {
+    Diagnostic {
+        code: code.to_owned(),
+        severity: Severity::Fatal,
+        message: message.into(),
+        source_map: Some(source_map),
+        ..Diagnostic::default()
+    }
 }
 
 fn template_data_from_artifacts(
@@ -444,6 +687,142 @@ mod tests {
         assert_eq!(payload.modules.len(), 1);
         assert_eq!(payload.modules[0].alias, "ui");
         assert!(!payload.modules[0].artifact.nodes.is_empty());
+    }
+
+    #[test]
+    fn adapter_dispatches_same_module_calls_during_render() {
+        let adapter = CemQlTransformTemplateAdapter;
+        let identity = FormatIdentity {
+            schema: Some(cem_ml::transform_template::CEM_NATIVE_TEMPLATE_SCHEMA_URI.to_owned()),
+            ..FormatIdentity::default()
+        };
+        let template = TemplateInput {
+            uri: "template.cem".to_owned(),
+            bytes: br#"{@doc cem-ml 1}
+{module |
+  {template @name="helper" | {body | {span | Help}}}
+  {body | {div | {call @template="helper"}}}
+}"#
+            .to_vec(),
+            identity: Some(identity),
+            root_scope: ScopeConfig::default(),
+        };
+        let params = BTreeMap::new();
+        let data_bindings = Vec::new();
+        let compiled = adapter
+            .compile(TransformTemplateCompileRequest {
+                template: &template,
+                entrypoint: &TransformTemplateEntrypoint::implicit(),
+                params: &params,
+                data_bindings: &data_bindings,
+                module_options: Default::default(),
+                module_preflight: Default::default(),
+                execution_policy: TransformExecutionPolicy::default(),
+            })
+            .expect("module template should compile")
+            .artifact;
+        let primary_input = TransformTemplateDataArtifact {
+            artifact_id: "data".to_owned(),
+            uri: None,
+            identity: None,
+            value: Value::Null,
+        };
+        let secondary_inputs = BTreeMap::new();
+
+        let rendered = adapter
+            .render(TransformTemplateRenderRequest {
+                compiled: &compiled,
+                primary_input: &primary_input,
+                secondary_inputs: &secondary_inputs,
+                target: None,
+                target_scope: &ScopeConfig::default(),
+                execution_policy: TransformExecutionPolicy::default(),
+            })
+            .expect("module template should render");
+
+        assert_eq!(
+            rendered.output.value,
+            Value::String("<div><span>Help</span></div>".to_owned())
+        );
+        assert!(
+            rendered.diagnostics.is_empty(),
+            "{:?}",
+            rendered.diagnostics
+        );
+    }
+
+    #[test]
+    fn adapter_dispatches_imported_module_calls_during_render() {
+        let adapter = CemQlTransformTemplateAdapter;
+        let identity = FormatIdentity {
+            schema: Some(cem_ml::transform_template::CEM_NATIVE_TEMPLATE_SCHEMA_URI.to_owned()),
+            ..FormatIdentity::default()
+        };
+        let template = TemplateInput {
+            uri: "template.cem".to_owned(),
+            bytes: br#"{@doc cem-ml 1}
+{module |
+  {body | {div | {call @from="ui" @template="icon"}}}
+}"#
+            .to_vec(),
+            identity: Some(identity.clone()),
+            root_scope: ScopeConfig::default(),
+        };
+        let params = BTreeMap::new();
+        let data_bindings = Vec::new();
+        let compiled = adapter
+            .compile(TransformTemplateCompileRequest {
+                template: &template,
+                entrypoint: &TransformTemplateEntrypoint::implicit(),
+                params: &params,
+                data_bindings: &data_bindings,
+                module_options: Default::default(),
+                module_preflight: TransformTemplateModulePreflight {
+                    resolved_imports: vec![TransformTemplateResolvedModule {
+                        alias: "ui".to_owned(),
+                        uri: "templates/ui.cem".to_owned(),
+                        identity: Some(identity),
+                        content_hash: "cem-bin/1+blake3:ui".to_owned(),
+                        bytes: br#"{@doc cem-ml 1}
+{module |
+  {template @name="icon" @visibility="public" | {body | {span | Icon}}}
+}"#
+                        .to_vec(),
+                    }],
+                    cache_key: None,
+                },
+                execution_policy: TransformExecutionPolicy::default(),
+            })
+            .expect("module template should compile")
+            .artifact;
+        let primary_input = TransformTemplateDataArtifact {
+            artifact_id: "data".to_owned(),
+            uri: None,
+            identity: None,
+            value: Value::Null,
+        };
+        let secondary_inputs = BTreeMap::new();
+
+        let rendered = adapter
+            .render(TransformTemplateRenderRequest {
+                compiled: &compiled,
+                primary_input: &primary_input,
+                secondary_inputs: &secondary_inputs,
+                target: None,
+                target_scope: &ScopeConfig::default(),
+                execution_policy: TransformExecutionPolicy::default(),
+            })
+            .expect("module template should render");
+
+        assert_eq!(
+            rendered.output.value,
+            Value::String("<div><span>Icon</span></div>".to_owned())
+        );
+        assert!(
+            rendered.diagnostics.is_empty(),
+            "{:?}",
+            rendered.diagnostics
+        );
     }
 
     #[test]
