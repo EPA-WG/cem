@@ -539,10 +539,8 @@ fn call_data_with_bindings(
         if name.trim().is_empty() {
             continue;
         }
-        data.bindings.insert(
-            name.to_owned(),
-            ItemStream::once(Item::Atomic(AtomValue::String(attribute.value.clone()))),
-        );
+        data.bindings
+            .insert(name.to_owned(), attribute.value_stream.clone());
     }
     data
 }
@@ -909,6 +907,155 @@ mod tests {
         assert_eq!(
             rendered.output.value,
             Value::String("<div><span>Hello</span></div>".to_owned())
+        );
+        assert!(
+            rendered.diagnostics.is_empty(),
+            "{:?}",
+            rendered.diagnostics
+        );
+    }
+
+    #[test]
+    fn adapter_preserves_typed_with_bindings_for_same_module_calls() {
+        let adapter = CemQlTransformTemplateAdapter;
+        let identity = FormatIdentity {
+            schema: Some(cem_ml::transform_template::CEM_NATIVE_TEMPLATE_SCHEMA_URI.to_owned()),
+            ..FormatIdentity::default()
+        };
+        let template = TemplateInput {
+            uri: "template.cem".to_owned(),
+            bytes: br#"{@doc cem-ml 1}
+{module |
+  {template @name="helper" |
+    {param @name="enabled"}
+    {body | {cem:if @test="enabled" | {span | Enabled}}{span | Done}}
+  }
+  {body | {div | {call @template="helper" @with:enabled="{enabled}"}}}
+}"#
+            .to_vec(),
+            identity: Some(identity),
+            root_scope: ScopeConfig::default(),
+        };
+        let params = BTreeMap::new();
+        let data_bindings = vec!["enabled".to_owned()];
+        let compiled = adapter
+            .compile(TransformTemplateCompileRequest {
+                template: &template,
+                entrypoint: &TransformTemplateEntrypoint::implicit(),
+                params: &params,
+                data_bindings: &data_bindings,
+                module_options: cem_ml::transform_template::TransformTemplateModuleOptions {
+                    params: vec![cem_ml::transform_template::TransformTemplateModuleParamDeclaration {
+                        name: "helper.enabled".to_owned(),
+                        default_value: None,
+                        required: false,
+                        visibility: cem_ml::transform_template::TransformTemplateModuleVisibility::Private,
+                    }],
+                    ..Default::default()
+                },
+                module_preflight: Default::default(),
+                execution_policy: TransformExecutionPolicy::default(),
+            })
+            .expect("module template should compile")
+            .artifact;
+        let primary_input = TransformTemplateDataArtifact {
+            artifact_id: "data".to_owned(),
+            uri: None,
+            identity: None,
+            value: json_object([("enabled", Value::Bool(false))]),
+        };
+        let secondary_inputs = BTreeMap::new();
+
+        let rendered = adapter
+            .render(TransformTemplateRenderRequest {
+                compiled: &compiled,
+                primary_input: &primary_input,
+                secondary_inputs: &secondary_inputs,
+                target: None,
+                target_scope: &ScopeConfig::default(),
+                execution_policy: TransformExecutionPolicy::default(),
+            })
+            .expect("module template should render");
+
+        assert_eq!(
+            rendered.output.value,
+            Value::String("<div><span>Done</span></div>".to_owned())
+        );
+        assert!(
+            rendered.diagnostics.is_empty(),
+            "{:?}",
+            rendered.diagnostics
+        );
+    }
+
+    #[test]
+    fn adapter_preserves_structured_with_bindings_for_same_module_calls() {
+        let adapter = CemQlTransformTemplateAdapter;
+        let identity = FormatIdentity {
+            schema: Some(cem_ml::transform_template::CEM_NATIVE_TEMPLATE_SCHEMA_URI.to_owned()),
+            ..FormatIdentity::default()
+        };
+        let template = TemplateInput {
+            uri: "template.cem".to_owned(),
+            bytes: br#"{@doc cem-ml 1}
+{module |
+  {template @name="helper" |
+    {param @name="settings"}
+    {body | {cem:if @test="settings.enabled" | {span | Enabled}}}
+  }
+  {body | {div | {call @template="helper" @with:settings="{sourceSettings}"}}}
+}"#
+            .to_vec(),
+            identity: Some(identity),
+            root_scope: ScopeConfig::default(),
+        };
+        let params = BTreeMap::new();
+        let data_bindings = vec!["sourceSettings".to_owned()];
+        let compiled = adapter
+            .compile(TransformTemplateCompileRequest {
+                template: &template,
+                entrypoint: &TransformTemplateEntrypoint::implicit(),
+                params: &params,
+                data_bindings: &data_bindings,
+                module_options: cem_ml::transform_template::TransformTemplateModuleOptions {
+                    params: vec![cem_ml::transform_template::TransformTemplateModuleParamDeclaration {
+                        name: "helper.settings".to_owned(),
+                        default_value: None,
+                        required: false,
+                        visibility: cem_ml::transform_template::TransformTemplateModuleVisibility::Private,
+                    }],
+                    ..Default::default()
+                },
+                module_preflight: Default::default(),
+                execution_policy: TransformExecutionPolicy::default(),
+            })
+            .expect("module template should compile")
+            .artifact;
+        let primary_input = TransformTemplateDataArtifact {
+            artifact_id: "data".to_owned(),
+            uri: None,
+            identity: None,
+            value: json_object([(
+                "sourceSettings",
+                json_object([("enabled", Value::Bool(true))]),
+            )]),
+        };
+        let secondary_inputs = BTreeMap::new();
+
+        let rendered = adapter
+            .render(TransformTemplateRenderRequest {
+                compiled: &compiled,
+                primary_input: &primary_input,
+                secondary_inputs: &secondary_inputs,
+                target: None,
+                target_scope: &ScopeConfig::default(),
+                execution_policy: TransformExecutionPolicy::default(),
+            })
+            .expect("module template should render");
+
+        assert_eq!(
+            rendered.output.value,
+            Value::String("<div><span>Enabled</span></div>".to_owned())
         );
         assert!(
             rendered.diagnostics.is_empty(),

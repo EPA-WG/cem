@@ -146,12 +146,27 @@ pub enum RenderPlanNode {
     },
 }
 
-#[derive(Debug, Clone, PartialEq, Eq)]
+#[derive(Debug, Clone)]
 pub struct RenderPlanAttribute {
     pub name: String,
     pub value: String,
+    /// Typed CEM-QL value before HTML/string serialization.
+    ///
+    /// Render-plan consumers that produce markup should continue using `value`. Runtime
+    /// adapters can use this sidecar when an attribute is a semantic binding, such as
+    /// CEM-native `@with:*` call parameters, where preserving booleans, numbers, records,
+    /// and arrays matters.
+    pub value_stream: ItemStream,
     pub source_map: SourceMapStack,
 }
+
+impl PartialEq for RenderPlanAttribute {
+    fn eq(&self, other: &Self) -> bool {
+        self.name == other.name && self.value == other.value && self.source_map == other.source_map
+    }
+}
+
+impl Eq for RenderPlanAttribute {}
 
 #[derive(Debug, Clone)]
 pub struct RenderedTemplate {
@@ -179,7 +194,9 @@ pub fn compile_template(source: &str, options: &CompileTemplateOptions) -> Templ
     // declare them too — the render engine owns declaration metadata, so the host runtime
     // no longer needs to scan the template to make `{$X}` compile.
     for name in scan_declaration_names(&tokens) {
-        declared_bindings.entry(name).or_insert_with(ItemStream::empty);
+        declared_bindings
+            .entry(name)
+            .or_insert_with(ItemStream::empty);
     }
     let compile_context = CompileContext {
         policy_bindings: declared_bindings,
@@ -492,7 +509,10 @@ impl TemplateCompiler<'_> {
         let loop_name = as_name.unwrap_or_else(|| "item".to_owned());
         // Declare the loop variable so descendant `{$<name>}` expressions compile; restore the
         // prior declaration state after the block so the binding does not leak out of scope.
-        let pre_existing = self.compile_context.policy_bindings.contains_key(&loop_name);
+        let pre_existing = self
+            .compile_context
+            .policy_bindings
+            .contains_key(&loop_name);
         self.compile_context
             .policy_bindings
             .entry(loop_name.clone())
@@ -511,7 +531,9 @@ impl TemplateCompiler<'_> {
             self.compile_context.policy_bindings.remove(&loop_name);
         }
         if !position_pre_existing {
-            self.compile_context.policy_bindings.remove(POSITION_BINDING);
+            self.compile_context
+                .policy_bindings
+                .remove(POSITION_BINDING);
         }
         TemplateNode::ForEach {
             select,
@@ -779,11 +801,18 @@ impl PlanRenderer {
                 ..
             } => {
                 let items = self.evaluate_select(select.as_ref());
-                let previous = self.evaluation_context.policy_bindings.get(as_name).cloned();
+                let previous = self
+                    .evaluation_context
+                    .policy_bindings
+                    .get(as_name)
+                    .cloned();
                 // XSLT `position()` parity: bind a 1-based index for the current iteration. Saved
                 // and restored alongside the loop variable so nested loops see their own position.
-                let previous_position =
-                    self.evaluation_context.policy_bindings.get(POSITION_BINDING).cloned();
+                let previous_position = self
+                    .evaluation_context
+                    .policy_bindings
+                    .get(POSITION_BINDING)
+                    .cloned();
                 for (offset, item) in items.into_iter().enumerate() {
                     self.evaluation_context
                         .policy_bindings
@@ -814,7 +843,9 @@ impl PlanRenderer {
                             .insert(POSITION_BINDING.to_owned(), prev);
                     }
                     None => {
-                        self.evaluation_context.policy_bindings.remove(POSITION_BINDING);
+                        self.evaluation_context
+                            .policy_bindings
+                            .remove(POSITION_BINDING);
                     }
                 }
             }
@@ -840,7 +871,10 @@ impl PlanRenderer {
         if let Some(error) = stream.error {
             self.diagnostics.push(render_diagnostic(
                 "cem.ql.render.for_each_failed",
-                format!("`cem:for-each` select `{}` failed: {error:?}", select.source),
+                format!(
+                    "`cem:for-each` select `{}` failed: {error:?}",
+                    select.source
+                ),
                 select.byte_offset,
                 select.source_map.clone(),
             ));
@@ -879,9 +913,11 @@ impl PlanRenderer {
     }
 
     fn render_attribute(&mut self, attribute: &TemplateAttribute) -> Option<RenderPlanAttribute> {
-        let value = match &attribute.value {
-            None => String::new(),
-            Some(TemplateAttributeValue::Literal(value)) => value.clone(),
+        let (value, value_stream) = match &attribute.value {
+            None => (String::new(), string_stream(String::new())),
+            Some(TemplateAttributeValue::Literal(value)) => {
+                (value.clone(), string_stream(value.clone()))
+            }
             Some(TemplateAttributeValue::Template(parts)) => {
                 let mut value = String::new();
                 for part in parts {
@@ -892,26 +928,35 @@ impl PlanRenderer {
                         }
                     }
                 }
-                value
+                let value_stream = string_stream(value.clone());
+                (value, value_stream)
             }
             Some(TemplateAttributeValue::Expression(expression)) => {
-                let value = self.evaluate_to_string(expression);
-                if value.is_empty() {
+                let value_stream = self.evaluate_to_stream(expression);
+                let value = stream_to_string(&value_stream);
+                if value.is_empty()
+                    && (!attribute.name.starts_with("with:") || value_stream.items.is_empty())
+                {
                     return None;
                 }
-                value
+                (value, value_stream)
             }
         };
         Some(RenderPlanAttribute {
             name: attribute.name.clone(),
             value,
+            value_stream,
             source_map: attribute.source_map.clone(),
         })
     }
 
     fn evaluate_to_string(&mut self, expression: &CompiledTemplateExpression) -> String {
+        stream_to_string(&self.evaluate_to_stream(expression))
+    }
+
+    fn evaluate_to_stream(&mut self, expression: &CompiledTemplateExpression) -> ItemStream {
         let Some(query) = &expression.query else {
-            return String::new();
+            return ItemStream::empty();
         };
         let stream = evaluate(query, &self.evaluation_context);
         self.diagnostics.extend(stream.diagnostics.clone());
@@ -925,10 +970,14 @@ impl PlanRenderer {
                 expression.byte_offset,
                 expression.source_map.clone(),
             ));
-            return String::new();
+            return ItemStream::empty();
         }
-        stream_to_string(&stream)
+        stream
     }
+}
+
+fn string_stream(value: String) -> ItemStream {
+    ItemStream::once(Item::Atomic(AtomValue::String(value)))
 }
 
 enum RawAttributePart {

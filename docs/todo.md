@@ -182,7 +182,8 @@ for the current architecture have landed; only deferred capability work remains 
       compile-time diagnostics for duplicate aliases, reserved includes, and direct self-import cycles. The CEM-QL
       executable adapter now compiles preflighted modules into its native payload and exposes import metadata on the
       compiled artifact. It dispatches validated same-module and direct imported module calls during render with the
-      current data context; call `@with:*` attributes are rendered as string bindings for the invoked template.
+      current data context; call `@with:*` whole-expression attributes preserve their evaluated CEM-QL item stream for
+      the invoked template, while literal and mixed attribute-value-template forms remain string bindings.
       Same-module recursive calls are bounded by the module recursion limit and report
       `cem.transform_template.recursion_limit` when exceeded. The CEM-native template declaration schema now has its own
       identity
@@ -192,9 +193,8 @@ for the current architecture have landed; only deferred capability work remains 
       `TransformTemplateModuleOptions` before adapter compilation while preserving declaration-free CEM fragment
       templates. It validates named entrypoint requests against public declarations, rejects unknown caller params, and
       reports missing required caller params before adapter compilation. It also validates same-module and imported
-      public `call` targets. Next implementation boundary is typed/non-string call `@with:*` parameter/data binding
-      semantics, then transitive module execution and transitive recursion behavior before XSLT parity expansion.
-      The separate adapter crate avoids the dependency cycle where `cem_ql`
+      public `call` targets. Next implementation boundary is transitive module execution and transitive recursion
+      behavior before XSLT parity expansion. The separate adapter crate avoids the dependency cycle where `cem_ql`
       currently depends on `cem_ml`.
 - [ ] **Wishlist (future — schema/tooling):** wire CLI config schemas into generated/published artifacts. The JSON
       `RunConfig` config-file surface uses schema identity `https://cem.dev/ns/cli/run-config/1` and has checked-in JSON

@@ -709,10 +709,10 @@ These are data shapes only. Parser-filled content remains blocked until the pars
           aliases, reserved includes, and direct self-import cycles. The CEM-QL executable adapter now compiles
           preflighted modules into its native payload and exposes import metadata on the compiled artifact. It dispatches
           validated same-module and direct imported module calls during render with the current data context. Call
-          `@with:*` attributes are rendered as string bindings for the invoked template. Typed/non-string `@with:*`
-          values remain deferred. Same-module recursive calls are bounded by the module recursion limit and report
-          `cem.transform_template.recursion_limit` when exceeded. Transitive module execution and transitive recursion
-          behavior remain deferred.
+          `@with:*` whole-expression attributes preserve their evaluated CEM-QL item stream for the invoked template,
+          while literal and mixed attribute-value-template forms remain string bindings. Same-module recursive calls are
+          bounded by the module recursion limit and report `cem.transform_template.recursion_limit` when exceeded.
+          Transitive module execution and transitive recursion behavior remain deferred.
         - The v1 CEM-native template declaration schema now has its own identity,
           `https://cem.dev/ns/template/cem-native/1`, and checked-in schema artifact
           `packages/cem_ml/schema/template/cem-native-template.md`. Its declaration vocabulary is `module`, `import`,
@@ -753,9 +753,9 @@ These are data shapes only. Parser-filled content remains blocked until the pars
       Execution is available through the programmatic engine API, the CLI one-liner, and CLI CEM-ML graph config dispatch
       when a host registers an executable adapter. `transform_graph` executes loaded in-memory graph requests and returns
       export artifacts; the CLI host writes configured graph exports through the resolver layer.
-      Next implementation boundary: typed/non-string call `@with:*` parameter/data binding semantics, then expand
-      transitive module execution and transitive recursion behavior before broader XSLT parity. The crate dependency
-      cycle is avoided by keeping the concrete CEM-QL adapter in `cem_ml_transform_cem_ql` rather than in `cem_ml`.
+      Next implementation boundary: transitive module execution and transitive recursion behavior, then broader XSLT
+      parity. The crate dependency cycle is avoided by keeping the concrete CEM-QL adapter in `cem_ml_transform_cem_ql`
+      rather than in `cem_ml`.
 8. `cem-ml trace <input>`
     - Supported structured formats: `json`, `xml`, `cem`.
     - Reference convenience formats: `text`, `html`.
