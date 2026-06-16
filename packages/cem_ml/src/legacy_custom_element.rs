@@ -1240,25 +1240,39 @@ fn emit_apply_templates(
     ctx: &EmitCtx,
     diagnostics: &mut Vec<LegacyConversionDiagnostic>,
 ) -> String {
-    let select = attr_value(element, "select").unwrap_or("*");
-    if let Some(mut members) = select_apply_members(select, ctx) {
-        apply_sort_children(&mut members, element);
-        return members
-            .iter()
-            .enumerate()
-            .map(|(index, member)| {
-                emit_apply_template_member(member, index + 1, element, ctx, diagnostics)
-            })
-            .collect();
-    }
-    diagnostics.push(diag(
-        UNSUPPORTED_CONSTRUCT_CODE,
-        format!(
-            "<{} select=\"{}\"> is outside the bounded apply-templates subset",
-            element.tag, select
-        ),
-    ));
-    String::new()
+    let mut members = if let Some(select) = attr_value(element, "select") {
+        let Some(members) = select_apply_members(select, ctx) else {
+            diagnostics.push(diag(
+                UNSUPPORTED_CONSTRUCT_CODE,
+                format!(
+                    "<{} select=\"{}\"> is outside the bounded apply-templates subset",
+                    element.tag, select
+                ),
+            ));
+            return String::new();
+        };
+        members
+    } else if let Some(current) = &ctx.item {
+        child_node_members_with_parent(&current.children, current)
+    } else {
+        diagnostics.push(diag(
+            UNSUPPORTED_CONSTRUCT_CODE,
+            format!(
+                "<{}> without @select requires a current node in the bounded apply-templates subset",
+                element.tag
+            ),
+        ));
+        return String::new();
+    };
+
+    apply_sort_children(&mut members, element);
+    members
+        .iter()
+        .enumerate()
+        .map(|(index, member)| {
+            emit_apply_template_member(member, index + 1, element, ctx, diagnostics)
+        })
+        .collect()
 }
 
 fn emit_xsl_copy(
@@ -1532,8 +1546,7 @@ fn emit_default_template_rule(
                 ));
                 return String::new();
             }
-            let mut members = element_children_with_parent(&current.children, current);
-            members.extend(text_children_with_parent(&current.children, current));
+            let members = child_node_members_with_parent(&current.children, current);
             let child_ctx = EmitCtx {
                 template_depth: ctx.template_depth + 1,
                 ..ctx.clone()
@@ -2192,6 +2205,31 @@ fn text_children_with_parent(nodes: &[LegacyNode], parent: &CurrentItem) -> Vec<
     nodes
         .iter()
         .filter_map(|node| match node {
+            LegacyNode::Text(text) if !text.trim().is_empty() => {
+                Some(ApplyMember::Current(CurrentItem {
+                    kind: CurrentItemKind::Text,
+                    tag: "#text".to_owned(),
+                    text: text.clone(),
+                    attrs: HashMap::new(),
+                    children: Vec::new(),
+                    parent: Some(Box::new(parent.clone())),
+                    position: 1,
+                }))
+            }
+            _ => None,
+        })
+        .collect()
+}
+
+fn child_node_members_with_parent(nodes: &[LegacyNode], parent: &CurrentItem) -> Vec<ApplyMember> {
+    nodes
+        .iter()
+        .filter_map(|node| match node {
+            LegacyNode::Element(element) if !is_xslt_element(&element.tag) => {
+                let mut item = current_item_from_element(element, 1);
+                item.parent = Some(Box::new(parent.clone()));
+                Some(ApplyMember::Current(item))
+            }
             LegacyNode::Text(text) if !text.trim().is_empty() => {
                 Some(ApplyMember::Current(CurrentItem {
                     kind: CurrentItemKind::Text,
@@ -3540,6 +3578,18 @@ mod tests {
         assert_eq!(
             result.source,
             "{doc | {wrap | {item | Alpha}}{item | Beta}}{b | Alpha}{b | Beta}"
+        );
+        assert!(result.diagnostics.is_empty());
+    }
+
+    #[test]
+    fn apply_templates_without_select_walks_child_nodes_in_document_order() {
+        let result = convert(
+            r#"<doc><wrap>before<item>A</item>after</wrap></doc><xsl:stylesheet version="1.0"><xsl:template match="/"><xsl:apply-templates select="*"/></xsl:template><xsl:template match="wrap"><out><xsl:apply-templates/></out></xsl:template><xsl:template match="item"><b><xsl:value-of select="."/></b></xsl:template></xsl:stylesheet>"#,
+        );
+        assert_eq!(
+            result.source,
+            "{doc | {wrap | before{item | A}after}}{out | before{b | A}after}"
         );
         assert!(result.diagnostics.is_empty());
     }
