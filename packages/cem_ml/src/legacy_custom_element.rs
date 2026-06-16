@@ -1515,6 +1515,7 @@ fn select_current_members(select: &str, ctx: &EmitCtx) -> Option<Vec<ApplyMember
         "*" => Some(element_children_with_parent(&current.children, current)),
         "@*" => Some(attribute_children(current)),
         "text()" | "./text()" => Some(text_children_with_parent(&current.children, current)),
+        "node()" | "./node()" => Some(child_node_members_with_parent(&current.children, current)),
         _ if select.starts_with("//") || select.starts_with('/') => {
             select_absolute_members(select, ctx)
         }
@@ -3595,6 +3596,18 @@ mod tests {
     }
 
     #[test]
+    fn apply_templates_node_select_walks_child_nodes_in_document_order() {
+        let result = convert(
+            r#"<doc><wrap>before<item>A</item>after</wrap></doc><xsl:stylesheet version="1.0"><xsl:template match="/"><xsl:apply-templates select="*"/></xsl:template><xsl:template match="wrap"><out><xsl:apply-templates select="node()"/></out></xsl:template><xsl:template match="item"><b><xsl:value-of select="."/></b></xsl:template></xsl:stylesheet>"#,
+        );
+        assert_eq!(
+            result.source,
+            "{doc | {wrap | before{item | A}after}}{out | before{b | A}after}"
+        );
+        assert!(result.diagnostics.is_empty());
+    }
+
+    #[test]
     fn sorts_with_multiple_keys_and_numeric_type() {
         let result = convert(
             r#"<doc><item group="b" rank="2">B2</item><item group="a" rank="10">A10</item><item group="a" rank="2">A2</item></doc><xsl:stylesheet version="1.0"><xsl:template match="/"><ol><xsl:apply-templates select="//item"><xsl:sort select="@group"/><xsl:sort select="@rank" data-type="number"/></xsl:apply-templates></ol></xsl:template><xsl:template match="item"><li><xsl:value-of select="@group"/>:<xsl:value-of select="@rank"/>:<xsl:value-of select="."/></li></xsl:template></xsl:stylesheet>"#,
@@ -3650,7 +3663,7 @@ mod tests {
 
     #[test]
     fn reports_apply_templates_outside_bounded_subset() {
-        let result = convert(r#"<xsl:apply-templates select="node()"/>"#);
+        let result = convert(r#"<xsl:apply-templates select="processing-instruction()"/>"#);
         assert_eq!(result.source, "");
         assert_eq!(result.diagnostics.len(), 1);
         assert_eq!(result.diagnostics[0].code, UNSUPPORTED_CONSTRUCT_CODE);
