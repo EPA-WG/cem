@@ -606,6 +606,10 @@ These are data shapes only. Parser-filled content remains blocked until the pars
           reject params until the module layer lands.
         - `TransformDiagnosticOrigin` reserves stable report/source-map origin categories for `config`, `import`,
           `template-load`, `template-compile`, `template-execution`, and `export`.
+        - `validate_transform_request_runtime_contract` and
+          `validate_transform_graph_runtime_contract` now enforce the first-slice runtime preflight: CEM-native
+          templates only, implicit entrypoint only, no params yet, known artifact refs, unique graph IDs, and duplicate
+          output destination rejection.
         - CEM-native runtime order: first support pure CEM-QL evaluation plus CEM-ML fragments with embedded CEM-QL and
           one implicit entrypoint; then add native named templates/modules, explicit entrypoints, params,
           imports/includes, visibility, caching, and recursion/cycle limits; then expand XSLT parity using that native
@@ -621,6 +625,8 @@ These are data shapes only. Parser-filled content remains blocked until the pars
           changes, and duplicate output destinations before adding execution.
       Execution remains deferred: the default engine methods still return not implemented, and CLI dispatch still
       exits through the reserved usage path.
+      Next implementation boundary: connect the `cem_ql::render` CEM-native template renderer without creating a crate
+      dependency cycle (`cem_ql` currently depends on `cem_ml`; `cem_ml` cannot directly depend on `cem_ql`).
 8. `cem-ml trace <input>`
     - Supported structured formats: `json`, `xml`, `cem`.
     - Reference convenience formats: `text`, `html`.

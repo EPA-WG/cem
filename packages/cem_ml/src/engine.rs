@@ -1,10 +1,10 @@
-use crate::diagnostics::Diagnostic;
+use crate::diagnostics::{Diagnostic, Severity};
 use crate::report::{Report, SchedulerTraceReport};
 use crate::resolver::ResolverRegistry;
 use crate::run_config::{SchedulerConfig, ScopeConfig};
 use serde::{Deserialize, Serialize};
 use serde_json::Value;
-use std::collections::BTreeMap;
+use std::collections::{BTreeMap, BTreeSet};
 use std::path::PathBuf;
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
@@ -286,6 +286,99 @@ pub fn classify_transform_template_identity(
     ))
 }
 
+pub fn validate_transform_request_runtime_contract(request: &TransformRequest) -> Vec<Diagnostic> {
+    let mut diagnostics = validate_transform_execution_policy(&request.execution_policy);
+    validate_transform_stage_runtime_contract(
+        "transform",
+        Some(&request.template.uri),
+        request.template_kind,
+        &request.template_entrypoint,
+        &request.params,
+        &request.execution_policy,
+        &mut diagnostics,
+    );
+    diagnostics
+}
+
+pub fn validate_transform_graph_runtime_contract(
+    request: &TransformGraphRequest,
+) -> Vec<Diagnostic> {
+    let mut diagnostics = validate_transform_execution_policy(&request.execution_policy);
+    let mut ids = BTreeSet::new();
+    let mut artifacts = BTreeSet::new();
+
+    for import in &request.imports {
+        validate_graph_id("import", &import.id, &mut ids, &mut diagnostics);
+        artifacts.insert(import.id.clone());
+    }
+    for stage in &request.stages {
+        validate_graph_id("transform", &stage.id, &mut ids, &mut diagnostics);
+        artifacts.insert(stage.id.clone());
+        validate_transform_stage_runtime_contract(
+            &stage.id,
+            Some(&stage.template.uri),
+            stage.template_kind,
+            &stage.template_entrypoint,
+            &stage.params,
+            &request.execution_policy,
+            &mut diagnostics,
+        );
+    }
+    for export in &request.exports {
+        validate_graph_id("export", &export.id, &mut ids, &mut diagnostics);
+    }
+
+    for stage in &request.stages {
+        validate_artifact_ref(
+            &stage.id,
+            "primaryInput",
+            &stage.primary_input,
+            &artifacts,
+            &mut diagnostics,
+        );
+        for (name, artifact_id) in &stage.secondary_inputs {
+            validate_artifact_ref(
+                &stage.id,
+                &format!("secondaryInputs.{name}"),
+                artifact_id,
+                &artifacts,
+                &mut diagnostics,
+            );
+        }
+    }
+    for export in &request.exports {
+        validate_artifact_ref(
+            &export.id,
+            "input",
+            &export.input,
+            &artifacts,
+            &mut diagnostics,
+        );
+    }
+
+    if request.execution_policy.duplicate_destination_policy
+        == TransformDuplicateDestinationPolicy::Reject
+    {
+        let mut destinations = BTreeSet::new();
+        for export in &request.exports {
+            let Some(destination) = export.destination.as_deref() else {
+                continue;
+            };
+            if !destinations.insert(destination.to_owned()) {
+                diagnostics.push(transform_runtime_diagnostic(
+                    export.destination.as_deref(),
+                    "cem.transform_runtime.duplicate_destination",
+                    format!(
+                        "transform export destination `{destination}` is declared more than once"
+                    ),
+                ));
+            }
+        }
+    }
+
+    diagnostics
+}
+
 fn is_cem_native_template_content_type(content_type: &str) -> bool {
     matches!(
         content_type_essence(content_type).as_str(),
@@ -306,6 +399,147 @@ fn transform_template_identity_error(message: impl Into<String>) -> TransformTem
     TransformTemplateIdentityError {
         code: TRANSFORM_TEMPLATE_UNSUPPORTED_CODE,
         message: message.into(),
+    }
+}
+
+fn validate_transform_execution_policy(policy: &TransformExecutionPolicy) -> Vec<Diagnostic> {
+    let mut diagnostics = Vec::new();
+    if policy.runtime_phase != TransformRuntimePhase::CemQlFragment {
+        diagnostics.push(transform_runtime_diagnostic(
+            None,
+            "cem.transform_runtime.phase_unsupported",
+            "transform runtime currently supports only the `cem-ql-fragment` phase",
+        ));
+    }
+    if policy.cardinality != TransformCardinalityMode::OneToOne {
+        diagnostics.push(transform_runtime_diagnostic(
+            None,
+            "cem.transform_runtime.cardinality_unsupported",
+            "transform runtime currently supports only one-to-one stages",
+        ));
+    }
+    if policy.duplicate_destination_policy != TransformDuplicateDestinationPolicy::Reject {
+        diagnostics.push(transform_runtime_diagnostic(
+            None,
+            "cem.transform_runtime.duplicate_destination_policy_unsupported",
+            "transform runtime currently requires duplicate output destinations to be rejected",
+        ));
+    }
+    if policy.failure_policy != TransformFailurePolicy::FailFast {
+        diagnostics.push(transform_runtime_diagnostic(
+            None,
+            "cem.transform_runtime.failure_policy_unsupported",
+            "transform runtime currently supports only fail-fast execution",
+        ));
+    }
+    if policy.output_policy != TransformOutputPolicy::ContentPrimary {
+        diagnostics.push(transform_runtime_diagnostic(
+            None,
+            "cem.transform_runtime.output_policy_unsupported",
+            "transform runtime currently supports only content-primary output",
+        ));
+    }
+    diagnostics
+}
+
+fn validate_transform_stage_runtime_contract(
+    stage_id: &str,
+    uri: Option<&str>,
+    template_kind: TransformTemplateKind,
+    template_entrypoint: &TransformTemplateEntrypoint,
+    params: &BTreeMap<String, Value>,
+    policy: &TransformExecutionPolicy,
+    diagnostics: &mut Vec<Diagnostic>,
+) {
+    if policy.runtime_phase == TransformRuntimePhase::CemQlFragment
+        && template_kind != TransformTemplateKind::CemNative
+    {
+        diagnostics.push(transform_runtime_diagnostic(
+            uri,
+            "cem.transform_runtime.template_kind_unsupported",
+            format!(
+                "transform stage `{stage_id}` uses `{template_kind:?}` template kind; the first runtime slice supports only CEM-native templates"
+            ),
+        ));
+    }
+    if policy.runtime_phase == TransformRuntimePhase::CemQlFragment
+        && !template_entrypoint.is_implicit()
+    {
+        diagnostics.push(transform_runtime_diagnostic(
+            uri,
+            "cem.transform_runtime.entrypoint_unsupported",
+            format!(
+                "transform stage `{stage_id}` declares a named template entrypoint; the first runtime slice supports only the implicit entrypoint"
+            ),
+        ));
+    }
+    if policy.runtime_phase == TransformRuntimePhase::CemQlFragment && !params.is_empty() {
+        diagnostics.push(transform_runtime_diagnostic(
+            uri,
+            "cem.transform_runtime.params_unsupported",
+            format!(
+                "transform stage `{stage_id}` declares params; template params are reserved for the native module layer"
+            ),
+        ));
+    }
+}
+
+fn validate_graph_id(
+    kind: &str,
+    id: &str,
+    ids: &mut BTreeSet<String>,
+    diagnostics: &mut Vec<Diagnostic>,
+) {
+    if id.trim().is_empty() {
+        diagnostics.push(transform_runtime_diagnostic(
+            None,
+            "cem.transform_runtime.id_missing",
+            format!("transform graph {kind} node requires a non-empty id"),
+        ));
+    } else if !ids.insert(id.to_owned()) {
+        diagnostics.push(transform_runtime_diagnostic(
+            None,
+            "cem.transform_runtime.id_duplicate",
+            format!("transform graph node id `{id}` is declared more than once"),
+        ));
+    }
+}
+
+fn validate_artifact_ref(
+    owner_id: &str,
+    field: &str,
+    target_id: &str,
+    artifacts: &BTreeSet<String>,
+    diagnostics: &mut Vec<Diagnostic>,
+) {
+    if target_id.trim().is_empty() {
+        diagnostics.push(transform_runtime_diagnostic(
+            None,
+            "cem.transform_runtime.ref_empty",
+            format!("transform graph node `{owner_id}` has an empty `{field}` reference"),
+        ));
+    } else if !artifacts.contains(target_id) {
+        diagnostics.push(transform_runtime_diagnostic(
+            None,
+            "cem.transform_runtime.ref_unknown",
+            format!(
+                "transform graph node `{owner_id}` references unknown artifact `{target_id}` via `{field}`"
+            ),
+        ));
+    }
+}
+
+fn transform_runtime_diagnostic(
+    uri: Option<&str>,
+    code: &str,
+    message: impl Into<String>,
+) -> Diagnostic {
+    Diagnostic {
+        uri: uri.map(str::to_owned),
+        code: code.to_owned(),
+        severity: Severity::Fatal,
+        message: message.into(),
+        ..Diagnostic::default()
     }
 }
 
@@ -697,6 +931,10 @@ mod tests {
         }
     }
 
+    fn has_diagnostic(diagnostics: &[Diagnostic], code: &str) -> bool {
+        diagnostics.iter().any(|diagnostic| diagnostic.code == code)
+    }
+
     #[test]
     fn transform_template_identity_classifies_xslt_and_cem_native_templates() {
         let xslt = FormatIdentity {
@@ -775,6 +1013,128 @@ mod tests {
             serde_json::to_value(TransformDiagnosticOrigin::TemplateCompile).unwrap(),
             serde_json::Value::String("template-compile".to_owned())
         );
+    }
+
+    #[test]
+    fn transform_runtime_contract_accepts_minimal_cem_native_request() {
+        let request = TransformRequest {
+            data: engine_input("data.xml", "application/xml"),
+            template: template_input("view.cem", "text/cem-ml"),
+            template_kind: TransformTemplateKind::CemNative,
+            template_entrypoint: TransformTemplateEntrypoint::implicit(),
+            params: BTreeMap::new(),
+            preserve_source_offsets: true,
+            context: EngineContext::default(),
+            target: None,
+            target_scope: ScopeConfig::default(),
+            scheduler_scope_ids: TransformSchedulerScopeIds::default(),
+            execution_policy: TransformExecutionPolicy::default(),
+        };
+
+        assert!(validate_transform_request_runtime_contract(&request).is_empty());
+    }
+
+    #[test]
+    fn transform_runtime_contract_rejects_deferred_single_transform_features() {
+        let request = TransformRequest {
+            data: engine_input("data.xml", "application/xml"),
+            template: template_input("view.xsl", "application/xslt+xml"),
+            template_kind: TransformTemplateKind::Xslt,
+            template_entrypoint: TransformTemplateEntrypoint::named("main"),
+            params: BTreeMap::from([("locale".to_owned(), serde_json::json!("en-US"))]),
+            preserve_source_offsets: true,
+            context: EngineContext::default(),
+            target: None,
+            target_scope: ScopeConfig::default(),
+            scheduler_scope_ids: TransformSchedulerScopeIds::default(),
+            execution_policy: TransformExecutionPolicy::default(),
+        };
+
+        let diagnostics = validate_transform_request_runtime_contract(&request);
+        assert!(has_diagnostic(
+            &diagnostics,
+            "cem.transform_runtime.template_kind_unsupported"
+        ));
+        assert!(has_diagnostic(
+            &diagnostics,
+            "cem.transform_runtime.entrypoint_unsupported"
+        ));
+        assert!(has_diagnostic(
+            &diagnostics,
+            "cem.transform_runtime.params_unsupported"
+        ));
+    }
+
+    #[test]
+    fn transform_graph_runtime_contract_validates_refs_and_destinations() {
+        let request = TransformGraphRequest {
+            imports: vec![TransformGraphImport {
+                id: "book".to_owned(),
+                input: engine_input("book.xml", "application/xml"),
+                scheduler_scope_id: 1,
+            }],
+            stages: vec![
+                TransformGraphStage {
+                    id: "book".to_owned(),
+                    template: template_input("report.cem", "text/cem-ml"),
+                    template_kind: TransformTemplateKind::CemNative,
+                    template_entrypoint: TransformTemplateEntrypoint::implicit(),
+                    params: BTreeMap::new(),
+                    primary_input: "missing".to_owned(),
+                    secondary_inputs: BTreeMap::from([(
+                        "stats".to_owned(),
+                        "missing-stats".to_owned(),
+                    )]),
+                    scheduler_scope_ids: TransformStageSchedulerScopeIds::default(),
+                },
+                TransformGraphStage {
+                    id: "chart".to_owned(),
+                    template: template_input("chart.cem", "text/cem-ml"),
+                    template_kind: TransformTemplateKind::CemNative,
+                    template_entrypoint: TransformTemplateEntrypoint::implicit(),
+                    params: BTreeMap::new(),
+                    primary_input: "book".to_owned(),
+                    secondary_inputs: BTreeMap::new(),
+                    scheduler_scope_ids: TransformStageSchedulerScopeIds::default(),
+                },
+            ],
+            exports: vec![
+                TransformGraphExport {
+                    id: "main".to_owned(),
+                    input: "chart".to_owned(),
+                    destination: Some("dist/report.html".to_owned()),
+                    target: None,
+                    target_scope: ScopeConfig::default(),
+                    scheduler_scope_id: 4,
+                },
+                TransformGraphExport {
+                    id: "chart-out".to_owned(),
+                    input: "missing-output".to_owned(),
+                    destination: Some("dist/report.html".to_owned()),
+                    target: None,
+                    target_scope: ScopeConfig::default(),
+                    scheduler_scope_id: 5,
+                },
+            ],
+            edges: Vec::new(),
+            preserve_source_offsets: true,
+            context: EngineContext::default(),
+            execution_policy: TransformExecutionPolicy::default(),
+        };
+
+        let diagnostics = validate_transform_graph_runtime_contract(&request);
+        assert!(has_diagnostic(
+            &diagnostics,
+            "cem.transform_runtime.id_duplicate"
+        ));
+        assert!(has_diagnostic(
+            &diagnostics,
+            "cem.transform_runtime.ref_unknown"
+        ));
+        assert!(has_diagnostic(
+            &diagnostics,
+            "cem.transform_runtime.duplicate_destination"
+        ));
     }
 
     #[test]

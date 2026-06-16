@@ -217,6 +217,11 @@ slice:
 - `TransformDiagnosticOrigin` reserves stable report/source-map origin categories:
   `config`, `import`, `template-load`, `template-compile`, `template-execution`,
   and `export`.
+- `validate_transform_request_runtime_contract` and
+  `validate_transform_graph_runtime_contract` perform pre-execution runtime
+  validation for the first slice: CEM-native templates only, implicit entrypoint
+  only, no params yet, known artifact refs, unique graph IDs, and duplicate output
+  destination rejection.
 - The default `CemMlEngine::transform` and `transform_graph` methods still return
   `NotImplemented`; these types define the runtime contract before execution exists.
 
@@ -269,6 +274,8 @@ Transform responses must preserve the content-primary command contract:
   and output export;
 - graph validation must reject duplicate IDs, unresolved references, cycles, ambiguous
   output paths, and unsupported cardinality-changing stages before execution.
+- runtime preflight already rejects the unsupported first-slice cases that can appear
+  in programmatic engine requests even if the CEM-ML config parser was bypassed.
 
 Until execution is implemented, `cem-ml transform ...` must remain parseable but
 reserved and exit with code `2`.

@@ -115,16 +115,18 @@ for the current architecture have landed; only deferred capability work remains 
       structs. Template identity classification now supports both XSLT and CEM-native templates, and the runtime API now
       records the first execution contract: CEM-QL-fragment phase, one-to-one cardinality, reject duplicate
       destinations, fail-fast execution, content-primary output, implicit template entrypoint, future params, and stable
-      diagnostic origins for config/import/template/export phases. Before runtime implementation, keep the checked-in
-      CEM-native CLI transform-config schema
+      diagnostic origins for config/import/template/export phases. Runtime preflight validation now rejects deferred
+      first-slice features and bad programmatic graph refs/destinations before any future executor runs. Before runtime
+      implementation, keep the checked-in CEM-native CLI transform-config schema
       (`packages/cem_ml/schema/cli/transform-config.md`,
       `https://cem.dev/ns/cli/transform-config/1`) separate from CEM core document schemas and template schemas.
       Runtime order: start with pure CEM-QL evaluation plus CEM-ML fragments
       with embedded CEM-QL and one implicit entrypoint; then add native named templates/modules, explicit entrypoints,
       params, imports/includes, visibility, caching, and recursion/cycle limits; then expand XSLT parity on that native
       substrate. Next runtime implementation work is the minimal CEM-QL/CEM-ML fragment executor plus resolver-backed
-      template reads, resolver-backed output writes, diagnostics/report/source-map projection, and pre-execution graph
-      validation.
+      template reads, resolver-backed output writes, and diagnostics/report/source-map projection. That work needs a
+      renderer integration boundary because `cem_ql` currently depends on `cem_ml`, so `cem_ml::real::RealCemMlEngine`
+      cannot directly call `cem_ql::render` without a crate dependency cycle.
 - [ ] **Wishlist (future — schema/tooling):** wire CLI config schemas into generated/published artifacts. The JSON
       `RunConfig` config-file surface uses schema identity `https://cem.dev/ns/cli/run-config/1` and has checked-in JSON
       Schema `packages/cem_ml/schema/cli/run-config.schema.json`
