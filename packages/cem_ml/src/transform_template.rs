@@ -62,7 +62,127 @@ pub struct TransformTemplateCompileRequest<'a> {
     pub entrypoint: &'a TransformTemplateEntrypoint,
     pub params: &'a BTreeMap<String, Value>,
     pub data_bindings: &'a [String],
+    pub module_options: TransformTemplateModuleOptions,
     pub execution_policy: TransformExecutionPolicy,
+}
+
+pub const TRANSFORM_TEMPLATE_ENTRYPOINT_NOT_PUBLIC_CODE: &str =
+    "cem.transform_template.entrypoint_not_public";
+pub const TRANSFORM_TEMPLATE_PARAM_UNKNOWN_CODE: &str = "cem.transform_template.param_unknown";
+pub const TRANSFORM_TEMPLATE_IMPORT_CYCLE_CODE: &str = "cem.transform_template.import_cycle";
+pub const TRANSFORM_TEMPLATE_RECURSION_LIMIT_CODE: &str = "cem.transform_template.recursion_limit";
+pub const TRANSFORM_TEMPLATE_INCLUDE_RESERVED_CODE: &str =
+    "cem.transform_template.include_reserved";
+
+#[derive(Debug, Clone, Copy, Default, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "kebab-case")]
+pub enum TransformTemplateModuleDependencyKind {
+    #[default]
+    Import,
+    IncludeReserved,
+}
+
+#[derive(Debug, Clone, Copy, Default, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "kebab-case")]
+pub enum TransformTemplateModuleVisibility {
+    #[default]
+    Private,
+    Public,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct TransformTemplateModuleImport {
+    pub alias: String,
+    pub uri: String,
+    #[serde(default)]
+    pub identity: Option<FormatIdentity>,
+    #[serde(default)]
+    pub kind: TransformTemplateModuleDependencyKind,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct TransformTemplateModuleEntrypointDeclaration {
+    pub name: String,
+    #[serde(default)]
+    pub visibility: TransformTemplateModuleVisibility,
+}
+
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct TransformTemplateModuleParamDeclaration {
+    pub name: String,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub default_value: Option<Value>,
+    #[serde(default)]
+    pub required: bool,
+    #[serde(default)]
+    pub visibility: TransformTemplateModuleVisibility,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct TransformTemplateModuleLimits {
+    pub max_import_depth: u32,
+    pub max_recursion_depth: u32,
+}
+
+impl Default for TransformTemplateModuleLimits {
+    fn default() -> Self {
+        Self {
+            max_import_depth: 32,
+            max_recursion_depth: 64,
+        }
+    }
+}
+
+#[derive(Debug, Clone, Default, PartialEq, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct TransformTemplateModuleOptions {
+    #[serde(default)]
+    pub imports: Vec<TransformTemplateModuleImport>,
+    #[serde(default)]
+    pub entrypoints: Vec<TransformTemplateModuleEntrypointDeclaration>,
+    #[serde(default)]
+    pub params: Vec<TransformTemplateModuleParamDeclaration>,
+    #[serde(default)]
+    pub limits: TransformTemplateModuleLimits,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct TransformTemplateModuleCacheKey {
+    pub adapter_id: String,
+    pub resolved_uri: String,
+    #[serde(default)]
+    pub identity: Option<FormatIdentity>,
+    pub content_hash: String,
+    pub entrypoint: TransformTemplateEntrypoint,
+    pub execution_policy: TransformExecutionPolicy,
+    pub dependency_graph_hash: String,
+}
+
+impl TransformTemplateModuleCacheKey {
+    pub fn new(
+        adapter_id: impl Into<String>,
+        resolved_uri: impl Into<String>,
+        identity: Option<FormatIdentity>,
+        content_hash: impl Into<String>,
+        entrypoint: TransformTemplateEntrypoint,
+        execution_policy: TransformExecutionPolicy,
+        dependency_graph_hash: impl Into<String>,
+    ) -> Self {
+        Self {
+            adapter_id: adapter_id.into(),
+            resolved_uri: resolved_uri.into(),
+            identity,
+            content_hash: content_hash.into(),
+            entrypoint,
+            execution_policy,
+            dependency_graph_hash: dependency_graph_hash.into(),
+        }
+    }
 }
 
 #[derive(Clone, Serialize, Deserialize)]
@@ -555,6 +675,69 @@ mod tests {
     }
 
     #[test]
+    fn native_template_module_options_model_imports_visibility_params_and_limits() {
+        let import: TransformTemplateModuleImport = serde_json::from_value(json!({
+            "alias": "ui",
+            "uri": "templates/ui.cem"
+        }))
+        .expect("import defaults");
+        let entrypoint: TransformTemplateModuleEntrypointDeclaration =
+            serde_json::from_value(json!({"name": "card"})).expect("entrypoint defaults");
+        let param: TransformTemplateModuleParamDeclaration = serde_json::from_value(json!({
+            "name": "locale",
+            "defaultValue": "en-US"
+        }))
+        .expect("param defaults");
+        let options = TransformTemplateModuleOptions {
+            imports: vec![import],
+            entrypoints: vec![entrypoint],
+            params: vec![param],
+            limits: TransformTemplateModuleLimits::default(),
+        };
+
+        assert_eq!(
+            options.imports[0].kind,
+            TransformTemplateModuleDependencyKind::Import
+        );
+        assert_eq!(
+            options.entrypoints[0].visibility,
+            TransformTemplateModuleVisibility::Private
+        );
+        assert_eq!(
+            options.params[0].visibility,
+            TransformTemplateModuleVisibility::Private
+        );
+        assert!(!options.params[0].required);
+        assert_eq!(options.limits.max_import_depth, 32);
+        assert_eq!(options.limits.max_recursion_depth, 64);
+    }
+
+    #[test]
+    fn native_template_module_cache_key_records_identity_policy_entrypoint_and_dependencies() {
+        let identity = FormatIdentity {
+            content_type: Some("application/vnd.cem.template+cem;version=2".to_owned()),
+            ..FormatIdentity::default()
+        };
+        let key = TransformTemplateModuleCacheKey::new(
+            "cem-native-template-v2",
+            "file:///workspace/templates/card.cem",
+            Some(identity),
+            "sha256:template",
+            TransformTemplateEntrypoint::named("card"),
+            TransformExecutionPolicy::default(),
+            "sha256:dependency-graph",
+        );
+        let json = serde_json::to_value(&key).expect("cache key serializes");
+
+        assert_eq!(json["adapterId"], "cem-native-template-v2");
+        assert_eq!(json["resolvedUri"], "file:///workspace/templates/card.cem");
+        assert_eq!(json["contentHash"], "sha256:template");
+        assert_eq!(json["entrypoint"]["name"], "card");
+        assert_eq!(json["executionPolicy"]["failurePolicy"], "fail-fast");
+        assert_eq!(json["dependencyGraphHash"], "sha256:dependency-graph");
+    }
+
+    #[test]
     fn runtime_adapter_can_claim_new_cem_native_template_schema() {
         let mut registry = TransformTemplateAdapterRegistry::new();
         registry.register(StaticTransformTemplateAdapter::new(
@@ -631,6 +814,7 @@ mod tests {
                 entrypoint: &TransformTemplateEntrypoint::implicit(),
                 params: &params,
                 data_bindings: &data_bindings,
+                module_options: Default::default(),
                 execution_policy: TransformExecutionPolicy::default(),
             })
             .expect_err("static adapter should not compile templates");
@@ -713,6 +897,8 @@ mod tests {
                     request.entrypoint.clone(),
                     json!({
                         "bytes": request.template.bytes.len(),
+                        "moduleImports": request.module_options.imports.len(),
+                        "moduleEntrypoints": request.module_options.entrypoints.len(),
                         "params": request.params.len(),
                     }),
                 )
@@ -766,6 +952,7 @@ mod tests {
                 entrypoint: &TransformTemplateEntrypoint::implicit(),
                 params: &params,
                 data_bindings: &data_bindings,
+                module_options: Default::default(),
                 execution_policy: TransformExecutionPolicy::default(),
             })
             .expect("runtime adapter should compile")
@@ -797,6 +984,57 @@ mod tests {
                 "secondaryInputs": 0
             })
         );
+    }
+
+    #[test]
+    fn runtime_template_adapter_receives_module_options_during_compile() {
+        let mut registry = TransformTemplateAdapterRegistry::new();
+        registry.register(RuntimeAdapter);
+        let identity = FormatIdentity {
+            content_type: Some("application/vnd.cem.template+cem;version=2".to_owned()),
+            ..FormatIdentity::default()
+        };
+        let adapter = match registry.select_adapter(&identity) {
+            TransformTemplateAdapterLookup::Matched(adapter) => adapter,
+            other => panic!("expected matched adapter, got {other:?}"),
+        };
+        let template = TemplateInput {
+            uri: "template-v2.cem".to_owned(),
+            bytes: b"{ $title }".to_vec(),
+            identity: Some(identity),
+            root_scope: ScopeConfig::default(),
+        };
+        let module_options = TransformTemplateModuleOptions {
+            imports: vec![TransformTemplateModuleImport {
+                alias: "ui".to_owned(),
+                uri: "ui.cem".to_owned(),
+                identity: None,
+                kind: TransformTemplateModuleDependencyKind::Import,
+            }],
+            entrypoints: vec![TransformTemplateModuleEntrypointDeclaration {
+                name: "card".to_owned(),
+                visibility: TransformTemplateModuleVisibility::Public,
+            }],
+            ..TransformTemplateModuleOptions::default()
+        };
+        let params = BTreeMap::new();
+        let data_bindings = Vec::new();
+
+        let compiled = adapter
+            .compile(TransformTemplateCompileRequest {
+                template: &template,
+                entrypoint: &TransformTemplateEntrypoint::named("card"),
+                params: &params,
+                data_bindings: &data_bindings,
+                module_options,
+                execution_policy: TransformExecutionPolicy::default(),
+            })
+            .expect("runtime adapter should receive module options")
+            .artifact;
+
+        assert_eq!(compiled.opaque["moduleImports"], 1);
+        assert_eq!(compiled.opaque["moduleEntrypoints"], 1);
+        assert_eq!(compiled.entrypoint.name.as_deref(), Some("card"));
     }
 
     #[test]

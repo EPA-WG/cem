@@ -282,6 +282,7 @@ mod tests {
                 entrypoint: &TransformTemplateEntrypoint::implicit(),
                 params: &params,
                 data_bindings: &data_bindings,
+                module_options: Default::default(),
                 execution_policy: TransformExecutionPolicy::default(),
             })
             .expect("template should compile")

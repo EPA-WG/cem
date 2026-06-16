@@ -694,6 +694,12 @@ These are data shapes only. Parser-filled content remains blocked until the pars
               default failure policy.
             - Keep output content-primary. Use graph branches and export nodes for multiple files/reports instead of
               arbitrary template writes.
+        - Current native module API slice: `TransformTemplateCompileRequest` carries
+          `TransformTemplateModuleOptions`; the stable model includes import declarations, entrypoint declarations with
+          explicit visibility, param declarations with defaults/required flags, module limits, module cache keys, and
+          reserved diagnostic codes for private/missing entrypoints, unknown params, import cycles, recursion limits, and
+          reserved includes. Existing runtime executors receive default module options, so module execution remains
+          deferred.
         - The CLI transform graph config has its own schema identity,
           `https://cem.dev/ns/cli/transform-config/1`, for `run` / `import` / `join` / `transform` / `export`; do not
           validate transform config as ordinary CEM core content or as a template document.
@@ -728,9 +734,10 @@ These are data shapes only. Parser-filled content remains blocked until the pars
       Execution is available through the programmatic engine API, the CLI one-liner, and CLI CEM-ML graph config dispatch
       when a host registers an executable adapter. `transform_graph` executes loaded in-memory graph requests and returns
       export artifacts; the CLI host writes configured graph exports through the resolver layer.
-      Next implementation boundary: add the native template module API shape around imports, public named entrypoints,
-      params, cache keys, and cycle/recursion diagnostics before implementing module execution. The crate dependency
-      cycle is avoided by keeping the concrete CEM-QL adapter in `cem_ml_transform_cem_ql` rather than in `cem_ml`.
+      Next implementation boundary: add native template import preflight around resolver-backed module reads,
+      dependency-graph cache-key construction, and compile-time diagnostics for reserved includes and import cycles
+      before implementing module execution. The crate dependency cycle is avoided by keeping the concrete CEM-QL adapter
+      in `cem_ml_transform_cem_ql` rather than in `cem_ml`.
 8. `cem-ml trace <input>`
     - Supported structured formats: `json`, `xml`, `cem`.
     - Reference convenience formats: `text`, `html`.

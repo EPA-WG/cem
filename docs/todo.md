@@ -173,8 +173,12 @@ for the current architecture have landed; only deferred capability work remains 
       reserved; module cache keys include adapter ID, resolved URI, identity, content hash, selected entrypoint, execution
       policy, and dependency graph hash; import cycles are fatal compile diagnostics; recursive calls require explicit
       runtime/scheduler limits; multiple outputs stay modeled by graph branches and exports.
-      Next implementation boundary is the native template module API shape for imports, public named entrypoints, params,
-      cache keys, and cycle/recursion diagnostics before module execution.
+      The native template module API shape now exists on `TransformTemplateCompileRequest` through
+      `TransformTemplateModuleOptions`, import declarations, entrypoint declarations with explicit visibility, param
+      declarations, module limits, cache keys, and reserved diagnostics for private/missing entrypoints, unknown params,
+      import cycles, recursion limits, and reserved includes. Module execution remains deferred.
+      Next implementation boundary is native template import preflight: resolver-backed module reads, dependency graph
+      cache-key construction, and compile-time diagnostics for reserved includes/import cycles before module execution.
       The separate adapter crate avoids the dependency cycle where `cem_ql`
       currently depends on `cem_ml`.
 - [ ] **Wishlist (future — schema/tooling):** wire CLI config schemas into generated/published artifacts. The JSON

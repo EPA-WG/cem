@@ -1006,6 +1006,7 @@ fn compile_transform_template(
         entrypoint,
         params,
         data_bindings,
+        module_options: Default::default(),
         execution_policy,
     }) {
         Ok(mut response) => {

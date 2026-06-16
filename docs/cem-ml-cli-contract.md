@@ -364,6 +364,13 @@ minimal CEM-QL-fragment executor already implements these behaviors.
   should continue to be modeled by graph branches and export nodes rather than by
   arbitrary template writes.
 
+Current API state: `TransformTemplateCompileRequest` carries
+`TransformTemplateModuleOptions`, and the stable model includes import
+declarations, entrypoint declarations, param declarations, module limits, module
+cache keys, and reserved diagnostic codes for module compile/runtime failures.
+Existing runtime executors receive default module options; resolver-backed module
+imports and module execution remain deferred.
+
 `cem_ml` remains the stable API contract and cannot directly call
 `cem_ql::render` while `cem_ql` depends on `cem_ml`; executable renderers must be
 registered by crates or hosts above both layers.
