@@ -41,7 +41,8 @@ use crate::transform_template::{
     TRANSFORM_TEMPLATE_CALL_UNKNOWN_CODE, TRANSFORM_TEMPLATE_ENTRYPOINT_NOT_PUBLIC_CODE,
     TRANSFORM_TEMPLATE_IMPORT_ALIAS_DUPLICATE_CODE, TRANSFORM_TEMPLATE_IMPORT_CYCLE_CODE,
     TRANSFORM_TEMPLATE_IMPORT_DEPTH_CODE, TRANSFORM_TEMPLATE_INCLUDE_RESERVED_CODE,
-    TRANSFORM_TEMPLATE_PARAM_REQUIRED_CODE, TRANSFORM_TEMPLATE_PARAM_UNKNOWN_CODE,
+    TRANSFORM_TEMPLATE_PARAM_DUPLICATE_ALIAS_CODE, TRANSFORM_TEMPLATE_PARAM_REQUIRED_CODE,
+    TRANSFORM_TEMPLATE_PARAM_UNKNOWN_CODE,
 };
 use crate::validation::{RuleContext, RuleRegistry};
 use serde_json::{json, Value};
@@ -1151,32 +1152,45 @@ fn validate_transform_template_module_contract(
         }
     }
 
+    let mut checked_alias_params = BTreeSet::new();
+    for declaration in &module_options.params {
+        let accepted_names = accepted_param_names(declaration, selected_entrypoint);
+        if accepted_names.is_empty() {
+            continue;
+        }
+
+        let display_name = accepted_names[0];
+        if !checked_alias_params.insert(display_name.to_owned()) {
+            continue;
+        }
+        let provided_names = accepted_names
+            .iter()
+            .filter(|name| params.contains_key(**name))
+            .copied()
+            .collect::<Vec<_>>();
+        if provided_names.len() > 1 {
+            diagnostics.push(template_module_diagnostic(
+                Some(&template.uri),
+                TRANSFORM_TEMPLATE_PARAM_DUPLICATE_ALIAS_CODE,
+                format!(
+                    "template param `{display_name}` is provided through duplicate aliases `{}`",
+                    provided_names.join("`, `")
+                ),
+            ));
+            has_fatal = true;
+        }
+    }
+
     let mut checked_required_params = BTreeSet::new();
     for declaration in &module_options.params {
         if !declaration.required || declaration.default_value.is_some() {
             continue;
         }
 
-        let mut accepted_names = Vec::new();
-        if declaration.visibility == TransformTemplateModuleVisibility::Public
-            && !declaration.name.contains('.')
-        {
-            accepted_names.push(declaration.name.as_str());
-        }
-        if let Some(entrypoint_name) = selected_entrypoint {
-            if let Some(local_name) = declaration
-                .name
-                .strip_prefix(entrypoint_name)
-                .and_then(|remaining| remaining.strip_prefix('.'))
-            {
-                accepted_names.push(local_name);
-                accepted_names.push(declaration.name.as_str());
-            }
-        }
+        let accepted_names = accepted_param_names(declaration, selected_entrypoint);
         if accepted_names.is_empty() {
             continue;
         }
-
         let display_name = accepted_names[0];
         if !checked_required_params.insert(display_name.to_owned()) {
             continue;
@@ -1196,6 +1210,29 @@ fn validate_transform_template_module_contract(
     } else {
         Some(())
     }
+}
+
+fn accepted_param_names<'a>(
+    declaration: &'a crate::transform_template::TransformTemplateModuleParamDeclaration,
+    selected_entrypoint: Option<&'a str>,
+) -> Vec<&'a str> {
+    let mut accepted_names = Vec::new();
+    if declaration.visibility == TransformTemplateModuleVisibility::Public
+        && !declaration.name.contains('.')
+    {
+        accepted_names.push(declaration.name.as_str());
+    }
+    if let Some(entrypoint_name) = selected_entrypoint {
+        if let Some(local_name) = declaration
+            .name
+            .strip_prefix(entrypoint_name)
+            .and_then(|remaining| remaining.strip_prefix('.'))
+        {
+            accepted_names.push(local_name);
+            accepted_names.push(declaration.name.as_str());
+        }
+    }
+    accepted_names
 }
 
 fn validate_transform_template_call_sites(
@@ -3519,6 +3556,84 @@ mod tests {
 
         assert!(validated.is_some(), "{diagnostics:?}");
         assert!(diagnostics.is_empty(), "{diagnostics:?}");
+    }
+
+    #[test]
+    fn template_module_contract_accepts_qualified_entrypoint_param_aliases() {
+        let template = template("main.cem", b"{main}");
+        let options = TransformTemplateModuleOptions {
+            entrypoints: vec![
+                crate::transform_template::TransformTemplateModuleEntrypointDeclaration {
+                    name: "card".to_owned(),
+                    visibility: TransformTemplateModuleVisibility::Public,
+                },
+            ],
+            params: vec![
+                crate::transform_template::TransformTemplateModuleParamDeclaration {
+                    name: "card.title".to_owned(),
+                    default_value: None,
+                    required: true,
+                    visibility: TransformTemplateModuleVisibility::Private,
+                },
+            ],
+            ..TransformTemplateModuleOptions::default()
+        };
+        let params = BTreeMap::from([("card.title".to_owned(), json!("Intro"))]);
+        let mut diagnostics = Vec::new();
+
+        let validated = validate_transform_template_module_contract(
+            &template,
+            &TransformTemplateEntrypoint::named("card"),
+            &params,
+            &options,
+            &mut diagnostics,
+        );
+
+        assert!(validated.is_some(), "{diagnostics:?}");
+        assert!(diagnostics.is_empty(), "{diagnostics:?}");
+    }
+
+    #[test]
+    fn template_module_contract_rejects_duplicate_param_aliases() {
+        let template = template("main.cem", b"{main}");
+        let options = TransformTemplateModuleOptions {
+            entrypoints: vec![
+                crate::transform_template::TransformTemplateModuleEntrypointDeclaration {
+                    name: "card".to_owned(),
+                    visibility: TransformTemplateModuleVisibility::Public,
+                },
+            ],
+            params: vec![
+                crate::transform_template::TransformTemplateModuleParamDeclaration {
+                    name: "card.title".to_owned(),
+                    default_value: None,
+                    required: true,
+                    visibility: TransformTemplateModuleVisibility::Private,
+                },
+            ],
+            ..TransformTemplateModuleOptions::default()
+        };
+        let params = BTreeMap::from([
+            ("card.title".to_owned(), json!("Intro")),
+            ("title".to_owned(), json!("Overview")),
+        ]);
+        let mut diagnostics = Vec::new();
+
+        let validated = validate_transform_template_module_contract(
+            &template,
+            &TransformTemplateEntrypoint::named("card"),
+            &params,
+            &options,
+            &mut diagnostics,
+        );
+
+        assert!(validated.is_none());
+        assert!(diagnostics
+            .iter()
+            .any(|diag| diag.code == TRANSFORM_TEMPLATE_PARAM_DUPLICATE_ALIAS_CODE));
+        assert!(!diagnostics
+            .iter()
+            .any(|diag| diag.code == TRANSFORM_TEMPLATE_PARAM_REQUIRED_CODE));
     }
 
     #[test]

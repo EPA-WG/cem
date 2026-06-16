@@ -127,6 +127,8 @@ pub const TRANSFORM_TEMPLATE_ENTRYPOINT_NOT_PUBLIC_CODE: &str =
     "cem.transform_template.entrypoint_not_public";
 pub const TRANSFORM_TEMPLATE_PARAM_UNKNOWN_CODE: &str = "cem.transform_template.param_unknown";
 pub const TRANSFORM_TEMPLATE_PARAM_REQUIRED_CODE: &str = "cem.transform_template.param_required";
+pub const TRANSFORM_TEMPLATE_PARAM_DUPLICATE_ALIAS_CODE: &str =
+    "cem.transform_template.param_duplicate_alias";
 pub const TRANSFORM_TEMPLATE_CALL_UNKNOWN_CODE: &str = "cem.transform_template.call_unknown";
 pub const TRANSFORM_TEMPLATE_IMPORT_CYCLE_CODE: &str = "cem.transform_template.import_cycle";
 pub const TRANSFORM_TEMPLATE_IMPORT_DEPTH_CODE: &str = "cem.transform_template.import_depth";

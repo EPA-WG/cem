@@ -350,7 +350,9 @@ minimal CEM-QL-fragment executor already implements these behaviors.
   the selected adapter explicitly declares an extension bucket for them. A caller
   param is considered provided when its key is present, including when the value is
   `null`; only omitted param keys use declaration defaults or trigger missing
-  required-param diagnostics.
+  required-param diagnostics. For a selected named entrypoint, the local param name
+  and its qualified `entrypoint.name` form are aliases; either form may be used
+  alone, but providing both aliases is a fatal duplicate-param diagnostic.
 - Data bindings are explicit adapter inputs. The stable binding set for the native
   module layer should include the primary artifact under `input`, named secondary
   artifacts under their `@with:*` labels, and declared params under their names.
@@ -418,7 +420,9 @@ entrypoint, caller params, and param declarations in the compiled payload. Durin
 render, caller params override declaration defaults, module-level defaults apply
 when omitted, explicit `null` values remain bound as caller values, and named
 entrypoint-local params are exposed through their local names inside the selected
-template or called imported template.
+template or called imported template. Qualified caller params such as `card.title`
+bind the same local value as `title` for selected entrypoint `card`; passing both
+aliases is rejected before adapter compilation.
 Compile requests now also carry `TransformTemplateModulePreflight`, populated by
 the real engine before adapter compilation. The preflight recursively reads
 declared imports through the template resolver, resolves relative imports against
