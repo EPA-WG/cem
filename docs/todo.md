@@ -175,7 +175,8 @@ for the current architecture have landed; only deferred capability work remains 
       non-nullable by default; `@nullable="true"` allows explicit JSON `null` caller values and literal
       `@default="null"`; explicit `null` remains provided for requiredness; `@default` is literal only, with raw strings
       for `any`/`string`, `true`/`false` for `boolean`, and parsed JSON for `number`/`integer`/`array`/`object`/`json`;
-      default expressions remain reserved;
+      `@default-expr` / `@defaultExpr` is reserved and fatal until expression context, resolver policy, and reporting are
+      defined;
       portable data bindings are primary `input`, named secondary graph inputs, and params; the CEM-QL data document also exposes those host bindings as top-level fields while retaining
       `datadom.attributes.*` compatibility; imports come before includes and load isolated modules through the `template` resolver; includes remain
       reserved; module cache keys include adapter ID, resolved URI, identity, content hash, selected entrypoint, execution
@@ -209,7 +210,7 @@ for the current architecture have landed; only deferred capability work remains 
       (`https://cem.dev/ns/template/cem-native/1`) and checked-in artifact
       `packages/cem_ml/schema/template/cem-native-template.md`, covering `module`, `import`, `param`, `template`,
       `body`, and `call`, including the first `param @type` JSON-shape surface and `param @nullable` nullability flag,
-      while keeping `include` reserved. The real engine now parses/lowers that schema into
+      while keeping `param @default-expr` / `@defaultExpr` and `include` reserved. The real engine now parses/lowers that schema into
       `TransformTemplateModuleOptions` before adapter compilation while preserving declaration-free CEM fragment
       templates. It validates named entrypoint requests against public declarations, rejects unknown caller params,
       validates typed caller/default param values, and reports missing required caller params before adapter compilation.

@@ -51,7 +51,15 @@ pub const CEM_NATIVE_TEMPLATE_SCHEMA_ELEMENTS: &[TransformTemplateNativeElementS
     TransformTemplateNativeElementSchema {
         local_name: "param",
         required_attributes: &["name"],
-        optional_attributes: &["default", "nullable", "required", "type", "visibility"],
+        optional_attributes: &[
+            "default",
+            "default-expr",
+            "defaultExpr",
+            "nullable",
+            "required",
+            "type",
+            "visibility",
+        ],
         child_elements: &[],
     },
     TransformTemplateNativeElementSchema {
@@ -136,6 +144,8 @@ pub const TRANSFORM_TEMPLATE_IMPORT_DEPTH_CODE: &str = "cem.transform_template.i
 pub const TRANSFORM_TEMPLATE_RECURSION_LIMIT_CODE: &str = "cem.transform_template.recursion_limit";
 pub const TRANSFORM_TEMPLATE_INCLUDE_RESERVED_CODE: &str =
     "cem.transform_template.include_reserved";
+pub const TRANSFORM_TEMPLATE_PARAM_DEFAULT_EXPR_RESERVED_CODE: &str =
+    "cem.transform_template.param_default_expr_reserved";
 pub const TRANSFORM_TEMPLATE_IMPORT_ALIAS_DUPLICATE_CODE: &str =
     "cem.transform_template.import_alias_duplicate";
 pub const TRANSFORM_TEMPLATE_DECLARATION_UNSUPPORTED_CODE: &str =
@@ -467,6 +477,16 @@ impl NativeTemplateModuleLowerer<'_> {
                 self.push_diag(TRANSFORM_TEMPLATE_DECLARATION_INVALID_CODE, message);
                 false
             });
+        let default_expr = attr_value(&attrs, "", "default-expr")
+            .or_else(|| attr_value(&attrs, "", "defaultExpr"));
+        if default_expr.is_some() {
+            self.push_diag(
+                TRANSFORM_TEMPLATE_PARAM_DEFAULT_EXPR_RESERVED_CODE,
+                format!(
+                    "template param `{name}` uses reserved `@default-expr`; use literal `@default` until default expression semantics are defined"
+                ),
+            );
+        }
         let default_value = attr_value(&attrs, "", "default")
             .and_then(|value| self.parse_param_default(&name, value_type, nullable, &value));
         let required = parse_bool_attr(attr_value(&attrs, "", "required").as_deref())
@@ -1656,6 +1676,7 @@ mod tests {
   {param @name="locale" @required="maybe"}
   {param @name="subtitle" @nullable="maybe"}
   {param @name="count" @type="integer" @default="1.5"}
+  {param @name="dynamic" @default-expr="input.title"}
   {param @name="mode" @type="token"}
   {template @name="card"}
   {template @name="card"}
@@ -1672,6 +1693,10 @@ mod tests {
             .diagnostics
             .iter()
             .any(|diag| diag.code == TRANSFORM_TEMPLATE_INCLUDE_RESERVED_CODE));
+        assert!(response
+            .diagnostics
+            .iter()
+            .any(|diag| diag.code == TRANSFORM_TEMPLATE_PARAM_DEFAULT_EXPR_RESERVED_CODE));
         assert!(response
             .diagnostics
             .iter()

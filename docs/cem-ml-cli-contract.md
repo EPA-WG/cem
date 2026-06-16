@@ -361,7 +361,9 @@ minimal CEM-QL-fragment executor already implements these behaviors.
   provided for requiredness. `@default` is literal: `any`/`string` keep the
   attribute text as a string, `boolean` accepts only `true`/`false`, and
   `number`/`integer`/`array`/`object`/`json` parse JSON and must match the
-  declared type. Default expressions remain reserved.
+  declared type. Default expressions remain reserved behind `@default-expr` /
+  `@defaultExpr`; using either spelling is fatal until expression evaluation
+  context, resolver policy, and reporting are defined.
 - Data bindings are explicit adapter inputs. The stable binding set for the native
   module layer should include the primary artifact under `input`, named secondary
   artifacts under their `@with:*` labels, and declared params under their names.
@@ -400,8 +402,9 @@ schema. It defines the declaration vocabulary:
 - `import @as @src` declares a resolver-backed module dependency. Optional
   `@content-type` / `@contentType` and `@schema` provide identity hints.
 - `param @name` declares an immutable render parameter. Optional `@type`,
-  `@nullable`, `@default`, `@required`, and `@visibility` describe JSON shape,
-  nullability, literal defaults, requiredness, and API surface.
+  `@nullable`, `@default`, `@default-expr` / `@defaultExpr`, `@required`, and
+  `@visibility` describe JSON shape, nullability, literal defaults, the reserved
+  future expression-default slot, requiredness, and API surface.
 - `template @name` declares a named entrypoint. Optional `@visibility="public"`
   exports it across module boundaries; otherwise it is private.
 - `body` holds the implicit entrypoint body or the body of a named template.

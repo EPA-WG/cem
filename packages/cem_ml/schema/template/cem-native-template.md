@@ -18,7 +18,7 @@ Namespace URI: `https://cem.dev/ns/template/cem-native/1`
 | ------- | ------------------- | ------------------- | -------------- |
 | `module` | none | `version` | `import`, `param`, `template`, `body` |
 | `import` | `as`, `src` | `content-type`, `contentType`, `schema` | none |
-| `param` | `name` | `default`, `nullable`, `required`, `type`, `visibility` | none |
+| `param` | `name` | `default`, `default-expr`, `defaultExpr`, `nullable`, `required`, `type`, `visibility` | none |
 | `template` | `name` | `visibility` | `param`, `body` |
 | `body` | none | none | `*` |
 | `call` | `template` | `from`, `with:*` | none |
@@ -42,6 +42,9 @@ Namespace URI: `https://cem.dev/ns/template/cem-native/1`
   `true` or `false`. For `number`, `integer`, `array`, `object`, and `json`, the
   literal is parsed as JSON and must match the declared type. The literal `null`
   is accepted only when `@nullable="true"`.
+- `@default-expr` / `@defaultExpr` is reserved for future expression defaults and
+  is a fatal declaration diagnostic in this schema version. It must not be
+  evaluated by adapters yet.
 - `@required="true"` requires a caller value when no default is present.
 - `import @as="ALIAS" @src="URI"` loads a separate module through the template
   resolver. The imported module's private declarations remain isolated.
@@ -58,9 +61,10 @@ Namespace URI: `https://cem.dev/ns/template/cem-native/1`
 
 - `include` is intentionally not part of this schema. Lexical include remains a
   reserved future feature.
-- Default expressions remain reserved. Defaults are literal values only until the
-  template adapter contract defines expression context, resolver access, and
-  failure reporting for default evaluation.
+- Default expressions remain reserved behind `@default-expr` / `@defaultExpr`.
+  Defaults are literal values only until the template adapter contract defines
+  expression context, resolver access, and failure reporting for default
+  evaluation.
 
 ## Example
 

@@ -687,7 +687,8 @@ These are data shapes only. Parser-filled content remains blocked until the pars
               compilation. Params are non-nullable by default; `@nullable="true"` allows explicit JSON `null` caller
               values and literal `@default="null"`. Explicit `null` remains provided for requiredness. Keep `@default`
               literal: `any`/`string` are raw strings, `boolean` is `true`/`false`, and
-              `number`/`integer`/`array`/`object`/`json` parse JSON. Default expressions remain reserved.
+              `number`/`integer`/`array`/`object`/`json` parse JSON. Reserve `@default-expr` / `@defaultExpr` for future
+              expression defaults and reject it until expression context, resolver policy, and reporting are defined.
             - Keep portable data bindings explicit: primary artifact as `input`, named secondary artifacts under their
               graph labels, and params under their names. The CEM-QL data document also exposes those host bindings as
               top-level fields while retaining the legacy `datadom.attributes.*` projection. Direct primary-object
@@ -739,7 +740,8 @@ These are data shapes only. Parser-filled content remains blocked until the pars
           `https://cem.dev/ns/template/cem-native/1`, and checked-in schema artifact
           `packages/cem_ml/schema/template/cem-native-template.md`. Its declaration vocabulary is `module`, `import`,
           `param`, `template`, `body`, and `call`; `param @type` defines the first JSON-shape type surface,
-          `param @nullable` controls nullability, and `include` remains intentionally absent/reserved. Built-in and CEM-QL
+          `param @nullable` controls nullability, `param @default-expr` / `@defaultExpr` is reserved and fatal, and
+          `include` remains intentionally absent/reserved. Built-in and CEM-QL
           executable template adapters recognize this schema identity while preserving legacy CEM core identity fallback
           for existing CEM-native template selection.
         - The CLI transform graph config has its own schema identity,
