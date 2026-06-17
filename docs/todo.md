@@ -20,10 +20,15 @@ coverage into durable fixtures, close the explicit material-parity gaps, and wir
 
 Recommended execution order:
 
-- [ ] **Baseline the current substrate gate.** Run and record the current status for
+- [x] **Baseline the current substrate gate.** Run and record the current status for
       `yarn nx run cem-elements:test:unit`, `yarn nx run cem-elements:test`,
       `yarn nx run cem-elements:verify-substrate`, and `yarn nx run cem-elements:verify`. Fix only harness drift in this
       slice; leave behavior gaps as named checklist items below.
+      Baseline run on 2026-06-17: all four commands passed. `test:unit` passed 3 files / 63 tests; `test` passed 4
+      Storybook/Vitest files / 67 tests; `verify-substrate` parsed and roundtripped 4 CEM fixtures; `verify` passed the
+      aggregate gate including `cem_ml_cli:validate-fixtures`, `cem_ml_cli:e2e`, substrate roundtrip, unit tests, and
+      Storybook parity stories. Observed warnings were non-fatal baseline noise: Node `NO_COLOR`/`FORCE_COLOR`, Lit dev
+      mode, fixture validation warnings with zero hard violations, and expected cross-surface conversion warnings.
 - [ ] **Create file-backed legacy parity fixtures.** Add `packages/cem-elements/tests/parity/legacy/` fixtures mapped to
       `packages/cem-elements/docs/legacy-parity-inventory.md`: declaration registration, inline template shape,
       local/external `src`, payload capture, attribute defaults/overrides, attribute invalidation, slots, slice events,
