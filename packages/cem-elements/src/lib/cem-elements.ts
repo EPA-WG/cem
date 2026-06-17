@@ -1,10 +1,7 @@
 import {
     materializeRenderPlan,
     projectTemplate,
-    projectSlotsInRenderPlan,
     readTemplateSource,
-    type RenderPlan,
-    type RenderPlanNode,
     type TemplateSourceNode,
     type TemplateValue,
 } from './projection.js';
@@ -12,7 +9,7 @@ import {
     compileCemMlTemplate,
     convertLegacyTemplate,
     ensureRuntimeReady,
-    renderCemMlTemplate,
+    processCemMlTemplate,
     type RuntimeSupportDiagnostic,
 } from './internal/runtime-support/cem-ql-render.js';
 import { ingestContractVersion, type RunMode } from './disposition.js';
@@ -786,7 +783,18 @@ export class CemElementRuntime {
             }
             const source = compiled.cemMlSource ?? '';
             const data = wasmTemplateData(snapshot, compiled.declaredAttributes);
-            const result = await renderCemMlTemplate(source, data, {
+            const result = await processCemMlTemplate({
+                source,
+                data,
+                payload: snapshot.payload,
+                identity: {
+                    producedTag: compiled.producedTag,
+                    instanceId: snapshot.instanceId,
+                    templateArtifactId: compiled.artifactId,
+                    dataRevision: snapshot.dataRevision,
+                    outputTarget: snapshot.outputTarget,
+                    scopePolicyStamp: snapshot.scopePolicyStamp,
+                },
                 renderNodeIdPrefix: compiled.producedTag,
             });
             if (this.renderTokens.get(instance) !== token) {
@@ -800,8 +808,7 @@ export class CemElementRuntime {
                     )
                 );
             }
-            const plan = projectSlotsInRenderPlan(planFromNodes(result.nodes, snapshot, compiled), snapshot.payload);
-            const fragment = materializeRenderPlan(plan, instance.ownerDocument);
+            const fragment = materializeRenderPlan(result.renderPlan, instance.ownerDocument);
             const island = this.ensureDataIsland(instance);
             this.bindRenderedSliceEvents(instance, compiled, fragment);
             const resourcesSettled = this.bindRenderedResourceSlices(instance, compiled, fragment, token);
@@ -1600,23 +1607,6 @@ function addTemplateValuePaths(values: Record<string, TemplateValue>, prefix: st
     for (const [name, child] of Object.entries(value)) {
         addTemplateValuePaths(values, `${prefix}.${name}`, child);
     }
-}
-
-/** Wrap WASM-produced render-plan nodes in a render plan carrying snapshot identity. */
-function planFromNodes(
-    nodes: RenderPlanNode[],
-    snapshot: DataIslandSnapshot,
-    compiled: CompiledDeclaration
-): RenderPlan {
-    return {
-        producedTag: compiled.producedTag,
-        instanceId: snapshot.instanceId,
-        templateArtifactId: compiled.artifactId,
-        dataRevision: snapshot.dataRevision,
-        outputTarget: 'light-dom',
-        scopePolicyStamp: snapshot.scopePolicyStamp,
-        nodes,
-    };
 }
 
 function runtimeSupportDiagnostic(diagnostic: RuntimeSupportDiagnostic, tag: string): CemElementDiagnostic {

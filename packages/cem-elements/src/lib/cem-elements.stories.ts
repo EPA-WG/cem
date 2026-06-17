@@ -35,7 +35,7 @@ import {
     type RenderPlanNode,
     type TemplateSourceNode,
 } from './projection.js';
-import { renderCemMlTemplate, runtimeVersion } from './internal/runtime-support/cem-ql-render.js';
+import { processCemMlTemplate, renderCemMlTemplate, runtimeVersion } from './internal/runtime-support/cem-ql-render.js';
 import { domToRecord, normalizeSpace, tokenTableRows } from './data-document.js';
 
 const meta: Meta = {
@@ -438,6 +438,55 @@ export const CemQlWasmRenderBoundary: Story = {
             'WASM render carries author-byte-exact fidelity'
         );
         assertEqual(button.sourceMapRef?.frame, 'cem:0', 'root frame is the source byte offset');
+
+        const processed = await processCemMlTemplate({
+            source: '{article @class="card {$tone}" | {slot @name=detail | fallback}}',
+            data: { tone: 'primary' },
+            identity: {
+                producedTag: 'cem-processed',
+                instanceId: 'processed-instance-1',
+                templateArtifactId: 'processed-template-1',
+                dataRevision: '1',
+                outputTarget: 'light-dom',
+                scopePolicyStamp: 'processed-scope',
+            },
+            payload: {
+                slots: {
+                    detail: [{ kind: 'text', key: 'payload-detail-0', text: 'Projected detail' }],
+                },
+            },
+            previousRenderPlan: null,
+            patchOptions: { transactionId: 'processed-tx-1' },
+        });
+        assertEqual(
+            processed.diagnostics.length,
+            0,
+            'template processing boundary returns no diagnostics for well-formed source'
+        );
+        assertEqual(processed.renderPlan.producedTag, 'cem-processed', 'processing boundary carries render identity');
+        assertEqual(processed.renderPlan.nodes.length, 1, 'processing boundary returns a light-DOM render plan');
+        const [processedRoot] = processed.renderPlan.nodes;
+        assert(processedRoot.kind === 'element', 'processed render-plan root is an element');
+        assertEqual(processedRoot.tag, 'article', 'processing boundary preserves rendered root tag');
+        assertEqual(
+            processedRoot.attributes.find((attribute) => attribute.name === 'class')?.value,
+            'card primary',
+            'processing boundary runs CEM-QL expressions through WASM'
+        );
+        assertEqual(processedRoot.children.length, 1, 'processing boundary projects payload into slots');
+        const [projectedDetail] = processedRoot.children;
+        assert(projectedDetail.kind === 'text', 'projected slot payload remains render-plan data');
+        assertEqual(projectedDetail.text, 'Projected detail', 'processing boundary returns slot-projected render data');
+        assert(
+            processed.patchFrames?.some(
+                (frame) =>
+                    frame.type === 'ops' &&
+                    frame.ops.some(
+                        (operation) => operation.op === 'replaceScope' && operation.reason === 'first-render'
+                    )
+            ),
+            'processing boundary can return first-render patch frames without applying DOM'
+        );
 
         // Diagnostics flow through the same boundary: an unknown binding compiles to a
         // mapped render diagnostic rather than throwing.

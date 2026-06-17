@@ -91,10 +91,13 @@ Recommended execution order:
       `assertProcessingBoundaryValue` now guards edge content/state persistence, and unit coverage proves exported
       snapshots, render plans, patch frames, edge records, and edge content reads are plain structured-clone data while
       rejecting functions, class/browser handles, `Map`, `Set`, `Date`, and event-like objects.
-- [ ] **Wire the first WASM-backed template-processing path.** Select the minimal Phase 3 path from
+- [x] **Wire the first WASM-backed template-processing path.** Select the minimal Phase 3 path from
       `cem-element-wasm-proposal.md`: compile inline/external CEM-ML or DOM-parity source, run CEM-QL expressions,
       produce light-DOM render plans or patch frames, return structured diagnostics, and keep DOM patch application on
       the main-thread UI adapter.
+      `processCemMlTemplate` now owns the first explicit processing boundary: it compiles/renders canonical CEM-ML
+      through `cem_ql` WASM, projects slots from structured payload data, returns render-plan identity plus optional
+      patch frames, and leaves DOM materialization/application in the `<cem-element>` UI adapter.
 - [ ] **Track source-map fidelity through render output.** Cover `author-byte-exact` for external/raw CEM sources,
       `dom-canonical` for DOM-parsed inline XML/HTML parity, and `declaration-only` fallback diagnostics. Rendered nodes
       should carry enough source-map identity for fixture assertions and devtools reporting.

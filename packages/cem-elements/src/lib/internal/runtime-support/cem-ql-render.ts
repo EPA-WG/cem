@@ -23,7 +23,16 @@ import initCemQlWasm, {
     renderTemplateSource,
     version as cemQlVersion,
 } from '../../../../../cem_ql/dist/wasm/cem_ql.js';
-import type { RenderPlanNode, SourceMapRef } from '../../projection.js';
+import {
+    assertProcessingBoundaryValue,
+    diffRenderPlansToPatchFrames,
+    projectSlotsInRenderPlan,
+    type EdgePatchOptions,
+    type PatchFrame,
+    type RenderPlan,
+    type RenderPlanNode,
+    type SourceMapRef,
+} from '../../projection.js';
 
 export interface RuntimeSupportDiagnostic {
     code: string;
@@ -40,6 +49,31 @@ export interface CemQlRenderResult {
 export interface CemQlRenderOptions {
     /** Prefix for deterministic, pre-order render-node ids (typically the produced tag). */
     renderNodeIdPrefix?: string;
+}
+
+export interface CemMlTemplateProcessingIdentity {
+    producedTag: string;
+    instanceId: string;
+    templateArtifactId: string;
+    dataRevision: string;
+    outputTarget: 'light-dom';
+    scopePolicyStamp: string;
+}
+
+export interface CemMlTemplateProcessingInput {
+    source: string;
+    data: Record<string, unknown>;
+    identity: CemMlTemplateProcessingIdentity;
+    payload?: unknown;
+    previousRenderPlan?: RenderPlan | null;
+    patchOptions?: EdgePatchOptions;
+    renderNodeIdPrefix?: string;
+}
+
+export interface CemMlTemplateProcessingResult {
+    renderPlan: RenderPlan;
+    diagnostics: RuntimeSupportDiagnostic[];
+    patchFrames?: PatchFrame[];
 }
 
 let initPromise: Promise<void> | undefined;
@@ -124,6 +158,7 @@ export async function renderCemMlTemplate(
     data: Record<string, unknown>,
     options: CemQlRenderOptions = {}
 ): Promise<CemQlRenderResult> {
+    assertProcessingBoundaryValue(data, 'CEM-ML render data');
     await ensureRuntimeReady();
     const planJson = renderTemplateSource(source, JSON.stringify(data ?? {}));
     const plan = JSON.parse(planJson) as WasmRenderPlan;
@@ -138,6 +173,46 @@ export async function renderCemMlTemplate(
     return {
         nodes: (plan.nodes ?? []).map((node) => mapNode(node, nextRenderNodeId)),
         diagnostics: (plan.diagnostics ?? []).map(mapDiagnostic),
+    };
+}
+
+/**
+ * First explicit template-processing path: compile/render CEM-ML through WASM,
+ * return a serializable light-DOM render plan, and optionally produce patch frames.
+ * DOM materialization/application remains the caller's main-thread UI-adapter work.
+ */
+export async function processCemMlTemplate(
+    input: CemMlTemplateProcessingInput
+): Promise<CemMlTemplateProcessingResult> {
+    assertProcessingBoundaryValue(input.data, 'CEM-ML processing data');
+    assertProcessingBoundaryValue(input.identity, 'CEM-ML processing identity');
+    if (input.payload !== undefined) {
+        assertProcessingBoundaryValue(input.payload, 'CEM-ML processing payload');
+    }
+    if (input.previousRenderPlan !== undefined && input.previousRenderPlan !== null) {
+        assertProcessingBoundaryValue(input.previousRenderPlan, 'previous render plan');
+    }
+
+    const declarationDiagnostics = await compileCemMlTemplate(input.source);
+    const rendered = await renderCemMlTemplate(input.source, input.data, {
+        renderNodeIdPrefix: input.renderNodeIdPrefix ?? input.identity.producedTag,
+    });
+    const renderPlan = projectSlotsInRenderPlan(
+        {
+            ...input.identity,
+            nodes: rendered.nodes,
+        },
+        input.payload
+    );
+    assertProcessingBoundaryValue(renderPlan, 'CEM-ML render plan');
+
+    return {
+        renderPlan,
+        diagnostics: [...declarationDiagnostics, ...rendered.diagnostics],
+        patchFrames:
+            input.previousRenderPlan === undefined
+                ? undefined
+                : diffRenderPlansToPatchFrames(input.previousRenderPlan, renderPlan, input.patchOptions),
     };
 }
 
