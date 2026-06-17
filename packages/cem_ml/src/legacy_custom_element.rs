@@ -3744,6 +3744,30 @@ mod tests {
     }
 
     #[test]
+    fn apply_templates_mode_uses_mode_specific_templates_through_defaults() {
+        let result = convert(
+            r#"<doc><wrap><item>A</item></wrap><item>B</item></doc><xsl:stylesheet version="1.0"><xsl:template match="/"><out><xsl:apply-templates select="*" mode="card"/></out></xsl:template><xsl:template match="item"><plain><xsl:value-of select="."/></plain></xsl:template><xsl:template match="item" mode="card"><card><xsl:value-of select="."/></card></xsl:template></xsl:stylesheet>"#,
+        );
+        assert_eq!(
+            result.source,
+            "{doc | {wrap | {item | A}}{item | B}}{out | {card | A}{card | B}}"
+        );
+        assert!(result.diagnostics.is_empty());
+    }
+
+    #[test]
+    fn apply_templates_without_mode_inside_mode_template_uses_default_mode() {
+        let result = convert(
+            r#"<doc><item><child>A</child></item></doc><xsl:stylesheet version="1.0"><xsl:template match="/"><out><xsl:apply-templates select="//item" mode="card"/></out></xsl:template><xsl:template match="item" mode="card"><mode><xsl:apply-templates select="*"/></mode></xsl:template><xsl:template match="child"><plain><xsl:value-of select="."/></plain></xsl:template><xsl:template match="child" mode="card"><card><xsl:value-of select="."/></card></xsl:template></xsl:stylesheet>"#,
+        );
+        assert_eq!(
+            result.source,
+            "{doc | {item | {child | A}}}{out | {mode | {plain | A}}}"
+        );
+        assert!(result.diagnostics.is_empty());
+    }
+
+    #[test]
     fn sorts_with_multiple_keys_and_numeric_type() {
         let result = convert(
             r#"<doc><item group="b" rank="2">B2</item><item group="a" rank="10">A10</item><item group="a" rank="2">A2</item></doc><xsl:stylesheet version="1.0"><xsl:template match="/"><ol><xsl:apply-templates select="//item"><xsl:sort select="@group"/><xsl:sort select="@rank" data-type="number"/></xsl:apply-templates></ol></xsl:template><xsl:template match="item"><li><xsl:value-of select="@group"/>:<xsl:value-of select="@rank"/>:<xsl:value-of select="."/></li></xsl:template></xsl:stylesheet>"#,
