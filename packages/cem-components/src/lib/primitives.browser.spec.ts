@@ -103,6 +103,71 @@ describe('CEM component primitives', () => {
         expect(() => assertAriaReferenceIntegrity(harness.root)).not.toThrow();
     });
 
+    it('renders input-family MVP primitives as native accessible controls', async () => {
+        harness = createComponentHarness();
+        const root = await harness.render(`
+            <cem-stack gap="sm">
+                <cem-text-field name="email" value="a@b.test" placeholder="name@example.com">
+                    <span slot="label">Email</span>
+                    <span slot="help">Use a work address.</span>
+                </cem-text-field>
+                <cem-textarea name="bio" value="Short bio">
+                    <span slot="label">Bio</span>
+                </cem-textarea>
+                <cem-select name="role">
+                    <span slot="label">Role</span>
+                    <option value="admin">Admin</option>
+                    <option value="viewer">Viewer</option>
+                </cem-select>
+                <cem-checkbox name="terms" value="accepted">Accept terms</cem-checkbox>
+                <cem-radio name="plan" value="pro">Pro plan</cem-radio>
+                <cem-switch name="notifications">Notifications</cem-switch>
+            </cem-stack>
+        `);
+        await waitForPrimitive(root, 'cem-switch input');
+
+        const textField = harness.query<HTMLInputElement>('cem-text-field input');
+        const textarea = harness.query<HTMLTextAreaElement>('cem-textarea textarea');
+        const select = harness.query<HTMLSelectElement>('cem-select select');
+        const checkbox = harness.query<HTMLInputElement>('cem-checkbox input');
+        const radio = harness.query<HTMLInputElement>('cem-radio input');
+        const switchInput = harness.query<HTMLInputElement>('cem-switch input');
+
+        for (const host of Array.from(
+            harness.root.querySelectorAll<HTMLElement>(
+                'cem-text-field, cem-textarea, cem-select, cem-checkbox, cem-radio, cem-switch',
+            ),
+        )) {
+            assertLightDomRendered(host);
+            expect(host.shadowRoot).toBeNull();
+        }
+
+        expect(textField.type).toBe('text');
+        expect(textField.getAttribute('name')).toBe('email');
+        expect(textField.getAttribute('value')).toBe('a@b.test');
+        expect(textField.getAttribute('placeholder')).toBe('name@example.com');
+        expect(assertAccessibleName(textField, 'Email')).toBe('Email');
+        expect(textarea.getAttribute('name')).toBe('bio');
+        expect(textarea.value).toBe('Short bio');
+        expect(assertAccessibleName(textarea, 'Bio')).toBe('Bio');
+        expect(select.getAttribute('name')).toBe('role');
+        expect(select.querySelectorAll('option')).toHaveLength(2);
+        expect(assertAccessibleName(select, 'Role')).toBe('Role');
+        expect(checkbox.type).toBe('checkbox');
+        expect(checkbox.getAttribute('name')).toBe('terms');
+        expect(checkbox.getAttribute('value')).toBe('accepted');
+        expect(assertAccessibleName(checkbox, 'Accept terms')).toBe('Accept terms');
+        expect(radio.type).toBe('radio');
+        expect(radio.getAttribute('name')).toBe('plan');
+        expect(radio.getAttribute('value')).toBe('pro');
+        expect(assertAccessibleName(radio, 'Pro plan')).toBe('Pro plan');
+        expect(switchInput.type).toBe('checkbox');
+        expect(switchInput.getAttribute('role')).toBe('switch');
+        expect(switchInput.getAttribute('name')).toBe('notifications');
+        expect(assertAccessibleName(switchInput, 'Notifications')).toBe('Notifications');
+        expect(() => assertAriaReferenceIntegrity(harness.root)).not.toThrow();
+    });
+
     it('renders layout, list, navigation, surface, and dialog shell primitives', async () => {
         harness = createComponentHarness();
         const root = await harness.render(`

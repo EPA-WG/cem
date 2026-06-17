@@ -50,6 +50,64 @@ export const CEM_COMPONENT_PRIMITIVES = [
             ' {span @class=cem-field__help | {slot @name=help}}}',
     },
     {
+        tag: 'cem-text-field',
+        description: 'MVP single-line text field with label and help slots.',
+        cemMl:
+            '{attribute @name=label | Text field}' +
+            '{attribute @name=type | text}' +
+            '{div @class=cem-text-field |' +
+            ' {label @class=cem-text-field__label | {span | {slot @name=label | {$label}}} {input @class=cem-text-field__control @type="{$type}" @name="{$datadom.attributes.name}" @value="{$datadom.attributes.value}" @placeholder="{$datadom.attributes.placeholder}" | }}' +
+            ' {span @class=cem-text-field__help | {slot @name=help}}}',
+    },
+    {
+        tag: 'cem-textarea',
+        description: 'MVP multi-line text field with label and help slots.',
+        cemMl:
+            '{attribute @name=label | Textarea}' +
+            '{div @class=cem-textarea |' +
+            ' {label @class=cem-textarea__label | {span | {slot @name=label | {$label}}} {textarea @class=cem-textarea__control @name="{$datadom.attributes.name}" @placeholder="{$datadom.attributes.placeholder}" | {$datadom.attributes.value}}}' +
+            ' {span @class=cem-textarea__help | {slot @name=help}}}',
+    },
+    {
+        tag: 'cem-select',
+        description: 'MVP native select field with projected option content.',
+        cemMl:
+            '{attribute @name=label | Select}' +
+            '{div @class=cem-select |' +
+            ' {label @class=cem-select__label | {span | {slot @name=label | {$label}}} {select @class=cem-select__control @name="{$datadom.attributes.name}" | {slot | {option @value="" | Choose}}}}' +
+            ' {span @class=cem-select__help | {slot @name=help}}}',
+    },
+    {
+        tag: 'cem-checkbox',
+        description: 'MVP checkbox field with slotted label content.',
+        cemMl:
+            '{attribute @name=label | Checkbox}' +
+            '{attribute @name=value | on}' +
+            '{label @class=cem-checkbox |' +
+            ' {input @class=cem-checkbox__control @type=checkbox @name="{$datadom.attributes.name}" @value="{$value}" | }' +
+            ' {span @class=cem-checkbox__label | {slot | {$label}}}}',
+    },
+    {
+        tag: 'cem-radio',
+        description: 'MVP radio field with slotted label content.',
+        cemMl:
+            '{attribute @name=label | Radio}' +
+            '{attribute @name=value | on}' +
+            '{label @class=cem-radio |' +
+            ' {input @class=cem-radio__control @type=radio @name="{$datadom.attributes.name}" @value="{$value}" | }' +
+            ' {span @class=cem-radio__label | {slot | {$label}}}}',
+    },
+    {
+        tag: 'cem-switch',
+        description: 'MVP switch field backed by a native checkbox control.',
+        cemMl:
+            '{attribute @name=label | Switch}' +
+            '{attribute @name=value | on}' +
+            '{label @class=cem-switch |' +
+            ' {input @class=cem-switch__control @type=checkbox @role=switch @name="{$datadom.attributes.name}" @value="{$value}" | }' +
+            ' {span @class=cem-switch__label | {slot | {$label}}}}',
+    },
+    {
         tag: 'cem-surface',
         description: 'Section surface for grouped content.',
         cemMl:

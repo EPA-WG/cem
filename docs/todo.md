@@ -313,7 +313,9 @@ to proven web component names, states, attributes, and accessibility behavior in
       chip/badge/avatar/media preview, dialog/sheet/toast/progress/skeleton/alert. First action-family slice landed in
       `@epa-wg/cem-components`: `cem-action`, `cem-icon-button`, and `cem-menu-item` register through the primitive
       declaration installer and have browser harness coverage for light-DOM rendering, accessible names, and ARIA
-      reference integrity.
+      reference integrity. The input-family MVP slice now registers `cem-text-field`, `cem-textarea`, `cem-select`,
+      `cem-checkbox`, `cem-radio`, and `cem-switch` with browser harness coverage for native form controls, projected
+      options, accessible names, values, and ARIA reference integrity.
 - [ ] Add component docs and examples for semantics, token usage, states, and accessibility notes. The exit gate is that
       the future CEM site and Figma site demo can be built from this component set without one-off UI controls.
 
