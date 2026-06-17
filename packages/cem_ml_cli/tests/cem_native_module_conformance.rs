@@ -355,6 +355,9 @@ fn graph_config_covers_join_collection_report_and_sidecar() {
         collection["items"][1]["primary"],
         "<article>Chapter</article>"
     );
+    assert!(collection["inputs"].is_null());
+    assert!(collection["items"][0]["sourceMap"].is_null());
+    assert!(collection["items"][0]["outputSpans"].is_null());
 
     let sidecar = format!("{}.map", out.display());
     let sidecar_json: serde_json::Value = serde_json::from_str(

@@ -2519,6 +2519,9 @@ fn write_document_primary(
     let bytes;
     let body = if let Some(content) = document_primary_content(primary) {
         content.as_bytes()
+    } else if let Some(projected) = collection_primary_output_value(primary) {
+        bytes = serde_json::to_vec_pretty(&projected)?;
+        &bytes
     } else {
         bytes = serde_json::to_vec_pretty(primary)?;
         &bytes
@@ -2537,6 +2540,35 @@ fn write_document_primary(
         }
     }
     Ok(())
+}
+
+fn collection_primary_output_value(primary: &serde_json::Value) -> Option<serde_json::Value> {
+    if primary.get("kind").and_then(serde_json::Value::as_str) != Some("collection") {
+        return None;
+    }
+    let items = primary
+        .get("items")
+        .and_then(serde_json::Value::as_array)?
+        .iter()
+        .map(|item| {
+            serde_json::json!({
+                "input": item.get("input").cloned().unwrap_or(serde_json::Value::Null),
+                "artifactId": item.get("artifactId").cloned().unwrap_or(serde_json::Value::Null),
+                "uri": item.get("uri").cloned().unwrap_or(serde_json::Value::Null),
+                "identity": item.get("identity").cloned().unwrap_or(serde_json::Value::Null),
+                "primary": item.get("primary").cloned().unwrap_or(serde_json::Value::Null),
+                "bindings": item.get("bindings").cloned().unwrap_or_else(|| serde_json::json!({})),
+            })
+        })
+        .collect::<Vec<_>>();
+
+    Some(serde_json::json!({
+        "kind": "collection",
+        "mode": primary.get("mode").cloned().unwrap_or(serde_json::Value::Null),
+        "count": primary.get("count").cloned().unwrap_or_else(|| serde_json::json!(items.len())),
+        "bindings": primary.get("bindings").cloned().unwrap_or_else(|| serde_json::json!({})),
+        "items": items,
+    }))
 }
 
 fn document_primary_content(primary: &serde_json::Value) -> Option<&str> {
@@ -5086,6 +5118,12 @@ mod tests {
             .unwrap();
 
         assert!(out.exists());
+        let collection: serde_json::Value =
+            serde_json::from_str(&std::fs::read_to_string(&out).unwrap()).unwrap();
+        assert_eq!(collection["kind"], "collection");
+        assert_eq!(collection["items"][0]["artifactId"], "html");
+        assert!(collection["items"][0]["sourceMap"].is_null());
+        assert!(collection["items"][0]["outputSpans"].is_null());
         let sidecar: serde_json::Value = serde_json::from_str(
             &std::fs::read_to_string(format!("{}.map", out.display())).unwrap(),
         )

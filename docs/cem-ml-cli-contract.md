@@ -808,6 +808,9 @@ JSON payload to that sidecar through the output resolver. For graph exports, the
 `destination` metadata to object-shaped source-map payloads. Collection export sidecars use a collection-shaped
 source-map payload with per-item `sourceMap` and `outputSpans` entries instead of flattening multiple provenance stacks
 into one. Stdout outputs omit `sourceMapRef` because they do not have a stable adjacent file path.
+Collection primary JSON outputs are a stable public projection with `kind`, `mode`, `count`, `bindings`, and `items[]`
+entries containing `input`, `artifactId`, `uri`, `identity`, `primary`, and `bindings`. Per-item `sourceMap` and
+`outputSpans` are intentionally omitted from the primary output and remain in sidecar/report surfaces.
 When an export artifact is object-shaped and has a string `content` field, the configured output destination receives
 that document content; sidecar/report metadata remains outside the primary output body.
 

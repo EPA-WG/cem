@@ -98,6 +98,8 @@ for the current architecture have landed; only deferred capability work remains 
       provenance into `collectionItems[]` report summaries and collection-shaped source-map sidecars instead of
       flattening multiple item stacks into one source-map stack. The separate CLI integration suite now covers an
       example-shaped transform -> collect join -> collection export case with JSON report and sidecar assertions.
+      Collection primary JSON exports now use a stable public projection and keep per-item source maps/output spans out
+      of the primary output.
       Keep the checked-in CEM-native CLI transform-config schema
       (`packages/cem_ml/schema/cli/transform-config.md`,
       `https://cem.dev/ns/cli/transform-config/1`) separate from CEM core document schemas and template schemas.
