@@ -84,10 +84,13 @@ Recommended execution order:
       bridge/adoption work and make the gate assert the documented behavior.
       Decision: selector containment is bridge/adoption work, not a Phase 3.1 gate requirement. `MaterialScopedStylePolicy`
       now asserts that template styles are emitted into light DOM and apply page-globally.
-- [ ] **Define the host processing boundary in code.** Add or harden TypeScript runtime-support contracts for
+- [x] **Define the host processing boundary in code.** Add or harden TypeScript runtime-support contracts for
       `DataIslandSnapshot`, `RenderRevision`, template artifact refs, source-map refs, render-plan identity, patch
       frames, and patch apply results. Add structured-clone safety tests proving no live `Node`, `Event`, function,
       class instance, `Map`, `Set`, `Date`, or browser handle crosses the processing boundary.
+      `assertProcessingBoundaryValue` now guards edge content/state persistence, and unit coverage proves exported
+      snapshots, render plans, patch frames, edge records, and edge content reads are plain structured-clone data while
+      rejecting functions, class/browser handles, `Map`, `Set`, `Date`, and event-like objects.
 - [ ] **Wire the first WASM-backed template-processing path.** Select the minimal Phase 3 path from
       `cem-element-wasm-proposal.md`: compile inline/external CEM-ML or DOM-parity source, run CEM-QL expressions,
       produce light-DOM render plans or patch frames, return structured diagnostics, and keep DOM patch application on

@@ -415,6 +415,7 @@ export function diffRenderPlansToPatchFrames(
 }
 
 export function edgeContentAddress(kind: EdgeContentKind, value: unknown): EdgeContentAddress {
+    assertProcessingBoundaryValue(value, `${kind} content`);
     const digest = stableJsonDigest(value);
     const algorithm = 'stable-json-fnv1a64-v1';
     return {
@@ -423,6 +424,52 @@ export function edgeContentAddress(kind: EdgeContentKind, value: unknown): EdgeC
         digest,
         key: `${kind}:${algorithm}:${digest}`,
     };
+}
+
+export function assertProcessingBoundaryValue(value: unknown, label = 'processing boundary value'): void {
+    const failure = findProcessingBoundaryViolation(value, label);
+    if (failure) {
+        throw new TypeError(failure);
+    }
+}
+
+function findProcessingBoundaryViolation(value: unknown, path: string): string | null {
+    if (
+        value === null ||
+        value === undefined ||
+        typeof value === 'string' ||
+        typeof value === 'number' ||
+        typeof value === 'boolean'
+    ) {
+        return null;
+    }
+    if (typeof value === 'function' || typeof value === 'symbol' || typeof value === 'bigint') {
+        return `${path} contains non-transport value ${typeof value}`;
+    }
+    if (Array.isArray(value)) {
+        for (const [index, item] of value.entries()) {
+            const failure = findProcessingBoundaryViolation(item, `${path}[${index}]`);
+            if (failure) {
+                return failure;
+            }
+        }
+        return null;
+    }
+    if (typeof value === 'object') {
+        const prototype = Object.getPrototypeOf(value);
+        if (prototype !== Object.prototype && prototype !== null) {
+            const name = prototype?.constructor?.name ?? 'unknown';
+            return `${path} contains non-plain object ${name}`;
+        }
+        for (const [key, item] of Object.entries(value as Record<string, unknown>)) {
+            const failure = findProcessingBoundaryViolation(item, `${path}.${key}`);
+            if (failure) {
+                return failure;
+            }
+        }
+        return null;
+    }
+    return `${path} contains unsupported value`;
 }
 
 export function createEdgeRenderStateRecord(input: EdgeRenderStateInput): EdgeRenderStateRecord {
@@ -1048,6 +1095,7 @@ function stableJsonDigest(value: unknown): string {
 }
 
 function cloneStableJsonValue(value: unknown): unknown {
+    assertProcessingBoundaryValue(value);
     return JSON.parse(stableJsonStringify(value)) as unknown;
 }
 
