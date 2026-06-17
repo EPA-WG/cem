@@ -109,10 +109,14 @@ impl TransformTemplateAdapter for CemQlTransformTemplateAdapter {
                 host_bindings: host_bindings.clone(),
             },
         );
+        let mut diagnostics = artifact.diagnostics.clone();
         let entrypoints = extract_template_entrypoints(&artifact);
         let render_artifact =
             select_entrypoint_artifact(&artifact, &entrypoints, request.entrypoint.name.as_deref());
-        let modules = compile_preflighted_modules(self.id(), &request, &host_bindings)?;
+        let mut modules = compile_preflighted_modules(self.id(), &request, &host_bindings)?;
+        for module in &modules {
+            diagnostics.extend(module.artifact.diagnostics.clone());
+        }
         let module_diagnostics = modules
             .iter()
             .map(|module| module.artifact.diagnostics.len())
@@ -128,6 +132,14 @@ impl TransformTemplateAdapter for CemQlTransformTemplateAdapter {
                 })
             })
             .collect::<Vec<_>>();
+        let mut render_artifact = render_artifact;
+        let mut entrypoints = entrypoints;
+        clear_template_artifact_diagnostics(&mut render_artifact);
+        clear_template_entrypoint_diagnostics(&mut entrypoints);
+        for module in &mut modules {
+            clear_template_artifact_diagnostics(&mut module.artifact);
+            clear_template_entrypoint_diagnostics(&mut module.entrypoints);
+        }
         let opaque = json!({
             "engine": "cem-ql",
             "templateBytes": request.template.bytes.len(),
@@ -156,7 +168,7 @@ impl TransformTemplateAdapter for CemQlTransformTemplateAdapter {
                 modules,
                 max_recursion_depth: request.module_options.limits.max_recursion_depth,
             }),
-            diagnostics: Vec::new(),
+            diagnostics,
         })
     }
 
@@ -415,6 +427,19 @@ fn artifact_from_nodes(source: &TemplateArtifact, nodes: Vec<TemplateNode>) -> T
     TemplateArtifact {
         nodes,
         diagnostics: source.diagnostics.clone(),
+    }
+}
+
+fn clear_template_artifact_diagnostics(artifact: &mut TemplateArtifact) {
+    artifact.diagnostics.clear();
+}
+
+fn clear_template_entrypoint_diagnostics(entrypoints: &mut CemQlTemplateEntrypoints) {
+    if let Some(artifact) = &mut entrypoints.implicit {
+        clear_template_artifact_diagnostics(artifact);
+    }
+    for artifact in entrypoints.named.values_mut() {
+        clear_template_artifact_diagnostics(artifact);
     }
 }
 
@@ -907,6 +932,61 @@ mod tests {
                 .and_then(|identity| identity.content_type),
             Some("text/html".to_owned())
         );
+    }
+
+    #[test]
+    fn adapter_surfaces_compile_diagnostics_once() {
+        let adapter = CemQlTransformTemplateAdapter;
+        let identity = FormatIdentity {
+            content_type: Some("text/cem-ml".to_owned()),
+            ..FormatIdentity::default()
+        };
+        let template = TemplateInput {
+            uri: "template.cem".to_owned(),
+            bytes: br#"{span | {$missing}}"#.to_vec(),
+            identity: Some(identity),
+            root_scope: ScopeConfig::default(),
+        };
+        let params = BTreeMap::new();
+        let data_bindings = Vec::new();
+
+        let compiled = adapter
+            .compile(TransformTemplateCompileRequest {
+                template: &template,
+                entrypoint: &TransformTemplateEntrypoint::implicit(),
+                params: &params,
+                data_bindings: &data_bindings,
+                module_options: Default::default(),
+                module_preflight: Default::default(),
+                execution_policy: TransformExecutionPolicy::default(),
+            })
+            .expect("template should compile with diagnostics");
+        assert_eq!(compiled.artifact.opaque["diagnostics"], 1);
+        assert!(compiled
+            .diagnostics
+            .iter()
+            .any(|diagnostic| diagnostic.code == "cem.ql.render.compile_failed"));
+
+        let rendered = adapter
+            .render(TransformTemplateRenderRequest {
+                compiled: &compiled.artifact,
+                primary_input: &TransformTemplateDataArtifact {
+                    artifact_id: "data".to_owned(),
+                    uri: None,
+                    identity: None,
+                    value: Value::Null,
+                },
+                secondary_inputs: &BTreeMap::new(),
+                target: None,
+                target_scope: &ScopeConfig::default(),
+                execution_policy: TransformExecutionPolicy::default(),
+            })
+            .expect("template should render without repeating compile diagnostics");
+
+        assert!(!rendered
+            .diagnostics
+            .iter()
+            .any(|diagnostic| diagnostic.code == "cem.ql.render.compile_failed"));
     }
 
     #[test]
