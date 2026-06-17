@@ -55,12 +55,19 @@ the behavioral reference.
 - Scoped CSS currently renders as page-global light-DOM CSS. True selector containment is bridge/adoption work, not a
   Phase 3.1 production-gate requirement or hidden substrate guarantee.
 
-## Recommended Next Step
+## Production Gate Status
 
-The current bridge proves that legacy HTML+XSLT can be compiled to canonical CEM-ML and rendered through `cem_ql` WASM,
-but the converter still lives in `cem-elements` TypeScript. To make old custom-element syntax genuinely supported by
-the CEM-ML engine, move that compatibility compiler behind a shared CEM engine boundary and use it from the browser
-runtime, CLI validation, SSR, and package gates.
+Legacy parity is now part of the browser-substrate production gate. `yarn nx run cem-elements:verify` runs the
+file-backed legacy fixture manifest through `cem-elements:verify-legacy-fixtures`, the substrate roundtrip gate,
+Phase 2 CLI validation/e2e checks, the `cem_ml:bench` performance suite, unit tests, and Storybook browser parity
+stories.
+
+The current bridge proves that fixture-bounded legacy HTML+XSLT can be compiled through the shared CEM engine path to
+canonical CEM-ML and rendered through `cem_ql` WASM. Passing the aggregate gate means the `<cem-element>` browser
+substrate is eligible for the Phase 3.5 Edge/SSR follow-up; it does not mean the old `@epa-wg/custom-element` package
+has adopted this implementation.
+
+## Bridge / Adoption Deferrals
 
 Keep `@epa-wg/custom-element` as a thin adapter:
 
@@ -68,3 +75,6 @@ Keep `@epa-wg/custom-element` as a thin adapter:
 - delegate parsing/conversion/rendering to the shared engine path;
 - preserve copied demo/material modules as executable fixtures;
 - reject or explicitly hand off Tier 3 XSLT rather than expanding the bridge by accident.
+
+The actual `@epa-wg/custom-element` adoption remains a later Phase 3.6 handoff after the Edge/SSR runtime-support
+boundary is in place.

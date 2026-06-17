@@ -115,9 +115,12 @@ Recommended execution order:
       before Phase 3.2 primitives depend on the substrate.
       Material parity Storybook gates now assert accessible names, native-role focus ownership, ARIA reference integrity,
       and a deterministic first-paint smoke that mounts all eight material parity components under a frame budget.
-- [ ] **Document the production-ready trigger.** Update `packages/cem-elements/README.md` and the parity inventories
+- [x] **Document the production-ready trigger.** Update `packages/cem-elements/README.md` and the parity inventories
       with the final command set, fixture locations, known bridge/adoption deferrals, and the exact handoff condition
       for Phase 3.5 Edge/SSR and Phase 3.6 `@epa-wg/custom-element` adoption.
+      `packages/cem-elements/README.md`, the legacy inventory, and the material inventory now name
+      `yarn nx run cem-elements:verify` as the browser-substrate production-ready trigger, list the fixture surfaces,
+      and separate the Phase 3.5 Edge/SSR handoff from later Phase 3.6 `@epa-wg/custom-element` adoption.
 
 ## Externally Gated
 

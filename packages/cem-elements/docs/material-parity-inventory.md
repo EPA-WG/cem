@@ -85,14 +85,24 @@ required for the Phase 3.1 production gate: template styles intentionally render
 `MaterialScopedStylePolicy` asserts that documented behavior. `hasBoolAttribute()` is supported in the legacy bridge as
 a compile-time boolean-attribute rewrite.
 
-**Production gate:** the Storybook parity set is green for the covered runtime behaviors. AC-N-1 first-paint
-performance proof and end-to-end accessibility-contract assertions are both wired into the Phase 3.1 gate in
-`docs/todo.md`.
+**Production gate:** the Storybook parity set is green for the covered runtime behaviors. AC-N-1 material fixture
+performance proof runs through `yarn nx run cem_ml:bench`, and end-to-end accessibility-contract assertions plus the
+deterministic first-paint smoke run through `yarn nx run cem-elements:test`. The aggregate Phase 3.1 gate is:
+
+```bash
+yarn nx run cem-elements:verify
+```
+
+That target runs `cem_ml_cli:validate-fixtures`, `cem_ml_cli:e2e`, `cem_ml:bench`, `verify-substrate`,
+`verify-legacy-fixtures`, `verify-material-fixtures`, `test:unit`, and Storybook parity stories. Passing it is the
+browser-substrate production-ready trigger for Phase 3.5 Edge/SSR. It is not the Phase 3.6 `@epa-wg/custom-element`
+adoption trigger.
 
 **Recommended sequencing implied by this inventory:**
 
 1. Scoped-style containment remains bridge/adoption work; keep the production gate pinned to explicit light-DOM,
    page-global style behavior until a separate containment primitive is designed.
 
-This inventory satisfies the todo §3.1 "Build a material parity inventory" item and feeds the parity-story
-(line 118) and `cem_ml_cli` fixture-wiring (line 124) items.
+This inventory satisfies the Phase 3.1 material parity scope and documents the known bridge/adoption deferrals:
+legacy XPath spellings, XSLT-only constructs, selector-contained scoped styles, and host-owned bare module/resource
+resolution policy.
