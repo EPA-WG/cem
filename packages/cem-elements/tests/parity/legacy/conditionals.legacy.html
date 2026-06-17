@@ -1,0 +1,14 @@
+<cem-element data-cem-fixture="conditionals" tag="legacy-conditional-card">
+  <template>
+    <attribute name="kind"></attribute>
+    <choose>
+      <when test="$kind"><strong>{$kind}</strong></when>
+      <otherwise><em>none</em></otherwise>
+    </choose>
+    <if test="$kind"><span class="present">present</span></if>
+  </template>
+</cem-element>
+
+<legacy-conditional-card kind="alert"></legacy-conditional-card>
+<legacy-conditional-card></legacy-conditional-card>
+

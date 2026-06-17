@@ -77,6 +77,20 @@
             ],
             "outputs": []
         },
+        "verify-legacy-fixtures": {
+            "cache": true,
+            "executor": "nx:run-commands",
+            "options": {
+                "command": "node tools/scripts/verify-cem-elements-legacy-fixtures.mjs",
+                "cwd": "{workspaceRoot}"
+            },
+            "inputs": [
+                "{workspaceRoot}/tools/scripts/verify-cem-elements-legacy-fixtures.mjs",
+                "{projectRoot}/tests/parity/legacy/**/*",
+                "{projectRoot}/docs/legacy-parity-inventory.md"
+            ],
+            "outputs": []
+        },
         "verify": {
             "executor": "nx:run-commands",
             "dependsOn": [

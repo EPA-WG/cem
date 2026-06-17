@@ -1,0 +1,11 @@
+<cem-element data-cem-fixture="attribute-defaults-overrides" tag="legacy-attribute-card">
+  <template>
+    <attribute name="tone">neutral</attribute>
+    <attribute name="label">Default</attribute>
+    <span class="tone {$tone}">{$label}</span>
+  </template>
+</cem-element>
+
+<legacy-attribute-card></legacy-attribute-card>
+<legacy-attribute-card tone="alert" label="Override"></legacy-attribute-card>
+

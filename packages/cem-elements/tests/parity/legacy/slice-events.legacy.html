@@ -1,0 +1,13 @@
+<cem-element data-cem-fixture="slice-events" tag="legacy-choice-toggle">
+  <template>
+    <slice name="choice">off</slice>
+    <label>
+      <input type="checkbox" value="on" slice="choice" slice-event="change" slice-value="{$target.value}" />
+      Toggle
+    </label>
+    <output>{$choice}</output>
+  </template>
+</cem-element>
+
+<legacy-choice-toggle></legacy-choice-toggle>
+

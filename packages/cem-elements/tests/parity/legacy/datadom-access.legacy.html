@@ -1,0 +1,9 @@
+<cem-element data-cem-fixture="datadom-access-migration" tag="legacy-datadom-card">
+  <template>
+    <attribute name="label" select="/datadom/attributes/label ?? 'Fallback'"></attribute>
+    <p>{$label}</p>
+  </template>
+</cem-element>
+
+<legacy-datadom-card label="From datadom"></legacy-datadom-card>
+

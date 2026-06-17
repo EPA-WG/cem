@@ -1,0 +1,9 @@
+<cem-element data-cem-fixture="datadom-access-migration" tag="cem-datadom-card">
+  <template type="text/cem-ml">
+    {attribute @name=label @select="datadom.attributes.label ?? 'Fallback'"}
+    {p | {$label}}
+  </template>
+</cem-element>
+
+<cem-datadom-card label="From datadom"></cem-datadom-card>
+

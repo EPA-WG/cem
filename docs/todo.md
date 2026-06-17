@@ -29,10 +29,13 @@ Recommended execution order:
       aggregate gate including `cem_ml_cli:validate-fixtures`, `cem_ml_cli:e2e`, substrate roundtrip, unit tests, and
       Storybook parity stories. Observed warnings were non-fatal baseline noise: Node `NO_COLOR`/`FORCE_COLOR`, Lit dev
       mode, fixture validation warnings with zero hard violations, and expected cross-surface conversion warnings.
-- [ ] **Create file-backed legacy parity fixtures.** Add `packages/cem-elements/tests/parity/legacy/` fixtures mapped to
+- [x] **Create file-backed legacy parity fixtures.** Add `packages/cem-elements/tests/parity/legacy/` fixtures mapped to
       `packages/cem-elements/docs/legacy-parity-inventory.md`: declaration registration, inline template shape,
       local/external `src`, payload capture, attribute defaults/overrides, attribute invalidation, slots, slice events,
       datadom access migration, conditionals, and the `lang="custom-element-v0"` bridge.
+      The fixture directory now contains a manifest plus paired legacy/CEM-ML files for every listed behavior, and
+      `yarn nx run cem-elements:verify-legacy-fixtures` verifies manifest coverage and fixture shape. Runtime promotion
+      remains the next checklist item.
 - [ ] **Create file-backed material parity fixtures.** Add `packages/cem-elements/tests/parity/material/` fixtures for
       the eight legacy material references: `action`, `autocomplete`, `badge`, `dropdown`, `icon`, `icon-link`, `input`,
       and `menu`. Keep the import dependency order explicit: `icon`, `icon-link`, `menu` before `badge`, `action`,

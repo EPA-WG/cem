@@ -1,0 +1,9 @@
+<cem-element data-cem-fixture="attribute-invalidation" tag="cem-live-label">
+  <template type="text/cem-ml">
+    {attribute @name=label | Before}
+    {span @class=label | {$label}}
+  </template>
+</cem-element>
+
+<cem-live-label data-mutate="label:After"></cem-live-label>
+

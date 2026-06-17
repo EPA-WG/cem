@@ -1,0 +1,14 @@
+<cem-element data-cem-fixture="slots" tag="cem-slot-card">
+  <template type="text/cem-ml">
+    {article |
+      {h2 | {slot @name=title | Untitled}}
+      {div | {slot}}
+    }
+  </template>
+</cem-element>
+
+<cem-slot-card>
+  <span slot="title">Projected title</span>
+  <p>Projected body</p>
+</cem-slot-card>
+
