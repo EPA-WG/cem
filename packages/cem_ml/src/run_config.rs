@@ -752,6 +752,7 @@ pub fn infer_content_type_from_path(path: &str) -> Option<String> {
         "cem" => Some("application/cem+xml".to_owned()),
         "html" | "htm" => Some("text/html".to_owned()),
         "xml" => Some("application/xml".to_owned()),
+        "svg" => Some("image/svg+xml".to_owned()),
         "xsl" | "xslt" => Some("application/xslt+xml".to_owned()),
         "json" => Some("application/json".to_owned()),
         _ => None,
@@ -996,11 +997,21 @@ mod tests {
                             ..ScopeConfig::default()
                         },
                     },
+                    InputSpec {
+                        uri: "src/icon.svg".to_owned(),
+                        ..InputSpec::default()
+                    },
                 ],
-                outputs: vec![OutputSpec {
-                    destination: Some("dist/a.cem".to_owned()),
-                    ..OutputSpec::default()
-                }],
+                outputs: vec![
+                    OutputSpec {
+                        destination: Some("dist/a.cem".to_owned()),
+                        ..OutputSpec::default()
+                    },
+                    OutputSpec {
+                        destination: Some("dist/icon.svg".to_owned()),
+                        ..OutputSpec::default()
+                    },
+                ],
                 resolvers: Vec::new(),
                 scheduler: SchedulerConfig::default(),
             },
@@ -1041,6 +1052,17 @@ mod tests {
             Some("explicit-schema")
         );
         assert_eq!(
+            response.config.inputs[2]
+                .root_scope
+                .default_content_type
+                .as_deref(),
+            Some("image/svg+xml")
+        );
+        assert_eq!(
+            response.config.inputs[2].root_scope.schema.as_deref(),
+            Some("default-schema")
+        );
+        assert_eq!(
             response.config.outputs[0]
                 .root_scope
                 .default_content_type
@@ -1049,6 +1071,17 @@ mod tests {
         );
         assert_eq!(
             response.config.outputs[0].root_scope.schema.as_deref(),
+            Some("target-schema")
+        );
+        assert_eq!(
+            response.config.outputs[1]
+                .root_scope
+                .default_content_type
+                .as_deref(),
+            Some("image/svg+xml")
+        );
+        assert_eq!(
+            response.config.outputs[1].root_scope.schema.as_deref(),
             Some("target-schema")
         );
     }

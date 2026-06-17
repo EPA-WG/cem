@@ -439,7 +439,7 @@ impl LifecycleAdapter for XmlAdapter {
     }
 
     fn matches_input(&self, identity: &FormatIdentity) -> bool {
-        matches_content_type(identity, &["application/xml", "text/xml"])
+        matches_content_type(identity, &["application/xml", "text/xml", "image/svg+xml"])
     }
 
     fn load(&self, input: &EngineInput, _: &FormatIdentity) -> LoadedInput {
@@ -599,6 +599,17 @@ mod tests {
             .load(&input(b"<p>Hi</p>"), &context("text/html; charset=utf-8"));
         assert_eq!(loaded.from_format, InputFormat::Html);
         assert_eq!(loaded.adapter_id, Some("html"));
+    }
+
+    #[test]
+    fn builtins_load_svg_content_type_as_xml() {
+        let loaded = LifecycleRegistry::with_builtin_adapters().load(
+            &input(b"<svg><title>Hi</title></svg>"),
+            &context("image/svg+xml"),
+        );
+        assert_eq!(loaded.from_format, InputFormat::Xml);
+        assert_eq!(loaded.adapter_id, Some("xml"));
+        assert!(loaded.diagnostics.is_empty());
     }
 
     #[test]
@@ -903,6 +914,19 @@ mod tests {
     fn xml_target_content_type_selects_xml_export() {
         let target = FormatIdentity {
             content_type: Some("application/xml; charset=utf-8".to_owned()),
+            ..FormatIdentity::default()
+        };
+        let selected = LifecycleRegistry::with_builtin_adapters()
+            .select_export(Some(&target), LayerFormat::DomJson);
+        assert_eq!(selected.to_format, LayerFormat::Xml);
+        assert_eq!(selected.adapter_id, Some("xml"));
+        assert!(selected.diagnostics.is_empty());
+    }
+
+    #[test]
+    fn svg_target_content_type_selects_xml_export() {
+        let target = FormatIdentity {
+            content_type: Some("image/svg+xml".to_owned()),
             ..FormatIdentity::default()
         };
         let selected = LifecycleRegistry::with_builtin_adapters()

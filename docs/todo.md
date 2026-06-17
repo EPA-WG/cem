@@ -23,7 +23,8 @@ for the current architecture have landed; only deferred capability work remains 
       (`https://cem.dev/ns/cli/transform-config/1`), and CEM-native template schema identity
       (`https://cem.dev/ns/template/cem-native/1`) select the CEM adapter when no content type is present. CEM core
       namespace identity selects the CEM adapter when no content type or schema is present, and HTML/SVG namespace
-      identity selects the HTML adapter when no content type or schema is present. XSLT namespace identity
+      identity selects the HTML adapter when no content type or schema is present. SVG content type
+      (`image/svg+xml`) selects the XML adapter. XSLT namespace identity
       (`http://www.w3.org/1999/XSL/Transform`) selects the legacy custom-element XSLT compatibility adapter
       when no content type or schema is present, while explicit content type remains authoritative. Unsupported input
       identities now emit deterministic lifecycle diagnostics with the declared content type, schema, and/or namespace
@@ -31,7 +32,8 @@ for the current architecture have landed; only deferred capability work remains 
       CEM/HTML target export is registry-owned for `--to-content-type application/cem+xml`,
       `--to-schema https://cem.dev/ns/core/1`, `--to-content-type text/html`,
       `--to-content-type application/xhtml+xml`, XML target export is registry-owned for
-      `--to-content-type application/xml` / `text/xml`, plus namespace-only CEM core and HTML/SVG targets. Structural JSON
+      `--to-content-type application/xml` / `text/xml` / `image/svg+xml`, plus namespace-only CEM core and HTML/SVG
+      targets. Structural JSON
       projections are registry-owned through schema identities `https://cem.dev/ns/projection/dom-json/1`,
       `https://cem.dev/ns/projection/ast/1`, and `https://cem.dev/ns/projection/events/1`, optionally paired with
       `application/json` / `text/json` content types, including output-spec/config output root-scope identities.

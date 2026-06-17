@@ -91,7 +91,8 @@ the immediate CLI lifecycle contract.
    (`https://cem.dev/ns/template/cem-native/1`) now select the CEM adapter when no content
    type is present. CEM core namespace identity selects the CEM adapter when no content type
    or schema is present, and HTML/SVG namespace identity selects the HTML adapter when no content type
-   or schema is present. XSLT namespace identity (`http://www.w3.org/1999/XSL/Transform`)
+   or schema is present. SVG content type (`image/svg+xml`) selects the XML adapter.
+   XSLT namespace identity (`http://www.w3.org/1999/XSL/Transform`)
    selects the legacy custom-element XSLT compatibility adapter when no content type or
    schema is present, while explicit content type remains authoritative. Unsupported input
    and target identities emit deterministic lifecycle diagnostics with the declared
@@ -663,7 +664,7 @@ These are data shapes only. Parser-filled content remains blocked until the pars
     - Supported output formats: `cem`, `html`, `xml`, `dom-json`, `ast`, `events`.
     - `--to-content-type application/cem+xml` selects canonical CEM-ML export, and `--to-content-type text/html`
       / `application/xhtml+xml` selects light-DOM HTML export; `--to-content-type application/xml` / `text/xml`
-      selects rendered XML output.
+      / `image/svg+xml` selects rendered XML output.
     - Schema-version conversion and broader target adapters remain deferred.
 7. `cem-ml transform <data> --template <file>`
     - Applies a template/stylesheet to data and produces a document.

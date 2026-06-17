@@ -7518,6 +7518,14 @@ mod tests {
         assert_eq!(identity.content_type.as_deref(), Some("text/html"));
         assert_eq!(identity.schema, None);
         assert_eq!(identity.base_uri, None);
+
+        let svg_identity =
+            positional_input_scope(Path::new("src/icon.svg"), &ScopeConfig::default())
+                .format_identity_option()
+                .expect("svg extension should infer content type");
+        assert_eq!(svg_identity.content_type.as_deref(), Some("image/svg+xml"));
+        assert_eq!(svg_identity.schema, None);
+        assert_eq!(svg_identity.base_uri, None);
     }
 
     #[test]
@@ -7575,6 +7583,27 @@ mod tests {
         let v: serde_json::Value = serde_json::from_str(stdout.trim()).unwrap();
         assert_eq!(v["summary"]["hardViolationCount"], 0);
         assert_eq!(v["summary"]["inputCount"], 1);
+    }
+
+    #[test]
+    fn validate_positional_svg_uses_inferred_xml_input_adapter() {
+        let p = write_fixture(
+            "validate-positional-svg.svg",
+            r#"<svg><title>Download</title></svg>"#,
+        );
+        let (outcome, stdout, stderr) = run(
+            &RealCemMlEngine::new(),
+            &["validate", "--format", "json", p.to_str().unwrap()],
+        );
+        assert_eq!(outcome.exit_code, EXIT_OK, "{stderr}");
+        let v: serde_json::Value = serde_json::from_str(stdout.trim()).unwrap();
+        assert_eq!(v["summary"]["hardViolationCount"], 0);
+        assert_eq!(v["summary"]["inputCount"], 1);
+        assert!(!v["diagnostics"]
+            .as_array()
+            .unwrap()
+            .iter()
+            .any(|diag| { diag["code"] == "cem.lifecycle.adapter_unsupported" }));
     }
 
     #[test]
@@ -8715,6 +8744,39 @@ mod tests {
         let v: serde_json::Value = serde_json::from_str(&written).unwrap();
         assert_eq!(v["kind"], "xml");
         assert_eq!(v["content"], r#"<p id="one">Hi</p>"#);
+    }
+
+    #[test]
+    fn output_spec_svg_destination_infers_svg_export_adapter() {
+        let input = write_fixture(
+            "convert-output-svg-destination-input.cem",
+            "{svg | {title | Hi}}",
+        );
+        let out_path =
+            std::env::temp_dir().join("cem-ml-cli-tests/convert-output-svg-destination.svg");
+        let _ = std::fs::remove_file(&out_path);
+        let (outcome, stdout, stderr) = run(
+            &RealCemMlEngine::new(),
+            &[
+                "convert",
+                "--to-format",
+                "cem",
+                "--output-spec",
+                &format!("dest={}", out_path.display()),
+                input.to_str().unwrap(),
+            ],
+        );
+
+        assert_eq!(outcome.exit_code, EXIT_OK, "{stderr}");
+        assert!(stdout.trim().is_empty());
+        assert!(
+            !stderr.contains("cem.lifecycle.target_adapter_unsupported"),
+            "{stderr}"
+        );
+        let written = std::fs::read_to_string(&out_path).unwrap();
+        let v: serde_json::Value = serde_json::from_str(&written).unwrap();
+        assert_eq!(v["kind"], "xml");
+        assert_eq!(v["content"], "<svg><title>Hi</title></svg>");
     }
 
     #[test]
@@ -9891,6 +9953,30 @@ mod tests {
         let v: serde_json::Value = serde_json::from_str(stdout.trim()).unwrap();
         assert_eq!(v["kind"], "xml");
         assert_eq!(v["content"], r#"<p id="one">Hi</p>"#);
+    }
+
+    #[test]
+    fn convert_to_content_type_svg_selects_xml_export_adapter() {
+        let p = write_fixture("convert-target-svg.cem", "{svg | {title | Hi}}");
+        let (outcome, stdout, stderr) = run(
+            &RealCemMlEngine::new(),
+            &[
+                "convert",
+                "--to-format",
+                "cem",
+                "--to-content-type",
+                "image/svg+xml",
+                p.to_str().unwrap(),
+            ],
+        );
+        assert_eq!(outcome.exit_code, EXIT_OK, "{stderr}");
+        assert!(
+            !stderr.contains("cem.lifecycle.target_adapter_unsupported"),
+            "{stderr}"
+        );
+        let v: serde_json::Value = serde_json::from_str(stdout.trim()).unwrap();
+        assert_eq!(v["kind"], "xml");
+        assert_eq!(v["content"], "<svg><title>Hi</title></svg>");
     }
 
     #[test]
