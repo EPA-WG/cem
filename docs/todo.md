@@ -144,10 +144,13 @@ Recommended execution order:
       Baseline run on 2026-06-17: passed. The target built the required theme, `cem-elements`, and WASM dependencies,
       then ran 3 files / 11 tests: `cem-components.spec.ts` in Node, plus Chromium-backed
       `component-harness.browser.spec.ts` and `primitives.browser.spec.ts`.
-- [ ] **Make the primitive manifest a release gate.** Add a package-owned verifier that proves
+- [x] **Make the primitive manifest a release gate.** Add a package-owned verifier that proves
       `CEM_COMPONENT_PRIMITIVES` exactly covers `docs/component-mvp.md`, every primitive has a CEM-ML declaration, no
       declaration depends on legacy `<custom-element>`, and install results surface registration diagnostics
       deterministically.
+      `@epa-wg/cem-components:verify-primitives` now checks the TypeScript manifest against the MVP table with the
+      TypeScript compiler API, rejects legacy declaration wrappers, and is included in `@epa-wg/cem-components:verify`.
+      Browser coverage also asserts deterministic first-install and reinstall results.
 - [ ] **Promote workflow fixtures into executable coverage.** Turn the auth form, profile editor, asset browser,
       discussion thread, and settings examples into package-owned browser fixtures that assert common static and form
       flows work with no app JavaScript beyond installing the primitives.

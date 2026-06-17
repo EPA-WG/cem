@@ -19,23 +19,30 @@ contract for `@epa-wg/cem-components`, the CEM core schema state vocabulary, and
 | Action | `action` | `cem-action` | Text action, submit, and command buttons | action, control, palette, bend, typography |
 | Action | `icon-button` | `cem-icon-button` | Compact icon-only command with required accessible name | action, control, palette, stroke, bend |
 | Action | `menu-item` | `cem-menu-item` | Command or navigation row inside menus and action lists | action, palette, gap, inset, typography |
+| Input | `field` | `cem-field` | Generic labeled field wrapper for simple form controls | palette, stroke, bend, gap, typography |
 | Input | `text-field` | `cem-text-field` | Single-line text entry with label, help, and validation | palette, stroke, bend, gap, typography |
 | Input | `textarea` | `cem-textarea` | Multi-line text entry with label, help, and validation | palette, stroke, bend, gap, typography |
 | Input | `select` | `cem-select` | Bounded single-value choice | palette, stroke, bend, control, typography |
 | Input | `checkbox` | `cem-checkbox` | Binary consent, settings, and filters | palette, stroke, control, bend, typography |
 | Input | `radio` | `cem-radio` | Mutually exclusive choice inside a radio group | palette, stroke, control, typography |
 | Input | `switch` | `cem-switch` | Immediate boolean setting toggle | palette, stroke, action, control, bend |
-| Navigation | `app-bar` | `cem-app-bar` | Product title, global actions, and current context | palette, stroke, gap, inset, typography |
-| Navigation | `nav` | `cem-nav` | Labeled navigation region and item list | palette, action, gap, inset, typography |
-| Navigation | `tabs` | `cem-tabs` | Local view switching | palette, action, stroke, gap, typography |
-| Content | `card` | `cem-card` | Summary container for profile, asset, and message content | palette, stroke, bend, gap, inset |
+| Layout | `surface` | `cem-surface` | Section surface for grouped content and workflow regions | palette, stroke, bend, gap, inset |
+| Content | `text` | `cem-text` | Token-scoped inline text and typography variant wrapper | typography, palette |
+| Content | `icon` | `cem-icon` | Decorative or labeled icon text primitive | action, palette, stroke, typography |
+| Layout | `stack` | `cem-stack` | Single-axis layout container | gap, responsive |
+| Layout | `grid` | `cem-grid` | Responsive grid layout container | gap, responsive |
 | Content | `list` | `cem-list` | Ordered or unordered collection, including empty state | palette, stroke, gap, typography |
+| Content | `card` | `cem-card` | Summary container for profile, asset, and message content | palette, stroke, bend, gap, inset |
 | Content | `table` | `cem-table` | Structured data comparison and asset grids | palette, stroke, gap, typography |
 | Content | `chip` | `cem-chip` | Compact filter, token, or removable label | palette, action, bend, inset, typography |
 | Content | `badge` | `cem-badge` | Status, count, priority, and severity labels | palette, bend, inset, typography |
 | Content | `avatar` | `cem-avatar` | Person or organization visual identity | palette, bend, typography |
 | Content | `media-preview` | `cem-media-preview` | Asset thumbnail, file, or object preview | palette, stroke, bend, gap |
+| Navigation | `app-bar` | `cem-app-bar` | Product title, global actions, and current context | palette, stroke, gap, inset, typography |
+| Navigation | `nav` | `cem-nav` | Labeled navigation region and item list | palette, action, gap, inset, typography |
+| Navigation | `tabs` | `cem-tabs` | Local view switching | palette, action, stroke, gap, typography |
 | Feedback | `dialog` | `cem-dialog` | Modal decision or focused task | palette, stroke, bend, gap, inset |
+| Feedback | `dialog-shell` | `cem-dialog-shell` | Labeled dialog shell for focused light-DOM task content | palette, stroke, bend, gap, inset |
 | Feedback | `sheet` | `cem-sheet` | Non-modal or edge-attached task surface | palette, stroke, bend, gap, inset |
 | Feedback | `toast` | `cem-toast` | Transient status message | palette, action, stroke, gap, typography |
 | Feedback | `progress` | `cem-progress` | Determinate and indeterminate progress | palette, action, control, typography |
@@ -77,6 +84,7 @@ States are exposed as CEM semantic state names and mirrored to host attributes o
 | Action | `default`, `hover`, `focus-visible`, `active`, `disabled`, `loading` |
 | Input | `default`, `hover`, `focus-visible`, `disabled`, `loading`, `expanded`, `invalid`, `required`, `readonly`, `checked`, `indeterminate` |
 | Navigation | `default`, `hover`, `focus-visible`, `active`, `disabled`, `selected`, `expanded` |
+| Layout | `default`, `loading`, `empty` |
 | Content | `default`, `hover`, `focus-visible`, `selected`, `loading`, `empty`, `checked` |
 | Feedback | `default`, `focus-visible`, `loading`, `expanded`, `invalid` |
 

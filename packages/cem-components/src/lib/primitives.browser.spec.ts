@@ -2,6 +2,7 @@ import { CemElementRuntime } from '@epa-wg/cem-elements';
 
 import {
     CEM_COMPONENT_PRIMITIVES,
+    type CemComponentPrimitiveInstallResult,
     installCemComponentPrimitives,
 } from './primitives.js';
 import {
@@ -15,19 +16,31 @@ import {
 
 describe('CEM component primitives', () => {
     let harness: ComponentHarness;
+    let installResult: CemComponentPrimitiveInstallResult;
 
     beforeAll(() => {
         const runtime = new CemElementRuntime({ declarationTag: 'cem-components-primitive-declaration' });
-        const result = installCemComponentPrimitives(runtime);
+        installResult = installCemComponentPrimitives(runtime);
 
-        expect(result.diagnostics).toEqual([]);
-        expect([...result.registered, ...result.skipped].sort()).toEqual(
+        expect(installResult.diagnostics).toEqual([]);
+        expect([...installResult.registered, ...installResult.skipped].sort()).toEqual(
             CEM_COMPONENT_PRIMITIVES.map((primitive) => primitive.tag).sort(),
         );
     });
 
     afterEach(() => {
         harness?.cleanup();
+    });
+
+    it('reports deterministic primitive install results', () => {
+        const primitiveTags = CEM_COMPONENT_PRIMITIVES.map((primitive) => primitive.tag);
+        expect([...installResult.registered, ...installResult.skipped]).toEqual(primitiveTags);
+
+        const runtime = new CemElementRuntime({ declarationTag: 'cem-components-primitive-reinstall-declaration' });
+        const reinstallResult = installCemComponentPrimitives(runtime);
+        expect(reinstallResult.registered).toEqual([]);
+        expect(reinstallResult.skipped).toEqual(primitiveTags);
+        expect(reinstallResult.diagnostics).toEqual([]);
     });
 
     it('renders action-family primitives as accessible light DOM', async () => {

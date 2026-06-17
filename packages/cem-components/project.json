@@ -2,5 +2,30 @@
     "name": "@epa-wg/cem-components",
     "$schema": "../../node_modules/nx/schemas/project-schema.json",
     "sourceRoot": "packages/cem-components/src",
-    "projectType": "library"
+    "projectType": "library",
+    "targets": {
+        "verify-primitives": {
+            "cache": true,
+            "executor": "nx:run-commands",
+            "options": {
+                "command": "node tools/scripts/verify-cem-components-primitives.mjs",
+                "cwd": "{workspaceRoot}"
+            },
+            "inputs": [
+                "{workspaceRoot}/tools/scripts/verify-cem-components-primitives.mjs",
+                "{workspaceRoot}/docs/component-mvp.md",
+                "{projectRoot}/src/lib/primitives.ts"
+            ],
+            "outputs": []
+        },
+        "verify": {
+            "executor": "nx:run-commands",
+            "dependsOn": ["verify-primitives", "test"],
+            "options": {
+                "command": "echo \"cem-components verification gate green: primitive manifest + browser harness tests passed.\"",
+                "cwd": "{workspaceRoot}"
+            },
+            "outputs": []
+        }
+    }
 }
