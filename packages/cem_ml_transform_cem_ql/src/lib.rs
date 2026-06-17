@@ -24,7 +24,8 @@ use cem_ml::transform_template::{
     TransformTemplateModulePreflight, TransformTemplateOutputArtifact,
     TransformTemplateRenderRequest, TransformTemplateRenderResponse,
     CEM_NATIVE_TEMPLATE_SCHEMA_URI, TRANSFORM_TEMPLATE_CALL_UNKNOWN_CODE,
-    TRANSFORM_TEMPLATE_PARAM_REQUIRED_CODE, TRANSFORM_TEMPLATE_RECURSION_LIMIT_CODE,
+    TRANSFORM_TEMPLATE_PARAM_REQUIRED_CODE, TRANSFORM_TEMPLATE_PARAM_TYPE_CODE,
+    TRANSFORM_TEMPLATE_RECURSION_LIMIT_CODE,
 };
 use cem_ql::eval::{AtomValue, Item, ItemStream};
 use cem_ql::render::{
@@ -654,7 +655,7 @@ fn render_call_node(
     let mut call_data = call_data_with_bindings(data, attributes);
     let param_declarations = param_declarations_for_module(payload, target_module);
     apply_param_declarations(&mut call_data, param_declarations, Some(template.as_str()));
-    if !validate_required_call_params(
+    if !validate_call_params(
         &call_data,
         param_declarations,
         Some(template.as_str()),
@@ -746,7 +747,7 @@ fn apply_param_declarations(
     }
 }
 
-fn validate_required_call_params(
+fn validate_call_params(
     data: &TemplateData,
     declarations: &[TransformTemplateModuleParamDeclaration],
     selected_entrypoint: Option<&str>,
@@ -756,20 +757,19 @@ fn validate_required_call_params(
 ) -> bool {
     let mut valid = true;
     for declaration in declarations {
-        if !declaration.required || declaration.default_value.is_some() {
+        if declaration.name.contains('.')
+            && entrypoint_param_aliases(&declaration.name, selected_entrypoint).is_none()
+        {
             continue;
         }
 
-        if let Some((qualified, local)) =
-            entrypoint_param_aliases(&declaration.name, selected_entrypoint)
-        {
-            if !data.bindings.contains_key(&qualified) && !data.bindings.contains_key(&local) {
+        let display_name = call_param_display_name(declaration, selected_entrypoint);
+        let stream = call_param_stream(data, declaration, selected_entrypoint);
+        if stream.is_none_or(|stream| stream.items.is_empty()) {
+            if declaration.required && declaration.default_value.is_none() {
                 diagnostics.push(module_render_diagnostic(
                     TRANSFORM_TEMPLATE_PARAM_REQUIRED_CODE,
-                    format!(
-                        "native template call requires param `{local}` for entrypoint `{}`",
-                        selected_entrypoint.unwrap_or_default()
-                    ),
+                    format!("native template call requires param `{display_name}`"),
                     call_site_uri,
                     source_map.clone(),
                 ));
@@ -778,21 +778,95 @@ fn validate_required_call_params(
             continue;
         }
 
-        if declaration.name.contains('.') || data.bindings.contains_key(&declaration.name) {
-            continue;
+        let stream = stream.expect("stream is known to be present");
+        if !stream_accepts_param_type(stream, declaration) {
+            diagnostics.push(module_render_diagnostic(
+                TRANSFORM_TEMPLATE_PARAM_TYPE_CODE,
+                format!(
+                    "native template call param `{display_name}` value does not match declared type `{}`",
+                    declaration.value_type.as_contract_name()
+                ),
+                call_site_uri,
+                source_map.clone(),
+            ));
+            valid = false;
         }
-        diagnostics.push(module_render_diagnostic(
-            TRANSFORM_TEMPLATE_PARAM_REQUIRED_CODE,
-            format!(
-                "native template call requires module param `{}`",
-                declaration.name
-            ),
-            call_site_uri,
-            source_map.clone(),
-        ));
-        valid = false;
     }
     valid
+}
+
+fn call_param_stream<'a>(
+    data: &'a TemplateData,
+    declaration: &TransformTemplateModuleParamDeclaration,
+    selected_entrypoint: Option<&str>,
+) -> Option<&'a ItemStream> {
+    if let Some((qualified, local)) =
+        entrypoint_param_aliases(&declaration.name, selected_entrypoint)
+    {
+        return data
+            .bindings
+            .get(local.as_str())
+            .or_else(|| data.bindings.get(qualified.as_str()));
+    }
+    data.bindings.get(declaration.name.as_str())
+}
+
+fn call_param_display_name(
+    declaration: &TransformTemplateModuleParamDeclaration,
+    selected_entrypoint: Option<&str>,
+) -> String {
+    entrypoint_param_aliases(&declaration.name, selected_entrypoint)
+        .map(|(_, local)| local)
+        .unwrap_or_else(|| declaration.name.clone())
+}
+
+fn stream_accepts_param_type(
+    stream: &ItemStream,
+    declaration: &TransformTemplateModuleParamDeclaration,
+) -> bool {
+    if stream.items.len() > 1 {
+        return matches!(
+            declaration.value_type,
+            cem_ml::transform_template::TransformTemplateModuleParamType::Any
+                | cem_ml::transform_template::TransformTemplateModuleParamType::Array
+                | cem_ml::transform_template::TransformTemplateModuleParamType::Json
+        );
+    }
+
+    let Some(item) = stream.items.first() else {
+        return false;
+    };
+    item_accepts_param_type(item, declaration)
+}
+
+fn item_accepts_param_type(
+    item: &Item,
+    declaration: &TransformTemplateModuleParamDeclaration,
+) -> bool {
+    use cem_ml::transform_template::TransformTemplateModuleParamType as ParamType;
+
+    if matches!(item, Item::Atomic(AtomValue::Null)) {
+        return declaration.nullable;
+    }
+
+    match declaration.value_type {
+        ParamType::Any => true,
+        ParamType::String => matches!(
+            item,
+            Item::Atomic(AtomValue::String(_)) | Item::Atomic(AtomValue::AnyUri(_))
+        ),
+        ParamType::Boolean => matches!(item, Item::Atomic(AtomValue::Boolean(_))),
+        ParamType::Number => matches!(
+            item,
+            Item::Atomic(AtomValue::Integer(_))
+                | Item::Atomic(AtomValue::Decimal(_))
+                | Item::Atomic(AtomValue::Double(_))
+        ),
+        ParamType::Integer => matches!(item, Item::Atomic(AtomValue::Integer(_))),
+        ParamType::Array => matches!(item, Item::Array(_)),
+        ParamType::Object => matches!(item, Item::Record(_)),
+        ParamType::Json => matches!(item, Item::Atomic(_) | Item::Array(_) | Item::Record(_)),
+    }
 }
 
 fn normalize_param_aliases(data: &mut TemplateData, qualified: &str, local: &str) {
@@ -1558,6 +1632,80 @@ mod tests {
             "{:?}",
             rendered.diagnostics
         );
+    }
+
+    #[test]
+    fn adapter_reports_type_mismatches_for_same_module_call_params() {
+        let adapter = CemQlTransformTemplateAdapter;
+        let identity = FormatIdentity {
+            schema: Some(cem_ml::transform_template::CEM_NATIVE_TEMPLATE_SCHEMA_URI.to_owned()),
+            ..FormatIdentity::default()
+        };
+        let template = TemplateInput {
+            uri: "template.cem".to_owned(),
+            bytes: br#"{@doc cem-ml 1}
+{module |
+  {template @name="helper" |
+    {param @name="enabled" @type="boolean"}
+    {body | {cem:if @test="enabled" | {span | Enabled}}}
+  }
+  {body | {div | {call @template="helper" @with:enabled="not-bool"}}}
+}"#
+            .to_vec(),
+            identity: Some(identity),
+            root_scope: ScopeConfig::default(),
+        };
+        let params = BTreeMap::new();
+        let data_bindings = Vec::new();
+        let compiled = adapter
+            .compile(TransformTemplateCompileRequest {
+                template: &template,
+                entrypoint: &TransformTemplateEntrypoint::implicit(),
+                params: &params,
+                data_bindings: &data_bindings,
+                module_options: cem_ml::transform_template::TransformTemplateModuleOptions {
+                    params: vec![cem_ml::transform_template::TransformTemplateModuleParamDeclaration {
+                        name: "helper.enabled".to_owned(),
+                        value_type: TransformTemplateModuleParamType::Boolean,
+                        nullable: false,
+                        default_value: None,
+                        required: false,
+                        visibility: cem_ml::transform_template::TransformTemplateModuleVisibility::Private,
+                    }],
+                    ..Default::default()
+                },
+                module_preflight: Default::default(),
+                execution_policy: TransformExecutionPolicy::default(),
+            })
+            .expect("module template should compile")
+            .artifact;
+        let primary_input = TransformTemplateDataArtifact {
+            artifact_id: "data".to_owned(),
+            uri: None,
+            identity: None,
+            value: Value::Null,
+        };
+        let secondary_inputs = BTreeMap::new();
+
+        let rendered = adapter
+            .render(TransformTemplateRenderRequest {
+                compiled: &compiled,
+                primary_input: &primary_input,
+                secondary_inputs: &secondary_inputs,
+                target: None,
+                target_scope: &ScopeConfig::default(),
+                execution_policy: TransformExecutionPolicy::default(),
+            })
+            .expect("module template should render with type diagnostic");
+
+        assert_eq!(
+            rendered.output.value,
+            Value::String("<div></div>".to_owned())
+        );
+        assert!(rendered.diagnostics.iter().any(|diagnostic| {
+            diagnostic.code == TRANSFORM_TEMPLATE_PARAM_TYPE_CODE
+                && diagnostic.uri.as_deref() == Some("template.cem")
+        }));
     }
 
     #[test]
@@ -2726,6 +2874,87 @@ mod tests {
         }));
         assert!(!rendered.diagnostics.iter().any(|diagnostic| {
             diagnostic.code == TRANSFORM_TEMPLATE_PARAM_REQUIRED_CODE
+                && diagnostic.uri.as_deref() == Some("templates/ui.cem")
+        }));
+    }
+
+    #[test]
+    fn adapter_reports_type_mismatches_for_imported_module_call_params() {
+        let adapter = CemQlTransformTemplateAdapter;
+        let identity = FormatIdentity {
+            schema: Some(cem_ml::transform_template::CEM_NATIVE_TEMPLATE_SCHEMA_URI.to_owned()),
+            ..FormatIdentity::default()
+        };
+        let template = TemplateInput {
+            uri: "template.cem".to_owned(),
+            bytes: br#"{@doc cem-ml 1}
+{module |
+  {body | {div | {call @from="ui" @template="icon" @with:count="many"}}}
+}"#
+            .to_vec(),
+            identity: Some(identity.clone()),
+            root_scope: ScopeConfig::default(),
+        };
+        let params = BTreeMap::new();
+        let data_bindings = Vec::new();
+        let compiled = adapter
+            .compile(TransformTemplateCompileRequest {
+                template: &template,
+                entrypoint: &TransformTemplateEntrypoint::implicit(),
+                params: &params,
+                data_bindings: &data_bindings,
+                module_options: Default::default(),
+                module_preflight: TransformTemplateModulePreflight {
+                    resolved_imports: vec![TransformTemplateResolvedModule {
+                        alias: "ui".to_owned(),
+                        parent_uri: None,
+                        uri: "templates/ui.cem".to_owned(),
+                        identity: Some(identity),
+                        content_hash: "cem-bin/1+blake3:ui".to_owned(),
+                        bytes: br#"{@doc cem-ml 1}
+{module |
+  {template @name="icon" @visibility="public" |
+    {param @name="count" @type="integer"}
+    {body | {span | {$count}}}
+  }
+}"#
+                        .to_vec(),
+                    }],
+                    cache_key: None,
+                },
+                execution_policy: TransformExecutionPolicy::default(),
+            })
+            .expect("module template should compile")
+            .artifact;
+        let primary_input = TransformTemplateDataArtifact {
+            artifact_id: "data".to_owned(),
+            uri: None,
+            identity: None,
+            value: Value::Null,
+        };
+        let secondary_inputs = BTreeMap::new();
+
+        let rendered = adapter
+            .render(TransformTemplateRenderRequest {
+                compiled: &compiled,
+                primary_input: &primary_input,
+                secondary_inputs: &secondary_inputs,
+                target: None,
+                target_scope: &ScopeConfig::default(),
+                execution_policy: TransformExecutionPolicy::default(),
+            })
+            .expect("module template should render with type diagnostic");
+
+        assert_eq!(
+            rendered.output.value,
+            Value::String("<div></div>".to_owned())
+        );
+        assert!(rendered.diagnostics.iter().any(|diagnostic| {
+            diagnostic.code == TRANSFORM_TEMPLATE_PARAM_TYPE_CODE
+                && diagnostic.uri.as_deref() == Some("template.cem")
+        }));
+        assert!(!rendered.diagnostics.iter().any(|diagnostic| {
+            diagnostic.code == TRANSFORM_TEMPLATE_PARAM_TYPE_CODE
                 && diagnostic.uri.as_deref() == Some("templates/ui.cem")
         }));
     }
