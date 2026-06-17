@@ -740,12 +740,14 @@ These are data shapes only. Parser-filled content remains blocked until the pars
           and imported calls are checked after `@with:*` bindings and defaults are applied; missing values report a
           `cem.transform_template.param_required` diagnostic at the call site. Typed call params are checked against the
           invoked template declaration using the same scalar/JSON shape names as caller params; mismatches report
-          `cem.transform_template.param_type` at the call site. The adapter also preserves the selected entrypoint,
-          caller params, and param declarations in its compiled payload; caller params override declaration defaults,
-          omitted defaults are applied during render, explicit `null` stays bound as a caller value, and named
-          entrypoint-local params bind through their local names inside the invoked template. Qualified caller params
-          such as `card.title` bind equivalently when `card` is selected, while duplicate local+qualified aliases are
-          rejected before adapter compilation. The CEM-QL renderer declares the stable primary `input` binding
+          `cem.transform_template.param_type` at the call site. Whole-expression `@with:*` values that evaluate to
+          explicit null count as provided and then follow nullability; whole-expression values that evaluate to an empty
+          stream count as omitted. The adapter also preserves the selected entrypoint, caller params, and param
+          declarations in its compiled payload; caller params override declaration defaults, omitted defaults are
+          applied during render, explicit `null` stays bound as a caller value, and named entrypoint-local params bind
+          through their local names inside the invoked template. Qualified caller params such as `card.title` bind
+          equivalently when `card` is selected, while duplicate local+qualified aliases are rejected before adapter
+          compilation. The CEM-QL renderer declares the stable primary `input` binding
           at compile time and makes primary/secondary host bindings available as top-level fields on the synthesized data
           document while preserving `datadom.attributes.*` compatibility. Same-module recursive calls, including
           recursive calls inside an
