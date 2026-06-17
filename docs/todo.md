@@ -42,7 +42,8 @@ for the current architecture have landed; only deferred capability work remains 
       is now the active implementation track, not future wishlist. First active slice: preserve runtime provenance
       through graph collection joins so join-produced export artifacts carry the source-map/output-span metadata already
       emitted by upstream transform stages; keep tests separate from `examples/` while covering example-shaped graph
-      cases.
+      cases. Multi-input join collections now retain per-item source maps/output spans while keeping aggregate export
+      metadata honest when no single source-map stack can represent the whole collection.
       The parser/lowering boundary already exists for nested `run` / `import` / `join` / `transform` / `export` nodes,
       explicit collect joins,
       source-binding group-by joins, same-binding match-by joins, positional zip joins, and cross-input references

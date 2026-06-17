@@ -4190,6 +4190,123 @@ mod tests {
     }
 
     #[test]
+    fn real_engine_transform_graph_multi_input_join_preserves_per_item_metadata() {
+        let context = engine_context_with_cem_ql_template_adapter();
+        let identity = FormatIdentity {
+            content_type: Some("text/cem-ml".to_owned()),
+            ..FormatIdentity::default()
+        };
+        let request = TransformGraphRequest {
+            imports: vec![TransformGraphImport {
+                id: "book".to_owned(),
+                input: EngineInput {
+                    uri: "book.cem".to_owned(),
+                    bytes: b"{p @id=\"guide\"}".to_vec(),
+                    from_format: None,
+                    identity: Some(identity.clone()),
+                    root_scope: ScopeConfig::default(),
+                },
+                scheduler_scope_id: 40,
+            }],
+            joins: vec![TransformGraphJoin {
+                id: "collection".to_owned(),
+                mode: TransformGraphJoinMode::Collect,
+                input_names: vec!["primary".to_owned()],
+                inputs: vec![
+                    TransformGraphJoinInput {
+                        input_name: "primary".to_owned(),
+                        artifact_id: "html".to_owned(),
+                        bindings: BTreeMap::new(),
+                    },
+                    TransformGraphJoinInput {
+                        input_name: "primary".to_owned(),
+                        artifact_id: "summary".to_owned(),
+                        bindings: BTreeMap::new(),
+                    },
+                ],
+                bindings: BTreeMap::new(),
+                scheduler_scope_id: 45,
+            }],
+            stages: vec![
+                TransformGraphStage {
+                    id: "html".to_owned(),
+                    template: TemplateInput {
+                        uri: "html.cem".to_owned(),
+                        bytes: br#"{article | {$datadom.attributes.kind}}"#.to_vec(),
+                        identity: Some(identity.clone()),
+                        root_scope: ScopeConfig::default(),
+                    },
+                    template_kind: TransformTemplateKind::CemNative,
+                    template_entrypoint: TransformTemplateEntrypoint::implicit(),
+                    params: BTreeMap::new(),
+                    execution_policy: TransformExecutionPolicy::default(),
+                    primary_input: "book".to_owned(),
+                    secondary_inputs: BTreeMap::new(),
+                    scheduler_scope_ids: TransformStageSchedulerScopeIds {
+                        template_load: 41,
+                        execution: 42,
+                    },
+                },
+                TransformGraphStage {
+                    id: "summary".to_owned(),
+                    template: TemplateInput {
+                        uri: "summary.cem".to_owned(),
+                        bytes: br#"{section | {$datadom.attributes.kind}}"#.to_vec(),
+                        identity: Some(identity),
+                        root_scope: ScopeConfig::default(),
+                    },
+                    template_kind: TransformTemplateKind::CemNative,
+                    template_entrypoint: TransformTemplateEntrypoint::implicit(),
+                    params: BTreeMap::new(),
+                    execution_policy: TransformExecutionPolicy::default(),
+                    primary_input: "book".to_owned(),
+                    secondary_inputs: BTreeMap::new(),
+                    scheduler_scope_ids: TransformStageSchedulerScopeIds {
+                        template_load: 43,
+                        execution: 44,
+                    },
+                },
+            ],
+            exports: vec![TransformGraphExport {
+                id: "joined".to_owned(),
+                input: "collection".to_owned(),
+                destination: Some("dist/collection.json".to_owned()),
+                target: Some(FormatIdentity {
+                    content_type: Some("application/json".to_owned()),
+                    ..FormatIdentity::default()
+                }),
+                target_scope: ScopeConfig::default(),
+                scheduler_scope_id: 46,
+            }],
+            edges: Vec::new(),
+            preserve_source_offsets: false,
+            context,
+            execution_policy: TransformExecutionPolicy::default(),
+        };
+
+        let response = RealCemMlEngine::new()
+            .transform_graph(request)
+            .expect("transform graph should execute multi-input join export");
+
+        assert!(
+            response.diagnostics.is_empty(),
+            "{:?}",
+            response.diagnostics
+        );
+        assert_eq!(response.artifacts.len(), 1);
+        let artifact = &response.artifacts[0];
+        assert_eq!(artifact.input, "collection");
+        assert!(artifact.source_map.is_none());
+        assert!(!artifact.output_spans.is_empty());
+        let items = artifact.primary["items"].as_array().unwrap();
+        assert_eq!(items.len(), 2);
+        assert!(items.iter().all(|item| !item["sourceMap"].is_null()
+            && item["outputSpans"]
+                .as_array()
+                .is_some_and(|spans| !spans.is_empty())));
+    }
+
+    #[test]
     fn real_engine_transform_graph_attributes_stage_render_diagnostics() {
         let context = engine_context_with_cem_ql_template_adapter();
         let identity = FormatIdentity {

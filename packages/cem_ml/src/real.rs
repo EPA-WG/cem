@@ -911,6 +911,7 @@ fn load_transform_data_artifact(
 fn collect_transform_graph_join(
     join: &TransformGraphJoin,
     artifacts: &BTreeMap<String, TransformTemplateDataArtifact>,
+    artifact_metadata: &BTreeMap<String, TransformOutputMetadata>,
 ) -> TransformTemplateDataArtifact {
     let mode = match join.mode {
         TransformGraphJoinMode::Collect => "collect",
@@ -933,6 +934,17 @@ fn collect_transform_graph_join(
                 .iter()
                 .filter_map(|input| {
                     artifacts.get(&input.artifact_id).map(|artifact| {
+                        let metadata = artifact_metadata.get(&input.artifact_id);
+                        let source_map = metadata
+                            .and_then(|metadata| metadata.source_map.as_ref())
+                            .and_then(|source_map| serde_json::to_value(source_map).ok())
+                            .unwrap_or(Value::Null);
+                        let output_spans = metadata
+                            .map(|metadata| {
+                                serde_json::to_value(&metadata.output_spans)
+                                    .unwrap_or_else(|_| json!([]))
+                            })
+                            .unwrap_or_else(|| json!([]));
                         let item = json!({
                             "input": input.input_name.clone(),
                             "artifactId": artifact.artifact_id.clone(),
@@ -940,6 +952,8 @@ fn collect_transform_graph_join(
                             "identity": artifact.identity.clone(),
                             "primary": artifact.value.clone(),
                             "bindings": input.bindings.clone(),
+                            "sourceMap": source_map,
+                            "outputSpans": output_spans,
                         });
                         by_input
                             .entry(input.input_name.clone())
@@ -2948,7 +2962,8 @@ impl CemMlEngine for RealCemMlEngine {
                         EngineError::Internal(format!("scheduler dispatch failed: {err}"))
                     })?;
                 pool.run_to_completion(&abort, |_| {
-                    let artifact = collect_transform_graph_join(join, &artifacts);
+                    let artifact =
+                        collect_transform_graph_join(join, &artifacts, &artifact_metadata);
                     let metadata = collect_transform_graph_join_metadata(join, &artifact_metadata);
                     artifacts.insert(join.id.clone(), artifact);
                     artifact_metadata.insert(join.id.clone(), metadata);
