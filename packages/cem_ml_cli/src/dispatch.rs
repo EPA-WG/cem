@@ -2386,12 +2386,11 @@ fn write_document_primary(
     s: &mut Streams<'_>,
 ) -> io::Result<()> {
     let bytes;
-    let body = match primary {
-        serde_json::Value::String(value) => value.as_bytes(),
-        _ => {
-            bytes = serde_json::to_vec_pretty(primary)?;
-            &bytes
-        }
+    let body = if let Some(content) = document_primary_content(primary) {
+        content.as_bytes()
+    } else {
+        bytes = serde_json::to_vec_pretty(primary)?;
+        &bytes
     };
     match out {
         Some(path) => write_destination(
@@ -2407,6 +2406,16 @@ fn write_document_primary(
         }
     }
     Ok(())
+}
+
+fn document_primary_content(primary: &serde_json::Value) -> Option<&str> {
+    match primary {
+        serde_json::Value::String(value) => Some(value.as_str()),
+        serde_json::Value::Object(fields) => {
+            fields.get("content").and_then(serde_json::Value::as_str)
+        }
+        _ => None,
+    }
 }
 
 fn write_destination(
@@ -4642,6 +4651,7 @@ mod tests {
             .unwrap();
 
         assert!(out.exists());
+        assert_eq!(std::fs::read_to_string(&out).unwrap(), "<main></main>");
         let source_map: serde_json::Value = serde_json::from_str(
             &std::fs::read_to_string(format!("{}.map", out.display())).unwrap(),
         )

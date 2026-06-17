@@ -794,6 +794,8 @@ When an export artifact advertises a source map and has a concrete destination, 
 for that export, currently `{destination}.map`. The CLI writes the artifact `sourceMap` JSON payload to that sidecar
 through the output resolver and adds `exportId`, `input`, and `destination` metadata to object-shaped source-map
 payloads. Stdout exports omit `sourceMapRef` because they do not have a stable adjacent file path.
+When an export artifact is object-shaped and has a string `content` field, the configured output destination receives
+that document content; sidecar/report metadata remains outside the primary output body.
 
 The deterministic default timestamp for feature tests is `1970-01-01T00:00:00.000Z`.
 
