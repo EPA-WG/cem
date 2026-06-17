@@ -228,9 +228,13 @@ Roadmap: [`../roadmap.md` §Phase 5](../roadmap.md). Token export contract:
 Phase 1 because the validation is only meaningful against a populated Figma UI Kit. This phase starts after the
 Phase 4 component set has stable names, variants, and state semantics.
 
-- [ ] Validate native Figma library variables against the generated `figma/cem-*.tokens.json` files for every mode.
-      Surface the validation in `nx run @epa-wg/cem-theme:test:figma` (new target) or extend the existing
-      token-platform report. Block release when a mode disagrees with the canonical spine.
+- [x] Validate native Figma library variables against the generated `figma/cem-*.tokens.json` files for every mode.
+      `nx run @epa-wg/cem-theme:test:figma` now validates the five generated Figma mode files, their shared token
+      path/type surface, representative alias bindings, source CSS token metadata for Figma WEB code syntax, the
+      zero-error Figma report, and the checked-in native library evidence in `examples/figma/README.md` plus the
+      sample token-application fixture. This keeps the release gate offline and deterministic while blocking mode-file
+      drift from the canonical token spine; REST/API-based live Figma validation stays under the documented manual sync
+      policy until credentialed CI governance exists.
 - [ ] Extend the token-change smoke test with the Figma propagation leg: change one canonical token, refresh the Figma
       mode files, and assert the UI Kit variables reflect the change without manual rework. Track gaps in
       `token-pipeline-smoke.md`. The non-Figma leg of the same smoke test lives under Phase 8.

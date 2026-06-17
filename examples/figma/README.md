@@ -28,6 +28,16 @@ truth; Figma changes must be converted into spec edits before they enter the bui
 `native` mode values are Chromium-computed browser-reference values. They are not iOS or Android system color
 equivalents.
 
+Run the offline release gate after regenerating token artifacts:
+
+```bash
+yarn nx run @epa-wg/cem-theme:test:figma
+```
+
+The target validates the five generated mode files, representative native alias bindings, source CSS token metadata for
+Figma WEB code syntax, the zero-error Figma report, and this checked-in native-library evidence. It does not call the
+Figma REST API; API-backed live validation remains governed by the REST API sync policy below.
+
 ## Sample Application
 
 Use [sample-token-application.md](./sample-token-application.md) as the local fixture for applying imported variables
