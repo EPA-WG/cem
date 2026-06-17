@@ -535,7 +535,17 @@ fn build_cem_core_annotations() -> BTreeMap<&'static str, AnnotationDef> {
                 "profile-preferences",
                 "message-reply",
             ],
-            allowed_states: vec!["default", "disabled", "invalid", "loading"],
+            allowed_states: vec![
+                "default",
+                "disabled",
+                "invalid",
+                "required",
+                "readonly",
+                "loading",
+                "expanded",
+                "checked",
+                "indeterminate",
+            ],
         },
     );
     annotations.insert(
@@ -551,6 +561,8 @@ fn build_cem_core_annotations() -> BTreeMap<&'static str, AnnotationDef> {
                 "active",
                 "disabled",
                 "loading",
+                "expanded",
+                "checked",
             ],
         },
     );
@@ -569,7 +581,15 @@ fn build_cem_core_annotations() -> BTreeMap<&'static str, AnnotationDef> {
             local_name: "card",
             allowed_values: None,
             known_values: vec!["identity", "preferences", "summary"],
-            allowed_states: vec!["default", "selected", "loading", "empty"],
+            allowed_states: vec![
+                "default",
+                "hover",
+                "focus-visible",
+                "selected",
+                "loading",
+                "empty",
+                "checked",
+            ],
         },
     );
     annotations.insert(
@@ -578,7 +598,15 @@ fn build_cem_core_annotations() -> BTreeMap<&'static str, AnnotationDef> {
             local_name: "list",
             allowed_values: None,
             known_values: vec!["assets", "results", "notifications"],
-            allowed_states: vec!["default", "loading", "empty"],
+            allowed_states: vec![
+                "default",
+                "hover",
+                "focus-visible",
+                "selected",
+                "loading",
+                "empty",
+                "checked",
+            ],
         },
     );
     annotations.insert(
@@ -587,7 +615,15 @@ fn build_cem_core_annotations() -> BTreeMap<&'static str, AnnotationDef> {
             local_name: "row",
             allowed_values: None,
             known_values: vec!["asset", "result", "notification"],
-            allowed_states: vec!["default", "hover", "focus-visible", "selected", "disabled"],
+            allowed_states: vec![
+                "default",
+                "hover",
+                "focus-visible",
+                "selected",
+                "disabled",
+                "checked",
+                "indeterminate",
+            ],
         },
     );
     annotations.insert(
@@ -618,11 +654,15 @@ fn cem_core_state_matrix() -> Vec<&'static str> {
         "hover",
         "focus-visible",
         "active",
-        "selected",
         "disabled",
+        "loading",
+        "selected",
+        "expanded",
         "invalid",
         "required",
-        "loading",
+        "readonly",
+        "checked",
+        "indeterminate",
         "empty",
     ]
 }
@@ -812,11 +852,15 @@ mod tests {
             "hover",
             "focus-visible",
             "active",
-            "selected",
             "disabled",
+            "loading",
+            "selected",
+            "expanded",
             "invalid",
             "required",
-            "loading",
+            "readonly",
+            "checked",
+            "indeterminate",
             "empty",
         ] {
             assert!(s.is_known_state(state), "state matrix missing: {state}");

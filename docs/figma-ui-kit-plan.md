@@ -33,22 +33,19 @@ surface without making Figma the source of truth.
 
 | Figma Component | Source Component Plan | Required Variable Bindings |
 | --- | --- | --- |
-| App shell | `docs/component-mvp.md#component-list` | surface, text, gap, inset |
-| Top bar | `docs/component-mvp.md#component-list` | surface, text, stroke, gap |
-| Navigation item | `docs/component-mvp.md#component-list` | action state colors, gap, inset, bend |
-| Text field | `docs/component-mvp.md#component-list` | surface, text, stroke, bend, gap, typography |
-| Checkbox | `docs/component-mvp.md#component-list` | control size, stroke, selected color |
-| Button | `docs/component-mvp.md#component-list` | action fill/text, control height, inset, bend |
-| Card | `docs/component-mvp.md#component-list` | surface, stroke, bend, gap, inset |
-| Data row | `docs/component-mvp.md#component-list` | zebra surface, text, gap, stroke |
-| Badge | `docs/component-mvp.md#component-list` | status color, text, bend, inset |
-| Message item | `docs/component-mvp.md#component-list` | surface, text, gap, bend |
-| Alert | `docs/component-mvp.md#component-list` | semantic action/status color, stroke, gap |
+| Action / icon button / menu item | `docs/component-mvp.md#component-list` | action fill/text, control height, inset, bend |
+| Text field / textarea / select | `docs/component-mvp.md#component-list` | surface, text, stroke, bend, gap, typography |
+| Checkbox / radio / switch | `docs/component-mvp.md#component-list` | control size, stroke, selected color |
+| App bar / nav / tabs | `docs/component-mvp.md#component-list` | action state colors, gap, inset, stroke, typography |
+| Card / list / table | `docs/component-mvp.md#component-list` | surface, stroke, bend, gap, inset |
+| Chip / badge / avatar | `docs/component-mvp.md#component-list` | status color, text, bend, inset |
+| Media preview | `docs/component-mvp.md#component-list` | surface, stroke, bend, gap |
+| Dialog / sheet | `docs/component-mvp.md#component-list` | surface, text, stroke, bend, gap, inset |
+| Toast / progress / skeleton / alert | `docs/component-mvp.md#component-list` | semantic action/status color, stroke, gap |
 
 ## QA Expectations
 
-- Each component set has at least default, hover, focus-visible, disabled, and invalid/selected variants where
-  applicable.
+- Each component set has the states required by `docs/component-mvp.md#category-state-coverage`.
 - Each variant uses bound variables rather than copied hex or pixel literals when Figma supports the property.
 - Each component is tested in `Light`, `Dark`, `Contrast Light`, `Contrast Dark`, and `Native` modes.
 - Screens on `05 Site Demo` are composed from `03 Components` instances rather than detached shapes.

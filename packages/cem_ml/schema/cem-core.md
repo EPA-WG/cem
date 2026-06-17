@@ -46,20 +46,21 @@ State attributes attach to the same host element as the CEM annotation.
 Allowed state names are drawn from the State Matrix in
 [`component-mvp.md`](../../../docs/component-mvp.md):
 
-`default`, `hover`, `focus-visible`, `active`, `selected`, `disabled`,
-`invalid`, `required`, `loading`, `empty`.
+`default`, `hover`, `focus-visible`, `active`, `disabled`, `loading`,
+`selected`, `expanded`, `invalid`, `required`, `readonly`, `checked`,
+`indeterminate`, `empty`.
 
-| Annotation       | Allowed states                                                                       |
-| ---------------- | ------------------------------------------------------------------------------------ |
-| `cem:screen`     | `default`, `loading`, `empty`                                                        |
-| `cem:form`       | `default`, `disabled`, `invalid`, `loading`                                          |
-| `cem:action`     | `default`, `hover`, `focus-visible`, `active`, `disabled`, `loading`                 |
-| `cem:badge`      | `default`                                                                            |
-| `cem:card`       | `default`, `selected`, `loading`, `empty`                                            |
-| `cem:list`       | `default`, `loading`, `empty`                                                        |
-| `cem:row`        | `default`, `hover`, `focus-visible`, `selected`, `disabled`                          |
-| `cem:thread`     | `default`, `loading`, `empty`                                                        |
-| `cem:message`    | `default`                                                                            |
+| Annotation       | Allowed states                                                                                         |
+| ---------------- | ------------------------------------------------------------------------------------------------------ |
+| `cem:screen`     | `default`, `loading`, `empty`                                                                          |
+| `cem:form`       | `default`, `disabled`, `invalid`, `required`, `readonly`, `loading`, `expanded`, `checked`, `indeterminate` |
+| `cem:action`     | `default`, `hover`, `focus-visible`, `active`, `disabled`, `loading`, `expanded`, `checked`            |
+| `cem:badge`      | `default`                                                                                              |
+| `cem:card`       | `default`, `hover`, `focus-visible`, `selected`, `loading`, `empty`, `checked`                         |
+| `cem:list`       | `default`, `hover`, `focus-visible`, `selected`, `loading`, `empty`, `checked`                         |
+| `cem:row`        | `default`, `hover`, `focus-visible`, `selected`, `disabled`, `checked`, `indeterminate`                |
+| `cem:thread`     | `default`, `loading`, `empty`                                                                          |
+| `cem:message`    | `default`                                                                                              |
 
 State is exposed via a `cem:state` attribute on the same host node, with the
 value being a single state name or a space-separated list of state names.

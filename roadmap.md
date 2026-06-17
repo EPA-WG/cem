@@ -252,11 +252,12 @@ Deliverables:
 - Custom-element XSLT parity implemented before component expansion: define a separate legacy XSLT 1.0 + limited
   sample-used EXSLT compatibility adapter for copied component/sample templating, including bounded
   `xsl:template`, `xsl:apply-templates`, and `xsl:call-template` behavior.
-- Actions: button, icon button, split action, menu item.
-- Inputs: text field, textarea, select, checkbox, radio, switch, slider, date/time affordances.
-- Navigation: app bar, side nav, tabs, breadcrumbs, pagination.
-- Content: card, list, table/data grid, chip, badge, avatar, media/object preview.
-- Feedback: dialog, sheet, snackbar/toast, progress, skeleton, inline alert.
+- MVP component list and state matrix defined in [`docs/component-mvp.md`](docs/component-mvp.md).
+- Actions: action, icon button, menu item.
+- Inputs: text field, textarea, select, checkbox, radio, switch.
+- Navigation: app bar, nav, tabs.
+- Content: card, list, table, chip, badge, avatar, media preview.
+- Feedback: dialog, sheet, toast, progress, skeleton, alert.
 - App workflows: auth forms, profile editor, asset browser, discussion thread, settings page.
 - Component docs with examples, semantic guidance, token usage, states, and accessibility notes.
 

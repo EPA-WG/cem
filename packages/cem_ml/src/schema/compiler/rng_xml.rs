@@ -362,11 +362,15 @@ mod tests {
             "hover",
             "focus-visible",
             "active",
-            "selected",
             "disabled",
+            "loading",
+            "selected",
+            "expanded",
             "invalid",
             "required",
-            "loading",
+            "readonly",
+            "checked",
+            "indeterminate",
             "empty",
         ] {
             assert!(

@@ -297,11 +297,15 @@ mod tests {
             "Hover",
             "FocusVisible",
             "Active",
-            "Selected",
             "Disabled",
+            "Loading",
+            "Selected",
+            "Expanded",
             "Invalid",
             "Required",
-            "Loading",
+            "Readonly",
+            "Checked",
+            "Indeterminate",
             "Empty",
         ] {
             assert!(

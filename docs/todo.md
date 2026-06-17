@@ -249,8 +249,9 @@ for the current architecture have landed; only deferred capability work remains 
       `TransformGraphStage`, while duplicate-destination and other graph-wide execution controls stay on
       `TransformGraphRequest`; mixed CEM-native and XSLT stages are covered by CLI integration tests. Quoted XPath
       string literals in lowered XSLT value/param expressions now render as text while scalar variables that represent
-      rewritten CEM-QL expressions still splice as expressions. Next decision boundary: define the Phase 4 component MVP
-      list and state matrix before expanding the component catalog.
+      rewritten CEM-QL expressions still splice as expressions. The Phase 4 component MVP list and state matrix are now
+      defined in [`component-mvp.md`](component-mvp.md); next implementation boundary is expanding
+      `@epa-wg/cem-components` from primitives into the first MVP components.
 - [ ] **Wishlist (future — schema/tooling):** wire CLI config schemas into generated/published artifacts. The JSON
       `RunConfig` config-file surface uses schema identity `https://cem.dev/ns/cli/run-config/1` and has checked-in JSON
       Schema `packages/cem_ml/schema/cli/run-config.schema.json`
@@ -300,8 +301,12 @@ to proven web component names, states, attributes, and accessibility behavior in
       browser/WASM custom-element gate. Future XPath/function expansion is sample-driven follow-up, not a blocker for
       Phase 4 catalog expansion. Track the inventory with `yarn nx run @epa-wg/custom-element:xslt:inventory`; track the
       remaining bounded implementation questions in [`custom-element-xslt-parity-decision.md`](custom-element-xslt-parity-decision.md).
-- [ ] Define the Phase 4 component MVP list and state matrix across actions, inputs, navigation, content, feedback,
-      and the first app workflow surfaces. Use Angular Material only as a coverage and ergonomics benchmark, not as a
+- [x] Define the Phase 4 component MVP list and state matrix across actions, inputs, navigation, content, feedback,
+      and the first app workflow surfaces. Accepted scope lives in [`component-mvp.md`](component-mvp.md): actions
+      (`action`, `icon-button`, `menu-item`), inputs (`text-field`, `textarea`, `select`, `checkbox`, `radio`,
+      `switch`), navigation (`app-bar`, `nav`, `tabs`), content (`card`, `list`, `table`, `chip`, `badge`, `avatar`,
+      `media-preview`), feedback (`dialog`, `sheet`, `toast`, `progress`, `skeleton`, `alert`), and auth/profile/asset
+      browser/discussion/settings workflow surfaces. Angular Material remains a coverage and ergonomics benchmark, not a
       required implementation dependency.
 - [ ] Expand `@epa-wg/cem-components` from the current primitives into the practical Material-style surface:
       action/icon-button/menu-item, text field/textarea/select/checkbox/radio/switch, app bar/nav/tabs, card/list/table,

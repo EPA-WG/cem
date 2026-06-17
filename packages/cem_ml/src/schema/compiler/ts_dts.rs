@@ -339,11 +339,11 @@ mod tests {
             badge_block.contains(r#"readonly cemState?: "default";"#),
             "badge state union should be exactly \"default\":\n{badge_block}"
         );
-        // action — allowed_states = ["default","hover","focus-visible","active","disabled","loading"]
+        // action — allowed_states = ["default","hover","focus-visible","active","disabled","loading","expanded","checked"]
         let action_block =
             extract_interface_block(&body, "Action").expect("Action interface block");
         assert!(action_block.contains(
-            r#"readonly cemState?: "default" | "hover" | "focus-visible" | "active" | "disabled" | "loading";"#
+            r#"readonly cemState?: "default" | "hover" | "focus-visible" | "active" | "disabled" | "loading" | "expanded" | "checked";"#
         ));
     }
 
