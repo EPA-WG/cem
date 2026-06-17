@@ -2768,6 +2768,7 @@ fn write_transform_report_if_requested(
     input_uris: &[String],
     diagnostics: &[cem_ml::diagnostics::Diagnostic],
     scheduler_trace: &cem_ml::report::SchedulerTraceReport,
+    transform: Option<cem_ml::report::TransformReport>,
     transform_graph: Option<cem_ml::report::TransformGraphReport>,
 ) -> io::Result<()> {
     if !report_requested(&args.report) {
@@ -2779,6 +2780,7 @@ fn write_transform_report_if_requested(
         report_options_snapshot(cli::FailLevel::Validate, &args.context),
     )
     .with_scheduler_trace_report(scheduler_trace.clone());
+    report.report_ast.transform = transform;
     report.report_ast.transform_graph = transform_graph;
     write_report_files(context, &report, &args.report, REPORT_BASENAME_TRANSFORM)
 }
@@ -2841,6 +2843,23 @@ fn transform_graph_source_map_ref(
     }
 }
 
+fn transform_report_from_response(
+    response: &eng::TransformResponse,
+    input: &str,
+    destination: Option<&Path>,
+) -> cem_ml::report::TransformReport {
+    let has_source_map = response.source_map.is_some();
+    let destination = destination.map(|path| path.display().to_string());
+    cem_ml::report::TransformReport {
+        input: input.to_owned(),
+        destination: destination.clone(),
+        output_kind: transform_graph_output_kind(&response.primary),
+        has_source_map,
+        output_span_count: response.output_spans.len() as u64,
+        source_map_ref: transform_graph_source_map_ref(destination.as_deref(), has_source_map),
+    }
+}
+
 fn transform_graph_report_from_artifacts(
     artifacts: &[eng::TransformGraphArtifact],
 ) -> cem_ml::report::TransformGraphReport {
@@ -2889,6 +2908,28 @@ fn render_report_markdown(report: &cem_ml::report::Report) -> String {
         "- hardViolations: {}\n",
         report.summary.hard_violation_count
     ));
+    if let Some(transform) = &report.report_ast.transform {
+        out.push_str("\n## transform\n\n");
+        out.push_str(&format!(
+            "- primary <- {} -> {} [{}]",
+            transform.input,
+            transform.destination.as_deref().unwrap_or("<stdout>"),
+            transform.output_kind
+        ));
+        out.push_str(&format!(
+            " [sourceMap: {}, outputSpans: {}]",
+            if transform.has_source_map {
+                "yes"
+            } else {
+                "no"
+            },
+            transform.output_span_count
+        ));
+        if let Some(source_map_ref) = transform.source_map_ref.as_deref() {
+            out.push_str(&format!(" [sourceMapRef: {source_map_ref}]"));
+        }
+        out.push('\n');
+    }
     if let Some(transform_graph) = &report.report_ast.transform_graph {
         out.push_str("\n## transform graph\n\n");
         out.push_str(&format!("- exports: {}\n", transform_graph.export_count));
@@ -3413,6 +3454,7 @@ fn run_transform_graph<E: CemMlEngine + ?Sized>(
                 &[config_source_uri],
                 &resp.diagnostics,
                 &resp.scheduler_trace,
+                None,
                 Some(transform_graph_report_from_artifacts(&resp.artifacts)),
             ) {
                 let _ = writeln!(s.stderr, "cem-ml: transform report write failure: {e}");
@@ -3454,16 +3496,22 @@ pub fn run_transform<E: CemMlEngine + ?Sized>(
     match engine.transform(req) {
         Ok(resp) => {
             let report_requested = report_requested(&args.report);
+            let input = args
+                .data
+                .as_ref()
+                .map(|path| path.display().to_string())
+                .unwrap_or_default();
             if let Err(e) = write_transform_report_if_requested(
                 &engine_context,
                 &args,
-                &[args
-                    .data
-                    .as_ref()
-                    .map(|path| path.display().to_string())
-                    .unwrap_or_default()],
+                std::slice::from_ref(&input),
                 &resp.diagnostics,
                 &resp.scheduler_trace,
+                Some(transform_report_from_response(
+                    &resp,
+                    &input,
+                    args.out.as_deref(),
+                )),
                 None,
             ) {
                 let _ = writeln!(s.stderr, "cem-ml: transform report write failure: {e}");
@@ -3489,11 +3537,7 @@ pub fn run_transform<E: CemMlEngine + ?Sized>(
                 &engine_context,
                 &resp,
                 args.out.as_deref(),
-                &args
-                    .data
-                    .as_ref()
-                    .map(|path| path.display().to_string())
-                    .unwrap_or_default(),
+                &input,
             ) {
                 let _ = writeln!(s.stderr, "cem-ml: write failure: {e}");
                 return Outcome::code(EXIT_IO);
@@ -4980,6 +5024,69 @@ mod tests {
         let report: serde_json::Value =
             serde_json::from_str(&std::fs::read_to_string(report_path).unwrap()).unwrap();
         assert_eq!(report["summary"]["warningCount"], 1);
+    }
+
+    #[test]
+    fn transform_report_records_source_map_sidecar_ref() {
+        let data = write_fixture("transform-run-report-map-data.cem", "{p @id=\"source\"}");
+        let template = write_fixture("transform-run-report-map-template.cem", "{section | Done}");
+        let root = std::env::temp_dir().join("cem-ml-cli-tests/transform-report-map");
+        let _ = std::fs::remove_dir_all(&root);
+        std::fs::create_dir_all(&root).unwrap();
+        let out = root.join("out.html");
+        let report_json = root.join("report.json");
+        let report_md = root.join("report.md");
+
+        let (outcome, stdout, stderr) = run(
+            &RealCemMlEngine::new(),
+            &[
+                "transform",
+                data.to_str().unwrap(),
+                "--data-content-type",
+                "text/cem-ml",
+                "--template",
+                template.to_str().unwrap(),
+                "--template-content-type",
+                "text/cem-ml",
+                "--to-content-type",
+                "text/html",
+                "--out",
+                out.to_str().unwrap(),
+                "--report-json",
+                report_json.to_str().unwrap(),
+                "--report-md",
+                report_md.to_str().unwrap(),
+            ],
+        );
+
+        assert_eq!(outcome.exit_code, EXIT_OK);
+        assert!(stdout.is_empty(), "{stdout}");
+        assert!(stderr.trim().is_empty(), "{stderr}");
+        let report: serde_json::Value =
+            serde_json::from_str(&std::fs::read_to_string(report_json).unwrap()).unwrap();
+        assert_eq!(
+            report["reportAst"]["transform"]["input"],
+            data.display().to_string()
+        );
+        assert_eq!(
+            report["reportAst"]["transform"]["destination"],
+            out.display().to_string()
+        );
+        assert_eq!(report["reportAst"]["transform"]["hasSourceMap"], true);
+        assert!(
+            report["reportAst"]["transform"]["outputSpanCount"]
+                .as_u64()
+                .unwrap()
+                > 0
+        );
+        assert_eq!(
+            report["reportAst"]["transform"]["sourceMapRef"],
+            format!("{}.map", out.display())
+        );
+        let markdown = std::fs::read_to_string(report_md).unwrap();
+        assert!(markdown.contains("## transform"));
+        assert!(markdown.contains("[sourceMap: yes, outputSpans: "));
+        assert!(markdown.contains(&format!("[sourceMapRef: {}.map]", out.display())));
     }
 
     #[test]

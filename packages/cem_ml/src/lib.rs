@@ -44,7 +44,7 @@ mod tests {
     use engine::FailLevel;
     use report::{
         Report, ReportOptionsSnapshot, TransformGraphExportReport, TransformGraphReport,
-        DETERMINISTIC_TIMESTAMP,
+        TransformReport, DETERMINISTIC_TIMESTAMP,
     };
 
     fn diag(sev: Severity) -> Diagnostic {
@@ -221,6 +221,39 @@ mod tests {
         );
         assert_eq!(
             v["reportAst"]["transformGraph"]["exports"][0]["sourceMapRef"],
+            "out/page.html.map"
+        );
+    }
+
+    #[test]
+    fn report_serializes_optional_transform_projection() {
+        let mut report = Report::deterministic(
+            vec!["data.cem".into()],
+            vec![],
+            ReportOptionsSnapshot {
+                fail_level: FailLevel::Validate,
+                schema: None,
+                content_type: None,
+                base_uri: None,
+            },
+        );
+        report.report_ast.transform = Some(TransformReport {
+            input: "data.cem".into(),
+            destination: Some("out/page.html".into()),
+            output_kind: "document".into(),
+            has_source_map: true,
+            output_span_count: 2,
+            source_map_ref: Some("out/page.html.map".into()),
+        });
+
+        let v = serde_json::to_value(&report).unwrap();
+        assert_eq!(v["reportAst"]["transform"]["input"], "data.cem");
+        assert_eq!(v["reportAst"]["transform"]["destination"], "out/page.html");
+        assert_eq!(v["reportAst"]["transform"]["outputKind"], "document");
+        assert_eq!(v["reportAst"]["transform"]["hasSourceMap"], true);
+        assert_eq!(v["reportAst"]["transform"]["outputSpanCount"], 2);
+        assert_eq!(
+            v["reportAst"]["transform"]["sourceMapRef"],
             "out/page.html.map"
         );
     }

@@ -36,6 +36,8 @@ pub struct ReportOptionsSnapshot {
 pub struct ReportAst {
     #[serde(rename = "schedulerTrace", default)]
     pub scheduler_trace: SchedulerTraceReport,
+    #[serde(rename = "transform", skip_serializing_if = "Option::is_none")]
+    pub transform: Option<TransformReport>,
     #[serde(rename = "transformGraph", skip_serializing_if = "Option::is_none")]
     pub transform_graph: Option<TransformGraphReport>,
 }
@@ -86,6 +88,21 @@ impl From<SchedulerEvent> for SchedulerTraceReportEvent {
             task: event.task,
         }
     }
+}
+
+#[derive(Debug, Clone, Default, Serialize, Deserialize, PartialEq, Eq)]
+#[serde(rename_all = "camelCase")]
+pub struct TransformReport {
+    pub input: String,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub destination: Option<String>,
+    pub output_kind: String,
+    #[serde(rename = "hasSourceMap")]
+    pub has_source_map: bool,
+    #[serde(rename = "outputSpanCount")]
+    pub output_span_count: u64,
+    #[serde(rename = "sourceMapRef", skip_serializing_if = "Option::is_none")]
+    pub source_map_ref: Option<String>,
 }
 
 #[derive(Debug, Clone, Default, Serialize, Deserialize, PartialEq, Eq)]
