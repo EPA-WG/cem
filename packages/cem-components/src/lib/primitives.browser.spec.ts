@@ -168,6 +168,52 @@ describe('CEM component primitives', () => {
         expect(() => assertAriaReferenceIntegrity(harness.root)).not.toThrow();
     });
 
+    it('renders navigation-family MVP primitives as accessible landmarks and tablists', async () => {
+        harness = createComponentHarness();
+        const root = await harness.render(`
+            <cem-stack gap="sm">
+                <cem-app-bar label="CEM Admin">
+                    <span slot="title">CEM Admin</span>
+                    <button type="button">Settings</button>
+                </cem-app-bar>
+                <cem-nav label="Primary">
+                    <a href="#overview">Overview</a>
+                    <a href="#assets">Assets</a>
+                </cem-nav>
+                <cem-tabs label="Profile sections">
+                    <button type="button" role="tab" aria-selected="true">Overview</button>
+                    <button type="button" role="tab" aria-selected="false">Security</button>
+                </cem-tabs>
+            </cem-stack>
+        `);
+        await waitForPrimitive(root, 'cem-tabs [role="tablist"]');
+
+        const appBar = harness.query<HTMLElement>('cem-app-bar header');
+        const appBarTitle = harness.query<HTMLElement>('cem-app-bar .cem-app-bar__title');
+        const appBarAction = harness.query<HTMLButtonElement>('cem-app-bar button');
+        const nav = harness.query<HTMLElement>('cem-nav nav');
+        const tablist = harness.query<HTMLElement>('cem-tabs [role="tablist"]');
+        const tabs = Array.from(harness.root.querySelectorAll<HTMLButtonElement>('cem-tabs [role="tab"]'));
+
+        for (const host of Array.from(harness.root.querySelectorAll<HTMLElement>('cem-app-bar, cem-nav, cem-tabs'))) {
+            assertLightDomRendered(host);
+            expect(host.shadowRoot).toBeNull();
+        }
+
+        expect(appBar.getAttribute('role')).toBe('banner');
+        expect(assertAccessibleName(appBar, 'CEM Admin')).toBe('CEM Admin');
+        expect(appBarTitle.textContent?.trim()).toBe('CEM Admin');
+        expect(assertAccessibleName(appBarAction, 'Settings')).toBe('Settings');
+        expect(assertAccessibleName(nav, 'Primary')).toBe('Primary');
+        expect(nav.querySelectorAll('a')).toHaveLength(2);
+        expect(tablist.getAttribute('role')).toBe('tablist');
+        expect(assertAccessibleName(tablist, 'Profile sections')).toBe('Profile sections');
+        expect(tabs).toHaveLength(2);
+        expect(tabs[0]?.getAttribute('aria-selected')).toBe('true');
+        expect(tabs[1]?.getAttribute('aria-selected')).toBe('false');
+        expect(() => assertAriaReferenceIntegrity(harness.root)).not.toThrow();
+    });
+
     it('renders layout, list, navigation, surface, and dialog shell primitives', async () => {
         harness = createComponentHarness();
         const root = await harness.render(`

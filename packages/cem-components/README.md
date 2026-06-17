@@ -30,7 +30,7 @@ installCemComponentPrimitives(runtime);
 
 This registers the minimal primitive tags: `cem-action`, `cem-icon-button`, `cem-menu-item`, `cem-field`,
 `cem-text-field`, `cem-textarea`, `cem-select`, `cem-checkbox`, `cem-radio`, `cem-switch`, `cem-surface`, `cem-text`,
-`cem-icon`, `cem-stack`, `cem-grid`, `cem-list`, `cem-nav`, and `cem-dialog-shell`.
+`cem-icon`, `cem-stack`, `cem-grid`, `cem-list`, `cem-app-bar`, `cem-nav`, `cem-tabs`, and `cem-dialog-shell`.
 
 ## Build & test
 

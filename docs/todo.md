@@ -315,7 +315,9 @@ to proven web component names, states, attributes, and accessibility behavior in
       declaration installer and have browser harness coverage for light-DOM rendering, accessible names, and ARIA
       reference integrity. The input-family MVP slice now registers `cem-text-field`, `cem-textarea`, `cem-select`,
       `cem-checkbox`, `cem-radio`, and `cem-switch` with browser harness coverage for native form controls, projected
-      options, accessible names, values, and ARIA reference integrity.
+      options, accessible names, values, and ARIA reference integrity. The navigation-family MVP slice now registers
+      `cem-app-bar` and `cem-tabs` alongside `cem-nav`, with browser harness coverage for banner, navigation, tablist,
+      projected actions/links/tabs, accessible names, selected tab state, and ARIA reference integrity.
 - [ ] Add component docs and examples for semantics, token usage, states, and accessibility notes. The exit gate is that
       the future CEM site and Figma site demo can be built from this component set without one-off UI controls.
 

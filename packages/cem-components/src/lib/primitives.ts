@@ -154,11 +154,27 @@ export const CEM_COMPONENT_PRIMITIVES = [
             '{ul @class=cem-list @aria-label="{$label}" | {slot | {li @class=cem-list__empty | No items}}}',
     },
     {
+        tag: 'cem-app-bar',
+        description: 'MVP app bar for product title, context, and global actions.',
+        cemMl:
+            '{attribute @name=label | Application}' +
+            '{header @class=cem-app-bar @role=banner @aria-label="{$label}" |' +
+            ' {div @class=cem-app-bar__title | {slot @name=title | {$label}}}' +
+            ' {div @class=cem-app-bar__actions | {slot}}}',
+    },
+    {
         tag: 'cem-nav',
         description: 'Labeled navigation landmark.',
         cemMl:
             '{attribute @name=label | Navigation}' +
             '{nav @class=cem-nav @aria-label="{$label}" | {slot}}',
+    },
+    {
+        tag: 'cem-tabs',
+        description: 'MVP tablist container for local view switching.',
+        cemMl:
+            '{attribute @name=label | Tabs}' +
+            '{div @class=cem-tabs @role=tablist @aria-label="{$label}" | {slot | {button @type=button @role=tab @aria-selected=true | Tab}}}',
     },
     {
         tag: 'cem-dialog-shell',
