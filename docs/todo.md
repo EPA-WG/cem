@@ -122,6 +122,44 @@ Recommended execution order:
       `yarn nx run cem-elements:verify` as the browser-substrate production-ready trigger, list the fixture surfaces,
       and separate the Phase 3.5 Edge/SSR handoff from later Phase 3.6 `@epa-wg/custom-element` adoption.
 
+### Phase 3.2 — `@epa-wg/cem-components` Primitive Production Gate
+
+Roadmap: [`../roadmap.md` §3.2](../roadmap.md#32-primitives--epa-wgcem-components). Contract homes:
+[`../docs/component-mvp.md`](../docs/component-mvp.md),
+[`../packages/cem-components/docs/component-reference.md`](../packages/cem-components/docs/component-reference.md),
+[`../packages/cem-components/docs/conventions.md`](../packages/cem-components/docs/conventions.md),
+[`../packages/cem-components/docs/light-dom-rendering.md`](../packages/cem-components/docs/light-dom-rendering.md), and
+[`../packages/cem-components/docs/accessibility.md`](../packages/cem-components/docs/accessibility.md).
+
+Goal: make `@epa-wg/cem-components` production-ready as the first primitive declaration set built exclusively on the
+`<cem-element>` substrate. The package already has primitive declarations, examples, docs, and Chromium-backed browser
+coverage; the remaining work is to turn those into a durable release gate and prove the MVP workflows, states,
+accessibility behavior, and token-only styling contract.
+
+Recommended execution order:
+
+- [x] **Baseline the current primitive package gate.** Run and record the current status for
+      `yarn nx run @epa-wg/cem-components:test`, and note the browser/unit coverage surface that already exists. Fix only
+      harness drift in this slice; leave primitive behavior gaps as named checklist items below.
+      Baseline run on 2026-06-17: passed. The target built the required theme, `cem-elements`, and WASM dependencies,
+      then ran 3 files / 11 tests: `cem-components.spec.ts` in Node, plus Chromium-backed
+      `component-harness.browser.spec.ts` and `primitives.browser.spec.ts`.
+- [ ] **Make the primitive manifest a release gate.** Add a package-owned verifier that proves
+      `CEM_COMPONENT_PRIMITIVES` exactly covers `docs/component-mvp.md`, every primitive has a CEM-ML declaration, no
+      declaration depends on legacy `<custom-element>`, and install results surface registration diagnostics
+      deterministically.
+- [ ] **Promote workflow fixtures into executable coverage.** Turn the auth form, profile editor, asset browser,
+      discussion thread, and settings examples into package-owned browser fixtures that assert common static and form
+      flows work with no app JavaScript beyond installing the primitives.
+- [ ] **Harden state and ARIA behavior across the MVP matrix.** Cover disabled, loading, selected, expanded, invalid,
+      required, readonly, checked, indeterminate, and empty states where applicable; assert accessible names, reference
+      integrity, live-region roles, keyboard focus, and event payload behavior through the component harness.
+- [ ] **Prove the token-only styling contract.** Add a deterministic style inspection gate that rejects new
+      component-specific color/spacing literals and verifies primitive styles resolve through CEM theme token families.
+- [ ] **Document the primitive production-ready trigger.** Update `packages/cem-components/README.md` and
+      `packages/cem-components/docs/component-reference.md` with the final command set, fixture locations, known
+      deferrals, and the exact handoff condition for Phase 4 component expansion.
+
 ## Externally Gated
 
 These are intentionally not active in the current workspace because the required native toolchains are unavailable.
