@@ -69,7 +69,7 @@ fn xslt_adapter_output_matches_cem_for_profile_named_template() {
     assert_xslt_output_parity(
         "profile-named-template",
         r#"<xsl:stylesheet version="1.0"><xsl:template match="/"><section class="profile"><xsl:call-template name="row"><xsl:with-param name="label" select="'Display name'"/></xsl:call-template></section></xsl:template><xsl:template name="row"><p><xsl:value-of select="$label"/></p></xsl:template></xsl:stylesheet>"#,
-        r#"{section @class="profile" | {p | "Display name"}}"#,
+        r#"{section @class="profile" | {p | Display name}}"#,
     );
 }
 

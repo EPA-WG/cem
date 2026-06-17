@@ -54,7 +54,7 @@ fn direct_cli_executes_xslt_parity_for_login_profile_shape() {
     write(&data, r#"{main @id="login"}"#);
     write(
         &template,
-        r#"<xsl:stylesheet version="1.0"><xsl:template match="/"><main class="login"><h1>Sign in</h1><section class="profile"><xsl:call-template name="row"/></section></main></xsl:template><xsl:template name="row"><p>Display name</p></xsl:template></xsl:stylesheet>"#,
+        r#"<xsl:stylesheet version="1.0"><xsl:template match="/"><main class="login"><h1>Sign in</h1><section class="profile"><xsl:call-template name="row"><xsl:with-param name="label" select="'Display name'"/></xsl:call-template></section></main></xsl:template><xsl:template name="row"><p><xsl:value-of select="$label"/></p></xsl:template></xsl:stylesheet>"#,
     );
 
     let output = cem_ml(&[

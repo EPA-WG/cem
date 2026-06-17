@@ -868,8 +868,9 @@ These are data shapes only. Parser-filled content remains blocked until the pars
       coverage in `packages/cem_ml_cli/tests/xslt_parity_transform.rs`. XSLT remains implicit-entrypoint/no-params at
       this boundary. The crate dependency cycle is avoided by keeping the concrete CEM-QL adapter in
       `cem_ml_transform_cem_ql` rather than in `cem_ml`. Mixed-runtime transform graphs now use per-stage runtime policy,
-      with CLI coverage for CEM-native and XSLT stages in the same graph. Next implementation boundary: close the quoted
-      string-literal behavior in lowered XSLT value/param expressions before expanding the supported XSLT subset.
+      with CLI coverage for CEM-native and XSLT stages in the same graph. Quoted XPath string literals in lowered XSLT
+      value/param expressions now render as text while scalar variables that represent rewritten CEM-QL expressions
+      still splice as expressions.
 8. `cem-ml trace <input>`
     - Supported structured formats: `json`, `xml`, `cem`.
     - Reference convenience formats: `text`, `html`.

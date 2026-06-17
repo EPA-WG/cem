@@ -13,7 +13,7 @@
 
 use crate::diagnostics::{Diagnostic, Severity};
 use serde::Serialize;
-use std::collections::HashMap;
+use std::collections::{HashMap, HashSet};
 
 /// Host-template language marker used by the package adapter for untyped
 /// legacy declarations.
@@ -449,6 +449,7 @@ struct EmitCtx {
     node_sets: HashMap<String, Vec<ItemNode>>,
     current_sets: HashMap<String, Vec<CurrentItem>>,
     scalars: HashMap<String, String>,
+    scalar_expressions: HashSet<String>,
     item: Option<CurrentItem>,
     root_nodes: Vec<LegacyNode>,
     template_depth: usize,
@@ -573,13 +574,7 @@ fn bind_select_value(
             .or_else(|| evaluate_xpath_literal(select, source))
         {
             scoped.scalars.insert(name.to_owned(), value);
-            return;
-        }
-        if is_quoted_xpath_literal(select) {
-            scoped.scalars.insert(
-                name.to_owned(),
-                format!("\"{}\"", unquote_xpath_literal(select).replace('"', "\\\"")),
-            );
+            scoped.scalar_expressions.remove(name);
             return;
         }
     }
@@ -596,13 +591,21 @@ fn bind_select_value(
         bind_current_items(scoped, name, items);
         return;
     }
-    let rewritten = source
+    let (rewritten, is_expression) = match source
         .item
         .as_ref()
         .and_then(|item| resolve_item_literal(select, item))
         .or_else(|| evaluate_xpath_literal(select, source))
-        .unwrap_or_else(|| rewrite_expression(select, source, false, diagnostics));
+    {
+        Some(value) => (value, false),
+        None => (rewrite_expression(select, source, false, diagnostics), true),
+    };
     scoped.scalars.insert(name.to_owned(), rewritten);
+    if is_expression {
+        scoped.scalar_expressions.insert(name.to_owned());
+    } else {
+        scoped.scalar_expressions.remove(name);
+    }
 }
 
 fn bind_apply_members(scoped: &mut EmitCtx, name: &str, members: Vec<ApplyMember>) {
@@ -630,6 +633,7 @@ fn bind_current_items(scoped: &mut EmitCtx, name: &str, current_items: Vec<Curre
             .join("");
         scoped.current_sets.insert(name.to_owned(), current_items);
         scoped.scalars.insert(name.to_owned(), scalar);
+        scoped.scalar_expressions.remove(name);
     }
 }
 
@@ -1196,6 +1200,7 @@ fn with_call_template_params(
         } else {
             let value = emit_children(&param.children, ctx, diagnostics);
             scoped.scalars.insert(name.to_owned(), value);
+            scoped.scalar_expressions.remove(name);
         }
     }
     scoped
@@ -1229,8 +1234,10 @@ fn with_template_param_defaults(
         } else if !param.children.is_empty() {
             let value = emit_children(&param.children, &scoped, diagnostics);
             scoped.scalars.insert(name.to_owned(), value);
+            scoped.scalar_expressions.remove(name);
         } else {
             scoped.scalars.insert(name.to_owned(), String::new());
+            scoped.scalar_expressions.remove(name);
         }
     }
     scoped
@@ -2665,7 +2672,11 @@ fn rewrite_predicate(
     if let Some(name) = predicate.trim().strip_prefix('$') {
         if is_name(name) {
             if let Some(value) = ctx.scalars.get(name) {
-                return value.clone();
+                return if ctx.scalar_expressions.contains(name) {
+                    value.clone()
+                } else {
+                    cem_ql_string_literal(value)
+                };
             }
         }
     }
@@ -2886,6 +2897,9 @@ fn split_top_level_comparison(expression: &str) -> Option<(&str, &str, &str)> {
 
 fn evaluate_xpath_literal(expression: &str, ctx: &EmitCtx) -> Option<String> {
     let expression = expression.trim();
+    if is_quoted_xpath_literal(expression) {
+        return Some(unquote_xpath_literal(expression));
+    }
     if let Some((left, right)) = split_top_level_plus(expression) {
         let left = evaluate_xpath_literal(left, ctx)?;
         let left = left.trim().parse::<f64>().ok()?;
@@ -3111,7 +3125,13 @@ impl XPathRewriter<'_, '_> {
                 .ctx
                 .scalars
                 .get(&value)
-                .map(|scalar| format!("{scalar} "))
+                .map(|scalar| {
+                    if self.ctx.scalar_expressions.contains(&value) {
+                        format!("{scalar} ")
+                    } else {
+                        format!("{} ", cem_ql_string_literal(scalar))
+                    }
+                })
                 .unwrap_or_else(|| format!("{value} ")),
             XToken::Punct(value) => self.rewrite_punct(&value),
             XToken::Name(value) => self.rewrite_name(&value),
@@ -3281,6 +3301,10 @@ fn escape_literal(text: &str) -> String {
     } else {
         text.to_owned()
     }
+}
+
+fn cem_ql_string_literal(text: &str) -> String {
+    format!("\"{}\"", text.replace('\\', "\\\\").replace('"', "\\\""))
 }
 
 fn emit_rich_content(text: &str) -> String {
@@ -3479,6 +3503,13 @@ mod tests {
     fn lowers_xsl_value_of() {
         let result = convert(r#"<xsl:value-of select="$name"/>"#);
         assert_eq!(result.source, "{$name}");
+        assert!(result.diagnostics.is_empty());
+    }
+
+    #[test]
+    fn lowers_quoted_xsl_value_of_as_text() {
+        let result = convert(r#"<p><xsl:value-of select="'Display name'"/></p>"#);
+        assert_eq!(result.source, "{p | Display name}");
         assert!(result.diagnostics.is_empty());
     }
 
