@@ -2945,6 +2945,7 @@ fn transform_graph_artifact_source_map_value(
                 .filter(|source_map| !source_map.is_null())
                 .cloned()
         })
+        .or_else(|| transform_graph_collection_source_map_value(&artifact.primary))
 }
 
 fn transform_graph_has_source_map(artifact: &eng::TransformGraphArtifact) -> bool {
@@ -2961,6 +2962,72 @@ fn transform_graph_output_span_count(artifact: &eng::TransformGraphArtifact) -> 
         .and_then(serde_json::Value::as_array)
         .map(|spans| spans.len() as u64)
         .unwrap_or(0)
+}
+
+fn transform_graph_collection_source_map_value(
+    primary: &serde_json::Value,
+) -> Option<serde_json::Value> {
+    if primary.get("kind").and_then(serde_json::Value::as_str) != Some("collection") {
+        return None;
+    }
+    let items = primary.get("items")?.as_array()?;
+    let items = items
+        .iter()
+        .filter_map(|item| {
+            let source_map = item.get("sourceMap").filter(|source_map| !source_map.is_null())?;
+            Some(serde_json::json!({
+                "input": item.get("input").cloned().unwrap_or(serde_json::Value::Null),
+                "artifactId": item.get("artifactId").cloned().unwrap_or(serde_json::Value::Null),
+                "sourceMap": source_map.clone(),
+                "outputSpans": item.get("outputSpans").cloned().unwrap_or_else(|| serde_json::json!([])),
+            }))
+        })
+        .collect::<Vec<_>>();
+    if items.is_empty() {
+        None
+    } else {
+        Some(serde_json::json!({
+            "kind": "collection",
+            "items": items,
+        }))
+    }
+}
+
+fn transform_graph_collection_item_reports(
+    primary: &serde_json::Value,
+) -> Vec<cem_ml::report::TransformGraphCollectionItemReport> {
+    if primary.get("kind").and_then(serde_json::Value::as_str) != Some("collection") {
+        return Vec::new();
+    }
+    let Some(items) = primary.get("items").and_then(serde_json::Value::as_array) else {
+        return Vec::new();
+    };
+    items
+        .iter()
+        .map(|item| {
+            let output_span_count = item
+                .get("outputSpans")
+                .and_then(serde_json::Value::as_array)
+                .map(|spans| spans.len() as u64)
+                .unwrap_or(0);
+            cem_ml::report::TransformGraphCollectionItemReport {
+                input: item
+                    .get("input")
+                    .and_then(serde_json::Value::as_str)
+                    .unwrap_or("")
+                    .to_owned(),
+                artifact_id: item
+                    .get("artifactId")
+                    .and_then(serde_json::Value::as_str)
+                    .unwrap_or("")
+                    .to_owned(),
+                has_source_map: item
+                    .get("sourceMap")
+                    .is_some_and(|source_map| !source_map.is_null()),
+                output_span_count,
+            }
+        })
+        .collect()
 }
 
 fn transform_graph_source_map_ref(
@@ -3017,6 +3084,7 @@ fn transform_graph_report_from_artifacts(
                     artifact.destination.as_deref(),
                     has_source_map,
                 ),
+                collection_items: transform_graph_collection_item_reports(&artifact.primary),
             }
         })
         .collect::<Vec<_>>();
@@ -3081,6 +3149,12 @@ fn render_report_markdown(report: &cem_ml::report::Report) -> String {
             ));
             if let Some(source_map_ref) = export.source_map_ref.as_deref() {
                 out.push_str(&format!(" [sourceMapRef: {source_map_ref}]"));
+            }
+            if !export.collection_items.is_empty() {
+                out.push_str(&format!(
+                    " [collectionItems: {}]",
+                    export.collection_items.len()
+                ));
             }
             out.push('\n');
         }
@@ -4829,6 +4903,8 @@ mod tests {
 
     #[test]
     fn transform_graph_report_records_source_map_sidecar_refs() {
+        let collection_source_map = serde_json::to_value(test_source_map(8)).unwrap();
+        let collection_output_spans = serde_json::to_value(vec![test_output_span(8)]).unwrap();
         let artifacts = vec![
             eng::TransformGraphArtifact {
                 export_id: "main".to_owned(),
@@ -4855,6 +4931,26 @@ mod tests {
                 source_map: Some(test_source_map(0)),
                 output_spans: Vec::new(),
             },
+            eng::TransformGraphArtifact {
+                export_id: "collection".to_owned(),
+                input: "joined".to_owned(),
+                destination: Some("out/collection.json".to_owned()),
+                identity: Some(eng::FormatIdentity {
+                    content_type: Some("application/json".to_owned()),
+                    ..eng::FormatIdentity::default()
+                }),
+                primary: serde_json::json!({
+                    "kind": "collection",
+                    "items": [{
+                        "input": "primary",
+                        "artifactId": "html",
+                        "sourceMap": collection_source_map,
+                        "outputSpans": collection_output_spans,
+                    }],
+                }),
+                source_map: None,
+                output_spans: vec![test_output_span(8)],
+            },
         ];
 
         let report = transform_graph_report_from_artifacts(&artifacts);
@@ -4872,6 +4968,7 @@ mod tests {
         let markdown = render_report_markdown(&rendered_report);
         assert!(markdown.contains("[sourceMapRef: out/page.html.map]"));
         assert!(markdown.contains("- main <- html -> out/page.html"));
+        assert!(markdown.contains("[collectionItems: 1]"));
 
         let value = serde_json::to_value(report).unwrap();
         assert_eq!(value["exports"][0]["input"], "html");
@@ -4880,6 +4977,27 @@ mod tests {
         assert_eq!(value["exports"][0]["outputSpanCount"], 1);
         assert!(value["exports"][1]["sourceMapRef"].is_null());
         assert_eq!(value["exports"][1]["hasSourceMap"], true);
+        assert_eq!(
+            value["exports"][2]["sourceMapRef"],
+            "out/collection.json.map"
+        );
+        assert_eq!(value["exports"][2]["hasSourceMap"], true);
+        assert_eq!(
+            value["exports"][2]["collectionItems"][0]["input"],
+            "primary"
+        );
+        assert_eq!(
+            value["exports"][2]["collectionItems"][0]["artifactId"],
+            "html"
+        );
+        assert_eq!(
+            value["exports"][2]["collectionItems"][0]["hasSourceMap"],
+            true
+        );
+        assert_eq!(
+            value["exports"][2]["collectionItems"][0]["outputSpanCount"],
+            1
+        );
     }
 
     #[test]
@@ -4924,6 +5042,60 @@ mod tests {
         assert_eq!(source_map["exportId"], "main");
         assert_eq!(source_map["input"], "html");
         assert_eq!(source_map["destination"], out.display().to_string());
+        assert!(stdout.into_inner().is_empty());
+    }
+
+    #[test]
+    fn transform_graph_artifact_writer_emits_collection_source_map_sidecars() {
+        let root =
+            std::env::temp_dir().join("cem-ml-cli-tests/transform-graph-collection-map-sidecar");
+        let _ = std::fs::remove_dir_all(&root);
+        std::fs::create_dir_all(&root).unwrap();
+        let out = root.join("out/collection.json");
+        let source_map = serde_json::to_value(test_source_map(21)).unwrap();
+        let output_spans = serde_json::to_value(vec![test_output_span(21)]).unwrap();
+        let artifacts = vec![eng::TransformGraphArtifact {
+            export_id: "joined".to_owned(),
+            input: "collection".to_owned(),
+            destination: Some(out.display().to_string()),
+            identity: Some(eng::FormatIdentity {
+                content_type: Some("application/json".to_owned()),
+                ..eng::FormatIdentity::default()
+            }),
+            primary: serde_json::json!({
+                "kind": "collection",
+                "items": [{
+                    "input": "primary",
+                    "artifactId": "html",
+                    "sourceMap": source_map,
+                    "outputSpans": output_spans,
+                }],
+            }),
+            source_map: None,
+            output_spans: vec![test_output_span(21)],
+        }];
+        let mut stdout = Cursor::new(Vec::new());
+        let mut stderr = Cursor::new(Vec::new());
+        let mut streams = Streams {
+            stdout: &mut stdout,
+            stderr: &mut stderr,
+            quiet: false,
+        };
+
+        write_transform_graph_artifacts(&eng::EngineContext::default(), &artifacts, &mut streams)
+            .unwrap();
+
+        assert!(out.exists());
+        let sidecar: serde_json::Value = serde_json::from_str(
+            &std::fs::read_to_string(format!("{}.map", out.display())).unwrap(),
+        )
+        .unwrap();
+        assert_eq!(sidecar["kind"], "collection");
+        assert_eq!(sidecar["exportId"], "joined");
+        assert_eq!(sidecar["input"], "collection");
+        assert_eq!(sidecar["destination"], out.display().to_string());
+        assert_eq!(sidecar["items"][0]["artifactId"], "html");
+        assert!(sidecar["items"][0]["sourceMap"]["frames"].is_array());
         assert!(stdout.into_inner().is_empty());
     }
 

@@ -130,6 +130,20 @@ pub struct TransformGraphExportReport {
     pub output_span_count: u64,
     #[serde(rename = "sourceMapRef", skip_serializing_if = "Option::is_none")]
     pub source_map_ref: Option<String>,
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub collection_items: Vec<TransformGraphCollectionItemReport>,
+}
+
+#[derive(Debug, Clone, Default, Serialize, Deserialize, PartialEq, Eq)]
+#[serde(rename_all = "camelCase")]
+pub struct TransformGraphCollectionItemReport {
+    pub input: String,
+    #[serde(rename = "artifactId")]
+    pub artifact_id: String,
+    #[serde(rename = "hasSourceMap")]
+    pub has_source_map: bool,
+    #[serde(rename = "outputSpanCount")]
+    pub output_span_count: u64,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]

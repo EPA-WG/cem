@@ -799,12 +799,15 @@ Transform graph export report entries keep:
 - `hasSourceMap`
 - `outputSpanCount`
 - optional `sourceMapRef`
+- optional `collectionItems[]` for collection exports, with `input`, `artifactId`, `hasSourceMap`, and
+  `outputSpanCount`
 
 When a single transform response or export artifact advertises a source map and has a concrete destination,
 `sourceMapRef` is the sidecar reference for that output, currently `{destination}.map`. The CLI writes the source-map
 JSON payload to that sidecar through the output resolver. For graph exports, the CLI also adds `exportId`, `input`, and
-`destination` metadata to object-shaped source-map payloads. Stdout outputs omit `sourceMapRef` because they do not have
-a stable adjacent file path.
+`destination` metadata to object-shaped source-map payloads. Collection export sidecars use a collection-shaped
+source-map payload with per-item `sourceMap` and `outputSpans` entries instead of flattening multiple provenance stacks
+into one. Stdout outputs omit `sourceMapRef` because they do not have a stable adjacent file path.
 When an export artifact is object-shaped and has a string `content` field, the configured output destination receives
 that document content; sidecar/report metadata remains outside the primary output body.
 

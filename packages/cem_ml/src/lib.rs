@@ -186,6 +186,7 @@ mod tests {
                 has_source_map: true,
                 output_span_count: 2,
                 source_map_ref: Some("out/page.html.map".into()),
+                collection_items: Vec::new(),
             }],
         });
 
