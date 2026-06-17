@@ -36,10 +36,13 @@ Recommended execution order:
       The fixture directory now contains a manifest plus paired legacy/CEM-ML files for every listed behavior, and
       `yarn nx run cem-elements:verify-legacy-fixtures` verifies manifest coverage and fixture shape. Runtime promotion
       remains the next checklist item.
-- [ ] **Create file-backed material parity fixtures.** Add `packages/cem-elements/tests/parity/material/` fixtures for
+- [x] **Create file-backed material parity fixtures.** Add `packages/cem-elements/tests/parity/material/` fixtures for
       the eight legacy material references: `action`, `autocomplete`, `badge`, `dropdown`, `icon`, `icon-link`, `input`,
       and `menu`. Keep the import dependency order explicit: `icon`, `icon-link`, `menu` before `badge`, `action`,
       `dropdown`, `input`, then `autocomplete`.
+      The fixture directory now contains a manifest plus paired legacy/CEM-ML files for all eight references, and
+      `yarn nx run cem-elements:verify-material-fixtures` verifies component coverage, import order, dependency
+      markers, produced tags, and fixture shape.
 - [ ] **Promote Storybook parity to release gates.** Keep Storybook as the visual/debug surface, but make the Nx release
       gate assert the file-backed fixtures directly so parity does not depend on manual story inspection.
 - [ ] **Prove declaration/data-island inertness in browser tests.** Cover exactly-one inline declaration template,

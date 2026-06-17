@@ -91,6 +91,20 @@
             ],
             "outputs": []
         },
+        "verify-material-fixtures": {
+            "cache": true,
+            "executor": "nx:run-commands",
+            "options": {
+                "command": "node tools/scripts/verify-cem-elements-material-fixtures.mjs",
+                "cwd": "{workspaceRoot}"
+            },
+            "inputs": [
+                "{workspaceRoot}/tools/scripts/verify-cem-elements-material-fixtures.mjs",
+                "{projectRoot}/tests/parity/material/**/*",
+                "{projectRoot}/docs/material-parity-inventory.md"
+            ],
+            "outputs": []
+        },
         "verify": {
             "executor": "nx:run-commands",
             "dependsOn": [

@@ -1,0 +1,20 @@
+<template id="cem-badge">
+    <attribute name="text"></attribute>
+    <attribute name="dot"></attribute>
+    <attribute name="color"></attribute>
+    <attribute name="align"></attribute>
+    <attribute name="invisible"></attribute>
+    <style>
+        .cem-badge { position: relative; }
+    </style>
+    <slot></slot>
+    <if test="/datadom/slice/is-checked = 'on'">
+        <attribute name="invisible">on</attribute>
+    </if>
+    <span class="badge-dd">{$text}</span>
+</template>
+<custom-element hidden src="#cem-badge" tag="cem-badge"></custom-element>
+<custom-element hidden src="./icon-link.html#cem-badge-link" tag="cem-badge-link"></custom-element>
+<custom-element hidden src="./icon-link.html#cem-icon-link" tag="cem-icon-link"></custom-element>
+<custom-element hidden src="./icon.html#cem-icon" tag="cem-icon"></custom-element>
+<input type="checkbox" slice="is-checked" slice-event="change" slice-value="{$target.value}"/>

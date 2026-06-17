@@ -1,0 +1,20 @@
+<template id="cem-action">
+    <attribute name="text">Action</attribute>
+    <attribute name="color"></attribute>
+    <attribute name="align"></attribute>
+    <style>
+        button { display: inline-flex; }
+    </style>
+    <button><slot>{text}</slot></button>
+</template>
+<custom-element hidden src="#cem-action" tag="cem-action"></custom-element>
+<custom-element hidden src="./icon-link.html#cem-icon-link" tag="cem-icon-link"></custom-element>
+<custom-element hidden src="./icon.html#cem-icon" tag="cem-icon"></custom-element>
+<custom-element>
+    <template>
+        <cem-action class="{//bend}">default</cem-action>
+        <if test="/datadom/slice/is-checked = 'on'">
+            <attribute name="invisible">on</attribute>
+        </if>
+    </template>
+</custom-element>

@@ -1,0 +1,12 @@
+<cem-element tag="cem-icon-link">
+    <template type="text/cem-ml">
+        {module-url @slice=cemurl @src="@epa-wg/material"}
+        {module-url @slice=logourl @src="@epa-wg/custom-element/demo/wc-square.svg"}
+        {attribute @name=href | #}
+        {a @class=cem-icon-link @href="{$datadom.slices.cemurl}" |
+            {img @class=resolved-logo @src="{$datadom.slices.logourl}" @alt="" | }
+            {cem:if @test="datadom.attributes.icon" | {span @class="icon material-icons" | {$datadom.attributes.icon}}}
+            {slot}
+        }
+    </template>
+</cem-element>

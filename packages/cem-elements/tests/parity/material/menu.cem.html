@@ -1,0 +1,8 @@
+<cem-element tag="cem-menu">
+    <template type="text/cem-ml">
+        {attribute @name=direction | row}
+        {nav @class="cem-menu {$direction}" @aria-label="Material menu" @data-justify="{$datadom.attributes.justify}" |
+            {slot}
+        }
+    </template>
+</cem-element>
