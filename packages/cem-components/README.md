@@ -6,9 +6,9 @@ Declarative component primitives that consume the CEM theme. No shadow DOM — e
 light DOM, authored against the `<cem-element>` substrate from `@epa-wg/cem-elements` (functional successor to
 `@epa-wg/custom-element`; design home: [`docs/cem-element-design.md`](../../docs/cem-element-design.md)).
 
-> **Status: minimal primitives.** The package exports the Phase 3.2 browser test harness and the first installable
-> primitive declaration set from the [component MVP](../../docs/component-mvp.md), registered through the
-> production-ready `<cem-element>` substrate.
+> **Status: Phase 3.2 production gate.** The package exports the browser test harness and installable primitive
+> declaration set from the [component MVP](../../docs/component-mvp.md), registered through the production-ready
+> `<cem-element>` substrate.
 
 ## Install
 
@@ -34,20 +34,52 @@ This registers the minimal primitive tags: `cem-action`, `cem-icon-button`, `cem
 `cem-media-preview`, `cem-app-bar`, `cem-nav`, `cem-tabs`, `cem-dialog`, `cem-dialog-shell`, `cem-sheet`,
 `cem-toast`, `cem-progress`, `cem-skeleton`, and `cem-alert`.
 
-## Build & test
+## Build & Verify
 
 ```bash
-yarn build 
-# or 
-nx run @epa-wg/cem-components:build
-nx run @epa-wg/cem-components:test
-nx run @epa-wg/cem-components:lint
+yarn nx run @epa-wg/cem-components:verify
+yarn nx run @epa-wg/cem-components:verify-primitives
+yarn nx run @epa-wg/cem-components:verify-style-contract
+yarn nx run @epa-wg/cem-components:test
+yarn nx run @epa-wg/cem-components:build
+yarn nx run @epa-wg/cem-components:lint
 ```
 
 `yarn build` at the repo root builds every package, including this one.
 
-`nx run @epa-wg/cem-components:test` runs the existing Node unit tests plus the Chromium-backed component harness
-coverage.
+`yarn nx run @epa-wg/cem-components:verify` is the Phase 3.2 production-ready trigger. It runs the primitive manifest
+gate, the token-only style contract gate, and the Node/Chromium browser coverage. The style contract depends on
+`@epa-wg/cem-theme:build:tokens`, so the component gate checks against current generated theme token artifacts.
+
+`yarn nx run @epa-wg/cem-components:test` runs the Node unit test plus Chromium-backed component harness coverage.
+
+## Fixture Surfaces
+
+| Surface | Path |
+| ------- | ---- |
+| Primitive manifest gate | `tools/scripts/verify-cem-components-primitives.mjs` |
+| Token-only style gate | `tools/scripts/verify-cem-components-styles.mjs` |
+| Primitive browser coverage | `src/lib/primitives.browser.spec.ts` |
+| State and ARIA coverage | `src/lib/states.browser.spec.ts` |
+| Workflow browser coverage | `src/lib/workflows.browser.spec.ts` |
+| Workflow fixtures | `tests/workflows/` |
+| Package examples | `examples/` |
+
+## Handoff Condition
+
+Phase 4 component expansion can start from this package when `yarn nx run @epa-wg/cem-components:verify` passes on the
+branch being promoted and the working tree contains no uncommitted gate changes. That command proves the current MVP
+primitive list matches `docs/component-mvp.md`, renders through the light-DOM `<cem-element>` substrate, covers the first
+workflow surfaces, reflects required state and ARIA behavior, and does not introduce component-specific color or spacing
+literals.
+
+Known deferrals stay outside this trigger:
+
+- Phase 3.5 Edge/SSR processing fixtures for serialized `DataIslandSnapshot` handoff.
+- Phase 3.6 `@epa-wg/custom-element` monorepo adoption.
+- Richer post-MVP controls such as split actions, sliders, date/time affordances, side-nav variants, breadcrumbs,
+  pagination, and richer menu/dropdown families.
+- Full application behaviors around dialog focus trapping, routed navigation, async loading, and data fetching.
 
 ## Key paths
 
@@ -57,6 +89,9 @@ coverage.
 | Current shell entry | `src/lib/cem-components.ts` |
 | Primitive declarations | `src/lib/primitives.ts` |
 | Primitive browser coverage | `src/lib/primitives.browser.spec.ts` |
+| State and ARIA browser coverage | `src/lib/states.browser.spec.ts` |
+| Workflow browser coverage | `src/lib/workflows.browser.spec.ts` |
+| Workflow fixtures | `tests/workflows/` |
 | Component test harness | `src/lib/testing/component-harness.ts` |
 | Browser harness coverage | `src/lib/testing/component-harness.browser.spec.ts` |
 | Component reference | `docs/component-reference.md` |

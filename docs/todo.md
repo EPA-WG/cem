@@ -168,9 +168,12 @@ Recommended execution order:
       `@epa-wg/cem-components:verify-style-contract` now depends on `@epa-wg/cem-theme:build:tokens`, checks MVP
       token-family names against generated `cem.tokens.json` and combined CSS, rejects inline component styles and raw
       component CSS color/spacing literals, and is included in the aggregate component verify target.
-- [ ] **Document the primitive production-ready trigger.** Update `packages/cem-components/README.md` and
+- [x] **Document the primitive production-ready trigger.** Update `packages/cem-components/README.md` and
       `packages/cem-components/docs/component-reference.md` with the final command set, fixture locations, known
       deferrals, and the exact handoff condition for Phase 4 component expansion.
+      README and component reference now name `yarn nx run @epa-wg/cem-components:verify` as the Phase 3.2 trigger,
+      list the primitive, style, browser, state, and workflow fixture surfaces, identify Edge/SSR and
+      `@epa-wg/custom-element` adoption as later phases, and define the Phase 4 handoff condition.
 
 ## Externally Gated
 

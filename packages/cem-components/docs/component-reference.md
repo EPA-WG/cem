@@ -19,6 +19,48 @@ This document describes the installable MVP declaration set registered by
 - Examples live under [`../examples`](../examples). Tests stay separate in `src/lib/*.spec.ts` and cover the same
   workflow-shaped cases with package-owned fixtures.
 
+## Production Gate
+
+The primitive set is production-ready for Phase 4 expansion when this command passes on the branch being promoted:
+
+```bash
+yarn nx run @epa-wg/cem-components:verify
+```
+
+The aggregate gate includes:
+
+| Gate | Command | Coverage |
+| --- | --- | --- |
+| Primitive manifest | `yarn nx run @epa-wg/cem-components:verify-primitives` | `CEM_COMPONENT_PRIMITIVES` exactly matches `docs/component-mvp.md`, uses CEM-ML declarations, and does not depend on legacy `<custom-element>` wrappers. |
+| Token-only style contract | `yarn nx run @epa-wg/cem-components:verify-style-contract` | Depends on `@epa-wg/cem-theme:build:tokens`, checks MVP token families against generated theme tokens/CSS, and rejects inline component styles plus raw component color or spacing literals. |
+| Browser and unit behavior | `yarn nx run @epa-wg/cem-components:test` | Runs the Node smoke test plus Chromium-backed harness, primitive, state/ARIA, and workflow specs. |
+
+Executable fixture locations:
+
+| Purpose | Path |
+| --- | --- |
+| Primitive declarations | `../src/lib/primitives.ts` |
+| Primitive family coverage | `../src/lib/primitives.browser.spec.ts` |
+| State, ARIA, focus, and event payload coverage | `../src/lib/states.browser.spec.ts` |
+| Workflow fixture coverage | `../src/lib/workflows.browser.spec.ts` |
+| Declarative workflow fixtures | `../tests/workflows/` |
+| Component harness helpers | `../src/lib/testing/component-harness.ts` |
+| Style and manifest verifier scripts | `../../../tools/scripts/verify-cem-components-*.mjs` |
+
+Handoff condition: Phase 4 component expansion can build on this primitive package after the aggregate verify gate is
+green and the promoted branch has no uncommitted gate changes. The handoff covers the MVP primitive declaration set,
+common static/form workflows, state and ARIA behavior, light-DOM rendering, event payload capture, and token-only style
+constraints.
+
+Known deferrals remain outside the Phase 3.2 trigger:
+
+- Edge/SSR processing fixtures for serialized data-island snapshots are Phase 3.5.
+- `@epa-wg/custom-element` monorepo adoption is Phase 3.6.
+- Full application behaviors such as dialog focus trapping, routed navigation, async data loading, and resource
+  primitives are follow-up runtime/application work.
+- Post-MVP controls including split actions, sliders, date/time controls, side-nav variants, breadcrumbs, pagination,
+  and richer menu/dropdown families are Phase 4 expansion work.
+
 ## Actions
 
 | Component | Semantics | Content and Attributes | Token Families | Required A11y |
