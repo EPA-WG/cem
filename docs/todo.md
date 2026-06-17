@@ -96,7 +96,8 @@ for the current architecture have landed; only deferred capability work remains 
       sidecar refs. Graph exports with artifact source maps write `{destination}.map` sidecars with
       export/input/destination metadata through the output resolver. Collection graph exports now project per-item
       provenance into `collectionItems[]` report summaries and collection-shaped source-map sidecars instead of
-      flattening multiple item stacks into one source-map stack.
+      flattening multiple item stacks into one source-map stack. The separate CLI integration suite now covers an
+      example-shaped transform -> collect join -> collection export case with JSON report and sidecar assertions.
       Keep the checked-in CEM-native CLI transform-config schema
       (`packages/cem_ml/schema/cli/transform-config.md`,
       `https://cem.dev/ns/cli/transform-config/1`) separate from CEM core document schemas and template schemas.

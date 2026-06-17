@@ -306,6 +306,101 @@ fn graph_config_covers_imported_module_asset_card_and_sidecar() {
 }
 
 #[test]
+fn graph_config_covers_join_collection_report_and_sidecar() {
+    let root = fixture_root("graph-collection-sidecar");
+    let graph = root.join("graph.cem");
+    let report_path = root.join("report.json");
+    let out = root.join("out/book.json");
+    write(&root.join("chapters/ch02.cem"), r#"{section @id="two"}"#);
+    write(&root.join("chapters/ch01.cem"), r#"{section @id="one"}"#);
+    write(&root.join("chapter.cem"), r#"{article | Chapter}"#);
+    write(
+        &graph,
+        r#"{run |
+  {import @id=chapter @src="chapters/*.cem" @content-type="text/cem-ml" |
+    {transform @id=page @src="chapter.cem" @template-content-type="text/cem-ml" |
+      {join @id=book @mode="collect" |
+        {export @id=collection @out="out/book.json" @content-type="application/json"}
+      }
+    }
+  }
+}"#,
+    );
+
+    let output = cem_ml(&[
+        "transform",
+        "--config",
+        graph.to_str().expect("graph path is utf-8"),
+        "--report-json",
+        report_path.to_str().expect("report path is utf-8"),
+    ]);
+
+    assert_eq!(output.status.code(), Some(EXIT_OK));
+    assert!(stdout(&output).is_empty(), "{}", stdout(&output));
+    assert!(stderr(&output).trim().is_empty(), "{}", stderr(&output));
+
+    let collection: serde_json::Value =
+        serde_json::from_str(&fs::read_to_string(&out).expect("read collection export"))
+            .expect("parse collection export");
+    assert_eq!(collection["kind"], "collection");
+    assert_eq!(collection["mode"], "collect");
+    assert_eq!(collection["count"], 2);
+    assert_eq!(collection["items"][0]["artifactId"], "page:0");
+    assert_eq!(collection["items"][1]["artifactId"], "page:1");
+    assert_eq!(
+        collection["items"][0]["primary"],
+        "<article>Chapter</article>"
+    );
+    assert_eq!(
+        collection["items"][1]["primary"],
+        "<article>Chapter</article>"
+    );
+
+    let sidecar = format!("{}.map", out.display());
+    let sidecar_json: serde_json::Value = serde_json::from_str(
+        &fs::read_to_string(&sidecar).unwrap_or_else(|err| panic!("read sidecar {sidecar}: {err}")),
+    )
+    .unwrap_or_else(|err| panic!("parse sidecar {sidecar}: {err}"));
+    assert_eq!(sidecar_json["kind"], "collection");
+    assert_eq!(sidecar_json["exportId"], "collection");
+    assert_eq!(sidecar_json["input"], "book");
+    assert_eq!(sidecar_json["destination"], out.display().to_string());
+    assert_eq!(
+        sidecar_json["items"].as_array().expect("items array").len(),
+        2
+    );
+    assert_eq!(sidecar_json["items"][0]["artifactId"], "page:0");
+    assert_eq!(sidecar_json["items"][0]["input"], "primary");
+    assert!(sidecar_json["items"][0]["sourceMap"]["frames"].is_array());
+    assert!(
+        sidecar_json["items"][0]["outputSpans"]
+            .as_array()
+            .expect("output spans array")
+            .len()
+            > 0
+    );
+
+    let report = report(&report_path);
+    assert_eq!(report["summary"]["hardViolationCount"], 0);
+    let export = &report["reportAst"]["transformGraph"]["exports"][0];
+    assert_eq!(export["exportId"], "collection");
+    assert_eq!(export["input"], "book");
+    assert_eq!(export["destination"], out.display().to_string());
+    assert_eq!(export["contentType"], "application/json");
+    assert_eq!(export["sourceMapRef"], sidecar);
+    assert_eq!(export["hasSourceMap"], true);
+    assert_eq!(export["collectionItems"].as_array().unwrap().len(), 2);
+    assert_eq!(export["collectionItems"][0]["artifactId"], "page:0");
+    assert_eq!(export["collectionItems"][0]["hasSourceMap"], true);
+    assert!(
+        export["collectionItems"][0]["outputSpanCount"]
+            .as_u64()
+            .unwrap()
+            > 0
+    );
+}
+
+#[test]
 fn direct_cli_reports_import_cycles_depth_limits_and_recursion_limits() {
     let root = fixture_root("preflight-limits");
     let data = root.join("source.cem");
