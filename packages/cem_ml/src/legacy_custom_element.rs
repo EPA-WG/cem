@@ -1755,9 +1755,9 @@ fn select_variable_current_items(select: &str, ctx: &EmitCtx) -> Option<Vec<Curr
     let members = select_current_members(select, ctx)?;
     let items: Vec<CurrentItem> = members
         .into_iter()
-        .filter_map(|member| match member {
-            ApplyMember::Current(item) => Some(item),
-            ApplyMember::Item(item) => Some(current_item_from_item_node(&item, 1)),
+        .map(|member| match member {
+            ApplyMember::Current(item) => item,
+            ApplyMember::Item(item) => current_item_from_item_node(&item, 1),
         })
         .collect();
     if items.is_empty() && select != "." {
@@ -2392,7 +2392,7 @@ fn attrs_from_current(item: &CurrentItem) -> String {
 
 fn attrs_from_map(attrs: &HashMap<String, String>) -> String {
     let mut pairs: Vec<(&String, &String)> = attrs.iter().collect();
-    pairs.sort_by(|(left, _), (right, _)| left.cmp(right));
+    pairs.sort_by_key(|(name, _)| *name);
     pairs
         .into_iter()
         .map(|(name, value)| attr_assign(name, value))
