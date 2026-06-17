@@ -1091,6 +1091,7 @@ fn lower_transform_template_module_options(
         .entrypoints
         .extend(overlay_options.entrypoints);
     module_options.params.extend(overlay_options.params);
+    module_options.calls.extend(overlay_options.calls);
     module_options.limits = overlay_options.limits;
     Some(module_options)
 }
@@ -3595,6 +3596,47 @@ mod tests {
         assert_eq!(options.imports[0].uri, "ui.cem");
         assert_eq!(options.entrypoints.len(), 1);
         assert_eq!(options.entrypoints[0].name, "card");
+    }
+
+    #[test]
+    fn template_module_options_preserve_overlay_call_sites() {
+        let template = TemplateInput {
+            uri: "templates/page.cem".to_owned(),
+            bytes: br#"{@doc cem-ml 1}
+{module |
+  {template @name="card" @visibility="public" | {body | {span | Card}}}
+}"#
+            .to_vec(),
+            identity: Some(FormatIdentity {
+                schema: Some(crate::transform_template::CEM_NATIVE_TEMPLATE_SCHEMA_URI.to_owned()),
+                ..FormatIdentity::default()
+            }),
+            root_scope: ScopeConfig::default(),
+        };
+        let overlay = TransformTemplateModuleOptions {
+            calls: vec![crate::transform_template::TransformTemplateModuleCallSite {
+                owner_entrypoint: Some("card".to_owned()),
+                from: None,
+                template: "missing".to_owned(),
+            }],
+            ..TransformTemplateModuleOptions::default()
+        };
+        let mut diagnostics = Vec::new();
+
+        let options = lower_transform_template_module_options(&template, overlay, &mut diagnostics)
+            .expect("module declarations should lower");
+        let validated = validate_transform_template_call_sites(
+            &template,
+            &options,
+            &TransformTemplateModulePreflight::default(),
+            &mut diagnostics,
+        );
+
+        assert!(validated.is_none());
+        assert_eq!(options.calls.len(), 1);
+        assert!(diagnostics
+            .iter()
+            .any(|diag| diag.code == TRANSFORM_TEMPLATE_CALL_UNKNOWN_CODE));
     }
 
     #[test]
