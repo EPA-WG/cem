@@ -8,6 +8,7 @@ import {
     isValidCustomElementName,
     type CemElementDiagnostic,
     type DataIslandSnapshot,
+    type SerializedEventPayload,
 } from './cem-elements.js';
 import {
     InMemoryEdgeRenderStateStore,
@@ -1490,6 +1491,124 @@ export const SliceEventInvalidationRerenders: Story = {
     },
 };
 
+export const EventToDataRenderLoopSnapshot: Story = {
+    render: () => storyPanel('Event to data loop', 'slice events update render output and data snapshots'),
+    play: async ({ canvasElement }) => {
+        const root = document.createElement('section');
+        root.setAttribute('aria-label', 'event to data render loop story');
+        canvasElement.appendChild(root);
+
+        const runtime = new CemElementRuntime({ declarationTag: 'cem-element-story-event-data' });
+        const declaration = buildDeclaration({
+            tag: 'story-event-data-field',
+            templates: [
+                {
+                    html: [
+                        '<attribute name="label">Search</attribute>',
+                        '<slice name="query"></slice>',
+                        '<slice name="custom"></slice>',
+                        '<label>',
+                        '  <slot name="label">${$label}</slot>',
+                        '  <input name="query" data-role="query" value="{$query}" slice="query" slice-event="input" slice-value="{$target.value}" />',
+                        '</label>',
+                        '<output data-query="{$query}">${$query}</output>',
+                        '<button type="button" data-role="custom" slice="custom" slice-event="cem-select" slice-value="\'cem-select\'">Select</button>',
+                        '<span class="custom">${$custom}</span>',
+                    ].join(''),
+                },
+            ],
+        });
+        runtime.registerDeclaration(declaration);
+
+        const first = document.createElement('story-event-data-field');
+        first.setAttribute('label', 'First search');
+        first.setAttribute('data-tracking-id', 'first-1');
+        first.innerHTML = [
+            '<span slot="label">Visible label</span>',
+            '<data value="alpha" data-rank="1">Alpha</data>',
+            '<option value="beta">Beta</option>',
+        ].join('');
+
+        const second = document.createElement('story-event-data-field');
+        second.setAttribute('label', 'Second search');
+        second.setAttribute('data-tracking-id', 'second-1');
+        second.innerHTML = '<data value="gamma">Gamma</data><option value="delta">Delta</option>';
+
+        root.append(first, second);
+        await waitForElement(first, 'input');
+        await waitForElement(second, 'input');
+
+        dispatchInput(first, 'a');
+        await waitForCondition(
+            () => requiredElement(first, 'output').textContent === 'a',
+            'the first input event renders'
+        );
+        dispatchInput(first, 'ab');
+        dispatchInput(first, 'latest');
+        await waitForCondition(
+            () => requiredElement(first, 'output').textContent === 'latest',
+            'repeated input events render the latest value'
+        );
+        assertEqual(requiredElement(first, 'output').textContent, 'latest', 'stale repeated input output does not survive');
+
+        dispatchInput(second, 'other');
+        await waitForCondition(
+            () => requiredElement(second, 'output').textContent === 'other',
+            'the second instance renders its own event'
+        );
+        assertEqual(requiredElement(first, 'output').textContent, 'latest', 'the first instance stays isolated');
+
+        requiredElement(first, 'button[data-role="custom"]').dispatchEvent(
+            new CustomEvent('cem-select', {
+                bubbles: true,
+                detail: { id: 'alpha', nested: { ok: true } },
+            })
+        );
+        await waitForCondition(
+            () => requiredElement(first, '.custom').textContent === 'cem-select',
+            'custom event slice renders from the event type'
+        );
+
+        const firstSnapshot = runtime.snapshotInstance(first);
+        assertEqual(firstSnapshot.hostAttributes.label, 'First search', 'host attributes serialize into the data snapshot');
+        assertEqual(firstSnapshot.dataset.trackingId, 'first-1', 'dataset serializes into the data snapshot');
+        assertEqual(firstSnapshot.payload.slots.label[0]?.kind, 'element', 'named slot payload serializes');
+        assertEqual(firstSnapshot.payload.dataByValue.alpha.label, 'Alpha', 'data payload choices serialize by value');
+        assertEqual(firstSnapshot.payload.optionsByValue.beta.label, 'Beta', 'option payload choices serialize by value');
+        assertEqual(firstSnapshot.slices.query, 'latest', 'slice state serializes after repeated events');
+        assertEqual(firstSnapshot.slices.custom, 'cem-select', 'custom event slice state serializes');
+        assertEqual(
+            Object.keys(firstSnapshot.validationState).length,
+            0,
+            'validation state serializes as an explicit record'
+        );
+
+        const eventPayload = firstSnapshot.eventPayloads.query as SerializedEventPayload;
+        assertEqual(eventPayload.type, 'input', 'event payload records the event type');
+        assertEqual(eventPayload.sliceValue, 'latest', 'event payload records the resolved slice value');
+        assertEqual(eventPayload.target?.tag, 'input', 'event payload records the target element');
+        assertEqual(eventPayload.target?.name, 'query', 'event payload records target name');
+        assertEqual(eventPayload.target?.value, 'latest', 'event payload records target value');
+        assertEqual(eventPayload.target?.dataset.role, 'query', 'event payload records target dataset');
+        assertEqual(eventPayload.currentTarget?.tag, 'input', 'event payload records currentTarget');
+        const customPayload = firstSnapshot.eventPayloads.custom as SerializedEventPayload;
+        const customDetail = customPayload.detail as { id?: string; nested?: { ok?: boolean } };
+        assertEqual(customPayload.type, 'cem-select', 'custom event payload records event type');
+        assertEqual(customPayload.sliceValue, 'cem-select', 'custom event payload records resolved slice value');
+        assertEqual(customDetail.id, 'alpha', 'custom event payload records JSON-safe detail');
+        assertEqual(customDetail.nested?.ok, true, 'custom event payload preserves nested JSON-safe detail');
+
+        const secondSnapshot = runtime.snapshotInstance(second);
+        assertEqual(secondSnapshot.slices.query, 'other', 'second instance owns an isolated slice record');
+        assertEqual(
+            (secondSnapshot.eventPayloads.query as SerializedEventPayload).target?.value,
+            'other',
+            'second instance owns an isolated event payload'
+        );
+        assertEqual(firstSnapshot.instanceId === secondSnapshot.instanceId, false, 'instances receive distinct ids');
+    },
+};
+
 // ---------------------------------------------------------------------------
 // Runtime slice E — source-map / render identity metadata + diagnostics surface.
 // ---------------------------------------------------------------------------
@@ -2969,6 +3088,12 @@ function buildCemMlDeclaration(declarationTag: string, tag: string, text: string
     template.textContent = text;
     declaration.appendChild(template);
     return declaration;
+}
+
+function dispatchInput(root: ParentNode, value: string): void {
+    const input = requiredElement(root, 'input') as HTMLInputElement;
+    input.value = value;
+    input.dispatchEvent(new Event('input', { bubbles: true }));
 }
 
 function requiredElement(root: ParentNode, selector: string): Element {

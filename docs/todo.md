@@ -60,9 +60,13 @@ Recommended execution order:
       the first compiled declaration. Browser coverage asserts duplicate diagnostics, reconnect/disconnect observation,
       nested produced output, declared defaults/host overrides, undeclared attribute invalidation, and latest-wins render
       ordering.
-- [ ] **Close the event-to-data render loop.** Cover `slice`, `slice-event`, `slice-value`, event payload capture,
+- [x] **Close the event-to-data render loop.** Cover `slice`, `slice-event`, `slice-value`, event payload capture,
       repeated input events, stale render avoidance, multi-instance isolation, and serialization of `data`, `option`,
       slot, dataset, attribute, slice, validation, and event payload state into the instance data island.
+      Event payloads now serialize event type, target/currentTarget metadata, resolved slice value, and JSON-safe custom
+      detail. Browser coverage asserts repeated input events, latest-render output, multi-instance isolation, and
+      snapshot serialization for host attributes, dataset, payload data/options/slots, slices, validation state, and
+      event payloads.
 - [ ] **Make URI/module resolution policy explicit.** Cover fragment-only `src`, document-relative `url#fragment`,
       external document loading, module-map/specifier hooks, `module-url` resource slices, resolver failure diagnostics,
       source identity, and cache invalidation when resolver or scope policy changes.

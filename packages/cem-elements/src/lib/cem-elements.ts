@@ -77,6 +77,27 @@ export type SerializedPayloadNode =
           children: SerializedPayloadNode[];
       };
 
+export interface SerializedEventTarget {
+    tag: string;
+    id: string | null;
+    name: string | null;
+    type: string | null;
+    value: string | null;
+    checked: boolean | null;
+    dataset: Record<string, string>;
+}
+
+export interface SerializedEventPayload {
+    type: string;
+    bubbles: boolean;
+    cancelable: boolean;
+    composed: boolean;
+    target: SerializedEventTarget | null;
+    currentTarget: SerializedEventTarget | null;
+    sliceValue: TemplateValue;
+    detail?: unknown;
+}
+
 /** Schema version of the DataIslandSnapshot / datadom governed contract (FF-6 SemVer axis, BR-VC-5). */
 export const SNAPSHOT_SCHEMA_VERSION = '1.0.0';
 
@@ -1054,10 +1075,9 @@ export class CemElementRuntime {
     ): void {
         const island = this.ensureDataIsland(instance);
         const state = this.ensureInstanceState(instance, compiled, island);
-        state.eventPayloads[sliceName] = {
-            type: event.type,
-        };
-        state.slices[sliceName] = evaluateSliceValue(expression, event, state.slices);
+        const sliceValue = evaluateSliceValue(expression, event, state.slices);
+        state.eventPayloads[sliceName] = serializeEventPayload(event, sliceValue);
+        state.slices[sliceName] = sliceValue;
         this.renderInstance(instance, compiled);
     }
 
@@ -1635,6 +1655,56 @@ function evaluateSliceValue(
         return slices[body.slice(1)] ?? null;
     }
     return parseLiteralValue(body);
+}
+
+function serializeEventPayload(event: Event, sliceValue: TemplateValue): SerializedEventPayload {
+    const payload: SerializedEventPayload = {
+        type: event.type,
+        bubbles: event.bubbles,
+        cancelable: event.cancelable,
+        composed: event.composed,
+        target: serializeEventTarget(event.target),
+        currentTarget: serializeEventTarget(event.currentTarget),
+        sliceValue,
+    };
+    if (event instanceof CustomEvent) {
+        const detail = cloneJsonSafe(event.detail);
+        if (detail !== undefined) {
+            payload.detail = detail;
+        }
+    }
+    return payload;
+}
+
+function serializeEventTarget(target: EventTarget | null): SerializedEventTarget | null {
+    if (!(target instanceof Element)) {
+        return null;
+    }
+    return {
+        tag: target.localName,
+        id: target.getAttribute('id'),
+        name: target.getAttribute('name'),
+        type: target instanceof HTMLInputElement ? target.type : target.getAttribute('type'),
+        value:
+            target instanceof HTMLInputElement ||
+            target instanceof HTMLTextAreaElement ||
+            target instanceof HTMLSelectElement
+                ? target.value
+                : null,
+        checked: target instanceof HTMLInputElement ? target.checked : null,
+        dataset: target instanceof HTMLElement ? datasetEntries(target) : {},
+    };
+}
+
+function cloneJsonSafe(value: unknown): unknown {
+    if (value === undefined) {
+        return undefined;
+    }
+    try {
+        return JSON.parse(JSON.stringify(value)) as unknown;
+    } catch {
+        return undefined;
+    }
 }
 
 function unwrapExpression(expression: string): string {
