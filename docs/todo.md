@@ -235,9 +235,12 @@ Phase 4 component set has stable names, variants, and state semantics.
       sample token-application fixture. This keeps the release gate offline and deterministic while blocking mode-file
       drift from the canonical token spine; REST/API-based live Figma validation stays under the documented manual sync
       policy until credentialed CI governance exists.
-- [ ] Extend the token-change smoke test with the Figma propagation leg: change one canonical token, refresh the Figma
-      mode files, and assert the UI Kit variables reflect the change without manual rework. Track gaps in
-      `token-pipeline-smoke.md`. The non-Figma leg of the same smoke test lives under Phase 8.
+- [x] Extend the token-change smoke test with the Figma propagation leg: change one canonical token, refresh the Figma
+      mode files, and assert the UI Kit variables reflect the change without manual rework. `nx run
+      @epa-wg/cem-theme:smoke:figma-propagation` now simulates the `--cem-color-cyan-xl` source-token change across the
+      generated Figma mode files and proves the fixture-facing variables keep their paths while values move. The live
+      Figma REST/API gap is tracked in `token-pipeline-smoke.md`; the non-Figma leg of the same smoke test lives under
+      Phase 8.
 
 ## Phase 8 — Native Platform Packages (`@epa-wg/cem-theme` native outputs)
 

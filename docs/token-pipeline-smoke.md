@@ -2,6 +2,8 @@
 
 Validation run: 2026-05-01.
 
+Figma propagation leg added: 2026-06-17.
+
 ## Source Change
 
 Changed one source token in `packages/cem-theme/src/lib/tokens/cem-colors.md`:
@@ -109,3 +111,31 @@ report summaries were checked instead:
   0 fail-hard violations.
 
 No new report failure category appeared from the one-token color change.
+
+## Figma Propagation Leg
+
+Run the deterministic Figma leg with:
+
+```bash
+yarn nx run @epa-wg/cem-theme:smoke:figma-propagation
+```
+
+`yarn nx run @epa-wg/cem-theme:test:figma` also runs this smoke after the generated Figma file validation.
+
+The smoke changes one canonical source token in memory:
+
+```text
+--cem-color-cyan-xl -> #e8ffff
+```
+
+It then verifies the generated Figma mode-file contract that a refresh must preserve:
+
+- `cem/color/cyan/xl` keeps the same Figma variable path, type, and CSS metadata while its value changes in every mode.
+- `cem/palette/comfort` changes under `light` and `contrast-light`, matching the sample frame/card background binding.
+- `cem/palette/comfort/text` changes under `dark` and `contrast-dark`, matching the sample card text binding.
+- The same sample fixture variable names remain bound; no manual rebinding is required.
+- `native` fixture-facing `cem/palette/comfort` and `cem/palette/comfort/text` values stay browser-system-color derived.
+
+Gap: this smoke does not call the Figma REST API or inspect the private `CEM UI Kit` file live. Credentialed live
+validation remains under the Figma REST API sync policy in `packages/cem-theme/docs/token-figma.md`; until that exists
+in CI, the release gate validates the generated import artifacts and the checked-in fixture/evidence offline.
