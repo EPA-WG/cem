@@ -860,9 +860,11 @@ These are data shapes only. Parser-filled content remains blocked until the pars
       Execution is available through the programmatic engine API, the CLI one-liner, and CLI CEM-ML graph config dispatch
       when a host registers an executable adapter. `transform_graph` executes loaded in-memory graph requests and returns
       export artifacts; the CLI host writes configured graph exports through the resolver layer.
-      Next implementation boundary: broaden template parity beyond CEM-native module execution, starting with the
-      remaining CEM-native/XSLT semantic gaps. The crate dependency cycle is avoided by keeping the concrete CEM-QL
-      adapter in `cem_ml_transform_cem_ql` rather than in `cem_ml`.
+      First XSLT parity follow-up: `packages/cem_ml/tests/xslt_adapter_output_parity.rs` proves XSLT 1.0
+      compatibility lowering renders the same light-DOM output as equivalent CEM sources for login/profile/asset-shaped
+      cases. Next implementation boundary: make XSLT parity executable through `transform` and graph config. The crate
+      dependency cycle is avoided by keeping the concrete CEM-QL adapter in `cem_ml_transform_cem_ql` rather than in
+      `cem_ml`.
 8. `cem-ml trace <input>`
     - Supported structured formats: `json`, `xml`, `cem`.
     - Reference convenience formats: `text`, `html`.

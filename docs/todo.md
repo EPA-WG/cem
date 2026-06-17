@@ -237,8 +237,11 @@ for the current architecture have landed; only deferred capability work remains 
       `TransformTemplateModuleOptions` before adapter compilation while preserving declaration-free CEM fragment
       templates. It validates named entrypoint requests against public declarations, rejects unknown caller params,
       validates typed caller/default param values, and reports missing required caller params before adapter compilation.
-      It also validates same-module and imported public `call` targets. Next implementation boundary is broader CEM-native/XSLT semantic parity. The separate
-      adapter crate avoids the dependency cycle where `cem_ql` currently depends on `cem_ml`.
+      It also validates same-module and imported public `call` targets. The first broader XSLT parity follow-up is now
+      covered by `packages/cem_ml/tests/xslt_adapter_output_parity.rs`, which proves XSLT 1.0 compatibility lowering
+      renders the same light-DOM output as equivalent CEM sources for login/profile/asset-shaped cases while keeping the
+      tests separate from `examples/`. Next implementation boundary is executable XSLT parity through `transform` and
+      graph config. The separate adapter crate avoids the dependency cycle where `cem_ql` currently depends on `cem_ml`.
 - [ ] **Wishlist (future — schema/tooling):** wire CLI config schemas into generated/published artifacts. The JSON
       `RunConfig` config-file surface uses schema identity `https://cem.dev/ns/cli/run-config/1` and has checked-in JSON
       Schema `packages/cem_ml/schema/cli/run-config.schema.json`
