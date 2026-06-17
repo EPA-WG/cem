@@ -84,9 +84,12 @@ the immediate CLI lifecycle contract.
    repeatable `--input-spec`, and repeatable `--output-spec`; WASM exposes JSON
    normalization and CSV spec parsing helpers over the same library parser. Input specs
    override global input identity for lifecycle dispatch, and the first output spec can
-   select conversion target identity/destination. CEM core schema or namespace identity
-   (`https://cem.dev/ns/core/1`) now selects the CEM adapter when no content type is
-   present, and HTML/SVG namespace identity selects the HTML adapter when no content type
+   select conversion target identity/destination. CEM core schema identity
+   (`https://cem.dev/ns/core/1`), CLI transform config schema identity
+   (`https://cem.dev/ns/cli/transform-config/1`), and CEM-native template schema identity
+   (`https://cem.dev/ns/template/cem-native/1`) now select the CEM adapter when no content
+   type is present. CEM core namespace identity selects the CEM adapter when no content type
+   or schema is present, and HTML/SVG namespace identity selects the HTML adapter when no content type
    or schema is present. XSLT namespace identity (`http://www.w3.org/1999/XSL/Transform`)
    selects the legacy custom-element XSLT compatibility adapter when no content type or
    schema is present, while explicit content type remains authoritative. Unsupported input
@@ -95,7 +98,8 @@ the immediate CLI lifecycle contract.
    format or output projection. Structural JSON projection targets are registry-owned by
    `https://cem.dev/ns/projection/dom-json/1`, `https://cem.dev/ns/projection/ast/1`,
    and `https://cem.dev/ns/projection/events/1`, with optional `application/json` /
-   `text/json` target content types. Config diagnostics for
+   `text/json` target content types. Transform config and CEM-native template schema targets
+   are also registry-owned as CEM output syntax. Config diagnostics for
    malformed JSON, unsupported config content type, duplicate input URIs, and unknown
    output input references fail before document parsing. `--observe-events` consumes the same
    normalized input list and lifecycle dispatch path as parser-backed commands, including

@@ -554,10 +554,13 @@ Current implementation status:
 - `--schema` and `--content-type` are carried in `EngineContext` and emitted in reports.
   `cem_ml::lifecycle::LifecycleRegistry` now owns built-in input content-type dispatch
   for parser-backed commands (`parse`, `validate`, `check`, `inspect`, `convert`,
-  `trace`, `bench`, and fixture workflows). CEM core schema or namespace identity
-  (`https://cem.dev/ns/core/1`) selects the CEM adapter when no content type is present,
-  and HTML/SVG namespace identity selects the HTML adapter when no content type or schema
-  is present. XSLT namespace identity (`http://www.w3.org/1999/XSL/Transform`) selects the
+  `trace`, `bench`, and fixture workflows). CEM core schema identity
+  (`https://cem.dev/ns/core/1`), CLI transform config schema identity
+  (`https://cem.dev/ns/cli/transform-config/1`), and CEM-native template schema identity
+  (`https://cem.dev/ns/template/cem-native/1`) select the CEM adapter when no content type
+  is present. CEM core namespace identity selects the CEM adapter when no content type or
+  schema is present, and HTML/SVG namespace identity selects the HTML adapter when no content
+  type or schema is present. XSLT namespace identity (`http://www.w3.org/1999/XSL/Transform`) selects the
   legacy custom-element XSLT compatibility adapter when no content type or schema is present,
   while explicit content type remains authoritative. Unsupported input identities
   emit deterministic lifecycle diagnostics with the declared content type, schema, and/or
@@ -569,8 +572,9 @@ Current implementation status:
   CEM core and HTML/SVG targets. Structural JSON projection exports are registry-owned
   for `https://cem.dev/ns/projection/dom-json/1`, `https://cem.dev/ns/projection/ast/1`,
   and `https://cem.dev/ns/projection/events/1`, with optional `application/json` /
-  `text/json` target content types. Unsupported target identities emit a deterministic
-  lifecycle diagnostic with the declared content type, schema, and/or namespace while
+  `text/json` target content types. Transform config and CEM-native template schema targets
+  are also registry-owned as CEM output syntax. Unsupported target identities emit a
+  deterministic lifecycle diagnostic with the declared content type, schema, and/or namespace while
   preserving the requested fallback output projection. Remaining non-CEM
   schema/namespace-specific export adapters are still pending.
 - Root-scope configuration is complete for the current CLI/lib/WASM contract. Current execution uses run-config identity

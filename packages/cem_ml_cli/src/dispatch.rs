@@ -6675,6 +6675,58 @@ mod tests {
     }
 
     #[test]
+    fn validate_transform_config_schema_selects_cem_input_adapter() {
+        let p = write_fixture(
+            "validate-transform-config-schema.cem",
+            "@doc cem-ml 1\n{p | Hi}",
+        );
+        let (outcome, stdout, stderr) = run(
+            &RealCemMlEngine::new(),
+            &[
+                "validate",
+                "--format",
+                "json",
+                "--schema",
+                cem_ml::transform_config::TRANSFORM_CONFIG_SCHEMA_URI,
+                p.to_str().unwrap(),
+            ],
+        );
+
+        assert_eq!(outcome.exit_code, EXIT_OK, "{stderr}");
+        let v: serde_json::Value = serde_json::from_str(stdout.trim()).unwrap();
+        let diagnostics = v["diagnostics"].as_array().unwrap();
+        assert!(!diagnostics
+            .iter()
+            .any(|diag| diag["code"] == "cem.lifecycle.adapter_unsupported"));
+    }
+
+    #[test]
+    fn validate_native_template_schema_selects_cem_input_adapter() {
+        let p = write_fixture(
+            "validate-native-template-schema.cem",
+            "@doc cem-ml 1\n{p | Hi}",
+        );
+        let (outcome, stdout, stderr) = run(
+            &RealCemMlEngine::new(),
+            &[
+                "validate",
+                "--format",
+                "json",
+                "--schema",
+                cem_ml::transform_template::CEM_NATIVE_TEMPLATE_SCHEMA_URI,
+                p.to_str().unwrap(),
+            ],
+        );
+
+        assert_eq!(outcome.exit_code, EXIT_OK, "{stderr}");
+        let v: serde_json::Value = serde_json::from_str(stdout.trim()).unwrap();
+        let diagnostics = v["diagnostics"].as_array().unwrap();
+        assert!(!diagnostics
+            .iter()
+            .any(|diag| diag["code"] == "cem.lifecycle.adapter_unsupported"));
+    }
+
+    #[test]
     fn validate_unknown_input_namespace_reports_unsupported_adapter() {
         let p = write_fixture("validate-unknown-input-namespace.data", "{p Hi}");
         let (outcome, stdout, stderr) = run(
@@ -9693,6 +9745,56 @@ mod tests {
         let v: serde_json::Value = serde_json::from_str(stdout.trim()).unwrap();
         assert_eq!(v["kind"], "cem");
         assert_eq!(v["content"], "@doc cem-ml 1\n{p | Hi}\n");
+    }
+
+    #[test]
+    fn convert_to_transform_config_schema_selects_cem_export_adapter() {
+        let p = write_fixture("convert-target-transform-config-schema.cem", "{p | Hi}");
+        let (outcome, stdout, stderr) = run(
+            &RealCemMlEngine::new(),
+            &[
+                "convert",
+                "--to-format",
+                "events",
+                "--to-schema",
+                cem_ml::transform_config::TRANSFORM_CONFIG_SCHEMA_URI,
+                p.to_str().unwrap(),
+            ],
+        );
+
+        assert_eq!(outcome.exit_code, EXIT_OK, "{stderr}");
+        assert!(
+            !stderr.contains("cem.lifecycle.target_adapter_unsupported"),
+            "{stderr}"
+        );
+        let v: serde_json::Value = serde_json::from_str(stdout.trim()).unwrap();
+        assert_eq!(v["kind"], "cem");
+        assert_eq!(v["content"], "{p | Hi}\n");
+    }
+
+    #[test]
+    fn convert_to_native_template_schema_selects_cem_export_adapter() {
+        let p = write_fixture("convert-target-native-template-schema.cem", "{p | Hi}");
+        let (outcome, stdout, stderr) = run(
+            &RealCemMlEngine::new(),
+            &[
+                "convert",
+                "--to-format",
+                "events",
+                "--to-schema",
+                cem_ml::transform_template::CEM_NATIVE_TEMPLATE_SCHEMA_URI,
+                p.to_str().unwrap(),
+            ],
+        );
+
+        assert_eq!(outcome.exit_code, EXIT_OK, "{stderr}");
+        assert!(
+            !stderr.contains("cem.lifecycle.target_adapter_unsupported"),
+            "{stderr}"
+        );
+        let v: serde_json::Value = serde_json::from_str(stdout.trim()).unwrap();
+        assert_eq!(v["kind"], "cem");
+        assert_eq!(v["content"], "{p | Hi}\n");
     }
 
     #[test]

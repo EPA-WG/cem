@@ -6,6 +6,8 @@
 use crate::diagnostics::{Diagnostic, Severity};
 use crate::engine::{EngineContext, EngineInput, FormatIdentity, InputFormat, LayerFormat};
 use crate::schema::ir::CEM_CORE_NAMESPACE;
+use crate::transform_config::TRANSFORM_CONFIG_SCHEMA_URI;
+use crate::transform_template::CEM_NATIVE_TEMPLATE_SCHEMA_URI;
 
 pub const ADAPTER_AMBIGUOUS_CODE: &str = "cem.lifecycle.adapter_ambiguous";
 pub const ADAPTER_UNSUPPORTED_CODE: &str = "cem.lifecycle.adapter_unsupported";
@@ -18,6 +20,11 @@ pub const EVENTS_PROJECTION_SCHEMA: &str = "https://cem.dev/ns/projection/events
 const HTML_NAMESPACE: &str = "http://www.w3.org/1999/xhtml";
 const SVG_NAMESPACE: &str = "http://www.w3.org/2000/svg";
 const XSLT_NAMESPACE: &str = "http://www.w3.org/1999/XSL/Transform";
+const CEM_ML_SCHEMA_IDENTITIES: &[&str] = &[
+    CEM_CORE_NAMESPACE,
+    TRANSFORM_CONFIG_SCHEMA_URI,
+    CEM_NATIVE_TEMPLATE_SCHEMA_URI,
+];
 
 #[derive(Debug, Clone)]
 pub struct LoadedInput {
@@ -379,7 +386,7 @@ impl LifecycleAdapter for CemMlAdapter {
                 "text/cem",
                 "text/cem-ml",
             ],
-        ) || matches_schema_without_content_type(identity, &[CEM_CORE_NAMESPACE])
+        ) || matches_schema_without_content_type(identity, CEM_ML_SCHEMA_IDENTITIES)
             || matches_namespace_without_content_type_or_schema(identity, &[CEM_CORE_NAMESPACE])
     }
 
@@ -707,6 +714,34 @@ mod tests {
     }
 
     #[test]
+    fn transform_config_schema_selects_cem_input_when_content_type_absent() {
+        let loaded = LifecycleRegistry::with_builtin_adapters().load(
+            &input(br#"{run}{import @src="input.cem"}"#),
+            &EngineContext {
+                schema: Some(TRANSFORM_CONFIG_SCHEMA_URI.to_owned()),
+                ..EngineContext::default()
+            },
+        );
+        assert_eq!(loaded.from_format, InputFormat::Cem);
+        assert_eq!(loaded.adapter_id, Some("cem-ml"));
+        assert!(loaded.diagnostics.is_empty());
+    }
+
+    #[test]
+    fn native_template_schema_selects_cem_input_when_content_type_absent() {
+        let loaded = LifecycleRegistry::with_builtin_adapters().load(
+            &input(br#"{module}{template @name="card"}{body | Hi}"#),
+            &EngineContext {
+                schema: Some(CEM_NATIVE_TEMPLATE_SCHEMA_URI.to_owned()),
+                ..EngineContext::default()
+            },
+        );
+        assert_eq!(loaded.from_format, InputFormat::Cem);
+        assert_eq!(loaded.adapter_id, Some("cem-ml"));
+        assert!(loaded.diagnostics.is_empty());
+    }
+
+    #[test]
     fn cem_core_namespace_selects_cem_input_when_content_type_and_schema_absent() {
         let mut source = input(b"@doc cem-ml 1\n{p | Hi}");
         source.identity = Some(FormatIdentity {
@@ -894,6 +929,32 @@ mod tests {
     fn cem_core_schema_selects_cem_export_when_content_type_absent() {
         let target = FormatIdentity {
             schema: Some(CEM_CORE_NAMESPACE.to_owned()),
+            ..FormatIdentity::default()
+        };
+        let selected = LifecycleRegistry::with_builtin_adapters()
+            .select_export(Some(&target), LayerFormat::DomJson);
+        assert_eq!(selected.to_format, LayerFormat::Cem);
+        assert_eq!(selected.adapter_id, Some("cem-ml"));
+        assert!(selected.diagnostics.is_empty());
+    }
+
+    #[test]
+    fn transform_config_schema_selects_cem_export_when_content_type_absent() {
+        let target = FormatIdentity {
+            schema: Some(TRANSFORM_CONFIG_SCHEMA_URI.to_owned()),
+            ..FormatIdentity::default()
+        };
+        let selected = LifecycleRegistry::with_builtin_adapters()
+            .select_export(Some(&target), LayerFormat::DomJson);
+        assert_eq!(selected.to_format, LayerFormat::Cem);
+        assert_eq!(selected.adapter_id, Some("cem-ml"));
+        assert!(selected.diagnostics.is_empty());
+    }
+
+    #[test]
+    fn native_template_schema_selects_cem_export_when_content_type_absent() {
+        let target = FormatIdentity {
+            schema: Some(CEM_NATIVE_TEMPLATE_SCHEMA_URI.to_owned()),
             ..FormatIdentity::default()
         };
         let selected = LifecycleRegistry::with_builtin_adapters()
