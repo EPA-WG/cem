@@ -104,9 +104,11 @@ Recommended execution order:
       Runtime-support diagnostics now carry `sourceMapRef`, browser diagnostics preserve engine byte frames, declaration
       shape errors use `declaration-only` fallback frames, and Storybook gates assert source fidelity on DOM-parity,
       CEM-ML render nodes, text render-plan nodes, and parser/render diagnostics.
-- [ ] **Integrate Phase 2 verification gates.** Ensure the Phase 3.1 gate runs the parser/runtime checks named in the
+- [x] **Integrate Phase 2 verification gates.** Ensure the Phase 3.1 gate runs the parser/runtime checks named in the
       roadmap against the parity fixtures: `yarn nx run cem_ml_cli:validate-fixtures`, `yarn nx run cem_ml_cli:e2e`,
       and `yarn nx run cem_ml:bench`, plus the existing `cem-elements:verify-substrate` path.
+      `cem-elements:verify` now depends on all three Phase 2 gates plus substrate, file-backed parity fixtures, unit
+      tests, and Storybook parity stories.
 - [ ] **Add accessibility and first-paint gates for material parity.** Use
       `packages/cem-components/docs/accessibility.md` as the contract. Assert keyboard/focus/label/live-region behavior
       where applicable, and add a deterministic first-paint/performance smoke so AC-N-1-style regressions are visible
