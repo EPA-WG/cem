@@ -3584,6 +3584,30 @@ mod tests {
     }
 
     #[test]
+    fn child_path_match_pattern_supports_namespace_qualified_steps() {
+        let result = convert(
+            r#"<doc><xhtml:row><xhtml:td>A</xhtml:td></xhtml:row><other><xhtml:td>B</xhtml:td></other></doc><xsl:stylesheet version="1.0"><xsl:template match="/"><out><xsl:apply-templates select="//xhtml:td"/></out></xsl:template><xsl:template match="td"><plain><xsl:value-of select="."/></plain></xsl:template><xsl:template match="xhtml:row/xhtml:td"><cell><xsl:value-of select="."/></cell></xsl:template></xsl:stylesheet>"#,
+        );
+        assert_eq!(
+            result.source,
+            "{doc | {row | {td | A}}{other | {td | B}}}{out | {cell | A}{plain | B}}"
+        );
+        assert!(result.diagnostics.is_empty());
+    }
+
+    #[test]
+    fn child_path_match_pattern_supports_namespace_wildcard_steps() {
+        let result = convert(
+            r#"<doc><xhtml:row><xhtml:td>A</xhtml:td></xhtml:row><svg:g><xhtml:td>B</xhtml:td></svg:g></doc><xsl:stylesheet version="1.0"><xsl:template match="/"><out><xsl:apply-templates select="//xhtml:td"/></out></xsl:template><xsl:template match="td"><plain><xsl:value-of select="."/></plain></xsl:template><xsl:template match="xhtml:*/xhtml:td"><cell><xsl:value-of select="."/></cell></xsl:template></xsl:stylesheet>"#,
+        );
+        assert_eq!(
+            result.source,
+            "{doc | {row | {td | A}}{svg:g | {td | B}}}{out | {cell | A}{cell | B}}"
+        );
+        assert!(result.diagnostics.is_empty());
+    }
+
+    #[test]
     fn node_match_pattern_can_dispatch_the_document_root() {
         let result = convert(
             r#"<doc><item>A</item></doc><xsl:stylesheet version="1.0"><xsl:template match="node()"><seen><xsl:value-of select="name()"/></seen></xsl:template></xsl:stylesheet>"#,
