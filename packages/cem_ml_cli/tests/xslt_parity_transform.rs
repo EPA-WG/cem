@@ -184,3 +184,67 @@ fn graph_config_executes_xslt_parity_asset_list_and_writes_sidecar() {
         true
     );
 }
+
+#[test]
+fn graph_config_executes_mixed_cem_native_and_xslt_stage_policies() {
+    let root = fixture_root("graph-mixed-runtime");
+    let data = root.join("asset.cem");
+    let native_template = root.join("card.cem");
+    let xslt_template = root.join("shell.xsl");
+    let graph = root.join("graph.cem");
+    let report_path = root.join("report.json");
+    let native_out = root.join("out/card.html");
+    let xslt_out = root.join("out/shell.html");
+    write(&data, r#"{article @id="asset"}"#);
+    write(
+        &native_template,
+        r#"{@doc cem-ml 1}
+{module |
+  {template @name="card" @visibility="public" |
+    {param @name="title" @required="true"}
+    {body | {article | {$ title }}}
+  }
+}"#,
+    );
+    write(
+        &xslt_template,
+        r#"<xsl:stylesheet version="1.0"><xsl:template match="/"><main><h1>Sign in</h1></main></xsl:template></xsl:stylesheet>"#,
+    );
+    write(
+        &graph,
+        r#"{run |
+  {import @id=asset @src="asset.cem" @content-type="text/cem-ml" |
+    {transform @id=card @src="card.cem" @template-content-type="text/cem-ml" @template-schema="https://cem.dev/ns/template/cem-native/1" @entrypoint="card" |
+      {param @name="title" @value="{stem}"}
+      {export @id=cardOut @out="out/card.html" @content-type="text/html"}
+    }
+    {transform @id=shell @src="shell.xsl" @template-content-type="application/xslt+xml" |
+      {export @id=shellOut @out="out/shell.html" @content-type="text/html"}
+    }
+  }
+}"#,
+    );
+
+    let output = cem_ml(&[
+        "transform",
+        "--config",
+        graph.to_str().expect("graph path is utf-8"),
+        "--report-json",
+        report_path.to_str().expect("report path is utf-8"),
+    ]);
+
+    assert_eq!(output.status.code(), Some(EXIT_OK));
+    assert!(stdout(&output).is_empty(), "{}", stdout(&output));
+    assert!(stderr(&output).trim().is_empty(), "{}", stderr(&output));
+    assert_eq!(
+        fs::read_to_string(&native_out).expect("read native export"),
+        "<article>asset</article>"
+    );
+    assert_eq!(
+        fs::read_to_string(&xslt_out).expect("read xslt export"),
+        "<main><h1>Sign in</h1></main>"
+    );
+    let report = report(&report_path);
+    assert_eq!(report["summary"]["hardViolationCount"], 0);
+    assert_eq!(report["reportAst"]["transformGraph"]["exportCount"], 2);
+}

@@ -327,13 +327,14 @@ pub fn validate_transform_graph_runtime_contract(
     for stage in &request.stages {
         validate_graph_id("transform", &stage.id, &mut ids, &mut diagnostics);
         artifacts.insert(stage.id.clone());
+        diagnostics.extend(validate_transform_execution_policy(&stage.execution_policy));
         validate_transform_stage_runtime_contract(
             &stage.id,
             Some(&stage.template.uri),
             stage.template_kind,
             &stage.template_entrypoint,
             &stage.params,
-            &request.execution_policy,
+            &stage.execution_policy,
             &mut diagnostics,
         );
     }
@@ -732,6 +733,7 @@ pub struct TransformGraphStage {
     pub template_kind: TransformTemplateKind,
     pub template_entrypoint: TransformTemplateEntrypoint,
     pub params: BTreeMap<String, Value>,
+    pub execution_policy: TransformExecutionPolicy,
     pub primary_input: String,
     pub secondary_inputs: BTreeMap<String, String>,
     pub scheduler_scope_ids: TransformStageSchedulerScopeIds,
@@ -1247,6 +1249,7 @@ mod tests {
                     template_kind: TransformTemplateKind::CemNative,
                     template_entrypoint: TransformTemplateEntrypoint::implicit(),
                     params: BTreeMap::new(),
+                    execution_policy: TransformExecutionPolicy::default(),
                     primary_input: "missing".to_owned(),
                     secondary_inputs: BTreeMap::from([(
                         "stats".to_owned(),
@@ -1260,6 +1263,7 @@ mod tests {
                     template_kind: TransformTemplateKind::CemNative,
                     template_entrypoint: TransformTemplateEntrypoint::implicit(),
                     params: BTreeMap::new(),
+                    execution_policy: TransformExecutionPolicy::default(),
                     primary_input: "book".to_owned(),
                     secondary_inputs: BTreeMap::new(),
                     scheduler_scope_ids: TransformStageSchedulerScopeIds::default(),
@@ -1399,13 +1403,19 @@ mod tests {
             }],
             stages: vec![TransformGraphStage {
                 id: "report".to_owned(),
-                template: template_input("report.xsl", "application/xslt+xml"),
-                template_kind: TransformTemplateKind::Xslt,
-                template_entrypoint: TransformTemplateEntrypoint::implicit(),
+                template: template_input("report.cem", "text/cem-ml"),
+                template_kind: TransformTemplateKind::CemNative,
+                template_entrypoint: TransformTemplateEntrypoint {
+                    name: Some("main".to_owned()),
+                },
                 params: BTreeMap::from([(
                     "locale".to_owned(),
                     serde_json::Value::String("en-US".to_owned()),
                 )]),
+                execution_policy: TransformExecutionPolicy {
+                    runtime_phase: TransformRuntimePhase::CemNativeModules,
+                    ..TransformExecutionPolicy::default()
+                },
                 primary_input: "book".to_owned(),
                 secondary_inputs,
                 scheduler_scope_ids: TransformStageSchedulerScopeIds {
@@ -1452,10 +1462,17 @@ mod tests {
         assert_eq!(request.joins[0].mode, TransformGraphJoinMode::Collect);
         assert_eq!(request.joins[0].inputs.len(), 2);
         assert_eq!(request.stages[0].primary_input, "book");
-        assert!(request.stages[0].template_entrypoint.is_implicit());
+        assert_eq!(
+            request.stages[0].template_entrypoint.name.as_deref(),
+            Some("main")
+        );
         assert_eq!(
             request.stages[0].params.get("locale"),
             Some(&serde_json::Value::String("en-US".to_owned()))
+        );
+        assert_eq!(
+            request.stages[0].execution_policy.runtime_phase,
+            TransformRuntimePhase::CemNativeModules
         );
         assert_eq!(
             request.stages[0]

@@ -4012,6 +4012,7 @@ mod tests {
                     template_kind: TransformTemplateKind::CemNative,
                     template_entrypoint: TransformTemplateEntrypoint::implicit(),
                     params: BTreeMap::new(),
+                    execution_policy: TransformExecutionPolicy::default(),
                     primary_input: "book".to_owned(),
                     secondary_inputs: BTreeMap::new(),
                     scheduler_scope_ids: TransformStageSchedulerScopeIds {
@@ -4030,6 +4031,7 @@ mod tests {
                     template_kind: TransformTemplateKind::CemNative,
                     template_entrypoint: TransformTemplateEntrypoint::implicit(),
                     params: BTreeMap::new(),
+                    execution_policy: TransformExecutionPolicy::default(),
                     primary_input: "book".to_owned(),
                     secondary_inputs: BTreeMap::new(),
                     scheduler_scope_ids: TransformStageSchedulerScopeIds {
@@ -4138,6 +4140,10 @@ mod tests {
                 template_kind: TransformTemplateKind::CemNative,
                 template_entrypoint: TransformTemplateEntrypoint::implicit(),
                 params: BTreeMap::new(),
+                execution_policy: TransformExecutionPolicy {
+                    runtime_phase: TransformRuntimePhase::CemNativeModules,
+                    ..TransformExecutionPolicy::default()
+                },
                 primary_input: "book".to_owned(),
                 secondary_inputs: BTreeMap::new(),
                 scheduler_scope_ids: TransformStageSchedulerScopeIds {
@@ -4210,6 +4216,7 @@ mod tests {
                     template_kind: TransformTemplateKind::CemNative,
                     template_entrypoint: TransformTemplateEntrypoint::implicit(),
                     params: BTreeMap::new(),
+                    execution_policy: TransformExecutionPolicy::default(),
                     primary_input: "book".to_owned(),
                     secondary_inputs: BTreeMap::new(),
                     scheduler_scope_ids: TransformStageSchedulerScopeIds {
@@ -4228,6 +4235,7 @@ mod tests {
                     template_kind: TransformTemplateKind::CemNative,
                     template_entrypoint: TransformTemplateEntrypoint::implicit(),
                     params: BTreeMap::new(),
+                    execution_policy: TransformExecutionPolicy::default(),
                     primary_input: "book".to_owned(),
                     secondary_inputs: BTreeMap::from([("stats".to_owned(), "stats".to_owned())]),
                     scheduler_scope_ids: TransformStageSchedulerScopeIds {

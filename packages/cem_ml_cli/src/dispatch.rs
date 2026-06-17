@@ -1943,8 +1943,6 @@ fn transform_graph_request_from_config(
     let mut edges = Vec::new();
     let mut variants: BTreeMap<String, Vec<TransformGraphArtifactVariant>> = BTreeMap::new();
     let mut next_scope_id = 0u32;
-    let mut execution_policy = eng::TransformExecutionPolicy::default();
-
     for node in &graph.nodes {
         match node.kind {
             TransformGraphNodeKind::Import => {
@@ -2121,12 +2119,11 @@ fn transform_graph_request_from_config(
                         &template_entrypoint,
                         &params,
                     )?;
-                    if template_kind == eng::TransformTemplateKind::Xslt {
-                        execution_policy.runtime_phase = eng::TransformRuntimePhase::XsltParity;
-                    } else if !template_entrypoint.is_implicit() || !params.is_empty() {
-                        execution_policy.runtime_phase =
-                            eng::TransformRuntimePhase::CemNativeModules;
-                    }
+                    let execution_policy = transform_execution_policy_for(
+                        template_kind,
+                        &template_entrypoint,
+                        &params,
+                    );
                     let mut secondary_inputs = BTreeMap::new();
                     for (name, target) in &node.with {
                         let secondary = transform_graph_single_variant_for_ref(
@@ -2149,6 +2146,7 @@ fn transform_graph_request_from_config(
                         template_kind,
                         template_entrypoint,
                         params,
+                        execution_policy,
                         primary_input: primary_variant.id.clone(),
                         secondary_inputs,
                         scheduler_scope_ids: eng::TransformStageSchedulerScopeIds {
@@ -2217,7 +2215,7 @@ fn transform_graph_request_from_config(
         edges,
         preserve_source_offsets: false,
         context: context.clone(),
-        execution_policy,
+        execution_policy: eng::TransformExecutionPolicy::default(),
     })
 }
 
@@ -5143,7 +5141,7 @@ mod tests {
             Some(&serde_json::json!("chapter-one"))
         );
         assert_eq!(
-            request.execution_policy.runtime_phase,
+            request.stages[0].execution_policy.runtime_phase,
             eng::TransformRuntimePhase::CemNativeModules
         );
     }

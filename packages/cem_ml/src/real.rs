@@ -2995,7 +2995,7 @@ impl CemMlEngine for RealCemMlEngine {
                             params: &stage.params,
                             data_bindings: &data_bindings,
                             module_options: TransformTemplateModuleOptions::default(),
-                            execution_policy: request.execution_policy,
+                            execution_policy: stage.execution_policy,
                         },
                         &mut diagnostics,
                     );
@@ -3043,7 +3043,7 @@ impl CemMlEngine for RealCemMlEngine {
                             secondary_inputs: &secondary_inputs,
                             target: None,
                             target_scope: &ScopeConfig::default(),
-                            execution_policy: request.execution_policy,
+                            execution_policy: stage.execution_policy,
                             diagnostic_uri: &stage.template.uri,
                             diagnostic_node: Some(diagnostic_node.as_str()),
                         },

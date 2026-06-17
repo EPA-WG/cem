@@ -714,8 +714,9 @@ These are data shapes only. Parser-filled content remains blocked until the pars
         - `validate_transform_request_runtime_contract` and
           `validate_transform_graph_runtime_contract` now enforce the supported runtime preflight:
           `cem-ql-fragment` is CEM-native, implicit-entrypoint, no-params only; `cem-native-modules` is the CEM-native
-          declaration/module phase; `xslt-parity` is XSLT-only, implicit-entrypoint, no-params only; graph validation
-          also checks known artifact refs, unique graph IDs, and duplicate output destination rejection.
+          declaration/module phase; `xslt-parity` is XSLT-only, implicit-entrypoint, no-params only. Graph runtime phase
+          is carried per `TransformGraphStage`, while graph-wide execution controls remain on `TransformGraphRequest`;
+          graph validation also checks known artifact refs, unique graph IDs, and duplicate output destination rejection.
         - CEM-native runtime order: first support pure CEM-QL evaluation plus CEM-ML fragments with embedded CEM-QL and
           one implicit entrypoint; then add native named templates/modules, explicit entrypoints, params,
           imports/includes, visibility, caching, and recursion/cycle limits; then expand XSLT parity using that native
@@ -866,9 +867,9 @@ These are data shapes only. Parser-filled content remains blocked until the pars
       cases. Executable parity now runs through direct `transform` and CEM-ML graph config, with CLI integration
       coverage in `packages/cem_ml_cli/tests/xslt_parity_transform.rs`. XSLT remains implicit-entrypoint/no-params at
       this boundary. The crate dependency cycle is avoided by keeping the concrete CEM-QL adapter in
-      `cem_ml_transform_cem_ql` rather than in `cem_ml`. Next decision boundary: mixed-runtime transform graphs need a
-      per-stage policy model or an explicit homogeneous-runtime restriction before combining CEM-native and XSLT stages
-      in one graph.
+      `cem_ml_transform_cem_ql` rather than in `cem_ml`. Mixed-runtime transform graphs now use per-stage runtime policy,
+      with CLI coverage for CEM-native and XSLT stages in the same graph. Next implementation boundary: close the quoted
+      string-literal behavior in lowered XSLT value/param expressions before expanding the supported XSLT subset.
 8. `cem-ml trace <input>`
     - Supported structured formats: `json`, `xml`, `cem`.
     - Reference convenience formats: `text`, `html`.
