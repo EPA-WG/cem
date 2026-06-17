@@ -560,7 +560,9 @@ Current implementation status:
   (`https://cem.dev/ns/template/cem-native/1`) select the CEM adapter when no content type
   is present. CEM core namespace identity selects the CEM adapter when no content type or
   schema is present, and HTML/SVG namespace identity selects the HTML adapter when no content
-  type or schema is present. SVG content type (`image/svg+xml`) selects the XML adapter.
+  type or schema is present. HTML/SVG schema identities (`http://www.w3.org/1999/xhtml`,
+  `http://www.w3.org/2000/svg`) also select the HTML adapter when no content type is present.
+  SVG content type (`image/svg+xml`) selects the XML adapter.
   XSLT namespace identity (`http://www.w3.org/1999/XSL/Transform`) selects the
   legacy custom-element XSLT compatibility adapter when no content type or schema is present,
   while explicit content type remains authoritative. Unsupported input identities
@@ -569,7 +571,8 @@ Current implementation status:
   registry-owned for `convert --to-content-type application/cem+xml`,
   `convert --to-schema https://cem.dev/ns/core/1`, and
   `convert --to-content-type text/html` / `application/xhtml+xml`; `.xhtml` path
-  inference feeds `application/xhtml+xml` into the same HTML adapter. XML target export is
+  inference feeds `application/xhtml+xml` into the same HTML adapter. HTML/SVG target
+  schema identities also select the HTML adapter. XML target export is
   registry-owned for `convert --to-content-type application/xml` / `text/xml` / `image/svg+xml`, plus namespace-only
   CEM core and HTML/SVG targets. Structural JSON projection exports are registry-owned
   for `https://cem.dev/ns/projection/dom-json/1`, `https://cem.dev/ns/projection/ast/1`,

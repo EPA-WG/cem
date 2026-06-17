@@ -6768,6 +6768,52 @@ mod tests {
     }
 
     #[test]
+    fn validate_html_schema_selects_html_input_adapter() {
+        let p = write_fixture("validate-html-schema.data", "<p>Hi</p>");
+        let (outcome, stdout, stderr) = run(
+            &RealCemMlEngine::new(),
+            &[
+                "validate",
+                "--format",
+                "json",
+                "--schema",
+                "http://www.w3.org/1999/xhtml",
+                p.to_str().unwrap(),
+            ],
+        );
+
+        assert_eq!(outcome.exit_code, EXIT_OK, "{stderr}");
+        let v: serde_json::Value = serde_json::from_str(stdout.trim()).unwrap();
+        let diagnostics = v["diagnostics"].as_array().unwrap();
+        assert!(!diagnostics
+            .iter()
+            .any(|diag| diag["code"] == "cem.lifecycle.adapter_unsupported"));
+    }
+
+    #[test]
+    fn validate_svg_schema_selects_html_input_adapter() {
+        let p = write_fixture("validate-svg-schema.data", "<svg><title>Hi</title></svg>");
+        let (outcome, stdout, stderr) = run(
+            &RealCemMlEngine::new(),
+            &[
+                "validate",
+                "--format",
+                "json",
+                "--schema",
+                "http://www.w3.org/2000/svg",
+                p.to_str().unwrap(),
+            ],
+        );
+
+        assert_eq!(outcome.exit_code, EXIT_OK, "{stderr}");
+        let v: serde_json::Value = serde_json::from_str(stdout.trim()).unwrap();
+        let diagnostics = v["diagnostics"].as_array().unwrap();
+        assert!(!diagnostics
+            .iter()
+            .any(|diag| diag["code"] == "cem.lifecycle.adapter_unsupported"));
+    }
+
+    #[test]
     fn validate_unknown_input_namespace_reports_unsupported_adapter() {
         let p = write_fixture("validate-unknown-input-namespace.data", "{p Hi}");
         let (outcome, stdout, stderr) = run(
@@ -8749,6 +8795,38 @@ mod tests {
     }
 
     #[test]
+    fn output_spec_html_schema_identity_selects_html_export_adapter() {
+        let input = write_fixture("convert-output-html-schema-input.cem", "{p Hi}");
+        let out_path = std::env::temp_dir().join("cem-ml-cli-tests/convert-output-html-schema.out");
+        let _ = std::fs::remove_file(&out_path);
+        let (outcome, stdout, stderr) = run(
+            &RealCemMlEngine::new(),
+            &[
+                "convert",
+                "--to-format",
+                "events",
+                "--output-spec",
+                &format!(
+                    "dest={},schema=http://www.w3.org/1999/xhtml",
+                    out_path.display()
+                ),
+                input.to_str().unwrap(),
+            ],
+        );
+
+        assert_eq!(outcome.exit_code, EXIT_OK, "{stderr}");
+        assert!(stdout.trim().is_empty());
+        assert!(
+            !stderr.contains("cem.lifecycle.target_adapter_unsupported"),
+            "{stderr}"
+        );
+        let written = std::fs::read_to_string(&out_path).unwrap();
+        let v: serde_json::Value = serde_json::from_str(&written).unwrap();
+        assert_eq!(v["kind"], "html");
+        assert_eq!(v["content"], "<p>Hi</p>");
+    }
+
+    #[test]
     fn output_spec_xml_content_type_selects_xml_export_adapter() {
         let input = write_fixture(
             "convert-output-xml-content-type-input.cem",
@@ -10067,6 +10145,56 @@ mod tests {
         let v: serde_json::Value = serde_json::from_str(stdout.trim()).unwrap();
         assert_eq!(v["kind"], "cem");
         assert_eq!(v["content"], "@doc cem-ml 1\n{p | Hi}\n");
+    }
+
+    #[test]
+    fn convert_to_html_schema_selects_html_export_adapter() {
+        let p = write_fixture("convert-target-html-schema.cem", "{p | Hi}");
+        let (outcome, stdout, stderr) = run(
+            &RealCemMlEngine::new(),
+            &[
+                "convert",
+                "--to-format",
+                "events",
+                "--to-schema",
+                "http://www.w3.org/1999/xhtml",
+                p.to_str().unwrap(),
+            ],
+        );
+
+        assert_eq!(outcome.exit_code, EXIT_OK, "{stderr}");
+        assert!(
+            !stderr.contains("cem.lifecycle.target_adapter_unsupported"),
+            "{stderr}"
+        );
+        let v: serde_json::Value = serde_json::from_str(stdout.trim()).unwrap();
+        assert_eq!(v["kind"], "html");
+        assert_eq!(v["content"], "<p>Hi</p>");
+    }
+
+    #[test]
+    fn convert_to_svg_schema_selects_html_export_adapter() {
+        let p = write_fixture("convert-target-svg-schema.cem", "{svg | {title | Hi}}");
+        let (outcome, stdout, stderr) = run(
+            &RealCemMlEngine::new(),
+            &[
+                "convert",
+                "--to-format",
+                "events",
+                "--to-schema",
+                "http://www.w3.org/2000/svg",
+                p.to_str().unwrap(),
+            ],
+        );
+
+        assert_eq!(outcome.exit_code, EXIT_OK, "{stderr}");
+        assert!(
+            !stderr.contains("cem.lifecycle.target_adapter_unsupported"),
+            "{stderr}"
+        );
+        let v: serde_json::Value = serde_json::from_str(stdout.trim()).unwrap();
+        assert_eq!(v["kind"], "html");
+        assert_eq!(v["content"], "<svg><title>Hi</title></svg>");
     }
 
     #[test]

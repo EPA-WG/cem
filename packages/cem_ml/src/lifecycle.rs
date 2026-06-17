@@ -20,6 +20,7 @@ pub const EVENTS_PROJECTION_SCHEMA: &str = "https://cem.dev/ns/projection/events
 const HTML_NAMESPACE: &str = "http://www.w3.org/1999/xhtml";
 const SVG_NAMESPACE: &str = "http://www.w3.org/2000/svg";
 const XSLT_NAMESPACE: &str = "http://www.w3.org/1999/XSL/Transform";
+const HTML_ADAPTER_SCHEMA_IDENTITIES: &[&str] = &[HTML_NAMESPACE, SVG_NAMESPACE];
 const CEM_ML_SCHEMA_IDENTITIES: &[&str] = &[
     CEM_CORE_NAMESPACE,
     TRANSFORM_CONFIG_SCHEMA_URI,
@@ -412,6 +413,7 @@ impl LifecycleAdapter for HtmlAdapter {
 
     fn matches_input(&self, identity: &FormatIdentity) -> bool {
         matches_content_type(identity, &["text/html", "application/xhtml+xml"])
+            || matches_schema_without_content_type(identity, HTML_ADAPTER_SCHEMA_IDENTITIES)
             || matches_namespace_without_content_type_or_schema(
                 identity,
                 &[HTML_NAMESPACE, SVG_NAMESPACE],
@@ -753,6 +755,34 @@ mod tests {
     }
 
     #[test]
+    fn html_schema_selects_html_input_when_content_type_absent() {
+        let loaded = LifecycleRegistry::with_builtin_adapters().load(
+            &input(b"<p>Hi</p>"),
+            &EngineContext {
+                schema: Some(HTML_NAMESPACE.to_owned()),
+                ..EngineContext::default()
+            },
+        );
+        assert_eq!(loaded.from_format, InputFormat::Html);
+        assert_eq!(loaded.adapter_id, Some("html"));
+        assert!(loaded.diagnostics.is_empty());
+    }
+
+    #[test]
+    fn svg_schema_selects_html_input_when_content_type_absent() {
+        let loaded = LifecycleRegistry::with_builtin_adapters().load(
+            &input(b"<svg><title>Hi</title></svg>"),
+            &EngineContext {
+                schema: Some(SVG_NAMESPACE.to_owned()),
+                ..EngineContext::default()
+            },
+        );
+        assert_eq!(loaded.from_format, InputFormat::Html);
+        assert_eq!(loaded.adapter_id, Some("html"));
+        assert!(loaded.diagnostics.is_empty());
+    }
+
+    #[test]
     fn cem_core_namespace_selects_cem_input_when_content_type_and_schema_absent() {
         let mut source = input(b"@doc cem-ml 1\n{p | Hi}");
         source.identity = Some(FormatIdentity {
@@ -985,6 +1015,32 @@ mod tests {
             .select_export(Some(&target), LayerFormat::DomJson);
         assert_eq!(selected.to_format, LayerFormat::Cem);
         assert_eq!(selected.adapter_id, Some("cem-ml"));
+        assert!(selected.diagnostics.is_empty());
+    }
+
+    #[test]
+    fn html_schema_selects_html_export_when_content_type_absent() {
+        let target = FormatIdentity {
+            schema: Some(HTML_NAMESPACE.to_owned()),
+            ..FormatIdentity::default()
+        };
+        let selected = LifecycleRegistry::with_builtin_adapters()
+            .select_export(Some(&target), LayerFormat::DomJson);
+        assert_eq!(selected.to_format, LayerFormat::Html);
+        assert_eq!(selected.adapter_id, Some("html"));
+        assert!(selected.diagnostics.is_empty());
+    }
+
+    #[test]
+    fn svg_schema_selects_html_export_when_content_type_absent() {
+        let target = FormatIdentity {
+            schema: Some(SVG_NAMESPACE.to_owned()),
+            ..FormatIdentity::default()
+        };
+        let selected = LifecycleRegistry::with_builtin_adapters()
+            .select_export(Some(&target), LayerFormat::DomJson);
+        assert_eq!(selected.to_format, LayerFormat::Html);
+        assert_eq!(selected.adapter_id, Some("html"));
         assert!(selected.diagnostics.is_empty());
     }
 
