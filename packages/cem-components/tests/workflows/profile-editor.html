@@ -1,0 +1,11 @@
+<cem-card label="Profile editor">
+  <span slot="title">Profile editor</span>
+  <cem-stack gap="sm">
+    <cem-avatar label="Ada Lovelace" initials="AL"></cem-avatar>
+    <cem-text-field label="Display name" name="display-name" value="Ada Lovelace"></cem-text-field>
+    <cem-textarea label="Bio" name="bio" value="Analytical engine notes"></cem-textarea>
+    <cem-switch name="public-profile" value="yes">Public profile</cem-switch>
+    <cem-alert tone="info" role="status">Profile changes are saved locally until submitted.</cem-alert>
+    <cem-action variant="primary">Save profile</cem-action>
+  </cem-stack>
+</cem-card>

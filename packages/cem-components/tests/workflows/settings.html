@@ -1,0 +1,21 @@
+<cem-card label="Notification settings">
+  <span slot="title">Notification settings</span>
+  <cem-switch name="email-notifications">Email notifications</cem-switch>
+  <cem-radio name="frequency" value="daily">Daily summary</cem-radio>
+  <cem-radio name="frequency" value="weekly">Weekly summary</cem-radio>
+  <cem-action variant="primary">Save settings</cem-action>
+</cem-card>
+
+<cem-alert tone="warning" role="alert">Review required notification preferences.</cem-alert>
+<cem-toast>Settings saved</cem-toast>
+<cem-progress label="Sync progress" value="40" max="100"></cem-progress>
+<cem-skeleton label="Loading settings"></cem-skeleton>
+
+<cem-dialog label="Confirm changes">
+  <p>Apply these settings to all devices?</p>
+  <cem-action variant="primary">Apply</cem-action>
+</cem-dialog>
+
+<cem-sheet label="Advanced filters">
+  <cem-checkbox name="include-archived" value="yes">Include archived assets</cem-checkbox>
+</cem-sheet>

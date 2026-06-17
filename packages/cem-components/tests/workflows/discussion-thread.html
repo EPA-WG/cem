@@ -1,0 +1,24 @@
+<cem-card label="Discussion thread">
+  <span slot="title">Discussion thread</span>
+  <cem-list label="Messages">
+    <li>
+      <cem-card label="Ada message">
+        <span slot="title">Ada</span>
+        <p>Can we publish the package today?</p>
+        <cem-badge tone="info">New</cem-badge>
+      </cem-card>
+    </li>
+    <li>
+      <cem-card label="Grace message">
+        <span slot="title">Grace</span>
+        <p>The verification gate is green.</p>
+      </cem-card>
+    </li>
+  </cem-list>
+  <cem-textarea name="reply">
+    <span slot="label">Reply</span>
+  </cem-textarea>
+  <cem-toast>Draft saved</cem-toast>
+  <cem-alert tone="warning" role="alert">Resolve mentions before posting.</cem-alert>
+  <cem-action variant="primary">Post reply</cem-action>
+</cem-card>

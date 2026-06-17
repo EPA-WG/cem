@@ -151,9 +151,12 @@ Recommended execution order:
       `@epa-wg/cem-components:verify-primitives` now checks the TypeScript manifest against the MVP table with the
       TypeScript compiler API, rejects legacy declaration wrappers, and is included in `@epa-wg/cem-components:verify`.
       Browser coverage also asserts deterministic first-install and reinstall results.
-- [ ] **Promote workflow fixtures into executable coverage.** Turn the auth form, profile editor, asset browser,
+- [x] **Promote workflow fixtures into executable coverage.** Turn the auth form, profile editor, asset browser,
       discussion thread, and settings examples into package-owned browser fixtures that assert common static and form
       flows work with no app JavaScript beyond installing the primitives.
+      `packages/cem-components/tests/workflows/` now contains five declarative HTML workflow fixtures, and
+      `workflows.browser.spec.ts` imports them as raw fixtures, rejects scripts/inline handlers, renders through the
+      installed primitive set, and asserts the key static/form outputs.
 - [ ] **Harden state and ARIA behavior across the MVP matrix.** Cover disabled, loading, selected, expanded, invalid,
       required, readonly, checked, indeterminate, and empty states where applicable; assert accessible names, reference
       integrity, live-region roles, keyboard focus, and event payload behavior through the component harness.

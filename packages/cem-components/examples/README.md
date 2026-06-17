@@ -1,8 +1,8 @@
 # CEM Component Examples
 
-These package-local examples show how the MVP declarations compose into workflow-shaped UI. They are intentionally
-separate from tests; browser harness tests in `src/lib/primitives.browser.spec.ts` cover the same component families
-with package-owned fixtures.
+These package-local examples show how the MVP declarations compose into workflow-shaped UI. Executable workflow
+fixtures live in `../tests/workflows/` and are covered by `src/lib/workflows.browser.spec.ts`; primitive-family browser
+coverage remains in `src/lib/primitives.browser.spec.ts`.
 
 | Example | Purpose |
 | --- | --- |
