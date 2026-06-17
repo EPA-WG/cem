@@ -1015,6 +1015,7 @@ struct TransformTemplateCompileSpec<'a> {
     context: &'a EngineContext,
     adapter: &'a Arc<dyn TransformTemplateAdapter>,
     template: &'a TemplateInput,
+    template_kind: TransformTemplateKind,
     entrypoint: &'a TransformTemplateEntrypoint,
     params: &'a BTreeMap<String, Value>,
     data_bindings: &'a [String],
@@ -1026,8 +1027,11 @@ fn compile_transform_template(
     spec: TransformTemplateCompileSpec<'_>,
     diagnostics: &mut Vec<Diagnostic>,
 ) -> Option<TransformTemplateCompiledArtifact> {
-    let module_options =
-        lower_transform_template_module_options(spec.template, spec.module_options, diagnostics)?;
+    let module_options = if spec.template_kind == TransformTemplateKind::CemNative {
+        lower_transform_template_module_options(spec.template, spec.module_options, diagnostics)?
+    } else {
+        spec.module_options
+    };
     let params = normalize_transform_template_module_params(
         spec.params,
         spec.entrypoint.name.as_deref(),
@@ -2741,6 +2745,7 @@ impl CemMlEngine for RealCemMlEngine {
                         context: &request.context,
                         adapter,
                         template: &request.template,
+                        template_kind: request.template_kind,
                         entrypoint: &request.template_entrypoint,
                         params: &request.params,
                         data_bindings: &data_bindings,
@@ -2985,6 +2990,7 @@ impl CemMlEngine for RealCemMlEngine {
                             context: &request.context,
                             adapter: &adapter,
                             template: &stage.template,
+                            template_kind: stage.template_kind,
                             entrypoint: &stage.template_entrypoint,
                             params: &stage.params,
                             data_bindings: &data_bindings,

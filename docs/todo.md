@@ -240,8 +240,14 @@ for the current architecture have landed; only deferred capability work remains 
       It also validates same-module and imported public `call` targets. The first broader XSLT parity follow-up is now
       covered by `packages/cem_ml/tests/xslt_adapter_output_parity.rs`, which proves XSLT 1.0 compatibility lowering
       renders the same light-DOM output as equivalent CEM sources for login/profile/asset-shaped cases while keeping the
-      tests separate from `examples/`. Next implementation boundary is executable XSLT parity through `transform` and
-      graph config. The separate adapter crate avoids the dependency cycle where `cem_ql` currently depends on `cem_ml`.
+      tests separate from `examples/`. Executable XSLT parity now runs through direct `cem-ml transform` and CEM-ML graph
+      config by registering the parity adapter from `cem_ml_transform_cem_ql`; CLI integration coverage lives in
+      `packages/cem_ml_cli/tests/xslt_parity_transform.rs` and keeps example-shaped cases out of `examples/`.
+      XSLT parity currently supports the implicit entrypoint only; CLI `--template-entrypoint`, `--param`, and graph
+      `transform @entrypoint` / child `param` remain CEM-native-only surfaces. The separate adapter crate avoids the
+      dependency cycle where `cem_ql` currently depends on `cem_ml`. Next decision boundary: whether graph transform
+      runtime policy should stay request-wide or move to per-stage policy before supporting mixed CEM-native and XSLT
+      stages in one graph.
 - [ ] **Wishlist (future — schema/tooling):** wire CLI config schemas into generated/published artifacts. The JSON
       `RunConfig` config-file surface uses schema identity `https://cem.dev/ns/cli/run-config/1` and has checked-in JSON
       Schema `packages/cem_ml/schema/cli/run-config.schema.json`

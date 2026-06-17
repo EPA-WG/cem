@@ -701,10 +701,11 @@ These are data shapes only. Parser-filled content remains blocked until the pars
         - The CLI host context registers the CEM-QL executable adapter so transform request construction and dispatch
           use the same adapter registry shape as programmatic hosts.
         - `TransformExecutionPolicy` records the first runtime contract:
-          `runtimePhase=cem-ql-fragment`, `cardinality=one-to-one`,
-          `duplicateDestinationPolicy=reject`, `failurePolicy=fail-fast`, and
-          `outputPolicy=content-primary`. The runtime now accepts both `cem-ql-fragment` and `cem-native-modules`; the
-          former stays the fragment/implicit-entrypoint phase and the latter is the declared CEM-native module phase.
+          `runtimePhase`, `cardinality=one-to-one`, `duplicateDestinationPolicy=reject`,
+          `failurePolicy=fail-fast`, and `outputPolicy=content-primary`. The runtime now accepts
+          `cem-ql-fragment`, `cem-native-modules`, and `xslt-parity`; the fragment phase stays CEM-native and
+          implicit-entrypoint only, the module phase is the declared CEM-native module phase, and the XSLT phase
+          executes bounded XSLT 1.0 compatibility lowering through the registered CEM-QL adapter.
         - `TransformTemplateEntrypoint` and `params` exist on transform requests/stages so the API has a place for
           named-template/module execution. The `cem-ql-fragment` phase supports only the implicit entrypoint and rejects
           params; the `cem-native-modules` phase accepts validated public named entrypoints and declared params.
@@ -713,8 +714,8 @@ These are data shapes only. Parser-filled content remains blocked until the pars
         - `validate_transform_request_runtime_contract` and
           `validate_transform_graph_runtime_contract` now enforce the supported runtime preflight:
           `cem-ql-fragment` is CEM-native, implicit-entrypoint, no-params only; `cem-native-modules` is the CEM-native
-          declaration/module phase; graph validation also checks known artifact refs, unique graph IDs, and duplicate
-          output destination rejection.
+          declaration/module phase; `xslt-parity` is XSLT-only, implicit-entrypoint, no-params only; graph validation
+          also checks known artifact refs, unique graph IDs, and duplicate output destination rejection.
         - CEM-native runtime order: first support pure CEM-QL evaluation plus CEM-ML fragments with embedded CEM-QL and
           one implicit entrypoint; then add native named templates/modules, explicit entrypoints, params,
           imports/includes, visibility, caching, and recursion/cycle limits; then expand XSLT parity using that native
@@ -862,9 +863,12 @@ These are data shapes only. Parser-filled content remains blocked until the pars
       export artifacts; the CLI host writes configured graph exports through the resolver layer.
       First XSLT parity follow-up: `packages/cem_ml/tests/xslt_adapter_output_parity.rs` proves XSLT 1.0
       compatibility lowering renders the same light-DOM output as equivalent CEM sources for login/profile/asset-shaped
-      cases. Next implementation boundary: make XSLT parity executable through `transform` and graph config. The crate
-      dependency cycle is avoided by keeping the concrete CEM-QL adapter in `cem_ml_transform_cem_ql` rather than in
-      `cem_ml`.
+      cases. Executable parity now runs through direct `transform` and CEM-ML graph config, with CLI integration
+      coverage in `packages/cem_ml_cli/tests/xslt_parity_transform.rs`. XSLT remains implicit-entrypoint/no-params at
+      this boundary. The crate dependency cycle is avoided by keeping the concrete CEM-QL adapter in
+      `cem_ml_transform_cem_ql` rather than in `cem_ml`. Next decision boundary: mixed-runtime transform graphs need a
+      per-stage policy model or an explicit homogeneous-runtime restriction before combining CEM-native and XSLT stages
+      in one graph.
 8. `cem-ml trace <input>`
     - Supported structured formats: `json`, `xml`, `cem`.
     - Reference convenience formats: `text`, `html`.

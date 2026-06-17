@@ -423,12 +423,14 @@ fn validate_transform_execution_policy(policy: &TransformExecutionPolicy) -> Vec
     let mut diagnostics = Vec::new();
     if !matches!(
         policy.runtime_phase,
-        TransformRuntimePhase::CemQlFragment | TransformRuntimePhase::CemNativeModules
+        TransformRuntimePhase::CemQlFragment
+            | TransformRuntimePhase::CemNativeModules
+            | TransformRuntimePhase::XsltParity
     ) {
         diagnostics.push(transform_runtime_diagnostic(
             None,
             "cem.transform_runtime.phase_unsupported",
-            "transform runtime currently supports only the `cem-ql-fragment` and `cem-native-modules` phases",
+            "transform runtime currently supports only the `cem-ql-fragment`, `cem-native-modules`, and `xslt-parity` phases",
         ));
     }
     if policy.cardinality != TransformCardinalityMode::OneToOne {
@@ -482,6 +484,17 @@ fn validate_transform_stage_runtime_contract(
             ),
         ));
     }
+    if policy.runtime_phase == TransformRuntimePhase::XsltParity
+        && template_kind != TransformTemplateKind::Xslt
+    {
+        diagnostics.push(transform_runtime_diagnostic(
+            uri,
+            "cem.transform_runtime.template_kind_unsupported",
+            format!(
+                "transform stage `{stage_id}` uses `{template_kind:?}` template kind; the XSLT parity phase supports only XSLT templates"
+            ),
+        ));
+    }
     if policy.runtime_phase == TransformRuntimePhase::CemQlFragment
         && !template_entrypoint.is_implicit()
     {
@@ -493,12 +506,32 @@ fn validate_transform_stage_runtime_contract(
             ),
         ));
     }
+    if policy.runtime_phase == TransformRuntimePhase::XsltParity
+        && !template_entrypoint.is_implicit()
+    {
+        diagnostics.push(transform_runtime_diagnostic(
+            uri,
+            "cem.transform_runtime.entrypoint_unsupported",
+            format!(
+                "transform stage `{stage_id}` declares a named template entrypoint; the XSLT parity phase supports only the implicit entrypoint"
+            ),
+        ));
+    }
     if policy.runtime_phase == TransformRuntimePhase::CemQlFragment && !params.is_empty() {
         diagnostics.push(transform_runtime_diagnostic(
             uri,
             "cem.transform_runtime.params_unsupported",
             format!(
                 "transform stage `{stage_id}` declares params; template params are reserved for the native module layer"
+            ),
+        ));
+    }
+    if policy.runtime_phase == TransformRuntimePhase::XsltParity && !params.is_empty() {
+        diagnostics.push(transform_runtime_diagnostic(
+            uri,
+            "cem.transform_runtime.params_unsupported",
+            format!(
+                "transform stage `{stage_id}` declares params; the XSLT parity phase does not support template params"
             ),
         ));
     }

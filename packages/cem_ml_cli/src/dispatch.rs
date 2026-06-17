@@ -1031,11 +1031,14 @@ fn transform_parse_cli_params(
 }
 
 fn transform_execution_policy_for(
+    template_kind: eng::TransformTemplateKind,
     entrypoint: &eng::TransformTemplateEntrypoint,
     params: &BTreeMap<String, serde_json::Value>,
 ) -> eng::TransformExecutionPolicy {
     let mut policy = eng::TransformExecutionPolicy::default();
-    if !entrypoint.is_implicit() || !params.is_empty() {
+    if template_kind == eng::TransformTemplateKind::Xslt {
+        policy.runtime_phase = eng::TransformRuntimePhase::XsltParity;
+    } else if !entrypoint.is_implicit() || !params.is_empty() {
         policy.runtime_phase = eng::TransformRuntimePhase::CemNativeModules;
     }
     policy
@@ -1093,7 +1096,8 @@ fn transform_request_from_args(
     let template_entrypoint = transform_template_entrypoint(args.template_entrypoint.as_deref());
     let params = transform_parse_cli_params(&args.params)?;
     validate_transform_template_module_surface(template_kind, &template_entrypoint, &params)?;
-    let execution_policy = transform_execution_policy_for(&template_entrypoint, &params);
+    let execution_policy =
+        transform_execution_policy_for(template_kind, &template_entrypoint, &params);
     let target_scope = transform_target_scope(args);
     Ok(eng::TransformRequest {
         data,
@@ -2117,7 +2121,9 @@ fn transform_graph_request_from_config(
                         &template_entrypoint,
                         &params,
                     )?;
-                    if !template_entrypoint.is_implicit() || !params.is_empty() {
+                    if template_kind == eng::TransformTemplateKind::Xslt {
+                        execution_policy.runtime_phase = eng::TransformRuntimePhase::XsltParity;
+                    } else if !template_entrypoint.is_implicit() || !params.is_empty() {
                         execution_policy.runtime_phase =
                             eng::TransformRuntimePhase::CemNativeModules;
                     }
