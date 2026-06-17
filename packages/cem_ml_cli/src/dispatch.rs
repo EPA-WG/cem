@@ -7526,6 +7526,17 @@ mod tests {
         assert_eq!(svg_identity.content_type.as_deref(), Some("image/svg+xml"));
         assert_eq!(svg_identity.schema, None);
         assert_eq!(svg_identity.base_uri, None);
+
+        let xhtml_identity =
+            positional_input_scope(Path::new("src/screen.xhtml"), &ScopeConfig::default())
+                .format_identity_option()
+                .expect("xhtml extension should infer content type");
+        assert_eq!(
+            xhtml_identity.content_type.as_deref(),
+            Some("application/xhtml+xml")
+        );
+        assert_eq!(xhtml_identity.schema, None);
+        assert_eq!(xhtml_identity.base_uri, None);
     }
 
     #[test]
@@ -7583,6 +7594,24 @@ mod tests {
         let v: serde_json::Value = serde_json::from_str(stdout.trim()).unwrap();
         assert_eq!(v["summary"]["hardViolationCount"], 0);
         assert_eq!(v["summary"]["inputCount"], 1);
+    }
+
+    #[test]
+    fn validate_positional_xhtml_uses_inferred_html_input_adapter() {
+        let p = write_fixture("validate-positional-xhtml.xhtml", r#"<button>Go</button>"#);
+        let (outcome, stdout, stderr) = run(
+            &RealCemMlEngine::new(),
+            &["validate", "--format", "json", p.to_str().unwrap()],
+        );
+        assert_eq!(outcome.exit_code, EXIT_OK, "{stderr}");
+        let v: serde_json::Value = serde_json::from_str(stdout.trim()).unwrap();
+        assert_eq!(v["summary"]["hardViolationCount"], 0);
+        assert_eq!(v["summary"]["inputCount"], 1);
+        assert!(!v["diagnostics"]
+            .as_array()
+            .unwrap()
+            .iter()
+            .any(|diag| { diag["code"] == "cem.lifecycle.adapter_unsupported" }));
     }
 
     #[test]
@@ -8777,6 +8806,36 @@ mod tests {
         let v: serde_json::Value = serde_json::from_str(&written).unwrap();
         assert_eq!(v["kind"], "xml");
         assert_eq!(v["content"], "<svg><title>Hi</title></svg>");
+    }
+
+    #[test]
+    fn output_spec_xhtml_destination_infers_html_export_adapter() {
+        let input = write_fixture("convert-output-xhtml-destination-input.cem", "{p | Hi}");
+        let out_path =
+            std::env::temp_dir().join("cem-ml-cli-tests/convert-output-xhtml-destination.xhtml");
+        let _ = std::fs::remove_file(&out_path);
+        let (outcome, stdout, stderr) = run(
+            &RealCemMlEngine::new(),
+            &[
+                "convert",
+                "--to-format",
+                "cem",
+                "--output-spec",
+                &format!("dest={}", out_path.display()),
+                input.to_str().unwrap(),
+            ],
+        );
+
+        assert_eq!(outcome.exit_code, EXIT_OK, "{stderr}");
+        assert!(stdout.trim().is_empty());
+        assert!(
+            !stderr.contains("cem.lifecycle.target_adapter_unsupported"),
+            "{stderr}"
+        );
+        let written = std::fs::read_to_string(&out_path).unwrap();
+        let v: serde_json::Value = serde_json::from_str(&written).unwrap();
+        assert_eq!(v["kind"], "html");
+        assert_eq!(v["content"], "<p>Hi</p>");
     }
 
     #[test]

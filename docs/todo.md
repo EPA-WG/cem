@@ -31,7 +31,8 @@ for the current architecture have landed; only deferred capability work remains 
       while preserving the fallback input format.
       CEM/HTML target export is registry-owned for `--to-content-type application/cem+xml`,
       `--to-schema https://cem.dev/ns/core/1`, `--to-content-type text/html`,
-      `--to-content-type application/xhtml+xml`, XML target export is registry-owned for
+      `--to-content-type application/xhtml+xml`, and `.xhtml` path inference feeds
+      `application/xhtml+xml` into the same HTML adapter. XML target export is registry-owned for
       `--to-content-type application/xml` / `text/xml` / `image/svg+xml`, plus namespace-only CEM core and HTML/SVG
       targets. Structural JSON
       projections are registry-owned through schema identities `https://cem.dev/ns/projection/dom-json/1`,

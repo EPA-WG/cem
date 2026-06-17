@@ -568,7 +568,8 @@ Current implementation status:
   namespace while preserving the fallback input format. CEM/HTML target export selection is
   registry-owned for `convert --to-content-type application/cem+xml`,
   `convert --to-schema https://cem.dev/ns/core/1`, and
-  `convert --to-content-type text/html` / `application/xhtml+xml`, XML target export is
+  `convert --to-content-type text/html` / `application/xhtml+xml`; `.xhtml` path
+  inference feeds `application/xhtml+xml` into the same HTML adapter. XML target export is
   registry-owned for `convert --to-content-type application/xml` / `text/xml` / `image/svg+xml`, plus namespace-only
   CEM core and HTML/SVG targets. Structural JSON projection exports are registry-owned
   for `https://cem.dev/ns/projection/dom-json/1`, `https://cem.dev/ns/projection/ast/1`,

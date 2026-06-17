@@ -751,6 +751,7 @@ pub fn infer_content_type_from_path(path: &str) -> Option<String> {
     match ext.as_str() {
         "cem" => Some("application/cem+xml".to_owned()),
         "html" | "htm" => Some("text/html".to_owned()),
+        "xhtml" => Some("application/xhtml+xml".to_owned()),
         "xml" => Some("application/xml".to_owned()),
         "svg" => Some("image/svg+xml".to_owned()),
         "xsl" | "xslt" => Some("application/xslt+xml".to_owned()),
@@ -1001,6 +1002,10 @@ mod tests {
                         uri: "src/icon.svg".to_owned(),
                         ..InputSpec::default()
                     },
+                    InputSpec {
+                        uri: "src/page.xhtml".to_owned(),
+                        ..InputSpec::default()
+                    },
                 ],
                 outputs: vec![
                     OutputSpec {
@@ -1009,6 +1014,10 @@ mod tests {
                     },
                     OutputSpec {
                         destination: Some("dist/icon.svg".to_owned()),
+                        ..OutputSpec::default()
+                    },
+                    OutputSpec {
+                        destination: Some("dist/page.xhtml".to_owned()),
                         ..OutputSpec::default()
                     },
                 ],
@@ -1063,6 +1072,17 @@ mod tests {
             Some("default-schema")
         );
         assert_eq!(
+            response.config.inputs[3]
+                .root_scope
+                .default_content_type
+                .as_deref(),
+            Some("application/xhtml+xml")
+        );
+        assert_eq!(
+            response.config.inputs[3].root_scope.schema.as_deref(),
+            Some("default-schema")
+        );
+        assert_eq!(
             response.config.outputs[0]
                 .root_scope
                 .default_content_type
@@ -1082,6 +1102,17 @@ mod tests {
         );
         assert_eq!(
             response.config.outputs[1].root_scope.schema.as_deref(),
+            Some("target-schema")
+        );
+        assert_eq!(
+            response.config.outputs[2]
+                .root_scope
+                .default_content_type
+                .as_deref(),
+            Some("application/xhtml+xml")
+        );
+        assert_eq!(
+            response.config.outputs[2].root_scope.schema.as_deref(),
             Some("target-schema")
         );
     }
