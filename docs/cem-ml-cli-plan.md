@@ -336,7 +336,8 @@ The transform shape also accepts `--data-schema URI-OR-FILE`, `--template-schema
 `--out` when provided, otherwise stdout. Diagnostics and warnings write to stderr unless a report destination is
 provided. Single-transform reports include `reportAst.transform` with input, destination, output kind, source-map
 presence, output-span count, and a `{destination}.map` `sourceMapRef` when the transform response has a source map and a
-concrete output destination.
+concrete output destination. Stdout transform output still reports source-map presence and output-span count, but omits
+`sourceMapRef` because there is no adjacent file path for a sidecar.
 
 Graph configs use the dedicated CEM-ML transform-config schema identity
 `https://cem.dev/ns/cli/transform-config/1` and can be run directly:

@@ -5090,6 +5090,64 @@ mod tests {
     }
 
     #[test]
+    fn transform_report_stdout_omits_source_map_ref() {
+        let data = write_fixture("transform-run-report-stdout-map-data.cem", "{p | source}");
+        let template = write_fixture(
+            "transform-run-report-stdout-map-template.cem",
+            "{section | Done}",
+        );
+        let root = std::env::temp_dir().join("cem-ml-cli-tests/transform-report-stdout-map");
+        let _ = std::fs::remove_dir_all(&root);
+        std::fs::create_dir_all(&root).unwrap();
+        let report_json = root.join("report.json");
+        let report_md = root.join("report.md");
+
+        let (outcome, stdout, stderr) = run(
+            &RealCemMlEngine::new(),
+            &[
+                "transform",
+                data.to_str().unwrap(),
+                "--data-content-type",
+                "text/cem-ml",
+                "--template",
+                template.to_str().unwrap(),
+                "--template-content-type",
+                "text/cem-ml",
+                "--to-content-type",
+                "text/html",
+                "--report-json",
+                report_json.to_str().unwrap(),
+                "--report-md",
+                report_md.to_str().unwrap(),
+            ],
+        );
+
+        assert_eq!(outcome.exit_code, EXIT_OK);
+        assert_eq!(stdout, "<section>Done</section>");
+        assert!(stderr.trim().is_empty(), "{stderr}");
+        let report: serde_json::Value =
+            serde_json::from_str(&std::fs::read_to_string(report_json).unwrap()).unwrap();
+        assert_eq!(
+            report["reportAst"]["transform"]["input"],
+            data.display().to_string()
+        );
+        assert!(report["reportAst"]["transform"]["destination"].is_null());
+        assert_eq!(report["reportAst"]["transform"]["hasSourceMap"], true);
+        assert!(
+            report["reportAst"]["transform"]["outputSpanCount"]
+                .as_u64()
+                .unwrap()
+                > 0
+        );
+        assert!(report["reportAst"]["transform"]["sourceMapRef"].is_null());
+        let markdown = std::fs::read_to_string(report_md).unwrap();
+        assert!(markdown.contains("- primary <- "));
+        assert!(markdown.contains(" -> <stdout> [document]"));
+        assert!(markdown.contains("[sourceMap: yes, outputSpans: "));
+        assert!(!markdown.contains("[sourceMapRef: "));
+    }
+
+    #[test]
     fn transform_request_helper_reads_data_template_and_sets_identities() {
         let data = write_fixture("transform-helper-data.xml", "<items/>");
         let template = write_fixture(
