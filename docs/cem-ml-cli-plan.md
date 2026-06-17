@@ -736,12 +736,14 @@ These are data shapes only. Parser-filled content remains blocked until the pars
           module's public entrypoint renders, unqualified calls resolve against that imported module's own named
           templates, and `call @from` resolves against that module's own import aliases rather than the root module. Call
           `@with:*` whole-expression attributes preserve their evaluated CEM-QL item stream for the invoked template,
-          while literal and mixed attribute-value-template forms remain string bindings. The adapter also preserves the
-          selected entrypoint, caller params, and param declarations in its compiled payload; caller params override
-          declaration defaults, omitted defaults are applied during render, explicit `null` stays bound as a caller
-          value, and named entrypoint-local params bind through their local names inside the invoked template. Qualified
-          caller params such as `card.title` bind equivalently when `card` is selected, while duplicate local+qualified
-          aliases are rejected before adapter compilation. The CEM-QL renderer declares the stable primary `input` binding
+          while literal and mixed attribute-value-template forms remain string bindings. Required params on same-module
+          and imported calls are checked after `@with:*` bindings and defaults are applied; missing values report a
+          `cem.transform_template.param_required` diagnostic at the call site. The adapter also preserves the selected
+          entrypoint, caller params, and param declarations in its compiled payload; caller params override declaration
+          defaults, omitted defaults are applied during render, explicit `null` stays bound as a caller value, and named
+          entrypoint-local params bind through their local names inside the invoked template. Qualified caller params
+          such as `card.title` bind equivalently when `card` is selected, while duplicate local+qualified aliases are
+          rejected before adapter compilation. The CEM-QL renderer declares the stable primary `input` binding
           at compile time and makes primary/secondary host bindings available as top-level fields on the synthesized data
           document while preserving `datadom.attributes.*` compatibility. Same-module recursive calls, including
           recursive calls inside an
