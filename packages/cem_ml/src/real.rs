@@ -1860,6 +1860,7 @@ struct TransformStageRenderSpec<'a> {
     target_scope: &'a ScopeConfig,
     execution_policy: TransformExecutionPolicy,
     diagnostic_uri: &'a str,
+    diagnostic_node: Option<&'a str>,
 }
 
 fn render_transform_stage(
@@ -1875,12 +1876,32 @@ fn render_transform_stage(
         execution_policy: spec.execution_policy,
     }) {
         Ok(mut response) => {
+            annotate_transform_stage_diagnostics(&mut response.diagnostics, spec.diagnostic_node);
             diagnostics.append(&mut response.diagnostics);
             Some(response.output)
         }
         Err(err) => {
-            diagnostics.push(err.diagnostic(Some(spec.diagnostic_uri)));
+            let mut diagnostic = err.diagnostic(Some(spec.diagnostic_uri));
+            annotate_transform_stage_diagnostics(
+                std::slice::from_mut(&mut diagnostic),
+                spec.diagnostic_node,
+            );
+            diagnostics.push(diagnostic);
             None
+        }
+    }
+}
+
+fn annotate_transform_stage_diagnostics(
+    diagnostics: &mut [Diagnostic],
+    diagnostic_node: Option<&str>,
+) {
+    let Some(node) = diagnostic_node else {
+        return;
+    };
+    for diagnostic in diagnostics {
+        if diagnostic.node.is_none() {
+            diagnostic.node = Some(node.to_owned());
         }
     }
 }
@@ -2758,6 +2779,7 @@ impl CemMlEngine for RealCemMlEngine {
                     target_scope: &request.target_scope,
                     execution_policy: request.execution_policy,
                     diagnostic_uri: &request.template.uri,
+                    diagnostic_node: None,
                 },
                 &mut diagnostics,
             )
@@ -2985,6 +3007,7 @@ impl CemMlEngine for RealCemMlEngine {
                         EngineError::Internal(format!("scheduler dispatch failed: {err}"))
                     })?;
                 let mut rendered = None;
+                let diagnostic_node = format!("transform:{}", stage.id);
                 execution_pool.run_to_completion(&abort, |_| {
                     rendered = render_transform_stage(
                         TransformStageRenderSpec {
@@ -2996,6 +3019,7 @@ impl CemMlEngine for RealCemMlEngine {
                             target_scope: &ScopeConfig::default(),
                             execution_policy: request.execution_policy,
                             diagnostic_uri: &stage.template.uri,
+                            diagnostic_node: Some(diagnostic_node.as_str()),
                         },
                         &mut diagnostics,
                     );

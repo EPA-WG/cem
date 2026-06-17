@@ -2862,6 +2862,81 @@ mod tests {
     }
 
     #[test]
+    fn real_engine_transform_graph_attributes_stage_render_diagnostics() {
+        let context = engine_context_with_cem_ql_template_adapter();
+        let identity = FormatIdentity {
+            content_type: Some("text/cem-ml".to_owned()),
+            ..FormatIdentity::default()
+        };
+        let request = TransformGraphRequest {
+            imports: vec![TransformGraphImport {
+                id: "book".to_owned(),
+                input: EngineInput {
+                    uri: "book.cem".to_owned(),
+                    bytes: b"{p @id=\"guide\"}".to_vec(),
+                    from_format: None,
+                    identity: Some(identity.clone()),
+                    root_scope: ScopeConfig::default(),
+                },
+                scheduler_scope_id: 40,
+            }],
+            joins: Vec::new(),
+            stages: vec![TransformGraphStage {
+                id: "chart".to_owned(),
+                template: TemplateInput {
+                    uri: "chart.cem".to_owned(),
+                    bytes: br#"{@doc cem-ml 1}
+{module |
+  {template @name="loop" | {body | {span | Loop {call @template="loop"}}}}
+  {body | {svg | {call @template="loop"}}}
+}"#
+                    .to_vec(),
+                    identity: Some(identity),
+                    root_scope: ScopeConfig::default(),
+                },
+                template_kind: TransformTemplateKind::CemNative,
+                template_entrypoint: TransformTemplateEntrypoint::implicit(),
+                params: BTreeMap::new(),
+                primary_input: "book".to_owned(),
+                secondary_inputs: BTreeMap::new(),
+                scheduler_scope_ids: TransformStageSchedulerScopeIds {
+                    template_load: 41,
+                    execution: 42,
+                },
+            }],
+            exports: vec![TransformGraphExport {
+                id: "chart-svg".to_owned(),
+                input: "chart".to_owned(),
+                destination: Some("dist/book/chart.svg".to_owned()),
+                target: Some(FormatIdentity {
+                    content_type: Some("image/svg+xml".to_owned()),
+                    ..FormatIdentity::default()
+                }),
+                target_scope: ScopeConfig::default(),
+                scheduler_scope_id: 43,
+            }],
+            edges: Vec::new(),
+            preserve_source_offsets: false,
+            context,
+            execution_policy: TransformExecutionPolicy {
+                runtime_phase: cem_ml::engine::TransformRuntimePhase::CemNativeModules,
+                ..TransformExecutionPolicy::default()
+            },
+        };
+
+        let response = RealCemMlEngine::new()
+            .transform_graph(request)
+            .expect("transform graph should return render diagnostics");
+
+        assert!(response.artifacts.is_empty());
+        assert!(response.diagnostics.iter().any(|diagnostic| {
+            diagnostic.code == TRANSFORM_TEMPLATE_RECURSION_LIMIT_CODE
+                && diagnostic.uri.as_deref() == Some("chart.cem")
+                && diagnostic.node.as_deref() == Some("transform:chart")
+        }));
+    }
+
+    #[test]
     fn real_engine_transform_graph_passes_secondary_inputs_to_stage() {
         let context = engine_context_with_cem_ql_template_adapter();
         let data_identity = FormatIdentity {
