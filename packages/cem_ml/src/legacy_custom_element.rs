@@ -1486,14 +1486,15 @@ fn matches_child_path_pattern(pattern: &str, member: &CurrentItem) -> bool {
     let Some(last) = segments.next() else {
         return false;
     };
-    if !step_matches_current(last.trim(), current) {
+    if !match_pattern_step_matches_current(last.trim(), current) {
         return false;
     }
     for segment in segments {
         let Some(parent) = current.parent.as_deref() else {
             return false;
         };
-        if parent.kind != CurrentItemKind::Element || !step_matches_current(segment.trim(), parent)
+        if parent.kind != CurrentItemKind::Element
+            || !match_pattern_step_matches_current(segment.trim(), parent)
         {
             return false;
         }
@@ -1502,11 +1503,29 @@ fn matches_child_path_pattern(pattern: &str, member: &CurrentItem) -> bool {
     true
 }
 
+fn match_pattern_step_matches_current(step: &str, member: &CurrentItem) -> bool {
+    step_matches_current(step, member) && match_pattern_step_predicate_matches_current(step, member)
+}
+
+fn match_pattern_step_predicate_matches_current(step: &str, member: &CurrentItem) -> bool {
+    let Some(predicate) = step
+        .split_once('[')
+        .and_then(|(_, rest)| rest.strip_suffix(']'))
+    else {
+        return true;
+    };
+    matches_static_item_predicate(predicate.trim(), member)
+}
+
 fn matches_simple_predicate_pattern(pattern: &str, member: &CurrentItem) -> bool {
     if !pattern.starts_with("*[") || !pattern.ends_with(']') {
         return false;
     }
     let predicate = pattern[2..pattern.len() - 1].trim();
+    matches_static_item_predicate(predicate, member)
+}
+
+fn matches_static_item_predicate(predicate: &str, member: &CurrentItem) -> bool {
     if predicate == "*" {
         return member
             .children
@@ -1525,7 +1544,11 @@ fn matches_simple_predicate_pattern(pattern: &str, member: &CurrentItem) -> bool
     let Some((name, value)) = rest.split_once('=') else {
         return member.attrs.contains_key(rest);
     };
-    let expected = value.trim().trim_matches('"').trim_matches('\'');
+    let value = value.trim();
+    if value.starts_with('$') {
+        return false;
+    }
+    let expected = value.trim_matches('"').trim_matches('\'');
     member.attrs.get(name.trim()).map(String::as_str) == Some(expected)
 }
 
@@ -3603,6 +3626,30 @@ mod tests {
         assert_eq!(
             result.source,
             "{doc | {row | {td | A}}{svg:g | {td | B}}}{out | {cell | A}{cell | B}}"
+        );
+        assert!(result.diagnostics.is_empty());
+    }
+
+    #[test]
+    fn child_path_match_pattern_applies_static_attribute_predicates() {
+        let result = convert(
+            r#"<doc><item kind="primary">A</item><item kind="secondary">B</item></doc><xsl:stylesheet version="1.0"><xsl:template match="/"><out><xsl:apply-templates select="//item"/></out></xsl:template><xsl:template match="item"><plain><xsl:value-of select="."/></plain></xsl:template><xsl:template match="doc/item[@kind='primary']"><primary><xsl:value-of select="."/></primary></xsl:template></xsl:stylesheet>"#,
+        );
+        assert_eq!(
+            result.source,
+            "{doc | {item @kind=\"primary\" | A}{item @kind=\"secondary\" | B}}{out | {primary | A}{plain | B}}"
+        );
+        assert!(result.diagnostics.is_empty());
+    }
+
+    #[test]
+    fn child_path_match_pattern_applies_parent_step_predicates() {
+        let result = convert(
+            r#"<doc><group kind="primary"><item>A</item></group><group kind="secondary"><item>B</item></group></doc><xsl:stylesheet version="1.0"><xsl:template match="/"><out><xsl:apply-templates select="//item"/></out></xsl:template><xsl:template match="item"><plain><xsl:value-of select="."/></plain></xsl:template><xsl:template match="group[@kind='primary']/item"><primary><xsl:value-of select="."/></primary></xsl:template></xsl:stylesheet>"#,
+        );
+        assert_eq!(
+            result.source,
+            "{doc | {group @kind=\"primary\" | {item | A}}{group @kind=\"secondary\" | {item | B}}}{out | {primary | A}{plain | B}}"
         );
         assert!(result.diagnostics.is_empty());
     }
