@@ -185,8 +185,10 @@ for the current architecture have landed; only deferred capability work remains 
       `packages/cem_ml_cli/tests/xslt_parity_transform.rs` and keeps example-shaped cases out of `examples/`.
       XSLT parity now accepts direct CLI `--template-entrypoint` / `--param` and graph
       `transform @entrypoint` / child `param` records for bounded named-template execution, lowering selected
-      entrypoints to `xsl:call-template` wrappers with string `xsl:with-param` values. The separate adapter crate avoids
-      the dependency cycle where `cem_ql` currently depends on `cem_ml`. Transform graph runtime phase now lives on each
+      entrypoints to `xsl:call-template` wrappers with string `xsl:with-param` values. Missing selected XSLT entrypoints
+      now report fatal `cem.transform_template.call_unknown` diagnostics instead of falling through as compatibility
+      warnings. The separate adapter crate avoids the dependency cycle where `cem_ql` currently depends on `cem_ml`.
+      Transform graph runtime phase now lives on each
       `TransformGraphStage`, while duplicate-destination and other graph-wide execution controls stay on
       `TransformGraphRequest`; mixed CEM-native and XSLT stages are covered by CLI integration tests. Quoted XPath
       string literals in lowered XSLT value/param expressions now render as text while scalar variables that represent

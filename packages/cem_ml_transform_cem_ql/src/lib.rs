@@ -12,7 +12,9 @@ use cem_ml::engine::{
     EngineContext, FormatIdentity, TemplateInput, TransformTemplateEntrypoint,
     TransformTemplateKind, TRANSFORM_TEMPLATE_UNSUPPORTED_CODE,
 };
-use cem_ml::legacy_custom_element::{convert_template_source, TEMPLATE_CONTENT_TYPES};
+use cem_ml::legacy_custom_element::{
+    convert_template_source, LegacyConversionDiagnostic, TEMPLATE_CONTENT_TYPES,
+};
 use cem_ml::run_config::ScopeConfig;
 use cem_ml::transform_template::{
     parse_cem_native_template_module_options, TransformTemplateAdapter,
@@ -230,10 +232,11 @@ impl TransformTemplateAdapter for XsltParityTransformTemplateAdapter {
             .diagnostics
             .iter()
             .map(|diagnostic| {
-                let mut diagnostic =
-                    diagnostic.to_engine_diagnostic(Some(request.template.uri.clone()));
-                diagnostic.severity = Severity::Warning;
-                diagnostic
+                xslt_lowering_diagnostic_to_engine(
+                    diagnostic,
+                    request.template.uri.as_str(),
+                    request.entrypoint.name.as_deref(),
+                )
             })
             .collect::<Vec<_>>();
         let host_bindings = host_binding_names(
@@ -339,6 +342,30 @@ fn xslt_param_text(value: &Value) -> String {
         Value::Null => String::new(),
         other => other.to_string(),
     }
+}
+
+fn xslt_lowering_diagnostic_to_engine(
+    diagnostic: &LegacyConversionDiagnostic,
+    uri: &str,
+    selected_entrypoint: Option<&str>,
+) -> Diagnostic {
+    if diagnostic.code == "legacy_xslt.call_template_missing_target" {
+        let mut message = diagnostic.message.clone();
+        if let Some(entrypoint) = selected_entrypoint {
+            message = format!("XSLT template entrypoint `{entrypoint}` was not found");
+        }
+        return Diagnostic {
+            uri: Some(uri.to_owned()),
+            code: TRANSFORM_TEMPLATE_CALL_UNKNOWN_CODE.to_owned(),
+            severity: Severity::Fatal,
+            message,
+            ..Diagnostic::default()
+        };
+    }
+
+    let mut diagnostic = diagnostic.to_engine_diagnostic(Some(uri.to_owned()));
+    diagnostic.severity = Severity::Warning;
+    diagnostic
 }
 
 fn xml_attr_escape(value: &str) -> String {
@@ -1426,6 +1453,45 @@ mod tests {
             "{:?}",
             rendered.diagnostics
         );
+    }
+
+    #[test]
+    fn xslt_parity_adapter_reports_missing_named_entrypoint_as_fatal() {
+        let adapter = XsltParityTransformTemplateAdapter;
+        let identity = FormatIdentity {
+            content_type: Some("application/xslt+xml".to_owned()),
+            ..FormatIdentity::default()
+        };
+        let template = TemplateInput {
+            uri: "view.xsl".to_owned(),
+            bytes: br#"<xsl:stylesheet version="1.0"><xsl:template match="/"><main>default</main></xsl:template></xsl:stylesheet>"#.to_vec(),
+            identity: Some(identity),
+            root_scope: ScopeConfig::default(),
+        };
+        let params = BTreeMap::new();
+        let data_bindings = vec!["input".to_owned()];
+        let compiled = adapter
+            .compile(TransformTemplateCompileRequest {
+                template: &template,
+                entrypoint: &TransformTemplateEntrypoint::named("missing"),
+                params: &params,
+                data_bindings: &data_bindings,
+                module_options: Default::default(),
+                module_preflight: Default::default(),
+                execution_policy: TransformExecutionPolicy {
+                    runtime_phase: TransformRuntimePhase::XsltParity,
+                    ..TransformExecutionPolicy::default()
+                },
+            })
+            .expect("XSLT parity template compile should return diagnostics");
+
+        assert!(compiled.diagnostics.iter().any(|diagnostic| {
+            diagnostic.code == TRANSFORM_TEMPLATE_CALL_UNKNOWN_CODE
+                && diagnostic.severity == Severity::Fatal
+                && diagnostic
+                    .message
+                    .contains("XSLT template entrypoint `missing` was not found")
+        }));
     }
 
     #[test]

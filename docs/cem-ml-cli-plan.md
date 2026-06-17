@@ -875,11 +875,12 @@ These are data shapes only. Parser-filled content remains blocked until the pars
       cases. Executable parity now runs through direct `transform` and CEM-ML graph config, with CLI integration
       coverage in `packages/cem_ml_cli/tests/xslt_parity_transform.rs`. XSLT parity now accepts direct
       `--template-entrypoint` / `--param` and graph `transform @entrypoint` / child `param` records by lowering named
-      entrypoints to bounded `xsl:call-template` execution with string `xsl:with-param` values. The crate dependency
-      cycle is avoided by keeping the concrete CEM-QL adapter in `cem_ml_transform_cem_ql` rather than in `cem_ml`.
-      Mixed-runtime transform graphs now use per-stage runtime policy, with CLI coverage for CEM-native and XSLT stages
-      in the same graph. Quoted XPath string literals in lowered XSLT value/param expressions now render as text while
-      scalar variables that represent rewritten CEM-QL expressions still splice as expressions.
+      entrypoints to bounded `xsl:call-template` execution with string `xsl:with-param` values. Missing selected XSLT
+      entrypoints report fatal `cem.transform_template.call_unknown` diagnostics. The crate dependency cycle is avoided
+      by keeping the concrete CEM-QL adapter in `cem_ml_transform_cem_ql` rather than in `cem_ml`. Mixed-runtime
+      transform graphs now use per-stage runtime policy, with CLI coverage for CEM-native and XSLT stages in the same
+      graph. Quoted XPath string literals in lowered XSLT value/param expressions now render as text while scalar
+      variables that represent rewritten CEM-QL expressions still splice as expressions.
 8. `cem-ml trace <input>`
     - Supported structured formats: `json`, `xml`, `cem`.
     - Reference convenience formats: `text`, `html`.

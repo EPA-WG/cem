@@ -4,6 +4,7 @@ use std::process::{Command, Output};
 use std::time::{SystemTime, UNIX_EPOCH};
 
 const EXIT_OK: i32 = 0;
+const EXIT_HARD_FAILURE: i32 = 1;
 fn cem_ml(args: &[&str]) -> Output {
     Command::new(env!("CARGO_BIN_EXE_cem-ml"))
         .args(args)
@@ -41,6 +42,14 @@ fn report(path: &Path) -> serde_json::Value {
             .unwrap_or_else(|err| panic!("read report {}: {err}", path.display())),
     )
     .unwrap_or_else(|err| panic!("parse report {}: {err}", path.display()))
+}
+
+fn has_diagnostic(report: &serde_json::Value, code: &str) -> bool {
+    report["diagnostics"]
+        .as_array()
+        .expect("diagnostics array")
+        .iter()
+        .any(|diagnostic| diagnostic["code"] == code)
 }
 
 #[test]
@@ -121,6 +130,46 @@ fn direct_cli_executes_xslt_named_entrypoint_and_params() {
     let report = report(&report_path);
     assert_eq!(report["summary"]["hardViolationCount"], 0);
     assert_eq!(report["reportAst"]["transform"]["hasSourceMap"], true);
+}
+
+#[test]
+fn direct_cli_reports_missing_xslt_named_entrypoint() {
+    let root = fixture_root("direct-missing-entrypoint");
+    let data = root.join("profile.cem");
+    let template = root.join("profile.xsl");
+    let report_path = root.join("report.json");
+    write(&data, r#"{section @id="ada"}"#);
+    write(
+        &template,
+        r#"<xsl:stylesheet version="1.0"><xsl:template match="/"><section>default</section></xsl:template></xsl:stylesheet>"#,
+    );
+
+    let output = cem_ml(&[
+        "transform",
+        data.to_str().expect("data path is utf-8"),
+        "--data-content-type",
+        "text/cem-ml",
+        "--template",
+        template.to_str().expect("template path is utf-8"),
+        "--template-content-type",
+        "application/xslt+xml",
+        "--template-entrypoint",
+        "missing",
+        "--to-content-type",
+        "text/html",
+        "--report-json",
+        report_path.to_str().expect("report path is utf-8"),
+    ]);
+
+    assert_eq!(output.status.code(), Some(EXIT_HARD_FAILURE));
+    assert!(stdout(&output).is_empty(), "{}", stdout(&output));
+    assert!(stderr(&output).trim().is_empty(), "{}", stderr(&output));
+    let report = report(&report_path);
+    assert!(has_diagnostic(
+        &report,
+        "cem.transform_template.call_unknown"
+    ));
+    assert_eq!(report["summary"]["hardViolationCount"], 1);
 }
 
 #[test]
