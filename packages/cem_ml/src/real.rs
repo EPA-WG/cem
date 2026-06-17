@@ -2663,6 +2663,8 @@ impl CemMlEngine for RealCemMlEngine {
         if has_hard_transform_diagnostic(&diagnostics) {
             return Ok(TransformResponse {
                 primary: Value::Null,
+                source_map: None,
+                output_spans: Vec::new(),
                 diagnostics,
                 scheduler_trace: crate::report::SchedulerTraceReport::from_trace(&trace),
             });
@@ -2717,6 +2719,8 @@ impl CemMlEngine for RealCemMlEngine {
         if has_hard_transform_diagnostic(&diagnostics) {
             return Ok(TransformResponse {
                 primary: Value::Null,
+                source_map: None,
+                output_spans: Vec::new(),
                 diagnostics,
                 scheduler_trace: crate::report::SchedulerTraceReport::from_trace(&trace),
             });
@@ -2751,6 +2755,8 @@ impl CemMlEngine for RealCemMlEngine {
         if has_hard_transform_diagnostic(&diagnostics) {
             return Ok(TransformResponse {
                 primary: Value::Null,
+                source_map: None,
+                output_spans: Vec::new(),
                 diagnostics,
                 scheduler_trace: crate::report::SchedulerTraceReport::from_trace(&trace),
             });
@@ -2759,6 +2765,8 @@ impl CemMlEngine for RealCemMlEngine {
         let Some(adapter) = adapter else {
             return Ok(TransformResponse {
                 primary: Value::Null,
+                source_map: None,
+                output_spans: Vec::new(),
                 diagnostics,
                 scheduler_trace: crate::report::SchedulerTraceReport::from_trace(&trace),
             });
@@ -2790,19 +2798,20 @@ impl CemMlEngine for RealCemMlEngine {
                     diagnostic_node: None,
                 },
                 &mut diagnostics,
-            )
-            .map(|output| output.value);
+            );
         });
 
         if has_hard_transform_diagnostic(&diagnostics) {
             return Ok(TransformResponse {
                 primary: Value::Null,
+                source_map: None,
+                output_spans: Vec::new(),
                 diagnostics,
                 scheduler_trace: crate::report::SchedulerTraceReport::from_trace(&trace),
             });
         }
 
-        let primary = rendered.ok_or_else(|| {
+        let rendered = rendered.ok_or_else(|| {
             EngineError::Internal(
                 "scheduler did not dispatch transform template execution task".to_owned(),
             )
@@ -2827,7 +2836,9 @@ impl CemMlEngine for RealCemMlEngine {
         ));
 
         Ok(TransformResponse {
-            primary,
+            primary: rendered.value,
+            source_map: rendered.source_map,
+            output_spans: rendered.output_spans,
             diagnostics,
             scheduler_trace: crate::report::SchedulerTraceReport::from_trace(&trace),
         })

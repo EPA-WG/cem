@@ -803,6 +803,10 @@ pub struct ConvertResponse {
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct TransformResponse {
     pub primary: Value,
+    #[serde(rename = "sourceMap", default, skip_serializing_if = "Option::is_none")]
+    pub source_map: Option<SourceMapStack>,
+    #[serde(rename = "outputSpans", default, skip_serializing_if = "Vec::is_empty")]
+    pub output_spans: Vec<OutputSpan>,
     pub diagnostics: Vec<Diagnostic>,
     #[serde(rename = "schedulerTrace", default)]
     pub scheduler_trace: SchedulerTraceReport,

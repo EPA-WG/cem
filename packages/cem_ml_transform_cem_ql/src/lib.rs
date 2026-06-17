@@ -2654,6 +2654,8 @@ mod tests {
             "{:?}",
             response.diagnostics
         );
+        assert!(response.source_map.is_some());
+        assert!(!response.output_spans.is_empty());
         assert_eq!(response.scheduler_trace.event_count, 12);
         let scopes = response
             .scheduler_trace
