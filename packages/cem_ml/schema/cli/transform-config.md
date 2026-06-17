@@ -20,7 +20,8 @@ Namespace URI: `https://cem.dev/ns/cli/transform-config/1`
 | `run` | none | none | `import` |
 | `import` | `src` | `id`, `content-type`, `contentType`, `schema` | `join`, `transform`, `export` |
 | `join` | `mode` | `id`, `input`, `by`, `with:*` | `transform`, `export` |
-| `transform` | `src` | `id`, `input`, `with:*`, `template-content-type`, `templateContentType`, `template-schema`, `templateSchema` | `join`, `transform`, `export` |
+| `transform` | `src` | `id`, `input`, `with:*`, `entrypoint`, `template-content-type`, `templateContentType`, `template-schema`, `templateSchema` | `param`, `join`, `transform`, `export` |
+| `param` | `name`, `value` | none | none |
 | `export` | `out` | `id`, `content-type`, `contentType`, `schema` | none |
 
 ## Graph Semantics
@@ -39,6 +40,8 @@ Namespace URI: `https://cem.dev/ns/cli/transform-config/1`
   each positional tuple across primary and named secondary input artifacts.
   Unequal input counts are a schema validation failure.
 - `transform` creates a template application node from `@src`.
+- `transform @entrypoint` selects a public CEM-native template entrypoint.
+- `transform` child `param @name @value` records provide caller params for that transform stage.
 - `export` creates a sink node from `@out`.
 - Nested operation nodes create parent graph edges.
 - `@input` creates an explicit primary input edge to an existing graph node.
@@ -60,15 +63,7 @@ extension. The current parser classifies XSLT and CEM-native templates; the
 runtime executes supported CEM-native templates and keeps XML+XSLT execution
 deferred.
 
-## Reserved CEM-Native Module Extension
-
-The remaining CEM-native parity closure reserves the next graph-config schema
-extension without making it active in the current parser table:
-
-| Element | Required attributes | Optional attributes | Child elements |
-| ------- | ------------------- | ------------------- | -------------- |
-| `transform` | `src` | existing transform attributes plus `entrypoint` | existing transform children plus `param` |
-| `param` | `name`, `value` | none | none |
+## CEM-Native Module Params
 
 `transform @entrypoint` selects a public CEM-native template entrypoint. Child
 `param @name @value` records provide caller params for that transform stage.

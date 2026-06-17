@@ -994,6 +994,69 @@ fn transform_target_scope(args: &cli::TransformArgs) -> ScopeConfig {
     }
 }
 
+fn transform_template_entrypoint(value: Option<&str>) -> eng::TransformTemplateEntrypoint {
+    value
+        .map(str::trim)
+        .filter(|value| !value.is_empty())
+        .map(eng::TransformTemplateEntrypoint::named)
+        .unwrap_or_else(eng::TransformTemplateEntrypoint::implicit)
+}
+
+fn transform_parse_cli_params(
+    raw_params: &[String],
+) -> Result<BTreeMap<String, serde_json::Value>, CliRequestError> {
+    let mut params = BTreeMap::new();
+    for raw in raw_params {
+        let Some((name, value)) = raw.split_once('=') else {
+            return Err(CliRequestError::Usage(format!(
+                "transform --param `{raw}` must use NAME=VALUE"
+            )));
+        };
+        let name = name.trim();
+        if name.is_empty() {
+            return Err(CliRequestError::Usage(
+                "transform --param name must not be empty".into(),
+            ));
+        }
+        if params
+            .insert(name.to_owned(), serde_json::Value::String(value.to_owned()))
+            .is_some()
+        {
+            return Err(CliRequestError::Usage(format!(
+                "transform --param `{name}` is declared more than once"
+            )));
+        }
+    }
+    Ok(params)
+}
+
+fn transform_execution_policy_for(
+    entrypoint: &eng::TransformTemplateEntrypoint,
+    params: &BTreeMap<String, serde_json::Value>,
+) -> eng::TransformExecutionPolicy {
+    let mut policy = eng::TransformExecutionPolicy::default();
+    if !entrypoint.is_implicit() || !params.is_empty() {
+        policy.runtime_phase = eng::TransformRuntimePhase::CemNativeModules;
+    }
+    policy
+}
+
+fn validate_transform_template_module_surface(
+    template_kind: eng::TransformTemplateKind,
+    entrypoint: &eng::TransformTemplateEntrypoint,
+    params: &BTreeMap<String, serde_json::Value>,
+) -> Result<(), CliRequestError> {
+    if template_kind != eng::TransformTemplateKind::CemNative
+        && (!entrypoint.is_implicit() || !params.is_empty())
+    {
+        return Err(CliRequestError::Usage(
+            "transform template entrypoints and params are supported only for CEM-native templates"
+                .into(),
+        ));
+    }
+    Ok(())
+}
+
 fn transform_request_from_args(
     context: &eng::EngineContext,
     args: &cli::TransformArgs,
@@ -1027,13 +1090,17 @@ fn transform_request_from_args(
         &context.template_adapter_registry,
     )
     .map_err(|error| CliRequestError::Usage(error.to_string()))?;
+    let template_entrypoint = transform_template_entrypoint(args.template_entrypoint.as_deref());
+    let params = transform_parse_cli_params(&args.params)?;
+    validate_transform_template_module_surface(template_kind, &template_entrypoint, &params)?;
+    let execution_policy = transform_execution_policy_for(&template_entrypoint, &params);
     let target_scope = transform_target_scope(args);
     Ok(eng::TransformRequest {
         data,
         template,
         template_kind,
-        template_entrypoint: eng::TransformTemplateEntrypoint::implicit(),
-        params: BTreeMap::new(),
+        template_entrypoint,
+        params,
         preserve_source_offsets: false,
         context: context.clone(),
         target: target_scope.format_identity_option(),
@@ -1044,7 +1111,7 @@ fn transform_request_from_args(
             execution: 2,
             output: 3,
         },
-        execution_policy: eng::TransformExecutionPolicy::default(),
+        execution_policy,
     })
 }
 
@@ -1484,6 +1551,36 @@ fn transform_graph_expand_path_template(
     bindings: &BTreeMap<String, String>,
     config_source_uri: &str,
 ) -> Result<String, CliRequestError> {
+    transform_graph_expand_binding_template(
+        template,
+        bindings,
+        config_source_uri,
+        "output path template",
+        "output_binding",
+    )
+}
+
+fn transform_graph_expand_param_template(
+    template: &str,
+    bindings: &BTreeMap<String, String>,
+    config_source_uri: &str,
+) -> Result<String, CliRequestError> {
+    transform_graph_expand_binding_template(
+        template,
+        bindings,
+        config_source_uri,
+        "param value template",
+        "param_binding",
+    )
+}
+
+fn transform_graph_expand_binding_template(
+    template: &str,
+    bindings: &BTreeMap<String, String>,
+    config_source_uri: &str,
+    label: &str,
+    code_prefix: &str,
+) -> Result<String, CliRequestError> {
     let mut out = String::new();
     let mut rest = template;
     while let Some(open) = rest.find('{') {
@@ -1492,23 +1589,23 @@ fn transform_graph_expand_path_template(
         let Some(close) = after_open.find('}') else {
             return Err(transform_config_error(
                 config_source_uri,
-                "cem.transform_config.output_binding_unclosed",
-                format!("output path template `{template}` has an unclosed binding"),
+                &format!("cem.transform_config.{code_prefix}_unclosed"),
+                format!("{label} `{template}` has an unclosed binding"),
             ));
         };
         let name = &after_open[..close];
         if name.trim().is_empty() {
             return Err(transform_config_error(
                 config_source_uri,
-                "cem.transform_config.output_binding_empty",
-                format!("output path template `{template}` has an empty binding"),
+                &format!("cem.transform_config.{code_prefix}_empty"),
+                format!("{label} `{template}` has an empty binding"),
             ));
         }
         let Some(value) = bindings.get(name) else {
             return Err(transform_config_error(
                 config_source_uri,
-                "cem.transform_config.output_binding_unknown",
-                format!("output path template `{template}` references unknown binding `{name}`"),
+                &format!("cem.transform_config.{code_prefix}_unknown"),
+                format!("{label} `{template}` references unknown binding `{name}`"),
             ));
         };
         out.push_str(value);
@@ -1516,6 +1613,19 @@ fn transform_graph_expand_path_template(
     }
     out.push_str(rest);
     Ok(out)
+}
+
+fn transform_graph_stage_params(
+    node: &TransformGraphNode,
+    bindings: &BTreeMap<String, String>,
+    config_source_uri: &str,
+) -> Result<BTreeMap<String, serde_json::Value>, CliRequestError> {
+    let mut params = BTreeMap::new();
+    for (name, value) in &node.params {
+        let value = transform_graph_expand_param_template(value, bindings, config_source_uri)?;
+        params.insert(name.clone(), serde_json::Value::String(value));
+    }
+    Ok(params)
 }
 
 fn transform_graph_scope(
@@ -1829,6 +1939,7 @@ fn transform_graph_request_from_config(
     let mut edges = Vec::new();
     let mut variants: BTreeMap<String, Vec<TransformGraphArtifactVariant>> = BTreeMap::new();
     let mut next_scope_id = 0u32;
+    let mut execution_policy = eng::TransformExecutionPolicy::default();
 
     for node in &graph.nodes {
         match node.kind {
@@ -1994,6 +2105,22 @@ fn transform_graph_request_from_config(
                     let template_load = next_scope_id;
                     let execution = next_scope_id + 1;
                     next_scope_id += 2;
+                    let template_entrypoint =
+                        transform_template_entrypoint(node.entrypoint.as_deref());
+                    let params = transform_graph_stage_params(
+                        node,
+                        &primary_variant.bindings,
+                        config_source_uri,
+                    )?;
+                    validate_transform_template_module_surface(
+                        template_kind,
+                        &template_entrypoint,
+                        &params,
+                    )?;
+                    if !template_entrypoint.is_implicit() || !params.is_empty() {
+                        execution_policy.runtime_phase =
+                            eng::TransformRuntimePhase::CemNativeModules;
+                    }
                     let mut secondary_inputs = BTreeMap::new();
                     for (name, target) in &node.with {
                         let secondary = transform_graph_single_variant_for_ref(
@@ -2014,8 +2141,8 @@ fn transform_graph_request_from_config(
                         id: stage_id.clone(),
                         template: template.clone(),
                         template_kind,
-                        template_entrypoint: eng::TransformTemplateEntrypoint::implicit(),
-                        params: BTreeMap::new(),
+                        template_entrypoint,
+                        params,
                         primary_input: primary_variant.id.clone(),
                         secondary_inputs,
                         scheduler_scope_ids: eng::TransformStageSchedulerScopeIds {
@@ -2084,7 +2211,7 @@ fn transform_graph_request_from_config(
         edges,
         preserve_source_offsets: false,
         context: context.clone(),
-        execution_policy: eng::TransformExecutionPolicy::default(),
+        execution_policy,
     })
 }
 
@@ -4962,6 +5089,60 @@ mod tests {
     }
 
     #[test]
+    fn transform_config_request_helper_lowers_entrypoint_and_expanded_params() {
+        let root = std::env::temp_dir().join("cem-ml-cli-tests/transform-config-entrypoint");
+        let _ = std::fs::remove_dir_all(&root);
+        std::fs::create_dir_all(&root).unwrap();
+        std::fs::write(root.join("chapter-one.cem"), "{p | Chapter}").unwrap();
+        std::fs::write(
+            root.join("page.cem"),
+            r#"{module |
+  {template @name="card" @visibility="public" |
+    {param @name="title" @required="true"}
+    {body | {article | {$ title }}}
+  }
+}"#,
+        )
+        .unwrap();
+        let config = root.join("graph.cem");
+        std::fs::write(
+            &config,
+            r#"{run |
+  {import @id=book @src="chapter-one.cem" @content-type="text/cem-ml" |
+    {transform @id=html @src="page.cem" @template-content-type="text/cem-ml" @template-schema="https://cem.dev/ns/template/cem-native/1" @entrypoint="card" |
+      {param @name="title" @value="{stem}"}
+      {export @id=main @out="out/{stem}.html" @content-type="text/html"}
+    }
+  }
+}"#,
+        )
+        .unwrap();
+        let parsed = parse_cli(&["transform", "--config", config.to_str().unwrap()]);
+        let cli::Command::Transform(args) = parsed.command else {
+            panic!("expected transform command");
+        };
+        let context = context(&cli::ContextOptions::default());
+
+        let (request, _) = match transform_graph_request_from_args(&context, &args) {
+            Ok(request) => request,
+            Err(_) => panic!("transform config should lower entrypoint and params"),
+        };
+
+        assert_eq!(
+            request.stages[0].template_entrypoint.name.as_deref(),
+            Some("card")
+        );
+        assert_eq!(
+            request.stages[0].params.get("title"),
+            Some(&serde_json::json!("chapter-one"))
+        );
+        assert_eq!(
+            request.execution_policy.runtime_phase,
+            eng::TransformRuntimePhase::CemNativeModules
+        );
+    }
+
+    #[test]
     fn transform_warnings_go_to_stderr_without_report_destination() {
         let data = write_fixture("transform-run-warning-data.cem", "{p @label=\"source\"}");
         let template = write_fixture("transform-run-warning-template.cem", "{section | Done}");
@@ -5285,6 +5466,88 @@ mod tests {
             request.template.root_scope.default_content_type.as_deref(),
             Some("text/cem-ml")
         );
+    }
+
+    #[test]
+    fn transform_request_helper_lowers_template_entrypoint_and_params() {
+        let data = write_fixture("transform-helper-entrypoint-data.cem", "{p Hi}");
+        let template = write_fixture(
+            "transform-helper-entrypoint-view.cem",
+            r#"{module |
+  {template @name="card" @visibility="public" |
+    {param @name="title" @required="true"}
+    {body | {article | {$ title }}}
+  }
+}"#,
+        );
+        let parsed = parse_cli(&[
+            "transform",
+            data.to_str().unwrap(),
+            "--data-content-type",
+            "text/cem-ml",
+            "--template",
+            template.to_str().unwrap(),
+            "--template-content-type",
+            "text/cem-ml",
+            "--template-schema",
+            "https://cem.dev/ns/template/cem-native/1",
+            "--template-entrypoint",
+            "card",
+            "--param",
+            "title=Intro",
+            "--to-content-type",
+            "text/html",
+        ]);
+        let cli::Command::Transform(args) = parsed.command else {
+            panic!("expected transform command");
+        };
+
+        let request = match transform_request_from_args(&eng::EngineContext::default(), &args) {
+            Ok(request) => request,
+            Err(_) => panic!("transform request helper should lower entrypoint and params"),
+        };
+
+        assert_eq!(request.template_kind, eng::TransformTemplateKind::CemNative);
+        assert_eq!(request.template_entrypoint.name.as_deref(), Some("card"));
+        assert_eq!(
+            request.params.get("title"),
+            Some(&serde_json::json!("Intro"))
+        );
+        assert_eq!(
+            request.execution_policy.runtime_phase,
+            eng::TransformRuntimePhase::CemNativeModules
+        );
+    }
+
+    #[test]
+    fn transform_request_helper_rejects_bad_cli_params() {
+        let data = write_fixture("transform-helper-bad-param-data.cem", "{p Hi}");
+        let template = write_fixture("transform-helper-bad-param-view.cem", "{p | Hi}");
+        let parsed = parse_cli(&[
+            "transform",
+            data.to_str().unwrap(),
+            "--data-content-type",
+            "text/cem-ml",
+            "--template",
+            template.to_str().unwrap(),
+            "--template-content-type",
+            "text/cem-ml",
+            "--param",
+            "missing-equals",
+            "--to-content-type",
+            "text/html",
+        ]);
+        let cli::Command::Transform(args) = parsed.command else {
+            panic!("expected transform command");
+        };
+
+        let err = transform_request_from_args(&eng::EngineContext::default(), &args)
+            .err()
+            .expect("bad param should fail");
+        let CliRequestError::Usage(message) = err else {
+            panic!("expected usage error");
+        };
+        assert!(message.contains("NAME=VALUE"));
     }
 
     #[test]

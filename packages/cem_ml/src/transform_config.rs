@@ -57,12 +57,19 @@ pub const TRANSFORM_CONFIG_SCHEMA_ELEMENTS: &[TransformConfigElementSchema] = &[
             "id",
             "input",
             "with:*",
+            "entrypoint",
             "template-content-type",
             "templateContentType",
             "template-schema",
             "templateSchema",
         ],
-        child_elements: &["join", "transform", "export"],
+        child_elements: &["param", "join", "transform", "export"],
+    },
+    TransformConfigElementSchema {
+        local_name: "param",
+        required_attributes: &["name", "value"],
+        optional_attributes: &[],
+        child_elements: &[],
     },
     TransformConfigElementSchema {
         local_name: "export",
@@ -100,6 +107,10 @@ pub struct TransformGraphNode {
     pub template_schema: Option<String>,
     #[serde(default)]
     pub template_kind: Option<TransformTemplateKind>,
+    #[serde(default)]
+    pub entrypoint: Option<String>,
+    #[serde(default)]
+    pub params: BTreeMap<String, String>,
     #[serde(default)]
     pub join_mode: Option<TransformGraphJoinMode>,
     #[serde(default)]
@@ -347,6 +358,11 @@ impl GraphLowerer<'_> {
         } else {
             None
         };
+        let params = if kind == TransformGraphNodeKind::Transform {
+            self.collect_transform_params(ast_id, &id)
+        } else {
+            BTreeMap::new()
+        };
         let mut node = TransformGraphNode {
             id: id.clone(),
             kind,
@@ -360,6 +376,10 @@ impl GraphLowerer<'_> {
             template_schema: attr_value(&attrs, "", "template-schema")
                 .or_else(|| attr_value(&attrs, "", "templateSchema")),
             template_kind: None,
+            entrypoint: attr_value(&attrs, "", "entrypoint")
+                .map(|value| value.trim().to_owned())
+                .filter(|value| !value.is_empty()),
+            params,
             join_mode,
             join_by,
             input_ref,
@@ -383,8 +403,100 @@ impl GraphLowerer<'_> {
 
         if kind == TransformGraphNodeKind::Export {
             self.lower_export_children(ast_id);
+        } else if kind == TransformGraphNodeKind::Transform {
+            self.lower_transform_children(ast_id, Some(id));
         } else {
             self.lower_children(ast_id, Some(id));
+        }
+    }
+
+    fn collect_transform_params(
+        &mut self,
+        ast_id: AstNodeId,
+        transform_id: &str,
+    ) -> BTreeMap<String, String> {
+        let mut params = BTreeMap::new();
+        let Some(CemAstNode::Element { children, .. }) = self.document.get(ast_id) else {
+            return params;
+        };
+        for child in children {
+            let Some(name) = element_name(self.document, *child) else {
+                continue;
+            };
+            if name != "param" {
+                continue;
+            }
+            let attrs = collect_attrs(self.document, *child);
+            let Some(param_name) = attr_value(&attrs, "", "name")
+                .map(|value| value.trim().to_owned())
+                .filter(|value| !value.is_empty())
+            else {
+                self.push_diag(
+                    "cem.transform_config.param_name_missing",
+                    format!("transform node `{transform_id}` has a param without `@name`"),
+                );
+                continue;
+            };
+            let Some(value) = attr_value(&attrs, "", "value") else {
+                self.push_diag(
+                    "cem.transform_config.param_value_missing",
+                    format!(
+                        "transform node `{transform_id}` param `{param_name}` requires `@value`"
+                    ),
+                );
+                continue;
+            };
+            if params.insert(param_name.clone(), value).is_some() {
+                self.push_diag(
+                    "cem.transform_config.param_duplicate",
+                    format!(
+                        "transform node `{transform_id}` declares param `{param_name}` more than once"
+                    ),
+                );
+            }
+            self.validate_param_children(*child, transform_id, &param_name);
+        }
+        params
+    }
+
+    fn validate_param_children(&mut self, ast_id: AstNodeId, transform_id: &str, param_name: &str) {
+        let Some(CemAstNode::Element { children, .. }) = self.document.get(ast_id) else {
+            return;
+        };
+        for child in children {
+            if let Some(name) = element_name(self.document, *child) {
+                self.push_diag(
+                    "cem.transform_config.param_child_unsupported",
+                    format!(
+                        "transform node `{transform_id}` param `{param_name}` cannot contain `{name}`"
+                    ),
+                );
+            }
+        }
+    }
+
+    fn lower_transform_children(
+        &mut self,
+        parent_ast_id: AstNodeId,
+        parent_graph_id: Option<String>,
+    ) {
+        let Some(CemAstNode::Element { children, .. }) = self.document.get(parent_ast_id) else {
+            return;
+        };
+        for child in children {
+            let Some(name) = element_name(self.document, *child) else {
+                continue;
+            };
+            match name {
+                "param" => {}
+                "join" | "transform" | "export" => {
+                    self.lower_operation(*child, parent_graph_id.clone());
+                }
+                other => self.push_diag(
+                    "cem.transform_config.child_unsupported",
+                    format!("`{other}` is not valid inside transform graph operation nodes"),
+                ),
+            }
         }
     }
 
@@ -775,6 +887,10 @@ mod tests {
             .iter()
             .find(|element| element.local_name == "transform")
             .expect("transform schema");
+        let param = TRANSFORM_CONFIG_SCHEMA_ELEMENTS
+            .iter()
+            .find(|element| element.local_name == "param")
+            .expect("param schema");
         let join = TRANSFORM_CONFIG_SCHEMA_ELEMENTS
             .iter()
             .find(|element| element.local_name == "join")
@@ -788,8 +904,12 @@ mod tests {
         assert_eq!(join.child_elements, &["transform", "export"]);
         assert_eq!(transform.required_attributes, &["src"]);
         assert!(transform.optional_attributes.contains(&"with:*"));
+        assert!(transform.optional_attributes.contains(&"entrypoint"));
+        assert!(transform.child_elements.contains(&"param"));
         assert!(transform.child_elements.contains(&"join"));
         assert!(transform.child_elements.contains(&"export"));
+        assert_eq!(param.required_attributes, &["name", "value"]);
+        assert!(param.child_elements.is_empty());
     }
 
     #[test]
@@ -949,6 +1069,70 @@ mod tests {
             &response,
             "cem.transform_config.template_identity_missing"
         ));
+    }
+
+    #[test]
+    fn parses_transform_entrypoint_and_params() {
+        let response = parse(
+            r#"{@doc cem-ml 1}
+{run |
+  {import @id=book @src="inputs/book.cem" |
+    {transform @id=render @src="templates/book.cem" @entrypoint="card" |
+      {param @name="locale" @value="fr-FR"}
+      {param @name="title" @value="{stem}"}
+      {export @id=html @out="out/{stem}.html"}
+    }
+  }
+}"#,
+        );
+
+        let render = response
+            .graph
+            .nodes
+            .iter()
+            .find(|node| node.id == "render")
+            .expect("render node");
+        assert_eq!(render.entrypoint.as_deref(), Some("card"));
+        assert_eq!(
+            render.params.get("locale").map(String::as_str),
+            Some("fr-FR")
+        );
+        assert_eq!(
+            render.params.get("title").map(String::as_str),
+            Some("{stem}")
+        );
+        assert!(response.graph.edges.iter().any(|edge| {
+            edge.from == "render"
+                && edge.to == "html"
+                && edge.role == TransformGraphEdgeRole::Parent
+        }));
+    }
+
+    #[test]
+    fn validates_transform_params() {
+        let response = parse(
+            r#"{@doc cem-ml 1}
+{run |
+  {import @id=book @src="inputs/book.cem" |
+    {transform @id=render @src="templates/book.cem" |
+      {param @value="missing-name"}
+      {param @name="missing-value"}
+      {param @name="locale" @value="en-US"}
+      {param @name="locale" @value="fr-FR"}
+      {param @name="nested" @value="x" | {export @out="bad.html"}}
+    }
+  }
+}"#,
+        );
+
+        for code in [
+            "cem.transform_config.param_name_missing",
+            "cem.transform_config.param_value_missing",
+            "cem.transform_config.param_duplicate",
+            "cem.transform_config.param_child_unsupported",
+        ] {
+            assert!(has_diag(&response, code), "missing diagnostic {code}");
+        }
     }
 
     #[test]

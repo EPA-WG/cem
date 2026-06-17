@@ -592,6 +592,20 @@ pub struct TransformArgs {
     pub template_schema: Option<String>,
 
     #[arg(
+        long = "template-entrypoint",
+        value_name = "NAME",
+        help = "Public CEM-native template entrypoint to render"
+    )]
+    pub template_entrypoint: Option<String>,
+
+    #[arg(
+        long = "param",
+        value_name = "NAME=VALUE",
+        help = "CEM-native template param; repeatable"
+    )]
+    pub params: Vec<String>,
+
+    #[arg(
         long = "to-content-type",
         value_name = "TYPE",
         help = "Target document content type"
