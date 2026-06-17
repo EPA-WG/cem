@@ -2947,6 +2947,85 @@ mod tests {
     }
 
     #[test]
+    fn adapter_applies_imported_module_call_param_defaults() {
+        let adapter = CemQlTransformTemplateAdapter;
+        let identity = FormatIdentity {
+            schema: Some(cem_ml::transform_template::CEM_NATIVE_TEMPLATE_SCHEMA_URI.to_owned()),
+            ..FormatIdentity::default()
+        };
+        let template = TemplateInput {
+            uri: "template.cem".to_owned(),
+            bytes: br#"{@doc cem-ml 1}
+{module |
+  {body | {div | {call @from="ui" @template="icon"}}}
+}"#
+            .to_vec(),
+            identity: Some(identity.clone()),
+            root_scope: ScopeConfig::default(),
+        };
+        let params = BTreeMap::new();
+        let data_bindings = Vec::new();
+        let compiled = adapter
+            .compile(TransformTemplateCompileRequest {
+                template: &template,
+                entrypoint: &TransformTemplateEntrypoint::implicit(),
+                params: &params,
+                data_bindings: &data_bindings,
+                module_options: Default::default(),
+                module_preflight: TransformTemplateModulePreflight {
+                    resolved_imports: vec![TransformTemplateResolvedModule {
+                        alias: "ui".to_owned(),
+                        parent_uri: None,
+                        uri: "templates/ui.cem".to_owned(),
+                        identity: Some(identity),
+                        content_hash: "cem-bin/1+blake3:ui".to_owned(),
+                        bytes: br#"{@doc cem-ml 1}
+{module |
+  {param @name="tone" @default="primary"}
+  {template @name="icon" @visibility="public" |
+    {param @name="title" @default="Imported"}
+    {body | {span @class="{$tone}" | {$title}}}
+  }
+}"#
+                        .to_vec(),
+                    }],
+                    cache_key: None,
+                },
+                execution_policy: TransformExecutionPolicy::default(),
+            })
+            .expect("module template should compile")
+            .artifact;
+        let primary_input = TransformTemplateDataArtifact {
+            artifact_id: "data".to_owned(),
+            uri: None,
+            identity: None,
+            value: Value::Null,
+        };
+        let secondary_inputs = BTreeMap::new();
+
+        let rendered = adapter
+            .render(TransformTemplateRenderRequest {
+                compiled: &compiled,
+                primary_input: &primary_input,
+                secondary_inputs: &secondary_inputs,
+                target: None,
+                target_scope: &ScopeConfig::default(),
+                execution_policy: TransformExecutionPolicy::default(),
+            })
+            .expect("module template should render");
+
+        assert_eq!(
+            rendered.output.value,
+            Value::String("<div><span class=\"primary\">Imported</span></div>".to_owned())
+        );
+        assert!(
+            rendered.diagnostics.is_empty(),
+            "{:?}",
+            rendered.diagnostics
+        );
+    }
+
+    #[test]
     fn adapter_reports_missing_required_params_for_imported_module_calls() {
         let adapter = CemQlTransformTemplateAdapter;
         let identity = FormatIdentity {
