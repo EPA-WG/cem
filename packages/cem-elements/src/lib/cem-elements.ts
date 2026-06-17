@@ -560,17 +560,18 @@ export class CemElementRuntime {
         return template;
     }
 
-    /** Fetch + parse the document an external `src` references, cached per resolved path. */
+    /** Fetch + parse the document an external `src` references, cached per declaring document and path. */
     private loadSrcDocumentParsed(declarationElement: HTMLElement, path: string): Promise<Document> {
-        const cached = this.srcDocuments.get(path);
+        const baseDocument = declarationElement.ownerDocument;
+        const key = `${baseDocument.baseURI}\n${path}`;
+        const cached = this.srcDocuments.get(key);
         if (cached) {
             return cached;
         }
-        const baseDocument = declarationElement.ownerDocument;
         const parsed = this.loadSrcDocument(path, baseDocument).then((html) =>
             new DOMParser().parseFromString(html, 'text/html')
         );
-        this.srcDocuments.set(path, parsed);
+        this.srcDocuments.set(key, parsed);
         return parsed;
     }
 

@@ -67,9 +67,12 @@ Recommended execution order:
       detail. Browser coverage asserts repeated input events, latest-render output, multi-instance isolation, and
       snapshot serialization for host attributes, dataset, payload data/options/slots, slices, validation state, and
       event payloads.
-- [ ] **Make URI/module resolution policy explicit.** Cover fragment-only `src`, document-relative `url#fragment`,
+- [x] **Make URI/module resolution policy explicit.** Cover fragment-only `src`, document-relative `url#fragment`,
       external document loading, module-map/specifier hooks, `module-url` resource slices, resolver failure diagnostics,
       source identity, and cache invalidation when resolver or scope policy changes.
+      Runtime coverage now exercises fragment-only `src`, document-relative external documents keyed by declaring
+      document base URI, host `resolveModuleUrl` hooks, `module-url` slice/payload snapshots, resolver failure
+      diagnostics, and per-runtime cache policy changes.
 - [ ] **Move the legacy bridge behind the shared engine boundary.** The inventory says the `custom-element-v0`
       converter still lives in `cem-elements` TypeScript. Move or wrap that compatibility compiler so browser runtime,
       CLI validation, SSR, and package gates can consume the same CEM engine path instead of a browser-only converter.

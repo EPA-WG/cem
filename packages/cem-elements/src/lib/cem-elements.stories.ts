@@ -1035,6 +1035,151 @@ export const SrcDeclarationLoadingDiagnostics: Story = {
     },
 };
 
+export const UriAndModuleResolutionPolicy: Story = {
+    render: () =>
+        storyPanel(
+            'URI/module resolution policy',
+            'fragment src, document-relative external src, module-url hooks, resolver diagnostics, cache identity'
+        ),
+    play: async ({ canvasElement }) => {
+        const root = document.createElement('section');
+        root.setAttribute('aria-label', 'URI and module resolution policy story');
+        canvasElement.appendChild(root);
+
+        const localRuntime = new CemElementRuntime({ declarationTag: 'cem-element-story-uri-local' });
+        const localTemplate = document.createElement('template');
+        localTemplate.id = 'story-uri-local-template';
+        localTemplate.setAttribute('type', 'text/cem-ml');
+        localTemplate.textContent = '{span @class=label | {$datadom.attributes.label}}';
+        root.appendChild(localTemplate);
+
+        const localDeclaration = document.createElement('cem-element-story-uri-local');
+        localDeclaration.setAttribute('tag', 'story-uri-local-fragment');
+        localDeclaration.setAttribute('src', '#story-uri-local-template');
+        root.appendChild(localDeclaration);
+        assert(localRuntime.registerDeclaration(localDeclaration), 'fragment-only src declarations register');
+        await localRuntime.whenDeclarationSettled(localDeclaration);
+
+        const localInstance = document.createElement('story-uri-local-fragment');
+        localInstance.setAttribute('label', 'Fragment');
+        root.appendChild(localInstance);
+        assertEqual(
+            (await waitForElement(localInstance, '.label')).textContent?.trim(),
+            'Fragment',
+            'fragment-only src resolves against the declaring document'
+        );
+
+        const sourceLoads: string[] = [];
+        const sourceRuntime = new CemElementRuntime({
+            declarationTag: 'cem-element-story-uri-source',
+            loadSrcDocument: async (path, baseDocument) => {
+                const href = new URL(path, baseDocument.baseURI).href;
+                sourceLoads.push(href);
+                return `<template id="card"><span class="source">${href}</span></template>`;
+            },
+        });
+        const firstFrame = await appendResolutionPolicyFrame(canvasElement, 'https://example.test/alpha/');
+        const secondFrame = await appendResolutionPolicyFrame(canvasElement, 'https://example.test/beta/');
+        sourceRuntime.install(firstFrame.contentWindow as Window);
+        sourceRuntime.install(secondFrame.contentWindow as Window);
+
+        const firstSource = await registerExternalSourceInstance(
+            sourceRuntime,
+            firstFrame.contentDocument as Document,
+            'story-uri-source-alpha'
+        );
+        const secondSource = await registerExternalSourceInstance(
+            sourceRuntime,
+            secondFrame.contentDocument as Document,
+            'story-uri-source-beta'
+        );
+        assertEqual(
+            requiredElement(firstSource, '.source').textContent,
+            'https://example.test/alpha/cards.html',
+            'external src resolves document-relative to the first source document'
+        );
+        assertEqual(
+            requiredElement(secondSource, '.source').textContent,
+            'https://example.test/beta/cards.html',
+            'external src cache identity includes the declaring document base URI'
+        );
+        assertEqual(
+            sourceLoads.join('|'),
+            'https://example.test/alpha/cards.html|https://example.test/beta/cards.html',
+            'same external src path loads once per declaring document identity'
+        );
+
+        const specifier = '@scope/widget/icon.svg';
+        const moduleRuntimeA = new CemElementRuntime({
+            declarationTag: 'cem-element-story-uri-module-a',
+            resolveModuleUrl: async (moduleSpecifier) => {
+                assertEqual(moduleSpecifier, specifier, 'module resolver receives the resource specifier');
+                return 'https://cdn.example.test/a/icon.svg';
+            },
+        });
+        const moduleRuntimeB = new CemElementRuntime({
+            declarationTag: 'cem-element-story-uri-module-b',
+            resolveModuleUrl: async (moduleSpecifier) => {
+                assertEqual(moduleSpecifier, specifier, 'module resolver receives the resource specifier');
+                return 'https://cdn.example.test/b/icon.svg';
+            },
+        });
+        const moduleA = await registerModuleUrlInstance(
+            root,
+            moduleRuntimeA,
+            'cem-element-story-uri-module-a',
+            'story-uri-module-a',
+            specifier,
+            'https://cdn.example.test/a/icon.svg'
+        );
+        const moduleB = await registerModuleUrlInstance(
+            root,
+            moduleRuntimeB,
+            'cem-element-story-uri-module-b',
+            'story-uri-module-b',
+            specifier,
+            'https://cdn.example.test/b/icon.svg'
+        );
+        assertEqual(
+            requiredElement(moduleA, 'a.asset').getAttribute('href'),
+            'https://cdn.example.test/a/icon.svg',
+            'module-url resolver policy is scoped to its runtime'
+        );
+        assertEqual(
+            requiredElement(moduleB, 'a.asset').getAttribute('href'),
+            'https://cdn.example.test/b/icon.svg',
+            'changing resolver policy uses a distinct runtime cache'
+        );
+        const moduleSnapshot = moduleRuntimeA.snapshotInstance(moduleA);
+        const modulePayload = moduleSnapshot.eventPayloads.asset as { type?: string; src?: string; value?: string };
+        assertEqual(moduleSnapshot.slices.asset, 'https://cdn.example.test/a/icon.svg', 'module-url writes a slice');
+        assertEqual(modulePayload.type, 'module-url', 'module-url stores resource payload metadata');
+        assertEqual(modulePayload.src, specifier, 'module-url payload records the source specifier');
+        assertEqual(modulePayload.value, 'https://cdn.example.test/a/icon.svg', 'module-url payload records the URL');
+
+        const failureRuntime = new CemElementRuntime({
+            declarationTag: 'cem-element-story-uri-module-fail',
+            resolveModuleUrl: async () => {
+                throw new Error('module map missing');
+            },
+        });
+        const failedModule = await registerModuleUrlInstance(
+            root,
+            failureRuntime,
+            'cem-element-story-uri-module-fail',
+            'story-uri-module-fail',
+            '@missing/icon.svg',
+            '@missing/icon.svg'
+        );
+        assertEqual(
+            requiredElement(failedModule, 'a.asset').getAttribute('href'),
+            '@missing/icon.svg',
+            'failed module-url resolution falls back to the original specifier'
+        );
+        assertDiagnostic(failureRuntime.diagnosticsFor(failedModule), 'cem-element.module_url_resolve_failed');
+    },
+};
+
 export const LocalSrcDeclarationLoadingParity: Story = {
     render: () => {
         const root = document.createElement('section');
@@ -3088,6 +3233,62 @@ function buildCemMlDeclaration(declarationTag: string, tag: string, text: string
     template.textContent = text;
     declaration.appendChild(template);
     return declaration;
+}
+
+async function appendResolutionPolicyFrame(parent: HTMLElement, baseHref: string): Promise<HTMLIFrameElement> {
+    const frame = document.createElement('iframe');
+    frame.hidden = true;
+    frame.title = `resolution policy ${baseHref}`;
+    const loaded = new Promise<void>((resolve) => frame.addEventListener('load', () => resolve(), { once: true }));
+    frame.srcdoc = `<!doctype html><html><head><base href="${baseHref}"></head><body></body></html>`;
+    parent.appendChild(frame);
+    await loaded;
+    assert(frame.contentWindow && frame.contentDocument, 'resolution policy frame should expose a same-origin document');
+    return frame;
+}
+
+async function registerExternalSourceInstance(
+    runtime: CemElementRuntime,
+    doc: Document,
+    producedTag: string
+): Promise<HTMLElement> {
+    const declaration = doc.createElement('cem-element-story-uri-source');
+    declaration.setAttribute('tag', producedTag);
+    declaration.setAttribute('src', './cards.html#card');
+    doc.body.appendChild(declaration);
+    assert(runtime.registerDeclaration(declaration), `${producedTag} external src declaration registers`);
+    await runtime.whenDeclarationSettled(declaration);
+
+    const instance = doc.createElement(producedTag);
+    doc.body.appendChild(instance);
+    await runtime.whenRenderSettled(instance);
+    return instance;
+}
+
+async function registerModuleUrlInstance(
+    root: HTMLElement,
+    runtime: CemElementRuntime,
+    declarationTag: string,
+    producedTag: string,
+    specifier: string,
+    expectedHref: string
+): Promise<HTMLElement> {
+    const declaration = document.createElement(declarationTag);
+    declaration.setAttribute('tag', producedTag);
+    const template = document.createElement('template');
+    template.innerHTML = `<module-url slice="asset" src="${specifier}"></module-url><a class="asset" href="{$asset}">${'${$asset}'}</a>`;
+    declaration.appendChild(template);
+    root.appendChild(declaration);
+    assert(runtime.registerDeclaration(declaration), `${producedTag} module-url declaration registers`);
+    await runtime.whenDeclarationSettled(declaration);
+
+    const instance = document.createElement(producedTag);
+    root.appendChild(instance);
+    await waitForCondition(
+        () => instance.querySelector('a.asset')?.getAttribute('href') === expectedHref,
+        `${producedTag} module-url settles`
+    );
+    return instance;
 }
 
 function dispatchInput(root: ParentNode, value: string): void {
