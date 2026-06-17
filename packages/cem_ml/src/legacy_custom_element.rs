@@ -1445,9 +1445,7 @@ fn find_matching_template<'a>(
         .max_by_key(|(index, template)| {
             let priority = attr_value(template, "priority")
                 .and_then(|value| value.trim().parse::<f64>().ok())
-                .unwrap_or_else(|| {
-                    default_template_priority(attr_value(template, "match").unwrap_or(""))
-                });
+                .unwrap_or_else(|| default_template_priority_for_member(template, member));
             ((priority * 1000.0) as i64, *index as i64)
         })
         .map(|(_, template)| template)
@@ -1506,11 +1504,24 @@ fn default_template_priority(pattern: &str) -> f64 {
     let pattern = pattern.trim();
     if pattern == "*" || pattern == "@*" || pattern == "node()" || pattern == "text()" {
         -0.5
-    } else if pattern.contains('|') {
-        0.0
     } else {
         0.5
     }
+}
+
+fn default_template_priority_for_member(template: &LegacyElement, member: &CurrentItem) -> f64 {
+    let Some(pattern) = attr_value(template, "match") else {
+        return 0.5;
+    };
+    pattern
+        .split('|')
+        .map(str::trim)
+        .filter(|part| matches_single_item_pattern(part, member))
+        .map(default_template_priority)
+        .fold(None, |priority, candidate| {
+            Some(priority.map_or(candidate, |current: f64| current.max(candidate)))
+        })
+        .unwrap_or_else(|| default_template_priority(pattern))
 }
 
 fn current_item_from_item_node(member: &ItemNode, position: usize) -> CurrentItem {
@@ -3503,6 +3514,18 @@ mod tests {
         assert_eq!(
             result.source,
             "{doc | {item @id=\"a\" | before{child | B}after}}{out | {row | {seen | a}{seen | before}{seen | B}{seen | after}}}"
+        );
+        assert!(result.diagnostics.is_empty());
+    }
+
+    #[test]
+    fn text_match_pattern_competes_with_identity_union_priority() {
+        let result = convert(
+            r#"<doc><item id="a">before<child>B</child>after</item></doc><xsl:stylesheet version="1.0"><xsl:template match="/"><out><xsl:apply-templates select="//item"/></out></xsl:template><xsl:template match="@*|node()"><identity><xsl:value-of select="name()"/>:<xsl:apply-templates select="@*|node()"/></identity></xsl:template><xsl:template match="text()"><txt><xsl:value-of select="."/></txt></xsl:template></xsl:stylesheet>"#,
+        );
+        assert_eq!(
+            result.source,
+            "{doc | {item @id=\"a\" | before{child | B}after}}{out | {identity | item:{identity | id:}{txt | before}{identity | child:{txt | B}}{txt | after}}}"
         );
         assert!(result.diagnostics.is_empty());
     }

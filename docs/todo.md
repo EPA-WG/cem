@@ -257,8 +257,8 @@ to proven web component names, states, attributes, and accessibility behavior in
       traversal, variable-rooted current-node paths, static EXSLT node-set variable aliases, filtered static node-set
       attribute extraction, static `if`/`when` folding for known current-node tests, default template fallbacks, basic
       no-`select`, explicit `node()`, `@*|node()` identity-style `xsl:apply-templates` traversal, document-root
-      `match="node()"`, and `match="@*|node()"` template dispatch in document order, template priority, scalar and
-      node-set template params, multi-key `xsl:sort`, literal `count`/`sum` over
+      `match="node()"`, `text()` dispatch, and `match="@*|node()"` template dispatch in document order, union-arm
+      template priority, scalar and node-set template params, multi-key `xsl:sort`, literal `count`/`sum` over
       supported node selections, bounded current-node copy/copy-of/attribute construction, explicit `node()` and
       `@*|node()` identity-style `xsl:copy-of` serialization in document order, scalar-AVT `xsl:element`
       construction, `hasBoolAttribute()` boolean-attribute rewriting, and recursion safety. The copied material
