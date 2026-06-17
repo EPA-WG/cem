@@ -40,6 +40,7 @@ pub struct CemQlTransformTemplateAdapter;
 
 #[derive(Debug, Clone)]
 struct CemQlCompiledTemplatePayload {
+    template_uri: String,
     artifact: TemplateArtifact,
     selected_entrypoint: Option<String>,
     params: BTreeMap<String, Value>,
@@ -164,6 +165,7 @@ impl TransformTemplateAdapter for CemQlTransformTemplateAdapter {
                 opaque,
             )
             .with_native_payload(CemQlCompiledTemplatePayload {
+                template_uri: request.template.uri.clone(),
                 artifact: render_artifact,
                 selected_entrypoint: request.entrypoint.name.clone(),
                 params: request.params.clone(),
@@ -447,6 +449,14 @@ fn diagnostics_with_uri(diagnostics: &[Diagnostic], uri: &str) -> Vec<Diagnostic
         .collect()
 }
 
+fn fill_diagnostic_uri(diagnostics: &mut [Diagnostic], uri: &str) {
+    for diagnostic in diagnostics {
+        if diagnostic.uri.is_none() {
+            diagnostic.uri = Some(uri.to_owned());
+        }
+    }
+}
+
 fn clear_template_artifact_diagnostics(artifact: &mut TemplateArtifact) {
     artifact.diagnostics.clear();
 }
@@ -484,6 +494,7 @@ fn render_payload_template(
 ) -> RenderPlan {
     let data = root_template_data_with_params(payload, data);
     let mut plan = render_compiled_template(&payload.artifact, &data);
+    fill_diagnostic_uri(&mut plan.diagnostics, payload.template_uri.as_str());
     let nodes = expand_call_nodes(&plan.nodes, payload, None, &data, 0, &mut plan.diagnostics);
     RenderPlan {
         nodes,
@@ -573,6 +584,7 @@ fn render_call_node(
     diagnostics: &mut Vec<Diagnostic>,
     source_map: &cem_ml::source_map::SourceMapStack,
 ) -> Vec<RenderPlanNode> {
+    let call_site_uri = current_template_uri(payload, current_module);
     if depth >= payload.max_recursion_depth {
         diagnostics.push(module_render_diagnostic(
             TRANSFORM_TEMPLATE_RECURSION_LIMIT_CODE,
@@ -580,6 +592,7 @@ fn render_call_node(
                 "native template call recursion limit exceeded at depth {depth}; max depth is {}",
                 payload.max_recursion_depth
             ),
+            call_site_uri,
             source_map.clone(),
         ));
         return Vec::new();
@@ -589,6 +602,7 @@ fn render_call_node(
         diagnostics.push(module_render_diagnostic(
             "cem.transform_template.call_unknown",
             "native template call is missing a `template` target",
+            call_site_uri,
             source_map.clone(),
         ));
         return Vec::new();
@@ -628,6 +642,7 @@ fn render_call_node(
         diagnostics.push(module_render_diagnostic(
             "cem.transform_template.call_unknown",
             format!("native template call target `{template}` was not compiled"),
+            call_site_uri,
             source_map.clone(),
         ));
         return Vec::new();
@@ -640,6 +655,10 @@ fn render_call_node(
         Some(template.as_str()),
     );
     let mut plan = render_compiled_template(target, &call_data);
+    fill_diagnostic_uri(
+        &mut plan.diagnostics,
+        current_template_uri(payload, target_module),
+    );
     diagnostics.append(&mut plan.diagnostics);
     expand_call_nodes(
         &plan.nodes,
@@ -649,6 +668,15 @@ fn render_call_node(
         depth + 1,
         diagnostics,
     )
+}
+
+fn current_template_uri<'a>(
+    payload: &'a CemQlCompiledTemplatePayload,
+    module: Option<&'a CemQlCompiledTemplateModulePayload>,
+) -> &'a str {
+    module
+        .map(|module| module.uri.as_str())
+        .unwrap_or(payload.template_uri.as_str())
 }
 
 fn param_declarations_for_module<'a>(
@@ -791,9 +819,11 @@ fn local_name(name: &str) -> &str {
 fn module_render_diagnostic(
     code: &str,
     message: impl Into<String>,
+    uri: &str,
     source_map: cem_ml::source_map::SourceMapStack,
 ) -> Diagnostic {
     Diagnostic {
+        uri: Some(uri.to_owned()),
         code: code.to_owned(),
         severity: Severity::Fatal,
         message: message.into(),
@@ -2066,6 +2096,10 @@ mod tests {
             .diagnostics
             .iter()
             .any(|diagnostic| diagnostic.code == TRANSFORM_TEMPLATE_RECURSION_LIMIT_CODE));
+        assert!(rendered.diagnostics.iter().any(|diagnostic| {
+            diagnostic.code == TRANSFORM_TEMPLATE_RECURSION_LIMIT_CODE
+                && diagnostic.uri.as_deref() == Some("template.cem")
+        }));
     }
 
     #[test]
@@ -2394,6 +2428,14 @@ mod tests {
             .diagnostics
             .iter()
             .any(|diagnostic| diagnostic.code == TRANSFORM_TEMPLATE_RECURSION_LIMIT_CODE));
+        assert!(rendered.diagnostics.iter().any(|diagnostic| {
+            diagnostic.code == TRANSFORM_TEMPLATE_RECURSION_LIMIT_CODE
+                && diagnostic.uri.as_deref() == Some("templates/ui.cem")
+        }));
+        assert!(!rendered.diagnostics.iter().any(|diagnostic| {
+            diagnostic.code == TRANSFORM_TEMPLATE_RECURSION_LIMIT_CODE
+                && diagnostic.uri.as_deref() == Some("template.cem")
+        }));
     }
 
     #[test]
