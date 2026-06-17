@@ -31,6 +31,9 @@ use crate::tokenizer::cem::CemTokenizer;
 use crate::tokenizer::html::HtmlTokenizer;
 use crate::tokenizer::xml::XmlTokenizer;
 use crate::tokenizer::SchemaTokenizer;
+use crate::transform_config::{
+    parse_transform_graph_config, TransformGraphParseRequest, TRANSFORM_CONFIG_SCHEMA_URI,
+};
 use crate::transform_template::{
     parse_cem_native_template_module_options, TransformTemplateAdapter,
     TransformTemplateAdapterLookup, TransformTemplateCompileRequest,
@@ -2007,13 +2010,21 @@ fn run_scheduled_validation_documents(
                 .take()
                 .unwrap_or_else(|| load_input_through_lifecycle(input, context));
             input_diags.append(&mut loaded.diagnostics);
-            let run = run_pipeline_as_scoped_with_context(
-                &loaded.bytes,
-                loaded.from_format,
-                &input.root_scope,
-                context,
-            );
-            input_diags.extend(run.diagnostics);
+            if is_transform_config_schema(input, context) {
+                input_diags.extend(validate_transform_config_document(
+                    input,
+                    context,
+                    &loaded.bytes,
+                ));
+            } else {
+                let run = run_pipeline_as_scoped_with_context(
+                    &loaded.bytes,
+                    loaded.from_format,
+                    &input.root_scope,
+                    context,
+                );
+                input_diags.extend(run.diagnostics);
+            }
         });
         input_diags.extend(time_budget_diagnostics(
             &input.root_scope,
@@ -2024,6 +2035,41 @@ fn run_scheduled_validation_documents(
         all_diags.extend(input_diags);
     }
     Ok((all_diags, trace))
+}
+
+fn effective_input_identity(input: &EngineInput, context: &EngineContext) -> FormatIdentity {
+    input
+        .identity
+        .clone()
+        .or_else(|| input.root_scope.format_identity_option())
+        .unwrap_or_else(|| FormatIdentity::from(context))
+}
+
+fn is_transform_config_schema(input: &EngineInput, context: &EngineContext) -> bool {
+    let identity = effective_input_identity(input, context);
+    identity.schema.as_deref() == Some(TRANSFORM_CONFIG_SCHEMA_URI)
+}
+
+fn validate_transform_config_document(
+    input: &EngineInput,
+    context: &EngineContext,
+    bytes: &[u8],
+) -> Vec<Diagnostic> {
+    let identity = effective_input_identity(input, context);
+    match parse_transform_graph_config(TransformGraphParseRequest {
+        bytes: bytes.to_vec(),
+        identity,
+        base_uri: input.root_scope.base_uri.clone(),
+    }) {
+        Ok(response) => response.diagnostics,
+        Err(error) => vec![Diagnostic {
+            uri: Some(input.uri.clone()),
+            code: error.code.to_owned(),
+            severity: Severity::Fatal,
+            message: error.message,
+            ..Diagnostic::default()
+        }],
+    }
 }
 
 fn read_registered_resource(

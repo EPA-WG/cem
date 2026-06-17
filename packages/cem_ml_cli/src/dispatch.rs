@@ -6719,7 +6719,14 @@ mod tests {
     fn validate_transform_config_schema_selects_cem_input_adapter() {
         let p = write_fixture(
             "validate-transform-config-schema.cem",
-            "@doc cem-ml 1\n{p | Hi}",
+            r#"{@doc cem-ml 1}
+{run |
+  {import @id=book @src="book.cem" @content-type="text/cem-ml" |
+    {transform @id=html @src="page.cem" @template-content-type="text/cem-ml" |
+      {export @id=main @out="out/book.html" @content-type="text/html"}
+    }
+  }
+}"#,
         );
         let (outcome, stdout, stderr) = run(
             &RealCemMlEngine::new(),
@@ -6739,6 +6746,47 @@ mod tests {
         assert!(!diagnostics
             .iter()
             .any(|diag| diag["code"] == "cem.lifecycle.adapter_unsupported"));
+        assert!(!diagnostics.iter().any(|diag| diag["code"]
+            .as_str()
+            .is_some_and(|code| code.starts_with("cem.transform_config."))));
+    }
+
+    #[test]
+    fn validate_transform_config_schema_reports_graph_schema_diagnostics() {
+        let p = write_fixture(
+            "validate-transform-config-schema-invalid.cem",
+            r#"{@doc cem-ml 1}
+{run |
+  {import @id=book}
+  {transform @id=html}
+  {export @id=main}
+}"#,
+        );
+        let (outcome, stdout, stderr) = run(
+            &RealCemMlEngine::new(),
+            &[
+                "validate",
+                "--format",
+                "json",
+                "--schema",
+                cem_ml::transform_config::TRANSFORM_CONFIG_SCHEMA_URI,
+                p.to_str().unwrap(),
+            ],
+        );
+
+        assert_eq!(outcome.exit_code, EXIT_HARD_FAILURE, "{stderr}");
+        let v: serde_json::Value = serde_json::from_str(stdout.trim()).unwrap();
+        let diagnostics = v["diagnostics"].as_array().unwrap();
+        for code in [
+            "cem.transform_config.import_src_missing",
+            "cem.transform_config.transform_src_missing",
+            "cem.transform_config.export_out_missing",
+        ] {
+            assert!(
+                diagnostics.iter().any(|diag| diag["code"] == code),
+                "missing diagnostic {code}: {diagnostics:?}"
+            );
+        }
     }
 
     #[test]

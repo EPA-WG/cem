@@ -287,7 +287,7 @@ impl GraphLowerer<'_> {
                 continue;
             };
             match element {
-                "@doc" => {}
+                "" | "@doc" => {}
                 "run" => {
                     self.runs_seen += 1;
                     self.lower_children(*child, None);
@@ -962,6 +962,10 @@ mod tests {
         .expect("transform config schema identity accepted");
 
         assert_eq!(response.graph.nodes.len(), 1);
+        assert!(!has_diag(
+            &response,
+            "cem.transform_config.top_level_unsupported"
+        ));
     }
 
     #[test]
