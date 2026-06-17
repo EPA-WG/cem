@@ -60,8 +60,8 @@ Namespace URI: `https://cem.dev/ns/cli/transform-config/1`
 Transform nodes must declare or imply a supported template identity through
 `@template-content-type`, `@template-schema`, or a recognized `@src`
 extension. The current parser classifies XSLT and CEM-native templates; the
-runtime executes supported CEM-native templates and keeps XML+XSLT execution
-deferred.
+runtime executes supported CEM-native templates and bounded XSLT 1.0 parity
+templates through registered transform-template adapters.
 
 ## CEM-Native Module Params
 

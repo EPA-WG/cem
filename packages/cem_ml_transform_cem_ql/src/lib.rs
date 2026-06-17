@@ -1168,9 +1168,9 @@ mod tests {
     use cem_ml::engine::CemMlEngine;
     use cem_ml::engine::{
         EngineInput, TemplateInput, TransformExecutionPolicy, TransformGraphExport,
-        TransformGraphImport, TransformGraphRequest, TransformGraphStage, TransformRequest,
-        TransformRuntimePhase, TransformSchedulerScopeIds, TransformStageSchedulerScopeIds,
-        TransformTemplateEntrypoint,
+        TransformGraphImport, TransformGraphJoin, TransformGraphJoinInput, TransformGraphJoinMode,
+        TransformGraphRequest, TransformGraphStage, TransformRequest, TransformRuntimePhase,
+        TransformSchedulerScopeIds, TransformStageSchedulerScopeIds, TransformTemplateEntrypoint,
     };
     use cem_ml::real::RealCemMlEngine;
     use cem_ml::run_config::ScopeConfig;
@@ -4102,6 +4102,91 @@ mod tests {
             .events
             .iter()
             .any(|event| event.scope_id == 26 && event.task == "chart-svg:export"));
+    }
+
+    #[test]
+    fn real_engine_transform_graph_join_export_preserves_render_metadata() {
+        let context = engine_context_with_cem_ql_template_adapter();
+        let identity = FormatIdentity {
+            content_type: Some("text/cem-ml".to_owned()),
+            ..FormatIdentity::default()
+        };
+        let request = TransformGraphRequest {
+            imports: vec![TransformGraphImport {
+                id: "book".to_owned(),
+                input: EngineInput {
+                    uri: "book.cem".to_owned(),
+                    bytes: b"{p @id=\"guide\"}".to_vec(),
+                    from_format: None,
+                    identity: Some(identity.clone()),
+                    root_scope: ScopeConfig::default(),
+                },
+                scheduler_scope_id: 30,
+            }],
+            joins: vec![TransformGraphJoin {
+                id: "collection".to_owned(),
+                mode: TransformGraphJoinMode::Collect,
+                input_names: vec!["primary".to_owned()],
+                inputs: vec![TransformGraphJoinInput {
+                    input_name: "primary".to_owned(),
+                    artifact_id: "html".to_owned(),
+                    bindings: BTreeMap::new(),
+                }],
+                bindings: BTreeMap::new(),
+                scheduler_scope_id: 33,
+            }],
+            stages: vec![TransformGraphStage {
+                id: "html".to_owned(),
+                template: TemplateInput {
+                    uri: "html.cem".to_owned(),
+                    bytes: br#"{article | {$datadom.attributes.kind}}"#.to_vec(),
+                    identity: Some(identity),
+                    root_scope: ScopeConfig::default(),
+                },
+                template_kind: TransformTemplateKind::CemNative,
+                template_entrypoint: TransformTemplateEntrypoint::implicit(),
+                params: BTreeMap::new(),
+                execution_policy: TransformExecutionPolicy::default(),
+                primary_input: "book".to_owned(),
+                secondary_inputs: BTreeMap::new(),
+                scheduler_scope_ids: TransformStageSchedulerScopeIds {
+                    template_load: 31,
+                    execution: 32,
+                },
+            }],
+            exports: vec![TransformGraphExport {
+                id: "joined".to_owned(),
+                input: "collection".to_owned(),
+                destination: Some("dist/collection.json".to_owned()),
+                target: Some(FormatIdentity {
+                    content_type: Some("application/json".to_owned()),
+                    ..FormatIdentity::default()
+                }),
+                target_scope: ScopeConfig::default(),
+                scheduler_scope_id: 34,
+            }],
+            edges: Vec::new(),
+            preserve_source_offsets: false,
+            context,
+            execution_policy: TransformExecutionPolicy::default(),
+        };
+
+        let response = RealCemMlEngine::new()
+            .transform_graph(request)
+            .expect("transform graph should execute join export");
+
+        assert!(
+            response.diagnostics.is_empty(),
+            "{:?}",
+            response.diagnostics
+        );
+        assert_eq!(response.artifacts.len(), 1);
+        let artifact = &response.artifacts[0];
+        assert_eq!(artifact.input, "collection");
+        assert!(artifact.source_map.is_some());
+        assert!(!artifact.output_spans.is_empty());
+        assert_eq!(artifact.primary["kind"], "collection");
+        assert_eq!(artifact.primary["count"], 1);
     }
 
     #[test]

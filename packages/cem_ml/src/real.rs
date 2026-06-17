@@ -966,6 +966,33 @@ fn collect_transform_graph_join(
     }
 }
 
+fn collect_transform_graph_join_metadata(
+    join: &TransformGraphJoin,
+    artifact_metadata: &BTreeMap<String, TransformOutputMetadata>,
+) -> TransformOutputMetadata {
+    let mut source_maps = Vec::new();
+    let mut output_spans = Vec::new();
+
+    for input in &join.inputs {
+        let Some(metadata) = artifact_metadata.get(&input.artifact_id) else {
+            continue;
+        };
+        if let Some(source_map) = metadata.source_map.clone() {
+            source_maps.push(source_map);
+        }
+        output_spans.extend(metadata.output_spans.clone());
+    }
+
+    TransformOutputMetadata {
+        source_map: if source_maps.len() == 1 {
+            source_maps.pop()
+        } else {
+            None
+        },
+        output_spans,
+    }
+}
+
 fn select_transform_template_adapter(
     context: &EngineContext,
     template: &TemplateInput,
@@ -2922,7 +2949,9 @@ impl CemMlEngine for RealCemMlEngine {
                     })?;
                 pool.run_to_completion(&abort, |_| {
                     let artifact = collect_transform_graph_join(join, &artifacts);
+                    let metadata = collect_transform_graph_join_metadata(join, &artifact_metadata);
                     artifacts.insert(join.id.clone(), artifact);
+                    artifact_metadata.insert(join.id.clone(), metadata);
                 });
                 completed_joins.insert(join.id.clone());
             }
