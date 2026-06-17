@@ -47,12 +47,16 @@ This index links the active project, release, and token workflow documents.
 ## Components
 
 - [CEM components package](../packages/cem-components/README.md) — package-level build and test notes.
+- [Component reference](../packages/cem-components/docs/component-reference.md) — MVP component semantics, token
+  families, states, and accessibility notes.
 - [Component conventions](../packages/cem-components/docs/conventions.md) — host API, attributes, events, forms,
   validation, loading, and progressive enhancement.
 - [Light-DOM rendering rules](../packages/cem-components/docs/light-dom-rendering.md) — no shadow DOM, data-island
   isolation, slot projection, render lifecycle, and substrate compatibility.
 - [Accessibility contract](../packages/cem-components/docs/accessibility.md) — names, ARIA, focus, keyboard behavior,
   live regions, unsafe content, and verification.
+- [Component examples](../packages/cem-components/examples/README.md) — package-local workflow examples, separate from
+  executable tests.
 
 ## Parser Runtime
 

@@ -324,8 +324,11 @@ to proven web component names, states, attributes, and accessibility behavior in
       `cem-dialog`, `cem-sheet`, `cem-toast`, `cem-progress`, `cem-skeleton`, and `cem-alert` alongside
       `cem-dialog-shell`, with browser harness coverage for dialog, region, live status, native progress, hidden
       skeleton, alert semantics, projected content, accessible names, and ARIA reference integrity.
-- [ ] Add component docs and examples for semantics, token usage, states, and accessibility notes. The exit gate is that
-      the future CEM site and Figma site demo can be built from this component set without one-off UI controls.
+- [x] Add component docs and examples for semantics, token usage, states, and accessibility notes. The Phase 4 MVP
+      component reference lives in [`../packages/cem-components/docs/component-reference.md`](../packages/cem-components/docs/component-reference.md)
+      and covers semantics, token families, state coverage, and accessibility notes for every MVP declaration. Package
+      examples live under [`../packages/cem-components/examples/`](../packages/cem-components/examples/) and remain
+      separate from the browser harness tests that cover equivalent workflow-shaped cases.
 
 ## Phase 5 — Figma UI Kit Token Validation (`examples/figma`)
 

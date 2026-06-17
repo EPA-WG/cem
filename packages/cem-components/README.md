@@ -59,12 +59,14 @@ coverage.
 | Primitive browser coverage | `src/lib/primitives.browser.spec.ts` |
 | Component test harness | `src/lib/testing/component-harness.ts` |
 | Browser harness coverage | `src/lib/testing/component-harness.browser.spec.ts` |
+| Component reference | `docs/component-reference.md` |
+| Package-local examples | `examples/` |
 | Built output | `dist/` |
 
-## Component contracts
+## Component Docs
 
-Phase 3 contract docs (landed; pre-implementation):
-
+- [Component reference](./docs/component-reference.md) — MVP component semantics, token families, states, and
+  accessibility notes.
 - [Conventions](./docs/conventions.md) — naming, attributes, events, form participation, validation, loading states,
   progressive enhancement.
 - [Light-DOM rendering rules](./docs/light-dom-rendering.md) — `@epa-wg/custom-element` compatibility, no shadow DOM,
@@ -75,6 +77,7 @@ Phase 3 contract docs (landed; pre-implementation):
 ## Related docs
 
 - [CEM component MVP](../../docs/component-mvp.md) — first component list and state matrix.
+- [CEM component examples](./examples/README.md) — package-local workflow examples, separate from executable tests.
 - [CEM ML library plan](../../docs/cem-ml-library-plan.md) — the active parser/runtime path consumes/produces the
   declarative markup these components will render.
 - [CEM ML acceptance criteria](../../docs/cem-ml-ac.md) — testable AC for the parser/transform stack.
