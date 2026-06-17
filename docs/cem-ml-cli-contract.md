@@ -775,8 +775,18 @@ Reports keep deterministic field names:
 - `options.baseUri`
 - `reportAst.schedulerTrace.eventCount`
 - `reportAst.schedulerTrace.events[]`
+- optional `reportAst.transform`
 - optional `reportAst.transformGraph.exportCount`
 - optional `reportAst.transformGraph.exports[]`
+
+Single transform report entries keep:
+
+- `input`
+- optional `destination`
+- `outputKind`
+- `hasSourceMap`
+- `outputSpanCount`
+- optional `sourceMapRef`
 
 Transform graph export report entries keep:
 
@@ -790,10 +800,11 @@ Transform graph export report entries keep:
 - `outputSpanCount`
 - optional `sourceMapRef`
 
-When an export artifact advertises a source map and has a concrete destination, `sourceMapRef` is the sidecar reference
-for that export, currently `{destination}.map`. The CLI writes the artifact `sourceMap` JSON payload to that sidecar
-through the output resolver and adds `exportId`, `input`, and `destination` metadata to object-shaped source-map
-payloads. Stdout exports omit `sourceMapRef` because they do not have a stable adjacent file path.
+When a single transform response or export artifact advertises a source map and has a concrete destination,
+`sourceMapRef` is the sidecar reference for that output, currently `{destination}.map`. The CLI writes the source-map
+JSON payload to that sidecar through the output resolver. For graph exports, the CLI also adds `exportId`, `input`, and
+`destination` metadata to object-shaped source-map payloads. Stdout outputs omit `sourceMapRef` because they do not have
+a stable adjacent file path.
 When an export artifact is object-shaped and has a string `content` field, the configured output destination receives
 that document content; sidecar/report metadata remains outside the primary output body.
 

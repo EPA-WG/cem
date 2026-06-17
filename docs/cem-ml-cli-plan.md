@@ -334,7 +334,9 @@ cem-ml transform data.xml \
 The transform shape also accepts `--data-schema URI-OR-FILE`, `--template-schema URI-OR-FILE`,
 `--to-schema URI-OR-FILE`, shared context options, and `--report-json` / `--report-md`. The rendered document writes to
 `--out` when provided, otherwise stdout. Diagnostics and warnings write to stderr unless a report destination is
-provided.
+provided. Single-transform reports include `reportAst.transform` with input, destination, output kind, source-map
+presence, output-span count, and a `{destination}.map` `sourceMapRef` when the transform response has a source map and a
+concrete output destination.
 
 Graph configs use the dedicated CEM-ML transform-config schema identity
 `https://cem.dev/ns/cli/transform-config/1` and can be run directly:
@@ -488,6 +490,8 @@ Exit criteria: an ADR exists and no parser code has been added.
     - `options.baseUri`
     - `reportAst.schedulerTrace.eventCount`
     - `reportAst.schedulerTrace.events[]`
+    - optional `reportAst.transform`, with `input`, `destination`, `outputKind`, `hasSourceMap`, `outputSpanCount`,
+      and optional `sourceMapRef`
     - optional `reportAst.transformGraph.exportCount`
     - optional `reportAst.transformGraph.exports[]`, with `exportId`, `input`, `destination`, `contentType`, `schema`,
       `outputKind`, `hasSourceMap`, `outputSpanCount`, and optional `sourceMapRef`
@@ -772,11 +776,14 @@ These are data shapes only. Parser-filled content remains blocked until the pars
           resolved URI, and enforce a deterministic max-entry guard.
         - Report and source-map behavior for diagnostics that may originate from data, template compilation, template
           execution, or output export. Current CLI report destinations suppress diagnostic stderr and use
-          `cem-ml.transform.report` as the default report basename. Graph transform reports include
-          `reportAst.transformGraph` export metadata for resolved export IDs, destinations, content identities, output
-          kinds, source-map presence, output-span counts, and sidecar refs when artifacts expose source-map fields and
-          have export destinations. For those exports, the CLI writes `{destination}.map` with the artifact `sourceMap`
-          JSON payload plus export ID, input artifact ID, and destination metadata through the output resolver.
+          `cem-ml.transform.report` as the default report basename. Single-transform reports include
+          `reportAst.transform` metadata for the input, destination, output kind, source-map presence, output-span
+          count, and sidecar refs when the response exposes a source map and has an output destination. Graph transform
+          reports include `reportAst.transformGraph` export metadata for resolved export IDs, destinations, content
+          identities, output kinds, source-map presence, output-span counts, and sidecar refs when artifacts expose
+          source-map fields and have export destinations. For concrete destinations, the CLI writes
+          `{destination}.map` with the source-map JSON payload through the output resolver; graph export sidecars also
+          carry export ID, input artifact ID, and destination metadata.
         - Graph validation for duplicate IDs, unresolved refs, cycles, unsupported joins, unsupported cardinality
           changes, unknown output bindings, and duplicate resolved output destinations before writes.
       Execution is available through the programmatic engine API, the CLI one-liner, and CLI CEM-ML graph config dispatch
