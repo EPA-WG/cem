@@ -2604,10 +2604,18 @@ struct NodeSetRef {
 
 fn match_node_set_select(select: &str, ctx: &EmitCtx) -> Option<NodeSetRef> {
     let trimmed = select.trim();
-    if let Some(name) = trimmed.strip_prefix('$') {
-        if is_name(name) && ctx.node_sets.contains_key(name) {
+    if let Some(rest) = trimmed.strip_prefix('$') {
+        if let Some((name, predicate)) = split_variable_root_predicate(rest) {
+            if ctx.node_sets.contains_key(name) {
+                return Some(NodeSetRef {
+                    name: name.to_owned(),
+                    predicate: Some(predicate.to_owned()),
+                });
+            }
+        }
+        if is_name(rest) && ctx.node_sets.contains_key(rest) {
             return Some(NodeSetRef {
-                name: name.to_owned(),
+                name: rest.to_owned(),
                 predicate: None,
             });
         }
@@ -2635,6 +2643,18 @@ fn match_node_set_select(select: &str, ctx: &EmitCtx) -> Option<NodeSetRef> {
         name: var.to_owned(),
         predicate,
     })
+}
+
+fn split_variable_root_predicate(select: &str) -> Option<(&str, &str)> {
+    if select.contains('/') {
+        return None;
+    }
+    let (name, rest) = select.split_once('[')?;
+    let predicate = rest.strip_suffix(']')?;
+    if !is_name(name) {
+        return None;
+    }
+    Some((name, predicate))
 }
 
 fn rewrite_predicate(
@@ -3491,6 +3511,18 @@ mod tests {
             result.source,
             r#"{cem:if @test='datadom.slices.show-items = "yes"' | {span | First}}{cem:if @test='datadom.slices.show-items = "yes"' | {span | Second}}"#
         );
+    }
+
+    #[test]
+    fn unrolls_variable_node_set_with_scalar_predicate_position_and_attributes() {
+        let result = convert(
+            r#"<variable name="visible" select="//visible = 'yes'"/><variable name="items"><item href="a">First</item><item href="b">Second</item></variable><for-each select="$items[$visible]"><a href="{@href}">{position()}:{.}</a></for-each>"#,
+        );
+        assert_eq!(
+            result.source,
+            r#"{cem:if @test='datadom.slices.visible = "yes"' | {a @href="a" | 1:First}}{cem:if @test='datadom.slices.visible = "yes"' | {a @href="b" | 2:Second}}"#
+        );
+        assert!(result.diagnostics.is_empty());
     }
 
     #[test]

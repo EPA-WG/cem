@@ -254,7 +254,8 @@ to proven web component names, states, attributes, and accessibility behavior in
       `xsl:apply-templates` over inline `exsl:node-set($var)/*` variables, sample-style source child/attribute/text
       traversal, absolute/descendant selectors, namespace wildcards, indexed child steps, parent-relative paths, simple
       predicates including scalar equality checks, current attribute/child `for-each` unions, preceding-sibling
-      traversal, variable-rooted current-node paths, static EXSLT node-set variable aliases, filtered static node-set
+      traversal, variable-rooted current-node paths, scalar-gated static node-set variable `for-each` lowering,
+      static EXSLT node-set variable aliases, filtered static node-set
       attribute extraction, static `if`/`when` folding for known current-node tests, default template fallbacks, basic
       no-`select`, explicit `node()`, `@*|node()` identity-style `xsl:apply-templates` traversal, document-root
       `match="node()"`, `text()` dispatch, bounded local-name/namespace-qualified child-path match patterns with static

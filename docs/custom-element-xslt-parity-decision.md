@@ -29,8 +29,10 @@ Partially implemented:
   variables can alias static `exsl:node-set($var)/*` result fragments, including
   sample-used filtered attribute extraction such as
   `exsl:node-set($methods)/*[text() = $selected]/@title`. `xsl:for-each` also
-  unrolls current-node selections such as `@*|*` when a template has a concrete
-  current item. `xsl:param` defaults and `xsl:with-param` now preserve both
+  unrolls scalar-gated static node-set variables such as `$items[$visible]`,
+  preserving the runtime predicate as a generated `cem:if`, and current-node
+  selections such as `@*|*` when a template has a concrete current item.
+  `xsl:param` defaults and `xsl:with-param` now preserve both
   scalar and bounded node-set values, including sample-style `select="*"`.
 - The current apply-template selector supports simple match patterns, `mode`,
   source-document child/attribute/text traversal (`*`, `@*`, `text()`, `.`),
