@@ -2823,6 +2823,7 @@ fn transform_graph_report_from_artifacts(
             let has_source_map = transform_graph_has_source_map(&artifact.primary);
             cem_ml::report::TransformGraphExportReport {
                 export_id: artifact.export_id.clone(),
+                input: artifact.input.clone(),
                 destination: artifact.destination.clone(),
                 content_type: artifact
                     .identity
@@ -2866,8 +2867,9 @@ fn render_report_markdown(report: &cem_ml::report::Report) -> String {
         out.push_str(&format!("- exports: {}\n", transform_graph.export_count));
         for export in &transform_graph.exports {
             out.push_str(&format!(
-                "- {} -> {}",
+                "- {} <- {} -> {}",
                 export.export_id,
+                export.input,
                 export.destination.as_deref().unwrap_or("<stdout>")
             ));
             if let Some(content_type) = export.content_type.as_deref() {
@@ -4493,6 +4495,10 @@ mod tests {
             "main"
         );
         assert_eq!(
+            report["reportAst"]["transformGraph"]["exports"][0]["input"],
+            "html"
+        );
+        assert_eq!(
             report["reportAst"]["transformGraph"]["exports"][0]["destination"],
             root.join("out/data.html").display().to_string()
         );
@@ -4523,6 +4529,7 @@ mod tests {
         let artifacts = vec![
             eng::TransformGraphArtifact {
                 export_id: "main".to_owned(),
+                input: "html".to_owned(),
                 destination: Some("out/page.html".to_owned()),
                 identity: Some(eng::FormatIdentity {
                     content_type: Some("text/html".to_owned()),
@@ -4536,6 +4543,7 @@ mod tests {
             },
             eng::TransformGraphArtifact {
                 export_id: "stdout".to_owned(),
+                input: "html".to_owned(),
                 destination: None,
                 identity: None,
                 primary: serde_json::json!({
@@ -4560,8 +4568,10 @@ mod tests {
         rendered_report.report_ast.transform_graph = Some(report.clone());
         let markdown = render_report_markdown(&rendered_report);
         assert!(markdown.contains("[sourceMapRef: out/page.html.map]"));
+        assert!(markdown.contains("- main <- html -> out/page.html"));
 
         let value = serde_json::to_value(report).unwrap();
+        assert_eq!(value["exports"][0]["input"], "html");
         assert_eq!(value["exports"][0]["sourceMapRef"], "out/page.html.map");
         assert_eq!(value["exports"][0]["hasSourceMap"], true);
         assert_eq!(value["exports"][0]["outputSpanCount"], 1);
@@ -4577,6 +4587,7 @@ mod tests {
         let out = root.join("out/page.html");
         let artifacts = vec![eng::TransformGraphArtifact {
             export_id: "main".to_owned(),
+            input: "html".to_owned(),
             destination: Some(out.display().to_string()),
             identity: Some(eng::FormatIdentity {
                 content_type: Some("text/html".to_owned()),
@@ -4647,7 +4658,7 @@ mod tests {
         let markdown = std::fs::read_to_string(report).unwrap();
         assert!(markdown.contains("## transform graph"));
         assert!(markdown.contains("- exports: 1"));
-        assert!(markdown.contains("main ->"));
+        assert!(markdown.contains("main <- html ->"));
         assert!(markdown.contains("out/data.html"));
         assert!(markdown.contains("(text/html)"));
         assert!(markdown.contains("[sourceMap: no, outputSpans: 0]"));

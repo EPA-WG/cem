@@ -2839,10 +2839,12 @@ mod tests {
             response.diagnostics
         );
         assert_eq!(response.artifacts.len(), 2);
+        assert_eq!(response.artifacts[0].input, "html");
         assert_eq!(
             response.artifacts[0].primary,
             Value::String("<article>document</article>".to_owned())
         );
+        assert_eq!(response.artifacts[1].input, "chart");
         assert_eq!(
             response.artifacts[1].primary,
             Value::String("<svg>document</svg>".to_owned())
@@ -3022,6 +3024,7 @@ mod tests {
             response.diagnostics
         );
         assert_eq!(response.artifacts.len(), 1);
+        assert_eq!(response.artifacts[0].input, "report");
         assert_eq!(
             response.artifacts[0].primary,
             Value::String(

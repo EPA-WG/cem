@@ -154,8 +154,8 @@ for the current architecture have landed; only deferred capability work remains 
       Positional `join @mode="zip" @with:LABEL="NODE"` graph nodes aggregate one collection artifact per index across
       primary and named secondary artifact streams, expose downstream `{index}` and `{count}` bindings, and fail when any
       input stream has a different count.
-      Transform graph reports now include `reportAst.transformGraph` export metadata for resolved export IDs,
-      destinations, content identities, output kinds, source-map presence, output-span counts, and sidecar refs. Graph
+      Transform graph reports now include `reportAst.transformGraph` export metadata for resolved export IDs, input
+      artifact IDs, destinations, content identities, output kinds, source-map presence, output-span counts, and sidecar refs. Graph
       exports with artifact source maps write `{destination}.map` sidecars through the output resolver.
       Keep the checked-in CEM-native CLI transform-config schema
       (`packages/cem_ml/schema/cli/transform-config.md`,

@@ -781,6 +781,7 @@ Reports keep deterministic field names:
 Transform graph export report entries keep:
 
 - `exportId`
+- `input`
 - optional `destination`
 - optional `contentType`
 - optional `schema`

@@ -489,7 +489,7 @@ Exit criteria: an ADR exists and no parser code has been added.
     - `reportAst.schedulerTrace.eventCount`
     - `reportAst.schedulerTrace.events[]`
     - optional `reportAst.transformGraph.exportCount`
-    - optional `reportAst.transformGraph.exports[]`, with `exportId`, `destination`, `contentType`, `schema`,
+    - optional `reportAst.transformGraph.exports[]`, with `exportId`, `input`, `destination`, `contentType`, `schema`,
       `outputKind`, `hasSourceMap`, `outputSpanCount`, and optional `sourceMapRef`
     - event nodes with source module state, event sequence, source-map stack at event time, and visible partial
       hierarchy

@@ -819,6 +819,7 @@ pub struct TransformGraphResponse {
 #[serde(rename_all = "camelCase")]
 pub struct TransformGraphArtifact {
     pub export_id: String,
+    pub input: String,
     #[serde(default)]
     pub destination: Option<String>,
     #[serde(default)]

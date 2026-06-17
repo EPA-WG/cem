@@ -178,6 +178,7 @@ mod tests {
             export_count: 1,
             exports: vec![TransformGraphExportReport {
                 export_id: "main".into(),
+                input: "html".into(),
                 destination: Some("out/page.html".into()),
                 content_type: Some("text/html".into()),
                 schema: None,
@@ -193,6 +194,10 @@ mod tests {
         assert_eq!(
             v["reportAst"]["transformGraph"]["exports"][0]["exportId"],
             "main"
+        );
+        assert_eq!(
+            v["reportAst"]["transformGraph"]["exports"][0]["input"],
+            "html"
         );
         assert_eq!(
             v["reportAst"]["transformGraph"]["exports"][0]["destination"],

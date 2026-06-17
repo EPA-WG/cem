@@ -99,6 +99,7 @@ pub struct TransformGraphReport {
 #[serde(rename_all = "camelCase")]
 pub struct TransformGraphExportReport {
     pub export_id: String,
+    pub input: String,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub destination: Option<String>,
     #[serde(skip_serializing_if = "Option::is_none")]

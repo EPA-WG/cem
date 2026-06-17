@@ -3085,6 +3085,7 @@ impl CemMlEngine for RealCemMlEngine {
                 if let Some(artifact) = artifacts.get(&export.input) {
                     exported.push(TransformGraphArtifact {
                         export_id: export.id.clone(),
+                        input: export.input.clone(),
                         destination: export.destination.clone(),
                         identity: export.target.clone().or_else(|| artifact.identity.clone()),
                         primary: artifact.value.clone(),
