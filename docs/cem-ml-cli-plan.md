@@ -729,9 +729,12 @@ These are data shapes only. Parser-filled content remains blocked until the pars
             - Prove resolver-backed imported CEM-native modules end-to-end from CLI one-liner and graph config,
               including relative import resolution, imported call diagnostics, stdout/default output behavior, report
               destinations, and source-map sidecars for configured exports.
-            - Add conformance fixtures for the CEM-native module matrix: implicit entrypoint, public named entrypoint,
-              private/missing entrypoint diagnostics, caller params/defaults/nulls/type coercion, same/imported calls,
-              `@with:*` secondary inputs, nested imports, import cycles/depth, and recursion limits.
+            - Done: add separate CLI integration conformance fixtures in
+              `packages/cem_ml_cli/tests/cem_native_module_conformance.rs` for the CEM-native module matrix: implicit
+              entrypoint, public named entrypoint, private/missing entrypoint diagnostics,
+              caller params/defaults/nulls/type coercion, same/imported calls, `@with:*` secondary inputs, nested
+              imports, import cycles/depth, and recursion limits. These tests cover example-shaped login/profile/asset
+              cases without turning `examples/` into the test fixture location.
             - Keep `include`, `@default-expr` / `@defaultExpr`, adapter extension buckets for unknown params, arbitrary
               template writes, and XSLT execution outside this closure.
           Exit criterion for starting XSLT parity: all supported CEM-native module semantics are available through the

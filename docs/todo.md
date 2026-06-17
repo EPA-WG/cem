@@ -176,8 +176,11 @@ for the current architecture have landed; only deferred capability work remains 
       resolution, imported call diagnostics, stdout/default output behavior, report destinations, and source-map sidecars
       for configured exports; then freeze conformance fixtures for implicit/public/private/missing entrypoints,
       defaults/nulls/type coercion, same/imported calls, `@with:*` secondary inputs, nested imports, import cycles/depth,
-      and recursion limits. `include`, `@default-expr` / `@defaultExpr`, unknown-param extension buckets, arbitrary
-      template writes, and XSLT execution stay outside this closure. XSLT parity starts only after supported CEM-native
+      and recursion limits. The separate CLI integration suite
+      `packages/cem_ml_cli/tests/cem_native_module_conformance.rs` now covers those example-shaped cases without making
+      `examples/` files executable test fixtures. `include`, `@default-expr` / `@defaultExpr`, unknown-param extension
+      buckets, arbitrary template writes, and XSLT execution stay outside this closure. XSLT parity starts only after
+      supported CEM-native
       module semantics are available through the programmatic API, direct CLI, and CEM-ML graph config with stable
       diagnostics/reports and schema docs.
       Native template module semantics should start with an adapter-owned module contract rather than changing the base
