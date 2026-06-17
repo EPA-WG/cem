@@ -98,9 +98,12 @@ Recommended execution order:
       `processCemMlTemplate` now owns the first explicit processing boundary: it compiles/renders canonical CEM-ML
       through `cem_ql` WASM, projects slots from structured payload data, returns render-plan identity plus optional
       patch frames, and leaves DOM materialization/application in the `<cem-element>` UI adapter.
-- [ ] **Track source-map fidelity through render output.** Cover `author-byte-exact` for external/raw CEM sources,
+- [x] **Track source-map fidelity through render output.** Cover `author-byte-exact` for external/raw CEM sources,
       `dom-canonical` for DOM-parsed inline XML/HTML parity, and `declaration-only` fallback diagnostics. Rendered nodes
       should carry enough source-map identity for fixture assertions and devtools reporting.
+      Runtime-support diagnostics now carry `sourceMapRef`, browser diagnostics preserve engine byte frames, declaration
+      shape errors use `declaration-only` fallback frames, and Storybook gates assert source fidelity on DOM-parity,
+      CEM-ML render nodes, text render-plan nodes, and parser/render diagnostics.
 - [ ] **Integrate Phase 2 verification gates.** Ensure the Phase 3.1 gate runs the parser/runtime checks named in the
       roadmap against the parity fixtures: `yarn nx run cem_ml_cli:validate-fixtures`, `yarn nx run cem_ml_cli:e2e`,
       and `yarn nx run cem_ml:bench`, plus the existing `cem-elements:verify-substrate` path.

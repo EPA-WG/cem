@@ -39,6 +39,7 @@ export interface RuntimeSupportDiagnostic {
     severity: 'info' | 'warning' | 'error' | 'fatal';
     message: string;
     byteOffset?: number;
+    sourceMapRef?: SourceMapRef;
 }
 
 export interface CemQlRenderResult {
@@ -276,11 +277,13 @@ function frameFrom(byteOffset: number | null | undefined): SourceMapRef | undefi
 }
 
 function mapDiagnostic(diagnostic: WasmDiagnostic): RuntimeSupportDiagnostic {
+    const byteOffset = typeof diagnostic.byteOffset === 'number' ? diagnostic.byteOffset : undefined;
     return {
         code: diagnostic.code ?? 'cem.ql.wasm.diagnostic',
         severity: coerceSeverity(diagnostic.severity),
         message: diagnostic.message ?? 'cem_ql render diagnostic',
-        byteOffset: typeof diagnostic.byteOffset === 'number' ? diagnostic.byteOffset : undefined,
+        byteOffset,
+        sourceMapRef: frameFrom(byteOffset),
     };
 }
 

@@ -2,6 +2,7 @@ import {
     materializeRenderPlan,
     projectTemplate,
     readTemplateSource,
+    type SourceMapRef,
     type TemplateSourceNode,
     type TemplateValue,
 } from './projection.js';
@@ -23,6 +24,7 @@ export interface CemElementDiagnostic {
     message: string;
     source: 'declaration' | 'instance' | 'render';
     tag?: string;
+    sourceMapRef?: SourceMapRef;
 }
 
 export interface DeclarationShapeInput {
@@ -599,13 +601,7 @@ export class CemElementRuntime {
             if (diagnostics.length > 0) {
                 this.recordDiagnostics(
                     declarationElement,
-                    diagnostics.map((diagnostic) => ({
-                        code: diagnostic.code,
-                        severity: diagnostic.severity,
-                        source: 'declaration' as const,
-                        message: diagnostic.message,
-                        tag: compiled.producedTag,
-                    }))
+                    diagnostics.map((diagnostic) => declarationRuntimeSupportDiagnostic(diagnostic, compiled.producedTag))
                 );
             }
         } catch {
@@ -1501,6 +1497,7 @@ function declarationDiagnostic(code: string, message: string, tag?: string): Cem
         source: 'declaration',
         message,
         tag,
+        sourceMapRef: { fidelity: 'declaration-only', frame: `decl:${tag ?? 'unknown'}` },
     };
 }
 
@@ -1616,7 +1613,26 @@ function runtimeSupportDiagnostic(diagnostic: RuntimeSupportDiagnostic, tag: str
         source: 'render',
         message: diagnostic.message,
         tag,
+        sourceMapRef: runtimeSupportSourceMapRef(diagnostic, tag),
     };
+}
+
+function declarationRuntimeSupportDiagnostic(
+    diagnostic: RuntimeSupportDiagnostic,
+    tag: string
+): CemElementDiagnostic {
+    return {
+        code: diagnostic.code,
+        severity: diagnostic.severity,
+        source: 'declaration',
+        message: diagnostic.message,
+        tag,
+        sourceMapRef: runtimeSupportSourceMapRef(diagnostic, tag),
+    };
+}
+
+function runtimeSupportSourceMapRef(diagnostic: RuntimeSupportDiagnostic, tag: string): SourceMapRef {
+    return diagnostic.sourceMapRef ?? { fidelity: 'declaration-only', frame: `decl:${tag}` };
 }
 
 function evaluateSliceValue(

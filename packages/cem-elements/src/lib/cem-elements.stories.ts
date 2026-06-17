@@ -35,7 +35,12 @@ import {
     type RenderPlanNode,
     type TemplateSourceNode,
 } from './projection.js';
-import { processCemMlTemplate, renderCemMlTemplate, runtimeVersion } from './internal/runtime-support/cem-ql-render.js';
+import {
+    processCemMlTemplate,
+    renderCemMlTemplate,
+    runtimeVersion,
+    type RuntimeSupportDiagnostic,
+} from './internal/runtime-support/cem-ql-render.js';
 import { domToRecord, normalizeSpace, tokenTableRows } from './data-document.js';
 
 const meta: Meta = {
@@ -432,6 +437,14 @@ export const CemQlWasmRenderBoundary: Story = {
             .map((child) => (child.kind === 'text' ? child.text : ''))
             .join('');
         assertEqual(text, 'Save', 'content expression resolves the host binding through WASM');
+        const [buttonText] = button.children;
+        assert(buttonText.kind === 'text', 'WASM render carries a text render-plan child');
+        assertEqual(
+            buttonText.sourceMapRef?.fidelity,
+            'author-byte-exact',
+            'WASM text render-plan nodes carry author-byte-exact fidelity'
+        );
+        assert(/^cem:\d+$/.test(buttonText.sourceMapRef?.frame ?? ''), 'WASM text frames are source byte offsets');
         assertEqual(
             button.sourceMapRef?.fidelity,
             'author-byte-exact',
@@ -491,7 +504,16 @@ export const CemQlWasmRenderBoundary: Story = {
         // Diagnostics flow through the same boundary: an unknown binding compiles to a
         // mapped render diagnostic rather than throwing.
         const missing = await renderCemMlTemplate('{button | {$missing}}', {}, { renderNodeIdPrefix: 'cem-missing' });
-        assertDiagnostic(missing.diagnostics, 'cem.ql.render.compile_failed');
+        const missingDiagnostic = findRuntimeSupportDiagnostic(missing.diagnostics, 'cem.ql.render.compile_failed');
+        assertEqual(
+            missingDiagnostic.sourceMapRef?.fidelity,
+            'author-byte-exact',
+            'WASM render diagnostics carry author-byte-exact source-map fidelity'
+        );
+        assert(
+            /^cem:\d+$/.test(missingDiagnostic.sourceMapRef?.frame ?? ''),
+            'WASM render diagnostics carry source byte-offset frames'
+        );
     },
 };
 
@@ -1564,7 +1586,19 @@ export const RuntimeDiagnosticsSurface: Story = {
         parserRuntime.registerDeclaration(parserDeclaration);
 
         await parserRuntime.whenDeclarationSettled(parserDeclaration);
-        assertDiagnostic(parserRuntime.diagnosticsFor(parserDeclaration), 'cem.tokenizer.bare_brace_text');
+        const parserDiagnostic = findDiagnostic(
+            parserRuntime.diagnosticsFor(parserDeclaration),
+            'cem.tokenizer.bare_brace_text'
+        );
+        assertEqual(
+            parserDiagnostic.sourceMapRef?.fidelity,
+            'author-byte-exact',
+            'CEM-ML parser diagnostics carry source-byte fidelity'
+        );
+        assert(
+            /^cem:\d+$/.test(parserDiagnostic.sourceMapRef?.frame ?? ''),
+            'CEM-ML parser diagnostics carry byte frames'
+        );
 
         const renderRuntime = new CemElementRuntime({ declarationTag: 'cem-element-story-render-diagnostic' });
         renderRuntime.install(window);
@@ -1581,7 +1615,12 @@ export const RuntimeDiagnosticsSurface: Story = {
         root.appendChild(instance);
         await renderRuntime.whenRenderSettled(instance);
 
-        assertDiagnostic(renderRuntime.diagnosticsFor(instance), 'cem.ql.render.compile_failed');
+        const renderDiagnostic = findDiagnostic(renderRuntime.diagnosticsFor(instance), 'cem.ql.render.compile_failed');
+        assertEqual(
+            renderDiagnostic.sourceMapRef?.fidelity,
+            'author-byte-exact',
+            'CEM-ML render diagnostics carry source-byte fidelity'
+        );
     },
 };
 
@@ -2880,10 +2919,25 @@ export const DeclarationDiagnosticsAreExposed: Story = {
         const tagDiagnostic = findDiagnostic(runtime.diagnosticsFor(invalidTag), 'cem-element.tag_invalid');
         assertEqual(tagDiagnostic.source, 'declaration', 'tag diagnostics are declaration-sourced');
         assertEqual(tagDiagnostic.severity, 'error', 'an invalid tag is an error-severity diagnostic');
+        assertEqual(
+            tagDiagnostic.sourceMapRef?.fidelity,
+            'declaration-only',
+            'declaration shape diagnostics use declaration-only source-map fidelity'
+        );
+        assertEqual(
+            tagDiagnostic.sourceMapRef?.frame,
+            'decl:Bad-Tag',
+            'declaration-only diagnostics identify the owning declaration tag when available'
+        );
 
         const missingTag = buildDeclaration({ templates: [{ html: '<button>x</button>' }] });
         runtime.registerDeclaration(missingTag);
-        assertDiagnostic(runtime.diagnosticsFor(missingTag), 'cem-element.tag_missing');
+        const missingTagDiagnostic = findDiagnostic(runtime.diagnosticsFor(missingTag), 'cem-element.tag_missing');
+        assertEqual(
+            missingTagDiagnostic.sourceMapRef?.frame,
+            'decl:unknown',
+            'declaration-only diagnostics fall back to an unknown declaration frame when no tag exists'
+        );
 
         const conflict = buildDeclaration({
             tag: 'story-decl-conflict',
@@ -2943,6 +2997,12 @@ export const CemMlParseDiagnosticsAreExposed: Story = {
             await runtime.whenDeclarationSettled(declaration);
             const diagnostic = findDiagnostic(runtime.diagnosticsFor(declaration), code);
             assertEqual(diagnostic.source, 'declaration', 'parse diagnostics are declaration-sourced');
+            assertEqual(
+                diagnostic.sourceMapRef?.fidelity,
+                'author-byte-exact',
+                'CEM-ML parse diagnostics carry author-byte-exact source-map fidelity'
+            );
+            assert(/^cem:\d+$/.test(diagnostic.sourceMapRef?.frame ?? ''), 'CEM-ML parse diagnostics carry byte frames');
         }
     },
 };
@@ -2978,6 +3038,12 @@ export const RenderFailureDiagnosticsAreExposed: Story = {
         const renderFailure = findDiagnostic(failRuntime.diagnosticsFor(failInstance), 'cem.ql.render.compile_failed');
         assertEqual(renderFailure.source, 'render', 'render failures are render-sourced');
         assertEqual(renderFailure.severity, 'error', 'render failures are error-severity diagnostics');
+        assertEqual(
+            renderFailure.sourceMapRef?.fidelity,
+            'author-byte-exact',
+            'render diagnostics carry author-byte-exact source-map fidelity'
+        );
+        assert(/^cem:\d+$/.test(renderFailure.sourceMapRef?.frame ?? ''), 'render diagnostics carry byte frames');
 
         // Legacy bridge templates are a supported migration path and should not
         // report the old reserved-slice diagnostic.
@@ -3025,6 +3091,15 @@ function assertDiagnostic(diagnostics: readonly { code: string }[], code: string
 }
 
 function findDiagnostic(diagnostics: readonly CemElementDiagnostic[], code: string): CemElementDiagnostic {
+    const diagnostic = diagnostics.find((entry) => entry.code === code);
+    assert(diagnostic, `expected diagnostic ${code}`);
+    return diagnostic;
+}
+
+function findRuntimeSupportDiagnostic(
+    diagnostics: readonly RuntimeSupportDiagnostic[],
+    code: string
+): RuntimeSupportDiagnostic {
     const diagnostic = diagnostics.find((entry) => entry.code === code);
     assert(diagnostic, `expected diagnostic ${code}`);
     return diagnostic;
