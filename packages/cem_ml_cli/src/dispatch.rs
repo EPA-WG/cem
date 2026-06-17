@@ -3307,6 +3307,39 @@ fn write_transform_graph_artifacts(
     Ok(())
 }
 
+fn write_transform_source_map_sidecar(
+    context: &eng::EngineContext,
+    response: &eng::TransformResponse,
+    destination: Option<&Path>,
+    input: &str,
+) -> io::Result<()> {
+    let Some(destination) = destination else {
+        return Ok(());
+    };
+    let Some(source_map) = response
+        .source_map
+        .as_ref()
+        .and_then(|source_map| serde_json::to_value(source_map).ok())
+    else {
+        return Ok(());
+    };
+    let destination = destination.to_string_lossy();
+    let Some(source_map_ref) = transform_graph_source_map_ref(Some(destination.as_ref()), true)
+    else {
+        return Ok(());
+    };
+    let sidecar =
+        transform_graph_source_map_sidecar_payload(&source_map, "primary", input, &destination);
+    let bytes = serde_json::to_vec_pretty(&sidecar)?;
+    write_destination(
+        context,
+        Path::new(&source_map_ref),
+        "source-map sidecar destination",
+        ResolvePurpose::Output,
+        &bytes,
+    )
+}
+
 fn write_transform_graph_source_map_sidecar(
     context: &eng::EngineContext,
     artifact: &eng::TransformGraphArtifact,
@@ -3449,6 +3482,19 @@ pub fn run_transform<E: CemMlEngine + ?Sized>(
             if let Err(e) =
                 write_document_primary(&engine_context, &resp.primary, args.out.as_deref(), s)
             {
+                let _ = writeln!(s.stderr, "cem-ml: write failure: {e}");
+                return Outcome::code(EXIT_IO);
+            }
+            if let Err(e) = write_transform_source_map_sidecar(
+                &engine_context,
+                &resp,
+                args.out.as_deref(),
+                &args
+                    .data
+                    .as_ref()
+                    .map(|path| path.display().to_string())
+                    .unwrap_or_default(),
+            ) {
                 let _ = writeln!(s.stderr, "cem-ml: write failure: {e}");
                 return Outcome::code(EXIT_IO);
             }
@@ -4002,6 +4048,7 @@ mod tests {
         let template = write_fixture("transform-run-out-template.cem", "{section | Done}");
         let out = std::env::temp_dir().join("cem-ml-cli-tests/transform-out.html");
         let _ = std::fs::remove_file(&out);
+        let _ = std::fs::remove_file(format!("{}.map", out.display()));
 
         let (outcome, stdout, stderr) = run(
             &RealCemMlEngine::new(),
@@ -4025,9 +4072,17 @@ mod tests {
         assert!(stdout.is_empty());
         assert!(stderr.trim().is_empty(), "{stderr}");
         assert_eq!(
-            std::fs::read_to_string(out).unwrap(),
+            std::fs::read_to_string(&out).unwrap(),
             "<section>Done</section>"
         );
+        let source_map: serde_json::Value = serde_json::from_str(
+            &std::fs::read_to_string(format!("{}.map", out.display())).unwrap(),
+        )
+        .unwrap();
+        assert!(source_map["frames"].is_array());
+        assert_eq!(source_map["exportId"], "primary");
+        assert_eq!(source_map["input"], data.display().to_string());
+        assert_eq!(source_map["destination"], out.display().to_string());
     }
 
     #[test]
