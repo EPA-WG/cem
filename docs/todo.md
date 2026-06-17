@@ -157,9 +157,12 @@ Recommended execution order:
       `packages/cem-components/tests/workflows/` now contains five declarative HTML workflow fixtures, and
       `workflows.browser.spec.ts` imports them as raw fixtures, rejects scripts/inline handlers, renders through the
       installed primitive set, and asserts the key static/form outputs.
-- [ ] **Harden state and ARIA behavior across the MVP matrix.** Cover disabled, loading, selected, expanded, invalid,
+- [x] **Harden state and ARIA behavior across the MVP matrix.** Cover disabled, loading, selected, expanded, invalid,
       required, readonly, checked, indeterminate, and empty states where applicable; assert accessible names, reference
       integrity, live-region roles, keyboard focus, and event payload behavior through the component harness.
+      `primitives.ts` now reflects state attributes onto the native semantic controls, interactive primitives capture
+      `slice-event` payloads, and `states.browser.spec.ts` covers action/loading/focus state, form validity and
+      boolean-control state, serialized event payloads, empty fallbacks, indeterminate progress, and live regions.
 - [ ] **Prove the token-only styling contract.** Add a deterministic style inspection gate that rejects new
       component-specific color/spacing literals and verifies primitive styles resolve through CEM theme token families.
 - [ ] **Document the primitive production-ready trigger.** Update `packages/cem-components/README.md` and

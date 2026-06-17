@@ -19,7 +19,7 @@ export const CEM_COMPONENT_PRIMITIVES = [
         cemMl:
             '{attribute @name=label | Action}' +
             '{attribute @name=variant | primary}' +
-            '{button @type=button @class="cem-action cem-action--{$variant}" | {slot | {$label}}}',
+            '{button @type=button @class="cem-action cem-action--{$variant}" @disabled={datadom.attributes.disabled} @aria-busy={datadom.attributes.loading} @aria-expanded={datadom.attributes.expanded} @slice=pressed @slice-event=click @slice-value="$event.type" | {slot | {$label}}}',
     },
     {
         tag: 'cem-icon-button',
@@ -28,7 +28,7 @@ export const CEM_COMPONENT_PRIMITIVES = [
             '{attribute @name=label | Icon action}' +
             '{attribute @name=name | circle}' +
             '{attribute @name=variant | quiet}' +
-            '{button @type=button @class="cem-icon-button cem-icon-button--{$variant}" @aria-label="{$label}" |' +
+            '{button @type=button @class="cem-icon-button cem-icon-button--{$variant}" @aria-label="{$label}" @disabled={datadom.attributes.disabled} @aria-expanded={datadom.attributes.expanded} @slice=pressed @slice-event=click @slice-value="$event.type" |' +
             ' {span @class="cem-icon cem-icon--{$name}" @aria-hidden=true | {$name}}' +
             ' {slot}}',
     },
@@ -37,7 +37,7 @@ export const CEM_COMPONENT_PRIMITIVES = [
         description: 'Menu command row rendered as an accessible menuitem button.',
         cemMl:
             '{attribute @name=label | Menu item}' +
-            '{button @type=button @role=menuitem @class=cem-menu-item | {slot | {$label}}}',
+            '{button @type=button @role=menuitem @class=cem-menu-item @disabled={datadom.attributes.disabled} @aria-expanded={datadom.attributes.expanded} @slice=selected @slice-event=click @slice-value="$event.type" | {slot | {$label}}}',
     },
     {
         tag: 'cem-field',
@@ -46,7 +46,7 @@ export const CEM_COMPONENT_PRIMITIVES = [
             '{attribute @name=label | Field}' +
             '{attribute @name=type | text}' +
             '{div @class=cem-field |' +
-            ' {label @class=cem-field__label | {span | {slot @name=label | {$label}}} {input @class=cem-field__control @type="{$type}" @name="{$datadom.attributes.name}" @value="{$datadom.attributes.value}" @placeholder="{$datadom.attributes.placeholder}" | }}' +
+            ' {label @class=cem-field__label | {span | {slot @name=label | {$label}}} {input @class=cem-field__control @type="{$type}" @name="{$datadom.attributes.name}" @value={datadom.slices.value ?? datadom.attributes.value} @placeholder="{$datadom.attributes.placeholder}" @disabled={datadom.attributes.disabled} @required={datadom.attributes.required} @readonly={datadom.attributes.readonly} @aria-invalid={datadom.attributes.invalid} @aria-describedby={datadom.attributes.describedby} @aria-errormessage={datadom.attributes.error} @slice=value @slice-event=input @slice-value="{$target.value}" | }}' +
             ' {span @class=cem-field__help | {slot @name=help}}}',
     },
     {
@@ -56,7 +56,7 @@ export const CEM_COMPONENT_PRIMITIVES = [
             '{attribute @name=label | Text field}' +
             '{attribute @name=type | text}' +
             '{div @class=cem-text-field |' +
-            ' {label @class=cem-text-field__label | {span | {slot @name=label | {$label}}} {input @class=cem-text-field__control @type="{$type}" @name="{$datadom.attributes.name}" @value="{$datadom.attributes.value}" @placeholder="{$datadom.attributes.placeholder}" | }}' +
+            ' {label @class=cem-text-field__label | {span | {slot @name=label | {$label}}} {input @class=cem-text-field__control @type="{$type}" @name="{$datadom.attributes.name}" @value={datadom.slices.value ?? datadom.attributes.value} @placeholder="{$datadom.attributes.placeholder}" @disabled={datadom.attributes.disabled} @required={datadom.attributes.required} @readonly={datadom.attributes.readonly} @aria-invalid={datadom.attributes.invalid} @aria-describedby={datadom.attributes.describedby} @aria-errormessage={datadom.attributes.error} @slice=value @slice-event=input @slice-value="{$target.value}" | }}' +
             ' {span @class=cem-text-field__help | {slot @name=help}}}',
     },
     {
@@ -65,7 +65,7 @@ export const CEM_COMPONENT_PRIMITIVES = [
         cemMl:
             '{attribute @name=label | Textarea}' +
             '{div @class=cem-textarea |' +
-            ' {label @class=cem-textarea__label | {span | {slot @name=label | {$label}}} {textarea @class=cem-textarea__control @name="{$datadom.attributes.name}" @placeholder="{$datadom.attributes.placeholder}" | {$datadom.attributes.value}}}' +
+            ' {label @class=cem-textarea__label | {span | {slot @name=label | {$label}}} {textarea @class=cem-textarea__control @name="{$datadom.attributes.name}" @placeholder="{$datadom.attributes.placeholder}" @disabled={datadom.attributes.disabled} @required={datadom.attributes.required} @readonly={datadom.attributes.readonly} @aria-invalid={datadom.attributes.invalid} @aria-describedby={datadom.attributes.describedby} @aria-errormessage={datadom.attributes.error} @slice=value @slice-event=input @slice-value="{$target.value}" | {$datadom.slices.value ?? datadom.attributes.value}}}' +
             ' {span @class=cem-textarea__help | {slot @name=help}}}',
     },
     {
@@ -74,7 +74,7 @@ export const CEM_COMPONENT_PRIMITIVES = [
         cemMl:
             '{attribute @name=label | Select}' +
             '{div @class=cem-select |' +
-            ' {label @class=cem-select__label | {span | {slot @name=label | {$label}}} {select @class=cem-select__control @name="{$datadom.attributes.name}" | {slot | {option @value="" | Choose}}}}' +
+            ' {label @class=cem-select__label | {span | {slot @name=label | {$label}}} {select @class=cem-select__control @name="{$datadom.attributes.name}" @disabled={datadom.attributes.disabled} @required={datadom.attributes.required} @aria-invalid={datadom.attributes.invalid} @aria-describedby={datadom.attributes.describedby} @aria-errormessage={datadom.attributes.error} @slice=value @slice-event=change @slice-value="{$target.value}" | {slot | {option @value="" | Choose}}}}' +
             ' {span @class=cem-select__help | {slot @name=help}}}',
     },
     {
@@ -84,7 +84,7 @@ export const CEM_COMPONENT_PRIMITIVES = [
             '{attribute @name=label | Checkbox}' +
             '{attribute @name=value | on}' +
             '{label @class=cem-checkbox |' +
-            ' {input @class=cem-checkbox__control @type=checkbox @name="{$datadom.attributes.name}" @value="{$value}" | }' +
+            ' {input @class=cem-checkbox__control @type=checkbox @name="{$datadom.attributes.name}" @value="{$value}" @checked={datadom.slices.checked ?? datadom.attributes.checked} @disabled={datadom.attributes.disabled} @required={datadom.attributes.required} @aria-invalid={datadom.attributes.invalid} @aria-checked={datadom.attributes.indeterminate} @slice=checked @slice-event=change @slice-value="$target.checked" | }' +
             ' {span @class=cem-checkbox__label | {slot | {$label}}}}',
     },
     {
@@ -94,7 +94,7 @@ export const CEM_COMPONENT_PRIMITIVES = [
             '{attribute @name=label | Radio}' +
             '{attribute @name=value | on}' +
             '{label @class=cem-radio |' +
-            ' {input @class=cem-radio__control @type=radio @name="{$datadom.attributes.name}" @value="{$value}" | }' +
+            ' {input @class=cem-radio__control @type=radio @name="{$datadom.attributes.name}" @value="{$value}" @checked={datadom.slices.checked ?? datadom.attributes.checked} @disabled={datadom.attributes.disabled} @required={datadom.attributes.required} @aria-invalid={datadom.attributes.invalid} @slice=checked @slice-event=change @slice-value="$target.checked" | }' +
             ' {span @class=cem-radio__label | {slot | {$label}}}}',
     },
     {
@@ -104,7 +104,7 @@ export const CEM_COMPONENT_PRIMITIVES = [
             '{attribute @name=label | Switch}' +
             '{attribute @name=value | on}' +
             '{label @class=cem-switch |' +
-            ' {input @class=cem-switch__control @type=checkbox @role=switch @name="{$datadom.attributes.name}" @value="{$value}" | }' +
+            ' {input @class=cem-switch__control @type=checkbox @role=switch @name="{$datadom.attributes.name}" @value="{$value}" @checked={datadom.slices.checked ?? datadom.attributes.checked} @disabled={datadom.attributes.disabled} @required={datadom.attributes.required} @aria-invalid={datadom.attributes.invalid} @slice=checked @slice-event=change @slice-value="$target.checked" | }' +
             ' {span @class=cem-switch__label | {slot | {$label}}}}',
     },
     {
@@ -258,7 +258,7 @@ export const CEM_COMPONENT_PRIMITIVES = [
         cemMl:
             '{attribute @name=label | Progress}' +
             '{attribute @name=max | 100}' +
-            '{progress @class=cem-progress @aria-label="{$label}" @value="{$datadom.attributes.value}" @max="{$max}" | {$label}}',
+            '{progress @class=cem-progress @aria-label="{$label}" @value={datadom.attributes.value} @max="{$max}" | {$label}}',
     },
     {
         tag: 'cem-skeleton',
