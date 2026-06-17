@@ -5143,6 +5143,84 @@ mod tests {
     }
 
     #[test]
+    fn transform_config_executes_relative_imported_cem_native_module_with_sidecar() {
+        let root = std::env::temp_dir().join("cem-ml-cli-tests/transform-config-imported-module");
+        let _ = std::fs::remove_dir_all(&root);
+        std::fs::create_dir_all(&root).unwrap();
+        std::fs::write(root.join("chapter-one.cem"), "{p | Chapter}").unwrap();
+        std::fs::write(
+            root.join("page.cem"),
+            r#"{@doc cem-ml 1}
+{module |
+  {import @as="ui" @src="ui.cem" @content-type="text/cem-ml"}
+  {template @name="page" @visibility="public" |
+    {param @name="title" @required="true"}
+    {body | {main | {call @from="ui" @template="card" @with:title="{title}"}}}
+  }
+}"#,
+        )
+        .unwrap();
+        std::fs::write(
+            root.join("ui.cem"),
+            r#"{@doc cem-ml 1}
+{module |
+  {template @name="card" @visibility="public" |
+    {param @name="title" @required="true"}
+    {body | {article | {$ title }}}
+  }
+}"#,
+        )
+        .unwrap();
+        let config = root.join("graph.cem");
+        let report = root.join("report.json");
+        std::fs::write(
+            &config,
+            r#"{run |
+  {import @id=book @src="chapter-one.cem" @content-type="text/cem-ml" |
+    {transform @id=html @src="page.cem" @template-content-type="text/cem-ml" @template-schema="https://cem.dev/ns/template/cem-native/1" @entrypoint="page" |
+      {param @name="title" @value="{stem}"}
+      {export @id=main @out="out/{stem}.html" @content-type="text/html"}
+    }
+  }
+}"#,
+        )
+        .unwrap();
+
+        let (outcome, stdout, stderr) = run(
+            &RealCemMlEngine::new(),
+            &[
+                "transform",
+                "--config",
+                config.to_str().unwrap(),
+                "--report-json",
+                report.to_str().unwrap(),
+            ],
+        );
+
+        let out = root.join("out/chapter-one.html");
+        assert_eq!(outcome.exit_code, EXIT_OK);
+        assert!(stdout.is_empty(), "{stdout}");
+        assert!(stderr.trim().is_empty(), "{stderr}");
+        assert_eq!(
+            std::fs::read_to_string(&out).unwrap(),
+            "<main><article>chapter-one</article></main>"
+        );
+        let sidecar = format!("{}.map", out.display());
+        let sidecar_json: serde_json::Value =
+            serde_json::from_str(&std::fs::read_to_string(&sidecar).unwrap()).unwrap();
+        assert_eq!(sidecar_json["exportId"], "main");
+        assert_eq!(sidecar_json["input"], "html");
+        assert_eq!(sidecar_json["destination"], out.display().to_string());
+        let report: serde_json::Value =
+            serde_json::from_str(&std::fs::read_to_string(report).unwrap()).unwrap();
+        assert_eq!(report["summary"]["hardViolationCount"], 0);
+        assert_eq!(
+            report["reportAst"]["transformGraph"]["exports"][0]["sourceMapRef"],
+            sidecar
+        );
+    }
+
+    #[test]
     fn transform_warnings_go_to_stderr_without_report_destination() {
         let data = write_fixture("transform-run-warning-data.cem", "{p @label=\"source\"}");
         let template = write_fixture("transform-run-warning-template.cem", "{section | Done}");
@@ -5205,6 +5283,137 @@ mod tests {
         let report: serde_json::Value =
             serde_json::from_str(&std::fs::read_to_string(report_path).unwrap()).unwrap();
         assert_eq!(report["summary"]["warningCount"], 1);
+    }
+
+    #[test]
+    fn transform_direct_cli_renders_relative_imported_cem_native_module() {
+        let root = std::env::temp_dir().join("cem-ml-cli-tests/transform-import-direct");
+        let _ = std::fs::remove_dir_all(&root);
+        std::fs::create_dir_all(&root).unwrap();
+        let data = root.join("data.cem");
+        let template = root.join("page.cem");
+        let imported = root.join("ui.cem");
+        let report = root.join("report.json");
+        std::fs::write(&data, "{p | Source}").unwrap();
+        std::fs::write(
+            &template,
+            r#"{@doc cem-ml 1}
+{module |
+  {import @as="ui" @src="ui.cem" @content-type="text/cem-ml"}
+  {template @name="page" @visibility="public" |
+    {param @name="title" @required="true"}
+    {body | {main | {call @from="ui" @template="card" @with:title="{title}"}}}
+  }
+}"#,
+        )
+        .unwrap();
+        std::fs::write(
+            &imported,
+            r#"{@doc cem-ml 1}
+{module |
+  {template @name="card" @visibility="public" |
+    {param @name="title" @required="true"}
+    {body | {article | {$ title }}}
+  }
+}"#,
+        )
+        .unwrap();
+
+        let (outcome, stdout, stderr) = run(
+            &RealCemMlEngine::new(),
+            &[
+                "transform",
+                data.to_str().unwrap(),
+                "--data-content-type",
+                "text/cem-ml",
+                "--template",
+                template.to_str().unwrap(),
+                "--template-content-type",
+                "text/cem-ml",
+                "--template-schema",
+                "https://cem.dev/ns/template/cem-native/1",
+                "--template-entrypoint",
+                "page",
+                "--param",
+                "title=Imported",
+                "--to-content-type",
+                "text/html",
+                "--report-json",
+                report.to_str().unwrap(),
+            ],
+        );
+
+        assert_eq!(outcome.exit_code, EXIT_OK);
+        assert_eq!(stdout, "<main><article>Imported</article></main>");
+        assert!(stderr.trim().is_empty(), "{stderr}");
+        let report: serde_json::Value =
+            serde_json::from_str(&std::fs::read_to_string(report).unwrap()).unwrap();
+        assert_eq!(report["summary"]["hardViolationCount"], 0);
+        assert_eq!(report["reportAst"]["transform"]["hasSourceMap"], true);
+    }
+
+    #[test]
+    fn transform_direct_cli_reports_imported_call_diagnostics() {
+        let root = std::env::temp_dir().join("cem-ml-cli-tests/transform-import-diagnostic");
+        let _ = std::fs::remove_dir_all(&root);
+        std::fs::create_dir_all(&root).unwrap();
+        let data = root.join("data.cem");
+        let template = root.join("page.cem");
+        let imported = root.join("ui.cem");
+        let report = root.join("report.json");
+        std::fs::write(&data, "{p | Source}").unwrap();
+        std::fs::write(
+            &template,
+            r#"{@doc cem-ml 1}
+{module |
+  {import @as="ui" @src="ui.cem" @content-type="text/cem-ml"}
+  {body | {main | {call @from="ui" @template="card"}}}
+}"#,
+        )
+        .unwrap();
+        std::fs::write(
+            &imported,
+            r#"{@doc cem-ml 1}
+{module |
+  {template @name="card" @visibility="public" |
+    {param @name="title" @required="true"}
+    {body | {article | {$ title }}}
+  }
+}"#,
+        )
+        .unwrap();
+
+        let (outcome, stdout, stderr) = run(
+            &RealCemMlEngine::new(),
+            &[
+                "transform",
+                data.to_str().unwrap(),
+                "--data-content-type",
+                "text/cem-ml",
+                "--template",
+                template.to_str().unwrap(),
+                "--template-content-type",
+                "text/cem-ml",
+                "--template-schema",
+                "https://cem.dev/ns/template/cem-native/1",
+                "--to-content-type",
+                "text/html",
+                "--report-json",
+                report.to_str().unwrap(),
+            ],
+        );
+
+        assert_eq!(outcome.exit_code, EXIT_HARD_FAILURE);
+        assert!(stdout.is_empty(), "{stdout}");
+        assert!(stderr.trim().is_empty(), "{stderr}");
+        let report: serde_json::Value =
+            serde_json::from_str(&std::fs::read_to_string(report).unwrap()).unwrap();
+        assert!(report["summary"]["hardViolationCount"].as_u64().unwrap() > 0);
+        let diagnostics = report["diagnostics"].as_array().unwrap();
+        assert!(diagnostics.iter().any(|diagnostic| {
+            diagnostic["code"] == "cem.transform_template.param_required"
+                && diagnostic["uri"] == template.display().to_string()
+        }));
     }
 
     #[test]
