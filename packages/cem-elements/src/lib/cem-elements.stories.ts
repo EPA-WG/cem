@@ -734,6 +734,113 @@ export const AttributeObserverRerendersOnUndeclaredAttribute: Story = {
     },
 };
 
+export const ProducedTagLifecycleBehavior: Story = {
+    render: () => storyPanel('Produced tag lifecycle', 'idempotent registration, reconnect, nested tags, latest render wins'),
+    play: async ({ canvasElement }) => {
+        const root = document.createElement('section');
+        root.setAttribute('aria-label', 'produced tag lifecycle story');
+        canvasElement.appendChild(root);
+
+        const runtime = new CemElementRuntime({ declarationTag: 'cem-element-story-lifecycle' });
+        runtime.install(window);
+        runtime.install(window);
+        assert(window.customElements.get('cem-element-story-lifecycle'), 'installing the runtime twice is idempotent');
+
+        const childDeclaration = buildCemMlDeclaration(
+            'cem-element-story-lifecycle',
+            'story-lifecycle-child',
+            '{attribute @name=label | Child}{strong | {$label}}'
+        );
+        root.appendChild(childDeclaration);
+        assert(runtime.registerDeclaration(childDeclaration), 'manual registration after connected registration is accepted');
+        assert(runtime.registerDeclaration(childDeclaration), 're-registering the same declaration is a no-op');
+        await runtime.whenDeclarationSettled(childDeclaration);
+        assertEqual(
+            runtime.diagnosticsFor(childDeclaration).length,
+            0,
+            'same-declaration registration does not emit duplicate diagnostics'
+        );
+
+        const parentDeclaration = buildCemMlDeclaration(
+            'cem-element-story-lifecycle',
+            'story-lifecycle-parent',
+            [
+                '{attribute @name=label | Initial}',
+                '{attribute @name=child | Nested}',
+                '{article @class=card @data-tone="{$datadom.attributes.tone}" |',
+                ' {span @class=label | {$label}}',
+                ' {story-lifecycle-child @label="{$child}" | }',
+                '}',
+            ].join('')
+        );
+        root.appendChild(parentDeclaration);
+        runtime.registerDeclaration(parentDeclaration);
+        await runtime.whenDeclarationSettled(parentDeclaration);
+        assertEqual(runtime.diagnosticsFor(parentDeclaration).length, 0, 'the first produced tag declaration is clean');
+
+        const duplicateDeclaration = buildCemMlDeclaration(
+            'cem-element-story-lifecycle',
+            'story-lifecycle-parent',
+            '{div @class=duplicate | Duplicate}'
+        );
+        root.appendChild(duplicateDeclaration);
+        runtime.registerDeclaration(duplicateDeclaration);
+        await runtime.whenDeclarationSettled(duplicateDeclaration);
+        assertDiagnostic(runtime.diagnosticsFor(duplicateDeclaration), 'cem-element.tag_already_defined');
+
+        const instance = document.createElement('story-lifecycle-parent');
+        root.appendChild(instance);
+        await waitForElement(instance, 'article.card');
+        assertEqual(requiredElement(instance, '.label').textContent?.trim(), 'Initial', 'declared defaults render first');
+        assertEqual(
+            requiredElement(instance, 'story-lifecycle-child strong').textContent?.trim(),
+            'Nested',
+            'nested produced elements render from forwarded declared defaults'
+        );
+        assertEqual(instance.querySelector('.duplicate'), null, 'a duplicate declaration does not replace the first tag');
+
+        instance.setAttribute('label', 'First');
+        instance.setAttribute('label', 'Second');
+        instance.setAttribute('tone', 'warm');
+        instance.setAttribute('child', 'Inner');
+        await waitForCondition(
+            () =>
+                requiredElement(instance, '.label').textContent?.trim() === 'Second' &&
+                requiredElement(instance, 'article.card').getAttribute('data-tone') === 'warm' &&
+                requiredElement(instance, 'story-lifecycle-child strong').textContent?.trim() === 'Inner',
+            'rapid host mutations render the latest attribute snapshot'
+        );
+        assert(!instance.textContent?.includes('First'), 'stale intermediate host values do not survive rerender ordering');
+
+        const renderedWhileConnected = requiredElement(instance, '.label');
+        const revisionBeforeDisconnect = Number(renderedWhileConnected.getAttribute('data-cem-data-revision'));
+        instance.remove();
+        instance.setAttribute('label', 'Detached');
+        await nextFrame();
+        assertEqual(
+            requiredElement(instance, '.label').textContent?.trim(),
+            'Second',
+            'attribute changes while disconnected do not rerender until reconnect'
+        );
+
+        root.appendChild(instance);
+        await waitForCondition(
+            () => requiredElement(instance, '.label').textContent?.trim() === 'Detached',
+            'reconnect re-attaches observation and renders current host state'
+        );
+        assert(
+            Number(requiredElement(instance, '.label').getAttribute('data-cem-data-revision')) > revisionBeforeDisconnect,
+            'reconnect advances the deterministic render revision'
+        );
+
+        instance.setAttribute('label', 'Reconnected');
+        await waitForCondition(
+            () => requiredElement(instance, '.label').textContent?.trim() === 'Reconnected',
+            'post-reconnect host mutations are observed'
+        );
+    },
+};
+
 // ---------------------------------------------------------------------------
 // Legacy custom-element parity stories — named coverage for behaviors inventoried
 // from /home/suns/aWork/custom-element docs and demos.
@@ -2851,6 +2958,16 @@ function buildDeclaration(spec: DeclarationSpec): HTMLElement {
         live.textContent = 'live page content';
         declaration.appendChild(live);
     }
+    return declaration;
+}
+
+function buildCemMlDeclaration(declarationTag: string, tag: string, text: string): HTMLElement {
+    const declaration = document.createElement(declarationTag);
+    declaration.setAttribute('tag', tag);
+    const template = document.createElement('template');
+    template.setAttribute('type', 'text/cem-ml');
+    template.textContent = text;
+    declaration.appendChild(template);
     return declaration;
 }
 

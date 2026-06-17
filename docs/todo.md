@@ -53,9 +53,13 @@ Recommended execution order:
       or instance data does not affect layout, selectors, form submission, accessibility tree, or visible UI directly.
       Browser Storybook coverage now includes selector, layout, form, focus/accessibility, declaration-render isolation,
       and declaration-shape guardrails for exactly-one inline template, `src` conflict, and live-content rejection.
-- [ ] **Harden produced-tag lifecycle behavior.** Cover tag validation, idempotent registration, duplicate declaration
+- [x] **Harden produced-tag lifecycle behavior.** Cover tag validation, idempotent registration, duplicate declaration
       diagnostics, observed attribute extraction, declared defaults, host overrides, undeclared attribute invalidation,
       reconnect/disconnect behavior, nested produced elements, and deterministic rerender ordering.
+      Produced declaration registration is now idempotent per declaration element and duplicate tags no longer replace
+      the first compiled declaration. Browser coverage asserts duplicate diagnostics, reconnect/disconnect observation,
+      nested produced output, declared defaults/host overrides, undeclared attribute invalidation, and latest-wins render
+      ordering.
 - [ ] **Close the event-to-data render loop.** Cover `slice`, `slice-event`, `slice-value`, event payload capture,
       repeated input events, stale render avoidance, multi-instance isolation, and serialization of `data`, `option`,
       slot, dataset, attribute, slice, validation, and event payload state into the instance data island.

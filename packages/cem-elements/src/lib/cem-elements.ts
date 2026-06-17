@@ -342,6 +342,7 @@ export class CemElementRuntime {
     private readonly declarations = new Map<string, CompiledDeclaration>();
     private readonly diagnostics = new WeakMap<object, CemElementDiagnostic[]>();
     private readonly initializedInstances = new WeakSet<HTMLElement>();
+    private readonly registeredDeclarationElements = new WeakSet<object>();
     private readonly hydratedServerRenders = new WeakSet<HTMLElement>();
     private readonly hydrationSnapshots = new WeakMap<HTMLElement, DataIslandSnapshot>();
     private readonly instanceIds = new WeakMap<HTMLElement, string>();
@@ -400,6 +401,10 @@ export class CemElementRuntime {
     }
 
     registerDeclaration(declarationElement: HTMLElement): boolean {
+        if (this.registeredDeclarationElements.has(declarationElement)) {
+            return true;
+        }
+
         const shape = analyzeDeclarationElement(declarationElement);
         if (!shape.ok || !shape.tag) {
             this.recordDiagnostics(declarationElement, shape.diagnostics);
@@ -410,6 +415,7 @@ export class CemElementRuntime {
             const reference = parseSrcReference(shape.src);
             if (!reference.local) {
                 // External `src="./file#tag"`: fetch, parse, and register asynchronously.
+                this.registeredDeclarationElements.add(declarationElement);
                 this.declarationSettled.set(
                     declarationElement,
                     this.registerExternalDeclaration(declarationElement, shape.tag, shape.src, reference)
@@ -420,6 +426,7 @@ export class CemElementRuntime {
             if (!localTemplate) {
                 return false;
             }
+            this.registeredDeclarationElements.add(declarationElement);
             this.declarationSettled.set(
                 declarationElement,
                 this.registerResolvedDeclaration(declarationElement, shape.tag, localTemplate, shape.diagnostics)
@@ -432,6 +439,7 @@ export class CemElementRuntime {
             this.recordDiagnostics(declarationElement, shape.diagnostics);
             return false;
         }
+        this.registeredDeclarationElements.add(declarationElement);
         this.declarationSettled.set(
             declarationElement,
             this.registerResolvedDeclaration(declarationElement, shape.tag, template, shape.diagnostics)
@@ -446,6 +454,18 @@ export class CemElementRuntime {
         template: HTMLTemplateElement,
         shapeDiagnostics: CemElementDiagnostic[]
     ): Promise<void> {
+        const registry = declarationElement.ownerDocument.defaultView?.customElements;
+        if (this.declarations.has(tag) || registry?.get(tag)) {
+            this.recordDiagnostics(declarationElement, [
+                declarationDiagnostic(
+                    'cem-element.tag_already_defined',
+                    `custom element \`${tag}\` is already defined`,
+                    tag
+                ),
+            ]);
+            return Promise.resolve();
+        }
+
         const compiled = compileInlineDeclaration(declarationElement, tag, template, this.declarationTag);
         this.recordDiagnostics(declarationElement, [...shapeDiagnostics, ...compiled.diagnostics]);
         this.declarations.set(tag, compiled);
