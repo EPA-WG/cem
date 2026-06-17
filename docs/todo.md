@@ -78,10 +78,12 @@ Recommended execution order:
       CLI validation, SSR, and package gates can consume the same CEM engine path instead of a browser-only converter.
       `lang="custom-element-v0"` now routes as a deprecated alias of the shared `legacy-xslt` engine path; the runtime no
       longer imports or branches to the browser-only `projectLegacyTemplate` path, and a unit guard locks that boundary.
-- [ ] **Decide scoped-style containment.** `material-parity-inventory.md` currently marks scoped template styles as
+- [x] **Decide scoped-style containment.** `material-parity-inventory.md` currently marks scoped template styles as
       partial because they render as page-global light-DOM `<style>` elements. Decide whether containment is required
       for the Phase 3.1 production gate. If yes, implement and test the containment model; if no, document it as
       bridge/adoption work and make the gate assert the documented behavior.
+      Decision: selector containment is bridge/adoption work, not a Phase 3.1 gate requirement. `MaterialScopedStylePolicy`
+      now asserts that template styles are emitted into light DOM and apply page-globally.
 - [ ] **Define the host processing boundary in code.** Add or harden TypeScript runtime-support contracts for
       `DataIslandSnapshot`, `RenderRevision`, template artifact refs, source-map refs, render-plan identity, patch
       frames, and patch apply results. Add structured-clone safety tests proving no live `Node`, `Event`, function,

@@ -15,8 +15,9 @@ import { CemElementRuntime, type CemElementRuntimeOptions } from './cem-elements
  * - Legacy XPath tests (`string-length($image)<3`, `contains($image,'/')`, `{//bend}`) become
  *   cem-ql functional selection over `/datadom`; string-format branching is shown here via
  *   attribute-presence `cem:if`/`cem:choose` (cem-ql `strings:*` qualified calls are a follow-up).
- * - Scoped `<style>` renders page-global (no light-DOM scoping). Bare `@scope/pkg`
- *   module-map `src` specifiers require host `loadSrcDocument` / `resolveModuleUrl` hooks.
+ * - Template `<style>` renders page-global in light DOM for this gate; selector containment is
+ *   documented as bridge/adoption work. Bare `@scope/pkg` module-map `src` specifiers require host
+ *   `loadSrcDocument` / `resolveModuleUrl` hooks.
  * - Legacy `<if><attribute>` boolean-attribute forwarding (`hasBoolAttribute`) is covered by the
  *   custom-element XSLT bridge; these canonical CEM-ML parity stories use declared attributes + AVT.
  * - `/datadom` selection keys must avoid cem-ql builtin pipeline-step names (`first`, `last`,
@@ -385,6 +386,39 @@ export const MaterialAutocompleteParity: Story = {
     },
 };
 
+export const MaterialScopedStylePolicy: Story = {
+    render: () => {
+        const root = section('material scoped style policy');
+        const sentinel = document.createElement('div');
+        sentinel.className = 'mat-style-policy-target';
+        sentinel.textContent = 'outside component';
+
+        const runtime = makeRuntime('mat-style-policy');
+        defineDom(
+            runtime,
+            'mat-style-policy',
+            '<style>.mat-style-policy-target { --mat-style-policy-leak: global; }</style>' +
+                '<article class="mat-style-policy-card">styled</article>'
+        );
+        root.append(document.createElement('mat-style-policy'), sentinel);
+        return root;
+    },
+    play: async ({ canvasElement }) => {
+        const host = requiredElement(canvasElement, 'mat-style-policy') as HTMLElement;
+        const style = await waitForElement(host, 'style');
+        assertEqual(style.getRootNode(), host.ownerDocument, 'template style is materialized in the light DOM');
+        assertEqual(host.shadowRoot, null, 'cem-elements does not create a shadow-root containment boundary');
+        const stylesheet = (style as HTMLStyleElement).sheet;
+        assert(stylesheet, 'template style is a live document stylesheet');
+        assert(
+            Array.from(stylesheet.cssRules).some((rule) =>
+                rule.cssText.includes('.mat-style-policy-target')
+            ),
+            'template styles are intentionally page-global for the material production gate'
+        );
+    },
+};
+
 // ---------------------------------------------------------------------------
 // Shared helpers
 // ---------------------------------------------------------------------------
@@ -403,6 +437,16 @@ function define(runtime: CemElementRuntime, tag: string, cemMl: string): void {
     const template = document.createElement('template');
     template.setAttribute('type', 'text/cem-ml');
     template.textContent = cemMl;
+    declaration.appendChild(template);
+    assert(runtime.registerDeclaration(declaration), `registered <${tag}>`);
+}
+
+/** Register a DOM-template declaration for legacy material authoring shapes that are intentionally not CEM-ML. */
+function defineDom(runtime: CemElementRuntime, tag: string, html: string): void {
+    const declaration = document.createElement('div');
+    declaration.setAttribute('tag', tag);
+    const template = document.createElement('template');
+    template.innerHTML = html;
     declaration.appendChild(template);
     assert(runtime.registerDeclaration(declaration), `registered <${tag}>`);
 }

@@ -68,7 +68,7 @@ current `<cem-element>` runtime renders it faithfully.
 | 16 | `class="{//bend}"` XPath in attribute value             | `action.html:148`                                                               | ❌     | Only `{$name}` resolves; `{//xpath}` is not evaluated.                                                           |
 | 17 | Namespaced `xhtml:*` elements                           | `input.html:218`                                                                | 🟡     | `readTemplateSource` flattens the xhtml namespace, so `xhtml:input` renders as `<input>` — coincidental parity.  |
 | 18 | Declarative `<slot>` / named slots                      | `icon.html:85`, `input.html:206`, `autocomplete.html:85`                         | ✅     | Named/default slots lower from serialized payload in the render plan before light-DOM materialization, including DOM and WASM paths. |
-| 19 | Scoped `<style>` inside a template                      | `input.html` (×6), `menu.html` (×6)                                              | 🟡     | Emitted as a literal, page-global `<style>` into light DOM; no scoping/containment.                             |
+| 19 | Scoped `<style>` inside a template                      | `input.html` (×6), `menu.html` (×6)                                              | 🟡     | Production-gate behavior is explicit: emitted as a literal, page-global `<style>` into light DOM; selector containment is bridge/adoption work. |
 | 20 | Nested custom elements in render output                 | `action.html:127` (`cem-icon` in `cem-action`)                                   | ✅     | Nested produced tags upgrade when their declarations are registered, including through local/external `src`.     |
 | 21 | `<data>` / `<option>` instance payloads                 | `autocomplete.html:112`, `input.html:275`                                        | ✅     | Captured inert into the data island and serialized into `datadom.data.<value>` / `datadom.options.<value>` plus ordered arrays. |
 | 22 | `module-url` resource slices                            | `icon.html:221`, `icon-link.html:119-120`                                        | ✅     | Inert rendered helpers resolve URL-like specifiers by default or bare package specifiers through host `resolveModuleUrl`, then expose values under `datadom.slices.<slice>`. |
@@ -80,8 +80,10 @@ support and Storybook material-parity coverage. Bare `@scope/pkg` specifiers sti
 (`loadSrcDocument` / `resolveModuleUrl`) because browser import-map or bundler policy is host-owned.
 
 **Remaining material-parity caveats:** legacy XPath authoring and XSLT-only constructs are migration decisions; the
-canonical path uses CEM-ML plus cem-ql functional selection over `datadom.*`. Scoped styles still render as page-global
-light-DOM styles. `hasBoolAttribute()` is supported in the legacy bridge as a compile-time boolean-attribute rewrite.
+canonical path uses CEM-ML plus cem-ql functional selection over `datadom.*`. Scoped-style selector containment is not
+required for the Phase 3.1 production gate: template styles intentionally render as page-global light-DOM styles, and
+`MaterialScopedStylePolicy` asserts that documented behavior. `hasBoolAttribute()` is supported in the legacy bridge as
+a compile-time boolean-attribute rewrite.
 
 **Production gate:** the Storybook parity set is green for the covered runtime behaviors. AC-N-1 first-paint
 performance proof and end-to-end accessibility-contract assertions are both wired into the Phase 3.1 gate in
@@ -89,8 +91,8 @@ performance proof and end-to-end accessibility-contract assertions are both wire
 
 **Recommended sequencing implied by this inventory:**
 
-1. Decide whether scoped-style containment remains bridge/adoption work or moves into the browser-substrate production
-   gate.
+1. Scoped-style containment remains bridge/adoption work; keep the production gate pinned to explicit light-DOM,
+   page-global style behavior until a separate containment primitive is designed.
 
 This inventory satisfies the todo §3.1 "Build a material parity inventory" item and feeds the parity-story
 (line 118) and `cem_ml_cli` fixture-wiring (line 124) items.

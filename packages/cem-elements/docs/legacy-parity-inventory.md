@@ -37,7 +37,7 @@ the behavioral reference.
 | Conditional rendering with `if` / `choose` / `when` / `otherwise` | README Pokemon example; material demos | Supported in canonical CEM-ML/cem-ql | `CemQlConditionalRenderLoop`; legacy XPath spellings migrate to `datadom.*` cem-ql |
 | Loops and variables (`for-each`, `variable`, XSLT 1.0) | README loops/variables; `demo/for-each.html` | Deferred | Not in the browser substrate bridge subset; adoption-phase `<custom-element>` may preserve full XSLT if needed |
 | Namespaced `xhtml:*` parser workaround | README troubleshooting; material input demos | Partial | Current DOM read flattens `xhtml:*` to HTML local names; material inventory tracks this as coincidental parity |
-| Scoped styles in templates | README styles section; `demo/scoped-css.html` | Partial | Styles render into light DOM but are not scoped; material inventory tracks containment as open |
+| Scoped styles in templates | README styles section; `demo/scoped-css.html` | Partial | Styles render into light DOM but are not scoped; material inventory records containment as bridge/adoption work |
 | Nested produced custom elements | README embedded CE rendering | Supported | Works when nested declarations are registered, including through local/external `src`; covered by material parity stories |
 | Resource slices (`module-url`, `http-request`, `local-storage`, `location-element`) | README extension primitives; demos | Partial | Focused `module-url` URL resolution is supported through `resolveModuleUrl` and material parity coverage; `http-request`, `local-storage`, and `location-element` remain later primitive/resource slices |
 | Legacy `<template lang="custom-element-v0">` bridge | Migration window item | Supported through shared engine | `LegacyBridgeTemplateParity`; accepted as a deprecated alias for the `legacy-xslt` engine path, with the browser-only projection branch retired |
@@ -52,8 +52,8 @@ the behavioral reference.
 - The supported XSLT subset is pull-style and fixture-derived: `if`, `choose`, `when`, `otherwise`, `value-of`,
   inline `variable`, and `for-each` over an inline node-set variable lower to CEM-ML. Push-style XSLT and standalone
   stylesheet constructs remain Tier 3 handoff/deferred work.
-- Scoped CSS currently renders as light-DOM CSS. True scoping/containment is a material parity gap, not a hidden
-  substrate guarantee.
+- Scoped CSS currently renders as page-global light-DOM CSS. True selector containment is bridge/adoption work, not a
+  Phase 3.1 production-gate requirement or hidden substrate guarantee.
 
 ## Recommended Next Step
 
