@@ -205,9 +205,10 @@ for the current architecture have landed; only deferred capability work remains 
       `@with:*` whole-expression attributes preserve their evaluated CEM-QL item stream for the invoked template, while
       literal and mixed attribute-value-template forms remain string bindings. It also preserves the selected entrypoint,
       caller params, and param declarations in the compiled payload; caller params override declaration defaults, omitted
-      defaults are applied during render, explicit `null` remains bound as a caller value, and named entrypoint-local
-      params bind through their local names inside the invoked template. Qualified caller params bind equivalently for
-      the selected entrypoint, while duplicate local+qualified aliases are rejected before adapter compilation. The
+      defaults are applied during same-module and imported renders, explicit `null` remains bound as a caller value, and
+      named entrypoint-local params bind through their local names inside the invoked template. Qualified caller params
+      bind equivalently for the selected entrypoint, while duplicate local+qualified aliases are rejected before adapter
+      compilation. The
       CEM-QL renderer declares stable primary `input` at compile time and makes primary/secondary
       host bindings available as top-level data-document fields while preserving `datadom.attributes.*` compatibility.
       Same-module recursive calls, including recursive calls inside an imported module, are bounded by
