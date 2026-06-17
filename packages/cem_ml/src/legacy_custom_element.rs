@@ -1460,8 +1460,18 @@ fn matches_item_pattern(pattern: &str, member: &CurrentItem) -> bool {
 fn matches_single_item_pattern(pattern: &str, member: &CurrentItem) -> bool {
     match member.kind {
         CurrentItemKind::Document => pattern == "/" || pattern == "node()",
-        CurrentItemKind::Attribute => pattern == "@*" || pattern == "node()" || pattern == ".",
-        CurrentItemKind::Text => pattern == "text()" || pattern == "node()" || pattern == ".",
+        CurrentItemKind::Attribute => {
+            pattern == "@*"
+                || pattern == "node()"
+                || pattern == "."
+                || matches_child_path_pattern(pattern, member)
+        }
+        CurrentItemKind::Text => {
+            pattern == "text()"
+                || pattern == "node()"
+                || pattern == "."
+                || matches_child_path_pattern(pattern, member)
+        }
         CurrentItemKind::Element => {
             pattern == "*"
                 || pattern == "node()"
@@ -1504,7 +1514,24 @@ fn matches_child_path_pattern(pattern: &str, member: &CurrentItem) -> bool {
 }
 
 fn match_pattern_step_matches_current(step: &str, member: &CurrentItem) -> bool {
-    step_matches_current(step, member) && match_pattern_step_predicate_matches_current(step, member)
+    match_pattern_step_name_matches_current(step, member)
+        && match_pattern_step_predicate_matches_current(step, member)
+}
+
+fn match_pattern_step_name_matches_current(step: &str, member: &CurrentItem) -> bool {
+    let step = step_name(step);
+    match member.kind {
+        CurrentItemKind::Document => step == "/" || step == "node()",
+        CurrentItemKind::Attribute => {
+            step == "@*"
+                || step == "node()"
+                || step
+                    .strip_prefix('@')
+                    .is_some_and(|name| local_name(name) == member.tag)
+        }
+        CurrentItemKind::Text => step == "text()" || step == "node()",
+        CurrentItemKind::Element => step_matches_current(step, member),
+    }
 }
 
 fn match_pattern_step_predicate_matches_current(step: &str, member: &CurrentItem) -> bool {
@@ -2286,9 +2313,10 @@ fn element_children_with_parent(nodes: &[LegacyNode], parent: &CurrentItem) -> V
 }
 
 fn attribute_children(current: &CurrentItem) -> Vec<ApplyMember> {
-    current
-        .attrs
-        .iter()
+    let mut attrs: Vec<(&String, &String)> = current.attrs.iter().collect();
+    attrs.sort_by_key(|(name, _)| *name);
+    attrs
+        .into_iter()
         .map(|(name, value)| {
             let mut item = current_item_from_attribute(name, value);
             item.parent = Some(Box::new(current.clone()));
@@ -3650,6 +3678,42 @@ mod tests {
         assert_eq!(
             result.source,
             "{doc | {group @kind=\"primary\" | {item | A}}{group @kind=\"secondary\" | {item | B}}}{out | {primary | A}{plain | B}}"
+        );
+        assert!(result.diagnostics.is_empty());
+    }
+
+    #[test]
+    fn child_path_match_pattern_can_target_text_nodes() {
+        let result = convert(
+            r#"<doc><item>A</item><other>B</other></doc><xsl:stylesheet version="1.0"><xsl:template match="/"><out><xsl:apply-templates select="//doc/*"/></out></xsl:template><xsl:template match="*"><xsl:apply-templates select="node()"/></xsl:template><xsl:template match="text()"><plain><xsl:value-of select="."/></plain></xsl:template><xsl:template match="item/text()"><itemText><xsl:value-of select="."/></itemText></xsl:template></xsl:stylesheet>"#,
+        );
+        assert_eq!(
+            result.source,
+            "{doc | {item | A}{other | B}}{out | {itemText | A}{plain | B}}"
+        );
+        assert!(result.diagnostics.is_empty());
+    }
+
+    #[test]
+    fn child_path_match_pattern_can_target_named_attributes() {
+        let result = convert(
+            r#"<doc><item id="a" kind="x"/><other id="b"/></doc><xsl:stylesheet version="1.0"><xsl:template match="/"><out><xsl:apply-templates select="//item/@*"/><xsl:apply-templates select="//other/@*"/></out></xsl:template><xsl:template match="@*"><plain><xsl:value-of select="name()"/>=<xsl:value-of select="."/></plain></xsl:template><xsl:template match="item/@id"><itemId><xsl:value-of select="."/></itemId></xsl:template></xsl:stylesheet>"#,
+        );
+        assert_eq!(
+            result.source,
+            "{doc | {item @id=\"a\" @kind=\"x\"}{other @id=\"b\"}}{out | {itemId | a}{plain | kind=x}{plain | id=b}}"
+        );
+        assert!(result.diagnostics.is_empty());
+    }
+
+    #[test]
+    fn child_path_match_pattern_can_target_attribute_wildcards() {
+        let result = convert(
+            r#"<doc><item id="a" kind="x"/><other id="b"/></doc><xsl:stylesheet version="1.0"><xsl:template match="/"><out><xsl:apply-templates select="//item/@*"/><xsl:apply-templates select="//other/@*"/></out></xsl:template><xsl:template match="@*"><plain><xsl:value-of select="."/></plain></xsl:template><xsl:template match="item/@*"><itemAttr><xsl:value-of select="name()"/>:<xsl:value-of select="."/></itemAttr></xsl:template></xsl:stylesheet>"#,
+        );
+        assert_eq!(
+            result.source,
+            "{doc | {item @id=\"a\" @kind=\"x\"}{other @id=\"b\"}}{out | {itemAttr | id:a}{itemAttr | kind:x}{plain | b}}"
         );
         assert!(result.diagnostics.is_empty());
     }
