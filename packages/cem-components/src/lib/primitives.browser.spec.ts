@@ -214,6 +214,81 @@ describe('CEM component primitives', () => {
         expect(() => assertAriaReferenceIntegrity(harness.root)).not.toThrow();
     });
 
+    it('renders content-family MVP primitives as accessible light DOM', async () => {
+        harness = createComponentHarness();
+        const root = await harness.render(`
+            <cem-stack gap="sm">
+                <cem-card label="Profile summary">
+                    <span slot="title">Profile summary</span>
+                    <p>Updated today</p>
+                </cem-card>
+                <cem-list label="Assets">
+                    <li>Policy.pdf</li>
+                    <li>Invoice.csv</li>
+                </cem-list>
+                <cem-table label="Asset table">
+                    <div role="row">
+                        <span role="columnheader">Name</span>
+                        <span role="columnheader">Status</span>
+                    </div>
+                    <div role="row">
+                        <span role="cell">Policy.pdf</span>
+                        <span role="cell">Ready</span>
+                    </div>
+                </cem-table>
+                <cem-chip label="Filtered by owner">Owner</cem-chip>
+                <cem-badge tone="success">Ready</cem-badge>
+                <cem-avatar label="Ada Lovelace" initials="AL"></cem-avatar>
+                <cem-media-preview label="Policy preview">
+                    <img src="/policy.png" alt="Policy thumbnail" />
+                    <span slot="caption">Policy preview</span>
+                </cem-media-preview>
+            </cem-stack>
+        `);
+        await waitForPrimitive(root, 'cem-media-preview figure');
+
+        const card = harness.query<HTMLElement>('cem-card section');
+        const cardTitle = harness.query<HTMLElement>('cem-card .cem-card__header');
+        const list = harness.query<HTMLUListElement>('cem-list ul');
+        const table = harness.query<HTMLElement>('cem-table [role="table"]');
+        const chip = harness.query<HTMLElement>('cem-chip .cem-chip');
+        const badge = harness.query<HTMLElement>('cem-badge .cem-badge');
+        const avatar = harness.query<HTMLElement>('cem-avatar .cem-avatar');
+        const mediaPreview = harness.query<HTMLElement>('cem-media-preview figure');
+        const mediaImage = harness.query<HTMLImageElement>('cem-media-preview img');
+        const mediaCaption = harness.query<HTMLElement>('cem-media-preview figcaption');
+
+        for (const host of Array.from(
+            harness.root.querySelectorAll<HTMLElement>(
+                'cem-card, cem-list, cem-table, cem-chip, cem-badge, cem-avatar, cem-media-preview',
+            ),
+        )) {
+            assertLightDomRendered(host);
+            expect(host.shadowRoot).toBeNull();
+        }
+
+        expect(assertAccessibleName(card, 'Profile summary')).toBe('Profile summary');
+        expect(cardTitle.textContent?.trim()).toBe('Profile summary');
+        expect(card.textContent).toContain('Updated today');
+        expect(assertAccessibleName(list, 'Assets')).toBe('Assets');
+        expect(list.querySelectorAll('li')).toHaveLength(2);
+        expect(table.getAttribute('role')).toBe('table');
+        expect(assertAccessibleName(table, 'Asset table')).toBe('Asset table');
+        expect(table.querySelectorAll('[role="row"]')).toHaveLength(2);
+        expect(table.querySelectorAll('[role="cell"]')).toHaveLength(2);
+        expect(assertAccessibleName(chip, 'Filtered by owner')).toBe('Filtered by owner');
+        expect(chip.textContent?.trim()).toBe('Owner');
+        expect(badge.getAttribute('data-tone')).toBe('success');
+        expect(badge.textContent?.trim()).toBe('Ready');
+        expect(avatar.getAttribute('role')).toBe('img');
+        expect(assertAccessibleName(avatar, 'Ada Lovelace')).toBe('Ada Lovelace');
+        expect(avatar.textContent?.trim()).toBe('AL');
+        expect(assertAccessibleName(mediaPreview, 'Policy preview')).toBe('Policy preview');
+        expect(mediaImage.getAttribute('alt')).toBe('Policy thumbnail');
+        expect(mediaCaption.textContent?.trim()).toBe('Policy preview');
+        expect(() => assertAriaReferenceIntegrity(harness.root)).not.toThrow();
+    });
+
     it('renders layout, list, navigation, surface, and dialog shell primitives', async () => {
         harness = createComponentHarness();
         const root = await harness.render(`

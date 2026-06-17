@@ -154,6 +154,54 @@ export const CEM_COMPONENT_PRIMITIVES = [
             '{ul @class=cem-list @aria-label="{$label}" | {slot | {li @class=cem-list__empty | No items}}}',
     },
     {
+        tag: 'cem-card',
+        description: 'MVP card surface for profile, asset, and message summaries.',
+        cemMl:
+            '{attribute @name=label | Card}' +
+            '{section @class=cem-card @aria-label="{$label}" |' +
+            ' {header @class=cem-card__header | {slot @name=title | {$label}}}' +
+            ' {div @class=cem-card__body | {slot}}}',
+    },
+    {
+        tag: 'cem-table',
+        description: 'MVP table wrapper for structured data comparison.',
+        cemMl:
+            '{attribute @name=label | Table}' +
+            '{div @class=cem-table @role=table @aria-label="{$label}" | {slot | {div @role=row | {span @role=cell | No rows}}}}',
+    },
+    {
+        tag: 'cem-chip',
+        description: 'MVP compact filter, token, or removable label.',
+        cemMl:
+            '{attribute @name=label | Chip}' +
+            '{span @class=cem-chip @aria-label="{$label}" | {slot | {$label}}}',
+    },
+    {
+        tag: 'cem-badge',
+        description: 'MVP status, count, priority, and severity label.',
+        cemMl:
+            '{attribute @name=label | Badge}' +
+            '{attribute @name=tone | info}' +
+            '{span @class="cem-badge cem-badge--{$tone}" @data-tone="{$tone}" | {slot | {$label}}}',
+    },
+    {
+        tag: 'cem-avatar',
+        description: 'MVP person or organization visual identity.',
+        cemMl:
+            '{attribute @name=label | Avatar}' +
+            '{attribute @name=initials | }' +
+            '{span @class=cem-avatar @role=img @aria-label="{$label}" | {slot | {$initials}}}',
+    },
+    {
+        tag: 'cem-media-preview',
+        description: 'MVP asset thumbnail, file, or object preview.',
+        cemMl:
+            '{attribute @name=label | Media preview}' +
+            '{figure @class=cem-media-preview @aria-label="{$label}" |' +
+            ' {div @class=cem-media-preview__media | {slot | {$label}}}' +
+            ' {figcaption @class=cem-media-preview__caption | {slot @name=caption | {$label}}}}',
+    },
+    {
         tag: 'cem-app-bar',
         description: 'MVP app bar for product title, context, and global actions.',
         cemMl:
