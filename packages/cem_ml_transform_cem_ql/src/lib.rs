@@ -109,13 +109,17 @@ impl TransformTemplateAdapter for CemQlTransformTemplateAdapter {
                 host_bindings: host_bindings.clone(),
             },
         );
-        let mut diagnostics = artifact.diagnostics.clone();
+        let mut diagnostics =
+            diagnostics_with_uri(&artifact.diagnostics, request.template.uri.as_str());
         let entrypoints = extract_template_entrypoints(&artifact);
         let render_artifact =
             select_entrypoint_artifact(&artifact, &entrypoints, request.entrypoint.name.as_deref());
         let mut modules = compile_preflighted_modules(self.id(), &request, &host_bindings)?;
         for module in &modules {
-            diagnostics.extend(module.artifact.diagnostics.clone());
+            diagnostics.extend(diagnostics_with_uri(
+                &module.artifact.diagnostics,
+                module.uri.as_str(),
+            ));
         }
         let module_diagnostics = modules
             .iter()
@@ -428,6 +432,19 @@ fn artifact_from_nodes(source: &TemplateArtifact, nodes: Vec<TemplateNode>) -> T
         nodes,
         diagnostics: source.diagnostics.clone(),
     }
+}
+
+fn diagnostics_with_uri(diagnostics: &[Diagnostic], uri: &str) -> Vec<Diagnostic> {
+    diagnostics
+        .iter()
+        .cloned()
+        .map(|mut diagnostic| {
+            if diagnostic.uri.is_none() {
+                diagnostic.uri = Some(uri.to_owned());
+            }
+            diagnostic
+        })
+        .collect()
 }
 
 fn clear_template_artifact_diagnostics(artifact: &mut TemplateArtifact) {
@@ -966,6 +983,10 @@ mod tests {
             .diagnostics
             .iter()
             .any(|diagnostic| diagnostic.code == "cem.ql.render.compile_failed"));
+        assert!(compiled.diagnostics.iter().any(|diagnostic| {
+            diagnostic.code == "cem.ql.render.compile_failed"
+                && diagnostic.uri.as_deref() == Some("template.cem")
+        }));
 
         let rendered = adapter
             .render(TransformTemplateRenderRequest {
@@ -987,6 +1008,63 @@ mod tests {
             .diagnostics
             .iter()
             .any(|diagnostic| diagnostic.code == "cem.ql.render.compile_failed"));
+    }
+
+    #[test]
+    fn adapter_attributes_imported_module_compile_diagnostics_to_module_uri() {
+        let adapter = CemQlTransformTemplateAdapter;
+        let identity = FormatIdentity {
+            schema: Some(cem_ml::transform_template::CEM_NATIVE_TEMPLATE_SCHEMA_URI.to_owned()),
+            ..FormatIdentity::default()
+        };
+        let template = TemplateInput {
+            uri: "template.cem".to_owned(),
+            bytes: br#"{@doc cem-ml 1}
+{module |
+  {body | {div | {call @from="ui" @template="card"}}}
+}"#
+            .to_vec(),
+            identity: Some(identity.clone()),
+            root_scope: ScopeConfig::default(),
+        };
+        let params = BTreeMap::new();
+        let data_bindings = Vec::new();
+
+        let compiled = adapter
+            .compile(TransformTemplateCompileRequest {
+                template: &template,
+                entrypoint: &TransformTemplateEntrypoint::implicit(),
+                params: &params,
+                data_bindings: &data_bindings,
+                module_options: Default::default(),
+                module_preflight: TransformTemplateModulePreflight {
+                    resolved_imports: vec![TransformTemplateResolvedModule {
+                        alias: "ui".to_owned(),
+                        parent_uri: None,
+                        uri: "templates/ui.cem".to_owned(),
+                        identity: Some(identity),
+                        content_hash: "cem-bin/1+blake3:ui".to_owned(),
+                        bytes: br#"{@doc cem-ml 1}
+{module |
+  {template @name="card" @visibility="public" | {body | {span | {$missing}}}}
+}"#
+                        .to_vec(),
+                    }],
+                    cache_key: None,
+                },
+                execution_policy: TransformExecutionPolicy::default(),
+            })
+            .expect("template should compile with imported module diagnostics");
+
+        assert_eq!(compiled.artifact.opaque["moduleDiagnostics"], 1);
+        assert!(compiled.diagnostics.iter().any(|diagnostic| {
+            diagnostic.code == "cem.ql.render.compile_failed"
+                && diagnostic.uri.as_deref() == Some("templates/ui.cem")
+        }));
+        assert!(!compiled.diagnostics.iter().any(|diagnostic| {
+            diagnostic.code == "cem.ql.render.compile_failed"
+                && diagnostic.uri.as_deref() == Some("template.cem")
+        }));
     }
 
     #[test]
