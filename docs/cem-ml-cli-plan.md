@@ -138,8 +138,10 @@ the immediate CLI lifecycle contract.
    `packages/cem_ml/schema/cli/transform-config.md`
    (`https://cem.dev/ns/cli/transform-config/1`) for the `run` / `import` /
    `transform` / `export` graph syntax. The transform-config schema is separate from
-   CEM core document schemas and from CEM-native template schemas. Follow-up schema
-   work is generated/published distribution wiring for these artifacts.
+   CEM core document schemas and from CEM-native template schemas. Generated/published
+   distribution wiring copies the JSON schema into `packages/cem_ml/dist/cli/` during
+   `cem_ml:build:docs`, keeps the transform config markdown/XHTML artifacts in the same
+   CLI dist tree, and validates those artifacts through `cem_ml:test:cli-schema-artifacts`.
    Remote/custom module-map URI values, config document reads, configured and
    positional input reads, and fixture-materialized input reads use registered
    `EngineContext` resolvers when a host installs one. Default CLI behavior stays

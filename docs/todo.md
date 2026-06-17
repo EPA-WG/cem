@@ -194,14 +194,16 @@ for the current architecture have landed; only deferred capability work remains 
       controls stay on `TransformGraphRequest`; mixed CEM-native and XSLT stages are covered by CLI integration tests. Quoted XPath
       string literals in lowered XSLT value/param expressions now render as text while scalar variables that represent
       rewritten CEM-QL expressions still splice as expressions.
-- [ ] **Wishlist (future — schema/tooling):** wire CLI config schemas into generated/published artifacts. The JSON
+- [x] **Wishlist (future — schema/tooling):** wire CLI config schemas into generated/published artifacts. The JSON
       `RunConfig` config-file surface uses schema identity `https://cem.dev/ns/cli/run-config/1` and has checked-in JSON
       Schema `packages/cem_ml/schema/cli/run-config.schema.json`
       (`https://cem.dev/schema/cli/run-config.schema.json`) for CI/editor validation. The CEM-ML transform graph config
       uses schema identity `https://cem.dev/ns/cli/transform-config/1` for the CLI config element set (`run`, `import`,
       `join`, `transform`, `export`) and has checked-in schema artifact
       `packages/cem_ml/schema/cli/transform-config.md`; it must not reuse CEM core document schema or CEM-native template
-      schema as its validation identity.
+      schema as its validation identity. `cem_ml:build:docs` now publishes the JSON schema into `dist/cli/` alongside
+      the transform-config markdown/XHTML artifacts, and `cem_ml:test:cli-schema-artifacts` validates the copied dist
+      artifacts.
 
 ## Phase 5 — Figma UI Kit Token Validation (`examples/figma`)
 

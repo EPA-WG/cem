@@ -21,11 +21,14 @@
             },
             "cache": true,
             "inputs": [
-                "{projectRoot}/schema/**/*.md"
+                "{projectRoot}/schema/**/*.md",
+                "{projectRoot}/schema/**/*.json",
+                "{workspaceRoot}/tools/scripts/compile-markdown.mjs"
             ],
             "outputs": [
                 "{projectRoot}/dist/**/*.md",
-                "{projectRoot}/dist/**/*.xhtml"
+                "{projectRoot}/dist/**/*.xhtml",
+                "{projectRoot}/dist/**/*.json"
             ]
         },
         "build:schema-artifacts": {
@@ -48,7 +51,7 @@
         "test": {
             "cache": true,
             "executor": "@monodon/rust:test",
-            "dependsOn": ["test:observability-schema"],
+            "dependsOn": ["test:observability-schema", "test:cli-schema-artifacts"],
             "outputs": ["{options.target-dir}"],
             "options": {
                 "package": "cem-ml",
@@ -81,6 +84,22 @@
                 "{projectRoot}/src/source_map.rs",
                 "{workspaceRoot}/tools/scripts/validate-observability-schema.mjs"
             ]
+        },
+        "test:cli-schema-artifacts": {
+            "cache": true,
+            "executor": "nx:run-commands",
+            "dependsOn": ["build:docs"],
+            "options": {
+                "command": "node tools/scripts/validate-cli-schema-artifacts.mjs",
+                "cwd": "{workspaceRoot}"
+            },
+            "inputs": [
+                "{projectRoot}/schema/cli/run-config.schema.json",
+                "{projectRoot}/schema/cli/transform-config.md",
+                "{workspaceRoot}/tools/scripts/compile-markdown.mjs",
+                "{workspaceRoot}/tools/scripts/validate-cli-schema-artifacts.mjs"
+            ],
+            "outputs": []
         },
         "lint": {
             "cache": true,
