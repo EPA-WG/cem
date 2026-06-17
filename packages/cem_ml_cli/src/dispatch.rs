@@ -2798,14 +2798,32 @@ fn transform_graph_output_kind(primary: &serde_json::Value) -> String {
     }
 }
 
-fn transform_graph_has_source_map(primary: &serde_json::Value) -> bool {
-    primary
-        .get("sourceMap")
-        .is_some_and(|source_map| !source_map.is_null())
+fn transform_graph_artifact_source_map_value(
+    artifact: &eng::TransformGraphArtifact,
+) -> Option<serde_json::Value> {
+    artifact
+        .source_map
+        .as_ref()
+        .and_then(|source_map| serde_json::to_value(source_map).ok())
+        .or_else(|| {
+            artifact
+                .primary
+                .get("sourceMap")
+                .filter(|source_map| !source_map.is_null())
+                .cloned()
+        })
 }
 
-fn transform_graph_output_span_count(primary: &serde_json::Value) -> u64 {
-    primary
+fn transform_graph_has_source_map(artifact: &eng::TransformGraphArtifact) -> bool {
+    transform_graph_artifact_source_map_value(artifact).is_some()
+}
+
+fn transform_graph_output_span_count(artifact: &eng::TransformGraphArtifact) -> u64 {
+    if artifact.source_map.is_some() || !artifact.output_spans.is_empty() {
+        return artifact.output_spans.len() as u64;
+    }
+    artifact
+        .primary
         .get("outputSpans")
         .and_then(serde_json::Value::as_array)
         .map(|spans| spans.len() as u64)
@@ -2829,7 +2847,7 @@ fn transform_graph_report_from_artifacts(
     let exports = artifacts
         .iter()
         .map(|artifact| {
-            let has_source_map = transform_graph_has_source_map(&artifact.primary);
+            let has_source_map = transform_graph_has_source_map(artifact);
             cem_ml::report::TransformGraphExportReport {
                 export_id: artifact.export_id.clone(),
                 input: artifact.input.clone(),
@@ -2844,7 +2862,7 @@ fn transform_graph_report_from_artifacts(
                     .and_then(|identity| identity.schema.clone()),
                 output_kind: transform_graph_output_kind(&artifact.primary),
                 has_source_map,
-                output_span_count: transform_graph_output_span_count(&artifact.primary),
+                output_span_count: transform_graph_output_span_count(artifact),
                 source_map_ref: transform_graph_source_map_ref(
                     artifact.destination.as_deref(),
                     has_source_map,
@@ -3296,18 +3314,15 @@ fn write_transform_graph_source_map_sidecar(
     let Some(destination) = artifact.destination.as_deref() else {
         return Ok(());
     };
-    let Some(source_map) = artifact.primary.get("sourceMap") else {
+    let Some(source_map) = transform_graph_artifact_source_map_value(artifact) else {
         return Ok(());
     };
-    if source_map.is_null() {
-        return Ok(());
-    }
 
     let Some(source_map_ref) = transform_graph_source_map_ref(Some(destination), true) else {
         return Ok(());
     };
     let sidecar = transform_graph_source_map_sidecar_payload(
-        source_map,
+        &source_map,
         artifact.export_id.as_str(),
         artifact.input.as_str(),
         destination,
@@ -3731,6 +3746,23 @@ mod tests {
     use std::io::Cursor;
     use std::path::PathBuf;
     use std::sync::{Arc, Mutex};
+
+    fn test_source_map(len: u32) -> cem_ml::source_map::SourceMapStack {
+        cem_ml::source_map::SourceMapStack {
+            frames: vec![cem_ml::source_map::SourceMapFrame {
+                source_id: cem_ml::source::SourceId(1),
+                span: cem_ml::source_map::FrameSpan::Single(cem_ml::source::ByteRange::new(0, len)),
+                transform: cem_ml::source_map::TransformKind::InterpreterRender,
+            }],
+        }
+    }
+
+    fn test_output_span(len: u32) -> cem_ml::interpreter::OutputSpan {
+        cem_ml::interpreter::OutputSpan {
+            output_range: cem_ml::source::ByteRange::new(0, len),
+            origin: test_source_map(len),
+        }
+    }
 
     #[derive(Debug, Clone)]
     struct RecordingWriteResolver {
@@ -4551,11 +4583,13 @@ mod tests {
         );
         assert_eq!(
             report["reportAst"]["transformGraph"]["exports"][0]["hasSourceMap"],
-            false
+            true
         );
-        assert_eq!(
-            report["reportAst"]["transformGraph"]["exports"][0]["outputSpanCount"],
-            0
+        assert!(
+            report["reportAst"]["transformGraph"]["exports"][0]["outputSpanCount"]
+                .as_u64()
+                .unwrap()
+                > 0
         );
         assert_eq!(
             report["reportAst"]["transformGraph"]["exports"][1]["contentType"],
@@ -4575,10 +4609,10 @@ mod tests {
                     ..eng::FormatIdentity::default()
                 }),
                 primary: serde_json::json!({
-                    "kind": "document",
-                    "sourceMap": { "sources": ["data.cem"] },
-                    "outputSpans": [{ "start": 0, "len": 4 }]
+                    "kind": "document"
                 }),
+                source_map: Some(test_source_map(4)),
+                output_spans: vec![test_output_span(4)],
             },
             eng::TransformGraphArtifact {
                 export_id: "stdout".to_owned(),
@@ -4586,10 +4620,10 @@ mod tests {
                 destination: None,
                 identity: None,
                 primary: serde_json::json!({
-                    "kind": "document",
-                    "sourceMap": { "sources": ["data.cem"] },
-                    "outputSpans": []
+                    "kind": "document"
                 }),
+                source_map: Some(test_source_map(0)),
+                output_spans: Vec::new(),
             },
         ];
 
@@ -4634,10 +4668,10 @@ mod tests {
             }),
             primary: serde_json::json!({
                 "kind": "document",
-                "content": "<main></main>",
-                "sourceMap": { "sources": ["data.cem"] },
-                "outputSpans": [{ "start": 0, "len": 13 }]
+                "content": "<main></main>"
             }),
+            source_map: Some(test_source_map(13)),
+            output_spans: vec![test_output_span(13)],
         }];
         let mut stdout = Cursor::new(Vec::new());
         let mut stderr = Cursor::new(Vec::new());
@@ -4656,7 +4690,7 @@ mod tests {
             &std::fs::read_to_string(format!("{}.map", out.display())).unwrap(),
         )
         .unwrap();
-        assert_eq!(source_map["sources"][0], "data.cem");
+        assert!(source_map["frames"].is_array());
         assert_eq!(source_map["exportId"], "main");
         assert_eq!(source_map["input"], "html");
         assert_eq!(source_map["destination"], out.display().to_string());
@@ -4704,7 +4738,8 @@ mod tests {
         assert!(markdown.contains("main <- html ->"));
         assert!(markdown.contains("out/data.html"));
         assert!(markdown.contains("(text/html)"));
-        assert!(markdown.contains("[sourceMap: no, outputSpans: 0]"));
+        assert!(markdown.contains("[sourceMap: yes, outputSpans: "));
+        assert!(markdown.contains("[sourceMapRef: "));
     }
 
     #[test]

@@ -11,11 +11,13 @@ use crate::engine::{
     TransformTemplateEntrypoint, TransformTemplateKind,
 };
 use crate::events::cem::CemEventNormalizer;
+use crate::interpreter::OutputSpan;
 use crate::parser::builder::CemAstBuilder;
 use crate::parser::document::CemDocument;
 use crate::parser::{AstNodeId, CemAstNode};
 use crate::run_config::ScopeConfig;
 use crate::source::{BytesSource, SourceId};
+use crate::source_map::SourceMapStack;
 use crate::tokenizer::cem::CemTokenizer;
 use serde::{Deserialize, Serialize};
 use serde_json::Value;
@@ -993,6 +995,10 @@ pub struct TransformTemplateOutputArtifact {
     pub uri: Option<String>,
     pub identity: Option<FormatIdentity>,
     pub value: Value,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub source_map: Option<SourceMapStack>,
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub output_spans: Vec<OutputSpan>,
 }
 
 #[derive(Debug, Clone)]
@@ -1941,6 +1947,8 @@ mod tests {
                         "primary": request.primary_input.value,
                         "secondaryInputs": request.secondary_inputs.len(),
                     }),
+                    source_map: None,
+                    output_spans: Vec::new(),
                 },
                 diagnostics: Vec::new(),
             })

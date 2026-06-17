@@ -27,9 +27,9 @@ use cem_ml::transform_template::{
 };
 use cem_ql::eval::{AtomValue, Item, ItemStream};
 use cem_ql::render::{
-    compile_template, render_compiled_template, render_plan_to_html, CompileTemplateOptions,
-    RenderPlan, RenderPlanAttribute, RenderPlanNode, TemplateArtifact, TemplateAttributeValue,
-    TemplateData, TemplateNode,
+    compile_template, render_compiled_template, render_plan_to_html_with_source_map,
+    CompileTemplateOptions, RenderPlan, RenderPlanAttribute, RenderPlanNode, TemplateArtifact,
+    TemplateAttributeValue, TemplateData, TemplateNode,
 };
 use serde_json::{json, Map, Number, Value};
 
@@ -194,7 +194,7 @@ impl TransformTemplateAdapter for CemQlTransformTemplateAdapter {
             })?;
         let data = template_data_from_artifacts(request.primary_input, request.secondary_inputs);
         let plan = render_payload_template(payload, &data);
-        let rendered = render_plan_to_html(&plan);
+        let rendered = render_plan_to_html_with_source_map(&plan);
         let identity = request.target.cloned().or_else(|| {
             Some(FormatIdentity {
                 content_type: Some("text/html".to_owned()),
@@ -206,9 +206,11 @@ impl TransformTemplateAdapter for CemQlTransformTemplateAdapter {
             output: TransformTemplateOutputArtifact {
                 uri: None,
                 identity,
-                value: Value::String(rendered),
+                value: Value::String(rendered.rendered),
+                source_map: Some(rendered.source_map),
+                output_spans: rendered.output_spans,
             },
-            diagnostics: plan.diagnostics,
+            diagnostics: rendered.diagnostics,
         })
     }
 }

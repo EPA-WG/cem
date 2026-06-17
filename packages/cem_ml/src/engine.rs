@@ -1,7 +1,9 @@
 use crate::diagnostics::{Diagnostic, Severity};
+use crate::interpreter::OutputSpan;
 use crate::report::{Report, SchedulerTraceReport};
 use crate::resolver::ResolverRegistry;
 use crate::run_config::{SchedulerConfig, ScopeConfig};
+use crate::source_map::SourceMapStack;
 use crate::transform_template::{
     TransformTemplateAdapterRegistry, TransformTemplateAdapterResolution,
 };
@@ -825,6 +827,10 @@ pub struct TransformGraphArtifact {
     #[serde(default)]
     pub identity: Option<FormatIdentity>,
     pub primary: Value,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub source_map: Option<SourceMapStack>,
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub output_spans: Vec<OutputSpan>,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]

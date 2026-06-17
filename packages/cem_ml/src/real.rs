@@ -11,6 +11,7 @@ use crate::events::cem::CemEventNormalizer;
 use crate::formatter;
 use crate::interpreter::light_dom::LightDomInterpreter;
 use crate::interpreter::xml::XmlInterpreter;
+use crate::interpreter::OutputSpan;
 use crate::lifecycle::{ExportSelection, LifecycleRegistry, LoadedInput};
 use crate::parser::builder::CemAstBuilder;
 use crate::parser::document::CemDocument;
@@ -25,6 +26,7 @@ use crate::run_config::ScopeConfig;
 use crate::schema::machine::CemSchemaMachine;
 use crate::schema::vocab::CompiledSchema;
 use crate::source::{BytesSource, SourceId};
+use crate::source_map::SourceMapStack;
 use crate::tokenizer::cem::CemTokenizer;
 use crate::tokenizer::html::HtmlTokenizer;
 use crate::tokenizer::xml::XmlTokenizer;
@@ -54,6 +56,12 @@ use std::time::Instant;
 
 #[derive(Debug, Default, Clone)]
 pub struct RealCemMlEngine;
+
+#[derive(Debug, Default, Clone)]
+struct TransformOutputMetadata {
+    source_map: Option<SourceMapStack>,
+    output_spans: Vec<OutputSpan>,
+}
 
 impl RealCemMlEngine {
     pub fn new() -> Self {
@@ -2834,6 +2842,7 @@ impl CemMlEngine for RealCemMlEngine {
         let abort = crate::scheduler::AbortSignal::new();
         let mut diagnostics = validate_transform_graph_runtime_contract(&request);
         let mut artifacts: BTreeMap<String, TransformTemplateDataArtifact> = BTreeMap::new();
+        let mut artifact_metadata: BTreeMap<String, TransformOutputMetadata> = BTreeMap::new();
         let mut exported = Vec::new();
 
         for import in &request.imports {
@@ -3042,9 +3051,16 @@ impl CemMlEngine for RealCemMlEngine {
                     stage.id.clone(),
                     TransformTemplateDataArtifact {
                         artifact_id: stage.id.clone(),
-                        uri: output.uri,
-                        identity: output.identity,
-                        value: output.value,
+                        uri: output.uri.clone(),
+                        identity: output.identity.clone(),
+                        value: output.value.clone(),
+                    },
+                );
+                artifact_metadata.insert(
+                    stage.id.clone(),
+                    TransformOutputMetadata {
+                        source_map: output.source_map,
+                        output_spans: output.output_spans,
                     },
                 );
                 completed_stages.insert(stage.id.clone());
@@ -3083,12 +3099,18 @@ impl CemMlEngine for RealCemMlEngine {
                 })?;
             pool.run_to_completion(&abort, |_| {
                 if let Some(artifact) = artifacts.get(&export.input) {
+                    let metadata = artifact_metadata
+                        .get(&export.input)
+                        .cloned()
+                        .unwrap_or_default();
                     exported.push(TransformGraphArtifact {
                         export_id: export.id.clone(),
                         input: export.input.clone(),
                         destination: export.destination.clone(),
                         identity: export.target.clone().or_else(|| artifact.identity.clone()),
                         primary: artifact.value.clone(),
+                        source_map: metadata.source_map,
+                        output_spans: metadata.output_spans,
                     });
                 }
             });

@@ -11,6 +11,7 @@ use crate::diagnostics::Diagnostic;
 use crate::parser::CemAstNode;
 use crate::source::ByteRange;
 use crate::source_map::SourceMapStack;
+use serde::{Deserialize, Serialize};
 
 #[derive(Debug, Clone)]
 pub enum OutputTarget {
@@ -42,7 +43,8 @@ pub struct TransformOutput {
 /// One contiguous run of generated output bytes paired with the source
 /// frames they originated from. Tier A emits one span per AST node-derived
 /// output chunk (open tag, attribute, text, close tag).
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
 pub struct OutputSpan {
     pub output_range: ByteRange,
     pub origin: SourceMapStack,
