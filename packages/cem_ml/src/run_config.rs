@@ -13,6 +13,7 @@ use serde::{Deserialize, Serialize};
 use std::collections::BTreeMap;
 
 pub const RUN_CONFIG_SCHEMA_URI: &str = "https://cem.dev/ns/cli/run-config/1";
+pub const RUN_CONFIG_NAMESPACE_URI: &str = RUN_CONFIG_SCHEMA_URI;
 pub const RUN_CONFIG_JSON_SCHEMA_URI: &str = "https://cem.dev/schema/cli/run-config.schema.json";
 
 #[derive(Debug, Clone, Default, PartialEq, Eq, Serialize, Deserialize)]
@@ -164,6 +165,8 @@ impl std::error::Error for SpecParseError {}
 pub fn parse_run_config(
     request: RunConfigParseRequest,
 ) -> Result<RunConfigParseResponse, RunConfigError> {
+    validate_run_config_identity(&request.identity)?;
+
     let content_type = request
         .identity
         .content_type
@@ -189,6 +192,32 @@ pub fn parse_run_config(
             format!("run config content type `{other}` is not supported yet; use application/json"),
         )),
     }
+}
+
+fn validate_run_config_identity(identity: &FormatIdentity) -> Result<(), RunConfigError> {
+    if let Some(schema) = identity.schema.as_deref().map(str::trim) {
+        if !schema.is_empty() && schema != RUN_CONFIG_SCHEMA_URI {
+            return Err(run_config_error(
+                "cem.run_config.unsupported_schema_identity",
+                format!(
+                    "run config schema `{schema}` is not supported; expected `{RUN_CONFIG_SCHEMA_URI}`"
+                ),
+            ));
+        }
+    }
+
+    if let Some(default_namespace) = identity.default_namespace.as_deref().map(str::trim) {
+        if !default_namespace.is_empty() && default_namespace != RUN_CONFIG_NAMESPACE_URI {
+            return Err(run_config_error(
+                "cem.run_config.unsupported_schema_identity",
+                format!(
+                    "run config namespace `{default_namespace}` is not supported; expected `{RUN_CONFIG_NAMESPACE_URI}`"
+                ),
+            ));
+        }
+    }
+
+    Ok(())
 }
 
 pub fn normalize_run_config(
@@ -809,6 +838,7 @@ mod tests {
     #[test]
     fn run_config_schema_identity_constants_are_stable() {
         assert_eq!(RUN_CONFIG_SCHEMA_URI, "https://cem.dev/ns/cli/run-config/1");
+        assert_eq!(RUN_CONFIG_NAMESPACE_URI, RUN_CONFIG_SCHEMA_URI);
         assert_eq!(
             RUN_CONFIG_JSON_SCHEMA_URI,
             "https://cem.dev/schema/cli/run-config.schema.json"
@@ -880,6 +910,74 @@ mod tests {
         assert!(response.config.resolvers[0].read);
         assert!(!response.config.resolvers[0].write);
         assert!(response.diagnostics.is_empty());
+    }
+
+    #[test]
+    fn json_run_config_accepts_run_config_schema_identity() {
+        let response = parse_run_config(RunConfigParseRequest {
+            bytes: b"{}".to_vec(),
+            identity: FormatIdentity {
+                content_type: Some("application/json".to_owned()),
+                schema: Some(RUN_CONFIG_SCHEMA_URI.to_owned()),
+                ..FormatIdentity::default()
+            },
+            base_uri: None,
+        })
+        .expect("run config schema identity accepted");
+
+        assert!(response.config.inputs.is_empty());
+        assert!(response.config.outputs.is_empty());
+    }
+
+    #[test]
+    fn json_run_config_accepts_run_config_namespace_identity() {
+        let response = parse_run_config(RunConfigParseRequest {
+            bytes: b"{}".to_vec(),
+            identity: FormatIdentity {
+                content_type: Some("application/json".to_owned()),
+                default_namespace: Some(RUN_CONFIG_NAMESPACE_URI.to_owned()),
+                ..FormatIdentity::default()
+            },
+            base_uri: None,
+        })
+        .expect("run config namespace identity accepted");
+
+        assert!(response.config.inputs.is_empty());
+        assert!(response.config.outputs.is_empty());
+    }
+
+    #[test]
+    fn unsupported_run_config_schema_identity_is_rejected() {
+        let error = parse_run_config(RunConfigParseRequest {
+            bytes: b"{}".to_vec(),
+            identity: FormatIdentity {
+                content_type: Some("application/json".to_owned()),
+                schema: Some("https://cem.dev/ns/core/1".to_owned()),
+                ..FormatIdentity::default()
+            },
+            base_uri: None,
+        })
+        .expect_err("CEM core schema is not run config schema");
+
+        assert_eq!(error.code, "cem.run_config.unsupported_schema_identity");
+        assert!(error.message.contains(RUN_CONFIG_SCHEMA_URI));
+    }
+
+    #[test]
+    fn unsupported_run_config_namespace_identity_is_rejected() {
+        let error = parse_run_config(RunConfigParseRequest {
+            bytes: b"{}".to_vec(),
+            identity: FormatIdentity {
+                content_type: Some("application/json".to_owned()),
+                default_namespace: Some("https://cem.dev/ns/core/1".to_owned()),
+                ..FormatIdentity::default()
+            },
+            base_uri: None,
+        })
+        .expect_err("CEM core namespace is not run config namespace");
+
+        assert_eq!(error.code, "cem.run_config.unsupported_schema_identity");
+        assert!(error.message.contains(RUN_CONFIG_NAMESPACE_URI));
     }
 
     #[test]

@@ -80,7 +80,8 @@ the immediate CLI lifecycle contract.
      strings plus config `FormatIdentity`, then consume the normalized `RunConfig`.
    **Current slice:** `cem_ml::run_config::RunConfig` and root `ScopeConfig` exist;
    `cem_ml::run_config::parse_run_config(bytes + FormatIdentity)` supports JSON config
-   documents by content type; CLI accepts `--config`, `--config-content-type`,
+   documents by content type and run-config schema/namespace identity; CLI accepts `--config`, `--config-content-type`,
+   `--config-schema`,
    repeatable `--input-spec`, and repeatable `--output-spec`; WASM exposes JSON
    normalization and CSV spec parsing helpers over the same library parser. Input specs
    override global input identity for lifecycle dispatch, and the first output spec can
@@ -100,7 +101,7 @@ the immediate CLI lifecycle contract.
    and `https://cem.dev/ns/projection/events/1`, with optional `application/json` /
    `text/json` target content types. Transform config and CEM-native template schema targets
    are also registry-owned as CEM output syntax. Config diagnostics for
-   malformed JSON, unsupported config content type, duplicate input URIs, and unknown
+   malformed JSON, unsupported config content type/schema identity, duplicate input URIs, and unknown
    output input references fail before document parsing. `--observe-events` consumes the same
    normalized input list and lifecycle dispatch path as parser-backed commands, including
    `--input-spec` and `--config` inputs. Config-file convert execution fans out multiple

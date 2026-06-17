@@ -460,7 +460,12 @@ fn run_config_with_context(
                 })
                 .or_else(|| infer_config_content_type(path))
                 .or_else(|| read.content_type.clone()),
-            schema: None,
+            schema: Some(
+                options
+                    .config_schema
+                    .clone()
+                    .unwrap_or_else(|| run_config::RUN_CONFIG_SCHEMA_URI.to_owned()),
+            ),
             default_namespace: None,
             namespaces: BTreeMap::new(),
             base_uri: Some(config_source_uri.clone()),
@@ -1156,7 +1161,11 @@ fn transform_graph_config_from_args(
             })
             .or_else(|| infer_config_content_type(config_path))
             .or_else(|| read.content_type.clone()),
-        schema: Some(transform_config::TRANSFORM_CONFIG_SCHEMA_URI.to_owned()),
+        schema: Some(
+            args.config_schema
+                .clone()
+                .unwrap_or_else(|| transform_config::TRANSFORM_CONFIG_SCHEMA_URI.to_owned()),
+        ),
         default_namespace: None,
         namespaces: BTreeMap::new(),
         base_uri: Some(config_source_uri.clone()),
@@ -5166,6 +5175,8 @@ mod tests {
                 "transform",
                 "--config",
                 config.to_str().unwrap(),
+                "--config-schema",
+                transform_config::TRANSFORM_CONFIG_SCHEMA_URI,
                 "--report-md",
                 report.to_str().unwrap(),
             ],
@@ -5182,6 +5193,36 @@ mod tests {
         assert!(markdown.contains("(text/html)"));
         assert!(markdown.contains("[sourceMap: yes, outputSpans: "));
         assert!(markdown.contains("[sourceMapRef: "));
+    }
+
+    #[test]
+    fn transform_config_unknown_schema_fails_before_document_parsing() {
+        let root = std::env::temp_dir().join("cem-ml-cli-tests/transform-config-unknown-schema");
+        let _ = std::fs::remove_dir_all(&root);
+        std::fs::create_dir_all(&root).unwrap();
+        let config = root.join("graph.cem");
+        std::fs::write(&config, "{run}").unwrap();
+
+        let (outcome, stdout, stderr) = run(
+            &RealCemMlEngine::new(),
+            &[
+                "transform",
+                "--config",
+                config.to_str().unwrap(),
+                "--config-schema",
+                "https://cem.dev/ns/core/1",
+            ],
+        );
+
+        assert_eq!(outcome.exit_code, EXIT_USAGE_OR_RESERVED);
+        assert!(stdout.is_empty(), "{stdout}");
+        assert_stderr_contains_all(
+            &stderr,
+            &[
+                "cem.transform_config.unsupported_schema_identity",
+                "https://cem.dev/ns/cli/transform-config/1",
+            ],
+        );
     }
 
     #[test]
@@ -8718,6 +8759,90 @@ mod tests {
         assert_eq!(
             file_report["diagnostics"][0]["code"],
             "cem.run_config.output_input_ref_unknown"
+        );
+    }
+
+    #[test]
+    fn run_config_schema_identity_is_accepted() {
+        let input = write_fixture("run-config-schema-input.cem", "{p | Hi}");
+        let config_path = std::env::temp_dir().join("cem-ml-cli-tests/run-config-schema.json");
+        std::fs::write(
+            &config_path,
+            serde_json::json!({
+                "inputs": [{ "uri": input.display().to_string() }]
+            })
+            .to_string(),
+        )
+        .unwrap();
+
+        let (outcome, stdout, stderr) = run(
+            &RealCemMlEngine::new(),
+            &[
+                "validate",
+                "--format",
+                "json",
+                "--config",
+                config_path.to_str().unwrap(),
+                "--config-schema",
+                run_config::RUN_CONFIG_SCHEMA_URI,
+            ],
+        );
+
+        assert_eq!(outcome.exit_code, EXIT_OK, "{stderr}");
+        assert!(stderr.trim().is_empty(), "{stderr}");
+        let report: serde_json::Value = serde_json::from_str(stdout.trim()).unwrap();
+        assert_eq!(report["summary"]["fatalCount"], 0);
+        assert!(!report["diagnostics"]
+            .as_array()
+            .unwrap()
+            .iter()
+            .any(|diag| {
+                diag["code"]
+                    .as_str()
+                    .is_some_and(|code| code.starts_with("cem.run_config."))
+            }));
+    }
+
+    #[test]
+    fn run_config_unknown_schema_fails_before_document_parsing() {
+        let config_path =
+            std::env::temp_dir().join("cem-ml-cli-tests/run-config-unknown-schema.json");
+        std::fs::write(
+            &config_path,
+            serde_json::json!({
+                "inputs": [{ "uri": "/definitely/not/read.cem" }]
+            })
+            .to_string(),
+        )
+        .unwrap();
+
+        let (outcome, stdout, stderr) = run(
+            &RealCemMlEngine::new(),
+            &[
+                "validate",
+                "--config",
+                config_path.to_str().unwrap(),
+                "--config-schema",
+                "https://cem.dev/ns/core/1",
+            ],
+        );
+
+        assert_eq!(outcome.exit_code, EXIT_USAGE_OR_RESERVED);
+        assert_stderr_contains_all(
+            &stderr,
+            &[
+                "cem.run_config.unsupported_schema_identity",
+                "https://cem.dev/ns/cli/run-config/1",
+            ],
+        );
+        assert!(
+            !stderr.contains("I/O error"),
+            "config schema diagnostics must fail before input files are read: {stderr}"
+        );
+        let report: serde_json::Value = serde_json::from_str(stdout.trim()).unwrap();
+        assert_eq!(
+            report["diagnostics"][0]["code"],
+            "cem.run_config.unsupported_schema_identity"
         );
     }
 

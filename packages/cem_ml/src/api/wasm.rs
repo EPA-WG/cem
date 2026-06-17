@@ -128,6 +128,7 @@ pub fn normalize_run_config(json: &str) -> String {
         bytes: json.as_bytes().to_vec(),
         identity: crate::engine::FormatIdentity {
             content_type: Some("application/json".to_owned()),
+            schema: Some(crate::run_config::RUN_CONFIG_SCHEMA_URI.to_owned()),
             ..crate::engine::FormatIdentity::default()
         },
         base_uri: None,

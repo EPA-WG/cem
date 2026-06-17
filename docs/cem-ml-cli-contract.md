@@ -69,8 +69,8 @@ Configuration surfaces:
   per-document root scopes.
 - Config parsing, validation, normalization, and defaulting MUST be implemented in
   `cem_ml`. The CLI, WASM adapter, and Rust callers provide raw config bytes or raw
-  spec-record strings plus a declared config content type; they must not carry separate
-  config semantics.
+  spec-record strings plus declared config content type and schema identity; they must
+  not carry separate config semantics.
 - Config files are structural data too: config bytes + config content type + config
   schema/namespace identity are parsed through the CEM-ML-owned config lifecycle before
   document parsing starts. JSON is the current supported config content type for the
@@ -501,12 +501,12 @@ Current implementation status:
   output specs, root scope configuration, and scheduler configuration. `cem_ml` owns
   `parse_run_config(bytes + FormatIdentity)`, plus repeatable CSV `InputSpec` /
   `OutputSpec` record parsing. CLI accepts `--config`, `--config-content-type`,
-  repeatable `--input-spec`, and repeatable `--output-spec` by delegating parsing to
+  `--config-schema`, repeatable `--input-spec`, and repeatable `--output-spec` by delegating parsing to
   `cem_ml`; WASM exposes helpers over the same library parser. This is the first
   execution slice: input specs override global input content-type/schema/base URI during
   lifecycle dispatch, and the first output spec can select conversion target content
   type, schema, namespace identity, and destination. Config diagnostics for malformed JSON,
-  unsupported config content type, duplicate input URIs, and unknown output input references fail before
+  unsupported config content type/schema identity, duplicate input URIs, and unknown output input references fail before
   document parsing, and report-capable commands emit those diagnostics through requested JSON/Markdown reports.
   `--observe-events` uses the same normalized input list and
   lifecycle dispatch path as parser-backed commands, including `--input-spec` and
@@ -730,7 +730,7 @@ I/O messages, but they must not replace the underlying resolver code or URI.
 - Multi-source configuration via config file, plus repeatable CSV option records for
   CLI one-liners. Config files are preferred for CI/build reproducibility.
 - Config-file content type via `--config-content-type`, inferred from extension when
-  omitted for known config formats.
+  omitted for known config formats, plus config schema identity via `--config-schema`.
 - Output format selection for CEM-native, XML, JSON, text, HTML, Markdown, DOM JSON, AST, events, and tree-shaped
   output where relevant.
 - Output destination handling for stdout and `--out`.

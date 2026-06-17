@@ -15,6 +15,9 @@ for the current architecture have landed; only deferred capability work remains 
       that validates bytes, loads normalized events / CEM AST, and exports to the requested target identity. Keep
       `--from-format` / `--to-format` as compatibility aliases while adding explicit input/output content-type and
       schema selection.
+      JSON run-config parsing now validates the dedicated run-config schema/namespace identity
+      (`https://cem.dev/ns/cli/run-config/1`), the CLI exposes `--config-schema` for run configs and transform graph
+      configs, and config content-type/schema diagnostics fail before document parsing.
       Built-in input content-type dispatch is now registry-backed across parser-backed commands. CEM core schema identity
       (`https://cem.dev/ns/core/1`), CLI transform config schema identity
       (`https://cem.dev/ns/cli/transform-config/1`), and CEM-native template schema identity

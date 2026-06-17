@@ -370,6 +370,13 @@ pub struct RunOptions {
     pub config_content_type: Option<String>,
 
     #[arg(
+        long = "config-schema",
+        value_name = "URI",
+        help = "Schema identity of --config"
+    )]
+    pub config_schema: Option<String>,
+
+    #[arg(
         long = "input-spec",
         value_name = "CSV",
         action = clap::ArgAction::Append,
@@ -554,6 +561,13 @@ pub struct TransformArgs {
         help = "Content type of --config; inferred from extension when omitted"
     )]
     pub config_content_type: Option<String>,
+
+    #[arg(
+        long = "config-schema",
+        value_name = "URI",
+        help = "Schema identity of --config"
+    )]
+    pub config_schema: Option<String>,
 
     #[arg(
         long = "data-content-type",
@@ -909,6 +923,8 @@ mod tests {
             "graph.cem",
             "--config-content-type",
             "text/cem-ml",
+            "--config-schema",
+            "https://cem.dev/ns/cli/transform-config/1",
         ])
         .unwrap();
 
@@ -919,6 +935,10 @@ mod tests {
         assert_eq!(args.template, None);
         assert_eq!(args.config, Some(PathBuf::from("graph.cem")));
         assert_eq!(args.config_content_type.as_deref(), Some("text/cem-ml"));
+        assert_eq!(
+            args.config_schema.as_deref(),
+            Some("https://cem.dev/ns/cli/transform-config/1")
+        );
     }
 
     #[test]
@@ -1066,6 +1086,8 @@ mod tests {
             "cem-run.json",
             "--config-content-type",
             "application/json",
+            "--config-schema",
+            "https://cem.dev/ns/cli/run-config/1",
         ])
         .unwrap();
     }
