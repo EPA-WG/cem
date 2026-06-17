@@ -257,6 +257,9 @@ available toolchains, not the Phase 1 token-spine work that already shipped.
       Gradle, or Kotlin compiler available, so the true compile release gate must wait for a supported Android/Gradle CI
       or local toolchain. `nx run @epa-wg/cem-theme:build:token-platforms` still builds and validates the Android XML,
       `values-night`, Compose constants, and zero-fail-hard Android report offline.
-- [ ] Wire a token-change smoke test for the non-Figma propagation path: change one canonical token, regenerate CSS,
-      JSON, Swift, and Android outputs, and assert every artifact moves coherently. Track gaps in
-      `token-pipeline-smoke.md`. (The Figma propagation leg of the same smoke test lives in Phase 5.)
+- [x] Wire a token-change smoke test for the non-Figma propagation path: change one canonical token, regenerate CSS,
+      JSON, Swift, and Android outputs, and assert every artifact moves coherently. `nx run
+      @epa-wg/cem-theme:smoke:token-propagation` temporarily changes `--cem-color-blue-xl`, runs the token build plus
+      platform generation/validation, verifies CSS/JSON/Swift/Android propagation, restores the source value, and
+      rebuilds back to a clean state.
+      Remaining native compile-toolchain gaps are tracked in `token-pipeline-smoke.md`.

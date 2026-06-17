@@ -4,6 +4,8 @@ Validation run: 2026-05-01.
 
 Figma propagation leg added: 2026-06-17.
 
+Repeatable non-Figma propagation gate added: 2026-06-17.
+
 ## Source Change
 
 Changed one source token in `packages/cem-theme/src/lib/tokens/cem-colors.md`:
@@ -139,3 +141,34 @@ It then verifies the generated Figma mode-file contract that a refresh must pres
 Gap: this smoke does not call the Figma REST API or inspect the private `CEM UI Kit` file live. Credentialed live
 validation remains under the Figma REST API sync policy in `packages/cem-theme/docs/token-figma.md`; until that exists
 in CI, the release gate validates the generated import artifacts and the checked-in fixture/evidence offline.
+
+## Repeatable Non-Figma Gate
+
+Run the deterministic source-to-platform smoke with:
+
+```bash
+yarn nx run @epa-wg/cem-theme:smoke:token-propagation
+```
+
+The gate temporarily changes the canonical markdown row:
+
+```text
+--cem-color-blue-xl: #e0e8ff -> #dce8ff
+```
+
+It runs `yarn nx run @epa-wg/cem-theme:build:tokens`, rewrites platform artifacts with
+`build-token-platforms.mjs`, validates them with `validate-platforms.mjs`, restores the source file, and repeats the
+same generation path so the worktree returns to the original token value. Platform emission is run directly after the
+Nx token build so local Nx cache cannot leave restored-source platform artifacts at the temporary smoke value.
+
+Checked propagation surfaces:
+
+- source markdown and built token XHTML
+- generated per-spec and combined CSS
+- canonical, resolved, TypeScript, and flat per-mode JSON token outputs
+- iOS Swift constants and asset-catalog hints
+- Android `values`, `values-night`, and Compose constants
+- iOS and Android reports showing zero fail-hard violations
+
+This gate does not compile Swift or Kotlin because the current workspace has neither Xcode nor Java/Gradle/Kotlin
+toolchains. Those compile gates remain deferred to supported native CI environments.

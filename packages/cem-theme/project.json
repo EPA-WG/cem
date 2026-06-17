@@ -159,6 +159,23 @@
             ],
             "outputs": []
         },
+        "smoke:token-propagation": {
+            "executor": "nx:run-commands",
+            "options": {
+                "command": "node scripts/smoke-token-propagation.mjs",
+                "cwd": "packages/cem-theme"
+            },
+            "cache": false,
+            "inputs": [
+                "{projectRoot}/scripts/smoke-token-propagation.mjs",
+                "{projectRoot}/src/lib/tokens/cem-colors.md",
+                "{projectRoot}/scripts/build-token-platforms.mjs",
+                "{projectRoot}/scripts/export-tokens.mjs",
+                "{projectRoot}/scripts/validate-platforms.mjs",
+                "{projectRoot}/style-dictionary.config.mjs"
+            ],
+            "outputs": []
+        },
         "build:html": {
             "dependsOn": [
                 "build:docs",
