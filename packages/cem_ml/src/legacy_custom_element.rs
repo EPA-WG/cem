@@ -1468,9 +1468,38 @@ fn matches_single_item_pattern(pattern: &str, member: &CurrentItem) -> bool {
                 || pattern == "."
                 || pattern == member.tag
                 || member.attrs.get("name").map(String::as_str) == Some(pattern)
+                || matches_child_path_pattern(pattern, member)
                 || matches_simple_predicate_pattern(pattern, member)
         }
     }
+}
+
+fn matches_child_path_pattern(pattern: &str, member: &CurrentItem) -> bool {
+    if !pattern.contains('/') || pattern.starts_with('/') || pattern.contains("//") {
+        return false;
+    }
+    let mut current = member;
+    let mut segments = pattern
+        .split('/')
+        .filter(|part| !part.trim().is_empty())
+        .rev();
+    let Some(last) = segments.next() else {
+        return false;
+    };
+    if !step_matches_current(last.trim(), current) {
+        return false;
+    }
+    for segment in segments {
+        let Some(parent) = current.parent.as_deref() else {
+            return false;
+        };
+        if parent.kind != CurrentItemKind::Element || !step_matches_current(segment.trim(), parent)
+        {
+            return false;
+        }
+        current = parent;
+    }
+    true
 }
 
 fn matches_simple_predicate_pattern(pattern: &str, member: &CurrentItem) -> bool {
@@ -3526,6 +3555,30 @@ mod tests {
         assert_eq!(
             result.source,
             "{doc | {item @id=\"a\" | before{child | B}after}}{out | {identity | item:{identity | id:}{txt | before}{identity | child:{txt | B}}{txt | after}}}"
+        );
+        assert!(result.diagnostics.is_empty());
+    }
+
+    #[test]
+    fn child_path_match_pattern_dispatches_by_parent_chain() {
+        let result = convert(
+            r#"<doc><item>A</item><wrap><item>B</item></wrap></doc><xsl:stylesheet version="1.0"><xsl:template match="/"><out><xsl:apply-templates select="//item"/></out></xsl:template><xsl:template match="item"><any><xsl:value-of select="."/></any></xsl:template><xsl:template match="doc/item"><top><xsl:value-of select="."/></top></xsl:template></xsl:stylesheet>"#,
+        );
+        assert_eq!(
+            result.source,
+            "{doc | {item | A}{wrap | {item | B}}}{out | {top | A}{any | B}}"
+        );
+        assert!(result.diagnostics.is_empty());
+    }
+
+    #[test]
+    fn child_path_match_pattern_supports_wildcard_parent_steps() {
+        let result = convert(
+            r#"<doc><wrap><item>A</item></wrap><other><item>B</item></other></doc><xsl:stylesheet version="1.0"><xsl:template match="/"><out><xsl:apply-templates select="//item"/></out></xsl:template><xsl:template match="item"><plain><xsl:value-of select="."/></plain></xsl:template><xsl:template match="*/item"><nested><xsl:value-of select="."/></nested></xsl:template></xsl:stylesheet>"#,
+        );
+        assert_eq!(
+            result.source,
+            "{doc | {wrap | {item | A}}{other | {item | B}}}{out | {nested | A}{nested | B}}"
         );
         assert!(result.diagnostics.is_empty());
     }
