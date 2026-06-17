@@ -232,6 +232,59 @@ fn graph_config_executes_xslt_parity_asset_list_and_writes_sidecar() {
 }
 
 #[test]
+fn graph_config_reports_missing_xslt_named_entrypoint_without_export() {
+    let root = fixture_root("graph-missing-entrypoint");
+    let data = root.join("asset.cem");
+    let template = root.join("assets.xsl");
+    let graph = root.join("graph.cem");
+    let report_path = root.join("report.json");
+    let out = root.join("out/assets.html");
+    write(&data, r#"{article @id="asset"}"#);
+    write(
+        &template,
+        r#"<xsl:stylesheet version="1.0"><xsl:template match="/"><ul><li>default</li></ul></xsl:template></xsl:stylesheet>"#,
+    );
+    write(
+        &graph,
+        r#"{run |
+  {import @id=asset @src="asset.cem" @content-type="text/cem-ml" |
+    {transform @id=html @src="assets.xsl" @template-content-type="application/xslt+xml" @entrypoint="missing" |
+      {export @id=main @out="out/assets.html" @content-type="text/html"}
+    }
+  }
+}"#,
+    );
+
+    let output = cem_ml(&[
+        "transform",
+        "--config",
+        graph.to_str().expect("graph path is utf-8"),
+        "--report-json",
+        report_path.to_str().expect("report path is utf-8"),
+    ]);
+
+    assert_eq!(output.status.code(), Some(EXIT_HARD_FAILURE));
+    assert!(stdout(&output).is_empty(), "{}", stdout(&output));
+    assert!(stderr(&output).trim().is_empty(), "{}", stderr(&output));
+    assert!(!out.exists(), "failed graph stage must not write export");
+    assert!(
+        !PathBuf::from(format!("{}.map", out.display())).exists(),
+        "failed graph stage must not write source-map sidecar"
+    );
+    let report = report(&report_path);
+    assert!(has_diagnostic(
+        &report,
+        "cem.transform_template.call_unknown"
+    ));
+    assert_eq!(report["summary"]["hardViolationCount"], 1);
+    assert_eq!(report["reportAst"]["transformGraph"]["exportCount"], 0);
+    assert!(report["reportAst"]["transformGraph"]["exports"]
+        .as_array()
+        .expect("exports array")
+        .is_empty());
+}
+
+#[test]
 fn graph_config_executes_mixed_cem_native_and_xslt_stage_policies() {
     let root = fixture_root("graph-mixed-runtime");
     let data = root.join("asset.cem");
