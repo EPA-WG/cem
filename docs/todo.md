@@ -25,11 +25,12 @@ for the current architecture have landed; only deferred capability work remains 
       CEM/HTML target export is registry-owned for `--to-content-type application/cem+xml`,
       `--to-schema https://cem.dev/ns/core/1`, `--to-content-type text/html`,
       `--to-content-type application/xhtml+xml`, XML target export is registry-owned for
-      `--to-content-type application/xml` / `text/xml`, plus namespace-only CEM core and HTML/SVG targets; unsupported target
-      identities now emit a deterministic lifecycle
+      `--to-content-type application/xml` / `text/xml`, plus namespace-only CEM core and HTML/SVG targets. Structural JSON
+      projections are registry-owned through schema identities `https://cem.dev/ns/projection/dom-json/1`,
+      `https://cem.dev/ns/projection/ast/1`, and `https://cem.dev/ns/projection/events/1`, optionally paired with
+      `application/json` / `text/json` content types. Unsupported target identities now emit a deterministic lifecycle
       diagnostic with the declared content type, schema, and/or namespace while preserving the requested fallback output projection.
-      Keep this item open until broader target adapters beyond current CEM, HTML, and XML output surfaces are
-      registry-owned too.
+      Keep this item open until broader non-CEM schema/namespace-specific export adapters are registry-owned too.
 - [ ] **Wishlist (future — NOT in the immediate release timeline):** engine XSLT 3.0/4.0 execution
       behind G-NVDL-FULL (AC-P-6.9). The architecture keeps the capability-gated seam — XSLT is a
       peer language behind explicit dispatch, not the primary model or a browser-native dependency —

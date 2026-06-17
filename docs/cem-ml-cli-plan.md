@@ -92,7 +92,10 @@ the immediate CLI lifecycle contract.
    schema is present, while explicit content type remains authoritative. Unsupported input
    and target identities emit deterministic lifecycle diagnostics with the declared
    content type, schema, and/or namespace while preserving the requested fallback input
-   format or output projection. Config diagnostics for
+   format or output projection. Structural JSON projection targets are registry-owned by
+   `https://cem.dev/ns/projection/dom-json/1`, `https://cem.dev/ns/projection/ast/1`,
+   and `https://cem.dev/ns/projection/events/1`, with optional `application/json` /
+   `text/json` target content types. Config diagnostics for
    malformed JSON, unsupported config content type, duplicate input URIs, and unknown
    output input references fail before document parsing. `--observe-events` consumes the same
    normalized input list and lifecycle dispatch path as parser-backed commands, including

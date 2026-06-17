@@ -566,10 +566,13 @@ Current implementation status:
   `convert --to-schema https://cem.dev/ns/core/1`, and
   `convert --to-content-type text/html` / `application/xhtml+xml`, XML target export is
   registry-owned for `convert --to-content-type application/xml` / `text/xml`, plus namespace-only
-  CEM core and HTML/SVG targets; unsupported target
-  identities emit a deterministic lifecycle diagnostic with the declared content type,
-  schema, and/or namespace while preserving the requested fallback output projection. Remaining
-  non-CEM schema/namespace-specific export adapters are still pending.
+  CEM core and HTML/SVG targets. Structural JSON projection exports are registry-owned
+  for `https://cem.dev/ns/projection/dom-json/1`, `https://cem.dev/ns/projection/ast/1`,
+  and `https://cem.dev/ns/projection/events/1`, with optional `application/json` /
+  `text/json` target content types. Unsupported target identities emit a deterministic
+  lifecycle diagnostic with the declared content type, schema, and/or namespace while
+  preserving the requested fallback output projection. Remaining non-CEM
+  schema/namespace-specific export adapters are still pending.
 - Root-scope configuration is complete for the current CLI/lib/WASM contract. Current execution uses run-config identity
   fields for lifecycle dispatch and conversion output selection, recognized scheduler
   policy/budget fields for scheduled worker policy, `parseMs` for parser-backed

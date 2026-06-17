@@ -11,6 +11,9 @@ pub const ADAPTER_AMBIGUOUS_CODE: &str = "cem.lifecycle.adapter_ambiguous";
 pub const ADAPTER_UNSUPPORTED_CODE: &str = "cem.lifecycle.adapter_unsupported";
 pub const TARGET_ADAPTER_AMBIGUOUS_CODE: &str = "cem.lifecycle.target_adapter_ambiguous";
 pub const TARGET_ADAPTER_UNSUPPORTED_CODE: &str = "cem.lifecycle.target_adapter_unsupported";
+pub const DOM_JSON_PROJECTION_SCHEMA: &str = "https://cem.dev/ns/projection/dom-json/1";
+pub const AST_PROJECTION_SCHEMA: &str = "https://cem.dev/ns/projection/ast/1";
+pub const EVENTS_PROJECTION_SCHEMA: &str = "https://cem.dev/ns/projection/events/1";
 
 const HTML_NAMESPACE: &str = "http://www.w3.org/1999/xhtml";
 const SVG_NAMESPACE: &str = "http://www.w3.org/2000/svg";
@@ -59,6 +62,9 @@ impl LifecycleRegistry {
         registry.register(HtmlAdapter);
         registry.register(XmlAdapter);
         registry.register(LegacyCustomElementXsltAdapter);
+        registry.register(DomJsonProjectionAdapter);
+        registry.register(AstProjectionAdapter);
+        registry.register(EventsProjectionAdapter);
         registry
     }
 
@@ -234,6 +240,12 @@ fn matches_schema(identity: &FormatIdentity, allowed: &[&str]) -> bool {
 
 fn matches_schema_without_content_type(identity: &FormatIdentity, allowed: &[&str]) -> bool {
     !has_content_type(identity) && matches_schema(identity, allowed)
+}
+
+fn matches_json_projection_schema(identity: &FormatIdentity, allowed: &[&str]) -> bool {
+    matches_schema(identity, allowed)
+        && (!has_content_type(identity)
+            || matches_content_type(identity, &["application/json", "text/json"]))
 }
 
 fn identity_is_empty(identity: &FormatIdentity) -> bool {
@@ -466,6 +478,90 @@ impl LifecycleAdapter for LegacyCustomElementXsltAdapter {
                 .collect(),
             adapter_id: Some(self.id()),
         }
+    }
+}
+
+struct DomJsonProjectionAdapter;
+
+impl LifecycleAdapter for DomJsonProjectionAdapter {
+    fn id(&self) -> &'static str {
+        "dom-json-projection"
+    }
+
+    fn matches_input(&self, _: &FormatIdentity) -> bool {
+        false
+    }
+
+    fn load(&self, input: &EngineInput, _: &FormatIdentity) -> LoadedInput {
+        passthrough_load(
+            input,
+            input.from_format.unwrap_or(InputFormat::Cem),
+            Some(self.id()),
+        )
+    }
+
+    fn matches_target(&self, identity: &FormatIdentity) -> bool {
+        matches_json_projection_schema(identity, &[DOM_JSON_PROJECTION_SCHEMA])
+    }
+
+    fn target_format(&self) -> Option<LayerFormat> {
+        Some(LayerFormat::DomJson)
+    }
+}
+
+struct AstProjectionAdapter;
+
+impl LifecycleAdapter for AstProjectionAdapter {
+    fn id(&self) -> &'static str {
+        "ast-projection"
+    }
+
+    fn matches_input(&self, _: &FormatIdentity) -> bool {
+        false
+    }
+
+    fn load(&self, input: &EngineInput, _: &FormatIdentity) -> LoadedInput {
+        passthrough_load(
+            input,
+            input.from_format.unwrap_or(InputFormat::Cem),
+            Some(self.id()),
+        )
+    }
+
+    fn matches_target(&self, identity: &FormatIdentity) -> bool {
+        matches_json_projection_schema(identity, &[AST_PROJECTION_SCHEMA])
+    }
+
+    fn target_format(&self) -> Option<LayerFormat> {
+        Some(LayerFormat::Ast)
+    }
+}
+
+struct EventsProjectionAdapter;
+
+impl LifecycleAdapter for EventsProjectionAdapter {
+    fn id(&self) -> &'static str {
+        "events-projection"
+    }
+
+    fn matches_input(&self, _: &FormatIdentity) -> bool {
+        false
+    }
+
+    fn load(&self, input: &EngineInput, _: &FormatIdentity) -> LoadedInput {
+        passthrough_load(
+            input,
+            input.from_format.unwrap_or(InputFormat::Cem),
+            Some(self.id()),
+        )
+    }
+
+    fn matches_target(&self, identity: &FormatIdentity) -> bool {
+        matches_json_projection_schema(identity, &[EVENTS_PROJECTION_SCHEMA])
+    }
+
+    fn target_format(&self) -> Option<LayerFormat> {
+        Some(LayerFormat::Events)
     }
 }
 
@@ -844,6 +940,73 @@ mod tests {
         };
         let selected = LifecycleRegistry::with_builtin_adapters()
             .select_export(Some(&target), LayerFormat::DomJson);
+        assert_eq!(selected.to_format, LayerFormat::Html);
+        assert_eq!(selected.adapter_id, Some("html"));
+        assert!(selected.diagnostics.is_empty());
+    }
+
+    #[test]
+    fn dom_json_projection_schema_selects_dom_json_export() {
+        let target = FormatIdentity {
+            schema: Some(DOM_JSON_PROJECTION_SCHEMA.to_owned()),
+            ..FormatIdentity::default()
+        };
+        let selected = LifecycleRegistry::with_builtin_adapters()
+            .select_export(Some(&target), LayerFormat::Cem);
+        assert_eq!(selected.to_format, LayerFormat::DomJson);
+        assert_eq!(selected.adapter_id, Some("dom-json-projection"));
+        assert!(selected.diagnostics.is_empty());
+    }
+
+    #[test]
+    fn dom_json_projection_schema_with_json_content_type_selects_dom_json_export() {
+        let target = FormatIdentity {
+            content_type: Some("application/json; charset=utf-8".to_owned()),
+            schema: Some(DOM_JSON_PROJECTION_SCHEMA.to_owned()),
+            ..FormatIdentity::default()
+        };
+        let selected = LifecycleRegistry::with_builtin_adapters()
+            .select_export(Some(&target), LayerFormat::Cem);
+        assert_eq!(selected.to_format, LayerFormat::DomJson);
+        assert_eq!(selected.adapter_id, Some("dom-json-projection"));
+        assert!(selected.diagnostics.is_empty());
+    }
+
+    #[test]
+    fn ast_projection_schema_selects_ast_export() {
+        let target = FormatIdentity {
+            schema: Some(AST_PROJECTION_SCHEMA.to_owned()),
+            ..FormatIdentity::default()
+        };
+        let selected = LifecycleRegistry::with_builtin_adapters()
+            .select_export(Some(&target), LayerFormat::Cem);
+        assert_eq!(selected.to_format, LayerFormat::Ast);
+        assert_eq!(selected.adapter_id, Some("ast-projection"));
+        assert!(selected.diagnostics.is_empty());
+    }
+
+    #[test]
+    fn events_projection_schema_selects_events_export() {
+        let target = FormatIdentity {
+            schema: Some(EVENTS_PROJECTION_SCHEMA.to_owned()),
+            ..FormatIdentity::default()
+        };
+        let selected = LifecycleRegistry::with_builtin_adapters()
+            .select_export(Some(&target), LayerFormat::Cem);
+        assert_eq!(selected.to_format, LayerFormat::Events);
+        assert_eq!(selected.adapter_id, Some("events-projection"));
+        assert!(selected.diagnostics.is_empty());
+    }
+
+    #[test]
+    fn projection_schema_does_not_override_known_document_content_type() {
+        let target = FormatIdentity {
+            content_type: Some("text/html".to_owned()),
+            schema: Some(DOM_JSON_PROJECTION_SCHEMA.to_owned()),
+            ..FormatIdentity::default()
+        };
+        let selected = LifecycleRegistry::with_builtin_adapters()
+            .select_export(Some(&target), LayerFormat::Cem);
         assert_eq!(selected.to_format, LayerFormat::Html);
         assert_eq!(selected.adapter_id, Some("html"));
         assert!(selected.diagnostics.is_empty());

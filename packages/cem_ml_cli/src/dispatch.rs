@@ -9740,6 +9740,90 @@ mod tests {
     }
 
     #[test]
+    fn convert_to_dom_json_projection_schema_selects_dom_json_export_adapter() {
+        let p = write_fixture("convert-target-dom-json-schema.cem", "{p | Hi}");
+        let (outcome, stdout, stderr) = run(
+            &RealCemMlEngine::new(),
+            &[
+                "convert",
+                "--to-format",
+                "xml",
+                "--to-content-type",
+                "application/json",
+                "--to-schema",
+                cem_ml::lifecycle::DOM_JSON_PROJECTION_SCHEMA,
+                p.to_str().unwrap(),
+            ],
+        );
+
+        assert_eq!(outcome.exit_code, EXIT_OK, "{stderr}");
+        assert!(
+            !stderr.contains("cem.lifecycle.target_adapter_unsupported"),
+            "{stderr}"
+        );
+        let v: serde_json::Value = serde_json::from_str(stdout.trim()).unwrap();
+        assert_eq!(v["kind"], "document");
+        assert_eq!(v["children"][0]["kind"], "element");
+        assert_eq!(v["children"][0]["name"], "p");
+    }
+
+    #[test]
+    fn convert_to_ast_projection_schema_selects_ast_export_adapter() {
+        let p = write_fixture("convert-target-ast-schema.cem", "{p | Hi}");
+        let (outcome, stdout, stderr) = run(
+            &RealCemMlEngine::new(),
+            &[
+                "convert",
+                "--to-format",
+                "cem",
+                "--to-schema",
+                cem_ml::lifecycle::AST_PROJECTION_SCHEMA,
+                p.to_str().unwrap(),
+            ],
+        );
+
+        assert_eq!(outcome.exit_code, EXIT_OK, "{stderr}");
+        assert!(
+            !stderr.contains("cem.lifecycle.target_adapter_unsupported"),
+            "{stderr}"
+        );
+        let v: serde_json::Value = serde_json::from_str(stdout.trim()).unwrap();
+        assert_eq!(v["kind"], "document");
+        assert_eq!(v["children"][0]["name"], "p");
+    }
+
+    #[test]
+    fn convert_to_events_projection_schema_selects_events_export_adapter() {
+        let p = write_fixture("convert-target-events-schema.cem", "{p | Hi}");
+        let (outcome, stdout, stderr) = run(
+            &RealCemMlEngine::new(),
+            &[
+                "convert",
+                "--to-format",
+                "html",
+                "--to-content-type",
+                "application/json",
+                "--to-schema",
+                cem_ml::lifecycle::EVENTS_PROJECTION_SCHEMA,
+                p.to_str().unwrap(),
+            ],
+        );
+
+        assert_eq!(outcome.exit_code, EXIT_OK, "{stderr}");
+        assert!(
+            !stderr.contains("cem.lifecycle.target_adapter_unsupported"),
+            "{stderr}"
+        );
+        let v: serde_json::Value = serde_json::from_str(stdout.trim()).unwrap();
+        assert!(v.is_array());
+        assert!(v
+            .as_array()
+            .unwrap()
+            .iter()
+            .any(|event| { event["kind"] == "open" && event["name"] == "p" }));
+    }
+
+    #[test]
     fn convert_to_unknown_schema_reports_unsupported_target_adapter() {
         let p = write_fixture(
             "convert-target-unknown-schema.cem",
