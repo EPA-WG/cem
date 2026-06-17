@@ -289,6 +289,57 @@ describe('CEM component primitives', () => {
         expect(() => assertAriaReferenceIntegrity(harness.root)).not.toThrow();
     });
 
+    it('renders feedback-family MVP primitives with status and dialog semantics', async () => {
+        harness = createComponentHarness();
+        const root = await harness.render(`
+            <cem-stack gap="sm">
+                <cem-dialog label="Confirm delete">
+                    <p>Delete this asset?</p>
+                </cem-dialog>
+                <cem-sheet label="Filters">
+                    <p>Filter options</p>
+                </cem-sheet>
+                <cem-toast>Saved</cem-toast>
+                <cem-progress label="Upload progress" value="40" max="100"></cem-progress>
+                <cem-skeleton label="Loading card"></cem-skeleton>
+                <cem-alert tone="warning" role="alert">Check required fields.</cem-alert>
+            </cem-stack>
+        `);
+        await waitForPrimitive(root, 'cem-alert [role="alert"]');
+
+        const dialog = harness.query<HTMLElement>('cem-dialog [role="dialog"]');
+        const sheet = harness.query<HTMLElement>('cem-sheet aside');
+        const toast = harness.query<HTMLElement>('cem-toast [role="status"]');
+        const progress = harness.query<HTMLProgressElement>('cem-progress progress');
+        const skeleton = harness.query<HTMLElement>('cem-skeleton .cem-skeleton');
+        const alert = harness.query<HTMLElement>('cem-alert [role="alert"]');
+
+        for (const host of Array.from(
+            harness.root.querySelectorAll<HTMLElement>(
+                'cem-dialog, cem-sheet, cem-toast, cem-progress, cem-skeleton, cem-alert',
+            ),
+        )) {
+            assertLightDomRendered(host);
+            expect(host.shadowRoot).toBeNull();
+        }
+
+        expect(dialog.getAttribute('aria-modal')).toBe('true');
+        expect(assertAccessibleName(dialog, 'Confirm delete')).toBe('Confirm delete');
+        expect(dialog.textContent).toContain('Delete this asset?');
+        expect(sheet.getAttribute('role')).toBe('region');
+        expect(assertAccessibleName(sheet, 'Filters')).toBe('Filters');
+        expect(toast.getAttribute('aria-live')).toBe('polite');
+        expect(toast.textContent?.trim()).toBe('Saved');
+        expect(assertAccessibleName(progress, 'Upload progress')).toBe('Upload progress');
+        expect(progress.getAttribute('value')).toBe('40');
+        expect(progress.getAttribute('max')).toBe('100');
+        expect(skeleton.getAttribute('aria-hidden')).toBe('true');
+        expect(skeleton.textContent?.trim()).toBe('Loading card');
+        expect(alert.getAttribute('data-tone')).toBe('warning');
+        expect(alert.textContent?.trim()).toBe('Check required fields.');
+        expect(() => assertAriaReferenceIntegrity(harness.root)).not.toThrow();
+    });
+
     it('renders layout, list, navigation, surface, and dialog shell primitives', async () => {
         harness = createComponentHarness();
         const root = await harness.render(`

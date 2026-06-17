@@ -225,11 +225,56 @@ export const CEM_COMPONENT_PRIMITIVES = [
             '{div @class=cem-tabs @role=tablist @aria-label="{$label}" | {slot | {button @type=button @role=tab @aria-selected=true | Tab}}}',
     },
     {
+        tag: 'cem-dialog',
+        description: 'MVP modal decision or focused task surface.',
+        cemMl:
+            '{attribute @name=label | Dialog}' +
+            '{div @class=cem-dialog @role=dialog @aria-modal=true @aria-label="{$label}" | {slot}}',
+    },
+    {
         tag: 'cem-dialog-shell',
         description: 'Dialog shell with labeled light-DOM content.',
         cemMl:
             '{attribute @name=label | Dialog}' +
             '{div @class=cem-dialog-shell @role=dialog @aria-modal=true @aria-label="{$label}" | {slot}}',
+    },
+    {
+        tag: 'cem-sheet',
+        description: 'MVP non-modal or edge-attached task surface.',
+        cemMl:
+            '{attribute @name=label | Sheet}' +
+            '{aside @class=cem-sheet @role=region @aria-label="{$label}" | {slot}}',
+    },
+    {
+        tag: 'cem-toast',
+        description: 'MVP transient status message.',
+        cemMl:
+            '{attribute @name=label | Status}' +
+            '{div @class=cem-toast @role=status @aria-live=polite | {slot | {$label}}}',
+    },
+    {
+        tag: 'cem-progress',
+        description: 'MVP determinate or indeterminate progress indicator.',
+        cemMl:
+            '{attribute @name=label | Progress}' +
+            '{attribute @name=max | 100}' +
+            '{progress @class=cem-progress @aria-label="{$label}" @value="{$datadom.attributes.value}" @max="{$max}" | {$label}}',
+    },
+    {
+        tag: 'cem-skeleton',
+        description: 'MVP loading placeholder that preserves layout.',
+        cemMl:
+            '{attribute @name=label | Loading}' +
+            '{span @class=cem-skeleton @aria-hidden=true | {slot | {$label}}}',
+    },
+    {
+        tag: 'cem-alert',
+        description: 'MVP inline feedback message.',
+        cemMl:
+            '{attribute @name=label | Alert}' +
+            '{attribute @name=tone | info}' +
+            '{attribute @name=role | status}' +
+            '{div @class="cem-alert cem-alert--{$tone}" @data-tone="{$tone}" @role="{$role}" | {slot | {$label}}}',
     },
 ] as const satisfies readonly CemComponentPrimitiveDeclaration[];
 

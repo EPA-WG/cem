@@ -308,7 +308,7 @@ to proven web component names, states, attributes, and accessibility behavior in
       `media-preview`), feedback (`dialog`, `sheet`, `toast`, `progress`, `skeleton`, `alert`), and auth/profile/asset
       browser/discussion/settings workflow surfaces. Angular Material remains a coverage and ergonomics benchmark, not a
       required implementation dependency.
-- [ ] Expand `@epa-wg/cem-components` from the current primitives into the practical Material-style surface:
+- [x] Expand `@epa-wg/cem-components` from the current primitives into the practical Material-style surface:
       action/icon-button/menu-item, text field/textarea/select/checkbox/radio/switch, app bar/nav/tabs, card/list/table,
       chip/badge/avatar/media preview, dialog/sheet/toast/progress/skeleton/alert. First action-family slice landed in
       `@epa-wg/cem-components`: `cem-action`, `cem-icon-button`, and `cem-menu-item` register through the primitive
@@ -320,7 +320,10 @@ to proven web component names, states, attributes, and accessibility behavior in
       projected actions/links/tabs, accessible names, selected tab state, and ARIA reference integrity. The
       content-family MVP slice now registers `cem-card`, `cem-table`, `cem-chip`, `cem-badge`, `cem-avatar`, and
       `cem-media-preview` alongside `cem-list`, with browser harness coverage for labels, projected rows/media,
-      badge/chip/avatar text, status tone, and ARIA reference integrity.
+      badge/chip/avatar text, status tone, and ARIA reference integrity. The feedback-family MVP slice now registers
+      `cem-dialog`, `cem-sheet`, `cem-toast`, `cem-progress`, `cem-skeleton`, and `cem-alert` alongside
+      `cem-dialog-shell`, with browser harness coverage for dialog, region, live status, native progress, hidden
+      skeleton, alert semantics, projected content, accessible names, and ARIA reference integrity.
 - [ ] Add component docs and examples for semantics, token usage, states, and accessibility notes. The exit gate is that
       the future CEM site and Figma site demo can be built from this component set without one-off UI controls.
 
