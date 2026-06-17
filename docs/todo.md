@@ -310,7 +310,10 @@ to proven web component names, states, attributes, and accessibility behavior in
       required implementation dependency.
 - [ ] Expand `@epa-wg/cem-components` from the current primitives into the practical Material-style surface:
       action/icon-button/menu-item, text field/textarea/select/checkbox/radio/switch, app bar/nav/tabs, card/list/table,
-      chip/badge/avatar/media preview, dialog/sheet/toast/progress/skeleton/alert.
+      chip/badge/avatar/media preview, dialog/sheet/toast/progress/skeleton/alert. First action-family slice landed in
+      `@epa-wg/cem-components`: `cem-action`, `cem-icon-button`, and `cem-menu-item` register through the primitive
+      declaration installer and have browser harness coverage for light-DOM rendering, accessible names, and ARIA
+      reference integrity.
 - [ ] Add component docs and examples for semantics, token usage, states, and accessibility notes. The exit gate is that
       the future CEM site and Figma site demo can be built from this component set without one-off UI controls.
 

@@ -22,6 +22,24 @@ export const CEM_COMPONENT_PRIMITIVES = [
             '{button @type=button @class="cem-action cem-action--{$variant}" | {slot | {$label}}}',
     },
     {
+        tag: 'cem-icon-button',
+        description: 'Native icon-only button with a required accessible label.',
+        cemMl:
+            '{attribute @name=label | Icon action}' +
+            '{attribute @name=name | circle}' +
+            '{attribute @name=variant | quiet}' +
+            '{button @type=button @class="cem-icon-button cem-icon-button--{$variant}" @aria-label="{$label}" |' +
+            ' {span @class="cem-icon cem-icon--{$name}" @aria-hidden=true | {$name}}' +
+            ' {slot}}',
+    },
+    {
+        tag: 'cem-menu-item',
+        description: 'Menu command row rendered as an accessible menuitem button.',
+        cemMl:
+            '{attribute @name=label | Menu item}' +
+            '{button @type=button @role=menuitem @class=cem-menu-item | {slot | {$label}}}',
+    },
+    {
         tag: 'cem-field',
         description: 'Labeled text input field with named label/help slots.',
         cemMl:
