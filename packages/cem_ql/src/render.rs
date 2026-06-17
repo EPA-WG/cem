@@ -9,8 +9,9 @@
 use std::collections::BTreeMap;
 
 use cem_ml::diagnostics::{Diagnostic, Severity};
+use cem_ml::interpreter::{OutputSpan, OutputTarget, TransformOutput};
 use cem_ml::scheduler::ScopePolicy;
-use cem_ml::source::{BytesSource, SourceId};
+use cem_ml::source::{ByteRange, BytesSource, SourceId};
 use cem_ml::source_map::{FrameSpan, SourceMapFrame, SourceMapStack, TransformKind};
 use cem_ml::tokenizer::cem::CemTokenizer;
 use cem_ml::tokenizer::{SchemaToken, SchemaTokenKind, SchemaTokenizer};
@@ -305,11 +306,115 @@ fn merge_data_documents(mut explicit: ItemStream, synthesized: ItemStream) -> It
 }
 
 pub fn render_plan_to_html(plan: &RenderPlan) -> String {
-    let mut out = String::new();
-    for node in &plan.nodes {
-        render_plan_node_to_html(node, &mut out);
+    let mut renderer = RenderPlanHtmlRenderer::default();
+    renderer.render_plan(plan);
+    renderer.out
+}
+
+pub fn render_plan_to_html_with_source_map(plan: &RenderPlan) -> TransformOutput {
+    let mut renderer = RenderPlanHtmlRenderer::default();
+    renderer.render_plan(plan);
+    let rendered_len = renderer.out.len() as u32;
+    TransformOutput {
+        target: OutputTarget::LightDomCustomElements,
+        rendered: renderer.out,
+        diagnostics: plan.diagnostics.clone(),
+        source_map: SourceMapStack {
+            frames: vec![SourceMapFrame {
+                source_id: SourceId(0),
+                span: FrameSpan::Single(ByteRange::new(0, rendered_len)),
+                transform: TransformKind::InterpreterRender,
+            }],
+        },
+        output_spans: renderer.spans,
     }
-    out
+}
+
+#[derive(Default)]
+struct RenderPlanHtmlRenderer {
+    out: String,
+    spans: Vec<OutputSpan>,
+}
+
+impl RenderPlanHtmlRenderer {
+    fn render_plan(&mut self, plan: &RenderPlan) {
+        for node in &plan.nodes {
+            self.render_node(node);
+        }
+    }
+
+    fn render_node(&mut self, node: &RenderPlanNode) {
+        match node {
+            RenderPlanNode::Element {
+                tag,
+                attributes,
+                children,
+                source_map,
+            } => {
+                let open_start = self.out.len() as u64;
+                self.out.push('<');
+                self.out.push_str(tag);
+                for attribute in attributes {
+                    self.render_attribute(attribute);
+                }
+                self.out.push('>');
+                self.record_span(open_start, source_map);
+                for child in children {
+                    self.render_node(child);
+                }
+                let close_start = self.out.len() as u64;
+                self.out.push_str("</");
+                self.out.push_str(tag);
+                self.out.push('>');
+                self.record_span(close_start, source_map);
+            }
+            RenderPlanNode::Text { text, source_map } => {
+                let start = self.out.len() as u64;
+                escape_text_into(&mut self.out, text);
+                self.record_span(start, source_map);
+            }
+            RenderPlanNode::Comment { text, source_map } => {
+                let start = self.out.len() as u64;
+                self.out.push_str("<!--");
+                self.out.push_str(text);
+                self.out.push_str("-->");
+                self.record_span(start, source_map);
+            }
+        }
+    }
+
+    fn render_attribute(&mut self, attribute: &RenderPlanAttribute) {
+        let start = self.out.len() as u64;
+        self.out.push(' ');
+        self.out.push_str(&attribute.name);
+        if !attribute.value.is_empty() {
+            self.out.push_str("=\"");
+            escape_attr_into(&mut self.out, &attribute.value);
+            self.out.push('"');
+        }
+        self.record_span(start, &attribute.source_map);
+    }
+
+    fn record_span(&mut self, start: u64, origin: &SourceMapStack) {
+        let end = self.out.len() as u64;
+        if end <= start {
+            return;
+        }
+        let mut origin = origin.clone();
+        origin.push(SourceMapFrame {
+            source_id: origin
+                .frames
+                .last()
+                .map(|frame| frame.source_id)
+                .unwrap_or(SourceId(0)),
+            span: FrameSpan::Single(ByteRange::new(start, (end - start) as u32)),
+            transform: TransformKind::InterpreterRender,
+        });
+        self.spans.push(OutputSpan {
+            output_range: ByteRange::new(start, (end - start) as u32),
+            origin,
+        });
+    }
 }
 
 struct TemplateCompiler<'a> {
@@ -1292,42 +1397,6 @@ fn render_diagnostic(
     }
 }
 
-fn render_plan_node_to_html(node: &RenderPlanNode, out: &mut String) {
-    match node {
-        RenderPlanNode::Element {
-            tag,
-            attributes,
-            children,
-            ..
-        } => {
-            out.push('<');
-            out.push_str(tag);
-            for attribute in attributes {
-                out.push(' ');
-                out.push_str(&attribute.name);
-                if !attribute.value.is_empty() {
-                    out.push_str("=\"");
-                    escape_attr_into(out, &attribute.value);
-                    out.push('"');
-                }
-            }
-            out.push('>');
-            for child in children {
-                render_plan_node_to_html(child, out);
-            }
-            out.push_str("</");
-            out.push_str(tag);
-            out.push('>');
-        }
-        RenderPlanNode::Text { text, .. } => escape_text_into(out, text),
-        RenderPlanNode::Comment { text, .. } => {
-            out.push_str("<!--");
-            out.push_str(text);
-            out.push_str("-->");
-        }
-    }
-}
-
 fn escape_text_into(out: &mut String, value: &str) {
     for c in value.chars() {
         match c {
@@ -1348,5 +1417,82 @@ fn escape_attr_into(out: &mut String, value: &str) {
             '"' => out.push_str("&quot;"),
             _ => out.push(c),
         }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    fn stack(start: u64, len: u32) -> SourceMapStack {
+        SourceMapStack {
+            frames: vec![SourceMapFrame {
+                source_id: SourceId(7),
+                span: FrameSpan::Single(ByteRange::new(start, len)),
+                transform: TransformKind::CemTokenizer,
+            }],
+        }
+    }
+
+    fn sample_plan() -> RenderPlan {
+        RenderPlan {
+            nodes: vec![RenderPlanNode::Element {
+                tag: "p".to_owned(),
+                attributes: vec![RenderPlanAttribute {
+                    name: "title".to_owned(),
+                    value: "A&B".to_owned(),
+                    value_stream: ItemStream::empty(),
+                    source_map: stack(3, 12),
+                }],
+                children: vec![RenderPlanNode::Text {
+                    text: "Hi <all>".to_owned(),
+                    source_map: stack(16, 8),
+                }],
+                source_map: stack(0, 28),
+            }],
+            diagnostics: Vec::new(),
+        }
+    }
+
+    #[test]
+    fn source_map_render_preserves_html_output() {
+        let plan = sample_plan();
+
+        assert_eq!(
+            render_plan_to_html(&plan),
+            r#"<p title="A&amp;B">Hi &lt;all&gt;</p>"#
+        );
+        assert_eq!(
+            render_plan_to_html_with_source_map(&plan).rendered,
+            render_plan_to_html(&plan)
+        );
+    }
+
+    #[test]
+    fn source_map_render_records_output_boundary_and_spans() {
+        let output = render_plan_to_html_with_source_map(&sample_plan());
+
+        assert_eq!(output.source_map.frames.len(), 1);
+        assert!(matches!(
+            output.source_map.frames[0].transform,
+            TransformKind::InterpreterRender
+        ));
+        assert!(matches!(
+            output.source_map.frames[0].span,
+            FrameSpan::Single(ByteRange { start: 0, len })
+                if len as usize == output.rendered.len()
+        ));
+        assert!(output.output_spans.iter().all(|span| {
+            span.origin
+                .frames
+                .last()
+                .is_some_and(|frame| matches!(frame.transform, TransformKind::InterpreterRender))
+        }));
+
+        let text_start = output.rendered.find("Hi").expect("text should render") as u64;
+        assert!(output
+            .output_spans
+            .iter()
+            .any(|span| span.output_range.start == text_start));
     }
 }
