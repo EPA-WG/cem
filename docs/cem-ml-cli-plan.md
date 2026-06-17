@@ -334,8 +334,8 @@ cem-ml convert input.xml \
 ```
 
 `transform` is the data + template -> document command. The current CLI runtime supports the one-to-one CEM-native
-template path and CEM-ML graph config dispatch for concrete import/template/export paths. XML+XSLT execution remains
-deferred:
+template path, CEM-ML graph config dispatch for concrete import/template/export paths, and bounded XSLT 1.0 parity
+through the registered compatibility adapter. Full XSLT 3.0/4.0 engine execution remains deferred:
 
 ```bash
 cem-ml transform data.xml \
@@ -354,7 +354,7 @@ presence, output-span count, and a `{destination}.map` `sourceMapRef` when the t
 concrete output destination. Stdout transform output still reports source-map presence and output-span count, but omits
 `sourceMapRef` because there is no adjacent file path for a sidecar.
 
-The remaining CEM-native parity closure before XSLT adds named module invocation to the user-facing surfaces:
+The CEM-native parity closure added named module invocation to the user-facing surfaces:
 
 ```bash
 cem-ml transform data.cem \
@@ -681,7 +681,8 @@ These are data shapes only. Parser-filled content remains blocked until the pars
       `join @mode="group-by" @by="..."` aggregation, and same-binding
       `join @mode="match-by" @by="..." @with:...` aggregation, and positional
       `join @mode="zip" @with:...` aggregation.
-      `RealCemMlEngine::transform_graph` executes CEM-native graph requests; XML+XSLT execution remains deferred.
+      `RealCemMlEngine::transform_graph` executes CEM-native graph requests and bounded XSLT parity stages when the
+      CLI host registers the executable compatibility adapter. Full XSLT 3.0/4.0 engine execution remains deferred.
     - Current config slice: `cem_ml::transform_config::parse_transform_graph_config` parses CEM-ML
       `run` / `import` / `join` / `transform` / `export` graph config and validates missing required operation
       attributes, duplicate IDs, unresolved refs, cycles, and wildcard output patterns. CLI dispatch lowers this config
@@ -696,7 +697,8 @@ These are data shapes only. Parser-filled content remains blocked until the pars
           and legacy custom-element XSLT content types) and CEM-native template identities (`application/cem+xml`,
           `application/cem`, `text/cem`, `text/cem-ml`, and CEM core schema/namespace identity when no content type is
           present). `TransformTemplateKind` records the selected adapter class on request/stage models and graph config
-          transform nodes; compilation/execution remains deferred.
+          transform nodes; execution is provided when the host registers an executable adapter for the selected
+          identity.
         - CEM-native templates are insulated from the base CEM-ML language/AST as transform-template content-type
           adapters. `TransformTemplateAdapterRegistry` owns content-type/schema/namespace matching, has built-in
           CEM-native and XSLT adapters, and is carried by `EngineContext` so hosts can register newer CEM-native
@@ -704,8 +706,8 @@ These are data shapes only. Parser-filled content remains blocked until the pars
         - `TransformTemplateAdapter` now defines the execution-facing plugin boundary: adapters can compile a
           `TemplateInput` plus entrypoint/params and declared data binding names into an opaque compiled artifact, then
           render that artifact against a primary data artifact, optional secondary artifacts, and a target
-          identity/scope. Static built-in adapters keep the current behavior by returning deterministic
-          adapter-not-implemented errors until a runtime executor is registered.
+          identity/scope. Static built-in adapters keep selector-only behavior by returning deterministic
+          adapter-not-implemented errors until a runtime executor is registered by the host.
         - Executable template adapters take precedence over selector-only adapters for the same identity, so a host can
           install an actual CEM-native executor without making the built-in selector capability ambiguous. Multiple
           executable matches remain ambiguous.
@@ -742,7 +744,7 @@ These are data shapes only. Parser-filled content remains blocked until the pars
           one implicit entrypoint; then add native named templates/modules, explicit entrypoints, params,
           imports/includes, visibility, caching, and recursion/cycle limits; then expand XSLT parity using that native
           substrate.
-        - Remaining CEM-native parity closure before XSLT:
+        - Landed CEM-native parity closure:
             - Surface named entrypoints and params in the direct CLI via `--template-entrypoint NAME` and repeatable
               `--param NAME=VALUE`; keep string-first CLI param normalization at the module contract boundary.
             - Surface the same controls in CEM-ML graph config via `transform @entrypoint` and child
@@ -758,11 +760,12 @@ These are data shapes only. Parser-filled content remains blocked until the pars
               caller params/defaults/nulls/type coercion, same/imported calls, `@with:*` secondary inputs, nested
               imports, import cycles/depth, and recursion limits. These tests cover example-shaped login/profile/asset
               cases without turning `examples/` into the test fixture location.
-            - Keep `include`, `@default-expr` / `@defaultExpr`, adapter extension buckets for unknown params, arbitrary
-              template writes, and XSLT execution outside this closure.
-          Exit criterion for starting XSLT parity: all supported CEM-native module semantics are available through the
-          programmatic API, direct CLI, and CEM-ML graph config with stable diagnostics/reports and schema docs.
-        - Native template/module contract for the next runtime/API slice:
+            - Keep `include`, `@default-expr` / `@defaultExpr`, adapter extension buckets for unknown params,
+              arbitrary template writes, and full XSLT 3.0/4.0 engine execution outside this closure.
+          Exit criterion for bounded XSLT parity has been met: supported CEM-native module semantics are available
+          through the programmatic API, direct CLI, and CEM-ML graph config with stable diagnostics/reports and schema
+          docs.
+        - Implemented native template/module contract:
             - Compile each template resource as an adapter-owned module. Module syntax and schema rules belong to the
               selected template content-type/schema adapter, not to the stable base CEM-ML document AST.
             - Treat the implicit entrypoint as the module default render entrypoint. Explicit named entrypoints select

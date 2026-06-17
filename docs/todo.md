@@ -54,7 +54,7 @@ for the current architecture have landed; only deferred capability work remains 
       peer language behind explicit dispatch, not the primary model or a browser-native dependency —
       so the engine can add XSLT 3/4 later without breaking content. Building the XSLT 3/4 engine
       remains out of scope for the current release.
-- [ ] **Immediate goal: expanded runtime support for the `cem-ml transform` data + template -> document command.**
+- [x] **Immediate goal: expanded runtime support for the `cem-ml transform` data + template -> document command.**
       Design homes:
       [`cem-ml-cli-contract.md`](cem-ml-cli-contract.md#planned-option-behavior) and
       [`cem-ml-cli-plan.md`](cem-ml-cli-plan.md#phase-6---command-behavior). The CEM-ML graph config parser/lowering
@@ -122,26 +122,22 @@ for the current architecture have landed; only deferred capability work remains 
       Keep the checked-in CEM-native CLI transform-config schema
       (`packages/cem_ml/schema/cli/transform-config.md`,
       `https://cem.dev/ns/cli/transform-config/1`) separate from CEM core document schemas and template schemas.
-      Runtime order: start with pure CEM-QL evaluation plus CEM-ML fragments
-      with embedded CEM-QL and one implicit entrypoint; then add local filename-glob input enumeration plus named
-      path-template expansion for graph configs; then add native named templates/modules, explicit entrypoints, params,
-      imports/includes, visibility, caching, and recursion/cycle limits; then expand XSLT parity on that native
-      substrate. Next runtime implementation work is CEM-native template semantics before XSLT parity.
-      Remaining CEM-native parity closure before XSLT: first surface named entrypoints and params in the direct CLI as
-      `--template-entrypoint NAME` plus repeatable `--param NAME=VALUE`; then surface the same controls in CEM-ML graph
-      config as `transform @entrypoint` plus child `param @name @value` records; then lower those fields into existing
-      `TransformRequest` / `TransformGraphStage` entrypoint and params without changing the engine API; then prove
+      Runtime order landed as pure CEM-QL evaluation plus CEM-ML fragments
+      with embedded CEM-QL and one implicit entrypoint; local filename-glob input enumeration plus named path-template
+      expansion for graph configs; native named templates/modules, explicit entrypoints, params, imports, visibility,
+      and recursion/cycle limits; and bounded XSLT parity on that native substrate.
+      The CEM-native parity closure surfaced named entrypoints and params in the direct CLI as
+      `--template-entrypoint NAME` plus repeatable `--param NAME=VALUE`; surfaced the same controls in CEM-ML graph
+      config as `transform @entrypoint` plus child `param @name @value` records; lowered those fields into existing
+      `TransformRequest` / `TransformGraphStage` entrypoint and params without changing the engine API; proved
       resolver-backed imported CEM-native modules through direct CLI and graph config, including relative import
       resolution, imported call diagnostics, stdout/default output behavior, report destinations, and source-map sidecars
-      for configured exports; then freeze conformance fixtures for implicit/public/private/missing entrypoints,
+      for configured exports; and froze conformance fixtures for implicit/public/private/missing entrypoints,
       defaults/nulls/type coercion, same/imported calls, `@with:*` secondary inputs, nested imports, import cycles/depth,
       and recursion limits. The separate CLI integration suite
-      `packages/cem_ml_cli/tests/cem_native_module_conformance.rs` now covers those example-shaped cases without making
+      `packages/cem_ml_cli/tests/cem_native_module_conformance.rs` covers those example-shaped cases without making
       `examples/` files executable test fixtures. `include`, `@default-expr` / `@defaultExpr`, unknown-param extension
-      buckets, arbitrary template writes, and XSLT execution stay outside this closure. XSLT parity starts only after
-      supported CEM-native
-      module semantics are available through the programmatic API, direct CLI, and CEM-ML graph config with stable
-      diagnostics/reports and schema docs.
+      buckets, arbitrary template writes, and full XSLT 3.0/4.0 engine support remain outside this closure.
       Native template module semantics should start with an adapter-owned module contract rather than changing the base
       CEM-ML AST: implicit entrypoint means module default render; explicit entrypoints select public exported templates;
       declarations are private by default; params are immutable with template defaults and fatal unknown names unless an

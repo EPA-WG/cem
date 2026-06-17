@@ -302,7 +302,9 @@ filename import globs, resolver-backed filename import globs, optional `**`
 recursive import glob segments, explicit `join @mode="collect"` nodes, and
 source-binding `join @mode="group-by" @by="..."` and same-binding
 `join @mode="match-by" @by="..." @with:...` nodes, and positional
-`join @mode="zip" @with:...` nodes. XSLT execution remains deferred.
+`join @mode="zip" @with:...` nodes. Bounded XSLT 1.0 parity executes through the
+registered compatibility adapter; full XSLT 3.0/4.0 engine execution remains
+deferred.
 
 The first concrete executable CEM-native adapter lives in
 `cem_ml_transform_cem_ql`, outside `cem_ml`, so it can depend on both `cem_ml` and
@@ -322,7 +324,7 @@ projection `$datadom.attributes.*`; direct `$label`-style primary-object
 convenience bindings are adapter compatibility behavior, not the portable
 template contract.
 
-CEM-native template execution should land before XSLT parity expansion, in this order:
+CEM-native template execution landed before bounded XSLT parity expansion, in this order:
 
 1. Minimal CEM-native runtime: support pure CEM-QL evaluation and CEM-ML fragments
    with embedded CEM-QL, with one implicit template entrypoint per template resource.
@@ -331,9 +333,8 @@ CEM-native template execution should land before XSLT parity expansion, in this 
 3. XSLT parity expansion: deepen XSLT support after the native named-template/module
    substrate exists, so migration has a first-class native landing zone.
 
-The native template/module layer has the following recommended contract. This is
-the target for the next runtime/API slice; it is not a promise that the current
-minimal CEM-QL-fragment executor already implements these behaviors.
+The native template/module layer has the following contract for the implemented
+CEM-native runtime and the bounded XSLT parity substrate:
 
 - A template resource compiles as a module owned by the selected template adapter.
   Module syntax, declarations, and schema rules are part of the template
@@ -727,13 +728,15 @@ I/O messages, but they must not replace the underlying resolver code or URI.
     --out view.html
   ```
 
-  It also accepts `--data-schema`, `--template-schema`, `--to-schema`, shared context options, and
+  It also accepts `--data-schema`, `--template-schema`, `--template-entrypoint`, repeatable
+  `--param NAME=VALUE`, `--to-schema`, shared context options, and
   `--report-json` / `--report-md`. The current CLI runtime executes the one-to-one CEM-native path and CEM-ML
   `--config` graph dispatch for concrete paths plus local and resolver-backed filename import globs, optional `**`
   recursive import glob segments, source-derived output bindings, explicit `join @mode="collect"` aggregation, and
   source-binding `join @mode="group-by" @by="..."` aggregation, and same-binding
   `join @mode="match-by" @by="..." @with:...` aggregation, and positional
-  `join @mode="zip" @with:...` aggregation. XML+XSLT execution remains deferred.
+  `join @mode="zip" @with:...` aggregation. Bounded XSLT 1.0 parity executes through the registered compatibility
+  adapter, while full XSLT 3.0/4.0 engine execution remains deferred.
 - Multi-source configuration via config file, plus repeatable CSV option records for
   CLI one-liners. Config files are preferred for CI/build reproducibility.
 - Config-file content type via `--config-content-type`, inferred from extension when
