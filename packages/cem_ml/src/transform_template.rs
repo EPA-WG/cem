@@ -578,7 +578,7 @@ impl NativeTemplateModuleLowerer<'_> {
         };
         self.options.calls.push(TransformTemplateModuleCallSite {
             owner_entrypoint: owner_entrypoint.map(str::to_owned),
-            from: attr_value(&attrs, "", "from").filter(|value| !value.trim().is_empty()),
+            from: optional_trimmed_attr(&attrs, "from"),
             template,
         });
     }
@@ -801,15 +801,24 @@ fn required_attr(
     attrs: &BTreeMap<(String, String), Option<String>>,
     local: &str,
 ) -> Option<String> {
-    attr_value(attrs, "", local).filter(|value| !value.trim().is_empty())
+    optional_trimmed_attr(attrs, local)
+}
+
+fn optional_trimmed_attr(
+    attrs: &BTreeMap<(String, String), Option<String>>,
+    local: &str,
+) -> Option<String> {
+    attr_value(attrs, "", local)
+        .map(|value| value.trim().to_owned())
+        .filter(|value| !value.is_empty())
 }
 
 fn import_identity_from_attrs(
     attrs: &BTreeMap<(String, String), Option<String>>,
 ) -> Option<FormatIdentity> {
-    let content_type =
-        attr_value(attrs, "", "content-type").or_else(|| attr_value(attrs, "", "contentType"));
-    let schema = attr_value(attrs, "", "schema");
+    let content_type = optional_trimmed_attr(attrs, "content-type")
+        .or_else(|| optional_trimmed_attr(attrs, "contentType"));
+    let schema = optional_trimmed_attr(attrs, "schema");
     if content_type.is_none() && schema.is_none() {
         return None;
     }
@@ -1715,6 +1724,69 @@ mod tests {
             .diagnostics
             .iter()
             .any(|diag| diag.code == TRANSFORM_TEMPLATE_DECLARATION_INVALID_CODE));
+    }
+
+    #[test]
+    fn cem_native_template_module_parser_trims_structural_declaration_values() {
+        let response = parse_cem_native_template_module_options(
+            TransformTemplateModuleParseRequest {
+                template: template_input(
+                    "templates/spaced.cem",
+                    r#"{@doc cem-ml 1}
+{module |
+  {import @as=" ui " @src=" partials/ui.cem " @content-type=" text/cem-ml " @schema=" https://cem.dev/ns/template/cem-native/1 "}
+  {param @name=" locale " @default=" en-US "}
+  {template @name=" card " @visibility=" public " |
+    {param @name=" title " @default=" Untitled "}
+    {body | {article | {call @from=" ui " @template=" icon "}}}
+  }
+}"#,
+                    Some(FormatIdentity {
+                        schema: Some(CEM_NATIVE_TEMPLATE_SCHEMA_URI.to_owned()),
+                        ..FormatIdentity::default()
+                    }),
+                ),
+            },
+        );
+
+        assert!(
+            response.diagnostics.is_empty(),
+            "{:?}",
+            response.diagnostics
+        );
+        assert_eq!(response.module_options.imports[0].alias, "ui");
+        assert_eq!(response.module_options.imports[0].uri, "partials/ui.cem");
+        let import_identity = response.module_options.imports[0]
+            .identity
+            .as_ref()
+            .expect("import identity");
+        assert_eq!(import_identity.content_type.as_deref(), Some("text/cem-ml"));
+        assert_eq!(
+            import_identity.schema.as_deref(),
+            Some(CEM_NATIVE_TEMPLATE_SCHEMA_URI)
+        );
+        assert_eq!(response.module_options.params[0].name, "locale");
+        assert_eq!(
+            response.module_options.params[0].default_value,
+            Some(Value::String(" en-US ".to_owned()))
+        );
+        assert_eq!(
+            response.module_options.entrypoints[0].name,
+            "card".to_owned()
+        );
+        assert_eq!(response.module_options.params[1].name, "card.title");
+        assert_eq!(
+            response.module_options.params[1].default_value,
+            Some(Value::String(" Untitled ".to_owned()))
+        );
+        assert_eq!(
+            response.module_options.calls,
+            vec![TransformTemplateModuleCallSite {
+                owner_entrypoint: Some("card".to_owned()),
+                from: Some("ui".to_owned()),
+                template: "icon".to_owned(),
+            }]
+        );
     }
 
     #[test]

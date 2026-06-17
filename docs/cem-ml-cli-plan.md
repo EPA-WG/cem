@@ -698,6 +698,8 @@ These are data shapes only. Parser-filled content remains blocked until the pars
               literal: `any`/`string` are raw strings, `boolean` is `true`/`false`, and
               `number`/`integer`/`array`/`object`/`json` parse JSON. Reserve `@default-expr` / `@defaultExpr` for future
               expression defaults and reject it until expression context, resolver policy, and reporting are defined.
+              Structural declaration values such as import aliases/URIs, template names, param names, call targets, and
+              import identity fields trim surrounding whitespace; literal `@default` string values do not.
             - Keep portable data bindings explicit: primary artifact as `input`, named secondary artifacts under their
               graph labels, and params under their names. The CEM-QL data document also exposes those host bindings as
               top-level fields while retaining the legacy `datadom.attributes.*` projection. Direct primary-object
