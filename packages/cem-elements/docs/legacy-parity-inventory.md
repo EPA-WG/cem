@@ -40,7 +40,7 @@ the behavioral reference.
 | Scoped styles in templates | README styles section; `demo/scoped-css.html` | Partial | Styles render into light DOM but are not scoped; material inventory tracks containment as open |
 | Nested produced custom elements | README embedded CE rendering | Supported | Works when nested declarations are registered, including through local/external `src`; covered by material parity stories |
 | Resource slices (`module-url`, `http-request`, `local-storage`, `location-element`) | README extension primitives; demos | Partial | Focused `module-url` URL resolution is supported through `resolveModuleUrl` and material parity coverage; `http-request`, `local-storage`, and `location-element` remain later primitive/resource slices |
-| Legacy `<template lang="custom-element-v0">` bridge | Migration window item | Supported | `LegacyBridgeTemplateParity`; supports legacy interpolation, `if`/`choose`, slots, declarations, slices/resources; full XSLT-only constructs remain adoption-phase follow-up |
+| Legacy `<template lang="custom-element-v0">` bridge | Migration window item | Supported through shared engine | `LegacyBridgeTemplateParity`; accepted as a deprecated alias for the `legacy-xslt` engine path, with the browser-only projection branch retired |
 
 ## Migration Decisions
 

@@ -73,9 +73,11 @@ Recommended execution order:
       Runtime coverage now exercises fragment-only `src`, document-relative external documents keyed by declaring
       document base URI, host `resolveModuleUrl` hooks, `module-url` slice/payload snapshots, resolver failure
       diagnostics, and per-runtime cache policy changes.
-- [ ] **Move the legacy bridge behind the shared engine boundary.** The inventory says the `custom-element-v0`
+- [x] **Move the legacy bridge behind the shared engine boundary.** The inventory says the `custom-element-v0`
       converter still lives in `cem-elements` TypeScript. Move or wrap that compatibility compiler so browser runtime,
       CLI validation, SSR, and package gates can consume the same CEM engine path instead of a browser-only converter.
+      `lang="custom-element-v0"` now routes as a deprecated alias of the shared `legacy-xslt` engine path; the runtime no
+      longer imports or branches to the browser-only `projectLegacyTemplate` path, and a unit guard locks that boundary.
 - [ ] **Decide scoped-style containment.** `material-parity-inventory.md` currently marks scoped template styles as
       partial because they render as page-global light-DOM `<style>` elements. Decide whether containment is required
       for the Phase 3.1 production gate. If yes, implement and test the containment model; if no, document it as

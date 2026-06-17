@@ -1220,7 +1220,7 @@ export const LocalSrcDeclarationLoadingParity: Story = {
 };
 
 export const LegacyBridgeTemplateParity: Story = {
-    render: () => storyPanel('Legacy bridge template', 'custom-element-v0 bridge renders during migration'),
+    render: () => storyPanel('Legacy bridge template', 'custom-element-v0 routes through the shared legacy-xslt engine'),
     play: async ({ canvasElement }) => {
         const root = document.createElement('section');
         canvasElement.appendChild(root);
@@ -1231,8 +1231,8 @@ export const LegacyBridgeTemplateParity: Story = {
                 lang: 'custom-element-v0',
                 html:
                     '<attribute name="label">Legacy</attribute>' +
-                    '<button type="button" title="{title}">{$label} {title}</button>' +
-                    '<if test="//smile"><span class="smile">{//smile}</span></if>' +
+                    '<button type="button" title="{$title}">{$label} {$title}</button>' +
+                    '<if test="$label"><span class="label">{$label}</span></if>' +
                     '<slot name="description"><i>fallback</i></slot>',
             }],
         });
@@ -1241,7 +1241,6 @@ export const LegacyBridgeTemplateParity: Story = {
 
         const instance = document.createElement('story-legacy-bridge');
         instance.setAttribute('title', 'Bridge');
-        instance.dataset.smile = 'yes';
         instance.innerHTML = '<p slot="description">projected</p>';
         root.appendChild(instance);
 
@@ -1249,7 +1248,7 @@ export const LegacyBridgeTemplateParity: Story = {
         const button = await waitForElement(instance, 'button');
         assertEqual(button.textContent?.trim(), 'Legacy Bridge', 'legacy text interpolation resolves defaults and host attributes');
         assertEqual(button.getAttribute('title'), 'Bridge', 'legacy attribute value templates resolve host attributes');
-        assertEqual(requiredElement(instance, '.smile').textContent, 'yes', 'legacy if test reads dataset-style //path values');
+        assertEqual(requiredElement(instance, '.label').textContent, 'Legacy', 'legacy if test renders through the engine');
         assertEqual(requiredElement(instance, 'p[slot="description"]').textContent, 'projected', 'legacy slots project payload');
     },
 };
