@@ -14,6 +14,7 @@ use cem_ml::engine::{
 };
 use cem_ml::legacy_custom_element::{
     convert_template_source, LegacyConversionDiagnostic, TEMPLATE_CONTENT_TYPES,
+    UNSUPPORTED_CONSTRUCT_CODE, UNSUPPORTED_FUNCTION_CODE,
 };
 use cem_ml::run_config::ScopeConfig;
 use cem_ml::transform_template::{
@@ -359,6 +360,18 @@ fn xslt_lowering_diagnostic_to_engine(
             code: TRANSFORM_TEMPLATE_CALL_UNKNOWN_CODE.to_owned(),
             severity: Severity::Fatal,
             message,
+            ..Diagnostic::default()
+        };
+    }
+    if matches!(
+        diagnostic.code.as_str(),
+        UNSUPPORTED_CONSTRUCT_CODE | UNSUPPORTED_FUNCTION_CODE
+    ) {
+        return Diagnostic {
+            uri: Some(uri.to_owned()),
+            code: diagnostic.code.clone(),
+            severity: Severity::Fatal,
+            message: diagnostic.message.clone(),
             ..Diagnostic::default()
         };
     }
@@ -1491,6 +1504,41 @@ mod tests {
                 && diagnostic
                     .message
                     .contains("XSLT template entrypoint `missing` was not found")
+        }));
+    }
+
+    #[test]
+    fn xslt_parity_adapter_reports_unsupported_constructs_as_fatal() {
+        let adapter = XsltParityTransformTemplateAdapter;
+        let identity = FormatIdentity {
+            content_type: Some("application/xslt+xml".to_owned()),
+            ..FormatIdentity::default()
+        };
+        let template = TemplateInput {
+            uri: "view.xsl".to_owned(),
+            bytes: br#"<xsl:stylesheet version="1.0"><xsl:template match="/"><msxsl:script language="JScript">function run(){return 1;}</msxsl:script></xsl:template></xsl:stylesheet>"#.to_vec(),
+            identity: Some(identity),
+            root_scope: ScopeConfig::default(),
+        };
+        let params = BTreeMap::new();
+        let data_bindings = vec!["input".to_owned()];
+        let compiled = adapter
+            .compile(TransformTemplateCompileRequest {
+                template: &template,
+                entrypoint: &TransformTemplateEntrypoint::implicit(),
+                params: &params,
+                data_bindings: &data_bindings,
+                module_options: Default::default(),
+                module_preflight: Default::default(),
+                execution_policy: TransformExecutionPolicy {
+                    runtime_phase: TransformRuntimePhase::XsltParity,
+                    ..TransformExecutionPolicy::default()
+                },
+            })
+            .expect("XSLT parity template compile should return diagnostics");
+
+        assert!(compiled.diagnostics.iter().any(|diagnostic| {
+            diagnostic.code == UNSUPPORTED_CONSTRUCT_CODE && diagnostic.severity == Severity::Fatal
         }));
     }
 

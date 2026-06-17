@@ -173,6 +173,52 @@ fn direct_cli_reports_missing_xslt_named_entrypoint() {
 }
 
 #[test]
+fn direct_cli_reports_unsupported_xslt_construct_without_output() {
+    let root = fixture_root("direct-unsupported-construct");
+    let data = root.join("profile.cem");
+    let template = root.join("profile.xsl");
+    let report_path = root.join("report.json");
+    let out = root.join("out/profile.html");
+    write(&data, r#"{section @id="ada"}"#);
+    write(
+        &template,
+        r#"<xsl:stylesheet version="1.0"><xsl:template match="/"><msxsl:script language="JScript">function run(){return 1;}</msxsl:script></xsl:template></xsl:stylesheet>"#,
+    );
+
+    let output = cem_ml(&[
+        "transform",
+        data.to_str().expect("data path is utf-8"),
+        "--data-content-type",
+        "text/cem-ml",
+        "--template",
+        template.to_str().expect("template path is utf-8"),
+        "--template-content-type",
+        "application/xslt+xml",
+        "--to-content-type",
+        "text/html",
+        "--out",
+        out.to_str().expect("output path is utf-8"),
+        "--report-json",
+        report_path.to_str().expect("report path is utf-8"),
+    ]);
+
+    assert_eq!(output.status.code(), Some(EXIT_HARD_FAILURE));
+    assert!(stdout(&output).is_empty(), "{}", stdout(&output));
+    assert!(stderr(&output).trim().is_empty(), "{}", stderr(&output));
+    assert!(
+        !out.exists(),
+        "failed direct transform must not write output"
+    );
+    assert!(
+        !PathBuf::from(format!("{}.map", out.display())).exists(),
+        "failed direct transform must not write source-map sidecar"
+    );
+    let report = report(&report_path);
+    assert!(has_diagnostic(&report, "legacy_xslt.unsupported_construct"));
+    assert_eq!(report["summary"]["hardViolationCount"], 1);
+}
+
+#[test]
 fn graph_config_executes_xslt_parity_asset_list_and_writes_sidecar() {
     let root = fixture_root("graph-asset-list");
     let data = root.join("asset.cem");
@@ -276,6 +322,56 @@ fn graph_config_reports_missing_xslt_named_entrypoint_without_export() {
         &report,
         "cem.transform_template.call_unknown"
     ));
+    assert_eq!(report["summary"]["hardViolationCount"], 1);
+    assert_eq!(report["reportAst"]["transformGraph"]["exportCount"], 0);
+    assert!(report["reportAst"]["transformGraph"]["exports"]
+        .as_array()
+        .expect("exports array")
+        .is_empty());
+}
+
+#[test]
+fn graph_config_reports_unsupported_xslt_construct_without_export() {
+    let root = fixture_root("graph-unsupported-construct");
+    let data = root.join("asset.cem");
+    let template = root.join("assets.xsl");
+    let graph = root.join("graph.cem");
+    let report_path = root.join("report.json");
+    let out = root.join("out/assets.html");
+    write(&data, r#"{article @id="asset"}"#);
+    write(
+        &template,
+        r#"<xsl:stylesheet version="1.0"><xsl:template match="/"><msxsl:script language="JScript">function run(){return 1;}</msxsl:script></xsl:template></xsl:stylesheet>"#,
+    );
+    write(
+        &graph,
+        r#"{run |
+  {import @id=asset @src="asset.cem" @content-type="text/cem-ml" |
+    {transform @id=html @src="assets.xsl" @template-content-type="application/xslt+xml" |
+      {export @id=main @out="out/assets.html" @content-type="text/html"}
+    }
+  }
+}"#,
+    );
+
+    let output = cem_ml(&[
+        "transform",
+        "--config",
+        graph.to_str().expect("graph path is utf-8"),
+        "--report-json",
+        report_path.to_str().expect("report path is utf-8"),
+    ]);
+
+    assert_eq!(output.status.code(), Some(EXIT_HARD_FAILURE));
+    assert!(stdout(&output).is_empty(), "{}", stdout(&output));
+    assert!(stderr(&output).trim().is_empty(), "{}", stderr(&output));
+    assert!(!out.exists(), "failed graph stage must not write export");
+    assert!(
+        !PathBuf::from(format!("{}.map", out.display())).exists(),
+        "failed graph stage must not write source-map sidecar"
+    );
+    let report = report(&report_path);
+    assert!(has_diagnostic(&report, "legacy_xslt.unsupported_construct"));
     assert_eq!(report["summary"]["hardViolationCount"], 1);
     assert_eq!(report["reportAst"]["transformGraph"]["exportCount"], 0);
     assert!(report["reportAst"]["transformGraph"]["exports"]
