@@ -43,8 +43,10 @@ Recommended execution order:
       The fixture directory now contains a manifest plus paired legacy/CEM-ML files for all eight references, and
       `yarn nx run cem-elements:verify-material-fixtures` verifies component coverage, import order, dependency
       markers, produced tags, and fixture shape.
-- [ ] **Promote Storybook parity to release gates.** Keep Storybook as the visual/debug surface, but make the Nx release
+- [x] **Promote Storybook parity to release gates.** Keep Storybook as the visual/debug surface, but make the Nx release
       gate assert the file-backed fixtures directly so parity does not depend on manual story inspection.
+      `cem-elements:verify` now depends on `verify-legacy-fixtures` and `verify-material-fixtures` alongside
+      substrate, CLI, unit, and Storybook checks, so the release gate fails when either parity manifest drifts.
 - [ ] **Prove declaration/data-island inertness in browser tests.** Cover exactly-one inline declaration template,
       `src` vs inline-template exclusivity, rejection of live declaration content, host payload capture into
       `<template data-cem-island="instance">`, removal of fallback payload before render, and proof that raw declaration

@@ -111,11 +111,13 @@
                 { "projects": ["cem_ml_cli"], "target": "validate-fixtures" },
                 { "projects": ["cem_ml_cli"], "target": "e2e" },
                 "verify-substrate",
+                "verify-legacy-fixtures",
+                "verify-material-fixtures",
                 "test:unit",
                 "test"
             ],
             "options": {
-                "command": "echo \"C2.6 verification gate green: cem_ml_cli validate-fixtures + e2e, cem-element substrate roundtrip, and Storybook parity stories all passed.\"",
+                "command": "echo \"C2.6 verification gate green: cem_ml_cli validate-fixtures + e2e, cem-element substrate roundtrip, file-backed parity fixtures, and Storybook parity stories all passed.\"",
                 "cwd": "{workspaceRoot}"
             },
             "outputs": []
