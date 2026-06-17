@@ -156,7 +156,7 @@ for the current architecture have landed; only deferred capability work remains 
       input stream has a different count.
       Transform graph reports now include `reportAst.transformGraph` export metadata for resolved export IDs, input
       artifact IDs, destinations, content identities, output kinds, source-map presence, output-span counts, and sidecar refs. Graph
-      exports with artifact source maps write `{destination}.map` sidecars through the output resolver.
+      exports with artifact source maps write `{destination}.map` sidecars with export/input/destination metadata through the output resolver.
       Keep the checked-in CEM-native CLI transform-config schema
       (`packages/cem_ml/schema/cli/transform-config.md`,
       `https://cem.dev/ns/cli/transform-config/1`) separate from CEM core document schemas and template schemas.

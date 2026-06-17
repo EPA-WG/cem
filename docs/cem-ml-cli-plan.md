@@ -776,7 +776,7 @@ These are data shapes only. Parser-filled content remains blocked until the pars
           `reportAst.transformGraph` export metadata for resolved export IDs, destinations, content identities, output
           kinds, source-map presence, output-span counts, and sidecar refs when artifacts expose source-map fields and
           have export destinations. For those exports, the CLI writes `{destination}.map` with the artifact `sourceMap`
-          JSON payload through the output resolver.
+          JSON payload plus export ID, input artifact ID, and destination metadata through the output resolver.
         - Graph validation for duplicate IDs, unresolved refs, cycles, unsupported joins, unsupported cardinality
           changes, unknown output bindings, and duplicate resolved output destinations before writes.
       Execution is available through the programmatic engine API, the CLI one-liner, and CLI CEM-ML graph config dispatch

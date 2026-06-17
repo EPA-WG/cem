@@ -3297,7 +3297,13 @@ fn write_transform_graph_source_map_sidecar(
     let Some(source_map_ref) = transform_graph_source_map_ref(Some(destination), true) else {
         return Ok(());
     };
-    let bytes = serde_json::to_vec_pretty(source_map)?;
+    let sidecar = transform_graph_source_map_sidecar_payload(
+        source_map,
+        artifact.export_id.as_str(),
+        artifact.input.as_str(),
+        destination,
+    );
+    let bytes = serde_json::to_vec_pretty(&sidecar)?;
     write_destination(
         context,
         Path::new(&source_map_ref),
@@ -3305,6 +3311,30 @@ fn write_transform_graph_source_map_sidecar(
         ResolvePurpose::Output,
         &bytes,
     )
+}
+
+fn transform_graph_source_map_sidecar_payload(
+    source_map: &serde_json::Value,
+    export_id: &str,
+    input: &str,
+    destination: &str,
+) -> serde_json::Value {
+    let mut sidecar = source_map.clone();
+    if let serde_json::Value::Object(fields) = &mut sidecar {
+        fields.insert(
+            "exportId".to_owned(),
+            serde_json::Value::String(export_id.to_owned()),
+        );
+        fields.insert(
+            "input".to_owned(),
+            serde_json::Value::String(input.to_owned()),
+        );
+        fields.insert(
+            "destination".to_owned(),
+            serde_json::Value::String(destination.to_owned()),
+        );
+    }
+    sidecar
 }
 
 fn run_transform_graph<E: CemMlEngine + ?Sized>(
@@ -4617,6 +4647,9 @@ mod tests {
         )
         .unwrap();
         assert_eq!(source_map["sources"][0], "data.cem");
+        assert_eq!(source_map["exportId"], "main");
+        assert_eq!(source_map["input"], "html");
+        assert_eq!(source_map["destination"], out.display().to_string());
         assert!(stdout.into_inner().is_empty());
     }
 
