@@ -419,6 +419,90 @@ export const MaterialScopedStylePolicy: Story = {
     },
 };
 
+export const MaterialFirstPaintSmoke: Story = {
+    render: () => {
+        const root = section('material first-paint smoke');
+        const runtime = makeRuntime('mat-first-paint');
+        define(
+            runtime,
+            'mat-fp-icon',
+            '{span @class=cem-icon | {cem:if @test="datadom.attributes.image" | {span @class="icon material-icons" | {$datadom.attributes.image}}}{slot}}'
+        );
+        define(
+            runtime,
+            'mat-fp-icon-link',
+            '{attribute @name=href | #}{a @class=cem-icon-link @href="{$href}" | {slot}}'
+        );
+        define(
+            runtime,
+            'mat-fp-menu',
+            '{attribute @name=direction | row}{nav @class="cem-menu {$direction}" @aria-label="Material menu" | {slot}}'
+        );
+        define(
+            runtime,
+            'mat-fp-badge',
+            '{attribute @name=color | primary}{span @class="cem-badge {$color}" | {slot}{cem:if @test="datadom.attributes.text" | {span @class=badge-dd | {$datadom.attributes.text}}}}'
+        );
+        define(
+            runtime,
+            'mat-fp-action',
+            '{attribute @name=text | Action}{button @type=button | {slot | {$text}}}'
+        );
+        define(
+            runtime,
+            'mat-fp-dropdown',
+            '{attribute @name=label | Menu}{div @class=cem-dropdown | {button @type=button @aria-expanded=false | {$label}}}'
+        );
+        define(
+            runtime,
+            'mat-fp-input',
+            '{attribute @name=type | text}{label @class=cem-input | {span @class=label | {slot @name=label | {$datadom.attributes.placeholder}}}{input @type="{$type}" @value="{$datadom.attributes.value}" | }}'
+        );
+        define(
+            runtime,
+            'mat-fp-autocomplete',
+            '{div @class=cem-autocomplete | {input @type=text @aria-label="{$datadom.attributes.label}" @value="{$datadom.attributes.value}" | }{ul @class=options | {cem:if @test="datadom.data.apple" | {li @class=opt | {$datadom.data.apple.label}}}}}'
+        );
+
+        root.append(
+            instance('mat-fp-icon', { image: 'home' }, 'Icon'),
+            instance('mat-fp-icon-link', { href: '#home' }, 'Home'),
+            withHtml(instance('mat-fp-menu', {}, ''), '<a href="#one">One</a>'),
+            withHtml(instance('mat-fp-badge', { text: '2' }, ''), '<button>Inbox</button>'),
+            instance('mat-fp-action', {}, ''),
+            instance('mat-fp-dropdown', { label: 'Menu' }, ''),
+            withHtml(instance('mat-fp-input', { value: 'hello' }, ''), '<span slot="label">Search</span>'),
+            withHtml(
+                instance('mat-fp-autocomplete', { label: 'Fruit', value: 'a' }, ''),
+                '<data value="apple">Apple</data>'
+            )
+        );
+        return root;
+    },
+    play: async ({ canvasElement }) => {
+        const selectors = [
+            'mat-fp-icon .cem-icon',
+            'mat-fp-icon-link a.cem-icon-link',
+            'mat-fp-menu nav.cem-menu',
+            'mat-fp-badge .cem-badge',
+            'mat-fp-action button',
+            'mat-fp-dropdown .cem-dropdown button',
+            'mat-fp-input label.cem-input input',
+            'mat-fp-autocomplete .cem-autocomplete .opt',
+        ];
+        const frames = await waitForAllSelectors(canvasElement, selectors, 12);
+        assert(frames <= 12, `material parity first paint exceeded frame budget: ${frames}`);
+
+        assertAccessibleName(requiredElement(canvasElement, 'mat-fp-icon-link a.cem-icon-link'), 'Home');
+        assertAccessibleName(requiredElement(canvasElement, 'mat-fp-action button'), 'Action');
+        assertAccessibleName(requiredElement(canvasElement, 'mat-fp-dropdown button'), 'Menu');
+        assertAccessibleName(requiredElement(canvasElement, 'mat-fp-input input'), 'Search');
+        assertAccessibleName(requiredElement(canvasElement, 'mat-fp-autocomplete input'), 'Fruit');
+        assertNoBrokenAriaReferences(canvasElement);
+        assertNativeInteractiveElementsUseNativeRoles(canvasElement);
+    },
+};
+
 // ---------------------------------------------------------------------------
 // Shared helpers
 // ---------------------------------------------------------------------------
@@ -459,6 +543,11 @@ function instance(tag: string, attributes: Record<string, string>, payload: stri
     if (payload) {
         element.textContent = payload;
     }
+    return element;
+}
+
+function withHtml<T extends HTMLElement>(element: T, html: string): T {
+    element.innerHTML = html;
     return element;
 }
 
@@ -592,4 +681,14 @@ async function waitForCondition(predicate: () => boolean, message: string, frame
         await nextFrame();
     }
     throw new Error(`${message} within ${frames} frames`);
+}
+
+async function waitForAllSelectors(root: ParentNode, selectors: readonly string[], frames: number): Promise<number> {
+    for (let attempt = 0; attempt <= frames; attempt += 1) {
+        if (selectors.every((selector) => root.querySelector(selector))) {
+            return attempt;
+        }
+        await nextFrame();
+    }
+    throw new Error(`expected material first-paint selectors within ${frames} frames`);
 }

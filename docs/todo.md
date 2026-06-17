@@ -109,10 +109,12 @@ Recommended execution order:
       and `yarn nx run cem_ml:bench`, plus the existing `cem-elements:verify-substrate` path.
       `cem-elements:verify` now depends on all three Phase 2 gates plus substrate, file-backed parity fixtures, unit
       tests, and Storybook parity stories.
-- [ ] **Add accessibility and first-paint gates for material parity.** Use
+- [x] **Add accessibility and first-paint gates for material parity.** Use
       `packages/cem-components/docs/accessibility.md` as the contract. Assert keyboard/focus/label/live-region behavior
       where applicable, and add a deterministic first-paint/performance smoke so AC-N-1-style regressions are visible
       before Phase 3.2 primitives depend on the substrate.
+      Material parity Storybook gates now assert accessible names, native-role focus ownership, ARIA reference integrity,
+      and a deterministic first-paint smoke that mounts all eight material parity components under a frame budget.
 - [ ] **Document the production-ready trigger.** Update `packages/cem-elements/README.md` and the parity inventories
       with the final command set, fixture locations, known bridge/adoption deferrals, and the exact handoff condition
       for Phase 3.5 Edge/SSR and Phase 3.6 `@epa-wg/custom-element` adoption.
