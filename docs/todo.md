@@ -34,7 +34,8 @@ for the current architecture have landed; only deferred capability work remains 
       `--to-content-type application/xml` / `text/xml`, plus namespace-only CEM core and HTML/SVG targets. Structural JSON
       projections are registry-owned through schema identities `https://cem.dev/ns/projection/dom-json/1`,
       `https://cem.dev/ns/projection/ast/1`, and `https://cem.dev/ns/projection/events/1`, optionally paired with
-      `application/json` / `text/json` content types. Transform config and CEM-native template schema targets are also
+      `application/json` / `text/json` content types, including output-spec/config output root-scope identities.
+      Transform config and CEM-native template schema targets are also
       registry-owned as CEM output syntax. Unsupported target identities now emit a deterministic lifecycle
       diagnostic with the declared content type, schema, and/or namespace while preserving the requested fallback output
       projection.

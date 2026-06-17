@@ -8718,6 +8718,58 @@ mod tests {
     }
 
     #[test]
+    fn output_spec_projection_schema_identities_select_export_adapters() {
+        let input = write_fixture("convert-output-projection-schema-input.cem", "{p | Hi}");
+
+        for (name, schema) in [
+            ("dom-json", cem_ml::lifecycle::DOM_JSON_PROJECTION_SCHEMA),
+            ("ast", cem_ml::lifecycle::AST_PROJECTION_SCHEMA),
+            ("events", cem_ml::lifecycle::EVENTS_PROJECTION_SCHEMA),
+        ] {
+            let out_path =
+                std::env::temp_dir().join(format!("cem-ml-cli-tests/convert-output-{name}.json"));
+            let _ = std::fs::remove_file(&out_path);
+            let (outcome, stdout, stderr) = run(
+                &RealCemMlEngine::new(),
+                &[
+                    "convert",
+                    "--to-format",
+                    "cem",
+                    "--output-spec",
+                    &format!(
+                        "dest={},contentType=application/json,schema={schema}",
+                        out_path.display()
+                    ),
+                    input.to_str().unwrap(),
+                ],
+            );
+
+            assert_eq!(outcome.exit_code, EXIT_OK, "{stderr}");
+            assert!(stdout.trim().is_empty());
+            assert!(
+                !stderr.contains("cem.lifecycle.target_adapter_unsupported"),
+                "{stderr}"
+            );
+            let written = std::fs::read_to_string(&out_path).unwrap();
+            let v: serde_json::Value = serde_json::from_str(&written).unwrap();
+            match name {
+                "events" => {
+                    assert!(v.is_array());
+                    assert!(v
+                        .as_array()
+                        .unwrap()
+                        .iter()
+                        .any(|event| event["kind"] == "open" && event["name"] == "p"));
+                }
+                _ => {
+                    assert_eq!(v["kind"], "document");
+                    assert_eq!(v["children"][0]["name"], "p");
+                }
+            }
+        }
+    }
+
+    #[test]
     fn config_diagnostics_fail_before_document_parsing() {
         let config_path = std::env::temp_dir().join("cem-ml-cli-tests/bad-config.json");
         let report_path = std::env::temp_dir().join("cem-ml-cli-tests/bad-config-report.json");

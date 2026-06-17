@@ -572,7 +572,8 @@ Current implementation status:
   CEM core and HTML/SVG targets. Structural JSON projection exports are registry-owned
   for `https://cem.dev/ns/projection/dom-json/1`, `https://cem.dev/ns/projection/ast/1`,
   and `https://cem.dev/ns/projection/events/1`, with optional `application/json` /
-  `text/json` target content types. Transform config and CEM-native template schema targets
+  `text/json` target content types, including output-spec/config output root-scope identities.
+  Transform config and CEM-native template schema targets
   are also registry-owned as CEM output syntax. Unsupported target identities emit a
   deterministic lifecycle diagnostic with the declared content type, schema, and/or namespace while
   preserving the requested fallback output projection. Remaining non-CEM
