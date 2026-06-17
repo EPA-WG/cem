@@ -18,11 +18,34 @@
             ],
             "outputs": []
         },
+        "verify-style-contract": {
+            "cache": true,
+            "executor": "nx:run-commands",
+            "dependsOn": [{ "projects": ["@epa-wg/cem-theme"], "target": "build:tokens" }],
+            "options": {
+                "command": "node tools/scripts/verify-cem-components-styles.mjs",
+                "cwd": "{workspaceRoot}"
+            },
+            "inputs": [
+                "{workspaceRoot}/tools/scripts/verify-cem-components-styles.mjs",
+                "{workspaceRoot}/docs/component-mvp.md",
+                "{projectRoot}/package.json",
+                "{projectRoot}/src/lib/primitives.ts",
+                "{projectRoot}/examples/**/*.html",
+                "{projectRoot}/tests/workflows/**/*.html",
+                "{projectRoot}/**/*.css",
+                "{projectRoot}/**/*.scss",
+                "{projectRoot}/**/*.less",
+                "{workspaceRoot}/packages/cem-theme/dist/lib/tokens/cem.tokens.json",
+                "{workspaceRoot}/packages/cem-theme/dist/lib/css/cem-combined.css"
+            ],
+            "outputs": []
+        },
         "verify": {
             "executor": "nx:run-commands",
-            "dependsOn": ["verify-primitives", "test"],
+            "dependsOn": ["verify-primitives", "verify-style-contract", "test"],
             "options": {
-                "command": "echo \"cem-components verification gate green: primitive manifest + browser harness tests passed.\"",
+                "command": "echo \"cem-components verification gate green: primitive manifest + style contract + browser harness tests passed.\"",
                 "cwd": "{workspaceRoot}"
             },
             "outputs": []

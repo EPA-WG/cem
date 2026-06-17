@@ -163,8 +163,11 @@ Recommended execution order:
       `primitives.ts` now reflects state attributes onto the native semantic controls, interactive primitives capture
       `slice-event` payloads, and `states.browser.spec.ts` covers action/loading/focus state, form validity and
       boolean-control state, serialized event payloads, empty fallbacks, indeterminate progress, and live regions.
-- [ ] **Prove the token-only styling contract.** Add a deterministic style inspection gate that rejects new
+- [x] **Prove the token-only styling contract.** Add a deterministic style inspection gate that rejects new
       component-specific color/spacing literals and verifies primitive styles resolve through CEM theme token families.
+      `@epa-wg/cem-components:verify-style-contract` now depends on `@epa-wg/cem-theme:build:tokens`, checks MVP
+      token-family names against generated `cem.tokens.json` and combined CSS, rejects inline component styles and raw
+      component CSS color/spacing literals, and is included in the aggregate component verify target.
 - [ ] **Document the primitive production-ready trigger.** Update `packages/cem-components/README.md` and
       `packages/cem-components/docs/component-reference.md` with the final command set, fixture locations, known
       deferrals, and the exact handoff condition for Phase 4 component expansion.
