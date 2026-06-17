@@ -4,8 +4,6 @@ use std::process::{Command, Output};
 use std::time::{SystemTime, UNIX_EPOCH};
 
 const EXIT_OK: i32 = 0;
-const EXIT_USAGE: i32 = 2;
-
 fn cem_ml(args: &[&str]) -> Output {
     Command::new(env!("CARGO_BIN_EXE_cem-ml"))
         .args(args)
@@ -84,15 +82,15 @@ fn direct_cli_executes_xslt_parity_for_login_profile_shape() {
 }
 
 #[test]
-fn direct_cli_rejects_xslt_entrypoint_and_params() {
-    let root = fixture_root("direct-contract");
+fn direct_cli_executes_xslt_named_entrypoint_and_params() {
+    let root = fixture_root("direct-named-entrypoint");
     let data = root.join("profile.cem");
     let template = root.join("profile.xsl");
     let report_path = root.join("report.json");
     write(&data, r#"{section @id="ada"}"#);
     write(
         &template,
-        r#"<xsl:stylesheet version="1.0"><xsl:template match="/"><section class="profile"><p>Display name</p></section></xsl:template></xsl:stylesheet>"#,
+        r#"<xsl:stylesheet version="1.0"><xsl:template match="/"><section>default</section></xsl:template><xsl:template name="profile"><section class="profile"><p><xsl:value-of select="$label"/></p></section></xsl:template></xsl:stylesheet>"#,
     );
 
     let output = cem_ml(&[
@@ -110,21 +108,19 @@ fn direct_cli_rejects_xslt_entrypoint_and_params() {
         "label=Display name",
         "--to-content-type",
         "text/html",
+        "--report-json",
+        report_path.to_str().expect("report path is utf-8"),
     ]);
 
-    assert_eq!(output.status.code(), Some(EXIT_USAGE));
-    assert!(stdout(&output).is_empty(), "{}", stdout(&output));
-    assert!(
-        stderr(&output).contains(
-            "transform template entrypoints and params are supported only for CEM-native templates"
-        ),
-        "{}",
-        stderr(&output)
+    assert_eq!(output.status.code(), Some(EXIT_OK));
+    assert_eq!(
+        stdout(&output),
+        r#"<section class="profile"><p>Display name</p></section>"#
     );
-    assert!(
-        !report_path.exists(),
-        "usage errors should not produce transform reports"
-    );
+    assert!(stderr(&output).trim().is_empty(), "{}", stderr(&output));
+    let report = report(&report_path);
+    assert_eq!(report["summary"]["hardViolationCount"], 0);
+    assert_eq!(report["reportAst"]["transform"]["hasSourceMap"], true);
 }
 
 #[test]
@@ -138,13 +134,14 @@ fn graph_config_executes_xslt_parity_asset_list_and_writes_sidecar() {
     write(&data, r#"{article @id="asset"}"#);
     write(
         &template,
-        r#"<xsl:stylesheet version="1.0"><xsl:variable name="assets"><asset>Logo</asset><asset>Hero</asset></xsl:variable><xsl:template match="/"><ul><xsl:apply-templates select="exsl:node-set($assets)/*"/></ul></xsl:template><xsl:template match="asset"><li><xsl:value-of select="."/></li></xsl:template></xsl:stylesheet>"#,
+        r#"<xsl:stylesheet version="1.0"><xsl:variable name="assets"><asset>Logo</asset><asset>Hero</asset></xsl:variable><xsl:template match="/"><ul><li>default</li></ul></xsl:template><xsl:template name="assets"><ul><xsl:apply-templates select="exsl:node-set($assets)/*"/><li><xsl:value-of select="$suffix"/></li></ul></xsl:template><xsl:template match="asset"><li><xsl:value-of select="."/></li></xsl:template></xsl:stylesheet>"#,
     );
     write(
         &graph,
         r#"{run |
   {import @id=asset @src="asset.cem" @content-type="text/cem-ml" |
-    {transform @id=html @src="assets.xsl" @template-content-type="application/xslt+xml" |
+    {transform @id=html @src="assets.xsl" @template-content-type="application/xslt+xml" @entrypoint="assets" |
+      {param @name="suffix" @value="{stem}"}
       {export @id=main @out="out/assets.html" @content-type="text/html"}
     }
   }
@@ -164,7 +161,7 @@ fn graph_config_executes_xslt_parity_asset_list_and_writes_sidecar() {
     assert!(stderr(&output).trim().is_empty(), "{}", stderr(&output));
     assert_eq!(
         fs::read_to_string(&out).expect("read export"),
-        "<ul><li>Logo</li><li>Hero</li></ul>"
+        "<ul><li>Logo</li><li>Hero</li><li>asset</li></ul>"
     );
     let sidecar = format!("{}.map", out.display());
     let sidecar_json: serde_json::Value = serde_json::from_str(

@@ -63,15 +63,16 @@ extension. The current parser classifies XSLT and CEM-native templates; the
 runtime executes supported CEM-native templates and bounded XSLT 1.0 parity
 templates through registered transform-template adapters.
 
-## CEM-Native Module Params
+## Template Entrypoints And Params
 
-`transform @entrypoint` selects a public CEM-native template entrypoint. Child
-`param @name @value` records provide caller params for that transform stage.
-`@value` is a string-first CLI/config value: source bindings such as `{stem}`
-are expanded by the CLI host, then the CEM-native module declaration coerces
-the string according to the selected entrypoint's param type. These fields are
-valid only for CEM-native module execution; fragment execution still uses the
-implicit entrypoint with no params.
+`transform @entrypoint` selects a template entrypoint for adapters that expose
+named execution. Child `param @name @value` records provide caller params for
+that transform stage. `@value` is a string-first CLI/config value: source
+bindings such as `{stem}` are expanded by the CLI host before the engine
+request is built. CEM-native module execution then coerces the string according
+to the selected entrypoint's param declaration. XSLT parity passes the expanded
+string as an `xsl:with-param` value for named template entrypoints. Plain
+`cem-ql-fragment` execution still uses the implicit entrypoint with no params.
 
 ## Example
 

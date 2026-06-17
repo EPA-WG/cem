@@ -507,32 +507,12 @@ fn validate_transform_stage_runtime_contract(
             ),
         ));
     }
-    if policy.runtime_phase == TransformRuntimePhase::XsltParity
-        && !template_entrypoint.is_implicit()
-    {
-        diagnostics.push(transform_runtime_diagnostic(
-            uri,
-            "cem.transform_runtime.entrypoint_unsupported",
-            format!(
-                "transform stage `{stage_id}` declares a named template entrypoint; the XSLT parity phase supports only the implicit entrypoint"
-            ),
-        ));
-    }
     if policy.runtime_phase == TransformRuntimePhase::CemQlFragment && !params.is_empty() {
         diagnostics.push(transform_runtime_diagnostic(
             uri,
             "cem.transform_runtime.params_unsupported",
             format!(
                 "transform stage `{stage_id}` declares params; template params are reserved for the native module layer"
-            ),
-        ));
-    }
-    if policy.runtime_phase == TransformRuntimePhase::XsltParity && !params.is_empty() {
-        diagnostics.push(transform_runtime_diagnostic(
-            uri,
-            "cem.transform_runtime.params_unsupported",
-            format!(
-                "transform stage `{stage_id}` declares params; the XSLT parity phase does not support template params"
             ),
         ));
     }
@@ -1195,6 +1175,28 @@ mod tests {
             scheduler_scope_ids: TransformSchedulerScopeIds::default(),
             execution_policy: TransformExecutionPolicy {
                 runtime_phase: TransformRuntimePhase::CemNativeModules,
+                ..TransformExecutionPolicy::default()
+            },
+        };
+
+        assert!(validate_transform_request_runtime_contract(&request).is_empty());
+    }
+
+    #[test]
+    fn transform_runtime_contract_accepts_xslt_entrypoint_and_params() {
+        let request = TransformRequest {
+            data: engine_input("data.xml", "application/xml"),
+            template: template_input("view.xsl", "application/xslt+xml"),
+            template_kind: TransformTemplateKind::Xslt,
+            template_entrypoint: TransformTemplateEntrypoint::named("main"),
+            params: BTreeMap::from([("locale".to_owned(), serde_json::json!("en-US"))]),
+            preserve_source_offsets: true,
+            context: EngineContext::default(),
+            target: None,
+            target_scope: ScopeConfig::default(),
+            scheduler_scope_ids: TransformSchedulerScopeIds::default(),
+            execution_policy: TransformExecutionPolicy {
+                runtime_phase: TransformRuntimePhase::XsltParity,
                 ..TransformExecutionPolicy::default()
             },
         };

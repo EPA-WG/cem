@@ -1049,11 +1049,13 @@ fn validate_transform_template_module_surface(
     entrypoint: &eng::TransformTemplateEntrypoint,
     params: &BTreeMap<String, serde_json::Value>,
 ) -> Result<(), CliRequestError> {
-    if template_kind != eng::TransformTemplateKind::CemNative
-        && (!entrypoint.is_implicit() || !params.is_empty())
+    if !matches!(
+        template_kind,
+        eng::TransformTemplateKind::CemNative | eng::TransformTemplateKind::Xslt
+    ) && (!entrypoint.is_implicit() || !params.is_empty())
     {
         return Err(CliRequestError::Usage(
-            "transform template entrypoints and params are supported only for CEM-native templates"
+            "transform template entrypoints and params are supported only for executable template adapters"
                 .into(),
         ));
     }
@@ -8764,6 +8766,7 @@ mod tests {
         let config_path = std::env::temp_dir().join("cem-ml-cli-tests/bench-bad-config.json");
         let report_path =
             std::env::temp_dir().join("cem-ml-cli-tests/bench-bad-config-report.json");
+        std::fs::create_dir_all(config_path.parent().unwrap()).unwrap();
         let _ = std::fs::remove_file(&report_path);
         std::fs::write(
             &config_path,

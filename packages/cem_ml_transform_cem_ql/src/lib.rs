@@ -9,8 +9,8 @@ use std::collections::BTreeMap;
 
 use cem_ml::diagnostics::{Diagnostic, Severity};
 use cem_ml::engine::{
-    EngineContext, FormatIdentity, TemplateInput, TransformTemplateKind,
-    TRANSFORM_TEMPLATE_UNSUPPORTED_CODE,
+    EngineContext, FormatIdentity, TemplateInput, TransformTemplateEntrypoint,
+    TransformTemplateKind, TRANSFORM_TEMPLATE_UNSUPPORTED_CODE,
 };
 use cem_ml::legacy_custom_element::{convert_template_source, TEMPLATE_CONTENT_TYPES};
 use cem_ml::run_config::ScopeConfig;
@@ -224,7 +224,8 @@ impl TransformTemplateAdapter for XsltParityTransformTemplateAdapter {
                 ),
             )
         })?;
-        let lowered = convert_template_source(source);
+        let source = xslt_source_for_entrypoint(source, request.entrypoint, request.params);
+        let lowered = convert_template_source(&source);
         let mut diagnostics = lowered
             .diagnostics
             .iter()
@@ -256,6 +257,7 @@ impl TransformTemplateAdapter for XsltParityTransformTemplateAdapter {
             "engine": "cem-ql",
             "source": "xslt-parity",
             "templateBytes": request.template.bytes.len(),
+            "entrypoint": request.entrypoint.name.clone(),
             "loweredBytes": lowered.source.len(),
             "loweringDiagnostics": diagnostics.len(),
         });
@@ -272,7 +274,7 @@ impl TransformTemplateAdapter for XsltParityTransformTemplateAdapter {
             .with_native_payload(CemQlCompiledTemplatePayload {
                 template_uri: request.template.uri.clone(),
                 artifact: render_artifact,
-                selected_entrypoint: None,
+                selected_entrypoint: request.entrypoint.name.clone(),
                 params: request.params.clone(),
                 param_declarations: Vec::new(),
                 entrypoints: CemQlTemplateEntrypoints::default(),
@@ -289,6 +291,69 @@ impl TransformTemplateAdapter for XsltParityTransformTemplateAdapter {
     ) -> TransformTemplateAdapterResult<TransformTemplateRenderResponse> {
         render_cem_ql_payload(self.id(), request)
     }
+}
+
+fn xslt_source_for_entrypoint(
+    source: &str,
+    entrypoint: &TransformTemplateEntrypoint,
+    params: &BTreeMap<String, Value>,
+) -> String {
+    let Some(name) = entrypoint.name.as_deref() else {
+        return source.to_owned();
+    };
+
+    let wrapper = xslt_entrypoint_wrapper(name, params);
+    for closing in ["</xsl:stylesheet>", "</stylesheet>"] {
+        if let Some(index) = source.rfind(closing) {
+            let mut out = String::with_capacity(source.len() + wrapper.len());
+            out.push_str(&source[..index]);
+            out.push_str(&wrapper);
+            out.push_str(&source[index..]);
+            return out;
+        }
+    }
+
+    format!(r#"<xsl:stylesheet version="1.0">{source}{wrapper}</xsl:stylesheet>"#)
+}
+
+fn xslt_entrypoint_wrapper(name: &str, params: &BTreeMap<String, Value>) -> String {
+    let mut out = format!(
+        r#"<xsl:template match="/"><xsl:call-template name="{}">"#,
+        xml_attr_escape(name)
+    );
+    for (name, value) in params {
+        out.push_str(&format!(
+            r#"<xsl:with-param name="{}">{}"#,
+            xml_attr_escape(name),
+            xml_text_escape(&xslt_param_text(value))
+        ));
+        out.push_str("</xsl:with-param>");
+    }
+    out.push_str("</xsl:call-template></xsl:template>");
+    out
+}
+
+fn xslt_param_text(value: &Value) -> String {
+    match value {
+        Value::String(value) => value.clone(),
+        Value::Null => String::new(),
+        other => other.to_string(),
+    }
+}
+
+fn xml_attr_escape(value: &str) -> String {
+    value
+        .replace('&', "&amp;")
+        .replace('"', "&quot;")
+        .replace('<', "&lt;")
+        .replace('>', "&gt;")
+}
+
+fn xml_text_escape(value: &str) -> String {
+    value
+        .replace('&', "&amp;")
+        .replace('<', "&lt;")
+        .replace('>', "&gt;")
 }
 
 pub fn register_cem_ql_template_adapter(registry: &mut TransformTemplateAdapterRegistry) {
@@ -1294,6 +1359,67 @@ mod tests {
         assert_eq!(
             rendered.output.value,
             Value::String("<main><h1>Sign in</h1></main>".to_owned())
+        );
+        assert!(
+            rendered.diagnostics.is_empty(),
+            "{:?}",
+            rendered.diagnostics
+        );
+    }
+
+    #[test]
+    fn xslt_parity_adapter_selects_named_entrypoint_with_params() {
+        let adapter = XsltParityTransformTemplateAdapter;
+        let identity = FormatIdentity {
+            content_type: Some("application/xslt+xml".to_owned()),
+            ..FormatIdentity::default()
+        };
+        let template = TemplateInput {
+            uri: "view.xsl".to_owned(),
+            bytes: br#"<xsl:stylesheet version="1.0"><xsl:template match="/"><main>default</main></xsl:template><xsl:template name="card"><article><xsl:value-of select="$title"/></article></xsl:template></xsl:stylesheet>"#.to_vec(),
+            identity: Some(identity),
+            root_scope: ScopeConfig::default(),
+        };
+        let params = BTreeMap::from([("title".to_owned(), Value::String("Intro".to_owned()))]);
+        let data_bindings = vec!["input".to_owned()];
+        let compiled = adapter
+            .compile(TransformTemplateCompileRequest {
+                template: &template,
+                entrypoint: &TransformTemplateEntrypoint::named("card"),
+                params: &params,
+                data_bindings: &data_bindings,
+                module_options: Default::default(),
+                module_preflight: Default::default(),
+                execution_policy: TransformExecutionPolicy {
+                    runtime_phase: TransformRuntimePhase::XsltParity,
+                    ..TransformExecutionPolicy::default()
+                },
+            })
+            .expect("XSLT parity template should compile")
+            .artifact;
+        let primary_input = TransformTemplateDataArtifact {
+            artifact_id: "data".to_owned(),
+            uri: Some("data.cem".to_owned()),
+            identity: None,
+            value: json_object([("kind", Value::String("document".to_owned()))]),
+        };
+        let rendered = adapter
+            .render(TransformTemplateRenderRequest {
+                compiled: &compiled,
+                primary_input: &primary_input,
+                secondary_inputs: &BTreeMap::new(),
+                target: None,
+                target_scope: &ScopeConfig::default(),
+                execution_policy: TransformExecutionPolicy {
+                    runtime_phase: TransformRuntimePhase::XsltParity,
+                    ..TransformExecutionPolicy::default()
+                },
+            })
+            .expect("XSLT parity template should render");
+
+        assert_eq!(
+            rendered.output.value,
+            Value::String("<article>Intro</article>".to_owned())
         );
         assert!(
             rendered.diagnostics.is_empty(),

@@ -378,8 +378,10 @@ The same closure extends CEM-ML transform graph config with `transform @entrypoi
 ```
 
 Config `param @value` uses the same string-first normalization as `--param`; output/source bindings such as `{stem}`
-are expanded by the CLI host before the engine request is built. `@entrypoint` and params are valid only for
-CEM-native module execution; `cem-ql-fragment` still requires the implicit entrypoint and no params.
+are expanded by the CLI host before the engine request is built. CEM-native module execution applies declaration-driven
+type/null/default validation after lowering. XSLT parity uses the same direct CLI and graph config surfaces for named
+template entrypoints and string params, passing params as `xsl:with-param` values. `cem-ql-fragment` still requires the
+implicit entrypoint and no params.
 
 Graph configs use the dedicated CEM-ML transform-config schema identity
 `https://cem.dev/ns/cli/transform-config/1` and can be run directly:
@@ -709,15 +711,17 @@ These are data shapes only. Parser-filled content remains blocked until the pars
           executes bounded XSLT 1.0 compatibility lowering through the registered CEM-QL adapter.
         - `TransformTemplateEntrypoint` and `params` exist on transform requests/stages so the API has a place for
           named-template/module execution. The `cem-ql-fragment` phase supports only the implicit entrypoint and rejects
-          params; the `cem-native-modules` phase accepts validated public named entrypoints and declared params.
+          params; the `cem-native-modules` phase accepts validated public named entrypoints and declared params; the
+          `xslt-parity` phase accepts named template entrypoints and string params through the compatibility adapter.
         - `TransformDiagnosticOrigin` reserves stable report/source-map origin categories for `config`, `import`,
           `template-load`, `template-compile`, `template-execution`, and `export`.
         - `validate_transform_request_runtime_contract` and
           `validate_transform_graph_runtime_contract` now enforce the supported runtime preflight:
           `cem-ql-fragment` is CEM-native, implicit-entrypoint, no-params only; `cem-native-modules` is the CEM-native
-          declaration/module phase; `xslt-parity` is XSLT-only, implicit-entrypoint, no-params only. Graph runtime phase
-          is carried per `TransformGraphStage`, while graph-wide execution controls remain on `TransformGraphRequest`;
-          graph validation also checks known artifact refs, unique graph IDs, and duplicate output destination rejection.
+          declaration/module phase; `xslt-parity` is XSLT-only with named-template and string-param support. Graph
+          runtime phase is carried per `TransformGraphStage`, while graph-wide execution controls remain on
+          `TransformGraphRequest`; graph validation also checks known artifact refs, unique graph IDs, and duplicate
+          output destination rejection.
         - CEM-native runtime order: first support pure CEM-QL evaluation plus CEM-ML fragments with embedded CEM-QL and
           one implicit entrypoint; then add native named templates/modules, explicit entrypoints, params,
           imports/includes, visibility, caching, and recursion/cycle limits; then expand XSLT parity using that native
@@ -869,12 +873,13 @@ These are data shapes only. Parser-filled content remains blocked until the pars
       First XSLT parity follow-up: `packages/cem_ml/tests/xslt_adapter_output_parity.rs` proves XSLT 1.0
       compatibility lowering renders the same light-DOM output as equivalent CEM sources for login/profile/asset-shaped
       cases. Executable parity now runs through direct `transform` and CEM-ML graph config, with CLI integration
-      coverage in `packages/cem_ml_cli/tests/xslt_parity_transform.rs`. XSLT remains implicit-entrypoint/no-params at
-      this boundary. The crate dependency cycle is avoided by keeping the concrete CEM-QL adapter in
-      `cem_ml_transform_cem_ql` rather than in `cem_ml`. Mixed-runtime transform graphs now use per-stage runtime policy,
-      with CLI coverage for CEM-native and XSLT stages in the same graph. Quoted XPath string literals in lowered XSLT
-      value/param expressions now render as text while scalar variables that represent rewritten CEM-QL expressions
-      still splice as expressions.
+      coverage in `packages/cem_ml_cli/tests/xslt_parity_transform.rs`. XSLT parity now accepts direct
+      `--template-entrypoint` / `--param` and graph `transform @entrypoint` / child `param` records by lowering named
+      entrypoints to bounded `xsl:call-template` execution with string `xsl:with-param` values. The crate dependency
+      cycle is avoided by keeping the concrete CEM-QL adapter in `cem_ml_transform_cem_ql` rather than in `cem_ml`.
+      Mixed-runtime transform graphs now use per-stage runtime policy, with CLI coverage for CEM-native and XSLT stages
+      in the same graph. Quoted XPath string literals in lowered XSLT value/param expressions now render as text while
+      scalar variables that represent rewritten CEM-QL expressions still splice as expressions.
 8. `cem-ml trace <input>`
     - Supported structured formats: `json`, `xml`, `cem`.
     - Reference convenience formats: `text`, `html`.
