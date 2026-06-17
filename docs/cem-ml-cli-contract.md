@@ -581,8 +581,9 @@ Current implementation status:
   Transform config and CEM-native template schema targets
   are also registry-owned as CEM output syntax. Unsupported target identities emit a
   deterministic lifecycle diagnostic with the declared content type, schema, and/or namespace while
-  preserving the requested fallback output projection. Remaining non-CEM
-  schema/namespace-specific export adapters are still pending.
+  preserving the requested fallback output projection. Broader third-party or future
+  non-CEM adapters remain deferred plugin/content-type work outside the current
+  built-in lifecycle set.
 - Root-scope configuration is complete for the current CLI/lib/WASM contract. Current execution uses run-config identity
   fields for lifecycle dispatch and conversion output selection, recognized scheduler
   policy/budget fields for scheduled worker policy, `parseMs` for parser-backed

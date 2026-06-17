@@ -8,7 +8,7 @@ Each item names the AC reference and design home so the closing change ships wit
 Design home: [`content-type-switch.md`](content-type-switch.md) (BRD). The open questions and implementation gates
 for the current architecture have landed; only deferred capability work remains here.
 
-- [ ] **Immediate goal: structural data lifecycle for lib + CLI.** Design homes:
+- [x] **Immediate goal: structural data lifecycle for lib + CLI.** Design homes:
       [`cem-ml-cli-contract.md`](cem-ml-cli-contract.md), [`cem-ml-cli-plan.md`](cem-ml-cli-plan.md), and
       [`../roadmap.md` §Phase 2](../roadmap.md#phase-2---schema-defined-parser-and-document-runtime). Promote format
       identity from report metadata to execution input: content type + schema/namespace identity select the adapter
@@ -45,7 +45,10 @@ for the current architecture have landed; only deferred capability work remains 
       registry-owned as CEM output syntax. Unsupported target identities now emit a deterministic lifecycle
       diagnostic with the declared content type, schema, and/or namespace while preserving the requested fallback output
       projection.
-      Keep this item open until broader non-CEM schema/namespace-specific export adapters are registry-owned too.
+      The immediate built-in lifecycle covers CEM-ML, HTML/XML parity, structural JSON projections, run/transform config
+      schema identities, CEM-native template schema identities, and the XSLT 1.0 custom-element compatibility input
+      adapter. Broader third-party or future non-CEM adapters remain deferred plugin/content-type work rather than a
+      blocker for this immediate item.
 - [ ] **Wishlist (future — NOT in the immediate release timeline):** engine XSLT 3.0/4.0 execution
       behind G-NVDL-FULL (AC-P-6.9). The architecture keeps the capability-gated seam — XSLT is a
       peer language behind explicit dispatch, not the primary model or a browser-native dependency —
