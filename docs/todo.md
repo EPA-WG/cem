@@ -47,10 +47,12 @@ Recommended execution order:
       gate assert the file-backed fixtures directly so parity does not depend on manual story inspection.
       `cem-elements:verify` now depends on `verify-legacy-fixtures` and `verify-material-fixtures` alongside
       substrate, CLI, unit, and Storybook checks, so the release gate fails when either parity manifest drifts.
-- [ ] **Prove declaration/data-island inertness in browser tests.** Cover exactly-one inline declaration template,
+- [x] **Prove declaration/data-island inertness in browser tests.** Cover exactly-one inline declaration template,
       `src` vs inline-template exclusivity, rejection of live declaration content, host payload capture into
       `<template data-cem-island="instance">`, removal of fallback payload before render, and proof that raw declaration
       or instance data does not affect layout, selectors, form submission, accessibility tree, or visible UI directly.
+      Browser Storybook coverage now includes selector, layout, form, focus/accessibility, declaration-render isolation,
+      and declaration-shape guardrails for exactly-one inline template, `src` conflict, and live-content rejection.
 - [ ] **Harden produced-tag lifecycle behavior.** Cover tag validation, idempotent registration, duplicate declaration
       diagnostics, observed attribute extraction, declared defaults, host overrides, undeclared attribute invalidation,
       reconnect/disconnect behavior, nested produced elements, and deterministic rerender ordering.
