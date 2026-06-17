@@ -339,6 +339,48 @@ presence, output-span count, and a `{destination}.map` `sourceMapRef` when the t
 concrete output destination. Stdout transform output still reports source-map presence and output-span count, but omits
 `sourceMapRef` because there is no adjacent file path for a sidecar.
 
+The remaining CEM-native parity closure before XSLT adds named module invocation to the user-facing surfaces:
+
+```bash
+cem-ml transform data.cem \
+  --data-content-type text/cem-ml \
+  --template templates/page.cem \
+  --template-schema https://cem.dev/ns/template/cem-native/1 \
+  --template-entrypoint card \
+  --param locale=fr-FR \
+  --param title=Intro \
+  --to-content-type text/html
+```
+
+One-line CLI params are repeatable `NAME=VALUE` records. Values enter the engine as strings and are normalized by the
+CEM-native module declaration for the selected entrypoint: boolean/number/integer/array/object/json params parse the
+string as the declared shape, nullable literal `null` becomes JSON null, and non-nullable `any`/`string` keep text such
+as `null` as a string. The direct CLI stays one input, one template, one primary output; multiple outputs remain graph
+branches and exports.
+
+The same closure extends CEM-ML transform graph config with `transform @entrypoint` and child `param` records:
+
+```cem
+{@doc cem-ml 1}
+{run |
+  {import @id="book" @src="inputs/*.cem" @content-type="text/cem-ml" |
+    {transform
+      @id="html"
+      @src="templates/page.cem"
+      @template-schema="https://cem.dev/ns/template/cem-native/1"
+      @entrypoint="card" |
+      {param @name="locale" @value="fr-FR"}
+      {param @name="title" @value="{stem}"}
+      {export @out="book/chapters/{stem}.html" @content-type="text/html"}
+    }
+  }
+}
+```
+
+Config `param @value` uses the same string-first normalization as `--param`; output/source bindings such as `{stem}`
+are expanded by the CLI host before the engine request is built. `@entrypoint` and params are valid only for
+CEM-native module execution; `cem-ql-fragment` still requires the implicit entrypoint and no params.
+
 Graph configs use the dedicated CEM-ML transform-config schema identity
 `https://cem.dev/ns/cli/transform-config/1` and can be run directly:
 
@@ -677,6 +719,23 @@ These are data shapes only. Parser-filled content remains blocked until the pars
           one implicit entrypoint; then add native named templates/modules, explicit entrypoints, params,
           imports/includes, visibility, caching, and recursion/cycle limits; then expand XSLT parity using that native
           substrate.
+        - Remaining CEM-native parity closure before XSLT:
+            - Surface named entrypoints and params in the direct CLI via `--template-entrypoint NAME` and repeatable
+              `--param NAME=VALUE`; keep string-first CLI param normalization at the module contract boundary.
+            - Surface the same controls in CEM-ML graph config via `transform @entrypoint` and child
+              `param @name @value` records; expand path/source bindings in `@value` before lowering to engine params.
+            - Pass entrypoint/params through CLI one-liner and graph lowering into `TransformRequest` and
+              `TransformGraphStage` without changing the engine API shape.
+            - Prove resolver-backed imported CEM-native modules end-to-end from CLI one-liner and graph config,
+              including relative import resolution, imported call diagnostics, stdout/default output behavior, report
+              destinations, and source-map sidecars for configured exports.
+            - Add conformance fixtures for the CEM-native module matrix: implicit entrypoint, public named entrypoint,
+              private/missing entrypoint diagnostics, caller params/defaults/nulls/type coercion, same/imported calls,
+              `@with:*` secondary inputs, nested imports, import cycles/depth, and recursion limits.
+            - Keep `include`, `@default-expr` / `@defaultExpr`, adapter extension buckets for unknown params, arbitrary
+              template writes, and XSLT execution outside this closure.
+          Exit criterion for starting XSLT parity: all supported CEM-native module semantics are available through the
+          programmatic API, direct CLI, and CEM-ML graph config with stable diagnostics/reports and schema docs.
         - Native template/module contract for the next runtime/API slice:
             - Compile each template resource as an adapter-owned module. Module syntax and schema rules belong to the
               selected template content-type/schema adapter, not to the stable base CEM-ML document AST.

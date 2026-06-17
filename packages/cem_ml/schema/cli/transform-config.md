@@ -56,9 +56,27 @@ Namespace URI: `https://cem.dev/ns/cli/transform-config/1`
 
 Transform nodes must declare or imply a supported template identity through
 `@template-content-type`, `@template-schema`, or a recognized `@src`
-extension. The current parser classifies XSLT and CEM-native templates for
-planning only; execution remains reserved until the runtime API and template
-semantics are designed.
+extension. The current parser classifies XSLT and CEM-native templates; the
+runtime executes supported CEM-native templates and keeps XML+XSLT execution
+deferred.
+
+## Reserved CEM-Native Module Extension
+
+The remaining CEM-native parity closure reserves the next graph-config schema
+extension without making it active in the current parser table:
+
+| Element | Required attributes | Optional attributes | Child elements |
+| ------- | ------------------- | ------------------- | -------------- |
+| `transform` | `src` | existing transform attributes plus `entrypoint` | existing transform children plus `param` |
+| `param` | `name`, `value` | none | none |
+
+`transform @entrypoint` selects a public CEM-native template entrypoint. Child
+`param @name @value` records provide caller params for that transform stage.
+`@value` is a string-first CLI/config value: source bindings such as `{stem}`
+are expanded by the CLI host, then the CEM-native module declaration coerces
+the string according to the selected entrypoint's param type. These fields are
+valid only for CEM-native module execution; fragment execution still uses the
+implicit entrypoint with no params.
 
 ## Example
 

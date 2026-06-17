@@ -168,6 +168,18 @@ for the current architecture have landed; only deferred capability work remains 
       path-template expansion for graph configs; then add native named templates/modules, explicit entrypoints, params,
       imports/includes, visibility, caching, and recursion/cycle limits; then expand XSLT parity on that native
       substrate. Next runtime implementation work is CEM-native template semantics before XSLT parity.
+      Remaining CEM-native parity closure before XSLT: first surface named entrypoints and params in the direct CLI as
+      `--template-entrypoint NAME` plus repeatable `--param NAME=VALUE`; then surface the same controls in CEM-ML graph
+      config as `transform @entrypoint` plus child `param @name @value` records; then lower those fields into existing
+      `TransformRequest` / `TransformGraphStage` entrypoint and params without changing the engine API; then prove
+      resolver-backed imported CEM-native modules through direct CLI and graph config, including relative import
+      resolution, imported call diagnostics, stdout/default output behavior, report destinations, and source-map sidecars
+      for configured exports; then freeze conformance fixtures for implicit/public/private/missing entrypoints,
+      defaults/nulls/type coercion, same/imported calls, `@with:*` secondary inputs, nested imports, import cycles/depth,
+      and recursion limits. `include`, `@default-expr` / `@defaultExpr`, unknown-param extension buckets, arbitrary
+      template writes, and XSLT execution stay outside this closure. XSLT parity starts only after supported CEM-native
+      module semantics are available through the programmatic API, direct CLI, and CEM-ML graph config with stable
+      diagnostics/reports and schema docs.
       Native template module semantics should start with an adapter-owned module contract rather than changing the base
       CEM-ML AST: implicit entrypoint means module default render; explicit entrypoints select public exported templates;
       declarations are private by default; params are immutable with template defaults and fatal unknown names unless an
