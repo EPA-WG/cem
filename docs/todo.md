@@ -224,11 +224,9 @@ Recommended execution order:
       (`cem-element.hydration_snapshot_missing`), invalid JSON shape (`cem-element.hydration_snapshot_invalid`), and
       malformed JSON (`cem-element.hydration_json_invalid`). Retained render roots now reject missing template
       artifact/data revision identity, stale template artifacts, and stale data revisions before falling back to a
-      fresh client render. Source-map-mode mismatch is split into a follow-up contract extension because the current
-      `DataIslandSnapshot` schema does not serialize source-map mode.
-- [ ] **Define the hydration source-map-mode contract extension.** Add a source-map mode/fidelity field to the
-      serialized hydration contract, define compatibility rules for mismatches, and add an SSR rejection fixture once
-      the field exists in `DataIslandSnapshot`.
+      fresh client render. `DataIslandSnapshot.sourceMapMode` now serializes the hydration source-map policy, and
+      `SsrHydrationRejectsIncompleteMarkup` rejects retained dev-mode markup that is missing source fidelity with
+      `cem-element.hydration_source_map_mode_mismatch`.
 - [x] **Add the pure edge-processing fixture.** Feed serialized template source, previous render-plan identity, and a
       policy-sanitized `DataIslandSnapshot` into the pure render-plan projection path. Assert
       `diffRenderPlansToPatchFrames(previous, next)` emits `begin` / batched `ops` / `commit` frames without live DOM

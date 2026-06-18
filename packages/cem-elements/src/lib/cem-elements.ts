@@ -2,6 +2,7 @@ import {
     materializeRenderPlan,
     projectTemplate,
     readTemplateSource,
+    type SourceMapFidelity,
     type SourceMapRef,
     type TemplateSourceNode,
     type TemplateValue,
@@ -97,7 +98,9 @@ export interface SerializedEventPayload {
 }
 
 /** Schema version of the DataIslandSnapshot / datadom governed contract (FF-6 SemVer axis, BR-VC-5). */
-export const SNAPSHOT_SCHEMA_VERSION = '1.0.0';
+export const SNAPSHOT_SCHEMA_VERSION = '1.1.0';
+
+export type SourceMapMode = 'dev' | 'prod';
 
 export interface DataIslandSnapshot {
     /** Snapshot schema version; see {@link SNAPSHOT_SCHEMA_VERSION}. Optional during the expand phase (BR-EV-5). */
@@ -108,6 +111,8 @@ export interface DataIslandSnapshot {
     templateArtifactId: string;
     dataRevision: string;
     outputTarget: 'light-dom';
+    /** Optional during the expand phase: older SSR snapshots predate source-map-mode hydration checks. */
+    sourceMapMode?: SourceMapMode;
     scopePolicyStamp: string;
     privacyPolicyStamp: string;
     hostAttributes: Record<string, string | boolean | null>;
@@ -137,6 +142,7 @@ export type ExportedDataIslandSnapshot = Pick<
     | 'templateArtifactId'
     | 'dataRevision'
     | 'outputTarget'
+    | 'sourceMapMode'
     | 'scopePolicyStamp'
     | 'privacyPolicyStamp'
 > &
@@ -234,6 +240,7 @@ const HYDRATION_METADATA_ATTR = 'data-cem-hydration';
 const HYDRATION_METADATA_VALUE = 'snapshot';
 const RENDER_TEMPLATE_ARTIFACT_ID_ATTR = 'data-cem-template-artifact-id';
 const RENDER_DATA_REVISION_ATTR = 'data-cem-data-revision';
+const SOURCE_FIDELITY_ATTR = 'data-cem-source-fidelity';
 const XHTML_NAMESPACE = 'http://www.w3.org/1999/xhtml';
 const DATA_ISLAND_EXPORT_FIELDS: readonly DataIslandSnapshotExportField[] = [
     'hostAttributes',
@@ -343,6 +350,7 @@ export function exportDataIslandSnapshotForEdge(
         privacyPolicyStamp: policy.privacyPolicyStamp ?? snapshot.privacyPolicyStamp,
     };
     if (snapshot.version !== undefined) exported.version = snapshot.version;
+    if (snapshot.sourceMapMode !== undefined) exported.sourceMapMode = snapshot.sourceMapMode;
     for (const field of DATA_ISLAND_EXPORT_FIELDS) {
         const decision = policy.fields?.[field] ?? 'omit';
         if (decision === 'allow') {
@@ -1159,6 +1167,7 @@ export class CemElementRuntime {
             templateArtifactId: compiled.artifactId,
             dataRevision: this.nextDataRevision(instance),
             outputTarget: 'light-dom',
+            sourceMapMode: 'dev',
             scopePolicyStamp: this.scopePolicyStamp,
             privacyPolicyStamp: this.privacyPolicyStamp,
             hostAttributes: hostAttributes(instance),
@@ -1562,7 +1571,40 @@ function hydrationRenderIdentityDiagnostics(
             )
         );
     }
+    const sourceMapModeDiagnostic = hydrationSourceMapModeDiagnostic(instance, firstRenderedElement, snapshot);
+    if (sourceMapModeDiagnostic) {
+        diagnostics.push(sourceMapModeDiagnostic);
+    }
     return diagnostics;
+}
+
+function hydrationSourceMapModeDiagnostic(
+    instance: HTMLElement,
+    firstRenderedElement: Element,
+    snapshot: DataIslandSnapshot
+): CemElementDiagnostic | undefined {
+    if (!snapshot.sourceMapMode) {
+        return undefined;
+    }
+    const retainedFidelity = firstRenderedElement.getAttribute(SOURCE_FIDELITY_ATTR);
+    if (snapshot.sourceMapMode === 'dev') {
+        if (!isSourceMapFidelity(retainedFidelity)) {
+            return renderDiagnostic(
+                'cem-element.hydration_source_map_mode_mismatch',
+                'SSR hydration snapshot expected dev source metadata but the retained render root did not carry source fidelity',
+                instance.localName
+            );
+        }
+        return undefined;
+    }
+    if (retainedFidelity !== null) {
+        return renderDiagnostic(
+            'cem-element.hydration_source_map_mode_mismatch',
+            'SSR hydration snapshot expected prod source metadata policy but the retained render root carried source fidelity',
+            instance.localName
+        );
+    }
+    return undefined;
 }
 
 function firstRenderedElementBetween(bounds: RenderBounds): Element | undefined {
@@ -1588,6 +1630,7 @@ function isDataIslandSnapshot(value: unknown): value is DataIslandSnapshot {
         typeof record.templateArtifactId === 'string' &&
         typeof record.dataRevision === 'string' &&
         record.outputTarget === 'light-dom' &&
+        (record.sourceMapMode === undefined || isSourceMapMode(record.sourceMapMode)) &&
         typeof record.scopePolicyStamp === 'string' &&
         typeof record.privacyPolicyStamp === 'string' &&
         isPlainRecord(record.hostAttributes) &&
@@ -1596,6 +1639,14 @@ function isDataIslandSnapshot(value: unknown): value is DataIslandSnapshot {
         isPlainRecord(record.validationState) &&
         isPlainRecord(record.eventPayloads)
     );
+}
+
+function isSourceMapMode(value: unknown): value is SourceMapMode {
+    return value === 'dev' || value === 'prod';
+}
+
+function isSourceMapFidelity(value: unknown): value is SourceMapFidelity {
+    return value === 'author-byte-exact' || value === 'dom-canonical' || value === 'declaration-only';
 }
 
 function isPlainRecord(value: unknown): value is Record<string, unknown> {

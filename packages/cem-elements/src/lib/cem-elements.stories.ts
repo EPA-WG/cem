@@ -2433,6 +2433,9 @@ export const SsrHydrationRejectsIncompleteMarkup: Story = {
         const revisionMismatch = hydratedCase('Revision mismatch', JSON.stringify(snapshot), (element) => {
             element.setAttribute('data-cem-data-revision', '4');
         });
+        const sourceMapModeMismatch = hydratedCase('Source-map mode mismatch', JSON.stringify(snapshot), (element) => {
+            element.removeAttribute('data-cem-source-fidelity');
+        });
 
         await runtime.whenRenderSettled(metadataOnly);
         await runtime.whenRenderSettled(boundsOnly);
@@ -2442,6 +2445,7 @@ export const SsrHydrationRejectsIncompleteMarkup: Story = {
         await runtime.whenRenderSettled(missingIdentity);
         await runtime.whenRenderSettled(artifactMismatch);
         await runtime.whenRenderSettled(revisionMismatch);
+        await runtime.whenRenderSettled(sourceMapModeMismatch);
 
         assertDiagnostic(runtime.diagnosticsFor(metadataOnly), 'cem-element.hydration_boundaries_missing');
         assertDiagnostic(runtime.diagnosticsFor(boundsOnly), 'cem-element.hydration_metadata_missing');
@@ -2451,6 +2455,7 @@ export const SsrHydrationRejectsIncompleteMarkup: Story = {
         assertDiagnostic(runtime.diagnosticsFor(missingIdentity), 'cem-element.hydration_render_plan_identity_missing');
         assertDiagnostic(runtime.diagnosticsFor(artifactMismatch), 'cem-element.hydration_template_artifact_mismatch');
         assertDiagnostic(runtime.diagnosticsFor(revisionMismatch), 'cem-element.hydration_render_revision_mismatch');
+        assertDiagnostic(runtime.diagnosticsFor(sourceMapModeMismatch), 'cem-element.hydration_source_map_mode_mismatch');
         await waitForElement(metadataOnly, 'article.ssr-incomplete-card');
         await waitForElement(boundsOnly, 'article.ssr-incomplete-card');
         await waitForElement(emptySnapshot, 'article.ssr-incomplete-card');
@@ -2459,6 +2464,7 @@ export const SsrHydrationRejectsIncompleteMarkup: Story = {
         await waitForElement(missingIdentity, 'article.ssr-incomplete-card');
         await waitForElement(artifactMismatch, 'article.ssr-incomplete-card');
         await waitForElement(revisionMismatch, 'article.ssr-incomplete-card');
+        await waitForElement(sourceMapModeMismatch, 'article.ssr-incomplete-card');
     },
 };
 
@@ -3672,6 +3678,7 @@ function projectionSnapshot(
         templateArtifactId: 'story-template-artifact-1',
         dataRevision: '1',
         outputTarget: 'light-dom',
+        sourceMapMode: 'dev',
         scopePolicyStamp: 'story-scope',
         privacyPolicyStamp: 'story-privacy',
         hostAttributes,

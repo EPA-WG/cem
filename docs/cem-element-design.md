@@ -297,6 +297,7 @@ interface DataIslandSnapshot {
   templateArtifactId: string;
   dataRevision: string;
   outputTarget: "light-dom";
+  sourceMapMode?: SourceMapMode;
   renderAttempt?: number;
   scopePolicyStamp: string;
   privacyPolicyStamp: string;

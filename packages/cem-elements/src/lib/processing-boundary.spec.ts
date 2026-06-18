@@ -161,6 +161,7 @@ function snapshotFixture(): DataIslandSnapshot {
         templateArtifactId: 'boundary-template-1',
         dataRevision: '1',
         outputTarget: 'light-dom',
+        sourceMapMode: 'dev',
         scopePolicyStamp: 'boundary-scope',
         privacyPolicyStamp: 'boundary-privacy',
         hostAttributes: { label: 'Projected' },

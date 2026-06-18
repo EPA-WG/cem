@@ -28,5 +28,5 @@ yarn nx run cem-elements:verify
 ## Handoff
 
 Phase 3.6 `@epa-wg/custom-element` adoption can consume the `cem-elements` processing boundary when this target and
-the broader `cem-elements:verify` gate pass. The remaining hydration source-map-mode mismatch case is a contract
-extension task because the current `DataIslandSnapshot` schema does not serialize a source-map mode field.
+the broader `cem-elements:verify` gate pass. The hydration contract serializes `DataIslandSnapshot.sourceMapMode`, so
+SSR adoption must preserve source-fidelity metadata for dev-mode snapshots or fail closed before client fallback.
