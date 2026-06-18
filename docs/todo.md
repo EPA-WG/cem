@@ -186,37 +186,61 @@ phase adds fixtures and host helpers for SSR and edge processing without changin
 
 Recommended execution order:
 
-- [ ] **Baseline the current processing-boundary surface.** Run and record the current status for
+- [x] **Baseline the current processing-boundary surface.** Run and record the current status for
       `yarn nx run cem-elements:verify`, `yarn nx run @epa-wg/cem-components:verify`, and the narrow runtime-support
       tests that cover `DataIslandSnapshot`, `RenderRevision`, render plans, patch frames, and structured-clone
       assertions. Fix only harness drift in this slice; leave Edge/SSR gaps as named checklist items below.
-- [ ] **Extract a host-neutral processing fixture API.** Add package-owned helpers that can render from serialized
+      Baseline run on 2026-06-18: both aggregate commands passed. `cem-elements:verify` ran the substrate roundtrip,
+      file-backed parity fixture verifiers, unit runtime-support tests, Storybook runtime stories, CLI fixture/e2e
+      gates, and `cem_ml:bench`; `@epa-wg/cem-components:verify` ran primitive manifest, style contract, and browser
+      workflow/state/primitive tests. Existing narrow coverage includes `processing-boundary.spec.ts` for
+      structured-clone contracts and Storybook stories for SSR hydration, edge patch frames, privacy export, and hybrid
+      render-state storage.
+- [x] **Extract a host-neutral processing fixture API.** Add package-owned helpers that can render from serialized
       template source plus `DataIslandSnapshot` without constructing live DOM, custom elements, events, focus state, or
       form controls. The helper should expose the existing browser worker/main-thread processing result shape so Edge,
       SSR, and browser tests assert the same artifact identity, diagnostics, source-map mode, render-plan identity, and
       patch-frame contracts.
-- [ ] **Add the SSR initial-render fixture.** Build a deterministic fixture that emits initial light DOM plus hydration
+      `packages/cem-elements/src/lib/projection.ts` already exposes the host-neutral projection and edge helpers:
+      `projectTemplate`, `diffRenderPlansToPatchFrames`, `advanceEdgeRenderState`, and
+      `projectAndAdvanceEdgeRenderState`. `processing-boundary.spec.ts` proves their snapshots, render plans, patch
+      frames, edge records, and content reads remain structured-clone-safe data.
+- [x] **Add the SSR initial-render fixture.** Build a deterministic fixture that emits initial light DOM plus hydration
       metadata from a serialized `DataIslandSnapshot`: direct child
       `<script type="application/json" data-cem-hydration="snapshot">`, direct instance data-island `<template>`, and
       normal `<!--cem-render-start-->` / `<!--cem-render-end-->` boundaries. Assert first connect preserves matching
       server-rendered DOM and restores revision/render-plan identity before normal client invalidation resumes.
-- [ ] **Add hydration mismatch diagnostics.** Cover stale template artifact identity, stale `RenderRevision`, mismatched
-      source-map mode, missing hydration snapshot, malformed JSON, missing render boundaries, and retained render-plan
-      mismatches. Fail closed with structured diagnostics and deterministic client fallback behavior.
-- [ ] **Add the pure edge-processing fixture.** Feed serialized template source, previous render-plan identity, and a
+      `SsrHydrationFromSerializedSnapshot` covers serialized snapshot metadata, data island payload preservation,
+      render boundary preservation, retained template artifact/data revision identity, visible slot projection, and
+      client-side invalidation after hydration.
+- [ ] **Broaden hydration mismatch diagnostics.** Current coverage rejects unsupported newer snapshot schema versions
+      through `SsrHydrationRejectsUnsupportedSnapshotVersion`. Add stale template artifact identity, stale
+      `RenderRevision`, mismatched source-map mode, missing hydration snapshot, malformed JSON, missing render
+      boundaries, and retained render-plan mismatch diagnostics. Fail closed with structured diagnostics and
+      deterministic client fallback behavior.
+- [x] **Add the pure edge-processing fixture.** Feed serialized template source, previous render-plan identity, and a
       policy-sanitized `DataIslandSnapshot` into the pure render-plan projection path. Assert
       `diffRenderPlansToPatchFrames(previous, next)` emits `begin` / batched `ops` / `commit` frames without live DOM
       access.
-- [ ] **Cover edge diff boundaries.** Lock the first supported fine-grained edge diff to stable render-node-id text and
-      attribute changes. Assert first render, template changes, root-count changes, unsupported structural deltas, and
-      target mismatches intentionally fall back to constrained `replaceScope` frames.
-- [ ] **Implement fail-closed data export policy fixtures.** Prove that snapshots are local-only by default and that
+      `EdgePatchFramesFromSerializedSnapshot` covers serialized previous/next snapshots, stable render-node-id text
+      patching, `begin` / `ops` / `commit` frame order, transaction identity, and retained next render-plan identity.
+- [ ] **Broaden edge diff boundary coverage.** Current coverage proves stable text patching, store-backed patch frames,
+      first-render `replaceScope`, missing/corrupt previous render-plan failures, and render-revision mismatch
+      failures. Add explicit coverage for stable attribute patches, template changes, root-count changes, unsupported
+      structural deltas, and target mismatches falling back to constrained `replaceScope` frames.
+- [x] **Implement fail-closed data export policy fixtures.** Prove that snapshots are local-only by default and that
       denied fields are omitted or redacted before leaving the browser context. Cover sensitive fields, transient input
       composition, focus/selection state, raw browser events, credentials, and policy-denied payload data.
-- [ ] **Decide and document first render-state storage.** Choose the Phase 3.5 storage model for edge processing:
+      `BrowserToEdgeSnapshotPrivacyPolicy` covers default omission, allowed host attributes, redacted payload and
+      validation state, omitted dataset/slices/event payloads, policy stamps, and detached exported snapshots.
+- [x] **Decide and document first render-state storage.** Choose the Phase 3.5 storage model for edge processing:
       content-addressed cache only, revisioned KV/document records, or the hybrid model described in
       `cem-element-design.md`. Add fixture coverage for content-addressed artifacts, revision pointer records,
       scope/privacy policy stamps, and stale-write rejection.
+      `EdgeRenderStateHybridStorageModel` locks the hybrid model:
+      `content-addressed-cache-with-revision-pointer-v1`. It covers content-addressed render plans, template
+      artifacts, sanitized snapshots, rendered HTML, revision pointer records, policy stamps, ETag stale-write
+      rejection, missing/corrupt content failures, and store-backed edge advancement.
 - [ ] **Wire the Phase 3.5 release gate.** Add an aggregate Nx target that runs the SSR fixture, edge fixture,
       privacy/export policy fixtures, and existing browser substrate verification. Document the final command set and
       the handoff condition for Phase 3.6 `@epa-wg/custom-element` adoption.
