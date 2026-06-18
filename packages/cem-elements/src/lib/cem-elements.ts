@@ -885,7 +885,27 @@ export class CemElementRuntime {
     private adoptServerRenderedInstance(instance: HTMLElement, island: HTMLTemplateElement): boolean {
         const metadata = directHydrationMetadata(instance);
         const bounds = directRenderBounds(instance);
-        if (!metadata || !bounds) {
+        if (!metadata && !bounds) {
+            return false;
+        }
+        if (!metadata) {
+            this.recordDiagnostics(instance, [
+                renderDiagnostic(
+                    'cem-element.hydration_metadata_missing',
+                    'SSR hydration render boundaries were present but hydration metadata was missing',
+                    instance.localName
+                ),
+            ]);
+            return false;
+        }
+        if (!bounds) {
+            this.recordDiagnostics(instance, [
+                renderDiagnostic(
+                    'cem-element.hydration_boundaries_missing',
+                    'SSR hydration metadata was present but render boundaries were missing',
+                    instance.localName
+                ),
+            ]);
             return false;
         }
 

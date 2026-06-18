@@ -2329,6 +2329,70 @@ export const SsrHydrationRejectsUnsupportedSnapshotVersion: Story = {
     },
 };
 
+export const SsrHydrationRejectsIncompleteMarkup: Story = {
+    render: () =>
+        storyPanel(
+            'SSR hydration incomplete markup',
+            'partial hydration markup fails closed with specific diagnostics before client fallback'
+        ),
+    play: async ({ canvasElement }) => {
+        const root = document.createElement('section');
+        canvasElement.appendChild(root);
+
+        const templateHtml =
+            '<attribute name="label">Fallback</attribute>' +
+            '<article class="ssr-incomplete-card">' +
+            '<h2>${$label}</h2>' +
+            '</article>';
+        const runtime = new CemElementRuntime({ declarationTag: 'cem-element-story-ssr-incomplete' });
+        runtime.install(window);
+        const declaration = document.createElement('cem-element-story-ssr-incomplete');
+        declaration.setAttribute('tag', 'story-ssr-incomplete-card');
+        const declTemplate = document.createElement('template');
+        declTemplate.innerHTML = templateHtml;
+        declaration.appendChild(declTemplate);
+        root.appendChild(declaration);
+        runtime.registerDeclaration(declaration);
+
+        const snapshot = projectionSnapshot('story-ssr-incomplete-card', { label: 'Server Card' });
+        snapshot.instanceId = 'ssr-incomplete-instance-1';
+        snapshot.declarationTag = 'cem-element-story-ssr-incomplete';
+        snapshot.templateArtifactId = 'ssr-incomplete-artifact-1';
+        snapshot.dataRevision = '5';
+
+        const metadataOnly = document.createElement('story-ssr-incomplete-card');
+        metadataOnly.setAttribute('label', 'Metadata only');
+        const metadataOnlyIsland = document.createElement('template');
+        metadataOnlyIsland.setAttribute('data-cem-island', 'instance');
+        const metadata = document.createElement('script');
+        metadata.setAttribute('type', 'application/json');
+        metadata.setAttribute('data-cem-hydration', 'snapshot');
+        metadata.textContent = JSON.stringify(snapshot);
+        metadataOnly.append(metadataOnlyIsland, metadata);
+        root.appendChild(metadataOnly);
+
+        const boundsOnly = document.createElement('story-ssr-incomplete-card');
+        boundsOnly.setAttribute('label', 'Bounds only');
+        const boundsOnlyIsland = document.createElement('template');
+        boundsOnlyIsland.setAttribute('data-cem-island', 'instance');
+        boundsOnly.append(
+            boundsOnlyIsland,
+            document.createComment('cem-render-start'),
+            document.createElement('article'),
+            document.createComment('cem-render-end')
+        );
+        root.appendChild(boundsOnly);
+
+        await runtime.whenRenderSettled(metadataOnly);
+        await runtime.whenRenderSettled(boundsOnly);
+
+        assertDiagnostic(runtime.diagnosticsFor(metadataOnly), 'cem-element.hydration_boundaries_missing');
+        assertDiagnostic(runtime.diagnosticsFor(boundsOnly), 'cem-element.hydration_metadata_missing');
+        await waitForElement(metadataOnly, 'article.ssr-incomplete-card');
+        await waitForElement(boundsOnly, 'article.ssr-incomplete-card');
+    },
+};
+
 export const EdgePatchFramesFromSerializedSnapshot: Story = {
     render: () => storyPanel('Edge patch frames', 'serialized snapshot + previous render-plan identity → patch stream'),
     play: () => {

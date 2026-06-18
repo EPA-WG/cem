@@ -218,6 +218,9 @@ Recommended execution order:
       `RenderRevision`, mismatched source-map mode, missing hydration snapshot, malformed JSON, missing render
       boundaries, and retained render-plan mismatch diagnostics. Fail closed with structured diagnostics and
       deterministic client fallback behavior.
+      Additional coverage landed for partial SSR markup: metadata without render boundaries reports
+      `cem-element.hydration_boundaries_missing`, and render boundaries without metadata reports
+      `cem-element.hydration_metadata_missing`.
 - [x] **Add the pure edge-processing fixture.** Feed serialized template source, previous render-plan identity, and a
       policy-sanitized `DataIslandSnapshot` into the pure render-plan projection path. Assert
       `diffRenderPlansToPatchFrames(previous, next)` emits `begin` / batched `ops` / `commit` frames without live DOM
