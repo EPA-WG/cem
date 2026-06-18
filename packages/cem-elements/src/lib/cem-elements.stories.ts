@@ -2500,6 +2500,68 @@ export const EdgePatchFramesFromSerializedSnapshot: Story = {
             !ops.some((op) => op.op === 'replaceScope'),
             'same-template edge diffs use stable render-node patches instead of scope replacement'
         );
+        const attributeTemplate = document.createElement('template');
+        attributeTemplate.innerHTML =
+            '<attribute name="label">Fallback</attribute>' +
+            '<article class="edge-card" data-kind="{$kind}">' +
+            '<h2>${$label}</h2>' +
+            '</article>';
+        const attributeSource = readTemplateSource(attributeTemplate.content);
+        const attributePrevious = projectTemplate(attributeSource, {
+            snapshot: edgeProjectionSnapshot('Edge Before', '13'),
+            values: { label: 'Edge Before', kind: 'summary' },
+        });
+        const attributeNext = projectTemplate(attributeSource, {
+            snapshot: edgeProjectionSnapshot('Edge After', '14'),
+            values: { label: 'Edge After', kind: 'featured' },
+        });
+        const attributePatch = opsFromPatchFrames(diffRenderPlansToPatchFrames(attributePrevious, attributeNext)).find(
+            (op) => op.op === 'setAttribute' && op.name === 'data-kind'
+        );
+        assert(attributePatch?.op === 'setAttribute', 'edge diff emits stable attribute patches');
+        assertEqual(attributePatch.value, 'featured', 'attribute patch carries the next attribute value');
+
+        const changedTemplatePlan = cloneRenderPlan(nextPlan);
+        changedTemplatePlan.templateArtifactId = 'edge-template-artifact-2';
+        assert(
+            opsFromPatchFrames(diffRenderPlansToPatchFrames(previousPlan, changedTemplatePlan)).every(
+                (op) => op.op === 'replaceScope' && op.reason === 'fallback'
+            ),
+            'template artifact changes fall back to constrained scope replacement'
+        );
+
+        const extraRootPlan = cloneRenderPlan(nextPlan);
+        extraRootPlan.nodes.push(cloneRenderPlan(nextPlan).nodes[0]);
+        assert(
+            opsFromPatchFrames(diffRenderPlansToPatchFrames(previousPlan, extraRootPlan)).every(
+                (op) => op.op === 'replaceScope' && op.reason === 'fallback'
+            ),
+            'root-count changes fall back to constrained scope replacement'
+        );
+
+        const structuralPlan = cloneRenderPlan(nextPlan);
+        const structuralRoot = structuralPlan.nodes[0];
+        if (structuralRoot.kind === 'element') {
+            structuralRoot.tag = 'section';
+        }
+        const structuralReplace = opsFromPatchFrames(diffRenderPlansToPatchFrames(previousPlan, structuralPlan)).find(
+            (op) => op.op === 'replace'
+        );
+        assert(structuralReplace?.op === 'replace', 'unsupported structural deltas replace the affected render node');
+        assertEqual(
+            structuralReplace.node.node.kind === 'element' ? structuralReplace.node.node.tagName : '',
+            'section',
+            'structural replacement carries the next serialized node'
+        );
+
+        const targetMismatchPlan = cloneRenderPlan(nextPlan);
+        targetMismatchPlan.producedTag = 'story-edge-card-alt';
+        assert(
+            opsFromPatchFrames(diffRenderPlansToPatchFrames(previousPlan, targetMismatchPlan)).every(
+                (op) => op.op === 'replaceScope' && op.reason === 'fallback'
+            ),
+            'target mismatches fall back to constrained scope replacement'
+        );
 
         const commit = frames.at(-1);
         assert(commit?.type === 'commit', 'edge stream ends with a commit frame');
@@ -3662,6 +3724,10 @@ function edgeProjectionSnapshot(label: string, dataRevision: string): DataIsland
 
 function opsFromPatchFrames(frames: readonly PatchFrame[]) {
     return frames.flatMap((frame) => (frame.type === 'ops' ? frame.ops : []));
+}
+
+function cloneRenderPlan(plan: RenderPlan): RenderPlan {
+    return JSON.parse(JSON.stringify(plan)) as RenderPlan;
 }
 
 function emptySerializedPayload(): DataIslandSnapshot['payload'] {

@@ -231,10 +231,13 @@ Recommended execution order:
       access.
       `EdgePatchFramesFromSerializedSnapshot` covers serialized previous/next snapshots, stable render-node-id text
       patching, `begin` / `ops` / `commit` frame order, transaction identity, and retained next render-plan identity.
-- [ ] **Broaden edge diff boundary coverage.** Current coverage proves stable text patching, store-backed patch frames,
+- [x] **Broaden edge diff boundary coverage.** Current coverage proves stable text patching, store-backed patch frames,
       first-render `replaceScope`, missing/corrupt previous render-plan failures, and render-revision mismatch
       failures. Add explicit coverage for stable attribute patches, template changes, root-count changes, unsupported
       structural deltas, and target mismatches falling back to constrained `replaceScope` frames.
+      `EdgePatchFramesFromSerializedSnapshot` now covers stable attribute `setAttribute` patches, template artifact
+      changes, root-count changes, unsupported structural replacements, and produced-tag target mismatches. Fallback
+      cases emit constrained `replaceScope` frames with `fallback` reasons rather than relying on live DOM access.
 - [x] **Implement fail-closed data export policy fixtures.** Prove that snapshots are local-only by default and that
       denied fields are omitted or redacted before leaving the browser context. Cover sensitive fields, transient input
       composition, focus/selection state, raw browser events, credentials, and policy-denied payload data.
