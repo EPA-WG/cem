@@ -105,20 +105,31 @@
             ],
             "outputs": []
         },
+        "verify-edge-ssr": {
+            "executor": "nx:run-commands",
+            "dependsOn": [
+                "verify-substrate",
+                "test:unit",
+                "test"
+            ],
+            "options": {
+                "command": "echo \"Phase 3.5 Edge/SSR verification gate green: browser substrate, processing-boundary unit fixtures, SSR hydration stories, edge patch stories, and privacy/export policy stories all passed.\"",
+                "cwd": "{workspaceRoot}"
+            },
+            "outputs": []
+        },
         "verify": {
             "executor": "nx:run-commands",
             "dependsOn": [
                 { "projects": ["cem_ml_cli"], "target": "validate-fixtures" },
                 { "projects": ["cem_ml_cli"], "target": "e2e" },
                 { "projects": ["cem_ml"], "target": "bench" },
-                "verify-substrate",
+                "verify-edge-ssr",
                 "verify-legacy-fixtures",
-                "verify-material-fixtures",
-                "test:unit",
-                "test"
+                "verify-material-fixtures"
             ],
             "options": {
-                "command": "echo \"C2.6 verification gate green: cem_ml_cli validate-fixtures + e2e, cem_ml bench, cem-element substrate roundtrip, file-backed parity fixtures, and Storybook parity stories all passed.\"",
+                "command": "echo \"C2.6 verification gate green: cem_ml_cli validate-fixtures + e2e, cem_ml bench, Phase 3.5 Edge/SSR gate, file-backed parity fixtures, and Storybook parity stories all passed.\"",
                 "cwd": "{workspaceRoot}"
             },
             "outputs": []

@@ -213,7 +213,7 @@ Recommended execution order:
       `SsrHydrationFromSerializedSnapshot` covers serialized snapshot metadata, data island payload preservation,
       render boundary preservation, retained template artifact/data revision identity, visible slot projection, and
       client-side invalidation after hydration.
-- [ ] **Broaden hydration mismatch diagnostics.** Current coverage rejects unsupported newer snapshot schema versions
+- [x] **Broaden hydration mismatch diagnostics.** Current coverage rejects unsupported newer snapshot schema versions
       through `SsrHydrationRejectsUnsupportedSnapshotVersion`. Add stale template artifact identity, stale
       `RenderRevision`, mismatched source-map mode, missing hydration snapshot, malformed JSON, missing render
       boundaries, and retained render-plan mismatch diagnostics. Fail closed with structured diagnostics and
@@ -224,7 +224,11 @@ Recommended execution order:
       (`cem-element.hydration_snapshot_missing`), invalid JSON shape (`cem-element.hydration_snapshot_invalid`), and
       malformed JSON (`cem-element.hydration_json_invalid`). Retained render roots now reject missing template
       artifact/data revision identity, stale template artifacts, and stale data revisions before falling back to a
-      fresh client render.
+      fresh client render. Source-map-mode mismatch is split into a follow-up contract extension because the current
+      `DataIslandSnapshot` schema does not serialize source-map mode.
+- [ ] **Define the hydration source-map-mode contract extension.** Add a source-map mode/fidelity field to the
+      serialized hydration contract, define compatibility rules for mismatches, and add an SSR rejection fixture once
+      the field exists in `DataIslandSnapshot`.
 - [x] **Add the pure edge-processing fixture.** Feed serialized template source, previous render-plan identity, and a
       policy-sanitized `DataIslandSnapshot` into the pure render-plan projection path. Assert
       `diffRenderPlansToPatchFrames(previous, next)` emits `begin` / batched `ops` / `commit` frames without live DOM
@@ -251,9 +255,12 @@ Recommended execution order:
       `content-addressed-cache-with-revision-pointer-v1`. It covers content-addressed render plans, template
       artifacts, sanitized snapshots, rendered HTML, revision pointer records, policy stamps, ETag stale-write
       rejection, missing/corrupt content failures, and store-backed edge advancement.
-- [ ] **Wire the Phase 3.5 release gate.** Add an aggregate Nx target that runs the SSR fixture, edge fixture,
+- [x] **Wire the Phase 3.5 release gate.** Add an aggregate Nx target that runs the SSR fixture, edge fixture,
       privacy/export policy fixtures, and existing browser substrate verification. Document the final command set and
       the handoff condition for Phase 3.6 `@epa-wg/custom-element` adoption.
+      `yarn nx run cem-elements:verify-edge-ssr` now runs the Phase 3.5 aggregate through `verify-substrate`,
+      `test:unit`, and `test`; `cem-elements:verify` depends on that gate. The command set, coverage, and Phase 3.6
+      handoff condition are recorded in [`cem-elements-edge-ssr-gate.md`](cem-elements-edge-ssr-gate.md).
 
 ## Externally Gated
 
