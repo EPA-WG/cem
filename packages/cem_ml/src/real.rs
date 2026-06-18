@@ -64,6 +64,7 @@ pub struct RealCemMlEngine;
 struct TransformOutputMetadata {
     source_map: Option<SourceMapStack>,
     output_spans: Vec<OutputSpan>,
+    raw_content: Option<String>,
 }
 
 impl RealCemMlEngine {
@@ -1007,7 +1008,310 @@ fn collect_transform_graph_join_metadata(
             None
         },
         output_spans,
+        raw_content: None,
     }
+}
+
+fn transform_graph_artifact_raw_content(
+    artifact: &TransformTemplateDataArtifact,
+    metadata: Option<&TransformOutputMetadata>,
+) -> Option<String> {
+    metadata
+        .and_then(|metadata| metadata.raw_content.clone())
+        .or_else(|| match &artifact.value {
+            Value::String(value) => Some(value.clone()),
+            Value::Object(fields) => fields
+                .get("content")
+                .and_then(Value::as_str)
+                .map(str::to_owned),
+            _ => None,
+        })
+}
+
+fn importmap_rewrite_diagnostic(
+    uri: Option<String>,
+    code: &str,
+    message: impl Into<String>,
+) -> Diagnostic {
+    Diagnostic {
+        uri,
+        code: code.to_owned(),
+        severity: Severity::Fatal,
+        message: message.into(),
+        ..Diagnostic::default()
+    }
+}
+
+fn script_tag_is_importmap(tag: &str) -> bool {
+    if !tag.starts_with("<script") {
+        return false;
+    }
+    let tag = tag.to_ascii_lowercase();
+    tag.contains("type=\"importmap\"")
+        || tag.contains("type='importmap'")
+        || tag.contains("type=importmap")
+}
+
+fn find_html_importmap_script(html: &str) -> Result<Option<(usize, usize)>, &'static str> {
+    let lower = html.to_ascii_lowercase();
+    let mut cursor = 0usize;
+    let mut found = None;
+    while let Some(offset) = lower[cursor..].find("<script") {
+        let start = cursor + offset;
+        let Some(tag_end_offset) = lower[start..].find('>') else {
+            break;
+        };
+        let tag_end = start + tag_end_offset;
+        if script_tag_is_importmap(&lower[start..=tag_end]) {
+            let content_start = tag_end + 1;
+            let Some(end_offset) = lower[content_start..].find("</script>") else {
+                return Err("unterminated");
+            };
+            let content_end = content_start + end_offset;
+            if found.is_some() {
+                return Err("duplicate");
+            }
+            found = Some((content_start, content_end));
+            cursor = content_end + "</script>".len();
+        } else {
+            cursor = tag_end + 1;
+        }
+    }
+    Ok(found)
+}
+
+fn importmap_imports_mut(value: &mut Value) -> Option<&mut serde_json::Map<String, Value>> {
+    value
+        .as_object_mut()?
+        .entry("imports")
+        .or_insert_with(|| Value::Object(serde_json::Map::new()))
+        .as_object_mut()
+}
+
+fn validate_importmap_source_imports(
+    uri: Option<String>,
+    current: &Value,
+    expected: &BTreeMap<String, String>,
+) -> Vec<Diagnostic> {
+    if expected.is_empty() {
+        return Vec::new();
+    }
+    let imports = current
+        .get("imports")
+        .and_then(Value::as_object)
+        .cloned()
+        .unwrap_or_default();
+    let mut diagnostics = Vec::new();
+    for (key, expected_value) in expected {
+        match imports.get(key).and_then(Value::as_str) {
+            Some(actual) if actual == expected_value => {}
+            Some(actual) => diagnostics.push(importmap_rewrite_diagnostic(
+                uri.clone(),
+                "cem.importmap.source_mismatch",
+                format!(
+                    "importmap entry `{key}` points to `{actual}`; expected `{expected_value}`"
+                ),
+            )),
+            None => diagnostics.push(importmap_rewrite_diagnostic(
+                uri.clone(),
+                "cem.importmap.source_missing",
+                format!("importmap is missing source entry `{key}`"),
+            )),
+        }
+    }
+    diagnostics
+}
+
+fn apply_importmap_rewrite(
+    uri: Option<String>,
+    html: &str,
+    rewrite: &TransformGraphImportMapRewrite,
+) -> (Option<String>, Vec<Diagnostic>) {
+    let script_range = match find_html_importmap_script(html) {
+        Ok(Some(range)) => range,
+        Ok(None) => {
+            if rewrite.missing_policy == TransformGraphImportMapMissingPolicy::Ignore {
+                return (Some(html.to_owned()), Vec::new());
+            }
+            if rewrite.missing_policy == TransformGraphImportMapMissingPolicy::Insert {
+                let imports = rewrite
+                    .target_imports
+                    .iter()
+                    .map(|(key, value)| (key.clone(), Value::String(value.clone())))
+                    .collect::<serde_json::Map<_, _>>();
+                let mut root = serde_json::Map::new();
+                root.insert("imports".to_owned(), Value::Object(imports));
+                let serialized =
+                    serde_json::to_string_pretty(&Value::Object(root)).unwrap_or_default();
+                let block = format!(
+                    "    <script type=\"importmap\">\n{}\n    </script>\n",
+                    serialized
+                        .lines()
+                        .map(|line| format!("      {line}"))
+                        .collect::<Vec<_>>()
+                        .join("\n")
+                );
+                let lower = html.to_ascii_lowercase();
+                if let Some(head_end) = lower.find("</head>") {
+                    let mut rewritten = String::new();
+                    rewritten.push_str(&html[..head_end]);
+                    rewritten.push_str(&block);
+                    rewritten.push_str(&html[head_end..]);
+                    return (Some(rewritten), Vec::new());
+                }
+                return (Some(format!("{block}{html}")), Vec::new());
+            }
+            return (
+                None,
+                vec![importmap_rewrite_diagnostic(
+                    uri,
+                    "cem.importmap.missing_script",
+                    format!(
+                        "rewrite-importmap node `{}` could not find `<script type=\"importmap\">`",
+                        rewrite.id
+                    ),
+                )],
+            );
+        }
+        Err("duplicate") => {
+            return (
+                None,
+                vec![importmap_rewrite_diagnostic(
+                    uri,
+                    "cem.importmap.duplicate_script",
+                    format!(
+                        "rewrite-importmap node `{}` found more than one importmap script",
+                        rewrite.id
+                    ),
+                )],
+            )
+        }
+        Err(_) => {
+            return (
+                None,
+                vec![importmap_rewrite_diagnostic(
+                    uri,
+                    "cem.importmap.unterminated_script",
+                    format!(
+                        "rewrite-importmap node `{}` found an unterminated importmap script",
+                        rewrite.id
+                    ),
+                )],
+            )
+        }
+    };
+
+    let (content_start, content_end) = script_range;
+    let script_content = html[content_start..content_end].trim();
+    let mut importmap = match serde_json::from_str::<Value>(script_content) {
+        Ok(value) if value.is_object() => value,
+        Ok(_) => {
+            return (
+                None,
+                vec![importmap_rewrite_diagnostic(
+                    uri,
+                    "cem.importmap.invalid_json",
+                    format!(
+                        "rewrite-importmap node `{}` requires an object importmap",
+                        rewrite.id
+                    ),
+                )],
+            )
+        }
+        Err(error) => {
+            return (
+                None,
+                vec![importmap_rewrite_diagnostic(
+                    uri,
+                    "cem.importmap.invalid_json",
+                    format!(
+                        "rewrite-importmap node `{}` could not parse importmap JSON: {error}",
+                        rewrite.id
+                    ),
+                )],
+            )
+        }
+    };
+
+    let mut diagnostics =
+        validate_importmap_source_imports(uri.clone(), &importmap, &rewrite.source_imports);
+    if !diagnostics.is_empty() {
+        return (None, diagnostics);
+    }
+
+    match rewrite.mode {
+        TransformGraphImportMapRewriteMode::ReplaceScript => {
+            let imports = rewrite
+                .target_imports
+                .iter()
+                .map(|(key, value)| (key.clone(), Value::String(value.clone())))
+                .collect::<serde_json::Map<_, _>>();
+            let mut root = serde_json::Map::new();
+            root.insert("imports".to_owned(), Value::Object(imports));
+            importmap = Value::Object(root);
+        }
+        TransformGraphImportMapRewriteMode::ReplaceImports
+        | TransformGraphImportMapRewriteMode::Merge => {
+            let Some(imports) = importmap_imports_mut(&mut importmap) else {
+                diagnostics.push(importmap_rewrite_diagnostic(
+                    uri.clone(),
+                    "cem.importmap.imports_invalid",
+                    format!(
+                        "rewrite-importmap node `{}` requires an object `imports` map",
+                        rewrite.id
+                    ),
+                ));
+                return (None, diagnostics);
+            };
+            for (key, value) in &rewrite.target_imports {
+                imports.insert(key.clone(), Value::String(value.clone()));
+            }
+        }
+    }
+
+    if let Some(imports) = importmap.get("imports").and_then(Value::as_object) {
+        for (key, value) in imports {
+            if value
+                .as_str()
+                .is_some_and(|target| target.contains("node_modules"))
+            {
+                diagnostics.push(importmap_rewrite_diagnostic(
+                    uri.clone(),
+                    "cem.importmap.node_modules_leak",
+                    format!(
+                        "rewrite-importmap node `{}` left `node_modules` in target entry `{key}`",
+                        rewrite.id
+                    ),
+                ));
+            }
+        }
+    }
+    if !diagnostics.is_empty() {
+        return (None, diagnostics);
+    }
+
+    let serialized = serde_json::to_string_pretty(&importmap).unwrap_or_else(|_| "{}".to_owned());
+    let script_indent = html[..content_start]
+        .rfind('\n')
+        .map(|newline| {
+            html[newline + 1..content_start]
+                .chars()
+                .take_while(|ch| ch.is_whitespace())
+                .collect::<String>()
+        })
+        .unwrap_or_default();
+    let json_indent = format!("{script_indent}  ");
+    let indented = serialized
+        .lines()
+        .map(|line| format!("{json_indent}{line}"))
+        .collect::<Vec<_>>()
+        .join("\n");
+    let replacement = format!("\n{indented}\n{script_indent}");
+    let mut rewritten = String::new();
+    rewritten.push_str(&html[..content_start]);
+    rewritten.push_str(&replacement);
+    rewritten.push_str(&html[content_end..]);
+    (Some(rewritten), Vec::new())
 }
 
 fn select_transform_template_adapter(
@@ -2947,6 +3251,11 @@ impl CemMlEngine for RealCemMlEngine {
         let mut artifacts: BTreeMap<String, TransformTemplateDataArtifact> = BTreeMap::new();
         let mut artifact_metadata: BTreeMap<String, TransformOutputMetadata> = BTreeMap::new();
         let mut exported = Vec::new();
+        let raw_imports = request
+            .importmap_rewrites
+            .iter()
+            .map(|rewrite| rewrite.primary_input.clone())
+            .collect::<BTreeSet<_>>();
 
         for import in &request.imports {
             let (policy, mut scope_diagnostics) = scheduler_policy_for_transform_scope(
@@ -2963,10 +3272,35 @@ impl CemMlEngine for RealCemMlEngine {
                     EngineError::Internal(format!("scheduler dispatch failed: {err}"))
                 })?;
             pool.run_to_completion(&abort, |_| {
-                let (artifact, mut import_diagnostics) =
-                    load_transform_data_artifact(&import.input, &request.context, &import.id);
-                diagnostics.append(&mut import_diagnostics);
+                let artifact = if raw_imports.contains(&import.id) {
+                    diagnostics.extend(root_scope_metadata_diagnostics(
+                        &import.input.uri,
+                        &import.input.root_scope,
+                        "input",
+                    ));
+                    TransformTemplateDataArtifact {
+                        artifact_id: import.id.clone(),
+                        uri: Some(input_uri(&import.input, &request.context)),
+                        identity: import.input.identity.clone(),
+                        value: Value::String(
+                            String::from_utf8(import.input.bytes.clone()).unwrap_or_default(),
+                        ),
+                    }
+                } else {
+                    let (artifact, mut import_diagnostics) =
+                        load_transform_data_artifact(&import.input, &request.context, &import.id);
+                    diagnostics.append(&mut import_diagnostics);
+                    artifact
+                };
                 artifacts.insert(import.id.clone(), artifact);
+                artifact_metadata.insert(
+                    import.id.clone(),
+                    TransformOutputMetadata {
+                        source_map: None,
+                        output_spans: Vec::new(),
+                        raw_content: String::from_utf8(import.input.bytes.clone()).ok(),
+                    },
+                );
             });
         }
 
@@ -2980,8 +3314,9 @@ impl CemMlEngine for RealCemMlEngine {
 
         let mut completed_joins = BTreeSet::new();
         let mut completed_stages = BTreeSet::new();
-        while completed_joins.len() + completed_stages.len()
-            < request.joins.len() + request.stages.len()
+        let mut completed_importmap_rewrites = BTreeSet::new();
+        while completed_joins.len() + completed_stages.len() + completed_importmap_rewrites.len()
+            < request.joins.len() + request.stages.len() + request.importmap_rewrites.len()
         {
             let mut progressed = false;
 
@@ -3015,6 +3350,73 @@ impl CemMlEngine for RealCemMlEngine {
                     artifact_metadata.insert(join.id.clone(), metadata);
                 });
                 completed_joins.insert(join.id.clone());
+            }
+
+            for rewrite in &request.importmap_rewrites {
+                if completed_importmap_rewrites.contains(&rewrite.id) {
+                    continue;
+                }
+                let Some(primary_input) = artifacts.get(&rewrite.primary_input).cloned() else {
+                    continue;
+                };
+
+                progressed = true;
+                let pool = crate::scheduler::WorkerPool::new(
+                    rewrite.scheduler_scope_id,
+                    scheduler_policy_from_context(&request.context),
+                    trace.clone(),
+                );
+                pool.submit(format!("{}:rewrite-importmap", rewrite.id), &abort)
+                    .map_err(|err| {
+                        EngineError::Internal(format!("scheduler dispatch failed: {err}"))
+                    })?;
+                pool.run_to_completion(&abort, |_| {
+                    let raw_content = transform_graph_artifact_raw_content(
+                        &primary_input,
+                        artifact_metadata.get(&rewrite.primary_input),
+                    );
+                    let Some(raw_content) = raw_content else {
+                        diagnostics.push(importmap_rewrite_diagnostic(
+                            primary_input.uri.clone(),
+                            "cem.importmap.input_content_missing",
+                            format!(
+                                "rewrite-importmap node `{}` requires a text HTML input artifact",
+                                rewrite.id
+                            ),
+                        ));
+                        return;
+                    };
+                    let (rewritten, mut rewrite_diagnostics) =
+                        apply_importmap_rewrite(primary_input.uri.clone(), &raw_content, rewrite);
+                    diagnostics.append(&mut rewrite_diagnostics);
+                    if let Some(rewritten) = rewritten {
+                        artifacts.insert(
+                            rewrite.id.clone(),
+                            TransformTemplateDataArtifact {
+                                artifact_id: rewrite.id.clone(),
+                                uri: primary_input.uri.clone(),
+                                identity: primary_input.identity.clone(),
+                                value: Value::String(rewritten.clone()),
+                            },
+                        );
+                        artifact_metadata.insert(
+                            rewrite.id.clone(),
+                            TransformOutputMetadata {
+                                source_map: None,
+                                output_spans: Vec::new(),
+                                raw_content: Some(rewritten),
+                            },
+                        );
+                    }
+                });
+                if has_hard_transform_diagnostic(&diagnostics) {
+                    return Ok(TransformGraphResponse {
+                        artifacts: exported,
+                        diagnostics,
+                        scheduler_trace: crate::report::SchedulerTraceReport::from_trace(&trace),
+                    });
+                }
+                completed_importmap_rewrites.insert(rewrite.id.clone());
             }
 
             for stage in &request.stages {
@@ -3168,6 +3570,10 @@ impl CemMlEngine for RealCemMlEngine {
                     TransformOutputMetadata {
                         source_map: output.source_map,
                         output_spans: output.output_spans,
+                        raw_content: transform_graph_artifact_raw_content(
+                            artifacts.get(&stage.id).expect("stage artifact inserted"),
+                            None,
+                        ),
                     },
                 );
                 completed_stages.insert(stage.id.clone());

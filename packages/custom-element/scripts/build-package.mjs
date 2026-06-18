@@ -24,6 +24,7 @@ const entries = [
     'demo',
     'docs',
     'ide',
+    'material',
 ];
 
 await rm(distRoot, { recursive: true, force: true });

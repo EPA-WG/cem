@@ -338,6 +338,20 @@ pub fn validate_transform_graph_runtime_contract(
             &mut diagnostics,
         );
     }
+    for rewrite in &request.importmap_rewrites {
+        validate_graph_id("rewrite-importmap", &rewrite.id, &mut ids, &mut diagnostics);
+        artifacts.insert(rewrite.id.clone());
+        if rewrite.target_imports.is_empty() {
+            diagnostics.push(transform_runtime_diagnostic(
+                None,
+                "cem.transform_runtime.importmap_target_imports_empty",
+                format!(
+                    "rewrite-importmap node `{}` requires at least one target import",
+                    rewrite.id
+                ),
+            ));
+        }
+    }
     for export in &request.exports {
         validate_graph_id("export", &export.id, &mut ids, &mut diagnostics);
     }
@@ -370,6 +384,15 @@ pub fn validate_transform_graph_runtime_contract(
                 &mut diagnostics,
             );
         }
+    }
+    for rewrite in &request.importmap_rewrites {
+        validate_artifact_ref(
+            &rewrite.id,
+            "primaryInput",
+            &rewrite.primary_input,
+            &artifacts,
+            &mut diagnostics,
+        );
     }
     for export in &request.exports {
         validate_artifact_ref(
@@ -666,6 +689,7 @@ pub struct TransformGraphRequest {
     pub imports: Vec<TransformGraphImport>,
     pub joins: Vec<TransformGraphJoin>,
     pub stages: Vec<TransformGraphStage>,
+    pub importmap_rewrites: Vec<TransformGraphImportMapRewrite>,
     pub exports: Vec<TransformGraphExport>,
     pub edges: Vec<TransformGraphDependency>,
     pub preserve_source_offsets: bool,
@@ -717,6 +741,33 @@ pub struct TransformGraphStage {
     pub primary_input: String,
     pub secondary_inputs: BTreeMap<String, String>,
     pub scheduler_scope_ids: TransformStageSchedulerScopeIds,
+}
+
+#[derive(Debug, Clone)]
+pub struct TransformGraphImportMapRewrite {
+    pub id: String,
+    pub primary_input: String,
+    pub source_imports: BTreeMap<String, String>,
+    pub target_imports: BTreeMap<String, String>,
+    pub mode: TransformGraphImportMapRewriteMode,
+    pub missing_policy: TransformGraphImportMapMissingPolicy,
+    pub scheduler_scope_id: u32,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "kebab-case")]
+pub enum TransformGraphImportMapRewriteMode {
+    ReplaceImports,
+    Merge,
+    ReplaceScript,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "kebab-case")]
+pub enum TransformGraphImportMapMissingPolicy {
+    Error,
+    Ignore,
+    Insert,
 }
 
 #[derive(Debug, Clone, Copy, Default, PartialEq, Eq)]
@@ -1271,6 +1322,7 @@ mod tests {
                     scheduler_scope_ids: TransformStageSchedulerScopeIds::default(),
                 },
             ],
+            importmap_rewrites: Vec::new(),
             exports: vec![
                 TransformGraphExport {
                     id: "main".to_owned(),
@@ -1425,6 +1477,7 @@ mod tests {
                     execution: 5,
                 },
             }],
+            importmap_rewrites: Vec::new(),
             exports: vec![TransformGraphExport {
                 id: "html".to_owned(),
                 input: "report".to_owned(),
@@ -1523,6 +1576,7 @@ mod tests {
             imports: Vec::new(),
             joins: Vec::new(),
             stages: Vec::new(),
+            importmap_rewrites: Vec::new(),
             exports: Vec::new(),
             edges: Vec::new(),
             preserve_source_offsets: false,

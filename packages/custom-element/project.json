@@ -8,10 +8,15 @@
             "executor": "nx:run-commands",
             "dependsOn": [
                 { "projects": ["cem-elements"], "target": "build" },
-                { "projects": ["cem_ql"], "target": "build:wasm" }
+                { "projects": ["cem_ql"], "target": "build:wasm" },
+                { "projects": ["cem_ml_cli"], "target": "build" }
             ],
             "options": {
-                "command": "node scripts/build-package.mjs",
+                "commands": [
+                    "node scripts/build-package.mjs",
+                    "../../dist/target/cem_ml_cli/debug/cem-ml transform --config material/importmap.transform.cem"
+                ],
+                "parallel": false,
                 "cwd": "packages/custom-element"
             },
             "cache": true,
@@ -20,6 +25,7 @@
                 "{projectRoot}/demo/**/*",
                 "{projectRoot}/docs/**/*",
                 "{projectRoot}/ide/**/*",
+                "{projectRoot}/material/**/*",
                 "{projectRoot}/*.js",
                 "{projectRoot}/*.d.ts",
                 "{projectRoot}/*.html",

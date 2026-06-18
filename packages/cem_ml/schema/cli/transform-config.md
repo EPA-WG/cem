@@ -18,9 +18,10 @@ Namespace URI: `https://cem.dev/ns/cli/transform-config/1`
 | Element | Required attributes | Optional attributes | Child elements |
 | ------- | ------------------- | ------------------- | -------------- |
 | `run` | none | none | `import` |
-| `import` | `src` | `id`, `content-type`, `contentType`, `schema` | `join`, `transform`, `export` |
-| `join` | `mode` | `id`, `input`, `by`, `with:*` | `transform`, `export` |
-| `transform` | `src` | `id`, `input`, `with:*`, `entrypoint`, `template-content-type`, `templateContentType`, `template-schema`, `templateSchema` | `param`, `join`, `transform`, `export` |
+| `import` | `src` | `id`, `content-type`, `contentType`, `schema` | `join`, `transform`, `rewrite-importmap`, `export` |
+| `join` | `mode` | `id`, `input`, `by`, `with:*` | `transform`, `rewrite-importmap`, `export` |
+| `transform` | `src` | `id`, `input`, `with:*`, `entrypoint`, `template-content-type`, `templateContentType`, `template-schema`, `templateSchema` | `param`, `join`, `transform`, `rewrite-importmap`, `export` |
+| `rewrite-importmap` | `target-map` | `id`, `input`, `source-map`, `sourceMap`, `targetMap`, `mode`, `missing` | `export` |
 | `param` | `name`, `value` | none | none |
 | `export` | `out` | `id`, `content-type`, `contentType`, `schema` | none |
 
@@ -42,6 +43,16 @@ Namespace URI: `https://cem.dev/ns/cli/transform-config/1`
 - `transform` creates a template application node from `@src`.
 - `transform @entrypoint` selects a public CEM-native template entrypoint.
 - `transform` child `param @name @value` records provide caller params for that transform stage.
+- `rewrite-importmap` mutates the `<script type="importmap">` JSON in a text
+  HTML input artifact and leaves the rest of the HTML unchanged.
+- `rewrite-importmap @source-map` optionally validates the source `imports`
+  entries before rewriting.
+- `rewrite-importmap @target-map` points to a browser importmap JSON file whose
+  `imports` entries are written into the HTML importmap.
+- `rewrite-importmap @mode` supports `replace-imports` by default, plus `merge`
+  and `replace-script`.
+- `rewrite-importmap @missing` supports `error` by default, plus `ignore` and
+  `insert`.
 - `export` creates a sink node from `@out`.
 - Nested operation nodes create parent graph edges.
 - `@input` creates an explicit primary input edge to an existing graph node.

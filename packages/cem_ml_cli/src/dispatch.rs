@@ -1643,6 +1643,57 @@ fn transform_graph_stage_params(
     Ok(params)
 }
 
+fn transform_graph_importmap_imports(
+    context: &eng::EngineContext,
+    raw_path: &str,
+    bindings: &BTreeMap<String, String>,
+    config_local_path: Option<&Path>,
+    config_source_uri: &str,
+    required: bool,
+) -> Result<BTreeMap<String, String>, CliRequestError> {
+    let expanded = transform_graph_expand_param_template(raw_path, bindings, config_source_uri)?;
+    let path = transform_graph_path(&expanded, config_local_path);
+    let read = read_source(
+        context,
+        &path,
+        "importmap URI",
+        ResolvePurpose::ModuleMap,
+        Some("application/importmap+json"),
+    )
+    .map_err(|source| {
+        CliRequestError::Engine(EngineError::Io {
+            path: path.clone(),
+            source,
+        })
+    })?;
+    let value: serde_json::Value = serde_json::from_slice(&read.bytes).map_err(|error| {
+        CliRequestError::Usage(format!(
+            "importmap `{}` is not valid JSON: {error}",
+            path.display()
+        ))
+    })?;
+    let Some(imports) = value.get("imports").and_then(serde_json::Value::as_object) else {
+        if required {
+            return Err(CliRequestError::Usage(format!(
+                "importmap `{}` requires an object `imports` map",
+                path.display()
+            )));
+        }
+        return Ok(BTreeMap::new());
+    };
+    let mut entries = BTreeMap::new();
+    for (key, value) in imports {
+        let Some(target) = value.as_str() else {
+            return Err(CliRequestError::Usage(format!(
+                "importmap `{}` entry `{key}` must be a string",
+                path.display()
+            )));
+        };
+        entries.insert(key.clone(), target.to_owned());
+    }
+    Ok(entries)
+}
+
 fn transform_graph_scope(
     content_type: Option<String>,
     schema: Option<String>,
@@ -1729,6 +1780,38 @@ fn to_engine_join_mode(mode: TransformGraphJoinMode) -> eng::TransformGraphJoinM
         TransformGraphJoinMode::GroupBy => eng::TransformGraphJoinMode::GroupBy,
         TransformGraphJoinMode::MatchBy => eng::TransformGraphJoinMode::MatchBy,
         TransformGraphJoinMode::Zip => eng::TransformGraphJoinMode::Zip,
+    }
+}
+
+fn to_engine_importmap_rewrite_mode(
+    mode: transform_config::TransformGraphImportMapRewriteMode,
+) -> eng::TransformGraphImportMapRewriteMode {
+    match mode {
+        transform_config::TransformGraphImportMapRewriteMode::ReplaceImports => {
+            eng::TransformGraphImportMapRewriteMode::ReplaceImports
+        }
+        transform_config::TransformGraphImportMapRewriteMode::Merge => {
+            eng::TransformGraphImportMapRewriteMode::Merge
+        }
+        transform_config::TransformGraphImportMapRewriteMode::ReplaceScript => {
+            eng::TransformGraphImportMapRewriteMode::ReplaceScript
+        }
+    }
+}
+
+fn to_engine_importmap_missing_policy(
+    policy: transform_config::TransformGraphImportMapMissingPolicy,
+) -> eng::TransformGraphImportMapMissingPolicy {
+    match policy {
+        transform_config::TransformGraphImportMapMissingPolicy::Error => {
+            eng::TransformGraphImportMapMissingPolicy::Error
+        }
+        transform_config::TransformGraphImportMapMissingPolicy::Ignore => {
+            eng::TransformGraphImportMapMissingPolicy::Ignore
+        }
+        transform_config::TransformGraphImportMapMissingPolicy::Insert => {
+            eng::TransformGraphImportMapMissingPolicy::Insert
+        }
     }
 }
 
@@ -1950,6 +2033,7 @@ fn transform_graph_request_from_config(
     let mut imports = Vec::new();
     let mut joins = Vec::new();
     let mut stages = Vec::new();
+    let mut importmap_rewrites = Vec::new();
     let mut exports = Vec::new();
     let mut edges = Vec::new();
     let mut variants: BTreeMap<String, Vec<TransformGraphArtifactVariant>> = BTreeMap::new();
@@ -2177,6 +2261,68 @@ fn transform_graph_request_from_config(
                 }
                 variants.insert(node.id.clone(), stage_variants);
             }
+            TransformGraphNodeKind::ImportMapRewrite => {
+                let target_map = node.target_map.as_ref().ok_or_else(|| {
+                    CliRequestError::Usage(format!(
+                        "rewrite-importmap node `{}` requires @target-map",
+                        node.id
+                    ))
+                })?;
+                let (primary_ref, primary_role) = transform_graph_primary_ref(graph, node)?;
+                let primary_variants =
+                    transform_graph_variants_for_ref(&variants, &node.id, "input", &primary_ref)?;
+                let variant_count = primary_variants.len();
+                let mut rewrite_variants = Vec::new();
+                for (index, primary_variant) in primary_variants.into_iter().enumerate() {
+                    let rewrite_id = transform_graph_variant_id(&node.id, index, variant_count);
+                    let source_imports = if let Some(source_map) = node.source_map.as_deref() {
+                        transform_graph_importmap_imports(
+                            context,
+                            source_map,
+                            &primary_variant.bindings,
+                            config_local_path,
+                            config_source_uri,
+                            false,
+                        )?
+                    } else {
+                        BTreeMap::new()
+                    };
+                    let target_imports = transform_graph_importmap_imports(
+                        context,
+                        target_map,
+                        &primary_variant.bindings,
+                        config_local_path,
+                        config_source_uri,
+                        true,
+                    )?;
+                    importmap_rewrites.push(eng::TransformGraphImportMapRewrite {
+                        id: rewrite_id.clone(),
+                        primary_input: primary_variant.id.clone(),
+                        source_imports,
+                        target_imports,
+                        mode: to_engine_importmap_rewrite_mode(node.rewrite_mode.unwrap_or(
+                            transform_config::TransformGraphImportMapRewriteMode::ReplaceImports,
+                        )),
+                        missing_policy: to_engine_importmap_missing_policy(
+                            node.missing_policy.unwrap_or(
+                                transform_config::TransformGraphImportMapMissingPolicy::Error,
+                            ),
+                        ),
+                        scheduler_scope_id: next_scope_id,
+                    });
+                    next_scope_id += 1;
+                    edges.push(eng::TransformGraphDependency {
+                        from: primary_variant.id,
+                        to: rewrite_id.clone(),
+                        role: to_engine_dependency_role(primary_role),
+                    });
+                    rewrite_variants.push(TransformGraphArtifactVariant {
+                        id: rewrite_id,
+                        bindings: primary_variant.bindings,
+                    });
+                }
+                variants.insert(node.id.clone(), rewrite_variants);
+            }
             TransformGraphNodeKind::Export => {
                 let out = node.out.as_ref().ok_or_else(|| {
                     CliRequestError::Usage(format!("export node `{}` requires @out", node.id))
@@ -2222,6 +2368,7 @@ fn transform_graph_request_from_config(
         imports,
         joins,
         stages,
+        importmap_rewrites,
         exports,
         edges,
         preserve_source_offsets: false,
@@ -4476,6 +4623,75 @@ mod tests {
             std::fs::read_to_string(root.join("out/ch02/img/chart-1.cem.svg")).unwrap(),
             "<svg>document</svg>"
         );
+    }
+
+    #[test]
+    fn transform_config_rewrites_html_importmap_for_dist() {
+        let root = std::env::temp_dir().join("cem-ml-cli-tests/transform-config-importmap");
+        let _ = std::fs::remove_dir_all(&root);
+        std::fs::create_dir_all(root.join("src")).unwrap();
+        std::fs::create_dir_all(root.join("maps")).unwrap();
+        let html = root.join("src/page.html");
+        let source_map = root.join("maps/source.importmap.json");
+        let target_map = root.join("maps/dist.importmap.json");
+        let out = root.join("dist/page.html");
+        let config = root.join("rewrite.cem");
+        std::fs::write(
+            &html,
+            r#"<!doctype html>
+<html>
+  <head>
+    <script type="importmap">
+      {
+        "imports": {
+          "@pkg/": "../node_modules/@pkg/"
+        }
+      }
+    </script>
+  </head>
+  <body></body>
+</html>
+"#,
+        )
+        .unwrap();
+        std::fs::write(
+            &source_map,
+            r#"{"imports":{"@pkg/":"../node_modules/@pkg/"}}"#,
+        )
+        .unwrap();
+        std::fs::write(&target_map, r#"{"imports":{"@pkg/":"./vendor/@pkg/"}}"#).unwrap();
+        std::fs::write(
+            &config,
+            format!(
+                "{{@doc cem-ml 1}}
+{{run |
+  {{import @id=page @src=\"{}\" @content-type=\"text/html\" |
+    {{rewrite-importmap @id=imports @source-map=\"{}\" @target-map=\"{}\" |
+      {{export @id=html @out=\"{}\" @content-type=\"text/html\"}}
+    }}
+  }}
+}}
+",
+                html.display(),
+                source_map.display(),
+                target_map.display(),
+                out.display()
+            ),
+        )
+        .unwrap();
+
+        let (outcome, stdout, stderr) = run(
+            &RealCemMlEngine::new(),
+            &["--quiet", "transform", "--config", config.to_str().unwrap()],
+        );
+
+        assert_eq!(outcome.exit_code, EXIT_OK, "{stderr}");
+        assert!(stdout.trim().is_empty(), "{stdout}");
+        assert!(stderr.trim().is_empty(), "{stderr}");
+        let written = std::fs::read_to_string(out).unwrap();
+        assert!(written.contains("\"@pkg/\": \"./vendor/@pkg/\""));
+        assert!(!written.contains("node_modules"));
+        assert!(written.contains("<body></body>"));
     }
 
     #[test]

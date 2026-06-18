@@ -1,9 +1,9 @@
 //! CEM-ML transform graph configuration.
 //!
 //! This module owns the future `cem-ml transform` config syntax boundary. It
-//! parses CEM-ML-authored `run` / `import` / `join` / `transform` / `export`
-//! trees into a graph model and validates graph shape. It does not execute
-//! templates.
+//! parses CEM-ML-authored `run` / `import` / `join` / `transform` /
+//! `rewrite-importmap` / `export` trees into a graph model and validates graph
+//! shape. It does not execute templates.
 
 use crate::diagnostics::{Diagnostic, Severity};
 use crate::engine::{
@@ -42,13 +42,13 @@ pub const TRANSFORM_CONFIG_SCHEMA_ELEMENTS: &[TransformConfigElementSchema] = &[
         local_name: "import",
         required_attributes: &["src"],
         optional_attributes: &["id", "content-type", "contentType", "schema"],
-        child_elements: &["join", "transform", "export"],
+        child_elements: &["join", "transform", "rewrite-importmap", "export"],
     },
     TransformConfigElementSchema {
         local_name: "join",
         required_attributes: &["mode"],
         optional_attributes: &["id", "input", "by", "with:*"],
-        child_elements: &["transform", "export"],
+        child_elements: &["transform", "rewrite-importmap", "export"],
     },
     TransformConfigElementSchema {
         local_name: "transform",
@@ -63,7 +63,21 @@ pub const TRANSFORM_CONFIG_SCHEMA_ELEMENTS: &[TransformConfigElementSchema] = &[
             "template-schema",
             "templateSchema",
         ],
-        child_elements: &["param", "join", "transform", "export"],
+        child_elements: &["param", "join", "transform", "rewrite-importmap", "export"],
+    },
+    TransformConfigElementSchema {
+        local_name: "rewrite-importmap",
+        required_attributes: &["target-map"],
+        optional_attributes: &[
+            "id",
+            "input",
+            "source-map",
+            "sourceMap",
+            "targetMap",
+            "mode",
+            "missing",
+        ],
+        child_elements: &["export"],
     },
     TransformConfigElementSchema {
         local_name: "param",
@@ -118,6 +132,14 @@ pub struct TransformGraphNode {
     #[serde(default)]
     pub input_ref: Option<String>,
     #[serde(default)]
+    pub source_map: Option<String>,
+    #[serde(default)]
+    pub target_map: Option<String>,
+    #[serde(default)]
+    pub rewrite_mode: Option<TransformGraphImportMapRewriteMode>,
+    #[serde(default)]
+    pub missing_policy: Option<TransformGraphImportMapMissingPolicy>,
+    #[serde(default)]
     pub with: BTreeMap<String, String>,
 }
 
@@ -127,6 +149,7 @@ pub enum TransformGraphNodeKind {
     Import,
     Join,
     Transform,
+    ImportMapRewrite,
     Export,
 }
 
@@ -136,9 +159,26 @@ impl TransformGraphNodeKind {
             TransformGraphNodeKind::Import => "import",
             TransformGraphNodeKind::Join => "join",
             TransformGraphNodeKind::Transform => "transform",
+            TransformGraphNodeKind::ImportMapRewrite => "rewrite-importmap",
             TransformGraphNodeKind::Export => "export",
         }
     }
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "kebab-case")]
+pub enum TransformGraphImportMapRewriteMode {
+    ReplaceImports,
+    Merge,
+    ReplaceScript,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "kebab-case")]
+pub enum TransformGraphImportMapMissingPolicy {
+    Error,
+    Ignore,
+    Insert,
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
@@ -321,7 +361,7 @@ impl GraphLowerer<'_> {
                 continue;
             };
             match name {
-                "import" | "join" | "transform" | "export" => {
+                "import" | "join" | "transform" | "rewrite-importmap" | "export" => {
                     self.lower_operation(*child, parent_graph_id.clone());
                 }
                 other => self.push_diag(
@@ -340,6 +380,7 @@ impl GraphLowerer<'_> {
             "import" => TransformGraphNodeKind::Import,
             "join" => TransformGraphNodeKind::Join,
             "transform" => TransformGraphNodeKind::Transform,
+            "rewrite-importmap" => TransformGraphNodeKind::ImportMapRewrite,
             "export" => TransformGraphNodeKind::Export,
             _ => return,
         };
@@ -350,6 +391,29 @@ impl GraphLowerer<'_> {
         let join_mode = if kind == TransformGraphNodeKind::Join {
             match parse_join_mode(attr_value(&attrs, "", "mode").as_deref(), &id) {
                 Ok(mode) => mode,
+                Err((code, message)) => {
+                    self.push_diag(code, message);
+                    None
+                }
+            }
+        } else {
+            None
+        };
+        let rewrite_mode = if kind == TransformGraphNodeKind::ImportMapRewrite {
+            match parse_importmap_rewrite_mode(attr_value(&attrs, "", "mode").as_deref(), &id) {
+                Ok(mode) => mode,
+                Err((code, message)) => {
+                    self.push_diag(code, message);
+                    None
+                }
+            }
+        } else {
+            None
+        };
+        let missing_policy = if kind == TransformGraphNodeKind::ImportMapRewrite {
+            match parse_importmap_missing_policy(attr_value(&attrs, "", "missing").as_deref(), &id)
+            {
+                Ok(policy) => policy,
                 Err((code, message)) => {
                     self.push_diag(code, message);
                     None
@@ -383,6 +447,12 @@ impl GraphLowerer<'_> {
             join_mode,
             join_by,
             input_ref,
+            source_map: attr_value(&attrs, "", "source-map")
+                .or_else(|| attr_value(&attrs, "", "sourceMap")),
+            target_map: attr_value(&attrs, "", "target-map")
+                .or_else(|| attr_value(&attrs, "", "targetMap")),
+            rewrite_mode,
+            missing_policy,
             with: with_refs(&attrs),
         };
         if kind == TransformGraphNodeKind::Transform {
@@ -405,6 +475,8 @@ impl GraphLowerer<'_> {
             self.lower_export_children(ast_id);
         } else if kind == TransformGraphNodeKind::Transform {
             self.lower_transform_children(ast_id, Some(id));
+        } else if kind == TransformGraphNodeKind::ImportMapRewrite {
+            self.lower_children(ast_id, Some(id));
         } else {
             self.lower_children(ast_id, Some(id));
         }
@@ -489,7 +561,7 @@ impl GraphLowerer<'_> {
             };
             match name {
                 "param" => {}
-                "join" | "transform" | "export" => {
+                "join" | "transform" | "rewrite-importmap" | "export" => {
                     self.lower_operation(*child, parent_graph_id.clone());
                 }
                 other => self.push_diag(
@@ -585,6 +657,17 @@ impl GraphLowerer<'_> {
                         "cem.transform_config.template_identity_missing",
                         format!(
                             "transform node `{}` requires a supported template identity via `@template-content-type`, `@template-schema`, or `@src` extension",
+                            node.id
+                        ),
+                    );
+                }
+            }
+            TransformGraphNodeKind::ImportMapRewrite => {
+                if node.target_map.as_deref().unwrap_or("").trim().is_empty() {
+                    self.push_diag(
+                        "cem.transform_config.importmap_target_map_missing",
+                        format!(
+                            "rewrite-importmap node `{}` requires `@target-map`",
                             node.id
                         ),
                     );
@@ -833,6 +916,46 @@ fn parse_join_mode(
             "cem.transform_config.join_mode_unsupported",
             format!(
                 "join node `{node_id}` uses unsupported `@mode` `{other}`; use `collect`, `group-by`, `match-by`, or `zip`"
+            ),
+        )),
+    }
+}
+
+fn parse_importmap_rewrite_mode(
+    value: Option<&str>,
+    node_id: &str,
+) -> Result<Option<TransformGraphImportMapRewriteMode>, (&'static str, String)> {
+    let Some(value) = value.map(str::trim).filter(|value| !value.is_empty()) else {
+        return Ok(Some(TransformGraphImportMapRewriteMode::ReplaceImports));
+    };
+    match value {
+        "replace-imports" => Ok(Some(TransformGraphImportMapRewriteMode::ReplaceImports)),
+        "merge" => Ok(Some(TransformGraphImportMapRewriteMode::Merge)),
+        "replace-script" => Ok(Some(TransformGraphImportMapRewriteMode::ReplaceScript)),
+        other => Err((
+            "cem.transform_config.importmap_mode_unsupported",
+            format!(
+                "rewrite-importmap node `{node_id}` uses unsupported `@mode` `{other}`; use `replace-imports`, `merge`, or `replace-script`"
+            ),
+        )),
+    }
+}
+
+fn parse_importmap_missing_policy(
+    value: Option<&str>,
+    node_id: &str,
+) -> Result<Option<TransformGraphImportMapMissingPolicy>, (&'static str, String)> {
+    let Some(value) = value.map(str::trim).filter(|value| !value.is_empty()) else {
+        return Ok(Some(TransformGraphImportMapMissingPolicy::Error));
+    };
+    match value {
+        "error" => Ok(Some(TransformGraphImportMapMissingPolicy::Error)),
+        "ignore" => Ok(Some(TransformGraphImportMapMissingPolicy::Ignore)),
+        "insert" => Ok(Some(TransformGraphImportMapMissingPolicy::Insert)),
+        other => Err((
+            "cem.transform_config.importmap_missing_unsupported",
+            format!(
+                "rewrite-importmap node `{node_id}` uses unsupported `@missing` `{other}`; use `error`, `ignore`, or `insert`"
             ),
         )),
     }

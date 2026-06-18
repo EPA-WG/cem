@@ -1,0 +1,7 @@
+{
+    "imports": {
+        "@epa-wg/custom-element/": "../../../../node_modules/@epa-wg/custom-element/",
+        "@epa-wg/material": "../../../../node_modules/@epa-wg/custom-element/material",
+        "@epa-wg/material/": "../../../../node_modules/@epa-wg/custom-element/material/"
+    }
+}
