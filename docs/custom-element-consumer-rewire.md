@@ -32,7 +32,11 @@ This keeps existing generator HTML source working while making local
 
 ## Follow-Up
 
-- Package-local adapter fixtures should later verify that the workspace source and
-  vendored `cem-theme` runtime files agree.
+- Package-local adapter fixtures now verify that the workspace source and vendored
+  `cem-theme` runtime files agree. `@epa-wg/custom-element:test` depends on
+  `@epa-wg/cem-theme:build:html`, then runs
+  `scripts/verify-theme-vendor-runtime.mjs` to compare `custom-element.js` and
+  `http-request.js` with `packages/cem-theme/dist/vendor/@epa-wg/custom-element/`
+  and reject emitted theme HTML that still points at `node_modules`.
 - Publish readiness should revisit whether `@epa-wg/custom-element` joins the Nx
   release group or stays manually released for the next-major adoption.

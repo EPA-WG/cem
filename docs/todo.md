@@ -260,6 +260,45 @@ Recommended execution order:
       `test:unit`, and `test`; `cem-elements:verify` depends on that gate. The command set, coverage, and Phase 3.6
       handoff condition are recorded in [`cem-elements-edge-ssr-gate.md`](cem-elements-edge-ssr-gate.md).
 
+### Phase 3.6 — `@epa-wg/custom-element` Monorepo Adoption
+
+Roadmap: [`../roadmap.md` §Phase 3.6](../roadmap.md#phase-36---epa-wgcustom-element-monorepo-adoption). Design homes:
+[`custom-element-migration-scope.md`](custom-element-migration-scope.md),
+[`custom-element-package-baseline.md`](custom-element-package-baseline.md),
+[`custom-element-adapter-boundary.md`](custom-element-adapter-boundary.md), and
+[`custom-element-consumer-rewire.md`](custom-element-consumer-rewire.md).
+
+Goal: make the published `@epa-wg/custom-element` package adopt the parity-proven `cem-elements` substrate while
+preserving the public package name, `<custom-element>` tag, browser entrypoints, demos, IDE metadata, and material
+compatibility fixtures.
+
+Recommended execution order:
+
+- [x] **Capture the migration scope and published-package baseline.** Separate the `/home/suns/aWork/custom-element/`
+      history source from the installed `0.0.39` package baseline, preserve public entrypoints and side effects, and
+      identify workspace consumers that must be rewired.
+      Baseline docs record the local history source, the installed package shape, browser module side effects, and the
+      root/cem-theme references that previously resolved through external `node_modules`.
+- [x] **Import and scaffold the workspace package.** Keep `@epa-wg/custom-element` as a workspace package with Nx
+      build/test/lint/verify targets, package metadata, IDE assets, docs, demos, material examples, and release-pack
+      staging under `packages/custom-element/dist`.
+      `@epa-wg/custom-element:build` stages package files plus the `cem-elements` and `cem_ql` runtime dependencies.
+- [x] **Move `<custom-element>` onto the substrate adapter.** Preserve the public declaration tag and browser module
+      imports while delegating declaration compilation, data islands, invalidation, diagnostics, and light-DOM rendering
+      to `CemElementRuntime`.
+      The adapter boundary doc records the no-parallel-XSLT decision, and package gates assert registration,
+      legacy-template normalization, omitted-`tag` inline rendering, companion module behavior, release-pack runtime
+      staging, and no `XSLTProcessor` regression.
+- [x] **Rewire workspace consumers to the local package.** Resolve the root dependency through `workspace:^`, keep
+      browser-served `node_modules/@epa-wg/custom-element/...` paths stable through Yarn's workspace link, and make
+      `cem-theme` cache inputs track the workspace sources.
+      `@epa-wg/custom-element:test` now depends on `@epa-wg/cem-theme:build:html` and verifies that the vendored
+      `cem-theme` runtime files match the workspace `custom-element.js` and `http-request.js` sources without emitted
+      HTML references back to `node_modules`.
+- [ ] **Close the migrated package release-readiness decision.** Decide whether `@epa-wg/custom-element` joins the Nx
+      release group or remains a manually released next-major package, then update the release-readiness docs, package
+      metadata/version policy, and final verification command set.
+
 ## Externally Gated
 
 These are intentionally not active in the current workspace because the required native toolchains are unavailable.
