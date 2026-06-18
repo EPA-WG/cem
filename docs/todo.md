@@ -175,6 +175,52 @@ Recommended execution order:
       list the primitive, style, browser, state, and workflow fixture surfaces, identify Edge/SSR and
       `@epa-wg/custom-element` adoption as later phases, and define the Phase 4 handoff condition.
 
+### Phase 3.5 — Edge/SSR Processing Follow-Up
+
+Roadmap: [`../roadmap.md` §Phase 3.5](../roadmap.md#phase-35---edgessr-processing-follow-up). Design home:
+[`cem-element-design.md`](cem-element-design.md) §4.1, §4.2, and §4.3.
+
+Goal: prove that the `<cem-element>` processing layer can run outside the browser UI adapter through the same
+serializable boundary. Browser-local worker and main-thread fallback behavior remain the reference semantics; this
+phase adds fixtures and host helpers for SSR and edge processing without changing declaration syntax or DOM ownership.
+
+Recommended execution order:
+
+- [ ] **Baseline the current processing-boundary surface.** Run and record the current status for
+      `yarn nx run cem-elements:verify`, `yarn nx run @epa-wg/cem-components:verify`, and the narrow runtime-support
+      tests that cover `DataIslandSnapshot`, `RenderRevision`, render plans, patch frames, and structured-clone
+      assertions. Fix only harness drift in this slice; leave Edge/SSR gaps as named checklist items below.
+- [ ] **Extract a host-neutral processing fixture API.** Add package-owned helpers that can render from serialized
+      template source plus `DataIslandSnapshot` without constructing live DOM, custom elements, events, focus state, or
+      form controls. The helper should expose the existing browser worker/main-thread processing result shape so Edge,
+      SSR, and browser tests assert the same artifact identity, diagnostics, source-map mode, render-plan identity, and
+      patch-frame contracts.
+- [ ] **Add the SSR initial-render fixture.** Build a deterministic fixture that emits initial light DOM plus hydration
+      metadata from a serialized `DataIslandSnapshot`: direct child
+      `<script type="application/json" data-cem-hydration="snapshot">`, direct instance data-island `<template>`, and
+      normal `<!--cem-render-start-->` / `<!--cem-render-end-->` boundaries. Assert first connect preserves matching
+      server-rendered DOM and restores revision/render-plan identity before normal client invalidation resumes.
+- [ ] **Add hydration mismatch diagnostics.** Cover stale template artifact identity, stale `RenderRevision`, mismatched
+      source-map mode, missing hydration snapshot, malformed JSON, missing render boundaries, and retained render-plan
+      mismatches. Fail closed with structured diagnostics and deterministic client fallback behavior.
+- [ ] **Add the pure edge-processing fixture.** Feed serialized template source, previous render-plan identity, and a
+      policy-sanitized `DataIslandSnapshot` into the pure render-plan projection path. Assert
+      `diffRenderPlansToPatchFrames(previous, next)` emits `begin` / batched `ops` / `commit` frames without live DOM
+      access.
+- [ ] **Cover edge diff boundaries.** Lock the first supported fine-grained edge diff to stable render-node-id text and
+      attribute changes. Assert first render, template changes, root-count changes, unsupported structural deltas, and
+      target mismatches intentionally fall back to constrained `replaceScope` frames.
+- [ ] **Implement fail-closed data export policy fixtures.** Prove that snapshots are local-only by default and that
+      denied fields are omitted or redacted before leaving the browser context. Cover sensitive fields, transient input
+      composition, focus/selection state, raw browser events, credentials, and policy-denied payload data.
+- [ ] **Decide and document first render-state storage.** Choose the Phase 3.5 storage model for edge processing:
+      content-addressed cache only, revisioned KV/document records, or the hybrid model described in
+      `cem-element-design.md`. Add fixture coverage for content-addressed artifacts, revision pointer records,
+      scope/privacy policy stamps, and stale-write rejection.
+- [ ] **Wire the Phase 3.5 release gate.** Add an aggregate Nx target that runs the SSR fixture, edge fixture,
+      privacy/export policy fixtures, and existing browser substrate verification. Document the final command set and
+      the handoff condition for Phase 3.6 `@epa-wg/custom-element` adoption.
+
 ## Externally Gated
 
 These are intentionally not active in the current workspace because the required native toolchains are unavailable.
