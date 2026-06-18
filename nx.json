@@ -46,7 +46,7 @@
     "release": {
         "groups": {
             "cem": {
-                "projects": ["@epa-wg/cem", "@epa-wg/cem-theme", "@epa-wg/cem-components", "cem-elements"],
+                "projects": ["@epa-wg/cem", "@epa-wg/cem-theme", "@epa-wg/cem-components", "cem-elements", "@epa-wg/custom-element"],
                 "projectsRelationship": "fixed",
                 "releaseTag": {
                     "pattern": "{version}",

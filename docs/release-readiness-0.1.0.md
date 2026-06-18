@@ -20,8 +20,8 @@ public API is not yet under a stable-1.0 SemVer promise (AC-P-6.9 XSLT execution
 may carry breaking changes.
 
 **Release topology** (from `nx.json` `release.groups.cem`): the monorepo group
-is **fixed** (all bump together) over the `cem` group; `custom-element` is a
-separate repo with its own release, and `trang-native` is independent.
+is **fixed** (all bump together) over the `cem` group, including the migrated
+`@epa-wg/custom-element` package; `trang-native` remains independent.
 
 | Package | From | To | Released via |
 | --- | --- | --- | --- |
@@ -29,13 +29,14 @@ separate repo with its own release, and `trang-native` is independent.
 | `@epa-wg/cem-theme` | 0.0.14 | 0.1.0 | nx `cem` group |
 | `@epa-wg/cem-components` | 0.0.14 | 0.1.0 | nx `cem` group |
 | `@epa-wg/cem-elements` | 0.0.14 | 0.1.0 | nx `cem` group |
-| `@epa-wg/custom-element` | 0.0.39 | 0.1.0 | **separate** (`EPA-WG/custom-element` repo), not the monorepo group |
+| `@epa-wg/custom-element` | 0.0.39 | 0.1.0 | nx `cem` group |
 | `@epa-wg/trang-native` | 0.1.0 | — | independent (`trang-native-release.yml`); no bump needed |
 
 The Rust crates (`cem_ml`, `cem_ql`, `cem_ml_cli`) are workspace-internal
 (Cargo `0.1.0`), not npm-published. **Note:** the fixed group means
-`cem-components` rides the same 0.1.0 bump — confirm its contents are
-release-ready even though it is not the focus of this engine work.
+`cem-components` and the migrated `custom-element` adapter ride the same 0.1.0
+bump — confirm their contents are release-ready even when the engine work is the
+focus.
 
 ## 2. Changelog summary (since 0.0.14, 2026-05-04)
 
@@ -126,7 +127,9 @@ built to a self-contained `dist/` (its own `dist/package.json`, imports vendored
 to `./vendor/@epa-wg/cem-elements/...`), and **publish is from `dist/`** — the
 source dir's root `custom-element.js` still has the workspace-relative
 `../cem-elements` import and is not the published entry. So pack from `dist/`,
-not the source dir.
+not the source dir. The project owns an explicit `nx-release-publish` target with
+`packageRoot: "packages/custom-element/dist"` so `nx release publish` uses the
+staged artifact.
 
 | Package | Publish root | Verdict |
 | --- | --- | --- |
@@ -152,9 +155,16 @@ All pack cleanly.
 `npm --cache /tmp/cem-npm-cache pack --dry-run --json` from each publish root:
 `@epa-wg/cem-theme` 132 files / 5.3 MB, `@epa-wg/cem-elements` 29 files / 51 kB,
 `@epa-wg/cem-components` 15 files / 8 kB, and `@epa-wg/custom-element` 91 files /
-741 kB. All pack cleanly. The custom-element artifact still reports version
-`0.0.39`; its `0.1.0` bump belongs to the separate custom-element release
-pipeline, not the nx `cem` group.
+741 kB. All pack cleanly. `@epa-wg/custom-element` now belongs to the nx `cem`
+group, so its manifest is version-aligned to `0.1.0` with the rest of the fixed
+group before publish.
+
+**Re-checked after joining the nx `cem` group** (2026-06-18) with
+`yarn nx run @epa-wg/custom-element:nx-release-publish --dryRun --excludeTaskDependencies`:
+`@epa-wg/custom-element` publishes from `packages/custom-element/dist`, reports
+version `X.X.X-dry-run`, and packs 105 files / 922.9 kB (4.0 MB unpacked). The
+increase is the expected vendored `cem-elements` runtime and `cem_ql` WASM payload
+required by the substrate-backed adapter.
 
 ## 6. Rollback plan
 
@@ -174,14 +184,11 @@ pipeline, not the nx `cem` group.
 
 - [x] Land 0.1.0 on the nx `cem` group. The workspace manifests now show
       `@epa-wg/cem`, `@epa-wg/cem-theme`, `@epa-wg/cem-components`, and
-      `@epa-wg/cem-elements` at `0.1.0`; `cem-components` is included via the
-      fixed group (§1).
+      `@epa-wg/cem-elements` at `0.1.0`; `@epa-wg/custom-element` has joined the
+      fixed group and is also aligned to `0.1.0` (§1).
 - [~] Release/publish steps are intentionally skipped for now and will happen
       later. This includes tag/push/publish for the nx `cem` group, the GitHub
-      release, and the separate `@epa-wg/custom-element` 0.1.0 release pipeline
-      (§1). Current custom-element source/dist manifests still report `0.0.39`;
-      bumping and publishing that artifact remains a separate maintainer release
-      step.
+      release, and npm publish for all public packages in the fixed group (§1).
 - [x] `npm pack --dry-run` from each `dist/`; stray vendored `*.tsbuildinfo`
       dropped (§5). Re-verified in the 2026-06-12 rehearsal and again in the
       publish-readiness pass — all four dists pack clean (§5 counts).
@@ -227,7 +234,7 @@ everything short of tag/publish. Two real issues found; one fixed here.
 4. **Pack contents clean** (post engine-migration counts) — see §5.
 
 Not exercised (require maintainer/auth): the actual `nx release` tag + push, `npm
-publish`, the GitHub release (`changelog.workspaceChangelog.createRelease: github`),
-and the separate `@epa-wg/custom-element` repo release. The `preVersionCommand`
-(`sync-release-version.cjs` + `nx run-many -t build`) ran during the rehearsal
-without error.
+publish`, and the GitHub release (`changelog.workspaceChangelog.createRelease: github`).
+The `preVersionCommand` (`sync-release-version.cjs` + `nx run-many -t build`) ran
+during the rehearsal without error; `sync-release-version.cjs` now also aligns the
+`@epa-wg/custom-element` manifest with the fixed group version.

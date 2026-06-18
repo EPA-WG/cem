@@ -38,5 +38,5 @@ This keeps existing generator HTML source working while making local
   `scripts/verify-theme-vendor-runtime.mjs` to compare `custom-element.js` and
   `http-request.js` with `packages/cem-theme/dist/vendor/@epa-wg/custom-element/`
   and reject emitted theme HTML that still points at `node_modules`.
-- Publish readiness should revisit whether `@epa-wg/custom-element` joins the Nx
-  release group or stays manually released for the next-major adoption.
+- Publish readiness decision is closed: `@epa-wg/custom-element` joins the fixed
+  Nx `cem` release group for the next-major adoption release.

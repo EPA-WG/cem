@@ -99,6 +99,12 @@
             },
             "outputs": []
         },
+        "nx-release-publish": {
+            "executor": "@nx/js:release-publish",
+            "options": {
+                "packageRoot": "packages/custom-element/dist"
+            }
+        },
         "verify": {
             "dependsOn": ["build", "test", "lint"],
             "executor": "nx:run-commands",
@@ -107,6 +113,11 @@
                 "cwd": "{workspaceRoot}"
             },
             "outputs": []
+        }
+    },
+    "release": {
+        "version": {
+            "manifestRootsToUpdate": ["packages/custom-element/dist"]
         }
     }
 }

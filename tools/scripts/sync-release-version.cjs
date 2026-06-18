@@ -8,6 +8,7 @@ const version = root.version;
 const packagePaths = [
   path.resolve(__dirname, '../../packages/cem-components/package.json'),
   path.resolve(__dirname, '../../packages/cem-theme/package.json'),
+  path.resolve(__dirname, '../../packages/custom-element/package.json'),
 ];
 
 for (const pkgPath of packagePaths) {

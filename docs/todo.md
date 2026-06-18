@@ -295,9 +295,11 @@ Recommended execution order:
       `@epa-wg/custom-element:test` now depends on `@epa-wg/cem-theme:build:html` and verifies that the vendored
       `cem-theme` runtime files match the workspace `custom-element.js` and `http-request.js` sources without emitted
       HTML references back to `node_modules`.
-- [ ] **Close the migrated package release-readiness decision.** Decide whether `@epa-wg/custom-element` joins the Nx
-      release group or remains a manually released next-major package, then update the release-readiness docs, package
-      metadata/version policy, and final verification command set.
+- [x] **Close the migrated package release-readiness decision.** Decide the `@epa-wg/custom-element` release topology,
+      then update the release-readiness docs, package metadata/version policy, and final verification command set.
+      Decision: `@epa-wg/custom-element` joins the fixed Nx `cem` release group. The release config now includes the
+      package, `sync-release-version.cjs` keeps its manifest aligned with the root version, and
+      `packages/custom-element/package.json` is aligned to `0.1.0`.
 
 ## Externally Gated
 
