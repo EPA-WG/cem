@@ -220,7 +220,11 @@ Recommended execution order:
       deterministic client fallback behavior.
       Additional coverage landed for partial SSR markup: metadata without render boundaries reports
       `cem-element.hydration_boundaries_missing`, and render boundaries without metadata reports
-      `cem-element.hydration_metadata_missing`.
+      `cem-element.hydration_metadata_missing`. Snapshot parse failures now distinguish missing JSON
+      (`cem-element.hydration_snapshot_missing`), invalid JSON shape (`cem-element.hydration_snapshot_invalid`), and
+      malformed JSON (`cem-element.hydration_json_invalid`). Retained render roots now reject missing template
+      artifact/data revision identity, stale template artifacts, and stale data revisions before falling back to a
+      fresh client render.
 - [x] **Add the pure edge-processing fixture.** Feed serialized template source, previous render-plan identity, and a
       policy-sanitized `DataIslandSnapshot` into the pure render-plan projection path. Assert
       `diffRenderPlansToPatchFrames(previous, next)` emits `begin` / batched `ops` / `commit` frames without live DOM

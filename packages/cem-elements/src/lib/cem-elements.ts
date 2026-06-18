@@ -232,6 +232,8 @@ const DATA_ISLAND_ATTR = 'data-cem-island';
 const DATA_ISLAND_VALUE = 'instance';
 const HYDRATION_METADATA_ATTR = 'data-cem-hydration';
 const HYDRATION_METADATA_VALUE = 'snapshot';
+const RENDER_TEMPLATE_ARTIFACT_ID_ATTR = 'data-cem-template-artifact-id';
+const RENDER_DATA_REVISION_ATTR = 'data-cem-data-revision';
 const XHTML_NAMESPACE = 'http://www.w3.org/1999/xhtml';
 const DATA_ISLAND_EXPORT_FIELDS: readonly DataIslandSnapshotExportField[] = [
     'hostAttributes',
@@ -909,8 +911,19 @@ export class CemElementRuntime {
             return false;
         }
 
-        const snapshot = parseHydrationSnapshot(metadata);
-        if (!snapshot || snapshot.producedTag !== instance.localName || snapshot.outputTarget !== 'light-dom') {
+        const parsed = parseHydrationSnapshot(metadata);
+        if (!parsed.ok) {
+            this.recordDiagnostics(instance, [
+                renderDiagnostic(
+                    parsed.code,
+                    parsed.message,
+                    instance.localName
+                ),
+            ]);
+            return false;
+        }
+        const snapshot = parsed.snapshot;
+        if (snapshot.producedTag !== instance.localName || snapshot.outputTarget !== 'light-dom') {
             this.recordDiagnostics(instance, [
                 renderDiagnostic(
                     'cem-element.hydration_metadata_invalid',
@@ -918,6 +931,11 @@ export class CemElementRuntime {
                     instance.localName
                 ),
             ]);
+            return false;
+        }
+        const identityDiagnostics = hydrationRenderIdentityDiagnostics(instance, bounds, snapshot);
+        if (identityDiagnostics.length > 0) {
+            this.recordDiagnostics(instance, identityDiagnostics);
             return false;
         }
 
@@ -1458,13 +1476,104 @@ function directRenderBounds(element: Element): RenderBounds | undefined {
     return undefined;
 }
 
-function parseHydrationSnapshot(metadata: HTMLScriptElement): DataIslandSnapshot | undefined {
-    try {
-        const value: unknown = JSON.parse(metadata.textContent ?? '');
-        return isDataIslandSnapshot(value) ? value : undefined;
-    } catch {
-        return undefined;
+type HydrationSnapshotParseResult =
+    | { ok: true; snapshot: DataIslandSnapshot }
+    | { ok: false; code: string; message: string };
+
+function parseHydrationSnapshot(metadata: HTMLScriptElement): HydrationSnapshotParseResult {
+    const raw = metadata.textContent ?? '';
+    if (raw.trim().length === 0) {
+        return {
+            ok: false,
+            code: 'cem-element.hydration_snapshot_missing',
+            message: 'SSR hydration metadata did not contain a serialized DataIslandSnapshot',
+        };
     }
+    try {
+        const value: unknown = JSON.parse(raw);
+        if (!isDataIslandSnapshot(value)) {
+            return {
+                ok: false,
+                code: 'cem-element.hydration_snapshot_invalid',
+                message: 'SSR hydration metadata JSON was not a valid DataIslandSnapshot',
+            };
+        }
+        return { ok: true, snapshot: value };
+    } catch (error) {
+        return {
+            ok: false,
+            code: 'cem-element.hydration_json_invalid',
+            message: `SSR hydration metadata JSON could not be parsed: ${
+                error instanceof Error ? error.message : String(error)
+            }`,
+        };
+    }
+}
+
+function hydrationRenderIdentityDiagnostics(
+    instance: HTMLElement,
+    bounds: RenderBounds,
+    snapshot: DataIslandSnapshot
+): CemElementDiagnostic[] {
+    const firstRenderedElement = firstRenderedElementBetween(bounds);
+    if (!firstRenderedElement) {
+        return [
+            renderDiagnostic(
+                'cem-element.hydration_render_plan_missing',
+                'SSR hydration render boundaries did not contain a retained render-plan root element',
+                instance.localName
+            ),
+        ];
+    }
+    const diagnostics: CemElementDiagnostic[] = [];
+    const artifactId = firstRenderedElement.getAttribute(RENDER_TEMPLATE_ARTIFACT_ID_ATTR);
+    if (!artifactId) {
+        diagnostics.push(
+            renderDiagnostic(
+                'cem-element.hydration_render_plan_identity_missing',
+                'SSR hydration retained render root was missing template artifact identity',
+                instance.localName
+            )
+        );
+    } else if (artifactId !== snapshot.templateArtifactId) {
+        diagnostics.push(
+            renderDiagnostic(
+                'cem-element.hydration_template_artifact_mismatch',
+                `SSR hydration retained template artifact \`${artifactId}\` did not match snapshot artifact \`${snapshot.templateArtifactId}\``,
+                instance.localName
+            )
+        );
+    }
+    const dataRevision = firstRenderedElement.getAttribute(RENDER_DATA_REVISION_ATTR);
+    if (!dataRevision) {
+        diagnostics.push(
+            renderDiagnostic(
+                'cem-element.hydration_render_revision_missing',
+                'SSR hydration retained render root was missing data revision identity',
+                instance.localName
+            )
+        );
+    } else if (dataRevision !== snapshot.dataRevision) {
+        diagnostics.push(
+            renderDiagnostic(
+                'cem-element.hydration_render_revision_mismatch',
+                `SSR hydration retained data revision \`${dataRevision}\` did not match snapshot revision \`${snapshot.dataRevision}\``,
+                instance.localName
+            )
+        );
+    }
+    return diagnostics;
+}
+
+function firstRenderedElementBetween(bounds: RenderBounds): Element | undefined {
+    let current = bounds.start.nextSibling;
+    while (current && current !== bounds.end) {
+        if (current.nodeType === 1) {
+            return current as Element;
+        }
+        current = current.nextSibling;
+    }
+    return undefined;
 }
 
 function isDataIslandSnapshot(value: unknown): value is DataIslandSnapshot {

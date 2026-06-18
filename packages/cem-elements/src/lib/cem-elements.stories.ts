@@ -2353,22 +2353,59 @@ export const SsrHydrationRejectsIncompleteMarkup: Story = {
         declaration.appendChild(declTemplate);
         root.appendChild(declaration);
         runtime.registerDeclaration(declaration);
+        const sourceTemplate = document.createElement('template');
+        sourceTemplate.innerHTML = templateHtml;
+        const source = readTemplateSource(sourceTemplate.content);
 
         const snapshot = projectionSnapshot('story-ssr-incomplete-card', { label: 'Server Card' });
         snapshot.instanceId = 'ssr-incomplete-instance-1';
         snapshot.declarationTag = 'cem-element-story-ssr-incomplete';
         snapshot.templateArtifactId = 'ssr-incomplete-artifact-1';
         snapshot.dataRevision = '5';
+        const serverNodes = () =>
+            Array.from(
+                materializeRenderPlan(
+                    projectTemplate(source, { snapshot, values: { label: 'Server Card' } }),
+                    document
+                ).childNodes
+            );
+        const hydrationMetadata = (textContent: string) => {
+            const metadata = document.createElement('script');
+            metadata.setAttribute('type', 'application/json');
+            metadata.setAttribute('data-cem-hydration', 'snapshot');
+            metadata.textContent = textContent;
+            return metadata;
+        };
+        const hydratedCase = (
+            label: string,
+            textContent: string,
+            mutateFirstRenderedElement?: (element: Element) => void
+        ) => {
+            const instance = document.createElement('story-ssr-incomplete-card');
+            instance.setAttribute('label', label);
+            const island = document.createElement('template');
+            island.setAttribute('data-cem-island', 'instance');
+            const nodes = serverNodes();
+            const firstRenderedElement = nodes.find((node) => node.nodeType === 1);
+            if (firstRenderedElement) {
+                mutateFirstRenderedElement?.(firstRenderedElement as Element);
+            }
+            instance.append(
+                island,
+                document.createComment('cem-render-start'),
+                ...nodes,
+                document.createComment('cem-render-end'),
+                hydrationMetadata(textContent)
+            );
+            root.appendChild(instance);
+            return instance;
+        };
 
         const metadataOnly = document.createElement('story-ssr-incomplete-card');
         metadataOnly.setAttribute('label', 'Metadata only');
         const metadataOnlyIsland = document.createElement('template');
         metadataOnlyIsland.setAttribute('data-cem-island', 'instance');
-        const metadata = document.createElement('script');
-        metadata.setAttribute('type', 'application/json');
-        metadata.setAttribute('data-cem-hydration', 'snapshot');
-        metadata.textContent = JSON.stringify(snapshot);
-        metadataOnly.append(metadataOnlyIsland, metadata);
+        metadataOnly.append(metadataOnlyIsland, hydrationMetadata(JSON.stringify(snapshot)));
         root.appendChild(metadataOnly);
 
         const boundsOnly = document.createElement('story-ssr-incomplete-card');
@@ -2383,13 +2420,45 @@ export const SsrHydrationRejectsIncompleteMarkup: Story = {
         );
         root.appendChild(boundsOnly);
 
+        const emptySnapshot = hydratedCase('Empty snapshot', '');
+        const invalidSnapshot = hydratedCase('Invalid snapshot', JSON.stringify({ producedTag: 'story-ssr-incomplete-card' }));
+        const invalidJson = hydratedCase('Invalid JSON', '{not-json');
+        const missingIdentity = hydratedCase('Missing identity', JSON.stringify(snapshot), (element) => {
+            element.removeAttribute('data-cem-template-artifact-id');
+            element.removeAttribute('data-cem-data-revision');
+        });
+        const artifactMismatch = hydratedCase('Artifact mismatch', JSON.stringify(snapshot), (element) => {
+            element.setAttribute('data-cem-template-artifact-id', 'stale-artifact');
+        });
+        const revisionMismatch = hydratedCase('Revision mismatch', JSON.stringify(snapshot), (element) => {
+            element.setAttribute('data-cem-data-revision', '4');
+        });
+
         await runtime.whenRenderSettled(metadataOnly);
         await runtime.whenRenderSettled(boundsOnly);
+        await runtime.whenRenderSettled(emptySnapshot);
+        await runtime.whenRenderSettled(invalidSnapshot);
+        await runtime.whenRenderSettled(invalidJson);
+        await runtime.whenRenderSettled(missingIdentity);
+        await runtime.whenRenderSettled(artifactMismatch);
+        await runtime.whenRenderSettled(revisionMismatch);
 
         assertDiagnostic(runtime.diagnosticsFor(metadataOnly), 'cem-element.hydration_boundaries_missing');
         assertDiagnostic(runtime.diagnosticsFor(boundsOnly), 'cem-element.hydration_metadata_missing');
+        assertDiagnostic(runtime.diagnosticsFor(emptySnapshot), 'cem-element.hydration_snapshot_missing');
+        assertDiagnostic(runtime.diagnosticsFor(invalidSnapshot), 'cem-element.hydration_snapshot_invalid');
+        assertDiagnostic(runtime.diagnosticsFor(invalidJson), 'cem-element.hydration_json_invalid');
+        assertDiagnostic(runtime.diagnosticsFor(missingIdentity), 'cem-element.hydration_render_plan_identity_missing');
+        assertDiagnostic(runtime.diagnosticsFor(artifactMismatch), 'cem-element.hydration_template_artifact_mismatch');
+        assertDiagnostic(runtime.diagnosticsFor(revisionMismatch), 'cem-element.hydration_render_revision_mismatch');
         await waitForElement(metadataOnly, 'article.ssr-incomplete-card');
         await waitForElement(boundsOnly, 'article.ssr-incomplete-card');
+        await waitForElement(emptySnapshot, 'article.ssr-incomplete-card');
+        await waitForElement(invalidSnapshot, 'article.ssr-incomplete-card');
+        await waitForElement(invalidJson, 'article.ssr-incomplete-card');
+        await waitForElement(missingIdentity, 'article.ssr-incomplete-card');
+        await waitForElement(artifactMismatch, 'article.ssr-incomplete-card');
+        await waitForElement(revisionMismatch, 'article.ssr-incomplete-card');
     },
 };
 
