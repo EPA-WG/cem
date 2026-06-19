@@ -23,6 +23,7 @@ const MIME_TYPES = {
     '.mjs':   'application/javascript',
     '.css':   'text/css',
     '.json':  'application/json',
+    '.wasm':  'application/wasm',
     '.xml':   'application/xml',
     '.svg':   'image/svg+xml',
     '.png':   'image/png',

@@ -80,6 +80,22 @@ export async function runCustomElementSmoke(importBase) {
         instance?.querySelector('template[data-cem-island="instance"]') !== null
     );
 
+    const implicitInstance = document.querySelector('implicit-template-card');
+    await waitFor(
+        'legacy shorthand declaration renders implicit template content',
+        () => implicitInstance?.querySelector('a')?.textContent?.trim() === 'Implicit'
+    );
+    const implicitDeclaration = document.querySelector('custom-element[tag="implicit-template-card"]');
+    check(
+        'legacy shorthand declaration is normalized to one inert template',
+        implicitDeclaration?.querySelectorAll(':scope > template').length === 1
+    );
+    check(
+        'legacy shorthand declaration keeps moved content in template',
+        implicitDeclaration?.querySelector(':scope > template')?.content.querySelector('a')?.textContent?.trim() ===
+            'Implicit'
+    );
+
     const inlineDeclaration = document.querySelector('custom-element.inline-fixture');
     const inlineTag = inlineDeclaration?.getAttribute('tag');
     await waitFor(
