@@ -47,10 +47,20 @@ export interface SerializedPayload {
     childCount: number;
     nodes: SerializedPayloadNode[];
     slots: Record<string, SerializedPayloadNode[]>;
+    elementsByAttribute: Record<string, SerializedPayloadElement[]>;
     data: SerializedPayloadChoice[];
     options: SerializedPayloadChoice[];
     dataByValue: Record<string, SerializedPayloadChoice>;
     optionsByValue: Record<string, SerializedPayloadChoice>;
+}
+
+export interface SerializedPayloadElement {
+    key: string;
+    tag: string;
+    namespace: string | null;
+    text: string;
+    attributes: Record<string, string>;
+    slot: string;
 }
 
 export interface SerializedPayloadChoice {
@@ -1727,9 +1737,11 @@ function wasmTemplateData(snapshot: DataIslandSnapshot, declarations: AttributeD
 }
 
 function dataDocumentFromSnapshot(snapshot: DataIslandSnapshot): Record<string, unknown> {
+    const elementsByAttribute = dataDocumentElementsByAttribute(snapshot);
     return {
         attributes: snapshot.hostAttributes,
         dataset: snapshot.dataset,
+        elementsByAttribute,
         payload: snapshot.payload,
         slots: snapshot.payload.slots,
         data: snapshot.payload.dataByValue,
@@ -1740,6 +1752,31 @@ function dataDocumentFromSnapshot(snapshot: DataIslandSnapshot): Record<string, 
         validationState: snapshot.validationState,
         eventPayloads: snapshot.eventPayloads,
     };
+}
+
+function dataDocumentElementsByAttribute(
+    snapshot: DataIslandSnapshot
+): Record<string, SerializedPayloadElement[]> {
+    const byAttribute: Record<string, SerializedPayloadElement[]> = {};
+    for (const [name, elements] of Object.entries(snapshot.payload.elementsByAttribute)) {
+        byAttribute[name] = [...elements];
+    }
+    const hostElement: SerializedPayloadElement = {
+        key: 'host',
+        tag: snapshot.producedTag,
+        namespace: null,
+        text: '',
+        attributes: Object.fromEntries(
+            Object.entries(snapshot.hostAttributes)
+                .filter((entry): entry is [string, string | boolean] => entry[1] !== null)
+                .map(([name, value]) => [name, value === true ? '' : value === false ? 'false' : value])
+        ),
+        slot: '',
+    };
+    for (const name of Object.keys(hostElement.attributes)) {
+        byAttribute[name] = [...(byAttribute[name] ?? []), hostElement];
+    }
+    return byAttribute;
 }
 
 function cloneJsonSnapshotField(value: unknown): unknown {
@@ -1756,6 +1793,7 @@ function emptySerializedPayload(): SerializedPayload {
         childCount: 0,
         nodes: [],
         slots: {},
+        elementsByAttribute: {},
         data: [],
         options: [],
         dataByValue: {},
@@ -1966,6 +2004,7 @@ function serializePayload(island: HTMLTemplateElement): SerializedPayload {
         childCount: island.content.childNodes.length,
         nodes,
         slots,
+        elementsByAttribute: payloadElementsByAttribute(nodes),
         data,
         options,
         dataByValue: choicesByValue(data),
@@ -2045,6 +2084,37 @@ function choicesByValue(choices: readonly SerializedPayloadChoice[]): Record<str
         }
     }
     return byValue;
+}
+
+function payloadElementsByAttribute(
+    nodes: readonly SerializedPayloadNode[]
+): Record<string, SerializedPayloadElement[]> {
+    const byAttribute: Record<string, SerializedPayloadElement[]> = {};
+    for (const element of collectPayloadElements(nodes)) {
+        for (const name of Object.keys(element.attributes)) {
+            byAttribute[name] = [...(byAttribute[name] ?? []), element];
+        }
+    }
+    return byAttribute;
+}
+
+function collectPayloadElements(nodes: readonly SerializedPayloadNode[]): SerializedPayloadElement[] {
+    const elements: SerializedPayloadElement[] = [];
+    for (const node of nodes) {
+        if (node.kind !== 'element') {
+            continue;
+        }
+        elements.push({
+            key: node.key,
+            tag: node.tag,
+            namespace: node.namespace,
+            text: nodeText(node),
+            attributes: node.attributes,
+            slot: node.slot,
+        });
+        elements.push(...collectPayloadElements(node.children));
+    }
+    return elements;
 }
 
 function isTemplatePathSegment(value: string): boolean {

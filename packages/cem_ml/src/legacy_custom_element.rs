@@ -446,6 +446,7 @@ impl<'a> LegacyFragmentParser<'a> {
 #[derive(Debug, Clone, Default)]
 struct EmitCtx {
     loop_var: Option<String>,
+    loop_item: LoopItemKind,
     node_sets: HashMap<String, Vec<ItemNode>>,
     current_sets: HashMap<String, Vec<CurrentItem>>,
     scalars: HashMap<String, String>,
@@ -454,6 +455,13 @@ struct EmitCtx {
     root_nodes: Vec<LegacyNode>,
     template_depth: usize,
     templates: TemplateRegistry,
+}
+
+#[derive(Debug, Clone, Copy, Default, PartialEq, Eq)]
+enum LoopItemKind {
+    #[default]
+    Generic,
+    PayloadElement,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -656,7 +664,7 @@ fn emit_node(
     diagnostics: &mut Vec<LegacyConversionDiagnostic>,
 ) -> String {
     match node {
-        LegacyNode::Text(text) => interpolate(text, ctx, diagnostics),
+        LegacyNode::Text(text) => interpolate(text, ctx, diagnostics, true),
         LegacyNode::Comment => String::new(),
         LegacyNode::Element(element) => emit_element(element, ctx, diagnostics),
     }
@@ -914,7 +922,10 @@ fn emit_attribute(
     if attr.name == "xmlns" || attr.name.starts_with("xmlns:") {
         return String::new();
     }
-    attr_assign(&attr.name, &interpolate(&attr.value, ctx, diagnostics))
+    attr_assign(
+        &attr.name,
+        &interpolate(&attr.value, ctx, diagnostics, false),
+    )
 }
 
 fn emit_value_of(
@@ -1088,18 +1099,23 @@ fn emit_for_each(
     }
 
     let loop_var = "item".to_owned();
+    let payload_select = rewrite_payload_attribute_select(select);
     let child_ctx = EmitCtx {
         loop_var: Some(loop_var.clone()),
+        loop_item: if payload_select.is_some() {
+            LoopItemKind::PayloadElement
+        } else {
+            LoopItemKind::Generic
+        },
         item: None,
         ..ctx.clone()
     };
     let body = emit_children(&element.children, &child_ctx, diagnostics);
+    let select_expr =
+        payload_select.unwrap_or_else(|| rewrite_expression(select, ctx, false, diagnostics));
     format!(
         "{{cem:for-each{} @as=\"{loop_var}\" | {body}}}",
-        expr_attr(
-            "select",
-            &rewrite_expression(select, ctx, false, diagnostics)
-        )
+        expr_attr("select", &select_expr)
     )
 }
 
@@ -2444,7 +2460,7 @@ fn serialize_legacy_node_to_cem(
     diagnostics: &mut Vec<LegacyConversionDiagnostic>,
 ) -> String {
     match node {
-        LegacyNode::Text(text) => escape_literal(&interpolate(text, ctx, diagnostics)),
+        LegacyNode::Text(text) => escape_literal(&interpolate(text, ctx, diagnostics, true)),
         LegacyNode::Comment => String::new(),
         LegacyNode::Element(element) => {
             let tag = if element.tag.starts_with("xhtml:") {
@@ -2687,6 +2703,7 @@ fn interpolate(
     text: &str,
     ctx: &EmitCtx,
     diagnostics: &mut Vec<LegacyConversionDiagnostic>,
+    text_node: bool,
 ) -> String {
     let mut out = String::new();
     let mut cursor = 0;
@@ -2711,9 +2728,16 @@ fn interpolate(
             cursor = close + 1;
             continue;
         }
-        out.push('{');
-        out.push_str(&rewrite_expression(expression, ctx, true, diagnostics));
-        out.push('}');
+        let rewritten = rewrite_expression(expression, ctx, true, diagnostics);
+        if text_node && !rewritten.starts_with('$') {
+            out.push_str("{$");
+            out.push_str(&rewritten);
+            out.push('}');
+        } else {
+            out.push('{');
+            out.push_str(&rewritten);
+            out.push('}');
+        }
         cursor = close + 1;
     }
     out.push_str(&text[cursor..]);
@@ -2764,7 +2788,9 @@ fn evaluate_xpath_bool(expression: &str, ctx: &EmitCtx) -> Option<bool> {
     if let Some(value) = evaluate_xpath_operand(expression, ctx) {
         return Some(xpath_truthy(&value));
     }
-    select_members_for_eval(expression, ctx).map(|members| !members.is_empty())
+    select_members_for_eval(expression, ctx)
+        .filter(|members| !members.is_empty())
+        .map(|members| !members.is_empty())
 }
 
 fn evaluate_xpath_operand(expression: &str, ctx: &EmitCtx) -> Option<String> {
@@ -3016,6 +3042,18 @@ fn rewrite_expression(
     }
 }
 
+fn rewrite_payload_attribute_select(select: &str) -> Option<String> {
+    let trimmed = select.trim();
+    let attr_name = trimmed
+        .strip_prefix("//*[@")
+        .and_then(|rest| rest.strip_suffix(']'))?
+        .trim();
+    if !is_name(attr_name) {
+        return None;
+    }
+    Some(format!("datadom.elementsByAttribute.{attr_name}"))
+}
+
 fn tokenize_xpath(input: &str) -> Vec<XToken> {
     let chars: Vec<char> = input.chars().collect();
     let mut tokens = Vec::new();
@@ -3142,25 +3180,35 @@ impl XPathRewriter<'_, '_> {
         if value == "//" {
             if let Some(XToken::Name(next)) = self.peek().cloned() {
                 self.pos += 1;
-                return format!("datadom.slices.{next} ");
+                return format!("(datadom.slices.{next} ?? datadom.dataset.{next} ?? datadom.attributes.{next}) ");
             }
             return String::new();
         }
         if value == "@" {
             if let Some(XToken::Name(next)) = self.peek().cloned() {
                 self.pos += 1;
-                let base = self.ctx.loop_var.as_deref().unwrap_or("datadom.attributes");
+                let base = if self.ctx.loop_item == LoopItemKind::PayloadElement {
+                    self.ctx
+                        .loop_var
+                        .as_deref()
+                        .map(|loop_var| format!("{loop_var}.attributes"))
+                        .unwrap_or_else(|| "datadom.attributes".to_owned())
+                } else {
+                    self.ctx
+                        .loop_var
+                        .clone()
+                        .unwrap_or_else(|| "datadom.attributes".to_owned())
+                };
                 return format!("{base}.{next} ");
             }
             return String::new();
         }
         if value == "." {
-            return self
-                .ctx
-                .loop_var
-                .as_ref()
-                .map(|loop_var| format!("{loop_var} "))
-                .unwrap_or_else(|| ". ".to_owned());
+            return match (self.ctx.loop_var.as_ref(), self.ctx.loop_item) {
+                (Some(loop_var), LoopItemKind::PayloadElement) => format!("{loop_var}.text "),
+                (Some(loop_var), LoopItemKind::Generic) => format!("{loop_var} "),
+                (None, _) => ". ".to_owned(),
+            };
         }
         format!("{value} ")
     }
@@ -3213,6 +3261,17 @@ impl XPathRewriter<'_, '_> {
         match function_disposition(name) {
             LegacyFunctionDisposition::Special if name == "position" => "position ".to_owned(),
             LegacyFunctionDisposition::Special if name == "current" => ". ".to_owned(),
+            LegacyFunctionDisposition::Unsupported
+                if name == "text"
+                    && args.is_empty()
+                    && self.ctx.loop_item == LoopItemKind::PayloadElement =>
+            {
+                self.ctx
+                    .loop_var
+                    .as_ref()
+                    .map(|loop_var| format!("{loop_var}.text "))
+                    .unwrap_or_else(|| "text() ".to_owned())
+            }
             LegacyFunctionDisposition::Special if name == "not" => {
                 format!("not ({}) ", args.join(", "))
             }
@@ -3345,7 +3404,7 @@ fn is_name(value: &str) -> bool {
 fn is_simple_path(expression: &str) -> bool {
     let mut chars = expression.chars();
     matches!(chars.next(), Some(ch) if ch.is_ascii_alphabetic() || ch == '_')
-        && chars.all(|ch| ch.is_ascii_alphanumeric() || matches!(ch, '_' | '.'))
+        && chars.all(|ch| ch.is_ascii_alphanumeric() || matches!(ch, '_' | '.' | '-'))
 }
 
 fn is_name_start(ch: char) -> bool {
@@ -3525,6 +3584,28 @@ mod tests {
     }
 
     #[test]
+    fn lowers_payload_attribute_for_each_to_datadom_payload_elements() {
+        let result = convert(
+            r#"<for-each select="//*[@pokemon-id]"><button><img src="/{@pokemon-id}.svg" alt="{text()}"/>{text()}</button></for-each>"#,
+        );
+        assert_eq!(
+            result.source,
+            r#"{cem:for-each @select="datadom.elementsByAttribute.pokemon-id" @as="item" | {button | {img @src="/{$item.attributes.pokemon-id}.svg" @alt="{$item.text}"}{$item.text}}}"#
+        );
+        assert!(result.diagnostics.is_empty());
+    }
+
+    #[test]
+    fn keeps_descendant_dataset_or_slice_reference_dynamic() {
+        let result = convert(r#"<if test="//smile"><div>Smile as: {//smile}</div></if>"#);
+        assert_eq!(
+            result.source,
+            r#"{cem:if @test="(datadom.slices.smile ?? datadom.dataset.smile ?? datadom.attributes.smile)" | {div | Smile as: {$(datadom.slices.smile ?? datadom.dataset.smile ?? datadom.attributes.smile)}}}"#
+        );
+        assert!(result.diagnostics.is_empty());
+    }
+
+    #[test]
     fn unrolls_inline_node_set_variable() {
         let result = convert(
             r#"<variable name="fruits"><item>Apple</item><item>Banana</item></variable><ul><for-each select="exsl:node-set($fruits)/*"><li>{.}</li></for-each></ul>"#,
@@ -3540,7 +3621,7 @@ mod tests {
         );
         assert_eq!(
             result.source,
-            r#"{cem:if @test='datadom.slices.show-items = "yes"' | {span | First}}{cem:if @test='datadom.slices.show-items = "yes"' | {span | Second}}"#
+            r#"{cem:if @test='(datadom.slices.show-items ?? datadom.dataset.show-items ?? datadom.attributes.show-items) = "yes"' | {span | First}}{cem:if @test='(datadom.slices.show-items ?? datadom.dataset.show-items ?? datadom.attributes.show-items) = "yes"' | {span | Second}}"#
         );
     }
 
@@ -3551,7 +3632,7 @@ mod tests {
         );
         assert_eq!(
             result.source,
-            r#"{cem:if @test='datadom.slices.visible = "yes"' | {a @href="a" | 1:First}}{cem:if @test='datadom.slices.visible = "yes"' | {a @href="b" | 2:Second}}"#
+            r#"{cem:if @test='(datadom.slices.visible ?? datadom.dataset.visible ?? datadom.attributes.visible) = "yes"' | {a @href="a" | 1:First}}{cem:if @test='(datadom.slices.visible ?? datadom.dataset.visible ?? datadom.attributes.visible) = "yes"' | {a @href="b" | 2:Second}}"#
         );
         assert!(result.diagnostics.is_empty());
     }

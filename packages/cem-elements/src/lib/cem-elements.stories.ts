@@ -3743,6 +3743,7 @@ function emptySerializedPayload(): DataIslandSnapshot['payload'] {
         childCount: 0,
         nodes: [],
         slots: {},
+        elementsByAttribute: {},
         data: [],
         options: [],
         dataByValue: {},
