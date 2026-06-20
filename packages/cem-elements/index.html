@@ -62,14 +62,33 @@
 
 <cem-element tag="cem-pokemon-tile">
     <template type="text/cem-ml">
-        {article @class=pokemon-tile |
-            {h2 | {$datadom.attributes.title}}
-            {cem:if @test="datadom.dataset.smile" |
-                {p @class=smile | Smile as: {$datadom.dataset.smile}}
+        /* title is an attribute in instance, mapped into datadom.attributes.title */
+        {h3 | {$datadom.attributes.title}}
+
+        /* data-smile DCE instance attribute, mapped into datadom.dataset.smile and used in condition */
+        {cem:if @test="datadom.dataset.smile" |
+            /* data-smile DCE instance attribute, used as HTML */
+            {div | Smile as: {$datadom.dataset.smile}}
+        }
+        /* image would not be visible in sandbox, see live demo */
+        {img
+            @src="https://unpkg.com/pokeapi-sprites@2.0.2/sprites/pokemon/other/dream-world/{$datadom.attributes.pokemon-id}.svg"
+            @alt="{$datadom.attributes.title} image"}
+
+        /* image-src and title are DCE instance attributes, mapped into datadom.attributes,
+           used within output attribute via curly brackets */
+        /* `slot name=xxx` replaced with elements with `slot=xxx` attribute */
+        {p | {slot @name=description | {i | description is not available}}}
+
+        /* loop over payload elements with `pokemon-id` attribute, i.e LI elements */
+        {cem:for-each @select="datadom.elementsByAttribute.pokemon-id" @as=item |
+            {button |
+                {img
+                    @height=32 @src="https://unpkg.com/pokeapi-sprites@2.0.2/sprites/pokemon/other/dream-world/{$item.attributes.pokemon-id}.svg"
+                    @alt="{$item.text}"}
+                {br}
+                {$item.text}
             }
-            {img @src="https://unpkg.com/pokeapi-sprites@2.0.2/sprites/pokemon/other/dream-world/{$datadom.attributes.pokemonid}.svg" @alt="{$datadom.attributes.title} image"}
-            {p | {slot @name=description | description is not available}}
-            {div @class=related | {slot | No related Pokemon payload}}
         }
     </template>
 </cem-element>
@@ -87,15 +106,16 @@
 
     <section class="demo-card">
         <h2>3. Host attributes, dataset, slots, and nested payload</h2>
-        <cem-pokemon-tile title="bulbasaur" data-smile="yes" pokemonid="1">
-            <p slot="description">Bulbasaur carries a large seed that grows with it.</p>
+        <cem-pokemon-tile title="bulbasaur" data-smile="👼" pokemon-id="1">
+            <p slot="description">Bulbasaur is a cute Pokémon born with a large seed firmly affixed to its back;
+                the seed grows in size as the Pokémon  does.</p>
             <ul>
-                <li>ivysaur</li>
-                <li>venusaur</li>
+                <li pokemon-id="2">ivysaur</li>
+                <li pokemon-id="3">venusaur</li>
             </ul>
         </cem-pokemon-tile>
-        <cem-pokemon-tile title="ninetales" pokemonid="38">
-            <li>vulpix</li>
+        <cem-pokemon-tile title="ninetales" pokemon-id="38">
+            <li pokemon-id="37">vulpix</li>
         </cem-pokemon-tile>
     </section>
 </main>
