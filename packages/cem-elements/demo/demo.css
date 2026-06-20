@@ -1,168 +1,24 @@
-html {
-    color-scheme: light;
-    font-family: Inter, ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
-    line-height: 1.5;
+/* Copyright (c) 2026 Sasha Firsov <https://github.com/sashafirsov> */
+
+html
+{   font-family: -apple-system,BlinkMacSystemFont,Segoe UI,Roboto,Oxygen,Ubuntu,Cantarell,Fira Sans,Droid Sans,Helvetica Neue,sans-serif;
+    font-weight: 400; font-style: normal; -webkit-font-smoothing: antialiased;
+}
+body,nav{ display: flex; flex-wrap: wrap; align-content: stretch; gap: 1rem; }
+body>*{flex: auto;}
+nav
+{   flex-direction: column;
+    dce-root{ box-shadow:none; padding: 0;}
 }
 
-body {
-    margin: 0;
-    color: #152025;
-    background: #f7f8f5;
-}
+html-demo-element *:has(>[data-cem-island]){ box-shadow: 0 0 0.5rem lime; padding: 1rem;  flex:1; display: block; }
+script{ display:none !important; }
+dd{ padding: 1rem;}
+p{ margin: 0;}
+code{ font-weight: bold; color: green; text-wrap: nowrap; }
 
-.page-nav,
-main {
-    max-width: 1040px;
-    margin: 0 auto;
-    padding: 24px;
+html-demo-element h3
+{   text-shadow: 0 0 0.25em white;
+    letter-spacing: 0.1rem;
 }
-
-.page-nav {
-    border-bottom: 1px solid #d8ddd2;
-}
-
-h1,
-h2,
-h3 {
-    letter-spacing: 0;
-}
-
-code,
-pre {
-    font-family: "SFMono-Regular", Consolas, "Liberation Mono", monospace;
-}
-
-.link-grid {
-    display: grid;
-    grid-template-columns: repeat(auto-fit, minmax(160px, 1fr));
-    gap: 8px;
-    margin-top: 16px;
-}
-
-a {
-    color: #075985;
-}
-
-.link-grid a,
-.button-like {
-    display: inline-flex;
-    align-items: center;
-    justify-content: center;
-    min-height: 36px;
-    padding: 0 12px;
-    border: 1px solid #b9c5cc;
-    border-radius: 6px;
-    background: #ffffff;
-    text-decoration: none;
-}
-
-.demo-card,
-cem-demo-slot-card,
-cem-pokemon-tile,
-cem-attr-card,
-cem-attr-defaults,
-cem-attr-slice,
-cem-slice-field,
-cem-module-link,
-cem-loop-list,
-cem-form-preview,
-cem-dom-merge-field,
-cem-resource-panel,
-cem-grid-tile,
-cem-version-row {
-    display: block;
-    margin: 18px 0;
-    padding: 16px;
-    border: 1px solid #d8ddd2;
-    border-radius: 8px;
-    background: #ffffff;
-}
-
-.muted,
-.status-note {
-    color: #5c6970;
-}
-
-.status-note {
-    border-left: 4px solid #a16207;
-    padding: 10px 12px;
-    background: #fff7ed;
-}
-
-.row {
-    display: flex;
-    flex-wrap: wrap;
-    gap: 10px;
-    align-items: center;
-}
-
-input,
-textarea,
-select,
-button {
-    font: inherit;
-    min-height: 34px;
-}
-
-table {
-    border-collapse: collapse;
-    margin: 1rem 0;
-}
-
-th,
-td {
-    border: 1px solid #c5ced3;
-    padding: 0.5rem;
-}
-
-th {
-    background: #edf1f2;
-}
-
-input,
-textarea,
-select {
-    border: 1px solid #aebbc2;
-    border-radius: 6px;
-    padding: 4px 8px;
-}
-
-button {
-    border: 1px solid #0f766e;
-    border-radius: 6px;
-    padding: 4px 12px;
-    color: #ffffff;
-    background: #0f766e;
-}
-
-output,
-.pill {
-    display: inline-flex;
-    align-items: center;
-    min-height: 28px;
-    padding: 0 10px;
-    border-radius: 999px;
-    background: #e8f0ef;
-}
-
-.pokemon-tile img,
-.resolved-logo {
-    max-width: 96px;
-    max-height: 96px;
-}
-
-.swatch {
-    display: inline-flex;
-    width: 84px;
-    min-height: 48px;
-    align-items: center;
-    justify-content: center;
-    margin: 4px;
-    border: 1px solid #d8ddd2;
-}
-
-.hex-grid {
-    display: grid;
-    grid-template-columns: repeat(auto-fit, minmax(88px, 1fr));
-    gap: 8px;
-}
+*[slot="demo"]{ display: flex; gap: 1rem; flex-wrap: wrap; }
