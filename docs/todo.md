@@ -13,6 +13,16 @@ history belongs in git history and the feature-specific docs linked below.
      `local-storage`, and `location-element`; richer slice expressions and multi-event/multi-target bindings; form-data
      and validation-state capture; focus-preserving DOM merge; scoped style containment; and full demo-backed
      `cem:for-each` data feeds.
+   - Implement `<http-request>` as a CEM Elements resource primitive so CEM-ML demos can fetch JSON/XML payloads,
+     project response data into slices, and drive `cem:for-each` over response records.
+   - Implement `<local-storage>` as a CEM Elements resource primitive with typed text/date/time/number/json coercion,
+     initial slice hydration, live storage updates, and write-back from slice changes.
+   - Implement `<location-element>` as a CEM Elements resource primitive for reading `window.location`/custom hrefs
+     into structured slices, including attributes and query params, plus live location updates where supported.
+   - Implement declarative URL writes used by the legacy `set-url` demos, reusing the `location-element` method/src
+     model or its CEM-ML equivalent.
+   - Implement automatic template `<style>` containment for light-DOM CEM Elements so demo styles do not leak outside
+     the produced element while still allowing documented payload overrides.
    - Wire the demo parity checks into `yarn nx run cem-elements:verify` once the pages are executable release fixtures.
 
 Completed release-gate phases are recorded in:

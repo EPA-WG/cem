@@ -60,6 +60,8 @@ a {
 cem-demo-slot-card,
 cem-pokemon-tile,
 cem-attr-card,
+cem-attr-defaults,
+cem-attr-slice,
 cem-slice-field,
 cem-module-link,
 cem-loop-list,
@@ -100,6 +102,21 @@ select,
 button {
     font: inherit;
     min-height: 34px;
+}
+
+table {
+    border-collapse: collapse;
+    margin: 1rem 0;
+}
+
+th,
+td {
+    border: 1px solid #c5ced3;
+    padding: 0.5rem;
+}
+
+th {
+    background: #edf1f2;
 }
 
 input,
