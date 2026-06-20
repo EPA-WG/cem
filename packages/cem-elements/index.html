@@ -72,11 +72,9 @@
                    description="unlike in TEMPLATE, same slot can be used multiple times and within attribute ">
     <template>
         <cem-element tag="dce-2-slots" hidden>
-            <template type="text/cem-ml">
-                {slot @name=slot2 | 😃} and again:
-                {slot @name=slot2 | 😃}
-                {input @placeholder="🐇❤️{$datadom.slots.slot2.children.text}"}
-            </template>
+            {slot @name=slot2 | 😃} and again:
+            {slot @name=slot2 | 😃}
+            {input @placeholder="🐇❤️{$datadom.slots.slot2.children.text}"}
         </cem-element>
         <dce-2-slots><i slot="slot2">🥕</i></dce-2-slots>
         <dce-2-slots></dce-2-slots>
@@ -87,12 +85,10 @@
                    description="slot without `name` attribute or with blank value `name=''` use whole payload">
     <template>
         <cem-element tag="dce-3-slot" hidden>
-            <template type="text/cem-ml">
-                #1
-                {slot @name="" | 😃}
-                and
-                {slot | 😃}
-            </template>
+            #1
+            {slot @name="" | 😃}
+            and
+            {slot | 😃}
         </cem-element>
         <dce-3-slot><i slot="">🥕</i></dce-3-slot>
     </template>
@@ -106,7 +102,7 @@
                 #2
                 {slot @name="" | 😃}
                 and
-                {$datadom.payload.text ?? "😃"}
+                {slot | 😃}
             </template>
         </cem-element>
         <dce-4-slot>🥕</dce-4-slot>

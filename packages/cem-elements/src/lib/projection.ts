@@ -807,17 +807,15 @@ export function projectSlotsInRenderPlan(plan: RenderPlan, payload: unknown): Re
     if (!slotPayload) {
         return plan;
     }
-    const consumed = new Set<string>();
     return {
         ...plan,
-        nodes: projectSlotNodes(plan.nodes, slotPayload, consumed),
+        nodes: projectSlotNodes(plan.nodes, slotPayload),
     };
 }
 
 function projectSlotNodes(
     nodes: readonly RenderPlanNode[],
-    payload: ProjectionPayload,
-    consumed: Set<string>
+    payload: ProjectionPayload
 ): RenderPlanNode[] {
     const out: RenderPlanNode[] = [];
     for (const node of nodes) {
@@ -827,13 +825,13 @@ function projectSlotNodes(
         }
         if (node.tag === 'slot') {
             const name = node.attributes.find((attribute) => attribute.name === 'name')?.value ?? '';
-            const projected = collectProjectedSlotPayload(payload, name, consumed);
+            const projected = collectProjectedSlotPayload(payload, name);
             out.push(...(projected.length > 0 ? projected : node.children));
             continue;
         }
         out.push({
             ...node,
-            children: projectSlotNodes(node.children, payload, consumed),
+            children: projectSlotNodes(node.children, payload),
         });
     }
     return out;
@@ -841,16 +839,11 @@ function projectSlotNodes(
 
 function collectProjectedSlotPayload(
     payload: ProjectionPayload,
-    name: string,
-    consumed: Set<string>
+    name: string
 ): RenderPlanNode[] {
     const projected: RenderPlanNode[] = [];
     for (const node of payload.slots?.[name] ?? []) {
-        if (consumed.has(node.key)) {
-            continue;
-        }
         projected.push(payloadNodeToRenderNode(node));
-        consumed.add(node.key);
     }
     return projected;
 }

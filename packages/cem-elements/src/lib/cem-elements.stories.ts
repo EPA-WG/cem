@@ -164,17 +164,17 @@ export const DeclarationLiveContentRejected: Story = {
     },
 };
 
-export const MissingInlineTemplateRejected: Story = {
-    render: () => storyPanel('Missing inline template', 'inline declarations require exactly one template'),
+export const ImplicitCemMlTemplateShape: Story = {
+    render: () => storyPanel('Implicit CEM-ML template', 'inline declarations may use direct CEM-ML content'),
     play: () => {
         const result = analyzeDeclarationShape({
             tag: 'cem-button',
             src: null,
             directTemplateCount: 0,
-            directLiveNodeCount: 0,
+            directLiveNodeCount: 1,
         });
-        assert(!result.ok, 'inline declarations without a template must be rejected');
-        assertDiagnostic(result.diagnostics, 'cem-element.inline_template_count');
+        assert(result.ok, 'inline declarations without a template should be accepted as implicit CEM-ML');
+        assertEqual(result.diagnostics.length, 0, 'implicit CEM-ML declarations should not emit shape diagnostics');
     },
 };
 
@@ -1483,11 +1483,13 @@ export const SlotProjectionRepeatedNames: Story = {
         const declaration = document.createElement('cem-element-story-slot-dup');
         declaration.setAttribute('tag', 'story-slot-dup');
         const template = document.createElement('template');
-        // Two slots share the name `a`; a slottable is assigned to the first match only.
+        // CEM parity allows repeated slot inclusions to project the same payload more than once.
         template.innerHTML = [
             '<div class="card">',
             '<slot name="a"><em class="f1">f1</em></slot>',
             '<slot name="a"><em class="f2">f2</em></slot>',
+            '<slot name=""><em class="f3">f3</em></slot>',
+            '<slot><em class="f4">f4</em></slot>',
             '</div>',
         ].join('');
         declaration.appendChild(template);
@@ -1495,7 +1497,7 @@ export const SlotProjectionRepeatedNames: Story = {
         runtime.registerDeclaration(declaration);
 
         const instance = document.createElement('story-slot-dup');
-        instance.innerHTML = '<span slot="a">X</span>';
+        instance.innerHTML = '<span slot="a">X</span><i slot="">Y</i>';
         root.appendChild(instance);
 
         return root;
@@ -1508,14 +1510,27 @@ export const SlotProjectionRepeatedNames: Story = {
         assertEqual(
             card.querySelector('[slot="a"]')?.textContent,
             'X',
-            'the first matching slot receives the single payload'
+            'the first matching slot receives the payload'
         );
-        assert(card.querySelector('.f1') === null, 'the first slot drops its fallback once filled');
         assertEqual(
-            card.querySelector('.f2')?.textContent,
-            'f2',
-            'a repeated same-name slot falls back when the payload is already consumed'
+            card.querySelectorAll('[slot="a"]').length,
+            2,
+            'a repeated same-name slot projects the payload again'
         );
+        assert(card.querySelector('.f1') === null, 'the first named slot drops its fallback once filled');
+        assert(card.querySelector('.f2') === null, 'the repeated named slot also drops its fallback once filled');
+        assertEqual(
+            card.querySelectorAll('[slot=""]').length,
+            2,
+            'blank-name and omitted-name default slots both project the whole default payload'
+        );
+        assertEqual(
+            Array.from(card.querySelectorAll('[slot=""]'), (node) => node.textContent).join('|'),
+            'Y|Y',
+            'default payload is reusable across blank-name and omitted-name slots'
+        );
+        assert(card.querySelector('.f3') === null, 'the blank-name default slot drops its fallback once filled');
+        assert(card.querySelector('.f4') === null, 'the omitted-name default slot drops its fallback once filled');
     },
 };
 
@@ -3152,9 +3167,19 @@ export const DeclarationDiagnosticsAreExposed: Story = {
         runtime.registerDeclaration(srcMissing);
         assertDiagnostic(runtime.diagnosticsFor(srcMissing), 'cem-element.src_local_target_missing');
 
-        const noTemplate = buildDeclaration({ tag: 'story-decl-empty' });
+        const noTemplate = buildDeclaration({ tag: 'story-decl-empty', liveContent: true });
+        noTemplate.textContent = '{button | implicit}';
         runtime.registerDeclaration(noTemplate);
-        assertDiagnostic(runtime.diagnosticsFor(noTemplate), 'cem-element.inline_template_count');
+        assertEqual(
+            runtime.diagnosticsFor(noTemplate).length,
+            0,
+            'inline declaration content is accepted as an implicit CEM-ML template'
+        );
+        assertEqual(
+            (noTemplate.querySelector('template[type="text/cem-ml"]') as HTMLTemplateElement | null)?.content.textContent?.trim(),
+            '{button | implicit}',
+            'implicit declaration content is moved into an inert CEM-ML template'
+        );
 
         const liveContent = buildDeclaration({
             tag: 'story-decl-live',
