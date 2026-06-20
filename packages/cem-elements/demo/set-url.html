@@ -1,0 +1,31 @@
+<!doctype html>
+<html lang="en">
+<head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <title>cem-element set-url demo</title>
+    <link rel="stylesheet" href="./demo.css">
+    <script type="module">
+        import { installCemElementRuntime } from '../dist/index.js';
+        installCemElementRuntime(window);
+    </script>
+</head>
+<body>
+<nav class="page-nav"><a href="../index.html">cem-element demo</a><h1>set-url</h1></nav>
+
+<cem-element tag="cem-set-url-panel">
+    <template type="text/cem-ml">
+        {slice @name=method | location.hash}
+        {slice @name=url | #cem-demo}
+        {article @class=demo-card |
+            {label | Method {input @value="{$method}" @slice=method @slice-event=input @slice-value="{$target.value}"}}
+            {label | URL {input @value="{$url}" @slice=url @slice-event=input @slice-value="{$target.value}"}}
+            {p | pending set: {output | {$datadom.slices.method}} = {output | {$datadom.slices.url}}}
+            {p @class=status-note | Declarative URL writes via location-element are queued in <code>docs/todo.md</code>.}
+        }
+    </template>
+</cem-element>
+
+<main><cem-set-url-panel></cem-set-url-panel></main>
+</body>
+</html>

@@ -1,0 +1,30 @@
+<!doctype html>
+<html lang="en">
+<head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <title>cem-element http-request demo</title>
+    <link rel="stylesheet" href="./demo.css">
+    <script type="module">
+        import { installCemElementRuntime } from '../dist/index.js';
+        installCemElementRuntime(window);
+    </script>
+</head>
+<body>
+<nav class="page-nav"><a href="../index.html">cem-element demo</a><h1>http-request</h1></nav>
+
+<cem-element tag="cem-resource-panel">
+    <template type="text/cem-ml">
+        {article @class=demo-card |
+            {h2 | {$datadom.attributes.title}}
+            {p | Requested URL: {$datadom.attributes.url}}
+            {p @class=status-note | Resource-backed slices for http-request are the immediate parity target.}
+        }
+    </template>
+</cem-element>
+
+<main>
+    <cem-resource-panel title="HTTP request parity target" url="./http-data.json"></cem-resource-panel>
+</main>
+</body>
+</html>

@@ -1,0 +1,11 @@
+<!doctype html>
+<html lang="en">
+<body>
+<template id="external-card-template" type="text/cem-ml">
+    {article @class=demo-card |
+        {h2 | {$datadom.attributes.title ?? "External template"}}
+        {p | {slot | External fallback}}
+    }
+</template>
+</body>
+</html>

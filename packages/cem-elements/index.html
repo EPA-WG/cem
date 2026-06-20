@@ -1,0 +1,103 @@
+<!doctype html>
+<html lang="en">
+<head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <title>cem-element CEM-ML demo</title>
+    <link rel="icon" href="../custom-element/demo/wc-square.svg">
+    <link rel="stylesheet" href="./demo/demo.css">
+    <script type="module">
+        import { installCemElementRuntime } from './dist/index.js';
+
+        installCemElementRuntime(window, {
+            resolveModuleUrl(specifier, document) {
+                if (specifier === '@epa-wg/custom-element/demo/wc-square.svg') {
+                    return new URL('../custom-element/demo/wc-square.svg', document.baseURI).href;
+                }
+                if (specifier === '@epa-wg/material') {
+                    return new URL('../custom-element/material/', document.baseURI).href;
+                }
+                return new URL(specifier, document.baseURI).href;
+            },
+        });
+    </script>
+</head>
+<body>
+<nav class="page-nav">
+    <h1><code>cem-element</code> CEM-ML demo</h1>
+    <p>Declarative light-DOM custom elements authored with canonical CEM-ML templates.</p>
+    <section class="link-grid" aria-label="Feature demos">
+        <a href="./demo/attributes.html">attributes</a>
+        <a href="./demo/data-slices.html">data slices/events</a>
+        <a href="./demo/external-template.html">external template</a>
+        <a href="./demo/module-url.html">module-url</a>
+        <a href="./demo/scoped-css.html">scoped CSS</a>
+        <a href="./demo/for-each.html">for-each</a>
+        <a href="./demo/dom-merge.html">DOM merge</a>
+        <a href="./demo/form.html">form validation</a>
+        <a href="./demo/http-request.html">http-request</a>
+        <a href="./demo/local-storage.html">local-storage</a>
+        <a href="./demo/location-element.html">location-element</a>
+        <a href="./demo/set-url.html">set-url</a>
+        <a href="./demo/hex-grid.html">hex grid</a>
+        <a href="./demo/npm-versions-demo.html">npm versions</a>
+    </section>
+</nav>
+
+<cem-element tag="cem-demo-link">
+    <template type="text/cem-ml">
+        {a @href="#" @class=demo-link | link from CEM-ML}
+    </template>
+</cem-element>
+
+<cem-element tag="cem-demo-slot-card">
+    <template type="text/cem-ml">
+        {section @class=demo-card |
+            {h2 | {$datadom.attributes.title ?? "Slotted card"}}
+            {p | {slot | Default slot fallback}}
+            {p @class=muted | {slot @name=detail | No detail slot supplied}}
+        }
+    </template>
+</cem-element>
+
+<cem-element tag="cem-pokemon-tile">
+    <template type="text/cem-ml">
+        {article @class=pokemon-tile |
+            {h2 | {$datadom.attributes.title}}
+            {cem:if @test="datadom.dataset.smile" |
+                {p @class=smile | Smile as: {$datadom.dataset.smile}}
+            }
+            {img @src="https://unpkg.com/pokeapi-sprites@2.0.2/sprites/pokemon/other/dream-world/{$datadom.attributes.pokemonid}.svg" @alt="{$datadom.attributes.title} image"}
+            {p | {slot @name=description | description is not available}}
+            {div @class=related | {slot | No related Pokemon payload}}
+        }
+    </template>
+</cem-element>
+
+<main>
+    <section class="demo-card">
+        <h2>1. Produced tag</h2>
+        <cem-demo-link></cem-demo-link>
+    </section>
+
+    <cem-demo-slot-card title="2. Slots">
+        Payload text rendered through the default slot.
+        <span slot="detail">Named detail slot rendered from host payload.</span>
+    </cem-demo-slot-card>
+
+    <section class="demo-card">
+        <h2>3. Host attributes, dataset, slots, and nested payload</h2>
+        <cem-pokemon-tile title="bulbasaur" data-smile="yes" pokemonid="1">
+            <p slot="description">Bulbasaur carries a large seed that grows with it.</p>
+            <ul>
+                <li>ivysaur</li>
+                <li>venusaur</li>
+            </ul>
+        </cem-pokemon-tile>
+        <cem-pokemon-tile title="ninetales" pokemonid="38">
+            <li>vulpix</li>
+        </cem-pokemon-tile>
+    </section>
+</main>
+</body>
+</html>

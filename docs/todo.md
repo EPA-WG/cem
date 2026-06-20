@@ -6,7 +6,14 @@ history belongs in git history and the feature-specific docs linked below.
 
 ## Immediate Release Queue
 
-No active implementation tasks are queued in the current workspace.
+1. Complete deferred `<cem-element>` demo parity now that the runtime/data-island pieces are in place.
+   - Promote the new `packages/cem-elements/index.html` and `packages/cem-elements/demo/*.html` CEM-ML demos to the
+     same functional coverage level as the copied `packages/custom-element/index.html` and `demo/*.html` pages.
+   - Close the current runtime gaps surfaced by those demos: resource-backed slices for `http-request`,
+     `local-storage`, and `location-element`; richer slice expressions and multi-event/multi-target bindings; form-data
+     and validation-state capture; focus-preserving DOM merge; scoped style containment; and full demo-backed
+     `cem:for-each` data feeds.
+   - Wire the demo parity checks into `yarn nx run cem-elements:verify` once the pages are executable release fixtures.
 
 Completed release-gate phases are recorded in:
 

@@ -1,0 +1,30 @@
+<!doctype html>
+<html lang="en">
+<head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <title>cem-element npm versions demo</title>
+    <link rel="stylesheet" href="./demo.css">
+    <script type="module">
+        import { installCemElementRuntime } from '../dist/index.js';
+        installCemElementRuntime(window);
+    </script>
+</head>
+<body>
+<nav class="page-nav"><a href="../index.html">cem-element demo</a><h1>NPM versions</h1></nav>
+
+<cem-element tag="cem-version-row">
+    <template type="text/cem-ml">
+        {article @class=demo-card |
+            {h2 | {$datadom.attributes.package}}
+            {p | selected version: {$datadom.attributes.version ?? "local"}}
+            {p @class=status-note | Live registry lookup through http-request is queued for parity.}
+        }
+    </template>
+</cem-element>
+
+<main>
+    <cem-version-row package="@epa-wg/cem-elements" version="workspace"></cem-version-row>
+</main>
+</body>
+</html>

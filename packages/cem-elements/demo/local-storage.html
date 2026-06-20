@@ -1,0 +1,29 @@
+<!doctype html>
+<html lang="en">
+<head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <title>cem-element local-storage demo</title>
+    <link rel="stylesheet" href="./demo.css">
+    <script type="module">
+        import { installCemElementRuntime } from '../dist/index.js';
+        installCemElementRuntime(window);
+    </script>
+</head>
+<body>
+<nav class="page-nav"><a href="../index.html">cem-element demo</a><h1>local-storage</h1></nav>
+
+<cem-element tag="cem-local-storage-panel">
+    <template type="text/cem-ml">
+        {slice @name=draft}
+        {article @class=demo-card |
+            {label | Draft {input @value="{$draft}" @slice=draft @slice-event=input @slice-value="{$target.value}"}}
+            {p | data-island draft: {output | {$datadom.slices.draft}}}
+            {p @class=status-note | Persisting this slice to localStorage is the immediate parity target.}
+        }
+    </template>
+</cem-element>
+
+<main><cem-local-storage-panel></cem-local-storage-panel></main>
+</body>
+</html>

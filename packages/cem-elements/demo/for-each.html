@@ -1,0 +1,40 @@
+<!doctype html>
+<html lang="en">
+<head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <title>cem-element for-each demo</title>
+    <link rel="stylesheet" href="./demo.css">
+    <script type="module">
+        import { installCemElementRuntime } from '../dist/index.js';
+        installCemElementRuntime(window);
+    </script>
+</head>
+<body>
+<nav class="page-nav"><a href="../index.html">cem-element demo</a><h1>cem:for-each</h1></nav>
+
+<cem-element tag="cem-loop-list">
+    <template type="text/cem-ml">
+        {article @class=demo-card |
+            {h2 | Sequence literal}
+            {ul |
+                {cem:for-each @select='("Apple", "Banana", "Cherry")' @as=fruit |
+                    {li | {$position}. {$fruit}}
+                }
+            }
+            {h2 | Attribute-aware swatches}
+            {div |
+                {cem:for-each @select='("Red", "Green", "Blue")' @as=color |
+                    {span @class=swatch | {$position}: {$color}}
+                }
+            }
+        }
+    </template>
+</cem-element>
+
+<main>
+    <cem-loop-list></cem-loop-list>
+    <p class="status-note">Parity target: feeding <code>cem:for-each</code> from resource/data-island table rows is queued in <code>docs/todo.md</code>.</p>
+</main>
+</body>
+</html>

@@ -1,0 +1,40 @@
+<!doctype html>
+<html lang="en">
+<head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <title>cem-element attributes demo</title>
+    <link rel="stylesheet" href="./demo.css">
+    <script type="module">
+        import { installCemElementRuntime } from '../dist/index.js';
+        installCemElementRuntime(window);
+        window.addEventListener('click', (event) => {
+            const button = event.target.closest('[data-update-label]');
+            if (!button) return;
+            document.querySelector('cem-attr-card[data-live]')?.setAttribute('label', button.dataset.updateLabel);
+        });
+    </script>
+</head>
+<body>
+<nav class="page-nav"><a href="../index.html">cem-element demo</a><h1>Attributes</h1></nav>
+
+<cem-element tag="cem-attr-card">
+    <template type="text/cem-ml">
+        {attribute @name=label | Default label}
+        {attribute @name=tone | neutral}
+        {article @class="demo-card {$tone}" @data-tone="{$datadom.attributes.tone}" |
+            {h2 | {$label}}
+            {p | host label: {$datadom.attributes.label ?? "unset"}}
+            {p | tone: {$tone}}
+        }
+    </template>
+</cem-element>
+
+<main>
+    <cem-attr-card></cem-attr-card>
+    <cem-attr-card label="Host override" tone="alert"></cem-attr-card>
+    <cem-attr-card data-live label="Before"></cem-attr-card>
+    <button type="button" data-update-label="After">Update live host attribute</button>
+</main>
+</body>
+</html>

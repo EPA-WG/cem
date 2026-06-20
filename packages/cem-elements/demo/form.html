@@ -1,0 +1,40 @@
+<!doctype html>
+<html lang="en">
+<head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <title>cem-element form demo</title>
+    <link rel="stylesheet" href="./demo.css">
+    <script type="module">
+        import { installCemElementRuntime } from '../dist/index.js';
+        installCemElementRuntime(window);
+    </script>
+</head>
+<body>
+<nav class="page-nav"><a href="../index.html">cem-element demo</a><h1>Forms</h1></nav>
+
+<cem-element tag="cem-form-preview">
+    <template type="text/cem-ml">
+        {slice @name=username}
+        {slice @name=password}
+        {article @class=demo-card |
+            {form |
+                {label | Username {input @name=username @autocomplete=username @value="{$username}" @slice=username @slice-event=input @slice-value="{$target.value}"}}
+                {label | Password {input @name=password @type=password @value="{$password}" @slice=password @slice-event=input @slice-value="{$target.value}"}}
+                {button @type=button | Preview}
+            }
+            {p | username: {output | {$datadom.slices.username}}}
+            {p | password slice set: {cem:choose |
+                {cem:when @test="datadom.slices.password" | yes}
+                {cem:otherwise | no}
+            }}
+        }
+    </template>
+</cem-element>
+
+<main>
+    <cem-form-preview></cem-form-preview>
+    <p class="status-note">Parity target: form-data extraction, custom validity, and validation-state serialization are queued in <code>docs/todo.md</code>.</p>
+</main>
+</body>
+</html>

@@ -1,0 +1,43 @@
+<!doctype html>
+<html lang="en">
+<head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <title>cem-element data slices demo</title>
+    <link rel="stylesheet" href="./demo.css">
+    <script type="module">
+        import { installCemElementRuntime } from '../dist/index.js';
+        installCemElementRuntime(window);
+        window.addEventListener('click', (event) => {
+            const trigger = event.target.closest('[data-dispatch-select]');
+            if (!trigger) return;
+            trigger.dispatchEvent(new CustomEvent('cem-select', { bubbles: true, detail: { id: 'demo' } }));
+        });
+    </script>
+</head>
+<body>
+<nav class="page-nav"><a href="../index.html">cem-element demo</a><h1>Data slices and events</h1></nav>
+
+<cem-element tag="cem-slice-field">
+    <template type="text/cem-ml">
+        {attribute @name=label | Query}
+        {slice @name=query}
+        {slice @name=checked | false}
+        {slice @name=selected}
+        {section @class=demo-card |
+            {label | {$label} {input @type=text @value="{$query}" @slice=query @slice-event=input @slice-value="{$target.value}"}}
+            {label | {input @type=checkbox @slice=checked @slice-event=change @slice-value="{$target.checked}"} checked}
+            {button @type=button @data-dispatch-select=true @slice=selected @slice-event=cem-select @slice-value="$event.type" | Custom select}
+            {p | query: {output | {$datadom.slices.query}}}
+            {p | checked: {output | {$datadom.slices.checked}}}
+            {p | custom event: {output | {$datadom.slices.selected}}}
+        }
+    </template>
+</cem-element>
+
+<main>
+    <cem-slice-field label="Type and toggle"></cem-slice-field>
+    <p class="status-note">Parity target: legacy arithmetic slice expressions, multi-event strings, multi-target writes, and checkbox/radio coercion are queued in <code>docs/todo.md</code>.</p>
+</main>
+</body>
+</html>

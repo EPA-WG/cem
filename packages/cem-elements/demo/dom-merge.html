@@ -1,0 +1,31 @@
+<!doctype html>
+<html lang="en">
+<head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <title>cem-element DOM merge demo</title>
+    <link rel="stylesheet" href="./demo.css">
+    <script type="module">
+        import { installCemElementRuntime } from '../dist/index.js';
+        installCemElementRuntime(window);
+    </script>
+</head>
+<body>
+<nav class="page-nav"><a href="../index.html">cem-element demo</a><h1>DOM update and data island</h1></nav>
+
+<cem-element tag="cem-dom-merge-field">
+    <template type="text/cem-ml">
+        {slice @name=txt | Type here}
+        {article @class=demo-card |
+            {label | Text {input @type=text @value="{$txt}" @slice=txt @slice-event=input @slice-value="{$target.value}"}}
+            {p | Current slice: {output | {$datadom.slices.txt}}}
+        }
+    </template>
+</cem-element>
+
+<main>
+    <cem-dom-merge-field></cem-dom-merge-field>
+    <p class="status-note">Parity target: focus-preserving DOM merge is queued. Current rendering proves data-island invalidation and rerender.</p>
+</main>
+</body>
+</html>

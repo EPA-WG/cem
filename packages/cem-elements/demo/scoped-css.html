@@ -1,0 +1,36 @@
+<!doctype html>
+<html lang="en">
+<head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <title>cem-element scoped CSS demo</title>
+    <link rel="stylesheet" href="./demo.css">
+    <script type="module">
+        import { installCemElementRuntime } from '../dist/index.js';
+        installCemElementRuntime(window);
+    </script>
+</head>
+<body>
+<nav class="page-nav"><a href="../index.html">cem-element demo</a><h1>Scoped CSS</h1></nav>
+
+<cem-element tag="cem-style-demo">
+    <template type="text/cem-ml">
+        {article @class=demo-card |
+            {style |```
+                cem-style-demo .scoped-sample {
+                    border-color: #0f766e;
+                    background: #ecfdf5;
+                }
+            ```}
+            {p @class=scoped-sample | This style is authored inside the CEM-ML template.}
+        }
+    </template>
+</cem-element>
+
+<main>
+    <cem-style-demo></cem-style-demo>
+    <p class="scoped-sample demo-card">This outside paragraph should not match the prefixed selector.</p>
+    <p class="status-note">Parity target: automatic style containment is still queued. This demo uses an explicit produced-tag prefix.</p>
+</main>
+</body>
+</html>
