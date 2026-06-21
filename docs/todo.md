@@ -36,7 +36,7 @@ history belongs in git history and the feature-specific docs linked below.
      - [x] Keep the published standalone `http-request.js` companion shim smoke-tested as compatibility surface.
      - [ ] Defer progressive AST streaming, full browser source-map sidecars, cache identity, SSR preload/revalidation, and
        legacy broad XPath rewrite compatibility to later phases of the design.
-   - Implement `<local-storage>` as a CEM Elements resource primitive with typed text/date/time/number/json coercion,
+   - [x] Implement `<local-storage>` as a CEM Elements resource primitive with typed text/date/time/number/json coercion,
      initial slice hydration, live storage updates, and write-back from slice changes.
    - Implement `<location-element>` as a CEM Elements resource primitive for reading `window.location`/custom hrefs
      into structured slices, including attributes and query params, plus live location updates where supported.

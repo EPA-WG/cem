@@ -391,6 +391,7 @@ interface InstanceState {
     slices: Record<string, unknown>;
     eventPayloads: Record<string, unknown>;
     httpResources: Record<string, ActiveHttpResource>;
+    localStorageResources: Record<string, ActiveLocalStorageResource>;
     resourceRevisions: Record<string, number>;
     observer?: MutationObserver;
 }
@@ -413,11 +414,28 @@ interface HttpRequestDeclaration {
     cache?: string;
 }
 
+interface LocalStorageDeclaration {
+    sliceName: string;
+    key: string;
+    storageType: string;
+    live: boolean;
+    initialValue?: string;
+}
+
 interface ActiveHttpResource {
     key: string;
     revision: number;
     controller: AbortController;
     settled: Promise<void>;
+}
+
+interface ActiveLocalStorageResource {
+    key: string;
+    storageType: string;
+    live: boolean;
+    lastValue: unknown;
+    lastRawValue: string | null;
+    destroy?: () => void;
 }
 
 type RenderedResourceResult =
@@ -437,6 +455,7 @@ const DATA_ISLAND_VALUE = 'instance';
 const HYDRATION_METADATA_ATTR = 'data-cem-hydration';
 const HYDRATION_METADATA_VALUE = 'snapshot';
 const UID_SEED_ATTR = 'uid-seed';
+const LOCAL_STORAGE_EVENT = 'cem-local-storage';
 const RENDER_TEMPLATE_ARTIFACT_ID_ATTR = 'data-cem-template-artifact-id';
 const RENDER_DATA_REVISION_ATTR = 'data-cem-data-revision';
 const SOURCE_FIDELITY_ATTR = 'data-cem-source-fidelity';
@@ -462,6 +481,7 @@ const RESERVED_CUSTOM_ELEMENT_NAMES = new Set([
 
 let artifactSequence = 0;
 let runtimeUidSeedSequence = 0;
+const localStorageTrackers = new WeakSet<Window>();
 
 export interface ScopeUidInput {
     producedTag: string | null;
@@ -947,6 +967,9 @@ export class CemElementRuntime {
             for (const active of Object.values(state.httpResources)) {
                 active.controller.abort();
             }
+            for (const active of Object.values(state.localStorageResources)) {
+                active.destroy?.();
+            }
         }
     }
 
@@ -1266,6 +1289,7 @@ export class CemElementRuntime {
                 : Object.fromEntries(compiled.declaredSlices.map((slice) => [slice.name, slice.defaultValue])),
             eventPayloads: hydrationSnapshot?.eventPayloads ?? {},
             httpResources: {},
+            localStorageResources: {},
             resourceRevisions: {},
         };
         const observer = island.ownerDocument.defaultView?.MutationObserver;
@@ -1343,7 +1367,7 @@ export class CemElementRuntime {
         return this.bindRenderedResourceSliceElements(
             instance,
             compiled,
-            Array.from(rendered.querySelectorAll('module-url,http-request')),
+            Array.from(rendered.querySelectorAll('module-url,http-request,local-storage')),
             token
         );
     }
@@ -1357,7 +1381,7 @@ export class CemElementRuntime {
         return this.bindRenderedResourceSliceElements(
             instance,
             compiled,
-            renderedElementsBetween(bounds, 'module-url,http-request'),
+            renderedElementsBetween(bounds, 'module-url,http-request,local-storage'),
             token
         );
     }
@@ -1379,6 +1403,7 @@ export class CemElementRuntime {
             const sliceName = element.getAttribute('slice')?.trim() ?? '';
             const specifier = element.getAttribute('src')?.trim() ?? '';
             const httpRequest = localName === 'http-request' ? readHttpRequestDeclaration(element) : null;
+            const localStorage = localName === 'local-storage' ? readLocalStorageDeclaration(element) : null;
             element.remove();
             if (localName === 'module-url') {
                 if (!sliceName || !specifier) {
@@ -1399,6 +1424,10 @@ export class CemElementRuntime {
             }
             if (httpRequest) {
                 httpSettled.push(this.startHttpRequestResource(instance, compiled, httpRequest));
+                continue;
+            }
+            if (localStorage) {
+                this.bindLocalStorageResource(instance, compiled, localStorage);
             }
         }
         if (moduleTasks.length === 0 && httpSettled.length === 0) {
@@ -1460,6 +1489,191 @@ export class CemElementRuntime {
         ).then((value) => String(value));
         this.moduleUrls.set(key, resolved);
         return resolved;
+    }
+
+    private bindLocalStorageResource(
+        instance: HTMLElement,
+        compiled: CompiledDeclaration,
+        declaration: LocalStorageDeclaration
+    ): void {
+        const window = instance.ownerDocument.defaultView;
+        const storage = localStorageForWindow(window);
+        if (!storage || !window) {
+            this.recordDiagnostics(instance, [
+                resourceDiagnostic(
+                    'cem-element.local_storage_unavailable',
+                    `local-storage key \`${declaration.key}\` cannot be read in this browser context`,
+                    compiled.producedTag,
+                    'warning'
+                ),
+            ]);
+            return;
+        }
+
+        const island = this.ensureDataIsland(instance);
+        const state = this.ensureInstanceState(instance, compiled, island);
+        let active: ActiveLocalStorageResource | undefined = state.localStorageResources[declaration.sliceName];
+        if (active && !sameLocalStorageDeclaration(active, declaration)) {
+            active.destroy?.();
+            delete state.localStorageResources[declaration.sliceName];
+            active = undefined;
+        }
+
+        let source: LocalStorageSliceSource = 'retained';
+        let nextValue: unknown;
+        let nextRawValue: string | null;
+        let needsRerender = false;
+
+        if (declaration.initialValue !== undefined) {
+            nextValue = localStorageStringToValue(declaration.storageType, declaration.initialValue, instance.ownerDocument);
+            nextRawValue = localStorageValueToString(declaration.storageType, nextValue);
+            writeLocalStorageRaw(storage, declaration.key, nextRawValue);
+            source = 'value-attribute';
+            needsRerender = this.writeLocalStorageSlice(
+                state,
+                declaration,
+                nextValue,
+                nextRawValue,
+                source,
+                active
+            );
+        } else if (!active) {
+            nextRawValue = storage.getItem(declaration.key);
+            nextValue = localStorageStringToValue(declaration.storageType, nextRawValue, instance.ownerDocument);
+            source = 'initial-read';
+            needsRerender = this.writeLocalStorageSlice(
+                state,
+                declaration,
+                nextValue,
+                nextRawValue,
+                source,
+                active
+            );
+        } else {
+            const sliceValue = state.slices[declaration.sliceName];
+            if (!localStorageValuesEqual(sliceValue, active.lastValue)) {
+                nextValue = sliceValue;
+                nextRawValue = localStorageValueToString(declaration.storageType, nextValue);
+                writeLocalStorageRaw(storage, declaration.key, nextRawValue);
+                source = 'slice-write';
+                this.writeLocalStorageSlice(state, declaration, nextValue, nextRawValue, source, active);
+            } else {
+                nextValue = active.lastValue;
+                nextRawValue = active.lastRawValue;
+            }
+        }
+
+        active = this.ensureActiveLocalStorageResource(instance, compiled, state, declaration, nextValue, nextRawValue);
+        if (source !== 'retained') {
+            this.writeLocalStorageEventPayload(state, declaration, nextValue, nextRawValue, source);
+            active.lastValue = nextValue;
+            active.lastRawValue = nextRawValue;
+        }
+        if (needsRerender) {
+            queueMicrotask(() => {
+                if (instance.isConnected) {
+                    this.renderInstance(instance, compiled);
+                }
+            });
+        }
+    }
+
+    private writeLocalStorageSlice(
+        state: InstanceState,
+        declaration: LocalStorageDeclaration,
+        value: unknown,
+        rawValue: string | null,
+        source: LocalStorageSliceSource,
+        active: ActiveLocalStorageResource | undefined
+    ): boolean {
+        const changed = !localStorageValuesEqual(state.slices[declaration.sliceName], value);
+        if (changed) {
+            state.slices[declaration.sliceName] = value;
+        }
+        this.writeLocalStorageEventPayload(state, declaration, value, rawValue, source);
+        if (active) {
+            active.lastValue = value;
+            active.lastRawValue = rawValue;
+        }
+        return changed;
+    }
+
+    private writeLocalStorageEventPayload(
+        state: InstanceState,
+        declaration: LocalStorageDeclaration,
+        value: unknown,
+        rawValue: string | null,
+        source: LocalStorageSliceSource
+    ): void {
+        state.eventPayloads[declaration.sliceName] = {
+            type: 'local-storage',
+            key: declaration.key,
+            storageType: declaration.storageType,
+            live: declaration.live,
+            source,
+            value,
+            rawValue,
+        };
+    }
+
+    private ensureActiveLocalStorageResource(
+        instance: HTMLElement,
+        compiled: CompiledDeclaration,
+        state: InstanceState,
+        declaration: LocalStorageDeclaration,
+        value: unknown,
+        rawValue: string | null
+    ): ActiveLocalStorageResource {
+        const existing = state.localStorageResources[declaration.sliceName];
+        if (existing) {
+            return existing;
+        }
+        const active: ActiveLocalStorageResource = {
+            key: declaration.key,
+            storageType: declaration.storageType,
+            live: declaration.live,
+            lastValue: value,
+            lastRawValue: rawValue,
+        };
+        if (declaration.live) {
+            active.destroy = this.bindLocalStorageLiveListener(instance, compiled, state, declaration, active);
+        }
+        state.localStorageResources[declaration.sliceName] = active;
+        return active;
+    }
+
+    private bindLocalStorageLiveListener(
+        instance: HTMLElement,
+        compiled: CompiledDeclaration,
+        state: InstanceState,
+        declaration: LocalStorageDeclaration,
+        active: ActiveLocalStorageResource
+    ): () => void {
+        const window = instance.ownerDocument.defaultView;
+        const storage = localStorageForWindow(window);
+        if (!window || !storage) {
+            return () => undefined;
+        }
+        ensureTrackedLocalStorage(window);
+        const listener = (event: Event) => {
+            const changedKey = localStorageChangedKey(event);
+            if (changedKey !== null && changedKey !== declaration.key) {
+                return;
+            }
+            const rawValue = storage.getItem(declaration.key);
+            const value = localStorageStringToValue(declaration.storageType, rawValue, instance.ownerDocument);
+            active.lastValue = value;
+            active.lastRawValue = rawValue;
+            if (this.writeLocalStorageSlice(state, declaration, value, rawValue, 'storage-event', active)) {
+                this.renderInstance(instance, compiled);
+            }
+        };
+        window.addEventListener('storage', listener);
+        window.addEventListener(LOCAL_STORAGE_EVENT, listener);
+        return () => {
+            window.removeEventListener('storage', listener);
+            window.removeEventListener(LOCAL_STORAGE_EVENT, listener);
+        };
     }
 
     private startHttpRequestResource(
@@ -1784,7 +1998,7 @@ export class CemElementRuntime {
         const mergeOptions = {
             preserveElementChildren: (current: Element) =>
                 this.declarations.has(current.localName) && directDataIsland(current) !== undefined,
-            transientElementTags: ['module-url', 'http-request'],
+            transientElementTags: ['module-url', 'http-request', 'local-storage'],
         };
         if (previous) {
             const bounds = this.ensureRenderBounds(instance, island);
@@ -2277,6 +2491,21 @@ function readHttpRequestDeclaration(element: Element): HttpRequestDeclaration | 
     };
 }
 
+function readLocalStorageDeclaration(element: Element): LocalStorageDeclaration | null {
+    const sliceName = element.getAttribute('slice')?.trim();
+    const key = element.getAttribute('key')?.trim();
+    if (!sliceName || !key) {
+        return null;
+    }
+    return {
+        sliceName,
+        key,
+        storageType: element.getAttribute('type')?.trim() || 'text',
+        live: booleanAttribute(element, 'live'),
+        initialValue: element.hasAttribute('value') ? element.getAttribute('value') ?? '' : undefined,
+    };
+}
+
 function httpRequestHeaders(element: Element): Record<string, string> {
     const headers: Record<string, string> = {};
     for (const attribute of Array.from(element.attributes)) {
@@ -2290,9 +2519,145 @@ function httpRequestHeaders(element: Element): Record<string, string> {
     return headers;
 }
 
+function booleanAttribute(element: Element, name: string): boolean {
+    if (!element.hasAttribute(name)) {
+        return false;
+    }
+    const value = element.getAttribute(name)?.trim().toLowerCase();
+    return value !== 'false' && value !== '0';
+}
+
 function optionalAttribute(element: Element, name: string): string | undefined {
     const value = element.getAttribute(name)?.trim();
     return value && value.length > 0 ? value : undefined;
+}
+
+type LocalStorageSliceSource = 'initial-read' | 'value-attribute' | 'slice-write' | 'storage-event' | 'retained';
+
+function sameLocalStorageDeclaration(active: ActiveLocalStorageResource, declaration: LocalStorageDeclaration): boolean {
+    return active.key === declaration.key && active.storageType === declaration.storageType && active.live === declaration.live;
+}
+
+function localStorageForWindow(window: Window | null | undefined): Storage | null {
+    if (!window) {
+        return null;
+    }
+    try {
+        return window.localStorage;
+    } catch {
+        return null;
+    }
+}
+
+function ensureTrackedLocalStorage(window: Window): void {
+    if (localStorageTrackers.has(window)) {
+        return;
+    }
+    const storage = localStorageForWindow(window);
+    if (!storage) {
+        return;
+    }
+    const originalSetItem = storage.setItem;
+    const originalRemoveItem = storage.removeItem;
+    const originalClear = storage.clear;
+    try {
+        storage.setItem = function setItem(key: string, value: string): void {
+            originalSetItem.call(storage, key, value);
+            dispatchLocalStorageChange(window, String(key), String(value));
+        };
+        storage.removeItem = function removeItem(key: string): void {
+            originalRemoveItem.call(storage, key);
+            dispatchLocalStorageChange(window, String(key), null);
+        };
+        storage.clear = function clear(): void {
+            originalClear.call(storage);
+            dispatchLocalStorageChange(window, null, null);
+        };
+        localStorageTrackers.add(window);
+    } catch {
+        // Some hosts expose immutable Storage methods; cross-document `storage` events still work.
+    }
+}
+
+function dispatchLocalStorageChange(window: Window, key: string | null, value: string | null): void {
+    window.dispatchEvent(new CustomEvent(LOCAL_STORAGE_EVENT, { detail: { key, value } }));
+}
+
+function localStorageChangedKey(event: Event): string | null {
+    if (event.type === 'storage') {
+        return (event as StorageEvent).key;
+    }
+    const detail = (event as CustomEvent<{ key?: string | null }>).detail;
+    return detail?.key ?? null;
+}
+
+function localStorageStringToValue(type: string, rawValue: string | null, document: Document): unknown {
+    const storageType = type || 'text';
+    if (rawValue === null) {
+        return null;
+    }
+    if (storageType === 'text') {
+        return rawValue;
+    }
+    if (storageType === 'json') {
+        try {
+            return JSON.parse(rawValue) as unknown;
+        } catch {
+            return null;
+        }
+    }
+    const input = document.createElement('input');
+    input.setAttribute('type', storageType);
+    if (storageType === 'number') {
+        input.value = rawValue;
+        return Number.isNaN(input.valueAsNumber) ? null : input.valueAsNumber;
+    }
+    if (storageType === 'date') {
+        const date = new Date(rawValue);
+        if (Number.isNaN(date.getTime())) {
+            return null;
+        }
+        input.valueAsDate = date;
+        return input.value || null;
+    }
+    input.value = rawValue;
+    return input.value || null;
+}
+
+function localStorageValueToString(type: string, value: unknown): string | null {
+    if (value === undefined || value === null) {
+        return null;
+    }
+    if (type === 'json') {
+        try {
+            return JSON.stringify(value);
+        } catch {
+            return null;
+        }
+    }
+    if (type === 'number') {
+        const number = typeof value === 'number' ? value : Number(value);
+        return Number.isNaN(number) ? null : String(number);
+    }
+    return String(value);
+}
+
+function writeLocalStorageRaw(storage: Storage, key: string, rawValue: string | null): void {
+    if (rawValue === null) {
+        storage.removeItem(key);
+    } else {
+        storage.setItem(key, rawValue);
+    }
+}
+
+function localStorageValuesEqual(left: unknown, right: unknown): boolean {
+    if (Object.is(left, right)) {
+        return true;
+    }
+    if (isPlainRecord(left) || Array.isArray(left) || isPlainRecord(right) || Array.isArray(right)) {
+        return stableJson(left) === stableJson(right);
+    }
+    return false;
 }
 
 function defaultResolveResourceUrl(
@@ -3003,7 +3368,12 @@ function renderPlanHasRuntimeResourceNodes(plan: RenderPlan): boolean {
         if (node.kind !== 'element') {
             return false;
         }
-        return node.tag === 'module-url' || node.tag === 'http-request' || node.children.some(visit);
+        return (
+            node.tag === 'module-url' ||
+            node.tag === 'http-request' ||
+            node.tag === 'local-storage' ||
+            node.children.some(visit)
+        );
     };
     return plan.nodes.some(visit);
 }

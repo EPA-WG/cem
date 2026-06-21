@@ -115,8 +115,15 @@ const fixtureSpecs = [
     {
         path: '/packages/cem-elements/demo/local-storage.html',
         checks: [
-            text('cem-local-storage-panel article.demo-card', 'data-island draft:'),
-            fillThenText('cem-local-storage-panel input', 'stored draft', 'cem-local-storage-panel output', 'stored draft'),
+            text('cem-local-storage-panel article.demo-card', 'draft: stored initial'),
+            text('cem-local-storage-panel article.demo-card', 'number: 3'),
+            text('cem-local-storage-panel article.demo-card', 'basket fruit: apple'),
+            fillThenText('cem-local-storage-panel input', 'stored draft', 'cem-local-storage-panel output[data-role="draft"]', 'stored draft'),
+            clickThenText(
+                'cem-local-storage-panel button[data-storage-write="draft"]',
+                'cem-local-storage-panel output[data-role="draft"]',
+                'external update'
+            ),
         ],
     },
     {

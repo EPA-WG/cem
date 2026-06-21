@@ -1372,6 +1372,108 @@ export const HttpRequestResourceLifecycle: Story = {
     },
 };
 
+export const LocalStorageResourceLifecycle: Story = {
+    render: () =>
+        storyPanel(
+            'local-storage resource lifecycle',
+            'typed hydration, same-document live updates, and slice write-back'
+        ),
+    play: async ({ canvasElement }) => {
+        const root = document.createElement('section');
+        root.setAttribute('aria-label', 'local-storage resource lifecycle story');
+        canvasElement.appendChild(root);
+
+        const textKey = 'cem-story-local-storage-text';
+        const numberKey = 'cem-story-local-storage-number';
+        const jsonKey = 'cem-story-local-storage-json';
+        localStorage.removeItem(textKey);
+        localStorage.removeItem(numberKey);
+        localStorage.removeItem(jsonKey);
+        localStorage.setItem(textKey, 'stored initial');
+        localStorage.setItem(numberKey, '7');
+        localStorage.setItem(jsonKey, JSON.stringify({ answer: 'json initial' }));
+
+        const runtime = new CemElementRuntime({ declarationTag: 'cem-element-story-local-storage' });
+        const declaration = buildCemMlDeclaration(
+            'cem-element-story-local-storage',
+            'story-local-storage-panel',
+            [
+                `{local-storage @slice=draft @key=${textKey} @type=text @live=true}`,
+                `{local-storage @slice=count @key=${numberKey} @type=number @live=true}`,
+                `{local-storage @slice=config @key=${jsonKey} @type=json @live=true}`,
+                '{article |',
+                '  {input @class=draft @value="{$datadom.slices.draft}" @slice=draft @slice-event=input @slice-value="$target.value"}',
+                '  {output @class=draft-output | {$datadom.slices.draft}}',
+                '  {output @class=count-output | {$datadom.slices.count}}',
+                '  {output @class=json-output | {$datadom.slices.config.answer}}',
+                '}',
+            ].join('\n')
+        );
+        root.appendChild(declaration);
+        assert(runtime.registerDeclaration(declaration), 'local-storage declaration registers');
+        await runtime.whenDeclarationSettled(declaration);
+
+        const instance = document.createElement('story-local-storage-panel');
+        root.appendChild(instance);
+        await waitForCondition(
+            () => instance.querySelector('.draft-output')?.textContent?.trim() === 'stored initial',
+            'local-storage hydrates text slice'
+        );
+        assertEqual(
+            instance.querySelector('.count-output')?.textContent?.trim(),
+            '7',
+            'local-storage coerces number slice'
+        );
+        assertEqual(
+            instance.querySelector('.json-output')?.textContent?.trim(),
+            'json initial',
+            'local-storage coerces JSON slice'
+        );
+
+        dispatchInput(instance, 'typed draft');
+        await waitForCondition(
+            () => localStorage.getItem(textKey) === 'typed draft',
+            'slice event writes back to localStorage'
+        );
+
+        localStorage.setItem(textKey, 'external update');
+        localStorage.setItem(numberKey, '42');
+        localStorage.setItem(jsonKey, JSON.stringify({ answer: 'json update' }));
+        await waitForCondition(
+            () => instance.querySelector('.draft-output')?.textContent?.trim() === 'external update',
+            'local-storage live text update renders'
+        );
+        assertEqual(
+            instance.querySelector('.count-output')?.textContent?.trim(),
+            '42',
+            'local-storage live number update renders'
+        );
+        assertEqual(
+            instance.querySelector('.json-output')?.textContent?.trim(),
+            'json update',
+            'local-storage live JSON update renders'
+        );
+
+        const snapshot = runtime.snapshotInstance(instance);
+        assertEqual(snapshot.slices.draft, 'external update', 'snapshot stores live text slice');
+        assertEqual(snapshot.slices.count, 42, 'snapshot stores coerced number slice');
+        assertEqual(
+            (snapshot.slices.config as { answer?: string }).answer,
+            'json update',
+            'snapshot stores parsed JSON slice'
+        );
+        const payload = snapshot.eventPayloads.draft as { type?: string; key?: string; storageType?: string; live?: boolean };
+        assertEqual(payload.type, 'local-storage', 'local-storage stores resource payload metadata');
+        assertEqual(payload.key, textKey, 'local-storage payload records storage key');
+        assertEqual(payload.storageType, 'text', 'local-storage payload records storage type');
+        assertEqual(payload.live, true, 'local-storage payload records live mode');
+
+        localStorage.removeItem(textKey);
+        localStorage.removeItem(numberKey);
+        localStorage.removeItem(jsonKey);
+    },
+};
+
 export const LocalSrcDeclarationLoadingParity: Story = {
     render: () => {
         const root = document.createElement('section');
