@@ -104,6 +104,9 @@ const fixtureSpecs = [
         checks: [
             text('cem-resource-panel article.demo-card h2', 'HTTP request parity target'),
             text('cem-resource-panel article.demo-card', 'Requested URL: ./http-data.json'),
+            text('cem-resource-panel article.demo-card', 'state: complete'),
+            text('cem-resource-panel li', 'alpha : ready'),
+            text('cem-resource-panel li', 'beta : loaded'),
         ],
     },
     {

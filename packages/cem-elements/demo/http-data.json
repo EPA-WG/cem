@@ -1,4 +1,14 @@
 {
     "name": "cem-elements-demo",
-    "status": "fixture"
+    "status": "fixture",
+    "results": [
+        {
+            "name": "alpha",
+            "status": "ready"
+        },
+        {
+            "name": "beta",
+            "status": "loaded"
+        }
+    ]
 }

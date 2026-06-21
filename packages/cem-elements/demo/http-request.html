@@ -15,10 +15,18 @@
 
 <cem-element tag="cem-resource-panel">
     <template type="text/cem-ml">
+        {http-request @slice=page @url="{$datadom.attributes.url}" @header-accept="application/json" @content-type="application/json"}
         {article @class=demo-card |
             {h2 | {$datadom.attributes.title}}
             {p | Requested URL: {$datadom.attributes.url}}
-            {p @class=status-note | Resource-backed slices for http-request are the immediate parity target.}
+            {p | state: {output | {$datadom.slices.page.state}}}
+            {cem:if @test='datadom.slices.page.state = "complete"' |
+                {ul |
+                    {cem:for-each @select="datadom.slices.page.data.results" @as=item |
+                        {li | {$item.name}: {$item.status}}
+                    }
+                }
+            }
         }
     </template>
 </cem-element>

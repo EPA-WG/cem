@@ -171,6 +171,72 @@ export interface DataIslandSnapshotExportPolicy {
     privacyPolicyStamp?: string;
 }
 
+export interface CemResourceResolutionRequest {
+    kind: 'http-request';
+    authoredUrl: string;
+    baseUrl: string;
+    declarationScopeId: string;
+    method: string;
+    headers: Record<string, string>;
+    expectedContentType?: string;
+}
+
+export interface CemResourceResolution {
+    authoredUrl: string;
+    resolvedUrl: string;
+    resolverIdentity: string;
+    resourcePolicyStamp: string;
+    contentTypeHint?: string;
+    integrity?: string;
+}
+
+export type CemResourceResolutionResult = string | CemResourceResolution;
+
+export interface CemHttpRequest {
+    authoredUrl: string;
+    resolvedUrl: string;
+    resolverIdentity: string;
+    resourcePolicyStamp: string;
+    method: 'GET' | 'HEAD';
+    headers: Record<string, string>;
+    credentials?: string;
+    cache?: string;
+    expectedContentType?: string;
+    signal: AbortSignal;
+}
+
+export interface CemHttpResponseHead {
+    url: string;
+    status: number;
+    statusText: string;
+    ok: boolean;
+    redirected: boolean;
+    headers: Record<string, string>;
+    contentType: string | null;
+}
+
+export interface CemHttpResourceLoadResult {
+    response: CemHttpResponseHead;
+    body: AsyncIterable<Uint8Array>;
+}
+
+export interface CemHttpResourceEnvelope {
+    kind: 'http-request';
+    state: 'complete' | 'error' | 'aborted';
+    request: {
+        authoredUrl: string;
+        url: string;
+        resolvedUrl: string;
+        resolverIdentity: string;
+        resourcePolicyStamp: string;
+        method: string;
+        headers: Record<string, string>;
+    };
+    response?: CemHttpResponseHead;
+    data: unknown;
+    diagnostics: CemElementDiagnostic[];
+}
+
 export interface CemElementRuntimeOptions {
     declarationTag?: string;
     scopePolicyStamp?: string;
@@ -189,6 +255,20 @@ export interface CemElementRuntimeOptions {
      * package/module specifiers should be supplied by the host module-map resolver.
      */
     resolveModuleUrl?: (specifier: string, baseDocument: Document) => string | Promise<string>;
+    /**
+     * Resolve an `http-request @url` resource specifier in the declaration scope before
+     * the request loader opens it. Hosts use this for module/import-map aliases, fixture
+     * resources, CDN manifests, and policy stamps.
+     */
+    resolveResourceUrl?: (
+        request: CemResourceResolutionRequest,
+        baseDocument: Document
+    ) => CemResourceResolutionResult | Promise<CemResourceResolutionResult>;
+    /**
+     * Open an authorized HTTP resource. The stream-shaped body is required at the host
+     * boundary even while Phase 1 materializes JSON responses before rerendering.
+     */
+    loadHttpResource?: (request: CemHttpRequest) => Promise<CemHttpResourceLoadResult>;
     /**
      * Effective run mode for the BR-VC-9 unknown-optional-feature disposition
      * applied when ingesting a versioned governed-contract payload (e.g. a
@@ -276,7 +356,7 @@ interface RenderBounds {
 }
 
 interface InstanceState {
-    slices: Record<string, TemplateValue>;
+    slices: Record<string, unknown>;
     eventPayloads: Record<string, unknown>;
     observer?: MutationObserver;
 }
@@ -288,6 +368,20 @@ interface SliceEventBinding {
     expression: string;
     listener: EventListener;
 }
+
+interface HttpRequestDeclaration {
+    sliceName: string;
+    authoredUrl: string;
+    method: string;
+    headers: Record<string, string>;
+    expectedContentType?: string;
+    credentials?: string;
+    cache?: string;
+}
+
+type RenderedResourceResult =
+    | { kind: 'module-url'; sliceName: string; specifier: string; value: string; error?: unknown }
+    | { kind: 'http-request'; sliceName: string; envelope: CemHttpResourceEnvelope };
 
 const DEFAULT_DECLARATION_TAG = 'cem-element';
 const DEFAULT_SCOPE_POLICY_STAMP = 'phase-3a-local-default';
@@ -483,8 +577,11 @@ export class CemElementRuntime {
     private readonly legacyConversions = new WeakMap<CompiledDeclaration, Promise<void>>();
     private readonly srcDocuments = new Map<string, Promise<Document>>();
     private readonly moduleUrls = new Map<string, Promise<string>>();
+    private readonly httpResources = new Map<string, Promise<CemHttpResourceEnvelope>>();
     private readonly loadSrcDocumentOption?: CemElementRuntimeOptions['loadSrcDocument'];
     private readonly resolveModuleUrlOption?: CemElementRuntimeOptions['resolveModuleUrl'];
+    private readonly resolveResourceUrlOption?: CemElementRuntimeOptions['resolveResourceUrl'];
+    private readonly loadHttpResourceOption?: CemElementRuntimeOptions['loadHttpResource'];
     private readonly runMode: RunMode;
     private readonly uidSeedOption?: CemElementRuntimeOptions['uidSeed'];
     private readonly uidSeedFallback: NonNullable<CemElementRuntimeOptions['uidSeedFallback']>;
@@ -499,6 +596,8 @@ export class CemElementRuntime {
         this.logger = options.logger;
         this.loadSrcDocumentOption = options.loadSrcDocument;
         this.resolveModuleUrlOption = options.resolveModuleUrl;
+        this.resolveResourceUrlOption = options.resolveResourceUrl;
+        this.loadHttpResourceOption = options.loadHttpResource;
         this.runMode = options.runMode ?? 'application';
         this.uidSeedOption = options.uidSeed;
         this.uidSeedFallback = options.uidSeedFallback ?? (this.runMode === 'build-ssr' ? 'source-hash' : 'runtime');
@@ -1189,7 +1288,7 @@ export class CemElementRuntime {
         return this.bindRenderedResourceSliceElements(
             instance,
             compiled,
-            Array.from(rendered.querySelectorAll('module-url')),
+            Array.from(rendered.querySelectorAll('module-url,http-request')),
             token
         );
     }
@@ -1203,7 +1302,7 @@ export class CemElementRuntime {
         return this.bindRenderedResourceSliceElements(
             instance,
             compiled,
-            renderedElementsBetween(bounds, 'module-url'),
+            renderedElementsBetween(bounds, 'module-url,http-request'),
             token
         );
     }
@@ -1218,19 +1317,39 @@ export class CemElementRuntime {
             return Promise.resolve();
         }
 
-        const tasks: Promise<{ sliceName: string; specifier: string; value: string; error?: unknown }>[] = [];
+        const tasks: Promise<RenderedResourceResult>[] = [];
         for (const element of resourceElements) {
-            const sliceName = element.getAttribute('slice')?.trim();
-            const specifier = element.getAttribute('src')?.trim();
+            const localName = element.localName;
+            const sliceName = element.getAttribute('slice')?.trim() ?? '';
+            const specifier = element.getAttribute('src')?.trim() ?? '';
+            const httpRequest = localName === 'http-request' ? readHttpRequestDeclaration(element) : null;
             element.remove();
-            if (!sliceName || !specifier) {
+            if (localName === 'module-url') {
+                if (!sliceName || !specifier) {
+                    continue;
+                }
+                tasks.push(
+                    this.resolveModuleUrl(specifier, instance.ownerDocument)
+                        .then((value) => ({ kind: 'module-url' as const, sliceName, specifier, value }))
+                        .catch((error: unknown) => ({
+                            kind: 'module-url' as const,
+                            sliceName,
+                            specifier,
+                            value: specifier,
+                            error,
+                        }))
+                );
                 continue;
             }
-            tasks.push(
-                this.resolveModuleUrl(specifier, instance.ownerDocument)
-                    .then((value) => ({ sliceName, specifier, value }))
-                    .catch((error: unknown) => ({ sliceName, specifier, value: specifier, error }))
-            );
+            if (httpRequest) {
+                tasks.push(
+                    this.loadHttpRequestResource(instance, compiled, httpRequest).then((envelope) => ({
+                        kind: 'http-request' as const,
+                        sliceName: httpRequest.sliceName,
+                        envelope,
+                    }))
+                );
+            }
         }
         if (tasks.length === 0) {
             return Promise.resolve();
@@ -1245,26 +1364,41 @@ export class CemElementRuntime {
             let changed = false;
             const diagnostics: CemElementDiagnostic[] = [];
             for (const result of resolved) {
-                if (state.slices[result.sliceName] !== result.value) {
-                    state.slices[result.sliceName] = result.value;
+                if (result.kind === 'module-url') {
+                    if (state.slices[result.sliceName] !== result.value) {
+                        state.slices[result.sliceName] = result.value;
+                        changed = true;
+                    }
+                    state.eventPayloads[result.sliceName] = {
+                        type: 'module-url',
+                        src: result.specifier,
+                        value: result.value,
+                    };
+                    if (result.error) {
+                        diagnostics.push(
+                            resourceDiagnostic(
+                                'cem-element.module_url_resolve_failed',
+                                `module-url \`${result.specifier}\` could not be resolved: ${
+                                    result.error instanceof Error ? result.error.message : String(result.error)
+                                }`,
+                                compiled.producedTag
+                            )
+                        );
+                    }
+                    continue;
+                }
+                if (state.slices[result.sliceName] !== result.envelope) {
+                    state.slices[result.sliceName] = result.envelope;
                     changed = true;
                 }
                 state.eventPayloads[result.sliceName] = {
-                    type: 'module-url',
-                    src: result.specifier,
-                    value: result.value,
+                    type: 'http-request',
+                    state: result.envelope.state,
+                    request: result.envelope.request,
+                    response: result.envelope.response,
+                    diagnostics: result.envelope.diagnostics,
                 };
-                if (result.error) {
-                    diagnostics.push(
-                        resourceDiagnostic(
-                            'cem-element.module_url_resolve_failed',
-                            `module-url \`${result.specifier}\` could not be resolved: ${
-                                result.error instanceof Error ? result.error.message : String(result.error)
-                            }`,
-                            compiled.producedTag
-                        )
-                    );
-                }
+                diagnostics.push(...result.envelope.diagnostics);
             }
             this.recordDiagnostics(instance, diagnostics);
             if (changed) {
@@ -1287,6 +1421,163 @@ export class CemElementRuntime {
         ).then((value) => String(value));
         this.moduleUrls.set(key, resolved);
         return resolved;
+    }
+
+    private loadHttpRequestResource(
+        instance: HTMLElement,
+        compiled: CompiledDeclaration,
+        declaration: HttpRequestDeclaration
+    ): Promise<CemHttpResourceEnvelope> {
+        const resolutionRequest: CemResourceResolutionRequest = {
+            kind: 'http-request',
+            authoredUrl: declaration.authoredUrl,
+            baseUrl: instance.ownerDocument.baseURI,
+            declarationScopeId: this.currentScopeUid(instance, compiled),
+            method: declaration.method,
+            headers: declaration.headers,
+            expectedContentType: declaration.expectedContentType,
+        };
+        const key = stableJson({
+            baseUrl: resolutionRequest.baseUrl,
+            scope: resolutionRequest.declarationScopeId,
+            url: declaration.authoredUrl,
+            method: declaration.method,
+            headers: declaration.headers,
+            contentType: declaration.expectedContentType,
+            credentials: declaration.credentials,
+            cache: declaration.cache,
+        });
+        const cached = this.httpResources.get(key);
+        if (cached) {
+            return cached;
+        }
+        const loaded = this.resolveHttpResourceUrl(resolutionRequest, instance.ownerDocument)
+            .then((resolution) => this.openAndParseHttpResource(resolution, declaration, compiled.producedTag))
+            .catch((error: unknown) =>
+                this.httpRequestErrorEnvelope(
+                    declaration,
+                    null,
+                    'cem-element.http_request_unresolved_url',
+                    error,
+                    compiled.producedTag
+                )
+            );
+        this.httpResources.set(key, loaded);
+        return loaded;
+    }
+
+    private async resolveHttpResourceUrl(
+        request: CemResourceResolutionRequest,
+        baseDocument: Document
+    ): Promise<CemResourceResolution> {
+        const result = await Promise.resolve(
+            this.resolveResourceUrlOption
+                ? this.resolveResourceUrlOption(request, baseDocument)
+                : defaultResolveResourceUrl(request, baseDocument, this.scopePolicyStamp)
+        );
+        if (typeof result === 'string') {
+            return {
+                authoredUrl: request.authoredUrl,
+                resolvedUrl: result,
+                resolverIdentity: `host:${baseDocument.baseURI}`,
+                resourcePolicyStamp: this.scopePolicyStamp,
+            };
+        }
+        return result;
+    }
+
+    private async openAndParseHttpResource(
+        resolution: CemResourceResolution,
+        declaration: HttpRequestDeclaration,
+        tag: string
+    ): Promise<CemHttpResourceEnvelope> {
+        if (declaration.method !== 'GET' && declaration.method !== 'HEAD') {
+            return this.httpRequestErrorEnvelope(
+                declaration,
+                {
+                    authoredUrl: resolution.authoredUrl,
+                    url: resolution.resolvedUrl,
+                    resolvedUrl: resolution.resolvedUrl,
+                    resolverIdentity: resolution.resolverIdentity,
+                    resourcePolicyStamp: resolution.resourcePolicyStamp,
+                    method: declaration.method,
+                    headers: declaration.headers,
+                },
+                'cem-element.http_request_method_unsupported',
+                new Error(`method ${declaration.method} is not supported; use GET or HEAD`),
+                tag
+            );
+        }
+        const request: CemHttpRequest = {
+            authoredUrl: resolution.authoredUrl,
+            resolvedUrl: resolution.resolvedUrl,
+            resolverIdentity: resolution.resolverIdentity,
+            resourcePolicyStamp: resolution.resourcePolicyStamp,
+            method: declaration.method,
+            headers: declaration.headers,
+            credentials: declaration.credentials,
+            cache: declaration.cache,
+            expectedContentType: declaration.expectedContentType ?? resolution.contentTypeHint,
+            signal: new AbortController().signal,
+        };
+        const requestMetadata = httpRequestMetadata(request);
+        try {
+            const loaded = await (this.loadHttpResourceOption
+                ? this.loadHttpResourceOption(request)
+                : defaultLoadHttpResource(request));
+            const parse = await parseHttpResourceData(loaded.response, loaded.body, request.expectedContentType, tag);
+            return {
+                kind: 'http-request',
+                state: parse.ok ? 'complete' : 'error',
+                request: requestMetadata,
+                response: loaded.response,
+                data: parse.data,
+                diagnostics: parse.diagnostics,
+            };
+        } catch (error) {
+            return this.httpRequestErrorEnvelope(
+                declaration,
+                requestMetadata,
+                'cem-element.http_request_load_failed',
+                error,
+                tag
+            );
+        }
+    }
+
+    private httpRequestErrorEnvelope(
+        declaration: HttpRequestDeclaration,
+        request: CemHttpResourceEnvelope['request'] | null,
+        code: string,
+        error: unknown,
+        tag: string
+    ): CemHttpResourceEnvelope {
+        return {
+            kind: 'http-request',
+            state: 'error',
+            request:
+                request ??
+                {
+                    authoredUrl: declaration.authoredUrl,
+                    url: declaration.authoredUrl,
+                    resolvedUrl: declaration.authoredUrl,
+                    resolverIdentity: 'unresolved',
+                    resourcePolicyStamp: this.scopePolicyStamp,
+                    method: declaration.method,
+                    headers: declaration.headers,
+                },
+            data: null,
+            diagnostics: [
+                resourceDiagnostic(
+                    code,
+                    `http-request \`${declaration.authoredUrl}\` failed: ${
+                        error instanceof Error ? error.message : String(error)
+                    }`,
+                    tag,
+                    'error'
+                ),
+            ],
+        };
     }
 
     private writeSliceFromEvent(
@@ -1347,7 +1638,7 @@ export class CemElementRuntime {
         const mergeOptions = {
             preserveElementChildren: (current: Element) =>
                 this.declarations.has(current.localName) && directDataIsland(current) !== undefined,
-            transientElementTags: ['module-url'],
+            transientElementTags: ['module-url', 'http-request'],
         };
         if (previous) {
             const bounds = this.ensureRenderBounds(instance, island);
@@ -1823,6 +2114,241 @@ function defaultResolveModuleUrl(specifier: string, baseDocument: Document): str
     throw new Error(`cannot resolve \`${specifier}\`; bare module specifiers need a host \`resolveModuleUrl\``);
 }
 
+function readHttpRequestDeclaration(element: Element): HttpRequestDeclaration | null {
+    const sliceName = element.getAttribute('slice')?.trim();
+    const authoredUrl = element.getAttribute('url')?.trim();
+    if (!sliceName || !authoredUrl) {
+        return null;
+    }
+    return {
+        sliceName,
+        authoredUrl,
+        method: (element.getAttribute('method')?.trim() || 'GET').toUpperCase(),
+        headers: httpRequestHeaders(element),
+        expectedContentType: optionalAttribute(element, 'content-type'),
+        credentials: optionalAttribute(element, 'credentials'),
+        cache: optionalAttribute(element, 'cache'),
+    };
+}
+
+function httpRequestHeaders(element: Element): Record<string, string> {
+    const headers: Record<string, string> = {};
+    for (const attribute of Array.from(element.attributes)) {
+        if (attribute.name.startsWith('header-')) {
+            const headerName = attribute.name.slice('header-'.length).trim().toLowerCase();
+            if (headerName) {
+                headers[headerName] = attribute.value;
+            }
+        }
+    }
+    return headers;
+}
+
+function optionalAttribute(element: Element, name: string): string | undefined {
+    const value = element.getAttribute(name)?.trim();
+    return value && value.length > 0 ? value : undefined;
+}
+
+function defaultResolveResourceUrl(
+    request: CemResourceResolutionRequest,
+    baseDocument: Document,
+    resourcePolicyStamp: string
+): CemResourceResolution {
+    const trimmed = request.authoredUrl.trim();
+    if (!isUrlLikeSpecifier(trimmed)) {
+        throw new Error(`cannot resolve \`${request.authoredUrl}\`; bare resource specifiers need a host resolver`);
+    }
+    const resolvedUrl = new URL(trimmed, baseDocument.baseURI).href;
+    return {
+        authoredUrl: request.authoredUrl,
+        resolvedUrl,
+        resolverIdentity: `document-base:${baseDocument.baseURI}`,
+        resourcePolicyStamp,
+    };
+}
+
+function httpRequestMetadata(request: CemHttpRequest): CemHttpResourceEnvelope['request'] {
+    return {
+        authoredUrl: request.authoredUrl,
+        url: request.resolvedUrl,
+        resolvedUrl: request.resolvedUrl,
+        resolverIdentity: request.resolverIdentity,
+        resourcePolicyStamp: request.resourcePolicyStamp,
+        method: request.method,
+        headers: { ...request.headers },
+    };
+}
+
+async function defaultLoadHttpResource(request: CemHttpRequest): Promise<CemHttpResourceLoadResult> {
+    const response = await fetch(request.resolvedUrl, {
+        method: request.method,
+        headers: request.headers,
+        credentials: request.credentials as RequestCredentials | undefined,
+        cache: request.cache as RequestCache | undefined,
+        signal: request.signal,
+    });
+    if (!response.ok) {
+        throw new Error(`HTTP ${response.status} for ${request.resolvedUrl}`);
+    }
+    return {
+        response: {
+            url: response.url,
+            status: response.status,
+            statusText: response.statusText,
+            ok: response.ok,
+            redirected: response.redirected,
+            headers: headersToRecord(response.headers),
+            contentType: response.headers.get('content-type'),
+        },
+        body: responseBody(response),
+    };
+}
+
+function headersToRecord(headers: Headers): Record<string, string> {
+    const record: Record<string, string> = {};
+    headers.forEach((value, name) => {
+        record[name.toLowerCase()] = value;
+    });
+    return record;
+}
+
+async function* responseBody(response: Response): AsyncIterable<Uint8Array> {
+    if (response.body) {
+        const reader = response.body.getReader();
+        try {
+            for (;;) {
+                const chunk = await reader.read();
+                if (chunk.done) {
+                    break;
+                }
+                yield chunk.value;
+            }
+        } finally {
+            reader.releaseLock();
+        }
+        return;
+    }
+    yield new Uint8Array(await response.arrayBuffer());
+}
+
+async function parseHttpResourceData(
+    response: CemHttpResponseHead,
+    body: AsyncIterable<Uint8Array>,
+    expectedContentType: string | undefined,
+    tag: string
+): Promise<{ ok: boolean; data: unknown; diagnostics: CemElementDiagnostic[] }> {
+    const contentType = recognizedContentType(response.contentType, expectedContentType);
+    if (!contentType.ok) {
+        return {
+            ok: false,
+            data: null,
+            diagnostics: [
+                resourceDiagnostic(
+                    'cem-element.http_request_unsupported_content_type',
+                    contentType.message,
+                    tag,
+                    'error'
+                ),
+            ],
+        };
+    }
+    const text = new TextDecoder('utf-8').decode(await readByteStream(body));
+    if (contentType.kind === 'json') {
+        try {
+            return { ok: true, data: JSON.parse(text) as unknown, diagnostics: [] };
+        } catch (error) {
+            return {
+                ok: false,
+                data: null,
+                diagnostics: [
+                    resourceDiagnostic(
+                        'cem-element.http_request_parse_failed',
+                        `JSON response could not be parsed: ${
+                            error instanceof Error ? error.message : String(error)
+                        }`,
+                        tag,
+                        'error'
+                    ),
+                ],
+            };
+        }
+    }
+    return {
+        ok: false,
+        data: null,
+        diagnostics: [
+            resourceDiagnostic(
+                'cem-element.http_request_unsupported_content_type',
+                `content type \`${contentType.contentType}\` is recognized by design but not implemented in Phase 1 JSON slice`,
+                tag,
+                'error'
+            ),
+        ],
+    };
+}
+
+function recognizedContentType(
+    responseContentType: string | null,
+    expectedContentType: string | undefined
+):
+    | { ok: true; kind: 'json' | 'xml' | 'text'; contentType: string }
+    | { ok: false; message: string } {
+    const contentType = mediaType(responseContentType) ?? mediaType(expectedContentType);
+    if (!contentType) {
+        return { ok: false, message: 'http-request response did not provide a Content-Type' };
+    }
+    if (contentType === 'application/json' || contentType === 'text/json' || contentType.endsWith('+json')) {
+        return { ok: true, kind: 'json', contentType };
+    }
+    if (
+        contentType === 'application/xml' ||
+        contentType === 'text/xml' ||
+        contentType === 'application/xhtml+xml' ||
+        contentType.endsWith('+xml')
+    ) {
+        return { ok: true, kind: 'xml', contentType };
+    }
+    if (contentType === 'text/plain') {
+        return { ok: true, kind: 'text', contentType };
+    }
+    return { ok: false, message: `unsupported http-request content type \`${contentType}\`` };
+}
+
+function mediaType(contentType: string | null | undefined): string | null {
+    const trimmed = contentType?.split(';', 1)[0]?.trim().toLowerCase() ?? '';
+    return trimmed.length > 0 ? trimmed : null;
+}
+
+async function readByteStream(body: AsyncIterable<Uint8Array>): Promise<Uint8Array> {
+    const chunks: Uint8Array[] = [];
+    let size = 0;
+    for await (const chunk of body) {
+        chunks.push(chunk);
+        size += chunk.byteLength;
+    }
+    const bytes = new Uint8Array(size);
+    let offset = 0;
+    for (const chunk of chunks) {
+        bytes.set(chunk, offset);
+        offset += chunk.byteLength;
+    }
+    return bytes;
+}
+
+function stableJson(value: unknown): string {
+    if (Array.isArray(value)) {
+        return `[${value.map(stableJson).join(',')}]`;
+    }
+    if (value && typeof value === 'object') {
+        const record = value as Record<string, unknown>;
+        return `{${Object.keys(record)
+            .sort()
+            .map((key) => `${JSON.stringify(key)}:${stableJson(record[key])}`)
+            .join(',')}}`;
+    }
+    return JSON.stringify(value);
+}
+
 function isUrlLikeSpecifier(specifier: string): boolean {
     return (
         specifier.startsWith('.') ||
@@ -2095,10 +2621,15 @@ function renderDiagnostic(code: string, message: string, tag?: string): CemEleme
     };
 }
 
-function resourceDiagnostic(code: string, message: string, tag?: string): CemElementDiagnostic {
+function resourceDiagnostic(
+    code: string,
+    message: string,
+    tag?: string,
+    severity: CemElementDiagnosticSeverity = 'warning'
+): CemElementDiagnostic {
     return {
         code,
-        severity: 'warning',
+        severity,
         source: 'render',
         message,
         tag,
@@ -2130,7 +2661,7 @@ function renderPlanHasRuntimeResourceNodes(plan: RenderPlan): boolean {
         if (node.kind !== 'element') {
             return false;
         }
-        return node.tag === 'module-url' || node.children.some(visit);
+        return node.tag === 'module-url' || node.tag === 'http-request' || node.children.some(visit);
     };
     return plan.nodes.some(visit);
 }
@@ -2280,7 +2811,7 @@ function runtimeSupportSourceMapRef(diagnostic: RuntimeSupportDiagnostic, tag: s
 function evaluateSliceValue(
     expression: string,
     event: Event,
-    slices: Record<string, TemplateValue>
+    slices: Record<string, unknown>
 ): TemplateValue {
     const body = unwrapExpression(expression);
     const target = event.target;
@@ -2298,7 +2829,7 @@ function evaluateSliceValue(
             : null;
     }
     if (/^\$[A-Za-z_][\w.-]*$/.test(body)) {
-        return slices[body.slice(1)] ?? null;
+        return toTemplateValue(slices[body.slice(1)]);
     }
     return parseLiteralValue(body);
 }
@@ -2387,8 +2918,8 @@ function toTemplateValue(value: unknown): TemplateValue {
     return String(value);
 }
 
-function templateValueRecord(value: Record<string, unknown>): Record<string, TemplateValue> {
-    return Object.fromEntries(Object.entries(value).map(([name, child]) => [name, toTemplateValue(child)]));
+function templateValueRecord(value: Record<string, unknown>): Record<string, unknown> {
+    return cloneJsonSnapshotField(value) as Record<string, unknown>;
 }
 
 function hostAttributes(instance: HTMLElement): Record<string, string | boolean | null> {
