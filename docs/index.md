@@ -28,6 +28,8 @@ This index links the active project, release, and token workflow documents.
 - [`cem-element` WASM proposal](./cem-element-wasm-proposal.md) — options for using `cem_ml` WASM, inline and URI
   declaration templates, module-map resolution, streaming source adapters, host runtime support, patch-frame streams,
   worker-pool scheduling, edge processing, and server-side rendering.
+- [CEM-ML UID and scoped CSS design](./cem-ml-uid-and-scoped-css-design.md) — generated identity requirements for
+  scoped CSS, anonymous declarations, public-tag debug prefixes, deterministic UIDs, hydration, and validation gates.
 - [CEM UI Kit plan](./figma-ui-kit-plan.md) — Figma page, token, component, and QA mapping.
 - [Token pipeline smoke](./token-pipeline-smoke.md) — full propagation check for a one-token source change.
 
