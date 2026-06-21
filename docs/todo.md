@@ -50,6 +50,9 @@ history belongs in git history and the feature-specific docs linked below.
        evidence;
      - [x] add event rerender no-op protection for slice events that resolve to unchanged data;
      - [ ] add render-tree diff/no-op replacement protection so unchanged virtual render trees do not mutate browser DOM;
+     - [ ] Low priority: design dynamic internal `<textarea>` content handling for SSR and DOM merge; consider an
+       `<xsl:element name="textarea">`-style or equivalent CEM-ML templating form where SSR emits loader-friendly
+       placeholder markup that can be converted to an actual textarea DOM node capable of merging dynamic parts.
      - [ ] add the design test matrix as executable gates: repeated builds, occurrence paths, parallel scheduling,
        same-tag separate scopes, same-seed collision diagnostics, blank seed, runtime fallback, SSR/browser parity,
        dynamic-data exceptions, hydration no-op, event no-op rerender, scoped CSS isolation, `:host`/`:global`/`:root`,

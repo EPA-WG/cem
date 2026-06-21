@@ -222,6 +222,72 @@ diff plans, patch frames, diagnostics, and source maps. Main-thread host code ap
 DOM patches, attaches event listeners, preserves focus/selection, and updates the
 hidden instance data-island template.
 
+### 5.1 Identity-Preserving DOM Synchronization
+
+The legacy `custom-element` renderer demonstrates the synchronization principle that
+`cem-element` should preserve. It transforms a template to a detached fragment, calls
+`assureUnique(fragment)` to assign `data-dce-id` values unique within each parent
+rendering scope, then calls `merge(host, fragment.childNodes)`. `merge` builds a map of
+existing child nodes by `data-dce-id`, updates matching text/attributes, recurses into
+matching child scopes, inserts missing nodes, and removes stale nodes. The important
+property is not the exact attribute name; it is the stable association between rendered
+template output and existing browser nodes.
+
+The WASM-backed `cem-element` path should apply the same idea without giving WASM
+direct access to browser DOM:
+
+1. WASM owns the desired virtual render tree and retained previous render plan.
+2. Each virtual node carries stable identity derived from template occurrence path plus
+   any data key needed by loops, slots, or payload projection. Identity is scoped by
+   the parent render node; the host may flatten it into a globally unique
+   `renderNodeId`, but parent-scoped identity remains the semantic model.
+3. WASM diffs previous and next virtual trees and emits a `DomPatchPlan` or
+   `PatchFrame` stream. Patch targets are render-node ids, not CSS selectors, DOM
+   indexes, object references, or custom-element tag names.
+4. The browser host validates the transaction against the latest requested render
+   revision, walks the current browser DOM against the next virtual tree, and applies
+   changes to existing nodes whose identities match.
+5. If no patch operations are produced, the host must not mutate the rendered browser
+   DOM. This includes not refreshing per-node debug metadata merely because
+   `dataRevision` advanced.
+6. If the browser host cannot resolve or validate a target node, it aborts the
+   transaction and asks for or accepts a `replaceScope` recovery. It must not partially
+   apply the rest of a mismatched transaction.
+
+Browser identity storage is property-first. The host reads `node.cemRenderNodeId` during
+normal synchronization. SSR and debug markup use serialized fallback markers because
+DOM properties cannot cross the network or parser boundary: element output may carry
+`data-cem-render-node-id`, and dynamic ranges may carry start/end markers. On first
+read, the browser host mirrors the fallback identity into `node.cemRenderNodeId`.
+Persistent lookup maps are not required for normal sequential reconciliation, though a
+temporary per-parent map is allowed when a keyed sibling group needs reorder detection.
+
+Dynamic regions that do not have a stable owner element are represented with range
+markers. In normal HTML, those markers are comment nodes such as
+`<!--cem-start:r12-->` and `<!--cem-end:r12-->`. They cover expression insertion,
+conditional output, repeated output, and slot-projection regions without adding layout
+boxes or CSS selector targets. Inside `<style>` and `<script>`, this is a content-type
+switch: marker syntax changes to raw text comments such as `/*cem-start:r12*/` and
+`/*cem-end:r12*/`, and a style/script-specific patcher interprets the marked text
+regions. `<textarea>` dynamic internals require special handling because browser state
+mixes default text with live form-control value; that behavior is intentionally left for
+a later focused design.
+
+This keeps WASM deterministic and parallelizable while keeping browser-specific state
+where it belongs. Focus, selection, form-control live values, event listeners, custom
+validity, and accessibility side effects are owned by the browser patch applier. WASM
+can decide that an input's `value` attribute should change; the browser host decides how
+to apply that change without destroying the live input node or losing composition state.
+
+Loop and slot identity need explicit keys when source order is not enough. For static
+template children, occurrence path is sufficient. For repeated data, the render planner
+should prefer stable author/data keys; if no stable key exists, it may use occurrence
+index, but insertion before the index will naturally look like replacement/move work.
+For projected payload nodes, serialized payload keys become part of the render identity.
+Repeated slot inclusion may reuse the same payload-derived semantic key, but each
+materialized browser position still needs its own parent-scoped render identity because
+one DOM node cannot occupy multiple parents/positions at the same time.
+
 Template artifacts should include:
 
 - normalized declaration metadata, including declared attributes and observed attribute
@@ -404,7 +470,10 @@ flush**:
 `DomPatchPlan` is the one-shot equivalent of `begin + ops + commit`. The host-neutral
 `PatchApplier` receives streamed frames or a one-shot plan, buffers until commit,
 returns `applied`, `stale`, `aborted`, or `mismatch`, and owns the target-root-specific
-node table used to map stable render-node ids to host DOM nodes.
+render identity resolution used to associate stable render-node ids with existing host
+DOM nodes. Browser hosts normally resolve identity from DOM properties during
+sequential reconciliation, with serialized SSR/debug markers and temporary keyed-sibling
+maps as fallbacks.
 
 Browser `EventTarget` / DOM `Event` dispatch MUST NOT be used as the patch transport.
 Reasons:
