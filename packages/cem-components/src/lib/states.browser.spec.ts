@@ -211,7 +211,8 @@ describe('CEM component primitive states and ARIA behavior', () => {
             tag: 'input',
             type: 'checkbox',
         });
-        expect(checkbox.isConnected).toBe(false);
+        expect(nextCheckbox.isConnected).toBe(true);
+        expect(harness.query<HTMLInputElement>('cem-checkbox input')).toBe(nextCheckbox);
     });
 
     it('preserves empty states, indeterminate progress, and live-region roles', async () => {

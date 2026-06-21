@@ -70,6 +70,7 @@ describe('CEM component workflow fixtures', () => {
     it('renders the profile editor workflow without app JavaScript', async () => {
         harness = createComponentHarness();
         await renderWorkflow(harness, profileEditorFixture, 'cem-action button');
+        await waitForWorkflowText(harness.root, 'cem-switch .cem-switch__label', 'Public profile');
 
         const avatar = harness.query<HTMLElement>('cem-avatar [role="img"]');
         const displayName = harness.query<HTMLInputElement>('cem-text-field input[name="display-name"]');
@@ -118,6 +119,7 @@ describe('CEM component workflow fixtures', () => {
     it('renders the discussion thread workflow without app JavaScript', async () => {
         harness = createComponentHarness();
         await renderWorkflow(harness, discussionThreadFixture, 'cem-action button');
+        await waitForWorkflowText(harness.root, 'cem-list', 'The verification gate is green.');
 
         const thread = harness.query<HTMLElement>('cem-card section');
         const messages = harness.query<HTMLUListElement>('cem-list ul');
@@ -184,6 +186,18 @@ async function waitForWorkflowSelector(root: ParentNode, selector: string): Prom
         await nextRenderFrame();
     }
     throw new Error(`Expected workflow render output matching ${selector}`);
+}
+
+async function waitForWorkflowText(root: ParentNode, selector: string, text: string): Promise<Element> {
+    const deadline = Date.now() + 1000;
+    while (Date.now() < deadline) {
+        const found = root.querySelector(selector);
+        if (found?.textContent?.includes(text)) {
+            return found;
+        }
+        await nextRenderFrame();
+    }
+    throw new Error(`Expected workflow render output matching ${selector} to contain ${text}`);
 }
 
 function assertWorkflowIntegrity(root: ParentNode): void {

@@ -372,6 +372,7 @@ describe('CEM component primitives', () => {
             </cem-surface>
         `);
         await waitForPrimitive(root, 'cem-dialog-shell [role="dialog"]');
+        await waitForPrimitive(root, 'cem-list li:not(.cem-list__empty)');
 
         const surface = harness.query<HTMLElement>('cem-surface section');
         const grid = harness.query<HTMLElement>('cem-grid .cem-grid');

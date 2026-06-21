@@ -519,6 +519,18 @@ const RENDER_NODE_ID_ATTR = 'data-cem-render-node-id';
 const RENDER_TEMPLATE_ARTIFACT_ID_ATTR = 'data-cem-template-artifact-id';
 const RENDER_DATA_REVISION_ATTR = 'data-cem-data-revision';
 const SOURCE_FIDELITY_ATTR = 'data-cem-source-fidelity';
+const SOURCE_FRAME_ATTR = 'data-cem-source-frame';
+const RUNTIME_PAYLOAD_ATTRIBUTE_NAMES = new Set([
+    DATA_ISLAND_ATTR,
+    HYDRATION_METADATA_ATTR,
+    DATA_CEM_SCOPE_ATTR,
+    DATA_CEM_INSTANCE_SCOPE_ATTR,
+    RENDER_NODE_ID_ATTR,
+    RENDER_TEMPLATE_ARTIFACT_ID_ATTR,
+    RENDER_DATA_REVISION_ATTR,
+    SOURCE_FIDELITY_ATTR,
+    SOURCE_FRAME_ATTR,
+]);
 const XHTML_NAMESPACE = 'http://www.w3.org/1999/xhtml';
 const DATA_ISLAND_EXPORT_FIELDS: readonly DataIslandSnapshotExportField[] = [
     'hostAttributes',
@@ -1263,10 +1275,12 @@ export class CemElementRuntime {
 
         const island = instance.ownerDocument.createElement('template') as HTMLTemplateElement;
         island.setAttribute(DATA_ISLAND_ATTR, DATA_ISLAND_VALUE);
-        while (instance.firstChild) {
-            island.content.appendChild(instance.firstChild);
-        }
         instance.appendChild(island);
+        for (const child of Array.from(instance.childNodes)) {
+            if (child !== island) {
+                island.content.appendChild(child);
+            }
+        }
         this.initializedInstances.add(instance);
         return island;
     }
@@ -1386,7 +1400,11 @@ export class CemElementRuntime {
         if (observer) {
             // Observation targets are attached in `observeInstance` (on connect), so the
             // observer can be torn down on disconnect and re-attached on reconnect.
-            state.observer = new observer(() => this.invalidateProducedInstance(instance, compiled));
+            state.observer = new observer((records) => {
+                if (records.some((record) => mutationInvalidatesInstance(record, instance, island))) {
+                    this.invalidateProducedInstance(instance, compiled);
+                }
+            });
         }
         this.instanceStates.set(instance, state);
         return state;
@@ -3771,6 +3789,31 @@ function directDataIsland(element: Element): HTMLTemplateElement | undefined {
     );
 }
 
+function mutationInvalidatesInstance(
+    record: MutationRecord,
+    instance: HTMLElement,
+    island: HTMLTemplateElement
+): boolean {
+    if (record.target === instance) {
+        return true;
+    }
+    return !isNestedRuntimePayloadMutation(record.target, island);
+}
+
+function isNestedRuntimePayloadMutation(target: Node, island: HTMLTemplateElement): boolean {
+    let current: Node | null = target.nodeType === 1 ? target : target.parentNode;
+    while (current && current !== island.content) {
+        if (current.nodeType === 1) {
+            const element = current as Element;
+            if (directDataIsland(element)) {
+                return true;
+            }
+        }
+        current = current.parentNode;
+    }
+    return false;
+}
+
 function directHydrationMetadata(element: Element): HTMLScriptElement | undefined {
     return Array.from(element.children).find(
         (child): child is HTMLScriptElement =>
@@ -5035,7 +5078,7 @@ function serializePayload(island: HTMLTemplateElement): SerializedPayload {
     const data = collectPayloadChoices(nodes, 'data');
     const options = collectPayloadChoices(nodes, 'option');
     return {
-        text: island.content.textContent ?? '',
+        text: nodes.map(nodeText).join(''),
         childCount: island.content.childNodes.length,
         nodes,
         slots,
@@ -5060,17 +5103,49 @@ function serializePayloadNode(node: Node, key: string): SerializedPayloadNode | 
     }
 
     const element = node as Element;
+    const childNodes = payloadChildNodes(element);
     return {
         kind: 'element',
         key,
         tag: element.localName,
         namespace: element.namespaceURI === XHTML_NAMESPACE ? null : element.namespaceURI,
-        attributes: Object.fromEntries(Array.from(element.attributes).map((attribute) => [attribute.name, attribute.value])),
+        attributes: payloadAttributes(element),
         slot: element.getAttribute('slot') ?? '',
-        children: Array.from(element.childNodes)
+        children: childNodes
             .map((child, index) => serializePayloadNode(child, `${key}/${index}`))
             .filter((child): child is SerializedPayloadNode => child !== undefined),
     };
+}
+
+function payloadChildNodes(element: Element): Node[] {
+    const island = directDataIsland(element);
+    if (island) {
+        return Array.from(island.content.childNodes);
+    }
+    return Array.from(element.childNodes).filter((child) => {
+        if (isRenderBoundary(child)) {
+            return false;
+        }
+        if (child.nodeType !== 1) {
+            return true;
+        }
+        const childElement = child as Element;
+        return !(
+            childElement.localName === 'template'
+            && childElement.getAttribute(DATA_ISLAND_ATTR) === DATA_ISLAND_VALUE
+        ) && !(
+            childElement.localName === 'script'
+            && childElement.getAttribute(HYDRATION_METADATA_ATTR) === HYDRATION_METADATA_VALUE
+        );
+    });
+}
+
+function payloadAttributes(element: Element): Record<string, string> {
+    return Object.fromEntries(
+        Array.from(element.attributes)
+            .filter((attribute) => !RUNTIME_PAYLOAD_ATTRIBUTE_NAMES.has(attribute.name))
+            .map((attribute) => [attribute.name, attribute.value])
+    );
 }
 
 function payloadSlotName(node: SerializedPayloadNode): string | null {
