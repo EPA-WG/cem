@@ -30,6 +30,8 @@ This index links the active project, release, and token workflow documents.
   worker-pool scheduling, edge processing, and server-side rendering.
 - [CEM-ML UID and scoped CSS design](./cem-ml-uid-and-scoped-css-design.md) — generated identity requirements for
   scoped CSS, anonymous declarations, public-tag debug prefixes, deterministic UIDs, hydration, and validation gates.
+- [CEM Elements HTTP request resource design](./cem-elements-http-request-design.md) — substrate-backed
+  `<http-request>` resource slices, streaming content-type parsing, AST resource data, and data source maps.
 - [CEM UI Kit plan](./figma-ui-kit-plan.md) — Figma page, token, component, and QA mapping.
 - [Token pipeline smoke](./token-pipeline-smoke.md) — full propagation check for a one-token source change.
 

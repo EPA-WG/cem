@@ -13,8 +13,9 @@ history belongs in git history and the feature-specific docs linked below.
      `local-storage`, and `location-element`; richer slice expressions and multi-event/multi-target bindings; form-data
      and validation-state capture; focus-preserving DOM merge; scoped style containment; and full demo-backed
      `cem:for-each` data feeds.
-   - Implement `<http-request>` as a CEM Elements resource primitive so CEM-ML demos can fetch JSON/XML payloads,
-     project response data into slices, and drive `cem:for-each` over response records.
+   - Implement `<http-request>` as a CEM Elements resource primitive per
+     [`cem-elements-http-request-design.md`](cem-elements-http-request-design.md) so CEM-ML demos can fetch JSON/XML
+     payloads, project response data into slices, and drive `cem:for-each` over response records.
    - Implement `<local-storage>` as a CEM Elements resource primitive with typed text/date/time/number/json coercion,
      initial slice hydration, live storage updates, and write-back from slice changes.
    - Implement `<location-element>` as a CEM Elements resource primitive for reading `window.location`/custom hrefs
