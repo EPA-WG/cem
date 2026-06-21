@@ -171,7 +171,6 @@ describe('CEM component primitive states and ARIA behavior', () => {
         const fieldHost = harness.query<HTMLElement>('cem-text-field');
         const checkboxHost = harness.query<HTMLElement>('cem-checkbox');
         const input = harness.query<HTMLInputElement>('cem-text-field input');
-        const checkbox = harness.query<HTMLInputElement>('cem-checkbox input');
 
         input.value = 'published';
         input.dispatchEvent(new Event('input', { bubbles: true, composed: true }));
