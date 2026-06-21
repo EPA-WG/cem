@@ -80,6 +80,11 @@
         }
     },
     "targetDefaults": {
+        "nx-release-publish": {
+            "options": {
+                "access": "public"
+            }
+        },
         "test": {
             "dependsOn": ["^build"]
         }
