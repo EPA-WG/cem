@@ -1263,6 +1263,103 @@ export const UriAndModuleResolutionPolicy: Story = {
     },
 };
 
+export const HttpRequestResourceLifecycle: Story = {
+    render: () =>
+        storyPanel(
+            'HTTP request resource lifecycle',
+            'pending/header/complete envelopes, resource revision, and stale request abort'
+        ),
+    play: async ({ canvasElement }) => {
+        const root = document.createElement('section');
+        root.setAttribute('aria-label', 'http-request resource lifecycle story');
+        canvasElement.appendChild(root);
+
+        const pending = new Map<string, (name: string) => void>();
+        const aborted: string[] = [];
+        const runtime = new CemElementRuntime({
+            declarationTag: 'cem-element-story-http-resource',
+            resolveResourceUrl: (request) => ({
+                authoredUrl: request.authoredUrl,
+                resolvedUrl: `https://resources.example.test/${request.authoredUrl}.json`,
+                resolverIdentity: 'story-http-resolver',
+                resourcePolicyStamp: 'story-http-policy',
+            }),
+            loadHttpResource: (request) =>
+                new Promise((resolve, reject) => {
+                    request.signal.addEventListener(
+                        'abort',
+                        () => {
+                            aborted.push(request.authoredUrl);
+                            reject(new Error('aborted'));
+                        },
+                        { once: true }
+                    );
+                    pending.set(request.authoredUrl, (name) =>
+                        resolve({
+                            response: {
+                                url: request.resolvedUrl,
+                                status: 200,
+                                statusText: 'OK',
+                                ok: true,
+                                redirected: false,
+                                headers: { 'content-type': 'application/json' },
+                                contentType: 'application/json',
+                            },
+                            body: utf8Body(JSON.stringify({ name, results: [{ name, status: 'ready' }] })),
+                        })
+                    );
+                }),
+        });
+
+        const declaration = buildCemMlDeclaration(
+            'cem-element-story-http-resource',
+            'story-http-resource-panel',
+            [
+                '{http-request @slice=page @url="{$datadom.attributes.url}" @content-type="application/json"}',
+                '{article |',
+                '  {p @class=state | {$datadom.slices.page.state}}',
+                '  {p @class=revision | {$datadom.slices.page.resourceRevision}}',
+                '  {cem:if @test=\'datadom.slices.page.state = "complete"\' |',
+                '    {output @class=name | {$datadom.slices.page.data.name}}',
+                '  }',
+                '}',
+            ].join('\n')
+        );
+        root.appendChild(declaration);
+        assert(runtime.registerDeclaration(declaration), 'http-request declaration registers');
+        await runtime.whenDeclarationSettled(declaration);
+
+        const instance = document.createElement('story-http-resource-panel');
+        instance.setAttribute('url', 'first');
+        root.appendChild(instance);
+        await waitForCondition(
+            () => instance.querySelector('.state')?.textContent?.trim() === 'pending',
+            'http-request renders pending state'
+        );
+
+        instance.setAttribute('url', 'second');
+        await waitForCondition(() => aborted.includes('first'), 'stale http-request is aborted');
+        pending.get('second')?.('second');
+        await waitForCondition(
+            () => instance.querySelector('.name')?.textContent?.trim() === 'second',
+            'latest http-request completion renders data'
+        );
+
+        const snapshot = runtime.snapshotInstance(instance);
+        const page = snapshot.slices.page as {
+            state?: string;
+            resourceRevision?: number;
+            request?: { authoredUrl?: string };
+            data?: { name?: string };
+        };
+        assertEqual(page.state, 'complete', 'snapshot stores completed http-request state');
+        assertEqual(page.resourceRevision, 2, 'resource revision increments after URL change');
+        assertEqual(page.request?.authoredUrl, 'second', 'snapshot stores latest authored URL');
+        assertEqual(page.data?.name, 'second', 'snapshot stores serializable response data');
+        JSON.stringify(page);
+    },
+};
+
 export const LocalSrcDeclarationLoadingParity: Story = {
     render: () => {
         const root = document.createElement('section');
@@ -4064,6 +4161,10 @@ function requiredElement(root: ParentNode, selector: string): Element {
 
 function nextFrame(): Promise<void> {
     return new Promise((resolve) => requestAnimationFrame(() => resolve()));
+}
+
+async function* utf8Body(text: string): AsyncIterable<Uint8Array> {
+    yield new TextEncoder().encode(text);
 }
 
 /** Concatenated, trimmed text content of a render-plan node list (for WASM-boundary assertions). */

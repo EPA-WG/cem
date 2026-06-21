@@ -19,18 +19,19 @@ history belongs in git history and the feature-specific docs linked below.
      - [x] Add `http-request` declaration parsing and lowering from the legacy HTML spelling and CEM-ML resource form.
      - [x] Add resource-specific resolver and loader runtime hooks instead of overloading `resolveModuleUrl`.
      - [x] Resolve `@url` through the scoped URL/module-map pipeline, including unresolved bare-specifier diagnostics.
-     - [ ] Enforce Phase 1 policy defaults: `GET`/`HEAD` only, bounded response size/parse time/redirects, host-controlled
-       direct network access, and unsupported content-type diagnostics.
-     - [ ] Implement the resource slot envelope under `datadom.slices.<slice>` with pending/headers/complete/error/aborted
+     - [x] Enforce Phase 1 policy defaults: `GET`/`HEAD` only, bounded response size/request timeout/redirects,
+       host-controlled direct network access, and unsupported content-type diagnostics.
+     - [x] Implement the resource slot envelope under `datadom.slices.<slice>` with pending/headers/complete/error/aborted
        states, request metadata, response metadata, diagnostics, resource revision, and no live host objects.
      - [x] Parse JSON responses into a CEM-QL-navigable AST/projection with content-type and parse diagnostics.
      - [ ] Add Phase 1 source-id hooks to JSON response projections and diagnostics.
      - [ ] Parse XML/XHTML responses into the same resource slot contract with source-id/diagnostic hooks.
-     - [ ] Trigger async rerender on resource completion while aborting stale requests by revision id and relying on
+     - [x] Trigger async rerender on resource completion while aborting stale requests by revision id and relying on
        render-tree no-op protection for unchanged output.
      - [x] Add an explicit resource-settled runtime/test hook so fixtures do not wait with timing sleeps.
-     - [ ] Add local JSON and XML fixtures that prove `cem:for-each` over response records in
-       `packages/cem-elements/index.html` and demo parity pages.
+     - [x] Add a local JSON fixture that proves `cem:for-each` over response records in demo parity pages.
+     - [ ] Add local XML fixtures that prove `cem:for-each` over response records in `packages/cem-elements/index.html`
+       and demo parity pages.
      - [ ] Keep the published standalone `http-request.js` companion shim smoke-tested as compatibility surface.
      - [ ] Defer progressive AST streaming, full browser source-map sidecars, cache identity, SSR preload/revalidation, and
        legacy broad XPath rewrite compatibility to later phases of the design.
