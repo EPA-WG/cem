@@ -104,6 +104,15 @@ export interface RenderPlan {
     nodes: RenderPlanNode[];
 }
 
+export interface RenderPlanDomRange {
+    start: Comment;
+    end: Comment;
+}
+
+export interface RenderedFragmentMergeOptions {
+    preserveElementChildren?: (current: Element, desired: Element) => boolean;
+}
+
 export interface ScopedCssRewriteDiagnostic {
     code: string;
     severity: 'warning';
@@ -1155,6 +1164,18 @@ export function materializeRenderPlan(plan: RenderPlan, document: Document): Doc
     return fragment;
 }
 
+export function mergeRenderedFragmentIntoRange(
+    bounds: RenderPlanDomRange,
+    rendered: DocumentFragment,
+    options: RenderedFragmentMergeOptions = {}
+): void {
+    const parent = bounds.start.parentNode;
+    if (!parent || bounds.end.parentNode !== parent) {
+        throw new Error('cem-element render bounds are not attached to the same parent');
+    }
+    mergeChildNodes(parent, bounds.start.nextSibling as ChildNode | null, bounds.end, Array.from(rendered.childNodes), options);
+}
+
 function materializeNode(node: RenderPlanNode, plan: RenderPlan, document: Document): Node {
     if (node.kind === 'text') {
         return document.createTextNode(node.text);
@@ -1181,6 +1202,147 @@ function materializeNode(node: RenderPlanNode, plan: RenderPlan, document: Docum
         element.appendChild(materializeNode(child, plan, document));
     }
     return element;
+}
+
+function mergeChildNodes(
+    parent: Node,
+    firstCurrent: ChildNode | null,
+    end: Node | null,
+    desiredNodes: readonly Node[],
+    options: RenderedFragmentMergeOptions
+): void {
+    let current: ChildNode | null = firstCurrent;
+    for (const desired of desiredNodes) {
+        const matched = matchMergeNode(current, end, desired);
+        if (matched) {
+            if (matched !== current) {
+                parent.insertBefore(matched, current ?? end);
+            }
+            mergeNode(matched, desired, options);
+            current = matched.nextSibling as ChildNode | null;
+            continue;
+        }
+
+        parent.insertBefore(desired, current ?? end);
+    }
+
+    while (current && current !== end) {
+        const next = current.nextSibling as ChildNode | null;
+        parent.removeChild(current);
+        current = next;
+    }
+}
+
+function matchMergeNode(current: ChildNode | null, end: Node | null, desired: Node): ChildNode | null {
+    if (!current || current === end) {
+        return null;
+    }
+    if (canMergeNode(current, desired)) {
+        return current;
+    }
+
+    const desiredId = renderIdentity(desired);
+    if (!desiredId) {
+        return null;
+    }
+
+    let sibling = current.nextSibling as ChildNode | null;
+    while (sibling && sibling !== end) {
+        if (renderIdentity(sibling) === desiredId && canMergeNode(sibling, desired)) {
+            return sibling;
+        }
+        sibling = sibling.nextSibling as ChildNode | null;
+    }
+    return null;
+}
+
+function canMergeNode(current: Node, desired: Node): boolean {
+    if (current.nodeType !== desired.nodeType) {
+        return false;
+    }
+    if (current.nodeType !== 1) {
+        return true;
+    }
+
+    const currentElement = current as Element;
+    const desiredElement = desired as Element;
+    if (
+        currentElement.localName !== desiredElement.localName ||
+        currentElement.namespaceURI !== desiredElement.namespaceURI
+    ) {
+        return false;
+    }
+
+    const desiredId = renderIdentity(desiredElement);
+    return !desiredId || renderIdentity(currentElement) === desiredId;
+}
+
+function mergeNode(current: Node, desired: Node, options: RenderedFragmentMergeOptions): void {
+    if (current.nodeType === 3 || current.nodeType === 8) {
+        if (current.nodeValue !== desired.nodeValue) {
+            current.nodeValue = desired.nodeValue;
+        }
+        return;
+    }
+    if (current.nodeType !== 1 || desired.nodeType !== 1) {
+        current.parentNode?.replaceChild(desired, current);
+        return;
+    }
+
+    const currentElement = current as Element;
+    const desiredElement = desired as Element;
+    const desiredId = renderIdentity(desiredElement);
+    if (desiredId) {
+        mirrorRenderIdentity(currentElement, desiredId);
+    }
+    syncAttributes(currentElement, desiredElement);
+    if (options.preserveElementChildren?.(currentElement, desiredElement)) {
+        return;
+    }
+    mergeChildNodes(
+        currentElement,
+        currentElement.firstChild as ChildNode | null,
+        null,
+        Array.from(desiredElement.childNodes),
+        options
+    );
+}
+
+function syncAttributes(current: Element, desired: Element): void {
+    const desiredAttributes = new Map(Array.from(desired.attributes).map((attribute) => [attribute.name, attribute.value]));
+    for (const attribute of Array.from(current.attributes)) {
+        if (!desiredAttributes.has(attribute.name)) {
+            current.removeAttribute(attribute.name);
+        }
+    }
+    for (const [name, value] of desiredAttributes) {
+        if (current.getAttribute(name) !== value) {
+            current.setAttribute(name, value);
+        }
+    }
+}
+
+function renderIdentity(node: Node): string | null {
+    if (node.nodeType !== 1) {
+        return null;
+    }
+    const element = node as Element & { cemRenderNodeId?: string };
+    if (element.cemRenderNodeId) {
+        return element.cemRenderNodeId;
+    }
+    const serialized = element.getAttribute(RENDER_NODE_ID_ATTR);
+    if (serialized) {
+        element.cemRenderNodeId = serialized;
+        return serialized;
+    }
+    return null;
+}
+
+function mirrorRenderIdentity(element: Element, id: string): void {
+    (element as Element & { cemRenderNodeId?: string }).cemRenderNodeId = id;
+    if (element.getAttribute(RENDER_NODE_ID_ATTR) !== id) {
+        element.setAttribute(RENDER_NODE_ID_ATTR, id);
+    }
 }
 
 function resolveAttribute(

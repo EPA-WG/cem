@@ -50,8 +50,12 @@ history belongs in git history and the feature-specific docs linked below.
        evidence;
      - [x] add event rerender no-op protection for slice events that resolve to unchanged data;
      - [x] add render-tree diff/no-op replacement protection so unchanged virtual render trees do not mutate browser DOM;
-     - [ ] implement property-first sequential DOM merge from render plans, including `node.cemRenderNodeId`, SSR/debug
-       marker mirroring, comment-range dynamic regions, temporary keyed-sibling maps, and `replaceScope` recovery;
+     - [x] implement property-first sequential DOM merge for materialized render-plan fragments, including
+       `node.cemRenderNodeId`, SSR/debug marker mirroring from `data-cem-render-node-id`, retained element/text/comment
+       updates, temporary same-parent render-id lookahead for reordered elements, and nested CEM-owned subtree
+       preservation;
+     - [ ] extend DOM merge from fragment parity to direct render-plan patch application with explicit comment-range
+       dynamic regions and transaction-level `replaceScope` recovery diagnostics;
      - [ ] Low priority: implement and cross-browser validate dynamic internal `<textarea>` handling using an invisible
        child-node merge model plus explicit `.value` projection; include SSR loader conversion from a
        loader-friendly `<xsl:element name="textarea">`-style or equivalent CEM-ML placeholder form.

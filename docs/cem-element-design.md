@@ -585,6 +585,13 @@ serializable render-plan/WASM boundary:
 - If the previous and next plans are equivalent, the UI adapter performs no DOM
   mutation. Data revision advancement alone is not a reason to replace or touch the
   visible DOM tree.
+- When a parent render contains another initialized `cem-element` produced tag, the
+  parent patcher owns the nested element shell and attributes, not the nested element's
+  rendered body. After the nested element has a runtime-owned data island or render
+  bounds, parent synchronization preserves those children and lets the nested element's
+  own observer/runtime rerender from changed shell attributes. Updating parent-provided
+  payload inside an already-initialized nested CEM instance requires a focused data
+  island payload merge, not blind child replacement.
 - `replaceScope` remains a recovery/fallback operation, not normal rerender behavior.
   It is valid on first render, template/policy incompatibility, missing retained plan,
   target mismatch, or other cases where the patcher cannot prove that existing browser

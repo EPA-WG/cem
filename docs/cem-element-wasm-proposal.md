@@ -254,6 +254,14 @@ direct access to browser DOM:
    transaction and asks for or accepts a `replaceScope` recovery. It must not partially
    apply the rest of a mismatched transaction.
 
+Nested CEM instances form ownership boundaries during browser reconciliation. A parent
+patch can update the nested produced element's shell attributes, which lets the nested
+instance observer/runtime rerender from those attributes. Once the nested instance has a
+runtime-owned data island or render bounds, the parent patch must preserve that body
+instead of replacing it from the parent render plan. Parent-provided payload updates for
+an already-initialized nested instance require a specific data-island payload merge
+path; they are not handled by blind child synchronization.
+
 Browser identity storage is property-first. The host reads `node.cemRenderNodeId` during
 normal synchronization. SSR and debug markup use serialized fallback markers because
 DOM properties cannot cross the network or parser boundary: element output may carry

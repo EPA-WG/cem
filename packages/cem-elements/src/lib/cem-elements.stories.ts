@@ -1937,21 +1937,34 @@ export const RenderMetadataAdvancesDataRevisionOnRerender: Story = {
         const nodeId = first.getAttribute('data-cem-render-node-id');
         const frame = first.getAttribute('data-cem-source-frame');
         assertEqual(first.getAttribute('data-cem-data-revision'), '1', 'first render carries data revision 1');
+        (first as Element & { cemRenderNodeId?: string }).cemRenderNodeId = undefined;
 
         instance.setAttribute('label', 'Updated');
         await nextFrame();
 
         const second = requiredElement(instance, 'button');
+        assertEqual(second === first, true, 'rerender updates the existing render-node DOM object in place');
+        assertEqual(second.textContent, 'Updated', 'rerender updates changed text inside the retained node');
         assertEqual(second.getAttribute('data-cem-data-revision'), '2', 'rerender advances the data revision');
         assertEqual(
             second.getAttribute('data-cem-render-node-id'),
             nodeId,
             'render-node identity stays stable across rerenders'
         );
+        assertEqual(
+            (second as Element & { cemRenderNodeId?: string }).cemRenderNodeId,
+            nodeId,
+            'serialized render-node identity is mirrored back into the DOM property path'
+        );
         assertEqual(second.getAttribute('data-cem-source-frame'), frame, 'source frame stays stable across rerenders');
 
         instance.setAttribute('label', 'Third');
         await nextFrame();
+        assertEqual(
+            requiredElement(instance, 'button') === first,
+            true,
+            'later rerenders keep the same retained render-node DOM object'
+        );
         assertEqual(
             requiredElement(instance, 'button').getAttribute('data-cem-data-revision'),
             '3',

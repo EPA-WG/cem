@@ -2,6 +2,7 @@ import {
     DATA_CEM_SCOPE_ATTR,
     edgeContentAddress,
     materializeRenderPlan,
+    mergeRenderedFragmentIntoRange,
     projectTemplate,
     readTemplateSource,
     renderPlansHaveDomChanges,
@@ -1274,7 +1275,14 @@ export class CemElementRuntime {
         const fragment = materializeRenderPlan(renderPlan, instance.ownerDocument);
         this.bindRenderedSliceEvents(instance, compiled, fragment);
         const resourcesSettled = this.bindRenderedResourceSlices(instance, compiled, fragment, token);
-        this.replaceRenderedContent(instance, island, fragment);
+        if (previous) {
+            mergeRenderedFragmentIntoRange(this.ensureRenderBounds(instance, island), fragment, {
+                preserveElementChildren: (current) =>
+                    this.declarations.has(current.localName) && directDataIsland(current) !== undefined,
+            });
+        } else {
+            this.replaceRenderedContent(instance, island, fragment);
+        }
         this.committedRenderPlans.set(instance, renderPlan);
         return resourcesSettled;
     }
