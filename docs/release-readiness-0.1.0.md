@@ -166,6 +166,16 @@ version `X.X.X-dry-run`, and packs 105 files / 922.9 kB (4.0 MB unpacked). The
 increase is the expected vendored `cem-elements` runtime and `cem_ql` WASM payload
 required by the substrate-backed adapter.
 
+**Re-checked after final runtime readiness work** (2026-06-21) with
+`npm --cache /tmp/cem-npm-cache pack --dry-run --json` from the actual publish
+roots: `@epa-wg/cem-theme` from `packages/cem-theme` packs 145 files /
+5,523,541 bytes (11,021,926 bytes unpacked), `@epa-wg/cem-elements` from
+`packages/cem-elements` packs 29 files / 78,636 bytes (348,596 bytes unpacked),
+`@epa-wg/cem-components` from `packages/cem-components` packs 15 files /
+10,481 bytes (39,760 bytes unpacked), and `@epa-wg/custom-element` from
+`packages/custom-element/dist` packs 105 files / 947,780 bytes (4,169,824 bytes
+unpacked). All pack cleanly.
+
 ## 6. Rollback plan
 
 - **Consumer rollback:** pin the previous published version
@@ -247,10 +257,13 @@ release blocker.
 
 Current local gate evidence:
 
+- `node tools/scripts/validate-package-metadata.mjs` — passed.
 - `yarn nx run @epa-wg/cem-theme:verify:phase13` — passed.
 - `yarn nx run cem-elements:verify` — passed.
 - `yarn nx run @epa-wg/cem-components:verify` — passed.
 - `yarn nx run @epa-wg/custom-element:verify` — passed.
+- `npm --cache /tmp/cem-npm-cache pack --dry-run --json` from the four publish
+  roots listed in §5 — passed.
 
 Remaining release work is maintainer-owned publication, not implementation:
 merge/rebase as needed, run the explicit 0.1.0 release command path from
