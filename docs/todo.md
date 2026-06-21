@@ -9,7 +9,8 @@ history belongs in git history and the feature-specific docs linked below.
 1. Complete deferred `<cem-element>` demo parity now that the runtime/data-island pieces are in place.
    - Promote the new `packages/cem-elements/index.html` and `packages/cem-elements/demo/*.html` CEM-ML demos to the
      same functional coverage level as the copied `packages/custom-element/index.html` and `demo/*.html` pages.
-   - Close the current runtime gap surfaced by those demos: full demo-backed `cem:for-each` data feeds.
+   - [x] Close the runtime gaps surfaced by those demos: focus-preserving DOM merge, scoped style containment, and
+     full demo-backed `cem:for-each` data feeds.
    - Implement Phase 1 of `<http-request>` as a CEM Elements resource primitive per
      [`cem-elements-http-request-design.md`](cem-elements-http-request-design.md) so CEM-ML demos can fetch JSON/XML
      payloads, project response data into slices, and drive `cem:for-each` over response records:
@@ -28,6 +29,8 @@ history belongs in git history and the feature-specific docs linked below.
      - [x] Add an explicit resource-settled runtime/test hook so fixtures do not wait with timing sleeps.
      - [x] Add a local JSON fixture that proves `cem:for-each` over response records in demo parity pages.
      - [x] Add a local XML fixture that proves `cem:for-each` over response records in demo parity pages.
+     - [x] Add full `demo/for-each.html` coverage for `cem:for-each` over payload records, location query entries, and
+       JSON/XML resource records.
      - [x] Confirm `packages/cem-elements/index.html` does not need duplicate resource-backed `<http-request>` coverage for
        Phase 1 because the dedicated `demo/http-request.html` fixture now covers JSON/XML resource records.
      - [x] Keep the published standalone `http-request.js` companion shim smoke-tested as compatibility surface.

@@ -15,6 +15,9 @@
 
 <cem-element tag="cem-loop-list">
     <template type="text/cem-ml">
+        {location-element @slice=loop-location @href="https://example.test/loop?topic=feeds&item=payload&item=resource#for-each"}
+        {http-request @slice=loop-json @url="{$datadom.attributes.json-url}" @header-accept="application/json" @content-type="application/json"}
+        {http-request @slice=loop-xml @url="{$datadom.attributes.xml-url}" @header-accept="application/xml" @content-type="application/xml"}
         {article @class=demo-card |
             {h2 | 1. Simple for-each}
             {p | Loop over inline CEM-QL sequence data and render each item.}
@@ -107,11 +110,52 @@
                 }
             }
         }
+        {article @class=demo-card |
+            {h2 | 7. for-each over payload data}
+            {p | Payload elements are serialized into datadom and selected by attribute.}
+            {ol @class=payload-feed |
+                {cem:for-each @select="datadom.elementsByAttribute.feed" @as=item |
+                    {li | {$position}. {$item.attributes.label}: {$item.text}}
+                }
+            }
+        }
+        {article @class=demo-card |
+            {h2 | 8. for-each over location data}
+            {p | Resource primitives expose structured slices that can be looped.}
+            {ul @class=location-feed |
+                {cem:for-each @select="datadom.slices.loop-location.paramEntries" @as=param |
+                    {li | {$param.name} = {$param.text}}
+                }
+            }
+        }
+        {article @class=demo-card |
+            {h2 | 9. for-each over HTTP JSON/XML data}
+            {p | Local JSON and XML fixtures feed record sequences into the same loop syntax.}
+            {p | json state: {output @data-role=json-state | {$datadom.slices.loop-json.state}}}
+            {cem:if @test='datadom.slices.loop-json.state = "complete"' |
+                {ul @class=http-json-feed |
+                    {cem:for-each @select="datadom.slices.loop-json.data.results" @as=item |
+                        {li | {$item.name}: {$item.status}}
+                    }
+                }
+            }
+            {p | xml state: {output @data-role=xml-state | {$datadom.slices.loop-xml.state}}}
+            {cem:if @test='datadom.slices.loop-xml.state = "complete"' |
+                {ul @class=http-xml-feed |
+                    {cem:for-each @select="datadom.slices.loop-xml.data.children" @as=item |
+                        {li | {$item.attributes.name}: {$item.attributes.status}}
+                    }
+                }
+            }
+        }
     </template>
 </cem-element>
 
 <main>
-    <cem-loop-list></cem-loop-list>
+    <cem-loop-list json-url="./http-data.json" xml-url="./http-data.xml">
+        <span feed="payload" label="payload-alpha">Payload Alpha</span>
+        <span feed="payload" label="payload-beta">Payload Beta</span>
+    </cem-loop-list>
 </main>
 </body>
 </html>
