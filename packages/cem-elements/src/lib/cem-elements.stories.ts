@@ -2076,6 +2076,79 @@ export const SliceEventInvalidationRerenders: Story = {
     },
 };
 
+export const SliceEventExpressionParity: Story = {
+    render: () => {
+        const root = document.createElement('section');
+        root.setAttribute('aria-label', 'slice event expression parity story');
+
+        const runtime = new CemElementRuntime({ declarationTag: 'cem-element-story-slice-expr' });
+        runtime.install(window);
+
+        const declaration = document.createElement('cem-element-story-slice-expr');
+        declaration.setAttribute('tag', 'story-slice-expression-field');
+        const template = document.createElement('template');
+        template.innerHTML = [
+            '<slice name="count">0</slice>',
+            '<slice name="pointer"></slice>',
+            '<slice name="left"></slice>',
+            '<slice name="right"></slice>',
+            '<button type="button" data-role="increment" slice="count" slice-event="click tap" slice-value="//count + 1">+</button>',
+            '<button type="button" data-role="decrement" slice="count" slice-event="click" slice-value="//count - 1">-</button>',
+            '<textarea data-role="pointer" slice="pointer" slice-event="mousemove click" slice-value="concat(\'x:\', //@clientX)"></textarea>',
+            '<input data-role="fanout" slice="left|right" slice-event="input" slice-value="@value" />',
+            '<output data-role="count">${$count}</output>',
+            '<output data-role="pointer">${$pointer}</output>',
+            '<output data-role="left">${$left}</output>',
+            '<output data-role="right">${$right}</output>',
+        ].join('');
+        declaration.appendChild(template);
+        root.appendChild(declaration);
+        runtime.registerDeclaration(declaration);
+
+        const instance = document.createElement('story-slice-expression-field');
+        root.appendChild(instance);
+        return root;
+    },
+    play: async ({ canvasElement }) => {
+        const instance = await waitForElement(canvasElement, 'story-slice-expression-field');
+        const increment = requiredElement(instance, 'button[data-role="increment"]') as HTMLButtonElement;
+        const decrement = requiredElement(instance, 'button[data-role="decrement"]') as HTMLButtonElement;
+        const pointer = requiredElement(instance, 'textarea[data-role="pointer"]') as HTMLTextAreaElement;
+        const fanout = requiredElement(instance, 'input[data-role="fanout"]') as HTMLInputElement;
+
+        increment.click();
+        await waitForCondition(
+            () => requiredElement(instance, 'output[data-role="count"]').textContent === '1',
+            'slice arithmetic increment renders'
+        );
+        increment.dispatchEvent(new Event('tap', { bubbles: true }));
+        await waitForCondition(
+            () => requiredElement(instance, 'output[data-role="count"]').textContent === '2',
+            'slice multi-event tap renders'
+        );
+        decrement.click();
+        await waitForCondition(
+            () => requiredElement(instance, 'output[data-role="count"]').textContent === '1',
+            'slice arithmetic decrement renders'
+        );
+
+        pointer.dispatchEvent(new MouseEvent('mousemove', { bubbles: true, clientX: 37 }));
+        await waitForCondition(
+            () => requiredElement(instance, 'output[data-role="pointer"]').textContent === 'x:37',
+            'slice concat reads mouse event fields'
+        );
+
+        fanout.value = 'mirrored';
+        fanout.dispatchEvent(new Event('input', { bubbles: true }));
+        await waitForCondition(
+            () =>
+                requiredElement(instance, 'output[data-role="left"]').textContent === 'mirrored' &&
+                requiredElement(instance, 'output[data-role="right"]').textContent === 'mirrored',
+            'slice fan-out writes multiple slices'
+        );
+    },
+};
+
 export const EventToDataRenderLoopSnapshot: Story = {
     render: () => storyPanel('Event to data loop', 'slice events update render output and data snapshots'),
     play: async ({ canvasElement }) => {

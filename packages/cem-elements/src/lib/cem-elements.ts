@@ -399,8 +399,8 @@ interface InstanceState {
 
 interface SliceEventBinding {
     instance: HTMLElement;
-    sliceName: string;
-    eventName: string;
+    sliceNames: string[];
+    eventNames: string[];
     expression: string;
     listener: EventListener;
 }
@@ -1353,9 +1353,9 @@ export class CemElementRuntime {
         compiled: CompiledDeclaration,
         element: Element
     ): void {
-        const sliceName = element.getAttribute('slice')?.trim();
-        const eventName = element.getAttribute('slice-event')?.trim();
-        if (!sliceName || !eventName) {
+        const sliceNames = parseSliceTargets(element.getAttribute('slice') ?? '');
+        const eventNames = parseSliceEventNames(element.getAttribute('slice-event') ?? '');
+        if (sliceNames.length === 0 || eventNames.length === 0) {
             return;
         }
         const expression = element.getAttribute('slice-value') ?? '{$target.value}';
@@ -1367,21 +1367,28 @@ export class CemElementRuntime {
         if (
             existing &&
             existing.instance === instance &&
-            existing.sliceName === sliceName &&
-            existing.eventName === eventName &&
+            stringArraysEqual(existing.sliceNames, sliceNames) &&
+            stringArraysEqual(existing.eventNames, eventNames) &&
             existing.expression === expression
         ) {
             return;
         }
         if (existing) {
-            element.removeEventListener(existing.eventName, existing.listener);
+            for (const eventName of existing.eventNames) {
+                element.removeEventListener(eventName, existing.listener);
+            }
         }
 
         const listener: EventListener = (event) => {
-            this.writeSliceFromEvent(instance, compiled, sliceName, expression, event);
+            this.writeSlicesFromEvent(instance, compiled, sliceNames, expression, event);
         };
-        element.addEventListener(eventName, listener);
-        this.sliceEventBindings.set(element, { instance, sliceName, eventName, expression, listener });
+        for (const eventName of eventNames) {
+            element.addEventListener(eventName, listener);
+        }
+        this.sliceEventBindings.set(element, { instance, sliceNames, eventNames, expression, listener });
+        if (eventNames.includes('init')) {
+            element.dispatchEvent(new Event('init', { bubbles: false }));
+        }
     }
 
     private bindRenderedResourceSlices(
@@ -2105,19 +2112,25 @@ export class CemElementRuntime {
         return Boolean(active && active.key === key && active.revision === revision && instance.isConnected);
     }
 
-    private writeSliceFromEvent(
+    private writeSlicesFromEvent(
         instance: HTMLElement,
         compiled: CompiledDeclaration,
-        sliceName: string,
+        sliceNames: string[],
         expression: string,
         event: Event
     ): void {
         const island = this.ensureDataIsland(instance);
         const state = this.ensureInstanceState(instance, compiled, island);
         const sliceValue = evaluateSliceValue(expression, event, state.slices);
-        state.eventPayloads[sliceName] = serializeEventPayload(event, sliceValue);
-        if (state.slices[sliceName] !== sliceValue) {
-            state.slices[sliceName] = sliceValue;
+        let changed = false;
+        for (const sliceName of sliceNames) {
+            state.eventPayloads[sliceName] = serializeEventPayload(event, sliceValue);
+            if (state.slices[sliceName] !== sliceValue) {
+                state.slices[sliceName] = sliceValue;
+                changed = true;
+            }
+        }
+        if (changed) {
             this.renderInstance(instance, compiled);
         }
     }
@@ -3898,7 +3911,22 @@ function evaluateSliceValue(
     slices: Record<string, unknown>
 ): TemplateValue {
     const body = unwrapExpression(expression);
-    const target = event.target;
+    const concatArgs = parseConcatArguments(body);
+    if (concatArgs) {
+        return concatArgs.map((part) => toTemplateValue(evaluateSliceAtom(part, event, slices)) ?? '').join('');
+    }
+    const arithmetic = parseSliceArithmetic(body);
+    if (arithmetic) {
+        const left = sliceNumberValue(evaluateSliceAtom(arithmetic.left, event, slices));
+        const right = sliceNumberValue(evaluateSliceAtom(arithmetic.right, event, slices));
+        return String(arithmetic.operator === '+' ? left + right : left - right);
+    }
+    return toTemplateValue(evaluateSliceAtom(body, event, slices));
+}
+
+function evaluateSliceAtom(expression: string, event: Event, slices: Record<string, unknown>): unknown {
+    const body = unwrapExpression(expression);
+    const target = event.target ?? event.currentTarget;
     if (body === '$event.type') {
         return event.type;
     }
@@ -3915,7 +3943,120 @@ function evaluateSliceValue(
     if (/^\$[A-Za-z_][\w.-]*$/.test(body)) {
         return toTemplateValue(slices[body.slice(1)]);
     }
+    const eventAlias = body.match(/^\/\/@([A-Za-z_][\w.-]*)$/) ?? body.match(/^@([A-Za-z_][\w.-]*)$/);
+    if (eventAlias) {
+        return eventAliasValue(eventAlias[1], event, target);
+    }
+    const sliceReference = sliceReferenceName(body);
+    if (sliceReference) {
+        return toTemplateValue(slices[sliceReference]);
+    }
     return parseLiteralValue(body);
+}
+
+function parseSliceTargets(value: string): string[] {
+    return value
+        .split('|')
+        .map((part) => part.trim())
+        .filter((part) => part.length > 0 && !part.startsWith('/datadom/attributes/'));
+}
+
+function parseSliceEventNames(value: string): string[] {
+    return Array.from(
+        new Set(
+            value
+                .split(/\s+/)
+                .map((part) => part.trim())
+                .filter((part) => part.length > 0)
+        )
+    );
+}
+
+function stringArraysEqual(left: readonly string[], right: readonly string[]): boolean {
+    return left.length === right.length && left.every((value, index) => value === right[index]);
+}
+
+function parseSliceArithmetic(value: string): { left: string; operator: '+' | '-'; right: string } | null {
+    if (quotedLiteral(value)) {
+        return null;
+    }
+    const spacedMatch = value.match(/^(.+?)\s+([+-])\s+(.+)$/);
+    if (spacedMatch) {
+        return { left: spacedMatch[1].trim(), operator: spacedMatch[2] as '+' | '-', right: spacedMatch[3].trim() };
+    }
+    const compactMatch = value.match(/^(\/\/(?:slice\/)?[A-Za-z_][\w.]*)([+-])(.+)$/);
+    if (!compactMatch) {
+        return null;
+    }
+    return { left: compactMatch[1].trim(), operator: compactMatch[2] as '+' | '-', right: compactMatch[3].trim() };
+}
+
+function parseConcatArguments(value: string): string[] | null {
+    const match = value.match(/^concat\((.*)\)$/);
+    if (!match) {
+        return null;
+    }
+    const args: string[] = [];
+    let current = '';
+    let quote: string | null = null;
+    for (const char of match[1]) {
+        if ((char === '"' || char === "'") && quote === null) {
+            quote = char;
+            current += char;
+            continue;
+        }
+        if (char === quote) {
+            quote = null;
+            current += char;
+            continue;
+        }
+        if (char === ',' && quote === null) {
+            args.push(current.trim());
+            current = '';
+            continue;
+        }
+        current += char;
+    }
+    if (current.trim().length > 0) {
+        args.push(current.trim());
+    }
+    return args;
+}
+
+function eventAliasValue(name: string, event: Event, target: EventTarget | null): unknown {
+    if (name === 'value') {
+        return target instanceof HTMLInputElement ||
+            target instanceof HTMLTextAreaElement ||
+            target instanceof HTMLSelectElement
+            ? target.value
+            : target instanceof Element
+              ? target.getAttribute('value')
+              : null;
+    }
+    if (name === 'checked') {
+        return target instanceof HTMLInputElement ? target.checked : null;
+    }
+    const record = event as unknown as Record<string, unknown>;
+    const value = record[name];
+    return typeof value === 'string' || typeof value === 'number' || typeof value === 'boolean' ? value : null;
+}
+
+function sliceReferenceName(value: string): string | null {
+    const normalized = value.trim();
+    const match = normalized.match(/^\/\/(?:slice\/)?([A-Za-z_][\w.-]*)(?:\/text\(\))?$/);
+    return match?.[1] ?? null;
+}
+
+function sliceNumberValue(value: unknown): number {
+    if (value === null || value === undefined || value === '') {
+        return 0;
+    }
+    const numeric = Number(value);
+    return Number.isFinite(numeric) ? numeric : 0;
+}
+
+function quotedLiteral(value: string): boolean {
+    return /^(['"]).*\1$/.test(value.trim());
 }
 
 function serializeEventPayload(event: Event, sliceValue: TemplateValue): SerializedEventPayload {

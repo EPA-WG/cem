@@ -9,10 +9,8 @@ history belongs in git history and the feature-specific docs linked below.
 1. Complete deferred `<cem-element>` demo parity now that the runtime/data-island pieces are in place.
    - Promote the new `packages/cem-elements/index.html` and `packages/cem-elements/demo/*.html` CEM-ML demos to the
      same functional coverage level as the copied `packages/custom-element/index.html` and `demo/*.html` pages.
-   - Close the current runtime gaps surfaced by those demos: resource-backed slices for `http-request`,
-     `local-storage`, and `location-element`; richer slice expressions and multi-event/multi-target bindings; form-data
-     and validation-state capture; focus-preserving DOM merge; scoped style containment; and full demo-backed
-     `cem:for-each` data feeds.
+   - Close the current runtime gaps surfaced by those demos: form-data and validation-state capture; focus-preserving DOM
+     merge; scoped style containment; and full demo-backed `cem:for-each` data feeds.
    - Implement Phase 1 of `<http-request>` as a CEM Elements resource primitive per
      [`cem-elements-http-request-design.md`](cem-elements-http-request-design.md) so CEM-ML demos can fetch JSON/XML
      payloads, project response data into slices, and drive `cem:for-each` over response records:
@@ -42,6 +40,9 @@ history belongs in git history and the feature-specific docs linked below.
      into structured slices, including attributes and query params, plus live location updates where supported.
    - [x] Implement declarative URL writes used by the legacy `set-url` demos, reusing the `location-element` method/src
      model or its CEM-ML equivalent.
+   - [x] Implement richer slice expressions and multi-event/multi-target bindings for legacy data-slices parity:
+     whitespace-separated event lists, `init`, `//slice` lookup, event/target aliases, numeric `+`/`-`, `concat(...)`,
+     and `slice="a|b"` fan-out.
    - Implement the accepted UID and scoped CSS design in
      [`cem-ml-uid-and-scoped-css-design.md`](cem-ml-uid-and-scoped-css-design.md):
      - [x] add `uid-seed` declaration support, including explicit blank seed handling and host/default seed resolution;

@@ -59,6 +59,9 @@ const fixtureSpecs = [
             text('cem-slice-field section.demo-card', 'query:'),
             fillThenText('cem-slice-field input[type="text"]', 'demo query', 'cem-slice-field output', 'demo query'),
             clickThenText('cem-slice-field button[data-dispatch-select]', 'cem-slice-field output', 'cem-select'),
+            clickThenText('cem-slice-field button[data-role="increment"]', 'cem-slice-field output[data-role="count"]', '1'),
+            fillThenText('cem-slice-field input[data-role="fanout"]', 'mirrored', 'cem-slice-field output[data-role="s1"]', 'mirrored'),
+            text('cem-slice-field output[data-role="s2"]', 'mirrored'),
         ],
     },
     {

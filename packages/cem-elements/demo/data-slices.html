@@ -24,20 +24,29 @@
         {slice @name=query}
         {slice @name=checked | false}
         {slice @name=selected}
+        {slice @name=clickcount | 0}
+        {slice @name=s1}
+        {slice @name=s2}
         {section @class=demo-card |
             {label | {$label} {input @type=text @value="{$query}" @slice=query @slice-event=input @slice-value="{$target.value}"}}
             {label | {input @type=checkbox @slice=checked @slice-event=change @slice-value="{$target.checked}"} checked}
             {button @type=button @data-dispatch-select=true @slice=selected @slice-event=cem-select @slice-value="$event.type" | Custom select}
+            {button @type=button @data-role=increment @slice=clickcount @slice-event="click tap" @slice-value="//clickcount + 1" | +}
+            {button @type=button @data-role=decrement @slice=clickcount @slice-event=click @slice-value="//clickcount - 1" | -}
+            {label | Mirror {input @data-role=fanout @value="{$s1}" @slice="s1|s2" @slice-event=input @slice-value="@value"}}
             {p | query: {output | {$datadom.slices.query}}}
             {p | checked: {output | {$datadom.slices.checked}}}
             {p | custom event: {output | {$datadom.slices.selected}}}
+            {p | count: {output @data-role=count | {$datadom.slices.clickcount}}}
+            {p | s1: {output @data-role=s1 | {$datadom.slices.s1}}}
+            {p | s2: {output @data-role=s2 | {$datadom.slices.s2}}}
         }
     </template>
 </cem-element>
 
 <main>
     <cem-slice-field label="Type and toggle"></cem-slice-field>
-    <p class="status-note">Parity target: legacy arithmetic slice expressions, multi-event strings, multi-target writes, and checkbox/radio coercion are queued in <code>docs/todo.md</code>.</p>
+    <p class="status-note">Parity target: checkbox/radio coercion and form-data extraction are queued in <code>docs/todo.md</code>.</p>
 </main>
 </body>
 </html>
