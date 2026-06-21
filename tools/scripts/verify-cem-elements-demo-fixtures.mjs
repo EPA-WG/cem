@@ -129,8 +129,16 @@ const fixtureSpecs = [
     {
         path: '/packages/cem-elements/demo/location-element.html',
         checks: [
-            text('cem-location-panel article.demo-card', 'requested hash:'),
-            fillThenText('cem-location-panel input', '#checked', 'cem-location-panel output', '#checked'),
+            text('cem-location-panel article.demo-card', 'current href:'),
+            text('cem-location-panel article.demo-card', 'sample host: example.test'),
+            text('cem-location-panel article.demo-card', 'sample hash: #fixture'),
+            text('cem-location-panel ul.sample-params', 'mode = demo'),
+            text('cem-location-panel ul.sample-params', 'tag = one,two'),
+            clickThenText(
+                'cem-location-panel button[data-location-push="true"]',
+                'cem-location-panel output[data-role="current-hash"]',
+                '#checked'
+            ),
         ],
     },
     {

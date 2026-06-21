@@ -392,6 +392,7 @@ interface InstanceState {
     eventPayloads: Record<string, unknown>;
     httpResources: Record<string, ActiveHttpResource>;
     localStorageResources: Record<string, ActiveLocalStorageResource>;
+    locationResources: Record<string, ActiveLocationResource>;
     resourceRevisions: Record<string, number>;
     observer?: MutationObserver;
 }
@@ -422,6 +423,12 @@ interface LocalStorageDeclaration {
     initialValue?: string;
 }
 
+interface LocationElementDeclaration {
+    sliceName: string;
+    href?: string;
+    live: boolean;
+}
+
 interface ActiveHttpResource {
     key: string;
     revision: number;
@@ -435,6 +442,13 @@ interface ActiveLocalStorageResource {
     live: boolean;
     lastValue: unknown;
     lastRawValue: string | null;
+    destroy?: () => void;
+}
+
+interface ActiveLocationResource {
+    key: string;
+    live: boolean;
+    lastValue: unknown;
     destroy?: () => void;
 }
 
@@ -456,6 +470,7 @@ const HYDRATION_METADATA_ATTR = 'data-cem-hydration';
 const HYDRATION_METADATA_VALUE = 'snapshot';
 const UID_SEED_ATTR = 'uid-seed';
 const LOCAL_STORAGE_EVENT = 'cem-local-storage';
+const LOCATION_EVENT = 'cem-location';
 const RENDER_TEMPLATE_ARTIFACT_ID_ATTR = 'data-cem-template-artifact-id';
 const RENDER_DATA_REVISION_ATTR = 'data-cem-data-revision';
 const SOURCE_FIDELITY_ATTR = 'data-cem-source-fidelity';
@@ -482,6 +497,7 @@ const RESERVED_CUSTOM_ELEMENT_NAMES = new Set([
 let artifactSequence = 0;
 let runtimeUidSeedSequence = 0;
 const localStorageTrackers = new WeakSet<Window>();
+const locationTrackers = new WeakSet<Window>();
 
 export interface ScopeUidInput {
     producedTag: string | null;
@@ -970,6 +986,11 @@ export class CemElementRuntime {
             for (const active of Object.values(state.localStorageResources)) {
                 active.destroy?.();
             }
+            state.localStorageResources = {};
+            for (const active of Object.values(state.locationResources)) {
+                active.destroy?.();
+            }
+            state.locationResources = {};
         }
     }
 
@@ -1290,6 +1311,7 @@ export class CemElementRuntime {
             eventPayloads: hydrationSnapshot?.eventPayloads ?? {},
             httpResources: {},
             localStorageResources: {},
+            locationResources: {},
             resourceRevisions: {},
         };
         const observer = island.ownerDocument.defaultView?.MutationObserver;
@@ -1367,7 +1389,7 @@ export class CemElementRuntime {
         return this.bindRenderedResourceSliceElements(
             instance,
             compiled,
-            Array.from(rendered.querySelectorAll('module-url,http-request,local-storage')),
+            Array.from(rendered.querySelectorAll('module-url,http-request,local-storage,location-element')),
             token
         );
     }
@@ -1381,7 +1403,7 @@ export class CemElementRuntime {
         return this.bindRenderedResourceSliceElements(
             instance,
             compiled,
-            renderedElementsBetween(bounds, 'module-url,http-request,local-storage'),
+            renderedElementsBetween(bounds, 'module-url,http-request,local-storage,location-element'),
             token
         );
     }
@@ -1404,6 +1426,7 @@ export class CemElementRuntime {
             const specifier = element.getAttribute('src')?.trim() ?? '';
             const httpRequest = localName === 'http-request' ? readHttpRequestDeclaration(element) : null;
             const localStorage = localName === 'local-storage' ? readLocalStorageDeclaration(element) : null;
+            const locationElement = localName === 'location-element' ? readLocationElementDeclaration(element) : null;
             element.remove();
             if (localName === 'module-url') {
                 if (!sliceName || !specifier) {
@@ -1428,6 +1451,10 @@ export class CemElementRuntime {
             }
             if (localStorage) {
                 this.bindLocalStorageResource(instance, compiled, localStorage);
+                continue;
+            }
+            if (locationElement) {
+                this.bindLocationResource(instance, compiled, locationElement);
             }
         }
         if (moduleTasks.length === 0 && httpSettled.length === 0) {
@@ -1551,7 +1578,7 @@ export class CemElementRuntime {
             );
         } else {
             const sliceValue = state.slices[declaration.sliceName];
-            if (!localStorageValuesEqual(sliceValue, active.lastValue)) {
+            if (!resourceValuesEqual(sliceValue, active.lastValue)) {
                 nextValue = sliceValue;
                 nextRawValue = localStorageValueToString(declaration.storageType, nextValue);
                 writeLocalStorageRaw(storage, declaration.key, nextRawValue);
@@ -1586,7 +1613,7 @@ export class CemElementRuntime {
         source: LocalStorageSliceSource,
         active: ActiveLocalStorageResource | undefined
     ): boolean {
-        const changed = !localStorageValuesEqual(state.slices[declaration.sliceName], value);
+        const changed = !resourceValuesEqual(state.slices[declaration.sliceName], value);
         if (changed) {
             state.slices[declaration.sliceName] = value;
         }
@@ -1673,6 +1700,130 @@ export class CemElementRuntime {
         return () => {
             window.removeEventListener('storage', listener);
             window.removeEventListener(LOCAL_STORAGE_EVENT, listener);
+        };
+    }
+
+    private bindLocationResource(
+        instance: HTMLElement,
+        compiled: CompiledDeclaration,
+        declaration: LocationElementDeclaration
+    ): void {
+        const window = instance.ownerDocument.defaultView;
+        if (!window) {
+            this.recordDiagnostics(instance, [
+                resourceDiagnostic(
+                    'cem-element.location_unavailable',
+                    'location-element cannot read a URL in this browser context',
+                    compiled.producedTag,
+                    'warning'
+                ),
+            ]);
+            return;
+        }
+
+        const island = this.ensureDataIsland(instance);
+        const state = this.ensureInstanceState(instance, compiled, island);
+        const key = locationResourceKey(window, instance.ownerDocument, declaration);
+        let active: ActiveLocationResource | undefined = state.locationResources[declaration.sliceName];
+        if (active && active.key !== key) {
+            active.destroy?.();
+            delete state.locationResources[declaration.sliceName];
+            active = undefined;
+        }
+
+        if (active) {
+            return;
+        }
+
+        const value = readLocationValue(window, instance.ownerDocument, declaration);
+        const changed = this.writeLocationSlice(state, declaration, value, 'initial-read', active);
+        active = this.ensureActiveLocationResource(instance, compiled, state, declaration, key, value);
+        active.lastValue = value;
+        if (changed) {
+            queueMicrotask(() => {
+                if (instance.isConnected) {
+                    this.renderInstance(instance, compiled);
+                }
+            });
+        }
+    }
+
+    private writeLocationSlice(
+        state: InstanceState,
+        declaration: LocationElementDeclaration,
+        value: unknown,
+        source: LocationSliceSource,
+        active: ActiveLocationResource | undefined
+    ): boolean {
+        const changed = !resourceValuesEqual(state.slices[declaration.sliceName], value);
+        if (changed) {
+            state.slices[declaration.sliceName] = value;
+        }
+        state.eventPayloads[declaration.sliceName] = {
+            type: 'location-element',
+            href: declaration.href ?? null,
+            live: declaration.live,
+            source,
+            value,
+        };
+        if (active) {
+            active.lastValue = value;
+        }
+        return changed;
+    }
+
+    private ensureActiveLocationResource(
+        instance: HTMLElement,
+        compiled: CompiledDeclaration,
+        state: InstanceState,
+        declaration: LocationElementDeclaration,
+        key: string,
+        value: unknown
+    ): ActiveLocationResource {
+        const existing = state.locationResources[declaration.sliceName];
+        if (existing) {
+            return existing;
+        }
+        const active: ActiveLocationResource = {
+            key,
+            live: declaration.live,
+            lastValue: value,
+        };
+        if (declaration.live && declaration.href === undefined) {
+            active.destroy = this.bindLocationLiveListener(instance, compiled, state, declaration, active);
+        }
+        state.locationResources[declaration.sliceName] = active;
+        return active;
+    }
+
+    private bindLocationLiveListener(
+        instance: HTMLElement,
+        compiled: CompiledDeclaration,
+        state: InstanceState,
+        declaration: LocationElementDeclaration,
+        active: ActiveLocationResource
+    ): () => void {
+        const window = instance.ownerDocument.defaultView;
+        if (!window) {
+            return () => undefined;
+        }
+        ensureTrackedLocation(window);
+        const listener = () => {
+            const value = readLocationValue(window, instance.ownerDocument, declaration);
+            if (this.writeLocationSlice(state, declaration, value, 'location-event', active)) {
+                this.renderInstance(instance, compiled);
+            }
+        };
+        window.addEventListener('popstate', listener);
+        window.addEventListener('hashchange', listener);
+        window.addEventListener(LOCATION_EVENT, listener);
+        const navigation = (window as Window & { navigation?: EventTarget }).navigation;
+        navigation?.addEventListener('navigate', listener);
+        return () => {
+            window.removeEventListener('popstate', listener);
+            window.removeEventListener('hashchange', listener);
+            window.removeEventListener(LOCATION_EVENT, listener);
+            navigation?.removeEventListener('navigate', listener);
         };
     }
 
@@ -1998,7 +2149,7 @@ export class CemElementRuntime {
         const mergeOptions = {
             preserveElementChildren: (current: Element) =>
                 this.declarations.has(current.localName) && directDataIsland(current) !== undefined,
-            transientElementTags: ['module-url', 'http-request', 'local-storage'],
+            transientElementTags: ['module-url', 'http-request', 'local-storage', 'location-element'],
         };
         if (previous) {
             const bounds = this.ensureRenderBounds(instance, island);
@@ -2506,6 +2657,19 @@ function readLocalStorageDeclaration(element: Element): LocalStorageDeclaration 
     };
 }
 
+function readLocationElementDeclaration(element: Element): LocationElementDeclaration | null {
+    const sliceName = element.getAttribute('slice')?.trim();
+    if (!sliceName) {
+        return null;
+    }
+    const href = element.getAttribute('href')?.trim();
+    return {
+        sliceName,
+        href: href && href.length > 0 ? href : undefined,
+        live: booleanAttribute(element, 'live'),
+    };
+}
+
 function httpRequestHeaders(element: Element): Record<string, string> {
     const headers: Record<string, string> = {};
     for (const attribute of Array.from(element.attributes)) {
@@ -2533,6 +2697,7 @@ function optionalAttribute(element: Element, name: string): string | undefined {
 }
 
 type LocalStorageSliceSource = 'initial-read' | 'value-attribute' | 'slice-write' | 'storage-event' | 'retained';
+type LocationSliceSource = 'initial-read' | 'location-event';
 
 function sameLocalStorageDeclaration(active: ActiveLocalStorageResource, declaration: LocalStorageDeclaration): boolean {
     return active.key === declaration.key && active.storageType === declaration.storageType && active.live === declaration.live;
@@ -2589,6 +2754,107 @@ function localStorageChangedKey(event: Event): string | null {
     }
     const detail = (event as CustomEvent<{ key?: string | null }>).detail;
     return detail?.key ?? null;
+}
+
+function locationResourceKey(
+    window: Window,
+    document: Document,
+    declaration: LocationElementDeclaration
+): string {
+    return stableJson({
+        scope: declaration.href === undefined ? 'window.location' : 'href',
+        href: declaration.href ?? null,
+        baseUrl: document.baseURI,
+        live: declaration.href === undefined ? declaration.live : false,
+        origin: declaration.href === undefined ? window.location.origin : null,
+    });
+}
+
+function readLocationValue(
+    window: Window,
+    document: Document,
+    declaration: LocationElementDeclaration
+): Record<string, unknown> {
+    try {
+        const url = declaration.href === undefined
+            ? new URL(window.location.href)
+            : new URL(declaration.href, document.baseURI);
+        return locationUrlToRecord(url, declaration.href === undefined ? 'window' : 'href');
+    } catch (error) {
+        return {
+            kind: 'location',
+            source: declaration.href === undefined ? 'window' : 'href',
+            href: declaration.href ?? null,
+            params: {},
+            paramEntries: [],
+            error: error instanceof Error ? error.message : String(error),
+        };
+    }
+}
+
+function locationUrlToRecord(url: URL, source: 'window' | 'href'): Record<string, unknown> {
+    const params: Record<string, string[]> = {};
+    const paramEntries: { name: string; value: string; values: string[]; text: string }[] = [];
+    const seen = new Set<string>();
+    for (const name of url.searchParams.keys()) {
+        if (seen.has(name)) {
+            continue;
+        }
+        seen.add(name);
+        const values = url.searchParams.getAll(name);
+        params[name] = values;
+        paramEntries.push({
+            name,
+            value: values[0] ?? '',
+            values,
+            text: values.join(','),
+        });
+    }
+    return {
+        kind: 'location',
+        source,
+        href: url.href,
+        origin: url.origin,
+        protocol: url.protocol,
+        username: url.username,
+        password: url.password,
+        host: url.host,
+        hostname: url.hostname,
+        port: url.port,
+        pathname: url.pathname,
+        search: url.search,
+        hash: url.hash,
+        params,
+        paramEntries,
+    };
+}
+
+function ensureTrackedLocation(window: Window): void {
+    if (locationTrackers.has(window)) {
+        return;
+    }
+    const historyRecord = window.history as unknown as Record<string, (...args: unknown[]) => unknown>;
+    for (const method of ['back', 'forward', 'go', 'pushState', 'replaceState']) {
+        const original = historyRecord[method];
+        if (typeof original !== 'function') {
+            continue;
+        }
+        try {
+            historyRecord[method] = function trackedHistoryMethod(...args: unknown[]): unknown {
+                const result = original.apply(window.history, args);
+                dispatchLocationChange(window, method);
+                return result;
+            };
+        } catch {
+            // Some hosts expose immutable History methods; native location events still work.
+        }
+    }
+    locationTrackers.add(window);
+}
+
+function dispatchLocationChange(window: Window, method: string): void {
+    const CustomEventCtor = ((window as Window & typeof globalThis).CustomEvent ?? CustomEvent) as typeof CustomEvent;
+    window.dispatchEvent(new CustomEventCtor(LOCATION_EVENT, { detail: { method } }));
 }
 
 function localStorageStringToValue(type: string, rawValue: string | null, document: Document): unknown {
@@ -2650,7 +2916,7 @@ function writeLocalStorageRaw(storage: Storage, key: string, rawValue: string | 
     }
 }
 
-function localStorageValuesEqual(left: unknown, right: unknown): boolean {
+function resourceValuesEqual(left: unknown, right: unknown): boolean {
     if (Object.is(left, right)) {
         return true;
     }
@@ -3372,6 +3638,7 @@ function renderPlanHasRuntimeResourceNodes(plan: RenderPlan): boolean {
             node.tag === 'module-url' ||
             node.tag === 'http-request' ||
             node.tag === 'local-storage' ||
+            node.tag === 'location-element' ||
             node.children.some(visit)
         );
     };

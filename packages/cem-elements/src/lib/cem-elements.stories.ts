@@ -1474,6 +1474,93 @@ export const LocalStorageResourceLifecycle: Story = {
     },
 };
 
+export const LocationElementResourceLifecycle: Story = {
+    render: () =>
+        storyPanel(
+            'location-element resource lifecycle',
+            'current URL hydration, href parsing, query params, and live history updates'
+        ),
+    play: async ({ canvasElement }) => {
+        const root = document.createElement('section');
+        root.setAttribute('aria-label', 'location-element resource lifecycle story');
+        canvasElement.appendChild(root);
+        const originalUrl = location.href;
+
+        try {
+            history.replaceState({}, '', './?cemLocation=start#initial');
+
+            const runtime = new CemElementRuntime({ declarationTag: 'cem-element-story-location' });
+            const declaration = buildCemMlDeclaration(
+                'cem-element-story-location',
+                'story-location-panel',
+                [
+                    '{location-element @slice=current @live=true}',
+                    '{location-element @slice=sample @href="https://example.test/docs/page?mode=demo&tag=one&tag=two#sample"}',
+                    '{article |',
+                    '  {output @class=current-hash | {$datadom.slices.current.hash}}',
+                    '  {output @class=sample-host | {$datadom.slices.sample.hostname}}',
+                    '  {ul @class=sample-params |',
+                    '    {cem:for-each @select="datadom.slices.sample.paramEntries" @as=param |',
+                    '      {li | {$param.name}: {$param.text}}',
+                    '    }',
+                    '  }',
+                    '}',
+                ].join('\n')
+            );
+            root.appendChild(declaration);
+            assert(runtime.registerDeclaration(declaration), 'location-element declaration registers');
+            await runtime.whenDeclarationSettled(declaration);
+
+            const instance = document.createElement('story-location-panel');
+            root.appendChild(instance);
+            await waitForCondition(
+                () => instance.querySelector('.current-hash')?.textContent?.trim() === '#initial',
+                'location-element hydrates current URL'
+            );
+            assertEqual(
+                instance.querySelector('.sample-host')?.textContent?.trim(),
+                'example.test',
+                'location-element parses href hostname'
+            );
+            assert(
+                Array.from(instance.querySelectorAll('.sample-params li')).some(
+                    (item) => item.textContent?.trim() === 'tag: one,two'
+                ),
+                'location-element exposes repeated params for rendering'
+            );
+
+            history.pushState({}, '', './?cemLocation=updated#live');
+            await waitForCondition(
+                () => instance.querySelector('.current-hash')?.textContent?.trim() === '#live',
+                'location-element live history update renders'
+            );
+
+            const snapshot = runtime.snapshotInstance(instance);
+            const current = snapshot.slices.current as {
+                hash?: string;
+                params?: Record<string, string[]>;
+                paramEntries?: { name?: string; text?: string }[];
+            };
+            const sample = snapshot.slices.sample as { hostname?: string; hash?: string };
+            assertEqual(current.hash, '#live', 'snapshot stores current hash');
+            assertEqual(current.params?.cemLocation?.[0], 'updated', 'snapshot stores current query params');
+            assertEqual(sample.hostname, 'example.test', 'snapshot stores parsed href hostname');
+            assertEqual(sample.hash, '#sample', 'snapshot stores parsed href hash');
+            assert(
+                current.paramEntries?.some((entry) => entry.name === 'cemLocation' && entry.text === 'updated') ?? false,
+                'snapshot stores renderable current param entries'
+            );
+            const payload = snapshot.eventPayloads.current as { type?: string; href?: string | null; live?: boolean };
+            assertEqual(payload.type, 'location-element', 'location-element stores resource payload metadata');
+            assertEqual(payload.href, null, 'location-element payload records current-window source');
+            assertEqual(payload.live, true, 'location-element payload records live mode');
+        } finally {
+            root.remove();
+            history.replaceState({}, '', originalUrl);
+        }
+    },
+};
+
 export const LocalSrcDeclarationLoadingParity: Story = {
     render: () => {
         const root = document.createElement('section');

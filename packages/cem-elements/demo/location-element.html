@@ -15,15 +15,30 @@
 
 <cem-element tag="cem-location-panel">
     <template type="text/cem-ml">
-        {slice @name=hash | #cem-location}
+        {location-element @slice=current @live=true}
+        {location-element @slice=sample @href="https://example.test/demo/path?mode=demo&tag=one&tag=two#fixture"}
         {article @class=demo-card |
-            {label | Hash {input @value="{$hash}" @slice=hash @slice-event=input @slice-value="{$target.value}"}}
-            {p | requested hash: {output | {$datadom.slices.hash}}}
-            {p @class=status-note | Reading and writing location through a resource slice is the immediate parity target.}
+            {button @type=button @data-location-push=true | Push URL}
+            {p | current href: {output @data-role=current-href | {$datadom.slices.current.href}}}
+            {p | current hash: {output @data-role=current-hash | {$datadom.slices.current.hash}}}
+            {p | sample host: {output @data-role=sample-host | {$datadom.slices.sample.hostname}}}
+            {p | sample hash: {output @data-role=sample-hash | {$datadom.slices.sample.hash}}}
+            {ul @class=sample-params |
+                {cem:for-each @select="datadom.slices.sample.paramEntries" @as=param |
+                    {li | {$param.name} = {$param.text}}
+                }
+            }
         }
     </template>
 </cem-element>
 
 <main><cem-location-panel></cem-location-panel></main>
+<script>
+    document.addEventListener('click', (event) => {
+        if (event.target?.matches?.('[data-location-push="true"]')) {
+            history.pushState({}, '', './location-element.html?mode=live#checked');
+        }
+    });
+</script>
 </body>
 </html>
