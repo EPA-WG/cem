@@ -9,8 +9,8 @@ history belongs in git history and the feature-specific docs linked below.
 1. Complete deferred `<cem-element>` demo parity now that the runtime/data-island pieces are in place.
    - Promote the new `packages/cem-elements/index.html` and `packages/cem-elements/demo/*.html` CEM-ML demos to the
      same functional coverage level as the copied `packages/custom-element/index.html` and `demo/*.html` pages.
-   - Close the current runtime gaps surfaced by those demos: focus-preserving DOM merge; scoped style containment; and
-     full demo-backed `cem:for-each` data feeds.
+   - Close the current runtime gaps surfaced by those demos: scoped style containment and full demo-backed `cem:for-each`
+     data feeds.
    - Implement Phase 1 of `<http-request>` as a CEM Elements resource primitive per
      [`cem-elements-http-request-design.md`](cem-elements-http-request-design.md) so CEM-ML demos can fetch JSON/XML
      payloads, project response data into slices, and drive `cem:for-each` over response records:
@@ -76,6 +76,8 @@ history belongs in git history and the feature-specific docs linked below.
        evidence;
      - [x] add event rerender no-op protection for slice events that resolve to unchanged data;
      - [x] add render-tree diff/no-op replacement protection so unchanged virtual render trees do not mutate browser DOM;
+     - [x] preserve focus and text selection for active form controls during render-plan DOM merge and retained-fragment
+       patching;
      - [x] implement property-first sequential DOM merge for materialized render-plan fragments, including
        `node.cemRenderNodeId`, SSR/debug marker mirroring from `data-cem-render-node-id`, retained element/text/comment
        updates, temporary same-parent render-id lookahead for reordered elements, and nested CEM-owned subtree

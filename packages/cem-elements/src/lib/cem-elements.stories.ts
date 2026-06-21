@@ -2553,6 +2553,48 @@ export const DirectRenderPlanPatchUsesCommentRanges: Story = {
     },
 };
 
+export const DirectRenderPlanPatchPreservesFocusedControl: Story = {
+    render: () => {
+        const root = document.createElement('section') as HTMLElement & {
+            __bounds?: { start: Comment; end: Comment };
+        };
+        root.setAttribute('aria-label', 'direct render-plan focus preservation story');
+        const host = document.createElement('div');
+        host.className = 'direct-focus-host';
+        const start = document.createComment('cem-render-start');
+        const end = document.createComment('cem-render-end');
+        host.append(start, end);
+        root.__bounds = { start, end };
+        root.append(host);
+        return root;
+    },
+    play: ({ canvasElement }) => {
+        const root = requiredElement(
+            canvasElement,
+            '[aria-label="direct render-plan focus preservation story"]'
+        ) as HTMLElement & { __bounds?: { start: Comment; end: Comment } };
+        const bounds = root.__bounds;
+        assert(bounds !== undefined, 'direct focus patch render bounds are available');
+        const host = requiredElement(root, '.direct-focus-host');
+
+        const first = directInputPatchPlan('abcdef', 'one');
+        applyRenderPlanToRange(bounds, first, document, { dynamicTextRanges: true });
+        const input = requiredElement(host, 'input') as HTMLInputElement;
+        input.focus();
+        input.setSelectionRange(2, 4, 'forward');
+
+        const second = directInputPatchPlan('abcdefghi', 'two');
+        const result = applyRenderPlanToRange(bounds, second, document, { dynamicTextRanges: true });
+        const retained = requiredElement(host, 'input') as HTMLInputElement;
+        assertEqual(result.mode, 'patch', 'focused control update patches in place');
+        assertEqual(retained === input, true, 'focused input node is retained');
+        assertEqual(document.activeElement === retained, true, 'focused input remains the active element');
+        assertEqual(retained.selectionStart, 2, 'focused input selection start is restored');
+        assertEqual(retained.selectionEnd, 4, 'focused input selection end is restored');
+        assertEqual(retained.selectionDirection, 'forward', 'focused input selection direction is restored');
+    },
+};
+
 export const UnchangedRenderPlanSkipsDomReplacement: Story = {
     render: () => {
         const root = document.createElement('section') as HTMLElement & {
@@ -4698,6 +4740,37 @@ function directPatchPlan(text: string): RenderPlan {
                 kind: 'text',
                 text,
                 sourceMapRef: { fidelity: 'dom-canonical', frame: 'direct:0/0' },
+            }],
+        }],
+    };
+}
+
+function directInputPatchPlan(value: string, revision: string): RenderPlan {
+    return {
+        producedTag: 'direct-focus-host',
+        instanceId: 'direct-focus-instance',
+        templateArtifactId: 'direct-focus-template',
+        dataRevision: revision,
+        outputTarget: 'light-dom',
+        scopePolicyStamp: 'direct-focus-scope',
+        nodes: [{
+            kind: 'element',
+            namespace: null,
+            tag: 'label',
+            renderNodeId: 'direct-focus-label',
+            attributes: [{ name: 'class', value: 'field' }],
+            sourceMapRef: { fidelity: 'dom-canonical', frame: 'direct-focus:0' },
+            children: [{
+                kind: 'element',
+                namespace: null,
+                tag: 'input',
+                renderNodeId: 'direct-focus-input',
+                attributes: [
+                    { name: 'type', value: 'text' },
+                    { name: 'value', value },
+                ],
+                sourceMapRef: { fidelity: 'dom-canonical', frame: 'direct-focus:0/0' },
+                children: [],
             }],
         }],
     };

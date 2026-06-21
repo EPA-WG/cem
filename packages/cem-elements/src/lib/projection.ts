@@ -1191,7 +1191,12 @@ export function mergeRenderedFragmentIntoRange(
     if (!parent || bounds.end.parentNode !== parent) {
         throw new Error('cem-element render bounds are not attached to the same parent');
     }
-    mergeChildNodes(parent, bounds.start.nextSibling as ChildNode | null, bounds.end, Array.from(rendered.childNodes), options);
+    const focus = captureRenderRangeFocus(bounds);
+    try {
+        mergeChildNodes(parent, bounds.start.nextSibling as ChildNode | null, bounds.end, Array.from(rendered.childNodes), options);
+    } finally {
+        restoreRenderRangeFocus(focus);
+    }
 }
 
 export function applyRenderPlanToRange(
@@ -1205,23 +1210,28 @@ export function applyRenderPlanToRange(
         throw new Error('cem-element render bounds are not attached to the same parent');
     }
 
-    const recovery = renderScopeRecoveryReason(bounds, plan, options);
-    if (recovery) {
-        replaceRangeWithRenderPlan(bounds, plan, document, options);
-        return {
-            mode: 'replaceScope',
-            diagnostics: [{
-                code: 'cem.render_plan_apply.replace_scope',
-                severity: recovery.reason === 'first-render' ? 'info' : 'warning',
-                reason: recovery.reason,
-                message: recovery.message,
-            }],
-        };
-    }
+    const focus = captureRenderRangeFocus(bounds);
+    try {
+        const recovery = renderScopeRecoveryReason(bounds, plan, options);
+        if (recovery) {
+            replaceRangeWithRenderPlan(bounds, plan, document, options);
+            return {
+                mode: 'replaceScope',
+                diagnostics: [{
+                    code: 'cem.render_plan_apply.replace_scope',
+                    severity: recovery.reason === 'first-render' ? 'info' : 'warning',
+                    reason: recovery.reason,
+                    message: recovery.message,
+                }],
+            };
+        }
 
-    const context: RenderPlanApplyContext = { plan, document, options };
-    mergeRenderPlanChildNodes(parent, bounds.start.nextSibling as ChildNode | null, bounds.end, plan.nodes, context);
-    return { mode: 'patch', diagnostics: [] };
+        const context: RenderPlanApplyContext = { plan, document, options };
+        mergeRenderPlanChildNodes(parent, bounds.start.nextSibling as ChildNode | null, bounds.end, plan.nodes, context);
+        return { mode: 'patch', diagnostics: [] };
+    } finally {
+        restoreRenderRangeFocus(focus);
+    }
 }
 
 function materializeNode(node: RenderPlanNode, plan: RenderPlan, document: Document): Node {
@@ -1256,6 +1266,19 @@ interface RenderPlanApplyContext {
     plan: RenderPlan;
     document: Document;
     options: RenderPlanApplyOptions;
+}
+
+interface RenderRangeFocusSnapshot {
+    bounds: RenderPlanDomRange;
+    element: Element;
+    renderId: string | null;
+    selection?: TextControlSelectionSnapshot;
+}
+
+interface TextControlSelectionSnapshot {
+    start: number;
+    end: number;
+    direction: 'forward' | 'backward' | 'none';
 }
 
 interface RenderPlanNodeMatch {
@@ -1673,6 +1696,141 @@ function syncAttributes(current: Element, desired: Element | ReadonlyMap<string,
 
 function isAttributeElement(value: Element | ReadonlyMap<string, string>): value is Element {
     return 'attributes' in value && typeof value.getAttribute === 'function';
+}
+
+function captureRenderRangeFocus(bounds: RenderPlanDomRange): RenderRangeFocusSnapshot | null {
+    const parent = bounds.start.parentNode;
+    const document = parent?.ownerDocument;
+    const active = document?.activeElement;
+    if (!active || !isNodeInsideRenderRange(active, bounds)) {
+        return null;
+    }
+    return {
+        bounds,
+        element: active,
+        renderId: renderIdentity(active),
+        selection: captureTextControlSelection(active),
+    };
+}
+
+function restoreRenderRangeFocus(snapshot: RenderRangeFocusSnapshot | null): void {
+    if (!snapshot) {
+        return;
+    }
+    const element = focusRestorationElement(snapshot);
+    if (!element) {
+        return;
+    }
+    const document = element.ownerDocument;
+    if (document.activeElement !== element) {
+        focusElement(element);
+    }
+    restoreTextControlSelection(element, snapshot.selection);
+}
+
+function focusRestorationElement(snapshot: RenderRangeFocusSnapshot): Element | null {
+    if (snapshot.element.isConnected) {
+        return snapshot.element;
+    }
+    return snapshot.renderId ? findElementByRenderIdentityInRange(snapshot.bounds, snapshot.renderId) : null;
+}
+
+function focusElement(element: Element): void {
+    const focusable = element as Element & { focus?: (options?: FocusOptions) => void };
+    if (typeof focusable.focus !== 'function') {
+        return;
+    }
+    try {
+        focusable.focus({ preventScroll: true });
+    } catch {
+        focusable.focus();
+    }
+}
+
+function captureTextControlSelection(element: Element): TextControlSelectionSnapshot | undefined {
+    const control = element as Element & {
+        selectionStart?: number | null;
+        selectionEnd?: number | null;
+        selectionDirection?: 'forward' | 'backward' | 'none' | null;
+    };
+    try {
+        const start = control.selectionStart;
+        const end = control.selectionEnd;
+        if (typeof start !== 'number' || typeof end !== 'number') {
+            return undefined;
+        }
+        return { start, end, direction: control.selectionDirection ?? 'none' };
+    } catch {
+        return undefined;
+    }
+}
+
+function restoreTextControlSelection(element: Element, selection: TextControlSelectionSnapshot | undefined): void {
+    if (!selection) {
+        return;
+    }
+    const control = element as Element & {
+        value?: string;
+        setSelectionRange?: (start: number, end: number, direction?: 'forward' | 'backward' | 'none') => void;
+    };
+    if (typeof control.setSelectionRange !== 'function') {
+        return;
+    }
+    const valueLength = typeof control.value === 'string' ? control.value.length : Number.POSITIVE_INFINITY;
+    const start = Math.min(selection.start, valueLength);
+    const end = Math.min(selection.end, valueLength);
+    try {
+        control.setSelectionRange(start, end, selection.direction);
+    } catch {
+        // Some input types do not support text selection. Focus preservation still applies.
+    }
+}
+
+function isNodeInsideRenderRange(node: Node, bounds: RenderPlanDomRange): boolean {
+    const parent = bounds.start.parentNode;
+    if (!parent || bounds.end.parentNode !== parent) {
+        return false;
+    }
+    let top: Node | null = node;
+    while (top && top.parentNode !== parent) {
+        top = top.parentNode;
+    }
+    if (!top) {
+        return false;
+    }
+    let current = bounds.start.nextSibling;
+    while (current && current !== bounds.end) {
+        if (current === top) {
+            return true;
+        }
+        current = current.nextSibling;
+    }
+    return false;
+}
+
+function findElementByRenderIdentityInRange(bounds: RenderPlanDomRange, id: string): Element | null {
+    let current = bounds.start.nextSibling;
+    while (current && current !== bounds.end) {
+        const found = findElementByRenderIdentity(current, id);
+        if (found) {
+            return found;
+        }
+        current = current.nextSibling;
+    }
+    return null;
+}
+
+function findElementByRenderIdentity(node: Node, id: string): Element | null {
+    if (node.nodeType === 1 && renderIdentity(node) === id) {
+        return node as Element;
+    }
+    for (let child = node.firstChild; child; child = child.nextSibling) {
+        const found = findElementByRenderIdentity(child, id);
+        if (found) {
+            return found;
+        }
+    }
+    return null;
 }
 
 function renderIdentity(node: Node): string | null {
