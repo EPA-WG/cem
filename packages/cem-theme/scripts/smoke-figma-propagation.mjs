@@ -68,7 +68,7 @@ async function loadModeFiles(errors) {
 }
 
 async function validateFixtureBindings(errors) {
-    let fixture = "";
+    let fixture;
     try {
         fixture = await fs.readFile(SAMPLE_FIXTURE, "utf8");
     } catch (err) {
