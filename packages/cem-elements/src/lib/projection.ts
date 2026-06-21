@@ -115,6 +115,7 @@ export interface RenderedFragmentMergeOptions {
 
 export interface RenderPlanApplyOptions extends RenderedFragmentMergeOptions {
     dynamicTextRanges?: boolean;
+    transientElementTags?: readonly string[];
 }
 
 export interface RenderPlanApplyDiagnostic {
@@ -1203,7 +1204,7 @@ export function applyRenderPlanToRange(
         throw new Error('cem-element render bounds are not attached to the same parent');
     }
 
-    const recovery = renderScopeRecoveryReason(bounds, plan);
+    const recovery = renderScopeRecoveryReason(bounds, plan, options);
     if (recovery) {
         replaceRangeWithRenderPlan(bounds, plan, document, options);
         return {
@@ -1285,9 +1286,15 @@ function replaceRangeWithRenderPlan(
     }
 }
 
-function renderScopeRecoveryReason(bounds: RenderPlanDomRange, plan: RenderPlan): RenderScopeRecoveryReason | undefined {
+function renderScopeRecoveryReason(
+    bounds: RenderPlanDomRange,
+    plan: RenderPlan,
+    options: RenderPlanApplyOptions
+): RenderScopeRecoveryReason | undefined {
     const currentIds = elementRenderIdentitiesBetween(bounds.start.nextSibling, bounds.end);
-    const desiredIds = plan.nodes.flatMap((node) => (node.kind === 'element' ? [node.renderNodeId] : []));
+    const desiredIds = plan.nodes.flatMap((node) =>
+        node.kind === 'element' && !isTransientRenderPlanElement(node, options) ? [node.renderNodeId] : []
+    );
     if (currentIds.length === 0) {
         return undefined;
     }
@@ -1306,6 +1313,13 @@ function renderScopeRecoveryReason(bounds: RenderPlanDomRange, plan: RenderPlan)
         };
     }
     return undefined;
+}
+
+function isTransientRenderPlanElement(
+    node: Extract<RenderPlanNode, { kind: 'element' }>,
+    options: RenderPlanApplyOptions
+): boolean {
+    return options.transientElementTags?.includes(node.tag) ?? false;
 }
 
 function elementRenderIdentitiesBetween(first: ChildNode | null, end: Node): string[] {

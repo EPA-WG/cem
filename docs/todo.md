@@ -56,7 +56,7 @@ history belongs in git history and the feature-specific docs linked below.
        preservation;
      - [x] extend DOM merge from fragment parity to direct render-plan patch application with explicit comment-range
        dynamic regions and transaction-level `replaceScope` recovery diagnostics;
-     - [ ] extend direct render-plan patching to runtime directive setup for `slice-event` and `module-url`, then retire
+     - [x] extend direct render-plan patching to runtime directive setup for `slice-event` and `module-url`, then retire
        the materialized-fragment preprocessing fallback for rerenders that contain runtime directives;
      - [ ] Low priority: implement and cross-browser validate dynamic internal `<textarea>` handling using an invisible
        child-node merge model plus explicit `.value` projection; include SSR loader conversion from a

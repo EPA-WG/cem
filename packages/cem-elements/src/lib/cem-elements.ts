@@ -3,7 +3,6 @@ import {
     applyRenderPlanToRange,
     edgeContentAddress,
     materializeRenderPlan,
-    mergeRenderedFragmentIntoRange,
     projectTemplate,
     readTemplateSource,
     renderPlansHaveDomChanges,
@@ -282,6 +281,14 @@ interface InstanceState {
     observer?: MutationObserver;
 }
 
+interface SliceEventBinding {
+    instance: HTMLElement;
+    sliceName: string;
+    eventName: string;
+    expression: string;
+    listener: EventListener;
+}
+
 const DEFAULT_DECLARATION_TAG = 'cem-element';
 const DEFAULT_SCOPE_POLICY_STAMP = 'phase-3a-local-default';
 const DEFAULT_PRIVACY_POLICY_STAMP = 'local-only';
@@ -468,6 +475,7 @@ export class CemElementRuntime {
     private readonly renderBounds = new WeakMap<HTMLElement, RenderBounds>();
     private readonly committedRenderPlans = new WeakMap<HTMLElement, RenderPlan>();
     private readonly instanceStates = new WeakMap<HTMLElement, InstanceState>();
+    private readonly sliceEventBindings = new WeakMap<Element, SliceEventBinding>();
     private readonly renderTokens = new WeakMap<HTMLElement, number>();
     private readonly renderSettled = new WeakMap<HTMLElement, Promise<void>>();
     private readonly declarationSettled = new WeakMap<object, Promise<void>>();
@@ -1119,40 +1127,102 @@ export class CemElementRuntime {
     private bindRenderedSliceEvents(
         instance: HTMLElement,
         compiled: CompiledDeclaration,
-        rendered: DocumentFragment
+        rendered: ParentNode
     ): void {
         for (const element of Array.from(rendered.querySelectorAll('[slice][slice-event]'))) {
-            const sliceName = element.getAttribute('slice')?.trim();
-            const eventName = element.getAttribute('slice-event')?.trim();
-            if (!sliceName || !eventName) {
-                continue;
-            }
-            const expression = element.getAttribute('slice-value') ?? '{$target.value}';
-            element.removeAttribute('slice');
-            element.removeAttribute('slice-event');
-            element.removeAttribute('slice-value');
-            element.addEventListener(eventName, (event) => {
-                this.writeSliceFromEvent(instance, compiled, sliceName, expression, event);
-            });
+            this.bindRenderedSliceEventElement(instance, compiled, element);
         }
+    }
+
+    private bindRenderedSliceEventsInRange(
+        instance: HTMLElement,
+        compiled: CompiledDeclaration,
+        bounds: RenderBounds
+    ): void {
+        for (const element of renderedElementsBetween(bounds, '[slice][slice-event]')) {
+            this.bindRenderedSliceEventElement(instance, compiled, element);
+        }
+    }
+
+    private bindRenderedSliceEventElement(
+        instance: HTMLElement,
+        compiled: CompiledDeclaration,
+        element: Element
+    ): void {
+        const sliceName = element.getAttribute('slice')?.trim();
+        const eventName = element.getAttribute('slice-event')?.trim();
+        if (!sliceName || !eventName) {
+            return;
+        }
+        const expression = element.getAttribute('slice-value') ?? '{$target.value}';
+        element.removeAttribute('slice');
+        element.removeAttribute('slice-event');
+        element.removeAttribute('slice-value');
+
+        const existing = this.sliceEventBindings.get(element);
+        if (
+            existing &&
+            existing.instance === instance &&
+            existing.sliceName === sliceName &&
+            existing.eventName === eventName &&
+            existing.expression === expression
+        ) {
+            return;
+        }
+        if (existing) {
+            element.removeEventListener(existing.eventName, existing.listener);
+        }
+
+        const listener: EventListener = (event) => {
+            this.writeSliceFromEvent(instance, compiled, sliceName, expression, event);
+        };
+        element.addEventListener(eventName, listener);
+        this.sliceEventBindings.set(element, { instance, sliceName, eventName, expression, listener });
     }
 
     private bindRenderedResourceSlices(
         instance: HTMLElement,
         compiled: CompiledDeclaration,
-        rendered: DocumentFragment,
+        rendered: ParentNode,
         token: number
     ): Promise<void> {
-        const resourceElements = Array.from(rendered.querySelectorAll('module-url'));
+        return this.bindRenderedResourceSliceElements(
+            instance,
+            compiled,
+            Array.from(rendered.querySelectorAll('module-url')),
+            token
+        );
+    }
+
+    private bindRenderedResourceSlicesInRange(
+        instance: HTMLElement,
+        compiled: CompiledDeclaration,
+        bounds: RenderBounds,
+        token: number
+    ): Promise<void> {
+        return this.bindRenderedResourceSliceElements(
+            instance,
+            compiled,
+            renderedElementsBetween(bounds, 'module-url'),
+            token
+        );
+    }
+
+    private bindRenderedResourceSliceElements(
+        instance: HTMLElement,
+        compiled: CompiledDeclaration,
+        resourceElements: Element[],
+        token: number
+    ): Promise<void> {
         if (resourceElements.length === 0) {
             return Promise.resolve();
         }
 
         const tasks: Promise<{ sliceName: string; specifier: string; value: string; error?: unknown }>[] = [];
         for (const element of resourceElements) {
-            element.remove();
             const sliceName = element.getAttribute('slice')?.trim();
             const specifier = element.getAttribute('src')?.trim();
+            element.remove();
             if (!sliceName || !specifier) {
                 continue;
             }
@@ -1277,30 +1347,25 @@ export class CemElementRuntime {
         const mergeOptions = {
             preserveElementChildren: (current: Element) =>
                 this.declarations.has(current.localName) && directDataIsland(current) !== undefined,
+            transientElementTags: ['module-url'],
         };
-        if (previous && !renderPlanNeedsMaterializedDirectivePass(renderPlan)) {
-            const result = applyRenderPlanToRange(
-                this.ensureRenderBounds(instance, island),
-                renderPlan,
-                instance.ownerDocument,
-                mergeOptions
-            );
+        if (previous) {
+            const bounds = this.ensureRenderBounds(instance, island);
+            const result = applyRenderPlanToRange(bounds, renderPlan, instance.ownerDocument, mergeOptions);
             this.recordDiagnostics(
                 instance,
                 result.diagnostics.map((diagnostic) => renderPlanApplyDiagnostic(diagnostic, compiled.producedTag))
             );
+            this.bindRenderedSliceEventsInRange(instance, compiled, bounds);
+            const resourcesSettled = this.bindRenderedResourceSlicesInRange(instance, compiled, bounds, token);
             this.committedRenderPlans.set(instance, renderPlan);
-            return Promise.resolve();
+            return resourcesSettled;
         }
 
         const fragment = materializeRenderPlan(renderPlan, instance.ownerDocument);
         this.bindRenderedSliceEvents(instance, compiled, fragment);
         const resourcesSettled = this.bindRenderedResourceSlices(instance, compiled, fragment, token);
-        if (previous) {
-            mergeRenderedFragmentIntoRange(this.ensureRenderBounds(instance, island), fragment, mergeOptions);
-        } else {
-            this.replaceRenderedContent(instance, island, fragment);
-        }
+        this.replaceRenderedContent(instance, island, fragment);
         this.committedRenderPlans.set(instance, renderPlan);
         return resourcesSettled;
     }
@@ -1941,6 +2006,22 @@ function firstRenderedElementBetween(bounds: RenderBounds): Element | undefined 
     return undefined;
 }
 
+function renderedElementsBetween(bounds: RenderBounds, selector: string): Element[] {
+    const elements: Element[] = [];
+    let current = bounds.start.nextSibling;
+    while (current && current !== bounds.end) {
+        if (current.nodeType === 1) {
+            const element = current as Element;
+            if (element.matches(selector)) {
+                elements.push(element);
+            }
+            elements.push(...Array.from(element.querySelectorAll(selector)));
+        }
+        current = current.nextSibling;
+    }
+    return elements;
+}
+
 function isDataIslandSnapshot(value: unknown): value is DataIslandSnapshot {
     if (!value || typeof value !== 'object') {
         return false;
@@ -2052,26 +2133,6 @@ function renderPlanHasRuntimeResourceNodes(plan: RenderPlan): boolean {
         return node.tag === 'module-url' || node.children.some(visit);
     };
     return plan.nodes.some(visit);
-}
-
-function renderPlanNeedsMaterializedDirectivePass(plan: RenderPlan): boolean {
-    const visit = (node: RenderPlan['nodes'][number]): boolean => {
-        if (node.kind !== 'element') {
-            return false;
-        }
-        if (node.tag === 'module-url') {
-            return true;
-        }
-        if (hasRenderPlanAttribute(node, 'slice') && hasRenderPlanAttribute(node, 'slice-event')) {
-            return true;
-        }
-        return node.children.some(visit);
-    };
-    return plan.nodes.some(visit);
-}
-
-function hasRenderPlanAttribute(node: Extract<RenderPlan['nodes'][number], { kind: 'element' }>, name: string): boolean {
-    return node.attributes.some((attribute) => attribute.name === name);
 }
 
 function templateValues(

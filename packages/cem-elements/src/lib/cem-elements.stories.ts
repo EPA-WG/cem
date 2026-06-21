@@ -1229,6 +1229,16 @@ export const UriAndModuleResolutionPolicy: Story = {
         assertEqual(modulePayload.type, 'module-url', 'module-url stores resource payload metadata');
         assertEqual(modulePayload.src, specifier, 'module-url payload records the source specifier');
         assertEqual(modulePayload.value, 'https://cdn.example.test/a/icon.svg', 'module-url payload records the URL');
+        const retainedModuleAnchor = requiredElement(moduleA, 'a.asset');
+        moduleA.setAttribute('unused', 'rerender-module-url');
+        await nextFrame();
+        await moduleRuntimeA.whenRenderSettled(moduleA);
+        assertEqual(
+            requiredElement(moduleA, 'a.asset') === retainedModuleAnchor,
+            true,
+            'direct module-url setup keeps retained rendered nodes across rerender'
+        );
+        assert(moduleA.querySelector('module-url') === null, 'direct module-url setup removes helper nodes after rerender');
 
         const failureRuntime = new CemElementRuntime({
             declarationTag: 'cem-element-story-uri-module-fail',
@@ -1736,6 +1746,18 @@ export const SliceEventInvalidationRerenders: Story = {
             (requiredElement(instance, 'input') as HTMLInputElement).getAttribute('value'),
             'Tokens',
             'rerendered controls receive the updated slice value'
+        );
+        const retainedInput = requiredElement(instance, 'input') as HTMLInputElement;
+        assertEqual(retainedInput === input, true, 'slice-event rerender keeps the retained input node');
+        assert(!retainedInput.hasAttribute('slice-event'), 'direct slice-event setup removes metadata after rerender');
+
+        retainedInput.value = 'Again';
+        retainedInput.dispatchEvent(new Event('input', { bubbles: true }));
+        await nextFrame();
+        assertEqual(
+            requiredElement(instance, 'output').textContent,
+            'Again',
+            'retained slice-event listener updates the slice once on a later rerender'
         );
     },
 };
