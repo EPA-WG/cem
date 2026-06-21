@@ -260,6 +260,7 @@ Current local gate evidence:
 - `node tools/scripts/validate-package-metadata.mjs` — passed.
 - `yarn nx run @epa-wg/cem-theme:verify:phase13` — passed.
 - `yarn nx run cem-elements:verify` — passed.
+- `yarn nx run cem-elements:verify-edge-ssr` — passed.
 - `yarn nx run @epa-wg/cem-components:verify` — passed.
 - `yarn nx run @epa-wg/custom-element:verify` — passed.
 - `npm --cache /tmp/cem-npm-cache pack --dry-run --json` from the four publish
