@@ -2498,6 +2498,57 @@ export const HostAndSourceHashUidSeedFallbacks: Story = {
     },
 };
 
+export const ScopeUidDuplicateDiagnostics: Story = {
+    render: () => {
+        const root = document.createElement('section') as HTMLElement & {
+            __runtime?: CemElementRuntime;
+            __first?: HTMLElement;
+            __second?: HTMLElement;
+        };
+        root.setAttribute('aria-label', 'scope UID duplicate diagnostics story');
+
+        const runtime = new CemElementRuntime({
+            declarationTag: 'cem-element-story-scope-duplicate',
+            validateGeneratedIds: true,
+        });
+        const first = buildCemMlDeclaration(
+            'cem-element-story-scope-duplicate',
+            'story-collision-card',
+            '{button | first}'
+        );
+        first.setAttribute('uid-seed', 'collision');
+        const second = buildCemMlDeclaration(
+            'cem-element-story-scope-duplicate',
+            'story_collision-card',
+            '{button | second}'
+        );
+        second.setAttribute('uid-seed', 'collision');
+
+        runtime.registerDeclaration(first);
+        runtime.registerDeclaration(second);
+        root.__runtime = runtime;
+        root.__first = first;
+        root.__second = second;
+        return root;
+    },
+    play: async ({ canvasElement }) => {
+        const root = requiredElement(canvasElement, '[aria-label="scope UID duplicate diagnostics story"]') as HTMLElement & {
+            __runtime?: CemElementRuntime;
+            __first?: HTMLElement;
+            __second?: HTMLElement;
+        };
+        const runtime = root.__runtime;
+        const first = root.__first;
+        const second = root.__second;
+        assert(runtime && first && second, 'duplicate UID story fixtures are available');
+
+        await runtime.whenDeclarationSettled(first);
+        await runtime.whenDeclarationSettled(second);
+        assertEqual(runtime.diagnosticsFor(first).length, 0, 'the first generated scope owner is accepted');
+        assertDiagnostic(runtime.diagnosticsFor(second), 'cem-element.scope_uid_duplicate');
+    },
+};
+
 export const SsrHydrationFromSerializedSnapshot: Story = {
     render: () => {
         const root = document.createElement('section');

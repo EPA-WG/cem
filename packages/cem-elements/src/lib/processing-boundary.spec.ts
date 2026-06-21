@@ -171,6 +171,39 @@ describe('host processing boundary contracts', () => {
         })).toBe('cem-scope-story-card-uworker-0-counter-7-p0-2');
     });
 
+    it('covers the accepted UID matrix for stable persisted output', () => {
+        const stableInput = {
+            producedTag: 'story-card',
+            uidSeed: 'docs/public seed: card',
+            occurrencePath: '0.2.1',
+        };
+        const first = generateScopeUid(stableInput);
+        const repeated = generateScopeUid(stableInput);
+        expect(repeated).toBe(first);
+        expect(first).toBe('cem-scope-story-card-udocsz2fpublicz20seedz3az20card-p0-2-1');
+        expect(first).not.toMatch(/[ /:@]/);
+
+        expect(generateScopeUid({
+            ...stableInput,
+            occurrencePath: '0.2.2',
+        })).not.toBe(first);
+
+        expect(generateScopeUid({
+            ...stableInput,
+            runtimeSeed: 'worker-17-counter-99',
+        })).toBe(first);
+
+        const scheduledOutOfOrder = [
+            generateScopeUid({ ...stableInput, occurrencePath: '0.3' }),
+            generateScopeUid({ ...stableInput, occurrencePath: '0.1' }),
+            generateScopeUid({ ...stableInput, occurrencePath: '0.2' }),
+        ].sort();
+        const scheduledInOrder = ['0.1', '0.2', '0.3']
+            .map((occurrencePath) => generateScopeUid({ ...stableInput, occurrencePath }))
+            .sort();
+        expect(scheduledOutOfOrder).toEqual(scheduledInOrder);
+    });
+
     it('rewrites scoped CSS with nesting, host aliases, keyframes, and suppressed globals', () => {
         const result = scopeCssText(
             [

@@ -58,13 +58,13 @@ history belongs in git history and the feature-specific docs linked below.
        dynamic regions and transaction-level `replaceScope` recovery diagnostics;
      - [x] extend direct render-plan patching to runtime directive setup for `slice-event` and `module-url`, then retire
        the materialized-fragment preprocessing fallback for rerenders that contain runtime directives;
-     - [ ] Low priority: implement and cross-browser validate dynamic internal `<textarea>` handling using an invisible
-       child-node merge model plus explicit `.value` projection; include SSR loader conversion from a
-       loader-friendly `<xsl:element name="textarea">`-style or equivalent CEM-ML placeholder form.
-     - [ ] add the design test matrix as executable gates: repeated builds, occurrence paths, parallel scheduling,
+     - [x] add the design test matrix as executable gates: repeated builds, occurrence paths, parallel scheduling,
        same-tag separate scopes, same-seed collision diagnostics, blank seed, runtime fallback, SSR/browser parity,
        dynamic-data exceptions, hydration no-op, event no-op rerender, scoped CSS isolation, `:host`/`:global`/`:root`,
        keyframes, `@import`, unsupported CSS diagnostics, and public-safe seed examples.
+     - [ ] Deferred: implement and cross-browser validate dynamic internal `<textarea>` handling using an invisible
+       child-node merge model plus explicit `.value` projection; include SSR loader conversion from a
+       loader-friendly `<xsl:element name="textarea">`-style or equivalent CEM-ML placeholder form.
    - Wire the demo parity checks into `yarn nx run cem-elements:verify` once the pages are executable release fixtures.
 
 Completed release-gate phases are recorded in:
