@@ -4280,6 +4280,7 @@ mod tests {
                     },
                 },
             ],
+            importmap_rewrites: Vec::new(),
             exports: vec![
                 TransformGraphExport {
                     id: "main".to_owned(),
@@ -4394,6 +4395,7 @@ mod tests {
                     execution: 32,
                 },
             }],
+            importmap_rewrites: Vec::new(),
             exports: vec![TransformGraphExport {
                 id: "joined".to_owned(),
                 input: "collection".to_owned(),
@@ -4507,6 +4509,7 @@ mod tests {
                     },
                 },
             ],
+            importmap_rewrites: Vec::new(),
             exports: vec![TransformGraphExport {
                 id: "joined".to_owned(),
                 input: "collection".to_owned(),
@@ -4593,6 +4596,7 @@ mod tests {
                     execution: 42,
                 },
             }],
+            importmap_rewrites: Vec::new(),
             exports: vec![TransformGraphExport {
                 id: "chart-svg".to_owned(),
                 input: "chart".to_owned(),
@@ -4686,6 +4690,7 @@ mod tests {
                     },
                 },
             ],
+            importmap_rewrites: Vec::new(),
             exports: vec![TransformGraphExport {
                 id: "main".to_owned(),
                 input: "report".to_owned(),
