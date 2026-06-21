@@ -113,6 +113,22 @@ export interface RenderedFragmentMergeOptions {
     preserveElementChildren?: (current: Element, desired: Element) => boolean;
 }
 
+export interface RenderPlanApplyOptions extends RenderedFragmentMergeOptions {
+    dynamicTextRanges?: boolean;
+}
+
+export interface RenderPlanApplyDiagnostic {
+    code: string;
+    severity: 'info' | 'warning';
+    reason: 'first-render' | 'recovery';
+    message: string;
+}
+
+export interface RenderPlanApplyResult {
+    mode: 'patch' | 'replaceScope';
+    diagnostics: RenderPlanApplyDiagnostic[];
+}
+
 export interface ScopedCssRewriteDiagnostic {
     code: string;
     severity: 'warning';
@@ -1176,6 +1192,36 @@ export function mergeRenderedFragmentIntoRange(
     mergeChildNodes(parent, bounds.start.nextSibling as ChildNode | null, bounds.end, Array.from(rendered.childNodes), options);
 }
 
+export function applyRenderPlanToRange(
+    bounds: RenderPlanDomRange,
+    plan: RenderPlan,
+    document: Document,
+    options: RenderPlanApplyOptions = {}
+): RenderPlanApplyResult {
+    const parent = bounds.start.parentNode;
+    if (!parent || bounds.end.parentNode !== parent) {
+        throw new Error('cem-element render bounds are not attached to the same parent');
+    }
+
+    const recovery = renderScopeRecoveryReason(bounds, plan);
+    if (recovery) {
+        replaceRangeWithRenderPlan(bounds, plan, document, options);
+        return {
+            mode: 'replaceScope',
+            diagnostics: [{
+                code: 'cem.render_plan_apply.replace_scope',
+                severity: recovery.reason === 'first-render' ? 'info' : 'warning',
+                reason: recovery.reason,
+                message: recovery.message,
+            }],
+        };
+    }
+
+    const context: RenderPlanApplyContext = { plan, document, options };
+    mergeRenderPlanChildNodes(parent, bounds.start.nextSibling as ChildNode | null, bounds.end, plan.nodes, context);
+    return { mode: 'patch', diagnostics: [] };
+}
+
 function materializeNode(node: RenderPlanNode, plan: RenderPlan, document: Document): Node {
     if (node.kind === 'text') {
         return document.createTextNode(node.text);
@@ -1202,6 +1248,292 @@ function materializeNode(node: RenderPlanNode, plan: RenderPlan, document: Docum
         element.appendChild(materializeNode(child, plan, document));
     }
     return element;
+}
+
+interface RenderPlanApplyContext {
+    plan: RenderPlan;
+    document: Document;
+    options: RenderPlanApplyOptions;
+}
+
+interface RenderPlanNodeMatch {
+    first: ChildNode;
+    after: ChildNode | null;
+    rangeEnd?: Comment;
+}
+
+interface RenderScopeRecoveryReason {
+    reason: 'first-render' | 'recovery';
+    message: string;
+}
+
+function replaceRangeWithRenderPlan(
+    bounds: RenderPlanDomRange,
+    plan: RenderPlan,
+    document: Document,
+    options: RenderPlanApplyOptions
+): void {
+    let current = bounds.start.nextSibling;
+    while (current && current !== bounds.end) {
+        const next = current.nextSibling;
+        current.parentNode?.removeChild(current);
+        current = next;
+    }
+    const nodes = plan.nodes.flatMap((node) => createRenderPlanDomNodes(node, { plan, document, options }));
+    for (const node of nodes) {
+        bounds.end.parentNode?.insertBefore(node, bounds.end);
+    }
+}
+
+function renderScopeRecoveryReason(bounds: RenderPlanDomRange, plan: RenderPlan): RenderScopeRecoveryReason | undefined {
+    const currentIds = elementRenderIdentitiesBetween(bounds.start.nextSibling, bounds.end);
+    const desiredIds = plan.nodes.flatMap((node) => (node.kind === 'element' ? [node.renderNodeId] : []));
+    if (currentIds.length === 0) {
+        return undefined;
+    }
+    if (desiredIds.length === 0) {
+        return {
+            reason: 'recovery',
+            message: 'retained render scope had element identities but the next render plan has no element roots',
+        };
+    }
+    const current = new Set(currentIds);
+    const desired = new Set(desiredIds);
+    if (desiredIds.some((id) => !current.has(id)) || currentIds.some((id) => !desired.has(id))) {
+        return {
+            reason: 'recovery',
+            message: 'retained render scope root identities did not match the next render plan; replaced the scope',
+        };
+    }
+    return undefined;
+}
+
+function elementRenderIdentitiesBetween(first: ChildNode | null, end: Node): string[] {
+    const ids: string[] = [];
+    let current: ChildNode | null = first;
+    while (current && current !== end) {
+        if (current.nodeType === 1) {
+            const id = renderIdentity(current);
+            if (id) {
+                ids.push(id);
+            }
+        }
+        current = current.nextSibling as ChildNode | null;
+    }
+    return ids;
+}
+
+function mergeRenderPlanChildNodes(
+    parent: Node,
+    firstCurrent: ChildNode | null,
+    end: Node | null,
+    desiredNodes: readonly RenderPlanNode[],
+    context: RenderPlanApplyContext
+): void {
+    let current: ChildNode | null = firstCurrent;
+    for (const desired of desiredNodes) {
+        const match = matchRenderPlanNode(current, end, desired, context);
+        if (match) {
+            if (match.first !== current) {
+                parent.insertBefore(match.first, current ?? end);
+            }
+            mergeRenderPlanNode(match, desired, context);
+            current = match.after;
+            continue;
+        }
+
+        const created = createRenderPlanDomNodes(desired, context);
+        for (const node of created) {
+            parent.insertBefore(node, current ?? end);
+        }
+    }
+
+    while (current && current !== end) {
+        const next = current.nextSibling as ChildNode | null;
+        parent.removeChild(current);
+        current = next;
+    }
+}
+
+function matchRenderPlanNode(
+    current: ChildNode | null,
+    end: Node | null,
+    desired: RenderPlanNode,
+    context: RenderPlanApplyContext
+): RenderPlanNodeMatch | null {
+    if (!current || current === end) {
+        return null;
+    }
+    const direct = matchRenderPlanNodeAt(current, desired, context);
+    if (direct) {
+        return direct;
+    }
+
+    const desiredId = desired.kind === 'element' ? desired.renderNodeId : dynamicRangeId(desired);
+    let sibling = current.nextSibling as ChildNode | null;
+    while (sibling && sibling !== end) {
+        const match = matchRenderPlanNodeAt(sibling, desired, context);
+        if (match && (desired.kind !== 'element' || renderIdentity(sibling) === desiredId)) {
+            return match;
+        }
+        sibling = sibling.nextSibling as ChildNode | null;
+    }
+    return null;
+}
+
+function matchRenderPlanNodeAt(
+    current: ChildNode,
+    desired: RenderPlanNode,
+    context: RenderPlanApplyContext
+): RenderPlanNodeMatch | null {
+    if (desired.kind === 'text' || desired.kind === 'comment') {
+        if (context.options.dynamicTextRanges) {
+            const rangeEnd = matchDynamicRange(current, dynamicRangeId(desired));
+            return rangeEnd ? { first: current, after: rangeEnd.nextSibling as ChildNode | null, rangeEnd } : null;
+        }
+        const desiredType = desired.kind === 'text' ? 3 : 8;
+        return current.nodeType === desiredType ? { first: current, after: current.nextSibling as ChildNode | null } : null;
+    }
+
+    if (current.nodeType !== 1) {
+        return null;
+    }
+    const element = current as Element;
+    if (
+        element.localName !== desired.tag ||
+        !renderPlanNamespaceMatches(element.namespaceURI, desired.namespace) ||
+        renderIdentity(element) !== desired.renderNodeId
+    ) {
+        return null;
+    }
+    return { first: current, after: current.nextSibling as ChildNode | null };
+}
+
+function mergeRenderPlanNode(match: RenderPlanNodeMatch, desired: RenderPlanNode, context: RenderPlanApplyContext): void {
+    if (desired.kind === 'text' || desired.kind === 'comment') {
+        if (match.rangeEnd) {
+            mergeDynamicRange(match.first as Comment, match.rangeEnd, desired, context);
+            return;
+        }
+        const value = desired.kind === 'text' ? desired.text : desired.text;
+        if (match.first.nodeValue !== value) {
+            match.first.nodeValue = value;
+        }
+        return;
+    }
+
+    const element = match.first as Element;
+    mirrorRenderIdentity(element, desired.renderNodeId);
+    syncAttributes(element, renderPlanElementAttributes(desired, context.plan));
+    if (context.options.preserveElementChildren?.(element, renderPlanElementPreview(desired, context))) {
+        return;
+    }
+    mergeRenderPlanChildNodes(element, element.firstChild as ChildNode | null, null, desired.children, context);
+}
+
+function mergeDynamicRange(start: Comment, end: Comment, desired: Extract<RenderPlanNode, { kind: 'text' | 'comment' }>, context: RenderPlanApplyContext): void {
+    const desiredType = desired.kind === 'text' ? 3 : 8;
+    let current = start.nextSibling as ChildNode | null;
+    if (current && current !== end && current.nodeType === desiredType) {
+        if (current.nodeValue !== desired.text) {
+            current.nodeValue = desired.text;
+        }
+        current = current.nextSibling as ChildNode | null;
+    } else {
+        start.parentNode?.insertBefore(createTextLikeNode(desired, context.document), end);
+    }
+    while (current && current !== end) {
+        const next = current.nextSibling as ChildNode | null;
+        current.parentNode?.removeChild(current);
+        current = next;
+    }
+}
+
+function createRenderPlanDomNodes(node: RenderPlanNode, context: RenderPlanApplyContext): Node[] {
+    if (node.kind === 'text' || node.kind === 'comment') {
+        if (!context.options.dynamicTextRanges) {
+            return [createTextLikeNode(node, context.document)];
+        }
+        const id = dynamicRangeId(node);
+        return [
+            context.document.createComment(`cem-start:${id}`),
+            createTextLikeNode(node, context.document),
+            context.document.createComment(`cem-end:${id}`),
+        ];
+    }
+
+    const element = createRenderPlanElement(node, context.plan, context.document);
+    for (const child of node.children) {
+        for (const childNode of createRenderPlanDomNodes(child, context)) {
+            element.appendChild(childNode);
+        }
+    }
+    return [element];
+}
+
+function createTextLikeNode(node: Extract<RenderPlanNode, { kind: 'text' | 'comment' }>, document: Document): Node {
+    return node.kind === 'text' ? document.createTextNode(node.text) : document.createComment(node.text);
+}
+
+function createRenderPlanElement(
+    node: Extract<RenderPlanNode, { kind: 'element' }>,
+    plan: RenderPlan,
+    document: Document
+): Element {
+    const element = node.namespace
+        ? document.createElementNS(node.namespace, node.tag)
+        : document.createElement(node.tag);
+    syncAttributes(element, renderPlanElementAttributes(node, plan));
+    mirrorRenderIdentity(element, node.renderNodeId);
+    return element;
+}
+
+function renderPlanElementAttributes(
+    node: Extract<RenderPlanNode, { kind: 'element' }>,
+    plan: RenderPlan
+): Map<string, string> {
+    const attributes = new Map(node.attributes.map((attribute) => [attribute.name, attribute.value]));
+    attributes.set(RENDER_NODE_ID_ATTR, node.renderNodeId);
+    attributes.set(TEMPLATE_ARTIFACT_ID_ATTR, plan.templateArtifactId);
+    attributes.set(DATA_REVISION_ATTR, plan.dataRevision);
+    if (node.sourceMapRef) {
+        attributes.set(SOURCE_FIDELITY_ATTR, node.sourceMapRef.fidelity);
+        attributes.set(SOURCE_FRAME_ATTR, node.sourceMapRef.frame);
+    }
+    return attributes;
+}
+
+function renderPlanElementPreview(
+    node: Extract<RenderPlanNode, { kind: 'element' }>,
+    context: RenderPlanApplyContext
+): Element {
+    return createRenderPlanElement(node, context.plan, context.document);
+}
+
+function matchDynamicRange(current: ChildNode, id: string): Comment | null {
+    if (!isDynamicRangeBoundary(current, 'start', id)) {
+        return null;
+    }
+    let sibling = current.nextSibling as ChildNode | null;
+    while (sibling) {
+        if (isDynamicRangeBoundary(sibling, 'end', id)) {
+            return sibling as Comment;
+        }
+        sibling = sibling.nextSibling as ChildNode | null;
+    }
+    return null;
+}
+
+function isDynamicRangeBoundary(node: Node, kind: 'start' | 'end', id: string): boolean {
+    return node.nodeType === 8 && node.nodeValue === `cem-${kind}:${id}`;
+}
+
+function dynamicRangeId(node: Extract<RenderPlanNode, { kind: 'text' | 'comment' }>): string {
+    return textNodePatchId(node);
+}
+
+function renderPlanNamespaceMatches(actual: string | null, expected: string | null): boolean {
+    return actual === expected || (expected === null && actual === XHTML_NAMESPACE);
 }
 
 function mergeChildNodes(
@@ -1308,8 +1640,10 @@ function mergeNode(current: Node, desired: Node, options: RenderedFragmentMergeO
     );
 }
 
-function syncAttributes(current: Element, desired: Element): void {
-    const desiredAttributes = new Map(Array.from(desired.attributes).map((attribute) => [attribute.name, attribute.value]));
+function syncAttributes(current: Element, desired: Element | ReadonlyMap<string, string>): void {
+    const desiredAttributes = isAttributeElement(desired)
+        ? new Map(Array.from(desired.attributes).map((attribute) => [attribute.name, attribute.value]))
+        : desired;
     for (const attribute of Array.from(current.attributes)) {
         if (!desiredAttributes.has(attribute.name)) {
             current.removeAttribute(attribute.name);
@@ -1320,6 +1654,10 @@ function syncAttributes(current: Element, desired: Element): void {
             current.setAttribute(name, value);
         }
     }
+}
+
+function isAttributeElement(value: Element | ReadonlyMap<string, string>): value is Element {
+    return 'attributes' in value && typeof value.getAttribute === 'function';
 }
 
 function renderIdentity(node: Node): string | null {

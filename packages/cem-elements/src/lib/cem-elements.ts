@@ -1,5 +1,6 @@
 import {
     DATA_CEM_SCOPE_ATTR,
+    applyRenderPlanToRange,
     edgeContentAddress,
     materializeRenderPlan,
     mergeRenderedFragmentIntoRange,
@@ -8,6 +9,7 @@ import {
     renderPlansHaveDomChanges,
     scopeRenderPlan,
     type RenderPlan,
+    type RenderPlanApplyDiagnostic,
     type ScopedCssRewriteDiagnostic,
     type SourceMapFidelity,
     type SourceMapRef,
@@ -1272,14 +1274,30 @@ export class CemElementRuntime {
             return Promise.resolve();
         }
 
+        const mergeOptions = {
+            preserveElementChildren: (current: Element) =>
+                this.declarations.has(current.localName) && directDataIsland(current) !== undefined,
+        };
+        if (previous && !renderPlanNeedsMaterializedDirectivePass(renderPlan)) {
+            const result = applyRenderPlanToRange(
+                this.ensureRenderBounds(instance, island),
+                renderPlan,
+                instance.ownerDocument,
+                mergeOptions
+            );
+            this.recordDiagnostics(
+                instance,
+                result.diagnostics.map((diagnostic) => renderPlanApplyDiagnostic(diagnostic, compiled.producedTag))
+            );
+            this.committedRenderPlans.set(instance, renderPlan);
+            return Promise.resolve();
+        }
+
         const fragment = materializeRenderPlan(renderPlan, instance.ownerDocument);
         this.bindRenderedSliceEvents(instance, compiled, fragment);
         const resourcesSettled = this.bindRenderedResourceSlices(instance, compiled, fragment, token);
         if (previous) {
-            mergeRenderedFragmentIntoRange(this.ensureRenderBounds(instance, island), fragment, {
-                preserveElementChildren: (current) =>
-                    this.declarations.has(current.localName) && directDataIsland(current) !== undefined,
-            });
+            mergeRenderedFragmentIntoRange(this.ensureRenderBounds(instance, island), fragment, mergeOptions);
         } else {
             this.replaceRenderedContent(instance, island, fragment);
         }
@@ -2016,6 +2034,16 @@ function scopedCssDiagnostic(diagnostic: ScopedCssRewriteDiagnostic, tag: string
     };
 }
 
+function renderPlanApplyDiagnostic(diagnostic: RenderPlanApplyDiagnostic, tag: string): CemElementDiagnostic {
+    return {
+        code: diagnostic.code,
+        severity: diagnostic.severity,
+        source: 'render',
+        message: diagnostic.message,
+        tag,
+    };
+}
+
 function renderPlanHasRuntimeResourceNodes(plan: RenderPlan): boolean {
     const visit = (node: RenderPlan['nodes'][number]): boolean => {
         if (node.kind !== 'element') {
@@ -2024,6 +2052,26 @@ function renderPlanHasRuntimeResourceNodes(plan: RenderPlan): boolean {
         return node.tag === 'module-url' || node.children.some(visit);
     };
     return plan.nodes.some(visit);
+}
+
+function renderPlanNeedsMaterializedDirectivePass(plan: RenderPlan): boolean {
+    const visit = (node: RenderPlan['nodes'][number]): boolean => {
+        if (node.kind !== 'element') {
+            return false;
+        }
+        if (node.tag === 'module-url') {
+            return true;
+        }
+        if (hasRenderPlanAttribute(node, 'slice') && hasRenderPlanAttribute(node, 'slice-event')) {
+            return true;
+        }
+        return node.children.some(visit);
+    };
+    return plan.nodes.some(visit);
+}
+
+function hasRenderPlanAttribute(node: Extract<RenderPlan['nodes'][number], { kind: 'element' }>, name: string): boolean {
+    return node.attributes.some((attribute) => attribute.name === name);
 }
 
 function templateValues(

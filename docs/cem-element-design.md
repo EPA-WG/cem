@@ -582,6 +582,13 @@ serializable render-plan/WASM boundary:
   The UI adapter applies those operations to existing browser nodes whenever the ids
   match. Temporary per-parent lookup maps are allowed for keyed sibling reorders, but
   the normal path is sequential comparison plus browser-node identity properties.
+- The browser UI adapter may apply directive-free render plans directly to the retained
+  DOM range. Text and comment regions that need explicit identity use comment markers
+  such as `<!--cem-start:r12-->` / `<!--cem-end:r12-->`; if retained top-level render
+  identities do not match the next plan, the adapter replaces the render scope and emits
+  a recovery diagnostic. Plans that still require runtime directive preprocessing, such
+  as `slice-event` listener setup or `module-url` resource resolution, may keep using a
+  materialized desired fragment until those directives have direct patch hooks.
 - If the previous and next plans are equivalent, the UI adapter performs no DOM
   mutation. Data revision advancement alone is not a reason to replace or touch the
   visible DOM tree.

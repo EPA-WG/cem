@@ -13,6 +13,7 @@ import {
 import {
     InMemoryEdgeRenderStateStore,
     advanceEdgeRenderState,
+    applyRenderPlanToRange,
     createEdgeRenderStateRecord,
     diffRenderPlansToPatchFrames,
     edgeContentAddress,
@@ -1970,6 +1971,64 @@ export const RenderMetadataAdvancesDataRevisionOnRerender: Story = {
             '3',
             'each invalidation advances the data revision'
         );
+    },
+};
+
+export const DirectRenderPlanPatchUsesCommentRanges: Story = {
+    render: () => {
+        const root = document.createElement('section') as HTMLElement & {
+            __bounds?: { start: Comment; end: Comment };
+        };
+        root.setAttribute('aria-label', 'direct render-plan patch story');
+        const host = document.createElement('div');
+        host.className = 'direct-patch-host';
+        const start = document.createComment('cem-render-start');
+        const end = document.createComment('cem-render-end');
+        host.append(start, end);
+        root.__bounds = { start, end };
+        root.append(host);
+        return root;
+    },
+    play: ({ canvasElement }) => {
+        const root = requiredElement(canvasElement, '[aria-label="direct render-plan patch story"]') as HTMLElement & {
+            __bounds?: { start: Comment; end: Comment };
+        };
+        const bounds = root.__bounds;
+        assert(bounds !== undefined, 'direct patch render bounds are available');
+        const host = requiredElement(root, '.direct-patch-host');
+        const first = directPatchPlan('Hello');
+        const firstResult = applyRenderPlanToRange(bounds, first, document, { dynamicTextRanges: true });
+        assertEqual(firstResult.mode, 'patch', 'initial direct apply inserts from the render plan');
+
+        const paragraph = requiredElement(host, 'p');
+        const startMarker = Array.from(paragraph.childNodes).find((node) => node.nodeValue?.startsWith('cem-start:text:'));
+        const text = Array.from(paragraph.childNodes).find((node) => node.nodeType === Node.TEXT_NODE);
+        assert(startMarker !== undefined, 'direct apply emits a comment range for dynamic text');
+        assert(text !== undefined, 'direct apply keeps dynamic text as a text node inside the range');
+        assertEqual(paragraph.textContent, 'Hello', 'comment ranges do not affect rendered text content');
+
+        const second = directPatchPlan('World');
+        const secondResult = applyRenderPlanToRange(bounds, second, document, { dynamicTextRanges: true });
+        assertEqual(secondResult.mode, 'patch', 'matching render identities patch in place');
+        assertEqual(requiredElement(host, 'p') === paragraph, true, 'direct patch keeps the element node');
+        assertEqual(
+            Array.from(paragraph.childNodes).find((node) => node.nodeType === Node.TEXT_NODE) === text,
+            true,
+            'direct patch keeps the dynamic text node'
+        );
+        assertEqual(paragraph.textContent, 'World', 'direct patch updates dynamic range text');
+
+        paragraph.setAttribute('data-cem-render-node-id', 'foreign-root');
+        (paragraph as Element & { cemRenderNodeId?: string }).cemRenderNodeId = 'foreign-root';
+        const recovery = applyRenderPlanToRange(bounds, second, document, { dynamicTextRanges: true });
+        assertEqual(recovery.mode, 'replaceScope', 'root identity mismatch falls back to replaceScope');
+        assertEqual(
+            recovery.diagnostics[0]?.code,
+            'cem.render_plan_apply.replace_scope',
+            'replaceScope recovery emits a diagnostic'
+        );
+        assertEqual(requiredElement(host, 'p') === paragraph, false, 'replaceScope recovery replaces the corrupted root');
+        assertEqual(requiredElement(host, 'p').textContent, 'World', 'recovered scope still renders the next plan');
     },
 };
 
@@ -4034,6 +4093,30 @@ function edgeProjectionSnapshot(label: string, dataRevision: string): DataIsland
 
 function opsFromPatchFrames(frames: readonly PatchFrame[]) {
     return frames.flatMap((frame) => (frame.type === 'ops' ? frame.ops : []));
+}
+
+function directPatchPlan(text: string): RenderPlan {
+    return {
+        producedTag: 'direct-patch-host',
+        instanceId: 'direct-patch-instance',
+        templateArtifactId: 'direct-patch-template',
+        dataRevision: text,
+        outputTarget: 'light-dom',
+        scopePolicyStamp: 'direct-patch-scope',
+        nodes: [{
+            kind: 'element',
+            namespace: null,
+            tag: 'p',
+            renderNodeId: 'direct-patch-1',
+            attributes: [{ name: 'class', value: 'message' }],
+            sourceMapRef: { fidelity: 'dom-canonical', frame: 'direct:0' },
+            children: [{
+                kind: 'text',
+                text,
+                sourceMapRef: { fidelity: 'dom-canonical', frame: 'direct:0/0' },
+            }],
+        }],
+    };
 }
 
 function cloneRenderPlan(plan: RenderPlan): RenderPlan {
