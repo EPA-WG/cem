@@ -441,6 +441,10 @@ export function diffRenderPlansToPatchFrames(
     return frames;
 }
 
+export function renderPlansHaveDomChanges(previous: RenderPlan | null, next: RenderPlan): boolean {
+    return diffRenderPlans(previous, next).length > 0;
+}
+
 export function edgeContentAddress(kind: EdgeContentKind, value: unknown): EdgeContentAddress {
     assertProcessingBoundaryValue(value, `${kind} content`);
     const digest = stableJsonDigest(value);
@@ -1166,6 +1170,7 @@ function materializeNode(node: RenderPlanNode, plan: RenderPlan, document: Docum
         element.setAttribute(attribute.name, attribute.value);
     }
     element.setAttribute(RENDER_NODE_ID_ATTR, node.renderNodeId);
+    (element as Element & { cemRenderNodeId?: string }).cemRenderNodeId = node.renderNodeId;
     element.setAttribute(TEMPLATE_ARTIFACT_ID_ATTR, plan.templateArtifactId);
     element.setAttribute(DATA_REVISION_ATTR, plan.dataRevision);
     if (node.sourceMapRef) {

@@ -4,7 +4,9 @@ import {
     materializeRenderPlan,
     projectTemplate,
     readTemplateSource,
+    renderPlansHaveDomChanges,
     scopeRenderPlan,
+    type RenderPlan,
     type ScopedCssRewriteDiagnostic,
     type SourceMapFidelity,
     type SourceMapRef,
@@ -461,6 +463,7 @@ export class CemElementRuntime {
     private readonly instanceIds = new WeakMap<HTMLElement, string>();
     private readonly dataRevisions = new WeakMap<HTMLElement, number>();
     private readonly renderBounds = new WeakMap<HTMLElement, RenderBounds>();
+    private readonly committedRenderPlans = new WeakMap<HTMLElement, RenderPlan>();
     private readonly instanceStates = new WeakMap<HTMLElement, InstanceState>();
     private readonly renderTokens = new WeakMap<HTMLElement, number>();
     private readonly renderSettled = new WeakMap<HTMLElement, Promise<void>>();
@@ -836,11 +839,11 @@ export class CemElementRuntime {
 
         // DOM parity and legacy bridge templates render synchronously through the
         // projection path.
-        const rendered = this.renderFromDeclaration(instance, compiled, snapshot);
-        this.bindRenderedSliceEvents(instance, compiled, rendered);
-        const resourcesSettled = this.bindRenderedResourceSlices(instance, compiled, rendered, token);
-        this.replaceRenderedContent(instance, island, rendered);
-        this.renderSettled.set(instance, resourcesSettled);
+        const renderPlan = this.renderFromDeclaration(instance, compiled, snapshot);
+        this.renderSettled.set(
+            instance,
+            renderPlan ? this.commitRenderPlan(instance, compiled, island, renderPlan, token) : Promise.resolve()
+        );
     }
 
     /**
@@ -914,12 +917,8 @@ export class CemElementRuntime {
                 instance,
                 scoped.diagnostics.map((diagnostic) => scopedCssDiagnostic(diagnostic, compiled.producedTag))
             );
-            const fragment = materializeRenderPlan(scoped.renderPlan, instance.ownerDocument);
             const island = this.ensureDataIsland(instance);
-            this.bindRenderedSliceEvents(instance, compiled, fragment);
-            const resourcesSettled = this.bindRenderedResourceSlices(instance, compiled, fragment, token);
-            this.replaceRenderedContent(instance, island, fragment);
-            await resourcesSettled;
+            await this.commitRenderPlan(instance, compiled, island, scoped.renderPlan, token);
         } catch (error) {
             if (this.renderTokens.get(instance) !== token) {
                 return;
@@ -944,10 +943,10 @@ export class CemElementRuntime {
         instance: HTMLElement,
         compiled: CompiledDeclaration,
         snapshot: DataIslandSnapshot
-    ): DocumentFragment {
+    ): RenderPlan | null {
         // UI adapter → processing layer → UI adapter: project the serializable template
-        // source against a serializable data-island snapshot, then materialize the plan
-        // into live light DOM.
+        // source against a serializable data-island snapshot, then hand the scoped plan
+        // to the DOM commit helper.
         try {
             const values = templateValues(snapshot, compiled.declaredAttributes);
             const input = { snapshot, values };
@@ -957,7 +956,7 @@ export class CemElementRuntime {
                 instance,
                 scoped.diagnostics.map((diagnostic) => scopedCssDiagnostic(diagnostic, compiled.producedTag))
             );
-            return materializeRenderPlan(scoped.renderPlan, instance.ownerDocument);
+            return scoped.renderPlan;
         } catch (error) {
             this.recordDiagnostics(instance, [
                 renderDiagnostic(
@@ -966,7 +965,7 @@ export class CemElementRuntime {
                     compiled.producedTag
                 ),
             ]);
-            return instance.ownerDocument.createDocumentFragment();
+            return null;
         }
     }
 
@@ -1253,6 +1252,31 @@ export class CemElementRuntime {
             return null;
         }
         return firstRenderedElementBetween(bounds)?.getAttribute(DATA_CEM_SCOPE_ATTR) ?? null;
+    }
+
+    private commitRenderPlan(
+        instance: HTMLElement,
+        compiled: CompiledDeclaration,
+        island: HTMLTemplateElement,
+        renderPlan: RenderPlan,
+        token: number
+    ): Promise<void> {
+        const previous = this.committedRenderPlans.get(instance) ?? null;
+        if (
+            previous &&
+            !renderPlansHaveDomChanges(previous, renderPlan) &&
+            !renderPlanHasRuntimeResourceNodes(renderPlan)
+        ) {
+            this.committedRenderPlans.set(instance, renderPlan);
+            return Promise.resolve();
+        }
+
+        const fragment = materializeRenderPlan(renderPlan, instance.ownerDocument);
+        this.bindRenderedSliceEvents(instance, compiled, fragment);
+        const resourcesSettled = this.bindRenderedResourceSlices(instance, compiled, fragment, token);
+        this.replaceRenderedContent(instance, island, fragment);
+        this.committedRenderPlans.set(instance, renderPlan);
+        return resourcesSettled;
     }
 
     private replaceRenderedContent(instance: HTMLElement, island: HTMLTemplateElement, rendered: DocumentFragment): void {
@@ -1982,6 +2006,16 @@ function scopedCssDiagnostic(diagnostic: ScopedCssRewriteDiagnostic, tag: string
         message: diagnostic.message,
         tag,
     };
+}
+
+function renderPlanHasRuntimeResourceNodes(plan: RenderPlan): boolean {
+    const visit = (node: RenderPlan['nodes'][number]): boolean => {
+        if (node.kind !== 'element') {
+            return false;
+        }
+        return node.tag === 'module-url' || node.children.some(visit);
+    };
+    return plan.nodes.some(visit);
 }
 
 function templateValues(

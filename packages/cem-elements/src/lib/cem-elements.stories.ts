@@ -1960,6 +1960,91 @@ export const RenderMetadataAdvancesDataRevisionOnRerender: Story = {
     },
 };
 
+export const UnchangedRenderPlanSkipsDomReplacement: Story = {
+    render: () => {
+        const root = document.createElement('section') as HTMLElement & {
+            __domRuntime?: CemElementRuntime;
+            __wasmRuntime?: CemElementRuntime;
+        };
+        root.setAttribute('aria-label', 'unchanged render plan no-op story');
+
+        const domRuntime = new CemElementRuntime({ declarationTag: 'cem-element-story-noop-dom' });
+        const domDeclaration = buildDeclaration({
+            tag: 'story-noop-dom-card',
+            templates: [{ html: '<attribute name="label">Stable</attribute><button type="button">${$label}</button>' }],
+        });
+        domRuntime.registerDeclaration(domDeclaration);
+
+        const wasmRuntime = new CemElementRuntime({ declarationTag: 'cem-element-story-noop-wasm' });
+        const wasmDeclaration = buildDeclaration({
+            tag: 'story-noop-wasm-card',
+            templates: [{ type: 'text/cem-ml', text: '{button @type=button | {$datadom.attributes.label}}' }],
+        });
+        wasmRuntime.registerDeclaration(wasmDeclaration);
+
+        const domInstance = document.createElement('story-noop-dom-card');
+        domInstance.setAttribute('label', 'Stable');
+        const wasmInstance = document.createElement('story-noop-wasm-card');
+        wasmInstance.setAttribute('label', 'Stable');
+        root.append(domInstance, wasmInstance);
+        root.__domRuntime = domRuntime;
+        root.__wasmRuntime = wasmRuntime;
+        return root;
+    },
+    play: async ({ canvasElement }) => {
+        const root = requiredElement(canvasElement, '[aria-label="unchanged render plan no-op story"]') as HTMLElement & {
+            __domRuntime?: CemElementRuntime;
+            __wasmRuntime?: CemElementRuntime;
+        };
+        const domRuntime = root.__domRuntime;
+        const wasmRuntime = root.__wasmRuntime;
+        assert(domRuntime && wasmRuntime, 'story runtimes are available');
+
+        const domInstance = requiredElement(root, 'story-noop-dom-card') as HTMLElement;
+        const wasmInstance = requiredElement(root, 'story-noop-wasm-card') as HTMLElement;
+        await domRuntime.whenRenderSettled(domInstance);
+        await wasmRuntime.whenRenderSettled(wasmInstance);
+
+        const domButton = requiredElement(domInstance, 'button');
+        const wasmButton = requiredElement(wasmInstance, 'button');
+        const domRevision = domButton.getAttribute('data-cem-data-revision');
+        const wasmRevision = wasmButton.getAttribute('data-cem-data-revision');
+        assertEqual(
+            (domButton as Element & { cemRenderNodeId?: string }).cemRenderNodeId,
+            domButton.getAttribute('data-cem-render-node-id'),
+            'DOM-path render identity is mirrored into a DOM property'
+        );
+        assertEqual(
+            (wasmButton as Element & { cemRenderNodeId?: string }).cemRenderNodeId,
+            wasmButton.getAttribute('data-cem-render-node-id'),
+            'WASM-path render identity is mirrored into a DOM property'
+        );
+
+        domInstance.setAttribute('unused', 'same-output');
+        wasmInstance.setAttribute('unused', 'same-output');
+        await nextFrame();
+        await domRuntime.whenRenderSettled(domInstance);
+        await wasmRuntime.whenRenderSettled(wasmInstance);
+
+        assertEqual(requiredElement(domInstance, 'button') === domButton, true, 'DOM-path unchanged output keeps the button node');
+        assertEqual(
+            requiredElement(domInstance, 'button').getAttribute('data-cem-data-revision'),
+            domRevision,
+            'DOM-path unchanged output does not rewrite render metadata'
+        );
+        assertEqual(
+            requiredElement(wasmInstance, 'button') === wasmButton,
+            true,
+            'WASM-path unchanged output keeps the button node'
+        );
+        assertEqual(
+            requiredElement(wasmInstance, 'button').getAttribute('data-cem-data-revision'),
+            wasmRevision,
+            'WASM-path unchanged output does not rewrite render metadata'
+        );
+    },
+};
+
 export const CemMlRenderMetadataCarriesAuthorByteFrames: Story = {
     render: () =>
         renderInstanceStory({

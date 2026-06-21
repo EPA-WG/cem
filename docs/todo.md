@@ -49,7 +49,9 @@ history belongs in git history and the feature-specific docs linked below.
        `connectedCallback` DOM updates for hydration-produced bodies, and trust only runtime-owned data-island
        evidence;
      - [x] add event rerender no-op protection for slice events that resolve to unchanged data;
-     - [ ] add render-tree diff/no-op replacement protection so unchanged virtual render trees do not mutate browser DOM;
+     - [x] add render-tree diff/no-op replacement protection so unchanged virtual render trees do not mutate browser DOM;
+     - [ ] implement property-first sequential DOM merge from render plans, including `node.cemRenderNodeId`, SSR/debug
+       marker mirroring, comment-range dynamic regions, temporary keyed-sibling maps, and `replaceScope` recovery;
      - [ ] Low priority: design dynamic internal `<textarea>` content handling for SSR and DOM merge; consider an
        `<xsl:element name="textarea">`-style or equivalent CEM-ML templating form where SSR emits loader-friendly
        placeholder markup that can be converted to an actual textarea DOM node capable of merging dynamic parts.

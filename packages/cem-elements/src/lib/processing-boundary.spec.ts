@@ -14,6 +14,7 @@ import {
     projectTemplate,
     readEdgeRenderStateContents,
     renderPlanIdentity,
+    renderPlansHaveDomChanges,
     scopeCssText,
     scopeRenderPlan,
     type PatchFrame,
@@ -241,6 +242,33 @@ describe('host processing boundary contracts', () => {
             text: '[data-cem-scope="cem-scope-story-card-useed-p0"] {\n    button { color: green; }\n}',
             sourceMapRef: undefined,
         });
+    });
+
+    it('detects visible render-plan DOM changes while ignoring revision-only changes', () => {
+        const first = projectTemplate(TEMPLATE_SOURCE, {
+            snapshot: snapshotFixture(),
+            values: { label: 'Projected' },
+        });
+        const revisionOnly: RenderPlan = {
+            ...first,
+            dataRevision: '2',
+        };
+        expect(renderPlansHaveDomChanges(first, revisionOnly)).toBe(false);
+
+        const changedAttribute = projectTemplate(TEMPLATE_SOURCE, {
+            snapshot: snapshotFixture(),
+            values: { label: 'Updated' },
+        });
+        expect(renderPlansHaveDomChanges(first, changedAttribute)).toBe(true);
+
+        const changedText: RenderPlan = {
+            ...first,
+            nodes: [{
+                ...(first.nodes[0] as Extract<RenderPlan['nodes'][number], { kind: 'element' }>),
+                children: [{ kind: 'text', text: 'Updated' }],
+            }],
+        };
+        expect(renderPlansHaveDomChanges(first, changedText)).toBe(true);
     });
 });
 
