@@ -2232,6 +2232,93 @@ export const ScopedCssUidSeedRuntime: Story = {
     },
 };
 
+export const HostAndSourceHashUidSeedFallbacks: Story = {
+    render: () => {
+        const root = document.createElement('section');
+        root.setAttribute('aria-label', 'host and source hash UID seed story');
+
+        const hostRuntime = new CemElementRuntime({
+            declarationTag: 'cem-element-story-host-seed',
+            uidSeed: ({ producedTag }) => `host-seed/${producedTag}`,
+            validateGeneratedIds: true,
+        });
+        const hostDeclaration = document.createElement('cem-element-story-host-seed');
+        hostDeclaration.setAttribute('tag', 'story-host-seed-card');
+        const hostTemplate = document.createElement('template');
+        hostTemplate.innerHTML = '<button type="button">host</button>';
+        hostDeclaration.appendChild(hostTemplate);
+
+        const blankDeclaration = document.createElement('cem-element-story-host-seed');
+        blankDeclaration.setAttribute('tag', 'story-blank-seed-card');
+        blankDeclaration.setAttribute('uid-seed', '');
+        const blankTemplate = document.createElement('template');
+        blankTemplate.innerHTML = '<button type="button">blank</button>';
+        blankDeclaration.appendChild(blankTemplate);
+        root.append(hostDeclaration, blankDeclaration);
+        hostRuntime.registerDeclaration(hostDeclaration);
+        hostRuntime.registerDeclaration(blankDeclaration);
+
+        const sourceHashRuntime = new CemElementRuntime({
+            declarationTag: 'cem-element-story-source-seed',
+            runMode: 'build-ssr',
+        });
+        const sourceDeclaration = document.createElement('cem-element-story-source-seed');
+        sourceDeclaration.setAttribute('tag', 'story-source-seed-card');
+        const sourceTemplate = document.createElement('template');
+        sourceTemplate.innerHTML = '<button type="button">source</button>';
+        sourceDeclaration.appendChild(sourceTemplate);
+        root.appendChild(sourceDeclaration);
+        sourceHashRuntime.registerDeclaration(sourceDeclaration);
+
+        const runtimeFallback = new CemElementRuntime({
+            declarationTag: 'cem-element-story-runtime-seed',
+            uidSeedFallback: 'runtime',
+        });
+        const runtimeDeclaration = document.createElement('cem-element-story-runtime-seed');
+        runtimeDeclaration.setAttribute('tag', 'story-runtime-seed-card');
+        const runtimeTemplate = document.createElement('template');
+        runtimeTemplate.innerHTML = '<button type="button">runtime</button>';
+        runtimeDeclaration.appendChild(runtimeTemplate);
+        root.appendChild(runtimeDeclaration);
+        runtimeFallback.registerDeclaration(runtimeDeclaration);
+
+        root.append(
+            document.createElement('story-host-seed-card'),
+            document.createElement('story-blank-seed-card'),
+            document.createElement('story-source-seed-card'),
+            document.createElement('story-runtime-seed-card')
+        );
+        return root;
+    },
+    play: async ({ canvasElement }) => {
+        await nextFrame();
+
+        const hostScope = requiredElement(canvasElement, 'story-host-seed-card').getAttribute('data-cem-scope') ?? '';
+        assert(
+            /^cem-scope-story-host-seed-card-uhost-seedz2fstory-host-seed-card-p[0-9-]+$/.test(hostScope),
+            'host uidSeed resolver supplies the fallback seed'
+        );
+
+        const blankScope = requiredElement(canvasElement, 'story-blank-seed-card').getAttribute('data-cem-scope') ?? '';
+        assert(
+            /^cem-scope-story-blank-seed-card-p[0-9-]+$/.test(blankScope),
+            'explicit blank uid-seed overrides the host seed and omits the seed token'
+        );
+
+        const sourceScope = requiredElement(canvasElement, 'story-source-seed-card').getAttribute('data-cem-scope') ?? '';
+        assert(
+            /^cem-scope-story-source-seed-card-usource-[0-9a-f]{16}-p[0-9-]+$/.test(sourceScope),
+            'build-ssr mode falls back to a stable source hash seed'
+        );
+
+        const runtimeScope = requiredElement(canvasElement, 'story-runtime-seed-card').getAttribute('data-cem-scope') ?? '';
+        assert(
+            /^cem-scope-story-runtime-seed-card-uruntime-[0-9]+-p[0-9-]+$/.test(runtimeScope),
+            'normal runtime fallback remains dynamic when no stable seed is supplied'
+        );
+    },
+};
+
 export const SsrHydrationFromSerializedSnapshot: Story = {
     render: () => {
         const root = document.createElement('section');

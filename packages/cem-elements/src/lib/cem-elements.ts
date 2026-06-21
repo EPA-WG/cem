@@ -1,5 +1,6 @@
 import {
     DATA_CEM_SCOPE_ATTR,
+    edgeContentAddress,
     materializeRenderPlan,
     projectTemplate,
     readTemplateSource,
@@ -194,10 +195,32 @@ export interface CemElementRuntimeOptions {
      */
     runMode?: RunMode;
     /**
+     * Host/build-provided deterministic seed used when a declaration does not
+     * carry `uid-seed`. A resolver can scope seeds by source URI, fragment,
+     * produced tag, or other host-owned public identity.
+     */
+    uidSeed?: string | ((input: CemElementUidSeedInput) => string | null | undefined);
+    /**
+     * Seed fallback after explicit declaration and host seeds. Defaults to
+     * `source-hash` in build/SSR mode and `runtime` in normal browser runtime.
+     */
+    uidSeedFallback?: 'runtime' | 'source-hash';
+    /**
      * Debug/validation switch for generated public IDs. Normal ephemeral browser
      * runtime can leave this off and rely on host-provided `uid-seed` uniqueness.
      */
     validateGeneratedIds?: boolean;
+}
+
+export interface CemElementUidSeedInput {
+    declarationElement: HTMLElement;
+    declarationTag: string;
+    producedTag: string;
+    template: HTMLTemplateElement;
+    mode: 'dom' | 'cem-ml' | 'legacy-xslt';
+    occurrencePath: string;
+    sourceText: string;
+    sourceHash: string;
 }
 
 type CemElementWindow = Window &
@@ -221,7 +244,9 @@ interface CompiledDeclaration {
     declarationTag: string;
     producedTag: string;
     uidSeed: string | null;
+    uidSeedSource: 'declaration' | 'host' | 'source-hash' | 'runtime';
     occurrencePath: string;
+    sourceHash: string;
     scopeUid: string;
     artifactId: string;
     template: HTMLTemplateElement;
@@ -447,6 +472,8 @@ export class CemElementRuntime {
     private readonly loadSrcDocumentOption?: CemElementRuntimeOptions['loadSrcDocument'];
     private readonly resolveModuleUrlOption?: CemElementRuntimeOptions['resolveModuleUrl'];
     private readonly runMode: RunMode;
+    private readonly uidSeedOption?: CemElementRuntimeOptions['uidSeed'];
+    private readonly uidSeedFallback: NonNullable<CemElementRuntimeOptions['uidSeedFallback']>;
     private readonly validateGeneratedIds: boolean;
     private readonly generatedScopeOwners = new Map<string, HTMLElement>();
     private instanceSequence = 0;
@@ -459,6 +486,8 @@ export class CemElementRuntime {
         this.loadSrcDocumentOption = options.loadSrcDocument;
         this.resolveModuleUrlOption = options.resolveModuleUrl;
         this.runMode = options.runMode ?? 'application';
+        this.uidSeedOption = options.uidSeed;
+        this.uidSeedFallback = options.uidSeedFallback ?? (this.runMode === 'build-ssr' ? 'source-hash' : 'runtime');
         this.validateGeneratedIds = options.validateGeneratedIds ?? false;
         // Eagerly warm the cem_ql WASM engine so canonical CEM-ML instances can render
         // through the authoritative boundary as soon as possible. Failures surface
@@ -553,7 +582,11 @@ export class CemElementRuntime {
             return Promise.resolve();
         }
 
-        const compiled = compileInlineDeclaration(declarationElement, tag, template, this.declarationTag);
+        const compiled = compileInlineDeclaration(declarationElement, tag, template, {
+            declarationTag: this.declarationTag,
+            uidSeed: this.uidSeedOption,
+            uidSeedFallback: this.uidSeedFallback,
+        });
         if (!this.validateGeneratedScopeUid(compiled)) {
             return Promise.resolve();
         }
@@ -1344,7 +1377,7 @@ function compileInlineDeclaration(
     declarationElement: HTMLElement,
     producedTag: string,
     template: HTMLTemplateElement,
-    declarationTag: string
+    options: InlineDeclarationCompileOptions
 ): CompiledDeclaration {
     const mode = templateMode(template);
     const diagnostics: CemElementDiagnostic[] = [];
@@ -1365,17 +1398,33 @@ function compileInlineDeclaration(
     const legacySource =
         mode === 'legacy-xslt' ? (template.innerHTML.trim().length > 0 ? template.innerHTML : templateSourceText(template)) : null;
     const wasmEligible = mode === 'cem-ml' || mode === 'legacy-xslt';
-    const uidSeed = declarationElement.hasAttribute(UID_SEED_ATTR)
-        ? declarationElement.getAttribute(UID_SEED_ATTR) ?? ''
-        : null;
     const occurrencePath = declarationOccurrencePath(declarationElement);
+    const sourceText = sourceTextForUidSeed(template, mode, cemMlSource, legacySource);
+    const sourceHash = sourceHashSeedDigest({
+        declarationTag: options.declarationTag,
+        producedTag,
+        mode,
+        sourceText,
+    });
+    const uidSeedResolution = resolveDeclarationUidSeed({
+        declarationElement,
+        declarationTag: options.declarationTag,
+        producedTag,
+        template,
+        mode,
+        occurrencePath,
+        sourceText,
+        sourceHash,
+    }, options);
     return {
         declarationElement,
-        declarationTag,
+        declarationTag: options.declarationTag,
         producedTag,
-        uidSeed,
+        uidSeed: uidSeedResolution.seed,
+        uidSeedSource: uidSeedResolution.source,
         occurrencePath,
-        scopeUid: generateScopeUid({ producedTag, uidSeed, occurrencePath }),
+        sourceHash,
+        scopeUid: generateScopeUid({ producedTag, uidSeed: uidSeedResolution.seed, occurrencePath }),
         artifactId: `template-artifact-${++artifactSequence}`,
         template,
         templateSource,
@@ -1387,6 +1436,84 @@ function compileInlineDeclaration(
         declaredSlices,
         diagnostics,
     };
+}
+
+interface InlineDeclarationCompileOptions {
+    declarationTag: string;
+    uidSeed?: CemElementRuntimeOptions['uidSeed'];
+    uidSeedFallback: NonNullable<CemElementRuntimeOptions['uidSeedFallback']>;
+}
+
+interface ResolvedUidSeed {
+    seed: string | null;
+    source: CompiledDeclaration['uidSeedSource'];
+}
+
+function resolveDeclarationUidSeed(
+    input: CemElementUidSeedInput,
+    options: InlineDeclarationCompileOptions
+): ResolvedUidSeed {
+    if (input.declarationElement.hasAttribute(UID_SEED_ATTR)) {
+        return {
+            seed: input.declarationElement.getAttribute(UID_SEED_ATTR) ?? '',
+            source: 'declaration',
+        };
+    }
+
+    const hostSeed = resolveHostUidSeed(input, options.uidSeed);
+    if (hostSeed !== null) {
+        return {
+            seed: hostSeed,
+            source: 'host',
+        };
+    }
+
+    if (options.uidSeedFallback === 'source-hash') {
+        return {
+            seed: `source-${input.sourceHash}`,
+            source: 'source-hash',
+        };
+    }
+
+    return {
+        seed: null,
+        source: 'runtime',
+    };
+}
+
+function resolveHostUidSeed(
+    input: CemElementUidSeedInput,
+    option: CemElementRuntimeOptions['uidSeed']
+): string | null {
+    if (option === undefined) {
+        return null;
+    }
+    const value = typeof option === 'function' ? option(input) : option;
+    return value === undefined || value === null ? null : value;
+}
+
+function sourceTextForUidSeed(
+    template: HTMLTemplateElement,
+    mode: CompiledDeclaration['mode'],
+    cemMlSource: string | null,
+    legacySource: string | null
+): string {
+    if (mode === 'cem-ml') {
+        return cemMlSource ?? '';
+    }
+    if (mode === 'legacy-xslt') {
+        return legacySource ?? '';
+    }
+    return template.innerHTML;
+}
+
+function sourceHashSeedDigest(input: {
+    declarationTag: string;
+    producedTag: string;
+    mode: CompiledDeclaration['mode'];
+    sourceText: string;
+}): string {
+    return edgeContentAddress('template-artifact', input).digest;
 }
 
 /**

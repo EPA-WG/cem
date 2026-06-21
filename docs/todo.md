@@ -32,7 +32,7 @@ history belongs in git history and the feature-specific docs linked below.
        only as an internal optimization that preserves occurrence-path-equivalent public IDs;
      - [x] split ephemeral browser runtime from explicit stable-seed output so runtime may use dynamic fallback seeds
        while persisted/SSR output can supply stable `uid-seed` values, occurrence paths, and validation/debug checks;
-     - [ ] add build/CLI/SSR host transform seed and source-hash fallback integration when no explicit `uid-seed` is
+     - [x] add build/CLI/SSR host transform seed and source-hash fallback integration when no explicit `uid-seed` is
        supplied;
      - [x] implement validation/debug duplicate-ID diagnostics for generated `scopeUid` values in the same output
        scope, without auto-repairing repeatable output with dynamic disambiguators;
