@@ -97,6 +97,8 @@ const fixtureSpecs = [
             fillThenText('cem-form-preview input[name="username"]', 'ada', 'cem-form-preview output[data-role="form-username"]', 'ada'),
             text('cem-form-preview output[data-role="mirror-username"]', 'ada'),
             text('cem-form-preview output[data-role="form-valid"]', 'false'),
+            text('cem-form-preview output[data-role="form-message"]', 'enter username and password'),
+            text('cem-form-preview output[data-role="password-message"]', 'password is too short'),
             fillThenText('cem-form-preview input[name="password"]', 'secret', 'cem-form-preview output[data-role="password-valid"]', 'true'),
             text('cem-form-preview output[data-role="form-valid"]', 'true'),
             text('cem-form-preview p', 'yes'),

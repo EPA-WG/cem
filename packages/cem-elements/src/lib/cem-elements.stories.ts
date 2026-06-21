@@ -2163,13 +2163,15 @@ export const FormDataValidationStateSnapshot: Story = {
         template.innerHTML = [
             '<slice name="username"></slice>',
             '<slice name="password"></slice>',
-            '<form slice="signin">',
+            '<form slice="signin" custom-validity="string-length(/datadom/slice/signin/form-data/username) &gt; 2 and string-length(//form-data/password) &gt; 3 ?? \'enter username and password\'">',
             '<label>Username <input name="username" required value="{$username}" slice="username" slice-event="input" slice-value="$target.value" /></label>',
-            '<label>Password <input name="password" type="password" required value="{$password}" slice="password" slice-event="input" slice-value="$target.value" /></label>',
+            '<label>Password <input name="password" type="password" required custom-validity="string-length(//form-data/password) &gt; 3 ?? \'password is too short\'" value="{$password}" slice="password" slice-event="input" slice-value="$target.value" /></label>',
             '<output data-role="form-username">${$datadom.formData.signin.username}</output>',
             '<output data-role="mirror-username">${$datadom.slices.signin.formData.username}</output>',
             '<output data-role="form-valid">${$datadom.validationState.signin.valid}</output>',
+            '<output data-role="form-message">${$datadom.validationState.signin.validationMessage}</output>',
             '<output data-role="password-valid">${$datadom.validationState.signin.controls.password.valid}</output>',
+            '<output data-role="password-message">${$datadom.validationState.signin.controls.password.validationMessage}</output>',
             '</form>',
         ].join('');
         declaration.appendChild(template);
@@ -2204,6 +2206,16 @@ export const FormDataValidationStateSnapshot: Story = {
             'false',
             'form validity reflects the remaining required password control'
         );
+        assertEqual(
+            requiredElement(instance, 'output[data-role="form-message"]').textContent,
+            'enter username and password',
+            'form custom-validity message projects into validation state'
+        );
+        assertEqual(
+            requiredElement(instance, 'output[data-role="password-message"]').textContent,
+            'password is too short',
+            'control custom-validity message projects into validation state'
+        );
 
         password.value = 'secret';
         password.dispatchEvent(new Event('input', { bubbles: true }));
@@ -2216,16 +2228,36 @@ export const FormDataValidationStateSnapshot: Story = {
             'true',
             'control validation state projects by control name'
         );
+        assertEqual(
+            requiredElement(instance, 'output[data-role="form-message"]').textContent,
+            '',
+            'form custom-validity message clears when the expression becomes valid'
+        );
+        assertEqual(
+            requiredElement(instance, 'output[data-role="password-message"]').textContent,
+            '',
+            'control custom-validity message clears when the expression becomes valid'
+        );
 
         const snapshot = runtime.snapshotInstance(instance);
         const formData = snapshot.formData?.signin as Record<string, unknown>;
-        const validation = snapshot.validationState.signin as { valid?: boolean; controls?: Record<string, { valid?: boolean }> };
+        const validation = snapshot.validationState.signin as {
+            valid?: boolean;
+            validationMessage?: string;
+            controls?: Record<string, { valid?: boolean; validationMessage?: string }>;
+        };
         const mirror = snapshot.slices.signin as { formData?: Record<string, unknown> };
         assertEqual(formData.username, 'ada', 'snapshot formData stores username');
         assertEqual(formData.password, 'secret', 'snapshot formData stores password');
         assertEqual(mirror.formData?.username, 'ada', 'snapshot slices mirror formData under the form slice');
         assertEqual(validation.valid, true, 'snapshot validationState stores form validity');
+        assertEqual(validation.validationMessage, '', 'snapshot validationState clears form custom-validity messages');
         assertEqual(validation.controls?.password?.valid, true, 'snapshot validationState stores control validity');
+        assertEqual(
+            validation.controls?.password?.validationMessage,
+            '',
+            'snapshot validationState clears control custom-validity messages'
+        );
     },
 };
 

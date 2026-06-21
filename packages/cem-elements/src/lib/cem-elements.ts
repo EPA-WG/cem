@@ -407,6 +407,12 @@ interface SliceEventBinding {
     listener: EventListener;
 }
 
+interface FormEventBinding {
+    instance: HTMLElement;
+    eventNames: string[];
+    listener: EventListener;
+}
+
 interface CapturedRenderedForms {
     formData: Record<string, SerializedFormData>;
     validationState: Record<string, SerializedFormValidation>;
@@ -688,6 +694,9 @@ export class CemElementRuntime {
     private readonly instanceStates = new WeakMap<HTMLElement, InstanceState>();
     private readonly sliceEventBindings = new WeakMap<Element, SliceEventBinding>();
     private readonly formSliceNames = new WeakMap<Element, string[]>();
+    private readonly formEventBindings = new WeakMap<Element, FormEventBinding>();
+    private readonly customValidityExpressions = new WeakMap<Element, string>();
+    private readonly customValidationMessages = new WeakMap<Element, string>();
     private readonly renderTokens = new WeakMap<HTMLElement, number>();
     private readonly renderSettled = new WeakMap<HTMLElement, Promise<void>>();
     private readonly declarationSettled = new WeakMap<object, Promise<void>>();
@@ -1424,6 +1433,102 @@ export class CemElementRuntime {
         if (eventNames.includes('init')) {
             element.dispatchEvent(new Event('init', { bubbles: false }));
         }
+    }
+
+    private bindRenderedCustomValidity(rendered: ParentNode): void {
+        for (const element of Array.from(rendered.querySelectorAll('[custom-validity]'))) {
+            this.bindRenderedCustomValidityElement(element);
+        }
+    }
+
+    private bindRenderedCustomValidityInRange(bounds: RenderBounds): void {
+        for (const element of renderedElementsBetween(bounds, '[custom-validity]')) {
+            this.bindRenderedCustomValidityElement(element);
+        }
+    }
+
+    private bindRenderedCustomValidityElement(element: Element): void {
+        const expression = element.getAttribute('custom-validity');
+        if (expression === null) {
+            return;
+        }
+        this.customValidityExpressions.set(element, expression);
+        element.removeAttribute('custom-validity');
+    }
+
+    private bindRenderedFormEvents(
+        instance: HTMLElement,
+        compiled: CompiledDeclaration,
+        rendered: ParentNode
+    ): void {
+        for (const element of Array.from(rendered.querySelectorAll('form'))) {
+            this.bindRenderedFormEventElement(instance, compiled, element as HTMLFormElement);
+        }
+    }
+
+    private bindRenderedFormEventsInRange(
+        instance: HTMLElement,
+        compiled: CompiledDeclaration,
+        bounds: RenderBounds
+    ): void {
+        for (const element of renderedElementsBetween(bounds, 'form')) {
+            this.bindRenderedFormEventElement(instance, compiled, element as HTMLFormElement);
+        }
+    }
+
+    private bindRenderedFormEventElement(
+        instance: HTMLElement,
+        compiled: CompiledDeclaration,
+        form: HTMLFormElement
+    ): void {
+        const sliceNames = parseSliceTargets(form.getAttribute('slice') ?? '');
+        if (sliceNames.length > 0) {
+            this.formSliceNames.set(form, sliceNames);
+            form.removeAttribute('slice');
+        }
+        if (!this.formNeedsRuntimeBinding(form)) {
+            return;
+        }
+
+        const eventNames = ['input', 'change', 'submit'];
+        const existing = this.formEventBindings.get(form);
+        if (existing && existing.instance === instance && stringArraysEqual(existing.eventNames, eventNames)) {
+            return;
+        }
+        if (existing) {
+            for (const eventName of existing.eventNames) {
+                form.removeEventListener(eventName, existing.listener);
+            }
+        }
+
+        const listener: EventListener = (event) => {
+            if (event.type === 'submit' && !this.isFormCurrentlyValid(form)) {
+                event.preventDefault();
+            }
+            this.renderInstance(instance, compiled);
+        };
+        for (const eventName of eventNames) {
+            form.addEventListener(eventName, listener);
+        }
+        this.formEventBindings.set(form, { instance, eventNames, listener });
+    }
+
+    private formNeedsRuntimeBinding(form: HTMLFormElement): boolean {
+        return (
+            this.formSliceNames.has(form) ||
+            this.customValidityExpressions.has(form) ||
+            Array.from(form.querySelectorAll('input,select,textarea,button,fieldset')).some((element) =>
+                this.customValidityExpressions.has(element)
+            )
+        );
+    }
+
+    private isFormCurrentlyValid(form: HTMLFormElement): boolean {
+        const formMessage = this.customValidationMessages.get(form) ?? '';
+        if (formMessage.length > 0) {
+            return false;
+        }
+        return typeof form.checkValidity === 'function' ? form.checkValidity() : true;
     }
 
     private bindRenderedResourceSlices(
@@ -2221,6 +2326,8 @@ export class CemElementRuntime {
                 result.diagnostics.map((diagnostic) => renderPlanApplyDiagnostic(diagnostic, compiled.producedTag))
             );
             this.bindRenderedSliceEventsInRange(instance, compiled, bounds);
+            this.bindRenderedCustomValidityInRange(bounds);
+            this.bindRenderedFormEventsInRange(instance, compiled, bounds);
             const resourcesSettled = this.bindRenderedResourceSlicesInRange(instance, compiled, bounds, token);
             this.committedRenderPlans.set(instance, renderPlan);
             return resourcesSettled;
@@ -2228,6 +2335,8 @@ export class CemElementRuntime {
 
         const fragment = materializeRenderPlan(renderPlan, instance.ownerDocument);
         this.bindRenderedSliceEvents(instance, compiled, fragment);
+        this.bindRenderedCustomValidity(fragment);
+        this.bindRenderedFormEvents(instance, compiled, fragment);
         const resourcesSettled = this.bindRenderedResourceSlices(instance, compiled, fragment, token);
         this.replaceRenderedContent(instance, island, fragment);
         this.committedRenderPlans.set(instance, renderPlan);
@@ -2266,11 +2375,43 @@ export class CemElementRuntime {
         compiled: CompiledDeclaration,
         island: HTMLTemplateElement
     ): DataIslandSnapshot {
+        const dataRevision = this.nextDataRevision(instance);
         const state = this.instanceStates.get(instance);
-        const forms = this.captureRenderedForms(instance);
+        const baseForms = this.captureRenderedForms(instance);
+        const baseSnapshot = this.snapshotFromCapturedForms(
+            instance,
+            compiled,
+            island,
+            dataRevision,
+            state,
+            baseForms
+        );
+        if (!this.applyRenderedCustomValidity(instance, baseSnapshot)) {
+            return baseSnapshot;
+        }
+        return this.snapshotFromCapturedForms(
+            instance,
+            compiled,
+            island,
+            dataRevision,
+            state,
+            this.captureRenderedForms(instance)
+        );
+    }
+
+    private snapshotFromCapturedForms(
+        instance: HTMLElement,
+        compiled: CompiledDeclaration,
+        island: HTMLTemplateElement,
+        dataRevision: string,
+        state: InstanceState | undefined,
+        forms: CapturedRenderedForms
+    ): DataIslandSnapshot {
         const slices = { ...(state?.slices ?? {}) };
         for (const [name, mirror] of Object.entries(forms.sliceMirrors)) {
-            slices[name] = isPlainRecord(slices[name]) ? { ...(slices[name] as Record<string, unknown>), ...mirror } : mirror;
+            slices[name] = isPlainRecord(slices[name])
+                ? { ...(slices[name] as Record<string, unknown>), ...mirror }
+                : mirror;
         }
         return {
             version: SNAPSHOT_SCHEMA_VERSION,
@@ -2278,7 +2419,7 @@ export class CemElementRuntime {
             producedTag: compiled.producedTag,
             declarationTag: compiled.declarationTag,
             templateArtifactId: compiled.artifactId,
-            dataRevision: this.nextDataRevision(instance),
+            dataRevision,
             outputTarget: 'light-dom',
             sourceMapMode: 'dev',
             scopePolicyStamp: this.scopePolicyStamp,
@@ -2293,6 +2434,44 @@ export class CemElementRuntime {
         };
     }
 
+    private applyRenderedCustomValidity(instance: HTMLElement, snapshot: DataIslandSnapshot): boolean {
+        const bounds = this.renderBounds.get(instance);
+        if (!bounds) {
+            return false;
+        }
+        let applied = false;
+        for (const element of renderedElementsBetween(bounds, 'form,input,select,textarea,button,fieldset')) {
+            const expression = this.customValidityExpressions.get(element) ?? element.getAttribute('custom-validity');
+            if (expression === null || expression === undefined) {
+                continue;
+            }
+            const result = evaluateCustomValidityExpression(
+                expression,
+                snapshot,
+                element,
+                this.formKeyForElement(instance, element)
+            );
+            const message = customValidityMessage(result);
+            this.customValidationMessages.set(element, message);
+            setElementCustomValidity(element, message);
+            applied = true;
+        }
+        return applied;
+    }
+
+    private formKeyForElement(instance: HTMLElement, element: Element): string | null {
+        const form = element.localName === 'form'
+            ? (element as HTMLFormElement)
+            : ((element as HTMLInputElement | HTMLSelectElement | HTMLTextAreaElement | HTMLButtonElement).form ?? null);
+        if (!form) {
+            return null;
+        }
+        const bounds = this.renderBounds.get(instance);
+        const forms = bounds ? renderedElementsBetween(bounds, 'form') : [];
+        const index = Math.max(0, forms.indexOf(form));
+        return renderedFormKey(form, this.formSliceNames.get(form), index);
+    }
+
     private captureRenderedForms(instance: HTMLElement): CapturedRenderedForms {
         const bounds = this.renderBounds.get(instance);
         const captured: CapturedRenderedForms = { formData: {}, validationState: {}, sliceMirrors: {} };
@@ -2305,7 +2484,7 @@ export class CemElementRuntime {
             const names = this.formSliceNames.get(form);
             const key = renderedFormKey(form, names, index);
             const formData = serializeRenderedFormData(form);
-            const validation = serializeRenderedFormValidation(form);
+            const validation = serializeRenderedFormValidation(form, this.customValidationMessages);
             captured.formData[key] = formData;
             captured.validationState[key] = validation;
             captured.sliceMirrors[key] = {
@@ -3746,12 +3925,16 @@ function serializeFormDataValue(value: FormDataEntryValue): string {
     return typeof value === 'string' ? value : value.name;
 }
 
-function serializeRenderedFormValidation(form: HTMLFormElement): SerializedFormValidation {
+function serializeRenderedFormValidation(
+    form: HTMLFormElement,
+    customMessages: WeakMap<Element, string>
+): SerializedFormValidation {
     const controls: Record<string, SerializedControlValidation> = {};
-    let valid = true;
-    let validationMessage = '';
+    const formMessage = customMessages.get(form) ?? '';
+    let valid = formMessage.length === 0;
+    let validationMessage = formMessage;
     for (const [index, control] of renderedFormControls(form).entries()) {
-        const serialized = serializeRenderedControlValidation(control);
+        const serialized = serializeRenderedControlValidation(control, customMessages);
         controls[uniqueFormControlKey(controls, control, index)] = serialized;
         if (!serialized.valid) {
             valid = false;
@@ -3787,7 +3970,10 @@ function uniqueFormControlKey(
     return `${base}-${suffix}`;
 }
 
-function serializeRenderedControlValidation(control: Element): SerializedControlValidation {
+function serializeRenderedControlValidation(
+    control: Element,
+    customMessages: WeakMap<Element, string>
+): SerializedControlValidation {
     const controlRecord = control as Element & {
         checked?: boolean;
         disabled?: boolean;
@@ -3799,6 +3985,7 @@ function serializeRenderedControlValidation(control: Element): SerializedControl
         willValidate?: boolean;
     };
     const validity = serializeValidityState(controlRecord.validity);
+    const customMessage = customMessages.get(control) ?? '';
     return {
         tag: control.localName,
         name: control.getAttribute('name'),
@@ -3808,8 +3995,8 @@ function serializeRenderedControlValidation(control: Element): SerializedControl
         disabled: controlRecord.disabled === true,
         required: controlRecord.required === true || control.hasAttribute('required'),
         willValidate: controlRecord.willValidate === true,
-        valid: validity.valid ?? true,
-        validationMessage: controlRecord.validationMessage ?? '',
+        valid: customMessage.length > 0 ? false : validity.valid ?? true,
+        validationMessage: customMessage || controlRecord.validationMessage || '',
         validity,
     };
 }
@@ -4104,6 +4291,355 @@ function declarationRuntimeSupportDiagnostic(
 
 function runtimeSupportSourceMapRef(diagnostic: RuntimeSupportDiagnostic, tag: string): SourceMapRef {
     return diagnostic.sourceMapRef ?? { fidelity: 'declaration-only', frame: `decl:${tag}` };
+}
+
+interface CustomValidityEvalContext {
+    snapshot: DataIslandSnapshot;
+    datadom: Record<string, unknown>;
+    formKey: string | null;
+}
+
+function evaluateCustomValidityExpression(
+    expression: string,
+    snapshot: DataIslandSnapshot,
+    element: Element,
+    formKey: string | null
+): unknown {
+    void element;
+    return evaluateCustomValidityValue(unwrapExpression(expression), {
+        snapshot,
+        datadom: dataDocumentFromSnapshot(snapshot),
+        formKey,
+    });
+}
+
+function customValidityMessage(value: unknown): string {
+    if (value === true || value === null || value === undefined) {
+        return '';
+    }
+    if (value === false) {
+        return 'invalid';
+    }
+    return String(value);
+}
+
+function setElementCustomValidity(element: Element, message: string): void {
+    const control = element as Element & { setCustomValidity?: (message: string) => void };
+    if (typeof control.setCustomValidity === 'function') {
+        control.setCustomValidity(message);
+    }
+}
+
+function evaluateCustomValidityValue(expression: string, context: CustomValidityEvalContext): unknown {
+    const body = stripBalancedOuterParens(expression.trim());
+    const fallback = splitTopLevelOperator(body, '??');
+    if (fallback) {
+        return truthyCustomValidityValue(evaluateCustomValidityValue(fallback.left, context))
+            ? true
+            : evaluateCustomValidityValue(fallback.right, context);
+    }
+
+    const orParts = splitTopLevelWord(body, 'or');
+    if (orParts.length > 1) {
+        return orParts.some((part) => truthyCustomValidityValue(evaluateCustomValidityValue(part, context)));
+    }
+    const andParts = splitTopLevelWord(body, 'and');
+    if (andParts.length > 1) {
+        return andParts.every((part) => truthyCustomValidityValue(evaluateCustomValidityValue(part, context)));
+    }
+
+    const notArg = functionArgument(body, 'not');
+    if (notArg !== null) {
+        return !truthyCustomValidityValue(evaluateCustomValidityValue(notArg, context));
+    }
+
+    const comparison = splitTopLevelComparison(body);
+    if (comparison) {
+        const left = evaluateCustomValidityValue(comparison.left, context);
+        const right = evaluateCustomValidityValue(comparison.right, context);
+        return compareCustomValidityValues(left, comparison.operator, right);
+    }
+
+    const lengthArg = functionArgument(body, 'string-length') ?? functionArgument(body, 'str:length');
+    if (lengthArg !== null) {
+        return String(evaluateCustomValidityValue(lengthArg, context) ?? '').length;
+    }
+
+    const concatArgs = parseConcatArguments(body);
+    if (concatArgs) {
+        return concatArgs.map((part) => String(evaluateCustomValidityValue(part, context) ?? '')).join('');
+    }
+
+    const literal = quotedLiteral(body);
+    if (literal) {
+        return body.trim().slice(1, -1);
+    }
+    if (body === 'true') {
+        return true;
+    }
+    if (body === 'false') {
+        return false;
+    }
+    if (/^-?\d+(?:\.\d+)?$/.test(body)) {
+        return Number(body);
+    }
+
+    const pathValue = resolveCustomValidityPath(body, context);
+    return pathValue !== undefined ? pathValue : body;
+}
+
+function truthyCustomValidityValue(value: unknown): boolean {
+    return value !== false && value !== null && value !== undefined && value !== '' && value !== 0 && value !== 'false';
+}
+
+function compareCustomValidityValues(left: unknown, operator: string, right: unknown): boolean {
+    const leftNumber = Number(left);
+    const rightNumber = Number(right);
+    const numeric = Number.isFinite(leftNumber) && Number.isFinite(rightNumber);
+    const leftComparable = numeric ? leftNumber : String(left ?? '');
+    const rightComparable = numeric ? rightNumber : String(right ?? '');
+    switch (operator) {
+        case '=':
+        case '==':
+            return leftComparable === rightComparable;
+        case '!=':
+            return leftComparable !== rightComparable;
+        case '>':
+            return leftComparable > rightComparable;
+        case '<':
+            return leftComparable < rightComparable;
+        case '>=':
+            return leftComparable >= rightComparable;
+        case '<=':
+            return leftComparable <= rightComparable;
+        default:
+            return false;
+    }
+}
+
+function resolveCustomValidityPath(path: string, context: CustomValidityEvalContext): unknown {
+    const body = path.trim();
+    if (body.startsWith('/datadom/slice/')) {
+        const parts = body.slice('/datadom/slice/'.length).split('/').filter(Boolean);
+        return resolveLegacySlicePath(parts, context);
+    }
+    if (body.startsWith('/datadom/slices/')) {
+        const parts = body.slice('/datadom/slices/'.length).split('/').filter(Boolean);
+        return resolveObjectPath(context.snapshot.slices, parts.map(legacyPathSegment));
+    }
+    if (body.startsWith('/datadom/form-data/') || body.startsWith('/datadom/formData/')) {
+        const prefix = body.startsWith('/datadom/form-data/') ? '/datadom/form-data/' : '/datadom/formData/';
+        const parts = body.slice(prefix.length).split('/').filter(Boolean).map(legacyPathSegment);
+        return resolveObjectPath(context.snapshot.formData ?? {}, parts);
+    }
+    if (body.startsWith('datadom.')) {
+        return resolveObjectPath(context.datadom, body.slice('datadom.'.length).split('.'));
+    }
+    if (body.startsWith('//form-data/') || body.startsWith('//formData/')) {
+        const prefix = body.startsWith('//form-data/') ? '//form-data/' : '//formData/';
+        return resolveCurrentFormData(body.slice(prefix.length).split('/').filter(Boolean), context);
+    }
+    if (body.startsWith('//slice/')) {
+        return resolveObjectPath(context.snapshot.slices, body.slice('//slice/'.length).split('/').filter(Boolean));
+    }
+    if (body.startsWith('//')) {
+        const parts = body.slice(2).split('/').filter(Boolean);
+        return resolveShorthandCustomValidityPath(parts, context);
+    }
+    return undefined;
+}
+
+function resolveLegacySlicePath(parts: string[], context: CustomValidityEvalContext): unknown {
+    if (parts.length === 0) {
+        return undefined;
+    }
+    const [sliceName, next, ...rest] = parts.map(legacyPathSegment);
+    if (next === 'form-data' || next === 'formData') {
+        return resolveObjectPath(context.snapshot.formData?.[sliceName] ?? {}, rest);
+    }
+    return resolveObjectPath(context.snapshot.slices, [sliceName, next, ...rest].filter(Boolean));
+}
+
+function resolveCurrentFormData(parts: string[], context: CustomValidityEvalContext): unknown {
+    const normalized = parts.map(legacyPathSegment);
+    if (context.formKey) {
+        const value = resolveObjectPath(context.snapshot.formData?.[context.formKey] ?? {}, normalized);
+        if (value !== undefined) {
+            return value;
+        }
+    }
+    for (const formData of Object.values(context.snapshot.formData ?? {})) {
+        const value = resolveObjectPath(formData, normalized);
+        if (value !== undefined) {
+            return value;
+        }
+    }
+    return undefined;
+}
+
+function resolveShorthandCustomValidityPath(parts: string[], context: CustomValidityEvalContext): unknown {
+    if (parts.length === 0) {
+        return undefined;
+    }
+    const normalized = parts.map(legacyPathSegment);
+    const [first, ...rest] = normalized;
+    const sliceValue = resolveObjectPath(context.snapshot.slices, normalized);
+    if (sliceValue !== undefined) {
+        return sliceValue;
+    }
+    if (context.formKey) {
+        const value = resolveObjectPath(context.snapshot.formData?.[context.formKey] ?? {}, normalized);
+        if (value !== undefined) {
+            return value;
+        }
+    }
+    for (const formData of Object.values(context.snapshot.formData ?? {})) {
+        const value = resolveObjectPath(formData, normalized);
+        if (value !== undefined) {
+            return value;
+        }
+    }
+    return rest.length === 0 ? context.snapshot.slices[first] : undefined;
+}
+
+function resolveObjectPath(root: unknown, parts: readonly string[]): unknown {
+    let current = root;
+    for (const part of parts) {
+        if (!isPlainRecord(current)) {
+            return undefined;
+        }
+        current = current[part];
+    }
+    return current;
+}
+
+function legacyPathSegment(segment: string): string {
+    return segment === 'form-data' ? 'formData' : segment.replace(/^@/, '');
+}
+
+function functionArgument(value: string, name: string): string | null {
+    const prefix = `${name}(`;
+    if (!value.startsWith(prefix) || !value.endsWith(')')) {
+        return null;
+    }
+    return stripBalancedOuterParens(value.slice(name.length));
+}
+
+function splitTopLevelComparison(value: string): { left: string; operator: string; right: string } | null {
+    for (const operator of ['>=', '<=', '!=', '==', '=', '>', '<']) {
+        const split = splitTopLevelOperator(value, operator);
+        if (split) {
+            return { ...split, operator };
+        }
+    }
+    return null;
+}
+
+function splitTopLevelOperator(value: string, operator: string): { left: string; right: string } | null {
+    const index = topLevelOperatorIndex(value, operator);
+    return index >= 0
+        ? { left: value.slice(0, index).trim(), right: value.slice(index + operator.length).trim() }
+        : null;
+}
+
+function splitTopLevelWord(value: string, word: string): string[] {
+    const parts: string[] = [];
+    let start = 0;
+    let depth = 0;
+    let quote: string | null = null;
+    for (let index = 0; index < value.length; index += 1) {
+        const char = value[index];
+        if ((char === '"' || char === "'") && quote === null) {
+            quote = char;
+            continue;
+        }
+        if (char === quote) {
+            quote = null;
+            continue;
+        }
+        if (quote !== null) {
+            continue;
+        }
+        if (char === '(') depth += 1;
+        if (char === ')') depth = Math.max(0, depth - 1);
+        if (
+            depth === 0 &&
+            value.slice(index, index + word.length) === word &&
+            isWordBoundary(value[index - 1]) &&
+            isWordBoundary(value[index + word.length])
+        ) {
+            parts.push(value.slice(start, index).trim());
+            start = index + word.length;
+            index += word.length - 1;
+        }
+    }
+    if (start === 0) {
+        return [value];
+    }
+    parts.push(value.slice(start).trim());
+    return parts;
+}
+
+function topLevelOperatorIndex(value: string, operator: string): number {
+    let depth = 0;
+    let quote: string | null = null;
+    for (let index = 0; index <= value.length - operator.length; index += 1) {
+        const char = value[index];
+        if ((char === '"' || char === "'") && quote === null) {
+            quote = char;
+            continue;
+        }
+        if (char === quote) {
+            quote = null;
+            continue;
+        }
+        if (quote !== null) {
+            continue;
+        }
+        if (char === '(') depth += 1;
+        if (char === ')') depth = Math.max(0, depth - 1);
+        if (depth === 0 && value.slice(index, index + operator.length) === operator) {
+            return index;
+        }
+    }
+    return -1;
+}
+
+function stripBalancedOuterParens(value: string): string {
+    let current = value.trim();
+    while (current.startsWith('(') && current.endsWith(')') && enclosesWholeExpression(current)) {
+        current = current.slice(1, -1).trim();
+    }
+    return current;
+}
+
+function enclosesWholeExpression(value: string): boolean {
+    let depth = 0;
+    let quote: string | null = null;
+    for (let index = 0; index < value.length; index += 1) {
+        const char = value[index];
+        if ((char === '"' || char === "'") && quote === null) {
+            quote = char;
+            continue;
+        }
+        if (char === quote) {
+            quote = null;
+            continue;
+        }
+        if (quote !== null) {
+            continue;
+        }
+        if (char === '(') depth += 1;
+        if (char === ')') depth -= 1;
+        if (depth === 0 && index < value.length - 1) {
+            return false;
+        }
+    }
+    return depth === 0;
+}
+
+function isWordBoundary(value: string | undefined): boolean {
+    return value === undefined || !/[A-Za-z0-9_-]/.test(value);
 }
 
 function evaluateSliceValue(
