@@ -365,6 +365,7 @@ export interface TemplateProjectionSnapshot {
     dataset: Record<string, string>;
     payload: unknown;
     slices: Record<string, unknown>;
+    formData?: Record<string, unknown>;
     validationState: Record<string, unknown>;
     eventPayloads: Record<string, unknown>;
 }

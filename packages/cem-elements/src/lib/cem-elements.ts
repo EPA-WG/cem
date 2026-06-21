@@ -116,7 +116,7 @@ export interface SerializedEventPayload {
 }
 
 /** Schema version of the DataIslandSnapshot / datadom governed contract (FF-6 SemVer axis, BR-VC-5). */
-export const SNAPSHOT_SCHEMA_VERSION = '1.1.0';
+export const SNAPSHOT_SCHEMA_VERSION = '1.2.0';
 
 export type SourceMapMode = 'dev' | 'prod';
 
@@ -137,6 +137,7 @@ export interface DataIslandSnapshot {
     dataset: Record<string, string>;
     payload: SerializedPayload;
     slices: Record<string, unknown>;
+    formData?: Record<string, unknown>;
     validationState: Record<string, unknown>;
     eventPayloads: Record<string, unknown>;
 }
@@ -146,6 +147,7 @@ export type DataIslandSnapshotExportField =
     | 'dataset'
     | 'payload'
     | 'slices'
+    | 'formData'
     | 'validationState'
     | 'eventPayloads';
 
@@ -405,6 +407,34 @@ interface SliceEventBinding {
     listener: EventListener;
 }
 
+interface CapturedRenderedForms {
+    formData: Record<string, SerializedFormData>;
+    validationState: Record<string, SerializedFormValidation>;
+    sliceMirrors: Record<string, Record<string, unknown>>;
+}
+
+type SerializedFormData = Record<string, string | string[]>;
+
+interface SerializedFormValidation {
+    valid: boolean;
+    validationMessage: string;
+    controls: Record<string, SerializedControlValidation>;
+}
+
+interface SerializedControlValidation {
+    tag: string;
+    name: string | null;
+    type: string | null;
+    value: string | null;
+    checked: boolean | null;
+    disabled: boolean;
+    required: boolean;
+    willValidate: boolean;
+    valid: boolean;
+    validationMessage: string;
+    validity: Record<string, boolean>;
+}
+
 interface HttpRequestDeclaration {
     sliceName: string;
     authoredUrl: string;
@@ -484,6 +514,7 @@ const DATA_ISLAND_EXPORT_FIELDS: readonly DataIslandSnapshotExportField[] = [
     'dataset',
     'payload',
     'slices',
+    'formData',
     'validationState',
     'eventPayloads',
 ];
@@ -656,6 +687,7 @@ export class CemElementRuntime {
     private readonly committedRenderPlans = new WeakMap<HTMLElement, RenderPlan>();
     private readonly instanceStates = new WeakMap<HTMLElement, InstanceState>();
     private readonly sliceEventBindings = new WeakMap<Element, SliceEventBinding>();
+    private readonly formSliceNames = new WeakMap<Element, string[]>();
     private readonly renderTokens = new WeakMap<HTMLElement, number>();
     private readonly renderSettled = new WeakMap<HTMLElement, Promise<void>>();
     private readonly declarationSettled = new WeakMap<object, Promise<void>>();
@@ -1359,6 +1391,9 @@ export class CemElementRuntime {
             return;
         }
         const expression = element.getAttribute('slice-value') ?? '{$target.value}';
+        if (element.localName === 'form') {
+            this.formSliceNames.set(element, sliceNames);
+        }
         element.removeAttribute('slice');
         element.removeAttribute('slice-event');
         element.removeAttribute('slice-value');
@@ -2231,6 +2266,12 @@ export class CemElementRuntime {
         compiled: CompiledDeclaration,
         island: HTMLTemplateElement
     ): DataIslandSnapshot {
+        const state = this.instanceStates.get(instance);
+        const forms = this.captureRenderedForms(instance);
+        const slices = { ...(state?.slices ?? {}) };
+        for (const [name, mirror] of Object.entries(forms.sliceMirrors)) {
+            slices[name] = isPlainRecord(slices[name]) ? { ...(slices[name] as Record<string, unknown>), ...mirror } : mirror;
+        }
         return {
             version: SNAPSHOT_SCHEMA_VERSION,
             instanceId: this.instanceId(instance),
@@ -2245,10 +2286,35 @@ export class CemElementRuntime {
             hostAttributes: hostAttributes(instance),
             dataset: datasetEntries(instance),
             payload: serializePayload(island),
-            slices: { ...(this.instanceStates.get(instance)?.slices ?? {}) },
-            validationState: {},
-            eventPayloads: { ...(this.instanceStates.get(instance)?.eventPayloads ?? {}) },
+            slices,
+            formData: forms.formData,
+            validationState: forms.validationState,
+            eventPayloads: { ...(state?.eventPayloads ?? {}) },
         };
+    }
+
+    private captureRenderedForms(instance: HTMLElement): CapturedRenderedForms {
+        const bounds = this.renderBounds.get(instance);
+        const captured: CapturedRenderedForms = { formData: {}, validationState: {}, sliceMirrors: {} };
+        if (!bounds) {
+            return captured;
+        }
+        const forms = renderedElementsBetween(bounds, 'form').filter((element) => element.localName === 'form');
+        for (const [index, element] of forms.entries()) {
+            const form = element as HTMLFormElement;
+            const names = this.formSliceNames.get(form);
+            const key = renderedFormKey(form, names, index);
+            const formData = serializeRenderedFormData(form);
+            const validation = serializeRenderedFormValidation(form);
+            captured.formData[key] = formData;
+            captured.validationState[key] = validation;
+            captured.sliceMirrors[key] = {
+                formData,
+                valid: validation.valid,
+                validationMessage: validation.validationMessage,
+            };
+        }
+        return captured;
     }
 
     private instanceId(instance: HTMLElement): string {
@@ -3637,6 +3703,136 @@ function renderedElementsBetween(bounds: RenderBounds, selector: string): Elemen
     return elements;
 }
 
+function renderedFormKey(form: HTMLFormElement, sliceNames: string[] | undefined, index: number): string {
+    const firstSliceName = sliceNames?.find((name) => name.length > 0);
+    return (
+        firstSliceName ??
+        form.getAttribute('slice')?.trim() ??
+        form.getAttribute('name')?.trim() ??
+        form.id.trim() ??
+        `form${index + 1}`
+    );
+}
+
+function serializeRenderedFormData(form: HTMLFormElement): SerializedFormData {
+    const data: SerializedFormData = {};
+    const FormDataCtor = form.ownerDocument.defaultView?.FormData;
+    if (!FormDataCtor) {
+        return data;
+    }
+    try {
+        for (const [name, value] of new FormDataCtor(form).entries()) {
+            appendSerializedFormDataValue(data, name, serializeFormDataValue(value));
+        }
+    } catch {
+        // Some browser-hosted forms can throw while controls are mid-mutation; keep the
+        // snapshot transport-safe and let the next event/render capture a stable form.
+    }
+    return data;
+}
+
+function appendSerializedFormDataValue(data: SerializedFormData, name: string, value: string): void {
+    const existing = data[name];
+    if (existing === undefined) {
+        data[name] = value;
+    } else if (Array.isArray(existing)) {
+        existing.push(value);
+    } else {
+        data[name] = [existing, value];
+    }
+}
+
+function serializeFormDataValue(value: FormDataEntryValue): string {
+    return typeof value === 'string' ? value : value.name;
+}
+
+function serializeRenderedFormValidation(form: HTMLFormElement): SerializedFormValidation {
+    const controls: Record<string, SerializedControlValidation> = {};
+    let valid = true;
+    let validationMessage = '';
+    for (const [index, control] of renderedFormControls(form).entries()) {
+        const serialized = serializeRenderedControlValidation(control);
+        controls[uniqueFormControlKey(controls, control, index)] = serialized;
+        if (!serialized.valid) {
+            valid = false;
+            validationMessage ||= serialized.validationMessage;
+        }
+    }
+    return { valid, validationMessage, controls };
+}
+
+function renderedFormControls(form: HTMLFormElement): Element[] {
+    return Array.from(form.elements).filter(
+        (control): control is Element => (control as Element | undefined)?.nodeType === 1
+    );
+}
+
+function uniqueFormControlKey(
+    controls: Record<string, SerializedControlValidation>,
+    control: Element,
+    index: number
+): string {
+    const base =
+        control.getAttribute('name')?.trim() ||
+        control.id.trim() ||
+        control.getAttribute('data-role')?.trim() ||
+        `${control.localName}${index + 1}`;
+    if (!(base in controls)) {
+        return base;
+    }
+    let suffix = 2;
+    while (`${base}-${suffix}` in controls) {
+        suffix += 1;
+    }
+    return `${base}-${suffix}`;
+}
+
+function serializeRenderedControlValidation(control: Element): SerializedControlValidation {
+    const controlRecord = control as Element & {
+        checked?: boolean;
+        disabled?: boolean;
+        required?: boolean;
+        type?: string;
+        value?: string;
+        validationMessage?: string;
+        validity?: ValidityState;
+        willValidate?: boolean;
+    };
+    const validity = serializeValidityState(controlRecord.validity);
+    return {
+        tag: control.localName,
+        name: control.getAttribute('name'),
+        type: controlRecord.type ?? control.getAttribute('type'),
+        value: typeof controlRecord.value === 'string' ? controlRecord.value : control.getAttribute('value'),
+        checked: typeof controlRecord.checked === 'boolean' ? controlRecord.checked : null,
+        disabled: controlRecord.disabled === true,
+        required: controlRecord.required === true || control.hasAttribute('required'),
+        willValidate: controlRecord.willValidate === true,
+        valid: validity.valid ?? true,
+        validationMessage: controlRecord.validationMessage ?? '',
+        validity,
+    };
+}
+
+function serializeValidityState(validity: ValidityState | undefined): Record<string, boolean> {
+    if (!validity) {
+        return { valid: true };
+    }
+    return {
+        badInput: validity.badInput,
+        customError: validity.customError,
+        patternMismatch: validity.patternMismatch,
+        rangeOverflow: validity.rangeOverflow,
+        rangeUnderflow: validity.rangeUnderflow,
+        stepMismatch: validity.stepMismatch,
+        tooLong: validity.tooLong,
+        tooShort: validity.tooShort,
+        typeMismatch: validity.typeMismatch,
+        valid: validity.valid,
+        valueMissing: validity.valueMissing,
+    };
+}
+
 function isDataIslandSnapshot(value: unknown): value is DataIslandSnapshot {
     if (!value || typeof value !== 'object') {
         return false;
@@ -3655,6 +3851,7 @@ function isDataIslandSnapshot(value: unknown): value is DataIslandSnapshot {
         isPlainRecord(record.hostAttributes) &&
         isPlainRecord(record.dataset) &&
         isPlainRecord(record.slices) &&
+        (record.formData === undefined || isPlainRecord(record.formData)) &&
         isPlainRecord(record.validationState) &&
         isPlainRecord(record.eventPayloads)
     );
@@ -3801,6 +3998,7 @@ function dataDocumentFromSnapshot(snapshot: DataIslandSnapshot): Record<string, 
         dataItems: snapshot.payload.data,
         optionItems: snapshot.payload.options,
         slices: snapshot.slices,
+        formData: snapshot.formData ?? {},
         validationState: snapshot.validationState,
         eventPayloads: snapshot.eventPayloads,
     };
@@ -3832,6 +4030,9 @@ function dataDocumentElementsByAttribute(
 }
 
 function cloneJsonSnapshotField(value: unknown): unknown {
+    if (value === undefined) {
+        return {};
+    }
     return JSON.parse(JSON.stringify(value)) as unknown;
 }
 

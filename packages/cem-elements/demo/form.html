@@ -18,12 +18,16 @@
         {slice @name=username}
         {slice @name=password}
         {article @class=demo-card |
-            {form |
-                {label | Username {input @name=username @autocomplete=username @value="{$username}" @slice=username @slice-event=input @slice-value="{$target.value}"}}
-                {label | Password {input @name=password @type=password @value="{$password}" @slice=password @slice-event=input @slice-value="{$target.value}"}}
+            {form @slice=signin |
+                {label | Username {input @name=username @autocomplete=username @required=true @value="{$username}" @slice=username @slice-event=input @slice-value="{$target.value}"}}
+                {label | Password {input @name=password @type=password @required=true @minlength=4 @value="{$password}" @slice=password @slice-event=input @slice-value="{$target.value}"}}
                 {button @type=button | Preview}
             }
             {p | username: {output | {$datadom.slices.username}}}
+            {p | form username: {output @data-role=form-username | {$datadom.formData.signin.username}}}
+            {p | mirrored form username: {output @data-role=mirror-username | {$datadom.slices.signin.formData.username}}}
+            {p | form valid: {output @data-role=form-valid | {$datadom.validationState.signin.valid}}}
+            {p | password valid: {output @data-role=password-valid | {$datadom.validationState.signin.controls.password.valid}}}
             {p | password slice set: {cem:choose |
                 {cem:when @test="datadom.slices.password" | yes}
                 {cem:otherwise | no}
@@ -34,7 +38,7 @@
 
 <main>
     <cem-form-preview></cem-form-preview>
-    <p class="status-note">Parity target: form-data extraction, custom validity, and validation-state serialization are queued in <code>docs/todo.md</code>.</p>
+    <p class="status-note">Parity target: custom-validity expression application remains queued in <code>docs/todo.md</code>.</p>
 </main>
 </body>
 </html>

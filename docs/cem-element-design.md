@@ -305,6 +305,7 @@ interface DataIslandSnapshot {
   dataset: Record<string, string>;
   payload: SerializedPayload;
   slices: Record<string, unknown>;
+  formData?: Record<string, unknown>;
   validationState: Record<string, unknown>;
   eventPayloads: Record<string, unknown>;
 }

@@ -94,8 +94,12 @@ const fixtureSpecs = [
         path: '/packages/cem-elements/demo/form.html',
         checks: [
             text('cem-form-preview article.demo-card', 'password slice set:'),
-            fillThenText('cem-form-preview input[name="username"]', 'ada', 'cem-form-preview output', 'ada'),
-            fillThenText('cem-form-preview input[name="password"]', 'secret', 'cem-form-preview p', 'yes'),
+            fillThenText('cem-form-preview input[name="username"]', 'ada', 'cem-form-preview output[data-role="form-username"]', 'ada'),
+            text('cem-form-preview output[data-role="mirror-username"]', 'ada'),
+            text('cem-form-preview output[data-role="form-valid"]', 'false'),
+            fillThenText('cem-form-preview input[name="password"]', 'secret', 'cem-form-preview output[data-role="password-valid"]', 'true'),
+            text('cem-form-preview output[data-role="form-valid"]', 'true'),
+            text('cem-form-preview p', 'yes'),
         ],
     },
     {
@@ -346,6 +350,7 @@ async function collectDebugSnapshot(page, check) {
                 'cem-slice-field',
                 'cem-loop-list',
                 'cem-style-demo',
+                'cem-form-preview',
             ];
             const failedSelector =
                 failedCheck?.selector ?? failedCheck?.resultSelector ?? failedCheck?.actionSelector ?? undefined;

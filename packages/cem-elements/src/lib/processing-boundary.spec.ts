@@ -61,11 +61,13 @@ describe('host processing boundary contracts', () => {
                 dataset: 'allow',
                 payload: 'allow',
                 slices: 'allow',
+                formData: 'allow',
                 validationState: 'allow',
                 eventPayloads: 'allow',
             },
         });
         expectPlainBoundaryValue(exported);
+        expect((exported.formData as Record<string, unknown>).signin).toEqual({ username: 'ada' });
         expect((exported.slices as Record<string, unknown>).date).toBe('2026-06-17T00:00:00.000Z');
         expect((exported.slices as Record<string, unknown>).klass).toEqual({ value: 'class-value' });
         expect((exported.eventPayloads as Record<string, unknown>).fn).toBeUndefined();
@@ -358,6 +360,7 @@ function snapshotFixture(): DataIslandSnapshot {
             klass: new HostClassInstance('class-value') as unknown,
             primitive: 'ok',
         },
+        formData: { signin: { username: 'ada' } },
         validationState: {},
         eventPayloads: {
             fn: (() => 'dropped') as unknown,

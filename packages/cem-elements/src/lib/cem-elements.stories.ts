@@ -2149,6 +2149,86 @@ export const SliceEventExpressionParity: Story = {
     },
 };
 
+export const FormDataValidationStateSnapshot: Story = {
+    render: () => {
+        const root = document.createElement('section');
+        root.setAttribute('aria-label', 'form data validation state story');
+
+        const runtime = new CemElementRuntime({ declarationTag: 'cem-element-story-form-data' });
+        runtime.install(window);
+
+        const declaration = document.createElement('cem-element-story-form-data');
+        declaration.setAttribute('tag', 'story-form-data-field');
+        const template = document.createElement('template');
+        template.innerHTML = [
+            '<slice name="username"></slice>',
+            '<slice name="password"></slice>',
+            '<form slice="signin">',
+            '<label>Username <input name="username" required value="{$username}" slice="username" slice-event="input" slice-value="$target.value" /></label>',
+            '<label>Password <input name="password" type="password" required value="{$password}" slice="password" slice-event="input" slice-value="$target.value" /></label>',
+            '<output data-role="form-username">${$datadom.formData.signin.username}</output>',
+            '<output data-role="mirror-username">${$datadom.slices.signin.formData.username}</output>',
+            '<output data-role="form-valid">${$datadom.validationState.signin.valid}</output>',
+            '<output data-role="password-valid">${$datadom.validationState.signin.controls.password.valid}</output>',
+            '</form>',
+        ].join('');
+        declaration.appendChild(template);
+        root.appendChild(declaration);
+        runtime.registerDeclaration(declaration);
+
+        const instance = document.createElement('story-form-data-field');
+        root.appendChild(instance);
+        (instance as HTMLElement & { __runtime?: CemElementRuntime }).__runtime = runtime;
+        return root;
+    },
+    play: async ({ canvasElement }) => {
+        const instance = await waitForElement(canvasElement, 'story-form-data-field');
+        const username = requiredElement(instance, 'input[name="username"]') as HTMLInputElement;
+        const password = requiredElement(instance, 'input[name="password"]') as HTMLInputElement;
+        const runtime = (instance as HTMLElement & { __runtime?: CemElementRuntime }).__runtime;
+        assert(runtime, 'form data story runtime should be attached to the instance');
+
+        username.value = 'ada';
+        username.dispatchEvent(new Event('input', { bubbles: true }));
+        await waitForCondition(
+            () => requiredElement(instance, 'output[data-role="form-username"]').textContent === 'ada',
+            'form-data projects the username field'
+        );
+        assertEqual(
+            requiredElement(instance, 'output[data-role="mirror-username"]').textContent,
+            'ada',
+            'form slice mirror exposes form-data under datadom.slices'
+        );
+        assertEqual(
+            requiredElement(instance, 'output[data-role="form-valid"]').textContent,
+            'false',
+            'form validity reflects the remaining required password control'
+        );
+
+        password.value = 'secret';
+        password.dispatchEvent(new Event('input', { bubbles: true }));
+        await waitForCondition(
+            () => requiredElement(instance, 'output[data-role="form-valid"]').textContent === 'true',
+            'form validity updates after required controls are filled'
+        );
+        assertEqual(
+            requiredElement(instance, 'output[data-role="password-valid"]').textContent,
+            'true',
+            'control validation state projects by control name'
+        );
+
+        const snapshot = runtime.snapshotInstance(instance);
+        const formData = snapshot.formData?.signin as Record<string, unknown>;
+        const validation = snapshot.validationState.signin as { valid?: boolean; controls?: Record<string, { valid?: boolean }> };
+        const mirror = snapshot.slices.signin as { formData?: Record<string, unknown> };
+        assertEqual(formData.username, 'ada', 'snapshot formData stores username');
+        assertEqual(formData.password, 'secret', 'snapshot formData stores password');
+        assertEqual(mirror.formData?.username, 'ada', 'snapshot slices mirror formData under the form slice');
+        assertEqual(validation.valid, true, 'snapshot validationState stores form validity');
+        assertEqual(validation.controls?.password?.valid, true, 'snapshot validationState stores control validity');
+    },
+};
+
 export const EventToDataRenderLoopSnapshot: Story = {
     render: () => storyPanel('Event to data loop', 'slice events update render output and data snapshots'),
     play: async ({ canvasElement }) => {
@@ -3427,12 +3507,14 @@ export const BrowserToEdgeSnapshotPrivacyPolicy: Story = {
             },
         };
         snapshot.slices = { typed: 'draft input' };
+        snapshot.formData = { signin: { username: 'ada' } };
         snapshot.validationState = { valid: false, message: 'private validation detail' };
         snapshot.eventPayloads = { input: { value: 'raw browser event payload' } };
 
         const defaultExport = exportDataIslandSnapshotForEdge(snapshot);
         assert(!('hostAttributes' in defaultExport), 'default edge export omits host attributes');
         assert(!('payload' in defaultExport), 'default edge export omits payload');
+        assert(!('formData' in defaultExport), 'default edge export omits form data');
         assert(!('validationState' in defaultExport), 'default edge export omits validation state');
 
         const exported = exportDataIslandSnapshotForEdge(snapshot, {
@@ -3440,6 +3522,7 @@ export const BrowserToEdgeSnapshotPrivacyPolicy: Story = {
             fields: {
                 hostAttributes: 'allow',
                 payload: 'redact',
+                formData: 'redact',
                 validationState: 'redact',
                 dataset: 'omit',
                 slices: 'omit',
@@ -3459,6 +3542,11 @@ export const BrowserToEdgeSnapshotPrivacyPolicy: Story = {
             Object.keys(exported.payload?.dataByValue ?? {}).length,
             0,
             'redacted payload lookup records are cleared'
+        );
+        assertEqual(
+            Object.keys(exported.formData ?? {}).length,
+            0,
+            'redacted form data is present but empty'
         );
         assertEqual(
             Object.keys(exported.validationState ?? {}).length,
