@@ -269,9 +269,25 @@ conditional output, repeated output, and slot-projection regions without adding 
 boxes or CSS selector targets. Inside `<style>` and `<script>`, this is a content-type
 switch: marker syntax changes to raw text comments such as `/*cem-start:r12*/` and
 `/*cem-end:r12*/`, and a style/script-specific patcher interprets the marked text
-regions. `<textarea>` dynamic internals require special handling because browser state
-mixes default text with live form-control value; that behavior is intentionally left for
-a later focused design.
+regions.
+
+`<textarea>` dynamic internals are handled as a controlled form-control special case.
+Runtime-created child nodes under a textarea are not rendered, but the browser DOM can
+retain them as an invisible merge model for dynamic inclusions. The browser host
+reconciles that hidden model against the virtual render tree, then derives the live
+string from the ordered hidden model by ignoring marker comments and joining each
+non-marker node's `textContent`. It assigns `textarea.value` only when that derived
+value changed, preserving focus, selection, composition, custom validity, and
+user-owned edits according to the binding policy. The hidden child model is patch state;
+`textarea.value` is still the authoritative rendered value.
+
+SSR cannot rely on raw child markup inside `<textarea>`, because the HTML parser treats
+textarea contents as text. Persisted and SSR output that needs dynamic textarea
+interiors must use a loader-friendly representation, such as an
+`<xsl:element name="textarea">`-style or equivalent CEM-ML construction, template
+payload, or hydration marker structure. The browser loader builds the actual textarea,
+installs the hidden dynamic model, projects the initial `.value`, and mirrors render
+identities into properties before hydration or merge.
 
 This keeps WASM deterministic and parallelizable while keeping browser-specific state
 where it belongs. Focus, selection, form-control live values, event listeners, custom

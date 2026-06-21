@@ -52,9 +52,9 @@ history belongs in git history and the feature-specific docs linked below.
      - [x] add render-tree diff/no-op replacement protection so unchanged virtual render trees do not mutate browser DOM;
      - [ ] implement property-first sequential DOM merge from render plans, including `node.cemRenderNodeId`, SSR/debug
        marker mirroring, comment-range dynamic regions, temporary keyed-sibling maps, and `replaceScope` recovery;
-     - [ ] Low priority: design dynamic internal `<textarea>` content handling for SSR and DOM merge; consider an
-       `<xsl:element name="textarea">`-style or equivalent CEM-ML templating form where SSR emits loader-friendly
-       placeholder markup that can be converted to an actual textarea DOM node capable of merging dynamic parts.
+     - [ ] Low priority: implement and cross-browser validate dynamic internal `<textarea>` handling using an invisible
+       child-node merge model plus explicit `.value` projection; include SSR loader conversion from a
+       loader-friendly `<xsl:element name="textarea">`-style or equivalent CEM-ML placeholder form.
      - [ ] add the design test matrix as executable gates: repeated builds, occurrence paths, parallel scheduling,
        same-tag separate scopes, same-seed collision diagnostics, blank seed, runtime fallback, SSR/browser parity,
        dynamic-data exceptions, hydration no-op, event no-op rerender, scoped CSS isolation, `:host`/`:global`/`:root`,

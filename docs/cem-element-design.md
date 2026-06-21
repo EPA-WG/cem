@@ -609,10 +609,39 @@ range markers use the content language's block-comment form, for example
 `/*cem-start:r12*/` and `/*cem-end:r12*/`. A content-specific patcher interprets those
 markers while preserving the element as a single browser node.
 
-`<textarea>` is a special case. Dynamic internal textarea content needs separate design
-because browsers expose textarea state through both text content/default value and live
-form-control value. Until that design lands, dynamic textarea interiors must be treated
-conservatively rather than assumed to follow the generic comment-range algorithm.
+`<textarea>` is a special case. The visible/form value of a textarea is
+`HTMLTextAreaElement.value`; child DOM appended at runtime can exist under the
+textarea, but it is not rendered and does not automatically change the live value. The
+browser patcher may use those hidden children as the mergeable dynamic model for
+textarea internals, while still treating the textarea element itself as the durable
+browser form-control node.
+
+For dynamic textarea interiors, the UI adapter:
+
+1. keeps dynamic text, expression, conditional, repeated, and slot-projection parts as
+   hidden child nodes or range markers under the textarea;
+2. reconciles those hidden children against the virtual render tree using the same
+   property-first render identity rules as other DOM nodes;
+3. after a successful hidden-model merge, derives the next textarea string from the
+   ordered hidden model, ignoring marker comments and joining each non-marker node's
+   `textContent`;
+4. writes `textarea.value = nextValue` only when the value actually changed; and
+5. preserves browser-owned state such as focus, selection range, selection direction,
+   input composition, custom validity, and user edits according to the element's
+   controlled/uncontrolled binding policy.
+
+Using only `textarea.lastElementChild.textContent` is not sufficient because a
+textarea may contain multiple static and dynamic parts. The hidden child model is patch
+state; `textarea.value` remains the authoritative rendered value.
+
+Raw SSR HTML cannot directly serialize mergeable child DOM inside a `<textarea>`,
+because the HTML parser treats textarea contents as text. SSR and persisted output that
+need dynamic textarea interiors must emit a loader-friendly representation, such as an
+`<xsl:element name="textarea">`-style or equivalent CEM-ML construction, template
+payload, or hydration marker structure. The browser loader converts that representation
+into an actual textarea element, installs the hidden child model, projects the initial
+`.value`, and mirrors render identities into properties before normal hydration or DOM
+merge begins.
 
 ```ts
 type DomPatchTarget = { kind: "render-node"; id: string };
