@@ -3672,7 +3672,7 @@ mod tests {
         let result = convert(
             r#"<xsl:stylesheet version="1.0"><xsl:template match="/"><xsl:call-template name="badge"><xsl:with-param name="label" select="'New'"/></xsl:call-template></xsl:template><xsl:template name="badge"><span class="badge">{$label}</span></xsl:template></xsl:stylesheet>"#,
         );
-        assert_eq!(result.source, r#"{span @class="badge" | {"New"}}"#);
+        assert_eq!(result.source, r#"{span @class="badge" | {$"New"}}"#);
         assert!(result.diagnostics.is_empty());
     }
 
