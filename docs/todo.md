@@ -31,9 +31,9 @@ history belongs in git history and the feature-specific docs linked below.
      - [x] Add an explicit resource-settled runtime/test hook so fixtures do not wait with timing sleeps.
      - [x] Add a local JSON fixture that proves `cem:for-each` over response records in demo parity pages.
      - [x] Add a local XML fixture that proves `cem:for-each` over response records in demo parity pages.
-     - [ ] Add `packages/cem-elements/index.html` resource-backed `<http-request>` coverage if the copied demo parity
-       matrix requires index-page coverage in addition to the dedicated demo page.
-     - [ ] Keep the published standalone `http-request.js` companion shim smoke-tested as compatibility surface.
+     - [x] Confirm `packages/cem-elements/index.html` does not need duplicate resource-backed `<http-request>` coverage for
+       Phase 1 because the dedicated `demo/http-request.html` fixture now covers JSON/XML resource records.
+     - [x] Keep the published standalone `http-request.js` companion shim smoke-tested as compatibility surface.
      - [ ] Defer progressive AST streaming, full browser source-map sidecars, cache identity, SSR preload/revalidation, and
        legacy broad XPath rewrite compatibility to later phases of the design.
    - Implement `<local-storage>` as a CEM Elements resource primitive with typed text/date/time/number/json coercion,

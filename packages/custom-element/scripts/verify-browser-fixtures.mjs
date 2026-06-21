@@ -79,6 +79,8 @@ function contentType(filePath) {
             return 'text/javascript; charset=utf-8';
         case '.json':
             return 'application/json; charset=utf-8';
+        case '.xml':
+            return 'application/xml; charset=utf-8';
         case '.wasm':
             return 'application/wasm';
         case '.css':

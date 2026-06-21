@@ -116,6 +116,19 @@ export async function runCustomElementSmoke(importBase) {
     check('http-request records response status', request.value?.response?.status === 200);
     check('http-request forwards request headers', request.value?.request?.headers?.accept === 'application/json');
 
+    const xmlRequest = document.createElement('http-request');
+    xmlRequest.setAttribute('url', './http-data.xml');
+    xmlRequest.setAttribute('method', 'GET');
+    xmlRequest.setAttribute('header-accept', 'application/xml');
+    document.body.appendChild(xmlRequest);
+    await waitFor('http-request fetches XML data', () => xmlRequest.value?.data?.localName === 'response');
+    check('http-request records XML response status', xmlRequest.value?.response?.status === 200);
+    check(
+        'http-request parses XML payload',
+        [...(xmlRequest.value?.data?.querySelectorAll('item') ?? [])].map((item) => item.textContent).join(',') ===
+            'alpha,beta'
+    );
+
     localStorage.removeItem('fixture-key');
     const storage = document.createElement('local-storage');
     storage.setAttribute('key', 'fixture-key');
