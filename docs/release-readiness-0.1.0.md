@@ -247,7 +247,8 @@ Not exercised (require maintainer/auth): the actual `nx release` tag + push, `np
 publish`, and the GitHub release (`changelog.workspaceChangelog.createRelease: github`).
 The `preVersionCommand` (`sync-release-version.cjs` + `nx run-many -t build`) ran
 during the rehearsal without error; `sync-release-version.cjs` now also aligns the
-`@epa-wg/custom-element` manifest with the fixed group version.
+`@epa-wg/cem-elements` and `@epa-wg/custom-element` manifests with the fixed group
+version.
 
 ## 9. Final readiness sweep (2026-06-21)
 

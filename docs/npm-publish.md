@@ -125,11 +125,15 @@ After pushing, GitHub Actions automatically publishes to npm:
    ```bash
    npm view @epa-wg/cem-theme version
    npm view @epa-wg/cem-components version
+   npm view @epa-wg/cem-elements version
+   npm view @epa-wg/custom-element version
    ```
 
    Or visit:
     - https://www.npmjs.com/package/@epa-wg/cem-theme
     - https://www.npmjs.com/package/@epa-wg/cem-components
+    - https://www.npmjs.com/package/@epa-wg/cem-elements
+    - https://www.npmjs.com/package/@epa-wg/custom-element
 
 ## Post-Release: Update Figma Library
 
