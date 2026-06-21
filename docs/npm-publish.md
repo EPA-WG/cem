@@ -73,22 +73,27 @@ git checkout main
 git fetch origin
 git pull origin main
 
-# Run the release preparation script
+# Run exactly one release preparation command.
+#
+# Normal conventional-commit release:
 yarn publish:prepare
-## Or, if no commits with feat: prefix
-yarn publish:prepare patch
+
+# For the 0.1.0 release, use this instead because most release commits are
+# not conventional-commit formatted:
+yarn publish:prepare 0.1.0
 ```
 
 **What `yarn publish:prepare` does:**
 
-1. 🔙 Restores `workspace:*` protocols for local dependencies
-2. 📦 Runs `nx release` - bumps versions based on conventional commits
-3. ❓ Generates/updates CHANGELOG.md files
-4. 🔄 Replaces `workspace:*` with semantic versions (e.g., `^0.0.5`)
-5. 🔒 Updates `yarn.lock`
-6. ✏️ Amends the release commit
-7. 🏷️ Creates git tag (e.g., `0.0.5`)
-8. ⬆️ Pushes commit and tag to GitHub
+1. 🔎 Validates published npm package metadata
+2. 🔙 Restores `workspace:*` protocols for local dependencies
+3. 📦 Runs `nx release` - bumps versions from conventional commits or the explicit specifier argument
+4. ❓ Generates/updates CHANGELOG.md files
+5. 🔄 Replaces `workspace:*` with semantic versions (e.g., `^0.1.0`)
+6. 🔒 Updates `yarn.lock`
+7. ✏️ Amends the release commit
+8. 🏷️ Creates git tag (e.g., `0.1.0`)
+9. ⬆️ Pushes commit and tag to GitHub
 
 **Example output:**
 
@@ -316,12 +321,13 @@ Prepares and pushes a release (versions, changelog, tag).
 
 **Steps:**
 
-1. Restores workspace protocols
-2. Bumps versions via `nx release`
-3. Replaces workspace protocols with semantic versions
-4. Updates lockfile
-5. Amends commit and recreates tag
-6. Pushes to remote
+1. Validates package metadata
+2. Restores workspace protocols
+3. Bumps versions via `nx release`
+4. Replaces workspace protocols with semantic versions
+5. Updates lockfile
+6. Amends commit and recreates tag
+7. Pushes to remote
 
 ### Helper Scripts
 

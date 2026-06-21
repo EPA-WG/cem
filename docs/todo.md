@@ -118,6 +118,7 @@ Completed release-gate phases are recorded in:
 
 Current verification commands:
 
+- `yarn nx run @epa-wg/cem-theme:verify:phase13`
 - `yarn nx run cem-elements:verify`
 - `yarn nx run @epa-wg/cem-components:verify`
 - `yarn nx run cem-elements:verify-edge-ssr`

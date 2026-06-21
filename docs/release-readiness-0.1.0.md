@@ -196,9 +196,9 @@ required by the substrate-backed adapter.
 - [x] Curate `CHANGELOG.md` from §2 highlights. The `0.1.0` entry is hand-curated
       because the `nx release` auto-changelog is unreliable for this release
       (see §8); do not replace it with the raw generated changelog.
-- [x] Confirm all migration gates green (done 2026-06-09: `cem-elements:verify`,
-      `@epa-wg/custom-element:verify`, `@epa-wg/cem-theme:build:html` +
-      `verify:phase13`).
+- [x] Confirm all migration gates green. Re-checked 2026-06-21:
+      `@epa-wg/cem-theme:verify:phase13`, `cem-elements:verify`,
+      `@epa-wg/cem-components:verify`, and `@epa-wg/custom-element:verify`.
 - [x] Add a deprecation notice to the legacy XSLT-only README section (§4).
       Landed in `packages/custom-element/README.md` (§"XSLT 1.0") and
       `packages/cem-theme/README.md` (Build & test — generator path): both note
@@ -238,3 +238,22 @@ publish`, and the GitHub release (`changelog.workspaceChangelog.createRelease: g
 The `preVersionCommand` (`sync-release-version.cjs` + `nx run-many -t build`) ran
 during the rehearsal without error; `sync-release-version.cjs` now also aligns the
 `@epa-wg/custom-element` manifest with the fixed group version.
+
+## 9. Final readiness sweep (2026-06-21)
+
+The immediate release queue is clear. Dynamic internal `<textarea>` merge/hydration
+handling was intentionally moved to [`wishlist.md`](wishlist.md) and is not a 0.1.0
+release blocker.
+
+Current local gate evidence:
+
+- `yarn nx run @epa-wg/cem-theme:verify:phase13` — passed.
+- `yarn nx run cem-elements:verify` — passed.
+- `yarn nx run @epa-wg/cem-components:verify` — passed.
+- `yarn nx run @epa-wg/custom-element:verify` — passed.
+
+Remaining release work is maintainer-owned publication, not implementation:
+merge/rebase as needed, run the explicit 0.1.0 release command path from
+[`npm-publish.md`](npm-publish.md), push the release tag, monitor GitHub Actions,
+verify npm, and refresh the Figma library from the published `@epa-wg/cem-theme`
+artifacts.
