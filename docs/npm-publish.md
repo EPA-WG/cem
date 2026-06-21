@@ -283,7 +283,7 @@ git push origin develop
 - [ ] PR from `develop` to `main` created and reviewed
 - [ ] PR merged to `main`
 - [ ] Checked out `main` and pulled latest
-- [ ] Ran `yarn publish:prepare` locally
+- [ ] Ran `yarn publish:prepare 0.1.0` locally for this release
 - [ ] Verified GitHub Actions workflow succeeded
 - [ ] Verified packages on npm
 - [ ] Refreshed the CEM UI Kit native Figma variables from the published npm CDN files
