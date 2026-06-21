@@ -1,7 +1,7 @@
 {
     "name": "@epa-wg/cem",
     "description": "Consumer Semantic Material Theme and custom-element components library for NO-JS declarative web applications.",
-    "version": "0.1.0",
+    "version": "0.1.1",
     "author": {
         "name": "Sasha Firsov",
         "email": "sasha@firsov.net"

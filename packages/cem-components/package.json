@@ -1,6 +1,6 @@
 {
     "name": "@epa-wg/cem-components",
-    "version": "0.1.0",
+    "version": "0.1.1",
     "author": {
         "name": "Sasha Firsov",
         "email": "sasha@firsov.net"
@@ -29,8 +29,8 @@
         "!**/*.tsbuildinfo"
     ],
     "dependencies": {
-        "@epa-wg/cem-elements": "^0.1.0",
-        "@epa-wg/cem-theme": "^0.1.0"
+        "@epa-wg/cem-elements": "^0.1.1",
+        "@epa-wg/cem-theme": "^0.1.1"
     },
     "publishConfig": {
         "access": "public"
