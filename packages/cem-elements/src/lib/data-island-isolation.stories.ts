@@ -1,5 +1,5 @@
 import type { Meta, StoryObj } from '@storybook/web-components-vite';
-import { CemElementRuntime } from './cem-elements.js';
+import { CemElementRuntime, analyzeDeclarationShape } from './cem-elements.js';
 
 /**
  * Data-island isolation stories (todo §3.1).
@@ -172,6 +172,42 @@ export const DeclarationElementRendersNoVisibleContent: Story = {
     },
 };
 
+export const DeclarationShapeGuardrailsPreventLiveData: Story = {
+    render: () => {
+        const root = document.createElement('section');
+        root.setAttribute('aria-label', 'declaration shape guardrails');
+        return root;
+    },
+    play: () => {
+        assertShape(buildShapeDeclaration('valid', '<template><button>Valid</button></template>'), true, []);
+        assertShape(buildShapeDeclaration('implicit-cem-ml', '{button | Valid}'), true, []);
+        assertShape(
+            buildShapeDeclaration('two-templates', '<template></template><template></template>'),
+            false,
+            ['cem-element.inline_template_count']
+        );
+        assertShape(
+            buildShapeDeclaration('src-conflict', '<template></template>', './button.html#button'),
+            false,
+            ['cem-element.src_inline_template_conflict']
+        );
+
+        const liveDeclaration = buildShapeDeclaration(
+            'live-content',
+            '<template></template><p data-iso="live">Live declaration data</p>'
+        );
+        assertShape(liveDeclaration, false, ['cem-element.declaration_live_content']);
+
+        const live = requiredElement(liveDeclaration, '[data-iso="live"]') as HTMLElement;
+        assert(!live.isConnected, 'invalid live declaration content is never mounted by this guardrail test');
+        assertEqual(
+            live.textContent,
+            'Live declaration data',
+            'the rejected content is the exact live payload guarded by declaration analysis'
+        );
+    },
+};
+
 interface IsolationStorySpec {
     declarationTag: string;
     producedTag: string;
@@ -237,6 +273,46 @@ function requiredElement(root: ParentNode, selector: string): Element {
     const element = root.querySelector(selector);
     assert(element, `expected ${selector} to exist`);
     return element;
+}
+
+function buildShapeDeclaration(label: string, html: string, src?: string): HTMLElement {
+    const declaration = document.createElement('div');
+    declaration.setAttribute('tag', `iso-shape-${label}`);
+    if (src) {
+        declaration.setAttribute('src', src);
+    }
+    declaration.innerHTML = html;
+    return declaration;
+}
+
+function assertShape(declaration: Element, ok: boolean, diagnostics: string[]): void {
+    const result = analyzeDeclarationShape({
+        tag: declaration.getAttribute('tag'),
+        src: declaration.getAttribute('src'),
+        directTemplateCount: directTemplateCount(declaration),
+        directLiveNodeCount: directLiveNodeCount(declaration),
+    });
+
+    const label = declaration.getAttribute('tag') ?? 'declaration';
+    assertEqual(result.ok, ok, `${label} declaration validity`);
+    for (const code of diagnostics) {
+        assert(
+            result.diagnostics.some((diagnostic) => diagnostic.code === code),
+            `${label} declaration emits ${code}`
+        );
+    }
+}
+
+function directTemplateCount(element: Element): number {
+    return Array.from(element.children).filter((child) => child.localName === 'template').length;
+}
+
+function directLiveNodeCount(element: Element): number {
+    return Array.from(element.childNodes).filter((node) => {
+        if (node.nodeType === Node.ELEMENT_NODE) return (node as Element).localName !== 'template';
+        if (node.nodeType === Node.TEXT_NODE) return (node.textContent ?? '').trim().length > 0;
+        return false;
+    }).length;
 }
 
 function nextFrame(): Promise<void> {

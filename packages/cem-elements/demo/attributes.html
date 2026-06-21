@@ -1,0 +1,84 @@
+<!doctype html>
+<html lang="en">
+<head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <title>cem-element attributes demo</title>
+    <link rel="stylesheet" href="./demo.css">
+    <script type="module">
+        import { installCemElementRuntime } from '../dist/index.js';
+        installCemElementRuntime(window);
+        window.addEventListener('click', (event) => {
+            const button = event.target.closest('[data-set-attr]');
+            if (!button) return;
+            const target = document.querySelector(button.dataset.target);
+            const name = button.dataset.attr;
+            const value = document.querySelector(button.dataset.valueFrom)?.value ?? button.dataset.value ?? '';
+            target?.setAttribute(name, value);
+        });
+    </script>
+</head>
+<body>
+<nav class="page-nav"><a href="../index.html">cem-element demo</a><h1>Attributes</h1></nav>
+
+<cem-element tag="cem-attr-card">
+    <template type="text/cem-ml">
+        {attribute @name=label | Default label}
+        {attribute @name=tone | neutral}
+        {article @class="demo-card {$tone}" @data-tone="{$datadom.attributes.tone}" |
+            {h2 | {$label}}
+            {p | host label: {$datadom.attributes.label ?? "unset"}}
+            {p | tone: {$tone}}
+        }
+    </template>
+</cem-element>
+
+<cem-element tag="cem-attr-defaults">
+    <template type="text/cem-ml">
+        {attribute @name=p1 | default_P1}
+        {attribute @name=p2 | always_p2}
+        {attribute @name=p3 | def_P3}
+        {article @class=demo-card |
+            {h2 | attributes definition}
+            {p | p1: {$p1}}
+            {p | p2: always_p2}
+            {p | p3: {$datadom.attributes.p3 ?? "def_P3"}}
+        }
+    </template>
+</cem-element>
+
+<cem-element tag="cem-attr-slice">
+    <template type="text/cem-ml">
+        {attribute @name=v | def}
+        {slice @name=s}
+        {article @class=demo-card |
+            {h2 | attribute defaults, container value, and slice value}
+            {p | /datadom/attributes/v: {$datadom.attributes.v ?? "unset"}}
+            {p | effective value: {$(datadom.slices.s ?? datadom.attributes.v ?? "def")}}
+            {label | Type to update the slice {input @slice=s @slice-event=input @slice-value="$target.value"}}
+        }
+    </template>
+</cem-element>
+
+<main>
+    <cem-attr-defaults id="defaults-1"></cem-attr-defaults>
+    <cem-attr-defaults id="defaults-2" p1="123" p2="override ignored in rendered value" p3="qwe"></cem-attr-defaults>
+
+    <section class="demo-card">
+        <h2>live host attribute changes</h2>
+        <cem-attr-card id="live-attr" label="Before" tone="neutral"></cem-attr-card>
+        <div class="row">
+            <input id="label-input" value="After">
+            <button type="button" data-set-attr data-target="#live-attr" data-attr="label" data-value-from="#label-input">set label</button>
+        </div>
+        <div class="row">
+            <input id="tone-input" value="alert">
+            <button type="button" data-set-attr data-target="#live-attr" data-attr="tone" data-value-from="#tone-input">set tone</button>
+        </div>
+    </section>
+
+    <cem-attr-slice></cem-attr-slice>
+    <cem-attr-slice v="From Container"></cem-attr-slice>
+</main>
+</body>
+</html>

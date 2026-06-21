@@ -8,10 +8,15 @@
             "executor": "nx:run-commands",
             "dependsOn": [
                 { "projects": ["cem-elements"], "target": "build" },
-                { "projects": ["cem_ql"], "target": "build:wasm" }
+                { "projects": ["cem_ql"], "target": "build:wasm" },
+                { "projects": ["cem_ml_cli"], "target": "build" }
             ],
             "options": {
-                "command": "node scripts/build-package.mjs",
+                "commands": [
+                    "node scripts/build-package.mjs",
+                    "../../dist/target/cem_ml_cli/debug/cem-ml transform --config material/importmap.transform.cem"
+                ],
+                "parallel": false,
                 "cwd": "packages/custom-element"
             },
             "cache": true,
@@ -20,6 +25,7 @@
                 "{projectRoot}/demo/**/*",
                 "{projectRoot}/docs/**/*",
                 "{projectRoot}/ide/**/*",
+                "{projectRoot}/material/**/*",
                 "{projectRoot}/*.js",
                 "{projectRoot}/*.d.ts",
                 "{projectRoot}/*.html",
@@ -38,12 +44,16 @@
             "outputs": ["{projectRoot}/dist"]
         },
         "test": {
-            "dependsOn": ["build"],
+            "dependsOn": [
+                "build",
+                { "projects": ["@epa-wg/cem-theme"], "target": "build:html" }
+            ],
             "executor": "nx:run-commands",
             "options": {
                 "commands": [
                     "node scripts/inventory-xslt-compat.mjs",
                     "node scripts/verify-package-baseline.mjs",
+                    "node scripts/verify-theme-vendor-runtime.mjs",
                     "node scripts/verify-browser-fixtures.mjs"
                 ],
                 "parallel": false,
@@ -54,7 +64,10 @@
                 "{projectRoot}/dist/**/*",
                 "{projectRoot}/scripts/inventory-xslt-compat.mjs",
                 "{projectRoot}/scripts/verify-package-baseline.mjs",
+                "{projectRoot}/scripts/verify-theme-vendor-runtime.mjs",
                 "{projectRoot}/scripts/verify-browser-fixtures.mjs",
+                "{workspaceRoot}/packages/cem-theme/dist/**/*.html",
+                "{workspaceRoot}/packages/cem-theme/dist/vendor/@epa-wg/custom-element/*.js",
                 "{projectRoot}/test-fixtures/**/*.json",
                 "{projectRoot}/test-fixtures/**/*",
                 "{projectRoot}/demo/**/*",
@@ -86,6 +99,12 @@
             },
             "outputs": []
         },
+        "nx-release-publish": {
+            "executor": "@nx/js:release-publish",
+            "options": {
+                "packageRoot": "packages/custom-element/dist"
+            }
+        },
         "verify": {
             "dependsOn": ["build", "test", "lint"],
             "executor": "nx:run-commands",
@@ -94,6 +113,11 @@
                 "cwd": "{workspaceRoot}"
             },
             "outputs": []
+        }
+    },
+    "release": {
+        "version": {
+            "manifestRootsToUpdate": ["packages/custom-element/dist"]
         }
     }
 }

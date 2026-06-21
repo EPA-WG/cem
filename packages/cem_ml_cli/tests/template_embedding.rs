@@ -39,7 +39,10 @@ fn content_expression_is_handed_off_to_cem_ql() {
         .collect();
     assert_eq!(content.len(), 1, "exactly one `{{$ ... }}` body");
     let (query, diags) = compile_embedding(content[0], &CompileContext::default());
-    assert!(query.is_some(), "valid expression parses cleanly: {diags:?}");
+    assert!(
+        query.is_some(),
+        "valid expression parses cleanly: {diags:?}"
+    );
     assert!(diags.is_empty(), "no diagnostics for valid expression");
 }
 
@@ -54,7 +57,10 @@ fn whole_expression_attribute_is_handed_off_to_cem_ql() {
     assert_eq!(whole.len(), 1, "exactly one whole-expression attribute");
     assert_eq!(whole[0].attribute.as_deref(), Some("select"));
     let (query, diags) = compile_embedding(whole[0], &CompileContext::default());
-    assert!(query.is_some(), "valid expression parses cleanly: {diags:?}");
+    assert!(
+        query.is_some(),
+        "valid expression parses cleanly: {diags:?}"
+    );
 }
 
 #[test]

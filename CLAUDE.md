@@ -1,5 +1,9 @@
 # Claude Code Instructions
 
+Codex shorthand:
+- `.` means “where are we, and what is next?”
+- `>` means “continue”
+
 ## Project overview
 
 CEM (Consumer-Experience Model) is a semantic design token framework using `@epa-wg/custom-element` for declarative web
@@ -145,8 +149,8 @@ el.closest('.cem-theme-dark');
 
 ## custom-element legacy info
 
-The custom-element POC sources reside in `~/aWork/custom-element/` folder. 
-Use the sources, demo, and docs from the POC only as a functional reference, 
+The custom-element POC sources reside in `~/aWork/custom-element/` folder.
+Use the sources, demo, and docs from the POC only as a functional reference,
 not as a decision point for syntax or semantics.
 
 custom-element POC material components reside in `~/aWork/custom-element-dist/src/material/` folder.

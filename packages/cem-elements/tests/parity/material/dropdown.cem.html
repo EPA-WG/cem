@@ -1,0 +1,10 @@
+<cem-element tag="cem-dropdown">
+    <template type="text/cem-ml">
+        {attribute @name=label | Menu}
+        {slice @name=open | false}
+        {div @class=cem-dropdown |
+            {button @type=button @aria-expanded="{$open}" @slice=open @slice-event=click @slice-value="'true'" | {$label}}
+            {cem:if @test="datadom.slices.open" | {div @class=panel | {slot}}}
+        }
+    </template>
+</cem-element>

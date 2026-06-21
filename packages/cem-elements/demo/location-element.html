@@ -1,0 +1,44 @@
+<!doctype html>
+<html lang="en">
+<head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <title>cem-element location demo</title>
+    <link rel="stylesheet" href="./demo.css">
+    <script type="module">
+        import { installCemElementRuntime } from '../dist/index.js';
+        installCemElementRuntime(window);
+    </script>
+</head>
+<body>
+<nav class="page-nav"><a href="../index.html">cem-element demo</a><h1>location-element</h1></nav>
+
+<cem-element tag="cem-location-panel">
+    <template type="text/cem-ml">
+        {location-element @slice=current @live=true}
+        {location-element @slice=sample @href="https://example.test/demo/path?mode=demo&tag=one&tag=two#fixture"}
+        {article @class=demo-card |
+            {button @type=button @data-location-push=true | Push URL}
+            {p | current href: {output @data-role=current-href | {$datadom.slices.current.href}}}
+            {p | current hash: {output @data-role=current-hash | {$datadom.slices.current.hash}}}
+            {p | sample host: {output @data-role=sample-host | {$datadom.slices.sample.hostname}}}
+            {p | sample hash: {output @data-role=sample-hash | {$datadom.slices.sample.hash}}}
+            {ul @class=sample-params |
+                {cem:for-each @select="datadom.slices.sample.paramEntries" @as=param |
+                    {li | {$param.name} = {$param.text}}
+                }
+            }
+        }
+    </template>
+</cem-element>
+
+<main><cem-location-panel></cem-location-panel></main>
+<script>
+    document.addEventListener('click', (event) => {
+        if (event.target?.matches?.('[data-location-push="true"]')) {
+            history.pushState({}, '', './location-element.html?mode=live#checked');
+        }
+    });
+</script>
+</body>
+</html>

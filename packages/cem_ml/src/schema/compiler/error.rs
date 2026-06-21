@@ -11,21 +11,34 @@ pub enum EmitError {
     /// DFA profile does not support (AC-S-7). Emitter sees this when the
     /// IR carries a constraint kind absent from
     /// `TierAValidationProfile::supported_constraints`.
-    UnsupportedConstraint { kind: String, schema_uri: String },
+    UnsupportedConstraint {
+        kind: String,
+        schema_uri: String,
+    },
     /// Required IR field is missing — caller fed a `CompiledSchema` that
     /// is not fully populated (e.g. version_identity.uri empty).
-    MissingIrField { field: &'static str },
+    MissingIrField {
+        field: &'static str,
+    },
     /// `DeterministicWriter` reject path: CR byte, trailing whitespace,
     /// or missing final newline detected at release time.
-    NonDeterministicWrite { reason: &'static str },
+    NonDeterministicWrite {
+        reason: &'static str,
+    },
     /// A schema URI could not be resolved against the published
     /// manifests — either it is outside the well-known
     /// `https://cem.dev/ns/` scheme, or no published embedded version
     /// satisfies its version-tail constraint (AC-S-5 / AC-V-10).
-    UnresolvableUri { uri: String, reason: &'static str },
+    UnresolvableUri {
+        uri: String,
+        reason: &'static str,
+    },
     /// An artifact relative path would escape the publication root or
     /// otherwise violate the stable publication-tree path grammar.
-    InvalidArtifactPath { path: String, reason: &'static str },
+    InvalidArtifactPath {
+        path: String,
+        reason: &'static str,
+    },
 }
 
 impl fmt::Display for EmitError {
@@ -40,7 +53,10 @@ impl fmt::Display for EmitError {
                 write!(f, "schema emitter: required IR field `{field}` is missing")
             }
             EmitError::NonDeterministicWrite { reason } => {
-                write!(f, "schema emitter: non-deterministic write rejected ({reason})")
+                write!(
+                    f,
+                    "schema emitter: non-deterministic write rejected ({reason})"
+                )
             }
             EmitError::UnresolvableUri { uri, reason } => write!(
                 f,

@@ -1,0 +1,9 @@
+<cem-element tag="cem-badge">
+    <template type="text/cem-ml">
+        {attribute @name=color | primary}
+        {span @class="cem-badge {$color}" |
+            {slot}
+            {cem:if @test="datadom.attributes.text" | {span @class=badge-dd | {$datadom.attributes.text}}}
+        }
+    </template>
+</cem-element>

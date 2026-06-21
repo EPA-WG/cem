@@ -1,0 +1,15 @@
+<custom-element hidden src="./icon-link.html#cem-icon-link" tag="cem-icon-link"></custom-element>
+<custom-element hidden src="./menu.html#cem-menu" tag="cem-menu"></custom-element>
+<custom-element hidden tag="cem-dropdown">
+    <template id="cem-dropdown">
+        <attribute name="open"></attribute>
+        <attribute name="label"></attribute>
+        <style>
+            .cem-dropdown { display: inline-block; }
+        </style>
+        <slot name="base"><label>{$label}</label></slot>
+        <cem-menu>
+            <slot name=""></slot>
+        </cem-menu>
+    </template>
+</custom-element>

@@ -180,7 +180,10 @@ fn write_artifact(root_dir: &Path, artifact: &EmittedArtifact) -> Result<(), Emi
     }
     write_atomic(&target, &artifact.bytes)?;
     let sidecar = append_extension(&target, "hash");
-    write_atomic(&sidecar, artifact.content_hash.to_sidecar_string().as_bytes())?;
+    write_atomic(
+        &sidecar,
+        artifact.content_hash.to_sidecar_string().as_bytes(),
+    )?;
     Ok(())
 }
 

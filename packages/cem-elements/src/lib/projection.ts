@@ -33,6 +33,19 @@ const TEMPLATE_ARTIFACT_ID_ATTR = 'data-cem-template-artifact-id';
 const DATA_REVISION_ATTR = 'data-cem-data-revision';
 const SOURCE_FIDELITY_ATTR = 'data-cem-source-fidelity';
 const SOURCE_FRAME_ATTR = 'data-cem-source-frame';
+export const DATA_CEM_SCOPE_ATTR = 'data-cem-scope';
+export const DATA_CEM_INSTANCE_SCOPE_ATTR = 'data-cem-instance-scope';
+const STYLE_TAG = 'style';
+const PAYLOAD_RENDER_NODE_ID_PREFIX = 'payload-';
+const KEYFRAMES_AT_RULE = /@(-webkit-)?keyframes\s+([A-Za-z_][\w-]*)/g;
+const UNSUPPORTED_SCOPED_CSS_AT_RULES = [
+    'font-face',
+    'property',
+    'counter-style',
+    'font-palette-values',
+    'page',
+    'namespace',
+] as const;
 
 export type TemplateValue = string | boolean | null;
 export type SourceMapFidelity = 'author-byte-exact' | 'dom-canonical' | 'declaration-only';
@@ -91,6 +104,68 @@ export interface RenderPlan {
     outputTarget: 'light-dom';
     scopePolicyStamp: string;
     nodes: RenderPlanNode[];
+}
+
+export interface RenderPlanDomRange {
+    start: Comment;
+    end: Comment;
+}
+
+export interface RenderedFragmentMergeOptions {
+    preserveElementChildren?: (current: Element, desired: Element) => boolean;
+}
+
+export interface RenderPlanApplyOptions extends RenderedFragmentMergeOptions {
+    dynamicTextRanges?: boolean;
+    transientElementTags?: readonly string[];
+}
+
+export interface RenderPlanApplyDiagnostic {
+    code: string;
+    severity: 'info' | 'warning';
+    reason: 'first-render' | 'recovery';
+    message: string;
+}
+
+export interface RenderPlanApplyResult {
+    mode: 'patch' | 'replaceScope';
+    diagnostics: RenderPlanApplyDiagnostic[];
+}
+
+export interface ScopedCssRewriteDiagnostic {
+    code: string;
+    severity: 'warning';
+    message: string;
+}
+
+export interface ScopedCssRewriteResult {
+    css: string;
+    diagnostics: ScopedCssRewriteDiagnostic[];
+}
+
+export interface ScopedRenderPlanResult {
+    renderPlan: RenderPlan;
+    diagnostics: ScopedCssRewriteDiagnostic[];
+}
+
+export interface ScopeRenderPlanOptions {
+    instanceScopeUid?: string;
+}
+
+export interface ScopeCssTextOptions {
+    scopeAttribute?: string;
+}
+
+export type GeneratedRenderPlanIdKind = 'render-node' | 'stylesheet';
+
+export interface GeneratedRenderPlanIdDiagnostic {
+    code: string;
+    severity: 'warning';
+    kind: GeneratedRenderPlanIdKind;
+    id: string;
+    firstPath: string;
+    duplicatePath: string;
+    message: string;
 }
 
 export interface RenderRevision {
@@ -312,6 +387,7 @@ export interface TemplateProjectionSnapshot {
     dataset: Record<string, string>;
     payload: unknown;
     slices: Record<string, unknown>;
+    formData?: Record<string, unknown>;
     validationState: Record<string, unknown>;
     eventPayloads: Record<string, unknown>;
 }
@@ -378,13 +454,6 @@ export function projectTemplate(
     return projectTemplateWith(source, input, projectNode, isTopLevelNonOutputNode);
 }
 
-export function projectLegacyTemplate(
-    source: readonly TemplateSourceNode[],
-    input: TemplateProjectionInput
-): RenderPlan {
-    return projectTemplateWith(source, input, projectLegacyNode, isTopLevelLegacyNonOutputNode);
-}
-
 export function renderPlanIdentity(plan: RenderPlan): RenderPlanIdentity {
     return {
         producedTag: plan.producedTag,
@@ -421,7 +490,12 @@ export function diffRenderPlansToPatchFrames(
     return frames;
 }
 
+export function renderPlansHaveDomChanges(previous: RenderPlan | null, next: RenderPlan): boolean {
+    return diffRenderPlans(previous, next).length > 0;
+}
+
 export function edgeContentAddress(kind: EdgeContentKind, value: unknown): EdgeContentAddress {
+    assertProcessingBoundaryValue(value, `${kind} content`);
     const digest = stableJsonDigest(value);
     const algorithm = 'stable-json-fnv1a64-v1';
     return {
@@ -430,6 +504,52 @@ export function edgeContentAddress(kind: EdgeContentKind, value: unknown): EdgeC
         digest,
         key: `${kind}:${algorithm}:${digest}`,
     };
+}
+
+export function assertProcessingBoundaryValue(value: unknown, label = 'processing boundary value'): void {
+    const failure = findProcessingBoundaryViolation(value, label);
+    if (failure) {
+        throw new TypeError(failure);
+    }
+}
+
+function findProcessingBoundaryViolation(value: unknown, path: string): string | null {
+    if (
+        value === null ||
+        value === undefined ||
+        typeof value === 'string' ||
+        typeof value === 'number' ||
+        typeof value === 'boolean'
+    ) {
+        return null;
+    }
+    if (typeof value === 'function' || typeof value === 'symbol' || typeof value === 'bigint') {
+        return `${path} contains non-transport value ${typeof value}`;
+    }
+    if (Array.isArray(value)) {
+        for (const [index, item] of value.entries()) {
+            const failure = findProcessingBoundaryViolation(item, `${path}[${index}]`);
+            if (failure) {
+                return failure;
+            }
+        }
+        return null;
+    }
+    if (typeof value === 'object') {
+        const prototype = Object.getPrototypeOf(value);
+        if (prototype !== Object.prototype && prototype !== null) {
+            const name = prototype?.constructor?.name ?? 'unknown';
+            return `${path} contains non-plain object ${name}`;
+        }
+        for (const [key, item] of Object.entries(value as Record<string, unknown>)) {
+            const failure = findProcessingBoundaryViolation(item, `${path}.${key}`);
+            if (failure) {
+                return failure;
+            }
+        }
+        return null;
+    }
+    return `${path} contains unsupported value`;
 }
 
 export function createEdgeRenderStateRecord(input: EdgeRenderStateInput): EdgeRenderStateRecord {
@@ -757,65 +877,6 @@ function projectNode(
     }];
 }
 
-function projectLegacyNode(
-    source: TemplateSourceNode,
-    input: TemplateProjectionInput,
-    nextRenderNodeId: () => string
-): RenderPlanNode[] {
-    if (source.kind === 'text') {
-        return [{ kind: 'text', text: interpolateLegacy(source.text, input), sourceMapRef: source.sourceMapRef }];
-    }
-    if (source.kind === 'comment') {
-        return [{ kind: 'comment', text: source.text, sourceMapRef: source.sourceMapRef }];
-    }
-    if (source.tag === 'if') {
-        return legacyTestIsTruthy(source.attributes, input)
-            ? source.children.flatMap((child) => projectLegacyNode(child, input, nextRenderNodeId))
-            : [];
-    }
-    if (source.tag === 'choose') {
-        for (const child of source.children) {
-            if (child.kind !== 'element') {
-                continue;
-            }
-            if (child.tag === 'when' && legacyTestIsTruthy(child.attributes, input)) {
-                return child.children.flatMap((branch) => projectLegacyNode(branch, input, nextRenderNodeId));
-            }
-            if (child.tag === 'otherwise') {
-                return child.children.flatMap((branch) => projectLegacyNode(branch, input, nextRenderNodeId));
-            }
-        }
-        return [];
-    }
-
-    const attributes: RenderPlanAttribute[] = [];
-    for (const attribute of source.attributes) {
-        if (source.tag === 'attribute' && attribute.name === 'select') {
-            continue;
-        }
-        const value = interpolateLegacy(attribute.value, input);
-        if (isWholeLegacyExpression(attribute.value) && (value === '' || value === 'false')) {
-            continue;
-        }
-        attributes.push({ name: attribute.name, value });
-    }
-
-    return [{
-        kind: 'element',
-        namespace: source.namespace,
-        tag: source.tag,
-        attributes,
-        renderNodeId: nextRenderNodeId(),
-        children: source.children.flatMap((child) => projectLegacyNode(child, input, nextRenderNodeId)),
-        sourceMapRef: source.sourceMapRef,
-    }];
-}
-
-function legacyTestIsTruthy(attributes: readonly TemplateSourceAttribute[], input: TemplateProjectionInput): boolean {
-    const test = attributes.find((attribute) => attribute.name === 'test')?.value ?? '';
-    return legacyValueIsTruthy(evaluateLegacyExpression(test, input));
-}
-
 /**
  * Pure render-plan lowering for declarative slots. It replaces rendered `<slot>`
  * elements with serialized payload nodes assigned to that slot, or with the
@@ -826,17 +887,169 @@ export function projectSlotsInRenderPlan(plan: RenderPlan, payload: unknown): Re
     if (!slotPayload) {
         return plan;
     }
-    const consumed = new Set<string>();
     return {
         ...plan,
-        nodes: projectSlotNodes(plan.nodes, slotPayload, consumed),
+        nodes: projectSlotNodes(plan.nodes, slotPayload),
     };
+}
+
+/**
+ * Stamp a render plan with a generated scope identity and rewrite template-local
+ * `<style>` nodes so light-DOM rendering gets the same containment model in the
+ * browser, SSR, and edge render paths.
+ */
+export function scopeRenderPlan(
+    plan: RenderPlan,
+    scopeUid: string,
+    options: ScopeRenderPlanOptions = {}
+): ScopedRenderPlanResult {
+    const diagnostics: ScopedCssRewriteDiagnostic[] = [];
+    const instanceScopeUid = options.instanceScopeUid ?? renderInstanceScopeUid(scopeUid, plan.instanceId);
+    return {
+        renderPlan: {
+            ...plan,
+            nodes: scopeRenderNodes(plan.nodes, scopeUid, instanceScopeUid, diagnostics, true),
+        },
+        diagnostics,
+    };
+}
+
+export function scopeCssText(
+    css: string,
+    scopeUid: string,
+    options: ScopeCssTextOptions = {}
+): ScopedCssRewriteResult {
+    const diagnostics: ScopedCssRewriteDiagnostic[] = [];
+    let scoped = css;
+
+    scoped = scoped.replace(/@import\b[^;]*;?/gi, (statement) => {
+        diagnostics.push({
+            code: 'cem.scoped_css.import_unsupported',
+            severity: 'warning',
+            message: `scoped CSS suppresses unsupported @import statement: ${statement.trim()}`,
+        });
+        return '';
+    });
+
+    for (const atRule of UNSUPPORTED_SCOPED_CSS_AT_RULES) {
+        const before = scoped;
+        scoped = stripUnsupportedAtRule(scoped, atRule);
+        if (scoped !== before) {
+            diagnostics.push({
+                code: 'cem.scoped_css.global_construct_unsupported',
+                severity: 'warning',
+                message: `scoped CSS suppresses unsupported global @${atRule} construct`,
+            });
+        }
+    }
+
+    const keyframeRenames = new Map<string, string>();
+    scoped = scoped.replace(KEYFRAMES_AT_RULE, (_statement: string, vendor: string | undefined, name: string) => {
+        const scopedName = `${name}-${cssIdentifier(scopeUid)}`;
+        keyframeRenames.set(name, scopedName);
+        return `@${vendor ?? ''}keyframes ${scopedName}`;
+    });
+    scoped = rewriteAnimationReferences(scoped, keyframeRenames);
+
+    let globalAliasDiagnostic = false;
+    scoped = scoped
+        .replace(/:host\(([^)]*)\)/g, '&$1')
+        .replace(/:host(?![-_A-Za-z0-9])/g, '&')
+        .replace(/:global\(([^)]*)\)/g, (_match, selector: string) => {
+            globalAliasDiagnostic = true;
+            return `&${selector}`;
+        })
+        .replace(/:global(?![-_A-Za-z0-9])/g, () => {
+            globalAliasDiagnostic = true;
+            return '&';
+        })
+        .replace(/:root(?![-_A-Za-z0-9])/g, () => {
+            globalAliasDiagnostic = true;
+            return '&';
+        });
+
+    if (globalAliasDiagnostic) {
+        diagnostics.push({
+            code: 'cem.scoped_css.global_alias',
+            severity: 'warning',
+            message: 'scoped CSS treats :global and :root as :host aliases',
+        });
+    }
+
+    const body = scoped.trim();
+    const scopeAttribute = options.scopeAttribute ?? DATA_CEM_SCOPE_ATTR;
+    return {
+        css: body.length > 0 ? `[${scopeAttribute}="${cssString(scopeUid)}"] {\n${indentCss(body)}\n}` : '',
+        diagnostics,
+    };
+}
+
+export function renderInstanceScopeUid(scopeUid: string, instanceId: string): string {
+    return `${scopeUid}-i${cssIdentifier(instanceId)}`;
+}
+
+export function validateRenderPlanGeneratedIds(plan: RenderPlan): GeneratedRenderPlanIdDiagnostic[] {
+    const diagnostics: GeneratedRenderPlanIdDiagnostic[] = [];
+    const renderNodeIds = new Map<string, string>();
+    const stylesheetIds = new Map<string, string>();
+
+    const visit = (node: RenderPlanNode, path: string): void => {
+        if (node.kind !== 'element') {
+            return;
+        }
+        recordGeneratedRenderPlanId(renderNodeIds, diagnostics, {
+            kind: 'render-node',
+            id: node.renderNodeId,
+            path,
+            code: 'cem.render_plan.generated_render_node_id_duplicate',
+            label: 'render-node ID',
+        });
+        if (node.tag === STYLE_TAG && node.namespace === null) {
+            recordGeneratedRenderPlanId(stylesheetIds, diagnostics, {
+                kind: 'stylesheet',
+                id: node.renderNodeId,
+                path,
+                code: 'cem.render_plan.generated_stylesheet_id_duplicate',
+                label: 'stylesheet ID',
+            });
+        }
+        node.children.forEach((child, index) => visit(child, `${path}.${index}`));
+    };
+
+    plan.nodes.forEach((node, index) => visit(node, String(index)));
+    return diagnostics;
+}
+
+function recordGeneratedRenderPlanId(
+    seen: Map<string, string>,
+    diagnostics: GeneratedRenderPlanIdDiagnostic[],
+    input: {
+        kind: GeneratedRenderPlanIdKind;
+        id: string;
+        path: string;
+        code: string;
+        label: string;
+    }
+): void {
+    const firstPath = seen.get(input.id);
+    if (firstPath !== undefined) {
+        diagnostics.push({
+            code: input.code,
+            severity: 'warning',
+            kind: input.kind,
+            id: input.id,
+            firstPath,
+            duplicatePath: input.path,
+            message: `generated ${input.label} \`${input.id}\` is duplicated in render-plan paths ${firstPath} and ${input.path}`,
+        });
+        return;
+    }
+    seen.set(input.id, input.path);
 }
 
 function projectSlotNodes(
     nodes: readonly RenderPlanNode[],
-    payload: ProjectionPayload,
-    consumed: Set<string>
+    payload: ProjectionPayload
 ): RenderPlanNode[] {
     const out: RenderPlanNode[] = [];
     for (const node of nodes) {
@@ -846,13 +1059,13 @@ function projectSlotNodes(
         }
         if (node.tag === 'slot') {
             const name = node.attributes.find((attribute) => attribute.name === 'name')?.value ?? '';
-            const projected = collectProjectedSlotPayload(payload, name, consumed);
+            const projected = collectProjectedSlotPayload(payload, name);
             out.push(...(projected.length > 0 ? projected : node.children));
             continue;
         }
         out.push({
             ...node,
-            children: projectSlotNodes(node.children, payload, consumed),
+            children: projectSlotNodes(node.children, payload),
         });
     }
     return out;
@@ -860,16 +1073,11 @@ function projectSlotNodes(
 
 function collectProjectedSlotPayload(
     payload: ProjectionPayload,
-    name: string,
-    consumed: Set<string>
+    name: string
 ): RenderPlanNode[] {
     const projected: RenderPlanNode[] = [];
     for (const node of payload.slots?.[name] ?? []) {
-        if (consumed.has(node.key)) {
-            continue;
-        }
         projected.push(payloadNodeToRenderNode(node));
-        consumed.add(node.key);
     }
     return projected;
 }
@@ -899,6 +1107,174 @@ function coerceProjectionPayload(payload: unknown): ProjectionPayload | null {
     return slots && typeof slots === 'object' ? { slots } : null;
 }
 
+function scopeRenderNodes(
+    nodes: readonly RenderPlanNode[],
+    scopeUid: string,
+    instanceScopeUid: string,
+    diagnostics: ScopedCssRewriteDiagnostic[],
+    stampScope: boolean
+): RenderPlanNode[] {
+    return nodes.map((node) => {
+        if (node.kind !== 'element') {
+            return node;
+        }
+
+        const attributes = stampScope
+            ? withRenderPlanAttribute(node.attributes, DATA_CEM_SCOPE_ATTR, scopeUid)
+            : node.attributes;
+        if (node.tag === STYLE_TAG && node.namespace === null) {
+            const rewritten = scopeStyleNode(
+                node,
+                isPayloadRenderNode(node) ? instanceScopeUid : scopeUid,
+                isPayloadRenderNode(node) ? DATA_CEM_INSTANCE_SCOPE_ATTR : DATA_CEM_SCOPE_ATTR
+            );
+            diagnostics.push(...rewritten.diagnostics);
+            return {
+                ...node,
+                attributes,
+                children: [{
+                    kind: 'text',
+                    text: rewritten.css,
+                    sourceMapRef: firstTextSourceMapRef(node.children) ?? node.sourceMapRef,
+                }],
+            };
+        }
+
+        return {
+            ...node,
+            attributes,
+            children: scopeRenderNodes(node.children, scopeUid, instanceScopeUid, diagnostics, false),
+        };
+    });
+}
+
+function scopeStyleNode(
+    node: Extract<RenderPlanNode, { kind: 'element' }>,
+    scopeUid: string,
+    scopeAttribute: string
+): ScopedCssRewriteResult {
+    const css = node.children
+        .map((child) => {
+            if (child.kind === 'text') {
+                return child.text;
+            }
+            return child.kind === 'comment' ? `/*${child.text}*/` : '';
+        })
+        .join('');
+    return scopeCssText(css, scopeUid, { scopeAttribute });
+}
+
+function isPayloadRenderNode(node: RenderPlanNode): boolean {
+    return node.kind === 'element' && node.renderNodeId.startsWith(PAYLOAD_RENDER_NODE_ID_PREFIX);
+}
+
+function firstTextSourceMapRef(nodes: readonly RenderPlanNode[]): SourceMapRef | undefined {
+    for (const node of nodes) {
+        if ((node.kind === 'text' || node.kind === 'comment') && node.sourceMapRef) {
+            return node.sourceMapRef;
+        }
+    }
+    return undefined;
+}
+
+function withRenderPlanAttribute(
+    attributes: readonly RenderPlanAttribute[],
+    name: string,
+    value: string
+): RenderPlanAttribute[] {
+    let replaced = false;
+    const next = attributes.map((attribute) => {
+        if (attribute.name !== name) {
+            return attribute;
+        }
+        replaced = true;
+        return { name, value };
+    });
+    return replaced ? next : [...next, { name, value }];
+}
+
+function rewriteAnimationReferences(css: string, renames: ReadonlyMap<string, string>): string {
+    if (renames.size === 0) {
+        return css;
+    }
+    return css
+        .replace(/((?:-webkit-)?animation-name\s*:\s*)([^;{}]+)/gi, (_match, prefix: string, value: string) =>
+            `${prefix}${replaceCssValueNames(value, renames)}`
+        )
+        .replace(/((?:-webkit-)?animation\s*:\s*)([^;{}]+)/gi, (_match, prefix: string, value: string) =>
+            `${prefix}${replaceCssValueNames(value, renames)}`
+        );
+}
+
+function replaceCssValueNames(value: string, renames: ReadonlyMap<string, string>): string {
+    let rewritten = value;
+    for (const [name, scopedName] of renames) {
+        rewritten = rewritten.replace(
+            new RegExp(`(^|[^-_A-Za-z0-9])(${escapeRegExp(name)})(?=$|[^-_A-Za-z0-9])`, 'g'),
+            (_match, prefix: string) => `${prefix}${scopedName}`
+        );
+    }
+    return rewritten;
+}
+
+function stripUnsupportedAtRule(css: string, atRule: string): string {
+    if (atRule === 'namespace') {
+        return css.replace(/@namespace\b[^;]*;?/gi, '');
+    }
+
+    const atRulePattern = new RegExp(`@${escapeRegExp(atRule)}\\b`, 'gi');
+    let output = '';
+    let cursor = 0;
+    let match: RegExpExecArray | null;
+    while ((match = atRulePattern.exec(css)) !== null) {
+        output += css.slice(cursor, match.index);
+        const blockStart = css.indexOf('{', atRulePattern.lastIndex);
+        const statementEnd = css.indexOf(';', atRulePattern.lastIndex);
+        if (blockStart < 0 || (statementEnd >= 0 && statementEnd < blockStart)) {
+            cursor = statementEnd >= 0 ? statementEnd + 1 : css.length;
+            atRulePattern.lastIndex = cursor;
+            continue;
+        }
+        const blockEnd = matchingBraceIndex(css, blockStart);
+        cursor = blockEnd >= 0 ? blockEnd + 1 : css.length;
+        atRulePattern.lastIndex = cursor;
+    }
+    return output + css.slice(cursor);
+}
+
+function matchingBraceIndex(css: string, openIndex: number): number {
+    let depth = 0;
+    for (let index = openIndex; index < css.length; index += 1) {
+        const char = css[index];
+        if (char === '{') {
+            depth += 1;
+        } else if (char === '}') {
+            depth -= 1;
+            if (depth === 0) {
+                return index;
+            }
+        }
+    }
+    return -1;
+}
+
+function indentCss(css: string): string {
+    return css.split(/\r?\n/).map((line) => (line.length > 0 ? `    ${line}` : '')).join('\n');
+}
+
+function cssIdentifier(value: string): string {
+    const sanitized = value.toLowerCase().replace(/[^-_a-z0-9]+/g, '-').replace(/^-+|-+$/g, '');
+    return sanitized.length > 0 ? sanitized : 'scope';
+}
+
+function cssString(value: string): string {
+    return value.replace(/\\/g, '\\\\').replace(/"/g, '\\"');
+}
+
+function escapeRegExp(value: string): string {
+    return value.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+}
+
 /**
  * Materialize a render plan into a live light-DOM fragment. UI-adapter side: this is the
  * only place the projection boundary touches live DOM on the way out.
@@ -909,6 +1285,58 @@ export function materializeRenderPlan(plan: RenderPlan, document: Document): Doc
         fragment.appendChild(materializeNode(node, plan, document));
     }
     return fragment;
+}
+
+export function mergeRenderedFragmentIntoRange(
+    bounds: RenderPlanDomRange,
+    rendered: DocumentFragment,
+    options: RenderedFragmentMergeOptions = {}
+): void {
+    const parent = bounds.start.parentNode;
+    if (!parent || bounds.end.parentNode !== parent) {
+        throw new Error('cem-element render bounds are not attached to the same parent');
+    }
+    const focus = captureRenderRangeFocus(bounds);
+    try {
+        mergeChildNodes(parent, bounds.start.nextSibling as ChildNode | null, bounds.end, Array.from(rendered.childNodes), options);
+    } finally {
+        restoreRenderRangeFocus(focus);
+    }
+}
+
+export function applyRenderPlanToRange(
+    bounds: RenderPlanDomRange,
+    plan: RenderPlan,
+    document: Document,
+    options: RenderPlanApplyOptions = {}
+): RenderPlanApplyResult {
+    const parent = bounds.start.parentNode;
+    if (!parent || bounds.end.parentNode !== parent) {
+        throw new Error('cem-element render bounds are not attached to the same parent');
+    }
+
+    const focus = captureRenderRangeFocus(bounds);
+    try {
+        const recovery = renderScopeRecoveryReason(bounds, plan, options);
+        if (recovery) {
+            replaceRangeWithRenderPlan(bounds, plan, document, options);
+            return {
+                mode: 'replaceScope',
+                diagnostics: [{
+                    code: 'cem.render_plan_apply.replace_scope',
+                    severity: recovery.reason === 'first-render' ? 'info' : 'warning',
+                    reason: recovery.reason,
+                    message: recovery.message,
+                }],
+            };
+        }
+
+        const context: RenderPlanApplyContext = { plan, document, options };
+        mergeRenderPlanChildNodes(parent, bounds.start.nextSibling as ChildNode | null, bounds.end, plan.nodes, context);
+        return { mode: 'patch', diagnostics: [] };
+    } finally {
+        restoreRenderRangeFocus(focus);
+    }
 }
 
 function materializeNode(node: RenderPlanNode, plan: RenderPlan, document: Document): Node {
@@ -926,6 +1354,7 @@ function materializeNode(node: RenderPlanNode, plan: RenderPlan, document: Docum
         element.setAttribute(attribute.name, attribute.value);
     }
     element.setAttribute(RENDER_NODE_ID_ATTR, node.renderNodeId);
+    (element as Element & { cemRenderNodeId?: string }).cemRenderNodeId = node.renderNodeId;
     element.setAttribute(TEMPLATE_ARTIFACT_ID_ATTR, plan.templateArtifactId);
     element.setAttribute(DATA_REVISION_ATTR, plan.dataRevision);
     if (node.sourceMapRef) {
@@ -936,6 +1365,600 @@ function materializeNode(node: RenderPlanNode, plan: RenderPlan, document: Docum
         element.appendChild(materializeNode(child, plan, document));
     }
     return element;
+}
+
+interface RenderPlanApplyContext {
+    plan: RenderPlan;
+    document: Document;
+    options: RenderPlanApplyOptions;
+}
+
+interface RenderRangeFocusSnapshot {
+    bounds: RenderPlanDomRange;
+    element: Element;
+    renderId: string | null;
+    selection?: TextControlSelectionSnapshot;
+}
+
+interface TextControlSelectionSnapshot {
+    start: number;
+    end: number;
+    direction: 'forward' | 'backward' | 'none';
+}
+
+interface RenderPlanNodeMatch {
+    first: ChildNode;
+    after: ChildNode | null;
+    rangeEnd?: Comment;
+}
+
+interface RenderScopeRecoveryReason {
+    reason: 'first-render' | 'recovery';
+    message: string;
+}
+
+function replaceRangeWithRenderPlan(
+    bounds: RenderPlanDomRange,
+    plan: RenderPlan,
+    document: Document,
+    options: RenderPlanApplyOptions
+): void {
+    let current = bounds.start.nextSibling;
+    while (current && current !== bounds.end) {
+        const next = current.nextSibling;
+        current.parentNode?.removeChild(current);
+        current = next;
+    }
+    const nodes = plan.nodes.flatMap((node) => createRenderPlanDomNodes(node, { plan, document, options }));
+    for (const node of nodes) {
+        bounds.end.parentNode?.insertBefore(node, bounds.end);
+    }
+}
+
+function renderScopeRecoveryReason(
+    bounds: RenderPlanDomRange,
+    plan: RenderPlan,
+    options: RenderPlanApplyOptions
+): RenderScopeRecoveryReason | undefined {
+    const currentIds = elementRenderIdentitiesBetween(bounds.start.nextSibling, bounds.end);
+    const desiredIds = plan.nodes.flatMap((node) =>
+        node.kind === 'element' && !isTransientRenderPlanElement(node, options) ? [node.renderNodeId] : []
+    );
+    if (currentIds.length === 0) {
+        return undefined;
+    }
+    if (desiredIds.length === 0) {
+        return {
+            reason: 'recovery',
+            message: 'retained render scope had element identities but the next render plan has no element roots',
+        };
+    }
+    const current = new Set(currentIds);
+    const desired = new Set(desiredIds);
+    if (desiredIds.some((id) => !current.has(id)) || currentIds.some((id) => !desired.has(id))) {
+        return {
+            reason: 'recovery',
+            message: 'retained render scope root identities did not match the next render plan; replaced the scope',
+        };
+    }
+    return undefined;
+}
+
+function isTransientRenderPlanElement(
+    node: Extract<RenderPlanNode, { kind: 'element' }>,
+    options: RenderPlanApplyOptions
+): boolean {
+    return options.transientElementTags?.includes(node.tag) ?? false;
+}
+
+function elementRenderIdentitiesBetween(first: ChildNode | null, end: Node): string[] {
+    const ids: string[] = [];
+    let current: ChildNode | null = first;
+    while (current && current !== end) {
+        if (current.nodeType === 1) {
+            const id = renderIdentity(current);
+            if (id) {
+                ids.push(id);
+            }
+        }
+        current = current.nextSibling as ChildNode | null;
+    }
+    return ids;
+}
+
+function mergeRenderPlanChildNodes(
+    parent: Node,
+    firstCurrent: ChildNode | null,
+    end: Node | null,
+    desiredNodes: readonly RenderPlanNode[],
+    context: RenderPlanApplyContext
+): void {
+    let current: ChildNode | null = firstCurrent;
+    for (const desired of desiredNodes) {
+        const match = matchRenderPlanNode(current, end, desired, context);
+        if (match) {
+            if (match.first !== current) {
+                parent.insertBefore(match.first, current ?? end);
+            }
+            mergeRenderPlanNode(match, desired, context);
+            current = match.after;
+            continue;
+        }
+
+        const created = createRenderPlanDomNodes(desired, context);
+        for (const node of created) {
+            parent.insertBefore(node, current ?? end);
+        }
+    }
+
+    while (current && current !== end) {
+        const next = current.nextSibling as ChildNode | null;
+        parent.removeChild(current);
+        current = next;
+    }
+}
+
+function matchRenderPlanNode(
+    current: ChildNode | null,
+    end: Node | null,
+    desired: RenderPlanNode,
+    context: RenderPlanApplyContext
+): RenderPlanNodeMatch | null {
+    if (!current || current === end) {
+        return null;
+    }
+    const direct = matchRenderPlanNodeAt(current, desired, context);
+    if (direct) {
+        return direct;
+    }
+
+    const desiredId = desired.kind === 'element' ? desired.renderNodeId : dynamicRangeId(desired);
+    let sibling = current.nextSibling as ChildNode | null;
+    while (sibling && sibling !== end) {
+        const match = matchRenderPlanNodeAt(sibling, desired, context);
+        if (match && (desired.kind !== 'element' || renderIdentity(sibling) === desiredId)) {
+            return match;
+        }
+        sibling = sibling.nextSibling as ChildNode | null;
+    }
+    return null;
+}
+
+function matchRenderPlanNodeAt(
+    current: ChildNode,
+    desired: RenderPlanNode,
+    context: RenderPlanApplyContext
+): RenderPlanNodeMatch | null {
+    if (desired.kind === 'text' || desired.kind === 'comment') {
+        if (context.options.dynamicTextRanges) {
+            const rangeEnd = matchDynamicRange(current, dynamicRangeId(desired));
+            return rangeEnd ? { first: current, after: rangeEnd.nextSibling as ChildNode | null, rangeEnd } : null;
+        }
+        const desiredType = desired.kind === 'text' ? 3 : 8;
+        return current.nodeType === desiredType ? { first: current, after: current.nextSibling as ChildNode | null } : null;
+    }
+
+    if (current.nodeType !== 1) {
+        return null;
+    }
+    const element = current as Element;
+    if (
+        element.localName !== desired.tag ||
+        !renderPlanNamespaceMatches(element.namespaceURI, desired.namespace) ||
+        renderIdentity(element) !== desired.renderNodeId
+    ) {
+        return null;
+    }
+    return { first: current, after: current.nextSibling as ChildNode | null };
+}
+
+function mergeRenderPlanNode(match: RenderPlanNodeMatch, desired: RenderPlanNode, context: RenderPlanApplyContext): void {
+    if (desired.kind === 'text' || desired.kind === 'comment') {
+        if (match.rangeEnd) {
+            mergeDynamicRange(match.first as Comment, match.rangeEnd, desired, context);
+            return;
+        }
+        const value = desired.kind === 'text' ? desired.text : desired.text;
+        if (match.first.nodeValue !== value) {
+            match.first.nodeValue = value;
+        }
+        return;
+    }
+
+    const element = match.first as Element;
+    mirrorRenderIdentity(element, desired.renderNodeId);
+    syncAttributes(element, renderPlanElementAttributes(desired, context.plan));
+    if (context.options.preserveElementChildren?.(element, renderPlanElementPreview(desired, context))) {
+        return;
+    }
+    mergeRenderPlanChildNodes(element, element.firstChild as ChildNode | null, null, desired.children, context);
+}
+
+function mergeDynamicRange(start: Comment, end: Comment, desired: Extract<RenderPlanNode, { kind: 'text' | 'comment' }>, context: RenderPlanApplyContext): void {
+    const desiredType = desired.kind === 'text' ? 3 : 8;
+    let current = start.nextSibling as ChildNode | null;
+    if (current && current !== end && current.nodeType === desiredType) {
+        if (current.nodeValue !== desired.text) {
+            current.nodeValue = desired.text;
+        }
+        current = current.nextSibling as ChildNode | null;
+    } else {
+        start.parentNode?.insertBefore(createTextLikeNode(desired, context.document), end);
+    }
+    while (current && current !== end) {
+        const next = current.nextSibling as ChildNode | null;
+        current.parentNode?.removeChild(current);
+        current = next;
+    }
+}
+
+function createRenderPlanDomNodes(node: RenderPlanNode, context: RenderPlanApplyContext): Node[] {
+    if (node.kind === 'text' || node.kind === 'comment') {
+        if (!context.options.dynamicTextRanges) {
+            return [createTextLikeNode(node, context.document)];
+        }
+        const id = dynamicRangeId(node);
+        return [
+            context.document.createComment(`cem-start:${id}`),
+            createTextLikeNode(node, context.document),
+            context.document.createComment(`cem-end:${id}`),
+        ];
+    }
+
+    const element = createRenderPlanElement(node, context.plan, context.document);
+    for (const child of node.children) {
+        for (const childNode of createRenderPlanDomNodes(child, context)) {
+            element.appendChild(childNode);
+        }
+    }
+    return [element];
+}
+
+function createTextLikeNode(node: Extract<RenderPlanNode, { kind: 'text' | 'comment' }>, document: Document): Node {
+    return node.kind === 'text' ? document.createTextNode(node.text) : document.createComment(node.text);
+}
+
+function createRenderPlanElement(
+    node: Extract<RenderPlanNode, { kind: 'element' }>,
+    plan: RenderPlan,
+    document: Document
+): Element {
+    const element = node.namespace
+        ? document.createElementNS(node.namespace, node.tag)
+        : document.createElement(node.tag);
+    syncAttributes(element, renderPlanElementAttributes(node, plan));
+    mirrorRenderIdentity(element, node.renderNodeId);
+    return element;
+}
+
+function renderPlanElementAttributes(
+    node: Extract<RenderPlanNode, { kind: 'element' }>,
+    plan: RenderPlan
+): Map<string, string> {
+    const attributes = new Map(node.attributes.map((attribute) => [attribute.name, attribute.value]));
+    attributes.set(RENDER_NODE_ID_ATTR, node.renderNodeId);
+    attributes.set(TEMPLATE_ARTIFACT_ID_ATTR, plan.templateArtifactId);
+    attributes.set(DATA_REVISION_ATTR, plan.dataRevision);
+    if (node.sourceMapRef) {
+        attributes.set(SOURCE_FIDELITY_ATTR, node.sourceMapRef.fidelity);
+        attributes.set(SOURCE_FRAME_ATTR, node.sourceMapRef.frame);
+    }
+    return attributes;
+}
+
+function renderPlanElementPreview(
+    node: Extract<RenderPlanNode, { kind: 'element' }>,
+    context: RenderPlanApplyContext
+): Element {
+    return createRenderPlanElement(node, context.plan, context.document);
+}
+
+function matchDynamicRange(current: ChildNode, id: string): Comment | null {
+    if (!isDynamicRangeBoundary(current, 'start', id)) {
+        return null;
+    }
+    let sibling = current.nextSibling as ChildNode | null;
+    while (sibling) {
+        if (isDynamicRangeBoundary(sibling, 'end', id)) {
+            return sibling as Comment;
+        }
+        sibling = sibling.nextSibling as ChildNode | null;
+    }
+    return null;
+}
+
+function isDynamicRangeBoundary(node: Node, kind: 'start' | 'end', id: string): boolean {
+    return node.nodeType === 8 && node.nodeValue === `cem-${kind}:${id}`;
+}
+
+function dynamicRangeId(node: Extract<RenderPlanNode, { kind: 'text' | 'comment' }>): string {
+    return textNodePatchId(node);
+}
+
+function renderPlanNamespaceMatches(actual: string | null, expected: string | null): boolean {
+    return actual === expected || (expected === null && actual === XHTML_NAMESPACE);
+}
+
+function mergeChildNodes(
+    parent: Node,
+    firstCurrent: ChildNode | null,
+    end: Node | null,
+    desiredNodes: readonly Node[],
+    options: RenderedFragmentMergeOptions
+): void {
+    let current: ChildNode | null = firstCurrent;
+    for (const desired of desiredNodes) {
+        const matched = matchMergeNode(current, end, desired);
+        if (matched) {
+            if (matched !== current) {
+                parent.insertBefore(matched, current ?? end);
+            }
+            mergeNode(matched, desired, options);
+            current = matched.nextSibling as ChildNode | null;
+            continue;
+        }
+
+        parent.insertBefore(desired, current ?? end);
+    }
+
+    while (current && current !== end) {
+        const next = current.nextSibling as ChildNode | null;
+        parent.removeChild(current);
+        current = next;
+    }
+}
+
+function matchMergeNode(current: ChildNode | null, end: Node | null, desired: Node): ChildNode | null {
+    if (!current || current === end) {
+        return null;
+    }
+    if (canMergeNode(current, desired)) {
+        return current;
+    }
+
+    const desiredId = renderIdentity(desired);
+    if (!desiredId) {
+        return null;
+    }
+
+    let sibling = current.nextSibling as ChildNode | null;
+    while (sibling && sibling !== end) {
+        if (renderIdentity(sibling) === desiredId && canMergeNode(sibling, desired)) {
+            return sibling;
+        }
+        sibling = sibling.nextSibling as ChildNode | null;
+    }
+    return null;
+}
+
+function canMergeNode(current: Node, desired: Node): boolean {
+    if (current.nodeType !== desired.nodeType) {
+        return false;
+    }
+    if (current.nodeType !== 1) {
+        return true;
+    }
+
+    const currentElement = current as Element;
+    const desiredElement = desired as Element;
+    if (
+        currentElement.localName !== desiredElement.localName ||
+        currentElement.namespaceURI !== desiredElement.namespaceURI
+    ) {
+        return false;
+    }
+
+    const desiredId = renderIdentity(desiredElement);
+    return !desiredId || renderIdentity(currentElement) === desiredId;
+}
+
+function mergeNode(current: Node, desired: Node, options: RenderedFragmentMergeOptions): void {
+    if (current.nodeType === 3 || current.nodeType === 8) {
+        if (current.nodeValue !== desired.nodeValue) {
+            current.nodeValue = desired.nodeValue;
+        }
+        return;
+    }
+    if (current.nodeType !== 1 || desired.nodeType !== 1) {
+        current.parentNode?.replaceChild(desired, current);
+        return;
+    }
+
+    const currentElement = current as Element;
+    const desiredElement = desired as Element;
+    const desiredId = renderIdentity(desiredElement);
+    if (desiredId) {
+        mirrorRenderIdentity(currentElement, desiredId);
+    }
+    syncAttributes(currentElement, desiredElement);
+    if (options.preserveElementChildren?.(currentElement, desiredElement)) {
+        return;
+    }
+    mergeChildNodes(
+        currentElement,
+        currentElement.firstChild as ChildNode | null,
+        null,
+        Array.from(desiredElement.childNodes),
+        options
+    );
+}
+
+function syncAttributes(current: Element, desired: Element | ReadonlyMap<string, string>): void {
+    const desiredAttributes = isAttributeElement(desired)
+        ? new Map(Array.from(desired.attributes).map((attribute) => [attribute.name, attribute.value]))
+        : desired;
+    for (const attribute of Array.from(current.attributes)) {
+        if (!desiredAttributes.has(attribute.name)) {
+            current.removeAttribute(attribute.name);
+        }
+    }
+    for (const [name, value] of desiredAttributes) {
+        if (current.getAttribute(name) !== value) {
+            current.setAttribute(name, value);
+        }
+    }
+}
+
+function isAttributeElement(value: Element | ReadonlyMap<string, string>): value is Element {
+    return 'attributes' in value && typeof value.getAttribute === 'function';
+}
+
+function captureRenderRangeFocus(bounds: RenderPlanDomRange): RenderRangeFocusSnapshot | null {
+    const parent = bounds.start.parentNode;
+    const document = parent?.ownerDocument;
+    const active = document?.activeElement;
+    if (!active || !isNodeInsideRenderRange(active, bounds)) {
+        return null;
+    }
+    return {
+        bounds,
+        element: active,
+        renderId: renderIdentity(active),
+        selection: captureTextControlSelection(active),
+    };
+}
+
+function restoreRenderRangeFocus(snapshot: RenderRangeFocusSnapshot | null): void {
+    if (!snapshot) {
+        return;
+    }
+    const element = focusRestorationElement(snapshot);
+    if (!element) {
+        return;
+    }
+    const document = element.ownerDocument;
+    if (document.activeElement !== element) {
+        focusElement(element);
+    }
+    restoreTextControlSelection(element, snapshot.selection);
+}
+
+function focusRestorationElement(snapshot: RenderRangeFocusSnapshot): Element | null {
+    if (snapshot.element.isConnected) {
+        return snapshot.element;
+    }
+    return snapshot.renderId ? findElementByRenderIdentityInRange(snapshot.bounds, snapshot.renderId) : null;
+}
+
+function focusElement(element: Element): void {
+    const focusable = element as Element & { focus?: (options?: FocusOptions) => void };
+    if (typeof focusable.focus !== 'function') {
+        return;
+    }
+    try {
+        focusable.focus({ preventScroll: true });
+    } catch {
+        focusable.focus();
+    }
+}
+
+function captureTextControlSelection(element: Element): TextControlSelectionSnapshot | undefined {
+    const control = element as Element & {
+        selectionStart?: number | null;
+        selectionEnd?: number | null;
+        selectionDirection?: 'forward' | 'backward' | 'none' | null;
+    };
+    try {
+        const start = control.selectionStart;
+        const end = control.selectionEnd;
+        if (typeof start !== 'number' || typeof end !== 'number') {
+            return undefined;
+        }
+        return { start, end, direction: control.selectionDirection ?? 'none' };
+    } catch {
+        return undefined;
+    }
+}
+
+function restoreTextControlSelection(element: Element, selection: TextControlSelectionSnapshot | undefined): void {
+    if (!selection) {
+        return;
+    }
+    const control = element as Element & {
+        value?: string;
+        setSelectionRange?: (start: number, end: number, direction?: 'forward' | 'backward' | 'none') => void;
+    };
+    if (typeof control.setSelectionRange !== 'function') {
+        return;
+    }
+    const valueLength = typeof control.value === 'string' ? control.value.length : Number.POSITIVE_INFINITY;
+    const start = Math.min(selection.start, valueLength);
+    const end = Math.min(selection.end, valueLength);
+    try {
+        control.setSelectionRange(start, end, selection.direction);
+    } catch {
+        // Some input types do not support text selection. Focus preservation still applies.
+    }
+}
+
+function isNodeInsideRenderRange(node: Node, bounds: RenderPlanDomRange): boolean {
+    const parent = bounds.start.parentNode;
+    if (!parent || bounds.end.parentNode !== parent) {
+        return false;
+    }
+    let top: Node | null = node;
+    while (top && top.parentNode !== parent) {
+        top = top.parentNode;
+    }
+    if (!top) {
+        return false;
+    }
+    let current = bounds.start.nextSibling;
+    while (current && current !== bounds.end) {
+        if (current === top) {
+            return true;
+        }
+        current = current.nextSibling;
+    }
+    return false;
+}
+
+function findElementByRenderIdentityInRange(bounds: RenderPlanDomRange, id: string): Element | null {
+    let current = bounds.start.nextSibling;
+    while (current && current !== bounds.end) {
+        const found = findElementByRenderIdentity(current, id);
+        if (found) {
+            return found;
+        }
+        current = current.nextSibling;
+    }
+    return null;
+}
+
+function findElementByRenderIdentity(node: Node, id: string): Element | null {
+    if (node.nodeType === 1 && renderIdentity(node) === id) {
+        return node as Element;
+    }
+    for (let child = node.firstChild; child; child = child.nextSibling) {
+        const found = findElementByRenderIdentity(child, id);
+        if (found) {
+            return found;
+        }
+    }
+    return null;
+}
+
+function renderIdentity(node: Node): string | null {
+    if (node.nodeType !== 1) {
+        return null;
+    }
+    const element = node as Element & { cemRenderNodeId?: string };
+    if (element.cemRenderNodeId) {
+        return element.cemRenderNodeId;
+    }
+    const serialized = element.getAttribute(RENDER_NODE_ID_ATTR);
+    if (serialized) {
+        element.cemRenderNodeId = serialized;
+        return serialized;
+    }
+    return null;
+}
+
+function mirrorRenderIdentity(element: Element, id: string): void {
+    (element as Element & { cemRenderNodeId?: string }).cemRenderNodeId = id;
+    if (element.getAttribute(RENDER_NODE_ID_ATTR) !== id) {
+        element.setAttribute(RENDER_NODE_ID_ATTR, id);
+    }
 }
 
 function resolveAttribute(
@@ -1114,6 +2137,7 @@ function stableJsonDigest(value: unknown): string {
 }
 
 function cloneStableJsonValue(value: unknown): unknown {
+    assertProcessingBoundaryValue(value);
     return JSON.parse(stableJsonStringify(value)) as unknown;
 }
 
@@ -1159,129 +2183,7 @@ function patchTransactionId(plan: RenderPlan): string {
     ].join(':');
 }
 
-function interpolateLegacy(text: string, input: TemplateProjectionInput): string {
-    return text.replace(/\{([^{}]+)\}/g, (_, expression: string) =>
-        valueToText(evaluateLegacyExpression(expression, input))
-    );
-}
-
-function evaluateLegacyExpression(expression: string, input: TemplateProjectionInput): TemplateValue {
-    const trimmed = expression.trim();
-    if (trimmed === '') {
-        return null;
-    }
-    const coalesce = splitLegacyCoalesce(trimmed);
-    if (coalesce) {
-        const left = evaluateLegacyExpression(coalesce[0], input);
-        return legacyValueIsTruthy(left) ? left : evaluateLegacyExpression(coalesce[1], input);
-    }
-    const quoted = trimmed.match(/^(['"])(.*)\1$/);
-    if (quoted) {
-        return quoted[2];
-    }
-    if (trimmed === 'true') {
-        return true;
-    }
-    if (trimmed === 'false') {
-        return false;
-    }
-    const path = legacyExpressionPath(trimmed);
-    if (path.length > 0) {
-        return legacyPathValue(path, input);
-    }
-    return null;
-}
-
-function splitLegacyCoalesce(expression: string): [string, string] | null {
-    const index = expression.indexOf('??');
-    return index < 0 ? null : [expression.slice(0, index), expression.slice(index + 2)];
-}
-
-function legacyExpressionPath(expression: string): string[] {
-    if (expression.startsWith('$')) {
-        return expression.slice(1).split('.').filter(Boolean);
-    }
-    if (expression.startsWith('/datadom/')) {
-        return expression.slice('/datadom/'.length).split('/').filter(Boolean);
-    }
-    if (expression.startsWith('//')) {
-        return expression.slice(2).split('/').filter(Boolean);
-    }
-    if (/^[A-Za-z_][\w.-]*$/.test(expression)) {
-        return [expression];
-    }
-    return [];
-}
-
-function legacyPathValue(path: readonly string[], input: TemplateProjectionInput): TemplateValue {
-    const [first, ...rest] = path;
-    if (!first) {
-        return null;
-    }
-    if (first === 'attributes') {
-        return toTemplateValue((input.snapshot.hostAttributes as Record<string, unknown>)[rest.join('.')]);
-    }
-    if (first === 'dataset') {
-        return toTemplateValue((input.snapshot.dataset as Record<string, unknown>)[rest.join('.')]);
-    }
-    if (first === 'slice' || first === 'slices') {
-        return toTemplateValue((input.snapshot.slices as Record<string, unknown>)[rest.join('.')]);
-    }
-    if (first === 'payload') {
-        return readUnknownPath(input.snapshot.payload, rest);
-    }
-    return (
-        input.values[first] ??
-        toTemplateValue((input.snapshot.hostAttributes as Record<string, unknown>)[first]) ??
-        toTemplateValue((input.snapshot.dataset as Record<string, unknown>)[first]) ??
-        toTemplateValue((input.snapshot.slices as Record<string, unknown>)[first]) ??
-        null
-    );
-}
-
-function readUnknownPath(value: unknown, path: readonly string[]): TemplateValue {
-    let current = value;
-    for (const segment of path) {
-        if (!current || typeof current !== 'object' || Array.isArray(current)) {
-            return null;
-        }
-        current = (current as Record<string, unknown>)[segment];
-    }
-    return toTemplateValue(current);
-}
-
-function toTemplateValue(value: unknown): TemplateValue {
-    if (value === null || value === undefined) {
-        return null;
-    }
-    if (typeof value === 'string' || typeof value === 'boolean') {
-        return value;
-    }
-    if (typeof value === 'number') {
-        return String(value);
-    }
-    if (typeof value === 'object' && 'text' in value && typeof (value as { text?: unknown }).text === 'string') {
-        return (value as { text: string }).text;
-    }
-    return null;
-}
-
-function legacyValueIsTruthy(value: TemplateValue): boolean {
-    return value !== null && value !== false && value !== '' && value !== 'false' && value !== '0';
-}
-
-function isWholeLegacyExpression(value: string): boolean {
-    return /^\{\s*[^{}]+\s*\}$/.test(value);
-}
-
 function isTopLevelNonOutputNode(node: TemplateSourceNode): boolean {
-    if (node.kind === 'element') {
-        return node.tag === ATTRIBUTE_DECLARATION_TAG || node.tag === SLICE_DECLARATION_TAG;
-    }
-    return node.kind === 'text' && node.text.trim().length === 0;
-}
-
-function isTopLevelLegacyNonOutputNode(node: TemplateSourceNode): boolean {
     if (node.kind === 'element') {
         return node.tag === ATTRIBUTE_DECLARATION_TAG || node.tag === SLICE_DECLARATION_TAG;
     }

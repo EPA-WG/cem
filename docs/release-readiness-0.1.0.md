@@ -20,8 +20,8 @@ public API is not yet under a stable-1.0 SemVer promise (AC-P-6.9 XSLT execution
 may carry breaking changes.
 
 **Release topology** (from `nx.json` `release.groups.cem`): the monorepo group
-is **fixed** (all bump together) over the `cem` group; `custom-element` is a
-separate repo with its own release, and `trang-native` is independent.
+is **fixed** (all bump together) over the `cem` group, including the migrated
+`@epa-wg/custom-element` package; `trang-native` remains independent.
 
 | Package | From | To | Released via |
 | --- | --- | --- | --- |
@@ -29,13 +29,14 @@ separate repo with its own release, and `trang-native` is independent.
 | `@epa-wg/cem-theme` | 0.0.14 | 0.1.0 | nx `cem` group |
 | `@epa-wg/cem-components` | 0.0.14 | 0.1.0 | nx `cem` group |
 | `@epa-wg/cem-elements` | 0.0.14 | 0.1.0 | nx `cem` group |
-| `@epa-wg/custom-element` | 0.0.39 | 0.1.0 | **separate** (`EPA-WG/custom-element` repo), not the monorepo group |
+| `@epa-wg/custom-element` | 0.0.39 | 0.1.0 | nx `cem` group |
 | `@epa-wg/trang-native` | 0.1.0 | — | independent (`trang-native-release.yml`); no bump needed |
 
 The Rust crates (`cem_ml`, `cem_ql`, `cem_ml_cli`) are workspace-internal
 (Cargo `0.1.0`), not npm-published. **Note:** the fixed group means
-`cem-components` rides the same 0.1.0 bump — confirm its contents are
-release-ready even though it is not the focus of this engine work.
+`cem-components` and the migrated `custom-element` adapter ride the same 0.1.0
+bump — confirm their contents are release-ready even when the engine work is the
+focus.
 
 ## 2. Changelog summary (since 0.0.14, 2026-05-04)
 
@@ -54,7 +55,7 @@ generated entry:
   lowering, serializable projection boundary, edge render-state, SSR hydration
   with BR-VC-9 contract disposition.
 - **Legacy HTML+XSLT backward-compat** — a DOM→CEM-ML converter
-  (`legacy-xslt/convert.ts`) + a runtime `legacy-xslt` mode transpile legacy
+  (`cem_ml::legacy_custom_element`, reached through the runtime WASM boundary) + a runtime `legacy-xslt` mode transpile legacy
   `<custom-element>` HTML+XSLT templates onto the cem_ql engine (no browser XSLT
   processor), so legacy demos render identically to migrated CEM-ML twins.
 - **`cem-theme` generators** — all 10 CSS generators converted off the live
@@ -75,15 +76,16 @@ For consumers of the 0.0.x line:
    adapter** (see §4), but **legacy HTML+XSLT templates still work** — they are
    transpiled to CEM-ML and rendered on the substrate (`CemElementRuntime`), not by
    a browser XSLT processor (the package verifier fails if `XSLTProcessor` reappears).
-   The converter (`cem-elements/src/lib/legacy-xslt/convert.ts`) covers the Tier 1/2
+   The converter (`cem_ml::legacy_custom_element`, exposed through `convertLegacyTemplate`) covers the Tier 1/2
    surface the legacy demos use — `<xsl:value-of>`/`{…}`, `<xsl:for-each>` (incl. the
    `exsl:node-set($var)/*` inline-variable idiom, unrolled), `<xsl:if>`/`<xsl:choose>`,
-   `<xsl:variable>`, `<slot>`, `<attribute>`/`<slice>`, AVT, and the XPath function
-   subset (`contains`, `not`, `translate`, `substring*`, `position`, `count`, …).
-   **Tier 3 standalone XSLT stylesheets are not converted** (push-model
-   `<xsl:template match>`/`apply-templates`/`call-template`/`sort`, EXSLT
-   `func:function`, `<msxsl:script>`) — they emit a conversion diagnostic; author that
-   logic in CEM-ML/CEM-QL. The separate `custom-element-v0` DOM-projection bridge
+   `<xsl:variable>`, `<slot>`, `<attribute>`/`<slice>`, AVT, `hasBoolAttribute()`
+   boolean-attribute rewriting, and the XPath function subset (`contains`, `not`, `translate`, `substring*`,
+   `position`, `count`, …).
+   **Tier 3 XSLT outside the bounded compatibility profile is not converted**
+   (for example EXSLT `func:function`, `<msxsl:script>`, or dynamic construction names outside the scalar AVT subset)
+   — these emit a conversion diagnostic; author that logic in CEM-ML/CEM-QL. The separate
+   `custom-element-v0` DOM-projection bridge
    (explicit `lang`) stays deprecated-but-functional, removed next major.
 3. **Deep `dist/` imports are discouraged.** Import package export subpaths
    instead — `@epa-wg/cem-theme/tokens/cem.tokens.json`,
@@ -105,8 +107,8 @@ browser XSLT-1.0 transform processor is gone in 0.1.0 (the `custom-element` adap
 delegates to `CemElementRuntime`; the verifier blocks `XSLTProcessor` from
 returning). Legacy HTML+XSLT templates run via the DOM→CEM-ML converter on the same
 engine as migrated templates — a legacy sample and its CEM-ML twin render
-identically. Tier 3 standalone XSLT stylesheets (push-model / EXSLT / `msxsl:script`)
-are not converted. The older `custom-element-v0` DOM-projection bridge stays
+identically. Tier 3 XSLT outside the bounded compatibility profile is not converted. The older
+`custom-element-v0` DOM-projection bridge stays
 deprecated, removed next major (FF-5 gated).
 
 | Surface | 0.1.0 | next major |
@@ -114,7 +116,7 @@ deprecated, removed next major (FF-5 gated).
 | CEM-ML/CEM-QL substrate (`type="cem-ml; version=0.0"`) | ✅ recommended | ✅ |
 | Native browser XSLT transform engine (`XSLTProcessor`) | ❌ **retired** | ❌ |
 | Legacy HTML+XSLT via DOM→CEM-ML conversion (Tier 1/2: `value-of`/`for-each`/`if`/`choose`/`variable`/AVT + XPath subset) | ✅ supported | ✅ |
-| Tier 3 standalone XSLT stylesheets (`apply-templates`/`call-template`/`sort`, EXSLT, `msxsl:script`) | ❌ not converted (diagnostic) | ❌ |
+| Tier 3 XSLT outside the bounded compatibility profile (EXSLT `func:function`, `msxsl:script`, unsupported dynamic construction) | ❌ not converted (diagnostic) | ❌ |
 | `custom-element-v0` DOM-projection bridge (explicit `lang`) | ⚠️ deprecated, functional | ❌ removed (FF-5 gated) |
 | `custom-element-v0` / `cem-ml-v0` deprecated form ids | ⚠️ scanned by FF-5 | ❌ removed |
 
@@ -125,7 +127,9 @@ built to a self-contained `dist/` (its own `dist/package.json`, imports vendored
 to `./vendor/@epa-wg/cem-elements/...`), and **publish is from `dist/`** — the
 source dir's root `custom-element.js` still has the workspace-relative
 `../cem-elements` import and is not the published entry. So pack from `dist/`,
-not the source dir.
+not the source dir. The project owns an explicit `nx-release-publish` target with
+`packageRoot: "packages/custom-element/dist"` so `nx release publish` uses the
+staged artifact.
 
 | Package | Publish root | Verdict |
 | --- | --- | --- |
@@ -151,9 +155,26 @@ All pack cleanly.
 `npm --cache /tmp/cem-npm-cache pack --dry-run --json` from each publish root:
 `@epa-wg/cem-theme` 132 files / 5.3 MB, `@epa-wg/cem-elements` 29 files / 51 kB,
 `@epa-wg/cem-components` 15 files / 8 kB, and `@epa-wg/custom-element` 91 files /
-741 kB. All pack cleanly. The custom-element artifact still reports version
-`0.0.39`; its `0.1.0` bump belongs to the separate custom-element release
-pipeline, not the nx `cem` group.
+741 kB. All pack cleanly. `@epa-wg/custom-element` now belongs to the nx `cem`
+group, so its manifest is version-aligned to `0.1.0` with the rest of the fixed
+group before publish.
+
+**Re-checked after joining the nx `cem` group** (2026-06-18) with
+`yarn nx run @epa-wg/custom-element:nx-release-publish --dryRun --excludeTaskDependencies`:
+`@epa-wg/custom-element` publishes from `packages/custom-element/dist`, reports
+version `X.X.X-dry-run`, and packs 105 files / 922.9 kB (4.0 MB unpacked). The
+increase is the expected vendored `cem-elements` runtime and `cem_ql` WASM payload
+required by the substrate-backed adapter.
+
+**Re-checked after final runtime readiness work** (2026-06-21) with
+`npm --cache /tmp/cem-npm-cache pack --dry-run --json` from the actual publish
+roots: `@epa-wg/cem-theme` from `packages/cem-theme` packs 145 files /
+5,523,541 bytes (11,021,926 bytes unpacked), `@epa-wg/cem-elements` from
+`packages/cem-elements` packs 29 files / 78,636 bytes (348,596 bytes unpacked),
+`@epa-wg/cem-components` from `packages/cem-components` packs 15 files /
+10,481 bytes (39,760 bytes unpacked), and `@epa-wg/custom-element` from
+`packages/custom-element/dist` packs 105 files / 947,780 bytes (4,169,824 bytes
+unpacked). All pack cleanly.
 
 ## 6. Rollback plan
 
@@ -173,14 +194,11 @@ pipeline, not the nx `cem` group.
 
 - [x] Land 0.1.0 on the nx `cem` group. The workspace manifests now show
       `@epa-wg/cem`, `@epa-wg/cem-theme`, `@epa-wg/cem-components`, and
-      `@epa-wg/cem-elements` at `0.1.0`; `cem-components` is included via the
-      fixed group (§1).
+      `@epa-wg/cem-elements` at `0.1.0`; `@epa-wg/custom-element` has joined the
+      fixed group and is also aligned to `0.1.0` (§1).
 - [~] Release/publish steps are intentionally skipped for now and will happen
       later. This includes tag/push/publish for the nx `cem` group, the GitHub
-      release, and the separate `@epa-wg/custom-element` 0.1.0 release pipeline
-      (§1). Current custom-element source/dist manifests still report `0.0.39`;
-      bumping and publishing that artifact remains a separate maintainer release
-      step.
+      release, and npm publish for all public packages in the fixed group (§1).
 - [x] `npm pack --dry-run` from each `dist/`; stray vendored `*.tsbuildinfo`
       dropped (§5). Re-verified in the 2026-06-12 rehearsal and again in the
       publish-readiness pass — all four dists pack clean (§5 counts).
@@ -188,9 +206,9 @@ pipeline, not the nx `cem` group.
 - [x] Curate `CHANGELOG.md` from §2 highlights. The `0.1.0` entry is hand-curated
       because the `nx release` auto-changelog is unreliable for this release
       (see §8); do not replace it with the raw generated changelog.
-- [x] Confirm all migration gates green (done 2026-06-09: `cem-elements:verify`,
-      `@epa-wg/custom-element:verify`, `@epa-wg/cem-theme:build:html` +
-      `verify:phase13`).
+- [x] Confirm all migration gates green. Re-checked 2026-06-21:
+      `@epa-wg/cem-theme:verify:phase13`, `cem-elements:verify`,
+      `@epa-wg/cem-components:verify`, and `@epa-wg/custom-element:verify`.
 - [x] Add a deprecation notice to the legacy XSLT-only README section (§4).
       Landed in `packages/custom-element/README.md` (§"XSLT 1.0") and
       `packages/cem-theme/README.md` (Build & test — generator path): both note
@@ -226,7 +244,31 @@ everything short of tag/publish. Two real issues found; one fixed here.
 4. **Pack contents clean** (post engine-migration counts) — see §5.
 
 Not exercised (require maintainer/auth): the actual `nx release` tag + push, `npm
-publish`, the GitHub release (`changelog.workspaceChangelog.createRelease: github`),
-and the separate `@epa-wg/custom-element` repo release. The `preVersionCommand`
-(`sync-release-version.cjs` + `nx run-many -t build`) ran during the rehearsal
-without error.
+publish`, and the GitHub release (`changelog.workspaceChangelog.createRelease: github`).
+The `preVersionCommand` (`sync-release-version.cjs` + `nx run-many -t build`) ran
+during the rehearsal without error; `sync-release-version.cjs` now also aligns the
+`@epa-wg/cem-elements` and `@epa-wg/custom-element` manifests with the fixed group
+version.
+
+## 9. Final readiness sweep (2026-06-21)
+
+The immediate release queue is clear. Dynamic internal `<textarea>` merge/hydration
+handling was intentionally moved to [`wishlist.md`](wishlist.md) and is not a 0.1.0
+release blocker.
+
+Current local gate evidence:
+
+- `node tools/scripts/validate-package-metadata.mjs` — passed.
+- `yarn nx run @epa-wg/cem-theme:verify:phase13` — passed.
+- `yarn nx run cem-elements:verify` — passed.
+- `yarn nx run cem-elements:verify-edge-ssr` — passed.
+- `yarn nx run @epa-wg/cem-components:verify` — passed.
+- `yarn nx run @epa-wg/custom-element:verify` — passed.
+- `npm --cache /tmp/cem-npm-cache pack --dry-run --json` from the four publish
+  roots listed in §5 — passed.
+
+Remaining release work is maintainer-owned publication, not implementation:
+merge/rebase as needed, run the explicit 0.1.0 release command path from
+[`npm-publish.md`](npm-publish.md), push the release tag, monitor GitHub Actions,
+verify npm, and refresh the Figma library from the published `@epa-wg/cem-theme`
+artifacts.

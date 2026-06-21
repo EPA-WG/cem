@@ -1,0 +1,11 @@
+<cem-element data-cem-fixture="attribute-defaults-overrides" tag="cem-attribute-card">
+  <template type="text/cem-ml">
+    {attribute @name=tone | neutral}
+    {attribute @name=label | Default}
+    {span @class="tone {$tone}" | {$label}}
+  </template>
+</cem-element>
+
+<cem-attribute-card></cem-attribute-card>
+<cem-attribute-card tone="alert" label="Override"></cem-attribute-card>
+

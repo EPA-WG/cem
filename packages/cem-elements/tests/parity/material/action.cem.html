@@ -1,0 +1,10 @@
+<cem-element tag="cem-action">
+    <template type="text/cem-ml">
+        {attribute @name=text | Action}
+        {button @type=button @slice=pressed @slice-event=click @slice-value="'on'" |
+            {cem:if @test="datadom.attributes.icon" | {cem-icon @image="{$datadom.attributes.icon}" | }}
+            {slot | {$text}}
+        }
+        {span @class=state | {$datadom.slices.pressed}}
+    </template>
+</cem-element>

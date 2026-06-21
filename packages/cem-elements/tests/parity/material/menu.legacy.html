@@ -1,0 +1,13 @@
+<custom-element tag="cem-menu" hidden>
+    <template id="cem-menu">
+        <attribute name="direction"></attribute>
+        <attribute name="justify"></attribute>
+        <style>
+            nav { display: flex; justify-content: var(--justify); }
+        </style>
+        <nav class="cem-menu {$direction}">
+            <slot name=""></slot>
+        </nav>
+    </template>
+</custom-element>
+<custom-element hidden src="./icon-link.html#cem-icon-link" tag="cem-icon-link"></custom-element>

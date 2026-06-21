@@ -1,5 +1,7 @@
 # CEM Figma Token Workflow
 
+Copyright (c) 2026 Sasha Firsov <https://github.com/sashafirsov>
+
 The Figma workflow is a native Figma library generated from token artifacts. Markdown token specs remain the source of
 truth; Figma changes must be converted into spec edits before they enter the build.
 
@@ -25,6 +27,16 @@ truth; Figma changes must be converted into spec edits before they enter the bui
 
 `native` mode values are Chromium-computed browser-reference values. They are not iOS or Android system color
 equivalents.
+
+Run the offline release gate after regenerating token artifacts:
+
+```bash
+yarn nx run @epa-wg/cem-theme:test:figma
+```
+
+The target validates the five generated mode files, representative native alias bindings, source CSS token metadata for
+Figma WEB code syntax, the zero-error Figma report, and this checked-in native-library evidence. It does not call the
+Figma REST API; API-backed live validation remains governed by the REST API sync policy below.
 
 ## Sample Application
 

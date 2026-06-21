@@ -1,0 +1,52 @@
+<!doctype html>
+<html lang="en">
+<head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <title>cem-element DOM merge demo</title>
+    <link rel="stylesheet" href="./demo.css">
+    <script type="module">
+        import { installCemElementRuntime } from '../dist/index.js';
+        installCemElementRuntime(window);
+    </script>
+</head>
+<body>
+<nav class="page-nav"><a href="../index.html">cem-element demo</a><h1>DOM update and data island</h1></nav>
+
+<cem-element tag="cem-dom-merge-field">
+    <template type="text/cem-ml">
+        {slice @name=text-container | Hello world!}
+        {slice @name=txt | Type time update}
+        {article @class=demo-card |
+            {h2 | 1. Word count in textarea}
+            {form |
+                {label |
+                    {textarea @slice=text-container @slice-event=input @slice-value="$target.value" | {$datadom.slices.text-container}}
+                    {span | Word count:
+                        {b | {$(str:length(str:normalize_space(datadom.slices.text-container)) - str:length(str:translate(str:normalize_space(datadom.slices.text-container), " ", "")) + 1)}}
+                    }
+                }
+            }
+        }
+        {article @class=demo-card |
+            {h2 | 2. Word and character count in input}
+            {form |
+                {label |
+                    {input @type=text @value="{$datadom.slices.txt}" @slice=txt @slice-event=input @slice-value="$target.value"}
+                    {span | Character count: {b | {$str:length(datadom.slices.txt)}}}
+                    {span | Word count:
+                        {b | {$(str:length(str:normalize_space(datadom.slices.txt)) - str:length(str:translate(str:normalize_space(datadom.slices.txt), " ", "")) + 1)}}
+                    }
+                }
+                {p | txt slice:}
+                {blockquote | {$datadom.slices.txt}}
+            }
+        }
+    </template>
+</cem-element>
+
+<main>
+    <cem-dom-merge-field></cem-dom-merge-field>
+</main>
+</body>
+</html>

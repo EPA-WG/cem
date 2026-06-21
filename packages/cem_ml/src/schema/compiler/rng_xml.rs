@@ -340,8 +340,8 @@ mod tests {
     fn free_form_annotation_emits_text() {
         let body = String::from_utf8(emit_cem_core().bytes).unwrap();
         // `cem:screen` is free-form (allowed_values = None) → `<text/>`.
-        let screen_block = extract_define_block(&body, "cem-attr-screen")
-            .expect("define for cem-attr-screen");
+        let screen_block =
+            extract_define_block(&body, "cem-attr-screen").expect("define for cem-attr-screen");
         assert!(
             screen_block.contains("<text/>"),
             "free-form screen annotation should emit <text/>:\n{screen_block}"
@@ -362,11 +362,15 @@ mod tests {
             "hover",
             "focus-visible",
             "active",
-            "selected",
             "disabled",
+            "loading",
+            "selected",
+            "expanded",
             "invalid",
             "required",
-            "loading",
+            "readonly",
+            "checked",
+            "indeterminate",
             "empty",
         ] {
             assert!(

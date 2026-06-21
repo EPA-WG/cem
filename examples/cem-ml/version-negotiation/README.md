@@ -1,5 +1,7 @@
 # Version-Negotiation Fixtures
 
+Copyright (c) 2026 Sasha Firsov <https://github.com/sashafirsov>
+
 Per `docs/cem-ml-ac.md` §AC-P-V-5 (and the document-format directive rules
 of §AC-F-8). Each fixture exercises one outcome of **per-dispatched-namespace
 version negotiation** for the core CEM-ML content type, driven by the

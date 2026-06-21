@@ -57,11 +57,7 @@ impl WorkerPool {
     /// Submit a task for execution. Returns a handle the caller can
     /// hand to [`Self::run_next`] later. Honours the queue's overflow
     /// policy and the [`AbortSignal`].
-    pub fn submit(
-        &self,
-        task: impl Into<String>,
-        abort: &AbortSignal,
-    ) -> Result<(), QueueError> {
+    pub fn submit(&self, task: impl Into<String>, abort: &AbortSignal) -> Result<(), QueueError> {
         self.queue.enqueue(task, abort)
     }
 
@@ -153,7 +149,12 @@ mod tests {
         let abort = AbortSignal::new();
         pool.submit("only", &abort).unwrap();
         pool.run_next(&abort, |_| {});
-        let kinds: Vec<SchedulerEventKind> = pool.trace().snapshot().into_iter().map(|e| e.kind).collect();
+        let kinds: Vec<SchedulerEventKind> = pool
+            .trace()
+            .snapshot()
+            .into_iter()
+            .map(|e| e.kind)
+            .collect();
         assert_eq!(
             kinds,
             vec![

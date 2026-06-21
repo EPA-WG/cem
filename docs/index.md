@@ -28,6 +28,10 @@ This index links the active project, release, and token workflow documents.
 - [`cem-element` WASM proposal](./cem-element-wasm-proposal.md) — options for using `cem_ml` WASM, inline and URI
   declaration templates, module-map resolution, streaming source adapters, host runtime support, patch-frame streams,
   worker-pool scheduling, edge processing, and server-side rendering.
+- [CEM-ML UID and scoped CSS design](./cem-ml-uid-and-scoped-css-design.md) — generated identity requirements for
+  scoped CSS, anonymous declarations, public-tag debug prefixes, deterministic UIDs, hydration, and validation gates.
+- [CEM Elements HTTP request resource design](./cem-elements-http-request-design.md) — substrate-backed
+  `<http-request>` resource slices, streaming content-type parsing, AST resource data, and data source maps.
 - [CEM UI Kit plan](./figma-ui-kit-plan.md) — Figma page, token, component, and QA mapping.
 - [Token pipeline smoke](./token-pipeline-smoke.md) — full propagation check for a one-token source change.
 
@@ -47,12 +51,16 @@ This index links the active project, release, and token workflow documents.
 ## Components
 
 - [CEM components package](../packages/cem-components/README.md) — package-level build and test notes.
+- [Component reference](../packages/cem-components/docs/component-reference.md) — MVP component semantics, token
+  families, states, and accessibility notes.
 - [Component conventions](../packages/cem-components/docs/conventions.md) — host API, attributes, events, forms,
   validation, loading, and progressive enhancement.
 - [Light-DOM rendering rules](../packages/cem-components/docs/light-dom-rendering.md) — no shadow DOM, data-island
   isolation, slot projection, render lifecycle, and substrate compatibility.
 - [Accessibility contract](../packages/cem-components/docs/accessibility.md) — names, ARIA, focus, keyboard behavior,
   live regions, unsafe content, and verification.
+- [Component examples](../packages/cem-components/examples/README.md) — package-local workflow examples, separate from
+  executable tests.
 
 ## Parser Runtime
 

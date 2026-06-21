@@ -3,10 +3,14 @@
 resolver = '2'
 members = [
 	'packages/cem_ml',
+	'packages/cem_ml_transform_cem_ql',
 	'packages/cem_ml_cli',
 	'packages/cem_ql',
 	'packages/cem_ml/grammar/tree-sitter-cem',
 ]
+
+[workspace.package]
+authors = ["Sasha Firsov <sasha@firsov.net>"]
 
 [profile.release]
 lto = true

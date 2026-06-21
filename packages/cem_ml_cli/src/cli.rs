@@ -1,12 +1,19 @@
 use clap::{Args, Parser, Subcommand, ValueEnum};
 use std::path::PathBuf;
+use std::str::FromStr;
+
+pub const COPYRIGHT_NOTICE: &str =
+    "Copyright (c) 2026 Sasha Firsov <https://github.com/sashafirsov>";
 
 #[derive(Parser, Debug)]
 #[command(
     name = "cem-ml",
     bin_name = "cem-ml",
     about = "CEM parser/runtime CLI",
-    long_about = "CEM parser/runtime CLI. See docs/cem-ml-cli-contract.md for the feature surface.",
+    long_about = "CEM parser/runtime CLI. See docs/cem-ml-cli-contract.md for the feature surface.
+
+Repository: https://github.com/EPA-WG/cem
+Copyright (c) 2026 Sasha Firsov <https://github.com/sashafirsov>",
     version = cem_ml::VERSION,
     propagate_version = true,
     disable_help_subcommand = false,
@@ -52,8 +59,8 @@ pub enum Command {
     #[command(about = "Print the cem-ml-cli version")]
     Version,
 
-    #[command(about = "Reserved: transform pipeline (not yet implemented)")]
-    Transform,
+    #[command(about = "Apply a template/stylesheet to data")]
+    Transform(TransformArgs),
     #[command(subcommand, about = "Reserved: schema workflows (not yet implemented)")]
     Schema(SchemaCmd),
     #[command(subcommand, about = "Reserved: plugin workflows (not yet implemented)")]
@@ -99,6 +106,8 @@ pub enum InputFormat {
 #[derive(ValueEnum, Copy, Clone, Debug, PartialEq, Eq)]
 pub enum LayerFormat {
     Cem,
+    Html,
+    Xml,
     DomJson,
     Ast,
     Events,
@@ -170,11 +179,161 @@ pub struct ContextOptions {
     pub content_type: Option<String>,
 
     #[arg(
+        long = "default-namespace",
+        value_name = "URI",
+        help = "Default namespace URI for the input root scope"
+    )]
+    pub default_namespace: Option<String>,
+
+    #[arg(
+        long = "namespace",
+        value_name = "PREFIX=URI",
+        action = clap::ArgAction::Append,
+        help = "Named namespace binding for the input root scope; repeatable"
+    )]
+    pub namespaces: Vec<NamespaceBinding>,
+
+    #[arg(
+        long = "module-map",
+        value_name = "PATH-OR-URI",
+        help = "Module-map path or URI for the input root scope"
+    )]
+    pub module_map: Option<String>,
+
+    #[arg(
+        long = "version-pin",
+        value_name = "NAME=CONSTRAINT",
+        action = clap::ArgAction::Append,
+        help = "Version pin for the input root scope; repeatable"
+    )]
+    pub version_pins: Vec<ScopeKeyValue>,
+
+    #[arg(
+        long = "scope-policy",
+        value_name = "NAME",
+        help = "Scheduler/resource policy name for the input root scope"
+    )]
+    pub scope_policy: Option<String>,
+
+    #[arg(
+        long = "scope-budget",
+        value_name = "NAME=VALUE",
+        action = clap::ArgAction::Append,
+        help = "Resource budget for the input root scope; repeatable"
+    )]
+    pub scope_budgets: Vec<ScopeKeyValue>,
+
+    #[arg(
         long,
         value_name = "URI",
         help = "Base URI for diagnostic/report URI normalization"
     )]
     pub base_uri: Option<String>,
+
+    #[arg(
+        long = "resolver-read-map",
+        value_name = "URI-PREFIX=DIR",
+        action = clap::ArgAction::Append,
+        help = "Resolve matching remote/custom read URIs from a local directory; repeatable"
+    )]
+    pub resolver_read_maps: Vec<ResolverMap>,
+
+    #[arg(
+        long = "resolver-write-map",
+        value_name = "URI-PREFIX=DIR",
+        action = clap::ArgAction::Append,
+        help = "Resolve matching remote/custom write URIs to a local directory; repeatable"
+    )]
+    pub resolver_write_maps: Vec<ResolverMap>,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct NamespaceBinding {
+    pub prefix: String,
+    pub uri: String,
+}
+
+impl FromStr for NamespaceBinding {
+    type Err = String;
+
+    fn from_str(value: &str) -> Result<Self, Self::Err> {
+        let Some((prefix, uri)) = value.split_once('=') else {
+            return Err("expected PREFIX=URI".to_owned());
+        };
+        let prefix = prefix.trim();
+        let uri = uri.trim();
+        if prefix.is_empty() {
+            return Err("namespace prefix must not be empty; use --default-namespace for the default namespace".to_owned());
+        }
+        if uri.is_empty() {
+            return Err("namespace URI must not be empty".to_owned());
+        }
+        Ok(Self {
+            prefix: prefix.to_owned(),
+            uri: uri.to_owned(),
+        })
+    }
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct ResolverMap {
+    pub uri_prefix: String,
+    pub local_root: PathBuf,
+}
+
+impl FromStr for ResolverMap {
+    type Err = String;
+
+    fn from_str(value: &str) -> Result<Self, Self::Err> {
+        let Some((uri_prefix, local_root)) = value.split_once('=') else {
+            return Err("expected URI-PREFIX=DIR".to_owned());
+        };
+        let uri_prefix = uri_prefix.trim();
+        let local_root = local_root.trim();
+        if uri_prefix.is_empty() {
+            return Err("resolver URI prefix must not be empty".to_owned());
+        }
+        if local_root.is_empty() {
+            return Err("resolver local root must not be empty".to_owned());
+        }
+        if cem_ml::resolver::uri_scheme(uri_prefix).is_none()
+            || cem_ml::resolver::is_windows_drive_path(uri_prefix)
+        {
+            return Err("resolver URI prefix must include a remote/custom URI scheme".to_owned());
+        }
+        Ok(Self {
+            uri_prefix: uri_prefix.to_owned(),
+            local_root: PathBuf::from(local_root),
+        })
+    }
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct ScopeKeyValue {
+    pub key: String,
+    pub value: String,
+}
+
+impl FromStr for ScopeKeyValue {
+    type Err = String;
+
+    fn from_str(value: &str) -> Result<Self, Self::Err> {
+        let Some((key, field_value)) = value.split_once('=') else {
+            return Err("expected NAME=VALUE".to_owned());
+        };
+        let key = key.trim();
+        let field_value = field_value.trim();
+        if key.is_empty() {
+            return Err("name must not be empty".to_owned());
+        }
+        if field_value.is_empty() {
+            return Err("value must not be empty".to_owned());
+        }
+        Ok(Self {
+            key: key.to_owned(),
+            value: field_value.to_owned(),
+        })
+    }
 }
 
 #[derive(Args, Debug, Default, Clone)]
@@ -194,10 +353,50 @@ pub struct ReportOptions {
     pub report_md: Option<PathBuf>,
 }
 
+#[derive(Args, Debug, Default, Clone)]
+pub struct RunOptions {
+    #[arg(
+        long = "config",
+        value_name = "FILE",
+        help = "Read structured run configuration JSON with inputs, outputs, and scheduler settings"
+    )]
+    pub config: Option<PathBuf>,
+
+    #[arg(
+        long = "config-content-type",
+        value_name = "TYPE",
+        help = "Content type of --config; inferred from extension when omitted"
+    )]
+    pub config_content_type: Option<String>,
+
+    #[arg(
+        long = "config-schema",
+        value_name = "URI",
+        help = "Schema identity of --config"
+    )]
+    pub config_schema: Option<String>,
+
+    #[arg(
+        long = "input-spec",
+        value_name = "CSV",
+        action = clap::ArgAction::Append,
+        help = "Repeatable input spec record, e.g. uri=src/a.cem,contentType=application/cem+xml,schema=core"
+    )]
+    pub input_specs: Vec<String>,
+
+    #[arg(
+        long = "output-spec",
+        value_name = "CSV",
+        action = clap::ArgAction::Append,
+        help = "Repeatable output spec record, e.g. input=src/a.cem,dest=dist/a.cem,contentType=application/cem+xml"
+    )]
+    pub output_specs: Vec<String>,
+}
+
 #[derive(Args, Debug)]
 pub struct ParseArgs {
     #[arg(value_name = "INPUT", help = "Path to a CEM-ML/HTML/XML input")]
-    pub input: PathBuf,
+    pub input: Option<PathBuf>,
 
     #[arg(long, value_enum, default_value_t = ParseFormat::DomJson,
           help = "Output projection (dom-json|json|ast|events)")]
@@ -226,12 +425,14 @@ pub struct ParseArgs {
     #[command(flatten)]
     pub context: ContextOptions,
     #[command(flatten)]
+    pub run: RunOptions,
+    #[command(flatten)]
     pub report: ReportOptions,
 }
 
 #[derive(Args, Debug)]
 pub struct ValidateArgs {
-    #[arg(value_name = "INPUT", required = true, num_args = 1.., help = "One or more inputs")]
+    #[arg(value_name = "INPUT", num_args = 0.., help = "One or more inputs")]
     pub inputs: Vec<PathBuf>,
 
     #[arg(long, value_enum, default_value_t = ValidateFormat::Text,
@@ -247,12 +448,14 @@ pub struct ValidateArgs {
     #[command(flatten)]
     pub context: ContextOptions,
     #[command(flatten)]
+    pub run: RunOptions,
+    #[command(flatten)]
     pub report: ReportOptions,
 }
 
 #[derive(Args, Debug)]
 pub struct CheckArgs {
-    #[arg(value_name = "INPUT", required = true, num_args = 1..)]
+    #[arg(value_name = "INPUT", num_args = 0..)]
     pub inputs: Vec<PathBuf>,
 
     #[arg(long, value_enum, default_value_t = ValidateFormat::Text)]
@@ -270,13 +473,15 @@ pub struct CheckArgs {
     #[command(flatten)]
     pub context: ContextOptions,
     #[command(flatten)]
+    pub run: RunOptions,
+    #[command(flatten)]
     pub report: ReportOptions,
 }
 
 #[derive(Args, Debug)]
 pub struct InspectArgs {
     #[arg(value_name = "INPUT")]
-    pub input: PathBuf,
+    pub input: Option<PathBuf>,
 
     #[arg(long, value_enum, default_value_t = InspectView::Summary,
           help = "Which inspector view to render")]
@@ -290,19 +495,35 @@ pub struct InspectArgs {
 
     #[command(flatten)]
     pub context: ContextOptions,
+    #[command(flatten)]
+    pub run: RunOptions,
 }
 
 #[derive(Args, Debug)]
 pub struct ConvertArgs {
     #[arg(value_name = "INPUT")]
-    pub input: PathBuf,
+    pub input: Option<PathBuf>,
 
     #[arg(long = "from-format", value_enum, help = "Input syntax (cem|html|xml)")]
     pub from_format: Option<InputFormat>,
 
     #[arg(long = "to-format", value_enum, default_value_t = LayerFormat::DomJson,
-          help = "Output layer (cem|dom-json|ast|events)")]
+          help = "Output layer (cem|html|xml|dom-json|ast|events)")]
     pub to_format: LayerFormat,
+
+    #[arg(
+        long = "to-content-type",
+        value_name = "TYPE",
+        help = "Target content type for conversion/export"
+    )]
+    pub to_content_type: Option<String>,
+
+    #[arg(
+        long = "to-schema",
+        value_name = "URI-OR-FILE",
+        help = "Target schema URI or file for conversion/export"
+    )]
+    pub to_schema: Option<String>,
 
     #[arg(long, value_name = "FILE")]
     pub out: Option<PathBuf>,
@@ -312,12 +533,119 @@ pub struct ConvertArgs {
 
     #[command(flatten)]
     pub context: ContextOptions,
+    #[command(flatten)]
+    pub run: RunOptions,
+    #[command(flatten)]
+    pub report: ReportOptions,
+}
+
+#[derive(Args, Debug)]
+pub struct TransformArgs {
+    #[arg(
+        value_name = "DATA",
+        required_unless_present = "config",
+        help = "Path to source data for the template"
+    )]
+    pub data: Option<PathBuf>,
+
+    #[arg(
+        long = "config",
+        value_name = "FILE",
+        help = "Read CEM-ML transform graph configuration"
+    )]
+    pub config: Option<PathBuf>,
+
+    #[arg(
+        long = "config-content-type",
+        value_name = "TYPE",
+        help = "Content type of --config; inferred from extension when omitted"
+    )]
+    pub config_content_type: Option<String>,
+
+    #[arg(
+        long = "config-schema",
+        value_name = "URI",
+        help = "Schema identity of --config"
+    )]
+    pub config_schema: Option<String>,
+
+    #[arg(
+        long = "data-content-type",
+        value_name = "TYPE",
+        help = "Content type of DATA"
+    )]
+    pub data_content_type: Option<String>,
+
+    #[arg(
+        long = "data-schema",
+        value_name = "URI-OR-FILE",
+        help = "Schema URI or file for DATA"
+    )]
+    pub data_schema: Option<String>,
+
+    #[arg(
+        long = "template",
+        value_name = "FILE",
+        required_unless_present = "config",
+        help = "Template or stylesheet to apply to DATA"
+    )]
+    pub template: Option<PathBuf>,
+
+    #[arg(
+        long = "template-content-type",
+        value_name = "TYPE",
+        help = "Content type of --template"
+    )]
+    pub template_content_type: Option<String>,
+
+    #[arg(
+        long = "template-schema",
+        value_name = "URI-OR-FILE",
+        help = "Schema URI or file for --template"
+    )]
+    pub template_schema: Option<String>,
+
+    #[arg(
+        long = "template-entrypoint",
+        value_name = "NAME",
+        help = "Public CEM-native template entrypoint to render"
+    )]
+    pub template_entrypoint: Option<String>,
+
+    #[arg(
+        long = "param",
+        value_name = "NAME=VALUE",
+        help = "CEM-native template param; repeatable"
+    )]
+    pub params: Vec<String>,
+
+    #[arg(
+        long = "to-content-type",
+        value_name = "TYPE",
+        help = "Target document content type"
+    )]
+    pub to_content_type: Option<String>,
+
+    #[arg(
+        long = "to-schema",
+        value_name = "URI-OR-FILE",
+        help = "Target schema URI or file"
+    )]
+    pub to_schema: Option<String>,
+
+    #[arg(long, value_name = "FILE", help = "Write target document to file")]
+    pub out: Option<PathBuf>,
+
+    #[command(flatten)]
+    pub context: ContextOptions,
+    #[command(flatten)]
+    pub report: ReportOptions,
 }
 
 #[derive(Args, Debug)]
 pub struct TraceArgs {
     #[arg(value_name = "INPUT")]
-    pub input: PathBuf,
+    pub input: Option<PathBuf>,
 
     #[arg(long, value_enum, default_value_t = TraceFormat::Json,
           help = "Trace projection (json|xml|cem|text|html)")]
@@ -331,11 +659,13 @@ pub struct TraceArgs {
 
     #[command(flatten)]
     pub context: ContextOptions,
+    #[command(flatten)]
+    pub run: RunOptions,
 }
 
 #[derive(Args, Debug)]
 pub struct BenchArgs {
-    #[arg(value_name = "INPUT", required = true, num_args = 1..)]
+    #[arg(value_name = "INPUT", num_args = 0..)]
     pub inputs: Vec<PathBuf>,
 
     #[arg(long, value_enum, default_value_t = BenchFormat::Text,
@@ -360,6 +690,8 @@ pub struct BenchArgs {
     #[command(flatten)]
     pub context: ContextOptions,
     #[command(flatten)]
+    pub run: RunOptions,
+    #[command(flatten)]
     pub report: ReportOptions,
 }
 
@@ -378,6 +710,8 @@ pub struct FixtureValidateArgs {
     #[command(flatten)]
     pub context: ContextOptions,
     #[command(flatten)]
+    pub run: RunOptions,
+    #[command(flatten)]
     pub report: ReportOptions,
 }
 
@@ -392,6 +726,8 @@ pub struct FixtureRoundtripArgs {
 
     #[command(flatten)]
     pub context: ContextOptions,
+    #[command(flatten)]
+    pub run: RunOptions,
     #[command(flatten)]
     pub report: ReportOptions,
 }
@@ -486,15 +822,274 @@ mod tests {
 
     #[test]
     fn convert_to_format_restricted_to_layer_formats() {
-        for fmt in ["cem", "dom-json", "ast", "events"] {
+        for fmt in ["cem", "html", "xml", "dom-json", "ast", "events"] {
             try_parse(&["convert", "--to-format", fmt, "in.cem"]).expect(fmt);
         }
-        for fmt in ["json", "xml", "text", "html"] {
+        for fmt in ["json", "text"] {
             assert!(
                 try_parse(&["convert", "--to-format", fmt, "in.cem"]).is_err(),
                 "rejected: {fmt}"
             );
         }
+    }
+
+    #[test]
+    fn convert_accepts_target_identity_flags() {
+        try_parse(&[
+            "convert",
+            "--to-format",
+            "cem",
+            "--to-content-type",
+            "application/cem+xml",
+            "--to-schema",
+            "https://cem.dev/ns/core/1",
+            "in.html",
+        ])
+        .unwrap();
+    }
+
+    #[test]
+    fn convert_document_to_document_example_parses() {
+        let cli = try_parse(&[
+            "convert",
+            "input.xml",
+            "--content-type",
+            "application/xml",
+            "--to-content-type",
+            "application/cem+xml",
+            "--out",
+            "output.cem",
+        ])
+        .unwrap();
+
+        let Command::Convert(args) = cli.command else {
+            panic!("expected convert command");
+        };
+        assert_eq!(args.input, Some(PathBuf::from("input.xml")));
+        assert_eq!(
+            args.context.content_type.as_deref(),
+            Some("application/xml")
+        );
+        assert_eq!(args.to_content_type.as_deref(), Some("application/cem+xml"));
+        assert_eq!(args.out, Some(PathBuf::from("output.cem")));
+    }
+
+    #[test]
+    fn transform_template_shape_parses() {
+        let cli = try_parse(&[
+            "transform",
+            "data.xml",
+            "--data-content-type",
+            "application/xml",
+            "--data-schema",
+            "data.rng",
+            "--template",
+            "view.xsl",
+            "--template-content-type",
+            "application/xslt+xml",
+            "--template-schema",
+            "xslt.rng",
+            "--to-content-type",
+            "text/html",
+            "--to-schema",
+            "html.rng",
+            "--out",
+            "view.html",
+        ])
+        .unwrap();
+
+        let Command::Transform(args) = cli.command else {
+            panic!("expected transform command");
+        };
+        assert_eq!(args.data, Some(PathBuf::from("data.xml")));
+        assert_eq!(args.data_content_type.as_deref(), Some("application/xml"));
+        assert_eq!(args.data_schema.as_deref(), Some("data.rng"));
+        assert_eq!(args.template, Some(PathBuf::from("view.xsl")));
+        assert_eq!(
+            args.template_content_type.as_deref(),
+            Some("application/xslt+xml")
+        );
+        assert_eq!(args.template_schema.as_deref(), Some("xslt.rng"));
+        assert_eq!(args.to_content_type.as_deref(), Some("text/html"));
+        assert_eq!(args.to_schema.as_deref(), Some("html.rng"));
+        assert_eq!(args.out, Some(PathBuf::from("view.html")));
+    }
+
+    #[test]
+    fn transform_config_parses() {
+        let cli = try_parse(&[
+            "transform",
+            "--config",
+            "graph.cem",
+            "--config-content-type",
+            "text/cem-ml",
+            "--config-schema",
+            "https://cem.dev/ns/cli/transform-config/1",
+        ])
+        .unwrap();
+
+        let Command::Transform(args) = cli.command else {
+            panic!("expected transform command");
+        };
+        assert_eq!(args.data, None);
+        assert_eq!(args.template, None);
+        assert_eq!(args.config, Some(PathBuf::from("graph.cem")));
+        assert_eq!(args.config_content_type.as_deref(), Some("text/cem-ml"));
+        assert_eq!(
+            args.config_schema.as_deref(),
+            Some("https://cem.dev/ns/cli/transform-config/1")
+        );
+    }
+
+    #[test]
+    fn transform_requires_template() {
+        assert!(try_parse(&[
+            "transform",
+            "data.xml",
+            "--data-content-type",
+            "application/xml",
+            "--to-content-type",
+            "text/html",
+            "--out",
+            "view.html",
+        ])
+        .is_err());
+    }
+
+    #[test]
+    fn commands_accept_namespace_context_options() {
+        let cli = try_parse(&[
+            "validate",
+            "--default-namespace",
+            "urn:default",
+            "--namespace",
+            "html=https://www.w3.org/1999/xhtml",
+            "--namespace",
+            "svg=http://www.w3.org/2000/svg",
+            "in.cem",
+        ])
+        .unwrap();
+
+        let Command::Validate(args) = cli.command else {
+            panic!("expected validate command");
+        };
+        assert_eq!(
+            args.context.default_namespace.as_deref(),
+            Some("urn:default")
+        );
+        assert_eq!(args.context.namespaces.len(), 2);
+        assert_eq!(args.context.namespaces[0].prefix, "html");
+        assert_eq!(
+            args.context.namespaces[0].uri,
+            "https://www.w3.org/1999/xhtml"
+        );
+        assert!(try_parse(&["validate", "--namespace", "=urn:default", "in.cem"]).is_err());
+        assert!(try_parse(&["validate", "--namespace", "html", "in.cem"]).is_err());
+    }
+
+    #[test]
+    fn commands_accept_scope_context_options() {
+        let cli = try_parse(&[
+            "validate",
+            "--module-map",
+            "cem.modules.json",
+            "--version-pin",
+            "cem-ml=1",
+            "--scope-policy",
+            "deterministic",
+            "--scope-budget",
+            "parseMs=5",
+            "--scope-budget",
+            "validateMs=7",
+            "in.cem",
+        ])
+        .unwrap();
+
+        let Command::Validate(args) = cli.command else {
+            panic!("expected validate command");
+        };
+        assert_eq!(args.context.module_map.as_deref(), Some("cem.modules.json"));
+        assert_eq!(args.context.version_pins[0].key, "cem-ml");
+        assert_eq!(args.context.version_pins[0].value, "1");
+        assert_eq!(args.context.scope_policy.as_deref(), Some("deterministic"));
+        assert_eq!(args.context.scope_budgets.len(), 2);
+        assert_eq!(args.context.scope_budgets[0].key, "parseMs");
+        assert_eq!(args.context.scope_budgets[0].value, "5");
+        assert!(try_parse(&["validate", "--version-pin", "=1", "in.cem"]).is_err());
+        assert!(try_parse(&["validate", "--scope-budget", "parseMs", "in.cem"]).is_err());
+    }
+
+    #[test]
+    fn commands_accept_resolver_map_context_options() {
+        let cli = try_parse(&[
+            "validate",
+            "--resolver-read-map",
+            "cem+vfs://workspace=/tmp/cem-vfs",
+            "--resolver-write-map",
+            "https://example.test/out=/tmp/cem-out",
+            "in.cem",
+        ])
+        .unwrap();
+
+        let Command::Validate(args) = cli.command else {
+            panic!("expected validate command");
+        };
+        assert_eq!(args.context.resolver_read_maps.len(), 1);
+        assert_eq!(
+            args.context.resolver_read_maps[0].uri_prefix,
+            "cem+vfs://workspace"
+        );
+        assert_eq!(
+            args.context.resolver_read_maps[0].local_root,
+            PathBuf::from("/tmp/cem-vfs")
+        );
+        assert_eq!(args.context.resolver_write_maps.len(), 1);
+        assert_eq!(
+            args.context.resolver_write_maps[0].uri_prefix,
+            "https://example.test/out"
+        );
+        assert!(try_parse(&[
+            "validate",
+            "--resolver-read-map",
+            "relative=/tmp/cem-vfs",
+            "in.cem"
+        ])
+        .is_err());
+        assert!(try_parse(&[
+            "validate",
+            "--resolver-write-map",
+            "cem+vfs://workspace",
+            "in.cem"
+        ])
+        .is_err());
+    }
+
+    #[test]
+    fn commands_accept_run_spec_options() {
+        try_parse(&[
+            "validate",
+            "--input-spec",
+            "uri=in.cem,contentType=application/cem+xml,schema=core",
+        ])
+        .unwrap();
+        try_parse(&[
+            "convert",
+            "--input-spec",
+            "uri=in.html,contentType=text/html",
+            "--output-spec",
+            "dest=out.cem,contentType=application/cem+xml",
+        ])
+        .unwrap();
+        try_parse(&[
+            "validate",
+            "--config",
+            "cem-run.json",
+            "--config-content-type",
+            "application/json",
+            "--config-schema",
+            "https://cem.dev/ns/cli/run-config/1",
+        ])
+        .unwrap();
     }
 
     #[test]
@@ -536,7 +1131,7 @@ mod tests {
 
     #[test]
     fn reserved_subcommands_parse() {
-        try_parse(&["transform"]).unwrap();
+        try_parse(&["transform", "data.xml", "--template", "view.xsl"]).unwrap();
         try_parse(&["schema", "emit"]).unwrap();
         try_parse(&["schema", "sample"]).unwrap();
         try_parse(&["schema", "replace"]).unwrap();
@@ -547,7 +1142,13 @@ mod tests {
 
     #[test]
     fn validate_requires_input() {
-        assert!(try_parse(&["validate"]).is_err());
+        let parsed = try_parse(&["validate"]).unwrap();
+        match parsed.command {
+            Command::Validate(args) => {
+                assert!(args.inputs.is_empty() && args.run.input_specs.is_empty())
+            }
+            _ => panic!("expected validate"),
+        }
     }
 
     #[test]

@@ -1,6 +1,10 @@
 {
     "name": "@epa-wg/cem-components",
     "version": "0.1.0",
+    "author": {
+        "name": "Sasha Firsov",
+        "email": "sasha@firsov.net"
+    },
     "license": "MIT",
     "type": "module",
     "repository": {

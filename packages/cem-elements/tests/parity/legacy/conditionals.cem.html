@@ -1,0 +1,14 @@
+<cem-element data-cem-fixture="conditionals" tag="cem-conditional-card">
+  <template type="text/cem-ml">
+    {attribute @name=kind}
+    {cem:choose |
+      {cem:when @test=kind | {strong | {$kind}}}
+      {cem:otherwise | {em | none}}
+    }
+    {cem:if @test=kind | {span @class=present | present}}
+  </template>
+</cem-element>
+
+<cem-conditional-card kind="alert"></cem-conditional-card>
+<cem-conditional-card></cem-conditional-card>
+

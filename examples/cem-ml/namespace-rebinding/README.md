@@ -1,5 +1,7 @@
 # Namespace Rebinding Fixtures
 
+Copyright (c) 2026 Sasha Firsov <https://github.com/sashafirsov>
+
 Per `docs/cem-ml-ac.md` AC-P-10 / AC-P-V-1 and
 `packages/cem_ml/src/schema/namespace.rs`. Each fixture exercises a
 binding scenario covered by the `NsContext` scope-chain implementation

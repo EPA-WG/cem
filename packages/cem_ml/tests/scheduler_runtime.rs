@@ -84,15 +84,51 @@ fn end_to_end_pool_run_emits_deterministic_trace() {
     assert_eq!(
         kinds,
         vec![
-            (7, cem_ml::scheduler::SchedulerEventKind::Enqueue, "tokenize".into()),
-            (7, cem_ml::scheduler::SchedulerEventKind::Enqueue, "normalize".into()),
-            (7, cem_ml::scheduler::SchedulerEventKind::Enqueue, "ast-build".into()),
-            (7, cem_ml::scheduler::SchedulerEventKind::Dispatch, "tokenize".into()),
-            (7, cem_ml::scheduler::SchedulerEventKind::Finish, "tokenize".into()),
-            (7, cem_ml::scheduler::SchedulerEventKind::Dispatch, "normalize".into()),
-            (7, cem_ml::scheduler::SchedulerEventKind::Finish, "normalize".into()),
-            (7, cem_ml::scheduler::SchedulerEventKind::Dispatch, "ast-build".into()),
-            (7, cem_ml::scheduler::SchedulerEventKind::Finish, "ast-build".into()),
+            (
+                7,
+                cem_ml::scheduler::SchedulerEventKind::Enqueue,
+                "tokenize".into()
+            ),
+            (
+                7,
+                cem_ml::scheduler::SchedulerEventKind::Enqueue,
+                "normalize".into()
+            ),
+            (
+                7,
+                cem_ml::scheduler::SchedulerEventKind::Enqueue,
+                "ast-build".into()
+            ),
+            (
+                7,
+                cem_ml::scheduler::SchedulerEventKind::Dispatch,
+                "tokenize".into()
+            ),
+            (
+                7,
+                cem_ml::scheduler::SchedulerEventKind::Finish,
+                "tokenize".into()
+            ),
+            (
+                7,
+                cem_ml::scheduler::SchedulerEventKind::Dispatch,
+                "normalize".into()
+            ),
+            (
+                7,
+                cem_ml::scheduler::SchedulerEventKind::Finish,
+                "normalize".into()
+            ),
+            (
+                7,
+                cem_ml::scheduler::SchedulerEventKind::Dispatch,
+                "ast-build".into()
+            ),
+            (
+                7,
+                cem_ml::scheduler::SchedulerEventKind::Finish,
+                "ast-build".into()
+            ),
         ]
     );
 }

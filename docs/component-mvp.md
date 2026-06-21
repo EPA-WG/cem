@@ -1,45 +1,110 @@
 # CEM Component MVP
 
-This document defines the first component surface and state matrix for CEM fixtures and Figma planning.
+This document defines the accepted Phase 4 component MVP list, state matrix, and first app workflow surfaces. It is the
+contract for `@epa-wg/cem-components`, the CEM core schema state vocabulary, and the future Figma UI Kit mapping.
+
+## Scope
+
+- Components are CEM semantic components, not direct Material clones. Angular Material remains a coverage and ergonomics
+  benchmark only.
+- The MVP favors components required by auth, profile, asset, discussion, and settings workflows before expanding into
+  specialized controls.
+- All components render in the light DOM through the `<cem-element>` substrate. No Phase 4 component may depend on the
+  legacy `<custom-element>` authoring surface.
 
 ## Component List
 
-| Component | Primary Use | Required Tokens |
-| --- | --- | --- |
-| App shell | Page structure, landmarks, skip target | palette, gap, inset, typography |
-| Top bar | Product title and primary actions | palette, stroke, gap, typography |
-| Navigation list | Section and task navigation | palette, gap, inset, bend, typography |
-| Form | Grouped user input and submission | gap, inset, typography |
-| Text field | Text entry, validation, help text | palette, stroke, bend, gap, typography |
-| Select field | Bounded choice entry | palette, stroke, bend, gap, typography |
-| Checkbox | Binary consent and filters | palette, stroke, bend, control, typography |
-| Button | Primary, secondary, quiet, destructive actions | palette, action, control, bend, typography |
-| Card | Summary container for profile/assets/messages | palette, stroke, bend, gap, inset |
-| Data list | Asset rows, search results, settings lists | palette, stroke, gap, typography |
-| Badge | Status, count, and priority labels | palette, bend, inset, typography |
-| Message thread | Conversation list and message composer | palette, gap, inset, bend, typography |
-| Alert | Error, warning, success, and info feedback | palette, action, stroke, gap, typography |
+| Category | Component ID | Element name | Primary use | Required token families |
+| --- | --- | --- | --- | --- |
+| Action | `action` | `cem-action` | Text action, submit, and command buttons | action, control, palette, bend, typography |
+| Action | `icon-button` | `cem-icon-button` | Compact icon-only command with required accessible name | action, control, palette, stroke, bend |
+| Action | `menu-item` | `cem-menu-item` | Command or navigation row inside menus and action lists | action, palette, gap, inset, typography |
+| Input | `field` | `cem-field` | Generic labeled field wrapper for simple form controls | palette, stroke, bend, gap, typography |
+| Input | `text-field` | `cem-text-field` | Single-line text entry with label, help, and validation | palette, stroke, bend, gap, typography |
+| Input | `textarea` | `cem-textarea` | Multi-line text entry with label, help, and validation | palette, stroke, bend, gap, typography |
+| Input | `select` | `cem-select` | Bounded single-value choice | palette, stroke, bend, control, typography |
+| Input | `checkbox` | `cem-checkbox` | Binary consent, settings, and filters | palette, stroke, control, bend, typography |
+| Input | `radio` | `cem-radio` | Mutually exclusive choice inside a radio group | palette, stroke, control, typography |
+| Input | `switch` | `cem-switch` | Immediate boolean setting toggle | palette, stroke, action, control, bend |
+| Layout | `surface` | `cem-surface` | Section surface for grouped content and workflow regions | palette, stroke, bend, gap, inset |
+| Content | `text` | `cem-text` | Token-scoped inline text and typography variant wrapper | typography, palette |
+| Content | `icon` | `cem-icon` | Decorative or labeled icon text primitive | action, palette, stroke, typography |
+| Layout | `stack` | `cem-stack` | Single-axis layout container | gap, responsive |
+| Layout | `grid` | `cem-grid` | Responsive grid layout container | gap, responsive |
+| Content | `list` | `cem-list` | Ordered or unordered collection, including empty state | palette, stroke, gap, typography |
+| Content | `card` | `cem-card` | Summary container for profile, asset, and message content | palette, stroke, bend, gap, inset |
+| Content | `table` | `cem-table` | Structured data comparison and asset grids | palette, stroke, gap, typography |
+| Content | `chip` | `cem-chip` | Compact filter, token, or removable label | palette, action, bend, inset, typography |
+| Content | `badge` | `cem-badge` | Status, count, priority, and severity labels | palette, bend, inset, typography |
+| Content | `avatar` | `cem-avatar` | Person or organization visual identity | palette, bend, typography |
+| Content | `media-preview` | `cem-media-preview` | Asset thumbnail, file, or object preview | palette, stroke, bend, gap |
+| Navigation | `app-bar` | `cem-app-bar` | Product title, global actions, and current context | palette, stroke, gap, inset, typography |
+| Navigation | `nav` | `cem-nav` | Labeled navigation region and item list | palette, action, gap, inset, typography |
+| Navigation | `tabs` | `cem-tabs` | Local view switching | palette, action, stroke, gap, typography |
+| Feedback | `dialog` | `cem-dialog` | Modal decision or focused task | palette, stroke, bend, gap, inset |
+| Feedback | `dialog-shell` | `cem-dialog-shell` | Labeled dialog shell for focused light-DOM task content | palette, stroke, bend, gap, inset |
+| Feedback | `sheet` | `cem-sheet` | Non-modal or edge-attached task surface | palette, stroke, bend, gap, inset |
+| Feedback | `toast` | `cem-toast` | Transient status message | palette, action, stroke, gap, typography |
+| Feedback | `progress` | `cem-progress` | Determinate and indeterminate progress | palette, action, control, typography |
+| Feedback | `skeleton` | `cem-skeleton` | Loading placeholder preserving layout | palette, control, bend |
+| Feedback | `alert` | `cem-alert` | Inline info, success, warning, and error feedback | palette, action, stroke, gap, typography |
+
+## Deferred From MVP
+
+The roadmap still includes split actions, sliders, date/time affordances, side-nav variants, breadcrumbs, pagination,
+and richer menu/dropdown families. They are deferred until the MVP workflows prove the shared component states,
+accessibility behavior, and token usage.
 
 ## State Matrix
 
-| State | Applies To | Required Behavior |
+States are exposed as CEM semantic state names and mirrored to host attributes or ARIA according to the component docs.
+`focus` in planning conversations maps to the canonical state name `focus-visible`.
+
+| State | Applies to | Required behavior |
 | --- | --- | --- |
-| default | All components | Uses mode-aware palette, type, shape, spacing, and stroke variables. |
-| hover | Interactive components | Uses action hover recipes or generated action color variables. |
-| focus-visible | Interactive components | Shows focus ring with CEM stroke/ring tokens and does not rely on color alone. |
-| active | Buttons, nav items, selectable rows | Uses active action treatment and keeps text contrast. |
-| selected | Navigation, checkbox, list rows | Uses selected semantics distinct from hover/focus. |
-| disabled | Inputs, buttons, nav items | Reduces affordance without dropping below readable contrast for labels. |
-| invalid | Form fields, forms | Exposes error message relationship and error color/stroke tokens. |
-| required | Form fields | Exposes required semantics without relying on visual mark alone. |
-| loading | Buttons, lists, forms | Preserves layout dimensions while status changes. |
-| empty | Lists, threads, assets | Provides visible empty-state content and action path. |
+| `default` | All components | Uses mode-aware palette, type, shape, spacing, and stroke variables. |
+| `hover` | Interactive actions, inputs, nav, tabs, rows, chips | Uses action hover treatment without changing layout. |
+| `focus-visible` | Keyboard-focusable actions, inputs, nav, tabs, dialogs, sheets | Shows a visible focus ring using CEM focus tokens. |
+| `active` | Actions, menu items, tabs, nav items, chips | Uses active action treatment and preserves text contrast. |
+| `disabled` | Actions, inputs, nav items, tabs, menu items, chips | Removes activation and tab stop where appropriate while keeping readable labels. |
+| `loading` | Actions, inputs, lists, tables, cards, dialogs, sheets, progress, skeletons | Preserves dimensions and reflects busy status. |
+| `selected` | Nav items, tabs, menu items, table/list rows, chips | Distinguishes current selection from hover and focus. |
+| `expanded` | Nav groups, select, menu item submenus, sheets, dialogs | Mirrors disclosure state with `aria-expanded` where applicable. |
+| `invalid` | Text fields, textareas, selects, checkbox/radio groups, switches, forms | Reflects validation failure with error relationship and error tokens. |
+| `required` | Text fields, textareas, selects, checkbox/radio groups | Exposes required semantics without relying on a visual mark alone. |
+| `readonly` | Text fields, textareas, select-like read views | Allows focus and submission while preventing edits. |
+| `checked` | Checkbox, radio, switch, filter chips | Mirrors native checked semantics and selected visual treatment. |
+| `indeterminate` | Checkbox and aggregate selection controls | Communicates mixed selection through native or ARIA mixed state. |
+| `empty` | Lists, tables, cards, media preview, discussion surfaces | Provides visible empty-state content and a next action path. |
+
+## Category State Coverage
+
+| Category | Required MVP states |
+| --- | --- |
+| Action | `default`, `hover`, `focus-visible`, `active`, `disabled`, `loading` |
+| Input | `default`, `hover`, `focus-visible`, `disabled`, `loading`, `expanded`, `invalid`, `required`, `readonly`, `checked`, `indeterminate` |
+| Navigation | `default`, `hover`, `focus-visible`, `active`, `disabled`, `selected`, `expanded` |
+| Layout | `default`, `loading`, `empty` |
+| Content | `default`, `hover`, `focus-visible`, `selected`, `loading`, `empty`, `checked` |
+| Feedback | `default`, `focus-visible`, `loading`, `expanded`, `invalid` |
+
+## First App Workflow Surfaces
+
+The MVP is complete only when these workflows can be built without one-off UI controls:
+
+1. Auth forms: login, registration, password reset, and required/invalid/loading form states.
+2. Profile editor: avatar, editable fields, preference toggles, validation feedback, and save/cancel actions.
+3. Asset browser: filter controls, table/list results, media preview, empty/loading states, badges, and row actions.
+4. Discussion thread: message list, composer textarea, status badges, loading/empty feedback, and toast/error handling.
+5. Settings page: grouped cards, switches, checkbox/radio groups, navigation, and confirmation dialog/sheet flows.
 
 ## First Validation Flow
 
-Use the semantic fixture set in `examples/semantic/` as the first cross-check:
+Use tests and fixtures outside `examples/` as the executable coverage. Example-shaped cases may mirror
+`examples/cem-ml/` and `examples/semantic/`, but test data should live with the package or crate that owns the behavior.
 
-1. Render each fixture through the DOM/XSLT pipeline.
-2. Confirm every component maps to an MVP component row above.
+1. Render each workflow-shaped fixture through the DOM/XSLT or CEM-ML pipeline.
+2. Confirm every component maps to a component row above.
 3. Confirm every visible component state maps to a state row above.
 4. Confirm every visual value comes from CEM token CSS or native Figma variables.
+5. Confirm accessible names, ARIA state mirrors, keyboard behavior, and reference integrity through package tests.

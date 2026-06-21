@@ -48,11 +48,19 @@ fn opt_in_dispatches_a_version_pinned_isolated_region() {
     let dispatch = find(&diags, DISPATCHED_CODE).expect("opted-in xsl: region must dispatch");
     assert_eq!(dispatch.severity, Severity::Info);
     // AC-P-V-4: pinned to the @version (1.0), not the namespace URI.
-    assert!(dispatch.message.contains("XSLT 1.0"), "message: {}", dispatch.message);
+    assert!(
+        dispatch.message.contains("XSLT 1.0"),
+        "message: {}",
+        dispatch.message
+    );
     // Exactly one dispatch (only the region root), and the xsl:template
     // descendant is isolated — no unknown-namespace disposition fires.
     assert_eq!(count(&diags, DISPATCHED_CODE), 1);
-    assert_eq!(count(&diags, UNRESOLVED_CODE), 0, "descendants must be isolated");
+    assert_eq!(
+        count(&diags, UNRESOLVED_CODE),
+        0,
+        "descendants must be isolated"
+    );
 }
 
 #[test]
@@ -63,8 +71,16 @@ fn no_opt_in_falls_to_the_unknown_namespace_default() {
     let reject = find(&diags, UNRESOLVED_CODE)
         .expect("without opt-in the xsl: region follows the unknown-namespace default");
     assert_eq!(reject.severity, Severity::Error);
-    assert!(reject.message.contains("XSL/Transform"), "message: {}", reject.message);
-    assert_eq!(count(&diags, DISPATCHED_CODE), 0, "no dispatch without opt-in");
+    assert!(
+        reject.message.contains("XSL/Transform"),
+        "message: {}",
+        reject.message
+    );
+    assert_eq!(
+        count(&diags, DISPATCHED_CODE),
+        0,
+        "no dispatch without opt-in"
+    );
 }
 
 #[test]

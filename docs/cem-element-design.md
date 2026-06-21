@@ -297,6 +297,7 @@ interface DataIslandSnapshot {
   templateArtifactId: string;
   dataRevision: string;
   outputTarget: "light-dom";
+  sourceMapMode?: SourceMapMode;
   renderAttempt?: number;
   scopePolicyStamp: string;
   privacyPolicyStamp: string;
@@ -304,6 +305,7 @@ interface DataIslandSnapshot {
   dataset: Record<string, string>;
   payload: SerializedPayload;
   slices: Record<string, unknown>;
+  formData?: Record<string, unknown>;
   validationState: Record<string, unknown>;
   eventPayloads: Record<string, unknown>;
 }
@@ -550,6 +552,114 @@ fallback. Normal diffs target `renderNodeId` values from the retained render pla
 `replaceScope` is allowed only for first render, fallback mode, explicit policy
 replacement, or recovery after a target mismatch.
 
+The legacy `<custom-element>` implementation provides the useful precedent here. Its
+XSLT output is not blindly assigned with `innerHTML` or wholesale fragment replacement.
+Before commit, `assureUnique(fragment)` stamps generated nodes with `data-dce-id`
+values that are unique inside the current parent scope; then `merge(parent,
+fragment.childNodes)` maps existing children by that id, applies changed attributes,
+recurses into matching children, inserts new children in id order, and removes stale
+children. The browser DOM node is therefore the durable object; the rendered fragment is
+the desired state used to synchronize it.
+
+`cem-element` keeps the same principle, but moves desired-state calculation into the
+serializable render-plan/WASM boundary:
+
+- The processing layer emits a virtual render tree whose node identity is stable for
+  a template/data shape. Identity is conceptually parent-scoped, as in legacy
+  `data-dce-id`; an implementation may expose a globally unique `renderNodeId`, but it
+  must be derivable from parent identity plus local occurrence/key information rather
+  than from worker order, object identity, or browser DOM state.
+- The UI adapter keeps a retained previous render plan. It does not need a permanent
+  render-id lookup table for normal full-tree synchronization. The default patch walk
+  compares the current browser DOM and next virtual tree sequentially, and reads the
+  current browser node's render identity from `node.cemRenderNodeId`.
+- SSR/debug markup cannot carry DOM properties. During hydration or first comparison,
+  the UI adapter reads `node.cemRenderNodeId` first and falls back to serialized
+  identity markers such as `data-cem-render-node-id` on elements or range-marker
+  comments. When a fallback marker is found, the adapter mirrors it into
+  `node.cemRenderNodeId` so future comparisons use the faster property path.
+- A new render produces a next render plan. Diffing previous to next yields text,
+  attribute, insert, move, remove, or replace operations addressed by render-node ids.
+  The UI adapter applies those operations to existing browser nodes whenever the ids
+  match. Temporary per-parent lookup maps are allowed for keyed sibling reorders, but
+  the normal path is sequential comparison plus browser-node identity properties.
+- The browser UI adapter applies rerender plans directly to the retained DOM range.
+  Text and comment regions that need explicit identity use comment markers such as
+  `<!--cem-start:r12-->` / `<!--cem-end:r12-->`; if retained top-level render identities
+  do not match the next plan, the adapter replaces the render scope and emits a recovery
+  diagnostic. After direct patching, the adapter runs live-range directive setup:
+  `slice-event` bindings remove authoring metadata and install/dedupe listeners on
+  retained elements, while `module-url` helpers are treated as transient nodes that are
+  resolved, removed, and written back to slices without forcing visible-node
+  replacement.
+- If the previous and next plans are equivalent, the UI adapter performs no DOM
+  mutation. Data revision advancement alone is not a reason to replace or touch the
+  visible DOM tree.
+- When a parent render contains another initialized `cem-element` produced tag, the
+  parent patcher owns the nested element shell and attributes, not the nested element's
+  rendered body. After the nested element has a runtime-owned data island or render
+  bounds, parent synchronization preserves those children and lets the nested element's
+  own observer/runtime rerender from changed shell attributes. Updating parent-provided
+  payload inside an already-initialized nested CEM instance requires a focused data
+  island payload merge, not blind child replacement.
+- `replaceScope` remains a recovery/fallback operation, not normal rerender behavior.
+  It is valid on first render, template/policy incompatibility, missing retained plan,
+  target mismatch, or other cases where the patcher cannot prove that existing browser
+  nodes still correspond to the retained render plan.
+
+Operational metadata must not defeat no-op rendering. Per-node debug attributes such as
+`data-cem-render-node-id`, source-map markers, and creation-time render metadata may be
+present in the light DOM, but the authoritative latest render revision lives in runtime
+state, hydration metadata, or boundary-level metadata. A data-only rerender that produces
+the same virtual tree must not rewrite every element merely to refresh debug attributes.
+
+Dynamic text and structural regions need identities even when there is no owner element
+to carry a property. Normal HTML output uses comment ranges, for example
+`<!--cem-start:r12-->` and `<!--cem-end:r12-->`, around potentially changing content
+created by expression insertion, conditional blocks, repeated blocks, or slot
+projection. These comments have no layout or CSS box effect and can represent an empty
+region.
+
+Content-type switches change the marker syntax. Inside `<style>` and `<script>`, the
+runtime must not inject HTML comment nodes into the raw text content. The equivalent
+range markers use the content language's block-comment form, for example
+`/*cem-start:r12*/` and `/*cem-end:r12*/`. A content-specific patcher interprets those
+markers while preserving the element as a single browser node.
+
+`<textarea>` is a special case. The visible/form value of a textarea is
+`HTMLTextAreaElement.value`; child DOM appended at runtime can exist under the
+textarea, but it is not rendered and does not automatically change the live value. The
+browser patcher may use those hidden children as the mergeable dynamic model for
+textarea internals, while still treating the textarea element itself as the durable
+browser form-control node.
+
+For dynamic textarea interiors, the UI adapter:
+
+1. keeps dynamic text, expression, conditional, repeated, and slot-projection parts as
+   hidden child nodes or range markers under the textarea;
+2. reconciles those hidden children against the virtual render tree using the same
+   property-first render identity rules as other DOM nodes;
+3. after a successful hidden-model merge, derives the next textarea string from the
+   ordered hidden model, ignoring marker comments and joining each non-marker node's
+   `textContent`;
+4. writes `textarea.value = nextValue` only when the value actually changed; and
+5. preserves browser-owned state such as focus, selection range, selection direction,
+   input composition, custom validity, and user edits according to the element's
+   controlled/uncontrolled binding policy.
+
+Using only `textarea.lastElementChild.textContent` is not sufficient because a
+textarea may contain multiple static and dynamic parts. The hidden child model is patch
+state; `textarea.value` remains the authoritative rendered value.
+
+Raw SSR HTML cannot directly serialize mergeable child DOM inside a `<textarea>`,
+because the HTML parser treats textarea contents as text. SSR and persisted output that
+need dynamic textarea interiors must emit a loader-friendly representation, such as an
+`<xsl:element name="textarea">`-style or equivalent CEM-ML construction, template
+payload, or hydration marker structure. The browser loader converts that representation
+into an actual textarea element, installs the hidden child model, projects the initial
+`.value`, and mirrors render identities into properties before normal hydration or DOM
+merge begins.
+
 ```ts
 type DomPatchTarget = { kind: "render-node"; id: string };
 
@@ -641,12 +751,14 @@ when `before` is omitted. `setAttribute` with `value: null` removes the attribut
 normal data-island mutation once fine-grained render-node-id diffing can represent the
 change.
 
-`PatchApplier` is host-neutral. A browser implementation owns the target root, the
-`renderNodeId -> Node` table, focus/selection preservation, and DOM mutation. It MUST
-not mutate DOM before `commit`; for `begin` and `append`, an `applied` result means
-accepted into the pending transaction buffer. If a target cannot be found or validated,
-it returns `mismatch`, emits a diagnostic, aborts that transaction, and requests or
-permits a `replaceScope` recovery transaction. Failed ops are not skipped.
+`PatchApplier` is host-neutral. A browser implementation owns the target root,
+property-first render identity resolution, focus/selection preservation, and DOM
+mutation. It MUST not mutate DOM before `commit`; for `begin` and `append`, an
+`applied` result means accepted into the pending transaction buffer. If a target cannot
+be found or validated through sequential comparison, mirrored SSR/debug markers, or a
+temporary keyed-sibling map, it returns `mismatch`, emits a diagnostic, aborts that
+transaction, and requests or permits a `replaceScope` recovery transaction. Failed ops
+are not skipped.
 
 Phase 3 sends small `DomPatchOp[]` batches and `structured-node-v1` payloads as
 structured-clone records. Large batches MAY later replace node or op payloads with

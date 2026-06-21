@@ -137,11 +137,26 @@ mod tests {
 
     #[test]
     fn parses_major_and_major_minor() {
-        assert_eq!(parse_xslt_version("1.0"), Some(XsltVersion { major: 1, minor: 0 }));
-        assert_eq!(parse_xslt_version("3.0"), Some(XsltVersion { major: 3, minor: 0 }));
-        assert_eq!(parse_xslt_version("1.1"), Some(XsltVersion { major: 1, minor: 1 }));
-        assert_eq!(parse_xslt_version("2"), Some(XsltVersion { major: 2, minor: 0 }));
-        assert_eq!(parse_xslt_version("  3.0  "), Some(XsltVersion { major: 3, minor: 0 }));
+        assert_eq!(
+            parse_xslt_version("1.0"),
+            Some(XsltVersion { major: 1, minor: 0 })
+        );
+        assert_eq!(
+            parse_xslt_version("3.0"),
+            Some(XsltVersion { major: 3, minor: 0 })
+        );
+        assert_eq!(
+            parse_xslt_version("1.1"),
+            Some(XsltVersion { major: 1, minor: 1 })
+        );
+        assert_eq!(
+            parse_xslt_version("2"),
+            Some(XsltVersion { major: 2, minor: 0 })
+        );
+        assert_eq!(
+            parse_xslt_version("  3.0  "),
+            Some(XsltVersion { major: 3, minor: 0 })
+        );
     }
 
     #[test]
@@ -163,7 +178,10 @@ mod tests {
     #[test]
     fn missing_and_malformed_versions_are_distinguished() {
         assert_eq!(resolve_xslt_dispatch(None), Err(XsltVersionError::Missing));
-        assert_eq!(resolve_xslt_dispatch(Some("nope")), Err(XsltVersionError::Malformed));
+        assert_eq!(
+            resolve_xslt_dispatch(Some("nope")),
+            Err(XsltVersionError::Malformed)
+        );
     }
 
     #[test]

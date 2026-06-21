@@ -19,16 +19,13 @@
 //!      key when the field is `None`.
 
 use cem_ml::engine::InputFormat;
-use cem_ml::observability::{
-    events_to_jsonl, BufferingObserver, EventChannel, ReportEvent,
-};
+use cem_ml::observability::{events_to_jsonl, BufferingObserver, EventChannel, ReportEvent};
 use cem_ml::real::observe_pipeline;
 use cem_ml::source::{ByteRange, SourceId};
 use cem_ml::source_map::{FrameSpan, SourceMapFrame, SourceMapStack, TransformKind};
 
 fn canonical_fixture_paths() -> Vec<std::path::PathBuf> {
-    let root =
-        std::path::PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("../../examples/cem-ml");
+    let root = std::path::PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("../../examples/cem-ml");
     let mut out = Vec::new();
     walk(&root, &mut out);
     out.sort();
@@ -242,8 +239,7 @@ fn jsonl_projection_preserves_byte_offset_on_every_emitted_event() {
     let jsonl = events_to_jsonl(&events);
     let mut roundtripped = 0;
     for (line, original) in jsonl.lines().zip(events.iter()) {
-        let parsed: ReportEvent =
-            serde_json::from_str(line).expect("each JSONL line round-trips");
+        let parsed: ReportEvent = serde_json::from_str(line).expect("each JSONL line round-trips");
         assert_eq!(parsed.byte_offset, original.byte_offset);
         roundtripped += 1;
     }

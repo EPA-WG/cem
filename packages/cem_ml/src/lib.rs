@@ -15,6 +15,7 @@ pub mod formatter;
 pub mod handoff;
 pub mod interpreter;
 pub mod legacy_custom_element;
+pub mod lifecycle;
 pub mod observability;
 pub mod parser;
 pub mod plugin;
@@ -22,11 +23,15 @@ pub mod projection;
 pub mod query;
 pub mod real;
 pub mod registry;
+pub mod resolver;
+pub mod run_config;
 pub mod scheduler;
 pub mod schema;
 pub mod source;
 pub mod source_map;
 pub mod tokenizer;
+pub mod transform_config;
+pub mod transform_template;
 pub mod validation;
 
 #[cfg(feature = "fake-engine")]
@@ -37,7 +42,10 @@ mod tests {
     use super::*;
     use diagnostics::{Diagnostic, Severity};
     use engine::FailLevel;
-    use report::{Report, ReportOptionsSnapshot, DETERMINISTIC_TIMESTAMP};
+    use report::{
+        Report, ReportOptionsSnapshot, TransformGraphExportReport, TransformGraphReport,
+        TransformReport, DETERMINISTIC_TIMESTAMP,
+    };
 
     fn diag(sev: Severity) -> Diagnostic {
         Diagnostic {
@@ -151,6 +159,103 @@ mod tests {
             v.pointer("/reportAst/schedulerTrace/eventCount")
                 .and_then(|v| v.as_u64()),
             Some(0)
+        );
+    }
+
+    #[test]
+    fn report_serializes_optional_transform_graph_projection() {
+        let mut report = Report::deterministic(
+            vec!["graph.cem".into()],
+            vec![],
+            ReportOptionsSnapshot {
+                fail_level: FailLevel::Validate,
+                schema: None,
+                content_type: None,
+                base_uri: None,
+            },
+        );
+        report.report_ast.transform_graph = Some(TransformGraphReport {
+            export_count: 1,
+            exports: vec![TransformGraphExportReport {
+                export_id: "main".into(),
+                input: "html".into(),
+                destination: Some("out/page.html".into()),
+                content_type: Some("text/html".into()),
+                schema: None,
+                output_kind: "document".into(),
+                has_source_map: true,
+                output_span_count: 2,
+                source_map_ref: Some("out/page.html.map".into()),
+                collection_items: Vec::new(),
+            }],
+        });
+
+        let v = serde_json::to_value(&report).unwrap();
+        assert_eq!(v["reportAst"]["transformGraph"]["exportCount"], 1);
+        assert_eq!(
+            v["reportAst"]["transformGraph"]["exports"][0]["exportId"],
+            "main"
+        );
+        assert_eq!(
+            v["reportAst"]["transformGraph"]["exports"][0]["input"],
+            "html"
+        );
+        assert_eq!(
+            v["reportAst"]["transformGraph"]["exports"][0]["destination"],
+            "out/page.html"
+        );
+        assert_eq!(
+            v["reportAst"]["transformGraph"]["exports"][0]["contentType"],
+            "text/html"
+        );
+        assert_eq!(
+            v["reportAst"]["transformGraph"]["exports"][0]["outputKind"],
+            "document"
+        );
+        assert_eq!(
+            v["reportAst"]["transformGraph"]["exports"][0]["hasSourceMap"],
+            true
+        );
+        assert_eq!(
+            v["reportAst"]["transformGraph"]["exports"][0]["outputSpanCount"],
+            2
+        );
+        assert_eq!(
+            v["reportAst"]["transformGraph"]["exports"][0]["sourceMapRef"],
+            "out/page.html.map"
+        );
+    }
+
+    #[test]
+    fn report_serializes_optional_transform_projection() {
+        let mut report = Report::deterministic(
+            vec!["data.cem".into()],
+            vec![],
+            ReportOptionsSnapshot {
+                fail_level: FailLevel::Validate,
+                schema: None,
+                content_type: None,
+                base_uri: None,
+            },
+        );
+        report.report_ast.transform = Some(TransformReport {
+            input: "data.cem".into(),
+            destination: Some("out/page.html".into()),
+            output_kind: "document".into(),
+            has_source_map: true,
+            output_span_count: 2,
+            source_map_ref: Some("out/page.html.map".into()),
+        });
+
+        let v = serde_json::to_value(&report).unwrap();
+        assert_eq!(v["reportAst"]["transform"]["input"], "data.cem");
+        assert_eq!(v["reportAst"]["transform"]["destination"], "out/page.html");
+        assert_eq!(v["reportAst"]["transform"]["outputKind"], "document");
+        assert_eq!(v["reportAst"]["transform"]["hasSourceMap"], true);
+        assert_eq!(v["reportAst"]["transform"]["outputSpanCount"], 2);
+        assert_eq!(
+            v["reportAst"]["transform"]["sourceMapRef"],
+            "out/page.html.map"
         );
     }
 }

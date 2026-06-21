@@ -1,0 +1,445 @@
+use std::fs;
+use std::path::{Path, PathBuf};
+use std::process::{Command, Output};
+use std::time::{SystemTime, UNIX_EPOCH};
+
+const EXIT_OK: i32 = 0;
+const EXIT_HARD_FAILURE: i32 = 1;
+fn cem_ml(args: &[&str]) -> Output {
+    Command::new(env!("CARGO_BIN_EXE_cem-ml"))
+        .args(args)
+        .output()
+        .expect("run cem-ml binary")
+}
+
+fn fixture_root(name: &str) -> PathBuf {
+    let nanos = SystemTime::now()
+        .duration_since(UNIX_EPOCH)
+        .expect("system time after unix epoch")
+        .as_nanos();
+    std::env::temp_dir().join(format!("cem-ml-cli-xslt-parity-{name}-{nanos}"))
+}
+
+fn write(path: &Path, text: &str) {
+    if let Some(parent) = path.parent() {
+        fs::create_dir_all(parent)
+            .unwrap_or_else(|err| panic!("create fixture directory {}: {err}", parent.display()));
+    }
+    fs::write(path, text).unwrap_or_else(|err| panic!("write fixture {}: {err}", path.display()));
+}
+
+fn stdout(output: &Output) -> String {
+    String::from_utf8(output.stdout.clone()).expect("stdout is utf-8")
+}
+
+fn stderr(output: &Output) -> String {
+    String::from_utf8(output.stderr.clone()).expect("stderr is utf-8")
+}
+
+fn report(path: &Path) -> serde_json::Value {
+    serde_json::from_str(
+        &fs::read_to_string(path)
+            .unwrap_or_else(|err| panic!("read report {}: {err}", path.display())),
+    )
+    .unwrap_or_else(|err| panic!("parse report {}: {err}", path.display()))
+}
+
+fn has_diagnostic(report: &serde_json::Value, code: &str) -> bool {
+    report["diagnostics"]
+        .as_array()
+        .expect("diagnostics array")
+        .iter()
+        .any(|diagnostic| diagnostic["code"] == code)
+}
+
+#[test]
+fn direct_cli_executes_xslt_parity_for_login_profile_shape() {
+    let root = fixture_root("direct-login-profile");
+    let data = root.join("login.cem");
+    let template = root.join("profile.xsl");
+    let report_path = root.join("report.json");
+    write(&data, r#"{main @id="login"}"#);
+    write(
+        &template,
+        r#"<xsl:stylesheet version="1.0"><xsl:template match="/"><main class="login"><h1>Sign in</h1><section class="profile"><xsl:call-template name="row"><xsl:with-param name="label" select="'Display name'"/></xsl:call-template></section></main></xsl:template><xsl:template name="row"><p><xsl:value-of select="$label"/></p></xsl:template></xsl:stylesheet>"#,
+    );
+
+    let output = cem_ml(&[
+        "transform",
+        data.to_str().expect("data path is utf-8"),
+        "--data-content-type",
+        "text/cem-ml",
+        "--template",
+        template.to_str().expect("template path is utf-8"),
+        "--template-content-type",
+        "application/xslt+xml",
+        "--to-content-type",
+        "text/html",
+        "--report-json",
+        report_path.to_str().expect("report path is utf-8"),
+    ]);
+
+    assert_eq!(output.status.code(), Some(EXIT_OK));
+    assert_eq!(
+        stdout(&output),
+        r#"<main class="login"><h1>Sign in</h1><section class="profile"><p>Display name</p></section></main>"#
+    );
+    assert!(stderr(&output).trim().is_empty(), "{}", stderr(&output));
+    let report = report(&report_path);
+    assert_eq!(report["summary"]["hardViolationCount"], 0);
+    assert_eq!(report["reportAst"]["transform"]["hasSourceMap"], true);
+}
+
+#[test]
+fn direct_cli_executes_xslt_named_entrypoint_and_params() {
+    let root = fixture_root("direct-named-entrypoint");
+    let data = root.join("profile.cem");
+    let template = root.join("profile.xsl");
+    let report_path = root.join("report.json");
+    write(&data, r#"{section @id="ada"}"#);
+    write(
+        &template,
+        r#"<xsl:stylesheet version="1.0"><xsl:template match="/"><section>default</section></xsl:template><xsl:template name="profile"><section class="profile"><p><xsl:value-of select="$label"/></p></section></xsl:template></xsl:stylesheet>"#,
+    );
+
+    let output = cem_ml(&[
+        "transform",
+        data.to_str().expect("data path is utf-8"),
+        "--data-content-type",
+        "text/cem-ml",
+        "--template",
+        template.to_str().expect("template path is utf-8"),
+        "--template-content-type",
+        "application/xslt+xml",
+        "--template-entrypoint",
+        "profile",
+        "--param",
+        "label=Display name",
+        "--to-content-type",
+        "text/html",
+        "--report-json",
+        report_path.to_str().expect("report path is utf-8"),
+    ]);
+
+    assert_eq!(output.status.code(), Some(EXIT_OK));
+    assert_eq!(
+        stdout(&output),
+        r#"<section class="profile"><p>Display name</p></section>"#
+    );
+    assert!(stderr(&output).trim().is_empty(), "{}", stderr(&output));
+    let report = report(&report_path);
+    assert_eq!(report["summary"]["hardViolationCount"], 0);
+    assert_eq!(report["reportAst"]["transform"]["hasSourceMap"], true);
+}
+
+#[test]
+fn direct_cli_reports_missing_xslt_named_entrypoint() {
+    let root = fixture_root("direct-missing-entrypoint");
+    let data = root.join("profile.cem");
+    let template = root.join("profile.xsl");
+    let report_path = root.join("report.json");
+    write(&data, r#"{section @id="ada"}"#);
+    write(
+        &template,
+        r#"<xsl:stylesheet version="1.0"><xsl:template match="/"><section>default</section></xsl:template></xsl:stylesheet>"#,
+    );
+
+    let output = cem_ml(&[
+        "transform",
+        data.to_str().expect("data path is utf-8"),
+        "--data-content-type",
+        "text/cem-ml",
+        "--template",
+        template.to_str().expect("template path is utf-8"),
+        "--template-content-type",
+        "application/xslt+xml",
+        "--template-entrypoint",
+        "missing",
+        "--to-content-type",
+        "text/html",
+        "--report-json",
+        report_path.to_str().expect("report path is utf-8"),
+    ]);
+
+    assert_eq!(output.status.code(), Some(EXIT_HARD_FAILURE));
+    assert!(stdout(&output).is_empty(), "{}", stdout(&output));
+    assert!(stderr(&output).trim().is_empty(), "{}", stderr(&output));
+    let report = report(&report_path);
+    assert!(has_diagnostic(
+        &report,
+        "cem.transform_template.call_unknown"
+    ));
+    assert_eq!(report["summary"]["hardViolationCount"], 1);
+}
+
+#[test]
+fn direct_cli_reports_unsupported_xslt_construct_without_output() {
+    let root = fixture_root("direct-unsupported-construct");
+    let data = root.join("profile.cem");
+    let template = root.join("profile.xsl");
+    let report_path = root.join("report.json");
+    let out = root.join("out/profile.html");
+    write(&data, r#"{section @id="ada"}"#);
+    write(
+        &template,
+        r#"<xsl:stylesheet version="1.0"><xsl:template match="/"><msxsl:script language="JScript">function run(){return 1;}</msxsl:script></xsl:template></xsl:stylesheet>"#,
+    );
+
+    let output = cem_ml(&[
+        "transform",
+        data.to_str().expect("data path is utf-8"),
+        "--data-content-type",
+        "text/cem-ml",
+        "--template",
+        template.to_str().expect("template path is utf-8"),
+        "--template-content-type",
+        "application/xslt+xml",
+        "--to-content-type",
+        "text/html",
+        "--out",
+        out.to_str().expect("output path is utf-8"),
+        "--report-json",
+        report_path.to_str().expect("report path is utf-8"),
+    ]);
+
+    assert_eq!(output.status.code(), Some(EXIT_HARD_FAILURE));
+    assert!(stdout(&output).is_empty(), "{}", stdout(&output));
+    assert!(stderr(&output).trim().is_empty(), "{}", stderr(&output));
+    assert!(
+        !out.exists(),
+        "failed direct transform must not write output"
+    );
+    assert!(
+        !PathBuf::from(format!("{}.map", out.display())).exists(),
+        "failed direct transform must not write source-map sidecar"
+    );
+    let report = report(&report_path);
+    assert!(has_diagnostic(&report, "legacy_xslt.unsupported_construct"));
+    assert_eq!(report["summary"]["hardViolationCount"], 1);
+}
+
+#[test]
+fn graph_config_executes_xslt_parity_asset_list_and_writes_sidecar() {
+    let root = fixture_root("graph-asset-list");
+    let data = root.join("asset.cem");
+    let template = root.join("assets.xsl");
+    let graph = root.join("graph.cem");
+    let report_path = root.join("report.json");
+    let out = root.join("out/assets.html");
+    write(&data, r#"{article @id="asset"}"#);
+    write(
+        &template,
+        r#"<xsl:stylesheet version="1.0"><xsl:variable name="assets"><asset>Logo</asset><asset>Hero</asset></xsl:variable><xsl:template match="/"><ul><li>default</li></ul></xsl:template><xsl:template name="assets"><ul><xsl:apply-templates select="exsl:node-set($assets)/*"/><li><xsl:value-of select="$suffix"/></li></ul></xsl:template><xsl:template match="asset"><li><xsl:value-of select="."/></li></xsl:template></xsl:stylesheet>"#,
+    );
+    write(
+        &graph,
+        r#"{run |
+  {import @id=asset @src="asset.cem" @content-type="text/cem-ml" |
+    {transform @id=html @src="assets.xsl" @template-content-type="application/xslt+xml" @entrypoint="assets" |
+      {param @name="suffix" @value="{stem}"}
+      {export @id=main @out="out/assets.html" @content-type="text/html"}
+    }
+  }
+}"#,
+    );
+
+    let output = cem_ml(&[
+        "transform",
+        "--config",
+        graph.to_str().expect("graph path is utf-8"),
+        "--report-json",
+        report_path.to_str().expect("report path is utf-8"),
+    ]);
+
+    assert_eq!(output.status.code(), Some(EXIT_OK));
+    assert!(stdout(&output).is_empty(), "{}", stdout(&output));
+    assert!(stderr(&output).trim().is_empty(), "{}", stderr(&output));
+    assert_eq!(
+        fs::read_to_string(&out).expect("read export"),
+        "<ul><li>Logo</li><li>Hero</li><li>asset</li></ul>"
+    );
+    let sidecar = format!("{}.map", out.display());
+    let sidecar_json: serde_json::Value = serde_json::from_str(
+        &fs::read_to_string(&sidecar).unwrap_or_else(|err| panic!("read sidecar {sidecar}: {err}")),
+    )
+    .unwrap_or_else(|err| panic!("parse sidecar {sidecar}: {err}"));
+    assert_eq!(sidecar_json["exportId"], "main");
+    assert_eq!(sidecar_json["destination"], out.display().to_string());
+    let report = report(&report_path);
+    assert_eq!(report["summary"]["hardViolationCount"], 0);
+    assert_eq!(
+        report["reportAst"]["transformGraph"]["exports"][0]["sourceMapRef"],
+        sidecar
+    );
+    assert_eq!(
+        report["reportAst"]["transformGraph"]["exports"][0]["hasSourceMap"],
+        true
+    );
+}
+
+#[test]
+fn graph_config_reports_missing_xslt_named_entrypoint_without_export() {
+    let root = fixture_root("graph-missing-entrypoint");
+    let data = root.join("asset.cem");
+    let template = root.join("assets.xsl");
+    let graph = root.join("graph.cem");
+    let report_path = root.join("report.json");
+    let out = root.join("out/assets.html");
+    write(&data, r#"{article @id="asset"}"#);
+    write(
+        &template,
+        r#"<xsl:stylesheet version="1.0"><xsl:template match="/"><ul><li>default</li></ul></xsl:template></xsl:stylesheet>"#,
+    );
+    write(
+        &graph,
+        r#"{run |
+  {import @id=asset @src="asset.cem" @content-type="text/cem-ml" |
+    {transform @id=html @src="assets.xsl" @template-content-type="application/xslt+xml" @entrypoint="missing" |
+      {export @id=main @out="out/assets.html" @content-type="text/html"}
+    }
+  }
+}"#,
+    );
+
+    let output = cem_ml(&[
+        "transform",
+        "--config",
+        graph.to_str().expect("graph path is utf-8"),
+        "--report-json",
+        report_path.to_str().expect("report path is utf-8"),
+    ]);
+
+    assert_eq!(output.status.code(), Some(EXIT_HARD_FAILURE));
+    assert!(stdout(&output).is_empty(), "{}", stdout(&output));
+    assert!(stderr(&output).trim().is_empty(), "{}", stderr(&output));
+    assert!(!out.exists(), "failed graph stage must not write export");
+    assert!(
+        !PathBuf::from(format!("{}.map", out.display())).exists(),
+        "failed graph stage must not write source-map sidecar"
+    );
+    let report = report(&report_path);
+    assert!(has_diagnostic(
+        &report,
+        "cem.transform_template.call_unknown"
+    ));
+    assert_eq!(report["summary"]["hardViolationCount"], 1);
+    assert_eq!(report["reportAst"]["transformGraph"]["exportCount"], 0);
+    assert!(report["reportAst"]["transformGraph"]["exports"]
+        .as_array()
+        .expect("exports array")
+        .is_empty());
+}
+
+#[test]
+fn graph_config_reports_unsupported_xslt_construct_without_export() {
+    let root = fixture_root("graph-unsupported-construct");
+    let data = root.join("asset.cem");
+    let template = root.join("assets.xsl");
+    let graph = root.join("graph.cem");
+    let report_path = root.join("report.json");
+    let out = root.join("out/assets.html");
+    write(&data, r#"{article @id="asset"}"#);
+    write(
+        &template,
+        r#"<xsl:stylesheet version="1.0"><xsl:template match="/"><msxsl:script language="JScript">function run(){return 1;}</msxsl:script></xsl:template></xsl:stylesheet>"#,
+    );
+    write(
+        &graph,
+        r#"{run |
+  {import @id=asset @src="asset.cem" @content-type="text/cem-ml" |
+    {transform @id=html @src="assets.xsl" @template-content-type="application/xslt+xml" |
+      {export @id=main @out="out/assets.html" @content-type="text/html"}
+    }
+  }
+}"#,
+    );
+
+    let output = cem_ml(&[
+        "transform",
+        "--config",
+        graph.to_str().expect("graph path is utf-8"),
+        "--report-json",
+        report_path.to_str().expect("report path is utf-8"),
+    ]);
+
+    assert_eq!(output.status.code(), Some(EXIT_HARD_FAILURE));
+    assert!(stdout(&output).is_empty(), "{}", stdout(&output));
+    assert!(stderr(&output).trim().is_empty(), "{}", stderr(&output));
+    assert!(!out.exists(), "failed graph stage must not write export");
+    assert!(
+        !PathBuf::from(format!("{}.map", out.display())).exists(),
+        "failed graph stage must not write source-map sidecar"
+    );
+    let report = report(&report_path);
+    assert!(has_diagnostic(&report, "legacy_xslt.unsupported_construct"));
+    assert_eq!(report["summary"]["hardViolationCount"], 1);
+    assert_eq!(report["reportAst"]["transformGraph"]["exportCount"], 0);
+    assert!(report["reportAst"]["transformGraph"]["exports"]
+        .as_array()
+        .expect("exports array")
+        .is_empty());
+}
+
+#[test]
+fn graph_config_executes_mixed_cem_native_and_xslt_stage_policies() {
+    let root = fixture_root("graph-mixed-runtime");
+    let data = root.join("asset.cem");
+    let native_template = root.join("card.cem");
+    let xslt_template = root.join("shell.xsl");
+    let graph = root.join("graph.cem");
+    let report_path = root.join("report.json");
+    let native_out = root.join("out/card.html");
+    let xslt_out = root.join("out/shell.html");
+    write(&data, r#"{article @id="asset"}"#);
+    write(
+        &native_template,
+        r#"{@doc cem-ml 1}
+{module |
+  {template @name="card" @visibility="public" |
+    {param @name="title" @required="true"}
+    {body | {article | {$ title }}}
+  }
+}"#,
+    );
+    write(
+        &xslt_template,
+        r#"<xsl:stylesheet version="1.0"><xsl:template match="/"><main><h1>Sign in</h1></main></xsl:template></xsl:stylesheet>"#,
+    );
+    write(
+        &graph,
+        r#"{run |
+  {import @id=asset @src="asset.cem" @content-type="text/cem-ml" |
+    {transform @id=card @src="card.cem" @template-content-type="text/cem-ml" @template-schema="https://cem.dev/ns/template/cem-native/1" @entrypoint="card" |
+      {param @name="title" @value="{stem}"}
+      {export @id=cardOut @out="out/card.html" @content-type="text/html"}
+    }
+    {transform @id=shell @src="shell.xsl" @template-content-type="application/xslt+xml" |
+      {export @id=shellOut @out="out/shell.html" @content-type="text/html"}
+    }
+  }
+}"#,
+    );
+
+    let output = cem_ml(&[
+        "transform",
+        "--config",
+        graph.to_str().expect("graph path is utf-8"),
+        "--report-json",
+        report_path.to_str().expect("report path is utf-8"),
+    ]);
+
+    assert_eq!(output.status.code(), Some(EXIT_OK));
+    assert!(stdout(&output).is_empty(), "{}", stdout(&output));
+    assert!(stderr(&output).trim().is_empty(), "{}", stderr(&output));
+    assert_eq!(
+        fs::read_to_string(&native_out).expect("read native export"),
+        "<article>asset</article>"
+    );
+    assert_eq!(
+        fs::read_to_string(&xslt_out).expect("read xslt export"),
+        "<main><h1>Sign in</h1></main>"
+    );
+    let report = report(&report_path);
+    assert_eq!(report["summary"]["hardViolationCount"], 0);
+    assert_eq!(report["reportAst"]["transformGraph"]["exportCount"], 2);
+}

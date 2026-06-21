@@ -1,5 +1,7 @@
 # Namespace-Disposition Fixtures
 
+Copyright (c) 2026 Sasha Firsov <https://github.com/sashafirsov>
+
 Per `docs/cem-ml-ac.md` §AC-P-V-6 / §AC-P-6.7 and `content-type-switch.md`
 BR-VC-9. Each fixture exercises the **unknown-namespace disposition**: when a
 region's namespace resolves to a URI with no metadata, no explicit schema, and

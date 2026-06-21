@@ -7,8 +7,8 @@ import { readFile, writeFile, mkdir, copyFile } from 'fs/promises';
 import { dirname, relative, join, parse } from 'path';
 import { fileURLToPath } from 'url';
 
-// Image extensions to copy alongside markdown files
-const IMAGE_EXTENSIONS = ['png', 'jpg', 'jpeg', 'gif', 'svg', 'webp', 'ico','css'];
+// Static assets to copy alongside markdown files.
+const ASSET_EXTENSIONS = ['png', 'jpg', 'jpeg', 'gif', 'svg', 'webp', 'ico', 'css', 'json'];
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
 const workspaceRoot = join(__dirname, '../..');
@@ -119,22 +119,22 @@ async function compileAll() {
 
   console.log('✓ Markdown compilation complete');
 
-  // Find and copy all image files in src/
-  const imagePattern = `**/*.{${IMAGE_EXTENSIONS.join(',')}}`;
-  const imageFiles = await glob(imagePattern, { cwd: srcDir });
+  // Find and copy all static assets in src/
+  const assetPattern = `**/*.{${ASSET_EXTENSIONS.join(',')}}`;
+  const assetFiles = await glob(assetPattern, { cwd: srcDir });
 
-  if (imageFiles.length > 0) {
-    console.log(`Found ${imageFiles.length} image files to copy`);
+  if (assetFiles.length > 0) {
+    console.log(`Found ${assetFiles.length} static assets to copy`);
 
-    for (const imageFile of imageFiles) {
-      const srcPath = join(srcDir, imageFile);
-      const distPath = join(distDir, imageFile);
+    for (const assetFile of assetFiles) {
+      const srcPath = join(srcDir, assetFile);
+      const distPath = join(distDir, assetFile);
 
-      console.log(`  ${imageFile} → ${relative(projectRoot, distPath)}`);
+      console.log(`  ${assetFile} → ${relative(projectRoot, distPath)}`);
       await copyImage(srcPath, distPath);
     }
 
-    console.log('✓ Image copying complete');
+    console.log('✓ Static asset copying complete');
   }
 }
 
@@ -159,9 +159,9 @@ if (process.argv.includes('--watch')) {
     }
   });
 
-  // Watch image files
-  const imagePattern = `**/*.{${IMAGE_EXTENSIONS.join(',')}}`;
-  chokidar.watch(imagePattern, { cwd: srcDir }).on('all', async (event, path) => {
+  // Watch static assets.
+  const assetPattern = `**/*.{${ASSET_EXTENSIONS.join(',')}}`;
+  chokidar.watch(assetPattern, { cwd: srcDir }).on('all', async (event, path) => {
     if (event === 'add' || event === 'change') {
       const srcPath = join(srcDir, path);
       const distPath = join(projectRoot, 'dist', path);

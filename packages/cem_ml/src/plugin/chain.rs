@@ -175,7 +175,10 @@ mod tests {
             input: &PluginInput,
             ctx: &mut PluginContext<'_>,
         ) -> Result<PluginOutput, PluginError> {
-            Ok(PluginOutput::observed(input, ctx.inbound_source_map.clone()))
+            Ok(PluginOutput::observed(
+                input,
+                ctx.inbound_source_map.clone(),
+            ))
         }
     }
 

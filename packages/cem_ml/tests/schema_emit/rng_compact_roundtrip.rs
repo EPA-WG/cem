@@ -95,9 +95,7 @@ fn cem_core_rnc_round_trips_through_trang_and_xmllint() {
                 "`xmllint` not on PATH while schema parity validation is required; install libxml2-utils or set CEM_ML_XMLLINT"
             );
         }
-        eprintln!(
-            "info: `xmllint` not on PATH — Trang round-trip OK, skipping xmllint validation",
-        );
+        eprintln!("info: `xmllint` not on PATH — Trang round-trip OK, skipping xmllint validation",);
         return;
     };
 
@@ -173,13 +171,23 @@ fn trang_native_package_path() -> Option<std::path::PathBuf> {
     let manifest_dir = env!("CARGO_MANIFEST_DIR"); // <repo>/packages/cem_ml
     let workspace = std::path::Path::new(manifest_dir).parent()?.parent()?;
     let triple = host_triple()?;
-    let binary = if cfg!(target_os = "windows") { "trang.exe" } else { "trang" };
+    let binary = if cfg!(target_os = "windows") {
+        "trang.exe"
+    } else {
+        "trang"
+    };
     // Workspace symlink (yarn workspace) and consumer install both land
     // under node_modules/@epa-wg/trang-native; the build output sits at
     // build/native/<triple>/, postinstall extracts to bin/native/<triple>/.
     let candidates = [
-        workspace.join("node_modules/@epa-wg/trang-native/build/native").join(triple).join(binary),
-        workspace.join("node_modules/@epa-wg/trang-native/bin/native").join(triple).join(binary),
+        workspace
+            .join("node_modules/@epa-wg/trang-native/build/native")
+            .join(triple)
+            .join(binary),
+        workspace
+            .join("node_modules/@epa-wg/trang-native/bin/native")
+            .join(triple)
+            .join(binary),
     ];
     candidates.into_iter().find(|p| p.exists())
 }

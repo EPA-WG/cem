@@ -13,7 +13,7 @@
 
 use crate::diagnostics::{Diagnostic, Severity};
 use serde::Serialize;
-use std::collections::HashMap;
+use std::collections::{HashMap, HashSet};
 
 /// Host-template language marker used by the package adapter for untyped
 /// legacy declarations.
@@ -25,6 +25,8 @@ pub const TEMPLATE_CONTENT_TYPES: &[&str] = &[
     "text/custom-element-xslt",
     "application/custom-element-xslt",
     "text/x-custom-element-xslt",
+    "application/xslt+xml",
+    "text/xsl",
 ];
 
 /// Diagnostic code emitted when a legacy XPath function has no CEM-QL mapping.
@@ -87,6 +89,7 @@ pub const SUPPORTED_XPATH_FUNCTIONS: &[&str] = &[
     "concat",
     "position",
     "current",
+    "hasBoolAttribute",
 ];
 
 const HTML_VOID_ELEMENTS: &[&str] = &[
@@ -443,13 +446,22 @@ impl<'a> LegacyFragmentParser<'a> {
 #[derive(Debug, Clone, Default)]
 struct EmitCtx {
     loop_var: Option<String>,
+    loop_item: LoopItemKind,
     node_sets: HashMap<String, Vec<ItemNode>>,
     current_sets: HashMap<String, Vec<CurrentItem>>,
     scalars: HashMap<String, String>,
+    scalar_expressions: HashSet<String>,
     item: Option<CurrentItem>,
     root_nodes: Vec<LegacyNode>,
     template_depth: usize,
     templates: TemplateRegistry,
+}
+
+#[derive(Debug, Clone, Copy, Default, PartialEq, Eq)]
+enum LoopItemKind {
+    #[default]
+    Generic,
+    PayloadElement,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -570,13 +582,7 @@ fn bind_select_value(
             .or_else(|| evaluate_xpath_literal(select, source))
         {
             scoped.scalars.insert(name.to_owned(), value);
-            return;
-        }
-        if is_quoted_xpath_literal(select) {
-            scoped.scalars.insert(
-                name.to_owned(),
-                format!("\"{}\"", unquote_xpath_literal(select).replace('"', "\\\"")),
-            );
+            scoped.scalar_expressions.remove(name);
             return;
         }
     }
@@ -593,13 +599,21 @@ fn bind_select_value(
         bind_current_items(scoped, name, items);
         return;
     }
-    let rewritten = source
+    let (rewritten, is_expression) = match source
         .item
         .as_ref()
         .and_then(|item| resolve_item_literal(select, item))
         .or_else(|| evaluate_xpath_literal(select, source))
-        .unwrap_or_else(|| rewrite_expression(select, source, false, diagnostics));
+    {
+        Some(value) => (value, false),
+        None => (rewrite_expression(select, source, false, diagnostics), true),
+    };
     scoped.scalars.insert(name.to_owned(), rewritten);
+    if is_expression {
+        scoped.scalar_expressions.insert(name.to_owned());
+    } else {
+        scoped.scalar_expressions.remove(name);
+    }
 }
 
 fn bind_apply_members(scoped: &mut EmitCtx, name: &str, members: Vec<ApplyMember>) {
@@ -627,6 +641,7 @@ fn bind_current_items(scoped: &mut EmitCtx, name: &str, current_items: Vec<Curre
             .join("");
         scoped.current_sets.insert(name.to_owned(), current_items);
         scoped.scalars.insert(name.to_owned(), scalar);
+        scoped.scalar_expressions.remove(name);
     }
 }
 
@@ -649,7 +664,7 @@ fn emit_node(
     diagnostics: &mut Vec<LegacyConversionDiagnostic>,
 ) -> String {
     match node {
-        LegacyNode::Text(text) => interpolate(text, ctx, diagnostics),
+        LegacyNode::Text(text) => interpolate(text, ctx, diagnostics, true),
         LegacyNode::Comment => String::new(),
         LegacyNode::Element(element) => emit_element(element, ctx, diagnostics),
     }
@@ -701,9 +716,7 @@ fn emit_element(
         _ => {}
     }
 
-    if element_disposition(name) == LegacyElementDisposition::Tier3Handoff
-        && (is_xslt_element(&element.tag) || name == "function")
-    {
+    if is_tier3_handoff_element(&element.tag) {
         diagnostics.push(diag(
             UNSUPPORTED_CONSTRUCT_CODE,
             format!(
@@ -788,7 +801,7 @@ fn emit_xsl_instruction_attributes(
         }
         match local_name(&element.tag) {
             "attribute" => attrs.push_str(&emit_xsl_attribute(element, ctx, diagnostics)),
-            "copy-of" if attr_value(element, "select") == Some("@*") => {
+            "copy-of" if copy_of_select_copies_current_attributes(element) => {
                 if let Some(current) = &ctx.item {
                     attrs.push_str(&attrs_from_current(current));
                 }
@@ -909,7 +922,10 @@ fn emit_attribute(
     if attr.name == "xmlns" || attr.name.starts_with("xmlns:") {
         return String::new();
     }
-    attr_assign(&attr.name, &interpolate(&attr.value, ctx, diagnostics))
+    attr_assign(
+        &attr.name,
+        &interpolate(&attr.value, ctx, diagnostics, false),
+    )
 }
 
 fn emit_value_of(
@@ -1083,18 +1099,23 @@ fn emit_for_each(
     }
 
     let loop_var = "item".to_owned();
+    let payload_select = rewrite_payload_attribute_select(select);
     let child_ctx = EmitCtx {
         loop_var: Some(loop_var.clone()),
+        loop_item: if payload_select.is_some() {
+            LoopItemKind::PayloadElement
+        } else {
+            LoopItemKind::Generic
+        },
         item: None,
         ..ctx.clone()
     };
     let body = emit_children(&element.children, &child_ctx, diagnostics);
+    let select_expr =
+        payload_select.unwrap_or_else(|| rewrite_expression(select, ctx, false, diagnostics));
     format!(
         "{{cem:for-each{} @as=\"{loop_var}\" | {body}}}",
-        expr_attr(
-            "select",
-            &rewrite_expression(select, ctx, false, diagnostics)
-        )
+        expr_attr("select", &select_expr)
     )
 }
 
@@ -1104,20 +1125,21 @@ fn emit_stylesheet(
     diagnostics: &mut Vec<LegacyConversionDiagnostic>,
 ) -> String {
     let scoped = with_variable_scope(&element.children, ctx, diagnostics);
+    let document = stylesheet_document_item(ctx, element);
     if let Some(root) = &ctx.templates.root {
         let root_ctx = EmitCtx {
-            item: Some(CurrentItem {
-                kind: CurrentItemKind::Document,
-                tag: "#document".to_owned(),
-                text: String::new(),
-                attrs: HashMap::new(),
-                children: source_document_nodes(&ctx.root_nodes, element),
-                parent: None,
-                position: 1,
-            }),
+            item: Some(document),
             ..scoped
         };
         return emit_children(&root.children, &root_ctx, diagnostics);
+    }
+    if let Some(template) = find_matching_template(&document, None, &ctx.templates) {
+        let root_ctx = EmitCtx {
+            item: Some(document),
+            ..scoped
+        };
+        let root_ctx = with_template_param_defaults(&template.children, &root_ctx, diagnostics);
+        return emit_children(&template.children, &root_ctx, diagnostics);
     }
     element
         .children
@@ -1194,6 +1216,7 @@ fn with_call_template_params(
         } else {
             let value = emit_children(&param.children, ctx, diagnostics);
             scoped.scalars.insert(name.to_owned(), value);
+            scoped.scalar_expressions.remove(name);
         }
     }
     scoped
@@ -1227,8 +1250,10 @@ fn with_template_param_defaults(
         } else if !param.children.is_empty() {
             let value = emit_children(&param.children, &scoped, diagnostics);
             scoped.scalars.insert(name.to_owned(), value);
+            scoped.scalar_expressions.remove(name);
         } else {
             scoped.scalars.insert(name.to_owned(), String::new());
+            scoped.scalar_expressions.remove(name);
         }
     }
     scoped
@@ -1239,25 +1264,39 @@ fn emit_apply_templates(
     ctx: &EmitCtx,
     diagnostics: &mut Vec<LegacyConversionDiagnostic>,
 ) -> String {
-    let select = attr_value(element, "select").unwrap_or("*");
-    if let Some(mut members) = select_apply_members(select, ctx) {
-        apply_sort_children(&mut members, element);
-        return members
-            .iter()
-            .enumerate()
-            .map(|(index, member)| {
-                emit_apply_template_member(member, index + 1, element, ctx, diagnostics)
-            })
-            .collect();
-    }
-    diagnostics.push(diag(
-        UNSUPPORTED_CONSTRUCT_CODE,
-        format!(
-            "<{} select=\"{}\"> is outside the bounded apply-templates subset",
-            element.tag, select
-        ),
-    ));
-    String::new()
+    let mut members = if let Some(select) = attr_value(element, "select") {
+        let Some(members) = select_apply_members(select, ctx) else {
+            diagnostics.push(diag(
+                UNSUPPORTED_CONSTRUCT_CODE,
+                format!(
+                    "<{} select=\"{}\"> is outside the bounded apply-templates subset",
+                    element.tag, select
+                ),
+            ));
+            return String::new();
+        };
+        members
+    } else if let Some(current) = &ctx.item {
+        child_node_members_with_parent(&current.children, current)
+    } else {
+        diagnostics.push(diag(
+            UNSUPPORTED_CONSTRUCT_CODE,
+            format!(
+                "<{}> without @select requires a current node in the bounded apply-templates subset",
+                element.tag
+            ),
+        ));
+        return String::new();
+    };
+
+    apply_sort_children(&mut members, element);
+    members
+        .iter()
+        .enumerate()
+        .map(|(index, member)| {
+            emit_apply_template_member(member, index + 1, element, ctx, diagnostics)
+        })
+        .collect()
 }
 
 fn emit_xsl_copy(
@@ -1301,6 +1340,19 @@ fn emit_xsl_copy_of(
         return String::new();
     };
     let select = select.trim();
+    if copy_of_select_is_attribute_node_union(select) {
+        if let Some(current) = &ctx.item {
+            return child_node_members_with_parent(&current.children, current)
+                .iter()
+                .map(|member| match member {
+                    ApplyMember::Item(item) => serialize_item_node_to_cem(item, ctx, diagnostics),
+                    ApplyMember::Current(item) => {
+                        serialize_current_item_to_cem(item, ctx, diagnostics)
+                    }
+                })
+                .collect();
+        }
+    }
     if let Some(name) = select.strip_prefix('$') {
         if let Some(nodes) = ctx.node_sets.get(name) {
             return nodes
@@ -1331,6 +1383,24 @@ fn emit_xsl_copy_of(
         format!("<xsl:copy-of select=\"{select}\"> is outside the bounded copy subset"),
     ));
     String::new()
+}
+
+fn copy_of_select_copies_current_attributes(element: &LegacyElement) -> bool {
+    attr_value(element, "select")
+        .is_some_and(|select| select.split('|').any(|part| part.trim() == "@*"))
+}
+
+fn copy_of_select_is_attribute_node_union(select: &str) -> bool {
+    let mut has_attributes = false;
+    let mut has_child_nodes = false;
+    for part in select.split('|').map(str::trim) {
+        match part {
+            "@*" => has_attributes = true,
+            "node()" | "./node()" => has_child_nodes = true,
+            _ => {}
+        }
+    }
+    has_attributes && has_child_nodes
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -1398,9 +1468,7 @@ fn find_matching_template<'a>(
         .max_by_key(|(index, template)| {
             let priority = attr_value(template, "priority")
                 .and_then(|value| value.trim().parse::<f64>().ok())
-                .unwrap_or_else(|| {
-                    default_template_priority(attr_value(template, "match").unwrap_or(""))
-                });
+                .unwrap_or_else(|| default_template_priority_for_member(template, member));
             ((priority * 1000.0) as i64, *index as i64)
         })
         .map(|(_, template)| template)
@@ -1414,18 +1482,89 @@ fn matches_item_pattern(pattern: &str, member: &CurrentItem) -> bool {
 
 fn matches_single_item_pattern(pattern: &str, member: &CurrentItem) -> bool {
     match member.kind {
-        CurrentItemKind::Document => pattern == "/",
-        CurrentItemKind::Attribute => pattern == "@*" || pattern == "node()" || pattern == ".",
-        CurrentItemKind::Text => pattern == "text()" || pattern == "node()" || pattern == ".",
+        CurrentItemKind::Document => pattern == "/" || pattern == "node()",
+        CurrentItemKind::Attribute => {
+            pattern == "@*"
+                || pattern == "node()"
+                || pattern == "."
+                || matches_child_path_pattern(pattern, member)
+        }
+        CurrentItemKind::Text => {
+            pattern == "text()"
+                || pattern == "node()"
+                || pattern == "."
+                || matches_child_path_pattern(pattern, member)
+        }
         CurrentItemKind::Element => {
             pattern == "*"
                 || pattern == "node()"
                 || pattern == "."
                 || pattern == member.tag
                 || member.attrs.get("name").map(String::as_str) == Some(pattern)
+                || matches_child_path_pattern(pattern, member)
                 || matches_simple_predicate_pattern(pattern, member)
         }
     }
+}
+
+fn matches_child_path_pattern(pattern: &str, member: &CurrentItem) -> bool {
+    if !pattern.contains('/') || pattern.starts_with('/') || pattern.contains("//") {
+        return false;
+    }
+    let mut current = member;
+    let mut segments = pattern
+        .split('/')
+        .filter(|part| !part.trim().is_empty())
+        .rev();
+    let Some(last) = segments.next() else {
+        return false;
+    };
+    if !match_pattern_step_matches_current(last.trim(), current) {
+        return false;
+    }
+    for segment in segments {
+        let Some(parent) = current.parent.as_deref() else {
+            return false;
+        };
+        if parent.kind != CurrentItemKind::Element
+            || !match_pattern_step_matches_current(segment.trim(), parent)
+        {
+            return false;
+        }
+        current = parent;
+    }
+    true
+}
+
+fn match_pattern_step_matches_current(step: &str, member: &CurrentItem) -> bool {
+    match_pattern_step_name_matches_current(step, member)
+        && match_pattern_step_predicate_matches_current(step, member)
+}
+
+fn match_pattern_step_name_matches_current(step: &str, member: &CurrentItem) -> bool {
+    let step = step_name(step);
+    match member.kind {
+        CurrentItemKind::Document => step == "/" || step == "node()",
+        CurrentItemKind::Attribute => {
+            step == "@*"
+                || step == "node()"
+                || step
+                    .strip_prefix('@')
+                    .is_some_and(|name| local_name(name) == member.tag)
+        }
+        CurrentItemKind::Text => step == "text()" || step == "node()",
+        CurrentItemKind::Element => step_matches_current(step, member),
+    }
+}
+
+fn match_pattern_step_predicate_matches_current(step: &str, member: &CurrentItem) -> bool {
+    let Some(predicate) = step
+        .split_once('[')
+        .and_then(|(_, rest)| rest.strip_suffix(']'))
+    else {
+        return true;
+    };
+    matches_static_item_predicate(predicate.trim(), member)
 }
 
 fn matches_simple_predicate_pattern(pattern: &str, member: &CurrentItem) -> bool {
@@ -1433,6 +1572,10 @@ fn matches_simple_predicate_pattern(pattern: &str, member: &CurrentItem) -> bool
         return false;
     }
     let predicate = pattern[2..pattern.len() - 1].trim();
+    matches_static_item_predicate(predicate, member)
+}
+
+fn matches_static_item_predicate(predicate: &str, member: &CurrentItem) -> bool {
     if predicate == "*" {
         return member
             .children
@@ -1451,7 +1594,11 @@ fn matches_simple_predicate_pattern(pattern: &str, member: &CurrentItem) -> bool
     let Some((name, value)) = rest.split_once('=') else {
         return member.attrs.contains_key(rest);
     };
-    let expected = value.trim().trim_matches('"').trim_matches('\'');
+    let value = value.trim();
+    if value.starts_with('$') {
+        return false;
+    }
+    let expected = value.trim_matches('"').trim_matches('\'');
     member.attrs.get(name.trim()).map(String::as_str) == Some(expected)
 }
 
@@ -1459,11 +1606,24 @@ fn default_template_priority(pattern: &str) -> f64 {
     let pattern = pattern.trim();
     if pattern == "*" || pattern == "@*" || pattern == "node()" || pattern == "text()" {
         -0.5
-    } else if pattern.contains('|') {
-        0.0
     } else {
         0.5
     }
+}
+
+fn default_template_priority_for_member(template: &LegacyElement, member: &CurrentItem) -> f64 {
+    let Some(pattern) = attr_value(template, "match") else {
+        return 0.5;
+    };
+    pattern
+        .split('|')
+        .map(str::trim)
+        .filter(|part| matches_single_item_pattern(part, member))
+        .map(default_template_priority)
+        .fold(None, |priority, candidate| {
+            Some(priority.map_or(candidate, |current: f64| current.max(candidate)))
+        })
+        .unwrap_or_else(|| default_template_priority(pattern))
 }
 
 fn current_item_from_item_node(member: &ItemNode, position: usize) -> CurrentItem {
@@ -1489,6 +1649,18 @@ fn source_document_nodes(nodes: &[LegacyNode], stylesheet: &LegacyElement) -> Ve
         .collect()
 }
 
+fn stylesheet_document_item(ctx: &EmitCtx, stylesheet: &LegacyElement) -> CurrentItem {
+    CurrentItem {
+        kind: CurrentItemKind::Document,
+        tag: "#document".to_owned(),
+        text: String::new(),
+        attrs: HashMap::new(),
+        children: source_document_nodes(&ctx.root_nodes, stylesheet),
+        parent: None,
+        position: 1,
+    }
+}
+
 fn select_current_members(select: &str, ctx: &EmitCtx) -> Option<Vec<ApplyMember>> {
     let current = ctx.item.as_ref()?;
     match select {
@@ -1500,6 +1672,7 @@ fn select_current_members(select: &str, ctx: &EmitCtx) -> Option<Vec<ApplyMember
         "*" => Some(element_children_with_parent(&current.children, current)),
         "@*" => Some(attribute_children(current)),
         "text()" | "./text()" => Some(text_children_with_parent(&current.children, current)),
+        "node()" | "./node()" => Some(child_node_members_with_parent(&current.children, current)),
         _ if select.starts_with("//") || select.starts_with('/') => {
             select_absolute_members(select, ctx)
         }
@@ -1531,8 +1704,7 @@ fn emit_default_template_rule(
                 ));
                 return String::new();
             }
-            let mut members = element_children_with_parent(&current.children, current);
-            members.extend(text_children_with_parent(&current.children, current));
+            let members = child_node_members_with_parent(&current.children, current);
             let child_ctx = EmitCtx {
                 template_depth: ctx.template_depth + 1,
                 ..ctx.clone()
@@ -1685,9 +1857,9 @@ fn select_variable_current_items(select: &str, ctx: &EmitCtx) -> Option<Vec<Curr
     let members = select_current_members(select, ctx)?;
     let items: Vec<CurrentItem> = members
         .into_iter()
-        .filter_map(|member| match member {
-            ApplyMember::Current(item) => Some(item),
-            ApplyMember::Item(item) => Some(current_item_from_item_node(&item, 1)),
+        .map(|member| match member {
+            ApplyMember::Current(item) => item,
+            ApplyMember::Item(item) => current_item_from_item_node(&item, 1),
         })
         .collect();
     if items.is_empty() && select != "." {
@@ -2164,9 +2336,10 @@ fn element_children_with_parent(nodes: &[LegacyNode], parent: &CurrentItem) -> V
 }
 
 fn attribute_children(current: &CurrentItem) -> Vec<ApplyMember> {
-    current
-        .attrs
-        .iter()
+    let mut attrs: Vec<(&String, &String)> = current.attrs.iter().collect();
+    attrs.sort_by_key(|(name, _)| *name);
+    attrs
+        .into_iter()
         .map(|(name, value)| {
             let mut item = current_item_from_attribute(name, value);
             item.parent = Some(Box::new(current.clone()));
@@ -2191,6 +2364,31 @@ fn text_children_with_parent(nodes: &[LegacyNode], parent: &CurrentItem) -> Vec<
     nodes
         .iter()
         .filter_map(|node| match node {
+            LegacyNode::Text(text) if !text.trim().is_empty() => {
+                Some(ApplyMember::Current(CurrentItem {
+                    kind: CurrentItemKind::Text,
+                    tag: "#text".to_owned(),
+                    text: text.clone(),
+                    attrs: HashMap::new(),
+                    children: Vec::new(),
+                    parent: Some(Box::new(parent.clone())),
+                    position: 1,
+                }))
+            }
+            _ => None,
+        })
+        .collect()
+}
+
+fn child_node_members_with_parent(nodes: &[LegacyNode], parent: &CurrentItem) -> Vec<ApplyMember> {
+    nodes
+        .iter()
+        .filter_map(|node| match node {
+            LegacyNode::Element(element) if !is_xslt_element(&element.tag) => {
+                let mut item = current_item_from_element(element, 1);
+                item.parent = Some(Box::new(parent.clone()));
+                Some(ApplyMember::Current(item))
+            }
             LegacyNode::Text(text) if !text.trim().is_empty() => {
                 Some(ApplyMember::Current(CurrentItem {
                     kind: CurrentItemKind::Text,
@@ -2262,7 +2460,7 @@ fn serialize_legacy_node_to_cem(
     diagnostics: &mut Vec<LegacyConversionDiagnostic>,
 ) -> String {
     match node {
-        LegacyNode::Text(text) => escape_literal(&interpolate(text, ctx, diagnostics)),
+        LegacyNode::Text(text) => escape_literal(&interpolate(text, ctx, diagnostics, true)),
         LegacyNode::Comment => String::new(),
         LegacyNode::Element(element) => {
             let tag = if element.tag.starts_with("xhtml:") {
@@ -2297,7 +2495,7 @@ fn attrs_from_current(item: &CurrentItem) -> String {
 
 fn attrs_from_map(attrs: &HashMap<String, String>) -> String {
     let mut pairs: Vec<(&String, &String)> = attrs.iter().collect();
-    pairs.sort_by(|(left, _), (right, _)| left.cmp(right));
+    pairs.sort_by_key(|(name, _)| *name);
     pairs
         .into_iter()
         .map(|(name, value)| attr_assign(name, value))
@@ -2429,10 +2627,18 @@ struct NodeSetRef {
 
 fn match_node_set_select(select: &str, ctx: &EmitCtx) -> Option<NodeSetRef> {
     let trimmed = select.trim();
-    if let Some(name) = trimmed.strip_prefix('$') {
-        if is_name(name) && ctx.node_sets.contains_key(name) {
+    if let Some(rest) = trimmed.strip_prefix('$') {
+        if let Some((name, predicate)) = split_variable_root_predicate(rest) {
+            if ctx.node_sets.contains_key(name) {
+                return Some(NodeSetRef {
+                    name: name.to_owned(),
+                    predicate: Some(predicate.to_owned()),
+                });
+            }
+        }
+        if is_name(rest) && ctx.node_sets.contains_key(rest) {
             return Some(NodeSetRef {
-                name: name.to_owned(),
+                name: rest.to_owned(),
                 predicate: None,
             });
         }
@@ -2462,6 +2668,18 @@ fn match_node_set_select(select: &str, ctx: &EmitCtx) -> Option<NodeSetRef> {
     })
 }
 
+fn split_variable_root_predicate(select: &str) -> Option<(&str, &str)> {
+    if select.contains('/') {
+        return None;
+    }
+    let (name, rest) = select.split_once('[')?;
+    let predicate = rest.strip_suffix(']')?;
+    if !is_name(name) {
+        return None;
+    }
+    Some((name, predicate))
+}
+
 fn rewrite_predicate(
     predicate: &str,
     ctx: &EmitCtx,
@@ -2470,7 +2688,11 @@ fn rewrite_predicate(
     if let Some(name) = predicate.trim().strip_prefix('$') {
         if is_name(name) {
             if let Some(value) = ctx.scalars.get(name) {
-                return value.clone();
+                return if ctx.scalar_expressions.contains(name) {
+                    value.clone()
+                } else {
+                    cem_ql_string_literal(value)
+                };
             }
         }
     }
@@ -2481,6 +2703,7 @@ fn interpolate(
     text: &str,
     ctx: &EmitCtx,
     diagnostics: &mut Vec<LegacyConversionDiagnostic>,
+    text_node: bool,
 ) -> String {
     let mut out = String::new();
     let mut cursor = 0;
@@ -2505,9 +2728,16 @@ fn interpolate(
             cursor = close + 1;
             continue;
         }
-        out.push('{');
-        out.push_str(&rewrite_expression(expression, ctx, true, diagnostics));
-        out.push('}');
+        let rewritten = rewrite_expression(expression, ctx, true, diagnostics);
+        if text_node && !rewritten.starts_with('$') {
+            out.push_str("{$");
+            out.push_str(&rewritten);
+            out.push('}');
+        } else {
+            out.push('{');
+            out.push_str(&rewritten);
+            out.push('}');
+        }
         cursor = close + 1;
     }
     out.push_str(&text[cursor..]);
@@ -2558,7 +2788,9 @@ fn evaluate_xpath_bool(expression: &str, ctx: &EmitCtx) -> Option<bool> {
     if let Some(value) = evaluate_xpath_operand(expression, ctx) {
         return Some(xpath_truthy(&value));
     }
-    select_members_for_eval(expression, ctx).map(|members| !members.is_empty())
+    select_members_for_eval(expression, ctx)
+        .filter(|members| !members.is_empty())
+        .map(|members| !members.is_empty())
 }
 
 fn evaluate_xpath_operand(expression: &str, ctx: &EmitCtx) -> Option<String> {
@@ -2691,6 +2923,9 @@ fn split_top_level_comparison(expression: &str) -> Option<(&str, &str, &str)> {
 
 fn evaluate_xpath_literal(expression: &str, ctx: &EmitCtx) -> Option<String> {
     let expression = expression.trim();
+    if is_quoted_xpath_literal(expression) {
+        return Some(unquote_xpath_literal(expression));
+    }
     if let Some((left, right)) = split_top_level_plus(expression) {
         let left = evaluate_xpath_literal(left, ctx)?;
         let left = left.trim().parse::<f64>().ok()?;
@@ -2807,6 +3042,18 @@ fn rewrite_expression(
     }
 }
 
+fn rewrite_payload_attribute_select(select: &str) -> Option<String> {
+    let trimmed = select.trim();
+    let attr_name = trimmed
+        .strip_prefix("//*[@")
+        .and_then(|rest| rest.strip_suffix(']'))?
+        .trim();
+    if !is_name(attr_name) {
+        return None;
+    }
+    Some(format!("datadom.elementsByAttribute.{attr_name}"))
+}
+
 fn tokenize_xpath(input: &str) -> Vec<XToken> {
     let chars: Vec<char> = input.chars().collect();
     let mut tokens = Vec::new();
@@ -2916,7 +3163,13 @@ impl XPathRewriter<'_, '_> {
                 .ctx
                 .scalars
                 .get(&value)
-                .map(|scalar| format!("{scalar} "))
+                .map(|scalar| {
+                    if self.ctx.scalar_expressions.contains(&value) {
+                        format!("{scalar} ")
+                    } else {
+                        format!("{} ", cem_ql_string_literal(scalar))
+                    }
+                })
                 .unwrap_or_else(|| format!("{value} ")),
             XToken::Punct(value) => self.rewrite_punct(&value),
             XToken::Name(value) => self.rewrite_name(&value),
@@ -2927,25 +3180,35 @@ impl XPathRewriter<'_, '_> {
         if value == "//" {
             if let Some(XToken::Name(next)) = self.peek().cloned() {
                 self.pos += 1;
-                return format!("datadom.slices.{next} ");
+                return format!("(datadom.slices.{next} ?? datadom.dataset.{next} ?? datadom.attributes.{next}) ");
             }
             return String::new();
         }
         if value == "@" {
             if let Some(XToken::Name(next)) = self.peek().cloned() {
                 self.pos += 1;
-                let base = self.ctx.loop_var.as_deref().unwrap_or("datadom.attributes");
+                let base = if self.ctx.loop_item == LoopItemKind::PayloadElement {
+                    self.ctx
+                        .loop_var
+                        .as_deref()
+                        .map(|loop_var| format!("{loop_var}.attributes"))
+                        .unwrap_or_else(|| "datadom.attributes".to_owned())
+                } else {
+                    self.ctx
+                        .loop_var
+                        .clone()
+                        .unwrap_or_else(|| "datadom.attributes".to_owned())
+                };
                 return format!("{base}.{next} ");
             }
             return String::new();
         }
         if value == "." {
-            return self
-                .ctx
-                .loop_var
-                .as_ref()
-                .map(|loop_var| format!("{loop_var} "))
-                .unwrap_or_else(|| ". ".to_owned());
+            return match (self.ctx.loop_var.as_ref(), self.ctx.loop_item) {
+                (Some(loop_var), LoopItemKind::PayloadElement) => format!("{loop_var}.text "),
+                (Some(loop_var), LoopItemKind::Generic) => format!("{loop_var} "),
+                (None, _) => ". ".to_owned(),
+            };
         }
         format!("{value} ")
     }
@@ -2998,6 +3261,17 @@ impl XPathRewriter<'_, '_> {
         match function_disposition(name) {
             LegacyFunctionDisposition::Special if name == "position" => "position ".to_owned(),
             LegacyFunctionDisposition::Special if name == "current" => ". ".to_owned(),
+            LegacyFunctionDisposition::Unsupported
+                if name == "text"
+                    && args.is_empty()
+                    && self.ctx.loop_item == LoopItemKind::PayloadElement =>
+            {
+                self.ctx
+                    .loop_var
+                    .as_ref()
+                    .map(|loop_var| format!("{loop_var}.text "))
+                    .unwrap_or_else(|| "text() ".to_owned())
+            }
             LegacyFunctionDisposition::Special if name == "not" => {
                 format!("not ({}) ", args.join(", "))
             }
@@ -3088,6 +3362,10 @@ fn escape_literal(text: &str) -> String {
     }
 }
 
+fn cem_ql_string_literal(text: &str) -> String {
+    format!("\"{}\"", text.replace('\\', "\\\\").replace('"', "\\\""))
+}
+
 fn emit_rich_content(text: &str) -> String {
     format!("```{text}```")
 }
@@ -3098,6 +3376,12 @@ fn local_name(tag: &str) -> &str {
 
 fn is_xslt_element(tag: &str) -> bool {
     tag.starts_with("xsl:")
+}
+
+fn is_tier3_handoff_element(tag: &str) -> bool {
+    let name = local_name(tag);
+    element_disposition(name) == LegacyElementDisposition::Tier3Handoff
+        && (is_xslt_element(tag) || tag.starts_with("func:") || tag.starts_with("msxsl:"))
 }
 
 fn decode_html_entities(input: &str) -> String {
@@ -3120,7 +3404,7 @@ fn is_name(value: &str) -> bool {
 fn is_simple_path(expression: &str) -> bool {
     let mut chars = expression.chars();
     matches!(chars.next(), Some(ch) if ch.is_ascii_alphabetic() || ch == '_')
-        && chars.all(|ch| ch.is_ascii_alphanumeric() || matches!(ch, '_' | '.'))
+        && chars.all(|ch| ch.is_ascii_alphanumeric() || matches!(ch, '_' | '.' | '-'))
 }
 
 fn is_name_start(ch: char) -> bool {
@@ -3247,6 +3531,12 @@ mod tests {
         assert!(is_legacy_custom_element_content_type(
             "text/custom-element-xslt; charset=utf-8"
         ));
+        assert!(is_legacy_custom_element_content_type(
+            "application/xslt+xml"
+        ));
+        assert!(is_legacy_custom_element_content_type(
+            "text/xsl; charset=utf-8"
+        ));
         assert!(!is_legacy_custom_element_content_type("text/html"));
     }
 
@@ -3276,6 +3566,13 @@ mod tests {
     }
 
     #[test]
+    fn lowers_quoted_xsl_value_of_as_text() {
+        let result = convert(r#"<p><xsl:value-of select="'Display name'"/></p>"#);
+        assert_eq!(result.source, "{p | Display name}");
+        assert!(result.diagnostics.is_empty());
+    }
+
+    #[test]
     fn lowers_for_each_with_context_item_attribute_and_position() {
         let result = convert(
             r#"<for-each select="$rows"><div style="color:{@hex}">{position()}. {.}</div></for-each>"#,
@@ -3284,6 +3581,28 @@ mod tests {
             result.source,
             r#"{cem:for-each @select="rows" @as="item" | {div @style="color:{$item.hex}" | {$position}. {$item}}}"#
         );
+    }
+
+    #[test]
+    fn lowers_payload_attribute_for_each_to_datadom_payload_elements() {
+        let result = convert(
+            r#"<for-each select="//*[@pokemon-id]"><button><img src="/{@pokemon-id}.svg" alt="{text()}"/>{text()}</button></for-each>"#,
+        );
+        assert_eq!(
+            result.source,
+            r#"{cem:for-each @select="datadom.elementsByAttribute.pokemon-id" @as="item" | {button | {img @src="/{$item.attributes.pokemon-id}.svg" @alt="{$item.text}"}{$item.text}}}"#
+        );
+        assert!(result.diagnostics.is_empty());
+    }
+
+    #[test]
+    fn keeps_descendant_dataset_or_slice_reference_dynamic() {
+        let result = convert(r#"<if test="//smile"><div>Smile as: {//smile}</div></if>"#);
+        assert_eq!(
+            result.source,
+            r#"{cem:if @test="(datadom.slices.smile ?? datadom.dataset.smile ?? datadom.attributes.smile)" | {div | Smile as: {$(datadom.slices.smile ?? datadom.dataset.smile ?? datadom.attributes.smile)}}}"#
+        );
+        assert!(result.diagnostics.is_empty());
     }
 
     #[test]
@@ -3302,8 +3621,20 @@ mod tests {
         );
         assert_eq!(
             result.source,
-            r#"{cem:if @test='datadom.slices.show-items = "yes"' | {span | First}}{cem:if @test='datadom.slices.show-items = "yes"' | {span | Second}}"#
+            r#"{cem:if @test='(datadom.slices.show-items ?? datadom.dataset.show-items ?? datadom.attributes.show-items) = "yes"' | {span | First}}{cem:if @test='(datadom.slices.show-items ?? datadom.dataset.show-items ?? datadom.attributes.show-items) = "yes"' | {span | Second}}"#
         );
+    }
+
+    #[test]
+    fn unrolls_variable_node_set_with_scalar_predicate_position_and_attributes() {
+        let result = convert(
+            r#"<variable name="visible" select="//visible = 'yes'"/><variable name="items"><item href="a">First</item><item href="b">Second</item></variable><for-each select="$items[$visible]"><a href="{@href}">{position()}:{.}</a></for-each>"#,
+        );
+        assert_eq!(
+            result.source,
+            r#"{cem:if @test='(datadom.slices.visible ?? datadom.dataset.visible ?? datadom.attributes.visible) = "yes"' | {a @href="a" | 1:First}}{cem:if @test='(datadom.slices.visible ?? datadom.dataset.visible ?? datadom.attributes.visible) = "yes"' | {a @href="b" | 2:Second}}"#
+        );
+        assert!(result.diagnostics.is_empty());
     }
 
     #[test]
@@ -3341,7 +3672,7 @@ mod tests {
         let result = convert(
             r#"<xsl:stylesheet version="1.0"><xsl:template match="/"><xsl:call-template name="badge"><xsl:with-param name="label" select="'New'"/></xsl:call-template></xsl:template><xsl:template name="badge"><span class="badge">{$label}</span></xsl:template></xsl:stylesheet>"#,
         );
-        assert_eq!(result.source, r#"{span @class="badge" | {"New"}}"#);
+        assert_eq!(result.source, r#"{span @class="badge" | {$"New"}}"#);
         assert!(result.diagnostics.is_empty());
     }
 
@@ -3388,6 +3719,171 @@ mod tests {
     }
 
     #[test]
+    fn apply_templates_attribute_and_node_union_preserves_identity_order() {
+        let result = convert(
+            r#"<doc><item id="a">before<child>B</child>after</item></doc><xsl:stylesheet version="1.0"><xsl:template match="/"><out><xsl:apply-templates select="//item"/></out></xsl:template><xsl:template match="item"><row><xsl:apply-templates select="@*|node()"/></row></xsl:template><xsl:template match="@*"><attr><xsl:value-of select="name()"/>=<xsl:value-of select="."/></attr></xsl:template><xsl:template match="child"><b><xsl:value-of select="."/></b></xsl:template></xsl:stylesheet>"#,
+        );
+        assert_eq!(
+            result.source,
+            "{doc | {item @id=\"a\" | before{child | B}after}}{out | {row | {attr | id=a}before{b | B}after}}"
+        );
+        assert!(result.diagnostics.is_empty());
+    }
+
+    #[test]
+    fn identity_match_pattern_dispatches_over_attributes_text_and_elements() {
+        let result = convert(
+            r#"<doc><item id="a">before<child>B</child>after</item></doc><xsl:stylesheet version="1.0"><xsl:template match="/"><out><xsl:apply-templates select="//item"/></out></xsl:template><xsl:template match="item"><row><xsl:apply-templates select="@*|node()"/></row></xsl:template><xsl:template match="@*|node()"><seen><xsl:value-of select="."/></seen></xsl:template></xsl:stylesheet>"#,
+        );
+        assert_eq!(
+            result.source,
+            "{doc | {item @id=\"a\" | before{child | B}after}}{out | {row | {seen | a}{seen | before}{seen | B}{seen | after}}}"
+        );
+        assert!(result.diagnostics.is_empty());
+    }
+
+    #[test]
+    fn text_match_pattern_competes_with_identity_union_priority() {
+        let result = convert(
+            r#"<doc><item id="a">before<child>B</child>after</item></doc><xsl:stylesheet version="1.0"><xsl:template match="/"><out><xsl:apply-templates select="//item"/></out></xsl:template><xsl:template match="@*|node()"><identity><xsl:value-of select="name()"/>:<xsl:apply-templates select="@*|node()"/></identity></xsl:template><xsl:template match="text()"><txt><xsl:value-of select="."/></txt></xsl:template></xsl:stylesheet>"#,
+        );
+        assert_eq!(
+            result.source,
+            "{doc | {item @id=\"a\" | before{child | B}after}}{out | {identity | item:{identity | id:}{txt | before}{identity | child:{txt | B}}{txt | after}}}"
+        );
+        assert!(result.diagnostics.is_empty());
+    }
+
+    #[test]
+    fn child_path_match_pattern_dispatches_by_parent_chain() {
+        let result = convert(
+            r#"<doc><item>A</item><wrap><item>B</item></wrap></doc><xsl:stylesheet version="1.0"><xsl:template match="/"><out><xsl:apply-templates select="//item"/></out></xsl:template><xsl:template match="item"><any><xsl:value-of select="."/></any></xsl:template><xsl:template match="doc/item"><top><xsl:value-of select="."/></top></xsl:template></xsl:stylesheet>"#,
+        );
+        assert_eq!(
+            result.source,
+            "{doc | {item | A}{wrap | {item | B}}}{out | {top | A}{any | B}}"
+        );
+        assert!(result.diagnostics.is_empty());
+    }
+
+    #[test]
+    fn child_path_match_pattern_supports_wildcard_parent_steps() {
+        let result = convert(
+            r#"<doc><wrap><item>A</item></wrap><other><item>B</item></other></doc><xsl:stylesheet version="1.0"><xsl:template match="/"><out><xsl:apply-templates select="//item"/></out></xsl:template><xsl:template match="item"><plain><xsl:value-of select="."/></plain></xsl:template><xsl:template match="*/item"><nested><xsl:value-of select="."/></nested></xsl:template></xsl:stylesheet>"#,
+        );
+        assert_eq!(
+            result.source,
+            "{doc | {wrap | {item | A}}{other | {item | B}}}{out | {nested | A}{nested | B}}"
+        );
+        assert!(result.diagnostics.is_empty());
+    }
+
+    #[test]
+    fn child_path_match_pattern_supports_namespace_qualified_steps() {
+        let result = convert(
+            r#"<doc><xhtml:row><xhtml:td>A</xhtml:td></xhtml:row><other><xhtml:td>B</xhtml:td></other></doc><xsl:stylesheet version="1.0"><xsl:template match="/"><out><xsl:apply-templates select="//xhtml:td"/></out></xsl:template><xsl:template match="td"><plain><xsl:value-of select="."/></plain></xsl:template><xsl:template match="xhtml:row/xhtml:td"><cell><xsl:value-of select="."/></cell></xsl:template></xsl:stylesheet>"#,
+        );
+        assert_eq!(
+            result.source,
+            "{doc | {row | {td | A}}{other | {td | B}}}{out | {cell | A}{plain | B}}"
+        );
+        assert!(result.diagnostics.is_empty());
+    }
+
+    #[test]
+    fn child_path_match_pattern_supports_namespace_wildcard_steps() {
+        let result = convert(
+            r#"<doc><xhtml:row><xhtml:td>A</xhtml:td></xhtml:row><svg:g><xhtml:td>B</xhtml:td></svg:g></doc><xsl:stylesheet version="1.0"><xsl:template match="/"><out><xsl:apply-templates select="//xhtml:td"/></out></xsl:template><xsl:template match="td"><plain><xsl:value-of select="."/></plain></xsl:template><xsl:template match="xhtml:*/xhtml:td"><cell><xsl:value-of select="."/></cell></xsl:template></xsl:stylesheet>"#,
+        );
+        assert_eq!(
+            result.source,
+            "{doc | {row | {td | A}}{svg:g | {td | B}}}{out | {cell | A}{cell | B}}"
+        );
+        assert!(result.diagnostics.is_empty());
+    }
+
+    #[test]
+    fn child_path_match_pattern_applies_static_attribute_predicates() {
+        let result = convert(
+            r#"<doc><item kind="primary">A</item><item kind="secondary">B</item></doc><xsl:stylesheet version="1.0"><xsl:template match="/"><out><xsl:apply-templates select="//item"/></out></xsl:template><xsl:template match="item"><plain><xsl:value-of select="."/></plain></xsl:template><xsl:template match="doc/item[@kind='primary']"><primary><xsl:value-of select="."/></primary></xsl:template></xsl:stylesheet>"#,
+        );
+        assert_eq!(
+            result.source,
+            "{doc | {item @kind=\"primary\" | A}{item @kind=\"secondary\" | B}}{out | {primary | A}{plain | B}}"
+        );
+        assert!(result.diagnostics.is_empty());
+    }
+
+    #[test]
+    fn child_path_match_pattern_applies_parent_step_predicates() {
+        let result = convert(
+            r#"<doc><group kind="primary"><item>A</item></group><group kind="secondary"><item>B</item></group></doc><xsl:stylesheet version="1.0"><xsl:template match="/"><out><xsl:apply-templates select="//item"/></out></xsl:template><xsl:template match="item"><plain><xsl:value-of select="."/></plain></xsl:template><xsl:template match="group[@kind='primary']/item"><primary><xsl:value-of select="."/></primary></xsl:template></xsl:stylesheet>"#,
+        );
+        assert_eq!(
+            result.source,
+            "{doc | {group @kind=\"primary\" | {item | A}}{group @kind=\"secondary\" | {item | B}}}{out | {primary | A}{plain | B}}"
+        );
+        assert!(result.diagnostics.is_empty());
+    }
+
+    #[test]
+    fn child_path_match_pattern_can_target_text_nodes() {
+        let result = convert(
+            r#"<doc><item>A</item><other>B</other></doc><xsl:stylesheet version="1.0"><xsl:template match="/"><out><xsl:apply-templates select="//doc/*"/></out></xsl:template><xsl:template match="*"><xsl:apply-templates select="node()"/></xsl:template><xsl:template match="text()"><plain><xsl:value-of select="."/></plain></xsl:template><xsl:template match="item/text()"><itemText><xsl:value-of select="."/></itemText></xsl:template></xsl:stylesheet>"#,
+        );
+        assert_eq!(
+            result.source,
+            "{doc | {item | A}{other | B}}{out | {itemText | A}{plain | B}}"
+        );
+        assert!(result.diagnostics.is_empty());
+    }
+
+    #[test]
+    fn child_path_match_pattern_can_target_named_attributes() {
+        let result = convert(
+            r#"<doc><item id="a" kind="x"/><other id="b"/></doc><xsl:stylesheet version="1.0"><xsl:template match="/"><out><xsl:apply-templates select="//item/@*"/><xsl:apply-templates select="//other/@*"/></out></xsl:template><xsl:template match="@*"><plain><xsl:value-of select="name()"/>=<xsl:value-of select="."/></plain></xsl:template><xsl:template match="item/@id"><itemId><xsl:value-of select="."/></itemId></xsl:template></xsl:stylesheet>"#,
+        );
+        assert_eq!(
+            result.source,
+            "{doc | {item @id=\"a\" @kind=\"x\"}{other @id=\"b\"}}{out | {itemId | a}{plain | kind=x}{plain | id=b}}"
+        );
+        assert!(result.diagnostics.is_empty());
+    }
+
+    #[test]
+    fn child_path_match_pattern_can_target_attribute_wildcards() {
+        let result = convert(
+            r#"<doc><item id="a" kind="x"/><other id="b"/></doc><xsl:stylesheet version="1.0"><xsl:template match="/"><out><xsl:apply-templates select="//item/@*"/><xsl:apply-templates select="//other/@*"/></out></xsl:template><xsl:template match="@*"><plain><xsl:value-of select="."/></plain></xsl:template><xsl:template match="item/@*"><itemAttr><xsl:value-of select="name()"/>:<xsl:value-of select="."/></itemAttr></xsl:template></xsl:stylesheet>"#,
+        );
+        assert_eq!(
+            result.source,
+            "{doc | {item @id=\"a\" @kind=\"x\"}{other @id=\"b\"}}{out | {itemAttr | id:a}{itemAttr | kind:x}{plain | b}}"
+        );
+        assert!(result.diagnostics.is_empty());
+    }
+
+    #[test]
+    fn node_match_pattern_can_dispatch_the_document_root() {
+        let result = convert(
+            r#"<doc><item>A</item></doc><xsl:stylesheet version="1.0"><xsl:template match="node()"><seen><xsl:value-of select="name()"/></seen></xsl:template></xsl:stylesheet>"#,
+        );
+        assert_eq!(result.source, "{doc | {item | A}}{seen | #document}");
+        assert!(result.diagnostics.is_empty());
+    }
+
+    #[test]
+    fn identity_match_pattern_can_copy_from_the_document_root() {
+        let result = convert(
+            r#"<doc><item id="a">A</item></doc><xsl:stylesheet version="1.0"><xsl:template match="@*|node()"><xsl:copy><xsl:copy-of select="@*|node()"/></xsl:copy></xsl:template></xsl:stylesheet>"#,
+        );
+        assert_eq!(
+            result.source,
+            "{doc | {item @id=\"a\" | A}}{doc | {item @id=\"a\" | A}}"
+        );
+        assert!(result.diagnostics.is_empty());
+    }
+
+    #[test]
     fn unrolls_for_each_over_current_attribute_and_child_union() {
         let result = convert(
             r#"<doc><item id="a"><child>Beta</child></item></doc><xsl:stylesheet version="1.0"><xsl:template match="/"><xsl:apply-templates select="//item"/></xsl:template><xsl:template match="item"><xsl:for-each select="@*|*"><b><xsl:value-of select="name()"/>:<xsl:value-of select="."/></b></xsl:for-each></xsl:template></xsl:stylesheet>"#,
@@ -3419,6 +3915,30 @@ mod tests {
         assert_eq!(
             result.source,
             "{doc | {item @id=\"a\" | Alpha{child @title=\"b\" | Beta}}}{out | {item @id=\"a\" @data-name=\"item\" | {leaf @title=\"b\" | Beta}}{child @title=\"b\" | Beta}}"
+        );
+        assert!(result.diagnostics.is_empty());
+    }
+
+    #[test]
+    fn copy_of_node_select_serializes_child_nodes_in_document_order() {
+        let result = convert(
+            r#"<doc><wrap>before<item>A</item>after</wrap></doc><xsl:stylesheet version="1.0"><xsl:template match="/"><xsl:apply-templates select="//wrap"/></xsl:template><xsl:template match="wrap"><out><xsl:copy-of select="node()"/></out></xsl:template></xsl:stylesheet>"#,
+        );
+        assert_eq!(
+            result.source,
+            "{doc | {wrap | before{item | A}after}}{out | before{item | A}after}"
+        );
+        assert!(result.diagnostics.is_empty());
+    }
+
+    #[test]
+    fn copy_of_attribute_and_node_union_preserves_identity_shape() {
+        let result = convert(
+            r#"<doc><item id="a">before<child>B</child>after</item></doc><xsl:stylesheet version="1.0"><xsl:template match="/"><out><xsl:apply-templates select="//item"/></out></xsl:template><xsl:template match="item"><xsl:copy><xsl:copy-of select="@*|node()"/></xsl:copy></xsl:template></xsl:stylesheet>"#,
+        );
+        assert_eq!(
+            result.source,
+            "{doc | {item @id=\"a\" | before{child | B}after}}{out | {item @id=\"a\" | before{child | B}after}}"
         );
         assert!(result.diagnostics.is_empty());
     }
@@ -3532,6 +4052,54 @@ mod tests {
     }
 
     #[test]
+    fn apply_templates_without_select_walks_child_nodes_in_document_order() {
+        let result = convert(
+            r#"<doc><wrap>before<item>A</item>after</wrap></doc><xsl:stylesheet version="1.0"><xsl:template match="/"><xsl:apply-templates select="*"/></xsl:template><xsl:template match="wrap"><out><xsl:apply-templates/></out></xsl:template><xsl:template match="item"><b><xsl:value-of select="."/></b></xsl:template></xsl:stylesheet>"#,
+        );
+        assert_eq!(
+            result.source,
+            "{doc | {wrap | before{item | A}after}}{out | before{b | A}after}"
+        );
+        assert!(result.diagnostics.is_empty());
+    }
+
+    #[test]
+    fn apply_templates_node_select_walks_child_nodes_in_document_order() {
+        let result = convert(
+            r#"<doc><wrap>before<item>A</item>after</wrap></doc><xsl:stylesheet version="1.0"><xsl:template match="/"><xsl:apply-templates select="*"/></xsl:template><xsl:template match="wrap"><out><xsl:apply-templates select="node()"/></out></xsl:template><xsl:template match="item"><b><xsl:value-of select="."/></b></xsl:template></xsl:stylesheet>"#,
+        );
+        assert_eq!(
+            result.source,
+            "{doc | {wrap | before{item | A}after}}{out | before{b | A}after}"
+        );
+        assert!(result.diagnostics.is_empty());
+    }
+
+    #[test]
+    fn apply_templates_mode_uses_mode_specific_templates_through_defaults() {
+        let result = convert(
+            r#"<doc><wrap><item>A</item></wrap><item>B</item></doc><xsl:stylesheet version="1.0"><xsl:template match="/"><out><xsl:apply-templates select="*" mode="card"/></out></xsl:template><xsl:template match="item"><plain><xsl:value-of select="."/></plain></xsl:template><xsl:template match="item" mode="card"><card><xsl:value-of select="."/></card></xsl:template></xsl:stylesheet>"#,
+        );
+        assert_eq!(
+            result.source,
+            "{doc | {wrap | {item | A}}{item | B}}{out | {card | A}{card | B}}"
+        );
+        assert!(result.diagnostics.is_empty());
+    }
+
+    #[test]
+    fn apply_templates_without_mode_inside_mode_template_uses_default_mode() {
+        let result = convert(
+            r#"<doc><item><child>A</child></item></doc><xsl:stylesheet version="1.0"><xsl:template match="/"><out><xsl:apply-templates select="//item" mode="card"/></out></xsl:template><xsl:template match="item" mode="card"><mode><xsl:apply-templates select="*"/></mode></xsl:template><xsl:template match="child"><plain><xsl:value-of select="."/></plain></xsl:template><xsl:template match="child" mode="card"><card><xsl:value-of select="."/></card></xsl:template></xsl:stylesheet>"#,
+        );
+        assert_eq!(
+            result.source,
+            "{doc | {item | {child | A}}}{out | {mode | {plain | A}}}"
+        );
+        assert!(result.diagnostics.is_empty());
+    }
+
+    #[test]
     fn sorts_with_multiple_keys_and_numeric_type() {
         let result = convert(
             r#"<doc><item group="b" rank="2">B2</item><item group="a" rank="10">A10</item><item group="a" rank="2">A2</item></doc><xsl:stylesheet version="1.0"><xsl:template match="/"><ol><xsl:apply-templates select="//item"><xsl:sort select="@group"/><xsl:sort select="@rank" data-type="number"/></xsl:apply-templates></ol></xsl:template><xsl:template match="item"><li><xsl:value-of select="@group"/>:<xsl:value-of select="@rank"/>:<xsl:value-of select="."/></li></xsl:template></xsl:stylesheet>"#,
@@ -3558,15 +4126,36 @@ mod tests {
 
     #[test]
     fn reports_unsupported_tier3_constructs() {
-        let result = convert(r#"<xsl:copy-of select="node()"/>"#);
+        let result = convert(r#"<xsl:copy-of select="processing-instruction()"/>"#);
         assert_eq!(result.source, "");
         assert_eq!(result.diagnostics.len(), 1);
         assert_eq!(result.diagnostics[0].code, UNSUPPORTED_CONSTRUCT_CODE);
     }
 
     #[test]
+    fn reports_non_transpilable_tier3_boundaries() {
+        for input in [
+            r#"<func:function name="demo:thing"/>"#,
+            r#"<msxsl:script language="JScript">function run(){return 1;}</msxsl:script>"#,
+            r#"<xsl:element name="{concat('x','y')}">Hi</xsl:element>"#,
+        ] {
+            let result = convert(input);
+            assert_eq!(result.source, "");
+            assert_eq!(result.diagnostics.len(), 1, "{input}");
+            assert_eq!(result.diagnostics[0].code, UNSUPPORTED_CONSTRUCT_CODE);
+        }
+    }
+
+    #[test]
+    fn plain_output_script_is_not_tier3_handoff() {
+        let result = convert(r#"<script type="text/plain">ok</script>"#);
+        assert_eq!(result.source, r#"{script @type="text/plain" | ok}"#);
+        assert!(result.diagnostics.is_empty());
+    }
+
+    #[test]
     fn reports_apply_templates_outside_bounded_subset() {
-        let result = convert(r#"<xsl:apply-templates select="node()"/>"#);
+        let result = convert(r#"<xsl:apply-templates select="processing-instruction()"/>"#);
         assert_eq!(result.source, "");
         assert_eq!(result.diagnostics.len(), 1);
         assert_eq!(result.diagnostics[0].code, UNSUPPORTED_CONSTRUCT_CODE);

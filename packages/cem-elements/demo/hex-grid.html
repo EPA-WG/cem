@@ -1,0 +1,34 @@
+<!doctype html>
+<html lang="en">
+<head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <title>cem-element hex grid demo</title>
+    <link rel="stylesheet" href="./demo.css">
+    <script type="module">
+        import { installCemElementRuntime } from '../dist/index.js';
+        installCemElementRuntime(window);
+    </script>
+</head>
+<body>
+<nav class="page-nav"><a href="../index.html">cem-element demo</a><h1>Hex grid</h1></nav>
+
+<cem-element tag="cem-grid-tile">
+    <template type="text/cem-ml">
+        {div @class=swatch @style="background: {$datadom.attributes.color}" | {$datadom.attributes.label}}
+    </template>
+</cem-element>
+
+<main>
+    <section class="hex-grid">
+        <cem-grid-tile label="A1" color="#dbeafe"></cem-grid-tile>
+        <cem-grid-tile label="A2" color="#dcfce7"></cem-grid-tile>
+        <cem-grid-tile label="A3" color="#fef3c7"></cem-grid-tile>
+        <cem-grid-tile label="B1" color="#ede9fe"></cem-grid-tile>
+        <cem-grid-tile label="B2" color="#fae8ff"></cem-grid-tile>
+        <cem-grid-tile label="B3" color="#e0f2fe"></cem-grid-tile>
+    </section>
+    <p class="status-note">Parity target: data-driven grid generation from resource/table rows is queued.</p>
+</main>
+</body>
+</html>

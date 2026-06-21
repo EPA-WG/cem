@@ -25,12 +25,28 @@ pub type SourceId = crate::source::SourceId;
 #[derive(Debug, Clone, PartialEq, Eq, Hash, Serialize, Deserialize)]
 #[serde(tag = "kind")]
 pub enum TemplateRef {
-    SchemaTemplate { schema_id: SchemaId, name: String },
-    LocalId { source_id: SourceId, id: String },
-    Url { url: String },
-    UrlFragment { url: String, fragment: String },
-    RegistryEntry { registry_id: RegistryId, name: String },
-    DceTagName { tag_name: String },
+    SchemaTemplate {
+        schema_id: SchemaId,
+        name: String,
+    },
+    LocalId {
+        source_id: SourceId,
+        id: String,
+    },
+    Url {
+        url: String,
+    },
+    UrlFragment {
+        url: String,
+        fragment: String,
+    },
+    RegistryEntry {
+        registry_id: RegistryId,
+        name: String,
+    },
+    DceTagName {
+        tag_name: String,
+    },
 }
 
 impl TemplateRef {

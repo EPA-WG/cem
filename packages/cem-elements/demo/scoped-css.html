@@ -1,0 +1,129 @@
+<!doctype html>
+<html lang="en">
+<head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <title>cem-element scoped CSS demo</title>
+    <link rel="stylesheet" href="./demo.css">
+    <script type="module">
+        import { installCemElementRuntime } from '../dist/index.js';
+        installCemElementRuntime(window);
+    </script>
+</head>
+<body>
+<nav class="page-nav"><a href="../index.html">cem-element demo</a><h1>Scoped CSS</h1></nav>
+
+<main>
+    <html-demo-element legend="1. STYLE tag CSS rules are scoped within element"
+                       description="Green button borders should not be applied to the external button.">
+        <template>
+            <cem-element tag="cem-style-green" uid-seed="demo/scoped-css/green">
+                <template type="text/cem-ml">
+                    {style |```
+                        button { border: 0.2rem dashed green; }
+                    ```}
+                    {button @type=button @data-case=case-1-green | Green dashed border}
+                </template>
+            </cem-element>
+            <cem-style-green></cem-style-green>
+            <button type="button" data-case="case-1-default">Default border</button>
+        </template>
+    </html-demo-element>
+
+    <html-demo-element legend="2. cem-element with tag"
+                       description="Blue borders only within the two cem-style-blue instances.">
+        <template>
+            <cem-element tag="cem-style-blue" uid-seed="demo/scoped-css/blue">
+                <template type="text/cem-ml">
+                    {style |```
+                        button { border: 0.2rem dotted blue; }
+                    ```}
+                    {button @type=button @data-case=case-2-blue | {slot | Blue borders}}
+                </template>
+            </cem-element>
+            <button type="button" data-case="case-2-default">Default border</button>
+            <cem-style-blue>1st</cem-style-blue>
+            <cem-style-blue>2nd</cem-style-blue>
+        </template>
+    </html-demo-element>
+
+    <html-demo-element legend="3. Override style in cem-element payload"
+                       description="Red border color is supplied by payload only for the last instance.">
+        <template>
+            <cem-element tag="cem-style-override" uid-seed="demo/scoped-css/override">
+                <template type="text/cem-ml">
+                    {style |```
+                        button { border: 0.2rem dashed blue; }
+                    ```}
+                    {button @type=button @data-case=case-3-button | {slot | Blue borders}}
+                </template>
+            </cem-element>
+            <button type="button" data-case="case-3-default">Default border</button>
+            <cem-style-override data-case="case-3-blue">1st</cem-style-override>
+            <cem-style-override data-case="case-3-red">
+                <style>button { border-color: red; }</style>
+                Red border
+                <b>2</b>
+                3
+                <b>4</b>
+            </cem-style-override>
+        </template>
+    </html-demo-element>
+
+    <html-demo-element legend="4. Simple internal override"
+                       description="Green label with blue checked text.">
+        <template>
+            <cem-element tag="cem-style-internal" uid-seed="demo/scoped-css/internal">
+                <template type="text/cem-ml">
+                    {style |```
+                        color: green;
+                        b { color: blue; }
+                        input:checked + b { color: darkblue; text-shadow: 0 0 4px springgreen; }
+                    ```}
+                    {label @data-case=case-4-label |
+                        green
+                        {input @type=checkbox @value="Glowing Blue" @checked=""}
+                        {b @data-case=case-4-blue | blue}
+                    }
+                </template>
+            </cem-element>
+            <cem-style-internal></cem-style-internal>
+        </template>
+    </html-demo-element>
+
+    <html-demo-element legend="5. External template, inline library"
+                       description="Same-document template styles stay scoped to the cem-style-inline-src instance.">
+        <template>
+            <template id="scoped-inline-template" type="text/cem-ml">
+                {style |```
+                    p { color: green; }
+                    i { color: blue; }
+                ```}
+                {p @data-case=case-5-p |
+                    green
+                    {i @data-case=case-5-i | blue}
+                }
+            </template>
+            <cem-element tag="cem-style-inline-src"
+                         src="#scoped-inline-template"
+                         uid-seed="demo/scoped-css/inline-src"></cem-element>
+            <cem-style-inline-src></cem-style-inline-src>
+        </template>
+    </html-demo-element>
+
+    <html-demo-element legend="6. External template, fetched library"
+                       description="Fetched template styles are scoped after src loading.">
+        <template>
+            <cem-element tag="cem-style-external-src"
+                         src="./external-template-templates.html#scoped-css-external-template"
+                         uid-seed="demo/scoped-css/external-src"></cem-element>
+            <cem-style-external-src>External scoped template</cem-style-external-src>
+            <p class="external-scoped-item" data-case="case-6-outside">Outside paragraph</p>
+        </template>
+    </html-demo-element>
+
+    <p class="status-note">Automatic style containment scopes each demo through its generated <code>data-cem-scope</code> value.</p>
+</main>
+<script type="module" src="https://unpkg.com/html-demo-element@1/html-demo-element.js"></script>
+</body>
+</html>

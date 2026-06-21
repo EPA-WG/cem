@@ -1,0 +1,41 @@
+<!doctype html>
+<html lang="en">
+<head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <title>cem-element module-url demo</title>
+    <link rel="stylesheet" href="./demo.css">
+    <script type="module">
+        import { installCemElementRuntime } from '../dist/index.js';
+        installCemElementRuntime(window, {
+            resolveModuleUrl(specifier, document) {
+                if (specifier === '@epa-wg/custom-element/demo/wc-square.svg') {
+                    return new URL('../../custom-element/demo/wc-square.svg', document.baseURI).href;
+                }
+                if (specifier === '@epa-wg/material') {
+                    return new URL('../../custom-element/material/', document.baseURI).href;
+                }
+                return new URL(specifier, document.baseURI).href;
+            },
+        });
+    </script>
+</head>
+<body>
+<nav class="page-nav"><a href="../index.html">cem-element demo</a><h1>module-url</h1></nav>
+
+<cem-element tag="cem-module-link">
+    <template type="text/cem-ml">
+        {module-url @slice=packageUrl @src="@epa-wg/material"}
+        {module-url @slice=logoUrl @src="@epa-wg/custom-element/demo/wc-square.svg"}
+        {article @class=demo-card |
+            {a @href="{$datadom.slices.packageUrl}" | Resolved package URL}
+            {br}
+            {img @class=resolved-logo @src="{$datadom.slices.logoUrl}" @alt=""}
+            {p | {$datadom.slices.logoUrl}}
+        }
+    </template>
+</cem-element>
+
+<main><cem-module-link></cem-module-link></main>
+</body>
+</html>

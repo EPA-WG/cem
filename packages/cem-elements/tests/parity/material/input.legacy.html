@@ -1,0 +1,29 @@
+<custom-element hidden src="./icon-link.html#cem-icon-link" tag="cem-icon-link"></custom-element>
+<custom-element hidden src="./icon.html#cem-icon" tag="cem-icon"></custom-element>
+<custom-element tag="cem-input" hidden>
+    <template id="cem-input">
+        <attribute name="value" select="//selected[//selected/event] ?? //attributes/@value"></attribute>
+        <attribute name="type"></attribute>
+        <attribute name="required"></attribute>
+        <attribute name="label"></attribute>
+        <style>
+            .cem-input { display: grid; }
+        </style>
+        <slot name="label">
+            <if test="$label"><label>{$label}</label></if>
+        </slot>
+        <slot name="input">
+            <xhtml:input type="{$type}" value="{$value}">
+                <if test="hasBoolAttribute($required)"><attribute name="required">{$required}</attribute></if>
+                <slice name="focused" slice-event="blur" slice-value="0"></slice>
+                <slice name="focused" slice-event="focus" slice-value="1"></slice>
+            </xhtml:input>
+        </slot>
+    </template>
+</custom-element>
+<custom-element tag="cem-demo-input-types" hidden>
+    <template>
+        <option value="text">text</option>
+        <option value="email">email</option>
+    </template>
+</custom-element>

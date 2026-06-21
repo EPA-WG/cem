@@ -1,6 +1,7 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
+    <meta name="copyright" content="Copyright (c) 2026 Sasha Firsov <https://github.com/sashafirsov>">
     <meta charset="UTF-8">
     <meta content="text/html; charset=utf-8" http-equiv="Content-Type"/>
     <title>Components - custom-element - Material Design</title>
@@ -12,12 +13,16 @@
     <script type="importmap">
         {
           "imports": {
-            "@epa-wg/": "../../"
+            "@epa-wg/custom-element/": "../../../../node_modules/@epa-wg/custom-element/",
+            "@epa-wg/material": "../../../../node_modules/@epa-wg/custom-element/material",
+            "@epa-wg/material/": "../../../../node_modules/@epa-wg/custom-element/material/"
           }
         }
     </script>
-    <script src="../../custom-element/module-url.js" type="module"></script>
-    <script src="../../custom-element/custom-element.js" type="module"></script>
+    <script type="module">
+        import "@epa-wg/custom-element/module-url.js";
+        import "@epa-wg/custom-element/custom-element.js";
+    </script>
     <style>
         @import "../angular.css";
         @import "../material.css";

@@ -29,8 +29,10 @@ Partially implemented:
   variables can alias static `exsl:node-set($var)/*` result fragments, including
   sample-used filtered attribute extraction such as
   `exsl:node-set($methods)/*[text() = $selected]/@title`. `xsl:for-each` also
-  unrolls current-node selections such as `@*|*` when a template has a concrete
-  current item. `xsl:param` defaults and `xsl:with-param` now preserve both
+  unrolls scalar-gated static node-set variables such as `$items[$visible]`,
+  preserving the runtime predicate as a generated `cem:if`, and current-node
+  selections such as `@*|*` when a template has a concrete current item.
+  `xsl:param` defaults and `xsl:with-param` now preserve both
   scalar and bounded node-set values, including sample-style `select="*"`.
 - The current apply-template selector supports simple match patterns, `mode`,
   source-document child/attribute/text traversal (`*`, `@*`, `text()`, `.`),
@@ -58,7 +60,7 @@ Partially implemented:
   variables. It also supports bounded `xsl:element` names when the name is
   literal or resolves through a scalar AVT such as `name="{$p}"`.
 - Remaining open work is limited to richer XPath predicate/function semantics
-  plus dynamic construction names outside that scalar AVT subset and any
+  beyond the sample-backed subset, plus dynamic construction names outside that scalar AVT subset and any
   additional XSLT instructions or traversal cases that copied component/sample
   fixtures prove they need.
 - XSLT dispatch (`AC-P-6.8`) is implemented as isolation/version-pinning
@@ -67,9 +69,9 @@ Partially implemented:
 Evidence from copied samples:
 
 - Material components primarily need the fragment subset (`if`, `choose`,
-  `for-each`, AVT, declaration helpers) plus the known `hasBoolAttribute()`
-  gap, but Phase 4 compatibility must support the component templating set in
-  full when copied components/samples rely on stylesheet invocation.
+  `for-each`, AVT, declaration helpers) plus the `hasBoolAttribute()`
+  boolean-attribute rewrite, all of which now pass the material conversion gate. Phase 4 compatibility must support
+  the component templating set in full when copied components/samples rely on stylesheet invocation.
 - Demo/reference files such as `demo/table.xsl`, `demo/tree.xsl`,
   `demo/template.xsl`, `demo/s.xslt`, `demo/html-template.xml`,
   `demo/xhtml-template.xhtml`, `demo/http-request.html`,

@@ -8,10 +8,12 @@ import {
     isValidCustomElementName,
     type CemElementDiagnostic,
     type DataIslandSnapshot,
+    type SerializedEventPayload,
 } from './cem-elements.js';
 import {
     InMemoryEdgeRenderStateStore,
     advanceEdgeRenderState,
+    applyRenderPlanToRange,
     createEdgeRenderStateRecord,
     diffRenderPlansToPatchFrames,
     edgeContentAddress,
@@ -23,6 +25,7 @@ import {
     readEdgeRenderStateContents,
     readTemplateSource,
     renderPlanIdentity,
+    scopeRenderPlan,
     type EdgeContentAddress,
     type EdgeContentKind,
     type EdgeRenderStateRecord,
@@ -34,7 +37,12 @@ import {
     type RenderPlanNode,
     type TemplateSourceNode,
 } from './projection.js';
-import { renderCemMlTemplate, runtimeVersion } from './internal/runtime-support/cem-ql-render.js';
+import {
+    processCemMlTemplate,
+    renderCemMlTemplate,
+    runtimeVersion,
+    type RuntimeSupportDiagnostic,
+} from './internal/runtime-support/cem-ql-render.js';
 import { domToRecord, normalizeSpace, tokenTableRows } from './data-document.js';
 
 const meta: Meta = {
@@ -158,17 +166,17 @@ export const DeclarationLiveContentRejected: Story = {
     },
 };
 
-export const MissingInlineTemplateRejected: Story = {
-    render: () => storyPanel('Missing inline template', 'inline declarations require exactly one template'),
+export const ImplicitCemMlTemplateShape: Story = {
+    render: () => storyPanel('Implicit CEM-ML template', 'inline declarations may use direct CEM-ML content'),
     play: () => {
         const result = analyzeDeclarationShape({
             tag: 'cem-button',
             src: null,
             directTemplateCount: 0,
-            directLiveNodeCount: 0,
+            directLiveNodeCount: 1,
         });
-        assert(!result.ok, 'inline declarations without a template must be rejected');
-        assertDiagnostic(result.diagnostics, 'cem-element.inline_template_count');
+        assert(result.ok, 'inline declarations without a template should be accepted as implicit CEM-ML');
+        assertEqual(result.diagnostics.length, 0, 'implicit CEM-ML declarations should not emit shape diagnostics');
     },
 };
 
@@ -431,6 +439,14 @@ export const CemQlWasmRenderBoundary: Story = {
             .map((child) => (child.kind === 'text' ? child.text : ''))
             .join('');
         assertEqual(text, 'Save', 'content expression resolves the host binding through WASM');
+        const [buttonText] = button.children;
+        assert(buttonText.kind === 'text', 'WASM render carries a text render-plan child');
+        assertEqual(
+            buttonText.sourceMapRef?.fidelity,
+            'author-byte-exact',
+            'WASM text render-plan nodes carry author-byte-exact fidelity'
+        );
+        assert(/^cem:\d+$/.test(buttonText.sourceMapRef?.frame ?? ''), 'WASM text frames are source byte offsets');
         assertEqual(
             button.sourceMapRef?.fidelity,
             'author-byte-exact',
@@ -438,10 +454,68 @@ export const CemQlWasmRenderBoundary: Story = {
         );
         assertEqual(button.sourceMapRef?.frame, 'cem:0', 'root frame is the source byte offset');
 
+        const processed = await processCemMlTemplate({
+            source: '{article @class="card {$tone}" | {slot @name=detail | fallback}}',
+            data: { tone: 'primary' },
+            identity: {
+                producedTag: 'cem-processed',
+                instanceId: 'processed-instance-1',
+                templateArtifactId: 'processed-template-1',
+                dataRevision: '1',
+                outputTarget: 'light-dom',
+                scopePolicyStamp: 'processed-scope',
+            },
+            payload: {
+                slots: {
+                    detail: [{ kind: 'text', key: 'payload-detail-0', text: 'Projected detail' }],
+                },
+            },
+            previousRenderPlan: null,
+            patchOptions: { transactionId: 'processed-tx-1' },
+        });
+        assertEqual(
+            processed.diagnostics.length,
+            0,
+            'template processing boundary returns no diagnostics for well-formed source'
+        );
+        assertEqual(processed.renderPlan.producedTag, 'cem-processed', 'processing boundary carries render identity');
+        assertEqual(processed.renderPlan.nodes.length, 1, 'processing boundary returns a light-DOM render plan');
+        const [processedRoot] = processed.renderPlan.nodes;
+        assert(processedRoot.kind === 'element', 'processed render-plan root is an element');
+        assertEqual(processedRoot.tag, 'article', 'processing boundary preserves rendered root tag');
+        assertEqual(
+            processedRoot.attributes.find((attribute) => attribute.name === 'class')?.value,
+            'card primary',
+            'processing boundary runs CEM-QL expressions through WASM'
+        );
+        assertEqual(processedRoot.children.length, 1, 'processing boundary projects payload into slots');
+        const [projectedDetail] = processedRoot.children;
+        assert(projectedDetail.kind === 'text', 'projected slot payload remains render-plan data');
+        assertEqual(projectedDetail.text, 'Projected detail', 'processing boundary returns slot-projected render data');
+        assert(
+            processed.patchFrames?.some(
+                (frame) =>
+                    frame.type === 'ops' &&
+                    frame.ops.some(
+                        (operation) => operation.op === 'replaceScope' && operation.reason === 'first-render'
+                    )
+            ),
+            'processing boundary can return first-render patch frames without applying DOM'
+        );
+
         // Diagnostics flow through the same boundary: an unknown binding compiles to a
         // mapped render diagnostic rather than throwing.
         const missing = await renderCemMlTemplate('{button | {$missing}}', {}, { renderNodeIdPrefix: 'cem-missing' });
-        assertDiagnostic(missing.diagnostics, 'cem.ql.render.compile_failed');
+        const missingDiagnostic = findRuntimeSupportDiagnostic(missing.diagnostics, 'cem.ql.render.compile_failed');
+        assertEqual(
+            missingDiagnostic.sourceMapRef?.fidelity,
+            'author-byte-exact',
+            'WASM render diagnostics carry author-byte-exact source-map fidelity'
+        );
+        assert(
+            /^cem:\d+$/.test(missingDiagnostic.sourceMapRef?.frame ?? ''),
+            'WASM render diagnostics carry source byte-offset frames'
+        );
     },
 };
 
@@ -734,6 +808,113 @@ export const AttributeObserverRerendersOnUndeclaredAttribute: Story = {
     },
 };
 
+export const ProducedTagLifecycleBehavior: Story = {
+    render: () => storyPanel('Produced tag lifecycle', 'idempotent registration, reconnect, nested tags, latest render wins'),
+    play: async ({ canvasElement }) => {
+        const root = document.createElement('section');
+        root.setAttribute('aria-label', 'produced tag lifecycle story');
+        canvasElement.appendChild(root);
+
+        const runtime = new CemElementRuntime({ declarationTag: 'cem-element-story-lifecycle' });
+        runtime.install(window);
+        runtime.install(window);
+        assert(window.customElements.get('cem-element-story-lifecycle'), 'installing the runtime twice is idempotent');
+
+        const childDeclaration = buildCemMlDeclaration(
+            'cem-element-story-lifecycle',
+            'story-lifecycle-child',
+            '{attribute @name=label | Child}{strong | {$label}}'
+        );
+        root.appendChild(childDeclaration);
+        assert(runtime.registerDeclaration(childDeclaration), 'manual registration after connected registration is accepted');
+        assert(runtime.registerDeclaration(childDeclaration), 're-registering the same declaration is a no-op');
+        await runtime.whenDeclarationSettled(childDeclaration);
+        assertEqual(
+            runtime.diagnosticsFor(childDeclaration).length,
+            0,
+            'same-declaration registration does not emit duplicate diagnostics'
+        );
+
+        const parentDeclaration = buildCemMlDeclaration(
+            'cem-element-story-lifecycle',
+            'story-lifecycle-parent',
+            [
+                '{attribute @name=label | Initial}',
+                '{attribute @name=child | Nested}',
+                '{article @class=card @data-tone="{$datadom.attributes.tone}" |',
+                ' {span @class=label | {$label}}',
+                ' {story-lifecycle-child @label="{$child}" | }',
+                '}',
+            ].join('')
+        );
+        root.appendChild(parentDeclaration);
+        runtime.registerDeclaration(parentDeclaration);
+        await runtime.whenDeclarationSettled(parentDeclaration);
+        assertEqual(runtime.diagnosticsFor(parentDeclaration).length, 0, 'the first produced tag declaration is clean');
+
+        const duplicateDeclaration = buildCemMlDeclaration(
+            'cem-element-story-lifecycle',
+            'story-lifecycle-parent',
+            '{div @class=duplicate | Duplicate}'
+        );
+        root.appendChild(duplicateDeclaration);
+        runtime.registerDeclaration(duplicateDeclaration);
+        await runtime.whenDeclarationSettled(duplicateDeclaration);
+        assertDiagnostic(runtime.diagnosticsFor(duplicateDeclaration), 'cem-element.tag_already_defined');
+
+        const instance = document.createElement('story-lifecycle-parent');
+        root.appendChild(instance);
+        await waitForElement(instance, 'article.card');
+        assertEqual(requiredElement(instance, '.label').textContent?.trim(), 'Initial', 'declared defaults render first');
+        assertEqual(
+            requiredElement(instance, 'story-lifecycle-child strong').textContent?.trim(),
+            'Nested',
+            'nested produced elements render from forwarded declared defaults'
+        );
+        assertEqual(instance.querySelector('.duplicate'), null, 'a duplicate declaration does not replace the first tag');
+
+        instance.setAttribute('label', 'First');
+        instance.setAttribute('label', 'Second');
+        instance.setAttribute('tone', 'warm');
+        instance.setAttribute('child', 'Inner');
+        await waitForCondition(
+            () =>
+                requiredElement(instance, '.label').textContent?.trim() === 'Second' &&
+                requiredElement(instance, 'article.card').getAttribute('data-tone') === 'warm' &&
+                requiredElement(instance, 'story-lifecycle-child strong').textContent?.trim() === 'Inner',
+            'rapid host mutations render the latest attribute snapshot'
+        );
+        assert(!instance.textContent?.includes('First'), 'stale intermediate host values do not survive rerender ordering');
+
+        const renderedWhileConnected = requiredElement(instance, '.label');
+        const revisionBeforeDisconnect = Number(renderedWhileConnected.getAttribute('data-cem-data-revision'));
+        instance.remove();
+        instance.setAttribute('label', 'Detached');
+        await nextFrame();
+        assertEqual(
+            requiredElement(instance, '.label').textContent?.trim(),
+            'Second',
+            'attribute changes while disconnected do not rerender until reconnect'
+        );
+
+        root.appendChild(instance);
+        await waitForCondition(
+            () => requiredElement(instance, '.label').textContent?.trim() === 'Detached',
+            'reconnect re-attaches observation and renders current host state'
+        );
+        assert(
+            Number(requiredElement(instance, '.label').getAttribute('data-cem-data-revision')) > revisionBeforeDisconnect,
+            'reconnect advances the deterministic render revision'
+        );
+
+        instance.setAttribute('label', 'Reconnected');
+        await waitForCondition(
+            () => requiredElement(instance, '.label').textContent?.trim() === 'Reconnected',
+            'post-reconnect host mutations are observed'
+        );
+    },
+};
+
 // ---------------------------------------------------------------------------
 // Legacy custom-element parity stories — named coverage for behaviors inventoried
 // from /home/suns/aWork/custom-element docs and demos.
@@ -927,6 +1108,475 @@ export const SrcDeclarationLoadingDiagnostics: Story = {
     },
 };
 
+export const UriAndModuleResolutionPolicy: Story = {
+    render: () =>
+        storyPanel(
+            'URI/module resolution policy',
+            'fragment src, document-relative external src, module-url hooks, resolver diagnostics, cache identity'
+        ),
+    play: async ({ canvasElement }) => {
+        const root = document.createElement('section');
+        root.setAttribute('aria-label', 'URI and module resolution policy story');
+        canvasElement.appendChild(root);
+
+        const localRuntime = new CemElementRuntime({ declarationTag: 'cem-element-story-uri-local' });
+        const localTemplate = document.createElement('template');
+        localTemplate.id = 'story-uri-local-template';
+        localTemplate.setAttribute('type', 'text/cem-ml');
+        localTemplate.textContent = '{span @class=label | {$datadom.attributes.label}}';
+        root.appendChild(localTemplate);
+
+        const localDeclaration = document.createElement('cem-element-story-uri-local');
+        localDeclaration.setAttribute('tag', 'story-uri-local-fragment');
+        localDeclaration.setAttribute('src', '#story-uri-local-template');
+        root.appendChild(localDeclaration);
+        assert(localRuntime.registerDeclaration(localDeclaration), 'fragment-only src declarations register');
+        await localRuntime.whenDeclarationSettled(localDeclaration);
+
+        const localInstance = document.createElement('story-uri-local-fragment');
+        localInstance.setAttribute('label', 'Fragment');
+        root.appendChild(localInstance);
+        assertEqual(
+            (await waitForElement(localInstance, '.label')).textContent?.trim(),
+            'Fragment',
+            'fragment-only src resolves against the declaring document'
+        );
+
+        const sourceLoads: string[] = [];
+        const sourceRuntime = new CemElementRuntime({
+            declarationTag: 'cem-element-story-uri-source',
+            loadSrcDocument: async (path, baseDocument) => {
+                const href = new URL(path, baseDocument.baseURI).href;
+                sourceLoads.push(href);
+                return `<template id="card"><span class="source">${href}</span></template>`;
+            },
+        });
+        const firstFrame = await appendResolutionPolicyFrame(canvasElement, 'https://example.test/alpha/');
+        const secondFrame = await appendResolutionPolicyFrame(canvasElement, 'https://example.test/beta/');
+        sourceRuntime.install(firstFrame.contentWindow as Window);
+        sourceRuntime.install(secondFrame.contentWindow as Window);
+
+        const firstSource = await registerExternalSourceInstance(
+            sourceRuntime,
+            firstFrame.contentDocument as Document,
+            'story-uri-source-alpha'
+        );
+        const secondSource = await registerExternalSourceInstance(
+            sourceRuntime,
+            secondFrame.contentDocument as Document,
+            'story-uri-source-beta'
+        );
+        assertEqual(
+            requiredElement(firstSource, '.source').textContent,
+            'https://example.test/alpha/cards.html',
+            'external src resolves document-relative to the first source document'
+        );
+        assertEqual(
+            requiredElement(secondSource, '.source').textContent,
+            'https://example.test/beta/cards.html',
+            'external src cache identity includes the declaring document base URI'
+        );
+        assertEqual(
+            sourceLoads.join('|'),
+            'https://example.test/alpha/cards.html|https://example.test/beta/cards.html',
+            'same external src path loads once per declaring document identity'
+        );
+
+        const specifier = '@scope/widget/icon.svg';
+        const moduleRuntimeA = new CemElementRuntime({
+            declarationTag: 'cem-element-story-uri-module-a',
+            resolveModuleUrl: async (moduleSpecifier) => {
+                assertEqual(moduleSpecifier, specifier, 'module resolver receives the resource specifier');
+                return 'https://cdn.example.test/a/icon.svg';
+            },
+        });
+        const moduleRuntimeB = new CemElementRuntime({
+            declarationTag: 'cem-element-story-uri-module-b',
+            resolveModuleUrl: async (moduleSpecifier) => {
+                assertEqual(moduleSpecifier, specifier, 'module resolver receives the resource specifier');
+                return 'https://cdn.example.test/b/icon.svg';
+            },
+        });
+        const moduleA = await registerModuleUrlInstance(
+            root,
+            moduleRuntimeA,
+            'cem-element-story-uri-module-a',
+            'story-uri-module-a',
+            specifier,
+            'https://cdn.example.test/a/icon.svg'
+        );
+        const moduleB = await registerModuleUrlInstance(
+            root,
+            moduleRuntimeB,
+            'cem-element-story-uri-module-b',
+            'story-uri-module-b',
+            specifier,
+            'https://cdn.example.test/b/icon.svg'
+        );
+        assertEqual(
+            requiredElement(moduleA, 'a.asset').getAttribute('href'),
+            'https://cdn.example.test/a/icon.svg',
+            'module-url resolver policy is scoped to its runtime'
+        );
+        assertEqual(
+            requiredElement(moduleB, 'a.asset').getAttribute('href'),
+            'https://cdn.example.test/b/icon.svg',
+            'changing resolver policy uses a distinct runtime cache'
+        );
+        const moduleSnapshot = moduleRuntimeA.snapshotInstance(moduleA);
+        const modulePayload = moduleSnapshot.eventPayloads.asset as { type?: string; src?: string; value?: string };
+        assertEqual(moduleSnapshot.slices.asset, 'https://cdn.example.test/a/icon.svg', 'module-url writes a slice');
+        assertEqual(modulePayload.type, 'module-url', 'module-url stores resource payload metadata');
+        assertEqual(modulePayload.src, specifier, 'module-url payload records the source specifier');
+        assertEqual(modulePayload.value, 'https://cdn.example.test/a/icon.svg', 'module-url payload records the URL');
+        const retainedModuleAnchor = requiredElement(moduleA, 'a.asset');
+        moduleA.setAttribute('unused', 'rerender-module-url');
+        await nextFrame();
+        await moduleRuntimeA.whenRenderSettled(moduleA);
+        assertEqual(
+            requiredElement(moduleA, 'a.asset') === retainedModuleAnchor,
+            true,
+            'direct module-url setup keeps retained rendered nodes across rerender'
+        );
+        assert(moduleA.querySelector('module-url') === null, 'direct module-url setup removes helper nodes after rerender');
+
+        const failureRuntime = new CemElementRuntime({
+            declarationTag: 'cem-element-story-uri-module-fail',
+            resolveModuleUrl: async () => {
+                throw new Error('module map missing');
+            },
+        });
+        const failedModule = await registerModuleUrlInstance(
+            root,
+            failureRuntime,
+            'cem-element-story-uri-module-fail',
+            'story-uri-module-fail',
+            '@missing/icon.svg',
+            '@missing/icon.svg'
+        );
+        assertEqual(
+            requiredElement(failedModule, 'a.asset').getAttribute('href'),
+            '@missing/icon.svg',
+            'failed module-url resolution falls back to the original specifier'
+        );
+        assertDiagnostic(failureRuntime.diagnosticsFor(failedModule), 'cem-element.module_url_resolve_failed');
+    },
+};
+
+export const HttpRequestResourceLifecycle: Story = {
+    render: () =>
+        storyPanel(
+            'HTTP request resource lifecycle',
+            'pending/header/complete envelopes, resource revision, and stale request abort'
+        ),
+    play: async ({ canvasElement }) => {
+        const root = document.createElement('section');
+        root.setAttribute('aria-label', 'http-request resource lifecycle story');
+        canvasElement.appendChild(root);
+
+        const pending = new Map<string, (name: string) => void>();
+        const aborted: string[] = [];
+        const runtime = new CemElementRuntime({
+            declarationTag: 'cem-element-story-http-resource',
+            resolveResourceUrl: (request) => ({
+                authoredUrl: request.authoredUrl,
+                resolvedUrl: `https://resources.example.test/${request.authoredUrl}.json`,
+                resolverIdentity: 'story-http-resolver',
+                resourcePolicyStamp: 'story-http-policy',
+            }),
+            loadHttpResource: (request) =>
+                new Promise((resolve, reject) => {
+                    request.signal.addEventListener(
+                        'abort',
+                        () => {
+                            aborted.push(request.authoredUrl);
+                            reject(new Error('aborted'));
+                        },
+                        { once: true }
+                    );
+                    pending.set(request.authoredUrl, (name) =>
+                        resolve({
+                            response: {
+                                url: request.resolvedUrl,
+                                status: 200,
+                                statusText: 'OK',
+                                ok: true,
+                                redirected: false,
+                                headers: { 'content-type': 'application/json' },
+                                contentType: 'application/json',
+                            },
+                            body: utf8Body(JSON.stringify({ name, results: [{ name, status: 'ready' }] })),
+                        })
+                    );
+                }),
+        });
+
+        const declaration = buildCemMlDeclaration(
+            'cem-element-story-http-resource',
+            'story-http-resource-panel',
+            [
+                '{http-request @slice=page @url="{$datadom.attributes.url}" @content-type="application/json"}',
+                '{article |',
+                '  {p @class=state | {$datadom.slices.page.state}}',
+                '  {p @class=revision | {$datadom.slices.page.resourceRevision}}',
+                '  {cem:if @test=\'datadom.slices.page.state = "complete"\' |',
+                '    {output @class=name | {$datadom.slices.page.data.name}}',
+                '  }',
+                '}',
+            ].join('\n')
+        );
+        root.appendChild(declaration);
+        assert(runtime.registerDeclaration(declaration), 'http-request declaration registers');
+        await runtime.whenDeclarationSettled(declaration);
+
+        const instance = document.createElement('story-http-resource-panel');
+        instance.setAttribute('url', 'first');
+        root.appendChild(instance);
+        await waitForCondition(
+            () => instance.querySelector('.state')?.textContent?.trim() === 'pending',
+            'http-request renders pending state'
+        );
+
+        instance.setAttribute('url', 'second');
+        await waitForCondition(() => aborted.includes('first'), 'stale http-request is aborted');
+        pending.get('second')?.('second');
+        await waitForCondition(
+            () => instance.querySelector('.name')?.textContent?.trim() === 'second',
+            'latest http-request completion renders data'
+        );
+
+        const snapshot = runtime.snapshotInstance(instance);
+        const page = snapshot.slices.page as {
+            state?: string;
+            resourceRevision?: number;
+            request?: { authoredUrl?: string };
+            sourceId?: {
+                kind?: string;
+                id?: string;
+                authoredUrl?: string;
+                finalUrl?: string;
+                responseIdentityHash?: string;
+            };
+            data?: { name?: string };
+        };
+        assertEqual(page.state, 'complete', 'snapshot stores completed http-request state');
+        assertEqual(page.resourceRevision, 2, 'resource revision increments after URL change');
+        assertEqual(page.request?.authoredUrl, 'second', 'snapshot stores latest authored URL');
+        assertEqual(page.sourceId?.kind, 'http-response', 'snapshot stores source-id kind');
+        assertEqual(page.sourceId?.authoredUrl, 'second', 'source-id records authored URL');
+        assertEqual(page.sourceId?.finalUrl, 'https://resources.example.test/second.json', 'source-id records response URL');
+        assert(page.sourceId?.id?.startsWith('http-source-'), 'source-id uses an opaque public id');
+        assert(page.sourceId?.responseIdentityHash, 'source-id records a response identity hash');
+        assertEqual(page.data?.name, 'second', 'snapshot stores serializable response data');
+        JSON.stringify(page);
+    },
+};
+
+export const LocalStorageResourceLifecycle: Story = {
+    render: () =>
+        storyPanel(
+            'local-storage resource lifecycle',
+            'typed hydration, same-document live updates, and slice write-back'
+        ),
+    play: async ({ canvasElement }) => {
+        const root = document.createElement('section');
+        root.setAttribute('aria-label', 'local-storage resource lifecycle story');
+        canvasElement.appendChild(root);
+
+        const textKey = 'cem-story-local-storage-text';
+        const numberKey = 'cem-story-local-storage-number';
+        const jsonKey = 'cem-story-local-storage-json';
+        localStorage.removeItem(textKey);
+        localStorage.removeItem(numberKey);
+        localStorage.removeItem(jsonKey);
+        localStorage.setItem(textKey, 'stored initial');
+        localStorage.setItem(numberKey, '7');
+        localStorage.setItem(jsonKey, JSON.stringify({ answer: 'json initial' }));
+
+        const runtime = new CemElementRuntime({ declarationTag: 'cem-element-story-local-storage' });
+        const declaration = buildCemMlDeclaration(
+            'cem-element-story-local-storage',
+            'story-local-storage-panel',
+            [
+                `{local-storage @slice=draft @key=${textKey} @type=text @live=true}`,
+                `{local-storage @slice=count @key=${numberKey} @type=number @live=true}`,
+                `{local-storage @slice=config @key=${jsonKey} @type=json @live=true}`,
+                '{article |',
+                '  {input @class=draft @value="{$datadom.slices.draft}" @slice=draft @slice-event=input @slice-value="$target.value"}',
+                '  {output @class=draft-output | {$datadom.slices.draft}}',
+                '  {output @class=count-output | {$datadom.slices.count}}',
+                '  {output @class=json-output | {$datadom.slices.config.answer}}',
+                '}',
+            ].join('\n')
+        );
+        root.appendChild(declaration);
+        assert(runtime.registerDeclaration(declaration), 'local-storage declaration registers');
+        await runtime.whenDeclarationSettled(declaration);
+
+        const instance = document.createElement('story-local-storage-panel');
+        root.appendChild(instance);
+        await waitForCondition(
+            () => instance.querySelector('.draft-output')?.textContent?.trim() === 'stored initial',
+            'local-storage hydrates text slice'
+        );
+        assertEqual(
+            instance.querySelector('.count-output')?.textContent?.trim(),
+            '7',
+            'local-storage coerces number slice'
+        );
+        assertEqual(
+            instance.querySelector('.json-output')?.textContent?.trim(),
+            'json initial',
+            'local-storage coerces JSON slice'
+        );
+
+        dispatchInput(instance, 'typed draft');
+        await waitForCondition(
+            () => localStorage.getItem(textKey) === 'typed draft',
+            'slice event writes back to localStorage'
+        );
+
+        localStorage.setItem(textKey, 'external update');
+        localStorage.setItem(numberKey, '42');
+        localStorage.setItem(jsonKey, JSON.stringify({ answer: 'json update' }));
+        await waitForCondition(
+            () => instance.querySelector('.draft-output')?.textContent?.trim() === 'external update',
+            'local-storage live text update renders'
+        );
+        assertEqual(
+            instance.querySelector('.count-output')?.textContent?.trim(),
+            '42',
+            'local-storage live number update renders'
+        );
+        assertEqual(
+            instance.querySelector('.json-output')?.textContent?.trim(),
+            'json update',
+            'local-storage live JSON update renders'
+        );
+
+        const snapshot = runtime.snapshotInstance(instance);
+        assertEqual(snapshot.slices.draft, 'external update', 'snapshot stores live text slice');
+        assertEqual(snapshot.slices.count, 42, 'snapshot stores coerced number slice');
+        assertEqual(
+            (snapshot.slices.config as { answer?: string }).answer,
+            'json update',
+            'snapshot stores parsed JSON slice'
+        );
+        const payload = snapshot.eventPayloads.draft as { type?: string; key?: string; storageType?: string; live?: boolean };
+        assertEqual(payload.type, 'local-storage', 'local-storage stores resource payload metadata');
+        assertEqual(payload.key, textKey, 'local-storage payload records storage key');
+        assertEqual(payload.storageType, 'text', 'local-storage payload records storage type');
+        assertEqual(payload.live, true, 'local-storage payload records live mode');
+
+        localStorage.removeItem(textKey);
+        localStorage.removeItem(numberKey);
+        localStorage.removeItem(jsonKey);
+    },
+};
+
+export const LocationElementResourceLifecycle: Story = {
+    render: () =>
+        storyPanel(
+            'location-element resource lifecycle',
+            'current URL hydration, href parsing, query params, and live history updates'
+        ),
+    play: async ({ canvasElement }) => {
+        const root = document.createElement('section');
+        root.setAttribute('aria-label', 'location-element resource lifecycle story');
+        canvasElement.appendChild(root);
+        const originalUrl = location.href;
+
+        try {
+            history.replaceState({}, '', './?cemLocation=start#initial');
+
+            const runtime = new CemElementRuntime({ declarationTag: 'cem-element-story-location' });
+            const declaration = buildCemMlDeclaration(
+                'cem-element-story-location',
+                'story-location-panel',
+                [
+                    '{location-element @slice=current @live=true}',
+                    '{location-element @slice=sample @href="https://example.test/docs/page?mode=demo&tag=one&tag=two#sample"}',
+                    '{slice @name=target | #story-write}',
+                    '{article |',
+                    '  {input @class=target @value="{$target}" @slice=target @slice-event=input @slice-value="$target.value"}',
+                    '  {button @class=write @type=button @slice=applyUrl @slice-event=click @slice-value="$event.type" | Write URL}',
+                    '  {cem:if @test="datadom.slices.applyUrl" |',
+                    '    {location-element @method="history.pushState" @src="{$target}"}',
+                    '  }',
+                    '  {output @class=current-hash | {$datadom.slices.current.hash}}',
+                    '  {output @class=sample-host | {$datadom.slices.sample.hostname}}',
+                    '  {ul @class=sample-params |',
+                    '    {cem:for-each @select="datadom.slices.sample.paramEntries" @as=param |',
+                    '      {li | {$param.name}: {$param.text}}',
+                    '    }',
+                    '  }',
+                    '}',
+                ].join('\n')
+            );
+            root.appendChild(declaration);
+            assert(runtime.registerDeclaration(declaration), 'location-element declaration registers');
+            await runtime.whenDeclarationSettled(declaration);
+
+            const instance = document.createElement('story-location-panel');
+            root.appendChild(instance);
+            await waitForCondition(
+                () => instance.querySelector('.current-hash')?.textContent?.trim() === '#initial',
+                'location-element hydrates current URL'
+            );
+            assertEqual(
+                instance.querySelector('.sample-host')?.textContent?.trim(),
+                'example.test',
+                'location-element parses href hostname'
+            );
+            assert(
+                Array.from(instance.querySelectorAll('.sample-params li')).some(
+                    (item) => item.textContent?.trim() === 'tag: one,two'
+                ),
+                'location-element exposes repeated params for rendering'
+            );
+
+            history.pushState({}, '', './?cemLocation=updated#live');
+            await waitForCondition(
+                () => instance.querySelector('.current-hash')?.textContent?.trim() === '#live',
+                'location-element live history update renders'
+            );
+
+            dispatchInput(instance, '#story-write');
+            await waitForCondition(
+                () => runtime.snapshotInstance(instance).slices.target === '#story-write',
+                'location-element target slice updates'
+            );
+            (requiredElement(instance, 'button.write') as HTMLButtonElement).click();
+            await waitForCondition(
+                () => instance.querySelector('.current-hash')?.textContent?.trim() === '#story-write',
+                'location-element declarative URL write renders'
+            );
+
+            const snapshot = runtime.snapshotInstance(instance);
+            const current = snapshot.slices.current as {
+                hash?: string;
+                params?: Record<string, string[]>;
+                paramEntries?: { name?: string; text?: string }[];
+            };
+            const sample = snapshot.slices.sample as { hostname?: string; hash?: string };
+            assertEqual(current.hash, '#story-write', 'snapshot stores written current hash');
+            assertEqual(sample.hostname, 'example.test', 'snapshot stores parsed href hostname');
+            assertEqual(sample.hash, '#sample', 'snapshot stores parsed href hash');
+            assert(
+                current.paramEntries?.some((entry) => entry.name === 'cemLocation' && entry.text === 'updated') ?? false,
+                'snapshot stores renderable current param entries'
+            );
+            const payload = snapshot.eventPayloads.current as { type?: string; href?: string | null; live?: boolean };
+            assertEqual(payload.type, 'location-element', 'location-element stores resource payload metadata');
+            assertEqual(payload.href, null, 'location-element payload records current-window source');
+            assertEqual(payload.live, true, 'location-element payload records live mode');
+        } finally {
+            root.remove();
+            history.replaceState({}, '', originalUrl);
+        }
+    },
+};
+
 export const LocalSrcDeclarationLoadingParity: Story = {
     render: () => {
         const root = document.createElement('section');
@@ -967,7 +1617,7 @@ export const LocalSrcDeclarationLoadingParity: Story = {
 };
 
 export const LegacyBridgeTemplateParity: Story = {
-    render: () => storyPanel('Legacy bridge template', 'custom-element-v0 bridge renders during migration'),
+    render: () => storyPanel('Legacy bridge template', 'custom-element-v0 routes through the shared legacy-xslt engine'),
     play: async ({ canvasElement }) => {
         const root = document.createElement('section');
         canvasElement.appendChild(root);
@@ -978,8 +1628,8 @@ export const LegacyBridgeTemplateParity: Story = {
                 lang: 'custom-element-v0',
                 html:
                     '<attribute name="label">Legacy</attribute>' +
-                    '<button type="button" title="{title}">{$label} {title}</button>' +
-                    '<if test="//smile"><span class="smile">{//smile}</span></if>' +
+                    '<button type="button" title="{$title}">{$label} {$title}</button>' +
+                    '<if test="$label"><span class="label">{$label}</span></if>' +
                     '<slot name="description"><i>fallback</i></slot>',
             }],
         });
@@ -988,7 +1638,6 @@ export const LegacyBridgeTemplateParity: Story = {
 
         const instance = document.createElement('story-legacy-bridge');
         instance.setAttribute('title', 'Bridge');
-        instance.dataset.smile = 'yes';
         instance.innerHTML = '<p slot="description">projected</p>';
         root.appendChild(instance);
 
@@ -996,7 +1645,7 @@ export const LegacyBridgeTemplateParity: Story = {
         const button = await waitForElement(instance, 'button');
         assertEqual(button.textContent?.trim(), 'Legacy Bridge', 'legacy text interpolation resolves defaults and host attributes');
         assertEqual(button.getAttribute('title'), 'Bridge', 'legacy attribute value templates resolve host attributes');
-        assertEqual(requiredElement(instance, '.smile').textContent, 'yes', 'legacy if test reads dataset-style //path values');
+        assertEqual(requiredElement(instance, '.label').textContent, 'Legacy', 'legacy if test renders through the engine');
         assertEqual(requiredElement(instance, 'p[slot="description"]').textContent, 'projected', 'legacy slots project payload');
     },
 };
@@ -1160,11 +1809,13 @@ export const SlotProjectionRepeatedNames: Story = {
         const declaration = document.createElement('cem-element-story-slot-dup');
         declaration.setAttribute('tag', 'story-slot-dup');
         const template = document.createElement('template');
-        // Two slots share the name `a`; a slottable is assigned to the first match only.
+        // CEM parity allows repeated slot inclusions to project the same payload more than once.
         template.innerHTML = [
             '<div class="card">',
             '<slot name="a"><em class="f1">f1</em></slot>',
             '<slot name="a"><em class="f2">f2</em></slot>',
+            '<slot name=""><em class="f3">f3</em></slot>',
+            '<slot><em class="f4">f4</em></slot>',
             '</div>',
         ].join('');
         declaration.appendChild(template);
@@ -1172,7 +1823,7 @@ export const SlotProjectionRepeatedNames: Story = {
         runtime.registerDeclaration(declaration);
 
         const instance = document.createElement('story-slot-dup');
-        instance.innerHTML = '<span slot="a">X</span>';
+        instance.innerHTML = '<span slot="a">X</span><i slot="">Y</i>';
         root.appendChild(instance);
 
         return root;
@@ -1185,14 +1836,27 @@ export const SlotProjectionRepeatedNames: Story = {
         assertEqual(
             card.querySelector('[slot="a"]')?.textContent,
             'X',
-            'the first matching slot receives the single payload'
+            'the first matching slot receives the payload'
         );
-        assert(card.querySelector('.f1') === null, 'the first slot drops its fallback once filled');
         assertEqual(
-            card.querySelector('.f2')?.textContent,
-            'f2',
-            'a repeated same-name slot falls back when the payload is already consumed'
+            card.querySelectorAll('[slot="a"]').length,
+            2,
+            'a repeated same-name slot projects the payload again'
         );
+        assert(card.querySelector('.f1') === null, 'the first named slot drops its fallback once filled');
+        assert(card.querySelector('.f2') === null, 'the repeated named slot also drops its fallback once filled');
+        assertEqual(
+            card.querySelectorAll('[slot=""]').length,
+            2,
+            'blank-name and omitted-name default slots both project the whole default payload'
+        );
+        assertEqual(
+            Array.from(card.querySelectorAll('[slot=""]'), (node) => node.textContent).join('|'),
+            'Y|Y',
+            'default payload is reusable across blank-name and omitted-name slots'
+        );
+        assert(card.querySelector('.f3') === null, 'the blank-name default slot drops its fallback once filled');
+        assert(card.querySelector('.f4') === null, 'the omitted-name default slot drops its fallback once filled');
     },
 };
 
@@ -1263,7 +1927,19 @@ export const RuntimeDiagnosticsSurface: Story = {
         parserRuntime.registerDeclaration(parserDeclaration);
 
         await parserRuntime.whenDeclarationSettled(parserDeclaration);
-        assertDiagnostic(parserRuntime.diagnosticsFor(parserDeclaration), 'cem.tokenizer.bare_brace_text');
+        const parserDiagnostic = findDiagnostic(
+            parserRuntime.diagnosticsFor(parserDeclaration),
+            'cem.tokenizer.bare_brace_text'
+        );
+        assertEqual(
+            parserDiagnostic.sourceMapRef?.fidelity,
+            'author-byte-exact',
+            'CEM-ML parser diagnostics carry source-byte fidelity'
+        );
+        assert(
+            /^cem:\d+$/.test(parserDiagnostic.sourceMapRef?.frame ?? ''),
+            'CEM-ML parser diagnostics carry byte frames'
+        );
 
         const renderRuntime = new CemElementRuntime({ declarationTag: 'cem-element-story-render-diagnostic' });
         renderRuntime.install(window);
@@ -1280,7 +1956,12 @@ export const RuntimeDiagnosticsSurface: Story = {
         root.appendChild(instance);
         await renderRuntime.whenRenderSettled(instance);
 
-        assertDiagnostic(renderRuntime.diagnosticsFor(instance), 'cem.ql.render.compile_failed');
+        const renderDiagnostic = findDiagnostic(renderRuntime.diagnosticsFor(instance), 'cem.ql.render.compile_failed');
+        assertEqual(
+            renderDiagnostic.sourceMapRef?.fidelity,
+            'author-byte-exact',
+            'CEM-ML render diagnostics carry source-byte fidelity'
+        );
     },
 };
 
@@ -1380,6 +2061,321 @@ export const SliceEventInvalidationRerenders: Story = {
             'Tokens',
             'rerendered controls receive the updated slice value'
         );
+        const retainedInput = requiredElement(instance, 'input') as HTMLInputElement;
+        assertEqual(retainedInput === input, true, 'slice-event rerender keeps the retained input node');
+        assert(!retainedInput.hasAttribute('slice-event'), 'direct slice-event setup removes metadata after rerender');
+
+        retainedInput.value = 'Again';
+        retainedInput.dispatchEvent(new Event('input', { bubbles: true }));
+        await nextFrame();
+        assertEqual(
+            requiredElement(instance, 'output').textContent,
+            'Again',
+            'retained slice-event listener updates the slice once on a later rerender'
+        );
+    },
+};
+
+export const SliceEventExpressionParity: Story = {
+    render: () => {
+        const root = document.createElement('section');
+        root.setAttribute('aria-label', 'slice event expression parity story');
+
+        const runtime = new CemElementRuntime({ declarationTag: 'cem-element-story-slice-expr' });
+        runtime.install(window);
+
+        const declaration = document.createElement('cem-element-story-slice-expr');
+        declaration.setAttribute('tag', 'story-slice-expression-field');
+        const template = document.createElement('template');
+        template.innerHTML = [
+            '<slice name="count">0</slice>',
+            '<slice name="pointer"></slice>',
+            '<slice name="left"></slice>',
+            '<slice name="right"></slice>',
+            '<button type="button" data-role="increment" slice="count" slice-event="click tap" slice-value="//count + 1">+</button>',
+            '<button type="button" data-role="decrement" slice="count" slice-event="click" slice-value="//count - 1">-</button>',
+            '<textarea data-role="pointer" slice="pointer" slice-event="mousemove click" slice-value="concat(\'x:\', //@clientX)"></textarea>',
+            '<input data-role="fanout" slice="left|right" slice-event="input" slice-value="@value" />',
+            '<output data-role="count">${$count}</output>',
+            '<output data-role="pointer">${$pointer}</output>',
+            '<output data-role="left">${$left}</output>',
+            '<output data-role="right">${$right}</output>',
+        ].join('');
+        declaration.appendChild(template);
+        root.appendChild(declaration);
+        runtime.registerDeclaration(declaration);
+
+        const instance = document.createElement('story-slice-expression-field');
+        root.appendChild(instance);
+        return root;
+    },
+    play: async ({ canvasElement }) => {
+        const instance = await waitForElement(canvasElement, 'story-slice-expression-field');
+        const increment = requiredElement(instance, 'button[data-role="increment"]') as HTMLButtonElement;
+        const decrement = requiredElement(instance, 'button[data-role="decrement"]') as HTMLButtonElement;
+        const pointer = requiredElement(instance, 'textarea[data-role="pointer"]') as HTMLTextAreaElement;
+        const fanout = requiredElement(instance, 'input[data-role="fanout"]') as HTMLInputElement;
+
+        increment.click();
+        await waitForCondition(
+            () => requiredElement(instance, 'output[data-role="count"]').textContent === '1',
+            'slice arithmetic increment renders'
+        );
+        increment.dispatchEvent(new Event('tap', { bubbles: true }));
+        await waitForCondition(
+            () => requiredElement(instance, 'output[data-role="count"]').textContent === '2',
+            'slice multi-event tap renders'
+        );
+        decrement.click();
+        await waitForCondition(
+            () => requiredElement(instance, 'output[data-role="count"]').textContent === '1',
+            'slice arithmetic decrement renders'
+        );
+
+        pointer.dispatchEvent(new MouseEvent('mousemove', { bubbles: true, clientX: 37 }));
+        await waitForCondition(
+            () => requiredElement(instance, 'output[data-role="pointer"]').textContent === 'x:37',
+            'slice concat reads mouse event fields'
+        );
+
+        fanout.value = 'mirrored';
+        fanout.dispatchEvent(new Event('input', { bubbles: true }));
+        await waitForCondition(
+            () =>
+                requiredElement(instance, 'output[data-role="left"]').textContent === 'mirrored' &&
+                requiredElement(instance, 'output[data-role="right"]').textContent === 'mirrored',
+            'slice fan-out writes multiple slices'
+        );
+    },
+};
+
+export const FormDataValidationStateSnapshot: Story = {
+    render: () => {
+        const root = document.createElement('section');
+        root.setAttribute('aria-label', 'form data validation state story');
+
+        const runtime = new CemElementRuntime({ declarationTag: 'cem-element-story-form-data' });
+        runtime.install(window);
+
+        const declaration = document.createElement('cem-element-story-form-data');
+        declaration.setAttribute('tag', 'story-form-data-field');
+        const template = document.createElement('template');
+        template.innerHTML = [
+            '<slice name="username"></slice>',
+            '<slice name="password"></slice>',
+            '<form slice="signin" custom-validity="string-length(/datadom/slice/signin/form-data/username) &gt; 2 and string-length(//form-data/password) &gt; 3 ?? \'enter username and password\'">',
+            '<label>Username <input name="username" required value="{$username}" slice="username" slice-event="input" slice-value="$target.value" /></label>',
+            '<label>Password <input name="password" type="password" required custom-validity="string-length(//form-data/password) &gt; 3 ?? \'password is too short\'" value="{$password}" slice="password" slice-event="input" slice-value="$target.value" /></label>',
+            '<output data-role="form-username">${$datadom.formData.signin.username}</output>',
+            '<output data-role="mirror-username">${$datadom.slices.signin.formData.username}</output>',
+            '<output data-role="form-valid">${$datadom.validationState.signin.valid}</output>',
+            '<output data-role="form-message">${$datadom.validationState.signin.validationMessage}</output>',
+            '<output data-role="password-valid">${$datadom.validationState.signin.controls.password.valid}</output>',
+            '<output data-role="password-message">${$datadom.validationState.signin.controls.password.validationMessage}</output>',
+            '</form>',
+        ].join('');
+        declaration.appendChild(template);
+        root.appendChild(declaration);
+        runtime.registerDeclaration(declaration);
+
+        const instance = document.createElement('story-form-data-field');
+        root.appendChild(instance);
+        (instance as HTMLElement & { __runtime?: CemElementRuntime }).__runtime = runtime;
+        return root;
+    },
+    play: async ({ canvasElement }) => {
+        const instance = await waitForElement(canvasElement, 'story-form-data-field');
+        const username = requiredElement(instance, 'input[name="username"]') as HTMLInputElement;
+        const password = requiredElement(instance, 'input[name="password"]') as HTMLInputElement;
+        const runtime = (instance as HTMLElement & { __runtime?: CemElementRuntime }).__runtime;
+        assert(runtime, 'form data story runtime should be attached to the instance');
+
+        username.value = 'ada';
+        username.dispatchEvent(new Event('input', { bubbles: true }));
+        await waitForCondition(
+            () => requiredElement(instance, 'output[data-role="form-username"]').textContent === 'ada',
+            'form-data projects the username field'
+        );
+        assertEqual(
+            requiredElement(instance, 'output[data-role="mirror-username"]').textContent,
+            'ada',
+            'form slice mirror exposes form-data under datadom.slices'
+        );
+        assertEqual(
+            requiredElement(instance, 'output[data-role="form-valid"]').textContent,
+            'false',
+            'form validity reflects the remaining required password control'
+        );
+        assertEqual(
+            requiredElement(instance, 'output[data-role="form-message"]').textContent,
+            'enter username and password',
+            'form custom-validity message projects into validation state'
+        );
+        assertEqual(
+            requiredElement(instance, 'output[data-role="password-message"]').textContent,
+            'password is too short',
+            'control custom-validity message projects into validation state'
+        );
+
+        password.value = 'secret';
+        password.dispatchEvent(new Event('input', { bubbles: true }));
+        await waitForCondition(
+            () => requiredElement(instance, 'output[data-role="form-valid"]').textContent === 'true',
+            'form validity updates after required controls are filled'
+        );
+        assertEqual(
+            requiredElement(instance, 'output[data-role="password-valid"]').textContent,
+            'true',
+            'control validation state projects by control name'
+        );
+        assertEqual(
+            requiredElement(instance, 'output[data-role="form-message"]').textContent,
+            '',
+            'form custom-validity message clears when the expression becomes valid'
+        );
+        assertEqual(
+            requiredElement(instance, 'output[data-role="password-message"]').textContent,
+            '',
+            'control custom-validity message clears when the expression becomes valid'
+        );
+
+        const snapshot = runtime.snapshotInstance(instance);
+        const formData = snapshot.formData?.signin as Record<string, unknown>;
+        const validation = snapshot.validationState.signin as {
+            valid?: boolean;
+            validationMessage?: string;
+            controls?: Record<string, { valid?: boolean; validationMessage?: string }>;
+        };
+        const mirror = snapshot.slices.signin as { formData?: Record<string, unknown> };
+        assertEqual(formData.username, 'ada', 'snapshot formData stores username');
+        assertEqual(formData.password, 'secret', 'snapshot formData stores password');
+        assertEqual(mirror.formData?.username, 'ada', 'snapshot slices mirror formData under the form slice');
+        assertEqual(validation.valid, true, 'snapshot validationState stores form validity');
+        assertEqual(validation.validationMessage, '', 'snapshot validationState clears form custom-validity messages');
+        assertEqual(validation.controls?.password?.valid, true, 'snapshot validationState stores control validity');
+        assertEqual(
+            validation.controls?.password?.validationMessage,
+            '',
+            'snapshot validationState clears control custom-validity messages'
+        );
+    },
+};
+
+export const EventToDataRenderLoopSnapshot: Story = {
+    render: () => storyPanel('Event to data loop', 'slice events update render output and data snapshots'),
+    play: async ({ canvasElement }) => {
+        const root = document.createElement('section');
+        root.setAttribute('aria-label', 'event to data render loop story');
+        canvasElement.appendChild(root);
+
+        const runtime = new CemElementRuntime({ declarationTag: 'cem-element-story-event-data' });
+        const declaration = buildDeclaration({
+            tag: 'story-event-data-field',
+            templates: [
+                {
+                    html: [
+                        '<attribute name="label">Search</attribute>',
+                        '<slice name="query"></slice>',
+                        '<slice name="custom"></slice>',
+                        '<label>',
+                        '  <slot name="label">${$label}</slot>',
+                        '  <input name="query" data-role="query" value="{$query}" slice="query" slice-event="input" slice-value="{$target.value}" />',
+                        '</label>',
+                        '<output data-query="{$query}">${$query}</output>',
+                        '<button type="button" data-role="custom" slice="custom" slice-event="cem-select" slice-value="\'cem-select\'">Select</button>',
+                        '<span class="custom">${$custom}</span>',
+                    ].join(''),
+                },
+            ],
+        });
+        runtime.registerDeclaration(declaration);
+
+        const first = document.createElement('story-event-data-field');
+        first.setAttribute('label', 'First search');
+        first.setAttribute('data-tracking-id', 'first-1');
+        first.innerHTML = [
+            '<span slot="label">Visible label</span>',
+            '<data value="alpha" data-rank="1">Alpha</data>',
+            '<option value="beta">Beta</option>',
+        ].join('');
+
+        const second = document.createElement('story-event-data-field');
+        second.setAttribute('label', 'Second search');
+        second.setAttribute('data-tracking-id', 'second-1');
+        second.innerHTML = '<data value="gamma">Gamma</data><option value="delta">Delta</option>';
+
+        root.append(first, second);
+        await waitForElement(first, 'input');
+        await waitForElement(second, 'input');
+
+        dispatchInput(first, 'a');
+        await waitForCondition(
+            () => requiredElement(first, 'output').textContent === 'a',
+            'the first input event renders'
+        );
+        dispatchInput(first, 'ab');
+        dispatchInput(first, 'latest');
+        await waitForCondition(
+            () => requiredElement(first, 'output').textContent === 'latest',
+            'repeated input events render the latest value'
+        );
+        assertEqual(requiredElement(first, 'output').textContent, 'latest', 'stale repeated input output does not survive');
+
+        dispatchInput(second, 'other');
+        await waitForCondition(
+            () => requiredElement(second, 'output').textContent === 'other',
+            'the second instance renders its own event'
+        );
+        assertEqual(requiredElement(first, 'output').textContent, 'latest', 'the first instance stays isolated');
+
+        requiredElement(first, 'button[data-role="custom"]').dispatchEvent(
+            new CustomEvent('cem-select', {
+                bubbles: true,
+                detail: { id: 'alpha', nested: { ok: true } },
+            })
+        );
+        await waitForCondition(
+            () => requiredElement(first, '.custom').textContent === 'cem-select',
+            'custom event slice renders from the event type'
+        );
+
+        const firstSnapshot = runtime.snapshotInstance(first);
+        assertEqual(firstSnapshot.hostAttributes.label, 'First search', 'host attributes serialize into the data snapshot');
+        assertEqual(firstSnapshot.dataset.trackingId, 'first-1', 'dataset serializes into the data snapshot');
+        assertEqual(firstSnapshot.payload.slots.label[0]?.kind, 'element', 'named slot payload serializes');
+        assertEqual(firstSnapshot.payload.dataByValue.alpha.label, 'Alpha', 'data payload choices serialize by value');
+        assertEqual(firstSnapshot.payload.optionsByValue.beta.label, 'Beta', 'option payload choices serialize by value');
+        assertEqual(firstSnapshot.slices.query, 'latest', 'slice state serializes after repeated events');
+        assertEqual(firstSnapshot.slices.custom, 'cem-select', 'custom event slice state serializes');
+        assertEqual(
+            Object.keys(firstSnapshot.validationState).length,
+            0,
+            'validation state serializes as an explicit record'
+        );
+
+        const eventPayload = firstSnapshot.eventPayloads.query as SerializedEventPayload;
+        assertEqual(eventPayload.type, 'input', 'event payload records the event type');
+        assertEqual(eventPayload.sliceValue, 'latest', 'event payload records the resolved slice value');
+        assertEqual(eventPayload.target?.tag, 'input', 'event payload records the target element');
+        assertEqual(eventPayload.target?.name, 'query', 'event payload records target name');
+        assertEqual(eventPayload.target?.value, 'latest', 'event payload records target value');
+        assertEqual(eventPayload.target?.dataset.role, 'query', 'event payload records target dataset');
+        assertEqual(eventPayload.currentTarget?.tag, 'input', 'event payload records currentTarget');
+        const customPayload = firstSnapshot.eventPayloads.custom as SerializedEventPayload;
+        const customDetail = customPayload.detail as { id?: string; nested?: { ok?: boolean } };
+        assertEqual(customPayload.type, 'cem-select', 'custom event payload records event type');
+        assertEqual(customPayload.sliceValue, 'cem-select', 'custom event payload records resolved slice value');
+        assertEqual(customDetail.id, 'alpha', 'custom event payload records JSON-safe detail');
+        assertEqual(customDetail.nested?.ok, true, 'custom event payload preserves nested JSON-safe detail');
+
+        const secondSnapshot = runtime.snapshotInstance(second);
+        assertEqual(secondSnapshot.slices.query, 'other', 'second instance owns an isolated slice record');
+        assertEqual(
+            (secondSnapshot.eventPayloads.query as SerializedEventPayload).target?.value,
+            'other',
+            'second instance owns an isolated event payload'
+        );
+        assertEqual(firstSnapshot.instanceId === secondSnapshot.instanceId, false, 'instances receive distinct ids');
     },
 };
 
@@ -1463,25 +2459,223 @@ export const RenderMetadataAdvancesDataRevisionOnRerender: Story = {
         const nodeId = first.getAttribute('data-cem-render-node-id');
         const frame = first.getAttribute('data-cem-source-frame');
         assertEqual(first.getAttribute('data-cem-data-revision'), '1', 'first render carries data revision 1');
+        (first as Element & { cemRenderNodeId?: string }).cemRenderNodeId = undefined;
 
         instance.setAttribute('label', 'Updated');
         await nextFrame();
 
         const second = requiredElement(instance, 'button');
+        assertEqual(second === first, true, 'rerender updates the existing render-node DOM object in place');
+        assertEqual(second.textContent, 'Updated', 'rerender updates changed text inside the retained node');
         assertEqual(second.getAttribute('data-cem-data-revision'), '2', 'rerender advances the data revision');
         assertEqual(
             second.getAttribute('data-cem-render-node-id'),
             nodeId,
             'render-node identity stays stable across rerenders'
         );
+        assertEqual(
+            (second as Element & { cemRenderNodeId?: string }).cemRenderNodeId,
+            nodeId,
+            'serialized render-node identity is mirrored back into the DOM property path'
+        );
         assertEqual(second.getAttribute('data-cem-source-frame'), frame, 'source frame stays stable across rerenders');
 
         instance.setAttribute('label', 'Third');
         await nextFrame();
         assertEqual(
+            requiredElement(instance, 'button') === first,
+            true,
+            'later rerenders keep the same retained render-node DOM object'
+        );
+        assertEqual(
             requiredElement(instance, 'button').getAttribute('data-cem-data-revision'),
             '3',
             'each invalidation advances the data revision'
+        );
+    },
+};
+
+export const DirectRenderPlanPatchUsesCommentRanges: Story = {
+    render: () => {
+        const root = document.createElement('section') as HTMLElement & {
+            __bounds?: { start: Comment; end: Comment };
+        };
+        root.setAttribute('aria-label', 'direct render-plan patch story');
+        const host = document.createElement('div');
+        host.className = 'direct-patch-host';
+        const start = document.createComment('cem-render-start');
+        const end = document.createComment('cem-render-end');
+        host.append(start, end);
+        root.__bounds = { start, end };
+        root.append(host);
+        return root;
+    },
+    play: ({ canvasElement }) => {
+        const root = requiredElement(canvasElement, '[aria-label="direct render-plan patch story"]') as HTMLElement & {
+            __bounds?: { start: Comment; end: Comment };
+        };
+        const bounds = root.__bounds;
+        assert(bounds !== undefined, 'direct patch render bounds are available');
+        const host = requiredElement(root, '.direct-patch-host');
+        const first = directPatchPlan('Hello');
+        const firstResult = applyRenderPlanToRange(bounds, first, document, { dynamicTextRanges: true });
+        assertEqual(firstResult.mode, 'patch', 'initial direct apply inserts from the render plan');
+
+        const paragraph = requiredElement(host, 'p');
+        const startMarker = Array.from(paragraph.childNodes).find((node) => node.nodeValue?.startsWith('cem-start:text:'));
+        const text = Array.from(paragraph.childNodes).find((node) => node.nodeType === Node.TEXT_NODE);
+        assert(startMarker !== undefined, 'direct apply emits a comment range for dynamic text');
+        assert(text !== undefined, 'direct apply keeps dynamic text as a text node inside the range');
+        assertEqual(paragraph.textContent, 'Hello', 'comment ranges do not affect rendered text content');
+
+        const second = directPatchPlan('World');
+        const secondResult = applyRenderPlanToRange(bounds, second, document, { dynamicTextRanges: true });
+        assertEqual(secondResult.mode, 'patch', 'matching render identities patch in place');
+        assertEqual(requiredElement(host, 'p') === paragraph, true, 'direct patch keeps the element node');
+        assertEqual(
+            Array.from(paragraph.childNodes).find((node) => node.nodeType === Node.TEXT_NODE) === text,
+            true,
+            'direct patch keeps the dynamic text node'
+        );
+        assertEqual(paragraph.textContent, 'World', 'direct patch updates dynamic range text');
+
+        paragraph.setAttribute('data-cem-render-node-id', 'foreign-root');
+        (paragraph as Element & { cemRenderNodeId?: string }).cemRenderNodeId = 'foreign-root';
+        const recovery = applyRenderPlanToRange(bounds, second, document, { dynamicTextRanges: true });
+        assertEqual(recovery.mode, 'replaceScope', 'root identity mismatch falls back to replaceScope');
+        assertEqual(
+            recovery.diagnostics[0]?.code,
+            'cem.render_plan_apply.replace_scope',
+            'replaceScope recovery emits a diagnostic'
+        );
+        assertEqual(requiredElement(host, 'p') === paragraph, false, 'replaceScope recovery replaces the corrupted root');
+        assertEqual(requiredElement(host, 'p').textContent, 'World', 'recovered scope still renders the next plan');
+    },
+};
+
+export const DirectRenderPlanPatchPreservesFocusedControl: Story = {
+    render: () => {
+        const root = document.createElement('section') as HTMLElement & {
+            __bounds?: { start: Comment; end: Comment };
+        };
+        root.setAttribute('aria-label', 'direct render-plan focus preservation story');
+        const host = document.createElement('div');
+        host.className = 'direct-focus-host';
+        const start = document.createComment('cem-render-start');
+        const end = document.createComment('cem-render-end');
+        host.append(start, end);
+        root.__bounds = { start, end };
+        root.append(host);
+        return root;
+    },
+    play: ({ canvasElement }) => {
+        const root = requiredElement(
+            canvasElement,
+            '[aria-label="direct render-plan focus preservation story"]'
+        ) as HTMLElement & { __bounds?: { start: Comment; end: Comment } };
+        const bounds = root.__bounds;
+        assert(bounds !== undefined, 'direct focus patch render bounds are available');
+        const host = requiredElement(root, '.direct-focus-host');
+
+        const first = directInputPatchPlan('abcdef', 'one');
+        applyRenderPlanToRange(bounds, first, document, { dynamicTextRanges: true });
+        const input = requiredElement(host, 'input') as HTMLInputElement;
+        input.focus();
+        input.setSelectionRange(2, 4, 'forward');
+
+        const second = directInputPatchPlan('abcdefghi', 'two');
+        const result = applyRenderPlanToRange(bounds, second, document, { dynamicTextRanges: true });
+        const retained = requiredElement(host, 'input') as HTMLInputElement;
+        assertEqual(result.mode, 'patch', 'focused control update patches in place');
+        assertEqual(retained === input, true, 'focused input node is retained');
+        assertEqual(document.activeElement === retained, true, 'focused input remains the active element');
+        assertEqual(retained.selectionStart, 2, 'focused input selection start is restored');
+        assertEqual(retained.selectionEnd, 4, 'focused input selection end is restored');
+        assertEqual(retained.selectionDirection, 'forward', 'focused input selection direction is restored');
+    },
+};
+
+export const UnchangedRenderPlanSkipsDomReplacement: Story = {
+    render: () => {
+        const root = document.createElement('section') as HTMLElement & {
+            __domRuntime?: CemElementRuntime;
+            __wasmRuntime?: CemElementRuntime;
+        };
+        root.setAttribute('aria-label', 'unchanged render plan no-op story');
+
+        const domRuntime = new CemElementRuntime({ declarationTag: 'cem-element-story-noop-dom' });
+        const domDeclaration = buildDeclaration({
+            tag: 'story-noop-dom-card',
+            templates: [{ html: '<attribute name="label">Stable</attribute><button type="button">${$label}</button>' }],
+        });
+        domRuntime.registerDeclaration(domDeclaration);
+
+        const wasmRuntime = new CemElementRuntime({ declarationTag: 'cem-element-story-noop-wasm' });
+        const wasmDeclaration = buildDeclaration({
+            tag: 'story-noop-wasm-card',
+            templates: [{ type: 'text/cem-ml', text: '{button @type=button | {$datadom.attributes.label}}' }],
+        });
+        wasmRuntime.registerDeclaration(wasmDeclaration);
+
+        const domInstance = document.createElement('story-noop-dom-card');
+        domInstance.setAttribute('label', 'Stable');
+        const wasmInstance = document.createElement('story-noop-wasm-card');
+        wasmInstance.setAttribute('label', 'Stable');
+        root.append(domInstance, wasmInstance);
+        root.__domRuntime = domRuntime;
+        root.__wasmRuntime = wasmRuntime;
+        return root;
+    },
+    play: async ({ canvasElement }) => {
+        const root = requiredElement(canvasElement, '[aria-label="unchanged render plan no-op story"]') as HTMLElement & {
+            __domRuntime?: CemElementRuntime;
+            __wasmRuntime?: CemElementRuntime;
+        };
+        const domRuntime = root.__domRuntime;
+        const wasmRuntime = root.__wasmRuntime;
+        assert(domRuntime && wasmRuntime, 'story runtimes are available');
+
+        const domInstance = requiredElement(root, 'story-noop-dom-card') as HTMLElement;
+        const wasmInstance = requiredElement(root, 'story-noop-wasm-card') as HTMLElement;
+        await domRuntime.whenRenderSettled(domInstance);
+        await wasmRuntime.whenRenderSettled(wasmInstance);
+
+        const domButton = requiredElement(domInstance, 'button');
+        const wasmButton = requiredElement(wasmInstance, 'button');
+        const domRevision = domButton.getAttribute('data-cem-data-revision');
+        const wasmRevision = wasmButton.getAttribute('data-cem-data-revision');
+        assertEqual(
+            (domButton as Element & { cemRenderNodeId?: string }).cemRenderNodeId,
+            domButton.getAttribute('data-cem-render-node-id'),
+            'DOM-path render identity is mirrored into a DOM property'
+        );
+        assertEqual(
+            (wasmButton as Element & { cemRenderNodeId?: string }).cemRenderNodeId,
+            wasmButton.getAttribute('data-cem-render-node-id'),
+            'WASM-path render identity is mirrored into a DOM property'
+        );
+
+        domInstance.setAttribute('unused', 'same-output');
+        wasmInstance.setAttribute('unused', 'same-output');
+        await nextFrame();
+        await domRuntime.whenRenderSettled(domInstance);
+        await wasmRuntime.whenRenderSettled(wasmInstance);
+
+        assertEqual(requiredElement(domInstance, 'button') === domButton, true, 'DOM-path unchanged output keeps the button node');
+        assertEqual(
+            requiredElement(domInstance, 'button').getAttribute('data-cem-data-revision'),
+            domRevision,
+            'DOM-path unchanged output does not rewrite render metadata'
+        );
+        assertEqual(
+            requiredElement(wasmInstance, 'button') === wasmButton,
+            true,
+            'WASM-path unchanged output keeps the button node'
+        );
+        assertEqual(
+            requiredElement(wasmInstance, 'button').getAttribute('data-cem-data-revision'),
+            wasmRevision,
+            'WASM-path unchanged output does not rewrite render metadata'
         );
     },
 };
@@ -1680,6 +2874,222 @@ export const RenderNodeIdentityIsDeterministic: Story = {
     },
 };
 
+export const ScopedCssUidSeedRuntime: Story = {
+    render: () => {
+        const root = document.createElement('section');
+        root.setAttribute('aria-label', 'scoped CSS UID seed runtime story');
+
+        const runtime = new CemElementRuntime({
+            declarationTag: 'cem-element-story-scoped-css',
+            validateGeneratedIds: true,
+        });
+        const declaration = document.createElement('cem-element-story-scoped-css');
+        declaration.setAttribute('tag', 'story-scoped-css-card');
+        declaration.setAttribute('uid-seed', 'stories/scoped-css/card');
+        const template = document.createElement('template');
+        template.innerHTML = [
+            '<slice name="value">same</slice>',
+            '<style>',
+            '@import url("./global.css");',
+            ':host { --scoped-border: rgb(0, 128, 0); }',
+            ':global(.legacy), :root { color: red; }',
+            '@keyframes pulse { from { opacity: 0; } to { opacity: 1; } }',
+            'button { border: 3px solid var(--scoped-border); animation: pulse 1s; }',
+            '</style>',
+            '<button type="button" slice="value" slice-event="click" slice-value="\'same\'">${$value}</button>',
+        ].join('');
+        declaration.appendChild(template);
+        root.appendChild(declaration);
+        runtime.registerDeclaration(declaration);
+
+        const instance = document.createElement('story-scoped-css-card');
+        root.append(instance);
+        const outside = document.createElement('button');
+        outside.textContent = 'outside';
+        root.append(outside);
+
+        (root as HTMLElement & { __runtime?: CemElementRuntime }).__runtime = runtime;
+        return root;
+    },
+    play: async ({ canvasElement }) => {
+        await nextFrame();
+
+        const root = requiredElement(canvasElement, '[aria-label="scoped CSS UID seed runtime story"]') as HTMLElement & {
+            __runtime?: CemElementRuntime;
+        };
+        const runtime = root.__runtime;
+        assert(runtime, 'story runtime is available for diagnostics');
+        const instance = requiredElement(root, 'story-scoped-css-card') as HTMLElement;
+        const scopeUid = instance.getAttribute('data-cem-scope') ?? '';
+        assert(
+            /^cem-scope-story-scoped-css-card-ustoriesz2fscoped-cssz2fcard-p[0-9-]+$/.test(scopeUid),
+            'uid-seed contributes a deterministic encoded scope UID'
+        );
+
+        const style = requiredElement(instance, 'style');
+        const css = style.textContent ?? '';
+        assert(css.includes(`[data-cem-scope="${scopeUid}"] {`), 'style rules are wrapped in the generated scope');
+        assert(css.includes('& { --scoped-border: rgb(0, 128, 0); }'), ':host rewrites to the nesting parent');
+        assert(css.includes('&.legacy, & { color: red; }'), ':global and :root rewrite to scoped aliases');
+        assert(css.includes(`@keyframes pulse-${scopeUid}`), 'keyframes are renamed with the scope UID');
+        assert(css.includes(`animation: pulse-${scopeUid} 1s`), 'animation shorthand references renamed keyframes');
+        assert(!css.includes('@import'), '@import is suppressed from scoped CSS output');
+
+        const button = requiredElement(instance, 'button');
+        assertEqual(button.getAttribute('data-cem-scope'), scopeUid, 'top-level render roots carry the scope UID');
+        const revision = button.getAttribute('data-cem-data-revision');
+        button.dispatchEvent(new Event('click', { bubbles: true }));
+        await nextFrame();
+        assertEqual(
+            requiredElement(instance, 'button').getAttribute('data-cem-data-revision'),
+            revision,
+            'slice events that resolve to the existing value do not rerender the DOM'
+        );
+
+        const diagnosticCodes = runtime.diagnosticsFor(instance).map((diagnostic) => diagnostic.code);
+        assert(diagnosticCodes.includes('cem.scoped_css.import_unsupported'), '@import suppression is diagnosed');
+        assert(diagnosticCodes.includes('cem.scoped_css.global_alias'), ':global/:root aliasing is diagnosed');
+    },
+};
+
+export const HostAndSourceHashUidSeedFallbacks: Story = {
+    render: () => {
+        const root = document.createElement('section');
+        root.setAttribute('aria-label', 'host and source hash UID seed story');
+
+        const hostRuntime = new CemElementRuntime({
+            declarationTag: 'cem-element-story-host-seed',
+            uidSeed: ({ producedTag }) => `host-seed/${producedTag}`,
+            validateGeneratedIds: true,
+        });
+        const hostDeclaration = document.createElement('cem-element-story-host-seed');
+        hostDeclaration.setAttribute('tag', 'story-host-seed-card');
+        const hostTemplate = document.createElement('template');
+        hostTemplate.innerHTML = '<button type="button">host</button>';
+        hostDeclaration.appendChild(hostTemplate);
+
+        const blankDeclaration = document.createElement('cem-element-story-host-seed');
+        blankDeclaration.setAttribute('tag', 'story-blank-seed-card');
+        blankDeclaration.setAttribute('uid-seed', '');
+        const blankTemplate = document.createElement('template');
+        blankTemplate.innerHTML = '<button type="button">blank</button>';
+        blankDeclaration.appendChild(blankTemplate);
+        root.append(hostDeclaration, blankDeclaration);
+        hostRuntime.registerDeclaration(hostDeclaration);
+        hostRuntime.registerDeclaration(blankDeclaration);
+
+        const sourceHashRuntime = new CemElementRuntime({
+            declarationTag: 'cem-element-story-source-seed',
+            runMode: 'build-ssr',
+        });
+        const sourceDeclaration = document.createElement('cem-element-story-source-seed');
+        sourceDeclaration.setAttribute('tag', 'story-source-seed-card');
+        const sourceTemplate = document.createElement('template');
+        sourceTemplate.innerHTML = '<button type="button">source</button>';
+        sourceDeclaration.appendChild(sourceTemplate);
+        root.appendChild(sourceDeclaration);
+        sourceHashRuntime.registerDeclaration(sourceDeclaration);
+
+        const runtimeFallback = new CemElementRuntime({
+            declarationTag: 'cem-element-story-runtime-seed',
+            uidSeedFallback: 'runtime',
+        });
+        const runtimeDeclaration = document.createElement('cem-element-story-runtime-seed');
+        runtimeDeclaration.setAttribute('tag', 'story-runtime-seed-card');
+        const runtimeTemplate = document.createElement('template');
+        runtimeTemplate.innerHTML = '<button type="button">runtime</button>';
+        runtimeDeclaration.appendChild(runtimeTemplate);
+        root.appendChild(runtimeDeclaration);
+        runtimeFallback.registerDeclaration(runtimeDeclaration);
+
+        root.append(
+            document.createElement('story-host-seed-card'),
+            document.createElement('story-blank-seed-card'),
+            document.createElement('story-source-seed-card'),
+            document.createElement('story-runtime-seed-card')
+        );
+        return root;
+    },
+    play: async ({ canvasElement }) => {
+        await nextFrame();
+
+        const hostScope = requiredElement(canvasElement, 'story-host-seed-card').getAttribute('data-cem-scope') ?? '';
+        assert(
+            /^cem-scope-story-host-seed-card-uhost-seedz2fstory-host-seed-card-p[0-9-]+$/.test(hostScope),
+            'host uidSeed resolver supplies the fallback seed'
+        );
+
+        const blankScope = requiredElement(canvasElement, 'story-blank-seed-card').getAttribute('data-cem-scope') ?? '';
+        assert(
+            /^cem-scope-story-blank-seed-card-p[0-9-]+$/.test(blankScope),
+            'explicit blank uid-seed overrides the host seed and omits the seed token'
+        );
+
+        const sourceScope = requiredElement(canvasElement, 'story-source-seed-card').getAttribute('data-cem-scope') ?? '';
+        assert(
+            /^cem-scope-story-source-seed-card-usource-[0-9a-f]{16}-p[0-9-]+$/.test(sourceScope),
+            'build-ssr mode falls back to a stable source hash seed'
+        );
+
+        const runtimeScope = requiredElement(canvasElement, 'story-runtime-seed-card').getAttribute('data-cem-scope') ?? '';
+        assert(
+            /^cem-scope-story-runtime-seed-card-uruntime-[0-9]+-p[0-9-]+$/.test(runtimeScope),
+            'normal runtime fallback remains dynamic when no stable seed is supplied'
+        );
+    },
+};
+
+export const ScopeUidDuplicateDiagnostics: Story = {
+    render: () => {
+        const root = document.createElement('section') as HTMLElement & {
+            __runtime?: CemElementRuntime;
+            __first?: HTMLElement;
+            __second?: HTMLElement;
+        };
+        root.setAttribute('aria-label', 'scope UID duplicate diagnostics story');
+
+        const runtime = new CemElementRuntime({
+            declarationTag: 'cem-element-story-scope-duplicate',
+            validateGeneratedIds: true,
+        });
+        const first = buildCemMlDeclaration(
+            'cem-element-story-scope-duplicate',
+            'story-collision-card',
+            '{button | first}'
+        );
+        first.setAttribute('uid-seed', 'collision');
+        const second = buildCemMlDeclaration(
+            'cem-element-story-scope-duplicate',
+            'story_collision-card',
+            '{button | second}'
+        );
+        second.setAttribute('uid-seed', 'collision');
+
+        runtime.registerDeclaration(first);
+        runtime.registerDeclaration(second);
+        root.__runtime = runtime;
+        root.__first = first;
+        root.__second = second;
+        return root;
+    },
+    play: async ({ canvasElement }) => {
+        const root = requiredElement(canvasElement, '[aria-label="scope UID duplicate diagnostics story"]') as HTMLElement & {
+            __runtime?: CemElementRuntime;
+            __first?: HTMLElement;
+            __second?: HTMLElement;
+        };
+        const runtime = root.__runtime;
+        const first = root.__first;
+        const second = root.__second;
+        assert(runtime && first && second, 'duplicate UID story fixtures are available');
+
+        await runtime.whenDeclarationSettled(first);
+        await runtime.whenDeclarationSettled(second);
+        assertEqual(runtime.diagnosticsFor(first).length, 0, 'the first generated scope owner is accepted');
+        assertDiagnostic(runtime.diagnosticsFor(second), 'cem-element.scope_uid_duplicate');
+    },
+};
+
 export const SsrHydrationFromSerializedSnapshot: Story = {
     render: () => {
         const root = document.createElement('section');
@@ -1699,6 +3109,8 @@ export const SsrHydrationFromSerializedSnapshot: Story = {
         snapshot.declarationTag = 'cem-element-story-ssr';
         snapshot.templateArtifactId = 'ssr-template-artifact-1';
         snapshot.dataRevision = '7';
+        const serverScopeUid = 'cem-scope-story-ssr-card-userver-p0';
+        snapshot.hostAttributes['data-cem-scope'] = serverScopeUid;
         snapshot.payload = {
             ...emptySerializedPayload(),
             text: 'Server detail',
@@ -1729,7 +3141,8 @@ export const SsrHydrationFromSerializedSnapshot: Story = {
             },
         };
 
-        const plan = projectTemplate(source, { snapshot, values: { label: 'Server Card' } });
+        const plan = scopeRenderPlan(projectTemplate(source, { snapshot, values: { label: 'Server Card' } }), serverScopeUid)
+            .renderPlan;
         const serverFragment = materializeRenderPlan(plan, document);
         const serverNodes = Array.from(serverFragment.childNodes);
 
@@ -1741,6 +3154,7 @@ export const SsrHydrationFromSerializedSnapshot: Story = {
 
         const instance = document.createElement('story-ssr-card');
         instance.setAttribute('label', 'Server Card');
+        instance.setAttribute('data-cem-scope', serverScopeUid);
         const island = document.createElement('template');
         island.setAttribute('data-cem-island', 'instance');
         island.innerHTML = '<span slot="detail">Server detail</span>';
@@ -1771,6 +3185,16 @@ export const SsrHydrationFromSerializedSnapshot: Story = {
             article.getAttribute('data-cem-data-revision'),
             '7',
             'client hydration preserves the server render-plan data revision'
+        );
+        assertEqual(
+            instance.getAttribute('data-cem-scope'),
+            'cem-scope-story-ssr-card-userver-p0',
+            'client hydration preserves the server host scope UID'
+        );
+        assertEqual(
+            article.getAttribute('data-cem-scope'),
+            'cem-scope-story-ssr-card-userver-p0',
+            'client hydration preserves the server render-root scope UID'
         );
         assertEqual(
             requiredElement(instance, 'script[data-cem-hydration="snapshot"]').textContent?.includes('ssr-instance-1'),
@@ -1871,6 +3295,158 @@ export const SsrHydrationRejectsUnsupportedSnapshotVersion: Story = {
     },
 };
 
+export const SsrHydrationRejectsIncompleteMarkup: Story = {
+    render: () =>
+        storyPanel(
+            'SSR hydration incomplete markup',
+            'partial hydration markup fails closed with specific diagnostics before client fallback'
+        ),
+    play: async ({ canvasElement }) => {
+        const root = document.createElement('section');
+        canvasElement.appendChild(root);
+
+        const templateHtml =
+            '<attribute name="label">Fallback</attribute>' +
+            '<article class="ssr-incomplete-card">' +
+            '<h2>${$label}</h2>' +
+            '</article>';
+        const runtime = new CemElementRuntime({
+            declarationTag: 'cem-element-story-ssr-incomplete',
+            validateGeneratedIds: true,
+        });
+        runtime.install(window);
+        const declaration = document.createElement('cem-element-story-ssr-incomplete');
+        declaration.setAttribute('tag', 'story-ssr-incomplete-card');
+        const declTemplate = document.createElement('template');
+        declTemplate.innerHTML = templateHtml;
+        declaration.appendChild(declTemplate);
+        root.appendChild(declaration);
+        runtime.registerDeclaration(declaration);
+        const sourceTemplate = document.createElement('template');
+        sourceTemplate.innerHTML = templateHtml;
+        const source = readTemplateSource(sourceTemplate.content);
+
+        const snapshot = projectionSnapshot('story-ssr-incomplete-card', { label: 'Server Card' });
+        snapshot.instanceId = 'ssr-incomplete-instance-1';
+        snapshot.declarationTag = 'cem-element-story-ssr-incomplete';
+        snapshot.templateArtifactId = 'ssr-incomplete-artifact-1';
+        snapshot.dataRevision = '5';
+        const serverNodes = () =>
+            Array.from(
+                materializeRenderPlan(
+                    projectTemplate(source, { snapshot, values: { label: 'Server Card' } }),
+                    document
+                ).childNodes
+            );
+        const hydrationMetadata = (textContent: string) => {
+            const metadata = document.createElement('script');
+            metadata.setAttribute('type', 'application/json');
+            metadata.setAttribute('data-cem-hydration', 'snapshot');
+            metadata.textContent = textContent;
+            return metadata;
+        };
+        const hydratedCase = (
+            label: string,
+            textContent: string,
+            mutateFirstRenderedElement?: (element: Element) => void
+        ) => {
+            const instance = document.createElement('story-ssr-incomplete-card');
+            instance.setAttribute('label', label);
+            const island = document.createElement('template');
+            island.setAttribute('data-cem-island', 'instance');
+            const nodes = serverNodes();
+            const firstRenderedElement = nodes.find((node) => node.nodeType === 1);
+            if (firstRenderedElement) {
+                mutateFirstRenderedElement?.(firstRenderedElement as Element);
+            }
+            instance.append(
+                island,
+                document.createComment('cem-render-start'),
+                ...nodes,
+                document.createComment('cem-render-end'),
+                hydrationMetadata(textContent)
+            );
+            root.appendChild(instance);
+            return instance;
+        };
+
+        const metadataOnly = document.createElement('story-ssr-incomplete-card');
+        metadataOnly.setAttribute('label', 'Metadata only');
+        const metadataOnlyIsland = document.createElement('template');
+        metadataOnlyIsland.setAttribute('data-cem-island', 'instance');
+        metadataOnly.append(metadataOnlyIsland, hydrationMetadata(JSON.stringify(snapshot)));
+        root.appendChild(metadataOnly);
+
+        const boundsOnly = document.createElement('story-ssr-incomplete-card');
+        boundsOnly.setAttribute('label', 'Bounds only');
+        const boundsOnlyIsland = document.createElement('template');
+        boundsOnlyIsland.setAttribute('data-cem-island', 'instance');
+        boundsOnly.append(
+            boundsOnlyIsland,
+            document.createComment('cem-render-start'),
+            document.createElement('article'),
+            document.createComment('cem-render-end')
+        );
+        root.appendChild(boundsOnly);
+
+        const emptySnapshot = hydratedCase('Empty snapshot', '');
+        const invalidSnapshot = hydratedCase('Invalid snapshot', JSON.stringify({ producedTag: 'story-ssr-incomplete-card' }));
+        const invalidJson = hydratedCase('Invalid JSON', '{not-json');
+        const missingIdentity = hydratedCase('Missing identity', JSON.stringify(snapshot), (element) => {
+            element.removeAttribute('data-cem-template-artifact-id');
+            element.removeAttribute('data-cem-data-revision');
+        });
+        const artifactMismatch = hydratedCase('Artifact mismatch', JSON.stringify(snapshot), (element) => {
+            element.setAttribute('data-cem-template-artifact-id', 'stale-artifact');
+        });
+        const revisionMismatch = hydratedCase('Revision mismatch', JSON.stringify(snapshot), (element) => {
+            element.setAttribute('data-cem-data-revision', '4');
+        });
+        const sourceMapModeMismatch = hydratedCase('Source-map mode mismatch', JSON.stringify(snapshot), (element) => {
+            element.removeAttribute('data-cem-source-fidelity');
+        });
+        const duplicateRenderNodeId = hydratedCase('Duplicate render-node ID', JSON.stringify(snapshot), (element) => {
+            const renderNodeId = element.getAttribute('data-cem-render-node-id');
+            const child = element.querySelector('[data-cem-render-node-id]');
+            if (renderNodeId && child) {
+                child.setAttribute('data-cem-render-node-id', renderNodeId);
+            }
+        });
+
+        await runtime.whenRenderSettled(metadataOnly);
+        await runtime.whenRenderSettled(boundsOnly);
+        await runtime.whenRenderSettled(emptySnapshot);
+        await runtime.whenRenderSettled(invalidSnapshot);
+        await runtime.whenRenderSettled(invalidJson);
+        await runtime.whenRenderSettled(missingIdentity);
+        await runtime.whenRenderSettled(artifactMismatch);
+        await runtime.whenRenderSettled(revisionMismatch);
+        await runtime.whenRenderSettled(sourceMapModeMismatch);
+        await runtime.whenRenderSettled(duplicateRenderNodeId);
+
+        assertDiagnostic(runtime.diagnosticsFor(metadataOnly), 'cem-element.hydration_boundaries_missing');
+        assertDiagnostic(runtime.diagnosticsFor(boundsOnly), 'cem-element.hydration_metadata_missing');
+        assertDiagnostic(runtime.diagnosticsFor(emptySnapshot), 'cem-element.hydration_snapshot_missing');
+        assertDiagnostic(runtime.diagnosticsFor(invalidSnapshot), 'cem-element.hydration_snapshot_invalid');
+        assertDiagnostic(runtime.diagnosticsFor(invalidJson), 'cem-element.hydration_json_invalid');
+        assertDiagnostic(runtime.diagnosticsFor(missingIdentity), 'cem-element.hydration_render_plan_identity_missing');
+        assertDiagnostic(runtime.diagnosticsFor(artifactMismatch), 'cem-element.hydration_template_artifact_mismatch');
+        assertDiagnostic(runtime.diagnosticsFor(revisionMismatch), 'cem-element.hydration_render_revision_mismatch');
+        assertDiagnostic(runtime.diagnosticsFor(sourceMapModeMismatch), 'cem-element.hydration_source_map_mode_mismatch');
+        assertDiagnostic(runtime.diagnosticsFor(duplicateRenderNodeId), 'cem-element.hydration_render_node_id_duplicate');
+        await waitForElement(metadataOnly, 'article.ssr-incomplete-card');
+        await waitForElement(boundsOnly, 'article.ssr-incomplete-card');
+        await waitForElement(emptySnapshot, 'article.ssr-incomplete-card');
+        await waitForElement(invalidSnapshot, 'article.ssr-incomplete-card');
+        await waitForElement(invalidJson, 'article.ssr-incomplete-card');
+        await waitForElement(missingIdentity, 'article.ssr-incomplete-card');
+        await waitForElement(artifactMismatch, 'article.ssr-incomplete-card');
+        await waitForElement(revisionMismatch, 'article.ssr-incomplete-card');
+        await waitForElement(sourceMapModeMismatch, 'article.ssr-incomplete-card');
+        await waitForElement(duplicateRenderNodeId, 'article.ssr-incomplete-card');
+    },
+};
+
 export const EdgePatchFramesFromSerializedSnapshot: Story = {
     render: () => storyPanel('Edge patch frames', 'serialized snapshot + previous render-plan identity → patch stream'),
     play: () => {
@@ -1908,6 +3484,68 @@ export const EdgePatchFramesFromSerializedSnapshot: Story = {
         assert(
             !ops.some((op) => op.op === 'replaceScope'),
             'same-template edge diffs use stable render-node patches instead of scope replacement'
+        );
+        const attributeTemplate = document.createElement('template');
+        attributeTemplate.innerHTML =
+            '<attribute name="label">Fallback</attribute>' +
+            '<article class="edge-card" data-kind="{$kind}">' +
+            '<h2>${$label}</h2>' +
+            '</article>';
+        const attributeSource = readTemplateSource(attributeTemplate.content);
+        const attributePrevious = projectTemplate(attributeSource, {
+            snapshot: edgeProjectionSnapshot('Edge Before', '13'),
+            values: { label: 'Edge Before', kind: 'summary' },
+        });
+        const attributeNext = projectTemplate(attributeSource, {
+            snapshot: edgeProjectionSnapshot('Edge After', '14'),
+            values: { label: 'Edge After', kind: 'featured' },
+        });
+        const attributePatch = opsFromPatchFrames(diffRenderPlansToPatchFrames(attributePrevious, attributeNext)).find(
+            (op) => op.op === 'setAttribute' && op.name === 'data-kind'
+        );
+        assert(attributePatch?.op === 'setAttribute', 'edge diff emits stable attribute patches');
+        assertEqual(attributePatch.value, 'featured', 'attribute patch carries the next attribute value');
+
+        const changedTemplatePlan = cloneRenderPlan(nextPlan);
+        changedTemplatePlan.templateArtifactId = 'edge-template-artifact-2';
+        assert(
+            opsFromPatchFrames(diffRenderPlansToPatchFrames(previousPlan, changedTemplatePlan)).every(
+                (op) => op.op === 'replaceScope' && op.reason === 'fallback'
+            ),
+            'template artifact changes fall back to constrained scope replacement'
+        );
+
+        const extraRootPlan = cloneRenderPlan(nextPlan);
+        extraRootPlan.nodes.push(cloneRenderPlan(nextPlan).nodes[0]);
+        assert(
+            opsFromPatchFrames(diffRenderPlansToPatchFrames(previousPlan, extraRootPlan)).every(
+                (op) => op.op === 'replaceScope' && op.reason === 'fallback'
+            ),
+            'root-count changes fall back to constrained scope replacement'
+        );
+
+        const structuralPlan = cloneRenderPlan(nextPlan);
+        const structuralRoot = structuralPlan.nodes[0];
+        if (structuralRoot.kind === 'element') {
+            structuralRoot.tag = 'section';
+        }
+        const structuralReplace = opsFromPatchFrames(diffRenderPlansToPatchFrames(previousPlan, structuralPlan)).find(
+            (op) => op.op === 'replace'
+        );
+        assert(structuralReplace?.op === 'replace', 'unsupported structural deltas replace the affected render node');
+        assertEqual(
+            structuralReplace.node.node.kind === 'element' ? structuralReplace.node.node.tagName : '',
+            'section',
+            'structural replacement carries the next serialized node'
+        );
+
+        const targetMismatchPlan = cloneRenderPlan(nextPlan);
+        targetMismatchPlan.producedTag = 'story-edge-card-alt';
+        assert(
+            opsFromPatchFrames(diffRenderPlansToPatchFrames(previousPlan, targetMismatchPlan)).every(
+                (op) => op.op === 'replaceScope' && op.reason === 'fallback'
+            ),
+            'target mismatches fall back to constrained scope replacement'
         );
 
         const commit = frames.at(-1);
@@ -1956,12 +3594,14 @@ export const BrowserToEdgeSnapshotPrivacyPolicy: Story = {
             },
         };
         snapshot.slices = { typed: 'draft input' };
+        snapshot.formData = { signin: { username: 'ada' } };
         snapshot.validationState = { valid: false, message: 'private validation detail' };
         snapshot.eventPayloads = { input: { value: 'raw browser event payload' } };
 
         const defaultExport = exportDataIslandSnapshotForEdge(snapshot);
         assert(!('hostAttributes' in defaultExport), 'default edge export omits host attributes');
         assert(!('payload' in defaultExport), 'default edge export omits payload');
+        assert(!('formData' in defaultExport), 'default edge export omits form data');
         assert(!('validationState' in defaultExport), 'default edge export omits validation state');
 
         const exported = exportDataIslandSnapshotForEdge(snapshot, {
@@ -1969,6 +3609,7 @@ export const BrowserToEdgeSnapshotPrivacyPolicy: Story = {
             fields: {
                 hostAttributes: 'allow',
                 payload: 'redact',
+                formData: 'redact',
                 validationState: 'redact',
                 dataset: 'omit',
                 slices: 'omit',
@@ -1988,6 +3629,11 @@ export const BrowserToEdgeSnapshotPrivacyPolicy: Story = {
             Object.keys(exported.payload?.dataByValue ?? {}).length,
             0,
             'redacted payload lookup records are cleared'
+        );
+        assertEqual(
+            Object.keys(exported.formData ?? {}).length,
+            0,
+            'redacted form data is present but empty'
         );
         assertEqual(
             Object.keys(exported.validationState ?? {}).length,
@@ -2461,10 +4107,25 @@ export const DeclarationDiagnosticsAreExposed: Story = {
         const tagDiagnostic = findDiagnostic(runtime.diagnosticsFor(invalidTag), 'cem-element.tag_invalid');
         assertEqual(tagDiagnostic.source, 'declaration', 'tag diagnostics are declaration-sourced');
         assertEqual(tagDiagnostic.severity, 'error', 'an invalid tag is an error-severity diagnostic');
+        assertEqual(
+            tagDiagnostic.sourceMapRef?.fidelity,
+            'declaration-only',
+            'declaration shape diagnostics use declaration-only source-map fidelity'
+        );
+        assertEqual(
+            tagDiagnostic.sourceMapRef?.frame,
+            'decl:Bad-Tag',
+            'declaration-only diagnostics identify the owning declaration tag when available'
+        );
 
         const missingTag = buildDeclaration({ templates: [{ html: '<button>x</button>' }] });
         runtime.registerDeclaration(missingTag);
-        assertDiagnostic(runtime.diagnosticsFor(missingTag), 'cem-element.tag_missing');
+        const missingTagDiagnostic = findDiagnostic(runtime.diagnosticsFor(missingTag), 'cem-element.tag_missing');
+        assertEqual(
+            missingTagDiagnostic.sourceMapRef?.frame,
+            'decl:unknown',
+            'declaration-only diagnostics fall back to an unknown declaration frame when no tag exists'
+        );
 
         const conflict = buildDeclaration({
             tag: 'story-decl-conflict',
@@ -2478,9 +4139,19 @@ export const DeclarationDiagnosticsAreExposed: Story = {
         runtime.registerDeclaration(srcMissing);
         assertDiagnostic(runtime.diagnosticsFor(srcMissing), 'cem-element.src_local_target_missing');
 
-        const noTemplate = buildDeclaration({ tag: 'story-decl-empty' });
+        const noTemplate = buildDeclaration({ tag: 'story-decl-empty', liveContent: true });
+        noTemplate.textContent = '{button | implicit}';
         runtime.registerDeclaration(noTemplate);
-        assertDiagnostic(runtime.diagnosticsFor(noTemplate), 'cem-element.inline_template_count');
+        assertEqual(
+            runtime.diagnosticsFor(noTemplate).length,
+            0,
+            'inline declaration content is accepted as an implicit CEM-ML template'
+        );
+        assertEqual(
+            (noTemplate.querySelector('template[type="text/cem-ml"]') as HTMLTemplateElement | null)?.content.textContent?.trim(),
+            '{button | implicit}',
+            'implicit declaration content is moved into an inert CEM-ML template'
+        );
 
         const liveContent = buildDeclaration({
             tag: 'story-decl-live',
@@ -2524,6 +4195,12 @@ export const CemMlParseDiagnosticsAreExposed: Story = {
             await runtime.whenDeclarationSettled(declaration);
             const diagnostic = findDiagnostic(runtime.diagnosticsFor(declaration), code);
             assertEqual(diagnostic.source, 'declaration', 'parse diagnostics are declaration-sourced');
+            assertEqual(
+                diagnostic.sourceMapRef?.fidelity,
+                'author-byte-exact',
+                'CEM-ML parse diagnostics carry author-byte-exact source-map fidelity'
+            );
+            assert(/^cem:\d+$/.test(diagnostic.sourceMapRef?.frame ?? ''), 'CEM-ML parse diagnostics carry byte frames');
         }
     },
 };
@@ -2559,6 +4236,12 @@ export const RenderFailureDiagnosticsAreExposed: Story = {
         const renderFailure = findDiagnostic(failRuntime.diagnosticsFor(failInstance), 'cem.ql.render.compile_failed');
         assertEqual(renderFailure.source, 'render', 'render failures are render-sourced');
         assertEqual(renderFailure.severity, 'error', 'render failures are error-severity diagnostics');
+        assertEqual(
+            renderFailure.sourceMapRef?.fidelity,
+            'author-byte-exact',
+            'render diagnostics carry author-byte-exact source-map fidelity'
+        );
+        assert(/^cem:\d+$/.test(renderFailure.sourceMapRef?.frame ?? ''), 'render diagnostics carry byte frames');
 
         // Legacy bridge templates are a supported migration path and should not
         // report the old reserved-slice diagnostic.
@@ -2606,6 +4289,15 @@ function assertDiagnostic(diagnostics: readonly { code: string }[], code: string
 }
 
 function findDiagnostic(diagnostics: readonly CemElementDiagnostic[], code: string): CemElementDiagnostic {
+    const diagnostic = diagnostics.find((entry) => entry.code === code);
+    assert(diagnostic, `expected diagnostic ${code}`);
+    return diagnostic;
+}
+
+function findRuntimeSupportDiagnostic(
+    diagnostics: readonly RuntimeSupportDiagnostic[],
+    code: string
+): RuntimeSupportDiagnostic {
     const diagnostic = diagnostics.find((entry) => entry.code === code);
     assert(diagnostic, `expected diagnostic ${code}`);
     return diagnostic;
@@ -2854,6 +4546,78 @@ function buildDeclaration(spec: DeclarationSpec): HTMLElement {
     return declaration;
 }
 
+function buildCemMlDeclaration(declarationTag: string, tag: string, text: string): HTMLElement {
+    const declaration = document.createElement(declarationTag);
+    declaration.setAttribute('tag', tag);
+    const template = document.createElement('template');
+    template.setAttribute('type', 'text/cem-ml');
+    template.textContent = text;
+    declaration.appendChild(template);
+    return declaration;
+}
+
+async function appendResolutionPolicyFrame(parent: HTMLElement, baseHref: string): Promise<HTMLIFrameElement> {
+    const frame = document.createElement('iframe');
+    frame.hidden = true;
+    frame.title = `resolution policy ${baseHref}`;
+    const loaded = new Promise<void>((resolve) => frame.addEventListener('load', () => resolve(), { once: true }));
+    frame.srcdoc = `<!doctype html><html><head><base href="${baseHref}"></head><body></body></html>`;
+    parent.appendChild(frame);
+    await loaded;
+    assert(frame.contentWindow && frame.contentDocument, 'resolution policy frame should expose a same-origin document');
+    return frame;
+}
+
+async function registerExternalSourceInstance(
+    runtime: CemElementRuntime,
+    doc: Document,
+    producedTag: string
+): Promise<HTMLElement> {
+    const declaration = doc.createElement('cem-element-story-uri-source');
+    declaration.setAttribute('tag', producedTag);
+    declaration.setAttribute('src', './cards.html#card');
+    doc.body.appendChild(declaration);
+    assert(runtime.registerDeclaration(declaration), `${producedTag} external src declaration registers`);
+    await runtime.whenDeclarationSettled(declaration);
+
+    const instance = doc.createElement(producedTag);
+    doc.body.appendChild(instance);
+    await runtime.whenRenderSettled(instance);
+    return instance;
+}
+
+async function registerModuleUrlInstance(
+    root: HTMLElement,
+    runtime: CemElementRuntime,
+    declarationTag: string,
+    producedTag: string,
+    specifier: string,
+    expectedHref: string
+): Promise<HTMLElement> {
+    const declaration = document.createElement(declarationTag);
+    declaration.setAttribute('tag', producedTag);
+    const template = document.createElement('template');
+    template.innerHTML = `<module-url slice="asset" src="${specifier}"></module-url><a class="asset" href="{$asset}">${'${$asset}'}</a>`;
+    declaration.appendChild(template);
+    root.appendChild(declaration);
+    assert(runtime.registerDeclaration(declaration), `${producedTag} module-url declaration registers`);
+    await runtime.whenDeclarationSettled(declaration);
+
+    const instance = document.createElement(producedTag);
+    root.appendChild(instance);
+    await waitForCondition(
+        () => instance.querySelector('a.asset')?.getAttribute('href') === expectedHref,
+        `${producedTag} module-url settles`
+    );
+    return instance;
+}
+
+function dispatchInput(root: ParentNode, value: string): void {
+    const input = requiredElement(root, 'input') as HTMLInputElement;
+    input.value = value;
+    input.dispatchEvent(new Event('input', { bubbles: true }));
+}
+
 function requiredElement(root: ParentNode, selector: string): Element {
     const element = root.querySelector(selector);
     assert(element, `expected ${selector} to exist`);
@@ -2862,6 +4626,10 @@ function requiredElement(root: ParentNode, selector: string): Element {
 
 function nextFrame(): Promise<void> {
     return new Promise((resolve) => requestAnimationFrame(() => resolve()));
+}
+
+async function* utf8Body(text: string): AsyncIterable<Uint8Array> {
+    yield new TextEncoder().encode(text);
 }
 
 /** Concatenated, trimmed text content of a render-plan node list (for WASM-boundary assertions). */
@@ -2911,6 +4679,7 @@ function projectionSnapshot(
         templateArtifactId: 'story-template-artifact-1',
         dataRevision: '1',
         outputTarget: 'light-dom',
+        sourceMapMode: 'dev',
         scopePolicyStamp: 'story-scope',
         privacyPolicyStamp: 'story-privacy',
         hostAttributes,
@@ -2965,12 +4734,72 @@ function opsFromPatchFrames(frames: readonly PatchFrame[]) {
     return frames.flatMap((frame) => (frame.type === 'ops' ? frame.ops : []));
 }
 
+function directPatchPlan(text: string): RenderPlan {
+    return {
+        producedTag: 'direct-patch-host',
+        instanceId: 'direct-patch-instance',
+        templateArtifactId: 'direct-patch-template',
+        dataRevision: text,
+        outputTarget: 'light-dom',
+        scopePolicyStamp: 'direct-patch-scope',
+        nodes: [{
+            kind: 'element',
+            namespace: null,
+            tag: 'p',
+            renderNodeId: 'direct-patch-1',
+            attributes: [{ name: 'class', value: 'message' }],
+            sourceMapRef: { fidelity: 'dom-canonical', frame: 'direct:0' },
+            children: [{
+                kind: 'text',
+                text,
+                sourceMapRef: { fidelity: 'dom-canonical', frame: 'direct:0/0' },
+            }],
+        }],
+    };
+}
+
+function directInputPatchPlan(value: string, revision: string): RenderPlan {
+    return {
+        producedTag: 'direct-focus-host',
+        instanceId: 'direct-focus-instance',
+        templateArtifactId: 'direct-focus-template',
+        dataRevision: revision,
+        outputTarget: 'light-dom',
+        scopePolicyStamp: 'direct-focus-scope',
+        nodes: [{
+            kind: 'element',
+            namespace: null,
+            tag: 'label',
+            renderNodeId: 'direct-focus-label',
+            attributes: [{ name: 'class', value: 'field' }],
+            sourceMapRef: { fidelity: 'dom-canonical', frame: 'direct-focus:0' },
+            children: [{
+                kind: 'element',
+                namespace: null,
+                tag: 'input',
+                renderNodeId: 'direct-focus-input',
+                attributes: [
+                    { name: 'type', value: 'text' },
+                    { name: 'value', value },
+                ],
+                sourceMapRef: { fidelity: 'dom-canonical', frame: 'direct-focus:0/0' },
+                children: [],
+            }],
+        }],
+    };
+}
+
+function cloneRenderPlan(plan: RenderPlan): RenderPlan {
+    return JSON.parse(JSON.stringify(plan)) as RenderPlan;
+}
+
 function emptySerializedPayload(): DataIslandSnapshot['payload'] {
     return {
         text: '',
         childCount: 0,
         nodes: [],
         slots: {},
+        elementsByAttribute: {},
         data: [],
         options: [],
         dataByValue: {},

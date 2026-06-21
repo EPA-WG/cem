@@ -1,0 +1,23 @@
+<template id="cem-icon">
+    <attribute name="image"></attribute>
+    <attribute name="size"></attribute>
+    <attribute name="direction"></attribute>
+    <style>
+        &[direction="column"]>* { flex-direction: column; }
+    </style>
+    <choose>
+        <when test="string-length($image) &lt; 3"><b class="icon unicode">{$image}</b></when>
+        <when test="contains($image,'/')"><img alt="icon" class="icon" src="{$image}"/></when>
+        <when test="contains($image,'fa-')"><i class="icon {$image}"></i></when>
+        <when test="$image"><span class="icon material-icons">{$image}</span></when>
+    </choose>
+    <slot></slot>
+</template>
+<custom-element hidden src="#cem-icon" tag="cem-icon"></custom-element>
+<custom-element hidden src="./icon-link.html#cem-icon-link" tag="cem-icon-link"></custom-element>
+<custom-element>
+    <template>
+        <module-url slice="logo-url" src="@epa-wg/custom-element/demo/wc-square.svg"></module-url>
+        <cem-icon image="{//logo-url}">custom-element</cem-icon>
+    </template>
+</custom-element>

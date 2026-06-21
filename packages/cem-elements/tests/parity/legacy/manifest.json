@@ -1,0 +1,105 @@
+{
+  "version": 1,
+  "inventory": "../../docs/legacy-parity-inventory.md",
+  "requiredBehaviors": [
+    "declaration-registration",
+    "inline-template-shape",
+    "local-src",
+    "external-src",
+    "payload-capture",
+    "attribute-defaults-overrides",
+    "attribute-invalidation",
+    "slots",
+    "slice-events",
+    "datadom-access-migration",
+    "conditionals",
+    "legacy-bridge"
+  ],
+  "fixtures": [
+    {
+      "id": "declaration-registration",
+      "behavior": "Declaration registers a produced custom-element tag from tag",
+      "legacy": "declaration-registration.legacy.html",
+      "cemMl": "declaration-registration.cem.html",
+      "markers": ["<cem-element", "tag=\"legacy-register-card\"", "<template"]
+    },
+    {
+      "id": "inline-template-shape",
+      "behavior": "Inline declaration shape requires exactly one direct template and rejects live declaration content",
+      "legacy": "inline-template-shape.legacy.html",
+      "cemMl": "inline-template-shape.cem.html",
+      "markers": ["data-case=\"valid\"", "data-case=\"live-content-invalid\"", "data-case=\"missing-template-invalid\""]
+    },
+    {
+      "id": "local-src",
+      "behavior": "Fragment-only src declaration loading",
+      "legacy": "local-src.legacy.html",
+      "cemMl": "local-src.cem.html",
+      "markers": ["src=\"#legacy-local-template\"", "id=\"legacy-local-template\""]
+    },
+    {
+      "id": "external-src",
+      "behavior": "External url#fragment declaration loading",
+      "legacy": "external-src.legacy.html",
+      "cemMl": "external-src.cem.html",
+      "supportFiles": ["external-src.templates.html"],
+      "markers": ["src=\"./external-src.templates.html#legacy-external-template\""]
+    },
+    {
+      "id": "payload-capture",
+      "behavior": "Host payload is captured into a durable data island and removed from live fallback output",
+      "legacy": "payload-capture.legacy.html",
+      "cemMl": "payload-capture.cem.html",
+      "markers": ["<slot", "<legacy-payload-card"]
+    },
+    {
+      "id": "attribute-defaults-overrides",
+      "behavior": "Declared attributes expose defaults and host overrides",
+      "legacy": "attributes.legacy.html",
+      "cemMl": "attributes.cem.html",
+      "markers": ["<attribute name=\"tone\">", "{$tone}", "tone=\"alert\""]
+    },
+    {
+      "id": "attribute-invalidation",
+      "behavior": "External host attribute changes rerender produced instances",
+      "legacy": "attribute-invalidation.legacy.html",
+      "cemMl": "attribute-invalidation.cem.html",
+      "markers": ["data-mutate=\"label:After\"", "{$label}"]
+    },
+    {
+      "id": "slots",
+      "behavior": "Default and named slots project payload nodes",
+      "legacy": "slots.legacy.html",
+      "cemMl": "slots.cem.html",
+      "markers": ["<slot name=\"title\"", "<slot></slot>"]
+    },
+    {
+      "id": "slice-events",
+      "behavior": "Slice updates from DOM events rerender output",
+      "legacy": "slice-events.legacy.html",
+      "cemMl": "slice-events.cem.html",
+      "markers": ["slice=\"choice\"", "slice-event=\"change\"", "slice-value=\"{$target.value}\""]
+    },
+    {
+      "id": "datadom-access-migration",
+      "behavior": "Legacy XPath datadom access migrates to cem-ql datadom records",
+      "legacy": "datadom-access.legacy.html",
+      "cemMl": "datadom-access.cem.html",
+      "markers": ["/datadom/attributes", "datadom.attributes"]
+    },
+    {
+      "id": "conditionals",
+      "behavior": "Conditional rendering with if choose when otherwise",
+      "legacy": "conditionals.legacy.html",
+      "cemMl": "conditionals.cem.html",
+      "markers": ["<choose>", "<when test=", "<otherwise>"]
+    },
+    {
+      "id": "legacy-bridge",
+      "behavior": "Legacy custom-element-v0 bridge annotation",
+      "legacy": "legacy-bridge.legacy.html",
+      "cemMl": "legacy-bridge.cem.html",
+      "markers": ["lang=\"custom-element-v0\""]
+    }
+  ]
+}

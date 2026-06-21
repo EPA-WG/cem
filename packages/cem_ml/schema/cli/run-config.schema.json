@@ -1,0 +1,146 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://cem.dev/schema/cli/run-config.schema.json",
+  "title": "CEM-ML CLI RunConfig",
+  "description": "JSON configuration surface for CEM-ML CLI/library runs. The schema identity is https://cem.dev/ns/cli/run-config/1.",
+  "type": "object",
+  "additionalProperties": false,
+  "properties": {
+    "inputs": {
+      "type": "array",
+      "items": {
+        "$ref": "#/$defs/inputSpec"
+      },
+      "default": []
+    },
+    "outputs": {
+      "type": "array",
+      "items": {
+        "$ref": "#/$defs/outputSpec"
+      },
+      "default": []
+    },
+    "resolvers": {
+      "type": "array",
+      "items": {
+        "$ref": "#/$defs/resolverSpec"
+      },
+      "default": []
+    },
+    "scheduler": {
+      "$ref": "#/$defs/schedulerConfig",
+      "default": {}
+    }
+  },
+  "$defs": {
+    "inputSpec": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["uri"],
+      "properties": {
+        "uri": {
+          "type": "string",
+          "minLength": 1
+        },
+        "rootScope": {
+          "$ref": "#/$defs/scopeConfig",
+          "default": {}
+        }
+      }
+    },
+    "outputSpec": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "inputRef": {
+          "type": "string"
+        },
+        "destination": {
+          "type": "string"
+        },
+        "rootScope": {
+          "$ref": "#/$defs/scopeConfig",
+          "default": {}
+        }
+      }
+    },
+    "resolverSpec": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["uriPrefix", "localRoot"],
+      "properties": {
+        "uriPrefix": {
+          "type": "string",
+          "minLength": 1
+        },
+        "localRoot": {
+          "type": "string",
+          "minLength": 1
+        },
+        "read": {
+          "type": "boolean",
+          "default": false
+        },
+        "write": {
+          "type": "boolean",
+          "default": false
+        }
+      }
+    },
+    "scopeConfig": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "defaultContentType": {
+          "type": "string"
+        },
+        "schema": {
+          "type": "string"
+        },
+        "versionPins": {
+          "$ref": "#/$defs/stringMap",
+          "default": {}
+        },
+        "defaultNamespace": {
+          "type": "string"
+        },
+        "namespaces": {
+          "$ref": "#/$defs/stringMap",
+          "default": {}
+        },
+        "moduleMap": {
+          "type": "string"
+        },
+        "baseUri": {
+          "type": "string"
+        },
+        "policy": {
+          "type": "string"
+        },
+        "budgets": {
+          "$ref": "#/$defs/stringMap",
+          "default": {}
+        }
+      }
+    },
+    "schedulerConfig": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "threadPool": {
+          "type": "string"
+        },
+        "maxParallelDocuments": {
+          "type": "integer",
+          "minimum": 1
+        }
+      }
+    },
+    "stringMap": {
+      "type": "object",
+      "additionalProperties": {
+        "type": "string"
+      }
+    }
+  }
+}

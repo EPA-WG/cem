@@ -1,0 +1,13 @@
+{@doc cem-ml 1}
+{run |
+  {import @id=material-components @src="components/*.html" @content-type="text/html" |
+    {rewrite-importmap
+      @id=dist-importmap
+      @source-map="importmap.source.json"
+      @target-map="importmap.dist.json"
+      @mode="replace-imports"
+      @missing="error" |
+      {export @id=html @out="../dist/material/components/{file}" @content-type="text/html"}
+    }
+  }
+}

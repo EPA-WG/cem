@@ -1,0 +1,31 @@
+<cem-app-bar label="Asset browser">
+  <span slot="title">Asset browser</span>
+  <cem-icon-button name="settings" label="Open settings"></cem-icon-button>
+</cem-app-bar>
+
+<cem-tabs label="Asset views">
+  <button type="button" role="tab" aria-selected="true">Files</button>
+  <button type="button" role="tab" aria-selected="false">Activity</button>
+</cem-tabs>
+
+<cem-card label="Assets">
+  <span slot="title">Assets</span>
+  <cem-chip label="Filtered by owner">Owner</cem-chip>
+  <cem-badge tone="success">Ready</cem-badge>
+
+  <cem-table label="Asset table">
+    <div role="row">
+      <span role="columnheader">Name</span>
+      <span role="columnheader">Status</span>
+    </div>
+    <div role="row">
+      <span role="cell">Policy.pdf</span>
+      <span role="cell">Ready</span>
+    </div>
+  </cem-table>
+
+  <cem-media-preview label="Policy preview">
+    <img src="/policy.png" alt="Policy thumbnail">
+    <span slot="caption">Policy preview</span>
+  </cem-media-preview>
+</cem-card>

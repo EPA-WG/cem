@@ -38,7 +38,10 @@ pub const KNOWN_NAMESPACES: &[&str] = &[
 /// `cem.lint.unbound_prefix` case, not this), that URI is not a known Tier A
 /// namespace, and no active schema source/rule covers the region. When true the
 /// caller selects a [`Disposition`] via [`resolve_disposition`].
-pub fn is_unresolved_namespace(namespace_uri: Option<&str>, has_active_schema_source: bool) -> bool {
+pub fn is_unresolved_namespace(
+    namespace_uri: Option<&str>,
+    has_active_schema_source: bool,
+) -> bool {
     match namespace_uri {
         None => false,
         Some(uri) => !has_active_schema_source && !KNOWN_NAMESPACES.contains(&uri),
@@ -145,14 +148,20 @@ mod tests {
     #[test]
     fn build_ssr_rejects_every_class() {
         for class in CLASSES {
-            assert_eq!(default_disposition(RunMode::BuildSsr, class), Disposition::Reject);
+            assert_eq!(
+                default_disposition(RunMode::BuildSsr, class),
+                Disposition::Reject
+            );
         }
     }
 
     #[test]
     fn development_allows_every_class() {
         for class in CLASSES {
-            assert_eq!(default_disposition(RunMode::Development, class), Disposition::Allow);
+            assert_eq!(
+                default_disposition(RunMode::Development, class),
+                Disposition::Allow
+            );
         }
     }
 
@@ -167,12 +176,19 @@ mod tests {
             Disposition::Reject
         );
         // Unclassified → conservative reject.
-        assert_eq!(default_disposition(RunMode::Application, None), Disposition::Reject);
+        assert_eq!(
+            default_disposition(RunMode::Application, None),
+            Disposition::Reject
+        );
     }
 
     #[test]
     fn scope_policy_override_wins_in_every_mode() {
-        let modes = [RunMode::Application, RunMode::BuildSsr, RunMode::Development];
+        let modes = [
+            RunMode::Application,
+            RunMode::BuildSsr,
+            RunMode::Development,
+        ];
         let overrides = [Disposition::Reject, Disposition::Allow, Disposition::Ignore];
         for mode in modes {
             for class in CLASSES {
@@ -187,11 +203,16 @@ mod tests {
 
     #[test]
     fn no_override_uses_the_mode_default() {
-        let decision = resolve_disposition(RunMode::Application, Some(NamespaceClass::Presentation), None);
+        let decision = resolve_disposition(
+            RunMode::Application,
+            Some(NamespaceClass::Presentation),
+            None,
+        );
         assert_eq!(decision.disposition, Disposition::Allow);
         assert_eq!(decision.source, DispositionSource::RunModeDefault);
 
-        let rejected = resolve_disposition(RunMode::BuildSsr, Some(NamespaceClass::Presentation), None);
+        let rejected =
+            resolve_disposition(RunMode::BuildSsr, Some(NamespaceClass::Presentation), None);
         assert_eq!(rejected.disposition, Disposition::Reject);
         assert_eq!(rejected.source, DispositionSource::RunModeDefault);
     }
@@ -218,7 +239,11 @@ mod tests {
 
     #[test]
     fn decision_record_echoes_inputs() {
-        let decision = resolve_disposition(RunMode::Application, Some(NamespaceClass::DataSecurity), None);
+        let decision = resolve_disposition(
+            RunMode::Application,
+            Some(NamespaceClass::DataSecurity),
+            None,
+        );
         assert_eq!(decision.mode, RunMode::Application);
         assert_eq!(decision.class, Some(NamespaceClass::DataSecurity));
     }
@@ -226,7 +251,11 @@ mod tests {
     #[test]
     fn ignore_is_only_reachable_via_an_explicit_override() {
         // The mode defaults never select Ignore; it is an opt-in scope-policy choice.
-        for mode in [RunMode::Application, RunMode::BuildSsr, RunMode::Development] {
+        for mode in [
+            RunMode::Application,
+            RunMode::BuildSsr,
+            RunMode::Development,
+        ] {
             for class in CLASSES {
                 assert_ne!(default_disposition(mode, class), Disposition::Ignore);
             }

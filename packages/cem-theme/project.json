@@ -122,6 +122,60 @@
                 "{projectRoot}/dist/lib/token-platforms/android"
             ]
         },
+        "test:figma": {
+            "dependsOn": ["build:tokens"],
+            "executor": "nx:run-commands",
+            "options": {
+                "commands": [
+                    "node scripts/validate-figma.mjs",
+                    "node scripts/smoke-figma-propagation.mjs"
+                ],
+                "parallel": false,
+                "cwd": "packages/cem-theme"
+            },
+            "cache": true,
+            "inputs": [
+                "{projectRoot}/scripts/validate-figma.mjs",
+                "{projectRoot}/scripts/smoke-figma-propagation.mjs",
+                "{projectRoot}/dist/lib/tokens/figma/*.tokens.json",
+                "{projectRoot}/dist/lib/tokens/figma/cem-figma-report.md",
+                "{workspaceRoot}/examples/figma/README.md",
+                "{workspaceRoot}/examples/figma/sample-token-application.md"
+            ],
+            "outputs": []
+        },
+        "smoke:figma-propagation": {
+            "dependsOn": ["build:tokens"],
+            "executor": "nx:run-commands",
+            "options": {
+                "command": "node scripts/smoke-figma-propagation.mjs",
+                "cwd": "packages/cem-theme"
+            },
+            "cache": true,
+            "inputs": [
+                "{projectRoot}/scripts/smoke-figma-propagation.mjs",
+                "{projectRoot}/dist/lib/tokens/figma/*.tokens.json",
+                "{workspaceRoot}/examples/figma/sample-token-application.md"
+            ],
+            "outputs": []
+        },
+        "smoke:token-propagation": {
+            "executor": "nx:run-commands",
+            "options": {
+                "command": "node scripts/smoke-token-propagation.mjs",
+                "cwd": "packages/cem-theme"
+            },
+            "cache": false,
+            "inputs": [
+                "{projectRoot}/scripts/smoke-token-propagation.mjs",
+                "{projectRoot}/src/lib/tokens/cem-colors.md",
+                "{projectRoot}/scripts/build-token-platforms.mjs",
+                "{projectRoot}/scripts/export-tokens.mjs",
+                "{projectRoot}/scripts/validate-platforms.mjs",
+                "{projectRoot}/style-dictionary.config.mjs"
+            ],
+            "outputs": []
+        },
         "build:html": {
             "dependsOn": [
                 "build:docs",

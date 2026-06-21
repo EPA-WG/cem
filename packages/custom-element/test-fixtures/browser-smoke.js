@@ -80,6 +80,22 @@ export async function runCustomElementSmoke(importBase) {
         instance?.querySelector('template[data-cem-island="instance"]') !== null
     );
 
+    const implicitInstance = document.querySelector('implicit-template-card');
+    await waitFor(
+        'legacy shorthand declaration renders implicit template content',
+        () => implicitInstance?.querySelector('a')?.textContent?.trim() === 'Implicit'
+    );
+    const implicitDeclaration = document.querySelector('custom-element[tag="implicit-template-card"]');
+    check(
+        'legacy shorthand declaration is normalized to one inert template',
+        implicitDeclaration?.querySelectorAll(':scope > template').length === 1
+    );
+    check(
+        'legacy shorthand declaration keeps moved content in template',
+        implicitDeclaration?.querySelector(':scope > template')?.content.querySelector('a')?.textContent?.trim() ===
+            'Implicit'
+    );
+
     const inlineDeclaration = document.querySelector('custom-element.inline-fixture');
     const inlineTag = inlineDeclaration?.getAttribute('tag');
     await waitFor(
@@ -99,6 +115,19 @@ export async function runCustomElementSmoke(importBase) {
     await waitFor('http-request fetches JSON data', () => request.value?.data?.status === 'ok');
     check('http-request records response status', request.value?.response?.status === 200);
     check('http-request forwards request headers', request.value?.request?.headers?.accept === 'application/json');
+
+    const xmlRequest = document.createElement('http-request');
+    xmlRequest.setAttribute('url', './http-data.xml');
+    xmlRequest.setAttribute('method', 'GET');
+    xmlRequest.setAttribute('header-accept', 'application/xml');
+    document.body.appendChild(xmlRequest);
+    await waitFor('http-request fetches XML data', () => xmlRequest.value?.data?.localName === 'response');
+    check('http-request records XML response status', xmlRequest.value?.response?.status === 200);
+    check(
+        'http-request parses XML payload',
+        [...(xmlRequest.value?.data?.querySelectorAll('item') ?? [])].map((item) => item.textContent).join(',') ===
+            'alpha,beta'
+    );
 
     localStorage.removeItem('fixture-key');
     const storage = document.createElement('local-storage');

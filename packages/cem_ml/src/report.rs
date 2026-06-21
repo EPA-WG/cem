@@ -36,6 +36,10 @@ pub struct ReportOptionsSnapshot {
 pub struct ReportAst {
     #[serde(rename = "schedulerTrace", default)]
     pub scheduler_trace: SchedulerTraceReport,
+    #[serde(rename = "transform", skip_serializing_if = "Option::is_none")]
+    pub transform: Option<TransformReport>,
+    #[serde(rename = "transformGraph", skip_serializing_if = "Option::is_none")]
+    pub transform_graph: Option<TransformGraphReport>,
 }
 
 #[derive(Debug, Clone, Default, Serialize, Deserialize)]
@@ -86,6 +90,62 @@ impl From<SchedulerEvent> for SchedulerTraceReportEvent {
     }
 }
 
+#[derive(Debug, Clone, Default, Serialize, Deserialize, PartialEq, Eq)]
+#[serde(rename_all = "camelCase")]
+pub struct TransformReport {
+    pub input: String,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub destination: Option<String>,
+    pub output_kind: String,
+    #[serde(rename = "hasSourceMap")]
+    pub has_source_map: bool,
+    #[serde(rename = "outputSpanCount")]
+    pub output_span_count: u64,
+    #[serde(rename = "sourceMapRef", skip_serializing_if = "Option::is_none")]
+    pub source_map_ref: Option<String>,
+}
+
+#[derive(Debug, Clone, Default, Serialize, Deserialize, PartialEq, Eq)]
+#[serde(rename_all = "camelCase")]
+pub struct TransformGraphReport {
+    pub export_count: u64,
+    pub exports: Vec<TransformGraphExportReport>,
+}
+
+#[derive(Debug, Clone, Default, Serialize, Deserialize, PartialEq, Eq)]
+#[serde(rename_all = "camelCase")]
+pub struct TransformGraphExportReport {
+    pub export_id: String,
+    pub input: String,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub destination: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub content_type: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub schema: Option<String>,
+    pub output_kind: String,
+    #[serde(rename = "hasSourceMap")]
+    pub has_source_map: bool,
+    #[serde(rename = "outputSpanCount")]
+    pub output_span_count: u64,
+    #[serde(rename = "sourceMapRef", skip_serializing_if = "Option::is_none")]
+    pub source_map_ref: Option<String>,
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub collection_items: Vec<TransformGraphCollectionItemReport>,
+}
+
+#[derive(Debug, Clone, Default, Serialize, Deserialize, PartialEq, Eq)]
+#[serde(rename_all = "camelCase")]
+pub struct TransformGraphCollectionItemReport {
+    pub input: String,
+    #[serde(rename = "artifactId")]
+    pub artifact_id: String,
+    #[serde(rename = "hasSourceMap")]
+    pub has_source_map: bool,
+    #[serde(rename = "outputSpanCount")]
+    pub output_span_count: u64,
+}
+
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct Report {
     #[serde(rename = "generatedAt")]
@@ -131,6 +191,11 @@ impl Report {
 
     pub fn with_scheduler_trace(mut self, trace: &SchedulerTrace) -> Self {
         self.set_scheduler_trace(trace);
+        self
+    }
+
+    pub fn with_scheduler_trace_report(mut self, trace: SchedulerTraceReport) -> Self {
+        self.report_ast.scheduler_trace = trace;
         self
     }
 

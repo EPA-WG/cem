@@ -1,0 +1,9 @@
+<cem-element tag="cem-input">
+    <template type="text/cem-ml">
+        {attribute @name=type | text}
+        {label @class=cem-input |
+            {span @class=label | {slot @name=label | {$datadom.attributes.placeholder}}}
+            {input @type="{$type}" @value="{$datadom.attributes.value}" @slice=value @slice-event=input | }
+        }
+    </template>
+</cem-element>

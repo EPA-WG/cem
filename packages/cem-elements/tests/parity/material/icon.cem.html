@@ -1,0 +1,12 @@
+<cem-element tag="cem-icon">
+    <template type="text/cem-ml">
+        {attribute @name=direction | row}
+        {span @class="cem-icon {$direction}" |
+            {cem:choose |
+                {cem:when @test="datadom.attributes.image" | {span @class="icon material-icons" | {$datadom.attributes.image}}}
+                {cem:otherwise | {span @class="icon placeholder" | ?}}
+            }
+            {slot}
+        }
+    </template>
+</cem-element>

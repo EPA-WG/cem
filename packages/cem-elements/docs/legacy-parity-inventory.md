@@ -35,12 +35,12 @@ the behavioral reference.
 | Slice updates from DOM events rerender output | README interactivity; `demo/data-slices.html` | Supported for focused event/value forms | `LegacySliceInputEventParity`, `SliceEventInvalidationRerenders` |
 | Multiple event names / multiple slice targets / checkbox and radio coercion | `demo/data-slices.html` cases B, 7-13 | Partial | Current substrate supports one event name and focused value extraction; broader legacy forms remain bridge/adoption work |
 | Conditional rendering with `if` / `choose` / `when` / `otherwise` | README Pokemon example; material demos | Supported in canonical CEM-ML/cem-ql | `CemQlConditionalRenderLoop`; legacy XPath spellings migrate to `datadom.*` cem-ql |
-| Loops and variables (`for-each`, `variable`, XSLT 1.0) | README loops/variables; `demo/for-each.html` | Deferred | Not in the browser substrate bridge subset; adoption-phase `<custom-element>` may preserve full XSLT if needed |
+| Loops and variables (`for-each`, `variable`, XSLT 1.0) | README loops/variables; `demo/for-each.html` | Supported for the fixture-derived subset | Legacy inline variables and `for-each` lower through the shared engine; canonical `cem:for-each` demo fixtures cover inline sequences, payload records, location query entries, and JSON/XML resource records |
 | Namespaced `xhtml:*` parser workaround | README troubleshooting; material input demos | Partial | Current DOM read flattens `xhtml:*` to HTML local names; material inventory tracks this as coincidental parity |
-| Scoped styles in templates | README styles section; `demo/scoped-css.html` | Partial | Styles render into light DOM but are not scoped; material inventory tracks containment as open |
+| Scoped styles in templates | README styles section; `demo/scoped-css.html` | Supported for focused light-DOM containment | Generated `data-cem-scope` and payload-specific `data-cem-instance-scope` containment are covered by the scoped CSS demo fixture and processing-boundary tests |
 | Nested produced custom elements | README embedded CE rendering | Supported | Works when nested declarations are registered, including through local/external `src`; covered by material parity stories |
-| Resource slices (`module-url`, `http-request`, `local-storage`, `location-element`) | README extension primitives; demos | Partial | Focused `module-url` URL resolution is supported through `resolveModuleUrl` and material parity coverage; `http-request`, `local-storage`, and `location-element` remain later primitive/resource slices |
-| Legacy `<template lang="custom-element-v0">` bridge | Migration window item | Supported | `LegacyBridgeTemplateParity`; supports legacy interpolation, `if`/`choose`, slots, declarations, slices/resources; full XSLT-only constructs remain adoption-phase follow-up |
+| Resource slices (`module-url`, `http-request`, `local-storage`, `location-element`) | README extension primitives; demos | Supported for focused primitives | `module-url`, `http-request`, `local-storage`, and `location-element` resource slices are covered by executable demo fixtures; broad legacy XPath rewrites and progressive streaming remain deferred |
+| Legacy `<template lang="custom-element-v0">` bridge | Migration window item | Supported through shared engine | `LegacyBridgeTemplateParity`; accepted as a deprecated alias for the `legacy-xslt` engine path, with the browser-only projection branch retired |
 
 ## Migration Decisions
 
@@ -52,15 +52,22 @@ the behavioral reference.
 - The supported XSLT subset is pull-style and fixture-derived: `if`, `choose`, `when`, `otherwise`, `value-of`,
   inline `variable`, and `for-each` over an inline node-set variable lower to CEM-ML. Push-style XSLT and standalone
   stylesheet constructs remain Tier 3 handoff/deferred work.
-- Scoped CSS currently renders as light-DOM CSS. True scoping/containment is a material parity gap, not a hidden
-  substrate guarantee.
+- Scoped CSS uses generated light-DOM containment attributes. Template CSS is scoped by `data-cem-scope`, while projected
+  payload CSS is scoped by `data-cem-instance-scope` so sibling same-tag instances do not share payload styles.
 
-## Recommended Next Step
+## Production Gate Status
 
-The current bridge proves that legacy HTML+XSLT can be compiled to canonical CEM-ML and rendered through `cem_ql` WASM,
-but the converter still lives in `cem-elements` TypeScript. To make old custom-element syntax genuinely supported by
-the CEM-ML engine, move that compatibility compiler behind a shared CEM engine boundary and use it from the browser
-runtime, CLI validation, SSR, and package gates.
+Legacy parity is now part of the browser-substrate production gate. `yarn nx run cem-elements:verify` runs the
+file-backed legacy fixture manifest through `cem-elements:verify-legacy-fixtures`, the substrate roundtrip gate,
+Phase 2 CLI validation/e2e checks, the `cem_ml:bench` performance suite, unit tests, and Storybook browser parity
+stories.
+
+The current bridge proves that fixture-bounded legacy HTML+XSLT can be compiled through the shared CEM engine path to
+canonical CEM-ML and rendered through `cem_ql` WASM. Passing the aggregate gate means the `<cem-element>` browser
+substrate is eligible for the Phase 3.5 Edge/SSR follow-up; it does not mean the old `@epa-wg/custom-element` package
+has adopted this implementation.
+
+## Bridge / Adoption Deferrals
 
 Keep `@epa-wg/custom-element` as a thin adapter:
 
@@ -68,3 +75,6 @@ Keep `@epa-wg/custom-element` as a thin adapter:
 - delegate parsing/conversion/rendering to the shared engine path;
 - preserve copied demo/material modules as executable fixtures;
 - reject or explicitly hand off Tier 3 XSLT rather than expanding the bridge by accident.
+
+The actual `@epa-wg/custom-element` adoption remains a later Phase 3.6 handoff after the Edge/SSR runtime-support
+boundary is in place.

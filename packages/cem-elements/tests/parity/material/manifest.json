@@ -1,0 +1,80 @@
+{
+  "version": 1,
+  "inventory": "../../docs/material-parity-inventory.md",
+  "importOrder": [
+    "icon",
+    "icon-link",
+    "menu",
+    "badge",
+    "action",
+    "dropdown",
+    "input",
+    "autocomplete"
+  ],
+  "fixtures": [
+    {
+      "id": "icon",
+      "tag": "cem-icon",
+      "legacy": "icon.legacy.html",
+      "cemMl": "icon.cem.html",
+      "imports": ["icon-link"],
+      "markers": ["<choose>", "<when test=\"string-length($image)", "<slot></slot>", "<module-url"]
+    },
+    {
+      "id": "icon-link",
+      "tag": "cem-icon-link",
+      "legacy": "icon-link.legacy.html",
+      "cemMl": "icon-link.cem.html",
+      "imports": [],
+      "markers": ["<a href=\"{$href}\">", "<slot></slot>", "module-url @slice=cemurl"]
+    },
+    {
+      "id": "menu",
+      "tag": "cem-menu",
+      "legacy": "menu.legacy.html",
+      "cemMl": "menu.cem.html",
+      "imports": ["icon-link"],
+      "markers": ["<attribute name=\"direction\">", "<style>", "<slot name=\"\"></slot>"]
+    },
+    {
+      "id": "badge",
+      "tag": "cem-badge",
+      "legacy": "badge.legacy.html",
+      "cemMl": "badge.cem.html",
+      "imports": ["icon-link", "icon"],
+      "markers": ["<if test=\"/datadom/slice/is-checked = 'on'\">", "slice=\"is-checked\"", "<slot></slot>"]
+    },
+    {
+      "id": "action",
+      "tag": "cem-action",
+      "legacy": "action.legacy.html",
+      "cemMl": "action.cem.html",
+      "imports": ["icon-link", "icon"],
+      "markers": ["class=\"{//bend}\"", "@slice=pressed", "{cem-icon"]
+    },
+    {
+      "id": "dropdown",
+      "tag": "cem-dropdown",
+      "legacy": "dropdown.legacy.html",
+      "cemMl": "dropdown.cem.html",
+      "imports": ["icon-link", "menu"],
+      "markers": ["<slot name=\"base\">", "<slot name=\"\"></slot>", "aria-expanded"]
+    },
+    {
+      "id": "input",
+      "tag": "cem-input",
+      "legacy": "input.legacy.html",
+      "cemMl": "input.cem.html",
+      "imports": ["icon-link", "icon"],
+      "markers": ["select=\"//selected[//selected/event] ?? //attributes/@value\"", "<xhtml:input", "hasBoolAttribute($required)", "<slice name=\"focused\""]
+    },
+    {
+      "id": "autocomplete",
+      "tag": "cem-autocomplete",
+      "legacy": "autocomplete.legacy.html",
+      "cemMl": "autocomplete.cem.html",
+      "imports": ["icon-link", "input", "menu"],
+      "markers": ["<slot name=\"input\">", "<slot name=\"menu\">", "<data value=\"apple\">", "datadom.data.apple"]
+    }
+  ]
+}

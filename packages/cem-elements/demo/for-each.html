@@ -1,0 +1,161 @@
+<!doctype html>
+<html lang="en">
+<head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <title>cem-element for-each demo</title>
+    <link rel="stylesheet" href="./demo.css">
+    <script type="module">
+        import { installCemElementRuntime } from '../dist/index.js';
+        installCemElementRuntime(window);
+    </script>
+</head>
+<body>
+<nav class="page-nav"><a href="../index.html">cem-element demo</a><h1>cem:for-each</h1></nav>
+
+<cem-element tag="cem-loop-list">
+    <template type="text/cem-ml">
+        {location-element @slice=loop-location @href="https://example.test/loop?topic=feeds&item=payload&item=resource#for-each"}
+        {http-request @slice=loop-json @url="{$datadom.attributes.json-url}" @header-accept="application/json" @content-type="application/json"}
+        {http-request @slice=loop-xml @url="{$datadom.attributes.xml-url}" @header-accept="application/xml" @content-type="application/xml"}
+        {article @class=demo-card |
+            {h2 | 1. Simple for-each}
+            {p | Loop over inline CEM-QL sequence data and render each item.}
+            {ul |
+                {cem:for-each @select='("Apple", "Banana", "Cherry")' @as=fruit |
+                    {li | {$fruit}}
+                }
+            }
+        }
+        {article @class=demo-card |
+            {h2 | 2. for-each with position()}
+            {p | Use the loop position and record fields to number styled rows.}
+            {div |
+                {cem:for-each @select='({"label":"Red", "hex":"#c1121f"}, {"label":"Green", "hex":"#15803d"}, {"label":"Blue", "hex":"#1d4ed8"})' @as=color |
+                    {div @style="padding: 0.5rem; background: {$color.hex}; color: white;" |
+                        {$position}. {$color.label}
+                    }
+                }
+            }
+        }
+        {article @class=demo-card |
+            {h2 | 3. Conditional for-each}
+            {p | Items appear when the checkbox slice is true.}
+            {slice @name=show-items}
+            {label |
+                {input @type=checkbox @slice=show-items @slice-event=change @slice-value="$target.checked"}
+                Show items
+            }
+            {div |
+                BEFORE
+                {cem:if @test="datadom.slices.show-items = true" |
+                    {cem:for-each @select='("First", "Second", "Third")' @as=item |
+                        {span @style="margin: 0 0.25rem; padding: 0.25rem; background: #e0e0ff;" |
+                            {$position}:{$item}
+                        }
+                    }
+                }
+                AFTER
+            }
+        }
+        {article @class=demo-card |
+            {h2 | 4. Nested for-each table}
+            {p | Nested loops render rows and cells from record sequence data.}
+            {table |
+                {thead |
+                    {tr | {th | Col 1}{th | Col 2}{th | Col 3}}
+                }
+                {tbody |
+                    {cem:for-each @select='({"cells":("A1", "A2", "A3")}, {"cells":("B1", "B2", "B3")}, {"cells":("C1", "C2", "C3")})' @as=row |
+                        {tr |
+                            {cem:for-each @select="$row.cells" @as=cell |
+                                {td | {$cell}}
+                            }
+                        }
+                    }
+                }
+            }
+        }
+        {article @class=demo-card |
+            {h2 | 5. for-each with attributes}
+            {p | Attribute access maps to record fields in CEM-ML.}
+            {cem:for-each @select='({"id":"1", "role":"admin", "name":"Alice"}, {"id":"2", "role":"editor", "name":"Bob"}, {"id":"3", "role":"viewer", "name":"Charlie"})' @as=user |
+                {div @style="padding: 0.5rem; margin: 0.25rem 0; border-left: 3px solid #007bff;" |
+                    {strong | #{$user.id}} {$user.name} {em | ({$user.role})}
+                }
+            }
+        }
+        {article @class=demo-card |
+            {h2 | 6. Dynamic table with toggle}
+            {p | Rows appear and disappear based on checkbox state.}
+            {slice @name=show-products}
+            {label |
+                {input @type=checkbox @slice=show-products @slice-event=change @slice-value="$target.checked"}
+                Show products
+            }
+            {table |
+                {thead |
+                    {tr | {th | #}{th | Product}{th | Price}}
+                }
+                {tbody |
+                    {cem:if @test="datadom.slices.show-products = true" |
+                        {cem:for-each @select='({"name":"Widget", "price":"10"}, {"name":"Gadget", "price":"25"}, {"name":"Gizmo", "price":"15"})' @as=product |
+                            {tr |
+                                {td | {$position}}
+                                {td | {$product.name}}
+                                {td | ${$product.price}}
+                            }
+                        }
+                    }
+                }
+            }
+        }
+        {article @class=demo-card |
+            {h2 | 7. for-each over payload data}
+            {p | Payload elements are serialized into datadom and selected by attribute.}
+            {ol @class=payload-feed |
+                {cem:for-each @select="datadom.elementsByAttribute.feed" @as=item |
+                    {li | {$position}. {$item.attributes.label}: {$item.text}}
+                }
+            }
+        }
+        {article @class=demo-card |
+            {h2 | 8. for-each over location data}
+            {p | Resource primitives expose structured slices that can be looped.}
+            {ul @class=location-feed |
+                {cem:for-each @select="datadom.slices.loop-location.paramEntries" @as=param |
+                    {li | {$param.name} = {$param.text}}
+                }
+            }
+        }
+        {article @class=demo-card |
+            {h2 | 9. for-each over HTTP JSON/XML data}
+            {p | Local JSON and XML fixtures feed record sequences into the same loop syntax.}
+            {p | json state: {output @data-role=json-state | {$datadom.slices.loop-json.state}}}
+            {cem:if @test='datadom.slices.loop-json.state = "complete"' |
+                {ul @class=http-json-feed |
+                    {cem:for-each @select="datadom.slices.loop-json.data.results" @as=item |
+                        {li | {$item.name}: {$item.status}}
+                    }
+                }
+            }
+            {p | xml state: {output @data-role=xml-state | {$datadom.slices.loop-xml.state}}}
+            {cem:if @test='datadom.slices.loop-xml.state = "complete"' |
+                {ul @class=http-xml-feed |
+                    {cem:for-each @select="datadom.slices.loop-xml.data.children" @as=item |
+                        {li | {$item.attributes.name}: {$item.attributes.status}}
+                    }
+                }
+            }
+        }
+    </template>
+</cem-element>
+
+<main>
+    <cem-loop-list json-url="./http-data.json" xml-url="./http-data.xml">
+        <span feed="payload" label="payload-alpha">Payload Alpha</span>
+        <span feed="payload" label="payload-beta">Payload Beta</span>
+    </cem-loop-list>
+</main>
+</body>
+</html>

@@ -1,5 +1,7 @@
 # Schema-Scoping Fixtures
 
+Copyright (c) 2026 Sasha Firsov <https://github.com/sashafirsov>
+
 Per `docs/cem-ml-ac.md` §AC-F-2 and
 `packages/cem_ml/docs/cross-surface-conversion.md` §5/§9. Each fixture
 exercises one schema-scoping form covered by the

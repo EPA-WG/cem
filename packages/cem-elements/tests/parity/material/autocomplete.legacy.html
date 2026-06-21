@@ -1,0 +1,18 @@
+<custom-element tag="cem-icon-link" hidden src="./icon-link.html#cem-icon-link"></custom-element>
+<custom-element tag="cem-input" hidden src="./input.html#cem-input"></custom-element>
+<custom-element tag="cem-menu" hidden src="./menu.html#cem-menu"></custom-element>
+<custom-element tag="cem-autocomplete" hidden>
+    <template id="cem-autocomplete">
+        <attribute name="value" select="//selected[//selected/event] ?? //attributes/@value"></attribute>
+        <attribute name="label"></attribute>
+        <style>
+            .cem-autocomplete { display: grid; }
+        </style>
+        <slot name="input"><cem-input></cem-input></slot>
+        <slot name="menu"><cem-menu></cem-menu></slot>
+    </template>
+</custom-element>
+<cem-autocomplete value="a" label="Search fruit">
+    <data value="apple">Apple</data>
+    <data value="banana">Banana</data>
+</cem-autocomplete>

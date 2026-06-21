@@ -1,4 +1,5 @@
 <?xml version="1.0" encoding="UTF-8"?>
+<!-- Copyright (c) 2026 Sasha Firsov <https://github.com/sashafirsov> -->
 <xsl:stylesheet version="1.0"
 	xmlns="http://www.w3.org/1999/xhtml"
 	xmlns:xhtml="http://www.w3.org/1999/xhtml"

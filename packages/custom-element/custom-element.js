@@ -117,6 +117,7 @@ export class CustomElement extends HTMLElement {
     static observedAttributes = ['src', 'tag', 'hidden'];
 
     connectedCallback() {
+        wrapImplicitInlineTemplate(this);
         registerDeclarationElement(this);
     }
 }
@@ -126,6 +127,7 @@ function customElementClassForHost(host, runtime) {
         static observedAttributes = CustomElement.observedAttributes;
 
         connectedCallback() {
+            wrapImplicitInlineTemplate(this);
             registerDeclarationElement(this, runtime);
         }
     };
@@ -154,6 +156,21 @@ function runtimeForTarget(target) {
 
 function directTemplateChildren(element) {
     return Array.from(element.children).filter((child) => child.localName === 'template');
+}
+
+function wrapImplicitInlineTemplate(declaration) {
+    if (
+        !declaration.hasAttribute('tag') ||
+        declaration.hasAttribute('src') ||
+        directTemplateChildren(declaration).length > 0
+    ) {
+        return;
+    }
+    const template = declaration.ownerDocument.createElement('template');
+    for (const child of [...declaration.childNodes]) {
+        template.content.append(child);
+    }
+    declaration.append(template);
 }
 
 function nextInlineTag(declaration) {

@@ -1,0 +1,11 @@
+<cem-element tag="cem-autocomplete">
+    <template type="text/cem-ml">
+        {div @class=cem-autocomplete |
+            {slot @name=input | {cem-input @label="{$datadom.attributes.label}" @value="{$datadom.attributes.value}" | }}
+            {ul @class=options |
+                {cem:if @test="datadom.data.apple" | {li @class=opt | {$datadom.data.apple.label}}}
+                {cem:if @test="datadom.data.banana" | {li @class=opt | {$datadom.data.banana.label}}}
+            }
+        }
+    </template>
+</cem-element>

@@ -7,6 +7,6 @@
 //! factory lives in [`super::ir::CompiledSchema::cem_core`].
 
 pub use super::ir::{
-    AnnotationDef, CompiledSchema, NonStreamableConstraint, NonStreamableKind,
-    CEM_CORE_NAMESPACE, CEM_CORE_SCHEMA_ID,
+    AnnotationDef, CompiledSchema, NonStreamableConstraint, NonStreamableKind, CEM_CORE_NAMESPACE,
+    CEM_CORE_SCHEMA_ID,
 };

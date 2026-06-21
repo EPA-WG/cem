@@ -91,8 +91,7 @@ fn unconstrained_uri_resolves_to_the_highest_stable_release() {
 #[test]
 fn major_uri_resolves_to_the_highest_stable_within_the_major() {
     let corpus = corpus();
-    let (_, resolution) =
-        resolve_uri("https://cem.dev/ns/core/1", &corpus).expect("/1 resolves");
+    let (_, resolution) = resolve_uri("https://cem.dev/ns/core/1", &corpus).expect("/1 resolves");
     assert_eq!(resolution.embedded_version, semver(1, 3, 0));
     assert_eq!(resolution.match_rule, SchemaVersionMatchRule::Major);
     assert_eq!(match_rule_label(resolution.match_rule), "major");
@@ -123,10 +122,13 @@ fn full_uri_resolves_forgiving_at_or_above_the_tail() {
 #[test]
 fn prerelease_uri_resolves_to_the_named_prerelease_only() {
     let corpus = corpus();
-    let (_, resolution) = resolve_uri("https://cem.dev/ns/core/1.2.3-rc.1", &corpus)
-        .expect("/1.2.3-rc.1 resolves");
+    let (_, resolution) =
+        resolve_uri("https://cem.dev/ns/core/1.2.3-rc.1", &corpus).expect("/1.2.3-rc.1 resolves");
     assert_eq!(resolution.embedded_version, prerelease(1, 2, 3, "rc.1"));
-    assert_eq!(resolution.match_rule, SchemaVersionMatchRule::PrereleaseExact);
+    assert_eq!(
+        resolution.match_rule,
+        SchemaVersionMatchRule::PrereleaseExact
+    );
     assert_eq!(match_rule_label(resolution.match_rule), "prerelease-exact");
 }
 
@@ -190,8 +192,7 @@ fn unknown_namespace_does_not_resolve() {
 #[test]
 fn write_to_disk_lays_the_publication_tree_with_sidecars() {
     let schema = CompiledSchema::cem_core();
-    let output =
-        SchemaCompiler::emit_all(&schema, &CompilerOptions::default()).expect("emit_all");
+    let output = SchemaCompiler::emit_all(&schema, &CompilerOptions::default()).expect("emit_all");
 
     let root = unique_temp_dir("cem_ml_uri_publish");
     let _ = fs::remove_dir_all(&root);
@@ -202,8 +203,8 @@ fn write_to_disk_lays_the_publication_tree_with_sidecars() {
     // canonical `cem-bin/1+blake3:<hex>\n` over those bytes.
     for artifact in &output.artifacts {
         let path = root.join(&artifact.relative_path);
-        let on_disk = fs::read(&path)
-            .unwrap_or_else(|e| panic!("missing artifact {}: {e}", path.display()));
+        let on_disk =
+            fs::read(&path).unwrap_or_else(|e| panic!("missing artifact {}: {e}", path.display()));
         assert_eq!(
             on_disk, artifact.bytes,
             "{:?} on-disk bytes differ from the emitted bytes",
@@ -224,7 +225,12 @@ fn write_to_disk_lays_the_publication_tree_with_sidecars() {
 
     // The §13.2.5 layout: core/1.0.0/ holds the manifest plus mirrors.
     let version_dir = root.join("core").join("1.0.0");
-    for name in ["cem-core.rng", "cem-core.rnc", "cem-core.d.ts", "manifest.json"] {
+    for name in [
+        "cem-core.rng",
+        "cem-core.rnc",
+        "cem-core.d.ts",
+        "manifest.json",
+    ] {
         assert!(
             version_dir.join(name).is_file(),
             "missing {name} in the publication tree"
@@ -262,13 +268,12 @@ fn write_to_disk_rejects_artifact_paths_that_escape_the_root() {
 #[test]
 fn the_published_cem_core_manifest_resolves_back_through_resolve_uri() {
     let schema = CompiledSchema::cem_core();
-    let output =
-        SchemaCompiler::emit_all(&schema, &CompilerOptions::default()).expect("emit_all");
+    let output = SchemaCompiler::emit_all(&schema, &CompilerOptions::default()).expect("emit_all");
     let manifests = [output.manifest.clone()];
 
     // cem-core publishes embedded 1.0.0 under the /1 identity URI.
-    let (_, by_major) = resolve_uri("https://cem.dev/ns/core/1", &manifests)
-        .expect("cem-core resolves from /1");
+    let (_, by_major) =
+        resolve_uri("https://cem.dev/ns/core/1", &manifests).expect("cem-core resolves from /1");
     assert_eq!(by_major.embedded_version, SemVer::new(1, 0, 0));
     assert_eq!(by_major.match_rule, SchemaVersionMatchRule::Major);
 

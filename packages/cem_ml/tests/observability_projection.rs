@@ -18,8 +18,7 @@ use cem_ml::observability::{
 use cem_ml::real::observe_pipeline;
 
 fn canonical_fixture_paths() -> Vec<std::path::PathBuf> {
-    let root =
-        std::path::PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("../../examples/cem-ml");
+    let root = std::path::PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("../../examples/cem-ml");
     let mut out = Vec::new();
     walk(&root, &mut out);
     out.sort();
@@ -40,10 +39,7 @@ fn walk(dir: &std::path::Path, out: &mut Vec<std::path::PathBuf>) {
 #[test]
 fn every_fixture_emits_a_well_formed_event_stream() {
     let fixtures = canonical_fixture_paths();
-    assert!(
-        fixtures.len() >= 5,
-        "expected the canonical fixture corpus"
-    );
+    assert!(fixtures.len() >= 5, "expected the canonical fixture corpus");
     for path in &fixtures {
         let input = std::fs::read_to_string(path).unwrap();
         let observer = BufferingObserver::new();
@@ -58,7 +54,8 @@ fn every_fixture_emits_a_well_formed_event_stream() {
         // Sequence numbers form 0..events.len() exactly.
         for (idx, ev) in events.iter().enumerate() {
             assert_eq!(
-                ev.sequence as usize, idx,
+                ev.sequence as usize,
+                idx,
                 "sequence gap in fixture {}",
                 path.display()
             );
@@ -94,11 +91,21 @@ fn every_fixture_emits_a_well_formed_event_stream() {
         // Parse-channel scope opens and closes balance.
         let opens = events
             .iter()
-            .filter(|e| matches!(e.parse.as_ref().map(|p| p.kind), Some(ParseEventKind::OpenScope)))
+            .filter(|e| {
+                matches!(
+                    e.parse.as_ref().map(|p| p.kind),
+                    Some(ParseEventKind::OpenScope)
+                )
+            })
             .count();
         let closes = events
             .iter()
-            .filter(|e| matches!(e.parse.as_ref().map(|p| p.kind), Some(ParseEventKind::CloseScope)))
+            .filter(|e| {
+                matches!(
+                    e.parse.as_ref().map(|p| p.kind),
+                    Some(ParseEventKind::CloseScope)
+                )
+            })
             .count();
         assert_eq!(
             opens,
@@ -167,7 +174,9 @@ fn validate_channel_carries_diagnostic_codes() {
         .filter_map(|e| e.validate.map(|v| v.code))
         .collect();
     assert!(
-        codes.iter().any(|c| c == "cem.lint.relaxed_content_boundary"),
+        codes
+            .iter()
+            .any(|c| c == "cem.lint.relaxed_content_boundary"),
         "expected the relaxed-boundary lint on the validate channel, got {codes:?}"
     );
 }
