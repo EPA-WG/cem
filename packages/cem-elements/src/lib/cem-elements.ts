@@ -9,6 +9,8 @@ import {
     renderInstanceScopeUid,
     renderPlansHaveDomChanges,
     scopeRenderPlan,
+    validateRenderPlanGeneratedIds,
+    type GeneratedRenderPlanIdDiagnostic,
     type RenderPlan,
     type RenderPlanApplyDiagnostic,
     type ScopedCssRewriteDiagnostic,
@@ -513,6 +515,7 @@ const HYDRATION_METADATA_VALUE = 'snapshot';
 const UID_SEED_ATTR = 'uid-seed';
 const LOCAL_STORAGE_EVENT = 'cem-local-storage';
 const LOCATION_EVENT = 'cem-location';
+const RENDER_NODE_ID_ATTR = 'data-cem-render-node-id';
 const RENDER_TEMPLATE_ARTIFACT_ID_ATTR = 'data-cem-template-artifact-id';
 const RENDER_DATA_REVISION_ATTR = 'data-cem-data-revision';
 const SOURCE_FIDELITY_ATTR = 'data-cem-source-fidelity';
@@ -715,7 +718,7 @@ export class CemElementRuntime {
     private readonly uidSeedOption?: CemElementRuntimeOptions['uidSeed'];
     private readonly uidSeedFallback: NonNullable<CemElementRuntimeOptions['uidSeedFallback']>;
     private readonly validateGeneratedIds: boolean;
-    private readonly generatedScopeOwners = new Map<string, HTMLElement>();
+    private readonly generatedIdOwners = new Map<string, HTMLElement>();
     private instanceSequence = 0;
 
     constructor(options: CemElementRuntimeOptions = {}) {
@@ -830,7 +833,7 @@ export class CemElementRuntime {
             uidSeed: this.uidSeedOption,
             uidSeedFallback: this.uidSeedFallback,
         });
-        if (!this.validateGeneratedScopeUid(compiled)) {
+        if (!this.validateGeneratedDeclarationIds(compiled)) {
             return Promise.resolve();
         }
         this.recordDiagnostics(declarationElement, [...shapeDiagnostics, ...compiled.diagnostics]);
@@ -1173,6 +1176,7 @@ export class CemElementRuntime {
                 instance,
                 scoped.diagnostics.map((diagnostic) => scopedCssDiagnostic(diagnostic, compiled.producedTag))
             );
+            this.recordGeneratedRenderPlanDiagnostics(instance, scoped.renderPlan, compiled.producedTag);
             const island = this.ensureDataIsland(instance);
             await this.commitRenderPlan(instance, compiled, island, scoped.renderPlan, token);
         } catch (error) {
@@ -1214,6 +1218,7 @@ export class CemElementRuntime {
                 instance,
                 scoped.diagnostics.map((diagnostic) => scopedCssDiagnostic(diagnostic, compiled.producedTag))
             );
+            this.recordGeneratedRenderPlanDiagnostics(instance, scoped.renderPlan, compiled.producedTag);
             return scoped.renderPlan;
         } catch (error) {
             this.recordDiagnostics(instance, [
@@ -1225,6 +1230,18 @@ export class CemElementRuntime {
             ]);
             return null;
         }
+    }
+
+    private recordGeneratedRenderPlanDiagnostics(instance: HTMLElement, plan: RenderPlan, tag: string): void {
+        if (!this.validateGeneratedIds) {
+            return;
+        }
+        this.recordDiagnostics(
+            instance,
+            validateRenderPlanGeneratedIds(plan).map((diagnostic) =>
+                generatedRenderPlanIdDiagnostic(diagnostic, tag)
+            )
+        );
     }
 
     private ensureDataIsland(instance: HTMLElement): HTMLTemplateElement {
@@ -1303,7 +1320,7 @@ export class CemElementRuntime {
             ]);
             return false;
         }
-        const identityDiagnostics = hydrationRenderIdentityDiagnostics(instance, bounds, snapshot);
+        const identityDiagnostics = hydrationRenderIdentityDiagnostics(instance, bounds, snapshot, this.validateGeneratedIds);
         if (identityDiagnostics.length > 0) {
             this.recordDiagnostics(instance, identityDiagnostics);
             return false;
@@ -2532,23 +2549,28 @@ export class CemElementRuntime {
         return this.declarations.get(instance.localName);
     }
 
-    private validateGeneratedScopeUid(compiled: CompiledDeclaration): boolean {
+    private validateGeneratedDeclarationIds(compiled: CompiledDeclaration): boolean {
         if (!this.validateGeneratedIds) {
             return true;
         }
-        const owner = this.generatedScopeOwners.get(compiled.scopeUid);
-        if (owner && owner !== compiled.declarationElement) {
-            this.recordDiagnostics(compiled.declarationElement, [
-                declarationDiagnostic(
-                    'cem-element.scope_uid_duplicate',
-                    `generated scope UID \`${compiled.scopeUid}\` is already used in this runtime output scope`,
-                    compiled.producedTag
-                ),
-            ]);
-            return false;
+        let valid = true;
+        for (const generated of generatedDeclarationIds(compiled)) {
+            const key = `${generated.kind}:${generated.id}`;
+            const owner = this.generatedIdOwners.get(key);
+            if (owner && owner !== compiled.declarationElement) {
+                this.recordDiagnostics(compiled.declarationElement, [
+                    declarationDiagnostic(
+                        generated.code,
+                        `generated ${generated.label} \`${generated.id}\` is already used in this runtime output scope`,
+                        compiled.producedTag
+                    ),
+                ]);
+                valid = false;
+                continue;
+            }
+            this.generatedIdOwners.set(key, compiled.declarationElement);
         }
-        this.generatedScopeOwners.set(compiled.scopeUid, compiled.declarationElement);
-        return true;
+        return valid;
     }
 
     private recordDiagnostics(target: object, diagnostics: CemElementDiagnostic[]): void {
@@ -2566,6 +2588,30 @@ export class CemElementRuntime {
             }
         }
     }
+}
+
+interface GeneratedDeclarationId {
+    kind: 'scope' | 'template-artifact' | 'anonymous-custom-element-name';
+    id: string;
+    code: string;
+    label: string;
+}
+
+function generatedDeclarationIds(compiled: CompiledDeclaration): GeneratedDeclarationId[] {
+    return [
+        {
+            kind: 'scope',
+            id: compiled.scopeUid,
+            code: 'cem-element.scope_uid_duplicate',
+            label: 'scope UID',
+        },
+        {
+            kind: 'template-artifact',
+            id: compiled.artifactId,
+            code: 'cem-element.template_artifact_id_duplicate',
+            label: 'template artifact ID',
+        },
+    ];
 }
 
 function analyzeDeclarationElement(element: HTMLElement): DeclarationShapeResult {
@@ -3785,7 +3831,8 @@ function parseHydrationSnapshot(metadata: HTMLScriptElement): HydrationSnapshotP
 function hydrationRenderIdentityDiagnostics(
     instance: HTMLElement,
     bounds: RenderBounds,
-    snapshot: DataIslandSnapshot
+    snapshot: DataIslandSnapshot,
+    validateGeneratedIds = false
 ): CemElementDiagnostic[] {
     const firstRenderedElement = firstRenderedElementBetween(bounds);
     if (!firstRenderedElement) {
@@ -3837,6 +3884,49 @@ function hydrationRenderIdentityDiagnostics(
     const sourceMapModeDiagnostic = hydrationSourceMapModeDiagnostic(instance, firstRenderedElement, snapshot);
     if (sourceMapModeDiagnostic) {
         diagnostics.push(sourceMapModeDiagnostic);
+    }
+    if (validateGeneratedIds) {
+        diagnostics.push(...hydrationGeneratedIdDiagnostics(instance, bounds));
+    }
+    return diagnostics;
+}
+
+function hydrationGeneratedIdDiagnostics(instance: HTMLElement, bounds: RenderBounds): CemElementDiagnostic[] {
+    const diagnostics: CemElementDiagnostic[] = [];
+    const renderNodeIds = new Map<string, Element>();
+    const stylesheetIds = new Map<string, Element>();
+    for (const element of renderedElementsBetween(bounds, '*')) {
+        const renderNodeId = element.getAttribute(RENDER_NODE_ID_ATTR);
+        if (!renderNodeId) {
+            continue;
+        }
+        const existing = renderNodeIds.get(renderNodeId);
+        if (existing && existing !== element) {
+            diagnostics.push(
+                renderDiagnostic(
+                    'cem-element.hydration_render_node_id_duplicate',
+                    `SSR hydration retained duplicate render-node ID \`${renderNodeId}\``,
+                    instance.localName
+                )
+            );
+        } else {
+            renderNodeIds.set(renderNodeId, element);
+        }
+        if (element.localName !== 'style') {
+            continue;
+        }
+        const existingStylesheet = stylesheetIds.get(renderNodeId);
+        if (existingStylesheet && existingStylesheet !== element) {
+            diagnostics.push(
+                renderDiagnostic(
+                    'cem-element.hydration_stylesheet_id_duplicate',
+                    `SSR hydration retained duplicate stylesheet ID \`${renderNodeId}\``,
+                    instance.localName
+                )
+            );
+        } else {
+            stylesheetIds.set(renderNodeId, element);
+        }
     }
     return diagnostics;
 }
@@ -4127,6 +4217,19 @@ function resourceDiagnostic(
 }
 
 function scopedCssDiagnostic(diagnostic: ScopedCssRewriteDiagnostic, tag: string): CemElementDiagnostic {
+    return {
+        code: diagnostic.code,
+        severity: diagnostic.severity,
+        source: 'render',
+        message: diagnostic.message,
+        tag,
+    };
+}
+
+function generatedRenderPlanIdDiagnostic(
+    diagnostic: GeneratedRenderPlanIdDiagnostic,
+    tag: string
+): CemElementDiagnostic {
     return {
         code: diagnostic.code,
         severity: diagnostic.severity,

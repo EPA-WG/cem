@@ -156,6 +156,18 @@ export interface ScopeCssTextOptions {
     scopeAttribute?: string;
 }
 
+export type GeneratedRenderPlanIdKind = 'render-node' | 'stylesheet';
+
+export interface GeneratedRenderPlanIdDiagnostic {
+    code: string;
+    severity: 'warning';
+    kind: GeneratedRenderPlanIdKind;
+    id: string;
+    firstPath: string;
+    duplicatePath: string;
+    message: string;
+}
+
 export interface RenderRevision {
     instanceId: string;
     dataRevision: string;
@@ -974,6 +986,65 @@ export function scopeCssText(
 
 export function renderInstanceScopeUid(scopeUid: string, instanceId: string): string {
     return `${scopeUid}-i${cssIdentifier(instanceId)}`;
+}
+
+export function validateRenderPlanGeneratedIds(plan: RenderPlan): GeneratedRenderPlanIdDiagnostic[] {
+    const diagnostics: GeneratedRenderPlanIdDiagnostic[] = [];
+    const renderNodeIds = new Map<string, string>();
+    const stylesheetIds = new Map<string, string>();
+
+    const visit = (node: RenderPlanNode, path: string): void => {
+        if (node.kind !== 'element') {
+            return;
+        }
+        recordGeneratedRenderPlanId(renderNodeIds, diagnostics, {
+            kind: 'render-node',
+            id: node.renderNodeId,
+            path,
+            code: 'cem.render_plan.generated_render_node_id_duplicate',
+            label: 'render-node ID',
+        });
+        if (node.tag === STYLE_TAG && node.namespace === null) {
+            recordGeneratedRenderPlanId(stylesheetIds, diagnostics, {
+                kind: 'stylesheet',
+                id: node.renderNodeId,
+                path,
+                code: 'cem.render_plan.generated_stylesheet_id_duplicate',
+                label: 'stylesheet ID',
+            });
+        }
+        node.children.forEach((child, index) => visit(child, `${path}.${index}`));
+    };
+
+    plan.nodes.forEach((node, index) => visit(node, String(index)));
+    return diagnostics;
+}
+
+function recordGeneratedRenderPlanId(
+    seen: Map<string, string>,
+    diagnostics: GeneratedRenderPlanIdDiagnostic[],
+    input: {
+        kind: GeneratedRenderPlanIdKind;
+        id: string;
+        path: string;
+        code: string;
+        label: string;
+    }
+): void {
+    const firstPath = seen.get(input.id);
+    if (firstPath !== undefined) {
+        diagnostics.push({
+            code: input.code,
+            severity: 'warning',
+            kind: input.kind,
+            id: input.id,
+            firstPath,
+            duplicatePath: input.path,
+            message: `generated ${input.label} \`${input.id}\` is duplicated in render-plan paths ${firstPath} and ${input.path}`,
+        });
+        return;
+    }
+    seen.set(input.id, input.path);
 }
 
 function projectSlotNodes(

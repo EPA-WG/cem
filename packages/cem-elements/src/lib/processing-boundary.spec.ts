@@ -18,6 +18,7 @@ import {
     renderInstanceScopeUid,
     scopeCssText,
     scopeRenderPlan,
+    validateRenderPlanGeneratedIds,
     type PatchFrame,
     type RenderPlan,
     type TemplateProjectionInput,
@@ -318,6 +319,47 @@ describe('host processing boundary contracts', () => {
             text: `[data-cem-instance-scope="${instanceScopeUid}"] {\n    button { border-color: red; }\n}`,
             sourceMapRef: undefined,
         });
+    });
+
+    it('diagnoses duplicate generated render-plan and stylesheet IDs', () => {
+        const plan: RenderPlan = {
+            producedTag: 'story-card',
+            instanceId: 'cem-instance-1',
+            templateArtifactId: 'template-artifact-1',
+            dataRevision: '1',
+            outputTarget: 'light-dom',
+            scopePolicyStamp: 'boundary-scope',
+            nodes: [
+                {
+                    kind: 'element',
+                    namespace: null,
+                    tag: 'style',
+                    renderNodeId: 'story-card-style',
+                    attributes: [],
+                    children: [{ kind: 'text', text: 'button { color: red; }' }],
+                },
+                {
+                    kind: 'element',
+                    namespace: null,
+                    tag: 'section',
+                    renderNodeId: 'story-card-section',
+                    attributes: [],
+                    children: [{
+                        kind: 'element',
+                        namespace: null,
+                        tag: 'style',
+                        renderNodeId: 'story-card-style',
+                        attributes: [],
+                        children: [{ kind: 'text', text: 'button { color: blue; }' }],
+                    }],
+                },
+            ],
+        };
+
+        expect(validateRenderPlanGeneratedIds(plan).map((diagnostic) => diagnostic.code)).toEqual([
+            'cem.render_plan.generated_render_node_id_duplicate',
+            'cem.render_plan.generated_stylesheet_id_duplicate',
+        ]);
     });
 
     it('detects visible render-plan DOM changes while ignoring revision-only changes', () => {

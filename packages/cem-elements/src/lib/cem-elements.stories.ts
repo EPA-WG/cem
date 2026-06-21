@@ -3310,7 +3310,10 @@ export const SsrHydrationRejectsIncompleteMarkup: Story = {
             '<article class="ssr-incomplete-card">' +
             '<h2>${$label}</h2>' +
             '</article>';
-        const runtime = new CemElementRuntime({ declarationTag: 'cem-element-story-ssr-incomplete' });
+        const runtime = new CemElementRuntime({
+            declarationTag: 'cem-element-story-ssr-incomplete',
+            validateGeneratedIds: true,
+        });
         runtime.install(window);
         const declaration = document.createElement('cem-element-story-ssr-incomplete');
         declaration.setAttribute('tag', 'story-ssr-incomplete-card');
@@ -3402,6 +3405,13 @@ export const SsrHydrationRejectsIncompleteMarkup: Story = {
         const sourceMapModeMismatch = hydratedCase('Source-map mode mismatch', JSON.stringify(snapshot), (element) => {
             element.removeAttribute('data-cem-source-fidelity');
         });
+        const duplicateRenderNodeId = hydratedCase('Duplicate render-node ID', JSON.stringify(snapshot), (element) => {
+            const renderNodeId = element.getAttribute('data-cem-render-node-id');
+            const child = element.querySelector('[data-cem-render-node-id]');
+            if (renderNodeId && child) {
+                child.setAttribute('data-cem-render-node-id', renderNodeId);
+            }
+        });
 
         await runtime.whenRenderSettled(metadataOnly);
         await runtime.whenRenderSettled(boundsOnly);
@@ -3412,6 +3422,7 @@ export const SsrHydrationRejectsIncompleteMarkup: Story = {
         await runtime.whenRenderSettled(artifactMismatch);
         await runtime.whenRenderSettled(revisionMismatch);
         await runtime.whenRenderSettled(sourceMapModeMismatch);
+        await runtime.whenRenderSettled(duplicateRenderNodeId);
 
         assertDiagnostic(runtime.diagnosticsFor(metadataOnly), 'cem-element.hydration_boundaries_missing');
         assertDiagnostic(runtime.diagnosticsFor(boundsOnly), 'cem-element.hydration_metadata_missing');
@@ -3422,6 +3433,7 @@ export const SsrHydrationRejectsIncompleteMarkup: Story = {
         assertDiagnostic(runtime.diagnosticsFor(artifactMismatch), 'cem-element.hydration_template_artifact_mismatch');
         assertDiagnostic(runtime.diagnosticsFor(revisionMismatch), 'cem-element.hydration_render_revision_mismatch');
         assertDiagnostic(runtime.diagnosticsFor(sourceMapModeMismatch), 'cem-element.hydration_source_map_mode_mismatch');
+        assertDiagnostic(runtime.diagnosticsFor(duplicateRenderNodeId), 'cem-element.hydration_render_node_id_duplicate');
         await waitForElement(metadataOnly, 'article.ssr-incomplete-card');
         await waitForElement(boundsOnly, 'article.ssr-incomplete-card');
         await waitForElement(emptySnapshot, 'article.ssr-incomplete-card');
@@ -3431,6 +3443,7 @@ export const SsrHydrationRejectsIncompleteMarkup: Story = {
         await waitForElement(artifactMismatch, 'article.ssr-incomplete-card');
         await waitForElement(revisionMismatch, 'article.ssr-incomplete-card');
         await waitForElement(sourceMapModeMismatch, 'article.ssr-incomplete-card');
+        await waitForElement(duplicateRenderNodeId, 'article.ssr-incomplete-card');
     },
 };
 

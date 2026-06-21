@@ -66,7 +66,7 @@ history belongs in git history and the feature-specific docs linked below.
        supplied;
      - [x] implement validation/debug duplicate-ID diagnostics for generated `scopeUid` values in the same output
        scope, without auto-repairing repeatable output with dynamic disambiguators;
-     - [ ] extend validation/debug duplicate-ID diagnostics to future generated anonymous custom-element names, stylesheet
+     - [x] extend validation/debug duplicate-ID diagnostics to future generated anonymous custom-element names, stylesheet
        IDs, hydration/render-root IDs, and emitted artifact IDs;
      - [x] implement scoped CSS nesting wrapper output using `[data-cem-scope="..."] { ... }` where native nesting safely
        scopes authored CSS;
