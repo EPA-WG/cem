@@ -34,8 +34,10 @@ history belongs in git history and the feature-specific docs linked below.
      - [x] Confirm `packages/cem-elements/index.html` does not need duplicate resource-backed `<http-request>` coverage for
        Phase 1 because the dedicated `demo/http-request.html` fixture now covers JSON/XML resource records.
      - [x] Keep the published standalone `http-request.js` companion shim smoke-tested as compatibility surface.
-     - [ ] Defer progressive AST streaming, full browser source-map sidecars, cache identity, SSR preload/revalidation, and
-       legacy broad XPath rewrite compatibility to later phases of the design.
+     - [x] Record progressive AST streaming, full browser source-map sidecars, cache identity, SSR preload/revalidation,
+       and legacy broad XPath rewrite compatibility as later phases in
+       [`cem-elements-http-request-design.md`](cem-elements-http-request-design.md) and [`../roadmap.md`](../roadmap.md),
+       outside the Phase 1 release queue.
    - [x] Implement `<local-storage>` as a CEM Elements resource primitive with typed text/date/time/number/json coercion,
      initial slice hydration, live storage updates, and write-back from slice changes.
    - [x] Implement `<location-element>` as a CEM Elements resource primitive for reading `window.location`/custom hrefs
