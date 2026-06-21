@@ -105,6 +105,25 @@
             ],
             "outputs": []
         },
+        "verify-demo-fixtures": {
+            "cache": true,
+            "executor": "nx:run-commands",
+            "dependsOn": ["build"],
+            "options": {
+                "command": "node tools/scripts/verify-cem-elements-demo-fixtures.mjs",
+                "cwd": "{workspaceRoot}"
+            },
+            "inputs": [
+                "{workspaceRoot}/tools/scripts/verify-cem-elements-demo-fixtures.mjs",
+                "{projectRoot}/index.html",
+                "{projectRoot}/demo/**/*",
+                "{projectRoot}/src/**/*.ts",
+                "{projectRoot}/package.json",
+                "{workspaceRoot}/package.json",
+                "{workspaceRoot}/yarn.lock"
+            ],
+            "outputs": []
+        },
         "verify-edge-ssr": {
             "executor": "nx:run-commands",
             "dependsOn": [
@@ -126,10 +145,11 @@
                 { "projects": ["cem_ml"], "target": "bench" },
                 "verify-edge-ssr",
                 "verify-legacy-fixtures",
-                "verify-material-fixtures"
+                "verify-material-fixtures",
+                "verify-demo-fixtures"
             ],
             "options": {
-                "command": "echo \"C2.6 verification gate green: cem_ml_cli validate-fixtures + e2e, cem_ml bench, Phase 3.5 Edge/SSR gate, file-backed parity fixtures, and Storybook parity stories all passed.\"",
+                "command": "echo \"C2.6 verification gate green: cem_ml_cli validate-fixtures + e2e, cem_ml bench, Phase 3.5 Edge/SSR gate, file-backed parity fixtures, executable demo fixtures, and Storybook parity stories all passed.\"",
                 "cwd": "{workspaceRoot}"
             },
             "outputs": []

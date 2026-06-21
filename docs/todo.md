@@ -65,7 +65,8 @@ history belongs in git history and the feature-specific docs linked below.
      - [ ] Deferred: implement and cross-browser validate dynamic internal `<textarea>` handling using an invisible
        child-node merge model plus explicit `.value` projection; include SSR loader conversion from a
        loader-friendly `<xsl:element name="textarea">`-style or equivalent CEM-ML placeholder form.
-   - Wire the demo parity checks into `yarn nx run cem-elements:verify` once the pages are executable release fixtures.
+   - [x] Wire the demo parity checks into `yarn nx run cem-elements:verify` once the pages are executable release
+     fixtures.
 
 Completed release-gate phases are recorded in:
 

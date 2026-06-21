@@ -17,7 +17,7 @@
     <template type="text/cem-ml">
         {article @class=demo-card |
             {style |```
-                cem-style-demo .scoped-sample {
+                :host .scoped-sample {
                     border-color: #0f766e;
                     background: #ecfdf5;
                 }
@@ -30,7 +30,7 @@
 <main>
     <cem-style-demo></cem-style-demo>
     <p class="scoped-sample demo-card">This outside paragraph should not match the prefixed selector.</p>
-    <p class="status-note">Parity target: automatic style containment is still queued. This demo uses an explicit produced-tag prefix.</p>
+    <p class="status-note">Automatic style containment scopes this demo through the generated <code>data-cem-scope</code> value.</p>
 </main>
 </body>
 </html>

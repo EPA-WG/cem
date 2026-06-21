@@ -131,9 +131,9 @@
                 {h3 | {$datadom.attributes.title}}
 
                 /* data-smile DCE instance attribute, mapped into datadom.dataset.smile and used in condition */
-                {cem:if @test="datadom.dataset.smile" |
+                {cem:if @test="(datadom.slices.smile ?? datadom.dataset.smile ?? datadom.attributes.smile)" |
                     /* data-smile DCE instance attribute, used as HTML */
-                    {div | Smile as: {$datadom.dataset.smile}}
+                    {div | Smile as: {$(datadom.slices.smile ?? datadom.dataset.smile ?? datadom.attributes.smile)}}
                 }
                 /* image would not be visible in sandbox, see live demo */
                 {img
