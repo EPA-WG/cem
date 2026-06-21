@@ -1,6 +1,7 @@
 # CEM Elements HTTP Request Resource Design
 
-**Status:** Draft design.
+**Status:** Design accepted for staged implementation. Phase 1 is the
+implementation-ready contract; later phases remain roadmap items.
 **Primary use case:** substrate-backed `<http-request>` resource slices for
 `<cem-element>` templates.
 **Related docs:** [`cem-element` design](./cem-element-design.md),
@@ -53,6 +54,11 @@ This gives one path for:
 - SSR and edge rendering;
 - CLI and test fixtures;
 - source maps from template source and data source into final UI DOM.
+
+The full streaming/source-map model is the architectural target. The first
+implementation must keep the same host and data boundaries, but it may buffer
+completed responses inside the CEM runtime while parser streaming and browser
+source-map tooling are added later.
 
 ## 3. Authoring Surface
 
@@ -142,7 +148,148 @@ Bare specifiers that cannot be resolved through the active module map must not f
 back to browser-relative URL parsing. They produce a diagnostic such as
 `cem.resource.http.unresolved_url` and the resource enters `state="error"`.
 
-## 4. Data Document Shape
+## 4. Phase 1 Implementation Contract
+
+Phase 1 is the browser-substrate implementation slice. It must establish the
+correct resource boundary without requiring the full progressive parser, cache, SSR,
+or debug-source-map stack.
+
+### 4.1 Runtime Host API
+
+`<http-request>` needs resource-specific host hooks rather than overloading the
+existing `resolveModuleUrl(specifier, baseDocument)` helper. The runtime should
+introduce a resource resolver and loader boundary with this shape:
+
+```ts
+interface CemResourceResolutionRequest {
+  kind: "http-request";
+  authoredUrl: string;
+  baseUrl: string;
+  declarationScopeId: string;
+  method: string;
+  headers: Record<string, string>;
+  expectedContentType?: string;
+}
+
+interface CemResourceResolution {
+  authoredUrl: string;
+  resolvedUrl: string;
+  resolverIdentity: string;
+  resourcePolicyStamp: string;
+  contentTypeHint?: string;
+  integrity?: string;
+}
+
+interface CemHttpRequest {
+  authoredUrl: string;
+  resolvedUrl: string;
+  resolverIdentity: string;
+  resourcePolicyStamp: string;
+  method: "GET" | "HEAD";
+  headers: Record<string, string>;
+  credentials?: string;
+  cache?: string;
+  expectedContentType?: string;
+  signal: AbortSignal;
+}
+
+interface CemHttpResponseHead {
+  url: string;
+  status: number;
+  statusText: string;
+  ok: boolean;
+  redirected: boolean;
+  headers: Record<string, string>;
+  contentType: string | null;
+}
+
+interface CemHttpResourceLoader {
+  open(request: CemHttpRequest): Promise<{
+    response: CemHttpResponseHead;
+    body: AsyncIterable<Uint8Array>;
+  }>;
+}
+```
+
+The loader API is stream-shaped from the beginning. Phase 1 may materialize that
+stream in WASM/runtime memory before rendering, subject to policy limits and a
+diagnostic when the host cannot provide a true stream.
+
+### 4.2 Phase 1 Data Shape
+
+The resource slot envelope is required in Phase 1. The `data` field is a
+CEM-QL-navigable AST document handle or normalized AST projection, not a live
+browser object.
+
+Initial projection rules:
+
+- JSON objects expose object keys as fields; arrays expose ordered items; scalars
+  expose their scalar value and type.
+- XML and XHTML expose element name, attributes, text children, and child elements
+  through the same AST/query surface used by parsed template/data documents.
+- Text exposes a text document node with chunk/range metadata.
+- Response metadata is plain serializable data; no `Response`, `Headers`,
+  `Document`, DOM node, or host object is stored in slices.
+
+Phase 1 CEM-ML examples should use explicit resource paths such as
+`$datadom.slices.page.data.results`. Broad legacy XPath rewrites such as `//results`
+are compatibility follow-up work unless the existing CEM-QL implementation can
+support them directly without a separate conversion pass.
+
+### 4.3 Policy Defaults
+
+The default implementation must be conservative:
+
+- only `GET` and `HEAD` are accepted;
+- unresolved bare specifiers fail with `cem.resource.http.unresolved_url`;
+- unsupported content types fail with
+  `cem.resource.http.unsupported_content_type`;
+- direct network access is host-policy controlled;
+- test/demo fixtures should use host-provided local resources or explicitly
+  allowed same-origin URLs, not live third-party network dependencies;
+- response size, parse time, redirect count, credentials, and exposed metadata are
+  bounded by host policy.
+
+### 4.4 Async Render Contract
+
+An `http-request` declaration creates or updates one resource slice for the active
+render revision.
+
+Required Phase 1 behavior:
+
+1. Initial render records a pending resource slot.
+2. The host resolves the URL and opens the request.
+3. Header metadata may update the slice before the body is complete.
+4. Completion parses the response, writes the completed data AST/projection, and
+   increments the resource revision.
+5. The declaration rerenders against the new data.
+6. If request inputs change, the old request is aborted and later frames from it
+   are ignored by revision id.
+7. Render-tree diff/no-op protection must prevent DOM mutation when visible output
+   is unchanged.
+
+Tests must wait on an explicit resource-settled signal or runtime hook. They must
+not rely on timing sleeps.
+
+### 4.5 Source-Map Minimum
+
+Phase 1 must preserve enough identity to add full data source maps later:
+
+- each parsed response gets a `SourceId` record;
+- diagnostics include the `SourceId` and response/parser location when available;
+- parsed AST nodes may carry opaque source-map references;
+- production DOM output is not required to expose source maps;
+- browser debug sidecars and mixed template/data source-map trees are deferred to
+  Phase 3.
+
+### 4.6 SSR Boundary
+
+Phase 1 is browser-substrate work. SSR and hydration behavior must not be broken,
+but executing requests during SSR, preloaded resource ASTs, and client
+revalidation are Phase 4 unless a narrower fixture is needed to prevent a browser
+regression.
+
+## 5. Data Document Shape
 
 The resource slot is an envelope with request metadata, response metadata, parser
 state, diagnostics, and the parsed AST handle/stream.
@@ -200,7 +347,7 @@ resource AST. CEM-ML templates should prefer explicit data-document paths:
 Compatibility conversion may rewrite legacy DCE/XSLT selectors into equivalent
 CEM-QL expressions over `datadom.slices.<slice>.data`.
 
-## 5. Streaming Pipeline
+## 6. Streaming Pipeline
 
 The runtime pipeline is:
 
@@ -218,39 +365,10 @@ template resource declaration
   -> render-plan patches
 ```
 
-Host API sketch:
-
-```ts
-interface CemHttpRequest {
-  authoredUrl: string;
-  url: string;
-  resolverIdentity: string;
-  resourcePolicyStamp: string;
-  method: string;
-  headers: Record<string, string>;
-  credentials?: string;
-  cache?: string;
-  expectedContentType?: string;
-  signal: AbortSignal;
-}
-
-interface CemHttpResponseHead {
-  url: string;
-  status: number;
-  statusText: string;
-  ok: boolean;
-  redirected: boolean;
-  headers: Record<string, string>;
-  contentType: string | null;
-}
-
-interface CemHttpResourceLoader {
-  open(request: CemHttpRequest): Promise<{
-    response: CemHttpResponseHead;
-    body: AsyncIterable<Uint8Array>;
-  }>;
-}
-```
+The normative Phase 1 host API is defined in
+[4.1 Runtime Host API](#41-runtime-host-api). Later phases may add parser
+capability flags, cache handles, or preload handles, but they must preserve the
+same resolver/loader separation.
 
 Browser hosts should implement `body` with `response.body.getReader()` when
 available. If streaming bodies are unavailable, a host may fall back to
@@ -272,7 +390,7 @@ AST events carry source ranges as they are produced. The engine does not wait fo
 the whole response unless the selected parser, query, or transform requires
 materialization.
 
-## 6. Content-Type Recognition
+## 7. Content-Type Recognition
 
 The response `Content-Type` header is the primary parser selector. The optional
 `content-type` attribute is an expectation or fallback, not an unsafe override.
@@ -303,7 +421,7 @@ registry. Initial useful set:
 Unsupported types still populate request/response metadata and set `state="error"`
 with `cem.resource.http.unsupported_content_type`.
 
-## 7. Streaming Query And Rendering Semantics
+## 8. Streaming Query And Rendering Semantics
 
 Not every query can produce stable UI before the whole response is available.
 
@@ -324,7 +442,7 @@ Render output is still transactional. Incremental resource output is delivered a
 render-plan patch transactions tied to the active render revision. Stale transactions
 from superseded requests are dropped.
 
-## 8. Source Maps For Data
+## 9. Source Maps For Data
 
 Each response is a source document with a `SourceId`.
 
@@ -370,7 +488,7 @@ belong in the sidecar to avoid large DOM attributes.
 This is the key developer experience goal: final UI DOM can be traced both to the
 template that rendered it and to the response byte ranges that supplied its data.
 
-## 9. Request Lifecycle
+## 10. Request Lifecycle
 
 State transitions:
 
@@ -398,7 +516,7 @@ revision. If `url`, `method`, headers, or policy-relevant inputs change:
 Request metadata may render before response data. Response headers may render before
 the body completes. Body-derived UI renders according to the streaming query rules.
 
-## 10. Cache And Identity
+## 11. Cache And Identity
 
 Resource identity is distinct from render identity.
 
@@ -426,7 +544,7 @@ Render-plan identity includes:
 The engine must not use raw response bodies as public IDs. Content hashes may be
 used internally or in debug sidecars, subject to privacy policy.
 
-## 11. Security And Privacy
+## 12. Security And Privacy
 
 Browser hosts must obey platform Fetch, CORS, mixed-content, CSP, and credentials
 rules. SSR/edge hosts must not silently bypass browser restrictions. They need an
@@ -456,7 +574,7 @@ local file layout. Hosts that expose source maps or SSR data islands should reda
 hash `authoredUrl`, `resolvedUrl`, and `resolverIdentity` according to the same
 privacy policy.
 
-## 12. SSR And Hydration
+## 13. SSR And Hydration
 
 SSR may handle `http-request` in two ways:
 
@@ -476,7 +594,7 @@ and the render plan is unchanged, no browser DOM mutation should occur.
 Dynamic remote data is one of the allowed SSR/browser output differences. Tests
 should use fixture URLs or host-supplied preloaded streams to prove identical output.
 
-## 13. Legacy Migration
+## 14. Legacy Migration
 
 Legacy behavior:
 
@@ -500,24 +618,28 @@ New behavior:
 The old standalone `http-request.js` companion element can remain published as a
 browser shim. It is not the substrate path for CEM Elements templates.
 
-## 14. Phased Implementation
+## 15. Implementation Roadmap
 
 ### Phase 1: Completed-response AST resource
 
+- Implement the contract in [4. Phase 1 Implementation Contract](#4-phase-1-implementation-contract).
 - Add resource declaration parsing for `http-request`.
 - Add scoped URL/module-map resolution for `http-request @url`, including
   diagnostics for unresolved bare specifiers.
-- Add host policy and request loader hooks.
-- Stream bytes into the CEM-ML parser when possible.
-- Materialize the AST in CEM/WASM memory before rendering.
-- Expose request/response metadata and completed `data` AST to CEM-QL.
-- Add JSON and XML fixtures with source-map-bearing diagnostics.
+- Add host policy, resource resolver, and request loader hooks.
+- Stream bytes through the loader boundary when possible.
+- Materialize the completed AST/projection in CEM/WASM/runtime memory before
+  rendering when the parser/query path is not streaming-capable yet.
+- Expose request/response metadata and completed `data` AST/projection to CEM-QL.
+- Add JSON and XML fixtures with diagnostic/source-id coverage.
 
 This phase already removes JS object/DOMParser handoff and establishes the correct
 contract, even if UI rendering waits for completion.
 
 ### Phase 2: Progressive AST stream consumption
 
+- Replace Phase 1 buffering internals with parser-owned AST event streams where
+  supported.
 - Classify streaming-safe CEM-QL consumers.
 - Render forward-only `cem:for-each` items incrementally.
 - Emit batched render-plan patch transactions as AST items arrive.
@@ -537,11 +659,12 @@ contract, even if UI rendering waits for completion.
 - Add hydration trust/revalidation fixtures.
 - Add optional service-worker/content-addressed artifact integration.
 
-## 15. Verification Matrix
+## 16. Verification Matrix
 
-Required gates before the TODO is considered implemented:
+Required gates before Phase 1 is considered implemented:
 
-- JSON response renders a `cem:for-each` list from streamed AST data.
+- JSON response renders a `cem:for-each` list from the resource data
+  AST/projection.
 - XML response renders equivalent content through the same resource slot contract.
 - Module-map URL resolution fixture proves `@scope/data/file.json` resolves in the
   owning `<http-request>` scope and that imported-template relative URLs use the
@@ -550,6 +673,14 @@ Required gates before the TODO is considered implemented:
   objects.
 - Unsupported content type produces a diagnostic and stable error state.
 - Abort on URL change drops stale response frames.
+- Resource-settled tests use runtime hooks instead of sleeps.
+- Source-id and parser diagnostics are preserved internally for response data.
+- Existing standalone `http-request.js` companion export/registration smoke tests
+  continue to pass.
+
+Required gates before the full design is considered implemented:
+
+- Forward-only streamed resource records can render incrementally.
 - Browser and SSR fixture with identical static response produce identical output.
 - Debug mode can map rendered text/attribute output to both template source and
   response data source ranges.

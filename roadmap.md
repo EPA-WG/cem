@@ -159,6 +159,12 @@ Deliverables:
   URI/module-map resolution, remote source streaming, local parser streaming, reusable host runtime support,
   patch-frame streams, worker-pool scheduling, service-worker-compatible artifact identity/hooks,
   post-Phase-3 edge/SSR boundaries, and main-thread DOM patch ownership.
+- Phase 1 `<http-request>` resource primitive from
+  [`docs/cem-elements-http-request-design.md`](docs/cem-elements-http-request-design.md): completed-response JSON/XML
+  resource slices with scoped URL/module-map resolution, host-controlled resource loading, serializable
+  request/response metadata, CEM-QL-navigable data AST/projections, stale-response abort protection, and fixture-backed
+  `cem:for-each` demo parity. Progressive streaming, full data source-map UI, cache identity, and SSR/preload support
+  remain later phases of that design.
 
 Exit criteria (browser substrate production-ready trigger, not `@epa-wg/custom-element` adoption):
 
