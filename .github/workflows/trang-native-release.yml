@@ -50,7 +50,7 @@ jobs:
     runs-on: ${{ matrix.runs-on }}
     steps:
       - name: Checkout
-        uses: actions/checkout@v4
+        uses: actions/checkout@v5
 
       - name: Set up GraalVM
         uses: graalvm/setup-graalvm@v1
@@ -84,7 +84,7 @@ jobs:
           ant -version
 
       - name: Use Node.js
-        uses: actions/setup-node@v4
+        uses: actions/setup-node@v5
         with:
           node-version: 24
           # No `cache: yarn` — setup-node runs `yarn cache dir` with the
@@ -132,7 +132,7 @@ jobs:
       contents: write
     steps:
       - name: Checkout
-        uses: actions/checkout@v4
+        uses: actions/checkout@v5
 
       - name: Download all archives
         uses: actions/download-artifact@v4
