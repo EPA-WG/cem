@@ -15,13 +15,18 @@
 
 <cem-element tag="cem-set-url-panel">
     <template type="text/cem-ml">
-        {slice @name=method | location.hash}
+        {slice @name=method | history.pushState}
         {slice @name=url | #cem-demo}
+        {location-element @slice=current @live=true}
         {article @class=demo-card |
             {label | Method {input @value="{$method}" @slice=method @slice-event=input @slice-value="{$target.value}"}}
             {label | URL {input @value="{$url}" @slice=url @slice-event=input @slice-value="{$target.value}"}}
-            {p | pending set: {output | {$datadom.slices.method}} = {output | {$datadom.slices.url}}}
-            {p @class=status-note | Declarative URL writes via location-element are queued in <code>docs/todo.md</code>.}
+            {button @type=button @slice=apply-url @slice-event=click @slice-value="$event.type" | Set}
+            {cem:if @test="datadom.slices.apply-url" |
+                {location-element @method="{$method}" @src="{$url}"}
+            }
+            {p | pending set: {output | {$method}} = {output | {$url}}}
+            {p | current hash: {output @data-role=current-hash | {$datadom.slices.current.hash}}}
         }
     </template>
 </cem-element>

@@ -40,7 +40,7 @@ history belongs in git history and the feature-specific docs linked below.
      initial slice hydration, live storage updates, and write-back from slice changes.
    - [x] Implement `<location-element>` as a CEM Elements resource primitive for reading `window.location`/custom hrefs
      into structured slices, including attributes and query params, plus live location updates where supported.
-   - Implement declarative URL writes used by the legacy `set-url` demos, reusing the `location-element` method/src
+   - [x] Implement declarative URL writes used by the legacy `set-url` demos, reusing the `location-element` method/src
      model or its CEM-ML equivalent.
    - Implement the accepted UID and scoped CSS design in
      [`cem-ml-uid-and-scoped-css-design.md`](cem-ml-uid-and-scoped-css-design.md):

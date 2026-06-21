@@ -168,7 +168,17 @@ const fixtureSpecs = [
         path: '/packages/cem-elements/demo/set-url.html',
         checks: [
             text('cem-set-url-panel article.demo-card', 'pending set:'),
-            fillThenText('cem-set-url-panel label:nth-of-type(2) input', '#verified', 'cem-set-url-panel output', '#verified'),
+            fillThenText(
+                'cem-set-url-panel label:nth-of-type(2) input',
+                '#verified',
+                'cem-set-url-panel p',
+                '#verified'
+            ),
+            clickThenText(
+                'cem-set-url-panel button',
+                'cem-set-url-panel output[data-role="current-hash"]',
+                '#verified'
+            ),
         ],
     },
 ];

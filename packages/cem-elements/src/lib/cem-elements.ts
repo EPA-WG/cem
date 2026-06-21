@@ -424,10 +424,14 @@ interface LocalStorageDeclaration {
 }
 
 interface LocationElementDeclaration {
-    sliceName: string;
+    sliceName?: string;
     href?: string;
     live: boolean;
+    method?: string;
+    src?: string;
 }
+
+type LocationReadDeclaration = LocationElementDeclaration & { sliceName: string };
 
 interface ActiveHttpResource {
     key: string;
@@ -1721,13 +1725,20 @@ export class CemElementRuntime {
             return;
         }
 
+        const writeDiagnostics = writeLocationTarget(window, instance.ownerDocument, declaration, compiled.producedTag);
+        this.recordDiagnostics(instance, writeDiagnostics);
+        if (!declaration.sliceName) {
+            return;
+        }
+        const readDeclaration: LocationReadDeclaration = { ...declaration, sliceName: declaration.sliceName };
+
         const island = this.ensureDataIsland(instance);
         const state = this.ensureInstanceState(instance, compiled, island);
-        const key = locationResourceKey(window, instance.ownerDocument, declaration);
-        let active: ActiveLocationResource | undefined = state.locationResources[declaration.sliceName];
+        const key = locationResourceKey(window, instance.ownerDocument, readDeclaration);
+        let active: ActiveLocationResource | undefined = state.locationResources[readDeclaration.sliceName];
         if (active && active.key !== key) {
             active.destroy?.();
-            delete state.locationResources[declaration.sliceName];
+            delete state.locationResources[readDeclaration.sliceName];
             active = undefined;
         }
 
@@ -1735,9 +1746,9 @@ export class CemElementRuntime {
             return;
         }
 
-        const value = readLocationValue(window, instance.ownerDocument, declaration);
-        const changed = this.writeLocationSlice(state, declaration, value, 'initial-read', active);
-        active = this.ensureActiveLocationResource(instance, compiled, state, declaration, key, value);
+        const value = readLocationValue(window, instance.ownerDocument, readDeclaration);
+        const changed = this.writeLocationSlice(state, readDeclaration, value, 'initial-read', active);
+        active = this.ensureActiveLocationResource(instance, compiled, state, readDeclaration, key, value);
         active.lastValue = value;
         if (changed) {
             queueMicrotask(() => {
@@ -1755,6 +1766,9 @@ export class CemElementRuntime {
         source: LocationSliceSource,
         active: ActiveLocationResource | undefined
     ): boolean {
+        if (!declaration.sliceName) {
+            return false;
+        }
         const changed = !resourceValuesEqual(state.slices[declaration.sliceName], value);
         if (changed) {
             state.slices[declaration.sliceName] = value;
@@ -1776,7 +1790,7 @@ export class CemElementRuntime {
         instance: HTMLElement,
         compiled: CompiledDeclaration,
         state: InstanceState,
-        declaration: LocationElementDeclaration,
+        declaration: LocationReadDeclaration,
         key: string,
         value: unknown
     ): ActiveLocationResource {
@@ -1800,7 +1814,7 @@ export class CemElementRuntime {
         instance: HTMLElement,
         compiled: CompiledDeclaration,
         state: InstanceState,
-        declaration: LocationElementDeclaration,
+        declaration: LocationReadDeclaration,
         active: ActiveLocationResource
     ): () => void {
         const window = instance.ownerDocument.defaultView;
@@ -2659,14 +2673,18 @@ function readLocalStorageDeclaration(element: Element): LocalStorageDeclaration 
 
 function readLocationElementDeclaration(element: Element): LocationElementDeclaration | null {
     const sliceName = element.getAttribute('slice')?.trim();
-    if (!sliceName) {
+    const method = element.getAttribute('method')?.trim();
+    const src = element.getAttribute('src')?.trim();
+    if (!sliceName && (!method || !src)) {
         return null;
     }
     const href = element.getAttribute('href')?.trim();
     return {
-        sliceName,
+        ...(sliceName ? { sliceName } : {}),
         href: href && href.length > 0 ? href : undefined,
         live: booleanAttribute(element, 'live'),
+        ...(method && method.length > 0 ? { method } : {}),
+        ...(src && src.length > 0 ? { src } : {}),
     };
 }
 
@@ -2829,6 +2847,89 @@ function locationUrlToRecord(url: URL, source: 'window' | 'href'): Record<string
     };
 }
 
+function writeLocationTarget(
+    window: Window,
+    document: Document,
+    declaration: LocationElementDeclaration,
+    tag: string
+): CemElementDiagnostic[] {
+    const method = declaration.method?.trim();
+    const src = declaration.src?.trim();
+    if (!method || !src) {
+        return [];
+    }
+    if (!isSupportedLocationWriteMethod(method)) {
+        return [
+            resourceDiagnostic(
+                'cem-element.location_method_unsupported',
+                `location-element method \`${method}\` is not supported`,
+                tag,
+                'error'
+            ),
+        ];
+    }
+    try {
+        ensureTrackedLocation(window);
+        const currentHref = window.location.href;
+        if (method === 'location.hash') {
+            const nextHash = src.startsWith('#') || src === '' ? src : `#${src}`;
+            if (window.location.hash !== nextHash) {
+                window.location.hash = nextHash;
+                scheduleLocationChange(window, method);
+            }
+            return [];
+        }
+
+        const nextUrl = new URL(src, currentHref || document.baseURI);
+        if (currentHref === nextUrl.href) {
+            return [];
+        }
+        switch (method) {
+            case 'location.href':
+                window.location.href = src;
+                scheduleLocationChange(window, method);
+                break;
+            case 'location.assign':
+                window.location.assign(src);
+                scheduleLocationChange(window, method);
+                break;
+            case 'location.replace':
+                window.location.replace(src);
+                scheduleLocationChange(window, method);
+                break;
+            case 'history.pushState':
+                window.history.pushState({}, '', nextUrl.href);
+                break;
+            case 'history.replaceState':
+                window.history.replaceState({}, '', nextUrl.href);
+                break;
+        }
+    } catch (error) {
+        return [
+            resourceDiagnostic(
+                'cem-element.location_write_failed',
+                `location-element method \`${method}\` failed for \`${src}\`: ${
+                    error instanceof Error ? error.message : String(error)
+                }`,
+                tag,
+                'error'
+            ),
+        ];
+    }
+    return [];
+}
+
+function isSupportedLocationWriteMethod(method: string): boolean {
+    return (
+        method === 'location.href' ||
+        method === 'location.hash' ||
+        method === 'location.assign' ||
+        method === 'location.replace' ||
+        method === 'history.pushState' ||
+        method === 'history.replaceState'
+    );
+}
+
 function ensureTrackedLocation(window: Window): void {
     if (locationTrackers.has(window)) {
         return;
@@ -2842,7 +2943,7 @@ function ensureTrackedLocation(window: Window): void {
         try {
             historyRecord[method] = function trackedHistoryMethod(...args: unknown[]): unknown {
                 const result = original.apply(window.history, args);
-                dispatchLocationChange(window, method);
+                scheduleLocationChange(window, method);
                 return result;
             };
         } catch {
@@ -2850,6 +2951,10 @@ function ensureTrackedLocation(window: Window): void {
         }
     }
     locationTrackers.add(window);
+}
+
+function scheduleLocationChange(window: Window, method: string): void {
+    queueMicrotask(() => dispatchLocationChange(window, method));
 }
 
 function dispatchLocationChange(window: Window, method: string): void {

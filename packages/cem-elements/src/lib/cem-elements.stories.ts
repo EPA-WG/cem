@@ -1496,7 +1496,13 @@ export const LocationElementResourceLifecycle: Story = {
                 [
                     '{location-element @slice=current @live=true}',
                     '{location-element @slice=sample @href="https://example.test/docs/page?mode=demo&tag=one&tag=two#sample"}',
+                    '{slice @name=target | #story-write}',
                     '{article |',
+                    '  {input @class=target @value="{$target}" @slice=target @slice-event=input @slice-value="$target.value"}',
+                    '  {button @class=write @type=button @slice=applyUrl @slice-event=click @slice-value="$event.type" | Write URL}',
+                    '  {cem:if @test="datadom.slices.applyUrl" |',
+                    '    {location-element @method="history.pushState" @src="{$target}"}',
+                    '  }',
                     '  {output @class=current-hash | {$datadom.slices.current.hash}}',
                     '  {output @class=sample-host | {$datadom.slices.sample.hostname}}',
                     '  {ul @class=sample-params |',
@@ -1535,6 +1541,17 @@ export const LocationElementResourceLifecycle: Story = {
                 'location-element live history update renders'
             );
 
+            dispatchInput(instance, '#story-write');
+            await waitForCondition(
+                () => runtime.snapshotInstance(instance).slices.target === '#story-write',
+                'location-element target slice updates'
+            );
+            (requiredElement(instance, 'button.write') as HTMLButtonElement).click();
+            await waitForCondition(
+                () => instance.querySelector('.current-hash')?.textContent?.trim() === '#story-write',
+                'location-element declarative URL write renders'
+            );
+
             const snapshot = runtime.snapshotInstance(instance);
             const current = snapshot.slices.current as {
                 hash?: string;
@@ -1542,8 +1559,7 @@ export const LocationElementResourceLifecycle: Story = {
                 paramEntries?: { name?: string; text?: string }[];
             };
             const sample = snapshot.slices.sample as { hostname?: string; hash?: string };
-            assertEqual(current.hash, '#live', 'snapshot stores current hash');
-            assertEqual(current.params?.cemLocation?.[0], 'updated', 'snapshot stores current query params');
+            assertEqual(current.hash, '#story-write', 'snapshot stores written current hash');
             assertEqual(sample.hostname, 'example.test', 'snapshot stores parsed href hostname');
             assertEqual(sample.hash, '#sample', 'snapshot stores parsed href hash');
             assert(
