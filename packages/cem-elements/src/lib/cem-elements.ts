@@ -217,6 +217,20 @@ export interface CemHttpResponseHead {
     contentType: string | null;
 }
 
+export interface CemHttpResourceSourceId {
+    kind: 'http-response';
+    id: string;
+    authoredUrl: string;
+    resolvedUrl: string;
+    finalUrl: string;
+    resolverIdentity: string;
+    resourcePolicyStamp: string;
+    method: string;
+    contentType: string | null;
+    responseIdentityHash?: string;
+    redacted: boolean;
+}
+
 export interface CemHttpResourceLoadResult {
     response: CemHttpResponseHead;
     body: AsyncIterable<Uint8Array>;
@@ -245,6 +259,7 @@ export interface CemHttpResourceEnvelope {
         headers: Record<string, string>;
     };
     response?: CemHttpResponseHead;
+    sourceId?: CemHttpResourceSourceId;
     data: unknown;
     diagnostics: CemElementDiagnostic[];
 }
@@ -1571,6 +1586,7 @@ export class CemElementRuntime {
                 diagnostics: [],
             });
             const parse = await parseHttpResourceData(
+                request,
                 loaded.response,
                 loaded.body,
                 request.expectedContentType,
@@ -1587,6 +1603,7 @@ export class CemElementRuntime {
                 state: parse.ok ? 'complete' : 'error',
                 request: requestMetadata,
                 response: loaded.response,
+                sourceId: parse.sourceId,
                 data: parse.data,
                 diagnostics: parse.diagnostics,
             });
@@ -1631,6 +1648,7 @@ export class CemElementRuntime {
         state: CemHttpResourceState;
         request: CemHttpResourceEnvelope['request'];
         response?: CemHttpResponseHead;
+        sourceId?: CemHttpResourceSourceId;
         data: unknown;
         diagnostics: CemElementDiagnostic[];
     }): CemHttpResourceEnvelope {
@@ -1640,6 +1658,7 @@ export class CemElementRuntime {
             resourceRevision: input.revision,
             request: input.request,
             response: input.response,
+            sourceId: input.sourceId,
             data: input.data,
             diagnostics: input.diagnostics,
         };
@@ -1659,6 +1678,7 @@ export class CemElementRuntime {
             resourceRevision: envelope.resourceRevision,
             request: envelope.request,
             response: envelope.response,
+            sourceId: envelope.sourceId,
             diagnostics: envelope.diagnostics,
         };
         this.recordDiagnostics(instance, envelope.diagnostics);
@@ -2389,36 +2409,43 @@ async function* responseBody(response: Response): AsyncIterable<Uint8Array> {
 }
 
 async function parseHttpResourceData(
+    request: CemHttpRequest,
     response: CemHttpResponseHead,
     body: AsyncIterable<Uint8Array>,
     expectedContentType: string | undefined,
     maxResponseBytes: number,
     signal: AbortSignal,
     tag: string
-): Promise<{ ok: boolean; data: unknown; diagnostics: CemElementDiagnostic[] }> {
+): Promise<{ ok: boolean; data: unknown; diagnostics: CemElementDiagnostic[]; sourceId: CemHttpResourceSourceId }> {
     const contentType = recognizedContentType(response.contentType, expectedContentType);
+    const fallbackSourceId = httpResourceSourceId(request, response, contentType.ok ? contentType.contentType : null);
     if (!contentType.ok) {
         return {
             ok: false,
             data: null,
+            sourceId: fallbackSourceId,
             diagnostics: [
                 resourceDiagnostic(
                     'cem-element.http_request_unsupported_content_type',
                     contentType.message,
                     tag,
-                    'error'
+                    'error',
+                    httpSourceMapRef(fallbackSourceId)
                 ),
             ],
         };
     }
-    const text = new TextDecoder('utf-8').decode(await readByteStream(body, maxResponseBytes, signal));
+    const bytes = await readByteStream(body, maxResponseBytes, signal);
+    const text = new TextDecoder('utf-8').decode(bytes);
+    const sourceId = httpResourceSourceId(request, response, contentType.contentType, text);
     if (contentType.kind === 'json') {
         try {
-            return { ok: true, data: JSON.parse(text) as unknown, diagnostics: [] };
+            return { ok: true, data: JSON.parse(text) as unknown, diagnostics: [], sourceId };
         } catch (error) {
             return {
                 ok: false,
                 data: null,
+                sourceId,
                 diagnostics: [
                     resourceDiagnostic(
                         'cem-element.http_request_parse_failed',
@@ -2426,24 +2453,17 @@ async function parseHttpResourceData(
                             error instanceof Error ? error.message : String(error)
                         }`,
                         tag,
-                        'error'
+                        'error',
+                        httpSourceMapRef(sourceId)
                     ),
                 ],
             };
         }
     }
-    return {
-        ok: false,
-        data: null,
-        diagnostics: [
-            resourceDiagnostic(
-                'cem-element.http_request_unsupported_content_type',
-                `content type \`${contentType.contentType}\` is recognized by design but not implemented in Phase 1 JSON slice`,
-                tag,
-                'error'
-            ),
-        ],
-    };
+    if (contentType.kind === 'xml') {
+        return parseXmlHttpResourceData(text, contentType.contentType, sourceId, tag);
+    }
+    return { ok: true, data: { text }, diagnostics: [], sourceId };
 }
 
 function recognizedContentType(
@@ -2476,6 +2496,125 @@ function recognizedContentType(
 function mediaType(contentType: string | null | undefined): string | null {
     const trimmed = contentType?.split(';', 1)[0]?.trim().toLowerCase() ?? '';
     return trimmed.length > 0 ? trimmed : null;
+}
+
+function parseXmlHttpResourceData(
+    text: string,
+    contentType: string,
+    sourceId: CemHttpResourceSourceId,
+    tag: string
+): { ok: boolean; data: unknown; diagnostics: CemElementDiagnostic[]; sourceId: CemHttpResourceSourceId } {
+    const parser = new DOMParser();
+    const parsed = parser.parseFromString(text, xmlDomParserContentType(contentType));
+    const parserError = parsed.getElementsByTagName('parsererror')[0];
+    if (parserError) {
+        return {
+            ok: false,
+            data: null,
+            sourceId,
+            diagnostics: [
+                resourceDiagnostic(
+                    'cem-element.http_request_parse_failed',
+                    normalizeTextContent(parserError.textContent ?? 'XML response could not be parsed'),
+                    tag,
+                    'error',
+                    httpSourceMapRef(sourceId)
+                ),
+            ],
+        };
+    }
+    if (!parsed.documentElement) {
+        return {
+            ok: false,
+            data: null,
+            sourceId,
+            diagnostics: [
+                resourceDiagnostic(
+                    'cem-element.http_request_parse_failed',
+                    'XML response did not contain a document element',
+                    tag,
+                    'error',
+                    httpSourceMapRef(sourceId)
+                ),
+            ],
+        };
+    }
+    return { ok: true, data: xmlElementToRecord(parsed.documentElement), diagnostics: [], sourceId };
+}
+
+function xmlDomParserContentType(contentType: string): DOMParserSupportedType {
+    return contentType === 'application/xhtml+xml' ? 'application/xhtml+xml' : 'application/xml';
+}
+
+function xmlElementToRecord(element: Element): {
+    tag: string;
+    namespace: string | null;
+    attributes: Record<string, string>;
+    text: string;
+    children: ReturnType<typeof xmlElementToRecord>[];
+} {
+    const attributes: Record<string, string> = {};
+    for (const attribute of Array.from(element.attributes)) {
+        attributes[attribute.name] = attribute.value;
+    }
+    return {
+        tag: element.localName,
+        namespace: element.namespaceURI,
+        attributes,
+        text: normalizeTextContent(element.textContent ?? ''),
+        children: Array.from(element.children).map(xmlElementToRecord),
+    };
+}
+
+function normalizeTextContent(value: string): string {
+    return value
+        .split(/\s+/)
+        .filter((part) => part.length > 0)
+        .join(' ');
+}
+
+function httpResourceSourceId(
+    request: CemHttpRequest,
+    response: CemHttpResponseHead,
+    contentType: string | null,
+    bodyText?: string
+): CemHttpResourceSourceId {
+    const responseIdentityHash =
+        bodyText === undefined
+            ? undefined
+            : edgeContentAddress('sanitized-snapshot', {
+                  url: response.url,
+                  status: response.status,
+                  contentType,
+                  bodyText,
+              }).digest;
+    const id = edgeContentAddress('sanitized-snapshot', {
+        authoredUrl: request.authoredUrl,
+        resolvedUrl: request.resolvedUrl,
+        finalUrl: response.url,
+        resolverIdentity: request.resolverIdentity,
+        resourcePolicyStamp: request.resourcePolicyStamp,
+        method: request.method,
+        contentType,
+        responseIdentityHash,
+    }).digest;
+    return {
+        kind: 'http-response',
+        id: `http-source-${id}`,
+        authoredUrl: request.authoredUrl,
+        resolvedUrl: request.resolvedUrl,
+        finalUrl: response.url,
+        resolverIdentity: request.resolverIdentity,
+        resourcePolicyStamp: request.resourcePolicyStamp,
+        method: request.method,
+        contentType,
+        responseIdentityHash,
+        redacted: false,
+    };
+}
+
+function httpSourceMapRef(sourceId: CemHttpResourceSourceId): SourceMapRef {
+    return { fidelity: 'declaration-only', frame: `http:${sourceId.id}` };
 }
 
 async function readByteStream(
@@ -2826,7 +2965,8 @@ function resourceDiagnostic(
     code: string,
     message: string,
     tag?: string,
-    severity: CemElementDiagnosticSeverity = 'warning'
+    severity: CemElementDiagnosticSeverity = 'warning',
+    sourceMapRef?: SourceMapRef
 ): CemElementDiagnostic {
     return {
         code,
@@ -2834,6 +2974,7 @@ function resourceDiagnostic(
         source: 'render',
         message,
         tag,
+        sourceMapRef,
     };
 }
 

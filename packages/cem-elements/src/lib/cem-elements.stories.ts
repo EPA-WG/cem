@@ -1350,11 +1350,23 @@ export const HttpRequestResourceLifecycle: Story = {
             state?: string;
             resourceRevision?: number;
             request?: { authoredUrl?: string };
+            sourceId?: {
+                kind?: string;
+                id?: string;
+                authoredUrl?: string;
+                finalUrl?: string;
+                responseIdentityHash?: string;
+            };
             data?: { name?: string };
         };
         assertEqual(page.state, 'complete', 'snapshot stores completed http-request state');
         assertEqual(page.resourceRevision, 2, 'resource revision increments after URL change');
         assertEqual(page.request?.authoredUrl, 'second', 'snapshot stores latest authored URL');
+        assertEqual(page.sourceId?.kind, 'http-response', 'snapshot stores source-id kind');
+        assertEqual(page.sourceId?.authoredUrl, 'second', 'source-id records authored URL');
+        assertEqual(page.sourceId?.finalUrl, 'https://resources.example.test/second.json', 'source-id records response URL');
+        assert(page.sourceId?.id?.startsWith('http-source-'), 'source-id uses an opaque public id');
+        assert(page.sourceId?.responseIdentityHash, 'source-id records a response identity hash');
         assertEqual(page.data?.name, 'second', 'snapshot stores serializable response data');
         JSON.stringify(page);
     },

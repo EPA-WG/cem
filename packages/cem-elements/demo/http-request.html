@@ -16,6 +16,7 @@
 <cem-element tag="cem-resource-panel">
     <template type="text/cem-ml">
         {http-request @slice=page @url="{$datadom.attributes.url}" @header-accept="application/json" @content-type="application/json"}
+        {http-request @slice=xml @url="{$datadom.attributes.xml-url}" @header-accept="application/xml" @content-type="application/xml"}
         {article @class=demo-card |
             {h2 | {$datadom.attributes.title}}
             {p | Requested URL: {$datadom.attributes.url}}
@@ -27,12 +28,21 @@
                     }
                 }
             }
+            {p | XML URL: {$datadom.attributes.xml-url}}
+            {p | xml state: {output | {$datadom.slices.xml.state}}}
+            {cem:if @test='datadom.slices.xml.state = "complete"' |
+                {ul @class=xml-results |
+                    {cem:for-each @select="datadom.slices.xml.data.children" @as=item |
+                        {li | {$item.attributes.name}: {$item.attributes.status}}
+                    }
+                }
+            }
         }
     </template>
 </cem-element>
 
 <main>
-    <cem-resource-panel title="HTTP request parity target" url="./http-data.json"></cem-resource-panel>
+    <cem-resource-panel title="HTTP request parity target" url="./http-data.json" xml-url="./http-data.xml"></cem-resource-panel>
 </main>
 </body>
 </html>

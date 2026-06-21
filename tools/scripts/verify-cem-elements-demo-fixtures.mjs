@@ -107,6 +107,9 @@ const fixtureSpecs = [
             text('cem-resource-panel article.demo-card', 'state: complete'),
             text('cem-resource-panel li', 'alpha : ready'),
             text('cem-resource-panel li', 'beta : loaded'),
+            text('cem-resource-panel article.demo-card', 'xml state: complete'),
+            text('cem-resource-panel ul.xml-results li', 'gamma : xml-ready'),
+            text('cem-resource-panel ul.xml-results li', 'delta : xml-loaded'),
         ],
     },
     {
@@ -523,6 +526,8 @@ function contentType(filePath) {
             return 'text/javascript; charset=utf-8';
         case '.json':
             return 'application/json; charset=utf-8';
+        case '.xml':
+            return 'application/xml; charset=utf-8';
         case '.wasm':
             return 'application/wasm';
         case '.css':
