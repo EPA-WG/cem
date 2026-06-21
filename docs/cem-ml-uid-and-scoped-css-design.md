@@ -187,6 +187,29 @@ Template-local style rules should be rewritten against the generated scope:
 }
 ```
 
+Projected payload style rules are narrower than template-local rules. A payload
+`<style>` belongs to the specific rendered instance that supplied the payload, not
+to every instance of the same declaration tag. The runtime therefore stamps a
+per-instance scope on the produced host and rewrites payload-authored styles
+against that instance scope:
+
+```html
+<dce-1
+  data-cem-scope="cem-scope-dce-1-u4k9f2-p0"
+  data-cem-instance-scope="cem-scope-dce-1-u4k9f2-p0-icem-instance-7">
+  <button>Red border only here</button>
+</dce-1>
+```
+
+```css
+[data-cem-instance-scope="cem-scope-dce-1-u4k9f2-p0-icem-instance-7"] button {
+  border-color: red;
+}
+```
+
+This preserves declaration-level sharing for component template CSS while preventing
+slotted or payload-provided CSS from leaking across sibling same-tag instances.
+
 For an anonymous declaration, the same rule applies:
 
 ```html
@@ -626,6 +649,7 @@ the acceptance contract, not only implementation guidance.
 | Hydration no-op | Browser | Client reuses server `data-cem-scope`; `connectedCallback` does not rewrite hydrated DOM. |
 | Event no-op rerender | Browser | Event retrigger that does not change data leaves browser DOM unchanged. |
 | Scoped CSS nesting | Unit/browser | Local rules are wrapped with `[data-cem-scope] { ... }` and do not style outside nodes. |
+| Payload style containment | Unit/browser | Projected payload styles are wrapped with `[data-cem-instance-scope] { ... }` and do not affect sibling same-tag instances. |
 | `:host`, `:global`, `:root` | Validation/unit | `:host` rewrites to `&`; `:global` and `:root` rewrite to `&` and warn. |
 | Keyframes | Unit/browser | `@keyframes` names and `animation` references are renamed consistently. |
 | `@import` | Validation/unit | Scoped CSS suppresses `@import` with warning. |

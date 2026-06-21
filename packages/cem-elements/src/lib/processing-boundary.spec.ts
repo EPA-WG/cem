@@ -15,6 +15,7 @@ import {
     readEdgeRenderStateContents,
     renderPlanIdentity,
     renderPlansHaveDomChanges,
+    renderInstanceScopeUid,
     scopeCssText,
     scopeRenderPlan,
     type PatchFrame,
@@ -275,6 +276,46 @@ describe('host processing boundary contracts', () => {
         expect(style.children[0]).toEqual({
             kind: 'text',
             text: '[data-cem-scope="cem-scope-story-card-useed-p0"] {\n    button { color: green; }\n}',
+            sourceMapRef: undefined,
+        });
+    });
+
+    it('rewrites payload style nodes against an instance scope', () => {
+        const plan: RenderPlan = {
+            producedTag: 'story-card',
+            instanceId: 'cem-instance-7',
+            templateArtifactId: 'template-artifact-payload-style',
+            dataRevision: '1',
+            outputTarget: 'light-dom',
+            scopePolicyStamp: 'boundary-scope',
+            nodes: [{
+                kind: 'element',
+                namespace: null,
+                tag: 'button',
+                renderNodeId: 'story-card-1',
+                attributes: [],
+                children: [{
+                    kind: 'element',
+                    namespace: null,
+                    tag: 'style',
+                    renderNodeId: 'payload-0',
+                    attributes: [],
+                    children: [{ kind: 'text', text: 'button { border-color: red; }' }],
+                }],
+            }],
+        };
+        const scopeUid = 'cem-scope-story-card-useed-p0';
+        const instanceScopeUid = renderInstanceScopeUid(scopeUid, plan.instanceId);
+        const scoped = scopeRenderPlan(plan, scopeUid, { instanceScopeUid });
+        const root = scoped.renderPlan.nodes[0];
+        expect(root.kind).toBe('element');
+        if (root.kind !== 'element') return;
+        const style = root.children[0];
+        expect(style.kind).toBe('element');
+        if (style.kind !== 'element') return;
+        expect(style.children[0]).toEqual({
+            kind: 'text',
+            text: `[data-cem-instance-scope="${instanceScopeUid}"] {\n    button { border-color: red; }\n}`,
             sourceMapRef: undefined,
         });
     });

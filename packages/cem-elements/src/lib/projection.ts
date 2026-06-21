@@ -34,7 +34,9 @@ const DATA_REVISION_ATTR = 'data-cem-data-revision';
 const SOURCE_FIDELITY_ATTR = 'data-cem-source-fidelity';
 const SOURCE_FRAME_ATTR = 'data-cem-source-frame';
 export const DATA_CEM_SCOPE_ATTR = 'data-cem-scope';
+export const DATA_CEM_INSTANCE_SCOPE_ATTR = 'data-cem-instance-scope';
 const STYLE_TAG = 'style';
+const PAYLOAD_RENDER_NODE_ID_PREFIX = 'payload-';
 const KEYFRAMES_AT_RULE = /@(-webkit-)?keyframes\s+([A-Za-z_][\w-]*)/g;
 const UNSUPPORTED_SCOPED_CSS_AT_RULES = [
     'font-face',
@@ -144,6 +146,14 @@ export interface ScopedCssRewriteResult {
 export interface ScopedRenderPlanResult {
     renderPlan: RenderPlan;
     diagnostics: ScopedCssRewriteDiagnostic[];
+}
+
+export interface ScopeRenderPlanOptions {
+    instanceScopeUid?: string;
+}
+
+export interface ScopeCssTextOptions {
+    scopeAttribute?: string;
 }
 
 export interface RenderRevision {
@@ -876,18 +886,27 @@ export function projectSlotsInRenderPlan(plan: RenderPlan, payload: unknown): Re
  * `<style>` nodes so light-DOM rendering gets the same containment model in the
  * browser, SSR, and edge render paths.
  */
-export function scopeRenderPlan(plan: RenderPlan, scopeUid: string): ScopedRenderPlanResult {
+export function scopeRenderPlan(
+    plan: RenderPlan,
+    scopeUid: string,
+    options: ScopeRenderPlanOptions = {}
+): ScopedRenderPlanResult {
     const diagnostics: ScopedCssRewriteDiagnostic[] = [];
+    const instanceScopeUid = options.instanceScopeUid ?? renderInstanceScopeUid(scopeUid, plan.instanceId);
     return {
         renderPlan: {
             ...plan,
-            nodes: scopeRenderNodes(plan.nodes, scopeUid, diagnostics, true),
+            nodes: scopeRenderNodes(plan.nodes, scopeUid, instanceScopeUid, diagnostics, true),
         },
         diagnostics,
     };
 }
 
-export function scopeCssText(css: string, scopeUid: string): ScopedCssRewriteResult {
+export function scopeCssText(
+    css: string,
+    scopeUid: string,
+    options: ScopeCssTextOptions = {}
+): ScopedCssRewriteResult {
     const diagnostics: ScopedCssRewriteDiagnostic[] = [];
     let scoped = css;
 
@@ -946,10 +965,15 @@ export function scopeCssText(css: string, scopeUid: string): ScopedCssRewriteRes
     }
 
     const body = scoped.trim();
+    const scopeAttribute = options.scopeAttribute ?? DATA_CEM_SCOPE_ATTR;
     return {
-        css: body.length > 0 ? `[${DATA_CEM_SCOPE_ATTR}="${cssString(scopeUid)}"] {\n${indentCss(body)}\n}` : '',
+        css: body.length > 0 ? `[${scopeAttribute}="${cssString(scopeUid)}"] {\n${indentCss(body)}\n}` : '',
         diagnostics,
     };
+}
+
+export function renderInstanceScopeUid(scopeUid: string, instanceId: string): string {
+    return `${scopeUid}-i${cssIdentifier(instanceId)}`;
 }
 
 function projectSlotNodes(
@@ -1015,6 +1039,7 @@ function coerceProjectionPayload(payload: unknown): ProjectionPayload | null {
 function scopeRenderNodes(
     nodes: readonly RenderPlanNode[],
     scopeUid: string,
+    instanceScopeUid: string,
     diagnostics: ScopedCssRewriteDiagnostic[],
     stampScope: boolean
 ): RenderPlanNode[] {
@@ -1027,7 +1052,11 @@ function scopeRenderNodes(
             ? withRenderPlanAttribute(node.attributes, DATA_CEM_SCOPE_ATTR, scopeUid)
             : node.attributes;
         if (node.tag === STYLE_TAG && node.namespace === null) {
-            const rewritten = scopeStyleNode(node, scopeUid);
+            const rewritten = scopeStyleNode(
+                node,
+                isPayloadRenderNode(node) ? instanceScopeUid : scopeUid,
+                isPayloadRenderNode(node) ? DATA_CEM_INSTANCE_SCOPE_ATTR : DATA_CEM_SCOPE_ATTR
+            );
             diagnostics.push(...rewritten.diagnostics);
             return {
                 ...node,
@@ -1043,14 +1072,15 @@ function scopeRenderNodes(
         return {
             ...node,
             attributes,
-            children: scopeRenderNodes(node.children, scopeUid, diagnostics, false),
+            children: scopeRenderNodes(node.children, scopeUid, instanceScopeUid, diagnostics, false),
         };
     });
 }
 
 function scopeStyleNode(
     node: Extract<RenderPlanNode, { kind: 'element' }>,
-    scopeUid: string
+    scopeUid: string,
+    scopeAttribute: string
 ): ScopedCssRewriteResult {
     const css = node.children
         .map((child) => {
@@ -1060,7 +1090,11 @@ function scopeStyleNode(
             return child.kind === 'comment' ? `/*${child.text}*/` : '';
         })
         .join('');
-    return scopeCssText(css, scopeUid);
+    return scopeCssText(css, scopeUid, { scopeAttribute });
+}
+
+function isPayloadRenderNode(node: RenderPlanNode): boolean {
+    return node.kind === 'element' && node.renderNodeId.startsWith(PAYLOAD_RENDER_NODE_ID_PREFIX);
 }
 
 function firstTextSourceMapRef(nodes: readonly RenderPlanNode[]): SourceMapRef | undefined {

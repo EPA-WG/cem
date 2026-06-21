@@ -9,8 +9,7 @@ history belongs in git history and the feature-specific docs linked below.
 1. Complete deferred `<cem-element>` demo parity now that the runtime/data-island pieces are in place.
    - Promote the new `packages/cem-elements/index.html` and `packages/cem-elements/demo/*.html` CEM-ML demos to the
      same functional coverage level as the copied `packages/custom-element/index.html` and `demo/*.html` pages.
-   - Close the current runtime gaps surfaced by those demos: scoped style containment and full demo-backed `cem:for-each`
-     data feeds.
+   - Close the current runtime gap surfaced by those demos: full demo-backed `cem:for-each` data feeds.
    - Implement Phase 1 of `<http-request>` as a CEM Elements resource primitive per
      [`cem-elements-http-request-design.md`](cem-elements-http-request-design.md) so CEM-ML demos can fetch JSON/XML
      payloads, project response data into slices, and drive `cem:for-each` over response records:

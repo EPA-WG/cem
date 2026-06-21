@@ -1,10 +1,12 @@
 import {
+    DATA_CEM_INSTANCE_SCOPE_ATTR,
     DATA_CEM_SCOPE_ATTR,
     applyRenderPlanToRange,
     edgeContentAddress,
     materializeRenderPlan,
     projectTemplate,
     readTemplateSource,
+    renderInstanceScopeUid,
     renderPlansHaveDomChanges,
     scopeRenderPlan,
     type RenderPlan,
@@ -1164,7 +1166,9 @@ export class CemElementRuntime {
                     )
                 );
             }
-            const scoped = scopeRenderPlan(result.renderPlan, this.currentScopeUid(instance, compiled));
+            const scoped = scopeRenderPlan(result.renderPlan, this.currentScopeUid(instance, compiled), {
+                instanceScopeUid: this.currentInstanceScopeUid(instance, compiled),
+            });
             this.recordDiagnostics(
                 instance,
                 scoped.diagnostics.map((diagnostic) => scopedCssDiagnostic(diagnostic, compiled.producedTag))
@@ -1203,7 +1207,9 @@ export class CemElementRuntime {
             const values = templateValues(snapshot, compiled.declaredAttributes);
             const input = { snapshot, values };
             const plan = projectTemplate(compiled.templateSource, input);
-            const scoped = scopeRenderPlan(plan, this.currentScopeUid(instance, compiled));
+            const scoped = scopeRenderPlan(plan, this.currentScopeUid(instance, compiled), {
+                instanceScopeUid: this.currentInstanceScopeUid(instance, compiled),
+            });
             this.recordDiagnostics(
                 instance,
                 scoped.diagnostics.map((diagnostic) => scopedCssDiagnostic(diagnostic, compiled.producedTag))
@@ -2281,11 +2287,20 @@ export class CemElementRuntime {
         if (instance.getAttribute(DATA_CEM_SCOPE_ATTR) !== scopeUid) {
             instance.setAttribute(DATA_CEM_SCOPE_ATTR, scopeUid);
         }
+        const existingInstanceScope = instance.getAttribute(DATA_CEM_INSTANCE_SCOPE_ATTR);
+        if (!existingInstanceScope || existingInstanceScope.length === 0) {
+            instance.setAttribute(DATA_CEM_INSTANCE_SCOPE_ATTR, renderInstanceScopeUid(scopeUid, this.instanceId(instance)));
+        }
         return scopeUid;
     }
 
     private currentScopeUid(instance: HTMLElement, compiled: CompiledDeclaration): string {
         return instance.getAttribute(DATA_CEM_SCOPE_ATTR) || compiled.scopeUid;
+    }
+
+    private currentInstanceScopeUid(instance: HTMLElement, compiled: CompiledDeclaration): string {
+        return instance.getAttribute(DATA_CEM_INSTANCE_SCOPE_ATTR)
+            || renderInstanceScopeUid(this.currentScopeUid(instance, compiled), this.instanceId(instance));
     }
 
     private retainedRenderedScope(instance: HTMLElement): string | null {
