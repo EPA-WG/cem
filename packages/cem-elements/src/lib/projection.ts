@@ -33,6 +33,17 @@ const TEMPLATE_ARTIFACT_ID_ATTR = 'data-cem-template-artifact-id';
 const DATA_REVISION_ATTR = 'data-cem-data-revision';
 const SOURCE_FIDELITY_ATTR = 'data-cem-source-fidelity';
 const SOURCE_FRAME_ATTR = 'data-cem-source-frame';
+export const DATA_CEM_SCOPE_ATTR = 'data-cem-scope';
+const STYLE_TAG = 'style';
+const KEYFRAMES_AT_RULE = /@(-webkit-)?keyframes\s+([A-Za-z_][\w-]*)/g;
+const UNSUPPORTED_SCOPED_CSS_AT_RULES = [
+    'font-face',
+    'property',
+    'counter-style',
+    'font-palette-values',
+    'page',
+    'namespace',
+] as const;
 
 export type TemplateValue = string | boolean | null;
 export type SourceMapFidelity = 'author-byte-exact' | 'dom-canonical' | 'declaration-only';
@@ -91,6 +102,22 @@ export interface RenderPlan {
     outputTarget: 'light-dom';
     scopePolicyStamp: string;
     nodes: RenderPlanNode[];
+}
+
+export interface ScopedCssRewriteDiagnostic {
+    code: string;
+    severity: 'warning';
+    message: string;
+}
+
+export interface ScopedCssRewriteResult {
+    css: string;
+    diagnostics: ScopedCssRewriteDiagnostic[];
+}
+
+export interface ScopedRenderPlanResult {
+    renderPlan: RenderPlan;
+    diagnostics: ScopedCssRewriteDiagnostic[];
 }
 
 export interface RenderRevision {
@@ -813,6 +840,87 @@ export function projectSlotsInRenderPlan(plan: RenderPlan, payload: unknown): Re
     };
 }
 
+/**
+ * Stamp a render plan with a generated scope identity and rewrite template-local
+ * `<style>` nodes so light-DOM rendering gets the same containment model in the
+ * browser, SSR, and edge render paths.
+ */
+export function scopeRenderPlan(plan: RenderPlan, scopeUid: string): ScopedRenderPlanResult {
+    const diagnostics: ScopedCssRewriteDiagnostic[] = [];
+    return {
+        renderPlan: {
+            ...plan,
+            nodes: scopeRenderNodes(plan.nodes, scopeUid, diagnostics, true),
+        },
+        diagnostics,
+    };
+}
+
+export function scopeCssText(css: string, scopeUid: string): ScopedCssRewriteResult {
+    const diagnostics: ScopedCssRewriteDiagnostic[] = [];
+    let scoped = css;
+
+    scoped = scoped.replace(/@import\b[^;]*;?/gi, (statement) => {
+        diagnostics.push({
+            code: 'cem.scoped_css.import_unsupported',
+            severity: 'warning',
+            message: `scoped CSS suppresses unsupported @import statement: ${statement.trim()}`,
+        });
+        return '';
+    });
+
+    for (const atRule of UNSUPPORTED_SCOPED_CSS_AT_RULES) {
+        const before = scoped;
+        scoped = stripUnsupportedAtRule(scoped, atRule);
+        if (scoped !== before) {
+            diagnostics.push({
+                code: 'cem.scoped_css.global_construct_unsupported',
+                severity: 'warning',
+                message: `scoped CSS suppresses unsupported global @${atRule} construct`,
+            });
+        }
+    }
+
+    const keyframeRenames = new Map<string, string>();
+    scoped = scoped.replace(KEYFRAMES_AT_RULE, (_statement: string, vendor: string | undefined, name: string) => {
+        const scopedName = `${name}-${cssIdentifier(scopeUid)}`;
+        keyframeRenames.set(name, scopedName);
+        return `@${vendor ?? ''}keyframes ${scopedName}`;
+    });
+    scoped = rewriteAnimationReferences(scoped, keyframeRenames);
+
+    let globalAliasDiagnostic = false;
+    scoped = scoped
+        .replace(/:host\(([^)]*)\)/g, '&$1')
+        .replace(/:host(?![-_A-Za-z0-9])/g, '&')
+        .replace(/:global\(([^)]*)\)/g, (_match, selector: string) => {
+            globalAliasDiagnostic = true;
+            return `&${selector}`;
+        })
+        .replace(/:global(?![-_A-Za-z0-9])/g, () => {
+            globalAliasDiagnostic = true;
+            return '&';
+        })
+        .replace(/:root(?![-_A-Za-z0-9])/g, () => {
+            globalAliasDiagnostic = true;
+            return '&';
+        });
+
+    if (globalAliasDiagnostic) {
+        diagnostics.push({
+            code: 'cem.scoped_css.global_alias',
+            severity: 'warning',
+            message: 'scoped CSS treats :global and :root as :host aliases',
+        });
+    }
+
+    const body = scoped.trim();
+    return {
+        css: body.length > 0 ? `[${DATA_CEM_SCOPE_ATTR}="${cssString(scopeUid)}"] {\n${indentCss(body)}\n}` : '',
+        diagnostics,
+    };
+}
+
 function projectSlotNodes(
     nodes: readonly RenderPlanNode[],
     payload: ProjectionPayload
@@ -871,6 +979,164 @@ function coerceProjectionPayload(payload: unknown): ProjectionPayload | null {
     }
     const slots = (payload as ProjectionPayload).slots;
     return slots && typeof slots === 'object' ? { slots } : null;
+}
+
+function scopeRenderNodes(
+    nodes: readonly RenderPlanNode[],
+    scopeUid: string,
+    diagnostics: ScopedCssRewriteDiagnostic[],
+    stampScope: boolean
+): RenderPlanNode[] {
+    return nodes.map((node) => {
+        if (node.kind !== 'element') {
+            return node;
+        }
+
+        const attributes = stampScope
+            ? withRenderPlanAttribute(node.attributes, DATA_CEM_SCOPE_ATTR, scopeUid)
+            : node.attributes;
+        if (node.tag === STYLE_TAG && node.namespace === null) {
+            const rewritten = scopeStyleNode(node, scopeUid);
+            diagnostics.push(...rewritten.diagnostics);
+            return {
+                ...node,
+                attributes,
+                children: [{
+                    kind: 'text',
+                    text: rewritten.css,
+                    sourceMapRef: firstTextSourceMapRef(node.children) ?? node.sourceMapRef,
+                }],
+            };
+        }
+
+        return {
+            ...node,
+            attributes,
+            children: scopeRenderNodes(node.children, scopeUid, diagnostics, false),
+        };
+    });
+}
+
+function scopeStyleNode(
+    node: Extract<RenderPlanNode, { kind: 'element' }>,
+    scopeUid: string
+): ScopedCssRewriteResult {
+    const css = node.children
+        .map((child) => {
+            if (child.kind === 'text') {
+                return child.text;
+            }
+            return child.kind === 'comment' ? `/*${child.text}*/` : '';
+        })
+        .join('');
+    return scopeCssText(css, scopeUid);
+}
+
+function firstTextSourceMapRef(nodes: readonly RenderPlanNode[]): SourceMapRef | undefined {
+    for (const node of nodes) {
+        if ((node.kind === 'text' || node.kind === 'comment') && node.sourceMapRef) {
+            return node.sourceMapRef;
+        }
+    }
+    return undefined;
+}
+
+function withRenderPlanAttribute(
+    attributes: readonly RenderPlanAttribute[],
+    name: string,
+    value: string
+): RenderPlanAttribute[] {
+    let replaced = false;
+    const next = attributes.map((attribute) => {
+        if (attribute.name !== name) {
+            return attribute;
+        }
+        replaced = true;
+        return { name, value };
+    });
+    return replaced ? next : [...next, { name, value }];
+}
+
+function rewriteAnimationReferences(css: string, renames: ReadonlyMap<string, string>): string {
+    if (renames.size === 0) {
+        return css;
+    }
+    return css
+        .replace(/((?:-webkit-)?animation-name\s*:\s*)([^;{}]+)/gi, (_match, prefix: string, value: string) =>
+            `${prefix}${replaceCssValueNames(value, renames)}`
+        )
+        .replace(/((?:-webkit-)?animation\s*:\s*)([^;{}]+)/gi, (_match, prefix: string, value: string) =>
+            `${prefix}${replaceCssValueNames(value, renames)}`
+        );
+}
+
+function replaceCssValueNames(value: string, renames: ReadonlyMap<string, string>): string {
+    let rewritten = value;
+    for (const [name, scopedName] of renames) {
+        rewritten = rewritten.replace(
+            new RegExp(`(^|[^-_A-Za-z0-9])(${escapeRegExp(name)})(?=$|[^-_A-Za-z0-9])`, 'g'),
+            (_match, prefix: string) => `${prefix}${scopedName}`
+        );
+    }
+    return rewritten;
+}
+
+function stripUnsupportedAtRule(css: string, atRule: string): string {
+    if (atRule === 'namespace') {
+        return css.replace(/@namespace\b[^;]*;?/gi, '');
+    }
+
+    const atRulePattern = new RegExp(`@${escapeRegExp(atRule)}\\b`, 'gi');
+    let output = '';
+    let cursor = 0;
+    let match: RegExpExecArray | null;
+    while ((match = atRulePattern.exec(css)) !== null) {
+        output += css.slice(cursor, match.index);
+        const blockStart = css.indexOf('{', atRulePattern.lastIndex);
+        const statementEnd = css.indexOf(';', atRulePattern.lastIndex);
+        if (blockStart < 0 || (statementEnd >= 0 && statementEnd < blockStart)) {
+            cursor = statementEnd >= 0 ? statementEnd + 1 : css.length;
+            atRulePattern.lastIndex = cursor;
+            continue;
+        }
+        const blockEnd = matchingBraceIndex(css, blockStart);
+        cursor = blockEnd >= 0 ? blockEnd + 1 : css.length;
+        atRulePattern.lastIndex = cursor;
+    }
+    return output + css.slice(cursor);
+}
+
+function matchingBraceIndex(css: string, openIndex: number): number {
+    let depth = 0;
+    for (let index = openIndex; index < css.length; index += 1) {
+        const char = css[index];
+        if (char === '{') {
+            depth += 1;
+        } else if (char === '}') {
+            depth -= 1;
+            if (depth === 0) {
+                return index;
+            }
+        }
+    }
+    return -1;
+}
+
+function indentCss(css: string): string {
+    return css.split(/\r?\n/).map((line) => (line.length > 0 ? `    ${line}` : '')).join('\n');
+}
+
+function cssIdentifier(value: string): string {
+    const sanitized = value.toLowerCase().replace(/[^-_a-z0-9]+/g, '-').replace(/^-+|-+$/g, '');
+    return sanitized.length > 0 ? sanitized : 'scope';
+}
+
+function cssString(value: string): string {
+    return value.replace(/\\/g, '\\\\').replace(/"/g, '\\"');
+}
+
+function escapeRegExp(value: string): string {
+    return value.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
 }
 
 /**

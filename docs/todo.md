@@ -21,8 +21,39 @@ history belongs in git history and the feature-specific docs linked below.
      into structured slices, including attributes and query params, plus live location updates where supported.
    - Implement declarative URL writes used by the legacy `set-url` demos, reusing the `location-element` method/src
      model or its CEM-ML equivalent.
-   - Implement automatic template `<style>` containment for light-DOM CEM Elements so demo styles do not leak outside
-     the produced element while still allowing documented payload overrides.
+   - Implement the accepted UID and scoped CSS design in
+     [`cem-ml-uid-and-scoped-css-design.md`](cem-ml-uid-and-scoped-css-design.md):
+     - [x] add `uid-seed` declaration support, including explicit blank seed handling and host/default seed resolution;
+     - [x] generate `scopeUid` values from encoded seed plus deterministic occurrence path, never from public tag name,
+       worker index, runtime randomness, or execution order for persisted/SSR output;
+     - [x] stamp generated scope identity on produced render host/root with `data-cem-scope` and keep public tag names only as
+       optional debug prefixes;
+     - [x] add occurrence-path planning for browser, SSR, and WASM worker-pool render paths, with counter ranges allowed
+       only as an internal optimization that preserves occurrence-path-equivalent public IDs;
+     - [x] split ephemeral browser runtime from explicit stable-seed output so runtime may use dynamic fallback seeds
+       while persisted/SSR output can supply stable `uid-seed` values, occurrence paths, and validation/debug checks;
+     - [ ] add build/CLI/SSR host transform seed and source-hash fallback integration when no explicit `uid-seed` is
+       supplied;
+     - [x] implement validation/debug duplicate-ID diagnostics for generated `scopeUid` values in the same output
+       scope, without auto-repairing repeatable output with dynamic disambiguators;
+     - [ ] extend validation/debug duplicate-ID diagnostics to future generated anonymous custom-element names, stylesheet
+       IDs, hydration/render-root IDs, and emitted artifact IDs;
+     - [x] implement scoped CSS nesting wrapper output using `[data-cem-scope="..."] { ... }` where native nesting safely
+       scopes authored CSS;
+     - [x] rewrite scoped CSS `:host` to `&`, treat `:global` and `:root` as `:host` with debug/validation warnings, and
+       leave `html`/`body` unchecked;
+     - [x] rename scoped `@keyframes` and rewrite `animation-name` plus shorthand `animation` references;
+     - [x] suppress scoped CSS `@import` with warning and add diagnostics for unsupported global CSS constructs such as
+       `@font-face`, `@property`, `@counter-style`, `@font-palette-values`, `@page`, and unsupported `@namespace`;
+     - [x] implement SSR hydration no-op behavior: retain server `data-cem-scope` and generated IDs, skip
+       `connectedCallback` DOM updates for hydration-produced bodies, and trust only runtime-owned data-island
+       evidence;
+     - [x] add event rerender no-op protection for slice events that resolve to unchanged data;
+     - [ ] add render-tree diff/no-op replacement protection so unchanged virtual render trees do not mutate browser DOM;
+     - [ ] add the design test matrix as executable gates: repeated builds, occurrence paths, parallel scheduling,
+       same-tag separate scopes, same-seed collision diagnostics, blank seed, runtime fallback, SSR/browser parity,
+       dynamic-data exceptions, hydration no-op, event no-op rerender, scoped CSS isolation, `:host`/`:global`/`:root`,
+       keyframes, `@import`, unsupported CSS diagnostics, and public-safe seed examples.
    - Wire the demo parity checks into `yarn nx run cem-elements:verify` once the pages are executable release fixtures.
 
 Completed release-gate phases are recorded in:

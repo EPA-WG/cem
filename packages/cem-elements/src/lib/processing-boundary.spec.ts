@@ -3,6 +3,7 @@ import { describe, expect, it } from 'vitest';
 import {
     SNAPSHOT_SCHEMA_VERSION,
     exportDataIslandSnapshotForEdge,
+    generateScopeUid,
     type DataIslandSnapshot,
 } from './cem-elements.js';
 import {
@@ -13,6 +14,8 @@ import {
     projectTemplate,
     readEdgeRenderStateContents,
     renderPlanIdentity,
+    scopeCssText,
+    scopeRenderPlan,
     type PatchFrame,
     type RenderPlan,
     type TemplateProjectionInput,
@@ -143,6 +146,101 @@ describe('host processing boundary contracts', () => {
                 sanitizedSnapshot: { unsafe: new Date('2026-06-17T00:00:00.000Z') },
             })
         ).toThrow(/non-plain object Date/);
+    });
+
+    it('generates scope UIDs from explicit seeds, blank seeds, and dynamic fallback seeds', () => {
+        expect(generateScopeUid({
+            producedTag: 'story-card',
+            uidSeed: 'demo/scoped-css/card',
+            occurrencePath: '0.2',
+        })).toBe('cem-scope-story-card-udemoz2fscoped-cssz2fcard-p0-2');
+
+        expect(generateScopeUid({
+            producedTag: 'story-card',
+            uidSeed: '',
+            occurrencePath: '0.2',
+            runtimeSeed: 'ignored',
+        })).toBe('cem-scope-story-card-p0-2');
+
+        expect(generateScopeUid({
+            producedTag: 'story-card',
+            uidSeed: null,
+            occurrencePath: '0.2',
+            runtimeSeed: 'worker-0-counter-7',
+        })).toBe('cem-scope-story-card-uworker-0-counter-7-p0-2');
+    });
+
+    it('rewrites scoped CSS with nesting, host aliases, keyframes, and suppressed globals', () => {
+        const result = scopeCssText(
+            [
+                '@import url("./theme.css");',
+                '@font-face { font-family: Demo; src: url("./demo.woff2"); }',
+                ':host { display: block; }',
+                ':global(.legacy) button, :root { color: red; }',
+                '@keyframes pulse { from { opacity: 0; } to { opacity: 1; } }',
+                'button { animation: pulse 1s ease; animation-name: pulse; }',
+            ].join('\n'),
+            'cem-scope-story-card-useed-p0'
+        );
+
+        expect(result.css).toContain('[data-cem-scope="cem-scope-story-card-useed-p0"] {');
+        expect(result.css).toContain('& { display: block; }');
+        expect(result.css).toContain('&.legacy button, & { color: red; }');
+        expect(result.css).toContain('@keyframes pulse-cem-scope-story-card-useed-p0');
+        expect(result.css).toContain('animation: pulse-cem-scope-story-card-useed-p0 1s ease');
+        expect(result.css).toContain('animation-name: pulse-cem-scope-story-card-useed-p0');
+        expect(result.css).not.toContain('@import');
+        expect(result.css).not.toContain('@font-face');
+        expect(result.diagnostics.map((diagnostic) => diagnostic.code)).toEqual([
+            'cem.scoped_css.import_unsupported',
+            'cem.scoped_css.global_construct_unsupported',
+            'cem.scoped_css.global_alias',
+        ]);
+    });
+
+    it('stamps scoped render roots and rewrites style nodes in render plans', () => {
+        const plan = projectTemplate(
+            [{
+                kind: 'element',
+                namespace: null,
+                tag: 'section',
+                attributes: [],
+                children: [
+                    {
+                        kind: 'element',
+                        namespace: null,
+                        tag: 'style',
+                        attributes: [],
+                        children: [{ kind: 'text', text: 'button { color: green; }' }],
+                    },
+                    {
+                        kind: 'element',
+                        namespace: null,
+                        tag: 'button',
+                        attributes: [],
+                        children: [{ kind: 'text', text: 'Save' }],
+                    },
+                ],
+            }],
+            { snapshot: snapshotFixture(), values: {} }
+        );
+        const scoped = scopeRenderPlan(plan, 'cem-scope-story-card-useed-p0');
+        const root = scoped.renderPlan.nodes[0];
+        expect(root.kind).toBe('element');
+        if (root.kind !== 'element') return;
+
+        expect(root.attributes).toContainEqual({
+            name: 'data-cem-scope',
+            value: 'cem-scope-story-card-useed-p0',
+        });
+        const style = root.children[0];
+        expect(style.kind).toBe('element');
+        if (style.kind !== 'element') return;
+        expect(style.children[0]).toEqual({
+            kind: 'text',
+            text: '[data-cem-scope="cem-scope-story-card-useed-p0"] {\n    button { color: green; }\n}',
+            sourceMapRef: undefined,
+        });
     });
 });
 

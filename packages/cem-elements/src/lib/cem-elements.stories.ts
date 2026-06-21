@@ -24,6 +24,7 @@ import {
     readEdgeRenderStateContents,
     readTemplateSource,
     renderPlanIdentity,
+    scopeRenderPlan,
     type EdgeContentAddress,
     type EdgeContentKind,
     type EdgeRenderStateRecord,
@@ -2153,6 +2154,84 @@ export const RenderNodeIdentityIsDeterministic: Story = {
     },
 };
 
+export const ScopedCssUidSeedRuntime: Story = {
+    render: () => {
+        const root = document.createElement('section');
+        root.setAttribute('aria-label', 'scoped CSS UID seed runtime story');
+
+        const runtime = new CemElementRuntime({
+            declarationTag: 'cem-element-story-scoped-css',
+            validateGeneratedIds: true,
+        });
+        const declaration = document.createElement('cem-element-story-scoped-css');
+        declaration.setAttribute('tag', 'story-scoped-css-card');
+        declaration.setAttribute('uid-seed', 'stories/scoped-css/card');
+        const template = document.createElement('template');
+        template.innerHTML = [
+            '<slice name="value">same</slice>',
+            '<style>',
+            '@import url("./global.css");',
+            ':host { --scoped-border: rgb(0, 128, 0); }',
+            ':global(.legacy), :root { color: red; }',
+            '@keyframes pulse { from { opacity: 0; } to { opacity: 1; } }',
+            'button { border: 3px solid var(--scoped-border); animation: pulse 1s; }',
+            '</style>',
+            '<button type="button" slice="value" slice-event="click" slice-value="\'same\'">${$value}</button>',
+        ].join('');
+        declaration.appendChild(template);
+        root.appendChild(declaration);
+        runtime.registerDeclaration(declaration);
+
+        const instance = document.createElement('story-scoped-css-card');
+        root.append(instance);
+        const outside = document.createElement('button');
+        outside.textContent = 'outside';
+        root.append(outside);
+
+        (root as HTMLElement & { __runtime?: CemElementRuntime }).__runtime = runtime;
+        return root;
+    },
+    play: async ({ canvasElement }) => {
+        await nextFrame();
+
+        const root = requiredElement(canvasElement, '[aria-label="scoped CSS UID seed runtime story"]') as HTMLElement & {
+            __runtime?: CemElementRuntime;
+        };
+        const runtime = root.__runtime;
+        assert(runtime, 'story runtime is available for diagnostics');
+        const instance = requiredElement(root, 'story-scoped-css-card') as HTMLElement;
+        const scopeUid = instance.getAttribute('data-cem-scope') ?? '';
+        assert(
+            /^cem-scope-story-scoped-css-card-ustoriesz2fscoped-cssz2fcard-p[0-9-]+$/.test(scopeUid),
+            'uid-seed contributes a deterministic encoded scope UID'
+        );
+
+        const style = requiredElement(instance, 'style');
+        const css = style.textContent ?? '';
+        assert(css.includes(`[data-cem-scope="${scopeUid}"] {`), 'style rules are wrapped in the generated scope');
+        assert(css.includes('& { --scoped-border: rgb(0, 128, 0); }'), ':host rewrites to the nesting parent');
+        assert(css.includes('&.legacy, & { color: red; }'), ':global and :root rewrite to scoped aliases');
+        assert(css.includes(`@keyframes pulse-${scopeUid}`), 'keyframes are renamed with the scope UID');
+        assert(css.includes(`animation: pulse-${scopeUid} 1s`), 'animation shorthand references renamed keyframes');
+        assert(!css.includes('@import'), '@import is suppressed from scoped CSS output');
+
+        const button = requiredElement(instance, 'button');
+        assertEqual(button.getAttribute('data-cem-scope'), scopeUid, 'top-level render roots carry the scope UID');
+        const revision = button.getAttribute('data-cem-data-revision');
+        button.dispatchEvent(new Event('click', { bubbles: true }));
+        await nextFrame();
+        assertEqual(
+            requiredElement(instance, 'button').getAttribute('data-cem-data-revision'),
+            revision,
+            'slice events that resolve to the existing value do not rerender the DOM'
+        );
+
+        const diagnosticCodes = runtime.diagnosticsFor(instance).map((diagnostic) => diagnostic.code);
+        assert(diagnosticCodes.includes('cem.scoped_css.import_unsupported'), '@import suppression is diagnosed');
+        assert(diagnosticCodes.includes('cem.scoped_css.global_alias'), ':global/:root aliasing is diagnosed');
+    },
+};
+
 export const SsrHydrationFromSerializedSnapshot: Story = {
     render: () => {
         const root = document.createElement('section');
@@ -2172,6 +2251,8 @@ export const SsrHydrationFromSerializedSnapshot: Story = {
         snapshot.declarationTag = 'cem-element-story-ssr';
         snapshot.templateArtifactId = 'ssr-template-artifact-1';
         snapshot.dataRevision = '7';
+        const serverScopeUid = 'cem-scope-story-ssr-card-userver-p0';
+        snapshot.hostAttributes['data-cem-scope'] = serverScopeUid;
         snapshot.payload = {
             ...emptySerializedPayload(),
             text: 'Server detail',
@@ -2202,7 +2283,8 @@ export const SsrHydrationFromSerializedSnapshot: Story = {
             },
         };
 
-        const plan = projectTemplate(source, { snapshot, values: { label: 'Server Card' } });
+        const plan = scopeRenderPlan(projectTemplate(source, { snapshot, values: { label: 'Server Card' } }), serverScopeUid)
+            .renderPlan;
         const serverFragment = materializeRenderPlan(plan, document);
         const serverNodes = Array.from(serverFragment.childNodes);
 
@@ -2214,6 +2296,7 @@ export const SsrHydrationFromSerializedSnapshot: Story = {
 
         const instance = document.createElement('story-ssr-card');
         instance.setAttribute('label', 'Server Card');
+        instance.setAttribute('data-cem-scope', serverScopeUid);
         const island = document.createElement('template');
         island.setAttribute('data-cem-island', 'instance');
         island.innerHTML = '<span slot="detail">Server detail</span>';
@@ -2244,6 +2327,16 @@ export const SsrHydrationFromSerializedSnapshot: Story = {
             article.getAttribute('data-cem-data-revision'),
             '7',
             'client hydration preserves the server render-plan data revision'
+        );
+        assertEqual(
+            instance.getAttribute('data-cem-scope'),
+            'cem-scope-story-ssr-card-userver-p0',
+            'client hydration preserves the server host scope UID'
+        );
+        assertEqual(
+            article.getAttribute('data-cem-scope'),
+            'cem-scope-story-ssr-card-userver-p0',
+            'client hydration preserves the server render-root scope UID'
         );
         assertEqual(
             requiredElement(instance, 'script[data-cem-hydration="snapshot"]').textContent?.includes('ssr-instance-1'),

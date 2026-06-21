@@ -1,7 +1,10 @@
 import {
+    DATA_CEM_SCOPE_ATTR,
     materializeRenderPlan,
     projectTemplate,
     readTemplateSource,
+    scopeRenderPlan,
+    type ScopedCssRewriteDiagnostic,
     type SourceMapFidelity,
     type SourceMapRef,
     type TemplateSourceNode,
@@ -190,6 +193,11 @@ export interface CemElementRuntimeOptions {
      * `development`. See {@link ingestContractVersion}.
      */
     runMode?: RunMode;
+    /**
+     * Debug/validation switch for generated public IDs. Normal ephemeral browser
+     * runtime can leave this off and rely on host-provided `uid-seed` uniqueness.
+     */
+    validateGeneratedIds?: boolean;
 }
 
 type CemElementWindow = Window &
@@ -212,6 +220,9 @@ interface CompiledDeclaration {
     declarationElement: HTMLElement;
     declarationTag: string;
     producedTag: string;
+    uidSeed: string | null;
+    occurrencePath: string;
+    scopeUid: string;
     artifactId: string;
     template: HTMLTemplateElement;
     templateSource: TemplateSourceNode[];
@@ -248,6 +259,7 @@ const DATA_ISLAND_ATTR = 'data-cem-island';
 const DATA_ISLAND_VALUE = 'instance';
 const HYDRATION_METADATA_ATTR = 'data-cem-hydration';
 const HYDRATION_METADATA_VALUE = 'snapshot';
+const UID_SEED_ATTR = 'uid-seed';
 const RENDER_TEMPLATE_ARTIFACT_ID_ATTR = 'data-cem-template-artifact-id';
 const RENDER_DATA_REVISION_ATTR = 'data-cem-data-revision';
 const SOURCE_FIDELITY_ATTR = 'data-cem-source-fidelity';
@@ -272,6 +284,14 @@ const RESERVED_CUSTOM_ELEMENT_NAMES = new Set([
 ]);
 
 let artifactSequence = 0;
+let runtimeUidSeedSequence = 0;
+
+export interface ScopeUidInput {
+    producedTag: string | null;
+    uidSeed: string | null;
+    occurrencePath: string;
+    runtimeSeed?: string;
+}
 
 export function cemElements(): string {
     return '@epa-wg/cem-elements';
@@ -279,6 +299,35 @@ export function cemElements(): string {
 
 export function isValidCustomElementName(tag: string): boolean {
     return /^[a-z][.0-9_a-z-]*-[.0-9_a-z-]*$/.test(tag) && !RESERVED_CUSTOM_ELEMENT_NAMES.has(tag);
+}
+
+export function generateScopeUid(input: ScopeUidInput): string {
+    const tagPrefix = uidTagPrefix(input.producedTag);
+    const seed = input.uidSeed !== null ? input.uidSeed : input.runtimeSeed ?? nextRuntimeUidSeed();
+    const seedPart = seed.length > 0 ? `-u${encodeUidComponent(seed)}` : '';
+    const pathPart = `-p${encodeUidComponent(input.occurrencePath) || '0'}`;
+    return `cem-scope${tagPrefix}${seedPart}${pathPart}`;
+}
+
+function nextRuntimeUidSeed(): string {
+    runtimeUidSeedSequence += 1;
+    return `runtime-${runtimeUidSeedSequence}`;
+}
+
+function uidTagPrefix(tag: string | null): string {
+    if (!tag) {
+        return '';
+    }
+    const prefix = tag.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-+|-+$/g, '');
+    return prefix.length > 0 ? `-${prefix}` : '';
+}
+
+function encodeUidComponent(value: string): string {
+    return encodeURIComponent(value)
+        .replace(/%/g, 'z')
+        .replace(/[^A-Za-z0-9]+/g, '-')
+        .replace(/^-+|-+$/g, '')
+        .toLowerCase();
 }
 
 export function analyzeDeclarationShape(input: DeclarationShapeInput): DeclarationShapeResult {
@@ -398,6 +447,8 @@ export class CemElementRuntime {
     private readonly loadSrcDocumentOption?: CemElementRuntimeOptions['loadSrcDocument'];
     private readonly resolveModuleUrlOption?: CemElementRuntimeOptions['resolveModuleUrl'];
     private readonly runMode: RunMode;
+    private readonly validateGeneratedIds: boolean;
+    private readonly generatedScopeOwners = new Map<string, HTMLElement>();
     private instanceSequence = 0;
 
     constructor(options: CemElementRuntimeOptions = {}) {
@@ -408,6 +459,7 @@ export class CemElementRuntime {
         this.loadSrcDocumentOption = options.loadSrcDocument;
         this.resolveModuleUrlOption = options.resolveModuleUrl;
         this.runMode = options.runMode ?? 'application';
+        this.validateGeneratedIds = options.validateGeneratedIds ?? false;
         // Eagerly warm the cem_ql WASM engine so canonical CEM-ML instances can render
         // through the authoritative boundary as soon as possible. Failures surface
         // per-instance at render time.
@@ -502,6 +554,9 @@ export class CemElementRuntime {
         }
 
         const compiled = compileInlineDeclaration(declarationElement, tag, template, this.declarationTag);
+        if (!this.validateGeneratedScopeUid(compiled)) {
+            return Promise.resolve();
+        }
         this.recordDiagnostics(declarationElement, [...shapeDiagnostics, ...compiled.diagnostics]);
         this.declarations.set(tag, compiled);
         this.defineProducedElement(declarationElement, compiled);
@@ -682,6 +737,7 @@ export class CemElementRuntime {
 
     private connectProducedInstance(instance: HTMLElement, compiled: CompiledDeclaration): void {
         const island = this.ensureDataIsland(instance);
+        this.ensureInstanceScope(instance, compiled);
         const state = this.ensureInstanceState(instance, compiled, island);
         this.observeInstance(instance, island, state);
         if (this.hydratedServerRenders.has(instance)) {
@@ -820,7 +876,12 @@ export class CemElementRuntime {
                     )
                 );
             }
-            const fragment = materializeRenderPlan(result.renderPlan, instance.ownerDocument);
+            const scoped = scopeRenderPlan(result.renderPlan, this.currentScopeUid(instance, compiled));
+            this.recordDiagnostics(
+                instance,
+                scoped.diagnostics.map((diagnostic) => scopedCssDiagnostic(diagnostic, compiled.producedTag))
+            );
+            const fragment = materializeRenderPlan(scoped.renderPlan, instance.ownerDocument);
             const island = this.ensureDataIsland(instance);
             this.bindRenderedSliceEvents(instance, compiled, fragment);
             const resourcesSettled = this.bindRenderedResourceSlices(instance, compiled, fragment, token);
@@ -858,7 +919,12 @@ export class CemElementRuntime {
             const values = templateValues(snapshot, compiled.declaredAttributes);
             const input = { snapshot, values };
             const plan = projectTemplate(compiled.templateSource, input);
-            return materializeRenderPlan(plan, instance.ownerDocument);
+            const scoped = scopeRenderPlan(plan, this.currentScopeUid(instance, compiled));
+            this.recordDiagnostics(
+                instance,
+                scoped.diagnostics.map((diagnostic) => scopedCssDiagnostic(diagnostic, compiled.producedTag))
+            );
+            return materializeRenderPlan(scoped.renderPlan, instance.ownerDocument);
         } catch (error) {
             this.recordDiagnostics(instance, [
                 renderDiagnostic(
@@ -1129,8 +1195,31 @@ export class CemElementRuntime {
         const state = this.ensureInstanceState(instance, compiled, island);
         const sliceValue = evaluateSliceValue(expression, event, state.slices);
         state.eventPayloads[sliceName] = serializeEventPayload(event, sliceValue);
-        state.slices[sliceName] = sliceValue;
-        this.renderInstance(instance, compiled);
+        if (state.slices[sliceName] !== sliceValue) {
+            state.slices[sliceName] = sliceValue;
+            this.renderInstance(instance, compiled);
+        }
+    }
+
+    private ensureInstanceScope(instance: HTMLElement, compiled: CompiledDeclaration): string {
+        const existing = instance.getAttribute(DATA_CEM_SCOPE_ATTR) ?? this.retainedRenderedScope(instance);
+        const scopeUid = existing && existing.length > 0 ? existing : compiled.scopeUid;
+        if (instance.getAttribute(DATA_CEM_SCOPE_ATTR) !== scopeUid) {
+            instance.setAttribute(DATA_CEM_SCOPE_ATTR, scopeUid);
+        }
+        return scopeUid;
+    }
+
+    private currentScopeUid(instance: HTMLElement, compiled: CompiledDeclaration): string {
+        return instance.getAttribute(DATA_CEM_SCOPE_ATTR) || compiled.scopeUid;
+    }
+
+    private retainedRenderedScope(instance: HTMLElement): string | null {
+        const bounds = this.renderBounds.get(instance);
+        if (!bounds) {
+            return null;
+        }
+        return firstRenderedElementBetween(bounds)?.getAttribute(DATA_CEM_SCOPE_ATTR) ?? null;
     }
 
     private replaceRenderedContent(instance: HTMLElement, island: HTMLTemplateElement, rendered: DocumentFragment): void {
@@ -1206,6 +1295,25 @@ export class CemElementRuntime {
         return this.declarations.get(instance.localName);
     }
 
+    private validateGeneratedScopeUid(compiled: CompiledDeclaration): boolean {
+        if (!this.validateGeneratedIds) {
+            return true;
+        }
+        const owner = this.generatedScopeOwners.get(compiled.scopeUid);
+        if (owner && owner !== compiled.declarationElement) {
+            this.recordDiagnostics(compiled.declarationElement, [
+                declarationDiagnostic(
+                    'cem-element.scope_uid_duplicate',
+                    `generated scope UID \`${compiled.scopeUid}\` is already used in this runtime output scope`,
+                    compiled.producedTag
+                ),
+            ]);
+            return false;
+        }
+        this.generatedScopeOwners.set(compiled.scopeUid, compiled.declarationElement);
+        return true;
+    }
+
     private recordDiagnostics(target: object, diagnostics: CemElementDiagnostic[]): void {
         if (diagnostics.length === 0) {
             return;
@@ -1257,10 +1365,17 @@ function compileInlineDeclaration(
     const legacySource =
         mode === 'legacy-xslt' ? (template.innerHTML.trim().length > 0 ? template.innerHTML : templateSourceText(template)) : null;
     const wasmEligible = mode === 'cem-ml' || mode === 'legacy-xslt';
+    const uidSeed = declarationElement.hasAttribute(UID_SEED_ATTR)
+        ? declarationElement.getAttribute(UID_SEED_ATTR) ?? ''
+        : null;
+    const occurrencePath = declarationOccurrencePath(declarationElement);
     return {
         declarationElement,
         declarationTag,
         producedTag,
+        uidSeed,
+        occurrencePath,
+        scopeUid: generateScopeUid({ producedTag, uidSeed, occurrencePath }),
         artifactId: `template-artifact-${++artifactSequence}`,
         template,
         templateSource,
@@ -1382,6 +1497,21 @@ function directTemplateChildren(element: Element): HTMLTemplateElement[] {
     return Array.from(element.children).filter(
         (child): child is HTMLTemplateElement => child.localName === 'template'
     );
+}
+
+function declarationOccurrencePath(element: Element): string {
+    const indexes: number[] = [];
+    let current: Element | null = element;
+    while (current) {
+        const parent: Element | null = current.parentElement;
+        if (!parent) {
+            indexes.unshift(0);
+            break;
+        }
+        indexes.unshift(Array.from(parent.children).indexOf(current));
+        current = parent;
+    }
+    return indexes.join('.');
 }
 
 function implicitCemMlTemplate(element: HTMLElement): HTMLTemplateElement {
@@ -1713,6 +1843,16 @@ function resourceDiagnostic(code: string, message: string, tag?: string): CemEle
         severity: 'warning',
         source: 'render',
         message,
+        tag,
+    };
+}
+
+function scopedCssDiagnostic(diagnostic: ScopedCssRewriteDiagnostic, tag: string): CemElementDiagnostic {
+    return {
+        code: diagnostic.code,
+        severity: diagnostic.severity,
+        source: 'render',
+        message: diagnostic.message,
         tag,
     };
 }
