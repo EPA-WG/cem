@@ -1,3 +1,13 @@
+## 0.1.0 (2026-06-21)
+
+### 🚀 Features
+
+- **cem-theme:** add figma token validation target ([5daa7f0](https://github.com/EPA-WG/cem/commit/5daa7f0))
+
+### ❤️ Thank You
+
+- Sasha Firsov @sashafirsov
+
 ## 0.0.14 (2026-05-04)
 
 This was a version bump only for @epa-wg/cem-theme to align it with other projects, there were no code changes.
