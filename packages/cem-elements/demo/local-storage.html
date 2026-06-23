@@ -18,22 +18,32 @@
 <body>
 <nav class="page-nav"><a href="../index.html">cem-element demo</a><h1>local-storage</h1></nav>
 
-<cem-element tag="cem-local-storage-panel">
-    <template type="text/cem-ml">
-        {local-storage @key=cemDemoDraft @slice=draft @type=text @live=true}
-        {local-storage @key=cemDemoCount @slice=count @type=number @live=true}
-        {local-storage @key=cemDemoBasket @slice=basket @type=json @live=true}
-        {article @class=demo-card |
-            {label | Draft {input @value="{$draft}" @slice=draft @slice-event=input @slice-value="{$target.value}"}}
-            {button @type=button @data-storage-write=draft | External write}
-            {p | draft: {output @data-role=draft | {$datadom.slices.draft}}}
-            {p | number: {output @data-role=count | {$datadom.slices.count}}}
-            {p | basket fruit: {output @data-role=basket | {$datadom.slices.basket.fruit}}}
-        }
-    </template>
-</cem-element>
+<main>
 
-<main><cem-local-storage-panel></cem-local-storage-panel></main>
+    <code>local-storage</code> allows to read and write its value to the key in <code>localStorage</code>.
+    The <code>type</code> attribute allows to place the validation constrains to the value: when the value does not
+    match the expected type, it would not be assigned, keeping empty <code>value</code> instead.
+
+    <html-demo-element legend="3. localStorage type"
+                       description="type validation happy path. Invalid for type value in storage would be treated as null">
+        <template>
+            <cem-element tag="cem-local-storage-panel">
+                    {local-storage @key=cemDemoDraft @slice=draft @type=text @live=true}
+                    {local-storage @key=cemDemoCount @slice=count @type=number @live=true}
+                    {local-storage @key=cemDemoBasket @slice=basket @type=json @live=true}
+                    {article @class=demo-card |
+                        {label | Draft {input @value="{$draft}" @slice=draft @slice-event=input @slice-value="{$target.value}"}}
+                        {button @type=button @data-storage-write=draft | External write}
+                        {p | draft: {output @data-role=draft | {$datadom.slices.draft}}}
+                        {p | number: {output @data-role=count | {$datadom.slices.count}}}
+                        {p | basket fruit: {output @data-role=basket | {$datadom.slices.basket.fruit}}}
+                    }
+            </cem-element>
+
+            <cem-local-storage-panel></cem-local-storage-panel>
+        </template>
+    </html-demo-element>
+</main>
 <script>
     document.addEventListener('click', (event) => {
         if (event.target?.matches?.('[data-storage-write="draft"]')) {
@@ -41,5 +51,6 @@
         }
     });
 </script>
+<script type="module" src="https://unpkg.com/html-demo-element@1/html-demo-element.js"></script>
 </body>
 </html>

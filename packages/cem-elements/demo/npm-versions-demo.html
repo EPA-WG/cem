@@ -13,18 +13,22 @@
 <body>
 <nav class="page-nav"><a href="../index.html">cem-element demo</a><h1>NPM versions</h1></nav>
 
-<cem-element tag="cem-version-row">
-    <template type="text/cem-ml">
-        {article @class=demo-card |
-            {h2 | {$datadom.attributes.package}}
-            {p | selected version: {$datadom.attributes.version ?? "local"}}
-            {p @class=status-note | Live registry lookup through http-request is queued for parity.}
-        }
-    </template>
-</cem-element>
-
 <main>
-    <cem-version-row package="@epa-wg/cem-elements" version="workspace"></cem-version-row>
+    <html-demo-element legend="1. NPM package version picker"
+                       description="defaults, last version should be preselected">
+        <template>
+            <cem-element tag="cem-version-row">
+                    {article @class=demo-card |
+                        {h2 | {$datadom.attributes.package}}
+                        {p | selected version: {$datadom.attributes.version ?? "local"}}
+                        {p @class=status-note | Live registry lookup through http-request is queued for parity.}
+                    }
+            </cem-element>
+
+            <cem-version-row package="@epa-wg/cem-elements" version="workspace"></cem-version-row>
+        </template>
+    </html-demo-element>
 </main>
+<script type="module" src="https://unpkg.com/html-demo-element@1/html-demo-element.js"></script>
 </body>
 </html>

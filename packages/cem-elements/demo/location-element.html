@@ -13,26 +13,41 @@
 <body>
 <nav class="page-nav"><a href="../index.html">cem-element demo</a><h1>location-element</h1></nav>
 
-<cem-element tag="cem-location-panel">
-    <template type="text/cem-ml">
-        {location-element @slice=current @live=true}
-        {location-element @slice=sample @href="https://example.test/demo/path?mode=demo&tag=one&tag=two#fixture"}
-        {article @class=demo-card |
-            {button @type=button @data-location-push=true | Push URL}
-            {p | current href: {output @data-role=current-href | {$datadom.slices.current.href}}}
-            {p | current hash: {output @data-role=current-hash | {$datadom.slices.current.hash}}}
-            {p | sample host: {output @data-role=sample-host | {$datadom.slices.sample.hostname}}}
-            {p | sample hash: {output @data-role=sample-hash | {$datadom.slices.sample.hash}}}
-            {ul @class=sample-params |
-                {cem:for-each @select="datadom.slices.sample.paramEntries" @as=param |
-                    {li | {$param.name} = {$param.text}}
-                }
-            }
-        }
-    </template>
-</cem-element>
+<main>
 
-<main><cem-location-panel></cem-location-panel></main>
+    <h3>How to get the page URL by location-element?</h3>
+    Answer: by defining following attributes:
+    <ol>
+        <li><code>slice</code> to one of values provided bellow</li>
+        <li><code>src</code> optionally with URL, If omitted, it would match the <code>window.location.href</code> </li>
+    </ol>
+    URL properties would be a part of slice data.
+    <p><a href="./set-url.html">Set page URL demo</a> </p>
+
+    <html-demo-element legend="1. window.location live update"
+                       description="Change the window URL via link or history change by controls in #1.">
+        <template>
+            <cem-element tag="cem-location-panel">
+                    {location-element @slice=current @live=true}
+                    {location-element @slice=sample @href="https://example.test/demo/path?mode=demo&tag=one&tag=two#fixture"}
+                    {article @class=demo-card |
+                        {button @type=button @data-location-push=true | Push URL}
+                        {p | current href: {output @data-role=current-href | {$datadom.slices.current.href}}}
+                        {p | current hash: {output @data-role=current-hash | {$datadom.slices.current.hash}}}
+                        {p | sample host: {output @data-role=sample-host | {$datadom.slices.sample.hostname}}}
+                        {p | sample hash: {output @data-role=sample-hash | {$datadom.slices.sample.hash}}}
+                        {ul @class=sample-params |
+                            {cem:for-each @select="datadom.slices.sample.paramEntries" @as=param |
+                                {li | {$param.name} = {$param.text}}
+                            }
+                        }
+                    }
+            </cem-element>
+
+            <cem-location-panel></cem-location-panel>
+        </template>
+    </html-demo-element>
+</main>
 <script>
     document.addEventListener('click', (event) => {
         if (event.target?.matches?.('[data-location-push="true"]')) {
@@ -40,5 +55,6 @@
         }
     });
 </script>
+<script type="module" src="https://unpkg.com/html-demo-element@1/html-demo-element.js"></script>
 </body>
 </html>

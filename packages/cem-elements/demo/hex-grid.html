@@ -13,22 +13,26 @@
 <body>
 <nav class="page-nav"><a href="../index.html">cem-element demo</a><h1>Hex grid</h1></nav>
 
-<cem-element tag="cem-grid-tile">
-    <template type="text/cem-ml">
-        {div @class=swatch @style="background: {$datadom.attributes.color}" | {$datadom.attributes.label}}
-    </template>
-</cem-element>
-
 <main>
-    <section class="hex-grid">
-        <cem-grid-tile label="A1" color="#dbeafe"></cem-grid-tile>
-        <cem-grid-tile label="A2" color="#dcfce7"></cem-grid-tile>
-        <cem-grid-tile label="A3" color="#fef3c7"></cem-grid-tile>
-        <cem-grid-tile label="B1" color="#ede9fe"></cem-grid-tile>
-        <cem-grid-tile label="B2" color="#fae8ff"></cem-grid-tile>
-        <cem-grid-tile label="B3" color="#e0f2fe"></cem-grid-tile>
-    </section>
-    <p class="status-note">Parity target: data-driven grid generation from resource/table rows is queued.</p>
+    <html-demo-element legend="1. external file with invoking of relative template as hash by enclosed custom-element"
+                       description="Should render hex shaped buttons with text and icon">
+        <template>
+            <cem-element tag="cem-grid-tile">
+                    {div @class=swatch @style="background: {$datadom.attributes.color}" | {$datadom.attributes.label}}
+            </cem-element>
+
+            <section class="hex-grid">
+                <cem-grid-tile label="A1" color="#dbeafe"></cem-grid-tile>
+                <cem-grid-tile label="A2" color="#dcfce7"></cem-grid-tile>
+                <cem-grid-tile label="A3" color="#fef3c7"></cem-grid-tile>
+                <cem-grid-tile label="B1" color="#ede9fe"></cem-grid-tile>
+                <cem-grid-tile label="B2" color="#fae8ff"></cem-grid-tile>
+                <cem-grid-tile label="B3" color="#e0f2fe"></cem-grid-tile>
+            </section>
+            <p class="status-note">Parity target: data-driven grid generation from resource/table rows is queued.</p>
+        </template>
+    </html-demo-element>
 </main>
+<script type="module" src="https://unpkg.com/html-demo-element@1/html-demo-element.js"></script>
 </body>
 </html>

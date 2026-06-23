@@ -13,16 +13,27 @@
 <body>
 <nav class="page-nav"><a href="../index.html">cem-element demo</a><h1>External template</h1></nav>
 
-<template id="local-card-template" type="text/cem-ml">
-    {article @class=demo-card | {h2 | {$datadom.attributes.title}} {slot | Local fallback}}
-</template>
-
-<cem-element tag="cem-local-src-card" src="#local-card-template"></cem-element>
-<cem-element tag="cem-external-src-card" src="./external-template-templates.html#external-card-template"></cem-element>
-
 <main>
-    <cem-local-src-card title="Local src">Loaded from a same-document template.</cem-local-src-card>
-    <cem-external-src-card title="External src">Loaded from a fetched demo support file.</cem-external-src-card>
+    <html-demo-element legend="1. reference the template in page DOM"
+                       description="should render hand wave with 'Hello World!'">
+        <template>
+            <template id="local-card-template" type="text/cem-ml">
+                {article @class=demo-card | {h2 | {$datadom.attributes.title}} {slot | Local fallback}}
+            </template>
+
+            <cem-element tag="cem-local-src-card" src="#local-card-template"></cem-element>
+            <cem-local-src-card title="Local src">Loaded from a same-document template.</cem-local-src-card>
+        </template>
+    </html-demo-element>
+
+    <html-demo-element legend="5. external HTML template"
+                       description="Should render external HTML template content">
+        <template>
+            <cem-element tag="cem-external-src-card" src="./external-template-templates.html#external-card-template"></cem-element>
+            <cem-external-src-card title="External src">Loaded from a fetched demo support file.</cem-external-src-card>
+        </template>
+    </html-demo-element>
 </main>
+<script type="module" src="https://unpkg.com/html-demo-element@1/html-demo-element.js"></script>
 </body>
 </html>

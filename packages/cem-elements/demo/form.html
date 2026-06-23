@@ -13,34 +13,38 @@
 <body>
 <nav class="page-nav"><a href="../index.html">cem-element demo</a><h1>Forms</h1></nav>
 
-<cem-element tag="cem-form-preview">
-    <template type="text/cem-ml">
-        {slice @name=username}
-        {slice @name=password}
-        {article @class=demo-card |
-            {form @slice=signin @custom-validity="string-length(/datadom/slice/signin/form-data/username) &gt; 2 and string-length(//form-data/password) &gt; 3 ?? 'enter username and password'" |
-                {label | Username {input @name=username @autocomplete=username @required=true @value="{$username}" @slice=username @slice-event=input @slice-value="{$target.value}"}}
-                {label | Password {input @name=password @type=password @required=true @minlength=4 @custom-validity="string-length(//form-data/password) &gt; 3 ?? 'password is too short'" @value="{$password}" @slice=password @slice-event=input @slice-value="{$target.value}"}}
-                {button @type=button | Preview}
-            }
-            {p | username: {output | {$datadom.slices.username}}}
-            {p | form username: {output @data-role=form-username | {$datadom.formData.signin.username}}}
-            {p | mirrored form username: {output @data-role=mirror-username | {$datadom.slices.signin.formData.username}}}
-            {p | form valid: {output @data-role=form-valid | {$datadom.validationState.signin.valid}}}
-            {p | form message: {output @data-role=form-message | {$datadom.validationState.signin.validationMessage}}}
-            {p | password valid: {output @data-role=password-valid | {$datadom.validationState.signin.controls.password.valid}}}
-            {p | password message: {output @data-role=password-message | {$datadom.validationState.signin.controls.password.validationMessage}}}
-            {p | password slice set: {cem:choose |
-                {cem:when @test="datadom.slices.password" | yes}
-                {cem:otherwise | no}
-            }}
-        }
-    </template>
-</cem-element>
-
 <main>
-    <cem-form-preview></cem-form-preview>
-    <p class="status-note">Parity target: form custom-validity expressions now project through <code>datadom.validationState</code>.</p>
+    <html-demo-element legend="1. Simple validation"
+                       description="custom-validity boolean value prevents submission, username length switches Next to 'Sign In' button">
+        <template>
+            <cem-element tag="cem-form-preview">
+                    {slice @name=username}
+                    {slice @name=password}
+                    {article @class=demo-card |
+                        {form @slice=signin @custom-validity="string-length(/datadom/slice/signin/form-data/username) &gt; 2 and string-length(//form-data/password) &gt; 3 ?? 'enter username and password'" |
+                            {label | Username {input @name=username @autocomplete=username @required=true @value="{$username}" @slice=username @slice-event=input @slice-value="{$target.value}"}}
+                            {label | Password {input @name=password @type=password @required=true @minlength=4 @custom-validity="string-length(//form-data/password) &gt; 3 ?? 'password is too short'" @value="{$password}" @slice=password @slice-event=input @slice-value="{$target.value}"}}
+                            {button @type=button | Preview}
+                        }
+                        {p | username: {output | {$datadom.slices.username}}}
+                        {p | form username: {output @data-role=form-username | {$datadom.formData.signin.username}}}
+                        {p | mirrored form username: {output @data-role=mirror-username | {$datadom.slices.signin.formData.username}}}
+                        {p | form valid: {output @data-role=form-valid | {$datadom.validationState.signin.valid}}}
+                        {p | form message: {output @data-role=form-message | {$datadom.validationState.signin.validationMessage}}}
+                        {p | password valid: {output @data-role=password-valid | {$datadom.validationState.signin.controls.password.valid}}}
+                        {p | password message: {output @data-role=password-message | {$datadom.validationState.signin.controls.password.validationMessage}}}
+                        {p | password slice set: {cem:choose |
+                            {cem:when @test="datadom.slices.password" | yes}
+                            {cem:otherwise | no}
+                        }}
+                    }
+            </cem-element>
+
+            <cem-form-preview></cem-form-preview>
+            <p class="status-note">Parity target: form custom-validity expressions now project through <code>datadom.validationState</code>.</p>
+        </template>
+    </html-demo-element>
 </main>
+<script type="module" src="https://unpkg.com/html-demo-element@1/html-demo-element.js"></script>
 </body>
 </html>

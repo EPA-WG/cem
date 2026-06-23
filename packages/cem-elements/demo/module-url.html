@@ -23,19 +23,79 @@
 <body>
 <nav class="page-nav"><a href="../index.html">cem-element demo</a><h1>module-url</h1></nav>
 
-<cem-element tag="cem-module-link">
-    <template type="text/cem-ml">
-        {module-url @slice=packageUrl @src="@epa-wg/material"}
-        {module-url @slice=logoUrl @src="@epa-wg/custom-element/demo/wc-square.svg"}
-        {article @class=demo-card |
-            {a @href="{$datadom.slices.packageUrl}" | Resolved package URL}
-            {br}
-            {img @class=resolved-logo @src="{$datadom.slices.logoUrl}" @alt=""}
-            {p | {$datadom.slices.logoUrl}}
-        }
-    </template>
-</cem-element>
+<main>
 
-<main><cem-module-link></cem-module-link></main>
+    <section>
+        <h3>How to get the module URL for <code>custom-element</code>?</h3>
+        Answer: by defining following attributes in <code>module-url</code>:
+        <ol>
+            <li><code>src</code> with path to module resource, If omitted, it would match the
+                <code>window.location.href</code></li>
+            <li><code>slice</code> to read the URL</li>
+        </ol>
+        URL properties would be a part of slice data, the value would be a full URL.
+    </section><section>
+        <h3>Where to use <code>module-url</code>?</h3>
+        Answer: to inject the library resources URL into generated HTML.
+        <p><a
+                href="https://developer.mozilla.org/en-US/docs/Web/JavaScript/Guide/Modules#importing_modules_using_import_maps"
+        >Import maps </a> are used for defining the dependencies location on the web page level.
+            This way dependencies could reside on different CDN path or even domains while in the code would be
+            referenced
+            by symbolic package name.
+            See the CDN example bellow.</p>
+        <br/>
+        <p>The resolving of import maps is done by
+            <a href="https://developer.mozilla.org/en-US/docs/Web/JavaScript/Reference/Operators/import.meta/resolve">import.meta.resolve(path)</a>
+        </p>
+    </section><section>
+        <h3>Where NOT to use <code>module-url</code>?</h3>
+        Answer:
+        <ol>
+            <li> in <code>scr</code> attribute of &lt;custom-element &gt;<br/>
+                - It uses the same module resolving mechanism
+            </li>
+            <li> for getting/setting the page URL,<br/>
+                - see <a href="./set-url.html">How to set page URL in <code>custom-element</code>?</a>
+
+            </li>
+        </ol>
+
+        <h3>See also</h3>
+        <p><a href="./external-template.html">How to use external templates?</a></p>
+    </section>
+    <section>
+        <html-demo-element legend="this page import maps"
+        >
+            <template>
+                {
+                "imports": {
+                "lib-root": "./lib-dir/",
+                "embed-lib": "./lib-dir/embed-lib.html"
+                }
+                }
+            </template>
+        </html-demo-element>
+    </section>
+
+    <html-demo-element legend="4. module path by symbolic name"
+                       description="should render two smiley images and links should open matching page">
+        <template>
+            <cem-element tag="cem-module-link">
+                    {module-url @slice=packageUrl @src="@epa-wg/material"}
+                    {module-url @slice=logoUrl @src="@epa-wg/custom-element/demo/wc-square.svg"}
+                    {article @class=demo-card |
+                        {a @href="{$datadom.slices.packageUrl}" | Resolved package URL}
+                        {br}
+                        {img @class=resolved-logo @src="{$datadom.slices.logoUrl}" @alt=""}
+                        {p | {$datadom.slices.logoUrl}}
+                    }
+            </cem-element>
+
+            <cem-module-link></cem-module-link>
+        </template>
+    </html-demo-element>
+</main>
+<script type="module" src="https://unpkg.com/html-demo-element@1/html-demo-element.js"></script>
 </body>
 </html>

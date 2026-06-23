@@ -13,24 +13,40 @@
 <body>
 <nav class="page-nav"><a href="../index.html">cem-element demo</a><h1>set-url</h1></nav>
 
-<cem-element tag="cem-set-url-panel">
-    <template type="text/cem-ml">
-        {slice @name=method | history.pushState}
-        {slice @name=url | #cem-demo}
-        {location-element @slice=current @live=true}
-        {article @class=demo-card |
-            {label | Method {input @value="{$method}" @slice=method @slice-event=input @slice-value="{$target.value}"}}
-            {label | URL {input @value="{$url}" @slice=url @slice-event=input @slice-value="{$target.value}"}}
-            {button @type=button @slice=apply-url @slice-event=click @slice-value="$event.type" | Set}
-            {cem:if @test="datadom.slices.apply-url" |
-                {location-element @method="{$method}" @src="{$url}"}
-            }
-            {p | pending set: {output | {$method}} = {output | {$url}}}
-            {p | current hash: {output @data-role=current-hash | {$datadom.slices.current.hash}}}
-        }
-    </template>
-</cem-element>
+<main>
 
-<main><cem-set-url-panel></cem-set-url-panel></main>
+    <h3>How to set the page URL by <code>location-element</code>?</h3>
+    Answer: by defining following attributes:
+    <ol>
+        <li><code>method</code> to one of values provided bellow</li>
+        <li><code>src</code> with URL </li>
+    </ol>
+    <p> &lt;location-element&gt; is safe to be used unconditionally as long as `src` is missing or same as page URL.
+        Otherwise it can be injected by event driven condition as in sample <a href="#dce3">#3</a> </p>
+
+    <html-demo-element legend="4. Set page URL methods"
+                       description="To define the URL, fill input field or click the radio button, then 'set' button.">
+        <template>
+            <cem-element tag="cem-set-url-panel">
+                    {slice @name=method | history.pushState}
+                    {slice @name=url | #cem-demo}
+                    {location-element @slice=current @live=true}
+                    {article @class=demo-card |
+                        {label | Method {input @value="{$method}" @slice=method @slice-event=input @slice-value="{$target.value}"}}
+                        {label | URL {input @value="{$url}" @slice=url @slice-event=input @slice-value="{$target.value}"}}
+                        {button @type=button @slice=apply-url @slice-event=click @slice-value="$event.type" | Set}
+                        {cem:if @test="datadom.slices.apply-url" |
+                            {location-element @method="{$method}" @src="{$url}"}
+                        }
+                        {p | pending set: {output | {$method}} = {output | {$url}}}
+                        {p | current hash: {output @data-role=current-hash | {$datadom.slices.current.hash}}}
+                    }
+            </cem-element>
+
+            <cem-set-url-panel></cem-set-url-panel>
+        </template>
+    </html-demo-element>
+</main>
+<script type="module" src="https://unpkg.com/html-demo-element@1/html-demo-element.js"></script>
 </body>
 </html>

@@ -13,8 +13,11 @@
 <body>
 <nav class="page-nav"><a href="../index.html">cem-element demo</a><h1>cem:for-each</h1></nav>
 
-<cem-element tag="cem-loop-list">
-    <template type="text/cem-ml">
+<main>
+    <html-demo-element legend="1. Simple for-each"
+                       description="Loop over inline XML data and render each item">
+        <template>
+            <cem-element tag="cem-loop-list">
         {location-element @slice=loop-location @href="https://example.test/loop?topic=feeds&item=payload&item=resource#for-each"}
         {http-request @slice=loop-json @url="{$datadom.attributes.json-url}" @header-accept="application/json" @content-type="application/json"}
         {http-request @slice=loop-xml @url="{$datadom.attributes.xml-url}" @header-accept="application/xml" @content-type="application/xml"}
@@ -148,14 +151,15 @@
                 }
             }
         }
-    </template>
-</cem-element>
+            </cem-element>
 
-<main>
-    <cem-loop-list json-url="./http-data.json" xml-url="./http-data.xml">
-        <span feed="payload" label="payload-alpha">Payload Alpha</span>
-        <span feed="payload" label="payload-beta">Payload Beta</span>
-    </cem-loop-list>
+            <cem-loop-list json-url="./http-data.json" xml-url="./http-data.xml">
+                <span feed="payload" label="payload-alpha">Payload Alpha</span>
+                <span feed="payload" label="payload-beta">Payload Beta</span>
+            </cem-loop-list>
+        </template>
+    </html-demo-element>
 </main>
+<script type="module" src="https://unpkg.com/html-demo-element@1/html-demo-element.js"></script>
 </body>
 </html>

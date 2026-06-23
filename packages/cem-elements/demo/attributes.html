@@ -21,64 +21,87 @@
 <body>
 <nav class="page-nav"><a href="../index.html">cem-element demo</a><h1>Attributes</h1></nav>
 
-<cem-element tag="cem-attr-card">
-    <template type="text/cem-ml">
-        {attribute @name=label | Default label}
-        {attribute @name=tone | neutral}
-        {article @class="demo-card {$tone}" @data-tone="{$datadom.attributes.tone}" |
-            {h2 | {$label}}
-            {p | host label: {$datadom.attributes.label ?? "unset"}}
-            {p | tone: {$tone}}
-        }
-    </template>
-</cem-element>
-
-<cem-element tag="cem-attr-defaults">
-    <template type="text/cem-ml">
-        {attribute @name=p1 | default_P1}
-        {attribute @name=p2 | always_p2}
-        {attribute @name=p3 | def_P3}
-        {article @class=demo-card |
-            {h2 | attributes definition}
-            {p | p1: {$p1}}
-            {p | p2: always_p2}
-            {p | p3: {$datadom.attributes.p3 ?? "def_P3"}}
-        }
-    </template>
-</cem-element>
-
-<cem-element tag="cem-attr-slice">
-    <template type="text/cem-ml">
-        {attribute @name=v | def}
-        {slice @name=s}
-        {article @class=demo-card |
-            {h2 | attribute defaults, container value, and slice value}
-            {p | /datadom/attributes/v: {$datadom.attributes.v ?? "unset"}}
-            {p | effective value: {$(datadom.slices.s ?? datadom.attributes.v ?? "def")}}
-            {label | Type to update the slice {input @slice=s @slice-event=input @slice-value="$target.value"}}
-        }
-    </template>
-</cem-element>
-
 <main>
-    <cem-attr-defaults id="defaults-1"></cem-attr-defaults>
-    <cem-attr-defaults id="defaults-2" p1="123" p2="override ignored in rendered value" p3="qwe"></cem-attr-defaults>
 
-    <section class="demo-card">
-        <h2>live host attribute changes</h2>
-        <cem-attr-card id="live-attr" label="Before" tone="neutral"></cem-attr-card>
-        <div class="row">
-            <input id="label-input" value="After">
-            <button type="button" data-set-attr data-target="#live-attr" data-attr="label" data-value-from="#label-input">set label</button>
-        </div>
-        <div class="row">
-            <input id="tone-input" value="alert">
-            <button type="button" data-set-attr data-target="#live-attr" data-attr="tone" data-value-from="#tone-input">set tone</button>
-        </div>
-    </section>
+    <p><code>attribute</code> is used for DCE attributes declaration and track the attributes changes. It also be used by IDE and validation.</p>
+    <p>The attribute can be changed by component itself and used as output to the container.
+        Usual case is when <code>value</code> attribute is updated from inside.</p>
+    <p>Initial value of attribute is available on the <code>attributes</code> node attribute as in <code>/datadom/attributes/@attr1</code></p>
+    <p>The current, i.e. including the changes by component itself, attribute value is a child node of <code>attributes</code> as in <code>/datadom/attributes/attr1</code>.</p>
+    <p>To define the attribute which is modified from within,  the 3 parts are usually used as in <code>//s[//s/event] ?? //attributes/@v ?? 'def' </code>
+    <ol>
+    <li><code>//s[//s/event]</code> the slice <code>s</code> with event gives the slice value which was modified by user event like input</li>
+    <li><code>//attributes/@v</code> the attribute passed by container</li>
+    <li><code>'def' </code> the default value which used when no user input or attribute set by container</li>
+</ol>
+    </p>
 
-    <cem-attr-slice></cem-attr-slice>
-    <cem-attr-slice v="From Container"></cem-attr-slice>
+    <html-demo-element legend="attributes definition">
+        <template>
+            <cem-element tag="cem-attr-defaults">
+                    {attribute @name=p1 | default_P1}
+                    {attribute @name=p2 | always_p2}
+                    {attribute @name=p3 | def_P3}
+                    {article @class=demo-card |
+                        {h2 | attributes definition}
+                        {p | p1: {$p1}}
+                        {p | p2: always_p2}
+                        {p | p3: {$datadom.attributes.p3 ?? "def_P3"}}
+                    }
+            </cem-element>
+
+            <cem-attr-defaults id="defaults-1"></cem-attr-defaults>
+            <cem-attr-defaults id="defaults-2" p1="123" p2="override ignored in rendered value" p3="qwe"></cem-attr-defaults>
+        </template>
+    </html-demo-element>
+
+    <html-demo-element legend="V attribute matches input value"
+                       description="value attribute changes on the host are reflected in the rendered CEM element">
+        <template>
+            <cem-element tag="cem-attr-card">
+                    {attribute @name=label | Default label}
+                    {attribute @name=tone | neutral}
+                    {article @class="demo-card {$tone}" @data-tone="{$datadom.attributes.tone}" |
+                        {h2 | {$label}}
+                        {p | host label: {$datadom.attributes.label ?? "unset"}}
+                        {p | tone: {$tone}}
+                    }
+            </cem-element>
+
+            <section class="demo-card">
+                <h2>live host attribute changes</h2>
+                <cem-attr-card id="live-attr" label="Before" tone="neutral"></cem-attr-card>
+                <div class="row">
+                    <input id="label-input" value="After">
+                    <button type="button" data-set-attr data-target="#live-attr" data-attr="label" data-value-from="#label-input">set label</button>
+                </div>
+                <div class="row">
+                    <input id="tone-input" value="alert">
+                    <button type="button" data-set-attr data-target="#live-attr" data-attr="tone" data-value-from="#tone-input">set tone</button>
+                </div>
+            </section>
+        </template>
+    </html-demo-element>
+
+    <html-demo-element legend="attribute defaults, from container, and from slice"
+                       description="attribute defaults can combine with container attributes and slice updates">
+        <template>
+            <cem-element tag="cem-attr-slice">
+                    {attribute @name=v | def}
+                    {slice @name=s}
+                    {article @class=demo-card |
+                        {h2 | attribute defaults, container value, and slice value}
+                        {p | /datadom/attributes/v: {$datadom.attributes.v ?? "unset"}}
+                        {p | effective value: {$(datadom.slices.s ?? datadom.attributes.v ?? "def")}}
+                        {label | Type to update the slice {input @slice=s @slice-event=input @slice-value="$target.value"}}
+                    }
+            </cem-element>
+
+            <cem-attr-slice></cem-attr-slice>
+            <cem-attr-slice v="From Container"></cem-attr-slice>
+        </template>
+    </html-demo-element>
 </main>
+<script type="module" src="https://unpkg.com/html-demo-element@1/html-demo-element.js"></script>
 </body>
 </html>
