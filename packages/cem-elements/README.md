@@ -5,6 +5,10 @@ Copyright (c) 2026 Sasha Firsov <https://github.com/sashafirsov>
 `@epa-wg/cem-elements` provides the `<cem-element>` browser substrate for declarative light-DOM custom elements. It is
 the Phase 3.1 runtime gate before the project moves into Edge/SSR support and later `@epa-wg/custom-element` adoption.
 
+External declaration loading through `src="#id"`, `src="url"`, and `src="url#id"`, plus `<http-request url="...">`
+resource loading, is governed by the
+[`cem-element` external resource loading contract](../../docs/cem-element-src-loading-contract.md).
+
 ## Production-Ready Trigger
 
 The package is considered browser-substrate production-ready when this command passes:

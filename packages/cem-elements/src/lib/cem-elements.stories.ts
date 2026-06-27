@@ -1055,8 +1055,16 @@ export const ExternalSrcDeclarationLoadingParity: Story = {
         const runtime = new CemElementRuntime({
             declarationTag: 'cem-element-story-ext-src',
             loadSrcDocument: async (path) => {
-                assertEqual(path, './remote-button.html', 'the loader receives the src path (fragment stripped)');
-                return '<template id="remote-button" type="text/cem-ml">{button @type=button | {$datadom.attributes.label}}</template>';
+                if (path === './remote-button.html') {
+                    return '<template id="remote-button" type="text/cem-ml">{button @type=button | {$datadom.attributes.label}}</template>';
+                }
+                if (path === './remote-document.html') {
+                    return '<!doctype html><html><body><button class="whole-document" type="button">Whole document</button></body></html>';
+                }
+                if (path === './remote-fragments.html') {
+                    return '<!doctype html><html><body><section id="remote-subtree" class="subtree-fragment"><strong>Subtree fragment</strong></section></body></html>';
+                }
+                throw new Error(`unexpected external src path ${path}`);
             },
         });
         runtime.install(window);
@@ -1070,6 +1078,22 @@ export const ExternalSrcDeclarationLoadingParity: Story = {
         instance.setAttribute('label', 'Remote');
         root.appendChild(instance);
 
+        const wholeDeclaration = document.createElement('cem-element-story-ext-src');
+        wholeDeclaration.setAttribute('tag', 'story-ext-src-whole-document');
+        wholeDeclaration.setAttribute('src', './remote-document.html');
+        root.appendChild(wholeDeclaration);
+
+        const wholeInstance = document.createElement('story-ext-src-whole-document');
+        root.appendChild(wholeInstance);
+
+        const subtreeDeclaration = document.createElement('cem-element-story-ext-src');
+        subtreeDeclaration.setAttribute('tag', 'story-ext-src-subtree');
+        subtreeDeclaration.setAttribute('src', './remote-fragments.html#remote-subtree');
+        root.appendChild(subtreeDeclaration);
+
+        const subtreeInstance = document.createElement('story-ext-src-subtree');
+        root.appendChild(subtreeInstance);
+
         return root;
     },
     play: async ({ canvasElement }) => {
@@ -1082,6 +1106,22 @@ export const ExternalSrcDeclarationLoadingParity: Story = {
             'an external src declaration fetches, parses, and renders the produced element'
         );
         assertEqual(button.getAttribute('type'), 'button', 'the fetched template renders its attributes');
+
+        const wholeInstance = requiredElement(canvasElement, 'story-ext-src-whole-document');
+        const wholeButton = await waitForElement(wholeInstance, '.whole-document');
+        assertEqual(
+            wholeButton.textContent?.trim(),
+            'Whole document',
+            'an external src without a fragment renders the loaded document body as a template'
+        );
+
+        const subtreeInstance = requiredElement(canvasElement, 'story-ext-src-subtree');
+        const subtree = await waitForElement(subtreeInstance, '.subtree-fragment');
+        assertEqual(
+            subtree.textContent?.trim(),
+            'Subtree fragment',
+            'an external src fragment can render a non-template subtree'
+        );
     },
 };
 

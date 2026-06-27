@@ -862,9 +862,10 @@ export class CemElementRuntime {
     }
 
     /**
-     * Load and register an external `src="./file#tag"` declaration: fetch the referenced
-     * document (through the host loader / module-map resolver), parse it, resolve the
-     * `#fragment` to its `<template>`, and register the produced tag from it.
+     * Load and register an external `src` declaration: fetch the referenced document
+     * (through the host loader / module-map resolver), then use either the full loaded
+     * document (`src="./file.html"`) or the referenced subtree (`src="./file.html#id"`)
+     * as the declaration template.
      */
     private async registerExternalDeclaration(
         declarationElement: HTMLElement,
@@ -885,19 +886,23 @@ export class CemElementRuntime {
             ]);
             return;
         }
-        const sourceTemplate = templateFromTarget(document.getElementById(reference.id));
+        const sourceTemplate =
+            reference.id.length > 0
+                ? templateFromTarget(document.getElementById(reference.id), declarationElement.ownerDocument)
+                : templateFromDocument(document, declarationElement.ownerDocument);
         if (!sourceTemplate) {
             this.recordDiagnostics(declarationElement, [
                 declarationDiagnostic(
                     'cem-element.src_target_missing',
-                    `external \`src\` reference \`${src}\` did not resolve to a <template> for \`#${reference.id}\``,
+                    reference.id.length > 0
+                        ? `external \`src\` reference \`${src}\` did not resolve to a template or subtree for \`#${reference.id}\``
+                        : `external \`src\` reference \`${src}\` did not resolve to a usable document template`,
                     tag
                 ),
             ]);
             return;
         }
-        const template = declarationElement.ownerDocument.importNode(sourceTemplate, true) as HTMLTemplateElement;
-        await this.registerResolvedDeclaration(declarationElement, tag, template, []);
+        await this.registerResolvedDeclaration(declarationElement, tag, sourceTemplate, []);
     }
 
     /** Resolve a same-document `src="#id"` reference to its `<template>`, or diagnose a miss. */
@@ -907,12 +912,15 @@ export class CemElementRuntime {
         reference: SrcReference,
         tag: string
     ): HTMLTemplateElement | undefined {
-        const template = templateFromTarget(declarationElement.ownerDocument.getElementById(reference.id));
+        const template = templateFromTarget(
+            declarationElement.ownerDocument.getElementById(reference.id),
+            declarationElement.ownerDocument
+        );
         if (!template) {
             this.recordDiagnostics(declarationElement, [
                 declarationDiagnostic(
                     'cem-element.src_local_target_missing',
-                    `local \`src\` reference \`${src}\` did not resolve to a same-document <template>`,
+                    `local \`src\` reference \`${src}\` did not resolve to a same-document template or subtree`,
                     tag
                 ),
             ]);
@@ -3771,15 +3779,43 @@ function isUrlLikeSpecifier(specifier: string): boolean {
     );
 }
 
-/** The `<template>` a local `src` reference loads: the target itself, or its first template child. */
-function templateFromTarget(target: Element | null): HTMLTemplateElement | undefined {
+/** The declaration template a `src` reference loads: the target itself, its first template child, or the target subtree. */
+function templateFromTarget(target: Element | null, document: Document): HTMLTemplateElement | undefined {
     if (!target) {
         return undefined;
     }
     if (target.localName === 'template') {
-        return target as HTMLTemplateElement;
+        return document.importNode(target, true) as HTMLTemplateElement;
     }
-    return directTemplateChildren(target)[0];
+    const childTemplate = directTemplateChildren(target)[0];
+    if (childTemplate) {
+        return document.importNode(childTemplate, true) as HTMLTemplateElement;
+    }
+    return templateFromNodes([target], document);
+}
+
+function templateFromDocument(sourceDocument: Document, document: Document): HTMLTemplateElement | undefined {
+    const bodyNodes = sourceDocument.body ? Array.from(sourceDocument.body.childNodes) : [];
+    const sourceNodes = bodyNodes.length > 0 ? bodyNodes : sourceDocument.documentElement ? [sourceDocument.documentElement] : [];
+    if (sourceNodes.length === 0) {
+        return undefined;
+    }
+    const meaningfulNodes = sourceNodes.filter((node) => node.nodeType !== 3 || (node.textContent?.trim() ?? '').length > 0);
+    if (meaningfulNodes.length === 1) {
+        const only = meaningfulNodes[0];
+        if (only.nodeType === 1 && (only as Element).localName === 'template') {
+            return document.importNode(only, true) as HTMLTemplateElement;
+        }
+    }
+    return templateFromNodes(sourceNodes, document);
+}
+
+function templateFromNodes(nodes: readonly Node[], document: Document): HTMLTemplateElement {
+    const template = document.createElement('template') as HTMLTemplateElement;
+    for (const node of nodes) {
+        template.content.append(document.importNode(node, true));
+    }
+    return template;
 }
 
 function directDataIsland(element: Element): HTMLTemplateElement | undefined {

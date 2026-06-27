@@ -178,6 +178,11 @@ See [demo](https://unpkg.com/@epa-wg/custom-element@0.0/demo/external-template.h
 # `src` attribute
 allows to refer either external template or template within external library by `#id` hash in URL.
 
+The compatibility adapter follows the shared
+[`cem-element` external resource loading contract](../../docs/cem-element-src-loading-contract.md), covering
+`src="#id"`, `src="url"`, `src="url#id"`, and `http-request url` resolution, content-type handling, module-map policy,
+and security context.
+
 See [demo](https://unpkg.com/@epa-wg/custom-element@0.0/demo/external-template.html) with various samples.
 
 ## types of template

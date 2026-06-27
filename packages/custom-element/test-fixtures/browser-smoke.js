@@ -107,6 +107,61 @@ export async function runCustomElementSmoke(importBase) {
         inlineDeclaration?.querySelector(inlineTag)?.querySelector('strong')?.textContent?.trim() === 'inline-fixture'
     );
 
+    const inlineSrcDeclaration = document.querySelector('custom-element.inline-src-fixture');
+    const inlineSrcTag = inlineSrcDeclaration?.getAttribute('tag');
+    await waitFor(
+        'anonymous src declaration creates an inline produced instance',
+        () => Boolean(inlineSrcTag && inlineSrcDeclaration?.querySelector(inlineSrcTag)?.querySelector('article'))
+    );
+    check(
+        'anonymous src declaration projects template payload',
+        inlineSrcDeclaration
+            ?.querySelector(inlineSrcTag)
+            ?.querySelector('p')
+            ?.textContent?.trim() === 'Inline src payload'
+    );
+    check(
+        'anonymous src payload template remains inert on declaration',
+        inlineSrcDeclaration?.querySelector(':scope > template')?.content.querySelector('span')?.textContent?.trim() ===
+            'Inline src payload'
+    );
+
+    const externalDocumentDeclaration = document.querySelector('custom-element.inline-external-document-fixture');
+    const externalDocumentTag = externalDocumentDeclaration?.getAttribute('tag');
+    await waitFor(
+        'anonymous external document src creates an inline produced instance',
+        () =>
+            Boolean(
+                externalDocumentTag &&
+                    externalDocumentDeclaration?.querySelector(externalDocumentTag)?.querySelector('.external-document')
+            )
+    );
+    check(
+        'anonymous external document src projects live payload',
+        externalDocumentDeclaration
+            ?.querySelector(externalDocumentTag)
+            ?.querySelector('.external-document p')
+            ?.textContent?.trim() === 'External document payload'
+    );
+
+    const externalFragmentDeclaration = document.querySelector('custom-element.inline-external-fragment-fixture');
+    const externalFragmentTag = externalFragmentDeclaration?.getAttribute('tag');
+    await waitFor(
+        'anonymous external fragment src creates an inline produced instance',
+        () =>
+            Boolean(
+                externalFragmentTag &&
+                    externalFragmentDeclaration?.querySelector(externalFragmentTag)?.querySelector('.external-fragment')
+            )
+    );
+    check(
+        'anonymous external fragment src renders subtree',
+        externalFragmentDeclaration
+            ?.querySelector(externalFragmentTag)
+            ?.querySelector('.external-fragment strong')
+            ?.textContent?.trim() === 'External fragment'
+    );
+
     const request = document.createElement('http-request');
     request.setAttribute('url', './http-data.json');
     request.setAttribute('method', 'GET');

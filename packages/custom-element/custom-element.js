@@ -138,14 +138,20 @@ function registerDeclarationElement(declaration, runtime = runtimeForTarget(decl
         return;
     }
     const inline = !declaration.getAttribute('tag');
+    const srcPayloadNodes = declaration.hasAttribute('src') ? Array.from(declaration.childNodes) : [];
+    const detachedSrcPayloads = detachSrcPayloadNodes(srcPayloadNodes);
     if (inline) {
         declaration.setAttribute('tag', nextInlineTag(declaration));
     }
     normalizeLegacyDeclaration(declaration);
-    runtime.registerDeclaration(declaration);
-    registeredDeclarations.add(declaration);
+    try {
+        runtime.registerDeclaration(declaration);
+        registeredDeclarations.add(declaration);
+    } finally {
+        restoreDetachedSrcPayloadNodes(detachedSrcPayloads);
+    }
     if (inline) {
-        appendInlineInstance(declaration, runtime);
+        appendInlineInstance(declaration, runtime, srcPayloadNodes);
     }
 }
 
@@ -156,6 +162,21 @@ function runtimeForTarget(target) {
 
 function directTemplateChildren(element) {
     return Array.from(element.children).filter((child) => child.localName === 'template');
+}
+
+function detachSrcPayloadNodes(nodes) {
+    return nodes.map((node) => {
+        const marker = node.ownerDocument.createComment('custom-element src payload');
+        node.before(marker);
+        node.remove();
+        return { marker, node };
+    });
+}
+
+function restoreDetachedSrcPayloadNodes(detachedPayloads) {
+    for (const { marker, node } of detachedPayloads) {
+        marker.replaceWith(node);
+    }
 }
 
 function wrapImplicitInlineTemplate(declaration) {
@@ -184,7 +205,7 @@ function nextInlineTag(declaration) {
     return tag;
 }
 
-function appendInlineInstance(declaration, runtime) {
+function appendInlineInstance(declaration, runtime, payloadNodes = []) {
     const tag = declaration.getAttribute('tag');
     if (!tag || inlineInstances.has(declaration)) {
         return;
@@ -196,12 +217,22 @@ function appendInlineInstance(declaration, runtime) {
         }
         instance.setAttribute(attribute.name, attribute.value);
     }
+    for (const node of payloadNodes) {
+        instance.append(payloadNodeContent(node));
+    }
     inlineInstances.set(declaration, instance);
     runtime.whenDeclarationSettled(declaration).then(() => {
         if (!instance.isConnected && declaration.isConnected) {
             declaration.append(instance);
         }
     });
+}
+
+function payloadNodeContent(node) {
+    if (node.nodeType === Node.ELEMENT_NODE && node.localName === 'template') {
+        return node.content.cloneNode(true);
+    }
+    return node.cloneNode(true);
 }
 
 if (typeof window !== 'undefined' && window.customElements && !window.customElements.get(CUSTOM_ELEMENT_TAG)) {

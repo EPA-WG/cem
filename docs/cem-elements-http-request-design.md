@@ -6,6 +6,8 @@ implementation-ready contract; later phases remain roadmap items.
 `<cem-element>` templates.
 **Related docs:** [`cem-element` design](./cem-element-design.md),
 [`cem-element` WASM proposal](./cem-element-wasm-proposal.md),
+[`cem-element` external resource loading contract](./cem-element-src-loading-contract.md),
+[`CEM-ML resource lifecycle`](./cem-ml-resource-lifecycle.md),
 [`CEM-ML stack design`](./cem-ml-stack-design.md), and
 [`CEM-ML UID and scoped CSS design`](./cem-ml-uid-and-scoped-css-design.md).
 
@@ -146,7 +148,7 @@ The resolver result should include:
 
 Bare specifiers that cannot be resolved through the active module map must not fall
 back to browser-relative URL parsing. They produce a diagnostic such as
-`cem.resource.http.unresolved_url` and the resource enters `state="error"`.
+`cem.resource.http.unresolved_url` and the resource enters `state="failed"`.
 
 ## 4. Phase 1 Implementation Contract
 
@@ -218,8 +220,8 @@ diagnostic when the host cannot provide a true stream.
 ### 4.2 Phase 1 Data Shape
 
 The resource slot envelope is required in Phase 1. The `data` field is a
-CEM-QL-navigable AST document handle or normalized AST projection, not a live
-browser object.
+CEM-QL-navigable AST stream handle or stream-derived projection, not a live browser
+object.
 
 Initial projection rules:
 
@@ -250,22 +252,25 @@ The default implementation must be conservative:
 - response size, parse time, redirect count, credentials, and exposed metadata are
   bounded by host policy.
 
-### 4.4 Async Render Contract
+### 4.4 Async Render And Lifecycle Contract
 
 An `http-request` declaration creates or updates one resource slice for the active
-render revision.
+render revision. Its template-visible state MUST follow the portable lifecycle in
+the [CEM-ML resource lifecycle](./cem-ml-resource-lifecycle.md).
 
 Required Phase 1 behavior:
 
-1. Initial render records a pending resource slot.
-2. The host resolves the URL and opens the request.
-3. Header metadata may update the slice before the body is complete.
-4. Completion parses the response, writes the completed data AST/projection, and
-   increments the resource revision.
-5. The declaration rerenders against the new data.
-6. If request inputs change, the old request is aborted and later frames from it
+1. Initial render records a `declared`, `scheduled`, or `waiting` resource slot.
+2. The host resolves the URL, authorizes the request, and opens it when scheduled.
+3. Header metadata may update the slice while the resource is `in-progress`.
+4. Response body parsing moves the resource through `streaming` and writes the AST
+   stream handle or stream-derived projection.
+5. Terminal success moves the resource to `loaded`; terminal failure moves it to
+   `failed` with diagnostics.
+6. The declaration rerenders against lifecycle or content revisions.
+7. If request inputs change, the old request is aborted and later frames from it
    are ignored by revision id.
-7. Render-tree diff/no-op protection must prevent DOM mutation when visible output
+8. Render-tree diff/no-op protection must prevent DOM mutation when visible output
    is unchanged.
 
 Tests must wait on an explicit resource-settled signal or runtime hook. They must
@@ -292,7 +297,7 @@ regression.
 ## 5. Data Document Shape
 
 The resource slot is an envelope with request metadata, response metadata, parser
-state, diagnostics, and the parsed AST handle/stream.
+state, diagnostics, and the AST stream handle or stream-derived projection.
 
 Logical shape:
 
@@ -302,7 +307,7 @@ Logical shape:
     "slices": {
       "page": {
         "kind": "http-request",
-        "state": "pending | headers | streaming | complete | error | aborted",
+        "state": "declared | scheduled | waiting | in-progress | streaming | loaded | failed",
         "request": {
           "authoredUrl": "@scope/data/pokemon.json",
           "url": "...",
@@ -320,7 +325,7 @@ Logical shape:
           "headers": { "content-type": "application/json" },
           "contentType": "application/json"
         },
-        "data": "<AST stream or AST document handle>",
+        "data": "<AST stream handle or stream-derived projection>",
         "diagnostics": []
       }
     }
@@ -328,10 +333,10 @@ Logical shape:
 }
 ```
 
-`data` is not a JavaScript object in the engine contract. It is a CEM AST stream or
-an AST document/chunk handle produced by the CEM-ML parser registry. Browser adapter
-debug views may project a small JSON summary, but templates and transforms consume
-the AST.
+`data` is not a JavaScript object in the engine contract. It is a CEM AST stream
+handle or stream-derived projection produced by the CEM-ML parser registry. Browser
+adapter debug views may project a small JSON summary, but templates and transforms
+consume the AST stream surface.
 
 Legacy-style selection such as `//results` must be implemented by querying the
 resource AST. CEM-ML templates should prefer explicit data-document paths:
@@ -418,7 +423,7 @@ registry. Initial useful set:
 | `text/cem-ml` | CEM-ML AST. |
 | `text/plain` | Text document AST with one or more text chunks. |
 
-Unsupported types still populate request/response metadata and set `state="error"`
+Unsupported types still populate request/response metadata and set `state="failed"`
 with `cem.resource.http.unsupported_content_type`.
 
 ## 8. Streaming Query And Rendering Semantics
@@ -432,7 +437,7 @@ The engine classifies resource consumers:
 | Forward-only `cem:for-each` over records/items in source order | May render incrementally as items arrive. |
 | Simple field reads on the current streamed item | May render incrementally. |
 | Whole-document reads, `count`, `last`, sorting, grouping, broad reverse lookups | Wait for resource completion or materialize a chunked AST store. |
-| Error/pending/headers-only UI | May render before body data arrives. |
+| Failed, scheduled, waiting, or metadata-only UI | May render before body data arrives. |
 
 When a query is not streaming-safe, the implementation should still avoid JS-level
 buffering. It may materialize the response inside the CEM/WASM AST chunk store and
@@ -488,20 +493,20 @@ belong in the sidecar to avoid large DOM attributes.
 This is the key developer experience goal: final UI DOM can be traced both to the
 template that rendered it and to the response byte ranges that supplied its data.
 
-## 10. Request Lifecycle
+## 10. HTTP Binding To CEM-ML Resource Lifecycle
 
-State transitions:
+`http-request` uses the portable lifecycle from the
+[CEM-ML resource lifecycle](./cem-ml-resource-lifecycle.md). HTTP-specific events map
+to that lifecycle as follows:
 
 ```text
-idle
-  -> pending       request accepted and authorized
-  -> headers       response headers received
-  -> streaming     parser is producing AST events
-  -> complete      body parsed and all resource-dependent render work settled
-
-pending|headers|streaming
-  -> aborted       request was superseded or host signal aborted
-  -> error         network, policy, content-type, parse, or transform failure
+declared      authored request is captured in the resource slice
+scheduled     request is accepted and queued by host policy
+waiting       scheduler, dependency, cache, or transport availability blocks progress
+in-progress   resolver, transport, cache read, or parser setup is active
+streaming     parser is producing validated AST events
+loaded        response body parsed and all resource-dependent render work settled
+failed        network, policy, content-type, parse, abort, or transform failure
 ```
 
 A declaration instance has one active request per resource slice and render
@@ -509,12 +514,13 @@ revision. If `url`, `method`, headers, or policy-relevant inputs change:
 
 - the prior request is aborted;
 - its later frames are ignored by revision id;
-- a new resource slot state is created;
+- a new resource revision starts at `declared`;
 - render no-op protection prevents DOM mutation if the visible output remains the
   same.
 
 Request metadata may render before response data. Response headers may render before
-the body completes. Body-derived UI renders according to the streaming query rules.
+the body reaches `loaded`. Body-derived UI renders according to the streaming query
+rules.
 
 ## 11. Cache And Identity
 
@@ -620,7 +626,7 @@ browser shim. It is not the substrate path for CEM Elements templates.
 
 ## 15. Implementation Roadmap
 
-### Phase 1: Completed-response AST resource
+### Phase 1: Loaded-response AST resource
 
 - Implement the contract in [4. Phase 1 Implementation Contract](#4-phase-1-implementation-contract).
 - Add resource declaration parsing for `http-request`.
@@ -628,9 +634,9 @@ browser shim. It is not the substrate path for CEM Elements templates.
   diagnostics for unresolved bare specifiers.
 - Add host policy, resource resolver, and request loader hooks.
 - Stream bytes through the loader boundary when possible.
-- Materialize the completed AST/projection in CEM/WASM/runtime memory before
+- Materialize the loaded AST stream projection in CEM/WASM/runtime memory before
   rendering when the parser/query path is not streaming-capable yet.
-- Expose request/response metadata and completed `data` AST/projection to CEM-QL.
+- Expose request/response metadata and loaded `data` AST stream projection to CEM-QL.
 - Add JSON and XML fixtures with diagnostic/source-id coverage.
 
 This phase already removes JS object/DOMParser handoff and establishes the correct
@@ -671,7 +677,7 @@ Required gates before Phase 1 is considered implemented:
   imported template base URL.
 - Response metadata renders before or with data without exposing live `Response`
   objects.
-- Unsupported content type produces a diagnostic and stable error state.
+- Unsupported content type produces a diagnostic and stable `failed` state.
 - Abort on URL change drops stale response frames.
 - Resource-settled tests use runtime hooks instead of sleeps.
 - Source-id and parser diagnostics are preserved internally for response data.

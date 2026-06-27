@@ -5,8 +5,13 @@
     {article @class=demo-card |
         {h2 | {$datadom.attributes.title ?? "External template"}}
         {p | {slot | External fallback}}
+        {a @href="./external-template-templates.html#external-card-template" | ./external-template-templates.html#external-card-template}
     }
 </template>
+<article id="external-subtree-template" class="demo-card external-subtree-template">
+    <h2>External subtree</h2>
+    <p><slot>External subtree fallback</slot></p>
+</article>
 <template id="scoped-css-external-template" type="text/cem-ml">
     {section @class=external-scoped-card |
         {style |```
@@ -17,7 +22,9 @@
                 padding: 0.5rem;
             }
         ```}
-        {p @class=external-scoped-item @data-case=case-6-inside | {slot | External scoped fallback}}
+        {p @class=external-scoped-item @data-case=case-6-inside | {slot | External scoped fallback}
+            {a @href="./external-template-templates.html"| ./external-template-templates.html#scoped-css-external-template}
+        }
     }
 </template>
 </body>

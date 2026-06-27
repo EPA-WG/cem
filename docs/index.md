@@ -28,10 +28,16 @@ This index links the active project, release, and token workflow documents.
 - [`cem-element` WASM proposal](./cem-element-wasm-proposal.md) — options for using `cem_ml` WASM, inline and URI
   declaration templates, module-map resolution, streaming source adapters, host runtime support, patch-frame streams,
   worker-pool scheduling, edge processing, and server-side rendering.
+- [CEM-ML resource lifecycle](./cem-ml-resource-lifecycle.md) — portable resource and asset lifecycle states, AST stream
+  revisions, renderability, diagnostics, hydration, and de-hydration for the CEM-ML stack.
+- [`cem-element` external resource loading contract](./cem-element-src-loading-contract.md) — `src="#id"`,
+  `src="url"`, `src="url#id"`, and `http-request url` loading, module-map treatment, content-type handling, CEM-ML
+  lifecycle binding, artifact/AST stream handling, and security context.
 - [CEM-ML UID and scoped CSS design](./cem-ml-uid-and-scoped-css-design.md) — generated identity requirements for
   scoped CSS, anonymous declarations, public-tag debug prefixes, deterministic UIDs, hydration, and validation gates.
 - [CEM Elements HTTP request resource design](./cem-elements-http-request-design.md) — substrate-backed
-  `<http-request>` resource slices, streaming content-type parsing, AST resource data, and data source maps.
+  `<http-request>` resource slices, CEM-ML lifecycle binding, streaming content-type parsing, AST resource streams, and
+  data source maps.
 - [CEM UI Kit plan](./figma-ui-kit-plan.md) — Figma page, token, component, and QA mapping.
 - [Token pipeline smoke](./token-pipeline-smoke.md) — full propagation check for a one-token source change.
 

@@ -28,6 +28,25 @@
             </template>
         </custom-element>
 
+        <template id="inline-src-template">
+            <article>
+                <h4>External inline source</h4>
+                <p><slot>empty</slot></p>
+            </article>
+        </template>
+
+        <custom-element class="inline-src-fixture" src="#inline-src-template">
+            <template>
+                <span>Inline src payload</span>
+            </template>
+        </custom-element>
+
+        <custom-element class="inline-external-document-fixture" src="./external-document.html">
+            <span>External document payload</span>
+        </custom-element>
+
+        <custom-element class="inline-external-fragment-fixture" src="./external-fragments.html#fragment-card"></custom-element>
+
         <script type="module">
             import { runCustomElementSmoke } from './browser-smoke.js';
 

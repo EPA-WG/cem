@@ -14,8 +14,8 @@
 <nav class="page-nav"><a href="../index.html">cem-element demo</a><h1>External template</h1></nav>
 
 <main>
-    <html-demo-element legend="1. reference the template in page DOM"
-                       description="should render hand wave with 'Hello World!'">
+    <html-demo-element legend="1. same-document template"
+                       description="Renders a template referenced by id in this page">
         <template>
             <template id="local-card-template" type="text/cem-ml">
                 {article @class=demo-card | {h2 | {$datadom.attributes.title}} {slot | Local fallback}}
@@ -26,11 +26,27 @@
         </template>
     </html-demo-element>
 
-    <html-demo-element legend="5. external HTML template"
-                       description="Should render external HTML template content">
+    <html-demo-element legend="2. external template by id"
+                       description="Renders a template selected from a fetched HTML file">
         <template>
             <cem-element tag="cem-external-src-card" src="./external-template-templates.html#external-card-template"></cem-element>
             <cem-external-src-card title="External src">Loaded from a fetched demo support file.</cem-external-src-card>
+        </template>
+    </html-demo-element>
+
+    <html-demo-element legend="3. external document"
+                       description="Renders the loaded document body as template content">
+        <template>
+            <cem-element tag="cem-external-document-card" src="./external-template-document.html"></cem-element>
+            <cem-external-document-card>Loaded from the whole external document.</cem-external-document-card>
+        </template>
+    </html-demo-element>
+
+    <html-demo-element legend="4. external subtree by id"
+                       description="Renders a non-template subtree selected from a fetched HTML file">
+        <template>
+            <cem-element tag="cem-external-subtree-card" src="./external-template-templates.html#external-subtree-template"></cem-element>
+            <cem-external-subtree-card>Loaded from an external subtree.</cem-external-subtree-card>
         </template>
     </html-demo-element>
 </main>

@@ -142,22 +142,15 @@
 </html-demo-element>
 
 <html-demo-element legend="6. External template( ext lib )"
-                   description="Grid with 8 hex shaped buttons with text and icon ">
+                   description="External scoped styles should apply only inside the generated element ">
     <template>
-        <a href="hex-grid-dce.html">hex-grid-dce.html</a>
-        <custom-element src="hex-grid-dce.html#hex-grid-template">
+        <a href="external-template-templates.html">external-template-templates.html</a>
+        <custom-element src="./external-template-templates.html#scoped-css-external-template">
             <template>
-                <style>nav{--hex-grid-size: 5rem; margin-left:2rem; }</style>
-                <img src="wc-square.svg" alt="DCE" href="https://github.com/EPA-WG/custom-element"/>
-                <img src="https://upload.wikimedia.org/wikipedia/commons/a/a7/React-icon.svg" alt="React" href="https://react.dev/"/>
-                <img src="https://angularjs.org/favicon.ico" alt="Angular" href="https://angularjs.org/"/>
-                <img src="https://www.svgrepo.com/show/508923/jquery.svg" alt="jQuery"/>
-                <img src="https://open-wc.org/35ded306.svg" alt="Open WC" href="https://open-wc.org/"/>
-                <img src="https://storage.googleapis.com/cms-storage-bucket/4fd0db61df0567c0f352.png" alt="Flutter" href="https://flutter.dev/"/>
-                <img src="https://lit.dev/images/logo.svg#flame" alt="Lit"/>
-                <img src="https://redux.js.org/img/redux.svg" alt="Redux"/>
+                External scoped template
             </template>
         </custom-element>
+        <p class="external-scoped-item" data-case="case-6-outside">Outside paragraph</p>
 
     </template>
 </html-demo-element>
