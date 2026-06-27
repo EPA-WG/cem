@@ -1,0 +1,18 @@
+<!doctype html>
+<html lang="en">
+<body>
+<template id="scoped-css-external-template" type="text/cem-ml">
+    {section @class=external-scoped-card |
+        {style |```
+            :host { --external-scoped-bg: rgb(254, 243, 199); }
+            .external-scoped-item {
+                background: var(--external-scoped-bg);
+                border: 0.2rem solid rgb(180, 83, 9);
+                padding: 0.5rem;
+            }
+        ```}
+        {p @class=external-scoped-item @data-case=case-6-inside | {slot | External scoped fallback}}
+    }
+</template>
+</body>
+</html>
