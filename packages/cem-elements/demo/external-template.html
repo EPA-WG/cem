@@ -118,16 +118,16 @@
     </template>
 </html-demo-element>
 
-<html-demo-element legend="4. external XSLT file"
-                   description="This external templates generated the tree for DCE data set"
+<html-demo-element legend="4. external CEM-ML template file"
+                   description="This external template generated the tree for DCE data set"
 >
-    <a href="tree.xsl">tree.xsl</a>
+    <a href="tree.cemt">tree.cemt</a>
     <template>
-        <cem-element tag="dce-external-4" src="tree.xsl"></cem-element>
-        <dce-external-4 title="DCE with external XSLT template" data-fruit="🍌">Hi</dce-external-4>
-        <cem-element tag="dce-external-4-inline" src="tree.xsl"></cem-element>
+        <cem-element tag="dce-external-4" src="tree.cemt"></cem-element>
+        <dce-external-4 title="DCE with external CEM-ML template" data-fruit="🍌">Hi</dce-external-4>
+        <cem-element tag="dce-external-4-inline" src="tree.cemt"></cem-element>
         <dce-external-4-inline data-smile="👼" data-basket="🍒">
-            <i>inline DCE loading from XSLT ...</i>
+            <i>inline DCE loading from CEM-ML template ...</i>
         </dce-external-4-inline>
     </template>
 </html-demo-element>

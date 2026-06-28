@@ -82,8 +82,8 @@ const fixtureSpecs = [
             countAtLeast('dce-external svg', 1),
             countAtLeast('dce-external-inline svg', 1),
             text('dce-external-missing', 'fallback for missing image'),
-            text('dce-external-4', 'DCE with external XSLT template'),
-            text('dce-external-4-inline', 'inline DCE loading from XSLT'),
+            text('dce-external-4', 'DCE with external CEM-ML template'),
+            text('dce-external-4-inline', 'inline DCE loading from CEM-ML template'),
             text('dce-external-5', '👋'),
             text('dce-external-5', '👌'),
             countAtLeast('dce-external-5 svg', 1),
@@ -619,6 +619,8 @@ function contentType(filePath) {
     switch (extname(filePath)) {
         case '.html':
             return 'text/html; charset=utf-8';
+        case '.cemt':
+            return 'text/cem-ml; charset=utf-8';
         case '.xhtml':
             return 'application/xhtml+xml; charset=utf-8';
         case '.xsl':
