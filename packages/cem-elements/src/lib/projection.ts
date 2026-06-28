@@ -36,6 +36,7 @@ const SOURCE_FRAME_ATTR = 'data-cem-source-frame';
 export const DATA_CEM_SCOPE_ATTR = 'data-cem-scope';
 export const DATA_CEM_INSTANCE_SCOPE_ATTR = 'data-cem-instance-scope';
 const STYLE_TAG = 'style';
+const SCRIPT_TAG = 'script';
 const PAYLOAD_RENDER_NODE_ID_PREFIX = 'payload-';
 const KEYFRAMES_AT_RULE = /@(-webkit-)?keyframes\s+([A-Za-z_][\w-]*)/g;
 const UNSUPPORTED_SCOPED_CSS_AT_RULES = [
@@ -425,6 +426,9 @@ function readSourceNode(source: Node, frame: string): TemplateSourceNode | undef
     }
 
     const element = source as Element;
+    if (element.localName === SCRIPT_TAG) {
+        return undefined;
+    }
     return {
         kind: 'element',
         namespace: element.namespaceURI && element.namespaceURI !== XHTML_NAMESPACE ? element.namespaceURI : null,

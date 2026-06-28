@@ -1,55 +1,248 @@
-<!doctype html>
+<!DOCTYPE html>
 <html lang="en">
 <head>
-    <meta charset="utf-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1">
-    <title>cem-element external template demo</title>
-    <link rel="stylesheet" href="./demo.css">
+    <meta name="copyright" content="Copyright (c) 2026 Sasha Firsov <https://github.com/sashafirsov>">
+    <meta http-equiv="Content-Type" content="text/html; charset=utf-8"/>
+    <title>http-request Declarative Custom Element implementation demo</title>
+    <link rel="icon" href="./wc-square.svg"/>
+
     <script type="module">
         import { installCemElementRuntime } from '../dist/index.js';
         installCemElementRuntime(window);
     </script>
+    <style>
+        @import "./demo.css";
+
+        button {
+            display: inline-flex;
+            flex-direction: column;
+            align-items: center;
+            flex: auto;
+            box-shadow: inset silver 0 0 1rem;
+            min-width: 12rem;
+            padding: 1rem;
+            color: coral;
+            text-shadow: 1px 1px silver;
+            font-weight: bolder;
+        }
+
+        button img {
+            max-height: 10vw;
+            min-height: 4rem;
+        }
+
+        table {
+            min-width: 16rem;
+        }
+
+        td {
+            border-bottom: 1px solid silver;
+        }
+
+        tfoot td {
+            border-bottom: none;
+        }
+
+        td, th {
+            text-align: right;
+        }
+
+        caption {
+            padding: 1rem;
+            font-weight: bolder;
+            font-family: sans-serif;
+        }
+
+        code {
+            text-align: right;
+            min-width: 3rem;
+        }
+
+        svg {
+            max-height: 3rem;
+            min-height: 2rem;
+        }
+    </style>
 </head>
 <body>
-<nav class="page-nav"><a href="../index.html">cem-element demo</a><h1>External template</h1></nav>
 
-<main>
-    <html-demo-element legend="1. same-document template"
-                       description="Renders a template referenced by id in this page">
-        <template>
-            <template id="local-card-template" type="text/cem-ml">
-                {article @class=demo-card | {h2 | {$datadom.attributes.title}} {slot | Local fallback}}
-            </template>
+<nav>
+    <a href="../index.html"><h3><code>cem-element</code> demo</h3></a>
+    <h3>Loading DCE template by SRC attribute</h3>
+</nav>
 
-            <cem-element tag="cem-local-src-card" src="#local-card-template"></cem-element>
-            <cem-local-src-card title="Local src">Loaded from a same-document template.</cem-local-src-card>
+<html-demo-element legend="1. reference the template in page DOM"
+                   description="should render hand wave with '👋 World!' and 'Hello World!'">
+    <template>
+        <template id="template1" type="text/cem-ml">
+            {slot | Hello}
+            World!
         </template>
-    </html-demo-element>
 
-    <html-demo-element legend="2. external template by id"
-                       description="Renders a template selected from a fetched HTML file">
-        <template>
-            <cem-element tag="cem-external-src-card" src="./external-template-templates.html#external-card-template"></cem-element>
-            <cem-external-src-card title="External src">Loaded from a fetched demo support file.</cem-external-src-card>
-        </template>
-    </html-demo-element>
+        <cem-element tag="dce-internal" src="#template1"></cem-element>
+        <!-- no need for loading fallback as the template exists -->
 
-    <html-demo-element legend="3. external document"
-                       description="Renders the loaded document body as template content">
-        <template>
-            <cem-element tag="cem-external-document-card" src="./external-template-document.html"></cem-element>
-            <cem-external-document-card>Loaded from the whole external document.</cem-external-document-card>
-        </template>
-    </html-demo-element>
+        <dce-internal>👋</dce-internal>
+        <dce-internal></dce-internal>
+    </template>
+</html-demo-element>
 
-    <html-demo-element legend="4. external subtree by id"
-                       description="Renders a non-template subtree selected from a fetched HTML file">
-        <template>
-            <cem-element tag="cem-external-subtree-card" src="./external-template-templates.html#external-subtree-template"></cem-element>
-            <cem-external-subtree-card>Loaded from an external subtree.</cem-external-subtree-card>
+
+<html-demo-element legend="2. without TAG, inline instantiation"
+                   description="hash value in SRC references template by ID. Should output 'construction' 2 times">
+    <template>
+        <template id="template2" type="text/cem-ml">
+            🏗️ construction
         </template>
-    </html-demo-element>
-</main>
+
+        <cem-element tag="dce-construction" src="#template2"></cem-element>
+        <dce-construction></dce-construction>
+        <dce-construction></dce-construction>
+    </template>
+</html-demo-element>
+
+<html-demo-element legend="3. external SVG file">
+    <template>
+        <cem-element tag="dce-external" src="confused.svg"></cem-element>
+        <dce-external>
+            <i>loading from SVG ...</i>
+        </dce-external>
+        <cem-element tag="dce-external-inline" src="confused.svg"></cem-element>
+        <dce-external-inline>
+            <i>inline DCE loading from SVG ...</i>
+        </dce-external-inline>
+        <cem-element tag="dce-external-missing" src="no.svg"></cem-element>
+        <dce-external-missing>
+            <i>fallback for missing image</i>
+        </dce-external-missing>
+    </template>
+</html-demo-element>
+
+<html-demo-element legend="4. external XSLT file"
+                   description="This external templates generated the tree for DCE data set"
+>
+    <a href="tree.xsl">tree.xsl</a>
+    <template>
+        <cem-element tag="dce-external-4" src="tree.xsl"></cem-element>
+        <dce-external-4 title="DCE with external XSLT template" data-fruit="🍌">Hi</dce-external-4>
+        <cem-element tag="dce-external-4-inline" src="tree.xsl"></cem-element>
+        <dce-external-4-inline data-smile="👼" data-basket="🍒">
+            <i>inline DCE loading from XSLT ...</i>
+        </dce-external-4-inline>
+    </template>
+</html-demo-element>
+
+<html-demo-element legend="5. external HTML template" description="Should render 👋👌, svg, formula">
+    <template>
+        <cem-element tag="dce-external-5" src="html-template.html"></cem-element>
+        <dce-external-5 title="DCE with external XSLT template" data-fruit="🍌">Hi</dce-external-5>
+        <cem-element tag="dce-external-5-inline" src="html-template.html"></cem-element>
+        <dce-external-5-inline data-smile="👼" data-basket="🍒">
+            <i>inline DCE loading from HTML file ...</i>
+        </dce-external-5-inline>
+    </template>
+</html-demo-element>
+
+<html-demo-element legend="6. HTML, SVG by ID within external file" description="Should render 👋, svg, formula">
+    <a href="html-template.html">html-template.html</a>
+    <template>
+        <cem-element tag="dce-html-wave" src="./html-template.html#wave"></cem-element>
+        <dce-html-wave>
+            <i>loading HTML from templates file ...</i>
+        </dce-html-wave>
+        <cem-element tag="dce-html-logo" src="./html-template.html#dwc-logo"></cem-element>
+        <dce-html-logo>
+            <i>loading SVG from templates file ...</i>
+        </dce-html-logo>
+        <cem-element tag="dce-html-formula" src="./html-template.html#sophomores-dream"></cem-element>
+        <dce-html-formula>
+            <i>loading MathML from HTML file ...</i>
+        </dce-html-formula>
+    </template>
+</html-demo-element>
+<html-demo-element legend="7. XSLT by ID within external file" description="Should render tree, and fallback">
+    <a href="html-template.html">html-template.html</a>
+    <template>
+        <cem-element tag="dce-embedded-xsl" src="html-template.xhtml#embedded-xsl"></cem-element>
+        <dce-embedded-xsl>whole XSLT is embedded into HTML body</dce-embedded-xsl>
+        <cem-element tag="dce-missing-none" src="html-template.html#none"></cem-element>
+        <dce-missing-none><i>element with id=none is missing in template</i></dce-missing-none>
+    </template>
+</html-demo-element>
+
+<html-demo-element legend="8. external file with embedding of another external DCE"
+                   description="Should render Vulcan Salute 🖖"
+>
+    <template>
+        <cem-element tag="dce-embed-1" src="embed-1.html"></cem-element>
+        <dce-embed-1>
+            loading from embed-1.html ...
+        </dce-embed-1>
+    </template>
+</html-demo-element>
+
+
+<html-demo-element legend="9. external file with invoking of relative template as hash by enclosed custom-element"
+                   description="Should render Vulcan Salute 🖖"
+>
+    <template>
+        <cem-element tag="dce-embed-relative-hash" src="./lib-dir/embed-lib.html#embed-relative-hash"></cem-element>
+        <dce-embed-relative-hash>
+            loading from embed-1.html ...
+        </dce-embed-relative-hash>
+    </template>
+</html-demo-element>
+
+<html-demo-element
+        legend="10. external file with invoking of template in another relative path file by enclosed custom-element"
+        description="Should render Vulcan Salute 🖖"
+>
+    <template>
+        <cem-element tag="dce-embed-relative-file" src="./lib-dir/embed-lib.html#embed-relative-file"></cem-element>
+        <dce-embed-relative-file>
+            loading from ./lib-dir/embed-lib.html ...
+        </dce-embed-relative-file>
+    </template>
+</html-demo-element>
+
+
+<html-demo-element legend="embed-1.html external file" src="embed-1.html"></html-demo-element>
+<html-demo-element legend="embed-lib.html with multiple templates" src="embed-lib.html"></html-demo-element>
+<!--
+<html-demo-element legend="9. deep external files, complex rendering" >
+    <template>
+            <cem-element src="../index.html#shared-template" hidden>
+                loading by hash from ../index.html#shared-template ...
+            </cem-element>
+    </template>
+</html-demo-element>
+
+<html-demo-element legend="9. own import maps" >
+    <template>
+            <cem-element  src="../index.html#shared-template" hidden>
+                loading by hash from ../index.html#shared-template ...
+            </cem-element>
+    </template>
+</html-demo-element>
+
+<html-demo-element legend="10. deep external files with own import maps" >
+    <template>
+            <cem-element src="../index.html#shared-template" hidden>
+                loading by hash from ../index.html#shared-template ...
+            </cem-element>
+    </template>
+</html-demo-element>
+
+<html-demo-element legend="11. local template as a 'loading...' or fallback for remote, error handling" >
+    <template>
+            <cem-element src="../index.html#shared-template" hidden>
+                loading by hash from ../index.html#shared-template ...
+            </cem-element>
+    </template>
+</html-demo-element>
+
+-->
 <script type="module" src="https://unpkg.com/html-demo-element@1/html-demo-element.js"></script>
+
 </body>
 </html>

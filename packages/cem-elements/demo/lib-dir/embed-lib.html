@@ -1,0 +1,34 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta http-equiv="Content-Type" content="text/html; charset=utf-8"/>
+    <title>templates for embedded and external DCE lib dependencies</title>
+</head>
+<body>
+<h1>templates for embedded and external DCE lib dependencies</h1>
+
+<template id="embed-lib-component" type="text/cem-ml">
+    👋 from embed-lib-component
+</template>
+
+<template id="embed-relative-hash" type="text/cem-ml">
+    👌 from embed-relative-hash invoking
+    {module-url @slice=full-url @src="./lib-dir/embed-lib.html"}
+    {a @href="{$datadom.slices.full-url}#embed-lib-component" |
+        {img @src="{$datadom.slices.full-url}/../Smiley.svg"}
+        #embed-lib-component
+    }:
+    {cem-element @tag=dce-embed-lib-component @src="./lib-dir/embed-lib.html#embed-lib-component"}
+    {dce-embed-lib-component}
+</template>
+
+<template id="embed-relative-file" type="text/cem-ml">
+    👍 from embed-relative-file invoking
+    {module-url @slice=up-url @src="./embed-1.html"}
+    {a @href="{$datadom.slices.up-url}" | ../embed-1.html}:
+    {cem-element @tag=dce-embed-lib-file @src="./embed-1.html"}
+    {dce-embed-lib-file | loading from ../embed-1.html ...}
+</template>
+
+</body>
+</html>

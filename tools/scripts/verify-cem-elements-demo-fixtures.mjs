@@ -73,11 +73,29 @@ const fixtureSpecs = [
     },
     {
         path: '/packages/cem-elements/demo/external-template.html',
+        allowedPageErrors: ['Failed to load resource: the server responded with a status of 404 (Not Found)'],
         checks: [
-            text('cem-local-src-card article.demo-card h2', 'Local src'),
-            text('cem-local-src-card article.demo-card', 'Loaded from a same-document template.'),
-            text('cem-external-src-card article.demo-card h2', 'External src'),
-            text('cem-external-src-card article.demo-card', 'Loaded from a fetched demo support file.'),
+            text('dce-internal', '👋'),
+            text('dce-internal', 'World!'),
+            countAtLeast('dce-construction', 2),
+            text('dce-construction', 'construction'),
+            countAtLeast('dce-external svg', 1),
+            countAtLeast('dce-external-inline svg', 1),
+            text('dce-external-missing', 'fallback for missing image'),
+            text('dce-external-4', 'DCE with external XSLT template'),
+            text('dce-external-4-inline', 'inline DCE loading from XSLT'),
+            text('dce-external-5', '👋'),
+            text('dce-external-5', '👌'),
+            countAtLeast('dce-external-5 svg', 1),
+            countAtLeast('dce-external-5 math', 1),
+            text('dce-html-wave', '👋'),
+            countAtLeast('dce-html-logo svg', 1),
+            countAtLeast('dce-html-formula math', 1),
+            text('dce-embedded-xsl', 'embedded-xsl'),
+            text('dce-missing-none', 'element with id=none is missing in template'),
+            text('dce-embed-1', '🖖'),
+            text('dce-embed-relative-hash', 'from embed-lib-component'),
+            text('dce-embed-relative-file', '🖖'),
         ],
     },
     {
@@ -270,7 +288,11 @@ try {
                 await runCheck(page, check);
             }
         } catch (error) {
-            const diagnostics = pageErrors.length > 0 ? `\nBrowser errors:\n${pageErrors.map((item) => `- ${item}`).join('\n')}` : '';
+            const unexpectedErrors = unexpectedPageErrors(fixture, pageErrors);
+            const diagnostics =
+                unexpectedErrors.length > 0
+                    ? `\nBrowser errors:\n${unexpectedErrors.map((item) => `- ${item}`).join('\n')}`
+                    : '';
             const snapshot = await collectDebugSnapshot(page, error?.check);
             throw new Error(
                 `${fixture.path} failed while running ${describeCheck(error?.check)}:\n${error.message}${diagnostics}${snapshot}`
@@ -279,8 +301,11 @@ try {
             await page.close();
         }
 
-        if (pageErrors.length > 0) {
-            throw new Error(`${fixture.path} emitted browser errors:\n${pageErrors.map((error) => `- ${error}`).join('\n')}`);
+        const unexpectedErrors = unexpectedPageErrors(fixture, pageErrors);
+        if (unexpectedErrors.length > 0) {
+            throw new Error(
+                `${fixture.path} emitted browser errors:\n${unexpectedErrors.map((error) => `- ${error}`).join('\n')}`
+            );
         }
     }
 } finally {
@@ -289,6 +314,11 @@ try {
 }
 
 console.log(`cem-elements demo fixtures verified (${fixtureSpecs.length} pages).`);
+
+function unexpectedPageErrors(fixture, pageErrors) {
+    const allowed = fixture.allowedPageErrors ?? [];
+    return pageErrors.filter((error) => !allowed.some((allowedError) => error.includes(allowedError)));
+}
 
 async function installOfflineRoutes(page) {
     await page.route('https://unpkg.com/html-demo-element@*/html-demo-element.js', (route) =>
@@ -589,6 +619,10 @@ function contentType(filePath) {
     switch (extname(filePath)) {
         case '.html':
             return 'text/html; charset=utf-8';
+        case '.xhtml':
+            return 'application/xhtml+xml; charset=utf-8';
+        case '.xsl':
+            return 'application/xslt+xml; charset=utf-8';
         case '.js':
         case '.mjs':
             return 'text/javascript; charset=utf-8';
