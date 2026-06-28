@@ -6,8 +6,9 @@ Copyright (c) 2026 Sasha Firsov <https://github.com/sashafirsov>
 the Phase 3.1 runtime gate before the project moves into Edge/SSR support and later `@epa-wg/custom-element` adoption.
 
 External declaration loading through `src="#id"`, `src="url"`, and `src="url#id"`, plus `<http-request url="...">`
-resource loading, is governed by the
-[`cem-element` external resource loading contract](../../docs/cem-element-src-loading-contract.md).
+resource loading, uses the [CEM-ML resource lifecycle](../../docs/cem-ml-resource-lifecycle.md) as the base contract and
+the [`cem-element` external resource loading contract](../../docs/cem-element-src-loading-contract.md) as the CEM Elements
+binding for resource role, acquisition policy, metadata, and expected content-type context.
 
 ## Production-Ready Trigger
 
