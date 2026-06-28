@@ -175,7 +175,12 @@ pub(crate) fn apply_stdlib_call(
         ("cem:stdlib/sequence", "where") => callable_sequence(arg_streams, ctx, args, false, true),
         ("cem:stdlib/sequence", "peek") => arg_streams.into_iter().next().unwrap_or_default(),
         ("cem:stdlib/sequence", "count") => {
-            let count = arg_streams.into_iter().next().unwrap_or_default().items.len();
+            let count = arg_streams
+                .into_iter()
+                .next()
+                .unwrap_or_default()
+                .items
+                .len();
             ItemStream::once(Item::Atomic(AtomValue::Integer(count as i64)))
         }
         ("cem:stdlib/strings", "length") => {
@@ -219,12 +224,8 @@ pub(crate) fn apply_stdlib_call(
         ("cem:stdlib/strings", "replace") => string_replace(arg_streams),
         ("cem:stdlib/strings", "translate") => string_translate(arg_streams),
         ("cem:stdlib/strings", "substring") => string_substring(arg_streams),
-        ("cem:stdlib/strings", "substring_before") => {
-            string_substring_split(arg_streams, true)
-        }
-        ("cem:stdlib/strings", "substring_after") => {
-            string_substring_split(arg_streams, false)
-        }
+        ("cem:stdlib/strings", "substring_before") => string_substring_split(arg_streams, true),
+        ("cem:stdlib/strings", "substring_after") => string_substring_split(arg_streams, false),
         ("cem:stdlib/numbers", "double") => number_double(arg_streams),
         ("cem:stdlib/numbers", "decimal") => number_decimal(arg_streams),
         ("cem:stdlib/numbers", "integer") => number_integer(arg_streams),
@@ -867,7 +868,11 @@ fn string_substring(streams: Vec<ItemStream>) -> ItemStream {
     let start = streams.get(1).and_then(first_integer).unwrap_or(1).max(1) as usize;
     let begin = start - 1;
     let out: String = match streams.get(2).and_then(first_integer) {
-        Some(len) => chars.into_iter().skip(begin).take(len.max(0) as usize).collect(),
+        Some(len) => chars
+            .into_iter()
+            .skip(begin)
+            .take(len.max(0) as usize)
+            .collect(),
         None => chars.into_iter().skip(begin).collect(),
     };
     ItemStream::once(Item::Atomic(AtomValue::String(out)))

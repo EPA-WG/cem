@@ -24,7 +24,9 @@ fn tier_a_registry_lists_every_documented_module_function() {
     assert_eq!(registry.functions.len(), 55);
     assert!(registry.resolve("cem:stdlib/sequence", "map", 2).is_some());
     assert!(registry.resolve("cem:stdlib/strings", "slice", 3).is_some());
-    assert!(registry.resolve("cem:stdlib/strings", "replace", 3).is_some());
+    assert!(registry
+        .resolve("cem:stdlib/strings", "replace", 3)
+        .is_some());
     assert!(registry
         .resolve("cem:stdlib/numbers", "format", 2)
         .is_some());
@@ -81,14 +83,18 @@ fn string_stdlib_functions_evaluate() {
     let normalized = eval("str:normalize_space(\"  --cem-gap   \n  0.5rem  \")");
     assert_eq!(
         normalized.items,
-        vec![Item::Atomic(AtomValue::String("--cem-gap 0.5rem".to_owned()))]
+        vec![Item::Atomic(AtomValue::String(
+            "--cem-gap 0.5rem".to_owned()
+        ))]
     );
 }
 
 #[test]
 fn xpath_string_bridge_functions_evaluate() {
     // translate: ASCII upper->lower fold (chars in `from` map positionally to `to`).
-    let folded = eval(r#"str:translate("Cem-ML", "ABCDEFGHIJKLMNOPQRSTUVWXYZ", "abcdefghijklmnopqrstuvwxyz")"#);
+    let folded = eval(
+        r#"str:translate("Cem-ML", "ABCDEFGHIJKLMNOPQRSTUVWXYZ", "abcdefghijklmnopqrstuvwxyz")"#,
+    );
     assert_eq!(
         folded.items,
         vec![Item::Atomic(AtomValue::String("cem-ml".to_owned()))]

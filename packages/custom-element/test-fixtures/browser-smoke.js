@@ -162,6 +162,40 @@ export async function runCustomElementSmoke(importBase) {
             ?.textContent?.trim() === 'External fragment'
     );
 
+    const externalXhtmlTreeDeclaration = document.querySelector('custom-element.inline-external-xhtml-tree-fixture');
+    const externalXhtmlTreeTag = externalXhtmlTreeDeclaration?.getAttribute('tag');
+    await waitFor(
+        'anonymous external XHTML CEM-ML src creates an inline produced instance',
+        () =>
+            Boolean(
+                externalXhtmlTreeTag &&
+                    externalXhtmlTreeDeclaration
+                        ?.querySelector(externalXhtmlTreeTag)
+                        ?.querySelector('.data-island-tree details details details details')
+            )
+    );
+    const externalXhtmlTree = externalXhtmlTreeDeclaration?.querySelector(externalXhtmlTreeTag);
+    const externalXhtmlTreeText = externalXhtmlTree?.textContent ?? '';
+    check(
+        'anonymous external XHTML CEM-ML src renders host attributes',
+        externalXhtmlTreeText.includes('Anonymous DCE data island') &&
+            externalXhtmlTreeText.includes('data-demo=') &&
+            externalXhtmlTreeText.includes('custom-element')
+    );
+    check(
+        'anonymous external XHTML CEM-ML src renders recursive payload attributes',
+        externalXhtmlTreeText.includes('data-root=') &&
+            externalXhtmlTreeText.includes('custom-element') &&
+            externalXhtmlTreeText.includes('data-level=') &&
+            externalXhtmlTreeText.includes('3') &&
+            externalXhtmlTreeText.includes('code=') &&
+            externalXhtmlTreeText.includes('a1')
+    );
+    check(
+        'anonymous external XHTML CEM-ML src renders recursive payload text',
+        externalXhtmlTreeText.includes('Leaf text from custom-element data island')
+    );
+
     const request = document.createElement('http-request');
     request.setAttribute('url', './http-data.json');
     request.setAttribute('method', 'GET');

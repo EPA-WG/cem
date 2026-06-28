@@ -47,6 +47,23 @@
 
         <custom-element class="inline-external-fragment-fixture" src="./external-fragments.html#fragment-card"></custom-element>
 
+        <custom-element
+            class="inline-external-xhtml-tree-fixture"
+            src="../demo/html-template.xhtml#embedded-xsl"
+            title="Anonymous DCE data island"
+            data-demo="custom-element"
+        >
+            <template>
+                <catalog data-root="custom-element">
+                    <section data-level="1" name="alpha">
+                        <item data-level="2" code="a1">
+                            <leaf data-level="3">Leaf text from custom-element data island</leaf>
+                        </item>
+                    </section>
+                </catalog>
+            </template>
+        </custom-element>
+
         <script type="module">
             import { runCustomElementSmoke } from './browser-smoke.js';
 

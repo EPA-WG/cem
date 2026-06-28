@@ -233,10 +233,14 @@ pub fn compile_embedding(
     embedding: &EmbeddedExpression,
     ctx: &CompileContext,
 ) -> (Option<CompiledQuery>, Vec<Diagnostic>) {
-    let embedded_ctx = with_embedding_frame(ctx, &embedding.host_stack, embedding.host_range.clone());
+    let embedded_ctx =
+        with_embedding_frame(ctx, &embedding.host_stack, embedding.host_range.clone());
     match compile(&embedding.source, &embedded_ctx) {
         Ok(query) => (Some(query), Vec::new()),
-        Err(err) => (None, vec![embedding_diagnostic(embedding, &err.code, err.message)]),
+        Err(err) => (
+            None,
+            vec![embedding_diagnostic(embedding, &err.code, err.message)],
+        ),
     }
 }
 
@@ -265,11 +269,7 @@ fn with_embedding_frame(
     }
 }
 
-fn embedding_diagnostic(
-    embedding: &EmbeddedExpression,
-    code: &str,
-    message: String,
-) -> Diagnostic {
+fn embedding_diagnostic(embedding: &EmbeddedExpression, code: &str, message: String) -> Diagnostic {
     let surface = match embedding.kind {
         EmbeddingKind::ContentExpression => "content-expression `{$ ... }`".to_string(),
         EmbeddingKind::WholeExpressionAttribute => format!(

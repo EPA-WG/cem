@@ -423,7 +423,11 @@ fn render_template_drops_top_level_attribute_and_slice_declarations() {
     );
 
     assert_eq!(rendered.rendered, r#"<button type="button">Save</button>"#);
-    assert!(rendered.diagnostics.is_empty(), "{:?}", rendered.diagnostics);
+    assert!(
+        rendered.diagnostics.is_empty(),
+        "{:?}",
+        rendered.diagnostics
+    );
 }
 
 #[test]
@@ -432,16 +436,30 @@ fn render_template_applies_declaration_defaults() {
 
     // No host data → the declared default seeds `$label` (the render engine owns defaults).
     let default_render = render_template(template, &TemplateData::default());
-    assert_eq!(default_render.rendered, r#"<button type="button">Save</button>"#);
-    assert!(default_render.diagnostics.is_empty(), "{:?}", default_render.diagnostics);
+    assert_eq!(
+        default_render.rendered,
+        r#"<button type="button">Save</button>"#
+    );
+    assert!(
+        default_render.diagnostics.is_empty(),
+        "{:?}",
+        default_render.diagnostics
+    );
 
     // A host-provided value overrides the declared default.
     let override_render = render_template(
         template,
         &TemplateData::default().with_binding("label", string_value("Submit")),
     );
-    assert_eq!(override_render.rendered, r#"<button type="button">Submit</button>"#);
-    assert!(override_render.diagnostics.is_empty(), "{:?}", override_render.diagnostics);
+    assert_eq!(
+        override_render.rendered,
+        r#"<button type="button">Submit</button>"#
+    );
+    assert!(
+        override_render.diagnostics.is_empty(),
+        "{:?}",
+        override_render.diagnostics
+    );
 }
 
 #[test]
@@ -463,7 +481,11 @@ fn render_template_supports_nested_conditionals() {
             .with_binding("b", bool_value(true)),
     );
     assert_eq!(nested_b.rendered, "<span>B</span>");
-    assert!(nested_b.diagnostics.is_empty(), "{:?}", nested_b.diagnostics);
+    assert!(
+        nested_b.diagnostics.is_empty(),
+        "{:?}",
+        nested_b.diagnostics
+    );
 
     // outer false -> the whole subtree is skipped regardless of inner tests.
     let skipped = render_template(
@@ -631,7 +653,9 @@ fn render_template_rich_content_emits_literal_braces_around_for_each() {
         record([
             (
                 "td1",
-                vec![Item::Atomic(AtomValue::String("--cem-control-height".to_owned()))],
+                vec![Item::Atomic(AtomValue::String(
+                    "--cem-control-height".to_owned(),
+                ))],
             ),
             (
                 "td2",
@@ -641,7 +665,9 @@ fn render_template_rich_content_emits_literal_braces_around_for_each() {
         record([
             (
                 "td1",
-                vec![Item::Atomic(AtomValue::String("--cem-list-row-height".to_owned()))],
+                vec![Item::Atomic(AtomValue::String(
+                    "--cem-list-row-height".to_owned(),
+                ))],
             ),
             (
                 "td2",
@@ -678,9 +704,14 @@ fn render_template_for_each_with_cem_if_tier_filter() {
         record([
             (
                 "td1",
-                vec![Item::Atomic(AtomValue::String("--cem-layout-keep".to_owned()))],
+                vec![Item::Atomic(AtomValue::String(
+                    "--cem-layout-keep".to_owned(),
+                ))],
             ),
-            ("td2", vec![Item::Atomic(AtomValue::String("1rem".to_owned()))]),
+            (
+                "td2",
+                vec![Item::Atomic(AtomValue::String("1rem".to_owned()))],
+            ),
             (
                 "td4",
                 vec![Item::Atomic(AtomValue::String("recommended".to_owned()))],
@@ -689,9 +720,14 @@ fn render_template_for_each_with_cem_if_tier_filter() {
         record([
             (
                 "td1",
-                vec![Item::Atomic(AtomValue::String("--cem-layout-drop".to_owned()))],
+                vec![Item::Atomic(AtomValue::String(
+                    "--cem-layout-drop".to_owned(),
+                ))],
             ),
-            ("td2", vec![Item::Atomic(AtomValue::String("2rem".to_owned()))]),
+            (
+                "td2",
+                vec![Item::Atomic(AtomValue::String("2rem".to_owned()))],
+            ),
             (
                 "td4",
                 vec![Item::Atomic(AtomValue::String("deprecated".to_owned()))],
@@ -722,11 +758,20 @@ fn render_template_action_cross_product_with_emotion_substitution() {
     // cem-colors shape: intent×state nested for-each emitting cross-product token names, with the
     // `[emotion]` placeholder in the state formula replaced by the intent's emotion via str:replace.
     let intents = Item::Array(vec![record([
-        ("td1", vec![Item::Atomic(AtomValue::String("explicit".to_owned()))]),
-        ("td2", vec![Item::Atomic(AtomValue::String("trust".to_owned()))]),
+        (
+            "td1",
+            vec![Item::Atomic(AtomValue::String("explicit".to_owned()))],
+        ),
+        (
+            "td2",
+            vec![Item::Atomic(AtomValue::String("trust".to_owned()))],
+        ),
     ])]);
     let states = Item::Array(vec![record([
-        ("td1", vec![Item::Atomic(AtomValue::String("disabled".to_owned()))]),
+        (
+            "td1",
+            vec![Item::Atomic(AtomValue::String("disabled".to_owned()))],
+        ),
         (
             "td2",
             vec![Item::Atomic(AtomValue::String(
@@ -736,7 +781,10 @@ fn render_template_action_cross_product_with_emotion_substitution() {
     ])]);
     let datadom = record([(
         "slices",
-        vec![record([("intents", vec![intents]), ("states", vec![states])])],
+        vec![record([
+            ("intents", vec![intents]),
+            ("states", vec![states]),
+        ])],
     )]);
     let data = TemplateData::default().with_binding("datadom", ItemStream::once(datadom));
 
@@ -749,7 +797,11 @@ fn render_template_action_cross_product_with_emotion_substitution() {
         rendered.rendered,
         "--cem-action-explicit-disabled-background: mix(var(--cem-palette-trust), var(--cem-palette-trust-x));"
     );
-    assert!(rendered.diagnostics.is_empty(), "{:?}", rendered.diagnostics);
+    assert!(
+        rendered.diagnostics.is_empty(),
+        "{:?}",
+        rendered.diagnostics
+    );
 }
 
 #[test]
@@ -759,13 +811,34 @@ fn render_template_cross_table_join_resolves_palette_reference() {
     // field across an array slice (`datadom.slices.hue.td1`, flattened) and tests existential `=`
     // against a `str:concat((…))`-built target.
     let hue = Item::Array(vec![
-        record([("td1", vec![Item::Atomic(AtomValue::String("--cem-color-cyan-xl".to_owned()))])]),
-        record([("td1", vec![Item::Atomic(AtomValue::String("--cem-color-blue-xl".to_owned()))])]),
+        record([(
+            "td1",
+            vec![Item::Atomic(AtomValue::String(
+                "--cem-color-cyan-xl".to_owned(),
+            ))],
+        )]),
+        record([(
+            "td1",
+            vec![Item::Atomic(AtomValue::String(
+                "--cem-color-blue-xl".to_owned(),
+            ))],
+        )]),
     ]);
     let shift = Item::Array(vec![record([
-        ("td1", vec![Item::Atomic(AtomValue::String("--cem-palette-comfort".to_owned()))]),
-        ("td3", vec![Item::Atomic(AtomValue::String("cyan-xl".to_owned()))]),
-        ("td4", vec![Item::Atomic(AtomValue::String("warm".to_owned()))]),
+        (
+            "td1",
+            vec![Item::Atomic(AtomValue::String(
+                "--cem-palette-comfort".to_owned(),
+            ))],
+        ),
+        (
+            "td3",
+            vec![Item::Atomic(AtomValue::String("cyan-xl".to_owned()))],
+        ),
+        (
+            "td4",
+            vec![Item::Atomic(AtomValue::String("warm".to_owned()))],
+        ),
     ])]);
     let datadom = record([(
         "slices",
@@ -782,7 +855,11 @@ fn render_template_cross_table_join_resolves_palette_reference() {
         rendered.rendered,
         "--cem-palette-comfort: light-dark(var(--cem-color-cyan-xl), var(--cem-palette-warm));"
     );
-    assert!(rendered.diagnostics.is_empty(), "{:?}", rendered.diagnostics);
+    assert!(
+        rendered.diagnostics.is_empty(),
+        "{:?}",
+        rendered.diagnostics
+    );
 }
 
 #[test]

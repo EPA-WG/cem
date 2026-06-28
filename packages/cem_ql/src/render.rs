@@ -27,6 +27,10 @@ const PRIMARY_INPUT_BINDING: &str = "input";
 /// Loop-position binding name. The legacy HTML+XSLT bridge rewrites XPath `position()` to
 /// `$position`; `cem:for-each` binds it to the 1-based iteration index.
 const POSITION_BINDING: &str = "position";
+/// Browser/runtime-support bounded native template calls. The full transform-template
+/// adapter has configurable limits; this render boundary keeps a conservative fixed
+/// default until host options are threaded through the WASM API.
+const MAX_TEMPLATE_CALL_DEPTH: usize = 32;
 
 #[derive(Debug, Clone, Default)]
 pub struct TemplateData {
@@ -224,6 +228,7 @@ pub fn render_compiled_template(artifact: &TemplateArtifact, data: &TemplateData
     let datadom = data_document_with_host_bindings(&data.bindings);
     policy_bindings.insert(DATA_DOCUMENT_BINDING.to_owned(), datadom);
     seed_declaration_defaults(&artifact.nodes, &mut policy_bindings);
+    let templates = collect_named_templates(&artifact.nodes);
     let mut renderer = PlanRenderer {
         evaluation_context: EvaluationContext {
             scope: QueryContextScope(0),
@@ -232,12 +237,12 @@ pub fn render_compiled_template(artifact: &TemplateArtifact, data: &TemplateData
             policy_bindings,
         },
         diagnostics: artifact.diagnostics.clone(),
+        templates,
+        call_depth: 0,
+        max_call_depth: MAX_TEMPLATE_CALL_DEPTH,
     };
     let mut nodes = Vec::new();
-    for node in &artifact.nodes {
-        if is_top_level_declaration(node) {
-            continue;
-        }
+    for node in root_render_nodes(&artifact.nodes) {
         renderer.render_into(node, &mut nodes);
     }
     RenderPlan {
@@ -867,6 +872,9 @@ impl TemplateCompiler<'_> {
 struct PlanRenderer {
     evaluation_context: EvaluationContext,
     diagnostics: Vec<Diagnostic>,
+    templates: BTreeMap<String, Vec<TemplateNode>>,
+    call_depth: usize,
+    max_call_depth: usize,
 }
 
 impl PlanRenderer {
@@ -881,6 +889,19 @@ impl PlanRenderer {
                 children,
                 source_map,
             } => {
+                if local_template_name(tag) == "call" {
+                    self.render_call_into(attributes, source_map, out);
+                    return;
+                }
+                if local_template_name(tag) == "body" {
+                    for child in children {
+                        self.render_into(child, out);
+                    }
+                    return;
+                }
+                if local_template_name(tag) == "param" || is_named_template_declaration(node) {
+                    return;
+                }
                 let attributes = attributes
                     .iter()
                     .filter_map(|attribute| self.render_attribute(attribute))
@@ -982,6 +1003,85 @@ impl PlanRenderer {
                             .policy_bindings
                             .remove(POSITION_BINDING);
                     }
+                }
+            }
+        }
+    }
+
+    fn render_call_into(
+        &mut self,
+        attributes: &[TemplateAttribute],
+        source_map: &SourceMapStack,
+        out: &mut Vec<RenderPlanNode>,
+    ) {
+        if self.call_depth >= self.max_call_depth {
+            self.diagnostics.push(render_diagnostic(
+                "cem.transform_template.recursion_limit",
+                format!(
+                    "native template call recursion limit exceeded at depth {}; max depth is {}",
+                    self.call_depth, self.max_call_depth
+                ),
+                source_map_start(source_map),
+                source_map.clone(),
+            ));
+            return;
+        }
+
+        let rendered_attributes = attributes
+            .iter()
+            .filter_map(|attribute| self.render_attribute(attribute))
+            .collect::<Vec<_>>();
+        let Some(template_name) = rendered_attributes
+            .iter()
+            .find(|attribute| attribute.name == "template")
+            .map(|attribute| attribute.value.clone())
+            .filter(|value| !value.is_empty())
+        else {
+            self.diagnostics.push(render_diagnostic(
+                "cem.transform_template.call_unknown",
+                "native template call is missing a `template` target".to_owned(),
+                source_map_start(source_map),
+                source_map.clone(),
+            ));
+            return;
+        };
+        let Some(template_nodes) = self.templates.get(&template_name).cloned() else {
+            self.diagnostics.push(render_diagnostic(
+                "cem.transform_template.call_unknown",
+                format!("native template call target `{template_name}` was not compiled"),
+                source_map_start(source_map),
+                source_map.clone(),
+            ));
+            return;
+        };
+
+        let mut previous = BTreeMap::new();
+        for attribute in rendered_attributes
+            .iter()
+            .filter(|attribute| attribute.name.starts_with("with:"))
+        {
+            let name = attribute.name.trim_start_matches("with:").to_owned();
+            previous.insert(
+                name.clone(),
+                self.evaluation_context
+                    .policy_bindings
+                    .insert(name, attribute.value_stream.clone()),
+            );
+        }
+
+        self.call_depth += 1;
+        for node in &template_nodes {
+            self.render_into(node, out);
+        }
+        self.call_depth -= 1;
+
+        for (name, value) in previous {
+            match value {
+                Some(stream) => {
+                    self.evaluation_context.policy_bindings.insert(name, stream);
+                }
+                None => {
+                    self.evaluation_context.policy_bindings.remove(&name);
                 }
             }
         }
@@ -1229,7 +1329,27 @@ fn whole_avt_expression(value: &str) -> Option<&str> {
 /// (declared attributes, slice state) rather than producing visible output, so they are
 /// dropped from the render plan — matching the cem-elements projection boundary.
 fn is_top_level_declaration(node: &TemplateNode) -> bool {
-    matches!(node, TemplateNode::Element { tag, .. } if tag == "attribute" || tag == "slice")
+    match node {
+        TemplateNode::Element {
+            tag, attributes, ..
+        } => match local_template_name(tag) {
+            "attribute" | "slice" | "param" => true,
+            "template" => declaration_name(attributes).is_some(),
+            _ => false,
+        },
+        _ => false,
+    }
+}
+
+fn is_named_template_declaration(node: &TemplateNode) -> bool {
+    matches!(
+        node,
+        TemplateNode::Element {
+            tag,
+            attributes,
+            ..
+        } if local_template_name(tag) == "template" && declaration_name(attributes).is_some()
+    )
 }
 
 /// Seed binding values from top-level `{attribute @name=X | default}` / `{slice @name=X | default}`
@@ -1280,7 +1400,7 @@ fn scan_declaration_names(tokens: &[SchemaToken]) -> Vec<String> {
             index += 1;
             continue;
         };
-        if name != "attribute" && name != "slice" {
+        if !matches!(local_template_name(name), "attribute" | "slice" | "param") {
             index += 1;
             continue;
         }
@@ -1302,6 +1422,84 @@ fn scan_declaration_names(tokens: &[SchemaToken]) -> Vec<String> {
         index = cursor;
     }
     names
+}
+
+fn root_render_nodes(nodes: &[TemplateNode]) -> Vec<&TemplateNode> {
+    let mut roots = Vec::new();
+    for node in nodes {
+        if let TemplateNode::Element { tag, children, .. } = node {
+            if local_template_name(tag) == "module" {
+                roots.extend(module_body_nodes(children));
+                continue;
+            }
+        }
+        if !is_top_level_declaration(node) {
+            roots.push(node);
+        }
+    }
+    roots
+}
+
+fn module_body_nodes(nodes: &[TemplateNode]) -> Vec<&TemplateNode> {
+    for node in nodes {
+        let TemplateNode::Element { tag, children, .. } = node else {
+            continue;
+        };
+        if local_template_name(tag) == "body" {
+            return children.iter().collect();
+        }
+    }
+    Vec::new()
+}
+
+fn collect_named_templates(nodes: &[TemplateNode]) -> BTreeMap<String, Vec<TemplateNode>> {
+    let mut templates = BTreeMap::new();
+    collect_named_templates_into(nodes, &mut templates);
+    templates
+}
+
+fn collect_named_templates_into(
+    nodes: &[TemplateNode],
+    templates: &mut BTreeMap<String, Vec<TemplateNode>>,
+) {
+    for node in nodes {
+        let TemplateNode::Element {
+            tag,
+            attributes,
+            children,
+            ..
+        } = node
+        else {
+            continue;
+        };
+        if local_template_name(tag) == "template" {
+            if let Some(name) = declaration_name(attributes) {
+                templates.insert(name, template_body_nodes(children));
+            }
+        }
+        collect_named_templates_into(children, templates);
+    }
+}
+
+fn template_body_nodes(children: &[TemplateNode]) -> Vec<TemplateNode> {
+    for child in children {
+        let TemplateNode::Element {
+            tag,
+            children: body,
+            ..
+        } = child
+        else {
+            continue;
+        };
+        if local_template_name(tag) == "body" {
+            return body.clone();
+        }
+    }
+    children
+        .iter()
+        .filter(|child| !is_top_level_declaration(child))
+        .cloned()
+        .collect()
 }
 
 fn declaration_name(attributes: &[TemplateAttribute]) -> Option<String> {
@@ -1335,6 +1533,10 @@ fn node_start_name(token: &SchemaToken) -> String {
 /// `cem:if`/`cem:choose`/... and the legacy bare `if`/`choose`/... spellings are accepted.
 fn conditional_local_name(name: &str) -> &str {
     name.strip_prefix("cem:").unwrap_or(name)
+}
+
+fn local_template_name(name: &str) -> &str {
+    conditional_local_name(name)
 }
 
 fn is_if_name(name: &str) -> bool {
@@ -1397,6 +1599,17 @@ fn render_diagnostic(
     }
 }
 
+fn source_map_start(source_map: &SourceMapStack) -> u64 {
+    source_map
+        .frames
+        .last()
+        .and_then(|frame| match frame.span {
+            FrameSpan::Single(range) => Some(range.start),
+            FrameSpan::Multi(_) => None,
+        })
+        .unwrap_or(0)
+}
+
 fn escape_text_into(out: &mut String, value: &str) {
     for c in value.chars() {
         match c {
@@ -1454,6 +1667,15 @@ mod tests {
         }
     }
 
+    fn record(fields: impl IntoIterator<Item = (&'static str, Vec<Item>)>) -> Item {
+        Item::Record(
+            fields
+                .into_iter()
+                .map(|(name, value)| (name.to_owned(), value))
+                .collect::<BTreeMap<_, _>>(),
+        )
+    }
+
     #[test]
     fn source_map_render_preserves_html_output() {
         let plan = sample_plan();
@@ -1494,5 +1716,251 @@ mod tests {
             .output_spans
             .iter()
             .any(|span| span.output_range.start == text_start));
+    }
+
+    #[test]
+    fn same_module_template_call_renders_body_with_params() {
+        let source = r#"{module |
+            {template @name="label" |
+                {param @name="node"}
+                {body | {span @data-kind="{$node.kind}" | {$node.text}}}
+            }
+            {body |
+                {call @template="label" @with:node="{$datadom.payload.nodes}"}
+            }
+        }"#;
+        let mut node = BTreeMap::new();
+        node.insert(
+            "kind".to_owned(),
+            vec![Item::Atomic(AtomValue::String("text".to_owned()))],
+        );
+        node.insert(
+            "text".to_owned(),
+            vec![Item::Atomic(AtomValue::String("Leaf".to_owned()))],
+        );
+        let mut payload = BTreeMap::new();
+        payload.insert("nodes".to_owned(), vec![Item::Record(node)]);
+        let mut datadom = BTreeMap::new();
+        datadom.insert("payload".to_owned(), vec![Item::Record(payload)]);
+        let data = TemplateData::default()
+            .with_binding("datadom", ItemStream::once(Item::Record(datadom)));
+
+        let rendered = render_template(source, &data);
+
+        assert_eq!(
+            rendered.rendered.trim(),
+            r#"<span data-kind="text">Leaf</span>"#
+        );
+        assert!(
+            rendered.diagnostics.is_empty(),
+            "{:?}",
+            rendered.diagnostics
+        );
+    }
+
+    #[test]
+    fn unnamed_template_element_still_renders_as_html() {
+        let rendered = render_template("{template | {span | fallback}}", &TemplateData::default());
+
+        assert_eq!(
+            rendered.rendered.trim(),
+            "<template><span>fallback</span></template>"
+        );
+        assert!(
+            rendered.diagnostics.is_empty(),
+            "{:?}",
+            rendered.diagnostics
+        );
+    }
+
+    #[test]
+    fn native_recursive_template_renders_data_island_tree() {
+        let source = r#"{module |
+            {template @name="node" |
+                {param @name="node"}
+                {body |
+                    {cem:choose |
+                        {cem:when @test='node.kind = "element"' |
+                            {details @open=open |
+                                {summary |
+                                    {b | {$node.tag}}
+                                    {cem:if @test="node.attributes.data-root" | {code | data-root="{$node.attributes.data-root}"}}
+                                    {cem:if @test="node.attributes.data-level" | {code | data-level="{$node.attributes.data-level}"}}
+                                    {cem:if @test="node.attributes.name" | {code | name="{$node.attributes.name}"}}
+                                    {cem:if @test="node.attributes.code" | {code | code="{$node.attributes.code}"}}
+                                }
+                                {cem:for-each @select="$node.children" @as="child" |
+                                    {call @template="node" @with:node="{$child}"}
+                                }
+                            }
+                        }
+                        {cem:when @test='node.kind = "text"' |
+                            {p | {$node.text}}
+                        }
+                    }
+                }
+            }
+            {body |
+                {article |
+                    {h2 | embedded-xsl data island tree}
+                    {details @open=open |
+                        {summary |
+                            {b | datadom}
+                            {code | title="{$datadom.attributes.title}"}
+                            {code | data-demo="{$datadom.attributes.data-demo}"}
+                        }
+                        {cem:for-each @select="$datadom.payload.nodes" @as="node" |
+                            {call @template="node" @with:node="{$node}"}
+                        }
+                    }
+                }
+            }
+        }"#;
+        let text = record([
+            (
+                "kind",
+                vec![Item::Atomic(AtomValue::String("text".to_owned()))],
+            ),
+            (
+                "text",
+                vec![Item::Atomic(AtomValue::String(
+                    "Leaf text from cem-elements data island".to_owned(),
+                ))],
+            ),
+        ]);
+        let leaf = record([
+            (
+                "kind",
+                vec![Item::Atomic(AtomValue::String("element".to_owned()))],
+            ),
+            (
+                "tag",
+                vec![Item::Atomic(AtomValue::String("leaf".to_owned()))],
+            ),
+            (
+                "attributes",
+                vec![record([(
+                    "data-level",
+                    vec![Item::Atomic(AtomValue::String("3".to_owned()))],
+                )])],
+            ),
+            ("children", vec![Item::Array(vec![text])]),
+        ]);
+        let item = record([
+            (
+                "kind",
+                vec![Item::Atomic(AtomValue::String("element".to_owned()))],
+            ),
+            (
+                "tag",
+                vec![Item::Atomic(AtomValue::String("item".to_owned()))],
+            ),
+            (
+                "attributes",
+                vec![record([(
+                    "code",
+                    vec![Item::Atomic(AtomValue::String("a1".to_owned()))],
+                )])],
+            ),
+            ("children", vec![Item::Array(vec![leaf])]),
+        ]);
+        let section = record([
+            (
+                "kind",
+                vec![Item::Atomic(AtomValue::String("element".to_owned()))],
+            ),
+            (
+                "tag",
+                vec![Item::Atomic(AtomValue::String("section".to_owned()))],
+            ),
+            (
+                "attributes",
+                vec![record([
+                    (
+                        "data-level",
+                        vec![Item::Atomic(AtomValue::String("1".to_owned()))],
+                    ),
+                    (
+                        "name",
+                        vec![Item::Atomic(AtomValue::String("alpha".to_owned()))],
+                    ),
+                ])],
+            ),
+            ("children", vec![Item::Array(vec![item])]),
+        ]);
+        let catalog = record([
+            (
+                "kind",
+                vec![Item::Atomic(AtomValue::String("element".to_owned()))],
+            ),
+            (
+                "tag",
+                vec![Item::Atomic(AtomValue::String("catalog".to_owned()))],
+            ),
+            (
+                "attributes",
+                vec![record([(
+                    "data-root",
+                    vec![Item::Atomic(AtomValue::String("cem-elements".to_owned()))],
+                )])],
+            ),
+            ("children", vec![Item::Array(vec![section])]),
+        ]);
+        let datadom = record([
+            (
+                "attributes",
+                vec![record([
+                    (
+                        "title",
+                        vec![Item::Atomic(AtomValue::String(
+                            "Anonymous DCE data island".to_owned(),
+                        ))],
+                    ),
+                    (
+                        "data-demo",
+                        vec![Item::Atomic(AtomValue::String("cem-elements".to_owned()))],
+                    ),
+                ])],
+            ),
+            (
+                "payload",
+                vec![record([("nodes", vec![Item::Array(vec![catalog])])])],
+            ),
+        ]);
+        let data = TemplateData::default().with_binding("datadom", ItemStream::once(datadom));
+
+        let rendered = render_template(source, &data);
+
+        assert!(rendered.rendered.contains("embedded-xsl data island tree"));
+        assert!(rendered
+            .rendered
+            .contains("title=\"Anonymous DCE data island\""));
+        assert!(rendered.rendered.contains("data-root=\"cem-elements\""));
+        assert!(rendered.rendered.contains("data-level=\"3\""));
+        assert!(rendered
+            .rendered
+            .contains("Leaf text from cem-elements data island"));
+        assert!(
+            rendered.diagnostics.is_empty(),
+            "{:?}",
+            rendered.diagnostics
+        );
+    }
+
+    #[test]
+    fn recursive_template_calls_are_bounded() {
+        let source = r#"{module |
+            {template @name="loop" | {body | {span | Loop {call @template="loop"}}}}
+            {body | {div | {call @template="loop"}}}
+        }"#;
+
+        let rendered = render_template(source, &TemplateData::default());
+
+        assert!(rendered.rendered.starts_with("<div><span>Loop "));
+        assert!(rendered.rendered.ends_with("</span></div>"));
+        assert!(rendered
+            .diagnostics
+            .iter()
+            .any(|diagnostic| { diagnostic.code == "cem.transform_template.recursion_limit" }));
     }
 }

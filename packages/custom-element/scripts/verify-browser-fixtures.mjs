@@ -75,6 +75,8 @@ function contentType(filePath) {
     switch (extname(filePath)) {
         case '.html':
             return 'text/html; charset=utf-8';
+        case '.xhtml':
+            return 'application/xhtml+xml; charset=utf-8';
         case '.js':
             return 'text/javascript; charset=utf-8';
         case '.json':

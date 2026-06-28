@@ -713,6 +713,96 @@ export const DataOptionPayloadRenderLoop: Story = {
     },
 };
 
+export const DataIslandRecursiveTemplateCallsRenderLoop: Story = {
+    render: () => {
+        const root = document.createElement('section');
+        root.setAttribute('aria-label', 'data island recursive template calls story');
+
+        const runtime = new CemElementRuntime({ declarationTag: 'cem-element-story-native-tree' });
+        runtime.install(window);
+
+        const declaration = buildCemMlDeclaration(
+            'cem-element-story-native-tree',
+            'story-native-tree',
+            `
+            {module |
+                {template @name="node" |
+                    {param @name="node"}
+                    {body |
+                        {cem:choose |
+                            {cem:when @test='node.kind = "element"' |
+                                {details @open=open |
+                                    {summary |
+                                        {b | {$node.tag}}
+                                        {cem:if @test="node.attributes.data-root" | {code | data-root="{$node.attributes.data-root}"}}
+                                        {cem:if @test="node.attributes.data-level" | {code | data-level="{$node.attributes.data-level}"}}
+                                        {cem:if @test="node.attributes.name" | {code | name="{$node.attributes.name}"}}
+                                        {cem:if @test="node.attributes.code" | {code | code="{$node.attributes.code}"}}
+                                    }
+                                    {cem:for-each @select="$node.children" @as="child" |
+                                        {call @template="node" @with:node="{$child}"}
+                                    }
+                                }
+                            }
+                            {cem:when @test='node.kind = "text"' | {p | {$node.text}}}
+                        }
+                    }
+                }
+                {body |
+                    {article @class=data-island-tree |
+                        {h3 | embedded-xsl data island tree}
+                        {details @open=open |
+                            {summary |
+                                {b | datadom}
+                                {code | title="{$datadom.attributes.title}"}
+                                {code | data-demo="{$datadom.attributes.data-demo}"}
+                            }
+                            {cem:for-each @select="$datadom.payload.nodes" @as="node" |
+                                {call @template="node" @with:node="{$node}"}
+                            }
+                        }
+                    }
+                }
+            }`
+        );
+        root.appendChild(declaration);
+        runtime.registerDeclaration(declaration);
+
+        const instance = document.createElement('story-native-tree');
+        instance.setAttribute('title', 'Anonymous DCE data island');
+        instance.setAttribute('data-demo', 'storybook');
+        instance.innerHTML = [
+            '<catalog data-root="storybook">',
+            '<section data-level="1" name="alpha">',
+            '<item data-level="2" code="a1">',
+            '<leaf data-level="3">Leaf text from Storybook data island</leaf>',
+            '</item>',
+            '</section>',
+            '</catalog>',
+        ].join('');
+        root.appendChild(instance);
+
+        return root;
+    },
+    play: async ({ canvasElement }) => {
+        const instance = requiredElement(canvasElement, 'story-native-tree');
+        const tree = await waitForElement(instance, '.data-island-tree');
+        const text = tree.textContent ?? '';
+
+        assertEqual(requiredElement(tree, 'h3').textContent?.trim(), 'embedded-xsl data island tree', 'tree heading renders');
+        assert(text.includes('title=') && text.includes('Anonymous DCE data island'), 'host title attribute renders from datadom');
+        assert(text.includes('data-demo=') && text.includes('storybook'), 'host data-demo attribute renders from datadom');
+        assert(text.includes('data-root=') && text.includes('storybook'), 'root payload attribute renders');
+        assert(text.includes('data-level=') && text.includes('3'), 'nested third-level payload attribute renders');
+        assert(text.includes('code=') && text.includes('a1'), 'nested payload code attribute renders');
+        assert(text.includes('Leaf text from Storybook data island'), 'recursive template reaches payload text');
+        assert(
+            tree.querySelectorAll('details').length >= 5,
+            'recursive template renders datadom plus at least four payload detail levels'
+        );
+    },
+};
+
 // ---------------------------------------------------------------------------
 // Runtime slice C2.6 — declaration-bearing canonical templates (with
 // `<attribute>` decls) render through the WASM boundary, which drops declaration

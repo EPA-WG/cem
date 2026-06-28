@@ -93,6 +93,38 @@ PORT=8080 yarn start packages/cem-theme/dist/lib/tokens/cem-colors.xhtml        
 The server serves from filesystem root so all relative paths in HTML resolve correctly. Files must be served over
 HTTP -- `file://` protocol breaks `fetch()` / `<http-request>` in the custom-element templates.
 
+## Native transformation development flow
+
+When working on CEM-ML, CEM-QL, resource loading, template compilation, or other transformation behavior, use a
+Rust-native tests-first loop as the default. Browser demos and WASM checks are downstream integration verification,
+not the place to discover core transformation semantics.
+
+1. Start with the contract case as a small fixture string or AST/event-stream input.
+2. Add the failing Rust test first at the smallest relevant layer:
+   - parser/tokenizer changes test token or AST shape;
+   - transformation changes test input AST/event stream to output artifact/event stream;
+   - render changes test `render_template` or `render_compiled_template`;
+   - resource/load changes test lifecycle states and diagnostics, not only final output.
+3. Keep tests layered: unit test the transformation function first, then add integration fixtures, then add
+   Storybook/browser coverage for wiring and runtime behavior.
+4. Assert the contract details that matter: produced nodes/artifacts, AST stream lifecycle state, diagnostics,
+   source-map/source-frame preservation, recursion or safety limits, and negative cases.
+5. Use focused Rust commands during development, for example:
+
+```bash
+cargo test -p cem-ql render::tests::<case>
+cargo test -p cem-ql template_render
+cargo test -p cem-ml <focused-test-name>
+```
+
+After the native Rust path is green, rebuild and verify browser/WASM paths through Nx, for example:
+
+```bash
+yarn nx run cem_ql:build:wasm
+yarn nx run cem-elements:verify
+yarn nx run @epa-wg/custom-element:verify
+```
+
 ## Debugging DOM and CSS with headless browser
 
 Use `tools/scripts/debug-cem.mjs` (Playwright, same Chromium as the build pipeline):

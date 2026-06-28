@@ -154,11 +154,19 @@
         </custom-element>
     </template>
 </html-demo-element>
-<html-demo-element legend="7. XSLT by ID within external file" description="Should render tree, and fallback">
-    <a href="html-template.html">html-template.html</a>
+<html-demo-element legend="7. CEM-ML by ID within external XHTML file" description="Should render tree, and fallback">
+    <a href="html-template.xhtml">html-template.xhtml</a>
     <template>
-        <custom-element src="html-template.xhtml#embedded-xsl">
-            <template>whole XSLT is embedded into HTML body</template>
+        <custom-element src="html-template.xhtml#embedded-xsl" title="Anonymous DCE data island" data-demo="custom-element">
+            <template>
+                <catalog data-root="custom-element">
+                    <section data-level="1" name="alpha">
+                        <item data-level="2" code="a1">
+                            <leaf data-level="3">Leaf text from custom-element data island</leaf>
+                        </item>
+                    </section>
+                </catalog>
+            </template>
         </custom-element>
         <custom-element src="html-template.html#none">
             <template><i>element with id=none is missing in template</i></template>

@@ -1,0 +1,41 @@
+{module |
+    {template @name="node" |
+        {param @name="node"}
+        {body |
+            {cem:choose |
+                {cem:when @test='node.kind = "element"' |
+                    {details @style="padding:0 1rem" @open=open |
+                        {summary |
+                            {b @style="color:green" | {$node.tag}}
+                            {cem:if @test="node.attributes.data-root" | {code @style="margin-left:1rem;color:brown" | data-root="{$node.attributes.data-root}"}}
+                            {cem:if @test="node.attributes.data-level" | {code @style="margin-left:1rem;color:brown" | data-level="{$node.attributes.data-level}"}}
+                            {cem:if @test="node.attributes.name" | {code @style="margin-left:1rem;color:brown" | name="{$node.attributes.name}"}}
+                            {cem:if @test="node.attributes.code" | {code @style="margin-left:1rem;color:brown" | code="{$node.attributes.code}"}}
+                        }
+                        {cem:for-each @select="$node.children" @as="child" |
+                            {call @template="node" @with:node="{$child}"}
+                        }
+                    }
+                }
+                {cem:when @test='node.kind = "text"' |
+                    {p | {$node.text}}
+                }
+            }
+        }
+    }
+    {body |
+        {article @class=demo-card |
+            {h2 | CEM-ML data island tree}
+            {details @style="padding:0 1rem" @open=open |
+                {summary |
+                    {b @style="color:green" | datadom}
+                    {code @style="margin-left:1rem;color:brown" | title="{$datadom.attributes.title ?? ""}"}
+                    {code @style="margin-left:1rem;color:brown" | data-demo="{$datadom.attributes.data-demo ?? ""}"}
+                }
+                {cem:for-each @select="$datadom.payload.nodes" @as="node" |
+                    {call @template="node" @with:node="{$node}"}
+                }
+            }
+        }
+    }
+}
