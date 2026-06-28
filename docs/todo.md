@@ -4,6 +4,27 @@ This file tracks remaining execution tasks only. Product/module sequencing lives
 [`../roadmap.md`](../roadmap.md). Future wishlist work lives in [`wishlist.md`](wishlist.md). Completed implementation
 history belongs in git history and the feature-specific docs linked below.
 
+## Immediate Documentation Review
+
+1. Review CEM-ML resource lifecycle separation one concern at a time.
+   - [ ] Primary contract: [`cem-ml-resource-lifecycle.md`](cem-ml-resource-lifecycle.md).
+   - [ ] Concern 1: HTTP resource lifecycle vocabulary and ownership drift.
+   - Scope:
+     - [x] Align [`cem-elements-http-request-design.md`](cem-elements-http-request-design.md) to use
+       [`cem-ml-resource-lifecycle.md`](cem-ml-resource-lifecycle.md) as base and
+       [`cem-element-src-loading-contract.md`](cem-element-src-loading-contract.md) as the CEM Elements binding
+       derivative.
+     - [ ] Audit this file's completed `<http-request>` checklist.
+     - [ ] Audit package README references to external loading.
+     - [ ] Audit legacy custom-element data source notes that still describe resource state as `pending`, `headers`,
+       `complete`, `error`, `aborted`, initiated, progress, or completed.
+   - [ ] Desired separation: `cem-element` and `<http-request>` define resource role, acquisition, host policy, metadata, and
+     expected content-type context; CEM-ML defines lifecycle states, revisions, content-type/parser negotiation, AST stream
+     production, projections, engine diagnostics, hydration, and de-hydration.
+   - [ ] Acceptance: affected docs consistently use `declared`, `scheduled`, `waiting`, `in-progress`, `streaming`,
+     `loaded`, and `failed` for template-visible lifecycle, and avoid implying host-owned loaded AST data or direct
+     document handles.
+
 ## Immediate Release Queue
 
 1. Complete deferred `<cem-element>` demo parity now that the runtime/data-island pieces are in place.
