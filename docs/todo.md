@@ -47,7 +47,7 @@ Implement schema packages for these content families:
       sealed CEM binary chunks.
 - [x] YAML/YML.
 - [x] CSV.
-- [ ] Markdown/MD markup.
+- [x] Markdown/MD markup.
 - [ ] XML.
 - [ ] XHTML.
 - [ ] SVG.

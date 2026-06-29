@@ -1,0 +1,80 @@
+@doc cem-ml 1
+@ns schema = "https://cem.dev/ns/schema/1"
+@ns cemml = "https://cem.dev/ns/cem-ml/1"
+@default schema
+
+{schema @name="markdown" @namespace="https://cem.dev/ns/data/markdown/1" @version="1.0.0" |
+    {summary |
+        {text | Generic Markdown resource schema. Markdown source is parsed by a Markdown parser or adapter, while this schema provides registry identity, encoding and variant metadata, block and inline structure, link/reference metadata, embedded HTML policy, source offsets, and validation hooks for Markdown resources.}
+    }
+
+    {uses |
+        {use @schema="https://cem.dev/ns/schema/1" @as="schema"}
+        {use @schema="https://cem.dev/ns/cem-ml/1" @as="cemml"}
+    }
+
+    {content-types |
+        {content-type @value="text/markdown" @primary=true}
+    }
+
+    {namespaces |
+        {namespace @prefix="markdown" @uri="https://cem.dev/ns/data/markdown/1"}
+    }
+
+    {elements |
+        {element @name="document" @required-attributes="encoding" @optional-attributes="charset variant source-id byte-offset byte-length" @children="block* reference*"}
+        {element @name="block" @required-attributes="kind" @optional-attributes="level info language marker source-id byte-offset byte-length" @children="inline* block* html*"}
+        {element @name="inline" @required-attributes="kind" @optional-attributes="text destination title reference source-id byte-offset byte-length" @children="inline* html*"}
+        {element @name="reference" @required-attributes="label destination" @optional-attributes="title source-id byte-offset byte-length"}
+        {element @name="html" @optional-attributes="raw policy source-id byte-offset byte-length"}
+    }
+
+    {attributes |
+        {attribute @name="encoding" @type="schema:identifier" @values="utf-8 us-ascii other"}
+        {attribute @name="charset" @type="schema:identifier"}
+        {attribute @name="variant" @type="schema:string"}
+        {attribute @name="source-id" @type="schema:identifier"}
+        {attribute @name="byte-offset" @type="cemml:integer"}
+        {attribute @name="byte-length" @type="cemml:integer"}
+        {attribute @name="kind" @type="schema:identifier" @values="paragraph heading thematic-break blockquote list list-item code html text emphasis strong code-span link image soft-break hard-break"}
+        {attribute @name="level" @type="cemml:integer"}
+        {attribute @name="info" @type="schema:string"}
+        {attribute @name="language" @type="schema:identifier"}
+        {attribute @name="marker" @type="schema:string"}
+        {attribute @name="text" @type="schema:string"}
+        {attribute @name="destination" @type="schema:string"}
+        {attribute @name="title" @type="schema:string"}
+        {attribute @name="reference" @type="schema:string"}
+        {attribute @name="label" @type="schema:string"}
+        {attribute @name="raw" @type="schema:string"}
+        {attribute @name="policy" @type="schema:identifier" @values="preserve sanitize reject delegate"}
+    }
+
+    {constraints |
+        {constraint @kind="markdown-source-parser" @target="document" @policy="delegate-to-markdown-parser"}
+        {constraint @kind="text-markdown-primary" @target="document" @policy="text/markdown is the canonical media type for Markdown resources"}
+        {constraint @kind="charset-parameter-required-when-explicit" @target="document" @policy="explicit text/markdown content types require a charset parameter"}
+        {constraint @kind="variant-preserved" @target="document" @policy="preserve text/markdown variant parameter when present"}
+        {constraint @kind="block-order-preserved" @target="document" @policy="required"}
+        {constraint @kind="inline-order-preserved" @target="block" @policy="required"}
+        {constraint @kind="source-map-preferred" @target="block" @policy="required when parser exposes source ranges"}
+        {constraint @kind="embedded-html-policy" @target="html" @policy="must be explicit before HTML is executed or trusted"}
+        {constraint @kind="fragment-policy-variant-defined" @target="document" @policy="fragment identifiers are variant-defined"}
+    }
+
+    {diagnostics |
+        {diagnostic @code="cem.markdown.parse_error" @severity="error"}
+        {diagnostic @code="cem.markdown.charset_missing" @severity="warning"}
+        {diagnostic @code="cem.markdown.unknown_variant" @severity="warning"}
+        {diagnostic @code="cem.markdown.embedded_html_rejected" @severity="error"}
+        {diagnostic @code="cem.markdown.source_map_unavailable" @severity="info"}
+    }
+
+    {compatibility |
+        {note @version="1.0.0" @value="RFC 7763 registers text/markdown with a required charset parameter, an optional variant parameter, and .md and .markdown file extensions. RFC 7764 defines Markdown variant registration and local storage guidance."}
+    }
+
+    {open-content |
+        {accept @kind="markdown-extension" @policy="reject-unless-declared"}
+    }
+}

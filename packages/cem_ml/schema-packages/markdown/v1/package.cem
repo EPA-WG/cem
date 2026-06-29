@@ -1,0 +1,14 @@
+@doc cem-ml 1
+@ns pkg = "https://cem.dev/ns/schema-package/1"
+@default pkg
+
+{package @id="markdown" @version="1.0.0" |
+    {schema
+        @uri="https://cem.dev/ns/data/markdown/1"
+        @source="schema/markdown.cem"
+    }
+
+    {content-type @value="text/markdown" @primary=true}
+
+    {namespace @prefix="markdown" @uri="https://cem.dev/ns/data/markdown/1"}
+}

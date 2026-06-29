@@ -766,6 +766,7 @@ pub fn infer_content_type_from_path(path: &str) -> Option<String> {
         "json" => Some(crate::schema::registry::JSON_CONTENT_TYPE.to_owned()),
         "yaml" | "yml" => Some(crate::schema::registry::YAML_CONTENT_TYPE.to_owned()),
         "csv" => Some(crate::schema::registry::CSV_CONTENT_TYPE.to_owned()),
+        "md" | "markdown" => Some(crate::schema::registry::MARKDOWN_CONTENT_TYPE.to_owned()),
         _ => None,
     }
 }
@@ -904,6 +905,18 @@ mod tests {
         assert_eq!(
             infer_content_type_from_path("data/TABLE.CSV").as_deref(),
             Some(crate::schema::registry::CSV_CONTENT_TYPE)
+        );
+    }
+
+    #[test]
+    fn markdown_extensions_infer_markdown_content_type() {
+        assert_eq!(
+            infer_content_type_from_path("docs/readme.md").as_deref(),
+            Some(crate::schema::registry::MARKDOWN_CONTENT_TYPE)
+        );
+        assert_eq!(
+            infer_content_type_from_path("docs/README.MARKDOWN").as_deref(),
+            Some(crate::schema::registry::MARKDOWN_CONTENT_TYPE)
         );
     }
 

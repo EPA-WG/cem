@@ -60,6 +60,12 @@ types should use their own packages.
 source-map hooks. CSV source is not CEM-ML syntax; parser/adaptor support is
 separate from the schema package.
 
+`markdown/v1` defines generic Markdown resource identity. It owns
+`text/markdown`, models variant and charset metadata, block and inline
+structure, links, references, embedded HTML policy, and source-map hooks.
+Markdown source is not CEM-ML syntax; parser/adaptor support is separate from
+the schema package.
+
 `json-schema/v1` defines JSON Schema document identity. It owns
 `application/schema+json`, depends on `json/v1`, and models JSON Schema
 dialect, vocabulary, reference, and validation-resource metadata separately
