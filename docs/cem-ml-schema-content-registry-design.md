@@ -234,6 +234,10 @@ views, not the canonical runtime transport. Native CLI, Rust, WASM workers, and
 server/edge hosts should consume typed structures or CEM binary chunks directly
 when possible, preserving the same binary representation across cache,
 transport, query, and converter boundaries.
+The native projection route surface exposes sealed chunk streams; one stream can
+be multicast to several sinks with shared immutable bytes, and route execution
+can remain deterministic or use the parallel runtime path without changing the
+chunk format.
 
 The first semantic projection packages are `cem-dom-projection/v1`,
 `cem-ast-projection/v1`, and `cem-events-projection/v1`. They own

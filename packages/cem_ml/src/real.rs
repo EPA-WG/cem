@@ -2200,13 +2200,25 @@ fn content_hash(bytes: &[u8]) -> String {
 fn primary_bytes_from_binary_artifact(
     artifact: &projection::BinaryProjectionArtifact,
 ) -> PrimaryBytes {
+    let stream = artifact.to_chunk_stream();
+    let routed = projection::route_projection_stream(
+        &stream,
+        &[projection::ProjectionStreamRoute::new("primary")],
+        projection::ProjectionRouteMode::Deterministic,
+    )
+    .expect("deterministic projection stream routing must not fail");
+    let bytes = routed
+        .into_iter()
+        .next()
+        .map(|route| route.concatenated_bytes())
+        .unwrap_or_default();
     PrimaryBytes {
         content_type: artifact.content_type.clone(),
         schema: Some(artifact.schema.clone()),
         format_version: artifact.format_version.clone(),
         hash_scheme: artifact.hash_scheme.clone(),
         hash: artifact.hash.clone(),
-        bytes: artifact.bytes.clone(),
+        bytes,
     }
 }
 

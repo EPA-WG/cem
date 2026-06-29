@@ -680,6 +680,10 @@ These are data shapes only. Parser-filled content remains blocked until the pars
       bytes to stdout or `--out` from the native byte response payload. JSON
       primary responses are metadata-only and omit embedded chunk data; full
       JSON chunk envelopes remain compatibility/debug views.
+    - Native CEM binary artifacts expose sealed chunk streams. The library can
+      route one stream to multiple sinks with shared immutable chunk bytes, using
+      deterministic execution by default or parallel route execution when the
+      caller opts in.
     - `--to-content-type application/cem+xml` selects canonical CEM-ML export, and `--to-content-type text/html`
       / `application/xhtml+xml`, `--to-schema http://www.w3.org/1999/xhtml` /
       `http://www.w3.org/2000/svg`, or `.xhtml` output destinations select light-DOM HTML export;

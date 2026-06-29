@@ -24,6 +24,7 @@ use crate::tokenizer::html::HtmlTokenizer;
 use crate::tokenizer::xml::XmlTokenizer;
 use crate::tokenizer::SchemaTokenizer;
 use serde_json::{json, Value};
+use std::sync::Arc;
 
 const BINARY_FORMAT_VERSION: &str = "cem-projection-bin/1";
 const BINARY_MAGIC: &[u8; 8] = b"CEMPROJ\0";
@@ -83,7 +84,126 @@ pub struct BinaryProjectionArtifact {
     pub bytes: Vec<u8>,
 }
 
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct SealedProjectionChunk {
+    pub id: String,
+    pub parent_id: Option<String>,
+    pub byte_offset: u64,
+    pub byte_length: usize,
+    pub hash: String,
+    bytes: Arc<[u8]>,
+}
+
+impl SealedProjectionChunk {
+    pub fn bytes(&self) -> &[u8] {
+        self.bytes.as_ref()
+    }
+
+    pub fn shared_bytes(&self) -> Arc<[u8]> {
+        self.bytes.clone()
+    }
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct ProjectionChunkStream {
+    pub projection: String,
+    pub schema: String,
+    pub content_type: String,
+    pub format_version: String,
+    pub hash_scheme: String,
+    pub hash: String,
+    pub byte_length: usize,
+    chunks: Vec<SealedProjectionChunk>,
+}
+
+impl ProjectionChunkStream {
+    pub fn chunks(&self) -> &[SealedProjectionChunk] {
+        &self.chunks
+    }
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct ProjectionStreamRoute {
+    pub sink_id: String,
+}
+
+impl ProjectionStreamRoute {
+    pub fn new(sink_id: impl Into<String>) -> Self {
+        Self {
+            sink_id: sink_id.into(),
+        }
+    }
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum ProjectionRouteMode {
+    Deterministic,
+    Parallel,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct RoutedProjectionStream {
+    pub sink_id: String,
+    pub projection: String,
+    pub schema: String,
+    pub content_type: String,
+    pub format_version: String,
+    pub hash_scheme: String,
+    pub hash: String,
+    pub byte_length: usize,
+    pub chunks: Vec<SealedProjectionChunk>,
+}
+
+impl RoutedProjectionStream {
+    pub fn concatenated_bytes(&self) -> Vec<u8> {
+        let mut out = Vec::with_capacity(self.byte_length);
+        let mut chunks = self.chunks.clone();
+        chunks.sort_by_key(|chunk| chunk.byte_offset);
+        for chunk in chunks {
+            out.extend_from_slice(chunk.bytes());
+        }
+        out
+    }
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub enum ProjectionRouteError {
+    WorkerPanicked,
+}
+
+impl std::fmt::Display for ProjectionRouteError {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        match self {
+            Self::WorkerPanicked => write!(f, "projection stream route worker panicked"),
+        }
+    }
+}
+
+impl std::error::Error for ProjectionRouteError {}
+
 impl BinaryProjectionArtifact {
+    pub fn to_chunk_stream(&self) -> ProjectionChunkStream {
+        let bytes: Arc<[u8]> = Arc::from(self.bytes.clone().into_boxed_slice());
+        let chunk = SealedProjectionChunk {
+            id: ROOT_CHUNK_ID.to_owned(),
+            parent_id: None,
+            byte_offset: 0,
+            byte_length: bytes.len(),
+            hash: self.hash.clone(),
+            bytes,
+        };
+        ProjectionChunkStream {
+            projection: self.projection.clone(),
+            schema: self.schema.clone(),
+            content_type: self.content_type.clone(),
+            format_version: self.format_version.clone(),
+            hash_scheme: self.hash_scheme.clone(),
+            hash: self.hash.clone(),
+            byte_length: self.bytes.len(),
+            chunks: vec![chunk],
+        }
+    }
+
     pub fn to_metadata_json(&self) -> Value {
         json!({
             "kind": "cem-binary-projection",
@@ -99,25 +219,101 @@ impl BinaryProjectionArtifact {
     }
 
     pub fn to_json_envelope(&self) -> Value {
+        let stream = self.to_chunk_stream();
         json!({
             "kind": "cem-binary-projection",
-            "projection": self.projection,
-            "schema": self.schema,
-            "contentType": self.content_type,
-            "formatVersion": self.format_version,
-            "hashScheme": self.hash_scheme,
-            "hash": self.hash,
-            "byteLength": self.bytes.len(),
-            "chunks": [{
-                "id": ROOT_CHUNK_ID,
-                "sealed": true,
-                "byteOffset": 0,
-                "byteLength": self.bytes.len(),
-                "hash": self.hash,
-                "dataEncoding": "hex",
-                "data": hex_encode(&self.bytes),
-            }],
+            "projection": &stream.projection,
+            "schema": &stream.schema,
+            "contentType": &stream.content_type,
+            "formatVersion": &stream.format_version,
+            "hashScheme": &stream.hash_scheme,
+            "hash": &stream.hash,
+            "byteLength": stream.byte_length,
+            "chunks": stream.chunks.iter().map(chunk_json_envelope).collect::<Vec<_>>(),
         })
+    }
+}
+
+fn chunk_json_envelope(chunk: &SealedProjectionChunk) -> Value {
+    let mut value = json!({
+        "id": &chunk.id,
+        "sealed": true,
+        "byteOffset": chunk.byte_offset,
+        "byteLength": chunk.byte_length,
+        "hash": &chunk.hash,
+        "dataEncoding": "hex",
+        "data": hex_encode(chunk.bytes()),
+    });
+    if let Some(parent_id) = &chunk.parent_id {
+        value["parentId"] = json!(parent_id);
+    }
+    value
+}
+
+pub fn route_projection_stream(
+    stream: &ProjectionChunkStream,
+    routes: &[ProjectionStreamRoute],
+    mode: ProjectionRouteMode,
+) -> Result<Vec<RoutedProjectionStream>, ProjectionRouteError> {
+    match mode {
+        ProjectionRouteMode::Deterministic => Ok(routes
+            .iter()
+            .map(|route| routed_projection_stream(stream, route))
+            .collect()),
+        ProjectionRouteMode::Parallel => route_projection_stream_parallel(stream, routes),
+    }
+}
+
+#[cfg(not(target_arch = "wasm32"))]
+fn route_projection_stream_parallel(
+    stream: &ProjectionChunkStream,
+    routes: &[ProjectionStreamRoute],
+) -> Result<Vec<RoutedProjectionStream>, ProjectionRouteError> {
+    std::thread::scope(|scope| {
+        let handles = routes
+            .iter()
+            .map(|route| {
+                let route = route.clone();
+                scope.spawn(move || routed_projection_stream(stream, &route))
+            })
+            .collect::<Vec<_>>();
+        let mut routed = Vec::with_capacity(handles.len());
+        for handle in handles {
+            routed.push(
+                handle
+                    .join()
+                    .map_err(|_| ProjectionRouteError::WorkerPanicked)?,
+            );
+        }
+        Ok(routed)
+    })
+}
+
+#[cfg(target_arch = "wasm32")]
+fn route_projection_stream_parallel(
+    stream: &ProjectionChunkStream,
+    routes: &[ProjectionStreamRoute],
+) -> Result<Vec<RoutedProjectionStream>, ProjectionRouteError> {
+    Ok(routes
+        .iter()
+        .map(|route| routed_projection_stream(stream, route))
+        .collect())
+}
+
+fn routed_projection_stream(
+    stream: &ProjectionChunkStream,
+    route: &ProjectionStreamRoute,
+) -> RoutedProjectionStream {
+    RoutedProjectionStream {
+        sink_id: route.sink_id.clone(),
+        projection: stream.projection.clone(),
+        schema: stream.schema.clone(),
+        content_type: stream.content_type.clone(),
+        format_version: stream.format_version.clone(),
+        hash_scheme: stream.hash_scheme.clone(),
+        hash: stream.hash.clone(),
+        byte_length: stream.byte_length,
+        chunks: stream.chunks.clone(),
     }
 }
 
@@ -858,6 +1054,80 @@ mod tests {
         assert_eq!(v["nativeBytes"], true);
         assert_eq!(v["byteLength"], artifact.bytes.len());
         assert!(v.get("chunks").is_none());
+    }
+
+    #[test]
+    fn binary_projection_stream_exposes_sealed_root_chunk() {
+        let doc = parse("{p Hi}");
+        let artifact = dom_binary_projection_artifact(&doc);
+        let stream = artifact.to_chunk_stream();
+        let chunk = &stream.chunks()[0];
+
+        assert_eq!(stream.projection, "dom");
+        assert_eq!(stream.content_type, CEM_DOM_PROJECTION_CONTENT_TYPE);
+        assert_eq!(stream.byte_length, artifact.bytes.len());
+        assert_eq!(chunk.id, ROOT_CHUNK_ID);
+        assert_eq!(chunk.parent_id, None);
+        assert_eq!(chunk.byte_offset, 0);
+        assert_eq!(chunk.byte_length, artifact.bytes.len());
+        assert_eq!(chunk.hash, artifact.hash);
+        assert_eq!(chunk.bytes(), artifact.bytes.as_slice());
+    }
+
+    #[test]
+    fn projection_stream_multicast_reuses_sealed_chunk_bytes() {
+        let doc = parse("{p Hi}");
+        let artifact = dom_binary_projection_artifact(&doc);
+        let stream = artifact.to_chunk_stream();
+        let routed = route_projection_stream(
+            &stream,
+            &[
+                ProjectionStreamRoute::new("primary"),
+                ProjectionStreamRoute::new("cache"),
+            ],
+            ProjectionRouteMode::Deterministic,
+        )
+        .unwrap();
+
+        assert_eq!(routed.len(), 2);
+        assert_eq!(routed[0].sink_id, "primary");
+        assert_eq!(routed[1].sink_id, "cache");
+        assert_eq!(routed[0].hash_scheme, HASH_SCHEME);
+        assert_eq!(routed[0].concatenated_bytes(), artifact.bytes);
+        assert_eq!(routed[1].concatenated_bytes(), artifact.bytes);
+        assert!(std::sync::Arc::ptr_eq(
+            &routed[0].chunks[0].shared_bytes(),
+            &routed[1].chunks[0].shared_bytes()
+        ));
+    }
+
+    #[test]
+    fn projection_stream_parallel_routing_preserves_route_order() {
+        let doc = parse("{button @cem:action=primary | Save}");
+        let artifact = ast_binary_projection_artifact(&doc);
+        let routed = route_projection_stream(
+            &artifact.to_chunk_stream(),
+            &[
+                ProjectionStreamRoute::new("stdout"),
+                ProjectionStreamRoute::new("cache"),
+                ProjectionStreamRoute::new("observer"),
+            ],
+            ProjectionRouteMode::Parallel,
+        )
+        .unwrap();
+
+        let sink_ids = routed
+            .iter()
+            .map(|route| route.sink_id.as_str())
+            .collect::<Vec<_>>();
+        assert_eq!(sink_ids, vec!["stdout", "cache", "observer"]);
+        assert!(routed
+            .iter()
+            .all(|route| route.concatenated_bytes() == artifact.bytes));
+        assert!(std::sync::Arc::ptr_eq(
+            &routed[0].chunks[0].shared_bytes(),
+            &routed[2].chunks[0].shared_bytes()
+        ));
     }
 
     #[test]

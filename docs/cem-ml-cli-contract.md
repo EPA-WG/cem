@@ -710,6 +710,9 @@ I/O messages, but they must not replace the underlying resolver code or URI.
   raw artifact bytes for `*-bin` from the native byte response payload. The
   primary JSON response for binary artifacts is metadata-only and omits embedded
   chunk data; full JSON chunk envelopes remain compatibility/debug views.
+  Library routing exposes the same binary artifacts as sealed chunk streams.
+  Multiple sinks can receive the same immutable chunk bytes through deterministic
+  or parallel route execution without changing the binary representation.
 - Root-scope configuration for inputs and outputs: default content type, schema,
   version pins, default namespace, named namespaces, module map / resolver identity,
   base URI, scope policy, and resource budgets.

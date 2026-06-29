@@ -43,7 +43,7 @@ Implement schema packages for these content families:
 - [x] Remove JSON envelope dependency from internal binary projection routing;
       keep primary JSON metadata-only and full chunk envelopes
       compatibility/debug-only.
-- [ ] Implement parallel and multicast-capable projection stream routing over
+- [x] Implement parallel and multicast-capable projection stream routing over
       sealed CEM binary chunks.
 - [ ] YAML/YML.
 - [ ] CSV.
