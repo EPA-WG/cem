@@ -2781,10 +2781,12 @@ fn binary_projection_primary_bytes(primary: &serde_json::Value) -> io::Result<Op
         return Ok(None);
     }
 
-    let chunks = primary
-        .get("chunks")
-        .and_then(serde_json::Value::as_array)
-        .ok_or_else(|| invalid_binary_projection("missing chunks array"))?;
+    let Some(chunks) = primary.get("chunks") else {
+        return Ok(None);
+    };
+    let chunks = chunks
+        .as_array()
+        .ok_or_else(|| invalid_binary_projection("chunks must be an array"))?;
 
     let mut decoded_chunks = Vec::with_capacity(chunks.len());
     for chunk in chunks {
@@ -3886,7 +3888,7 @@ pub fn run_convert<E: CemMlEngine + ?Sized>(
     match engine.convert(req) {
         Ok(resp) => {
             let out = convert_output_destination(&args, &config);
-            if let Err(e) = write_primary(&engine_context, &resp.primary, out.as_deref(), s) {
+            if let Err(e) = write_convert_primary(&engine_context, &resp, out.as_deref(), s) {
                 let _ = writeln!(s.stderr, "cem-ml: write failure: {e}");
                 return Outcome::code(EXIT_IO);
             }
@@ -8577,6 +8579,36 @@ mod tests {
         .unwrap();
 
         assert_eq!(stdout.into_inner(), b"CEMPROJ\0native");
+    }
+
+    #[test]
+    fn binary_projection_metadata_primary_writes_json_without_chunks() {
+        let mut stdout = Cursor::new(Vec::new());
+        let mut stderr = Cursor::new(Vec::new());
+        let mut streams = Streams {
+            stdout: &mut stdout,
+            stderr: &mut stderr,
+            quiet: false,
+        };
+
+        write_primary(
+            &eng::EngineContext::default(),
+            &serde_json::json!({
+                "kind": "cem-binary-projection",
+                "projection": "dom",
+                "contentType": "application/vnd.cem.dom+cem-bin",
+                "hash": "cem-bin/1+blake3:test",
+                "nativeBytes": true
+            }),
+            None,
+            &mut streams,
+        )
+        .unwrap();
+
+        let written = String::from_utf8(stdout.into_inner()).unwrap();
+        let v: serde_json::Value = serde_json::from_str(&written).unwrap();
+        assert_eq!(v["kind"], "cem-binary-projection");
+        assert!(v.get("chunks").is_none());
     }
 
     #[test]

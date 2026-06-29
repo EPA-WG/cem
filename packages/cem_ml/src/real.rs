@@ -3017,12 +3017,12 @@ impl CemMlEngine for RealCemMlEngine {
                 LayerFormat::DomBin => {
                     let artifact = projection::dom_binary_projection_artifact(&run.document);
                     primary_bytes = Some(primary_bytes_from_binary_artifact(&artifact));
-                    artifact.to_json_envelope()
+                    artifact.to_metadata_json()
                 }
                 LayerFormat::AstBin => {
                     let artifact = projection::ast_binary_projection_artifact(&run.document);
                     primary_bytes = Some(primary_bytes_from_binary_artifact(&artifact));
-                    artifact.to_json_envelope()
+                    artifact.to_metadata_json()
                 }
                 LayerFormat::EventsBin => {
                     let artifact = projection::events_binary_projection_artifact_as(
@@ -3030,7 +3030,7 @@ impl CemMlEngine for RealCemMlEngine {
                         from_format,
                     );
                     primary_bytes = Some(primary_bytes_from_binary_artifact(&artifact));
-                    artifact.to_json_envelope()
+                    artifact.to_metadata_json()
                 }
             });
             diagnostics.extend(run.diagnostics);
@@ -5951,6 +5951,8 @@ mod tests {
         let bytes = resp.primary_bytes.as_ref().expect("primary bytes");
 
         assert_eq!(resp.primary["kind"], "cem-binary-projection");
+        assert_eq!(resp.primary["nativeBytes"], true);
+        assert!(resp.primary.get("chunks").is_none());
         assert_eq!(
             bytes.content_type,
             crate::schema::registry::CEM_DOM_PROJECTION_CONTENT_TYPE

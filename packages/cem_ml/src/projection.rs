@@ -84,6 +84,20 @@ pub struct BinaryProjectionArtifact {
 }
 
 impl BinaryProjectionArtifact {
+    pub fn to_metadata_json(&self) -> Value {
+        json!({
+            "kind": "cem-binary-projection",
+            "projection": self.projection,
+            "schema": self.schema,
+            "contentType": self.content_type,
+            "formatVersion": self.format_version,
+            "hashScheme": self.hash_scheme,
+            "hash": self.hash,
+            "byteLength": self.bytes.len(),
+            "nativeBytes": true,
+        })
+    }
+
     pub fn to_json_envelope(&self) -> Value {
         json!({
             "kind": "cem-binary-projection",
@@ -109,9 +123,9 @@ impl BinaryProjectionArtifact {
 
 /// Project a built `CemDocument` to the first canonical CEM DOM binary artifact.
 ///
-/// This compatibility helper renders the native binary artifact as a JSON
-/// metadata envelope. Native callers should use `dom_binary_projection_artifact`
-/// when they need direct byte access.
+/// This compatibility helper renders the native binary artifact as a full JSON
+/// envelope with hex-encoded chunk data. Native callers should use
+/// `dom_binary_projection_artifact` when they need direct byte access.
 pub fn dom_binary_artifact(doc: &CemDocument) -> Value {
     dom_binary_projection_artifact(doc).to_json_envelope()
 }
@@ -830,6 +844,20 @@ mod tests {
             .as_str()
             .unwrap()
             .starts_with("43454d50524f4a00"));
+    }
+
+    #[test]
+    fn binary_projection_metadata_omits_json_chunk_data() {
+        let doc = parse("{p Hi}");
+        let artifact = dom_binary_projection_artifact(&doc);
+        let v = artifact.to_metadata_json();
+
+        assert_eq!(v["kind"], "cem-binary-projection");
+        assert_eq!(v["projection"], "dom");
+        assert_eq!(v["contentType"], CEM_DOM_PROJECTION_CONTENT_TYPE);
+        assert_eq!(v["nativeBytes"], true);
+        assert_eq!(v["byteLength"], artifact.bytes.len());
+        assert!(v.get("chunks").is_none());
     }
 
     #[test]

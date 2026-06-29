@@ -707,8 +707,9 @@ I/O messages, but they must not replace the underlying resolver code or URI.
   retained for current projections and debug layers. `dom-json` is a JSON view
   over the CEM DOM projection, not the native transform transport; `*-bin`
   selects sealed CEM binary projection artifacts. CLI stdout and `--out` write
-  raw artifact bytes for `*-bin` from the native byte response payload; JSON
-  envelopes remain compatibility/debug metadata views.
+  raw artifact bytes for `*-bin` from the native byte response payload. The
+  primary JSON response for binary artifacts is metadata-only and omits embedded
+  chunk data; full JSON chunk envelopes remain compatibility/debug views.
 - Root-scope configuration for inputs and outputs: default content type, schema,
   version pins, default namespace, named namespaces, module map / resolver identity,
   base URI, scope policy, and resource budgets.
