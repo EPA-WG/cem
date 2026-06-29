@@ -1491,13 +1491,15 @@ mod tests {
 
     #[test]
     fn cem_native_template_schema_artifact_matches_shape_table() {
-        let artifact = include_str!("../schema/template/cem-native-template.md");
+        let artifact = include_str!(
+            "../schema-packages/cem-native-template/v1/schema/cem-native-template.cem"
+        );
 
         assert!(artifact.contains(CEM_NATIVE_TEMPLATE_SCHEMA_URI));
         assert!(artifact.contains(CEM_NATIVE_TEMPLATE_NAMESPACE_URI));
         for element in CEM_NATIVE_TEMPLATE_SCHEMA_ELEMENTS {
             assert!(
-                artifact.contains(&format!("| `{}` |", element.local_name)),
+                artifact.contains(&format!("{{element @name=\"{}\"", element.local_name)),
                 "artifact should document `{}`",
                 element.local_name
             );
@@ -1507,7 +1509,7 @@ mod tests {
                 .chain(element.optional_attributes.iter())
             {
                 assert!(
-                    artifact.contains(&format!("`{attribute}`")),
+                    artifact.contains(&format!("@name=\"{attribute}\"")),
                     "artifact should document `{}` attribute on `{}`",
                     attribute,
                     element.local_name
@@ -1515,7 +1517,7 @@ mod tests {
             }
             for child in element.child_elements {
                 assert!(
-                    artifact.contains(&format!("`{child}`")),
+                    artifact.contains(child),
                     "artifact should document `{}` child on `{}`",
                     child,
                     element.local_name

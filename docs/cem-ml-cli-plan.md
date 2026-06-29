@@ -843,7 +843,7 @@ These are data shapes only. Parser-filled content remains blocked until the pars
           when exceeded.
         - The v1 CEM-native template declaration schema now has its own identity,
           `https://cem.dev/ns/template/cem-native/1`, and checked-in schema artifact
-          `packages/cem_ml/schema/template/cem-native-template.md`. Its declaration vocabulary is `module`, `import`,
+          `packages/cem_ml/schema-packages/cem-native-template/v1/`. Its declaration vocabulary is `module`, `import`,
           `param`, `template`, `body`, and `call`; `param @type` defines the first JSON-shape type surface,
           `param @nullable` controls nullability, `param @default-expr` / `@defaultExpr` is reserved and fatal, and
           `include` remains intentionally absent/reserved. Built-in and CEM-QL

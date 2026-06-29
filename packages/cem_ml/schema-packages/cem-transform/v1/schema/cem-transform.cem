@@ -1,0 +1,73 @@
+@doc cem-ml 1
+@ns schema = "https://cem.dev/ns/schema/1"
+@default schema
+
+{schema @name="cem-transform" @namespace="https://cem.dev/ns/transform/cem/1" @version="1.0.0" |
+    {summary |
+        {text | CEM transform template language for .cemt resources. CEMT documents reuse the CEM-native template module vocabulary and add converter-template identity: they are intended to execute as registry-selected content-to-content converter implementations, with source and target identity supplied by schema package converter edges.}
+    }
+
+    {uses |
+        {use @schema="https://cem.dev/ns/schema/1" @as="schema"}
+        {use @schema="https://cem.dev/ns/template/cem-native/1" @as="template"}
+    }
+
+    {content-types |
+        {content-type @value="application/vnd.cem.transform+cem" @primary=true}
+    }
+
+    {namespaces |
+        {namespace @prefix="transform" @uri="https://cem.dev/ns/transform/cem/1"}
+        {namespace @prefix="template" @uri="https://cem.dev/ns/template/cem-native/1" @role="base-language"}
+        {namespace @prefix="cem" @uri="https://cem.dev/ns/core/1" @role="instruction"}
+    }
+
+    {elements |
+        {element @name="module" @base="template:module" @children="import param template body"}
+        {element @name="import" @base="template:import"}
+        {element @name="param" @base="template:param"}
+        {element @name="template" @base="template:template" @children="param body"}
+        {element @name="body" @base="template:body" @children="*"}
+        {element @name="call" @base="template:call"}
+    }
+
+    {attributes |
+        {attribute @name="version" @base="template:version"}
+        {attribute @name="as" @base="template:as"}
+        {attribute @name="src" @base="template:src"}
+        {attribute @name="content-type" @base="template:content-type"}
+        {attribute @name="contentType" @base="template:contentType"}
+        {attribute @name="schema" @base="template:schema"}
+        {attribute @name="name" @base="template:name"}
+        {attribute @name="default" @base="template:default"}
+        {attribute @name="default-expr" @base="template:default-expr"}
+        {attribute @name="defaultExpr" @base="template:defaultExpr"}
+        {attribute @name="nullable" @base="template:nullable"}
+        {attribute @name="required" @base="template:required"}
+        {attribute @name="type" @base="template:type"}
+        {attribute @name="visibility" @base="template:visibility"}
+        {attribute @name="template" @base="template:template"}
+        {attribute @name="from" @base="template:from"}
+        {attribute @name="with:*" @base="template:with:*"}
+    }
+
+    {constraints |
+        {constraint @kind="converter-edge-identity-external" @target="module" @policy="provided by package.cem converter from and to records"}
+        {constraint @kind="cemt-primary-implementation" @target="module" @policy="implementation kind cemt"}
+        {constraint @kind="streamable-template-preferred" @target="body" @policy="required unless package edge marks non-streamable"}
+        {constraint @kind="template-base-schema-compatible" @target="module" @policy="required"}
+    }
+
+    {diagnostics |
+        {diagnostic @code="cem.transform.converter_identity_missing" @severity="error"}
+        {diagnostic @code="cem.transform.converter_identity_mismatch" @severity="error"}
+        {diagnostic @code="cem.transform.template_base_invalid" @severity="error"}
+        {diagnostic @code="cem.transform.non_streamable_template" @severity="warning"}
+    }
+
+    {open-content |
+        {accept @kind="template-output-element" @policy="delegate-to-target-schema"}
+        {accept @kind="template-output-attribute" @policy="delegate-to-target-schema"}
+        {accept @kind="template-expression" @policy="delegate-to-expression-schema"}
+    }
+}

@@ -1,10 +1,10 @@
 # CEM-Native Template Schema (`https://cem.dev/ns/template/cem-native/1`)
 
-**Status:** reserved adapter-owned module syntax contract; execution is deferred.
+**Status:** transition note. The authoritative schema source now lives in
+`packages/cem_ml/schema-packages/cem-native-template/v1/`.
 
-This is the source-of-truth schema artifact for CEM-native transform templates.
-It is separate from the CEM core document schema and separate from the CLI
-transform graph config schema. The template schema describes module
+This note records the original CEM-native template contract while the runtime
+transitions to schema packages. The template schema describes module
 declarations, template entrypoints, params, imports, and calls consumed by a
 CEM-native template adapter; it does not describe ordinary CEM documents and it
 does not define CLI graph wiring.

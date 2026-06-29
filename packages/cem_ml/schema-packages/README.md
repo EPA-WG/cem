@@ -29,6 +29,15 @@ schema is itself authored with the schema definition language, and manifest
 instances validate against it. This package owns
 `application/vnd.cem.schema-package+cem`.
 
+`cem-native-template/v1` defines the CEM-native template module language used
+by template adapters. It owns `application/vnd.cem.template+cem` and also
+claims current generic CEM source content types as aliases that require an
+explicit schema when ambiguous.
+
+`cem-transform/v1` defines CEMT (`.cemt`) converter-template resources. It
+owns `application/vnd.cem.transform+cem` and reuses the CEM-native template
+schema as its base language.
+
 ## Validation Model
 
 The relationship is layered validation, not broad inheritance:

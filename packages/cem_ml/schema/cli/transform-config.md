@@ -8,7 +8,7 @@ from CEM-native template schemas. The graph config describes import,
 transformation, and export wiring; it does not define template execution
 semantics. The CEM-native template declaration schema is
 `https://cem.dev/ns/template/cem-native/1` and lives at
-`packages/cem_ml/schema/template/cem-native-template.md`.
+`packages/cem_ml/schema-packages/cem-native-template/v1/`.
 
 Schema URI: `https://cem.dev/ns/cli/transform-config/1`
 Namespace URI: `https://cem.dev/ns/cli/transform-config/1`

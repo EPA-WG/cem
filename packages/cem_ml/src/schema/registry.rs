@@ -9,10 +9,14 @@ use std::collections::{BTreeMap, BTreeSet};
 pub const CEM_ML_SCHEMA_URI: &str = "https://cem.dev/ns/cem-ml/1";
 pub const CEM_SCHEMA_URI: &str = "https://cem.dev/ns/schema/1";
 pub const CEM_SCHEMA_PACKAGE_URI: &str = "https://cem.dev/ns/schema-package/1";
+pub const CEM_NATIVE_TEMPLATE_SCHEMA_URI: &str = "https://cem.dev/ns/template/cem-native/1";
+pub const CEM_TRANSFORM_SCHEMA_URI: &str = "https://cem.dev/ns/transform/cem/1";
 
 pub const CEM_ML_CONTENT_TYPE: &str = "application/cem";
 pub const CEM_SCHEMA_CONTENT_TYPE: &str = "application/vnd.cem.schema+cem";
 pub const CEM_SCHEMA_PACKAGE_CONTENT_TYPE: &str = "application/vnd.cem.schema-package+cem";
+pub const CEM_NATIVE_TEMPLATE_CONTENT_TYPE: &str = "application/vnd.cem.template+cem";
+pub const CEM_TRANSFORM_CONTENT_TYPE: &str = "application/vnd.cem.transform+cem";
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum SchemaContentTypeRole {
@@ -327,6 +331,37 @@ pub fn builtin_schema_descriptors() -> Vec<SchemaDescriptor> {
             ],
             uses: vec![CEM_SCHEMA_URI.into()],
         },
+        SchemaDescriptor {
+            package_id: "cem-native-template".into(),
+            schema_uri: CEM_NATIVE_TEMPLATE_SCHEMA_URI.into(),
+            version: "1.0.0".into(),
+            source: "schema-packages/cem-native-template/v1/schema/cem-native-template.cem".into(),
+            content_types: vec![
+                SchemaContentType::primary(CEM_NATIVE_TEMPLATE_CONTENT_TYPE),
+                SchemaContentType::alias(CEM_ML_CONTENT_TYPE),
+                SchemaContentType::alias("application/cem+xml"),
+                SchemaContentType::alias("text/cem"),
+                SchemaContentType::alias("text/cem-ml"),
+            ],
+            namespaces: vec![
+                NamespaceClaim::new(Some("template"), CEM_NATIVE_TEMPLATE_SCHEMA_URI),
+                NamespaceClaim::new(Some("cem"), "https://cem.dev/ns/core/1"),
+            ],
+            uses: vec![CEM_SCHEMA_URI.into(), CEM_ML_SCHEMA_URI.into()],
+        },
+        SchemaDescriptor {
+            package_id: "cem-transform".into(),
+            schema_uri: CEM_TRANSFORM_SCHEMA_URI.into(),
+            version: "1.0.0".into(),
+            source: "schema-packages/cem-transform/v1/schema/cem-transform.cem".into(),
+            content_types: vec![SchemaContentType::primary(CEM_TRANSFORM_CONTENT_TYPE)],
+            namespaces: vec![
+                NamespaceClaim::new(Some("transform"), CEM_TRANSFORM_SCHEMA_URI),
+                NamespaceClaim::new(Some("template"), CEM_NATIVE_TEMPLATE_SCHEMA_URI),
+                NamespaceClaim::new(Some("cem"), "https://cem.dev/ns/core/1"),
+            ],
+            uses: vec![CEM_SCHEMA_URI.into(), CEM_NATIVE_TEMPLATE_SCHEMA_URI.into()],
+        },
     ]
 }
 
@@ -355,29 +390,49 @@ mod tests {
     }
 
     #[test]
-    fn builtin_registry_resolves_primary_and_alias_content_types() {
+    fn builtin_registry_resolves_unambiguous_primary_content_types() {
         let registry = SchemaRegistry::with_builtin_schemas();
 
-        assert_eq!(
-            registry
-                .resolve_content_type("application/cem; charset=utf-8")
-                .unwrap()
-                .schema_uri,
-            CEM_ML_SCHEMA_URI
-        );
-        assert_eq!(
-            registry
-                .resolve_content_type("text/cem-ml")
-                .unwrap()
-                .schema_uri,
-            CEM_ML_SCHEMA_URI
-        );
         assert_eq!(
             registry
                 .resolve_content_type(CEM_SCHEMA_PACKAGE_CONTENT_TYPE)
                 .unwrap()
                 .schema_uri,
             CEM_SCHEMA_PACKAGE_URI
+        );
+        assert_eq!(
+            registry
+                .resolve_content_type(CEM_NATIVE_TEMPLATE_CONTENT_TYPE)
+                .unwrap()
+                .schema_uri,
+            CEM_NATIVE_TEMPLATE_SCHEMA_URI
+        );
+        assert_eq!(
+            registry
+                .resolve_content_type(CEM_TRANSFORM_CONTENT_TYPE)
+                .unwrap()
+                .schema_uri,
+            CEM_TRANSFORM_SCHEMA_URI
+        );
+    }
+
+    #[test]
+    fn builtin_registry_requires_schema_for_shared_cem_content_types() {
+        let registry = SchemaRegistry::with_builtin_schemas();
+
+        let error = registry
+            .resolve_content_type("text/cem-ml; charset=utf-8")
+            .unwrap_err();
+
+        assert_eq!(
+            error,
+            SchemaLookupError::AmbiguousContentType {
+                content_type: "text/cem-ml".into(),
+                schema_uris: vec![
+                    CEM_ML_SCHEMA_URI.into(),
+                    CEM_NATIVE_TEMPLATE_SCHEMA_URI.into()
+                ]
+            }
         );
     }
 

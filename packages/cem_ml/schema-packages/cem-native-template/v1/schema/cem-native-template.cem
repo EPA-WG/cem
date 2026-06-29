@@ -1,0 +1,81 @@
+@doc cem-ml 1
+@ns schema = "https://cem.dev/ns/schema/1"
+@default schema
+
+{schema @name="cem-native-template" @namespace="https://cem.dev/ns/template/cem-native/1" @version="1.0.0" |
+    {summary |
+        {text | CEM-native template module language. This schema defines module declarations, imports, params, template entrypoints, bodies, and calls consumed by CEM-native template adapters. It is separate from ordinary CEM documents and from CLI transform graph wiring.}
+    }
+
+    {uses |
+        {use @schema="https://cem.dev/ns/schema/1" @as="schema"}
+        {use @schema="https://cem.dev/ns/cem-ml/1" @as="cemml"}
+    }
+
+    {content-types |
+        {content-type @value="application/vnd.cem.template+cem" @primary=true}
+        {content-type @value="application/cem" @alias=true}
+        {content-type @value="application/cem+xml" @alias=true}
+        {content-type @value="text/cem" @alias=true}
+        {content-type @value="text/cem-ml" @alias=true}
+    }
+
+    {namespaces |
+        {namespace @prefix="template" @uri="https://cem.dev/ns/template/cem-native/1"}
+        {namespace @prefix="cem" @uri="https://cem.dev/ns/core/1" @role="instruction"}
+    }
+
+    {elements |
+        {element @name="module" @optional-attributes="version" @children="import param template body"}
+        {element @name="import" @required-attributes="as src" @optional-attributes="content-type contentType schema"}
+        {element @name="param" @required-attributes="name" @optional-attributes="default default-expr defaultExpr nullable required type visibility"}
+        {element @name="template" @required-attributes="name" @optional-attributes="visibility" @children="param body"}
+        {element @name="body" @children="*"}
+        {element @name="call" @required-attributes="template" @optional-attributes="from with:*"}
+    }
+
+    {attributes |
+        {attribute @name="version" @type="schema:semver"}
+        {attribute @name="as" @type="schema:identifier"}
+        {attribute @name="src" @type="schema:uri"}
+        {attribute @name="content-type" @type="schema:media-type"}
+        {attribute @name="contentType" @type="schema:media-type"}
+        {attribute @name="schema" @type="schema:uri"}
+        {attribute @name="name" @type="schema:identifier"}
+        {attribute @name="default" @type="schema:string"}
+        {attribute @name="default-expr" @type="schema:string"}
+        {attribute @name="defaultExpr" @type="schema:string"}
+        {attribute @name="nullable" @type="schema:boolean"}
+        {attribute @name="required" @type="schema:boolean"}
+        {attribute @name="type" @type="schema:identifier" @values="any string boolean number integer array object json"}
+        {attribute @name="visibility" @type="schema:identifier" @values="private public"}
+        {attribute @name="template" @type="schema:identifier"}
+        {attribute @name="from" @type="schema:identifier"}
+        {attribute @name="with:*" @type="schema:string"}
+    }
+
+    {constraints |
+        {constraint @kind="single-module-root" @target="module" @policy="required"}
+        {constraint @kind="single-implicit-body" @target="module" @policy="required"}
+        {constraint @kind="unique-import-alias" @target="import" @policy="required"}
+        {constraint @kind="unique-template-entrypoint" @target="template" @policy="required"}
+        {constraint @kind="unique-param-name-per-scope" @target="param" @policy="required"}
+        {constraint @kind="default-expr-reserved" @target="param" @policy="fatal in v1"}
+        {constraint @kind="call-target-resolvable" @target="call" @policy="required"}
+    }
+
+    {diagnostics |
+        {diagnostic @code="cem.template.module_required" @severity="error"}
+        {diagnostic @code="cem.template.entrypoint_duplicate" @severity="error"}
+        {diagnostic @code="cem.template.param_duplicate" @severity="error"}
+        {diagnostic @code="cem.template.import_alias_duplicate" @severity="error"}
+        {diagnostic @code="cem.template.call_unknown" @severity="error"}
+        {diagnostic @code="cem.template.param_default_expr_reserved" @severity="fatal"}
+    }
+
+    {open-content |
+        {accept @kind="template-output-element" @policy="delegate-to-active-schema"}
+        {accept @kind="template-output-attribute" @policy="delegate-to-active-schema"}
+        {accept @kind="template-expression" @policy="delegate-to-expression-schema"}
+    }
+}

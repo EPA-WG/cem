@@ -1,0 +1,16 @@
+@doc cem-ml 1
+@ns pkg = "https://cem.dev/ns/schema-package/1"
+@default pkg
+
+{package @id="cem-transform" @version="1.0.0" |
+    {schema
+        @uri="https://cem.dev/ns/transform/cem/1"
+        @source="schema/cem-transform.cem"
+    }
+
+    {content-type @value="application/vnd.cem.transform+cem" @primary=true}
+
+    {namespace @prefix="transform" @uri="https://cem.dev/ns/transform/cem/1"}
+    {namespace @prefix="template" @uri="https://cem.dev/ns/template/cem-native/1"}
+    {namespace @prefix="cem" @uri="https://cem.dev/ns/core/1"}
+}

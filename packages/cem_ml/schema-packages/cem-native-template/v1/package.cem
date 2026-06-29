@@ -1,0 +1,19 @@
+@doc cem-ml 1
+@ns pkg = "https://cem.dev/ns/schema-package/1"
+@default pkg
+
+{package @id="cem-native-template" @version="1.0.0" |
+    {schema
+        @uri="https://cem.dev/ns/template/cem-native/1"
+        @source="schema/cem-native-template.cem"
+    }
+
+    {content-type @value="application/vnd.cem.template+cem" @primary=true}
+    {content-type @value="application/cem" @alias=true}
+    {content-type @value="application/cem+xml" @alias=true}
+    {content-type @value="text/cem" @alias=true}
+    {content-type @value="text/cem-ml" @alias=true}
+
+    {namespace @prefix="template" @uri="https://cem.dev/ns/template/cem-native/1"}
+    {namespace @prefix="cem" @uri="https://cem.dev/ns/core/1"}
+}

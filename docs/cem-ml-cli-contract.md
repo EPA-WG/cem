@@ -399,7 +399,7 @@ CEM-native runtime and the bounded XSLT parity substrate:
 
 The v1 CEM-native template declaration schema is
 `https://cem.dev/ns/template/cem-native/1`, with checked-in schema artifact
-`packages/cem_ml/schema/template/cem-native-template.md`. This schema is owned by
+`packages/cem_ml/schema-packages/cem-native-template/v1/`. This schema is owned by
 the CEM-native template adapter family and is not the base CEM core document
 schema. It defines the declaration vocabulary:
 

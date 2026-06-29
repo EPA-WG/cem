@@ -21,8 +21,8 @@ Implement schema packages for these content families:
 - [x] CEM-ML schema definition.
 - [x] CEM-ML schema package manifest (`application/vnd.cem.schema-package+cem`, `package.cem`).
 - [x] create schema registry
-- [ ] CEM-ML template.
-- [ ] CEM-ML transform template (`application/vnd.cem.transform+cem`, `.cemt`).
+- [x] CEM-ML template.
+- [x] CEM-ML transform template (`application/vnd.cem.transform+cem`, `.cemt`).
 - [ ] use schema registry with transforms for parser/AST stream loading
 - [ ] CEM-QL module/query resources.
 - [ ] JSON.
