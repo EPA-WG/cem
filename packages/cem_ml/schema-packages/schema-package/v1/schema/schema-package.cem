@@ -7,6 +7,10 @@
         {text | Schema package metadata language. This schema defines the format of schema-packages slash schema-name slash version slash package.cem. Package manifests identify the package schema, owned content types, namespace claims, converter edges, generated artifacts, and implementation hooks.}
     }
 
+    {uses |
+        {use @schema="https://cem.dev/ns/schema/1" @as="schema"}
+    }
+
     {content-types |
         {content-type @value="application/vnd.cem.schema-package+cem" @primary=true}
     }
@@ -23,28 +27,28 @@
     }
 
     {attributes |
-        {attribute @name="id" @type="identifier"}
-        {attribute @name="version" @type="semver"}
-        {attribute @name="uri" @type="uri"}
-        {attribute @name="source" @type="path"}
-        {attribute @name="value" @type="media-type"}
-        {attribute @name="primary" @type="boolean"}
-        {attribute @name="alias" @type="boolean"}
-        {attribute @name="prefix" @type="identifier"}
-        {attribute @name="implementation" @type="enum" @values="cemt rust"}
-        {attribute @name="template" @type="path"}
-        {attribute @name="template-content-type" @type="media-type"}
-        {attribute @name="template-schema" @type="uri"}
-        {attribute @name="rust-symbol" @type="identifier"}
-        {attribute @name="streamable" @type="boolean"}
-        {attribute @name="lossiness" @type="identifier"}
-        {attribute @name="implicit" @type="boolean"}
-        {attribute @name="explicit-only" @type="boolean"}
-        {attribute @name="content-type" @type="media-type"}
-        {attribute @name="schema" @type="uri"}
-        {attribute @name="kind" @type="identifier"}
-        {attribute @name="path" @type="path"}
-        {attribute @name="generated" @type="boolean"}
+        {attribute @name="id" @type="schema:identifier"}
+        {attribute @name="version" @type="schema:semver"}
+        {attribute @name="uri" @type="schema:uri"}
+        {attribute @name="source" @type="schema:path"}
+        {attribute @name="value" @type="schema:media-type"}
+        {attribute @name="primary" @type="schema:boolean"}
+        {attribute @name="alias" @type="schema:boolean"}
+        {attribute @name="prefix" @type="schema:identifier"}
+        {attribute @name="implementation" @type="schema:identifier" @values="cemt rust"}
+        {attribute @name="template" @type="schema:path"}
+        {attribute @name="template-content-type" @type="schema:media-type"}
+        {attribute @name="template-schema" @type="schema:uri"}
+        {attribute @name="rust-symbol" @type="schema:identifier"}
+        {attribute @name="streamable" @type="schema:boolean"}
+        {attribute @name="lossiness" @type="schema:identifier"}
+        {attribute @name="implicit" @type="schema:boolean"}
+        {attribute @name="explicit-only" @type="schema:boolean"}
+        {attribute @name="content-type" @type="schema:media-type"}
+        {attribute @name="schema" @type="schema:uri"}
+        {attribute @name="kind" @type="schema:identifier"}
+        {attribute @name="path" @type="schema:path"}
+        {attribute @name="generated" @type="schema:boolean"}
     }
 
     {constraints |

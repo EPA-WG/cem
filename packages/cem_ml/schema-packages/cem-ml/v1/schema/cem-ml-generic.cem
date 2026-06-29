@@ -44,6 +44,22 @@
         {rule @name="anonymous-content-scope" @value="typed content handoff scope"}
     }
 
+    {types |
+        {type @name="identifier" @kind="lexical" @rule="local-name"}
+        {type @name="qualified-name" @kind="lexical" @rule="qualified-name"}
+        {type @name="string" @kind="scalar" @rule="quoted-value | raw-text"}
+        {type @name="boolean" @kind="scalar" @values="true false"}
+        {type @name="integer" @kind="scalar" @rule="signed decimal integer"}
+        {type @name="number" @kind="scalar" @rule="decimal number"}
+        {type @name="uri" @kind="scalar" @rule="absolute or relative URI reference"}
+        {type @name="semver" @kind="scalar" @rule="major.minor.patch with optional prerelease and build metadata"}
+        {type @name="media-type" @kind="scalar" @rule="type slash subtype with optional structured suffix and parameters"}
+        {type @name="path" @kind="scalar" @rule="package-relative path"}
+        {type @name="name-list" @kind="list" @base="identifier"}
+        {type @name="content-model" @kind="grammar" @base="string"}
+        {type @name="type-reference" @kind="reference" @base="qualified-name"}
+    }
+
     {namespace-semantics |
         {binding @directive="ns" @scope="document-or-subtree"}
         {binding @directive="default" @scope="document-or-subtree"}

@@ -1,5 +1,6 @@
 @doc cem-ml 1
 @ns schema = "https://cem.dev/ns/schema/1"
+@ns cemml = "https://cem.dev/ns/cem-ml/1"
 @default schema
 
 {schema @name="cem-schema-definition" @namespace="https://cem.dev/ns/schema/1" @version="1.0.0" |
@@ -7,28 +8,40 @@
         {text | Schema definition language expressed in CEM-ML. This schema owns the declaration vocabulary used to describe validation schemas for input content. It defines schema metadata, owned content types, namespace claims, structural vocabulary, diagnostics, and open-content policy.}
     }
 
+    {uses |
+        {use @schema="https://cem.dev/ns/cem-ml/1" @as="cemml"}
+    }
+
     {content-types |
         {content-type @value="application/vnd.cem.schema+cem" @primary=true}
     }
 
     {elements |
-        {element @name="schema" @required-attributes="name namespace version" @children="summary content-types namespaces elements attributes directives nodes lexical constraints diagnostics open-content compatibility"}
+        {element @name="schema" @required-attributes="name namespace version" @children="summary uses content-types namespaces elements attributes directives nodes lexical types namespace-semantics constraints diagnostics open-content compatibility"}
         {element @name="summary" @children="text"}
         {element @name="text"}
+        {element @name="uses" @children="use"}
+        {element @name="use" @required-attributes="schema as" @optional-attributes="version content-type"}
         {element @name="content-types" @children="content-type"}
         {element @name="content-type" @required-attributes="value" @optional-attributes="primary alias"}
         {element @name="namespaces" @children="namespace"}
         {element @name="namespace" @required-attributes="uri" @optional-attributes="prefix role"}
         {element @name="elements" @children="element"}
-        {element @name="element" @required-attributes="name" @optional-attributes="required-attributes optional-attributes children"}
+        {element @name="element" @required-attributes="name" @optional-attributes="base required-attributes optional-attributes children"}
         {element @name="attributes" @children="attribute"}
-        {element @name="attribute" @required-attributes="name" @optional-attributes="type required values"}
+        {element @name="attribute" @required-attributes="name" @optional-attributes="base type required values"}
         {element @name="directives" @children="directive"}
         {element @name="directive" @required-attributes="name" @optional-attributes="required value"}
         {element @name="nodes" @children="node"}
         {element @name="node" @required-attributes="name" @optional-attributes="children fields"}
         {element @name="lexical" @children="rule"}
         {element @name="rule" @required-attributes="name value"}
+        {element @name="types" @children="type"}
+        {element @name="type" @required-attributes="name" @optional-attributes="kind base rule values"}
+        {element @name="namespace-semantics" @children="binding resolution handoff"}
+        {element @name="binding" @required-attributes="directive scope"}
+        {element @name="resolution" @required-attributes="target mode"}
+        {element @name="handoff" @required-attributes="attribute target"}
         {element @name="constraints" @children="constraint"}
         {element @name="constraint" @required-attributes="kind" @optional-attributes="target value policy"}
         {element @name="diagnostics" @children="diagnostic"}
@@ -41,31 +54,57 @@
     }
 
     {attributes |
-        {attribute @name="name" @type="identifier"}
-        {attribute @name="namespace" @type="uri"}
-        {attribute @name="version" @type="semver"}
-        {attribute @name="value" @type="string"}
-        {attribute @name="uri" @type="uri"}
-        {attribute @name="prefix" @type="identifier"}
-        {attribute @name="primary" @type="boolean"}
-        {attribute @name="alias" @type="boolean"}
-        {attribute @name="required-attributes" @type="name-list"}
-        {attribute @name="optional-attributes" @type="name-list"}
-        {attribute @name="children" @type="content-model"}
-        {attribute @name="type" @type="type-reference"}
-        {attribute @name="required" @type="boolean-or-policy"}
-        {attribute @name="severity" @type="diagnostic-severity"}
-        {attribute @name="kind" @type="identifier"}
-        {attribute @name="policy" @type="identifier"}
-        {attribute @name="fields" @type="name-list"}
-        {attribute @name="target" @type="identifier"}
-        {attribute @name="role" @type="identifier"}
-        {attribute @name="content-type" @type="media-type"}
-        {attribute @name="schema" @type="uri"}
+        {attribute @name="name" @type="cemml:identifier"}
+        {attribute @name="namespace" @type="cemml:uri"}
+        {attribute @name="version" @type="cemml:semver"}
+        {attribute @name="value" @type="cemml:string"}
+        {attribute @name="uri" @type="cemml:uri"}
+        {attribute @name="prefix" @type="cemml:identifier"}
+        {attribute @name="primary" @type="cemml:boolean"}
+        {attribute @name="alias" @type="cemml:boolean"}
+        {attribute @name="required-attributes" @type="cemml:name-list"}
+        {attribute @name="optional-attributes" @type="cemml:name-list"}
+        {attribute @name="children" @type="schema:content-model"}
+        {attribute @name="type" @type="schema:type-reference"}
+        {attribute @name="required" @type="schema:boolean-or-policy"}
+        {attribute @name="severity" @type="schema:diagnostic-severity"}
+        {attribute @name="kind" @type="cemml:identifier"}
+        {attribute @name="policy" @type="cemml:identifier"}
+        {attribute @name="fields" @type="cemml:name-list"}
+        {attribute @name="target" @type="cemml:identifier"}
+        {attribute @name="role" @type="cemml:identifier"}
+        {attribute @name="content-type" @type="cemml:media-type"}
+        {attribute @name="schema" @type="cemml:uri"}
+        {attribute @name="as" @type="cemml:identifier"}
+        {attribute @name="base" @type="schema:type-reference"}
+        {attribute @name="rule" @type="cemml:string"}
+        {attribute @name="values" @type="cemml:string"}
+        {attribute @name="directive" @type="cemml:identifier"}
+        {attribute @name="scope" @type="cemml:string"}
+        {attribute @name="mode" @type="cemml:identifier"}
+        {attribute @name="attribute" @type="cemml:identifier"}
+    }
+
+    {types |
+        {type @name="identifier" @base="cemml:identifier"}
+        {type @name="qualified-name" @base="cemml:qualified-name"}
+        {type @name="string" @base="cemml:string"}
+        {type @name="boolean" @base="cemml:boolean"}
+        {type @name="uri" @base="cemml:uri"}
+        {type @name="semver" @base="cemml:semver"}
+        {type @name="media-type" @base="cemml:media-type"}
+        {type @name="path" @base="cemml:path"}
+        {type @name="name-list" @base="cemml:name-list"}
+        {type @name="content-model" @base="cemml:content-model"}
+        {type @name="type-reference" @base="cemml:type-reference"}
+        {type @name="diagnostic-severity" @base="cemml:identifier" @values="debug info warning error fatal"}
+        {type @name="boolean-or-policy" @base="cemml:string"}
     }
 
     {constraints |
         {constraint @kind="streamable" @target="schema" @policy="required"}
+        {constraint @kind="schema-dependency-resolvable" @target="use" @policy="required"}
+        {constraint @kind="qualified-type-reference-resolvable" @target="attribute" @policy="required"}
         {constraint @kind="unique-child-name" @target="elements" @policy="required"}
         {constraint @kind="unique-attribute-name" @target="attributes" @policy="required"}
         {constraint @kind="diagnostic-code-format" @target="diagnostic" @policy="required"}
@@ -76,6 +115,8 @@
         {diagnostic @code="cem.schema_definition.duplicate_element" @severity="error"}
         {diagnostic @code="cem.schema_definition.duplicate_attribute" @severity="error"}
         {diagnostic @code="cem.schema_definition.invalid_content_model" @severity="error"}
+        {diagnostic @code="cem.schema_definition.unresolved_schema_dependency" @severity="error"}
+        {diagnostic @code="cem.schema_definition.unresolved_type_reference" @severity="error"}
         {diagnostic @code="cem.schema_definition.non_streamable_constraint" @severity="error"}
     }
 
