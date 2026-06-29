@@ -38,6 +38,12 @@ explicit schema when ambiguous.
 owns `application/vnd.cem.transform+cem` and reuses the CEM-native template
 schema as its base language.
 
+`cem-ql/v1` defines CEM-QL query source module and compiled query artifact
+resource identities. It owns `application/vnd.cem.query+cem-ql`, claims
+`text/cem-ql` as an authoring alias, and claims compiled artifact/cache aliases
+for query binaries. CEM-QL source is not CEM-ML syntax; its parser lives in the
+`cem-ql` crate.
+
 ## Validation Model
 
 The relationship is layered validation, not broad inheritance:

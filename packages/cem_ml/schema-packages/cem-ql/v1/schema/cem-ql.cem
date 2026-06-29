@@ -1,0 +1,82 @@
+@doc cem-ml 1
+@ns schema = "https://cem.dev/ns/schema/1"
+@default schema
+
+{schema @name="cem-ql" @namespace="https://cem.dev/ns/query/cem-ql/1" @version="1.0.0" |
+    {summary |
+        {text | CEM-QL query module and compiled artifact resource schema. CEM-QL source is plain UTF-8 parsed by the cem-ql crate, while this schema provides registry identity, loader metadata, and cache artifact validation hooks for modules, imports, declarations, expressions, and compiled query artifacts.}
+    }
+
+    {uses |
+        {use @schema="https://cem.dev/ns/schema/1" @as="schema"}
+    }
+
+    {content-types |
+        {content-type @value="application/vnd.cem.query+cem-ql" @primary=true}
+        {content-type @value="text/cem-ql" @alias=true}
+        {content-type @value="application/vnd.cem.query-artifact+cem-bin" @alias=true}
+        {content-type @value="cem-ql/1" @alias=true}
+        {content-type @value="cem-ql/module" @alias=true}
+    }
+
+    {namespaces |
+        {namespace @prefix="ql" @uri="https://cem.dev/ns/query/cem-ql/1"}
+    }
+
+    {elements |
+        {element @name="module" @required-attributes="uri" @children="import declare expression"}
+        {element @name="import" @required-attributes="src as" @optional-attributes="scheme policy"}
+        {element @name="declare" @required-attributes="kind name" @optional-attributes="type visibility" @children="param body"}
+        {element @name="param" @required-attributes="name" @optional-attributes="type"}
+        {element @name="body" @children="expression"}
+        {element @name="expression" @optional-attributes="kind type streaming"}
+        {element @name="artifact" @required-attributes="format hash mode" @optional-attributes="source-uri module-uri policy-stamp source-map import-closure"}
+    }
+
+    {attributes |
+        {attribute @name="uri" @type="schema:uri"}
+        {attribute @name="src" @type="schema:uri"}
+        {attribute @name="as" @type="schema:identifier"}
+        {attribute @name="scheme" @type="schema:identifier" @values="platform network package local"}
+        {attribute @name="policy" @type="schema:identifier"}
+        {attribute @name="kind" @type="schema:identifier" @values="variable function expression module artifact"}
+        {attribute @name="name" @type="schema:identifier"}
+        {attribute @name="type" @type="schema:string"}
+        {attribute @name="visibility" @type="schema:identifier" @values="private public"}
+        {attribute @name="streaming" @type="schema:boolean"}
+        {attribute @name="format" @type="schema:identifier" @values="cem-ql-ir-v1 cem-bin"}
+        {attribute @name="hash" @type="schema:string"}
+        {attribute @name="mode" @type="schema:identifier" @values="dev prod"}
+        {attribute @name="source-uri" @type="schema:uri"}
+        {attribute @name="module-uri" @type="schema:uri"}
+        {attribute @name="policy-stamp" @type="schema:string"}
+        {attribute @name="source-map" @type="schema:uri"}
+        {attribute @name="import-closure" @type="schema:string"}
+    }
+
+    {constraints |
+        {constraint @kind="module-uri-required" @target="module" @policy="required"}
+        {constraint @kind="unique-import-alias" @target="module" @policy="required"}
+        {constraint @kind="unique-declaration-name-per-scope" @target="module" @policy="required"}
+        {constraint @kind="query-source-parser" @target="module" @policy="delegate-to-cem-ql-crate"}
+        {constraint @kind="artifact-hash-required" @target="artifact" @policy="required"}
+        {constraint @kind="artifact-policy-stamps-validated" @target="artifact" @policy="required on load"}
+        {constraint @kind="artifact-source-map-dev-only" @target="artifact" @policy="dev mode only"}
+    }
+
+    {diagnostics |
+        {diagnostic @code="cem.ql.module_uri_missing" @severity="error"}
+        {diagnostic @code="cem.ql.import_alias_duplicate" @severity="error"}
+        {diagnostic @code="cem.ql.unresolved_import" @severity="error"}
+        {diagnostic @code="cem.ql.declaration_duplicate" @severity="error"}
+        {diagnostic @code="cem.ql.parse_error" @severity="error"}
+        {diagnostic @code="cem.ql.type_error" @severity="error"}
+        {diagnostic @code="cem.ql.artifact_hash_mismatch" @severity="error"}
+        {diagnostic @code="cem.cc.policy_mismatch" @severity="error"}
+    }
+
+    {open-content |
+        {accept @kind="query-extension" @policy="reject-unless-declared"}
+        {accept @kind="compiled-artifact-section" @policy="reject-unless-declared"}
+    }
+}

@@ -1,0 +1,18 @@
+@doc cem-ml 1
+@ns pkg = "https://cem.dev/ns/schema-package/1"
+@default pkg
+
+{package @id="cem-ql" @version="1.0.0" |
+    {schema
+        @uri="https://cem.dev/ns/query/cem-ql/1"
+        @source="schema/cem-ql.cem"
+    }
+
+    {content-type @value="application/vnd.cem.query+cem-ql" @primary=true}
+    {content-type @value="text/cem-ql" @alias=true}
+    {content-type @value="application/vnd.cem.query-artifact+cem-bin" @alias=true}
+    {content-type @value="cem-ql/1" @alias=true}
+    {content-type @value="cem-ql/module" @alias=true}
+
+    {namespace @prefix="ql" @uri="https://cem.dev/ns/query/cem-ql/1"}
+}
