@@ -2671,6 +2671,25 @@ fn write_primary(
     out: Option<&Path>,
     s: &mut Streams<'_>,
 ) -> io::Result<()> {
+    if let Some(bytes) = binary_projection_primary_bytes(primary)? {
+        match out {
+            Some(path) => {
+                write_destination(
+                    context,
+                    path,
+                    "output destination",
+                    ResolvePurpose::Output,
+                    &bytes,
+                )?;
+            }
+            None => {
+                s.stdout.write_all(&bytes)?;
+                s.stdout.flush()?;
+            }
+        }
+        return Ok(());
+    }
+
     let serialized = serde_json::to_string_pretty(primary).unwrap_or_else(|_| String::new());
     match out {
         Some(path) => {
@@ -2696,7 +2715,10 @@ fn write_document_primary(
     s: &mut Streams<'_>,
 ) -> io::Result<()> {
     let bytes;
-    let body = if let Some(content) = document_primary_content(primary) {
+    let body = if let Some(binary) = binary_projection_primary_bytes(primary)? {
+        bytes = binary;
+        &bytes
+    } else if let Some(content) = document_primary_content(primary) {
         content.as_bytes()
     } else if let Some(projected) = collection_primary_output_value(primary) {
         bytes = serde_json::to_vec_pretty(&projected)?;
@@ -2719,6 +2741,107 @@ fn write_document_primary(
         }
     }
     Ok(())
+}
+
+fn binary_projection_primary_bytes(primary: &serde_json::Value) -> io::Result<Option<Vec<u8>>> {
+    if primary.get("kind").and_then(serde_json::Value::as_str) != Some("cem-binary-projection") {
+        return Ok(None);
+    }
+
+    let chunks = primary
+        .get("chunks")
+        .and_then(serde_json::Value::as_array)
+        .ok_or_else(|| invalid_binary_projection("missing chunks array"))?;
+
+    let mut decoded_chunks = Vec::with_capacity(chunks.len());
+    for chunk in chunks {
+        if chunk.get("sealed").and_then(serde_json::Value::as_bool) != Some(true) {
+            return Err(invalid_binary_projection(
+                "binary projection chunk is not sealed",
+            ));
+        }
+        if chunk
+            .get("dataEncoding")
+            .and_then(serde_json::Value::as_str)
+            != Some("hex")
+        {
+            return Err(invalid_binary_projection(
+                "binary projection chunk must use hex dataEncoding",
+            ));
+        }
+        let offset = chunk
+            .get("byteOffset")
+            .and_then(serde_json::Value::as_u64)
+            .ok_or_else(|| invalid_binary_projection("missing chunk byteOffset"))?;
+        let expected_len = chunk
+            .get("byteLength")
+            .and_then(serde_json::Value::as_u64)
+            .ok_or_else(|| invalid_binary_projection("missing chunk byteLength"))?;
+        let data = chunk
+            .get("data")
+            .and_then(serde_json::Value::as_str)
+            .ok_or_else(|| invalid_binary_projection("missing chunk data"))?;
+        let bytes = decode_hex_chunk(data)?;
+        if bytes.len() as u64 != expected_len {
+            return Err(invalid_binary_projection(
+                "chunk byteLength does not match decoded data",
+            ));
+        }
+        decoded_chunks.push((offset, bytes));
+    }
+
+    decoded_chunks.sort_by_key(|(offset, _)| *offset);
+    let mut out = Vec::new();
+    for (offset, chunk_bytes) in decoded_chunks {
+        if offset != out.len() as u64 {
+            return Err(invalid_binary_projection(
+                "binary projection chunks are not contiguous",
+            ));
+        }
+        out.extend_from_slice(&chunk_bytes);
+    }
+
+    if let Some(expected_len) = primary
+        .get("byteLength")
+        .and_then(serde_json::Value::as_u64)
+    {
+        if out.len() as u64 != expected_len {
+            return Err(invalid_binary_projection(
+                "artifact byteLength does not match decoded chunks",
+            ));
+        }
+    }
+
+    Ok(Some(out))
+}
+
+fn decode_hex_chunk(data: &str) -> io::Result<Vec<u8>> {
+    if data.len() % 2 != 0 {
+        return Err(invalid_binary_projection("hex chunk has odd length"));
+    }
+
+    let mut out = Vec::with_capacity(data.len() / 2);
+    for pair in data.as_bytes().chunks_exact(2) {
+        let high = hex_nibble(pair[0])
+            .ok_or_else(|| invalid_binary_projection("hex chunk contains invalid digit"))?;
+        let low = hex_nibble(pair[1])
+            .ok_or_else(|| invalid_binary_projection("hex chunk contains invalid digit"))?;
+        out.push((high << 4) | low);
+    }
+    Ok(out)
+}
+
+fn hex_nibble(byte: u8) -> Option<u8> {
+    match byte {
+        b'0'..=b'9' => Some(byte - b'0'),
+        b'a'..=b'f' => Some(byte - b'a' + 10),
+        b'A'..=b'F' => Some(byte - b'A' + 10),
+        _ => None,
+    }
+}
+
+fn invalid_binary_projection(message: &'static str) -> io::Error {
+    io::Error::new(io::ErrorKind::InvalidData, message)
 }
 
 fn collection_primary_output_value(primary: &serde_json::Value) -> Option<serde_json::Value> {
@@ -10683,23 +10806,12 @@ mod tests {
             !stderr.contains("cem.lifecycle.target_adapter_unsupported"),
             "{stderr}"
         );
-        let v: serde_json::Value = serde_json::from_str(stdout.trim()).unwrap();
-        assert_eq!(v["kind"], "cem-binary-projection");
-        assert_eq!(v["projection"], "dom");
-        assert_eq!(
-            v["contentType"],
-            cem_ml::schema::registry::CEM_DOM_PROJECTION_CONTENT_TYPE
-        );
-        assert!(v["hash"].as_str().unwrap().starts_with("cem-bin/1+blake3:"));
-        assert_eq!(v["chunks"][0]["sealed"], true);
-        assert!(v["chunks"][0]["data"]
-            .as_str()
-            .unwrap()
-            .starts_with("43454d50524f4a00"));
+        assert!(stdout.as_bytes().starts_with(b"CEMPROJ\0"));
+        assert!(!stdout.trim_start().starts_with('{'));
     }
 
     #[test]
-    fn convert_to_format_dom_bin_outputs_binary_projection() {
+    fn convert_to_format_dom_bin_outputs_raw_binary_projection() {
         let p = write_fixture("convert-format-dom-bin.cem", "{p | Hi}");
         let (outcome, stdout, stderr) = run(
             &RealCemMlEngine::new(),
@@ -10707,13 +10819,31 @@ mod tests {
         );
 
         assert_eq!(outcome.exit_code, EXIT_OK, "{stderr}");
-        let v: serde_json::Value = serde_json::from_str(stdout.trim()).unwrap();
-        assert_eq!(v["kind"], "cem-binary-projection");
-        assert_eq!(v["projection"], "dom");
-        assert_eq!(
-            v["contentType"],
-            cem_ml::schema::registry::CEM_DOM_PROJECTION_CONTENT_TYPE
+        assert!(stdout.as_bytes().starts_with(b"CEMPROJ\0"));
+        assert!(!stdout.trim_start().starts_with('{'));
+    }
+
+    #[test]
+    fn convert_to_format_dom_bin_out_writes_raw_binary_file() {
+        let p = write_fixture("convert-format-dom-bin-out.cem", "{p | Hi}");
+        let out = std::env::temp_dir().join("cem-ml-cli-tests/convert-format-dom-bin-out.cembin");
+        let _ = std::fs::remove_file(&out);
+        let (outcome, stdout, stderr) = run(
+            &RealCemMlEngine::new(),
+            &[
+                "convert",
+                "--to-format",
+                "dom-bin",
+                "--out",
+                out.to_str().unwrap(),
+                p.to_str().unwrap(),
+            ],
         );
+
+        assert_eq!(outcome.exit_code, EXIT_OK, "{stderr}");
+        assert!(stdout.is_empty());
+        let bytes = std::fs::read(out).unwrap();
+        assert!(bytes.starts_with(b"CEMPROJ\0"));
     }
 
     #[test]

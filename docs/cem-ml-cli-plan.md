@@ -676,6 +676,9 @@ These are data shapes only. Parser-filled content remains blocked until the pars
     - Supported input formats: `cem`, `html`, `xml`.
     - Supported output formats: `cem`, `html`, `xml`, `dom-json`, `ast`,
       `events`, `dom-bin`, `ast-bin`, `events-bin`.
+    - `dom-bin`, `ast-bin`, and `events-bin` write raw CEM binary artifact
+      bytes to stdout or `--out`; JSON envelopes remain an internal engine
+      response shape until native byte response APIs are added.
     - `--to-content-type application/cem+xml` selects canonical CEM-ML export, and `--to-content-type text/html`
       / `application/xhtml+xml`, `--to-schema http://www.w3.org/1999/xhtml` /
       `http://www.w3.org/2000/svg`, or `.xhtml` output destinations select light-DOM HTML export;

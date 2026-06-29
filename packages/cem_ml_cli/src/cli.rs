@@ -511,7 +511,7 @@ pub struct ConvertArgs {
     pub from_format: Option<InputFormat>,
 
     #[arg(long = "to-format", value_enum, default_value_t = LayerFormat::DomJson,
-          help = "Output layer (cem|html|xml|dom-json|ast|events)")]
+          help = "Output layer (cem|html|xml|dom-json|ast|events|dom-bin|ast-bin|events-bin)")]
     pub to_format: LayerFormat,
 
     #[arg(

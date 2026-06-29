@@ -38,8 +38,9 @@ Implement schema packages for these content families:
 - [x] Implement canonical CEM binary/chunk export adapters for
       `application/vnd.cem.dom+cem-bin`, `application/vnd.cem.ast+cem-bin`,
       and `application/vnd.cem.events+cem-bin`.
-- [ ] Add raw-byte CLI/file output for CEM binary artifacts; the current CLI
-      response boundary returns a JSON envelope with a sealed hex chunk.
+- [x] Add raw-byte CLI/file output for CEM binary artifacts.
+- [ ] Add native byte response APIs for CEM binary artifacts; the current
+      engine response boundary still carries a JSON envelope with sealed chunks.
 - [ ] Implement parallel and multicast-capable projection stream routing over
       sealed CEM binary chunks.
 - [ ] YAML/YML.
