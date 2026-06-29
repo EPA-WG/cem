@@ -1,0 +1,154 @@
+@doc cem-ml 1
+@ns schema = "https://cem.dev/ns/schema/1"
+@ns cemml = "https://cem.dev/ns/cem-ml/1"
+@ns svg = "https://cem.dev/ns/data/svg/1"
+@ns mathml = "https://cem.dev/ns/data/mathml/1"
+@default schema
+
+{schema @name="html" @namespace="https://cem.dev/ns/data/html/1" @version="1.0.0" |
+    {summary |
+        {text | HTML resource schema. HTML source is parsed by an HTML parser with error recovery and normalized into an HTML DOM tree. This schema owns text/html identity, HTML document structure, parser insertion modes, source-map hooks, custom-element hooks, and SVG/MathML foreign-content dispatch.}
+    }
+
+    {uses |
+        {use @schema="https://cem.dev/ns/schema/1" @as="schema"}
+        {use @schema="https://cem.dev/ns/cem-ml/1" @as="cemml"}
+        {use @schema="https://cem.dev/ns/data/svg/1" @as="svg"}
+        {use @schema="https://cem.dev/ns/data/mathml/1" @as="mathml"}
+    }
+
+    {content-types |
+        {content-type @value="text/html" @primary=true}
+    }
+
+    {namespaces |
+        {namespace @prefix="cemhtml" @uri="https://cem.dev/ns/data/html/1" @role="schema"}
+        {namespace @prefix="html" @uri="http://www.w3.org/1999/xhtml" @role="dom-namespace"}
+        {namespace @prefix="svg" @uri="https://cem.dev/ns/data/svg/1" @role="foreign-content-schema"}
+        {namespace @prefix="mathml" @uri="https://cem.dev/ns/data/mathml/1" @role="foreign-content-schema"}
+    }
+
+    {elements |
+        {element @name="document" @required-attributes="encoding" @optional-attributes="charset mode source-id byte-offset byte-length" @children="doctype? html comment*"}
+        {element @name="doctype" @optional-attributes="name public-id system-id legacy-quirks source-id byte-offset byte-length"}
+        {element @name="html" @required-attributes="namespace-uri" @optional-attributes="lang dir manifest source-id byte-offset byte-length" @children="head body"}
+        {element @name="head" @children="metadata* template* script-supporting*"}
+        {element @name="body" @optional-attributes="id class role source-id byte-offset byte-length" @children="flow* template* script-supporting*"}
+        {element @name="metadata" @required-attributes="kind" @optional-attributes="name content href rel type media charset integrity crossorigin nonce source-id byte-offset byte-length" @children="text*"}
+        {element @name="flow" @required-attributes="kind" @optional-attributes="id class role lang dir hidden slot is source-id byte-offset byte-length" @children="flow* phrasing* embedded* form-control* table* template* custom-element* foreign-content* script-supporting*"}
+        {element @name="phrasing" @required-attributes="kind" @optional-attributes="id class role href src alt title value source-id byte-offset byte-length" @children="phrasing* embedded* form-control* custom-element* foreign-content*"}
+        {element @name="embedded" @required-attributes="kind" @optional-attributes="src srcset sizes alt type width height loading crossorigin referrerpolicy source-id byte-offset byte-length"}
+        {element @name="form-control" @required-attributes="kind" @optional-attributes="name value type checked disabled selected required placeholder source-id byte-offset byte-length" @children="phrasing* option*"}
+        {element @name="option" @optional-attributes="value selected disabled label source-id byte-offset byte-length" @children="text*"}
+        {element @name="table" @required-attributes="kind" @optional-attributes="id class scope colspan rowspan source-id byte-offset byte-length" @children="table* flow* phrasing*"}
+        {element @name="template" @optional-attributes="id class shadowrootmode source-id byte-offset byte-length" @children="document-fragment"}
+        {element @name="document-fragment" @children="flow* metadata* script-supporting*"}
+        {element @name="script-supporting" @required-attributes="kind" @optional-attributes="type src async defer nomodule nonce integrity crossorigin policy source-id byte-offset byte-length" @children="text*"}
+        {element @name="custom-element" @required-attributes="local-name" @optional-attributes="is id class slot source-id byte-offset byte-length" @children="flow* phrasing*"}
+        {element @name="foreign-content" @required-attributes="namespace-uri local-name" @optional-attributes="source-id byte-offset byte-length" @children="foreign-content* flow* phrasing*"}
+        {element @name="comment" @optional-attributes="value source-id byte-offset byte-length"}
+        {element @name="text" @optional-attributes="value source-id byte-offset byte-length"}
+    }
+
+    {attributes |
+        {attribute @name="encoding" @type="schema:identifier" @values="utf-8 utf-16 utf-16be utf-16le windows-1252 us-ascii other"}
+        {attribute @name="charset" @type="schema:identifier"}
+        {attribute @name="mode" @type="schema:identifier" @values="no-quirks limited-quirks quirks"}
+        {attribute @name="source-id" @type="schema:identifier"}
+        {attribute @name="byte-offset" @type="cemml:integer"}
+        {attribute @name="byte-length" @type="cemml:integer"}
+        {attribute @name="namespace-uri" @type="schema:string"}
+        {attribute @name="local-name" @type="schema:string"}
+        {attribute @name="name" @type="schema:string"}
+        {attribute @name="public-id" @type="schema:string"}
+        {attribute @name="system-id" @type="schema:string"}
+        {attribute @name="legacy-quirks" @type="schema:boolean"}
+        {attribute @name="kind" @type="schema:identifier" @values="base link meta title style script noscript template address article aside blockquote div dl figure footer form h1 h2 h3 h4 h5 h6 header hr main nav ol p pre section table tbody td tfoot th thead tr ul a abbr b bdi bdo br cite code data em i img input label mark q ruby samp small span strong sub sup time var wbr button details dialog select textarea option canvas iframe audio video picture source track custom"}
+        {attribute @name="id" @type="schema:identifier"}
+        {attribute @name="class" @type="schema:string"}
+        {attribute @name="role" @type="schema:string"}
+        {attribute @name="lang" @type="schema:string"}
+        {attribute @name="dir" @type="schema:identifier" @values="ltr rtl auto"}
+        {attribute @name="manifest" @type="schema:string"}
+        {attribute @name="content" @type="schema:string"}
+        {attribute @name="href" @type="schema:string"}
+        {attribute @name="src" @type="schema:string"}
+        {attribute @name="srcset" @type="schema:string"}
+        {attribute @name="sizes" @type="schema:string"}
+        {attribute @name="rel" @type="schema:string"}
+        {attribute @name="type" @type="schema:media-type"}
+        {attribute @name="media" @type="schema:string"}
+        {attribute @name="integrity" @type="schema:string"}
+        {attribute @name="crossorigin" @type="schema:identifier" @values="anonymous use-credentials"}
+        {attribute @name="nonce" @type="schema:string"}
+        {attribute @name="alt" @type="schema:string"}
+        {attribute @name="title" @type="schema:string"}
+        {attribute @name="value" @type="schema:string"}
+        {attribute @name="width" @type="schema:string"}
+        {attribute @name="height" @type="schema:string"}
+        {attribute @name="loading" @type="schema:identifier" @values="eager lazy"}
+        {attribute @name="referrerpolicy" @type="schema:string"}
+        {attribute @name="hidden" @type="schema:boolean"}
+        {attribute @name="slot" @type="schema:string"}
+        {attribute @name="is" @type="schema:string"}
+        {attribute @name="checked" @type="schema:boolean"}
+        {attribute @name="disabled" @type="schema:boolean"}
+        {attribute @name="selected" @type="schema:boolean"}
+        {attribute @name="required" @type="schema:boolean"}
+        {attribute @name="placeholder" @type="schema:string"}
+        {attribute @name="label" @type="schema:string"}
+        {attribute @name="scope" @type="schema:identifier" @values="row col rowgroup colgroup auto"}
+        {attribute @name="colspan" @type="cemml:integer"}
+        {attribute @name="rowspan" @type="cemml:integer"}
+        {attribute @name="shadowrootmode" @type="schema:identifier" @values="open closed"}
+        {attribute @name="async" @type="schema:boolean"}
+        {attribute @name="defer" @type="schema:boolean"}
+        {attribute @name="nomodule" @type="schema:boolean"}
+        {attribute @name="policy" @type="schema:identifier" @values="preserve sanitize reject delegate"}
+    }
+
+    {constraints |
+        {constraint @kind="html-source-parser" @target="document" @policy="delegate-to-html-parser"}
+        {constraint @kind="text-html-primary" @target="document" @policy="text/html is the canonical media type for HTML resources"}
+        {constraint @kind="application-xhtml-separate" @target="document" @policy="application/xhtml+xml is XML-backed XHTML and belongs to the xhtml package"}
+        {constraint @kind="html-error-recovery" @target="document" @policy="HTML parser recovery is part of source interpretation; normalized DOM may include implied html head body tbody and closed p elements"}
+        {constraint @kind="dom-namespace" @target="html" @policy="HTML elements in the normalized DOM use http://www.w3.org/1999/xhtml"}
+        {constraint @kind="doctype-quirks" @target="doctype" @policy="doctype controls no-quirks limited-quirks or quirks mode metadata"}
+        {constraint @kind="encoding-source-priority" @target="document" @policy="preserve BOM MIME charset and meta charset evidence; report conflicts"}
+        {constraint @kind="void-elements" @target="flow" @policy="void elements do not have child nodes in the HTML serialization"}
+        {constraint @kind="raw-text-elements" @target="script-supporting" @policy="script style textarea and title text handling must preserve parser state"}
+        {constraint @kind="template-inert-fragment" @target="template" @policy="template children live in an inert document fragment"}
+        {constraint @kind="script-policy" @target="script-supporting" @policy="reject or preserve executable script according to host policy; do not execute while parsing"}
+        {constraint @kind="external-resource-policy" @target="embedded" @policy="external URI fetches require explicit resolver policy"}
+        {constraint @kind="custom-element-name" @target="custom-element" @policy="custom element local names must remain source-stable and validate before upgrade"}
+        {constraint @kind="foreign-content-dispatch" @target="foreign-content" @policy="SVG and MathML islands dispatch to their registered schema packages"}
+        {constraint @kind="source-map-preferred" @target="flow" @policy="required when parser exposes source ranges"}
+    }
+
+    {diagnostics |
+        {diagnostic @code="cem.html.parse_error" @severity="error"}
+        {diagnostic @code="cem.html.encoding_conflict" @severity="warning"}
+        {diagnostic @code="cem.html.quirks_mode" @severity="info"}
+        {diagnostic @code="cem.html.invalid_doctype" @severity="warning"}
+        {diagnostic @code="cem.html.invalid_nesting_recovered" @severity="warning"}
+        {diagnostic @code="cem.html.script_rejected" @severity="error"}
+        {diagnostic @code="cem.html.external_resource_rejected" @severity="error"}
+        {diagnostic @code="cem.html.custom_element_name_invalid" @severity="error"}
+        {diagnostic @code="cem.html.foreign_content_unregistered" @severity="warning"}
+        {diagnostic @code="cem.html.source_map_unavailable" @severity="info"}
+    }
+
+    {compatibility |
+        {note @version="1.0.0" @value="IANA registers text/html with optional charset parameter and common .html/.htm extensions."}
+        {note @version="1.0.0" @value="HTML source is not XML. Incomplete or non-normalized input may parse successfully and produce a normalized DOM with implied elements and repaired structure."}
+        {note @version="1.0.0" @value="The normalized HTML DOM uses the http://www.w3.org/1999/xhtml namespace for HTML elements. XHTML serialization remains the separate application/xhtml+xml package."}
+    }
+
+    {open-content |
+        {accept @kind="custom-element" @policy="preserve-and-delegate-to-custom-element-registry"}
+        {accept @kind="svg-foreign-content" @policy="delegate-to-svg-schema"}
+        {accept @kind="mathml-foreign-content" @policy="delegate-to-mathml-schema"}
+        {accept @kind="data-attribute" @policy="preserve"}
+        {accept @kind="aria-attribute" @policy="preserve"}
+    }
+}

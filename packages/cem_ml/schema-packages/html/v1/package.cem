@@ -1,0 +1,15 @@
+@doc cem-ml 1
+@ns pkg = "https://cem.dev/ns/schema-package/1"
+@default pkg
+
+{package @id="html" @version="1.0.0" |
+    {schema
+        @uri="https://cem.dev/ns/data/html/1"
+        @source="schema/html.cem"
+    }
+
+    {content-type @value="text/html" @primary=true}
+
+    {namespace @prefix="cemhtml" @uri="https://cem.dev/ns/data/html/1"}
+    {namespace @prefix="html" @uri="http://www.w3.org/1999/xhtml"}
+}

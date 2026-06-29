@@ -120,6 +120,11 @@ mod tests {
     }
 
     #[test]
+    fn html_content_type_is_supported_opaque_handoff() {
+        assert!(is_supported_content_type("text/html"));
+    }
+
+    #[test]
     fn xhtml_content_type_is_supported_opaque_handoff() {
         assert!(is_supported_content_type("application/xhtml+xml"));
     }

@@ -78,8 +78,8 @@ this package.
 `application/xhtml+xml`, depends on `xml/v1`, claims the XHTML document
 namespace, and models XML-backed HTML document structure, head/body ordering,
 metadata, flow and phrasing content, foreign-content hooks, and source-map
-hooks. `text/html` remains a separate HTML serialization identity for the later
-HTML package.
+hooks. `text/html` remains a separate HTML serialization identity owned by
+`html/v1`.
 
 `svg/v1` defines SVG resource identity. It owns `image/svg+xml`, depends on
 `xml/v1`, claims the SVG document namespace, and models XML-backed vector
@@ -99,6 +99,13 @@ claims `text/xsl` and current custom-element XSLT markers as aliases, depends on
 `xml/v1`, claims the XSLT document namespace, and records version-pinned,
 capability-gated transform execution without reintroducing browser-native XSLT
 execution.
+
+`html/v1` defines HTML resource identity. It owns `text/html`, claims the HTML
+DOM namespace, and models HTML-parser recovery, normalized DOM structure,
+doctype/quirks metadata, template inert fragments, script and external-resource
+policy, custom-element hooks, SVG/MathML foreign-content dispatch, and
+source-map hooks. HTML is not XML; XHTML remains the separate XML-backed
+`application/xhtml+xml` package.
 
 `json-schema/v1` defines JSON Schema document identity. It owns
 `application/schema+json`, depends on `json/v1`, and models JSON Schema
