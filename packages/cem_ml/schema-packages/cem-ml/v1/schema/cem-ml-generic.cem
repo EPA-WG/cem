@@ -1,0 +1,74 @@
+@doc cem-ml 1
+@ns schema = "https://cem.dev/ns/schema/1"
+@default schema
+
+{schema @name="cem-ml-generic" @namespace="https://cem.dev/ns/cem-ml/1" @version="1.0.0" |
+    {summary |
+        {text | Generic CEM-ML document and content model. This schema owns CEM-ML syntax, root directives, lexical node forms, namespace binding, and content-type handoff boundaries. Domain vocabularies such as CEM core annotations, HTML, SVG, templates, and schema-package manifests are separate schema packages layered on top of this generic model.}
+    }
+
+    {content-types |
+        {content-type @value="application/cem" @primary=true}
+        {content-type @value="text/cem-ml" @alias=true}
+        {content-type @value="text/cem" @alias=true}
+        {content-type @value="application/cem+xml" @alias=true}
+    }
+
+    {directives |
+        {directive @name="doc" @required="persisted-document" @value="cem-ml semver-constraint"}
+        {directive @name="ns" @value="prefix uri"}
+        {directive @name="default" @value="prefix-or-uri"}
+        {directive @name="schema" @value="schema-uri"}
+    }
+
+    {nodes |
+        {node @name="document" @children="directive* content*"}
+        {node @name="element" @children="attribute* content*"}
+        {node @name="attribute" @children="value?"}
+        {node @name="text"}
+        {node @name="whitespace"}
+        {node @name="comment"}
+        {node @name="cdata"}
+        {node @name="raw-text"}
+        {node @name="expression" @children="text"}
+        {node @name="content-scope" @children="content*"}
+    }
+
+    {lexical |
+        {rule @name="qualified-name" @value="prefix:local-name | local-name"}
+        {rule @name="local-name" @value="identifier with hyphen support"}
+        {rule @name="attribute-name" @value="@ qualified-name"}
+        {rule @name="bare-value" @value="identifier | number | boolean"}
+        {rule @name="quoted-value" @value="single-quoted or double-quoted text"}
+        {rule @name="expression-node" @value="dollar expression content scope"}
+        {rule @name="anonymous-content-scope" @value="typed content handoff scope"}
+    }
+
+    {namespace-semantics |
+        {binding @directive="ns" @scope="document-or-subtree"}
+        {binding @directive="default" @scope="document-or-subtree"}
+        {resolution @target="element-name" @mode="default-namespace-aware"}
+        {resolution @target="attribute-name" @mode="prefix-aware"}
+        {handoff @attribute="type" @target="content-scope"}
+    }
+
+    {diagnostics |
+        {diagnostic @code="cem.doc.version_missing" @severity="error"}
+        {diagnostic @code="cem.doc.semver_invalid" @severity="error"}
+        {diagnostic @code="cem.doc.format_unknown" @severity="error"}
+        {diagnostic @code="cem.doc.version_unsupported" @severity="error"}
+        {diagnostic @code="cem.doc.prerelease_unmatched" @severity="error"}
+        {diagnostic @code="cem.syntax.unclosed_scope" @severity="error"}
+        {diagnostic @code="cem.syntax.invalid_name" @severity="error"}
+        {diagnostic @code="cem.namespace.unbound_prefix" @severity="error"}
+        {diagnostic @code="cem.content_type.unsupported_handoff" @severity="error"}
+    }
+
+    {open-content |
+        {accept @kind="host-element" @policy="delegate-to-active-schema"}
+        {accept @kind="host-attribute" @policy="delegate-to-active-schema"}
+        {accept @kind="text" @policy="preserve"}
+        {accept @kind="comment" @policy="preserve"}
+        {accept @kind="expression" @policy="delegate-to-expression-schema"}
+    }
+}

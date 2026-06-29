@@ -1,0 +1,15 @@
+@doc cem-ml 1
+@ns pkg = "https://cem.dev/ns/schema-package/1"
+@default pkg
+
+{package @id="schema-package" @version="1.0.0" |
+    {schema
+        @uri="https://cem.dev/ns/schema-package/1"
+        @source="schema/schema-package.cem"
+    }
+
+    {content-type @value="application/vnd.cem.schema-package+cem" @primary=true}
+
+    {namespace @prefix="pkg" @uri="https://cem.dev/ns/schema-package/1"}
+    {namespace @prefix="schema" @uri="https://cem.dev/ns/schema/1"}
+}

@@ -1,0 +1,69 @@
+@doc cem-ml 1
+@ns schema = "https://cem.dev/ns/schema/1"
+@default schema
+
+{schema @name="schema-package" @namespace="https://cem.dev/ns/schema-package/1" @version="1.0.0" |
+    {summary |
+        {text | Schema package metadata language. This schema defines the format of schema-packages slash schema-name slash version slash package.cem. Package manifests identify the package schema, owned content types, namespace claims, converter edges, generated artifacts, and implementation hooks.}
+    }
+
+    {content-types |
+        {content-type @value="application/vnd.cem.schema-package+cem" @primary=true}
+    }
+
+    {elements |
+        {element @name="package" @required-attributes="id version" @children="schema content-type namespace converter artifact"}
+        {element @name="schema" @required-attributes="uri source" @optional-attributes="version"}
+        {element @name="content-type" @required-attributes="value" @optional-attributes="primary alias"}
+        {element @name="namespace" @required-attributes="uri" @optional-attributes="prefix"}
+        {element @name="converter" @required-attributes="id implementation" @optional-attributes="template template-content-type template-schema rust-symbol streamable lossiness implicit explicit-only" @children="from to"}
+        {element @name="from" @required-attributes="content-type" @optional-attributes="schema"}
+        {element @name="to" @required-attributes="content-type" @optional-attributes="schema"}
+        {element @name="artifact" @required-attributes="kind path" @optional-attributes="content-type schema generated"}
+    }
+
+    {attributes |
+        {attribute @name="id" @type="identifier"}
+        {attribute @name="version" @type="semver"}
+        {attribute @name="uri" @type="uri"}
+        {attribute @name="source" @type="path"}
+        {attribute @name="value" @type="media-type"}
+        {attribute @name="primary" @type="boolean"}
+        {attribute @name="alias" @type="boolean"}
+        {attribute @name="prefix" @type="identifier"}
+        {attribute @name="implementation" @type="enum" @values="cemt rust"}
+        {attribute @name="template" @type="path"}
+        {attribute @name="template-content-type" @type="media-type"}
+        {attribute @name="template-schema" @type="uri"}
+        {attribute @name="rust-symbol" @type="identifier"}
+        {attribute @name="streamable" @type="boolean"}
+        {attribute @name="lossiness" @type="identifier"}
+        {attribute @name="implicit" @type="boolean"}
+        {attribute @name="explicit-only" @type="boolean"}
+        {attribute @name="content-type" @type="media-type"}
+        {attribute @name="schema" @type="uri"}
+        {attribute @name="kind" @type="identifier"}
+        {attribute @name="path" @type="path"}
+        {attribute @name="generated" @type="boolean"}
+    }
+
+    {constraints |
+        {constraint @kind="single-primary-content-type" @target="package" @policy="required"}
+        {constraint @kind="schema-source-required" @target="schema" @policy="required"}
+        {constraint @kind="converter-from-to-required" @target="converter" @policy="required"}
+        {constraint @kind="cemt-template-identity-required" @target="converter" @policy="when implementation is cemt"}
+        {constraint @kind="rust-symbol-required" @target="converter" @policy="when implementation is rust"}
+    }
+
+    {diagnostics |
+        {diagnostic @code="cem.schema_package.missing_schema" @severity="error"}
+        {diagnostic @code="cem.schema_package.content_type_conflict" @severity="error"}
+        {diagnostic @code="cem.schema_package.converter_identity_missing" @severity="error"}
+        {diagnostic @code="cem.schema_package.converter_identity_mismatch" @severity="error"}
+        {diagnostic @code="cem.schema_package.implementation_missing" @severity="error"}
+    }
+
+    {open-content |
+        {accept @kind="package-extension" @policy="reject-unless-declared"}
+    }
+}

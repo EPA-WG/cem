@@ -33,7 +33,7 @@ own source folder.
 schema-packages/
   cem-element/
     v1/
-      cem.package.cem
+      package.cem
       schema/
         cem-element.cem
         cem-element.rnc
@@ -54,7 +54,7 @@ runtime package trees, but the source of truth is the schema package.
 
 ## Manifest
 
-`cem.package.cem` is the canonical registry source. It is CEM-ML with its own
+`package.cem` is the canonical registry source. It is CEM-ML with its own
 schema:
 
 ```text

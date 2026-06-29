@@ -1,0 +1,18 @@
+@doc cem-ml 1
+@ns pkg = "https://cem.dev/ns/schema-package/1"
+@default pkg
+
+{package @id="cem-ml" @version="1.0.0" |
+    {schema
+        @uri="https://cem.dev/ns/cem-ml/1"
+        @source="schema/cem-ml-generic.cem"
+    }
+
+    {content-type @value="application/cem" @primary=true}
+    {content-type @value="text/cem-ml" @alias=true}
+    {content-type @value="text/cem" @alias=true}
+    {content-type @value="application/cem+xml" @alias=true}
+
+    {namespace @prefix="cemml" @uri="https://cem.dev/ns/cem-ml/1"}
+    {namespace @prefix="schema" @uri="https://cem.dev/ns/schema/1"}
+}

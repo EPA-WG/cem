@@ -17,9 +17,9 @@ history belongs in git history and the feature-specific docs linked below.
 
 Implement schema packages for these content families:
 
-- [ ] CEM-ML generic document/content model.
-- [ ] CEM-ML schema definition.
-- [ ] CEM-ML schema package manifest (`application/vnd.cem.schema-package+cem`, `cem.package.cem`).
+- [x] CEM-ML generic document/content model.
+- [x] CEM-ML schema definition.
+- [x] CEM-ML schema package manifest (`application/vnd.cem.schema-package+cem`, `package.cem`).
 - [ ] CEM-ML template.
 - [ ] CEM-ML transform template (`application/vnd.cem.transform+cem`, `.cemt`).
 - [ ] CEM-QL module/query resources.

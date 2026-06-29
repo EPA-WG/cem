@@ -59,7 +59,7 @@ schema package manifests and converter edges.
 
 ## Phase 3: Manifest Prototype
 
-- Add a prototype `cem.package.cem` format with schema
+- Add a prototype `package.cem` format with schema
   `https://cem.dev/ns/schema-package/1`.
 - Generate Rust registry entries from the `.cem` manifest for one schema family.
 - Generate JSON + JSON Schema and XML + RELAX NG manifest projections as build
