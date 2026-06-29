@@ -14,7 +14,8 @@ use crate::schema::registry::{
     CEM_EVENTS_PROJECTION_SCHEMA_URI, CEM_ML_CONTENT_TYPE, CEM_ML_SCHEMA_URI,
     CEM_NATIVE_TEMPLATE_CONTENT_TYPE, CEM_NATIVE_TEMPLATE_SCHEMA_URI, CEM_SCHEMA_CONTENT_TYPE,
     CEM_SCHEMA_PACKAGE_CONTENT_TYPE, CEM_SCHEMA_PACKAGE_URI, CEM_SCHEMA_URI,
-    CEM_TRANSFORM_CONTENT_TYPE, CEM_TRANSFORM_SCHEMA_URI,
+    CEM_TRANSFORM_CONTENT_TYPE, CEM_TRANSFORM_SCHEMA_URI, XHTML_CONTENT_TYPE, XHTML_NAMESPACE_URI,
+    XHTML_SCHEMA_URI,
 };
 use crate::transform_config::TRANSFORM_CONFIG_SCHEMA_URI;
 
@@ -27,10 +28,10 @@ pub const DOM_PROJECTION_SCHEMA: &str = CEM_DOM_PROJECTION_SCHEMA_URI;
 pub const AST_PROJECTION_SCHEMA: &str = CEM_AST_PROJECTION_SCHEMA_URI;
 pub const EVENTS_PROJECTION_SCHEMA: &str = CEM_EVENTS_PROJECTION_SCHEMA_URI;
 
-const HTML_NAMESPACE: &str = "http://www.w3.org/1999/xhtml";
+const HTML_NAMESPACE: &str = XHTML_NAMESPACE_URI;
 const SVG_NAMESPACE: &str = "http://www.w3.org/2000/svg";
 const XSLT_NAMESPACE: &str = "http://www.w3.org/1999/XSL/Transform";
-const HTML_ADAPTER_SCHEMA_IDENTITIES: &[&str] = &[HTML_NAMESPACE, SVG_NAMESPACE];
+const HTML_ADAPTER_SCHEMA_IDENTITIES: &[&str] = &[HTML_NAMESPACE, XHTML_SCHEMA_URI, SVG_NAMESPACE];
 const CEM_ML_SCHEMA_IDENTITIES: &[&str] = &[
     CEM_ML_SCHEMA_URI,
     CEM_SCHEMA_URI,
@@ -462,7 +463,7 @@ impl LifecycleAdapter for HtmlAdapter {
     }
 
     fn matches_input(&self, identity: &FormatIdentity) -> bool {
-        matches_content_type(identity, &["text/html", "application/xhtml+xml"])
+        matches_content_type(identity, &["text/html", XHTML_CONTENT_TYPE])
             || matches_schema_without_content_type(identity, HTML_ADAPTER_SCHEMA_IDENTITIES)
             || matches_namespace_without_content_type_or_schema(
                 identity,
@@ -941,6 +942,20 @@ mod tests {
     }
 
     #[test]
+    fn xhtml_schema_selects_html_input_when_content_type_absent() {
+        let loaded = LifecycleRegistry::with_builtin_adapters().load(
+            &input(b"<html xmlns=\"http://www.w3.org/1999/xhtml\"><body>Hi</body></html>"),
+            &EngineContext {
+                schema: Some(XHTML_SCHEMA_URI.to_owned()),
+                ..EngineContext::default()
+            },
+        );
+        assert_eq!(loaded.from_format, InputFormat::Html);
+        assert_eq!(loaded.adapter_id, Some("html"));
+        assert!(loaded.diagnostics.is_empty());
+    }
+
+    #[test]
     fn svg_schema_selects_html_input_when_content_type_absent() {
         let loaded = LifecycleRegistry::with_builtin_adapters().load(
             &input(b"<svg><title>Hi</title></svg>"),
@@ -1102,7 +1117,7 @@ mod tests {
     #[test]
     fn xhtml_target_content_type_selects_html_export() {
         let target = FormatIdentity {
-            content_type: Some("application/xhtml+xml".to_owned()),
+            content_type: Some(XHTML_CONTENT_TYPE.to_owned()),
             ..FormatIdentity::default()
         };
         let selected = LifecycleRegistry::with_builtin_adapters()
@@ -1207,6 +1222,19 @@ mod tests {
     fn html_schema_selects_html_export_when_content_type_absent() {
         let target = FormatIdentity {
             schema: Some(HTML_NAMESPACE.to_owned()),
+            ..FormatIdentity::default()
+        };
+        let selected = LifecycleRegistry::with_builtin_adapters()
+            .select_export(Some(&target), LayerFormat::DomJson);
+        assert_eq!(selected.to_format, LayerFormat::Html);
+        assert_eq!(selected.adapter_id, Some("html"));
+        assert!(selected.diagnostics.is_empty());
+    }
+
+    #[test]
+    fn xhtml_schema_selects_html_export_when_content_type_absent() {
+        let target = FormatIdentity {
+            schema: Some(XHTML_SCHEMA_URI.to_owned()),
             ..FormatIdentity::default()
         };
         let selected = LifecycleRegistry::with_builtin_adapters()

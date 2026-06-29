@@ -21,6 +21,7 @@ pub const SUPPORTED_CONTENT_TYPES: &[&str] = &[
     "text/x-yaml",
     "text/csv",
     "text/markdown",
+    "application/xhtml+xml",
     "text/xml",
     "application/xml",
     "application/xml-external-parsed-entity",
@@ -106,6 +107,11 @@ mod tests {
     #[test]
     fn markdown_content_type_is_supported_opaque_handoff() {
         assert!(is_supported_content_type("text/markdown"));
+    }
+
+    #[test]
+    fn xhtml_content_type_is_supported_opaque_handoff() {
+        assert!(is_supported_content_type("application/xhtml+xml"));
     }
 
     #[test]

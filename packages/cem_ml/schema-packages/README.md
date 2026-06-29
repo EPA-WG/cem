@@ -74,6 +74,13 @@ CEM-ML syntax; parser/adaptor support is separate from the schema package.
 Domain media types ending in `+xml` use their own packages and may depend on
 this package.
 
+`xhtml/v1` defines XHTML resource identity. It owns
+`application/xhtml+xml`, depends on `xml/v1`, claims the XHTML document
+namespace, and models XML-backed HTML document structure, head/body ordering,
+metadata, flow and phrasing content, foreign-content hooks, and source-map
+hooks. `text/html` remains a separate HTML serialization identity for the later
+HTML package.
+
 `json-schema/v1` defines JSON Schema document identity. It owns
 `application/schema+json`, depends on `json/v1`, and models JSON Schema
 dialect, vocabulary, reference, and validation-resource metadata separately

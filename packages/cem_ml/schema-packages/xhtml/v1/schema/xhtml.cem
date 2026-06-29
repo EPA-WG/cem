@@ -1,0 +1,101 @@
+@doc cem-ml 1
+@ns schema = "https://cem.dev/ns/schema/1"
+@ns cemml = "https://cem.dev/ns/cem-ml/1"
+@ns xml = "https://cem.dev/ns/data/xml/1"
+@default schema
+
+{schema @name="xhtml" @namespace="https://cem.dev/ns/data/xhtml/1" @version="1.0.0" |
+    {summary |
+        {text | XHTML resource schema. XHTML source is parsed as XML and validated as the HTML vocabulary in the XHTML namespace, while this schema provides registry identity, document structure, head/body constraints, namespace requirements, foreign-content hooks, source offsets, and validation hooks for XHTML resources.}
+    }
+
+    {uses |
+        {use @schema="https://cem.dev/ns/schema/1" @as="schema"}
+        {use @schema="https://cem.dev/ns/cem-ml/1" @as="cemml"}
+        {use @schema="https://cem.dev/ns/data/xml/1" @as="xml"}
+    }
+
+    {content-types |
+        {content-type @value="application/xhtml+xml" @primary=true}
+    }
+
+    {namespaces |
+        {namespace @prefix="cemxhtml" @uri="https://cem.dev/ns/data/xhtml/1" @role="schema"}
+        {namespace @prefix="xhtml" @uri="http://www.w3.org/1999/xhtml" @role="document-namespace"}
+        {namespace @prefix="xml" @uri="https://cem.dev/ns/data/xml/1" @role="base-format"}
+    }
+
+    {elements |
+        {element @name="document" @base="xml:document" @required-attributes="encoding" @optional-attributes="charset profile doctype source-id byte-offset byte-length" @children="html"}
+        {element @name="html" @base="xml:element" @required-attributes="namespace-uri" @optional-attributes="lang dir manifest source-id byte-offset byte-length" @children="head body"}
+        {element @name="head" @base="xml:element" @children="metadata*"}
+        {element @name="body" @base="xml:element" @children="flow*"}
+        {element @name="metadata" @base="xml:element" @required-attributes="kind" @optional-attributes="name content href rel type media source-id byte-offset byte-length" @children="phrasing*"}
+        {element @name="flow" @base="xml:element" @required-attributes="kind" @optional-attributes="id class role source-id byte-offset byte-length" @children="flow* phrasing* foreign-content*"}
+        {element @name="phrasing" @base="xml:element" @required-attributes="kind" @optional-attributes="id class role href src alt source-id byte-offset byte-length" @children="phrasing* foreign-content*"}
+        {element @name="foreign-content" @base="xml:element" @required-attributes="namespace-uri local-name" @optional-attributes="source-id byte-offset byte-length" @children="foreign-content* flow* phrasing*"}
+    }
+
+    {attributes |
+        {attribute @name="encoding" @base="xml:encoding"}
+        {attribute @name="charset" @base="xml:charset"}
+        {attribute @name="profile" @type="schema:uri"}
+        {attribute @name="doctype" @type="schema:identifier" @values="html xhtml1-strict xhtml1-transitional xhtml1-frameset xhtml-basic xhtml-print unknown"}
+        {attribute @name="source-id" @base="xml:source-id"}
+        {attribute @name="byte-offset" @base="xml:byte-offset"}
+        {attribute @name="byte-length" @base="xml:byte-length"}
+        {attribute @name="namespace-uri" @base="xml:namespace-uri"}
+        {attribute @name="local-name" @base="xml:local-name"}
+        {attribute @name="lang" @type="schema:string"}
+        {attribute @name="dir" @type="schema:identifier" @values="ltr rtl auto"}
+        {attribute @name="manifest" @type="schema:uri"}
+        {attribute @name="kind" @type="schema:identifier" @values="base link meta title style script address article aside blockquote div dl figure footer form h1 h2 h3 h4 h5 h6 header hr main nav ol p pre section table ul a abbr b bdi bdo br cite code data em i img input label mark q ruby samp small span strong sub sup time var wbr button details dialog select textarea"}
+        {attribute @name="name" @type="schema:string"}
+        {attribute @name="content" @type="schema:string"}
+        {attribute @name="href" @type="schema:string"}
+        {attribute @name="rel" @type="schema:string"}
+        {attribute @name="type" @type="schema:media-type"}
+        {attribute @name="media" @type="schema:string"}
+        {attribute @name="id" @type="schema:identifier"}
+        {attribute @name="class" @type="schema:string"}
+        {attribute @name="role" @type="schema:string"}
+        {attribute @name="src" @type="schema:string"}
+        {attribute @name="alt" @type="schema:string"}
+    }
+
+    {constraints |
+        {constraint @kind="xhtml-source-parser" @target="document" @policy="delegate-to-xml-parser-with-xhtml-schema"}
+        {constraint @kind="application-xhtml-primary" @target="document" @policy="application/xhtml+xml is the canonical media type for XHTML resources"}
+        {constraint @kind="text-html-not-claimed" @target="document" @policy="text/html is an HTML serialization identity, not the XHTML schema identity"}
+        {constraint @kind="xml-base-schema-compatible" @target="document" @policy="required"}
+        {constraint @kind="xhtml-namespace-required" @target="html" @policy="root element must use http://www.w3.org/1999/xhtml"}
+        {constraint @kind="root-html-element" @target="document" @policy="required"}
+        {constraint @kind="single-head-before-body" @target="html" @policy="required"}
+        {constraint @kind="well-formed-xml" @target="document" @policy="required"}
+        {constraint @kind="void-element-xml-serialization" @target="flow" @policy="void HTML elements must be represented as well-formed XML elements"}
+        {constraint @kind="foreign-content-declared" @target="foreign-content" @policy="foreign namespaces require their own schema package or explicit converter profile"}
+        {constraint @kind="doctype-policy" @target="document" @policy="preserve doctype but do not fetch external subsets unless explicitly enabled by policy"}
+        {constraint @kind="profile-parameter-deprecated" @target="document" @policy="preserve but do not require application/xhtml+xml profile parameter"}
+        {constraint @kind="source-map-preferred" @target="flow" @policy="required when parser exposes source ranges"}
+    }
+
+    {diagnostics |
+        {diagnostic @code="cem.xhtml.parse_error" @severity="error"}
+        {diagnostic @code="cem.xhtml.not_well_formed_xml" @severity="error"}
+        {diagnostic @code="cem.xhtml.root_not_html" @severity="error"}
+        {diagnostic @code="cem.xhtml.namespace_missing" @severity="error"}
+        {diagnostic @code="cem.xhtml.head_body_order" @severity="error"}
+        {diagnostic @code="cem.xhtml.text_html_identity_rejected" @severity="warning"}
+        {diagnostic @code="cem.xhtml.profile_deprecated" @severity="info"}
+        {diagnostic @code="cem.xhtml.source_map_unavailable" @severity="info"}
+    }
+
+    {compatibility |
+        {note @version="1.0.0" @value="RFC 3236 registers application/xhtml+xml for XHTML-based markup languages with optional charset and profile parameters; IANA now marks profile deprecated. XHTML is XML and uses the http://www.w3.org/1999/xhtml namespace."}
+    }
+
+    {open-content |
+        {accept @kind="xhtml-extension" @policy="reject-unless-declared"}
+        {accept @kind="foreign-namespace" @policy="reject-unless-schema-registered"}
+    }
+}

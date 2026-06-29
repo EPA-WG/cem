@@ -18,6 +18,8 @@ pub const YAML_SCHEMA_URI: &str = "https://cem.dev/ns/data/yaml/1";
 pub const CSV_SCHEMA_URI: &str = "https://cem.dev/ns/data/csv/1";
 pub const MARKDOWN_SCHEMA_URI: &str = "https://cem.dev/ns/data/markdown/1";
 pub const XML_SCHEMA_URI: &str = "https://cem.dev/ns/data/xml/1";
+pub const XHTML_SCHEMA_URI: &str = "https://cem.dev/ns/data/xhtml/1";
+pub const XHTML_NAMESPACE_URI: &str = "http://www.w3.org/1999/xhtml";
 pub const CEM_DOM_PROJECTION_SCHEMA_URI: &str = "https://cem.dev/ns/projection/dom/1";
 pub const CEM_AST_PROJECTION_SCHEMA_URI: &str = "https://cem.dev/ns/projection/ast/1";
 pub const CEM_EVENTS_PROJECTION_SCHEMA_URI: &str = "https://cem.dev/ns/projection/events/1";
@@ -35,6 +37,7 @@ pub const YAML_CONTENT_TYPE: &str = "application/yaml";
 pub const CSV_CONTENT_TYPE: &str = "text/csv";
 pub const MARKDOWN_CONTENT_TYPE: &str = "text/markdown";
 pub const XML_CONTENT_TYPE: &str = "application/xml";
+pub const XHTML_CONTENT_TYPE: &str = "application/xhtml+xml";
 pub const CEM_DOM_PROJECTION_CONTENT_TYPE: &str = "application/vnd.cem.dom+cem-bin";
 pub const CEM_DOM_JSON_PROJECTION_CONTENT_TYPE: &str = "application/vnd.cem.dom+json";
 pub const CEM_AST_PROJECTION_CONTENT_TYPE: &str = "application/vnd.cem.ast+cem-bin";
@@ -461,6 +464,22 @@ pub fn builtin_schema_descriptors() -> Vec<SchemaDescriptor> {
             uses: vec![CEM_SCHEMA_URI.into(), CEM_ML_SCHEMA_URI.into()],
         },
         SchemaDescriptor {
+            package_id: "xhtml".into(),
+            schema_uri: XHTML_SCHEMA_URI.into(),
+            version: "1.0.0".into(),
+            source: "schema-packages/xhtml/v1/schema/xhtml.cem".into(),
+            content_types: vec![SchemaContentType::primary(XHTML_CONTENT_TYPE)],
+            namespaces: vec![
+                NamespaceClaim::new(Some("cemxhtml"), XHTML_SCHEMA_URI),
+                NamespaceClaim::new(Some("xhtml"), XHTML_NAMESPACE_URI),
+            ],
+            uses: vec![
+                CEM_SCHEMA_URI.into(),
+                CEM_ML_SCHEMA_URI.into(),
+                XML_SCHEMA_URI.into(),
+            ],
+        },
+        SchemaDescriptor {
             package_id: "json-schema".into(),
             schema_uri: JSON_SCHEMA_SCHEMA_URI.into(),
             version: "1.0.0".into(),
@@ -619,6 +638,13 @@ mod tests {
                 .schema_uri,
             XML_SCHEMA_URI
         );
+        assert_eq!(
+            registry
+                .resolve_content_type(XHTML_CONTENT_TYPE)
+                .unwrap()
+                .schema_uri,
+            XHTML_SCHEMA_URI
+        );
     }
 
     #[test]
@@ -744,6 +770,25 @@ mod tests {
                     .unwrap()
                     .schema_uri,
                 XML_SCHEMA_URI
+            );
+        }
+    }
+
+    #[test]
+    fn builtin_registry_resolves_xhtml_content_type_with_parameters() {
+        let registry = SchemaRegistry::with_builtin_schemas();
+
+        for content_type in [
+            "application/xhtml+xml",
+            "application/xhtml+xml; charset=utf-8",
+            "application/xhtml+xml; charset=utf-8; profile=https://example.test/profile",
+        ] {
+            assert_eq!(
+                registry
+                    .resolve_content_type(content_type)
+                    .unwrap()
+                    .schema_uri,
+                XHTML_SCHEMA_URI
             );
         }
     }

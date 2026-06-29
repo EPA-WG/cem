@@ -756,7 +756,7 @@ pub fn infer_content_type_from_path(path: &str) -> Option<String> {
     match ext.as_str() {
         "cem" => Some("application/cem+xml".to_owned()),
         "html" | "htm" => Some("text/html".to_owned()),
-        "xhtml" => Some("application/xhtml+xml".to_owned()),
+        "xhtml" | "xht" => Some(crate::schema::registry::XHTML_CONTENT_TYPE.to_owned()),
         "xml" => Some(crate::schema::registry::XML_CONTENT_TYPE.to_owned()),
         "svg" => Some("image/svg+xml".to_owned()),
         "xsl" | "xslt" => Some("application/xslt+xml".to_owned()),
@@ -929,6 +929,18 @@ mod tests {
         assert_eq!(
             infer_content_type_from_path("data/DOCUMENT.XML").as_deref(),
             Some(crate::schema::registry::XML_CONTENT_TYPE)
+        );
+    }
+
+    #[test]
+    fn xhtml_extensions_infer_xhtml_content_type() {
+        assert_eq!(
+            infer_content_type_from_path("dist/page.xhtml").as_deref(),
+            Some(crate::schema::registry::XHTML_CONTENT_TYPE)
+        );
+        assert_eq!(
+            infer_content_type_from_path("dist/PAGE.XHT").as_deref(),
+            Some(crate::schema::registry::XHTML_CONTENT_TYPE)
         );
     }
 

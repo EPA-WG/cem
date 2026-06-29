@@ -49,7 +49,7 @@ Implement schema packages for these content families:
 - [x] CSV.
 - [x] Markdown/MD markup.
 - [x] XML.
-- [ ] XHTML.
+- [x] XHTML.
 - [ ] SVG.
 - [ ] MathML.
 - [ ] XSLT/XSL legacy/custom-element compatibility.
