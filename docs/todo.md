@@ -39,8 +39,9 @@ Implement schema packages for these content families:
       `application/vnd.cem.dom+cem-bin`, `application/vnd.cem.ast+cem-bin`,
       and `application/vnd.cem.events+cem-bin`.
 - [x] Add raw-byte CLI/file output for CEM binary artifacts.
-- [ ] Add native byte response APIs for CEM binary artifacts; the current
-      engine response boundary still carries a JSON envelope with sealed chunks.
+- [x] Add native byte response APIs for CEM binary artifacts.
+- [ ] Remove JSON envelope dependency from internal binary projection routing;
+      keep envelopes only as compatibility/debug metadata views.
 - [ ] Implement parallel and multicast-capable projection stream routing over
       sealed CEM binary chunks.
 - [ ] YAML/YML.

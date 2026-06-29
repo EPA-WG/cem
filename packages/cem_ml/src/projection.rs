@@ -72,54 +72,97 @@ impl BinaryProjectionKind {
     }
 }
 
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct BinaryProjectionArtifact {
+    pub projection: String,
+    pub schema: String,
+    pub content_type: String,
+    pub format_version: String,
+    pub hash_scheme: String,
+    pub hash: String,
+    pub bytes: Vec<u8>,
+}
+
+impl BinaryProjectionArtifact {
+    pub fn to_json_envelope(&self) -> Value {
+        json!({
+            "kind": "cem-binary-projection",
+            "projection": self.projection,
+            "schema": self.schema,
+            "contentType": self.content_type,
+            "formatVersion": self.format_version,
+            "hashScheme": self.hash_scheme,
+            "hash": self.hash,
+            "byteLength": self.bytes.len(),
+            "chunks": [{
+                "id": ROOT_CHUNK_ID,
+                "sealed": true,
+                "byteOffset": 0,
+                "byteLength": self.bytes.len(),
+                "hash": self.hash,
+                "dataEncoding": "hex",
+                "data": hex_encode(&self.bytes),
+            }],
+        })
+    }
+}
+
 /// Project a built `CemDocument` to the first canonical CEM DOM binary artifact.
 ///
-/// The current response is a JSON envelope because the CLI/lib response boundary
-/// is still `serde_json::Value`; the chunk payload inside the envelope is the
-/// hash-addressed binary artifact bytes.
+/// This compatibility helper renders the native binary artifact as a JSON
+/// metadata envelope. Native callers should use `dom_binary_projection_artifact`
+/// when they need direct byte access.
 pub fn dom_binary_artifact(doc: &CemDocument) -> Value {
-    document_binary_artifact(doc, BinaryProjectionKind::Dom)
+    dom_binary_projection_artifact(doc).to_json_envelope()
 }
 
 /// Project a built `CemDocument` to the first canonical CEM AST binary artifact.
 pub fn ast_binary_artifact(doc: &CemDocument) -> Value {
-    document_binary_artifact(doc, BinaryProjectionKind::Ast)
+    ast_binary_projection_artifact(doc).to_json_envelope()
 }
 
 /// Project the input source to the first canonical CEM event-stream binary
 /// artifact.
 pub fn events_binary_artifact_as(input: &[u8], from_format: InputFormat) -> Value {
+    events_binary_projection_artifact_as(input, from_format).to_json_envelope()
+}
+
+pub fn dom_binary_projection_artifact(doc: &CemDocument) -> BinaryProjectionArtifact {
+    document_binary_artifact(doc, BinaryProjectionKind::Dom)
+}
+
+pub fn ast_binary_projection_artifact(doc: &CemDocument) -> BinaryProjectionArtifact {
+    document_binary_artifact(doc, BinaryProjectionKind::Ast)
+}
+
+pub fn events_binary_projection_artifact_as(
+    input: &[u8],
+    from_format: InputFormat,
+) -> BinaryProjectionArtifact {
     let bytes = encode_events_binary(input, from_format);
-    binary_artifact_envelope(BinaryProjectionKind::Events, bytes)
+    binary_artifact(BinaryProjectionKind::Events, bytes)
 }
 
-fn document_binary_artifact(doc: &CemDocument, kind: BinaryProjectionKind) -> Value {
+fn document_binary_artifact(
+    doc: &CemDocument,
+    kind: BinaryProjectionKind,
+) -> BinaryProjectionArtifact {
     let bytes = encode_document_binary(doc, kind);
-    binary_artifact_envelope(kind, bytes)
+    binary_artifact(kind, bytes)
 }
 
-fn binary_artifact_envelope(kind: BinaryProjectionKind, bytes: Vec<u8>) -> Value {
+fn binary_artifact(kind: BinaryProjectionKind, bytes: Vec<u8>) -> BinaryProjectionArtifact {
     let hash_hex = blake3::hash(&bytes).to_hex().to_string();
     let hash = format!("{HASH_SCHEME}:{hash_hex}");
-    json!({
-        "kind": "cem-binary-projection",
-        "projection": kind.name(),
-        "schema": kind.schema(),
-        "contentType": kind.content_type(),
-        "formatVersion": BINARY_FORMAT_VERSION,
-        "hashScheme": HASH_SCHEME,
-        "hash": hash,
-        "byteLength": bytes.len(),
-        "chunks": [{
-            "id": ROOT_CHUNK_ID,
-            "sealed": true,
-            "byteOffset": 0,
-            "byteLength": bytes.len(),
-            "hash": hash,
-            "dataEncoding": "hex",
-            "data": hex_encode(&bytes),
-        }],
-    })
+    BinaryProjectionArtifact {
+        projection: kind.name().to_owned(),
+        schema: kind.schema().to_owned(),
+        content_type: kind.content_type().to_owned(),
+        format_version: BINARY_FORMAT_VERSION.to_owned(),
+        hash_scheme: HASH_SCHEME.to_owned(),
+        hash,
+        bytes,
+    }
 }
 
 fn encode_document_binary(doc: &CemDocument, kind: BinaryProjectionKind) -> Vec<u8> {

@@ -2541,7 +2541,7 @@ fn run_convert_fanout<E: CemMlEngine + ?Sized>(
                             &resp.scheduler_trace,
                         );
                         if let Err(e) =
-                            write_primary(&engine_context, &resp.primary, args.out.as_deref(), s)
+                            write_convert_primary(&engine_context, &resp, args.out.as_deref(), s)
                         {
                             let _ = writeln!(s.stderr, "cem-ml: write failure: {e}");
                             return Outcome::code(EXIT_IO);
@@ -2591,12 +2591,9 @@ fn run_convert_fanout<E: CemMlEngine + ?Sized>(
                 report_inputs.push(input_uri);
                 report_diagnostics.extend(resp.diagnostics.clone());
                 append_convert_scheduler_trace(&mut report_scheduler_trace, &resp.scheduler_trace);
-                if let Err(e) = write_primary(
-                    &engine_context,
-                    &resp.primary,
-                    Some(destination.as_path()),
-                    s,
-                ) {
+                if let Err(e) =
+                    write_convert_primary(&engine_context, &resp, Some(destination.as_path()), s)
+                {
                     let _ = writeln!(s.stderr, "cem-ml: write failure: {e}");
                     return Outcome::code(EXIT_IO);
                 }
@@ -2665,29 +2662,43 @@ fn handle_engine_error(err: EngineError, s: &mut Streams<'_>) -> Outcome {
     }
 }
 
+fn write_convert_primary(
+    context: &eng::EngineContext,
+    response: &eng::ConvertResponse,
+    out: Option<&Path>,
+    s: &mut Streams<'_>,
+) -> io::Result<()> {
+    write_primary_with_bytes(
+        context,
+        &response.primary,
+        response.primary_bytes.as_ref(),
+        out,
+        s,
+    )
+}
+
 fn write_primary(
     context: &eng::EngineContext,
     primary: &serde_json::Value,
     out: Option<&Path>,
     s: &mut Streams<'_>,
 ) -> io::Result<()> {
+    write_primary_with_bytes(context, primary, None, out, s)
+}
+
+fn write_primary_with_bytes(
+    context: &eng::EngineContext,
+    primary: &serde_json::Value,
+    primary_bytes: Option<&eng::PrimaryBytes>,
+    out: Option<&Path>,
+    s: &mut Streams<'_>,
+) -> io::Result<()> {
+    if let Some(primary_bytes) = primary_bytes {
+        return write_raw_primary_bytes(context, &primary_bytes.bytes, out, s);
+    }
+
     if let Some(bytes) = binary_projection_primary_bytes(primary)? {
-        match out {
-            Some(path) => {
-                write_destination(
-                    context,
-                    path,
-                    "output destination",
-                    ResolvePurpose::Output,
-                    &bytes,
-                )?;
-            }
-            None => {
-                s.stdout.write_all(&bytes)?;
-                s.stdout.flush()?;
-            }
-        }
-        return Ok(());
+        return write_raw_primary_bytes(context, &bytes, out, s);
     }
 
     let serialized = serde_json::to_string_pretty(primary).unwrap_or_else(|_| String::new());
@@ -2703,6 +2714,28 @@ fn write_primary(
         }
         None => {
             writeln!(s.stdout, "{serialized}")?;
+        }
+    }
+    Ok(())
+}
+
+fn write_raw_primary_bytes(
+    context: &eng::EngineContext,
+    bytes: &[u8],
+    out: Option<&Path>,
+    s: &mut Streams<'_>,
+) -> io::Result<()> {
+    match out {
+        Some(path) => write_destination(
+            context,
+            path,
+            "output destination",
+            ResolvePurpose::Output,
+            bytes,
+        )?,
+        None => {
+            s.stdout.write_all(bytes)?;
+            s.stdout.flush()?;
         }
     }
     Ok(())
@@ -8510,6 +8543,40 @@ mod tests {
         assert_eq!(writes.len(), 1);
         assert_eq!(writes[0].0, "cem+vfs://out/result.json");
         assert!(String::from_utf8_lossy(&writes[0].1).contains(r#""ok": true"#));
+    }
+
+    #[test]
+    fn convert_primary_writer_prefers_native_primary_bytes() {
+        let mut stdout = Cursor::new(Vec::new());
+        let mut stderr = Cursor::new(Vec::new());
+        let mut streams = Streams {
+            stdout: &mut stdout,
+            stderr: &mut stderr,
+            quiet: false,
+        };
+        let response = eng::ConvertResponse {
+            primary: serde_json::json!({"kind": "not-binary-envelope"}),
+            primary_bytes: Some(eng::PrimaryBytes {
+                content_type: "application/vnd.cem.dom+cem-bin".to_owned(),
+                schema: Some("https://cem.dev/ns/projection/dom/1".to_owned()),
+                format_version: "cem-projection-bin/1".to_owned(),
+                hash_scheme: "cem-bin/1+blake3".to_owned(),
+                hash: "cem-bin/1+blake3:test".to_owned(),
+                bytes: b"CEMPROJ\0native".to_vec(),
+            }),
+            diagnostics: Vec::new(),
+            scheduler_trace: cem_ml::report::SchedulerTraceReport::default(),
+        };
+
+        write_convert_primary(
+            &eng::EngineContext::default(),
+            &response,
+            None,
+            &mut streams,
+        )
+        .unwrap();
+
+        assert_eq!(stdout.into_inner(), b"CEMPROJ\0native");
     }
 
     #[test]

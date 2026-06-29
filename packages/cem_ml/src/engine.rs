@@ -864,9 +864,21 @@ pub struct InspectResponse {
     pub body: Value,
 }
 
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct PrimaryBytes {
+    pub content_type: String,
+    pub schema: Option<String>,
+    pub format_version: String,
+    pub hash_scheme: String,
+    pub hash: String,
+    pub bytes: Vec<u8>,
+}
+
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct ConvertResponse {
     pub primary: Value,
+    #[serde(skip)]
+    pub primary_bytes: Option<PrimaryBytes>,
     pub diagnostics: Vec<Diagnostic>,
     #[serde(rename = "schedulerTrace", default)]
     pub scheduler_trace: SchedulerTraceReport,

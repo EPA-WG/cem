@@ -2197,6 +2197,19 @@ fn content_hash(bytes: &[u8]) -> String {
     format!("cem-bin/1+blake3:{}", blake3::hash(bytes).to_hex())
 }
 
+fn primary_bytes_from_binary_artifact(
+    artifact: &projection::BinaryProjectionArtifact,
+) -> PrimaryBytes {
+    PrimaryBytes {
+        content_type: artifact.content_type.clone(),
+        schema: Some(artifact.schema.clone()),
+        format_version: artifact.format_version.clone(),
+        hash_scheme: artifact.hash_scheme.clone(),
+        hash: artifact.hash.clone(),
+        bytes: artifact.bytes.clone(),
+    }
+}
+
 fn template_module_diagnostic(
     uri: Option<&str>,
     code: &str,
@@ -2877,6 +2890,7 @@ impl CemMlEngine for RealCemMlEngine {
         let mut loaded_input: Option<LoadedInput> = None;
         let mut export_selection: Option<ExportSelection> = None;
         let mut primary: Option<Value> = None;
+        let mut primary_bytes: Option<PrimaryBytes> = None;
         pool.run_to_completion(&abort, |task| {
             if task.ends_with(":lifecycle-load") {
                 let mut scope_diagnostics = root_scope_metadata_diagnostics(
@@ -3000,10 +3014,23 @@ impl CemMlEngine for RealCemMlEngine {
                 LayerFormat::DomJson => projection::dom_json(&run.document),
                 LayerFormat::Ast => projection::ast_json(&run.document),
                 LayerFormat::Events => projection::events_json_as(&loaded.bytes, from_format),
-                LayerFormat::DomBin => projection::dom_binary_artifact(&run.document),
-                LayerFormat::AstBin => projection::ast_binary_artifact(&run.document),
+                LayerFormat::DomBin => {
+                    let artifact = projection::dom_binary_projection_artifact(&run.document);
+                    primary_bytes = Some(primary_bytes_from_binary_artifact(&artifact));
+                    artifact.to_json_envelope()
+                }
+                LayerFormat::AstBin => {
+                    let artifact = projection::ast_binary_projection_artifact(&run.document);
+                    primary_bytes = Some(primary_bytes_from_binary_artifact(&artifact));
+                    artifact.to_json_envelope()
+                }
                 LayerFormat::EventsBin => {
-                    projection::events_binary_artifact_as(&loaded.bytes, from_format)
+                    let artifact = projection::events_binary_projection_artifact_as(
+                        &loaded.bytes,
+                        from_format,
+                    );
+                    primary_bytes = Some(primary_bytes_from_binary_artifact(&artifact));
+                    artifact.to_json_envelope()
                 }
             });
             diagnostics.extend(run.diagnostics);
@@ -3027,6 +3054,7 @@ impl CemMlEngine for RealCemMlEngine {
         project_diagnostic_uris(&mut diagnostics, &request.input, &request.context);
         Ok(ConvertResponse {
             primary,
+            primary_bytes,
             diagnostics,
             scheduler_trace: crate::report::SchedulerTraceReport::from_trace(&trace),
         })
@@ -5906,6 +5934,49 @@ mod tests {
         let resp = RealCemMlEngine::new().convert(req).unwrap();
         assert_eq!(resp.primary["kind"], "document");
         assert_eq!(resp.scheduler_trace.event_count, 9);
+    }
+
+    #[test]
+    fn convert_dom_bin_returns_native_primary_bytes() {
+        let req = ConvertRequest {
+            input: input(b"{p Hi}", "in"),
+            to_format: LayerFormat::DomBin,
+            preserve_source_offsets: false,
+            context: ctx(),
+            target: None,
+            target_scope: Default::default(),
+            scheduler_scope_id: 0,
+        };
+        let resp = RealCemMlEngine::new().convert(req).unwrap();
+        let bytes = resp.primary_bytes.as_ref().expect("primary bytes");
+
+        assert_eq!(resp.primary["kind"], "cem-binary-projection");
+        assert_eq!(
+            bytes.content_type,
+            crate::schema::registry::CEM_DOM_PROJECTION_CONTENT_TYPE
+        );
+        assert_eq!(
+            bytes.schema.as_deref(),
+            Some(crate::lifecycle::DOM_PROJECTION_SCHEMA)
+        );
+        assert_eq!(bytes.hash, resp.primary["hash"].as_str().unwrap());
+        assert!(bytes.bytes.starts_with(b"CEMPROJ\0"));
+    }
+
+    #[test]
+    fn convert_dom_json_does_not_return_native_primary_bytes() {
+        let req = ConvertRequest {
+            input: input(b"{p Hi}", "in"),
+            to_format: LayerFormat::DomJson,
+            preserve_source_offsets: false,
+            context: ctx(),
+            target: None,
+            target_scope: Default::default(),
+            scheduler_scope_id: 0,
+        };
+        let resp = RealCemMlEngine::new().convert(req).unwrap();
+
+        assert!(resp.primary_bytes.is_none());
     }
 
     #[test]
