@@ -755,6 +755,7 @@ pub fn infer_content_type_from_path(path: &str) -> Option<String> {
         "xml" => Some("application/xml".to_owned()),
         "svg" => Some("image/svg+xml".to_owned()),
         "xsl" | "xslt" => Some("application/xslt+xml".to_owned()),
+        "cemt" => Some(crate::schema::registry::CEM_TRANSFORM_CONTENT_TYPE.to_owned()),
         "json" => Some("application/json".to_owned()),
         _ => None,
     }
@@ -834,6 +835,18 @@ mod tests {
         assert_eq!(
             spec.root_scope.namespaces.get("html").map(String::as_str),
             Some("http://www.w3.org/1999/xhtml")
+        );
+    }
+
+    #[test]
+    fn cemt_extension_infers_transform_content_type() {
+        assert_eq!(
+            infer_content_type_from_path("templates/page.cemt").as_deref(),
+            Some(crate::schema::registry::CEM_TRANSFORM_CONTENT_TYPE)
+        );
+        assert_eq!(
+            infer_content_type_from_path("templates/PAGE.CEMT").as_deref(),
+            Some(crate::schema::registry::CEM_TRANSFORM_CONTENT_TYPE)
         );
     }
 

@@ -6,8 +6,12 @@
 use crate::diagnostics::{Diagnostic, Severity};
 use crate::engine::{EngineContext, EngineInput, FormatIdentity, InputFormat, LayerFormat};
 use crate::schema::ir::CEM_CORE_NAMESPACE;
+use crate::schema::registry::{
+    CEM_ML_CONTENT_TYPE, CEM_ML_SCHEMA_URI, CEM_NATIVE_TEMPLATE_CONTENT_TYPE,
+    CEM_NATIVE_TEMPLATE_SCHEMA_URI, CEM_SCHEMA_CONTENT_TYPE, CEM_SCHEMA_PACKAGE_CONTENT_TYPE,
+    CEM_SCHEMA_PACKAGE_URI, CEM_SCHEMA_URI, CEM_TRANSFORM_CONTENT_TYPE, CEM_TRANSFORM_SCHEMA_URI,
+};
 use crate::transform_config::TRANSFORM_CONFIG_SCHEMA_URI;
-use crate::transform_template::CEM_NATIVE_TEMPLATE_SCHEMA_URI;
 
 pub const ADAPTER_AMBIGUOUS_CODE: &str = "cem.lifecycle.adapter_ambiguous";
 pub const ADAPTER_UNSUPPORTED_CODE: &str = "cem.lifecycle.adapter_unsupported";
@@ -22,9 +26,13 @@ const SVG_NAMESPACE: &str = "http://www.w3.org/2000/svg";
 const XSLT_NAMESPACE: &str = "http://www.w3.org/1999/XSL/Transform";
 const HTML_ADAPTER_SCHEMA_IDENTITIES: &[&str] = &[HTML_NAMESPACE, SVG_NAMESPACE];
 const CEM_ML_SCHEMA_IDENTITIES: &[&str] = &[
+    CEM_ML_SCHEMA_URI,
+    CEM_SCHEMA_URI,
+    CEM_SCHEMA_PACKAGE_URI,
     CEM_CORE_NAMESPACE,
     TRANSFORM_CONFIG_SCHEMA_URI,
     CEM_NATIVE_TEMPLATE_SCHEMA_URI,
+    CEM_TRANSFORM_SCHEMA_URI,
 ];
 
 #[derive(Debug, Clone)]
@@ -383,7 +391,11 @@ impl LifecycleAdapter for CemMlAdapter {
             identity,
             &[
                 "application/cem+xml",
-                "application/cem",
+                CEM_ML_CONTENT_TYPE,
+                CEM_SCHEMA_CONTENT_TYPE,
+                CEM_SCHEMA_PACKAGE_CONTENT_TYPE,
+                CEM_NATIVE_TEMPLATE_CONTENT_TYPE,
+                CEM_TRANSFORM_CONTENT_TYPE,
                 "text/cem",
                 "text/cem-ml",
             ],
@@ -755,6 +767,20 @@ mod tests {
     }
 
     #[test]
+    fn transform_schema_selects_cem_input_when_content_type_absent() {
+        let loaded = LifecycleRegistry::with_builtin_adapters().load(
+            &input(br#"{transform @template="view.cem" @to-content-type="text/html"}"#),
+            &EngineContext {
+                schema: Some(CEM_TRANSFORM_SCHEMA_URI.to_owned()),
+                ..EngineContext::default()
+            },
+        );
+        assert_eq!(loaded.from_format, InputFormat::Cem);
+        assert_eq!(loaded.adapter_id, Some("cem-ml"));
+        assert!(loaded.diagnostics.is_empty());
+    }
+
+    #[test]
     fn html_schema_selects_html_input_when_content_type_absent() {
         let loaded = LifecycleRegistry::with_builtin_adapters().load(
             &input(b"<p>Hi</p>"),
@@ -1009,6 +1035,19 @@ mod tests {
     fn native_template_schema_selects_cem_export_when_content_type_absent() {
         let target = FormatIdentity {
             schema: Some(CEM_NATIVE_TEMPLATE_SCHEMA_URI.to_owned()),
+            ..FormatIdentity::default()
+        };
+        let selected = LifecycleRegistry::with_builtin_adapters()
+            .select_export(Some(&target), LayerFormat::DomJson);
+        assert_eq!(selected.to_format, LayerFormat::Cem);
+        assert_eq!(selected.adapter_id, Some("cem-ml"));
+        assert!(selected.diagnostics.is_empty());
+    }
+
+    #[test]
+    fn transform_schema_selects_cem_export_when_content_type_absent() {
+        let target = FormatIdentity {
+            schema: Some(CEM_TRANSFORM_SCHEMA_URI.to_owned()),
             ..FormatIdentity::default()
         };
         let selected = LifecycleRegistry::with_builtin_adapters()

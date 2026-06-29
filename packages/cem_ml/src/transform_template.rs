@@ -16,6 +16,9 @@ use crate::parser::builder::CemAstBuilder;
 use crate::parser::document::CemDocument;
 use crate::parser::{AstNodeId, CemAstNode};
 use crate::run_config::ScopeConfig;
+use crate::schema::registry::{
+    CEM_NATIVE_TEMPLATE_CONTENT_TYPE, CEM_TRANSFORM_CONTENT_TYPE, CEM_TRANSFORM_SCHEMA_URI,
+};
 use crate::source::{BytesSource, SourceId};
 use crate::source_map::SourceMapStack;
 use crate::tokenizer::cem::CemTokenizer;
@@ -1192,11 +1195,14 @@ impl TransformTemplateAdapterRegistry {
             &[
                 "application/cem+xml",
                 "application/cem",
+                CEM_NATIVE_TEMPLATE_CONTENT_TYPE,
+                CEM_TRANSFORM_CONTENT_TYPE,
                 "text/cem",
                 "text/cem-ml",
             ],
             &[
                 CEM_NATIVE_TEMPLATE_SCHEMA_URI,
+                CEM_TRANSFORM_SCHEMA_URI,
                 crate::schema::ir::CEM_CORE_NAMESPACE,
             ],
             &[crate::schema::ir::CEM_CORE_NAMESPACE],
@@ -1380,6 +1386,14 @@ mod tests {
             content_type: Some("text/cem-ml; charset=utf-8".to_owned()),
             ..FormatIdentity::default()
         };
+        let native_template = FormatIdentity {
+            content_type: Some(format!("{CEM_NATIVE_TEMPLATE_CONTENT_TYPE}; charset=utf-8")),
+            ..FormatIdentity::default()
+        };
+        let transform = FormatIdentity {
+            content_type: Some(format!("{CEM_TRANSFORM_CONTENT_TYPE}; charset=utf-8")),
+            ..FormatIdentity::default()
+        };
         let xslt = FormatIdentity {
             default_namespace: Some(crate::schema::xslt::XSL_NAMESPACE.to_owned()),
             ..FormatIdentity::default()
@@ -1387,6 +1401,20 @@ mod tests {
 
         assert_eq!(
             registry.select(&cem),
+            TransformTemplateAdapterResolution::Matched(TransformTemplateAdapterSelection {
+                adapter_id: "cem-native-template",
+                kind: TransformTemplateKind::CemNative,
+            })
+        );
+        assert_eq!(
+            registry.select(&native_template),
+            TransformTemplateAdapterResolution::Matched(TransformTemplateAdapterSelection {
+                adapter_id: "cem-native-template",
+                kind: TransformTemplateKind::CemNative,
+            })
+        );
+        assert_eq!(
+            registry.select(&transform),
             TransformTemplateAdapterResolution::Matched(TransformTemplateAdapterSelection {
                 adapter_id: "cem-native-template",
                 kind: TransformTemplateKind::CemNative,
@@ -1532,6 +1560,23 @@ mod tests {
         let identity = FormatIdentity {
             schema: Some(CEM_NATIVE_TEMPLATE_SCHEMA_URI.to_owned()),
             default_namespace: Some(CEM_NATIVE_TEMPLATE_NAMESPACE_URI.to_owned()),
+            ..FormatIdentity::default()
+        };
+
+        assert_eq!(
+            registry.select(&identity),
+            TransformTemplateAdapterResolution::Matched(TransformTemplateAdapterSelection {
+                adapter_id: "cem-native-template",
+                kind: TransformTemplateKind::CemNative,
+            })
+        );
+    }
+
+    #[test]
+    fn builtins_accept_cem_transform_schema_identity() {
+        let registry = TransformTemplateAdapterRegistry::with_builtin_adapters();
+        let identity = FormatIdentity {
+            schema: Some(CEM_TRANSFORM_SCHEMA_URI.to_owned()),
             ..FormatIdentity::default()
         };
 

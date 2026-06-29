@@ -1024,7 +1024,10 @@ mod tests {
         assert_eq!(join.required_attributes, &["mode"]);
         assert!(join.optional_attributes.contains(&"by"));
         assert!(join.optional_attributes.contains(&"with:*"));
-        assert_eq!(join.child_elements, &["transform", "rewrite-importmap", "export"]);
+        assert_eq!(
+            join.child_elements,
+            &["transform", "rewrite-importmap", "export"]
+        );
         assert_eq!(transform.required_attributes, &["src"]);
         assert!(transform.optional_attributes.contains(&"with:*"));
         assert!(transform.optional_attributes.contains(&"entrypoint"));

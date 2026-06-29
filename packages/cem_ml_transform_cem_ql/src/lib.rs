@@ -41,6 +41,7 @@ use serde_json::{json, Map, Number, Value};
 
 pub const CEM_QL_TEMPLATE_ADAPTER_ID: &str = "cem-ql-cem-native-template";
 pub const XSLT_PARITY_TEMPLATE_ADAPTER_ID: &str = "cem-ql-xslt-parity-template";
+const TRANSFORM_CALL_NODE: &str = "__cem_transform_call";
 
 #[derive(Debug, Clone, Default)]
 pub struct CemQlTransformTemplateAdapter;
@@ -147,11 +148,14 @@ impl TransformTemplateAdapter for CemQlTransformTemplateAdapter {
                 })
             })
             .collect::<Vec<_>>();
-        let mut render_artifact = render_artifact;
+        let mut render_artifact = protect_transform_call_artifact(render_artifact);
         let mut entrypoints = entrypoints;
+        protect_transform_call_entrypoints(&mut entrypoints);
         clear_template_artifact_diagnostics(&mut render_artifact);
         clear_template_entrypoint_diagnostics(&mut entrypoints);
         for module in &mut modules {
+            protect_transform_call_nodes(&mut module.artifact.nodes);
+            protect_transform_call_entrypoints(&mut module.entrypoints);
             clear_template_artifact_diagnostics(&mut module.artifact);
             clear_template_entrypoint_diagnostics(&mut module.entrypoints);
         }
@@ -411,7 +415,12 @@ fn matches_cem_native_identity(identity: &FormatIdentity) -> bool {
     if let Some(content_type) = identity.content_type.as_deref() {
         return matches!(
             content_type_essence(content_type).as_str(),
-            "application/cem+xml" | "application/cem" | "text/cem" | "text/cem-ml"
+            "application/cem+xml"
+                | "application/cem"
+                | cem_ml::schema::registry::CEM_NATIVE_TEMPLATE_CONTENT_TYPE
+                | cem_ml::schema::registry::CEM_TRANSFORM_CONTENT_TYPE
+                | "text/cem"
+                | "text/cem-ml"
         );
     }
 
@@ -422,6 +431,7 @@ fn matches_cem_native_identity(identity: &FormatIdentity) -> bool {
         .unwrap_or_default();
     if !schema.is_empty() {
         return schema == CEM_NATIVE_TEMPLATE_SCHEMA_URI
+            || schema == cem_ml::schema::registry::CEM_TRANSFORM_SCHEMA_URI
             || schema == cem_ml::schema::ir::CEM_CORE_NAMESPACE;
     }
 
@@ -614,12 +624,26 @@ fn parse_imported_module_options(
 
 fn extract_template_entrypoints(artifact: &TemplateArtifact) -> CemQlTemplateEntrypoints {
     let mut entrypoints = CemQlTemplateEntrypoints::default();
-    let Some(module) = artifact.nodes.iter().find_map(module_node_children) else {
+    if let Some(module_body) = artifact.nodes.iter().find_map(module_body_node_children) {
+        entrypoints.implicit = Some(artifact_from_nodes(artifact, module_body.clone()));
+    } else if artifact
+        .nodes
+        .iter()
+        .all(|node| module_node_children(node).is_none())
+    {
         entrypoints.implicit = Some(artifact.clone());
-        return entrypoints;
-    };
+    }
 
-    for node in module {
+    collect_template_entrypoints(&artifact.nodes, artifact, &mut entrypoints);
+    entrypoints
+}
+
+fn collect_template_entrypoints(
+    nodes: &[TemplateNode],
+    source: &TemplateArtifact,
+    entrypoints: &mut CemQlTemplateEntrypoints,
+) {
+    for node in nodes {
         let TemplateNode::Element {
             tag,
             attributes,
@@ -629,25 +653,18 @@ fn extract_template_entrypoints(artifact: &TemplateArtifact) -> CemQlTemplateEnt
         else {
             continue;
         };
-        match local_name(tag) {
-            "body" => {
-                entrypoints.implicit = Some(artifact_from_nodes(artifact, children.clone()));
-            }
-            "template" => {
-                let Some(name) = literal_attribute(attributes, "name") else {
-                    continue;
-                };
-                if let Some(body) = children.iter().find_map(body_node_children) {
-                    entrypoints
-                        .named
-                        .insert(name, artifact_from_nodes(artifact, body.clone()));
-                }
-            }
-            _ => {}
-        }
-    }
 
-    entrypoints
+        if local_name(tag) == "template" {
+            if let Some(name) = literal_attribute(attributes, "name") {
+                entrypoints.named.insert(
+                    name,
+                    artifact_from_nodes(source, template_body_nodes(children)),
+                );
+            }
+        }
+
+        collect_template_entrypoints(children, source, entrypoints);
+    }
 }
 
 fn module_node_children(node: &TemplateNode) -> Option<&Vec<TemplateNode>> {
@@ -657,11 +674,25 @@ fn module_node_children(node: &TemplateNode) -> Option<&Vec<TemplateNode>> {
     (local_name(tag) == "module").then_some(children)
 }
 
+fn module_body_node_children(node: &TemplateNode) -> Option<&Vec<TemplateNode>> {
+    module_node_children(node)?
+        .iter()
+        .find_map(body_node_children)
+}
+
 fn body_node_children(node: &TemplateNode) -> Option<&Vec<TemplateNode>> {
     let TemplateNode::Element { tag, children, .. } = node else {
         return None;
     };
     (local_name(tag) == "body").then_some(children)
+}
+
+fn template_body_nodes(children: &[TemplateNode]) -> Vec<TemplateNode> {
+    children
+        .iter()
+        .find_map(body_node_children)
+        .cloned()
+        .unwrap_or_else(|| children.to_vec())
 }
 
 fn artifact_from_nodes(source: &TemplateArtifact, nodes: Vec<TemplateNode>) -> TemplateArtifact {
@@ -694,6 +725,44 @@ fn fill_diagnostic_uri(diagnostics: &mut [Diagnostic], uri: &str) {
 
 fn clear_template_artifact_diagnostics(artifact: &mut TemplateArtifact) {
     artifact.diagnostics.clear();
+}
+
+fn protect_transform_call_artifact(mut artifact: TemplateArtifact) -> TemplateArtifact {
+    protect_transform_call_nodes(&mut artifact.nodes);
+    artifact
+}
+
+fn protect_transform_call_entrypoints(entrypoints: &mut CemQlTemplateEntrypoints) {
+    if let Some(artifact) = &mut entrypoints.implicit {
+        protect_transform_call_nodes(&mut artifact.nodes);
+    }
+    for artifact in entrypoints.named.values_mut() {
+        protect_transform_call_nodes(&mut artifact.nodes);
+    }
+}
+
+fn protect_transform_call_nodes(nodes: &mut [TemplateNode]) {
+    for node in nodes {
+        match node {
+            TemplateNode::Element { tag, children, .. } => {
+                if local_name(tag) == "call" {
+                    *tag = TRANSFORM_CALL_NODE.to_owned();
+                }
+                protect_transform_call_nodes(children);
+            }
+            TemplateNode::If { children, .. } | TemplateNode::ForEach { children, .. } => {
+                protect_transform_call_nodes(children);
+            }
+            TemplateNode::Choose { branches, .. } => {
+                for branch in branches {
+                    protect_transform_call_nodes(&mut branch.children);
+                }
+            }
+            TemplateNode::Text { .. }
+            | TemplateNode::Comment { .. }
+            | TemplateNode::Expression(_) => {}
+        }
+    }
 }
 
 fn clear_template_entrypoint_diagnostics(entrypoints: &mut CemQlTemplateEntrypoints) {
@@ -790,7 +859,7 @@ fn expand_call_node(
         return vec![node.clone()];
     };
 
-    if local_name(tag) == "call" {
+    if local_name(tag) == "call" || tag == TRANSFORM_CALL_NODE {
         return render_call_node(
             attributes,
             payload,
@@ -4010,6 +4079,29 @@ mod tests {
                 assert_eq!(adapter.id(), CEM_QL_TEMPLATE_ADAPTER_ID)
             }
             other => panic!("expected schema identity adapter match, got {other:?}"),
+        }
+    }
+
+    #[test]
+    fn adapter_accepts_cem_vendor_template_content_types() {
+        let context = engine_context_with_cem_ql_template_adapter();
+        for content_type in [
+            cem_ml::schema::registry::CEM_NATIVE_TEMPLATE_CONTENT_TYPE,
+            cem_ml::schema::registry::CEM_TRANSFORM_CONTENT_TYPE,
+        ] {
+            let identity = FormatIdentity {
+                content_type: Some(format!("{content_type}; charset=utf-8")),
+                ..FormatIdentity::default()
+            };
+
+            match context.template_adapter_registry.select_adapter(&identity) {
+                TransformTemplateAdapterLookup::Matched(adapter) => {
+                    assert_eq!(adapter.id(), CEM_QL_TEMPLATE_ADAPTER_ID)
+                }
+                other => {
+                    panic!("expected content type `{content_type}` adapter match, got {other:?}")
+                }
+            }
         }
     }
 

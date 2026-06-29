@@ -23,7 +23,7 @@ Implement schema packages for these content families:
 - [x] create schema registry
 - [x] CEM-ML template.
 - [x] CEM-ML transform template (`application/vnd.cem.transform+cem`, `.cemt`).
-- [ ] use schema registry with transforms for parser/AST stream loading
+- [x] use schema registry with transforms for parser/AST stream loading
 - [ ] CEM-QL module/query resources.
 - [ ] JSON.
 - [ ] JSON+JSON schema

@@ -329,6 +329,7 @@ fn engine_input(
     if root_scope.default_content_type.is_none() {
         root_scope.default_content_type = read.content_type.clone();
     }
+    apply_schema_registry_defaults(context, &mut root_scope);
     Ok(eng::EngineInput {
         uri: path.display().to_string(),
         bytes: read.bytes,
@@ -352,6 +353,9 @@ fn placeholder_input(
     from_format: Option<cli::InputFormat>,
     root_scope: ScopeConfig,
 ) -> eng::EngineInput {
+    let mut root_scope = root_scope;
+    let context = eng::EngineContext::default();
+    apply_schema_registry_defaults(&context, &mut root_scope);
     eng::EngineInput {
         uri: path.display().to_string(),
         bytes: Vec::new(),
@@ -384,6 +388,7 @@ fn engine_input_from_spec(
     if root_scope.default_content_type.is_none() {
         root_scope.default_content_type = read.content_type.clone();
     }
+    apply_schema_registry_defaults(context, &mut root_scope);
     Ok(eng::EngineInput {
         uri: spec.uri.clone(),
         bytes: read.bytes,
@@ -413,12 +418,25 @@ fn template_input(
     if root_scope.default_content_type.is_none() {
         root_scope.default_content_type = read.content_type.clone();
     }
+    apply_schema_registry_defaults(context, &mut root_scope);
     Ok(eng::TemplateInput {
         uri: path.display().to_string(),
         bytes: read.bytes,
         identity: root_scope.format_identity_option(),
         root_scope,
     })
+}
+
+fn apply_schema_registry_defaults(context: &eng::EngineContext, scope: &mut ScopeConfig) {
+    if scope.schema.is_some() {
+        return;
+    }
+    let Some(content_type) = scope.default_content_type.as_deref() else {
+        return;
+    };
+    if let Ok(descriptor) = context.schema_registry.resolve_content_type(content_type) {
+        scope.schema = Some(descriptor.schema_uri.clone());
+    }
 }
 
 fn run_config_with_context(
@@ -6147,6 +6165,67 @@ mod tests {
         assert_eq!(
             request.template.root_scope.default_content_type.as_deref(),
             Some("text/cem-ml")
+        );
+    }
+
+    #[test]
+    fn transform_request_helper_infers_cemt_template_schema_and_runtime_adapter() {
+        let data = write_fixture("transform-helper-cemt-data.xml", "<items/>");
+        let template = write_fixture(
+            "transform-helper-view.cemt",
+            r#"{transform @to-content-type="text/html" | {template | {p Hello}}}"#,
+        );
+        let parsed = parse_cli(&[
+            "transform",
+            data.to_str().unwrap(),
+            "--data-content-type",
+            "application/xml",
+            "--template",
+            template.to_str().unwrap(),
+            "--to-content-type",
+            "text/html",
+            "--out",
+            "view.html",
+        ]);
+        let cli::Command::Transform(args) = parsed.command else {
+            panic!("expected transform command");
+        };
+        let context = context(&cli::ContextOptions::default());
+
+        let request = match transform_request_from_args(&context, &args) {
+            Ok(request) => request,
+            Err(_) => panic!("transform request helper should accept CEMT templates"),
+        };
+
+        assert_eq!(request.template_kind, eng::TransformTemplateKind::CemNative);
+        assert_eq!(
+            request.template.root_scope.default_content_type.as_deref(),
+            Some(cem_ml::schema::registry::CEM_TRANSFORM_CONTENT_TYPE)
+        );
+        assert_eq!(
+            request.template.root_scope.schema.as_deref(),
+            Some(cem_ml::schema::registry::CEM_TRANSFORM_SCHEMA_URI)
+        );
+        let template_identity = request.template.identity.as_ref().unwrap();
+        assert_eq!(
+            template_identity.content_type.as_deref(),
+            Some(cem_ml::schema::registry::CEM_TRANSFORM_CONTENT_TYPE)
+        );
+        assert_eq!(
+            template_identity.schema.as_deref(),
+            Some(cem_ml::schema::registry::CEM_TRANSFORM_SCHEMA_URI)
+        );
+        let adapter = match request
+            .context
+            .template_adapter_registry
+            .select_adapter(template_identity)
+        {
+            cem_ml::transform_template::TransformTemplateAdapterLookup::Matched(adapter) => adapter,
+            other => panic!("expected executable CEM-QL adapter, got {other:?}"),
+        };
+        assert_eq!(
+            adapter.id(),
+            cem_ml_transform_cem_ql::CEM_QL_TEMPLATE_ADAPTER_ID
         );
     }
 
