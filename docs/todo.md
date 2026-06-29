@@ -6,8 +6,38 @@ history belongs in git history and the feature-specific docs linked below.
 
 ## Immediate Tasks
 
-No immediate execution tasks are open.
+- Adopt the schema package content registry design as the active CEM-ML
+  conversion goal:
+  [`cem-ml-schema-content-registry-design.md`](cem-ml-schema-content-registry-design.md).
+  Use the temporary transition plan in
+  [`../packages/cem_ml/docs/schema-content-registry-transition.tmp.md`](../packages/cem_ml/docs/schema-content-registry-transition.tmp.md)
+  to migrate the current runtime toward the design.
 
+## Schema Package Implementation List
+
+Implement schema packages for these content families:
+
+- [ ] CEM-ML generic document/content model.
+- [ ] CEM-ML schema definition.
+- [ ] CEM-ML schema package manifest (`application/vnd.cem.schema-package+cem`, `cem.package.cem`).
+- [ ] CEM-ML template.
+- [ ] CEM-ML transform template (`application/vnd.cem.transform+cem`, `.cemt`).
+- [ ] CEM-QL module/query resources.
+- [ ] JSON.
+- [ ] CEM projection artifacts: DOM JSON, AST JSON, and events JSON.
+- [ ] YAML/YML.
+- [ ] CSV.
+- [ ] Markdown/MD markup.
+- [ ] XML.
+- [ ] XHTML.
+- [ ] SVG.
+- [ ] MathML.
+- [ ] XSLT/XSL legacy/custom-element compatibility.
+- [ ] HTML.
+- [ ] CSS/scoped style content.
+# [] custom schema creation instructions
+# [] believes schema + registry
+stop for sync up with author
 ## Current Verification Commands
 
 - `yarn nx run @epa-wg/cem-theme:verify:phase13`
