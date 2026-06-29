@@ -8,6 +8,7 @@ pub mod disposition;
 pub mod ir;
 pub mod machine;
 pub mod namespace;
+pub mod registry;
 pub mod scoping;
 pub mod vocab;
 pub mod xslt;
@@ -27,6 +28,7 @@ pub enum FramePhase {
 }
 
 pub use ir::SchemaVersionIdentity;
+pub use registry::{SchemaDescriptor, SchemaLookupError, SchemaRegistry, SchemaRegistryError};
 
 /// One schema frame on the validation stack. Diagnostics emitted inside the
 /// frame bubble to the nearest schema-declared boundary per AC-P-4.

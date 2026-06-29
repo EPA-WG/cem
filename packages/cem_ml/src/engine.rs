@@ -3,6 +3,7 @@ use crate::interpreter::OutputSpan;
 use crate::report::{Report, SchedulerTraceReport};
 use crate::resolver::ResolverRegistry;
 use crate::run_config::{SchedulerConfig, ScopeConfig};
+use crate::schema::SchemaRegistry;
 use crate::source_map::SourceMapStack;
 use crate::transform_template::{
     TransformTemplateAdapterRegistry, TransformTemplateAdapterResolution,
@@ -100,6 +101,7 @@ pub struct EngineContext {
     pub content_type: Option<String>,
     pub base_uri: Option<String>,
     pub scheduler: SchedulerConfig,
+    pub schema_registry: SchemaRegistry,
     pub resolver_registry: ResolverRegistry,
     pub template_adapter_registry: TransformTemplateAdapterRegistry,
 }
@@ -111,6 +113,7 @@ impl Default for EngineContext {
             content_type: None,
             base_uri: None,
             scheduler: SchedulerConfig::default(),
+            schema_registry: SchemaRegistry::with_builtin_schemas(),
             resolver_registry: ResolverRegistry::default(),
             template_adapter_registry: TransformTemplateAdapterRegistry::with_builtin_adapters(),
         }
