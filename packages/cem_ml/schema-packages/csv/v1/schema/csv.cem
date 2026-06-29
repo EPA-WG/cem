@@ -1,0 +1,75 @@
+@doc cem-ml 1
+@ns schema = "https://cem.dev/ns/schema/1"
+@ns cemml = "https://cem.dev/ns/cem-ml/1"
+@default schema
+
+{schema @name="csv" @namespace="https://cem.dev/ns/data/csv/1" @version="1.0.0" |
+    {summary |
+        {text | Generic CSV resource schema. CSV source is parsed by a CSV parser or adapter, while this schema provides registry identity, tabular metadata, header-row disposition, row and field structure, lexical quoting state, source offsets, and validation hooks for comma-separated value resources.}
+    }
+
+    {uses |
+        {use @schema="https://cem.dev/ns/schema/1" @as="schema"}
+        {use @schema="https://cem.dev/ns/cem-ml/1" @as="cemml"}
+    }
+
+    {content-types |
+        {content-type @value="text/csv" @primary=true}
+    }
+
+    {namespaces |
+        {namespace @prefix="csv" @uri="https://cem.dev/ns/data/csv/1"}
+    }
+
+    {elements |
+        {element @name="table" @required-attributes="encoding delimiter" @optional-attributes="header line-ending" @children="metadata? header? row*"}
+        {element @name="metadata" @children="column*"}
+        {element @name="column" @required-attributes="index" @optional-attributes="name"}
+        {element @name="header" @children="field*"}
+        {element @name="row" @required-attributes="index" @children="field*"}
+        {element @name="field" @required-attributes="index" @optional-attributes="name value quoted source-id byte-offset byte-length"}
+    }
+
+    {attributes |
+        {attribute @name="encoding" @type="schema:identifier" @values="utf-8 us-ascii other"}
+        {attribute @name="delimiter" @type="schema:string"}
+        {attribute @name="header" @type="schema:identifier" @values="present absent unknown"}
+        {attribute @name="line-ending" @type="schema:identifier" @values="crlf lf cr mixed"}
+        {attribute @name="index" @type="cemml:integer"}
+        {attribute @name="name" @type="schema:string"}
+        {attribute @name="value" @type="schema:string"}
+        {attribute @name="quoted" @type="schema:boolean"}
+        {attribute @name="source-id" @type="schema:identifier"}
+        {attribute @name="byte-offset" @type="cemml:integer"}
+        {attribute @name="byte-length" @type="cemml:integer"}
+    }
+
+    {constraints |
+        {constraint @kind="csv-source-parser" @target="table" @policy="delegate-to-csv-parser"}
+        {constraint @kind="text-csv-primary" @target="table" @policy="text/csv is the canonical media type for CSV resources"}
+        {constraint @kind="comma-delimiter-default" @target="table" @policy="delimiter defaults to comma for text/csv"}
+        {constraint @kind="header-parameter-preserved" @target="table" @policy="preserve MIME header parameter as present absent or unknown"}
+        {constraint @kind="field-order-preserved" @target="row" @policy="required"}
+        {constraint @kind="row-order-preserved" @target="table" @policy="required"}
+        {constraint @kind="field-count-policy" @target="table" @policy="report inconsistent row width unless schema explicitly permits ragged rows"}
+        {constraint @kind="quote-escape-policy" @target="field" @policy="double quote inside quoted field is represented by two double quotes"}
+        {constraint @kind="source-map-preferred" @target="field" @policy="required when parser exposes source ranges"}
+    }
+
+    {diagnostics |
+        {diagnostic @code="cem.csv.parse_error" @severity="error"}
+        {diagnostic @code="cem.csv.unsupported_encoding" @severity="error"}
+        {diagnostic @code="cem.csv.inconsistent_field_count" @severity="warning"}
+        {diagnostic @code="cem.csv.unclosed_quote" @severity="error"}
+        {diagnostic @code="cem.csv.invalid_quote_escape" @severity="error"}
+        {diagnostic @code="cem.csv.source_map_unavailable" @severity="info"}
+    }
+
+    {compatibility |
+        {note @version="1.0.0" @value="RFC 4180 registers text/csv with optional charset and header parameters; RFC 7111 defines row, column, and cell fragment identifiers for text/csv."}
+    }
+
+    {open-content |
+        {accept @kind="csv-extension" @policy="reject-unless-declared"}
+    }
+}

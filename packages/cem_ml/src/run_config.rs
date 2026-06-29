@@ -765,6 +765,7 @@ pub fn infer_content_type_from_path(path: &str) -> Option<String> {
         "jsonschema" => Some(crate::schema::registry::JSON_SCHEMA_CONTENT_TYPE.to_owned()),
         "json" => Some(crate::schema::registry::JSON_CONTENT_TYPE.to_owned()),
         "yaml" | "yml" => Some(crate::schema::registry::YAML_CONTENT_TYPE.to_owned()),
+        "csv" => Some(crate::schema::registry::CSV_CONTENT_TYPE.to_owned()),
         _ => None,
     }
 }
@@ -891,6 +892,18 @@ mod tests {
         assert_eq!(
             infer_content_type_from_path("data/ITEM.YML").as_deref(),
             Some(crate::schema::registry::YAML_CONTENT_TYPE)
+        );
+    }
+
+    #[test]
+    fn csv_extension_infers_csv_content_type() {
+        assert_eq!(
+            infer_content_type_from_path("data/table.csv").as_deref(),
+            Some(crate::schema::registry::CSV_CONTENT_TYPE)
+        );
+        assert_eq!(
+            infer_content_type_from_path("data/TABLE.CSV").as_deref(),
+            Some(crate::schema::registry::CSV_CONTENT_TYPE)
         );
     }
 

@@ -19,6 +19,7 @@ pub const SUPPORTED_CONTENT_TYPES: &[&str] = &[
     "application/x-yaml",
     "text/yaml",
     "text/x-yaml",
+    "text/csv",
     "text/xml",
     "application/xml",
 ];
@@ -91,5 +92,10 @@ mod tests {
         ] {
             assert!(is_supported_content_type(content_type));
         }
+    }
+
+    #[test]
+    fn csv_content_type_is_supported_opaque_handoff() {
+        assert!(is_supported_content_type("text/csv"));
     }
 }

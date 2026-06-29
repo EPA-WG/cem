@@ -1,0 +1,14 @@
+@doc cem-ml 1
+@ns pkg = "https://cem.dev/ns/schema-package/1"
+@default pkg
+
+{package @id="csv" @version="1.0.0" |
+    {schema
+        @uri="https://cem.dev/ns/data/csv/1"
+        @source="schema/csv.cem"
+    }
+
+    {content-type @value="text/csv" @primary=true}
+
+    {namespace @prefix="csv" @uri="https://cem.dev/ns/data/csv/1"}
+}

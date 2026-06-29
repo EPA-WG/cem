@@ -46,7 +46,7 @@ Implement schema packages for these content families:
 - [x] Implement parallel and multicast-capable projection stream routing over
       sealed CEM binary chunks.
 - [x] YAML/YML.
-- [ ] CSV.
+- [x] CSV.
 - [ ] Markdown/MD markup.
 - [ ] XML.
 - [ ] XHTML.
