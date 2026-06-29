@@ -18,6 +18,7 @@ use crate::parser::{AstNodeId, CemAstNode};
 use crate::run_config::ScopeConfig;
 use crate::schema::registry::{
     CEM_NATIVE_TEMPLATE_CONTENT_TYPE, CEM_TRANSFORM_CONTENT_TYPE, CEM_TRANSFORM_SCHEMA_URI,
+    XSLT_SCHEMA_URI,
 };
 use crate::source::{BytesSource, SourceId};
 use crate::source_map::SourceMapStack;
@@ -1211,7 +1212,7 @@ impl TransformTemplateAdapterRegistry {
             "xslt-template",
             TransformTemplateKind::Xslt,
             crate::legacy_custom_element::TEMPLATE_CONTENT_TYPES,
-            &[],
+            &[XSLT_SCHEMA_URI],
             &[crate::schema::xslt::XSL_NAMESPACE],
         ));
         registry

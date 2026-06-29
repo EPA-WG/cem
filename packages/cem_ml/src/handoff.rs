@@ -26,6 +26,12 @@ pub const SUPPORTED_CONTENT_TYPES: &[&str] = &[
     "application/mathml+xml",
     "application/mathml-presentation+xml",
     "application/mathml-content+xml",
+    "application/xslt+xml",
+    "text/xsl",
+    "custom-element-xslt",
+    "text/custom-element-xslt",
+    "application/custom-element-xslt",
+    "text/x-custom-element-xslt",
     "text/xml",
     "application/xml",
     "application/xml-external-parsed-entity",
@@ -129,6 +135,20 @@ mod tests {
             "application/mathml+xml",
             "application/mathml-presentation+xml",
             "application/mathml-content+xml",
+        ] {
+            assert!(is_supported_content_type(content_type));
+        }
+    }
+
+    #[test]
+    fn xslt_content_types_are_supported_opaque_handoffs() {
+        for content_type in [
+            "application/xslt+xml",
+            "text/xsl",
+            "custom-element-xslt",
+            "text/custom-element-xslt",
+            "application/custom-element-xslt",
+            "text/x-custom-element-xslt",
         ] {
             assert!(is_supported_content_type(content_type));
         }

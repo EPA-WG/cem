@@ -17,6 +17,7 @@ use crate::schema::registry::{
     CEM_TRANSFORM_CONTENT_TYPE, CEM_TRANSFORM_SCHEMA_URI, MATHML_CONTENT_TYPE,
     MATHML_NAMESPACE_URI, MATHML_SCHEMA_URI, SVG_CONTENT_TYPE, SVG_NAMESPACE_URI, SVG_SCHEMA_URI,
     XHTML_CONTENT_TYPE, XHTML_NAMESPACE_URI, XHTML_SCHEMA_URI, XML_CONTENT_TYPE, XML_SCHEMA_URI,
+    XSLT_NAMESPACE_URI, XSLT_SCHEMA_URI,
 };
 use crate::transform_config::TRANSFORM_CONFIG_SCHEMA_URI;
 
@@ -32,7 +33,7 @@ pub const EVENTS_PROJECTION_SCHEMA: &str = CEM_EVENTS_PROJECTION_SCHEMA_URI;
 const HTML_NAMESPACE: &str = XHTML_NAMESPACE_URI;
 const SVG_NAMESPACE: &str = SVG_NAMESPACE_URI;
 const MATHML_NAMESPACE: &str = MATHML_NAMESPACE_URI;
-const XSLT_NAMESPACE: &str = "http://www.w3.org/1999/XSL/Transform";
+const XSLT_NAMESPACE: &str = XSLT_NAMESPACE_URI;
 const HTML_ADAPTER_SCHEMA_IDENTITIES: &[&str] = &[
     HTML_NAMESPACE,
     XHTML_SCHEMA_URI,
@@ -539,6 +540,7 @@ impl LifecycleAdapter for LegacyCustomElementXsltAdapter {
             .as_deref()
             .map(crate::legacy_custom_element::is_legacy_custom_element_content_type)
             .unwrap_or(false)
+            || matches_schema_without_content_type(identity, &[XSLT_SCHEMA_URI])
             || matches_namespace_without_content_type_or_schema(identity, &[XSLT_NAMESPACE])
     }
 
@@ -820,6 +822,22 @@ mod tests {
         let loaded = LifecycleRegistry::with_builtin_adapters().load(
             &input(br#"<xsl:if test="$ready"><button>Go</button></xsl:if>"#),
             &context("application/xslt+xml"),
+        );
+        assert_eq!(loaded.from_format, InputFormat::Cem);
+        assert_eq!(loaded.adapter_id, Some("legacy-custom-element-xslt"));
+        assert!(String::from_utf8(loaded.bytes)
+            .unwrap()
+            .contains("{cem:if @test=\"ready\""));
+    }
+
+    #[test]
+    fn xslt_schema_selects_legacy_xslt_input_when_content_type_absent() {
+        let loaded = LifecycleRegistry::with_builtin_adapters().load(
+            &input(br#"<xsl:if test="$ready"><button>Go</button></xsl:if>"#),
+            &EngineContext {
+                schema: Some(XSLT_SCHEMA_URI.to_owned()),
+                ..EngineContext::default()
+            },
         );
         assert_eq!(loaded.from_format, InputFormat::Cem);
         assert_eq!(loaded.adapter_id, Some("legacy-custom-element-xslt"));

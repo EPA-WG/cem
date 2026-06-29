@@ -1,0 +1,20 @@
+@doc cem-ml 1
+@ns pkg = "https://cem.dev/ns/schema-package/1"
+@default pkg
+
+{package @id="xslt" @version="1.0.0" |
+    {schema
+        @uri="https://cem.dev/ns/transform/xslt/1"
+        @source="schema/xslt.cem"
+    }
+
+    {content-type @value="application/xslt+xml" @primary=true}
+    {content-type @value="text/xsl" @alias=true}
+    {content-type @value="custom-element-xslt" @alias=true}
+    {content-type @value="text/custom-element-xslt" @alias=true}
+    {content-type @value="application/custom-element-xslt" @alias=true}
+    {content-type @value="text/x-custom-element-xslt" @alias=true}
+
+    {namespace @prefix="cemxslt" @uri="https://cem.dev/ns/transform/xslt/1"}
+    {namespace @prefix="xsl" @uri="http://www.w3.org/1999/XSL/Transform"}
+}

@@ -1100,6 +1100,10 @@ mod tests {
             )]),
             ..FormatIdentity::default()
         };
+        let xslt_schema = FormatIdentity {
+            schema: Some(crate::schema::registry::XSLT_SCHEMA_URI.to_owned()),
+            ..FormatIdentity::default()
+        };
 
         assert_eq!(
             classify_transform_template_identity(&xslt),
@@ -1119,6 +1123,10 @@ mod tests {
         );
         assert_eq!(
             classify_transform_template_identity(&xslt_namespace),
+            Ok(TransformTemplateKind::Xslt)
+        );
+        assert_eq!(
+            classify_transform_template_identity(&xslt_schema),
             Ok(TransformTemplateKind::Xslt)
         );
     }

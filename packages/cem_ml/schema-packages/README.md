@@ -93,6 +93,13 @@ and the registered presentation/content MathML media type aliases, depends on
 mathematical structure, presentation/content profiles, semantics, annotations,
 accessibility hooks, external-annotation policy, and source-map hooks.
 
+`xslt/v1` defines XSLT stylesheet resource identity and the bounded legacy
+custom-element XSLT compatibility identity. It owns `application/xslt+xml`,
+claims `text/xsl` and current custom-element XSLT markers as aliases, depends on
+`xml/v1`, claims the XSLT document namespace, and records version-pinned,
+capability-gated transform execution without reintroducing browser-native XSLT
+execution.
+
 `json-schema/v1` defines JSON Schema document identity. It owns
 `application/schema+json`, depends on `json/v1`, and models JSON Schema
 dialect, vocabulary, reference, and validation-resource metadata separately

@@ -1,0 +1,131 @@
+@doc cem-ml 1
+@ns schema = "https://cem.dev/ns/schema/1"
+@ns cemml = "https://cem.dev/ns/cem-ml/1"
+@ns xml = "https://cem.dev/ns/data/xml/1"
+@default schema
+
+{schema @name="xslt" @namespace="https://cem.dev/ns/transform/xslt/1" @version="1.0.0" |
+    {summary |
+        {text | XSLT stylesheet resource schema. XSLT is XML-backed and uses the version-stable XSLT namespace. This package registers standard XSLT stylesheet identity and the legacy custom-element XSLT compatibility aliases consumed by the bounded CEM adapter.}
+    }
+
+    {uses |
+        {use @schema="https://cem.dev/ns/schema/1" @as="schema"}
+        {use @schema="https://cem.dev/ns/cem-ml/1" @as="cemml"}
+        {use @schema="https://cem.dev/ns/data/xml/1" @as="xml"}
+    }
+
+    {content-types |
+        {content-type @value="application/xslt+xml" @primary=true}
+        {content-type @value="text/xsl" @alias=true}
+        {content-type @value="custom-element-xslt" @alias=true}
+        {content-type @value="text/custom-element-xslt" @alias=true}
+        {content-type @value="application/custom-element-xslt" @alias=true}
+        {content-type @value="text/x-custom-element-xslt" @alias=true}
+    }
+
+    {namespaces |
+        {namespace @prefix="cemxslt" @uri="https://cem.dev/ns/transform/xslt/1" @role="schema"}
+        {namespace @prefix="xsl" @uri="http://www.w3.org/1999/XSL/Transform" @role="document-namespace"}
+        {namespace @prefix="xml" @uri="https://cem.dev/ns/data/xml/1" @role="base-format"}
+    }
+
+    {elements |
+        {element @name="stylesheet-module" @base="xml:document" @required-attributes="encoding" @optional-attributes="charset source-id byte-offset byte-length" @children="stylesheet"}
+        {element @name="stylesheet" @base="xml:element" @required-attributes="namespace-uri version" @optional-attributes="id default-mode default-collation xpath-default-namespace extension-element-prefixes exclude-result-prefixes compatibility-profile adapter-line source-id byte-offset byte-length" @children="declaration* template*"}
+        {element @name="declaration" @base="xml:element" @required-attributes="kind" @optional-attributes="name href method media-type encoding priority source-id byte-offset byte-length" @children="param* variable* sequence-constructor*"}
+        {element @name="template" @base="xml:element" @optional-attributes="name match mode priority visibility source-id byte-offset byte-length" @children="param* sequence-constructor*"}
+        {element @name="param" @base="xml:element" @required-attributes="name" @optional-attributes="select as required tunnel source-id byte-offset byte-length" @children="sequence-constructor*"}
+        {element @name="variable" @base="xml:element" @required-attributes="name" @optional-attributes="select as visibility source-id byte-offset byte-length" @children="sequence-constructor*"}
+        {element @name="sequence-constructor" @base="xml:element" @children="instruction* literal-result* text*"}
+        {element @name="instruction" @base="xml:element" @required-attributes="kind" @optional-attributes="select test name match mode href method order data-type namespace terminate source-id byte-offset byte-length" @children="param* sort* sequence-constructor*"}
+        {element @name="sort" @base="xml:element" @optional-attributes="select order data-type lang case-order source-id byte-offset byte-length"}
+        {element @name="literal-result" @base="xml:element" @required-attributes="namespace-uri local-name" @optional-attributes="prefix source-id byte-offset byte-length" @children="instruction* literal-result* text*"}
+        {element @name="text" @base="xml:text" @optional-attributes="value source-id byte-offset byte-length"}
+    }
+
+    {attributes |
+        {attribute @name="encoding" @base="xml:encoding"}
+        {attribute @name="charset" @base="xml:charset"}
+        {attribute @name="source-id" @base="xml:source-id"}
+        {attribute @name="byte-offset" @base="xml:byte-offset"}
+        {attribute @name="byte-length" @base="xml:byte-length"}
+        {attribute @name="namespace-uri" @base="xml:namespace-uri"}
+        {attribute @name="local-name" @base="xml:local-name"}
+        {attribute @name="prefix" @base="xml:prefix"}
+        {attribute @name="id" @type="schema:identifier"}
+        {attribute @name="version" @type="schema:string"}
+        {attribute @name="adapter-line" @type="schema:semver"}
+        {attribute @name="compatibility-profile" @type="schema:identifier" @values="full-xslt bounded-custom-element legacy-fragment"}
+        {attribute @name="kind" @type="schema:identifier" @values="stylesheet transform output import include template param variable value-of text if choose when otherwise for-each apply-templates call-template with-param sort copy copy-of attribute element literal-result result-document message function script"}
+        {attribute @name="name" @type="schema:string"}
+        {attribute @name="match" @type="schema:string"}
+        {attribute @name="mode" @type="schema:string"}
+        {attribute @name="priority" @type="schema:string"}
+        {attribute @name="visibility" @type="schema:identifier" @values="public private final abstract hidden"}
+        {attribute @name="select" @type="schema:string"}
+        {attribute @name="test" @type="schema:string"}
+        {attribute @name="as" @type="schema:string"}
+        {attribute @name="required" @type="schema:boolean"}
+        {attribute @name="tunnel" @type="schema:boolean"}
+        {attribute @name="href" @type="schema:string"}
+        {attribute @name="method" @type="schema:identifier" @values="xml html xhtml text json adaptive"}
+        {attribute @name="media-type" @type="schema:media-type"}
+        {attribute @name="order" @type="schema:identifier" @values="ascending descending"}
+        {attribute @name="data-type" @type="schema:identifier" @values="text number"}
+        {attribute @name="lang" @type="schema:string"}
+        {attribute @name="case-order" @type="schema:identifier" @values="upper-first lower-first"}
+        {attribute @name="namespace" @type="schema:string"}
+        {attribute @name="terminate" @type="schema:boolean"}
+        {attribute @name="default-mode" @type="schema:string"}
+        {attribute @name="default-collation" @type="schema:string"}
+        {attribute @name="xpath-default-namespace" @type="schema:string"}
+        {attribute @name="extension-element-prefixes" @type="schema:string"}
+        {attribute @name="exclude-result-prefixes" @type="schema:string"}
+        {attribute @name="value" @type="schema:string"}
+    }
+
+    {constraints |
+        {constraint @kind="xslt-source-parser" @target="stylesheet-module" @policy="delegate-to-xml-parser-with-xslt-schema"}
+        {constraint @kind="application-xslt-primary" @target="stylesheet-module" @policy="application/xslt+xml is the canonical registered media type for XSLT stylesheet modules"}
+        {constraint @kind="text-xsl-legacy-alias" @target="stylesheet-module" @policy="text/xsl is accepted as a compatibility alias for old browser and XML-stylesheet processing-instruction usage"}
+        {constraint @kind="custom-element-aliases" @target="stylesheet-module" @policy="custom-element-xslt aliases select the bounded legacy custom-element compatibility adapter"}
+        {constraint @kind="xml-base-schema-compatible" @target="stylesheet-module" @policy="required"}
+        {constraint @kind="xslt-namespace-required" @target="stylesheet" @policy="stylesheet and transform roots must use http://www.w3.org/1999/XSL/Transform"}
+        {constraint @kind="version-required" @target="stylesheet" @policy="xsl:stylesheet or xsl:transform version is required for version-pinned dispatch"}
+        {constraint @kind="version-stable-namespace" @target="stylesheet" @policy="the XSLT namespace is not the version source; the version attribute resolves against the CEM adapter line"}
+        {constraint @kind="bounded-compatibility-profile" @target="stylesheet" @policy="current executable support is the bounded legacy custom-element and XSLT parity profile, not a full XSLT 3 or 4 engine"}
+        {constraint @kind="no-browser-xslt-engine" @target="stylesheet" @policy="do not delegate execution to browser XSLTProcessor"}
+        {constraint @kind="external-uri-policy" @target="declaration" @policy="include import document and result-document URI access require explicit resolver policy"}
+        {constraint @kind="extension-policy" @target="instruction" @policy="extension functions and extension instructions require explicit capability support"}
+        {constraint @kind="source-map-preferred" @target="instruction" @policy="required when parser exposes source ranges"}
+    }
+
+    {diagnostics |
+        {diagnostic @code="cem.xslt.parse_error" @severity="error"}
+        {diagnostic @code="cem.xslt.not_well_formed_xml" @severity="error"}
+        {diagnostic @code="cem.xslt.root_not_stylesheet" @severity="error"}
+        {diagnostic @code="cem.xslt.namespace_missing" @severity="error"}
+        {diagnostic @code="cem.xslt.version_missing" @severity="error"}
+        {diagnostic @code="cem.xslt.version_malformed" @severity="error"}
+        {diagnostic @code="cem.xslt.unsupported_version" @severity="error"}
+        {diagnostic @code="legacy_xslt.unsupported_construct" @severity="warning"}
+        {diagnostic @code="legacy_xslt.unsupported_function" @severity="warning"}
+        {diagnostic @code="cem.xslt.external_uri_rejected" @severity="error"}
+        {diagnostic @code="cem.xslt.entrypoint_missing" @severity="error"}
+        {diagnostic @code="cem.xslt.browser_engine_rejected" @severity="fatal"}
+        {diagnostic @code="cem.xslt.source_map_unavailable" @severity="info"}
+    }
+
+    {compatibility |
+        {note @version="1.0.0" @value="IANA registers application/xslt+xml for XSLT stylesheet modules with optional charset parameter and .xsl/.xslt extensions. The registered type is appropriate for earlier and later XSLT versions."}
+        {note @version="1.0.0" @value="text/xsl and custom-element-xslt markers are compatibility aliases only. They route copied custom-element templates through the CEM-owned bounded adapter and do not reintroduce browser-native XSLT execution."}
+        {note @version="1.0.0" @value="The XSLT namespace http://www.w3.org/1999/XSL/Transform is version-stable across XSLT recommendations; requested XSLT version is read from the stylesheet version attribute."}
+    }
+
+    {open-content |
+        {accept @kind="literal-result-element" @policy="delegate-to-target-schema"}
+        {accept @kind="extension-instruction" @policy="reject-unless-capability-registered"}
+        {accept @kind="xpath-expression" @policy="delegate-to-xslt-adapter-capability"}
+    }
+}

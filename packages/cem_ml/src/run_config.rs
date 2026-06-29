@@ -760,7 +760,7 @@ pub fn infer_content_type_from_path(path: &str) -> Option<String> {
         "xml" => Some(crate::schema::registry::XML_CONTENT_TYPE.to_owned()),
         "svg" | "svgz" => Some(crate::schema::registry::SVG_CONTENT_TYPE.to_owned()),
         "mml" | "mathml" => Some(crate::schema::registry::MATHML_CONTENT_TYPE.to_owned()),
-        "xsl" | "xslt" => Some("application/xslt+xml".to_owned()),
+        "xsl" | "xslt" => Some(crate::schema::registry::XSLT_CONTENT_TYPE.to_owned()),
         "cemt" => Some(crate::schema::registry::CEM_TRANSFORM_CONTENT_TYPE.to_owned()),
         "cemql" => Some(crate::schema::registry::CEM_QL_CONTENT_TYPE.to_owned()),
         "jsonschema" => Some(crate::schema::registry::JSON_SCHEMA_CONTENT_TYPE.to_owned()),
@@ -966,6 +966,18 @@ mod tests {
         assert_eq!(
             infer_content_type_from_path("math/FORMULA.MATHML").as_deref(),
             Some(crate::schema::registry::MATHML_CONTENT_TYPE)
+        );
+    }
+
+    #[test]
+    fn xslt_extensions_infer_xslt_content_type() {
+        assert_eq!(
+            infer_content_type_from_path("templates/view.xsl").as_deref(),
+            Some(crate::schema::registry::XSLT_CONTENT_TYPE)
+        );
+        assert_eq!(
+            infer_content_type_from_path("templates/VIEW.XSLT").as_deref(),
+            Some(crate::schema::registry::XSLT_CONTENT_TYPE)
         );
     }
 

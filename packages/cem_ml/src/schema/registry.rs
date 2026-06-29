@@ -24,6 +24,8 @@ pub const SVG_SCHEMA_URI: &str = "https://cem.dev/ns/data/svg/1";
 pub const SVG_NAMESPACE_URI: &str = "http://www.w3.org/2000/svg";
 pub const MATHML_SCHEMA_URI: &str = "https://cem.dev/ns/data/mathml/1";
 pub const MATHML_NAMESPACE_URI: &str = "http://www.w3.org/1998/Math/MathML";
+pub const XSLT_SCHEMA_URI: &str = "https://cem.dev/ns/transform/xslt/1";
+pub const XSLT_NAMESPACE_URI: &str = "http://www.w3.org/1999/XSL/Transform";
 pub const CEM_DOM_PROJECTION_SCHEMA_URI: &str = "https://cem.dev/ns/projection/dom/1";
 pub const CEM_AST_PROJECTION_SCHEMA_URI: &str = "https://cem.dev/ns/projection/ast/1";
 pub const CEM_EVENTS_PROJECTION_SCHEMA_URI: &str = "https://cem.dev/ns/projection/events/1";
@@ -44,6 +46,7 @@ pub const XML_CONTENT_TYPE: &str = "application/xml";
 pub const XHTML_CONTENT_TYPE: &str = "application/xhtml+xml";
 pub const SVG_CONTENT_TYPE: &str = "image/svg+xml";
 pub const MATHML_CONTENT_TYPE: &str = "application/mathml+xml";
+pub const XSLT_CONTENT_TYPE: &str = "application/xslt+xml";
 pub const CEM_DOM_PROJECTION_CONTENT_TYPE: &str = "application/vnd.cem.dom+cem-bin";
 pub const CEM_DOM_JSON_PROJECTION_CONTENT_TYPE: &str = "application/vnd.cem.dom+json";
 pub const CEM_AST_PROJECTION_CONTENT_TYPE: &str = "application/vnd.cem.ast+cem-bin";
@@ -522,6 +525,29 @@ pub fn builtin_schema_descriptors() -> Vec<SchemaDescriptor> {
             ],
         },
         SchemaDescriptor {
+            package_id: "xslt".into(),
+            schema_uri: XSLT_SCHEMA_URI.into(),
+            version: "1.0.0".into(),
+            source: "schema-packages/xslt/v1/schema/xslt.cem".into(),
+            content_types: vec![
+                SchemaContentType::primary(XSLT_CONTENT_TYPE),
+                SchemaContentType::alias("text/xsl"),
+                SchemaContentType::alias("custom-element-xslt"),
+                SchemaContentType::alias("text/custom-element-xslt"),
+                SchemaContentType::alias("application/custom-element-xslt"),
+                SchemaContentType::alias("text/x-custom-element-xslt"),
+            ],
+            namespaces: vec![
+                NamespaceClaim::new(Some("cemxslt"), XSLT_SCHEMA_URI),
+                NamespaceClaim::new(Some("xsl"), XSLT_NAMESPACE_URI),
+            ],
+            uses: vec![
+                CEM_SCHEMA_URI.into(),
+                CEM_ML_SCHEMA_URI.into(),
+                XML_SCHEMA_URI.into(),
+            ],
+        },
+        SchemaDescriptor {
             package_id: "json-schema".into(),
             schema_uri: JSON_SCHEMA_SCHEMA_URI.into(),
             version: "1.0.0".into(),
@@ -700,6 +726,13 @@ mod tests {
                 .unwrap()
                 .schema_uri,
             MATHML_SCHEMA_URI
+        );
+        assert_eq!(
+            registry
+                .resolve_content_type(XSLT_CONTENT_TYPE)
+                .unwrap()
+                .schema_uri,
+            XSLT_SCHEMA_URI
         );
     }
 
@@ -880,6 +913,29 @@ mod tests {
                     .unwrap()
                     .schema_uri,
                 MATHML_SCHEMA_URI
+            );
+        }
+    }
+
+    #[test]
+    fn builtin_registry_resolves_xslt_content_types() {
+        let registry = SchemaRegistry::with_builtin_schemas();
+
+        for content_type in [
+            "application/xslt+xml",
+            "application/xslt+xml; charset=utf-8",
+            "text/xsl",
+            "custom-element-xslt",
+            "text/custom-element-xslt",
+            "application/custom-element-xslt",
+            "text/x-custom-element-xslt",
+        ] {
+            assert_eq!(
+                registry
+                    .resolve_content_type(content_type)
+                    .unwrap()
+                    .schema_uri,
+                XSLT_SCHEMA_URI
             );
         }
     }
