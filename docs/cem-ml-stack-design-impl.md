@@ -1213,7 +1213,10 @@ transform later removes those nodes.
 ### 3.6 CLI Projection Keys
 
 Stack layers own data artifacts. The CLI owns projection selection, output targets, and
-default stream behavior. Proposed projection layer keys:
+default stream behavior. Projection keys select semantic stack layers; the native
+pipeline should pass typed structures or CEM binary chunks directly. JSON is a
+debug/interchange renderer for selected outputs, not the canonical artifact form.
+Proposed projection layer keys:
 
 | Key                | Stack owner                       | Projection meaning                                                                                       |
 |--------------------|-----------------------------------|----------------------------------------------------------------------------------------------------------|
@@ -1404,6 +1407,12 @@ validated.
 
 ### 3.9 Layers 7-8: BinaryAstEncoder And ChunkCompressor (`cem_ml::ast`)
 
+Binary AST/event/DOM chunks are the preferred canonical transport once the format is
+canonized. Native CLI, Rust hosts, WASM workers, edge hosts, caches, and query APIs
+should consume the same chunk representation without reserializing through JSON when
+possible. JSON projection remains a debug and interchange renderer layered over the
+same semantic artifacts.
+
 ```
 BinaryAstEncoder responsibilities:
   - Assign stable binary node ids after the binary format is active.
@@ -1418,7 +1427,14 @@ ChunkCompressor responsibilities:
 ```
 
 Chunk boundaries align to subtree roots. Each chunk is independently decodable and
-carries integrity hashes, dependency ids, and dictionary version requirements.
+carries integrity hashes, dependency ids, and dictionary version requirements. Once a
+subtree is sealed by the active parser/converter phase, its chunk is immutable for that
+revision; later changes are represented by overlay or delta chunks.
+
+The chunk stream must support parallel and multicast consumers: one producer can feed
+validation, query, cache, transform, and debug renderers without changing the binary
+format. Slow consumers use backpressure or replay from chunk cache rather than forcing
+the producer to materialize JSON.
 
 Cross-chunk dependency slots and AST reference slots are separate namespaces with
 separate lifecycle rules. An AST reference slot resolves a language or document reference
@@ -1443,8 +1459,8 @@ Compression profiles:
 
 Tier A must not freeze serialized binary identifiers. Node ids, dictionary ids, scope
 slot ids, chunk ids, and source-map frame ids are not part of the Tier A external
-contract because the binary transport/cache format is deferred. Tier A may use opaque
-internal handles while building in-memory trees, but those handles must not be
+contract until the roadmap item for binary format canonization lands. Tier A may use
+opaque internal handles while building in-memory trees, but those handles must not be
 serialized, hashed, exposed as stable API values, or treated as future binary ids.
 
 ### 3.10 Layer 9: ImplementationInterpreter (`cem_ml::interpreter`)

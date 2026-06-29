@@ -231,9 +231,10 @@ CEM template/data engine run in different hosts.
   behavior, target DOM roots, and final light-DOM patch application.
 - **Processing layer.** Owns CEM-ML/CEM-QL parsing, template artifacts, data snapshots,
   render-plan generation, render-plan diffing, diagnostics, source maps, and patch
-  frames. Its inputs and outputs are serializable. It MUST NOT depend on live browser
-  DOM nodes, `customElements`, browser event dispatch, focus state, or form control
-  internals.
+  frames. Its inputs and outputs are serializable, with CEM binary/chunk payloads
+  preferred over JSON when both sides can consume them. It MUST NOT depend on live
+  browser DOM nodes, `customElements`, browser event dispatch, focus state, or form
+  control internals.
 
 The processing layer may run in-process, in a browser WASM worker, in a pool of workers,
 on an edge/compute worker, or in a server-side rendering host. Phase 3 implements the

@@ -74,8 +74,10 @@ but authored package metadata remains CEM-ML.
       @source="schema/cem-element.cem"
     }
 
-    {content-type @value="application/vnd.cem.element+json"}
-    {content-type @value="application/vnd.cem.element.declarations+json"}
+    {content-type @value="application/vnd.cem.element+cem-bin"}
+    {content-type @value="application/vnd.cem.element.declarations+cem-bin"}
+    {content-type @value="application/vnd.cem.element+json" @alias=true}
+    {content-type @value="application/vnd.cem.element.declarations+json" @alias=true}
 
     {namespace @uri="https://cem.dev/ns/cem-element/1"}
 
@@ -89,8 +91,8 @@ but authored package metadata remains CEM-ML.
       @lossiness="canonicalizing"
       @implicit=true
     |
-      {from @content-type="application/vnd.cem.dom+json"}
-      {to @content-type="application/vnd.cem.element.declarations+json"}
+      {from @content-type="application/vnd.cem.dom+cem-bin"}
+      {to @content-type="application/vnd.cem.element.declarations+cem-bin"}
     }
 
     {converter
@@ -102,7 +104,7 @@ but authored package metadata remains CEM-ML.
       @implicit=true
     |
       {from @content-type="text/html"}
-      {to @content-type="application/vnd.html5.dom+json"}
+      {to @content-type="application/vnd.html5.dom+cem-bin"}
     }
   }
 }
@@ -227,11 +229,17 @@ planning does not become template-specific.
 
 ## Examples
 
+Projection artifacts are binary-first. `+json` forms are debug/interchange
+views, not the canonical runtime transport. Native CLI, Rust, WASM workers, and
+server/edge hosts should consume typed structures or CEM binary chunks directly
+when possible, preserving the same binary representation across cache,
+transport, query, and converter boundaries.
+
 HTML recovery:
 
 ```text
 text/html
-  -> application/vnd.html5.dom+json
+  -> application/vnd.html5.dom+cem-bin
 ```
 
 This is a Rust fallback edge because tolerant HTML5 recovery is parser behavior.
@@ -240,11 +248,11 @@ The normalized DOM result can then flow through CEMT converters.
 Generic CEM DOM to DCE runtime artifacts:
 
 ```text
-application/vnd.cem.dom+json
-  -> application/vnd.cem.element.declarations+json
-  -> application/vnd.cem.dce.declarations+json
-  -> application/vnd.cem.dce.instances+json
-  -> application/vnd.cem.dce.instances+json; profile=data-islands
+application/vnd.cem.dom+cem-bin
+  -> application/vnd.cem.element.declarations+cem-bin
+  -> application/vnd.cem.dce.declarations+cem-bin
+  -> application/vnd.cem.dce.instances+cem-bin
+  -> application/vnd.cem.dce.instances+cem-bin; profile=data-islands
   -> text/html
 ```
 
@@ -270,6 +278,7 @@ Schema packages may generate:
 
 - Rust registry tables;
 - TypeScript declarations;
+- CEM binary registry manifests or chunk descriptors;
 - JSON registry manifests;
 - JSON Schema for the JSON registry manifest;
 - XML registry manifests;
@@ -278,9 +287,10 @@ Schema packages may generate:
 - conformance reports.
 
 Generated output is not authoritative. The schema package manifest and source
-artifacts are authoritative. JSON/JSON Schema and XML/RELAX NG outputs are
+artifacts are authoritative. Binary CEM artifacts are the preferred generated
+runtime/cache form once canonized. JSON/JSON Schema and XML/RELAX NG outputs are
 distribution artifacts for consumers and tooling that cannot or should not parse
-CEM-ML directly.
+CEM-ML or CEM binary artifacts directly.
 
 ## CLI Inspection
 

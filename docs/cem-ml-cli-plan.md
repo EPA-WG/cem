@@ -33,8 +33,9 @@ The first implementation target for this lifecycle is XSLT 1.0:
   one-off `convert` branch;
 - CLI validation can run the XSLT adapter directly, producing diagnostics for unsupported
   or malformed XSLT 1.0 constructs before export;
-- CLI conversion can load XSLT through the adapter and export canonical CEM-ML, light-DOM HTML, DOM JSON, AST, events,
-  or later XML outputs through the same engine path.
+- CLI conversion can load XSLT through the adapter and export canonical CEM-ML, light-DOM HTML, DOM/AST/events
+  projections, or later XML outputs through the same engine path. JSON projection views remain output/debug formats,
+  not the native pipeline transport.
 
 This goal is separate from the deferred XSLT 3.0/4.0 execution engine. It covers the
 XSLT 1.0 structural compatibility profile needed by copied custom-element templates and
@@ -100,10 +101,12 @@ the immediate CLI lifecycle contract.
    schema is present, while explicit content type remains authoritative. Unsupported input
    and target identities emit deterministic lifecycle diagnostics with the declared
    content type, schema, and/or namespace while preserving the requested fallback input
-   format or output projection. Structural JSON projection targets are registry-owned by
+   format or output projection. Current structural JSON projection targets are registry-owned by
    `https://cem.dev/ns/projection/dom-json/1`, `https://cem.dev/ns/projection/ast/1`,
-   and `https://cem.dev/ns/projection/events/1`, with optional `application/json` /
-   `text/json` target content types, including output-spec/config output root-scope identities.
+   and `https://cem.dev/ns/projection/events/1`. These are JSON output/debug views over semantic projection layers.
+   The design target is semantic DOM/AST/events projection schemas with primary CEM binary/stream artifacts; JSON forms
+   remain optional CLI/debug/interchange views selected by `dom-json`, `application/vnd.cem.dom+json`, or generic JSON
+   output with explicit schema identity.
    Transform config and CEM-native template schema targets
    are also registry-owned as CEM output syntax. Config diagnostics for
    malformed JSON, unsupported config content type/schema identity, duplicate input URIs, and unknown
@@ -561,7 +564,7 @@ Exit criteria: an ADR exists and no parser code has been added.
 4. Use a deterministic default timestamp for feature tests:
     - `1970-01-01T00:00:00.000Z`
 5. Define command output models for:
-    - DOM JSON
+    - DOM projection artifact, with JSON debug view
     - AST
     - events
     - inspect summary
@@ -641,8 +644,10 @@ These are data shapes only. Parser-filled content remains blocked until the pars
 ## Phase 6 - Command Behavior
 
 1. `cem-ml parse <input>`
-    - Default format: `dom-json`.
-    - Supported formats: `dom-json`, `json`, `ast`, `events`.
+    - Default display format: `dom-json`, a JSON debug view over the internal DOM projection.
+    - Supported display formats: `dom-json`, `json`, `ast`, `events`.
+    - Native execution does not serialize to JSON internally; it uses the in-process AST/event model and future CEM
+      binary/chunk artifacts unless the selected output format requires JSON.
     - Default fail level: `parse`.
     - Writes primary output to stdout or `--out`.
     - Supports parse diagnostic side reports with `--report-json` and `--report-md`.
@@ -716,9 +721,10 @@ These are data shapes only. Parser-filled content remains blocked until the pars
           `cem_ql::render::compile_template`, carries the compiled payload in the adapter artifact, and renders via
           `cem_ql::render::render_compiled_template`.
         - `RealCemMlEngine::transform` now runs the minimal one-to-one CEM-native engine path when an executable
-          adapter is registered in `TransformRequest.context`: data is loaded through lifecycle, parsed to DOM JSON,
-          passed as the primary transform data artifact, compiled by the selected adapter, rendered, and returned as the
-          content-primary `TransformResponse.primary`.
+          adapter is registered in `TransformRequest.context`: data is loaded through lifecycle, parsed to the internal
+          CEM DOM projection, passed as the primary transform data artifact without JSON serialization in the native
+          path, compiled by the selected adapter, rendered, and returned as the content-primary
+          `TransformResponse.primary`.
         - The CLI host context registers the CEM-QL executable adapter so transform request construction and dispatch
           use the same adapter registry shape as programmatic hosts.
         - `TransformExecutionPolicy` records the first runtime contract:

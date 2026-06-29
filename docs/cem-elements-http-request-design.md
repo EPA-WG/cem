@@ -43,6 +43,10 @@ passes the response stream, metadata, expected content-type context, source iden
 CEM-ML recognizes the response content type, parses the response stream into source-map-bearing AST events, and exposes
 the resulting stream surface to templates.
 
+Once the response enters CEM-ML, the data path is binary/chunk-first. Browser JSON
+objects or JSON serialization are not the runtime contract; JSON summaries are only
+debug or tooling projections over the CEM AST stream/chunk surface.
+
 The Fetch API itself can expose `Response.body` as a `ReadableStream` in modern
 browsers. The design rejection is specifically against the common buffered
 convenience path and DOMParser/JSON object handoff, not against Fetch as a transport

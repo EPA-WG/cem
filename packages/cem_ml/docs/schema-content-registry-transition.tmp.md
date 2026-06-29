@@ -43,7 +43,7 @@ schema package manifests and converter edges.
   - run config;
   - transform config;
   - native template;
-  - DOM JSON / AST / events projections;
+  - DOM / AST / events projection artifacts with primary CEM binary/stream encodings and optional JSON debug views;
   - observability report events.
 
 ## Phase 2: CEMT Converter Descriptors
@@ -62,6 +62,8 @@ schema package manifests and converter edges.
 - Add a prototype `package.cem` format with schema
   `https://cem.dev/ns/schema-package/1`.
 - Generate Rust registry entries from the `.cem` manifest for one schema family.
+- Generate CEM binary/chunk descriptor artifacts as the preferred runtime/cache
+  projection once the binary format is canonized.
 - Generate JSON + JSON Schema and XML + RELAX NG manifest projections as build
   artifacts, not source inputs.
 - Start with `cem-element` or a projection schema because they exercise
@@ -78,7 +80,8 @@ Move these into converter edges:
 - XML/SVG source bytes -> normalized XML DOM, Rust fallback as needed;
 - CEM DOM -> HTML, CEMT where possible and Rust serializer where needed;
 - CEM DOM -> XML, Rust serializer initially;
-- CEM DOM -> projection JSON outputs;
+- CEM DOM/AST/events -> canonical CEM binary/stream artifacts;
+- CEM DOM/AST/events -> optional projection JSON outputs for CLI/debug/interchange;
 - legacy custom-element/XSLT -> CEM template/CEM DOM.
 
 ## Phase 5: Schema Packages

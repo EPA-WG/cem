@@ -27,7 +27,14 @@ Implement schema packages for these content families:
 - [x] CEM-QL module/query resources.
 - [x] JSON.
 - [x] JSON+JSON schema
-- [ ] CEM projection artifacts: DOM JSON, AST JSON, and events JSON.
+- [ ] CEM projection artifacts: DOM, AST, and events with primary CEM
+      binary/stream encodings and optional JSON debug projections.
+- [ ] Define semantic DOM/AST/events projection schemas and migrate current
+      registry-owned JSON projection exports
+      (`https://cem.dev/ns/projection/dom-json/1`,
+      `https://cem.dev/ns/projection/ast/1`,
+      `https://cem.dev/ns/projection/events/1`) to optional debug/interchange
+      views over primary CEM binary/stream artifacts.
 - [ ] YAML/YML.
 - [ ] CSV.
 - [ ] Markdown/MD markup.

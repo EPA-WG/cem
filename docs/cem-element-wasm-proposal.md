@@ -706,7 +706,9 @@ artifact-registry hook contract.
 
 Run the host runtime support layer outside the browser: in an edge worker, server
 worker, or SSR process. The browser `cem-element` UI adapter sends or receives
-serialized data snapshots, render-plan identities, HTML, or patch-frame streams.
+CEM binary/chunk data snapshots where possible, render-plan identities, HTML, or
+patch-frame streams. JSON snapshots are debug/interchange fallbacks, not the primary
+runtime transport.
 
 Pros:
 
@@ -733,8 +735,9 @@ options stay post-MVP unless a later task explicitly promotes them.
 
 1. **Phase 3A:** implement Option B as the primary architecture and Option A as the
    fallback. This proves CEM-ML/CEM-QL compilation in WASM, local parser streaming,
-   remote source streaming, the host runtime support layer, patch-frame protocol, and
-   main-thread DOM patch ownership without requiring shared memory.
+   remote source streaming, binary/chunk-first artifact flow, the host runtime support
+   layer, patch-frame protocol, and main-thread DOM patch ownership without requiring
+   shared memory.
 2. **Phase 3B:** extend Option B into Option C with a scope-policy worker pool,
    content-addressed artifact cache, deterministic scheduler traces, and parallel
    material parity fixture compilation.

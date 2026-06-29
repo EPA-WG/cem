@@ -313,8 +313,9 @@ The first concrete executable CEM-native adapter lives in
 adapter artifact, and renders through `cem_ql::render::render_compiled_template`.
 `RealCemMlEngine::transform` uses that registered executable adapter path for the
 minimal one-to-one programmatic engine runtime: the data document is loaded through
-the lifecycle layer, parsed to DOM JSON, passed as the primary transform data
-artifact, compiled/rendered by the selected adapter, and returned as
+the lifecycle layer, parsed to the internal CEM DOM projection, passed as the
+primary transform data artifact without JSON serialization in the native path,
+compiled/rendered by the selected adapter, and returned as
 `TransformResponse.primary`. The CLI host context registers the same executable
 CEM-QL adapter for transform request construction and dispatch.
 Data-driven CEM-native templates should read the primary artifact through
@@ -575,10 +576,15 @@ Current implementation status:
   inference feeds `application/xhtml+xml` into the same HTML adapter. HTML/SVG target
   schema identities also select the HTML adapter. XML target export is
   registry-owned for `convert --to-content-type application/xml` / `text/xml` / `image/svg+xml`, plus namespace-only
-  CEM core and HTML/SVG targets. Structural JSON projection exports are registry-owned
-  for `https://cem.dev/ns/projection/dom-json/1`, `https://cem.dev/ns/projection/ast/1`,
-  and `https://cem.dev/ns/projection/events/1`, with optional `application/json` /
-  `text/json` target content types, including output-spec/config output root-scope identities.
+  CEM core and HTML/SVG targets. Current structural JSON projection exports are
+  registry-owned for `https://cem.dev/ns/projection/dom-json/1`,
+  `https://cem.dev/ns/projection/ast/1`, and
+  `https://cem.dev/ns/projection/events/1`. These are JSON output/debug views over
+  semantic projection layers. The design target is semantic DOM/AST/events
+  projection schemas with primary CEM binary/stream artifacts; JSON output remains an
+  optional debug/interchange projection selected by `dom-json`,
+  `application/vnd.cem.dom+json`, or generic JSON output with explicit schema
+  identity in output-spec/config root-scope identities.
   Transform config and CEM-native template schema targets
   are also registry-owned as CEM output syntax. Unsupported target identities emit a
   deterministic lifecycle diagnostic with the declared content type, schema, and/or namespace while
@@ -678,7 +684,7 @@ I/O messages, but they must not replace the underlying resolver code or URI.
 - Run CI-oriented checks with hard-violation behavior.
 - Inspect parsed output as summary, tree, AST, events, diagnostics, or source-offset views.
 - Convert/export supported documents from one declared document format into another declared document format, or into
-  debug projections through the same internal AST.
+  debug projections through the same internal AST/binary artifact spine.
 - Reserve transform execution for applying a template/stylesheet to data to produce a document; the CLI shape is
   parseable, but runtime execution is not implemented.
 - Trace parser and validator work with deterministic text or JSON output.
@@ -694,7 +700,8 @@ I/O messages, but they must not replace the underlying resolver code or URI.
 - Input identity selection by content type and schema, with `--from-format cem|html|xml`
   retained only as a convenience alias while the registry matures.
 - Output identity selection by content type, schema, and namespace identity, with `--to-format cem|html|dom-json|ast|events`
-  retained for current projections and debug layers.
+  retained for current projections and debug layers. `dom-json` is a JSON view over the CEM DOM projection, not the
+  native transform transport.
 - Root-scope configuration for inputs and outputs: default content type, schema,
   version pins, default namespace, named namespaces, module map / resolver identity,
   base URI, scope policy, and resource budgets.
@@ -741,8 +748,8 @@ I/O messages, but they must not replace the underlying resolver code or URI.
   CLI one-liners. Config files are preferred for CI/build reproducibility.
 - Config-file content type via `--config-content-type`, inferred from extension when
   omitted for known config formats, plus config schema identity via `--config-schema`.
-- Output format selection for CEM-native, XML, JSON, text, HTML, Markdown, DOM JSON, AST, events, and tree-shaped
-  output where relevant.
+- Output format selection for CEM-native, XML, JSON, text, HTML, Markdown, DOM JSON debug view, AST, events, and
+  tree-shaped output where relevant.
 - Output destination handling for stdout and `--out`.
 - Report destinations for JSON and Markdown reports, including directory destinations with default filenames.
 - Schema, content-type, namespace, and base-URI option plumbing even before full

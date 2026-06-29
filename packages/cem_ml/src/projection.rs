@@ -1,8 +1,9 @@
-//! JSON projections of the AST / events / DOM for CLI output formats.
+//! JSON debug/interchange projections of the AST / events / DOM for CLI output formats.
 //!
-//! Distinct from the canonical-AST serde derives — these are stable,
-//! consumer-friendly shapes for `cem-ml parse --format dom-json|ast|events`
-//! and the same projections for `convert` / `inspect` views.
+//! Distinct from the native in-process AST and future canonical CEM binary
+//! chunks — these are consumer-friendly JSON views for `cem-ml parse --format
+//! dom-json|ast|events` and the same projections for `convert` / `inspect`
+//! views.
 
 use crate::engine::InputFormat;
 use crate::events::{

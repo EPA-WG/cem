@@ -816,8 +816,9 @@ Target rules:
 - When the primary output uses `stdout`, additional layer projections must not also write
   to `stdout` unless the CLI explicitly selects a multiplexed container format. Side
   outputs should use explicit file targets.
-- Human text and HTML outputs are reference convenience projections. Structured report
-  or layer projections should prefer CEM-native, XML, JSON, or another supported
+- Human text and HTML outputs are reference convenience projections. Machine-to-machine
+  layer projections should prefer CEM binary/chunk artifacts when available. Human-facing
+  or broad-tooling debug views may use CEM-native, XML, JSON, or another supported
   structured format.
 
 Standard projection layers include source metadata, decoded scalars, tokens, normalized

@@ -27,11 +27,13 @@ This roadmap is intentionally higher level than `docs/todo.md`. Use this file to
 2. Generate platform outputs from source-of-truth tokens; do not hand-author native or Figma values.
 3. Keep parser layers explicit: byte source, decoder, tokenizer, normalized event stream, schema machine, AST builder,
    binary AST encoder, and implementation interpreter are separate contracts.
-4. Carry source-map stacks and byte offsets through every parser, transform, generated node, and runtime handoff.
-5. Treat embedded languages and mixed formats as scoped handoffs owned by the parent parser's return condition.
-6. Prove components on the web before porting full UI examples into Figma/native.
-7. Use demos as integration tests, not as the first source of component behavior.
-8. Keep Angular Material as a reference benchmark for coverage and ergonomics, not as a required implementation
+4. Prefer in-process typed structures or CEM binary/chunk streams over JSON serialization whenever the consumer can use
+   them. Do not change binary format at internal/external boundaries unless an explicit converter edge requires it.
+5. Carry source-map stacks and byte offsets through every parser, transform, generated node, and runtime handoff.
+6. Treat embedded languages and mixed formats as scoped handoffs owned by the parent parser's return condition.
+7. Prove components on the web before porting full UI examples into Figma/native.
+8. Use demos as integration tests, not as the first source of component behavior.
+9. Keep Angular Material as a reference benchmark for coverage and ergonomics, not as a required implementation
    dependency unless an Angular adapter is explicitly scoped later.
 
 ## Phase 0 - Repo Spine And Docs
@@ -108,8 +110,12 @@ Deliverables:
   unresolved references.
 - Source-map stack contract that preserves byte offsets as ground truth and derives line/column or UTF-16 positions as
   needed.
-- Binary AST and subtree chunking design for cache, transport, retry, and parallel preprocessing; implementation can
-  start with an uncompressed debug encoding.
+- Canonical CEM binary/stream formats for DOM, AST, and events, including subtree chunking for cache, transport, retry,
+  query access, and parallel preprocessing. Implementation can start with an uncompressed debug encoding, but the
+  roadmap target is a stable binary format that native CLI/WASM/worker/server hosts can consume without JSON
+  reserialization.
+- Parallel- and multicast-capable artifact streams: sealed binary chunks can be consumed by multiple downstream readers
+  or workers, replayed from cache, and routed into CEM-QL/query APIs without changing their binary representation.
 - XSLT or transform pipeline from validated semantic documents into light-DOM custom-element markup.
 - Validation reports for unknown elements, invalid state combinations, missing labels, broken references, unsafe
   content, unsupported embedded-language handoffs, and non-streamable schema features.

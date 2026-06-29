@@ -39,7 +39,7 @@ There are two resource kinds in this contract:
 - **Response resources** — `<http-request url="...">`; loading MUST produce one resource slot containing request
   metadata, optional response metadata, lifecycle state, diagnostics, and the expected response content-type context for
   the CEM-ML engine. Any queryable projection exposed to CEM-QL is produced by the CEM-ML AST stream contract, not by a
-  host JavaScript object or fully materialized payload handoff.
+  host JavaScript object, JSON serialization step, or fully materialized payload handoff.
 
 The supported reference forms are:
 
@@ -287,7 +287,8 @@ HTTP response AST stream:
 ```
 
 The `datadom.slices.page.data` path addresses the queryable projection exposed by the resource slot. It is a
-stream-derived CEM view, not a host JavaScript object or fully materialized AST payload.
+stream-derived CEM view over the AST stream/chunk contract, not a host JavaScript object, JSON serialization step, or
+fully materialized AST payload.
 
 ## Related Documents
 

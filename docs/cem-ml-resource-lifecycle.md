@@ -27,6 +27,12 @@ This contract does not define a transport. Individual resource primitives still 
 HTTP methods and headers, browser fetch behavior, package resolution, file-system access, cache storage, or asset
 decoding.
 
+When a resource stream or stream-derived projection crosses a CEM-owned boundary, the
+preferred representation is the in-process typed structure or canonical CEM binary/chunk
+format. Hosts SHOULD avoid JSON serialization when they can consume the CEM binary or
+query API directly. JSON projections are debug/interchange views, not the primary
+resource lifecycle transport.
+
 ## Resource State
 
 Every external resource state exposed to templates MUST carry:
@@ -209,7 +215,7 @@ AST stream lifecycle is nested inside resource lifecycle:
   observability.
 
 AST streams are not host JavaScript objects, browser DOM nodes, raw strings, `Response` objects, or direct file handles.
-They are CEM-owned event streams, stream handles, or stream-derived projections.
+They are CEM-owned event streams, stream handles, binary chunks, or stream-derived projections.
 
 ## Engine Boundary
 
