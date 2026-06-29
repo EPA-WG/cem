@@ -49,6 +49,11 @@ for query binaries. CEM-QL source is not CEM-ML syntax; its parser lives in the
 CEM-ML syntax, and this package intentionally does not claim JSON Schema or
 CEM-specific projection/vendor `+json` content types.
 
+`json-schema/v1` defines JSON Schema document identity. It owns
+`application/schema+json`, depends on `json/v1`, and models JSON Schema
+dialect, vocabulary, reference, and validation-resource metadata separately
+from generic JSON values.
+
 ## Validation Model
 
 The relationship is layered validation, not broad inheritance:

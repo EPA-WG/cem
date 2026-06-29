@@ -1,0 +1,14 @@
+@doc cem-ml 1
+@ns pkg = "https://cem.dev/ns/schema-package/1"
+@default pkg
+
+{package @id="json-schema" @version="1.0.0" |
+    {schema
+        @uri="https://cem.dev/ns/data/json-schema/1"
+        @source="schema/json-schema.cem"
+    }
+
+    {content-type @value="application/schema+json" @primary=true}
+
+    {namespace @prefix="jsonschema" @uri="https://cem.dev/ns/data/json-schema/1"}
+}

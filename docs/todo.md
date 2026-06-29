@@ -26,7 +26,7 @@ Implement schema packages for these content families:
 - [x] use schema registry with transforms for parser/AST stream loading
 - [x] CEM-QL module/query resources.
 - [x] JSON.
-- [ ] JSON+JSON schema
+- [x] JSON+JSON schema
 - [ ] CEM projection artifacts: DOM JSON, AST JSON, and events JSON.
 - [ ] YAML/YML.
 - [ ] CSV.

@@ -1,0 +1,76 @@
+@doc cem-ml 1
+@ns schema = "https://cem.dev/ns/schema/1"
+@default schema
+
+{schema @name="json-schema" @namespace="https://cem.dev/ns/data/json-schema/1" @version="1.0.0" |
+    {summary |
+        {text | JSON Schema resource schema. JSON Schema documents are JSON values parsed by a JSON parser and interpreted through a dialect vocabulary such as Draft 2020-12. This schema provides registry identity, resource metadata, vocabulary boundaries, reference edges, and validation diagnostics for JSON Schema documents.}
+    }
+
+    {uses |
+        {use @schema="https://cem.dev/ns/schema/1" @as="schema"}
+        {use @schema="https://cem.dev/ns/data/json/1" @as="json"}
+    }
+
+    {content-types |
+        {content-type @value="application/schema+json" @primary=true}
+    }
+
+    {namespaces |
+        {namespace @prefix="jsonschema" @uri="https://cem.dev/ns/data/json-schema/1"}
+        {namespace @prefix="json" @uri="https://cem.dev/ns/data/json/1" @role="base-format"}
+    }
+
+    {elements |
+        {element @name="schema-document" @required-attributes="dialect" @children="schema-object boolean-schema"}
+        {element @name="schema-object" @optional-attributes="id anchor dynamic-anchor title description" @children="vocabulary defs reference applicator validation annotation format unevaluated"}
+        {element @name="boolean-schema" @required-attributes="value"}
+        {element @name="vocabulary" @required-attributes="uri" @optional-attributes="required"}
+        {element @name="defs" @children="schema-object boolean-schema"}
+        {element @name="reference" @required-attributes="uri" @optional-attributes="dynamic"}
+        {element @name="applicator" @required-attributes="keyword" @children="schema-object boolean-schema"}
+        {element @name="validation" @required-attributes="keyword" @optional-attributes="value"}
+        {element @name="annotation" @required-attributes="keyword" @optional-attributes="value"}
+        {element @name="format" @required-attributes="value" @optional-attributes="assertion"}
+        {element @name="unevaluated" @required-attributes="keyword" @children="schema-object boolean-schema"}
+    }
+
+    {attributes |
+        {attribute @name="dialect" @type="schema:uri"}
+        {attribute @name="id" @type="schema:uri"}
+        {attribute @name="anchor" @type="schema:identifier"}
+        {attribute @name="dynamic-anchor" @type="schema:identifier"}
+        {attribute @name="title" @type="schema:string"}
+        {attribute @name="description" @type="schema:string"}
+        {attribute @name="uri" @type="schema:uri"}
+        {attribute @name="required" @type="schema:boolean"}
+        {attribute @name="value" @type="schema:string"}
+        {attribute @name="dynamic" @type="schema:boolean"}
+        {attribute @name="keyword" @type="schema:identifier"}
+        {attribute @name="assertion" @type="schema:boolean"}
+    }
+
+    {constraints |
+        {constraint @kind="json-source-parser" @target="schema-document" @policy="delegate-to-json-parser"}
+        {constraint @kind="dialect-supported" @target="schema-document" @policy="draft-2020-12-required-for-tier-a"}
+        {constraint @kind="vocabulary-support-declared" @target="vocabulary" @policy="required"}
+        {constraint @kind="reference-uri-resolvable" @target="reference" @policy="required when loading for validation"}
+        {constraint @kind="keyword-vocabulary-resolvable" @target="schema-object" @policy="required"}
+        {constraint @kind="boolean-schema-preserved" @target="boolean-schema" @policy="required"}
+    }
+
+    {diagnostics |
+        {diagnostic @code="cem.json_schema.parse_error" @severity="error"}
+        {diagnostic @code="cem.json_schema.unsupported_dialect" @severity="error"}
+        {diagnostic @code="cem.json_schema.unknown_vocabulary" @severity="error"}
+        {diagnostic @code="cem.json_schema.unsupported_required_vocabulary" @severity="error"}
+        {diagnostic @code="cem.json_schema.unresolved_ref" @severity="error"}
+        {diagnostic @code="cem.json_schema.invalid_keyword" @severity="error"}
+        {diagnostic @code="cem.json_schema.validation_error" @severity="error"}
+    }
+
+    {open-content |
+        {accept @kind="json-schema-vocabulary" @policy="reject-unless-declared"}
+        {accept @kind="json-schema-annotation" @policy="preserve"}
+    }
+}
