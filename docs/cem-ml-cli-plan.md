@@ -598,7 +598,7 @@ These are data shapes only. Parser-filled content remains blocked until the pars
     - `--fail-level parse|validate|strict`
     - `--format text|html|json|xml|cem|markdown|dom-json|ast|events|tree`
     - `--from-format cem|html|xml`
-    - `--to-format cem|html|dom-json|ast|events`
+    - `--to-format cem|html|dom-json|ast|events|dom-bin|ast-bin|events-bin`
     - `--show summary|ast|events|diagnostics|source-offsets|tree`
     - `--iterations <n>`
     - `--budget-ms <n>`
@@ -674,7 +674,8 @@ These are data shapes only. Parser-filled content remains blocked until the pars
 6. `cem-ml convert <input>`
     - Converts a supported document in one declared document format into another declared document format.
     - Supported input formats: `cem`, `html`, `xml`.
-    - Supported output formats: `cem`, `html`, `xml`, `dom-json`, `ast`, `events`.
+    - Supported output formats: `cem`, `html`, `xml`, `dom-json`, `ast`,
+      `events`, `dom-bin`, `ast-bin`, `events-bin`.
     - `--to-content-type application/cem+xml` selects canonical CEM-ML export, and `--to-content-type text/html`
       / `application/xhtml+xml`, `--to-schema http://www.w3.org/1999/xhtml` /
       `http://www.w3.org/2000/svg`, or `.xhtml` output destinations select light-DOM HTML export;
@@ -924,7 +925,7 @@ These are data shapes only. Parser-filled content remains blocked until the pars
     - Benchmarking uses the engine boundary; parser performance work is deferred.
 10. `cem-ml fixture roundtrip [input...]`
     - Defaults to the canonical CEM-ML fixtures and HTML parity fixtures.
-    - Supports `--to-format cem|html|dom-json|ast|events`.
+    - Supports `--to-format cem|html|dom-json|ast|events|dom-bin|ast-bin|events-bin`.
     - Transform/render snapshots remain deferred.
 
 ## Phase 7 - File I/O And Reports

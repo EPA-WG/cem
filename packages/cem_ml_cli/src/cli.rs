@@ -111,6 +111,9 @@ pub enum LayerFormat {
     DomJson,
     Ast,
     Events,
+    DomBin,
+    AstBin,
+    EventsBin,
 }
 
 #[derive(ValueEnum, Copy, Clone, Debug, PartialEq, Eq)]
@@ -822,7 +825,17 @@ mod tests {
 
     #[test]
     fn convert_to_format_restricted_to_layer_formats() {
-        for fmt in ["cem", "html", "xml", "dom-json", "ast", "events"] {
+        for fmt in [
+            "cem",
+            "html",
+            "xml",
+            "dom-json",
+            "ast",
+            "events",
+            "dom-bin",
+            "ast-bin",
+            "events-bin",
+        ] {
             try_parse(&["convert", "--to-format", fmt, "in.cem"]).expect(fmt);
         }
         for fmt in ["json", "text"] {

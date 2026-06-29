@@ -3000,6 +3000,11 @@ impl CemMlEngine for RealCemMlEngine {
                 LayerFormat::DomJson => projection::dom_json(&run.document),
                 LayerFormat::Ast => projection::ast_json(&run.document),
                 LayerFormat::Events => projection::events_json_as(&loaded.bytes, from_format),
+                LayerFormat::DomBin => projection::dom_binary_artifact(&run.document),
+                LayerFormat::AstBin => projection::ast_binary_artifact(&run.document),
+                LayerFormat::EventsBin => {
+                    projection::events_binary_artifact_as(&loaded.bytes, from_format)
+                }
             });
             diagnostics.extend(run.diagnostics);
         });

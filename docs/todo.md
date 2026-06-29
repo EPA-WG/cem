@@ -27,7 +27,7 @@ Implement schema packages for these content families:
 - [x] CEM-QL module/query resources.
 - [x] JSON.
 - [x] JSON+JSON schema
-- [ ] CEM projection artifacts: DOM, AST, and events with primary CEM
+- [x] CEM projection artifacts: DOM, AST, and events with primary CEM
       binary/stream encodings and optional JSON debug projections.
 - [x] Define semantic DOM/AST/events projection schemas and migrate current
       registry-owned JSON projection exports
@@ -35,9 +35,11 @@ Implement schema packages for these content families:
       `https://cem.dev/ns/projection/ast/1`,
       `https://cem.dev/ns/projection/events/1`) to optional debug/interchange
       views over primary CEM binary/stream artifacts.
-- [ ] Implement canonical CEM binary/chunk export adapters for
+- [x] Implement canonical CEM binary/chunk export adapters for
       `application/vnd.cem.dom+cem-bin`, `application/vnd.cem.ast+cem-bin`,
       and `application/vnd.cem.events+cem-bin`.
+- [ ] Add raw-byte CLI/file output for CEM binary artifacts; the current CLI
+      response boundary returns a JSON envelope with a sealed hex chunk.
 - [ ] Implement parallel and multicast-capable projection stream routing over
       sealed CEM binary chunks.
 - [ ] YAML/YML.

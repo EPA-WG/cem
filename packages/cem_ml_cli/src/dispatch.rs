@@ -720,6 +720,9 @@ fn to_engine_layer_format(f: cli::LayerFormat) -> eng::LayerFormat {
         cli::LayerFormat::DomJson => eng::LayerFormat::DomJson,
         cli::LayerFormat::Ast => eng::LayerFormat::Ast,
         cli::LayerFormat::Events => eng::LayerFormat::Events,
+        cli::LayerFormat::DomBin => eng::LayerFormat::DomBin,
+        cli::LayerFormat::AstBin => eng::LayerFormat::AstBin,
+        cli::LayerFormat::EventsBin => eng::LayerFormat::EventsBin,
     }
 }
 
@@ -10660,6 +10663,57 @@ mod tests {
         assert_eq!(v["kind"], "document");
         assert_eq!(v["children"][0]["kind"], "element");
         assert_eq!(v["children"][0]["name"], "p");
+    }
+
+    #[test]
+    fn convert_to_dom_binary_projection_content_type_selects_binary_export_adapter() {
+        let p = write_fixture("convert-target-dom-bin.cem", "{p | Hi}");
+        let (outcome, stdout, stderr) = run(
+            &RealCemMlEngine::new(),
+            &[
+                "convert",
+                "--to-content-type",
+                cem_ml::schema::registry::CEM_DOM_PROJECTION_CONTENT_TYPE,
+                p.to_str().unwrap(),
+            ],
+        );
+
+        assert_eq!(outcome.exit_code, EXIT_OK, "{stderr}");
+        assert!(
+            !stderr.contains("cem.lifecycle.target_adapter_unsupported"),
+            "{stderr}"
+        );
+        let v: serde_json::Value = serde_json::from_str(stdout.trim()).unwrap();
+        assert_eq!(v["kind"], "cem-binary-projection");
+        assert_eq!(v["projection"], "dom");
+        assert_eq!(
+            v["contentType"],
+            cem_ml::schema::registry::CEM_DOM_PROJECTION_CONTENT_TYPE
+        );
+        assert!(v["hash"].as_str().unwrap().starts_with("cem-bin/1+blake3:"));
+        assert_eq!(v["chunks"][0]["sealed"], true);
+        assert!(v["chunks"][0]["data"]
+            .as_str()
+            .unwrap()
+            .starts_with("43454d50524f4a00"));
+    }
+
+    #[test]
+    fn convert_to_format_dom_bin_outputs_binary_projection() {
+        let p = write_fixture("convert-format-dom-bin.cem", "{p | Hi}");
+        let (outcome, stdout, stderr) = run(
+            &RealCemMlEngine::new(),
+            &["convert", "--to-format", "dom-bin", p.to_str().unwrap()],
+        );
+
+        assert_eq!(outcome.exit_code, EXIT_OK, "{stderr}");
+        let v: serde_json::Value = serde_json::from_str(stdout.trim()).unwrap();
+        assert_eq!(v["kind"], "cem-binary-projection");
+        assert_eq!(v["projection"], "dom");
+        assert_eq!(
+            v["contentType"],
+            cem_ml::schema::registry::CEM_DOM_PROJECTION_CONTENT_TYPE
+        );
     }
 
     #[test]

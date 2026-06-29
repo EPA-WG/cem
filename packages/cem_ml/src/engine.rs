@@ -38,6 +38,9 @@ pub enum LayerFormat {
     DomJson,
     Ast,
     Events,
+    DomBin,
+    AstBin,
+    EventsBin,
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]

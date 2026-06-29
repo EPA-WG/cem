@@ -702,9 +702,11 @@ I/O messages, but they must not replace the underlying resolver code or URI.
 - Fail level: `parse`, `validate`, `strict`.
 - Input identity selection by content type and schema, with `--from-format cem|html|xml`
   retained only as a convenience alias while the registry matures.
-- Output identity selection by content type, schema, and namespace identity, with `--to-format cem|html|dom-json|ast|events`
-  retained for current projections and debug layers. `dom-json` is a JSON view over the CEM DOM projection, not the
-  native transform transport.
+- Output identity selection by content type, schema, and namespace identity, with
+  `--to-format cem|html|dom-json|ast|events|dom-bin|ast-bin|events-bin`
+  retained for current projections and debug layers. `dom-json` is a JSON view
+  over the CEM DOM projection, not the native transform transport; `*-bin`
+  selects sealed CEM binary projection artifacts.
 - Root-scope configuration for inputs and outputs: default content type, schema,
   version pins, default namespace, named namespaces, module map / resolver identity,
   base URI, scope policy, and resource budgets.
@@ -751,7 +753,7 @@ I/O messages, but they must not replace the underlying resolver code or URI.
   CLI one-liners. Config files are preferred for CI/build reproducibility.
 - Config-file content type via `--config-content-type`, inferred from extension when
   omitted for known config formats, plus config schema identity via `--config-schema`.
-- Output format selection for CEM-native, XML, JSON, text, HTML, Markdown, DOM JSON debug view, AST, events, and
+- Output format selection for CEM-native, XML, JSON, text, HTML, Markdown, DOM JSON debug view, AST, events, CEM binary projections, and
   tree-shaped output where relevant.
 - Output destination handling for stdout and `--out`.
 - Report destinations for JSON and Markdown reports, including directory destinations with default filenames.
