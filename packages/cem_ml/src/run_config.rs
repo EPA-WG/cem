@@ -757,7 +757,7 @@ pub fn infer_content_type_from_path(path: &str) -> Option<String> {
         "cem" => Some("application/cem+xml".to_owned()),
         "html" | "htm" => Some("text/html".to_owned()),
         "xhtml" => Some("application/xhtml+xml".to_owned()),
-        "xml" => Some("application/xml".to_owned()),
+        "xml" => Some(crate::schema::registry::XML_CONTENT_TYPE.to_owned()),
         "svg" => Some("image/svg+xml".to_owned()),
         "xsl" | "xslt" => Some("application/xslt+xml".to_owned()),
         "cemt" => Some(crate::schema::registry::CEM_TRANSFORM_CONTENT_TYPE.to_owned()),
@@ -917,6 +917,18 @@ mod tests {
         assert_eq!(
             infer_content_type_from_path("docs/README.MARKDOWN").as_deref(),
             Some(crate::schema::registry::MARKDOWN_CONTENT_TYPE)
+        );
+    }
+
+    #[test]
+    fn xml_extension_infers_xml_content_type() {
+        assert_eq!(
+            infer_content_type_from_path("data/document.xml").as_deref(),
+            Some(crate::schema::registry::XML_CONTENT_TYPE)
+        );
+        assert_eq!(
+            infer_content_type_from_path("data/DOCUMENT.XML").as_deref(),
+            Some(crate::schema::registry::XML_CONTENT_TYPE)
         );
     }
 

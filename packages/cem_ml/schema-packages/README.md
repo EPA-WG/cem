@@ -66,6 +66,14 @@ structure, links, references, embedded HTML policy, and source-map hooks.
 Markdown source is not CEM-ML syntax; parser/adaptor support is separate from
 the schema package.
 
+`xml/v1` defines generic XML resource identity. It owns `application/xml`,
+claims the RFC 7303 XML aliases, and models XML declaration, charset,
+namespace-aware element and attribute structure, processing instructions,
+comments, CDATA, DTD/entity hooks, and source-map hooks. XML source is not
+CEM-ML syntax; parser/adaptor support is separate from the schema package.
+Domain media types ending in `+xml` use their own packages and may depend on
+this package.
+
 `json-schema/v1` defines JSON Schema document identity. It owns
 `application/schema+json`, depends on `json/v1`, and models JSON Schema
 dialect, vocabulary, reference, and validation-resource metadata separately

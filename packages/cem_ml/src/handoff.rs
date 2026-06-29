@@ -23,6 +23,9 @@ pub const SUPPORTED_CONTENT_TYPES: &[&str] = &[
     "text/markdown",
     "text/xml",
     "application/xml",
+    "application/xml-external-parsed-entity",
+    "text/xml-external-parsed-entity",
+    "application/xml-dtd",
 ];
 
 pub fn is_supported_content_type(ct: &str) -> bool {
@@ -103,5 +106,18 @@ mod tests {
     #[test]
     fn markdown_content_type_is_supported_opaque_handoff() {
         assert!(is_supported_content_type("text/markdown"));
+    }
+
+    #[test]
+    fn xml_content_types_are_supported_opaque_handoffs() {
+        for content_type in [
+            "application/xml",
+            "text/xml",
+            "application/xml-external-parsed-entity",
+            "text/xml-external-parsed-entity",
+            "application/xml-dtd",
+        ] {
+            assert!(is_supported_content_type(content_type));
+        }
     }
 }

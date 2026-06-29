@@ -48,7 +48,7 @@ Implement schema packages for these content families:
 - [x] YAML/YML.
 - [x] CSV.
 - [x] Markdown/MD markup.
-- [ ] XML.
+- [x] XML.
 - [ ] XHTML.
 - [ ] SVG.
 - [ ] MathML.

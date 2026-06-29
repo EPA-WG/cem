@@ -1,0 +1,18 @@
+@doc cem-ml 1
+@ns pkg = "https://cem.dev/ns/schema-package/1"
+@default pkg
+
+{package @id="xml" @version="1.0.0" |
+    {schema
+        @uri="https://cem.dev/ns/data/xml/1"
+        @source="schema/xml.cem"
+    }
+
+    {content-type @value="application/xml" @primary=true}
+    {content-type @value="text/xml" @alias=true}
+    {content-type @value="application/xml-external-parsed-entity" @alias=true}
+    {content-type @value="text/xml-external-parsed-entity" @alias=true}
+    {content-type @value="application/xml-dtd" @alias=true}
+
+    {namespace @prefix="xml" @uri="https://cem.dev/ns/data/xml/1"}
+}

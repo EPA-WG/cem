@@ -1,0 +1,110 @@
+@doc cem-ml 1
+@ns schema = "https://cem.dev/ns/schema/1"
+@ns cemml = "https://cem.dev/ns/cem-ml/1"
+@default schema
+
+{schema @name="xml" @namespace="https://cem.dev/ns/data/xml/1" @version="1.0.0" |
+    {summary |
+        {text | Generic XML resource schema. XML source is parsed by an XML parser or adapter, while this schema provides registry identity, XML declaration and encoding metadata, namespace-aware element and attribute structure, processing instructions, comments, CDATA, DTD/entity hooks, source offsets, and validation hooks for XML resources.}
+    }
+
+    {uses |
+        {use @schema="https://cem.dev/ns/schema/1" @as="schema"}
+        {use @schema="https://cem.dev/ns/cem-ml/1" @as="cemml"}
+    }
+
+    {content-types |
+        {content-type @value="application/xml" @primary=true}
+        {content-type @value="text/xml" @alias=true}
+        {content-type @value="application/xml-external-parsed-entity" @alias=true}
+        {content-type @value="text/xml-external-parsed-entity" @alias=true}
+        {content-type @value="application/xml-dtd" @alias=true}
+    }
+
+    {namespaces |
+        {namespace @prefix="xml" @uri="https://cem.dev/ns/data/xml/1"}
+    }
+
+    {elements |
+        {element @name="document" @required-attributes="encoding" @optional-attributes="version charset standalone source-id byte-offset byte-length" @children="xml-declaration? prolog? doctype? element misc*"}
+        {element @name="external-parsed-entity" @required-attributes="encoding" @optional-attributes="version charset source-id byte-offset byte-length" @children="node*"}
+        {element @name="dtd" @optional-attributes="name public-id system-id source-id byte-offset byte-length" @children="declaration*"}
+        {element @name="xml-declaration" @optional-attributes="version encoding standalone"}
+        {element @name="prolog" @children="misc*"}
+        {element @name="misc" @required-attributes="kind" @children="comment processing-instruction text"}
+        {element @name="doctype" @required-attributes="name" @optional-attributes="public-id system-id internal-subset external-subset source-id byte-offset byte-length"}
+        {element @name="element" @required-attributes="qualified-name local-name" @optional-attributes="namespace-uri prefix xml-base xml-lang xml-space source-id byte-offset byte-length" @children="namespace* attribute* node*"}
+        {element @name="namespace" @required-attributes="uri" @optional-attributes="prefix source-id byte-offset byte-length"}
+        {element @name="attribute" @required-attributes="qualified-name local-name value" @optional-attributes="namespace-uri prefix source-id byte-offset byte-length"}
+        {element @name="node" @required-attributes="kind" @children="element text cdata comment processing-instruction entity-reference"}
+        {element @name="text" @optional-attributes="value source-id byte-offset byte-length"}
+        {element @name="cdata" @optional-attributes="value source-id byte-offset byte-length"}
+        {element @name="comment" @optional-attributes="value source-id byte-offset byte-length"}
+        {element @name="processing-instruction" @required-attributes="target" @optional-attributes="data source-id byte-offset byte-length"}
+        {element @name="entity-reference" @required-attributes="name" @optional-attributes="source-id byte-offset byte-length"}
+        {element @name="declaration" @required-attributes="kind name" @optional-attributes="value public-id system-id source-id byte-offset byte-length"}
+    }
+
+    {attributes |
+        {attribute @name="encoding" @type="schema:identifier" @values="utf-8 utf-16 utf-16be utf-16le us-ascii other"}
+        {attribute @name="charset" @type="schema:identifier"}
+        {attribute @name="version" @type="schema:string"}
+        {attribute @name="standalone" @type="schema:boolean"}
+        {attribute @name="source-id" @type="schema:identifier"}
+        {attribute @name="byte-offset" @type="cemml:integer"}
+        {attribute @name="byte-length" @type="cemml:integer"}
+        {attribute @name="kind" @type="schema:identifier" @values="element text cdata comment processing-instruction entity-reference notation entity element-type attribute-list"}
+        {attribute @name="qualified-name" @type="schema:string"}
+        {attribute @name="local-name" @type="schema:string"}
+        {attribute @name="prefix" @type="schema:identifier"}
+        {attribute @name="namespace-uri" @type="schema:string"}
+        {attribute @name="uri" @type="schema:string"}
+        {attribute @name="value" @type="schema:string"}
+        {attribute @name="name" @type="schema:string"}
+        {attribute @name="public-id" @type="schema:string"}
+        {attribute @name="system-id" @type="schema:string"}
+        {attribute @name="internal-subset" @type="schema:string"}
+        {attribute @name="external-subset" @type="schema:string"}
+        {attribute @name="target" @type="schema:identifier"}
+        {attribute @name="data" @type="schema:string"}
+        {attribute @name="xml-base" @type="schema:string"}
+        {attribute @name="xml-lang" @type="schema:string"}
+        {attribute @name="xml-space" @type="schema:identifier" @values="default preserve"}
+    }
+
+    {constraints |
+        {constraint @kind="xml-source-parser" @target="document" @policy="delegate-to-xml-parser"}
+        {constraint @kind="application-xml-primary" @target="document" @policy="application/xml is the canonical media type for generic XML documents"}
+        {constraint @kind="text-xml-alias" @target="document" @policy="text/xml resolves to the same generic XML schema identity"}
+        {constraint @kind="plus-xml-not-claimed" @target="document" @policy="domain media types ending in +xml must use their own schema package and may depend on this XML package"}
+        {constraint @kind="single-document-element" @target="document" @policy="required for XML document entities"}
+        {constraint @kind="external-entity-multiple-roots" @target="external-parsed-entity" @policy="external parsed entities may contain multiple top-level nodes"}
+        {constraint @kind="namespace-bindings-preserved" @target="element" @policy="required"}
+        {constraint @kind="attribute-namespace-uniqueness" @target="element" @policy="attributes are unique by expanded namespace URI and local name"}
+        {constraint @kind="child-order-preserved" @target="element" @policy="required"}
+        {constraint @kind="encoding-source-priority" @target="document" @policy="preserve BOM, MIME charset, and XML declaration encoding; report conflicts"}
+        {constraint @kind="external-entity-policy" @target="entity-reference" @policy="reject external entity resolution unless explicitly enabled by policy"}
+        {constraint @kind="dtd-policy" @target="doctype" @policy="preserve declarations but do not fetch external subsets unless explicitly enabled by policy"}
+        {constraint @kind="source-map-preferred" @target="node" @policy="required when parser exposes source ranges"}
+    }
+
+    {diagnostics |
+        {diagnostic @code="cem.xml.parse_error" @severity="error"}
+        {diagnostic @code="cem.xml.unsupported_encoding" @severity="error"}
+        {diagnostic @code="cem.xml.encoding_conflict" @severity="warning"}
+        {diagnostic @code="cem.xml.unbound_namespace_prefix" @severity="error"}
+        {diagnostic @code="cem.xml.duplicate_attribute" @severity="error"}
+        {diagnostic @code="cem.xml.dtd_rejected" @severity="error"}
+        {diagnostic @code="cem.xml.external_entity_rejected" @severity="error"}
+        {diagnostic @code="cem.xml.entity_expansion_limit" @severity="error"}
+        {diagnostic @code="cem.xml.source_map_unavailable" @severity="info"}
+    }
+
+    {compatibility |
+        {note @version="1.0.0" @value="RFC 7303 standardizes application/xml, application/xml-external-parsed-entity, and application/xml-dtd; text/xml and text/xml-external-parsed-entity are aliases. XML-based domain media types should use the +xml suffix and their own schema packages."}
+    }
+
+    {open-content |
+        {accept @kind="xml-extension" @policy="reject-unless-declared"}
+    }
+}

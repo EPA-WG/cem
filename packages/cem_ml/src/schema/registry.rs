@@ -17,6 +17,7 @@ pub const JSON_SCHEMA_SCHEMA_URI: &str = "https://cem.dev/ns/data/json-schema/1"
 pub const YAML_SCHEMA_URI: &str = "https://cem.dev/ns/data/yaml/1";
 pub const CSV_SCHEMA_URI: &str = "https://cem.dev/ns/data/csv/1";
 pub const MARKDOWN_SCHEMA_URI: &str = "https://cem.dev/ns/data/markdown/1";
+pub const XML_SCHEMA_URI: &str = "https://cem.dev/ns/data/xml/1";
 pub const CEM_DOM_PROJECTION_SCHEMA_URI: &str = "https://cem.dev/ns/projection/dom/1";
 pub const CEM_AST_PROJECTION_SCHEMA_URI: &str = "https://cem.dev/ns/projection/ast/1";
 pub const CEM_EVENTS_PROJECTION_SCHEMA_URI: &str = "https://cem.dev/ns/projection/events/1";
@@ -33,6 +34,7 @@ pub const JSON_SCHEMA_CONTENT_TYPE: &str = "application/schema+json";
 pub const YAML_CONTENT_TYPE: &str = "application/yaml";
 pub const CSV_CONTENT_TYPE: &str = "text/csv";
 pub const MARKDOWN_CONTENT_TYPE: &str = "text/markdown";
+pub const XML_CONTENT_TYPE: &str = "application/xml";
 pub const CEM_DOM_PROJECTION_CONTENT_TYPE: &str = "application/vnd.cem.dom+cem-bin";
 pub const CEM_DOM_JSON_PROJECTION_CONTENT_TYPE: &str = "application/vnd.cem.dom+json";
 pub const CEM_AST_PROJECTION_CONTENT_TYPE: &str = "application/vnd.cem.ast+cem-bin";
@@ -444,6 +446,21 @@ pub fn builtin_schema_descriptors() -> Vec<SchemaDescriptor> {
             uses: vec![CEM_SCHEMA_URI.into(), CEM_ML_SCHEMA_URI.into()],
         },
         SchemaDescriptor {
+            package_id: "xml".into(),
+            schema_uri: XML_SCHEMA_URI.into(),
+            version: "1.0.0".into(),
+            source: "schema-packages/xml/v1/schema/xml.cem".into(),
+            content_types: vec![
+                SchemaContentType::primary(XML_CONTENT_TYPE),
+                SchemaContentType::alias("text/xml"),
+                SchemaContentType::alias("application/xml-external-parsed-entity"),
+                SchemaContentType::alias("text/xml-external-parsed-entity"),
+                SchemaContentType::alias("application/xml-dtd"),
+            ],
+            namespaces: vec![NamespaceClaim::new(Some("xml"), XML_SCHEMA_URI)],
+            uses: vec![CEM_SCHEMA_URI.into(), CEM_ML_SCHEMA_URI.into()],
+        },
+        SchemaDescriptor {
             package_id: "json-schema".into(),
             schema_uri: JSON_SCHEMA_SCHEMA_URI.into(),
             version: "1.0.0".into(),
@@ -595,6 +612,13 @@ mod tests {
                 .schema_uri,
             MARKDOWN_SCHEMA_URI
         );
+        assert_eq!(
+            registry
+                .resolve_content_type(XML_CONTENT_TYPE)
+                .unwrap()
+                .schema_uri,
+            XML_SCHEMA_URI
+        );
     }
 
     #[test]
@@ -697,6 +721,29 @@ mod tests {
                     .unwrap()
                     .schema_uri,
                 MARKDOWN_SCHEMA_URI
+            );
+        }
+    }
+
+    #[test]
+    fn builtin_registry_resolves_xml_content_types() {
+        let registry = SchemaRegistry::with_builtin_schemas();
+
+        for content_type in [
+            "application/xml",
+            "application/xml; charset=utf-8",
+            "text/xml",
+            "text/xml; charset=utf-8",
+            "application/xml-external-parsed-entity",
+            "text/xml-external-parsed-entity",
+            "application/xml-dtd",
+        ] {
+            assert_eq!(
+                registry
+                    .resolve_content_type(content_type)
+                    .unwrap()
+                    .schema_uri,
+                XML_SCHEMA_URI
             );
         }
     }
