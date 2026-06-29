@@ -235,6 +235,14 @@ server/edge hosts should consume typed structures or CEM binary chunks directly
 when possible, preserving the same binary representation across cache,
 transport, query, and converter boundaries.
 
+The first semantic projection packages are `cem-dom-projection/v1`,
+`cem-ast-projection/v1`, and `cem-events-projection/v1`. They own
+`https://cem.dev/ns/projection/dom/1`, `https://cem.dev/ns/projection/ast/1`,
+and `https://cem.dev/ns/projection/events/1` respectively, with
+`application/vnd.cem.dom+cem-bin`, `application/vnd.cem.ast+cem-bin`, and
+`application/vnd.cem.events+cem-bin` as primary content types. Their `+json`
+content types are debug/interchange views.
+
 HTML recovery:
 
 ```text

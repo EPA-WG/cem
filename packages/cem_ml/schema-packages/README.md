@@ -54,6 +54,13 @@ CEM-specific projection/vendor `+json` content types.
 dialect, vocabulary, reference, and validation-resource metadata separately
 from generic JSON values.
 
+`cem-dom-projection/v1`, `cem-ast-projection/v1`, and
+`cem-events-projection/v1` define the semantic CEM DOM, AST, and event-stream
+projection layers. Each projection package owns a primary CEM binary content
+type (`application/vnd.cem.*+cem-bin`) and a `+json` debug/interchange alias.
+The JSON aliases are views over the semantic projection schemas, not canonical
+runtime transport formats.
+
 ## Validation Model
 
 The relationship is layered validation, not broad inheritance:

@@ -101,12 +101,17 @@ the immediate CLI lifecycle contract.
    schema is present, while explicit content type remains authoritative. Unsupported input
    and target identities emit deterministic lifecycle diagnostics with the declared
    content type, schema, and/or namespace while preserving the requested fallback input
-   format or output projection. Current structural JSON projection targets are registry-owned by
-   `https://cem.dev/ns/projection/dom-json/1`, `https://cem.dev/ns/projection/ast/1`,
-   and `https://cem.dev/ns/projection/events/1`. These are JSON output/debug views over semantic projection layers.
-   The design target is semantic DOM/AST/events projection schemas with primary CEM binary/stream artifacts; JSON forms
-   remain optional CLI/debug/interchange views selected by `dom-json`, `application/vnd.cem.dom+json`, or generic JSON
-   output with explicit schema identity.
+   format or output projection. Semantic DOM/AST/events projection schemas are
+   registry-owned by `https://cem.dev/ns/projection/dom/1`,
+   `https://cem.dev/ns/projection/ast/1`, and
+   `https://cem.dev/ns/projection/events/1`, with primary
+   `application/vnd.cem.*+cem-bin` content types. Current JSON outputs are
+   debug/interchange views selected by `dom-json`,
+   `application/vnd.cem.dom+json`, `application/vnd.cem.ast+json`,
+   `application/vnd.cem.events+json`, or generic JSON output with explicit
+   schema identity. The legacy `https://cem.dev/ns/projection/dom-json/1`
+   schema remains a compatibility identity for the DOM JSON view until callers
+   migrate to the semantic DOM schema plus `+json` content type.
    Transform config and CEM-native template schema targets
    are also registry-owned as CEM output syntax. Config diagnostics for
    malformed JSON, unsupported config content type/schema identity, duplicate input URIs, and unknown

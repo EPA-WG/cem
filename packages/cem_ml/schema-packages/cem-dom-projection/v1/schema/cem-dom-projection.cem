@@ -1,0 +1,75 @@
+@doc cem-ml 1
+@ns schema = "https://cem.dev/ns/schema/1"
+@ns cemml = "https://cem.dev/ns/cem-ml/1"
+@default schema
+
+{schema @name="cem-dom-projection" @namespace="https://cem.dev/ns/projection/dom/1" @version="1.0.0" |
+    {summary |
+        {text | Semantic CEM DOM projection schema. This schema describes the normalized CEM DOM layer as a source-mapped tree with stable node identity, namespace-aware names, attributes, text, comments, annotations, and sealed stream chunks. The primary runtime and cache artifact is CEM binary or chunk-stream data; JSON is an optional debug and interchange view over the same semantic layer.}
+    }
+
+    {uses |
+        {use @schema="https://cem.dev/ns/schema/1" @as="schema"}
+        {use @schema="https://cem.dev/ns/cem-ml/1" @as="cemml"}
+    }
+
+    {content-types |
+        {content-type @value="application/vnd.cem.dom+cem-bin" @primary=true}
+        {content-type @value="application/vnd.cem.dom+json" @alias=true}
+    }
+
+    {namespaces |
+        {namespace @prefix="cemdom" @uri="https://cem.dev/ns/projection/dom/1"}
+    }
+
+    {elements |
+        {element @name="document" @required-attributes="schema content-type hash-scheme" @children="chunk* node*"}
+        {element @name="chunk" @required-attributes="id sealed" @optional-attributes="parent-id byte-offset byte-length hash"}
+        {element @name="node" @required-attributes="id kind" @optional-attributes="parent-id order name namespace value source-id byte-offset byte-length chunk-id" @children="attribute* annotation*"}
+        {element @name="attribute" @required-attributes="name" @optional-attributes="namespace value source-id byte-offset byte-length"}
+        {element @name="annotation" @required-attributes="kind" @optional-attributes="name value schema"}
+    }
+
+    {attributes |
+        {attribute @name="id" @type="schema:identifier"}
+        {attribute @name="parent-id" @type="schema:identifier"}
+        {attribute @name="order" @type="cemml:integer"}
+        {attribute @name="kind" @type="schema:identifier" @values="document element text comment cdata raw-text expression fragment"}
+        {attribute @name="name" @type="schema:qualified-name"}
+        {attribute @name="namespace" @type="schema:uri"}
+        {attribute @name="value" @type="schema:string"}
+        {attribute @name="schema" @type="schema:uri"}
+        {attribute @name="content-type" @type="schema:media-type"}
+        {attribute @name="hash-scheme" @type="schema:identifier"}
+        {attribute @name="hash" @type="schema:string"}
+        {attribute @name="source-id" @type="schema:uri"}
+        {attribute @name="byte-offset" @type="cemml:integer"}
+        {attribute @name="byte-length" @type="cemml:integer"}
+        {attribute @name="chunk-id" @type="schema:identifier"}
+        {attribute @name="sealed" @type="schema:boolean"}
+    }
+
+    {constraints |
+        {constraint @kind="binary-primary" @target="document" @policy="application/vnd.cem.dom+cem-bin is canonical for runtime and cache handoff"}
+        {constraint @kind="json-debug-view" @target="document" @policy="application/vnd.cem.dom+json must be derived from the semantic DOM projection"}
+        {constraint @kind="stable-node-identity" @target="node" @policy="required within one artifact revision"}
+        {constraint @kind="sealed-chunk-immutable" @target="chunk" @policy="sealed chunks are immutable and may be multicast or replayed"}
+        {constraint @kind="source-map-preserved" @target="node" @policy="required when source identity is available"}
+    }
+
+    {diagnostics |
+        {diagnostic @code="cem.projection.dom.node_id_duplicate" @severity="error"}
+        {diagnostic @code="cem.projection.dom.parent_missing" @severity="error"}
+        {diagnostic @code="cem.projection.dom.chunk_hash_mismatch" @severity="error"}
+        {diagnostic @code="cem.projection.dom.source_map_missing" @severity="warning"}
+    }
+
+    {compatibility |
+        {note @version="1.0.0" @value="The legacy https://cem.dev/ns/projection/dom-json/1 export is a JSON debug view over this semantic DOM projection."}
+        {source @schema="https://cem.dev/ns/projection/dom-json/1" @content-type="application/vnd.cem.dom+json"}
+    }
+
+    {open-content |
+        {accept @kind="projection-extension" @policy="reject-unless-declared"}
+    }
+}

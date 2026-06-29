@@ -1,0 +1,15 @@
+@doc cem-ml 1
+@ns pkg = "https://cem.dev/ns/schema-package/1"
+@default pkg
+
+{package @id="cem-events-projection" @version="1.0.0" |
+    {schema
+        @uri="https://cem.dev/ns/projection/events/1"
+        @source="schema/cem-events-projection.cem"
+    }
+
+    {content-type @value="application/vnd.cem.events+cem-bin" @primary=true}
+    {content-type @value="application/vnd.cem.events+json" @alias=true}
+
+    {namespace @prefix="cemevents" @uri="https://cem.dev/ns/projection/events/1"}
+}

@@ -29,12 +29,17 @@ Implement schema packages for these content families:
 - [x] JSON+JSON schema
 - [ ] CEM projection artifacts: DOM, AST, and events with primary CEM
       binary/stream encodings and optional JSON debug projections.
-- [ ] Define semantic DOM/AST/events projection schemas and migrate current
+- [x] Define semantic DOM/AST/events projection schemas and migrate current
       registry-owned JSON projection exports
       (`https://cem.dev/ns/projection/dom-json/1`,
       `https://cem.dev/ns/projection/ast/1`,
       `https://cem.dev/ns/projection/events/1`) to optional debug/interchange
       views over primary CEM binary/stream artifacts.
+- [ ] Implement canonical CEM binary/chunk export adapters for
+      `application/vnd.cem.dom+cem-bin`, `application/vnd.cem.ast+cem-bin`,
+      and `application/vnd.cem.events+cem-bin`.
+- [ ] Implement parallel and multicast-capable projection stream routing over
+      sealed CEM binary chunks.
 - [ ] YAML/YML.
 - [ ] CSV.
 - [ ] Markdown/MD markup.

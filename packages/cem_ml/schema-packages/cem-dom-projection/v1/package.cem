@@ -1,0 +1,15 @@
+@doc cem-ml 1
+@ns pkg = "https://cem.dev/ns/schema-package/1"
+@default pkg
+
+{package @id="cem-dom-projection" @version="1.0.0" |
+    {schema
+        @uri="https://cem.dev/ns/projection/dom/1"
+        @source="schema/cem-dom-projection.cem"
+    }
+
+    {content-type @value="application/vnd.cem.dom+cem-bin" @primary=true}
+    {content-type @value="application/vnd.cem.dom+json" @alias=true}
+
+    {namespace @prefix="cemdom" @uri="https://cem.dev/ns/projection/dom/1"}
+}

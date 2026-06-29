@@ -1,0 +1,76 @@
+@doc cem-ml 1
+@ns schema = "https://cem.dev/ns/schema/1"
+@ns cemml = "https://cem.dev/ns/cem-ml/1"
+@default schema
+
+{schema @name="cem-events-projection" @namespace="https://cem.dev/ns/projection/events/1" @version="1.0.0" |
+    {summary |
+        {text | Semantic CEM event-stream projection schema. This schema describes ordered parser and transform events, payload identity, stream checkpoints, source ranges, diagnostics, and sealed chunks for replay, multicast, and incremental consumers. The primary runtime and cache artifact is CEM binary or chunk-stream data; JSON is an optional debug and interchange view over the same event layer.}
+    }
+
+    {uses |
+        {use @schema="https://cem.dev/ns/schema/1" @as="schema"}
+        {use @schema="https://cem.dev/ns/cem-ml/1" @as="cemml"}
+    }
+
+    {content-types |
+        {content-type @value="application/vnd.cem.events+cem-bin" @primary=true}
+        {content-type @value="application/vnd.cem.events+json" @alias=true}
+    }
+
+    {namespaces |
+        {namespace @prefix="cemevents" @uri="https://cem.dev/ns/projection/events/1"}
+    }
+
+    {elements |
+        {element @name="event-stream" @required-attributes="schema content-type hash-scheme" @children="chunk* event* checkpoint*"}
+        {element @name="chunk" @required-attributes="id sealed" @optional-attributes="parent-id first-sequence last-sequence byte-offset byte-length hash"}
+        {element @name="event" @required-attributes="sequence kind" @optional-attributes="name value source-id byte-offset byte-length chunk-id"}
+        {element @name="checkpoint" @required-attributes="sequence state" @optional-attributes="chunk-id hash"}
+    }
+
+    {attributes |
+        {attribute @name="id" @type="schema:identifier"}
+        {attribute @name="parent-id" @type="schema:identifier"}
+        {attribute @name="sequence" @type="cemml:integer"}
+        {attribute @name="first-sequence" @type="cemml:integer"}
+        {attribute @name="last-sequence" @type="cemml:integer"}
+        {attribute @name="kind" @type="schema:identifier" @values="start-document end-document start-node end-node text attribute diagnostic checkpoint"}
+        {attribute @name="name" @type="schema:qualified-name"}
+        {attribute @name="value" @type="schema:string"}
+        {attribute @name="schema" @type="schema:uri"}
+        {attribute @name="content-type" @type="schema:media-type"}
+        {attribute @name="hash-scheme" @type="schema:identifier"}
+        {attribute @name="hash" @type="schema:string"}
+        {attribute @name="source-id" @type="schema:uri"}
+        {attribute @name="byte-offset" @type="cemml:integer"}
+        {attribute @name="byte-length" @type="cemml:integer"}
+        {attribute @name="chunk-id" @type="schema:identifier"}
+        {attribute @name="sealed" @type="schema:boolean"}
+        {attribute @name="state" @type="schema:identifier" @values="streaming complete failed aborted"}
+    }
+
+    {constraints |
+        {constraint @kind="binary-primary" @target="event-stream" @policy="application/vnd.cem.events+cem-bin is canonical for runtime and cache handoff"}
+        {constraint @kind="json-debug-view" @target="event-stream" @policy="application/vnd.cem.events+json must be derived from the semantic event-stream projection"}
+        {constraint @kind="sequence-monotonic" @target="event" @policy="required"}
+        {constraint @kind="sealed-chunk-immutable" @target="chunk" @policy="sealed chunks are immutable and may be multicast or replayed"}
+        {constraint @kind="checkpoint-replayable" @target="checkpoint" @policy="required for resumable streams"}
+    }
+
+    {diagnostics |
+        {diagnostic @code="cem.projection.events.sequence_gap" @severity="error"}
+        {diagnostic @code="cem.projection.events.chunk_hash_mismatch" @severity="error"}
+        {diagnostic @code="cem.projection.events.checkpoint_invalid" @severity="error"}
+        {diagnostic @code="cem.projection.events.source_map_missing" @severity="warning"}
+    }
+
+    {compatibility |
+        {note @version="1.0.0" @value="The current JSON events export uses this semantic schema identity as a debug and interchange view until canonical CEM binary output is implemented."}
+        {source @schema="https://cem.dev/ns/projection/events/1" @content-type="application/vnd.cem.events+json"}
+    }
+
+    {open-content |
+        {accept @kind="projection-extension" @policy="reject-unless-declared"}
+    }
+}

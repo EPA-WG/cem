@@ -576,15 +576,18 @@ Current implementation status:
   inference feeds `application/xhtml+xml` into the same HTML adapter. HTML/SVG target
   schema identities also select the HTML adapter. XML target export is
   registry-owned for `convert --to-content-type application/xml` / `text/xml` / `image/svg+xml`, plus namespace-only
-  CEM core and HTML/SVG targets. Current structural JSON projection exports are
-  registry-owned for `https://cem.dev/ns/projection/dom-json/1`,
+  CEM core and HTML/SVG targets. Semantic DOM/AST/events projection schemas are
+  registry-owned for `https://cem.dev/ns/projection/dom/1`,
   `https://cem.dev/ns/projection/ast/1`, and
-  `https://cem.dev/ns/projection/events/1`. These are JSON output/debug views over
-  semantic projection layers. The design target is semantic DOM/AST/events
-  projection schemas with primary CEM binary/stream artifacts; JSON output remains an
-  optional debug/interchange projection selected by `dom-json`,
-  `application/vnd.cem.dom+json`, or generic JSON output with explicit schema
-  identity in output-spec/config root-scope identities.
+  `https://cem.dev/ns/projection/events/1`, with primary
+  `application/vnd.cem.*+cem-bin` content types. JSON output remains an optional
+  debug/interchange projection selected by `dom-json`,
+  `application/vnd.cem.dom+json`, `application/vnd.cem.ast+json`,
+  `application/vnd.cem.events+json`, or generic JSON output with explicit schema
+  identity in output-spec/config root-scope identities. The legacy
+  `https://cem.dev/ns/projection/dom-json/1` schema remains a compatibility
+  identity for the DOM JSON view until callers migrate to the semantic DOM
+  schema plus `+json` content type.
   Transform config and CEM-native template schema targets
   are also registry-owned as CEM output syntax. Unsupported target identities emit a
   deterministic lifecycle diagnostic with the declared content type, schema, and/or namespace while

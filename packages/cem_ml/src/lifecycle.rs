@@ -7,9 +7,12 @@ use crate::diagnostics::{Diagnostic, Severity};
 use crate::engine::{EngineContext, EngineInput, FormatIdentity, InputFormat, LayerFormat};
 use crate::schema::ir::CEM_CORE_NAMESPACE;
 use crate::schema::registry::{
-    CEM_ML_CONTENT_TYPE, CEM_ML_SCHEMA_URI, CEM_NATIVE_TEMPLATE_CONTENT_TYPE,
-    CEM_NATIVE_TEMPLATE_SCHEMA_URI, CEM_SCHEMA_CONTENT_TYPE, CEM_SCHEMA_PACKAGE_CONTENT_TYPE,
-    CEM_SCHEMA_PACKAGE_URI, CEM_SCHEMA_URI, CEM_TRANSFORM_CONTENT_TYPE, CEM_TRANSFORM_SCHEMA_URI,
+    CEM_AST_JSON_PROJECTION_CONTENT_TYPE, CEM_AST_PROJECTION_SCHEMA_URI,
+    CEM_DOM_JSON_PROJECTION_CONTENT_TYPE, CEM_DOM_PROJECTION_SCHEMA_URI,
+    CEM_EVENTS_JSON_PROJECTION_CONTENT_TYPE, CEM_EVENTS_PROJECTION_SCHEMA_URI, CEM_ML_CONTENT_TYPE,
+    CEM_ML_SCHEMA_URI, CEM_NATIVE_TEMPLATE_CONTENT_TYPE, CEM_NATIVE_TEMPLATE_SCHEMA_URI,
+    CEM_SCHEMA_CONTENT_TYPE, CEM_SCHEMA_PACKAGE_CONTENT_TYPE, CEM_SCHEMA_PACKAGE_URI,
+    CEM_SCHEMA_URI, CEM_TRANSFORM_CONTENT_TYPE, CEM_TRANSFORM_SCHEMA_URI,
 };
 use crate::transform_config::TRANSFORM_CONFIG_SCHEMA_URI;
 
@@ -18,8 +21,9 @@ pub const ADAPTER_UNSUPPORTED_CODE: &str = "cem.lifecycle.adapter_unsupported";
 pub const TARGET_ADAPTER_AMBIGUOUS_CODE: &str = "cem.lifecycle.target_adapter_ambiguous";
 pub const TARGET_ADAPTER_UNSUPPORTED_CODE: &str = "cem.lifecycle.target_adapter_unsupported";
 pub const DOM_JSON_PROJECTION_SCHEMA: &str = "https://cem.dev/ns/projection/dom-json/1";
-pub const AST_PROJECTION_SCHEMA: &str = "https://cem.dev/ns/projection/ast/1";
-pub const EVENTS_PROJECTION_SCHEMA: &str = "https://cem.dev/ns/projection/events/1";
+pub const DOM_PROJECTION_SCHEMA: &str = CEM_DOM_PROJECTION_SCHEMA_URI;
+pub const AST_PROJECTION_SCHEMA: &str = CEM_AST_PROJECTION_SCHEMA_URI;
+pub const EVENTS_PROJECTION_SCHEMA: &str = CEM_EVENTS_PROJECTION_SCHEMA_URI;
 
 const HTML_NAMESPACE: &str = "http://www.w3.org/1999/xhtml";
 const SVG_NAMESPACE: &str = "http://www.w3.org/2000/svg";
@@ -258,8 +262,22 @@ fn matches_schema_without_content_type(identity: &FormatIdentity, allowed: &[&st
     !has_content_type(identity) && matches_schema(identity, allowed)
 }
 
-fn matches_json_projection_schema(identity: &FormatIdentity, allowed: &[&str]) -> bool {
-    matches_schema(identity, allowed)
+fn matches_projection_json_view(
+    identity: &FormatIdentity,
+    allowed_schemas: &[&str],
+    allowed_content_types: &[&str],
+) -> bool {
+    if matches_content_type(identity, allowed_content_types) {
+        return identity
+            .schema
+            .as_deref()
+            .map(str::trim)
+            .filter(|schema| !schema.is_empty())
+            .map(|schema| allowed_schemas.contains(&schema))
+            .unwrap_or(true);
+    }
+
+    matches_schema(identity, allowed_schemas)
         && (!has_content_type(identity)
             || matches_content_type(identity, &["application/json", "text/json"]))
 }
@@ -522,7 +540,11 @@ impl LifecycleAdapter for DomJsonProjectionAdapter {
     }
 
     fn matches_target(&self, identity: &FormatIdentity) -> bool {
-        matches_json_projection_schema(identity, &[DOM_JSON_PROJECTION_SCHEMA])
+        matches_projection_json_view(
+            identity,
+            &[DOM_PROJECTION_SCHEMA, DOM_JSON_PROJECTION_SCHEMA],
+            &[CEM_DOM_JSON_PROJECTION_CONTENT_TYPE],
+        )
     }
 
     fn target_format(&self) -> Option<LayerFormat> {
@@ -550,7 +572,11 @@ impl LifecycleAdapter for AstProjectionAdapter {
     }
 
     fn matches_target(&self, identity: &FormatIdentity) -> bool {
-        matches_json_projection_schema(identity, &[AST_PROJECTION_SCHEMA])
+        matches_projection_json_view(
+            identity,
+            &[AST_PROJECTION_SCHEMA],
+            &[CEM_AST_JSON_PROJECTION_CONTENT_TYPE],
+        )
     }
 
     fn target_format(&self) -> Option<LayerFormat> {
@@ -578,7 +604,11 @@ impl LifecycleAdapter for EventsProjectionAdapter {
     }
 
     fn matches_target(&self, identity: &FormatIdentity) -> bool {
-        matches_json_projection_schema(identity, &[EVENTS_PROJECTION_SCHEMA])
+        matches_projection_json_view(
+            identity,
+            &[EVENTS_PROJECTION_SCHEMA],
+            &[CEM_EVENTS_JSON_PROJECTION_CONTENT_TYPE],
+        )
     }
 
     fn target_format(&self) -> Option<LayerFormat> {
@@ -1153,6 +1183,52 @@ mod tests {
     }
 
     #[test]
+    fn semantic_dom_projection_schema_with_json_view_content_type_selects_dom_json_export() {
+        let target = FormatIdentity {
+            content_type: Some(format!(
+                "{CEM_DOM_JSON_PROJECTION_CONTENT_TYPE}; charset=utf-8"
+            )),
+            schema: Some(DOM_PROJECTION_SCHEMA.to_owned()),
+            ..FormatIdentity::default()
+        };
+        let selected = LifecycleRegistry::with_builtin_adapters()
+            .select_export(Some(&target), LayerFormat::Cem);
+        assert_eq!(selected.to_format, LayerFormat::DomJson);
+        assert_eq!(selected.adapter_id, Some("dom-json-projection"));
+        assert!(selected.diagnostics.is_empty());
+    }
+
+    #[test]
+    fn dom_json_projection_content_type_selects_dom_json_export() {
+        let target = FormatIdentity {
+            content_type: Some(CEM_DOM_JSON_PROJECTION_CONTENT_TYPE.to_owned()),
+            ..FormatIdentity::default()
+        };
+        let selected = LifecycleRegistry::with_builtin_adapters()
+            .select_export(Some(&target), LayerFormat::Cem);
+        assert_eq!(selected.to_format, LayerFormat::DomJson);
+        assert_eq!(selected.adapter_id, Some("dom-json-projection"));
+        assert!(selected.diagnostics.is_empty());
+    }
+
+    #[test]
+    fn dom_binary_projection_content_type_does_not_select_json_export() {
+        let target = FormatIdentity {
+            content_type: Some(crate::schema::registry::CEM_DOM_PROJECTION_CONTENT_TYPE.to_owned()),
+            ..FormatIdentity::default()
+        };
+        let selected = LifecycleRegistry::with_builtin_adapters()
+            .select_export(Some(&target), LayerFormat::Cem);
+        assert_eq!(selected.to_format, LayerFormat::Cem);
+        assert_eq!(selected.adapter_id, None);
+        assert_eq!(selected.diagnostics.len(), 1);
+        assert_eq!(
+            selected.diagnostics[0].code,
+            TARGET_ADAPTER_UNSUPPORTED_CODE
+        );
+    }
+
+    #[test]
     fn ast_projection_schema_selects_ast_export() {
         let target = FormatIdentity {
             schema: Some(AST_PROJECTION_SCHEMA.to_owned()),
@@ -1166,9 +1242,35 @@ mod tests {
     }
 
     #[test]
+    fn ast_json_projection_content_type_selects_ast_export() {
+        let target = FormatIdentity {
+            content_type: Some(CEM_AST_JSON_PROJECTION_CONTENT_TYPE.to_owned()),
+            ..FormatIdentity::default()
+        };
+        let selected = LifecycleRegistry::with_builtin_adapters()
+            .select_export(Some(&target), LayerFormat::Cem);
+        assert_eq!(selected.to_format, LayerFormat::Ast);
+        assert_eq!(selected.adapter_id, Some("ast-projection"));
+        assert!(selected.diagnostics.is_empty());
+    }
+
+    #[test]
     fn events_projection_schema_selects_events_export() {
         let target = FormatIdentity {
             schema: Some(EVENTS_PROJECTION_SCHEMA.to_owned()),
+            ..FormatIdentity::default()
+        };
+        let selected = LifecycleRegistry::with_builtin_adapters()
+            .select_export(Some(&target), LayerFormat::Cem);
+        assert_eq!(selected.to_format, LayerFormat::Events);
+        assert_eq!(selected.adapter_id, Some("events-projection"));
+        assert!(selected.diagnostics.is_empty());
+    }
+
+    #[test]
+    fn events_json_projection_content_type_selects_events_export() {
+        let target = FormatIdentity {
+            content_type: Some(CEM_EVENTS_JSON_PROJECTION_CONTENT_TYPE.to_owned()),
             ..FormatIdentity::default()
         };
         let selected = LifecycleRegistry::with_builtin_adapters()

@@ -14,6 +14,9 @@ pub const CEM_TRANSFORM_SCHEMA_URI: &str = "https://cem.dev/ns/transform/cem/1";
 pub const CEM_QL_SCHEMA_URI: &str = "https://cem.dev/ns/query/cem-ql/1";
 pub const JSON_VALUE_SCHEMA_URI: &str = "https://cem.dev/ns/data/json/1";
 pub const JSON_SCHEMA_SCHEMA_URI: &str = "https://cem.dev/ns/data/json-schema/1";
+pub const CEM_DOM_PROJECTION_SCHEMA_URI: &str = "https://cem.dev/ns/projection/dom/1";
+pub const CEM_AST_PROJECTION_SCHEMA_URI: &str = "https://cem.dev/ns/projection/ast/1";
+pub const CEM_EVENTS_PROJECTION_SCHEMA_URI: &str = "https://cem.dev/ns/projection/events/1";
 
 pub const CEM_ML_CONTENT_TYPE: &str = "application/cem";
 pub const CEM_SCHEMA_CONTENT_TYPE: &str = "application/vnd.cem.schema+cem";
@@ -24,6 +27,12 @@ pub const CEM_QL_CONTENT_TYPE: &str = "application/vnd.cem.query+cem-ql";
 pub const CEM_QL_ARTIFACT_CONTENT_TYPE: &str = "application/vnd.cem.query-artifact+cem-bin";
 pub const JSON_CONTENT_TYPE: &str = "application/json";
 pub const JSON_SCHEMA_CONTENT_TYPE: &str = "application/schema+json";
+pub const CEM_DOM_PROJECTION_CONTENT_TYPE: &str = "application/vnd.cem.dom+cem-bin";
+pub const CEM_DOM_JSON_PROJECTION_CONTENT_TYPE: &str = "application/vnd.cem.dom+json";
+pub const CEM_AST_PROJECTION_CONTENT_TYPE: &str = "application/vnd.cem.ast+cem-bin";
+pub const CEM_AST_JSON_PROJECTION_CONTENT_TYPE: &str = "application/vnd.cem.ast+json";
+pub const CEM_EVENTS_PROJECTION_CONTENT_TYPE: &str = "application/vnd.cem.events+cem-bin";
+pub const CEM_EVENTS_JSON_PROJECTION_CONTENT_TYPE: &str = "application/vnd.cem.events+json";
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum SchemaContentTypeRole {
@@ -408,6 +417,52 @@ pub fn builtin_schema_descriptors() -> Vec<SchemaDescriptor> {
             ],
             uses: vec![CEM_SCHEMA_URI.into(), JSON_VALUE_SCHEMA_URI.into()],
         },
+        SchemaDescriptor {
+            package_id: "cem-dom-projection".into(),
+            schema_uri: CEM_DOM_PROJECTION_SCHEMA_URI.into(),
+            version: "1.0.0".into(),
+            source: "schema-packages/cem-dom-projection/v1/schema/cem-dom-projection.cem".into(),
+            content_types: vec![
+                SchemaContentType::primary(CEM_DOM_PROJECTION_CONTENT_TYPE),
+                SchemaContentType::alias(CEM_DOM_JSON_PROJECTION_CONTENT_TYPE),
+            ],
+            namespaces: vec![NamespaceClaim::new(
+                Some("cemdom"),
+                CEM_DOM_PROJECTION_SCHEMA_URI,
+            )],
+            uses: vec![CEM_SCHEMA_URI.into(), CEM_ML_SCHEMA_URI.into()],
+        },
+        SchemaDescriptor {
+            package_id: "cem-ast-projection".into(),
+            schema_uri: CEM_AST_PROJECTION_SCHEMA_URI.into(),
+            version: "1.0.0".into(),
+            source: "schema-packages/cem-ast-projection/v1/schema/cem-ast-projection.cem".into(),
+            content_types: vec![
+                SchemaContentType::primary(CEM_AST_PROJECTION_CONTENT_TYPE),
+                SchemaContentType::alias(CEM_AST_JSON_PROJECTION_CONTENT_TYPE),
+            ],
+            namespaces: vec![NamespaceClaim::new(
+                Some("cemast"),
+                CEM_AST_PROJECTION_SCHEMA_URI,
+            )],
+            uses: vec![CEM_SCHEMA_URI.into(), CEM_ML_SCHEMA_URI.into()],
+        },
+        SchemaDescriptor {
+            package_id: "cem-events-projection".into(),
+            schema_uri: CEM_EVENTS_PROJECTION_SCHEMA_URI.into(),
+            version: "1.0.0".into(),
+            source: "schema-packages/cem-events-projection/v1/schema/cem-events-projection.cem"
+                .into(),
+            content_types: vec![
+                SchemaContentType::primary(CEM_EVENTS_PROJECTION_CONTENT_TYPE),
+                SchemaContentType::alias(CEM_EVENTS_JSON_PROJECTION_CONTENT_TYPE),
+            ],
+            namespaces: vec![NamespaceClaim::new(
+                Some("cemevents"),
+                CEM_EVENTS_PROJECTION_SCHEMA_URI,
+            )],
+            uses: vec![CEM_SCHEMA_URI.into(), CEM_ML_SCHEMA_URI.into()],
+        },
     ]
 }
 
@@ -527,6 +582,46 @@ mod tests {
                 .schema_uri,
             JSON_SCHEMA_SCHEMA_URI
         );
+    }
+
+    #[test]
+    fn builtin_registry_resolves_projection_content_types() {
+        let registry = SchemaRegistry::with_builtin_schemas();
+
+        for (content_type, schema_uri) in [
+            (
+                CEM_DOM_PROJECTION_CONTENT_TYPE,
+                CEM_DOM_PROJECTION_SCHEMA_URI,
+            ),
+            (
+                CEM_DOM_JSON_PROJECTION_CONTENT_TYPE,
+                CEM_DOM_PROJECTION_SCHEMA_URI,
+            ),
+            (
+                CEM_AST_PROJECTION_CONTENT_TYPE,
+                CEM_AST_PROJECTION_SCHEMA_URI,
+            ),
+            (
+                CEM_AST_JSON_PROJECTION_CONTENT_TYPE,
+                CEM_AST_PROJECTION_SCHEMA_URI,
+            ),
+            (
+                CEM_EVENTS_PROJECTION_CONTENT_TYPE,
+                CEM_EVENTS_PROJECTION_SCHEMA_URI,
+            ),
+            (
+                CEM_EVENTS_JSON_PROJECTION_CONTENT_TYPE,
+                CEM_EVENTS_PROJECTION_SCHEMA_URI,
+            ),
+        ] {
+            assert_eq!(
+                registry
+                    .resolve_content_type(content_type)
+                    .unwrap()
+                    .schema_uri,
+                schema_uri
+            );
+        }
     }
 
     #[test]
