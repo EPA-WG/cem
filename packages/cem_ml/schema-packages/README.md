@@ -87,6 +87,12 @@ graphics structure, viewport, paint, geometry, text, definitions, filters,
 animation, script/style policy, accessibility hooks, external-resource policy,
 foreign-content hooks, and source-map hooks.
 
+`mathml/v1` defines MathML resource identity. It owns `application/mathml+xml`
+and the registered presentation/content MathML media type aliases, depends on
+`xml/v1`, claims the MathML document namespace, and models XML-backed
+mathematical structure, presentation/content profiles, semantics, annotations,
+accessibility hooks, external-annotation policy, and source-map hooks.
+
 `json-schema/v1` defines JSON Schema document identity. It owns
 `application/schema+json`, depends on `json/v1`, and models JSON Schema
 dialect, vocabulary, reference, and validation-resource metadata separately

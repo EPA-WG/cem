@@ -1,0 +1,101 @@
+@doc cem-ml 1
+@ns schema = "https://cem.dev/ns/schema/1"
+@ns cemml = "https://cem.dev/ns/cem-ml/1"
+@ns xml = "https://cem.dev/ns/data/xml/1"
+@default schema
+
+{schema @name="mathml" @namespace="https://cem.dev/ns/data/mathml/1" @version="1.0.0" |
+    {summary |
+        {text | MathML resource schema. This schema is XML-backed and declares the MathML document identity, media types, namespace, and normalized semantic areas for presentation, content, semantics, and annotations.}
+    }
+
+    {uses | schema,cemml,xml}
+
+    {content-types |
+        {content-type @value="application/mathml+xml" @primary=true}
+        {content-type @value="application/mathml-presentation+xml" @alias=true}
+        {content-type @value="application/mathml-content+xml" @alias=true}
+    }
+
+    {namespaces |
+        {namespace @prefix="cemmathml" @uri="https://cem.dev/ns/data/mathml/1" @role="schema"}
+        {namespace @prefix="mathml" @uri="http://www.w3.org/1998/Math/MathML" @role="document-namespace"}
+        {namespace @prefix="xml" @uri="https://cem.dev/ns/data/xml/1" @role="base-format"}
+    }
+
+    {elements |
+        {element @name="document" @base="xml:document" @required-attributes="encoding" @optional-attributes="charset profile source-id byte-offset byte-length" @children="math"}
+        {element @name="math" @base="xml:element" @required-attributes="namespace-uri" @optional-attributes="display dir alttext altimg profile source-id byte-offset byte-length" @children="semantics? presentation* content*"}
+        {element @name="presentation" @base="xml:element" @required-attributes="kind" @optional-attributes="mathvariant mathsize mathcolor mathbackground href id class source-id byte-offset byte-length" @children="presentation* token* script* table* enclosure? action? semantics?"}
+        {element @name="token" @base="xml:element" @required-attributes="kind" @optional-attributes="value mathvariant mathsize mathcolor mathbackground source-id byte-offset byte-length"}
+        {element @name="script" @base="xml:element" @required-attributes="kind" @children="presentation*"}
+        {element @name="table" @base="xml:element" @required-attributes="kind" @children="table-row*"}
+        {element @name="table-row" @base="xml:element" @children="table-cell*"}
+        {element @name="table-cell" @base="xml:element" @children="presentation*"}
+        {element @name="enclosure" @base="xml:element" @optional-attributes="notation" @children="presentation*"}
+        {element @name="action" @base="xml:element" @optional-attributes="actiontype selection" @children="presentation*"}
+        {element @name="content" @base="xml:element" @required-attributes="kind" @optional-attributes="definitionURL encoding cd source-id byte-offset byte-length" @children="content* token*"}
+        {element @name="semantics" @base="xml:element" @children="presentation* content* annotation*"}
+        {element @name="annotation" @base="xml:element" @required-attributes="kind" @optional-attributes="encoding src source-id byte-offset byte-length" @children="presentation* content* foreign-content*"}
+        {element @name="foreign-content" @base="xml:element" @required-attributes="namespace-uri local-name" @optional-attributes="source-id byte-offset byte-length" @children="foreign-content*"}
+    }
+
+    {attributes |
+        {attribute @name="encoding" @base="xml:encoding"}
+        {attribute @name="charset" @base="xml:charset"}
+        {attribute @name="profile" @type="schema:identifier" @values="generic presentation content"}
+        {attribute @name="source-id" @base="xml:source-id"}
+        {attribute @name="byte-offset" @base="xml:byte-offset"}
+        {attribute @name="byte-length" @base="xml:byte-length"}
+        {attribute @name="namespace-uri" @base="xml:namespace-uri"}
+        {attribute @name="local-name" @base="xml:local-name"}
+        {attribute @name="display" @type="schema:identifier" @values="block inline"}
+        {attribute @name="dir" @type="schema:identifier" @values="ltr rtl"}
+        {attribute @name="alttext" @type="schema:string"}
+        {attribute @name="altimg" @type="schema:string"}
+        {attribute @name="kind" @type="schema:identifier" @values="mi mn mo mtext mspace ms mrow mfrac msqrt mroot mstyle merror mpadded mphantom mfenced menclose msub msup msubsup munder mover munderover mmultiscripts mtable mtr mlabeledtr mtd maction apply bind ci cn csymbol lambda piecewise piece otherwise interval list set vector matrix matrixrow declare annotation annotation-xml semantics"}
+        {attribute @name="value" @type="schema:string"}
+        {attribute @name="mathvariant" @type="schema:identifier"}
+        {attribute @name="mathsize" @type="schema:string"}
+        {attribute @name="mathcolor" @type="schema:string"}
+        {attribute @name="mathbackground" @type="schema:string"}
+        {attribute @name="href" @type="schema:string"}
+        {attribute @name="id" @type="schema:identifier"}
+        {attribute @name="class" @type="schema:string"}
+        {attribute @name="notation" @type="schema:string"}
+        {attribute @name="actiontype" @type="schema:identifier"}
+        {attribute @name="selection" @type="schema:integer"}
+        {attribute @name="definitionURL" @type="schema:string"}
+        {attribute @name="cd" @type="schema:identifier"}
+        {attribute @name="src" @type="schema:string"}
+    }
+
+    {constraints |
+        {constraint @name="mathml-source-parser" @applies-to="document" @rule="delegate-to-xml-parser-with-mathml-schema"}
+        {constraint @name="application-mathml-primary" @applies-to="document" @rule="primary-content-type-must-be-application-mathml+xml"}
+        {constraint @name="presentation-content-profiles" @applies-to="document" @rule="profile-specific-media-types-map-to-presentation-or-content-subtrees"}
+        {constraint @name="xml-base-compatible" @applies-to="document" @rule="mathml-must-preserve-xml-namespace-attributes-entity-boundaries-and-source-map-identity"}
+        {constraint @name="mathml-root" @applies-to="math" @rule="root-element-must-be-mathml-math-in-mathml-namespace"}
+        {constraint @name="presentation-and-content-mixed-model" @applies-to="semantics" @rule="semantics-may-pair-presentation-content-and-annotation-subtrees"}
+        {constraint @name="annotation-external-policy" @applies-to="annotation" @rule="external-annotation-sources-require-loader-policy-approval"}
+        {constraint @name="accessibility-text" @applies-to="math" @rule="alttext-or-semantic-annotation-should-be-preserved-when-provided"}
+        {constraint @name="source-map" @applies-to="document" @rule="source-id-byte-offset-and-byte-length-are-stable-source-identity-fields"}
+    }
+
+    {diagnostics |
+        {diagnostic @code="mathml.parse_error" @severity="error" @message="MathML could not be parsed as XML."}
+        {diagnostic @code="mathml.not_well_formed_xml" @severity="error" @message="MathML input is not well-formed XML."}
+        {diagnostic @code="mathml.root_not_math" @severity="error" @message="MathML document root must be math."}
+        {diagnostic @code="mathml.namespace_missing" @severity="error" @message="MathML root must use the MathML namespace."}
+        {diagnostic @code="mathml.unsupported_profile" @severity="warning" @message="MathML media profile is not supported by the selected adapter."}
+        {diagnostic @code="mathml.malformed_expression" @severity="error" @message="MathML expression violates the selected profile constraints."}
+        {diagnostic @code="mathml.external_annotation_rejected" @severity="warning" @message="External MathML annotation was rejected by loader policy."}
+        {diagnostic @code="mathml.source_map" @severity="warning" @message="MathML source map information is incomplete."}
+    }
+
+    {compatibility |
+        {note | MathML is XML-backed. The package owns application/mathml+xml as the primary resource type and application/mathml-presentation+xml and application/mathml-content+xml as registered profile-specific aliases.}
+        {note | The registered MathML namespace is http://www.w3.org/1998/Math/MathML. The preferred file extension is .mml; .mathml is accepted as a compatibility spelling.}
+        {note | MathML embedded in HTML is selected through the HTML adapter by namespace when no explicit schema or content type is present; standalone MathML package identity selects XML.}
+    }
+}

@@ -23,6 +23,9 @@ pub const SUPPORTED_CONTENT_TYPES: &[&str] = &[
     "text/markdown",
     "application/xhtml+xml",
     "image/svg+xml",
+    "application/mathml+xml",
+    "application/mathml-presentation+xml",
+    "application/mathml-content+xml",
     "text/xml",
     "application/xml",
     "application/xml-external-parsed-entity",
@@ -118,6 +121,17 @@ mod tests {
     #[test]
     fn svg_content_type_is_supported_opaque_handoff() {
         assert!(is_supported_content_type("image/svg+xml"));
+    }
+
+    #[test]
+    fn mathml_content_types_are_supported_opaque_handoffs() {
+        for content_type in [
+            "application/mathml+xml",
+            "application/mathml-presentation+xml",
+            "application/mathml-content+xml",
+        ] {
+            assert!(is_supported_content_type(content_type));
+        }
     }
 
     #[test]

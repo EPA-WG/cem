@@ -14,9 +14,9 @@ use crate::schema::registry::{
     CEM_EVENTS_PROJECTION_SCHEMA_URI, CEM_ML_CONTENT_TYPE, CEM_ML_SCHEMA_URI,
     CEM_NATIVE_TEMPLATE_CONTENT_TYPE, CEM_NATIVE_TEMPLATE_SCHEMA_URI, CEM_SCHEMA_CONTENT_TYPE,
     CEM_SCHEMA_PACKAGE_CONTENT_TYPE, CEM_SCHEMA_PACKAGE_URI, CEM_SCHEMA_URI,
-    CEM_TRANSFORM_CONTENT_TYPE, CEM_TRANSFORM_SCHEMA_URI, SVG_CONTENT_TYPE, SVG_NAMESPACE_URI,
-    SVG_SCHEMA_URI, XHTML_CONTENT_TYPE, XHTML_NAMESPACE_URI, XHTML_SCHEMA_URI, XML_CONTENT_TYPE,
-    XML_SCHEMA_URI,
+    CEM_TRANSFORM_CONTENT_TYPE, CEM_TRANSFORM_SCHEMA_URI, MATHML_CONTENT_TYPE,
+    MATHML_NAMESPACE_URI, MATHML_SCHEMA_URI, SVG_CONTENT_TYPE, SVG_NAMESPACE_URI, SVG_SCHEMA_URI,
+    XHTML_CONTENT_TYPE, XHTML_NAMESPACE_URI, XHTML_SCHEMA_URI, XML_CONTENT_TYPE, XML_SCHEMA_URI,
 };
 use crate::transform_config::TRANSFORM_CONFIG_SCHEMA_URI;
 
@@ -31,9 +31,15 @@ pub const EVENTS_PROJECTION_SCHEMA: &str = CEM_EVENTS_PROJECTION_SCHEMA_URI;
 
 const HTML_NAMESPACE: &str = XHTML_NAMESPACE_URI;
 const SVG_NAMESPACE: &str = SVG_NAMESPACE_URI;
+const MATHML_NAMESPACE: &str = MATHML_NAMESPACE_URI;
 const XSLT_NAMESPACE: &str = "http://www.w3.org/1999/XSL/Transform";
-const HTML_ADAPTER_SCHEMA_IDENTITIES: &[&str] = &[HTML_NAMESPACE, XHTML_SCHEMA_URI, SVG_NAMESPACE];
-const XML_ADAPTER_SCHEMA_IDENTITIES: &[&str] = &[XML_SCHEMA_URI, SVG_SCHEMA_URI];
+const HTML_ADAPTER_SCHEMA_IDENTITIES: &[&str] = &[
+    HTML_NAMESPACE,
+    XHTML_SCHEMA_URI,
+    SVG_NAMESPACE,
+    MATHML_NAMESPACE,
+];
+const XML_ADAPTER_SCHEMA_IDENTITIES: &[&str] = &[XML_SCHEMA_URI, SVG_SCHEMA_URI, MATHML_SCHEMA_URI];
 const CEM_ML_SCHEMA_IDENTITIES: &[&str] = &[
     CEM_ML_SCHEMA_URI,
     CEM_SCHEMA_URI,
@@ -469,7 +475,7 @@ impl LifecycleAdapter for HtmlAdapter {
             || matches_schema_without_content_type(identity, HTML_ADAPTER_SCHEMA_IDENTITIES)
             || matches_namespace_without_content_type_or_schema(
                 identity,
-                &[HTML_NAMESPACE, SVG_NAMESPACE],
+                &[HTML_NAMESPACE, SVG_NAMESPACE, MATHML_NAMESPACE],
             )
     }
 
@@ -494,8 +500,17 @@ impl LifecycleAdapter for XmlAdapter {
     }
 
     fn matches_input(&self, identity: &FormatIdentity) -> bool {
-        matches_content_type(identity, &[XML_CONTENT_TYPE, "text/xml", SVG_CONTENT_TYPE])
-            || matches_schema_without_content_type(identity, XML_ADAPTER_SCHEMA_IDENTITIES)
+        matches_content_type(
+            identity,
+            &[
+                XML_CONTENT_TYPE,
+                "text/xml",
+                SVG_CONTENT_TYPE,
+                MATHML_CONTENT_TYPE,
+                "application/mathml-presentation+xml",
+                "application/mathml-content+xml",
+            ],
+        ) || matches_schema_without_content_type(identity, XML_ADAPTER_SCHEMA_IDENTITIES)
     }
 
     fn load(&self, input: &EngineInput, _: &FormatIdentity) -> LoadedInput {
@@ -777,6 +792,17 @@ mod tests {
     }
 
     #[test]
+    fn builtins_load_mathml_content_type_as_xml() {
+        let loaded = LifecycleRegistry::with_builtin_adapters().load(
+            &input(br#"<math xmlns="http://www.w3.org/1998/Math/MathML"><mi>x</mi></math>"#),
+            &context(MATHML_CONTENT_TYPE),
+        );
+        assert_eq!(loaded.from_format, InputFormat::Xml);
+        assert_eq!(loaded.adapter_id, Some("xml"));
+        assert!(loaded.diagnostics.is_empty());
+    }
+
+    #[test]
     fn builtins_load_legacy_custom_element_xslt_to_cem() {
         let loaded = LifecycleRegistry::with_builtin_adapters().load(
             &input(br#"<if test="$ready"><button>Go</button></if>"#),
@@ -973,11 +999,39 @@ mod tests {
     }
 
     #[test]
+    fn mathml_schema_selects_html_input_when_content_type_absent() {
+        let loaded = LifecycleRegistry::with_builtin_adapters().load(
+            &input(b"<math><mi>x</mi></math>"),
+            &EngineContext {
+                schema: Some(MATHML_NAMESPACE.to_owned()),
+                ..EngineContext::default()
+            },
+        );
+        assert_eq!(loaded.from_format, InputFormat::Html);
+        assert_eq!(loaded.adapter_id, Some("html"));
+        assert!(loaded.diagnostics.is_empty());
+    }
+
+    #[test]
     fn svg_package_schema_selects_xml_input_when_content_type_absent() {
         let loaded = LifecycleRegistry::with_builtin_adapters().load(
             &input(b"<svg xmlns=\"http://www.w3.org/2000/svg\"><title>Hi</title></svg>"),
             &EngineContext {
                 schema: Some(SVG_SCHEMA_URI.to_owned()),
+                ..EngineContext::default()
+            },
+        );
+        assert_eq!(loaded.from_format, InputFormat::Xml);
+        assert_eq!(loaded.adapter_id, Some("xml"));
+        assert!(loaded.diagnostics.is_empty());
+    }
+
+    #[test]
+    fn mathml_package_schema_selects_xml_input_when_content_type_absent() {
+        let loaded = LifecycleRegistry::with_builtin_adapters().load(
+            &input(br#"<math xmlns="http://www.w3.org/1998/Math/MathML"><mi>x</mi></math>"#),
+            &EngineContext {
+                schema: Some(MATHML_SCHEMA_URI.to_owned()),
                 ..EngineContext::default()
             },
         );
@@ -1025,6 +1079,25 @@ mod tests {
             namespaces: std::collections::BTreeMap::from([(
                 "svg".to_owned(),
                 SVG_NAMESPACE.to_owned(),
+            )]),
+            ..FormatIdentity::default()
+        });
+
+        let loaded =
+            LifecycleRegistry::with_builtin_adapters().load(&source, &EngineContext::default());
+
+        assert_eq!(loaded.from_format, InputFormat::Html);
+        assert_eq!(loaded.adapter_id, Some("html"));
+        assert!(loaded.diagnostics.is_empty());
+    }
+
+    #[test]
+    fn mathml_namespace_selects_html_input_when_content_type_and_schema_absent() {
+        let mut source = input(b"<math><mi>x</mi></math>");
+        source.identity = Some(FormatIdentity {
+            namespaces: std::collections::BTreeMap::from([(
+                "mathml".to_owned(),
+                MATHML_NAMESPACE.to_owned(),
             )]),
             ..FormatIdentity::default()
         });
@@ -1171,9 +1244,35 @@ mod tests {
     }
 
     #[test]
+    fn mathml_target_content_type_selects_xml_export() {
+        let target = FormatIdentity {
+            content_type: Some(MATHML_CONTENT_TYPE.to_owned()),
+            ..FormatIdentity::default()
+        };
+        let selected = LifecycleRegistry::with_builtin_adapters()
+            .select_export(Some(&target), LayerFormat::DomJson);
+        assert_eq!(selected.to_format, LayerFormat::Xml);
+        assert_eq!(selected.adapter_id, Some("xml"));
+        assert!(selected.diagnostics.is_empty());
+    }
+
+    #[test]
     fn svg_package_schema_selects_xml_export_when_content_type_absent() {
         let target = FormatIdentity {
             schema: Some(SVG_SCHEMA_URI.to_owned()),
+            ..FormatIdentity::default()
+        };
+        let selected = LifecycleRegistry::with_builtin_adapters()
+            .select_export(Some(&target), LayerFormat::DomJson);
+        assert_eq!(selected.to_format, LayerFormat::Xml);
+        assert_eq!(selected.adapter_id, Some("xml"));
+        assert!(selected.diagnostics.is_empty());
+    }
+
+    #[test]
+    fn mathml_package_schema_selects_xml_export_when_content_type_absent() {
+        let target = FormatIdentity {
+            schema: Some(MATHML_SCHEMA_URI.to_owned()),
             ..FormatIdentity::default()
         };
         let selected = LifecycleRegistry::with_builtin_adapters()
@@ -1288,6 +1387,19 @@ mod tests {
     }
 
     #[test]
+    fn mathml_schema_selects_html_export_when_content_type_absent() {
+        let target = FormatIdentity {
+            schema: Some(MATHML_NAMESPACE.to_owned()),
+            ..FormatIdentity::default()
+        };
+        let selected = LifecycleRegistry::with_builtin_adapters()
+            .select_export(Some(&target), LayerFormat::DomJson);
+        assert_eq!(selected.to_format, LayerFormat::Html);
+        assert_eq!(selected.adapter_id, Some("html"));
+        assert!(selected.diagnostics.is_empty());
+    }
+
+    #[test]
     fn cem_core_namespace_selects_cem_export_when_content_type_and_schema_absent() {
         let target = FormatIdentity {
             default_namespace: Some(CEM_CORE_NAMESPACE.to_owned()),
@@ -1319,6 +1431,22 @@ mod tests {
             namespaces: std::collections::BTreeMap::from([(
                 "svg".to_owned(),
                 SVG_NAMESPACE.to_owned(),
+            )]),
+            ..FormatIdentity::default()
+        };
+        let selected = LifecycleRegistry::with_builtin_adapters()
+            .select_export(Some(&target), LayerFormat::DomJson);
+        assert_eq!(selected.to_format, LayerFormat::Html);
+        assert_eq!(selected.adapter_id, Some("html"));
+        assert!(selected.diagnostics.is_empty());
+    }
+
+    #[test]
+    fn mathml_namespace_selects_html_export_when_content_type_and_schema_absent() {
+        let target = FormatIdentity {
+            namespaces: std::collections::BTreeMap::from([(
+                "mathml".to_owned(),
+                MATHML_NAMESPACE.to_owned(),
             )]),
             ..FormatIdentity::default()
         };

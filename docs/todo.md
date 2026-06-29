@@ -51,7 +51,7 @@ Implement schema packages for these content families:
 - [x] XML.
 - [x] XHTML.
 - [x] SVG.
-- [ ] MathML.
+- [x] MathML.
 - [ ] XSLT/XSL legacy/custom-element compatibility.
 - [ ] HTML.
 - [ ] CSS/scoped style content.

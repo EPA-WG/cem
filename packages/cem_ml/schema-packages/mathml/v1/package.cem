@@ -1,0 +1,17 @@
+@doc cem-ml 1
+@ns pkg = "https://cem.dev/ns/schema-package/1"
+@default pkg
+
+{package @id="mathml" @version="1.0.0" |
+    {schema
+        @uri="https://cem.dev/ns/data/mathml/1"
+        @source="schema/mathml.cem"
+    }
+
+    {content-type @value="application/mathml+xml" @primary=true}
+    {content-type @value="application/mathml-presentation+xml" @alias=true}
+    {content-type @value="application/mathml-content+xml" @alias=true}
+
+    {namespace @prefix="cemmathml" @uri="https://cem.dev/ns/data/mathml/1"}
+    {namespace @prefix="mathml" @uri="http://www.w3.org/1998/Math/MathML"}
+}

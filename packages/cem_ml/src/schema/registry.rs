@@ -22,6 +22,8 @@ pub const XHTML_SCHEMA_URI: &str = "https://cem.dev/ns/data/xhtml/1";
 pub const XHTML_NAMESPACE_URI: &str = "http://www.w3.org/1999/xhtml";
 pub const SVG_SCHEMA_URI: &str = "https://cem.dev/ns/data/svg/1";
 pub const SVG_NAMESPACE_URI: &str = "http://www.w3.org/2000/svg";
+pub const MATHML_SCHEMA_URI: &str = "https://cem.dev/ns/data/mathml/1";
+pub const MATHML_NAMESPACE_URI: &str = "http://www.w3.org/1998/Math/MathML";
 pub const CEM_DOM_PROJECTION_SCHEMA_URI: &str = "https://cem.dev/ns/projection/dom/1";
 pub const CEM_AST_PROJECTION_SCHEMA_URI: &str = "https://cem.dev/ns/projection/ast/1";
 pub const CEM_EVENTS_PROJECTION_SCHEMA_URI: &str = "https://cem.dev/ns/projection/events/1";
@@ -41,6 +43,7 @@ pub const MARKDOWN_CONTENT_TYPE: &str = "text/markdown";
 pub const XML_CONTENT_TYPE: &str = "application/xml";
 pub const XHTML_CONTENT_TYPE: &str = "application/xhtml+xml";
 pub const SVG_CONTENT_TYPE: &str = "image/svg+xml";
+pub const MATHML_CONTENT_TYPE: &str = "application/mathml+xml";
 pub const CEM_DOM_PROJECTION_CONTENT_TYPE: &str = "application/vnd.cem.dom+cem-bin";
 pub const CEM_DOM_JSON_PROJECTION_CONTENT_TYPE: &str = "application/vnd.cem.dom+json";
 pub const CEM_AST_PROJECTION_CONTENT_TYPE: &str = "application/vnd.cem.ast+cem-bin";
@@ -499,6 +502,26 @@ pub fn builtin_schema_descriptors() -> Vec<SchemaDescriptor> {
             ],
         },
         SchemaDescriptor {
+            package_id: "mathml".into(),
+            schema_uri: MATHML_SCHEMA_URI.into(),
+            version: "1.0.0".into(),
+            source: "schema-packages/mathml/v1/schema/mathml.cem".into(),
+            content_types: vec![
+                SchemaContentType::primary(MATHML_CONTENT_TYPE),
+                SchemaContentType::alias("application/mathml-presentation+xml"),
+                SchemaContentType::alias("application/mathml-content+xml"),
+            ],
+            namespaces: vec![
+                NamespaceClaim::new(Some("cemmathml"), MATHML_SCHEMA_URI),
+                NamespaceClaim::new(Some("mathml"), MATHML_NAMESPACE_URI),
+            ],
+            uses: vec![
+                CEM_SCHEMA_URI.into(),
+                CEM_ML_SCHEMA_URI.into(),
+                XML_SCHEMA_URI.into(),
+            ],
+        },
+        SchemaDescriptor {
             package_id: "json-schema".into(),
             schema_uri: JSON_SCHEMA_SCHEMA_URI.into(),
             version: "1.0.0".into(),
@@ -671,6 +694,13 @@ mod tests {
                 .schema_uri,
             SVG_SCHEMA_URI
         );
+        assert_eq!(
+            registry
+                .resolve_content_type(MATHML_CONTENT_TYPE)
+                .unwrap()
+                .schema_uri,
+            MATHML_SCHEMA_URI
+        );
     }
 
     #[test]
@@ -830,6 +860,26 @@ mod tests {
                     .unwrap()
                     .schema_uri,
                 SVG_SCHEMA_URI
+            );
+        }
+    }
+
+    #[test]
+    fn builtin_registry_resolves_mathml_content_types() {
+        let registry = SchemaRegistry::with_builtin_schemas();
+
+        for content_type in [
+            "application/mathml+xml",
+            "application/mathml+xml; charset=utf-8",
+            "application/mathml-presentation+xml",
+            "application/mathml-content+xml; charset=utf-8",
+        ] {
+            assert_eq!(
+                registry
+                    .resolve_content_type(content_type)
+                    .unwrap()
+                    .schema_uri,
+                MATHML_SCHEMA_URI
             );
         }
     }
