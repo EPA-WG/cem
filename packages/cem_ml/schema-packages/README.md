@@ -81,6 +81,12 @@ metadata, flow and phrasing content, foreign-content hooks, and source-map
 hooks. `text/html` remains a separate HTML serialization identity for the later
 HTML package.
 
+`svg/v1` defines SVG resource identity. It owns `image/svg+xml`, depends on
+`xml/v1`, claims the SVG document namespace, and models XML-backed vector
+graphics structure, viewport, paint, geometry, text, definitions, filters,
+animation, script/style policy, accessibility hooks, external-resource policy,
+foreign-content hooks, and source-map hooks.
+
 `json-schema/v1` defines JSON Schema document identity. It owns
 `application/schema+json`, depends on `json/v1`, and models JSON Schema
 dialect, vocabulary, reference, and validation-resource metadata separately

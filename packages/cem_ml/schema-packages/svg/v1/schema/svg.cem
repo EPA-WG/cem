@@ -1,0 +1,154 @@
+@doc cem-ml 1
+@ns schema = "https://cem.dev/ns/schema/1"
+@ns cemml = "https://cem.dev/ns/cem-ml/1"
+@ns xml = "https://cem.dev/ns/data/xml/1"
+@default schema
+
+{schema @name="svg" @namespace="https://cem.dev/ns/data/svg/1" @version="1.0.0" |
+    {summary |
+        {text | SVG resource schema. SVG source is parsed as XML and validated as the SVG vocabulary in the SVG namespace, while this schema provides registry identity, viewport and graphics structure, paint and geometry metadata, animation and scripting policy, external-resource hooks, accessibility hooks, source offsets, and validation hooks for SVG resources.}
+    }
+
+    {uses |
+        {use @schema="https://cem.dev/ns/schema/1" @as="schema"}
+        {use @schema="https://cem.dev/ns/cem-ml/1" @as="cemml"}
+        {use @schema="https://cem.dev/ns/data/xml/1" @as="xml"}
+    }
+
+    {content-types |
+        {content-type @value="image/svg+xml" @primary=true}
+    }
+
+    {namespaces |
+        {namespace @prefix="cemsvg" @uri="https://cem.dev/ns/data/svg/1" @role="schema"}
+        {namespace @prefix="svg" @uri="http://www.w3.org/2000/svg" @role="document-namespace"}
+        {namespace @prefix="xml" @uri="https://cem.dev/ns/data/xml/1" @role="base-format"}
+        {namespace @prefix="xlink" @uri="http://www.w3.org/1999/xlink" @role="legacy-link-namespace"}
+    }
+
+    {elements |
+        {element @name="document" @base="xml:document" @required-attributes="encoding" @optional-attributes="charset compressed source-id byte-offset byte-length" @children="svg"}
+        {element @name="svg" @base="xml:element" @required-attributes="namespace-uri" @optional-attributes="version width height viewBox preserveAspectRatio role aria-label source-id byte-offset byte-length" @children="title? desc? metadata? defs? graphics*"}
+        {element @name="title" @base="xml:element" @children="text"}
+        {element @name="desc" @base="xml:element" @children="text"}
+        {element @name="metadata" @base="xml:element" @children="foreign-content*"}
+        {element @name="defs" @base="xml:element" @children="definition*"}
+        {element @name="definition" @base="xml:element" @required-attributes="kind" @optional-attributes="id source-id byte-offset byte-length" @children="graphics* paint-server* clip-path* mask* filter*"}
+        {element @name="graphics" @base="xml:element" @required-attributes="kind" @optional-attributes="id class transform fill stroke opacity source-id byte-offset byte-length" @children="graphics* title? desc? animation*"}
+        {element @name="shape" @base="xml:element" @required-attributes="kind" @optional-attributes="d points x y width height cx cy r rx ry x1 y1 x2 y2 pathLength source-id byte-offset byte-length"}
+        {element @name="text-content" @base="xml:element" @required-attributes="kind" @optional-attributes="x y dx dy rotate textLength source-id byte-offset byte-length" @children="text text-content*"}
+        {element @name="paint-server" @base="xml:element" @required-attributes="kind" @optional-attributes="id href gradientUnits patternUnits source-id byte-offset byte-length" @children="stop* graphics*"}
+        {element @name="stop" @base="xml:element" @required-attributes="offset" @optional-attributes="stop-color stop-opacity source-id byte-offset byte-length"}
+        {element @name="clip-path" @base="xml:element" @optional-attributes="id clipPathUnits source-id byte-offset byte-length" @children="graphics*"}
+        {element @name="mask" @base="xml:element" @optional-attributes="id maskUnits maskContentUnits source-id byte-offset byte-length" @children="graphics*"}
+        {element @name="filter" @base="xml:element" @optional-attributes="id x y width height filterUnits primitiveUnits source-id byte-offset byte-length" @children="filter-primitive*"}
+        {element @name="filter-primitive" @base="xml:element" @required-attributes="kind" @optional-attributes="in result source-id byte-offset byte-length"}
+        {element @name="animation" @base="xml:element" @required-attributes="kind" @optional-attributes="attributeName from to values dur repeatCount source-id byte-offset byte-length"}
+        {element @name="script" @base="xml:element" @optional-attributes="href type policy source-id byte-offset byte-length"}
+        {element @name="style" @base="xml:element" @optional-attributes="type media policy source-id byte-offset byte-length"}
+        {element @name="foreign-content" @base="xml:element" @required-attributes="namespace-uri local-name" @optional-attributes="source-id byte-offset byte-length" @children="foreign-content* graphics*"}
+        {element @name="text" @base="xml:text"}
+    }
+
+    {attributes |
+        {attribute @name="encoding" @base="xml:encoding"}
+        {attribute @name="charset" @base="xml:charset"}
+        {attribute @name="compressed" @type="schema:boolean"}
+        {attribute @name="source-id" @base="xml:source-id"}
+        {attribute @name="byte-offset" @base="xml:byte-offset"}
+        {attribute @name="byte-length" @base="xml:byte-length"}
+        {attribute @name="namespace-uri" @base="xml:namespace-uri"}
+        {attribute @name="local-name" @base="xml:local-name"}
+        {attribute @name="version" @type="schema:string"}
+        {attribute @name="width" @type="schema:string"}
+        {attribute @name="height" @type="schema:string"}
+        {attribute @name="viewBox" @type="schema:string"}
+        {attribute @name="preserveAspectRatio" @type="schema:string"}
+        {attribute @name="role" @type="schema:string"}
+        {attribute @name="aria-label" @type="schema:string"}
+        {attribute @name="kind" @type="schema:identifier" @values="svg g defs symbol use image path rect circle ellipse line polyline polygon text tspan textPath marker linearGradient radialGradient pattern clipPath mask filter animate animateMotion animateTransform set script style foreignObject"}
+        {attribute @name="id" @type="schema:identifier"}
+        {attribute @name="class" @type="schema:string"}
+        {attribute @name="transform" @type="schema:string"}
+        {attribute @name="fill" @type="schema:string"}
+        {attribute @name="stroke" @type="schema:string"}
+        {attribute @name="opacity" @type="schema:string"}
+        {attribute @name="d" @type="schema:string"}
+        {attribute @name="points" @type="schema:string"}
+        {attribute @name="x" @type="schema:string"}
+        {attribute @name="y" @type="schema:string"}
+        {attribute @name="cx" @type="schema:string"}
+        {attribute @name="cy" @type="schema:string"}
+        {attribute @name="r" @type="schema:string"}
+        {attribute @name="rx" @type="schema:string"}
+        {attribute @name="ry" @type="schema:string"}
+        {attribute @name="x1" @type="schema:string"}
+        {attribute @name="y1" @type="schema:string"}
+        {attribute @name="x2" @type="schema:string"}
+        {attribute @name="y2" @type="schema:string"}
+        {attribute @name="pathLength" @type="schema:string"}
+        {attribute @name="dx" @type="schema:string"}
+        {attribute @name="dy" @type="schema:string"}
+        {attribute @name="rotate" @type="schema:string"}
+        {attribute @name="textLength" @type="schema:string"}
+        {attribute @name="href" @type="schema:string"}
+        {attribute @name="gradientUnits" @type="schema:identifier" @values="userSpaceOnUse objectBoundingBox"}
+        {attribute @name="patternUnits" @type="schema:identifier" @values="userSpaceOnUse objectBoundingBox"}
+        {attribute @name="offset" @type="schema:string"}
+        {attribute @name="stop-color" @type="schema:string"}
+        {attribute @name="stop-opacity" @type="schema:string"}
+        {attribute @name="clipPathUnits" @type="schema:identifier" @values="userSpaceOnUse objectBoundingBox"}
+        {attribute @name="maskUnits" @type="schema:identifier" @values="userSpaceOnUse objectBoundingBox"}
+        {attribute @name="maskContentUnits" @type="schema:identifier" @values="userSpaceOnUse objectBoundingBox"}
+        {attribute @name="filterUnits" @type="schema:identifier" @values="userSpaceOnUse objectBoundingBox"}
+        {attribute @name="primitiveUnits" @type="schema:identifier" @values="userSpaceOnUse objectBoundingBox"}
+        {attribute @name="in" @type="schema:string"}
+        {attribute @name="result" @type="schema:string"}
+        {attribute @name="attributeName" @type="schema:string"}
+        {attribute @name="from" @type="schema:string"}
+        {attribute @name="to" @type="schema:string"}
+        {attribute @name="values" @type="schema:string"}
+        {attribute @name="dur" @type="schema:string"}
+        {attribute @name="repeatCount" @type="schema:string"}
+        {attribute @name="type" @type="schema:media-type"}
+        {attribute @name="media" @type="schema:string"}
+        {attribute @name="policy" @type="schema:identifier" @values="preserve sanitize reject delegate"}
+    }
+
+    {constraints |
+        {constraint @kind="svg-source-parser" @target="document" @policy="delegate-to-xml-parser-with-svg-schema"}
+        {constraint @kind="image-svg-primary" @target="document" @policy="image/svg+xml is the canonical media type for SVG resources"}
+        {constraint @kind="xml-base-schema-compatible" @target="document" @policy="required"}
+        {constraint @kind="svg-namespace-required" @target="svg" @policy="root element must use http://www.w3.org/2000/svg"}
+        {constraint @kind="root-svg-element" @target="document" @policy="required"}
+        {constraint @kind="well-formed-xml" @target="document" @policy="required"}
+        {constraint @kind="svgz-content-encoding" @target="document" @policy=".svgz is image/svg+xml with gzip content encoding, not a separate schema identity"}
+        {constraint @kind="visible-svg-accessible-name" @target="svg" @policy="visible SVG should provide title desc or ARIA name material"}
+        {constraint @kind="external-resource-policy" @target="graphics" @policy="external URI references require explicit resolver policy"}
+        {constraint @kind="script-policy" @target="script" @policy="reject executable script unless explicitly enabled by policy"}
+        {constraint @kind="style-policy" @target="style" @policy="preserve CSS but do not execute or fetch external resources without policy"}
+        {constraint @kind="foreign-content-declared" @target="foreign-content" @policy="foreign namespaces require their own schema package or explicit converter profile"}
+        {constraint @kind="source-map-preferred" @target="graphics" @policy="required when parser exposes source ranges"}
+    }
+
+    {diagnostics |
+        {diagnostic @code="cem.svg.parse_error" @severity="error"}
+        {diagnostic @code="cem.svg.not_well_formed_xml" @severity="error"}
+        {diagnostic @code="cem.svg.root_not_svg" @severity="error"}
+        {diagnostic @code="cem.svg.namespace_missing" @severity="error"}
+        {diagnostic @code="cem.svg.invalid_path_data" @severity="warning"}
+        {diagnostic @code="cem.svg.external_resource_rejected" @severity="error"}
+        {diagnostic @code="cem.svg.script_rejected" @severity="error"}
+        {diagnostic @code="cem.svg.accessible_name_missing" @severity="warning"}
+        {diagnostic @code="cem.svg.source_map_unavailable" @severity="info"}
+    }
+
+    {compatibility |
+        {note @version="1.0.0" @value="IANA registers image/svg+xml with optional charset parameter, .svg extension, and .svgz as gzip-compressed SVG. SVG is XML-based and uses the http://www.w3.org/2000/svg namespace."}
+    }
+
+    {open-content |
+        {accept @kind="svg-extension" @policy="reject-unless-declared"}
+        {accept @kind="foreign-namespace" @policy="reject-unless-schema-registered"}
+    }
+}

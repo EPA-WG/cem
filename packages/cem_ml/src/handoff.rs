@@ -22,6 +22,7 @@ pub const SUPPORTED_CONTENT_TYPES: &[&str] = &[
     "text/csv",
     "text/markdown",
     "application/xhtml+xml",
+    "image/svg+xml",
     "text/xml",
     "application/xml",
     "application/xml-external-parsed-entity",
@@ -112,6 +113,11 @@ mod tests {
     #[test]
     fn xhtml_content_type_is_supported_opaque_handoff() {
         assert!(is_supported_content_type("application/xhtml+xml"));
+    }
+
+    #[test]
+    fn svg_content_type_is_supported_opaque_handoff() {
+        assert!(is_supported_content_type("image/svg+xml"));
     }
 
     #[test]

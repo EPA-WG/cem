@@ -1,0 +1,15 @@
+@doc cem-ml 1
+@ns pkg = "https://cem.dev/ns/schema-package/1"
+@default pkg
+
+{package @id="svg" @version="1.0.0" |
+    {schema
+        @uri="https://cem.dev/ns/data/svg/1"
+        @source="schema/svg.cem"
+    }
+
+    {content-type @value="image/svg+xml" @primary=true}
+
+    {namespace @prefix="cemsvg" @uri="https://cem.dev/ns/data/svg/1"}
+    {namespace @prefix="svg" @uri="http://www.w3.org/2000/svg"}
+}

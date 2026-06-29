@@ -50,7 +50,7 @@ Implement schema packages for these content families:
 - [x] Markdown/MD markup.
 - [x] XML.
 - [x] XHTML.
-- [ ] SVG.
+- [x] SVG.
 - [ ] MathML.
 - [ ] XSLT/XSL legacy/custom-element compatibility.
 - [ ] HTML.

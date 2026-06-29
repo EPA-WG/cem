@@ -758,7 +758,7 @@ pub fn infer_content_type_from_path(path: &str) -> Option<String> {
         "html" | "htm" => Some("text/html".to_owned()),
         "xhtml" | "xht" => Some(crate::schema::registry::XHTML_CONTENT_TYPE.to_owned()),
         "xml" => Some(crate::schema::registry::XML_CONTENT_TYPE.to_owned()),
-        "svg" => Some("image/svg+xml".to_owned()),
+        "svg" | "svgz" => Some(crate::schema::registry::SVG_CONTENT_TYPE.to_owned()),
         "xsl" | "xslt" => Some("application/xslt+xml".to_owned()),
         "cemt" => Some(crate::schema::registry::CEM_TRANSFORM_CONTENT_TYPE.to_owned()),
         "cemql" => Some(crate::schema::registry::CEM_QL_CONTENT_TYPE.to_owned()),
@@ -941,6 +941,18 @@ mod tests {
         assert_eq!(
             infer_content_type_from_path("dist/PAGE.XHT").as_deref(),
             Some(crate::schema::registry::XHTML_CONTENT_TYPE)
+        );
+    }
+
+    #[test]
+    fn svg_extensions_infer_svg_content_type() {
+        assert_eq!(
+            infer_content_type_from_path("assets/icon.svg").as_deref(),
+            Some(crate::schema::registry::SVG_CONTENT_TYPE)
+        );
+        assert_eq!(
+            infer_content_type_from_path("assets/ICON.SVGZ").as_deref(),
+            Some(crate::schema::registry::SVG_CONTENT_TYPE)
         );
     }
 

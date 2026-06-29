@@ -14,8 +14,9 @@ use crate::schema::registry::{
     CEM_EVENTS_PROJECTION_SCHEMA_URI, CEM_ML_CONTENT_TYPE, CEM_ML_SCHEMA_URI,
     CEM_NATIVE_TEMPLATE_CONTENT_TYPE, CEM_NATIVE_TEMPLATE_SCHEMA_URI, CEM_SCHEMA_CONTENT_TYPE,
     CEM_SCHEMA_PACKAGE_CONTENT_TYPE, CEM_SCHEMA_PACKAGE_URI, CEM_SCHEMA_URI,
-    CEM_TRANSFORM_CONTENT_TYPE, CEM_TRANSFORM_SCHEMA_URI, XHTML_CONTENT_TYPE, XHTML_NAMESPACE_URI,
-    XHTML_SCHEMA_URI,
+    CEM_TRANSFORM_CONTENT_TYPE, CEM_TRANSFORM_SCHEMA_URI, SVG_CONTENT_TYPE, SVG_NAMESPACE_URI,
+    SVG_SCHEMA_URI, XHTML_CONTENT_TYPE, XHTML_NAMESPACE_URI, XHTML_SCHEMA_URI, XML_CONTENT_TYPE,
+    XML_SCHEMA_URI,
 };
 use crate::transform_config::TRANSFORM_CONFIG_SCHEMA_URI;
 
@@ -29,9 +30,10 @@ pub const AST_PROJECTION_SCHEMA: &str = CEM_AST_PROJECTION_SCHEMA_URI;
 pub const EVENTS_PROJECTION_SCHEMA: &str = CEM_EVENTS_PROJECTION_SCHEMA_URI;
 
 const HTML_NAMESPACE: &str = XHTML_NAMESPACE_URI;
-const SVG_NAMESPACE: &str = "http://www.w3.org/2000/svg";
+const SVG_NAMESPACE: &str = SVG_NAMESPACE_URI;
 const XSLT_NAMESPACE: &str = "http://www.w3.org/1999/XSL/Transform";
 const HTML_ADAPTER_SCHEMA_IDENTITIES: &[&str] = &[HTML_NAMESPACE, XHTML_SCHEMA_URI, SVG_NAMESPACE];
+const XML_ADAPTER_SCHEMA_IDENTITIES: &[&str] = &[XML_SCHEMA_URI, SVG_SCHEMA_URI];
 const CEM_ML_SCHEMA_IDENTITIES: &[&str] = &[
     CEM_ML_SCHEMA_URI,
     CEM_SCHEMA_URI,
@@ -492,7 +494,8 @@ impl LifecycleAdapter for XmlAdapter {
     }
 
     fn matches_input(&self, identity: &FormatIdentity) -> bool {
-        matches_content_type(identity, &["application/xml", "text/xml", "image/svg+xml"])
+        matches_content_type(identity, &[XML_CONTENT_TYPE, "text/xml", SVG_CONTENT_TYPE])
+            || matches_schema_without_content_type(identity, XML_ADAPTER_SCHEMA_IDENTITIES)
     }
 
     fn load(&self, input: &EngineInput, _: &FormatIdentity) -> LoadedInput {
@@ -970,6 +973,20 @@ mod tests {
     }
 
     #[test]
+    fn svg_package_schema_selects_xml_input_when_content_type_absent() {
+        let loaded = LifecycleRegistry::with_builtin_adapters().load(
+            &input(b"<svg xmlns=\"http://www.w3.org/2000/svg\"><title>Hi</title></svg>"),
+            &EngineContext {
+                schema: Some(SVG_SCHEMA_URI.to_owned()),
+                ..EngineContext::default()
+            },
+        );
+        assert_eq!(loaded.from_format, InputFormat::Xml);
+        assert_eq!(loaded.adapter_id, Some("xml"));
+        assert!(loaded.diagnostics.is_empty());
+    }
+
+    #[test]
     fn cem_core_namespace_selects_cem_input_when_content_type_and_schema_absent() {
         let mut source = input(b"@doc cem-ml 1\n{p | Hi}");
         source.identity = Some(FormatIdentity {
@@ -1143,7 +1160,20 @@ mod tests {
     #[test]
     fn svg_target_content_type_selects_xml_export() {
         let target = FormatIdentity {
-            content_type: Some("image/svg+xml".to_owned()),
+            content_type: Some(SVG_CONTENT_TYPE.to_owned()),
+            ..FormatIdentity::default()
+        };
+        let selected = LifecycleRegistry::with_builtin_adapters()
+            .select_export(Some(&target), LayerFormat::DomJson);
+        assert_eq!(selected.to_format, LayerFormat::Xml);
+        assert_eq!(selected.adapter_id, Some("xml"));
+        assert!(selected.diagnostics.is_empty());
+    }
+
+    #[test]
+    fn svg_package_schema_selects_xml_export_when_content_type_absent() {
+        let target = FormatIdentity {
+            schema: Some(SVG_SCHEMA_URI.to_owned()),
             ..FormatIdentity::default()
         };
         let selected = LifecycleRegistry::with_builtin_adapters()
