@@ -12,6 +12,7 @@ pub const CEM_SCHEMA_PACKAGE_URI: &str = "https://cem.dev/ns/schema-package/1";
 pub const CEM_NATIVE_TEMPLATE_SCHEMA_URI: &str = "https://cem.dev/ns/template/cem-native/1";
 pub const CEM_TRANSFORM_SCHEMA_URI: &str = "https://cem.dev/ns/transform/cem/1";
 pub const CEM_QL_SCHEMA_URI: &str = "https://cem.dev/ns/query/cem-ql/1";
+pub const JSON_VALUE_SCHEMA_URI: &str = "https://cem.dev/ns/data/json/1";
 
 pub const CEM_ML_CONTENT_TYPE: &str = "application/cem";
 pub const CEM_SCHEMA_CONTENT_TYPE: &str = "application/vnd.cem.schema+cem";
@@ -20,6 +21,7 @@ pub const CEM_NATIVE_TEMPLATE_CONTENT_TYPE: &str = "application/vnd.cem.template
 pub const CEM_TRANSFORM_CONTENT_TYPE: &str = "application/vnd.cem.transform+cem";
 pub const CEM_QL_CONTENT_TYPE: &str = "application/vnd.cem.query+cem-ql";
 pub const CEM_QL_ARTIFACT_CONTENT_TYPE: &str = "application/vnd.cem.query-artifact+cem-bin";
+pub const JSON_CONTENT_TYPE: &str = "application/json";
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum SchemaContentTypeRole {
@@ -380,6 +382,18 @@ pub fn builtin_schema_descriptors() -> Vec<SchemaDescriptor> {
             namespaces: vec![NamespaceClaim::new(Some("ql"), CEM_QL_SCHEMA_URI)],
             uses: vec![CEM_SCHEMA_URI.into()],
         },
+        SchemaDescriptor {
+            package_id: "json".into(),
+            schema_uri: JSON_VALUE_SCHEMA_URI.into(),
+            version: "1.0.0".into(),
+            source: "schema-packages/json/v1/schema/json.cem".into(),
+            content_types: vec![
+                SchemaContentType::primary(JSON_CONTENT_TYPE),
+                SchemaContentType::alias("text/json"),
+            ],
+            namespaces: vec![NamespaceClaim::new(Some("json"), JSON_VALUE_SCHEMA_URI)],
+            uses: vec![CEM_SCHEMA_URI.into()],
+        },
     ]
 }
 
@@ -439,6 +453,13 @@ mod tests {
                 .schema_uri,
             CEM_QL_SCHEMA_URI
         );
+        assert_eq!(
+            registry
+                .resolve_content_type(JSON_CONTENT_TYPE)
+                .unwrap()
+                .schema_uri,
+            JSON_VALUE_SCHEMA_URI
+        );
     }
 
     #[test]
@@ -459,6 +480,19 @@ mod tests {
                 CEM_QL_SCHEMA_URI
             );
         }
+    }
+
+    #[test]
+    fn builtin_registry_resolves_json_alias_content_types() {
+        let registry = SchemaRegistry::with_builtin_schemas();
+
+        assert_eq!(
+            registry
+                .resolve_content_type("text/json; charset=utf-8")
+                .unwrap()
+                .schema_uri,
+            JSON_VALUE_SCHEMA_URI
+        );
     }
 
     #[test]

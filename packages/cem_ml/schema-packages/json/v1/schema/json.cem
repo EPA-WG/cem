@@ -1,0 +1,63 @@
+@doc cem-ml 1
+@ns schema = "https://cem.dev/ns/schema/1"
+@default schema
+
+{schema @name="json" @namespace="https://cem.dev/ns/data/json/1" @version="1.0.0" |
+    {summary |
+        {text | Generic JSON resource schema. JSON source is plain UTF-8 text parsed by a JSON parser or adapter, while this schema provides registry identity, value-shape metadata, and validation hooks for JSON documents, values, objects, arrays, members, and scalars.}
+    }
+
+    {uses |
+        {use @schema="https://cem.dev/ns/schema/1" @as="schema"}
+    }
+
+    {content-types |
+        {content-type @value="application/json" @primary=true}
+        {content-type @value="text/json" @alias=true}
+    }
+
+    {namespaces |
+        {namespace @prefix="json" @uri="https://cem.dev/ns/data/json/1"}
+    }
+
+    {elements |
+        {element @name="document" @required-attributes="encoding" @children="value"}
+        {element @name="value" @required-attributes="kind" @children="object array string number boolean null"}
+        {element @name="object" @children="member"}
+        {element @name="member" @required-attributes="name" @children="value"}
+        {element @name="array" @children="value"}
+        {element @name="string" @optional-attributes="value lexeme"}
+        {element @name="number" @optional-attributes="value lexeme number-kind"}
+        {element @name="boolean" @required-attributes="value"}
+        {element @name="null"}
+    }
+
+    {attributes |
+        {attribute @name="encoding" @type="schema:identifier" @values="utf-8"}
+        {attribute @name="kind" @type="schema:identifier" @values="object array string number boolean null"}
+        {attribute @name="name" @type="schema:string"}
+        {attribute @name="value" @type="schema:string"}
+        {attribute @name="lexeme" @type="schema:string"}
+        {attribute @name="number-kind" @type="schema:identifier" @values="integer decimal exponent"}
+    }
+
+    {constraints |
+        {constraint @kind="single-root-value" @target="document" @policy="required"}
+        {constraint @kind="json-source-parser" @target="document" @policy="delegate-to-json-parser"}
+        {constraint @kind="object-member-order-preserved" @target="object" @policy="required"}
+        {constraint @kind="array-item-order-preserved" @target="array" @policy="required"}
+        {constraint @kind="duplicate-member-name-policy" @target="object" @policy="preserve and report when consumer forbids duplicates"}
+        {constraint @kind="source-map-preferred" @target="value" @policy="required when parser exposes source ranges"}
+    }
+
+    {diagnostics |
+        {diagnostic @code="cem.json.parse_error" @severity="error"}
+        {diagnostic @code="cem.json.unsupported_encoding" @severity="error"}
+        {diagnostic @code="cem.json.duplicate_member_name" @severity="warning"}
+        {diagnostic @code="cem.json.source_map_unavailable" @severity="info"}
+    }
+
+    {open-content |
+        {accept @kind="json-extension" @policy="reject-unless-declared"}
+    }
+}

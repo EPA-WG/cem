@@ -44,6 +44,11 @@ resource identities. It owns `application/vnd.cem.query+cem-ql`, claims
 for query binaries. CEM-QL source is not CEM-ML syntax; its parser lives in the
 `cem-ql` crate.
 
+`json/v1` defines generic JSON text resource identity. It owns
+`application/json` and claims `text/json` as an alias. JSON source is not
+CEM-ML syntax, and this package intentionally does not claim JSON Schema or
+CEM-specific projection/vendor `+json` content types.
+
 ## Validation Model
 
 The relationship is layered validation, not broad inheritance:

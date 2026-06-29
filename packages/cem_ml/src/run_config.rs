@@ -757,7 +757,7 @@ pub fn infer_content_type_from_path(path: &str) -> Option<String> {
         "xsl" | "xslt" => Some("application/xslt+xml".to_owned()),
         "cemt" => Some(crate::schema::registry::CEM_TRANSFORM_CONTENT_TYPE.to_owned()),
         "cemql" => Some(crate::schema::registry::CEM_QL_CONTENT_TYPE.to_owned()),
-        "json" => Some("application/json".to_owned()),
+        "json" => Some(crate::schema::registry::JSON_CONTENT_TYPE.to_owned()),
         _ => None,
     }
 }
@@ -860,6 +860,18 @@ mod tests {
         assert_eq!(
             infer_content_type_from_path("queries/MODULE.CEMQL").as_deref(),
             Some(crate::schema::registry::CEM_QL_CONTENT_TYPE)
+        );
+    }
+
+    #[test]
+    fn json_extension_infers_json_content_type() {
+        assert_eq!(
+            infer_content_type_from_path("data/item.json").as_deref(),
+            Some(crate::schema::registry::JSON_CONTENT_TYPE)
+        );
+        assert_eq!(
+            infer_content_type_from_path("data/ITEM.JSON").as_deref(),
+            Some(crate::schema::registry::JSON_CONTENT_TYPE)
         );
     }
 
