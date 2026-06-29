@@ -45,7 +45,7 @@ Implement schema packages for these content families:
       compatibility/debug-only.
 - [x] Implement parallel and multicast-capable projection stream routing over
       sealed CEM binary chunks.
-- [ ] YAML/YML.
+- [x] YAML/YML.
 - [ ] CSV.
 - [ ] Markdown/MD markup.
 - [ ] XML.

@@ -14,6 +14,7 @@ pub const CEM_TRANSFORM_SCHEMA_URI: &str = "https://cem.dev/ns/transform/cem/1";
 pub const CEM_QL_SCHEMA_URI: &str = "https://cem.dev/ns/query/cem-ql/1";
 pub const JSON_VALUE_SCHEMA_URI: &str = "https://cem.dev/ns/data/json/1";
 pub const JSON_SCHEMA_SCHEMA_URI: &str = "https://cem.dev/ns/data/json-schema/1";
+pub const YAML_SCHEMA_URI: &str = "https://cem.dev/ns/data/yaml/1";
 pub const CEM_DOM_PROJECTION_SCHEMA_URI: &str = "https://cem.dev/ns/projection/dom/1";
 pub const CEM_AST_PROJECTION_SCHEMA_URI: &str = "https://cem.dev/ns/projection/ast/1";
 pub const CEM_EVENTS_PROJECTION_SCHEMA_URI: &str = "https://cem.dev/ns/projection/events/1";
@@ -27,6 +28,7 @@ pub const CEM_QL_CONTENT_TYPE: &str = "application/vnd.cem.query+cem-ql";
 pub const CEM_QL_ARTIFACT_CONTENT_TYPE: &str = "application/vnd.cem.query-artifact+cem-bin";
 pub const JSON_CONTENT_TYPE: &str = "application/json";
 pub const JSON_SCHEMA_CONTENT_TYPE: &str = "application/schema+json";
+pub const YAML_CONTENT_TYPE: &str = "application/yaml";
 pub const CEM_DOM_PROJECTION_CONTENT_TYPE: &str = "application/vnd.cem.dom+cem-bin";
 pub const CEM_DOM_JSON_PROJECTION_CONTENT_TYPE: &str = "application/vnd.cem.dom+json";
 pub const CEM_AST_PROJECTION_CONTENT_TYPE: &str = "application/vnd.cem.ast+cem-bin";
@@ -406,6 +408,20 @@ pub fn builtin_schema_descriptors() -> Vec<SchemaDescriptor> {
             uses: vec![CEM_SCHEMA_URI.into()],
         },
         SchemaDescriptor {
+            package_id: "yaml".into(),
+            schema_uri: YAML_SCHEMA_URI.into(),
+            version: "1.0.0".into(),
+            source: "schema-packages/yaml/v1/schema/yaml.cem".into(),
+            content_types: vec![
+                SchemaContentType::primary(YAML_CONTENT_TYPE),
+                SchemaContentType::alias("application/x-yaml"),
+                SchemaContentType::alias("text/yaml"),
+                SchemaContentType::alias("text/x-yaml"),
+            ],
+            namespaces: vec![NamespaceClaim::new(Some("yaml"), YAML_SCHEMA_URI)],
+            uses: vec![CEM_SCHEMA_URI.into(), CEM_ML_SCHEMA_URI.into()],
+        },
+        SchemaDescriptor {
             package_id: "json-schema".into(),
             schema_uri: JSON_SCHEMA_SCHEMA_URI.into(),
             version: "1.0.0".into(),
@@ -536,6 +552,13 @@ mod tests {
                 .schema_uri,
             JSON_SCHEMA_SCHEMA_URI
         );
+        assert_eq!(
+            registry
+                .resolve_content_type(YAML_CONTENT_TYPE)
+                .unwrap()
+                .schema_uri,
+            YAML_SCHEMA_URI
+        );
     }
 
     #[test]
@@ -582,6 +605,26 @@ mod tests {
                 .schema_uri,
             JSON_SCHEMA_SCHEMA_URI
         );
+    }
+
+    #[test]
+    fn builtin_registry_resolves_yaml_alias_content_types() {
+        let registry = SchemaRegistry::with_builtin_schemas();
+
+        for content_type in [
+            "application/yaml; charset=utf-8",
+            "application/x-yaml",
+            "text/yaml",
+            "text/x-yaml; charset=utf-8",
+        ] {
+            assert_eq!(
+                registry
+                    .resolve_content_type(content_type)
+                    .unwrap()
+                    .schema_uri,
+                YAML_SCHEMA_URI
+            );
+        }
     }
 
     #[test]

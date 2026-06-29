@@ -764,6 +764,7 @@ pub fn infer_content_type_from_path(path: &str) -> Option<String> {
         "cemql" => Some(crate::schema::registry::CEM_QL_CONTENT_TYPE.to_owned()),
         "jsonschema" => Some(crate::schema::registry::JSON_SCHEMA_CONTENT_TYPE.to_owned()),
         "json" => Some(crate::schema::registry::JSON_CONTENT_TYPE.to_owned()),
+        "yaml" | "yml" => Some(crate::schema::registry::YAML_CONTENT_TYPE.to_owned()),
         _ => None,
     }
 }
@@ -878,6 +879,18 @@ mod tests {
         assert_eq!(
             infer_content_type_from_path("data/ITEM.JSON").as_deref(),
             Some(crate::schema::registry::JSON_CONTENT_TYPE)
+        );
+    }
+
+    #[test]
+    fn yaml_extensions_infer_yaml_content_type() {
+        assert_eq!(
+            infer_content_type_from_path("data/item.yaml").as_deref(),
+            Some(crate::schema::registry::YAML_CONTENT_TYPE)
+        );
+        assert_eq!(
+            infer_content_type_from_path("data/ITEM.YML").as_deref(),
+            Some(crate::schema::registry::YAML_CONTENT_TYPE)
         );
     }
 

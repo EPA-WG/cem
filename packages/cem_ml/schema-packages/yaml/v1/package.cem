@@ -1,0 +1,17 @@
+@doc cem-ml 1
+@ns pkg = "https://cem.dev/ns/schema-package/1"
+@default pkg
+
+{package @id="yaml" @version="1.0.0" |
+    {schema
+        @uri="https://cem.dev/ns/data/yaml/1"
+        @source="schema/yaml.cem"
+    }
+
+    {content-type @value="application/yaml" @primary=true}
+    {content-type @value="application/x-yaml" @alias=true}
+    {content-type @value="text/yaml" @alias=true}
+    {content-type @value="text/x-yaml" @alias=true}
+
+    {namespace @prefix="yaml" @uri="https://cem.dev/ns/data/yaml/1"}
+}

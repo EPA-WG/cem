@@ -15,6 +15,10 @@ pub const SUPPORTED_CONTENT_TYPES: &[&str] = &[
     "text/css",
     "text/javascript",
     "application/json",
+    "application/yaml",
+    "application/x-yaml",
+    "text/yaml",
+    "text/x-yaml",
     "text/xml",
     "application/xml",
 ];
@@ -72,3 +76,20 @@ pub fn anonymous_scope_return_condition() -> ReturnCondition {
 
 #[allow(dead_code)]
 fn _byte_range_referenced(_: ByteRange) {}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn yaml_content_types_are_supported_opaque_handoffs() {
+        for content_type in [
+            "application/yaml",
+            "application/x-yaml",
+            "text/yaml",
+            "text/x-yaml",
+        ] {
+            assert!(is_supported_content_type(content_type));
+        }
+    }
+}

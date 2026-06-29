@@ -49,6 +49,12 @@ for query binaries. CEM-QL source is not CEM-ML syntax; its parser lives in the
 CEM-ML syntax, and this package intentionally does not claim JSON Schema or
 CEM-specific projection/vendor `+json` content types.
 
+`yaml/v1` defines generic YAML resource identity. It owns `application/yaml`
+and claims the common compatibility aliases `application/x-yaml`, `text/yaml`,
+and `text/x-yaml`. YAML source is not CEM-ML syntax; parser/adaptor support is
+separate from the schema package. Vendor or domain-specific `+yaml` content
+types should use their own packages.
+
 `json-schema/v1` defines JSON Schema document identity. It owns
 `application/schema+json`, depends on `json/v1`, and models JSON Schema
 dialect, vocabulary, reference, and validation-resource metadata separately
