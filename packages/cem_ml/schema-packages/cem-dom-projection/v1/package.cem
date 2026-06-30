@@ -19,12 +19,13 @@
         @template="converters/dom-to-html.cemt"
         @template-content-type="application/vnd.cem.transform+cem"
         @template-schema="https://cem.dev/ns/transform/cem/1"
+        @template-entrypoint="main"
         @rust-symbol="HtmlExportConverter"
         @streamable=true
         @lossiness="serialization"
         @implicit=true
-        @readiness="planned"
-        @fallback-reason="CEMT DOM-to-HTML serialization awaits parity coverage before the edge can be promoted to ready" |
+        @readiness="ready"
+        @fallback-reason="Rust fallback remains available when an executable CEMT adapter is unavailable" |
         {from @content-type="application/vnd.cem.dom+cem-bin" @schema="https://cem.dev/ns/projection/dom/1"}
         {to @content-type="text/html" @schema="https://cem.dev/ns/data/html/1"}
     }
@@ -35,12 +36,13 @@
         @template="converters/dom-to-xml.cemt"
         @template-content-type="application/vnd.cem.transform+cem"
         @template-schema="https://cem.dev/ns/transform/cem/1"
+        @template-entrypoint="main"
         @rust-symbol="XmlExportConverter"
         @streamable=true
         @lossiness="serialization"
         @implicit=true
-        @readiness="planned"
-        @fallback-reason="CEMT DOM-to-XML serialization awaits parity coverage before the edge can be promoted to ready" |
+        @readiness="ready"
+        @fallback-reason="Rust fallback remains available when an executable CEMT adapter is unavailable" |
         {from @content-type="application/vnd.cem.dom+cem-bin" @schema="https://cem.dev/ns/projection/dom/1"}
         {to @content-type="application/xml" @schema="https://cem.dev/ns/data/xml/1"}
     }

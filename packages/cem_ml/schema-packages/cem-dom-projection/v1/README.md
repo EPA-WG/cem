@@ -14,20 +14,18 @@ semantic layer, including the legacy
 
 The package manifest declares CEMT-primary converter edges from the binary DOM
 projection to HTML and XML. The CEMT assets are packaged next to the schema and
-can construct dynamic element and attribute names through the CEM-QL adapter, but
-the edges stay `planned` until parity coverage is in place.
+can construct dynamic element and attribute names through the CEM-QL adapter. The
+edges are `ready` after parity coverage against the Rust serializers.
 
-| Converter | From | To | CEMT asset | Runtime state | Fallback |
-| --- | --- | --- | --- | --- | --- |
-| `cem-dom-projection-to-html-cemt` | `application/vnd.cem.dom+cem-bin` | `text/html` | [`converters/dom-to-html.cemt`](converters/dom-to-html.cemt) | Planned: requires parity coverage | `HtmlExportConverter` |
-| `cem-dom-projection-to-xml-cemt` | `application/vnd.cem.dom+cem-bin` | `application/xml` | [`converters/dom-to-xml.cemt`](converters/dom-to-xml.cemt) | Planned: requires parity coverage | `XmlExportConverter` |
+| Converter | From | To | CEMT asset | Entrypoint | Runtime state | Fallback |
+| --- | --- | --- | --- | --- | --- | --- |
+| `cem-dom-projection-to-html-cemt` | `application/vnd.cem.dom+cem-bin` | `text/html` | [`converters/dom-to-html.cemt`](converters/dom-to-html.cemt) | `main` | Ready | `HtmlExportConverter` when executable CEMT adapter is unavailable |
+| `cem-dom-projection-to-xml-cemt` | `application/vnd.cem.dom+cem-bin` | `application/xml` | [`converters/dom-to-xml.cemt`](converters/dom-to-xml.cemt) | `main` | Ready | `XmlExportConverter` when executable CEMT adapter is unavailable |
 
-Until those CEMT capabilities land, registry execution must select the CEMT
-descriptor for identity and planning, then execute the registered Rust fallback.
 The CLI template pass validates these converter assets with converter input
 bindings, loop bindings, and recursive `@with:*` call parameter bindings.
-Promotion to `ready` requires serializer parity coverage for the HTML and XML
-edges.
+CEM-QL adapter parity coverage compares packaged CEMT output against the Rust
+HTML and XML serializers on representative DOM projection fixtures.
 
 ## Validation Examples
 

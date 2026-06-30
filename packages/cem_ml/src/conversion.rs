@@ -69,6 +69,7 @@ pub struct ConversionTemplateDescriptor {
     pub path: String,
     pub content_type: String,
     pub schema: Option<String>,
+    pub entrypoint: Option<String>,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -823,7 +824,7 @@ pub fn builtin_conversion_descriptors() -> Vec<ConversionDescriptor> {
             "lossless",
             80,
         ),
-        planned_cemt_edge_with_rust_fallback(
+        ready_cemt_edge_with_rust_fallback(
             "cem-dom-projection-to-html-cemt",
             "cem-dom-projection",
             endpoint(
@@ -833,7 +834,7 @@ pub fn builtin_conversion_descriptors() -> Vec<ConversionDescriptor> {
             endpoint(HTML_CONTENT_TYPE, HTML_SCHEMA_URI),
             "schema-packages/cem-dom-projection/v1/converters/dom-to-html.cemt",
             "HtmlExportConverter",
-            "CEMT DOM-to-HTML serialization awaits parity coverage before the edge can be promoted to ready",
+            "Rust fallback remains available when an executable CEMT adapter is unavailable",
             "serialization",
             100,
         ),
@@ -849,7 +850,7 @@ pub fn builtin_conversion_descriptors() -> Vec<ConversionDescriptor> {
             "serialization",
             100,
         ),
-        planned_cemt_edge_with_rust_fallback(
+        ready_cemt_edge_with_rust_fallback(
             "cem-dom-projection-to-xml-cemt",
             "cem-dom-projection",
             endpoint(
@@ -859,7 +860,7 @@ pub fn builtin_conversion_descriptors() -> Vec<ConversionDescriptor> {
             endpoint(XML_CONTENT_TYPE, XML_SCHEMA_URI),
             "schema-packages/cem-dom-projection/v1/converters/dom-to-xml.cemt",
             "XmlExportConverter",
-            "CEMT DOM-to-XML serialization awaits parity coverage before the edge can be promoted to ready",
+            "Rust fallback remains available when an executable CEMT adapter is unavailable",
             "serialization",
             100,
         ),
@@ -927,7 +928,7 @@ fn endpoint(content_type: &str, schema: &str) -> ConversionEndpoint {
     ConversionEndpoint::with_schema(content_type, schema)
 }
 
-fn planned_cemt_edge_with_rust_fallback(
+fn ready_cemt_edge_with_rust_fallback(
     id: &str,
     package_id: &str,
     from: ConversionEndpoint,
@@ -944,11 +945,12 @@ fn planned_cemt_edge_with_rust_fallback(
         from,
         to,
         implementation: ConversionImplementation::Cemt,
-        readiness: ConversionReadiness::Planned,
+        readiness: ConversionReadiness::Ready,
         template: Some(ConversionTemplateDescriptor {
             path: template_path.to_owned(),
             content_type: content_type_essence(CEM_TRANSFORM_CONTENT_TYPE),
             schema: Some(CEM_TRANSFORM_SCHEMA_URI.to_owned()),
+            entrypoint: Some("main".to_owned()),
         }),
         rust_symbol: None,
         rust_fallback: Some(ConversionRustFallbackDescriptor {
@@ -1077,7 +1079,7 @@ mod tests {
             selection.descriptor.implementation,
             ConversionImplementation::Cemt
         );
-        assert_eq!(selection.descriptor.readiness, ConversionReadiness::Planned);
+        assert_eq!(selection.descriptor.readiness, ConversionReadiness::Ready);
 
         let template = selection.descriptor.template.as_ref().unwrap();
         assert_eq!(
@@ -1089,7 +1091,7 @@ mod tests {
 
         let fallback = selection.descriptor.rust_fallback.as_ref().unwrap();
         assert_eq!(fallback.rust_symbol, "HtmlExportConverter");
-        assert!(fallback.reason.contains("parity coverage"));
+        assert!(fallback.reason.contains("executable CEMT adapter"));
 
         let rust_edge = registry
             .converter("cem-dom-projection-to-html-rust")
@@ -1099,7 +1101,7 @@ mod tests {
     }
 
     #[test]
-    fn builtin_dom_projection_cemt_assets_exist_but_remain_planned() {
+    fn builtin_dom_projection_cemt_assets_exist_and_are_ready() {
         let registry = ConversionRegistry::with_builtin_converters();
 
         for (id, expected_path, marker) in [
@@ -1116,7 +1118,7 @@ mod tests {
         ] {
             let descriptor = registry.converter(id).expect("built-in converter");
             assert_eq!(descriptor.implementation, ConversionImplementation::Cemt);
-            assert_eq!(descriptor.readiness, ConversionReadiness::Planned);
+            assert_eq!(descriptor.readiness, ConversionReadiness::Ready);
 
             let template = descriptor.template.as_ref().expect("CEMT template");
             assert_eq!(template.path, expected_path);
@@ -1161,7 +1163,7 @@ mod tests {
     }
 
     #[test]
-    fn builtin_execution_resolves_planned_cemt_to_registered_rust_fallback() {
+    fn builtin_execution_resolves_ready_cemt_to_rust_fallback_when_adapter_is_selector_only() {
         let schemas = SchemaRegistry::with_builtin_schemas();
         let registry = ConversionRegistry::with_builtin_converters();
         let template_adapters = TransformTemplateAdapterRegistry::with_builtin_adapters();
@@ -1188,8 +1190,8 @@ mod tests {
                 template_adapter_id,
             } => {
                 assert_eq!(rust_symbol, "HtmlExportConverter");
-                assert!(reason.contains("parity coverage"));
-                assert!(reason.contains("readiness is planned"));
+                assert!(reason.contains("executable CEMT adapter"));
+                assert!(reason.contains("selector-only"));
                 assert_eq!(*template_adapter_id, Some("cem-native-template"));
             }
             other => panic!("expected Rust fallback execution, got {other:?}"),
@@ -1244,6 +1246,7 @@ mod tests {
                         .to_owned(),
                     content_type: CEM_TRANSFORM_CONTENT_TYPE.to_owned(),
                     schema: Some(CEM_TRANSFORM_SCHEMA_URI.to_owned()),
+                    entrypoint: Some("main".to_owned()),
                 }),
                 rust_symbol: None,
                 rust_fallback: None,

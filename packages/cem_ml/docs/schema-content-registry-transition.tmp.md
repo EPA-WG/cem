@@ -127,18 +127,18 @@ Progress:
 - [x] Add `ConversionRegistry` direct-edge lookup between resolved source and
       target identities.
 - [x] Register CEMT converter descriptors as primary conversion edges with Rust
-      fallback hooks where the CEMT edge is not yet implemented.
+      fallback hooks for planned or adapter-unavailable edges.
 - [x] Execute selected converter descriptors through CEMT template adapters,
-      falling back to registered Rust hooks while planned CEMT edges are not
-      executable.
+      falling back to registered Rust hooks while CEMT edges are planned or no
+      executable adapter is available.
 - [x] Load ready CEMT converter template assets and execute them end-to-end
       through the selected adapter before falling back to Rust hooks.
-- [x] Author packaged DOM-projection CEMT converter assets as planned
-      schema-owned resources.
+- [x] Author packaged DOM-projection CEMT converter assets as schema-owned
+      resources.
 - [x] Add CEMT dynamic element/attribute construction and packaged DOM-to-HTML
       converter smoke coverage.
 - [x] Add context-aware CEMT converter asset validation for packaged
       DOM-projection converter assets.
 - [x] Add XML target serialization for CEMT render-plan output.
-- [ ] Add parity coverage; then promote the DOM-projection HTML/XML descriptors
+- [x] Add parity coverage; then promote the DOM-projection HTML/XML descriptors
       from planned to ready.

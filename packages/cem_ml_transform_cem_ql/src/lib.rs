@@ -1353,19 +1353,27 @@ mod tests {
     use super::*;
     use cem_ml::engine::CemMlEngine;
     use cem_ml::engine::{
-        EngineInput, TemplateInput, TransformExecutionPolicy, TransformGraphExport,
-        TransformGraphImport, TransformGraphJoin, TransformGraphJoinInput, TransformGraphJoinMode,
-        TransformGraphRequest, TransformGraphStage, TransformRequest, TransformRuntimePhase,
-        TransformSchedulerScopeIds, TransformStageSchedulerScopeIds, TransformTemplateEntrypoint,
+        ConvertRequest, EngineInput, InputFormat, LayerFormat, TemplateInput,
+        TransformExecutionPolicy, TransformGraphExport, TransformGraphImport, TransformGraphJoin,
+        TransformGraphJoinInput, TransformGraphJoinMode, TransformGraphRequest,
+        TransformGraphStage, TransformRequest, TransformRuntimePhase, TransformSchedulerScopeIds,
+        TransformStageSchedulerScopeIds, TransformTemplateEntrypoint,
     };
+    use cem_ml::events::cem::CemEventNormalizer;
+    use cem_ml::interpreter::{light_dom::LightDomInterpreter, xml::XmlInterpreter};
+    use cem_ml::parser::builder::CemAstBuilder;
+    use cem_ml::parser::document::CemDocument;
+    use cem_ml::projection;
     use cem_ml::real::RealCemMlEngine;
     use cem_ml::run_config::ScopeConfig;
+    use cem_ml::source::{BytesSource, SourceId};
+    use cem_ml::tokenizer::{cem::CemTokenizer, xml::XmlTokenizer};
     use cem_ml::transform_template::{
         TransformTemplateAdapterLookup, TransformTemplateModuleParamType,
         TransformTemplateModulePreflight, TransformTemplateResolvedModule,
     };
 
-    fn packaged_dom_projection_input(children: Vec<Value>) -> TransformTemplateDataArtifact {
+    fn packaged_dom_projection_artifact(value: Value) -> TransformTemplateDataArtifact {
         TransformTemplateDataArtifact {
             artifact_id: "dom".to_owned(),
             uri: Some("dom.json".to_owned()),
@@ -1376,11 +1384,102 @@ mod tests {
                 schema: Some(cem_ml::schema::registry::CEM_DOM_PROJECTION_SCHEMA_URI.to_owned()),
                 ..FormatIdentity::default()
             }),
-            value: json_object([
-                ("kind", Value::String("document".to_owned())),
-                ("children", Value::Array(children)),
-            ]),
+            value,
         }
+    }
+
+    fn packaged_dom_projection_input(children: Vec<Value>) -> TransformTemplateDataArtifact {
+        packaged_dom_projection_artifact(json_object([
+            ("kind", Value::String("document".to_owned())),
+            ("children", Value::Array(children)),
+        ]))
+    }
+
+    fn document_from_cem(source: &str) -> CemDocument {
+        let source = BytesSource::new(SourceId(1), source.as_bytes().to_vec());
+        let tokenizer = CemTokenizer::from_source(source);
+        let events = CemEventNormalizer::new(tokenizer);
+        CemAstBuilder::new(events).build()
+    }
+
+    fn document_from_xml(source: &str) -> CemDocument {
+        let source = BytesSource::new(SourceId(1), source.as_bytes().to_vec());
+        let tokenizer = XmlTokenizer::from_source(source);
+        let events = CemEventNormalizer::new(tokenizer);
+        CemAstBuilder::new(events).build()
+    }
+
+    fn render_packaged_dom_projection_converter(
+        template_uri: &str,
+        template_source: &str,
+        document: &CemDocument,
+        target_content_type: &str,
+    ) -> String {
+        let adapter = CemQlTransformTemplateAdapter;
+        let template = TemplateInput {
+            uri: template_uri.to_owned(),
+            bytes: template_source.as_bytes().to_vec(),
+            identity: Some(FormatIdentity {
+                content_type: Some(cem_ml::schema::registry::CEM_TRANSFORM_CONTENT_TYPE.to_owned()),
+                schema: Some(cem_ml::schema::registry::CEM_TRANSFORM_SCHEMA_URI.to_owned()),
+                ..FormatIdentity::default()
+            }),
+            root_scope: ScopeConfig::default(),
+        };
+        let module_parse =
+            parse_cem_native_template_module_options(TransformTemplateModuleParseRequest {
+                template: template.clone(),
+            });
+        assert!(
+            module_parse.diagnostics.is_empty(),
+            "{template_uri}: {:?}",
+            module_parse.diagnostics
+        );
+        let params = BTreeMap::new();
+        let data_bindings = vec!["input".to_owned()];
+        let compiled = adapter
+            .compile(TransformTemplateCompileRequest {
+                template: &template,
+                entrypoint: &TransformTemplateEntrypoint::named("main"),
+                params: &params,
+                data_bindings: &data_bindings,
+                module_options: module_parse.module_options,
+                module_preflight: Default::default(),
+                execution_policy: TransformExecutionPolicy::default(),
+            })
+            .expect("packaged DOM projection converter asset should compile");
+        assert!(
+            compiled.diagnostics.is_empty(),
+            "{template_uri}: {:?}",
+            compiled.diagnostics
+        );
+
+        let primary_input = packaged_dom_projection_artifact(projection::dom_json(document));
+        let secondary_inputs = BTreeMap::new();
+        let rendered = adapter
+            .render(TransformTemplateRenderRequest {
+                compiled: &compiled.artifact,
+                primary_input: &primary_input,
+                secondary_inputs: &secondary_inputs,
+                target: Some(&FormatIdentity {
+                    content_type: Some(target_content_type.to_owned()),
+                    ..FormatIdentity::default()
+                }),
+                target_scope: &ScopeConfig::default(),
+                execution_policy: TransformExecutionPolicy::default(),
+            })
+            .expect("packaged DOM projection converter asset should render");
+        assert!(
+            rendered.diagnostics.is_empty(),
+            "{template_uri}: {:?}",
+            rendered.diagnostics
+        );
+        rendered
+            .output
+            .value
+            .as_str()
+            .expect("converter output should be string content")
+            .to_owned()
     }
 
     #[test]
@@ -4284,6 +4383,105 @@ mod tests {
                     Value::String(r#"<p class="lead">Hi</p>"#.to_owned())
                 );
             }
+        }
+    }
+
+    #[test]
+    fn packaged_dom_projection_converters_match_rust_serializer_parity() {
+        let html_document = document_from_cem(include_str!("../../../examples/cem-ml/login.cem"));
+        let html_rust = LightDomInterpreter::new().render(&html_document);
+        assert!(
+            html_rust.diagnostics.is_empty(),
+            "{:?}",
+            html_rust.diagnostics
+        );
+        let html_cemt = render_packaged_dom_projection_converter(
+            "schema-packages/cem-dom-projection/v1/converters/dom-to-html.cemt",
+            include_str!(
+                "../../cem_ml/schema-packages/cem-dom-projection/v1/converters/dom-to-html.cemt"
+            ),
+            &html_document,
+            "text/html",
+        );
+        assert_eq!(html_cemt, html_rust.rendered);
+
+        let xml_document = document_from_xml(include_str!(
+            "../../../examples/cem-ml/cross-surface/conversion-rules.xml"
+        ));
+        let xml_rust = XmlInterpreter::new().render(&xml_document);
+        assert!(
+            xml_rust.diagnostics.is_empty(),
+            "{:?}",
+            xml_rust.diagnostics
+        );
+        let xml_cemt = render_packaged_dom_projection_converter(
+            "schema-packages/cem-dom-projection/v1/converters/dom-to-xml.cemt",
+            include_str!(
+                "../../cem_ml/schema-packages/cem-dom-projection/v1/converters/dom-to-xml.cemt"
+            ),
+            &xml_document,
+            "application/xml",
+        );
+        assert_eq!(xml_cemt, xml_rust.rendered);
+    }
+
+    #[test]
+    fn real_engine_convert_uses_ready_packaged_dom_projection_cemt_converters() {
+        for (uri, source, input_format, target_format, expected_kind, expected_content) in [
+            {
+                let source = include_str!("../../../examples/cem-ml/login.cem");
+                let document = document_from_cem(source);
+                (
+                    "login.cem",
+                    source,
+                    InputFormat::Cem,
+                    LayerFormat::Html,
+                    "html",
+                    LightDomInterpreter::new().render(&document).rendered,
+                )
+            },
+            {
+                let source =
+                    include_str!("../../../examples/cem-ml/cross-surface/conversion-rules.xml");
+                let document = document_from_xml(source);
+                (
+                    "conversion-rules.xml",
+                    source,
+                    InputFormat::Xml,
+                    LayerFormat::Xml,
+                    "xml",
+                    XmlInterpreter::new().render(&document).rendered,
+                )
+            },
+        ] {
+            let response = RealCemMlEngine::new()
+                .convert(ConvertRequest {
+                    input: EngineInput {
+                        uri: uri.to_owned(),
+                        bytes: source.as_bytes().to_vec(),
+                        from_format: Some(input_format),
+                        identity: None,
+                        root_scope: ScopeConfig::default(),
+                    },
+                    to_format: target_format,
+                    preserve_source_offsets: false,
+                    context: engine_context_with_cem_ql_template_adapter(),
+                    target: None,
+                    target_scope: ScopeConfig::default(),
+                    scheduler_scope_id: 0,
+                })
+                .expect("convert request should execute");
+
+            assert_eq!(response.primary["kind"], expected_kind, "{uri}");
+            assert_eq!(response.primary["content"], expected_content, "{uri}");
+            assert!(
+                !response
+                    .diagnostics
+                    .iter()
+                    .any(|diagnostic| diagnostic.code == "cem.converter.cemt_fallback"),
+                "{uri}: {:?}",
+                response.diagnostics
+            );
         }
     }
 

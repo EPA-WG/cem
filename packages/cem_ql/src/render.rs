@@ -27,6 +27,10 @@ const PRIMARY_INPUT_BINDING: &str = "input";
 /// Loop-position binding name. The legacy HTML+XSLT bridge rewrites XPath `position()` to
 /// `$position`; `cem:for-each` binds it to the 1-based iteration index.
 const POSITION_BINDING: &str = "position";
+const HTML_VOID_ELEMENTS: &[&str] = &[
+    "area", "base", "br", "col", "embed", "hr", "img", "input", "link", "meta", "param", "source",
+    "track", "wbr",
+];
 /// Browser/runtime-support bounded native template calls. The full transform-template
 /// adapter has configurable limits; this render boundary keeps a conservative fixed
 /// default until host options are threaded through the WASM API.
@@ -396,6 +400,11 @@ impl RenderPlanHtmlRenderer {
                 self.out.push_str(tag);
                 for attribute in attributes {
                     self.render_attribute(attribute);
+                }
+                if HTML_VOID_ELEMENTS.contains(&tag.as_str()) && children.is_empty() {
+                    self.out.push('>');
+                    self.record_span(open_start, source_map);
+                    return;
                 }
                 self.out.push('>');
                 self.record_span(open_start, source_map);
@@ -1442,6 +1451,7 @@ impl PlanRenderer {
         for child in children {
             self.render_into(child, &mut rendered_children, &mut rendered_attributes);
         }
+        sort_render_plan_attributes(&mut rendered_attributes);
         out.push(RenderPlanNode::Element {
             tag,
             namespace,
@@ -2017,10 +2027,9 @@ fn source_map_start(source_map: &SourceMapStack) -> u64 {
 
 fn normalize_constructed_name(value: &str) -> Option<String> {
     let name = value.trim();
-    if name.is_empty()
-        || name
-            .chars()
-            .any(|c| c.is_whitespace() || matches!(c, '<' | '>' | '/' | '=' | '"' | '\''))
+    if name
+        .chars()
+        .any(|c| c.is_whitespace() || matches!(c, '<' | '>' | '/' | '=' | '"' | '\''))
     {
         return None;
     }
@@ -2041,6 +2050,14 @@ fn render_plan_nodes_to_text(nodes: &[RenderPlanNode]) -> String {
         }
     }
     text
+}
+
+fn sort_render_plan_attributes(attributes: &mut [RenderPlanAttribute]) {
+    attributes.sort_by(|left, right| {
+        left.namespace
+            .cmp(&right.namespace)
+            .then_with(|| left.name.cmp(&right.name))
+    });
 }
 
 fn escape_text_into(out: &mut String, value: &str) {

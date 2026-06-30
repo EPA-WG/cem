@@ -478,7 +478,7 @@ fn render_template_constructs_dynamic_elements_and_attributes() {
 
     assert_eq!(
         rendered.rendered,
-        r#"<article data-id="42" aria-label="Read">Title</article>"#
+        r#"<article aria-label="Read" data-id="42">Title</article>"#
     );
     assert!(
         rendered.diagnostics.is_empty(),
@@ -494,10 +494,7 @@ fn render_template_attaches_conditional_attributes_to_parent() {
         &TemplateData::default().with_binding("required", bool_value(true)),
     );
 
-    assert_eq!(
-        rendered.rendered,
-        r#"<input type="email" required></input>"#
-    );
+    assert_eq!(rendered.rendered, r#"<input type="email" required>"#);
     assert!(
         rendered.diagnostics.is_empty(),
         "{:?}",

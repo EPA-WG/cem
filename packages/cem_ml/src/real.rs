@@ -194,7 +194,11 @@ fn render_export_conversion_template(
 
     let params = BTreeMap::new();
     let data_bindings = vec!["input".to_owned()];
-    let entrypoint = TransformTemplateEntrypoint::implicit();
+    let entrypoint = template
+        .entrypoint
+        .as_deref()
+        .map(TransformTemplateEntrypoint::named)
+        .unwrap_or_else(TransformTemplateEntrypoint::implicit);
     let execution_policy = TransformExecutionPolicy::default();
     let Some(compiled) = compile_transform_template(
         TransformTemplateCompileSpec {
@@ -397,10 +401,29 @@ fn read_converter_template(
 
 fn converter_template_candidate_paths(uri: &str) -> Vec<PathBuf> {
     let direct = PathBuf::from(uri);
-    if direct.is_absolute() || uri.starts_with("packages/cem_ml/") {
-        return vec![direct];
+    let mut candidates = Vec::new();
+    push_converter_template_candidate(&mut candidates, direct.clone());
+    if direct.is_absolute() {
+        return candidates;
     }
-    vec![direct, PathBuf::from("packages/cem_ml").join(uri)]
+
+    let crate_root = PathBuf::from(env!("CARGO_MANIFEST_DIR"));
+    if let Some(package_relative_uri) = uri.strip_prefix("packages/cem_ml/") {
+        push_converter_template_candidate(&mut candidates, crate_root.join(package_relative_uri));
+    } else {
+        push_converter_template_candidate(
+            &mut candidates,
+            PathBuf::from("packages/cem_ml").join(uri),
+        );
+        push_converter_template_candidate(&mut candidates, crate_root.join(uri));
+    }
+    candidates
+}
+
+fn push_converter_template_candidate(candidates: &mut Vec<PathBuf>, path: PathBuf) {
+    if !candidates.iter().any(|candidate| candidate == &path) {
+        candidates.push(path);
+    }
 }
 
 fn convert_primary_from_template_output(
@@ -4496,6 +4519,7 @@ mod tests {
                     path: template_uri.to_owned(),
                     content_type: CEM_TRANSFORM_CONTENT_TYPE.to_owned(),
                     schema: Some(CEM_TRANSFORM_SCHEMA_URI.to_owned()),
+                    entrypoint: Some("main".to_owned()),
                 }),
                 rust_symbol: None,
                 rust_fallback: Some(ConversionRustFallbackDescriptor {

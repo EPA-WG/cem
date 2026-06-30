@@ -20,7 +20,7 @@
         {element @name="schema" @required-attributes="uri source" @optional-attributes="version"}
         {element @name="content-type" @required-attributes="value" @optional-attributes="primary alias"}
         {element @name="namespace" @required-attributes="uri" @optional-attributes="prefix"}
-        {element @name="converter" @required-attributes="id implementation" @optional-attributes="template template-content-type template-schema rust-symbol streamable lossiness implicit explicit-only readiness fallback-reason" @children="from to"}
+        {element @name="converter" @required-attributes="id implementation" @optional-attributes="template template-content-type template-schema template-entrypoint rust-symbol streamable lossiness implicit explicit-only readiness fallback-reason" @children="from to"}
         {element @name="from" @required-attributes="content-type" @optional-attributes="schema"}
         {element @name="to" @required-attributes="content-type" @optional-attributes="schema"}
         {element @name="artifact" @required-attributes="kind path" @optional-attributes="content-type schema generated"}
@@ -39,6 +39,7 @@
         {attribute @name="template" @type="schema:path"}
         {attribute @name="template-content-type" @type="schema:media-type"}
         {attribute @name="template-schema" @type="schema:uri"}
+        {attribute @name="template-entrypoint" @type="schema:identifier"}
         {attribute @name="rust-symbol" @type="schema:identifier"}
         {attribute @name="streamable" @type="schema:boolean"}
         {attribute @name="lossiness" @type="schema:identifier"}
