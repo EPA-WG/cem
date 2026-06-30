@@ -43,6 +43,10 @@ const MATHML_SCHEMA_URI: &str = "https://cem.dev/ns/data/mathml/1";
 const MATHML_CONTENT_TYPE: &str = "application/mathml+xml";
 const MATHML_PRESENTATION_CONTENT_TYPE: &str = "application/mathml-presentation+xml";
 const MATHML_CONTENT_CONTENT_TYPE: &str = "application/mathml-content+xml";
+const XSLT_SCHEMA_URI: &str = "https://cem.dev/ns/transform/xslt/1";
+const XSLT_CONTENT_TYPE: &str = "application/xslt+xml";
+const XSLT_TEXT_CONTENT_TYPE: &str = "text/xsl";
+const XSLT_CUSTOM_ELEMENT_CONTENT_TYPE: &str = "custom-element-xslt";
 const JSON_SCHEMA_SCHEMA_URI: &str = "https://cem.dev/ns/data/json-schema/1";
 const JSON_SCHEMA_CONTENT_TYPE: &str = "application/schema+json";
 const CEM_DOM_PROJECTION_SCHEMA_URI: &str = "https://cem.dev/ns/projection/dom/1";
@@ -633,6 +637,86 @@ fn schema_owned_examples_validate_through_cli() {
             schema_uri: MATHML_SCHEMA_URI,
             expected_exit: EXIT_HARD_FAILURE,
             expected_diagnostics: &["cem.mathml.not_well_formed_xml"],
+        },
+        ValidationExample {
+            name: "xslt basic stylesheet",
+            path: "packages/cem_ml/schema-packages/xslt/v1/examples/basic-stylesheet.xsl",
+            content_type: XSLT_CONTENT_TYPE,
+            schema_uri: XSLT_SCHEMA_URI,
+            expected_exit: EXIT_OK,
+            expected_diagnostics: &[],
+        },
+        ValidationExample {
+            name: "xslt named template",
+            path: "packages/cem_ml/schema-packages/xslt/v1/examples/named-template.xslt",
+            content_type: XSLT_TEXT_CONTENT_TYPE,
+            schema_uri: XSLT_SCHEMA_URI,
+            expected_exit: EXIT_OK,
+            expected_diagnostics: &[],
+        },
+        ValidationExample {
+            name: "xslt legacy custom element stylesheet",
+            path: "packages/cem_ml/schema-packages/xslt/v1/examples/legacy-custom-element-stylesheet.xsl",
+            content_type: XSLT_CUSTOM_ELEMENT_CONTENT_TYPE,
+            schema_uri: XSLT_SCHEMA_URI,
+            expected_exit: EXIT_OK,
+            expected_diagnostics: &[],
+        },
+        ValidationExample {
+            name: "xslt legacy custom element fragment",
+            path: "packages/cem_ml/schema-packages/xslt/v1/examples/legacy-custom-element-fragment.html",
+            content_type: XSLT_CUSTOM_ELEMENT_CONTENT_TYPE,
+            schema_uri: XSLT_SCHEMA_URI,
+            expected_exit: EXIT_OK,
+            expected_diagnostics: &[],
+        },
+        ValidationExample {
+            name: "xslt unsupported extension warning",
+            path: "packages/cem_ml/schema-packages/xslt/v1/examples/unsupported-extension-warning.xsl",
+            content_type: XSLT_CONTENT_TYPE,
+            schema_uri: XSLT_SCHEMA_URI,
+            expected_exit: EXIT_OK,
+            expected_diagnostics: &["legacy_xslt.unsupported_construct"],
+        },
+        ValidationExample {
+            name: "xslt invalid missing namespace",
+            path: "packages/cem_ml/schema-packages/xslt/v1/examples/invalid-missing-namespace.xsl",
+            content_type: XSLT_CONTENT_TYPE,
+            schema_uri: XSLT_SCHEMA_URI,
+            expected_exit: EXIT_HARD_FAILURE,
+            expected_diagnostics: &["cem.xslt.namespace_missing"],
+        },
+        ValidationExample {
+            name: "xslt invalid missing version",
+            path: "packages/cem_ml/schema-packages/xslt/v1/examples/invalid-missing-version.xsl",
+            content_type: XSLT_CONTENT_TYPE,
+            schema_uri: XSLT_SCHEMA_URI,
+            expected_exit: EXIT_HARD_FAILURE,
+            expected_diagnostics: &["cem.xslt.version_missing"],
+        },
+        ValidationExample {
+            name: "xslt invalid external include",
+            path: "packages/cem_ml/schema-packages/xslt/v1/examples/invalid-external-include.xsl",
+            content_type: XSLT_CONTENT_TYPE,
+            schema_uri: XSLT_SCHEMA_URI,
+            expected_exit: EXIT_HARD_FAILURE,
+            expected_diagnostics: &["cem.xslt.external_uri_rejected"],
+        },
+        ValidationExample {
+            name: "xslt invalid missing entrypoint",
+            path: "packages/cem_ml/schema-packages/xslt/v1/examples/invalid-missing-entrypoint.xsl",
+            content_type: XSLT_CONTENT_TYPE,
+            schema_uri: XSLT_SCHEMA_URI,
+            expected_exit: EXIT_HARD_FAILURE,
+            expected_diagnostics: &["cem.xslt.entrypoint_missing"],
+        },
+        ValidationExample {
+            name: "xslt invalid not well formed",
+            path: "packages/cem_ml/schema-packages/xslt/v1/examples/invalid-not-well-formed.xsl",
+            content_type: XSLT_CONTENT_TYPE,
+            schema_uri: XSLT_SCHEMA_URI,
+            expected_exit: EXIT_HARD_FAILURE,
+            expected_diagnostics: &["cem.xslt.not_well_formed_xml"],
         },
         ValidationExample {
             name: "json-schema basic",

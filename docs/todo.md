@@ -62,7 +62,7 @@ history belongs in git history and the feature-specific docs linked below.
   - [x] XHTML (`application/xhtml+xml`).
   - [x] SVG (`image/svg+xml`).
   - [x] MathML (`application/mathml+xml`, presentation/content aliases).
-  - [ ] XSLT/XSL legacy/custom-element compatibility
+  - [x] XSLT/XSL legacy/custom-element compatibility
         (`application/xslt+xml`, `text/xsl`, custom-element aliases).
   - [ ] HTML (`text/html`).
   - [ ] CSS/scoped style content (`text/css`).
