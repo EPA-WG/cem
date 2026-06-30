@@ -109,6 +109,9 @@ history belongs in git history and the feature-specific docs linked below.
           including target identity, category/context, fragment/document mode,
           canonicalization, source-map policy, renderer bridge, insertion
           compatibility validation, and double-encoding diagnostics.
+    - [x] Add evaluated encode-artifact insertion validation helpers and
+          context builders so renderer code can reject incompatible artifacts
+          before writer composition.
   - [ ] Add CEMT declaration vocabulary for `encoding-function`,
         `format-function`, and `color-function` with registry-validatable
         metadata: `name`, `category`, `subject`, `produces`, `content-type`,

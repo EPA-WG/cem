@@ -887,6 +887,35 @@ pub struct TransformTemplateEncodeEvaluationResponse {
     pub diagnostics: Vec<Diagnostic>,
 }
 
+impl TransformTemplateEncodeEvaluationResponse {
+    pub fn validate_insertions(
+        &self,
+        context: &TransformTemplateEncodedArtifactInsertionContext,
+        uri: Option<&str>,
+    ) -> Vec<Diagnostic> {
+        validate_transform_template_encoded_insertions(&self.encoded, context, uri)
+    }
+}
+
+pub fn validate_transform_template_encoded_insertions(
+    encoded: &[TransformTemplateEvaluatedEncodeExpression],
+    context: &TransformTemplateEncodedArtifactInsertionContext,
+    uri: Option<&str>,
+) -> Vec<Diagnostic> {
+    let mut diagnostics = Vec::new();
+    for evaluated in encoded {
+        if let Err(error) = evaluated.artifact.validate_insertion(context) {
+            let mut diagnostic = error.diagnostic(uri);
+            diagnostic.node = evaluated.expression.owner.clone();
+            if diagnostic.node.is_none() {
+                diagnostic.node = Some(evaluated.expression.expression.clone());
+            }
+            diagnostics.push(diagnostic);
+        }
+    }
+    diagnostics
+}
+
 pub fn evaluate_transform_template_encode_expressions<F>(
     expressions: &[TransformTemplateEncodeExpression],
     context: TransformTemplateEncodeEvaluationContext<'_>,
@@ -1687,6 +1716,53 @@ pub struct TransformTemplateEncodedArtifactInsertionContext {
     pub mode: Option<TransformTemplateEncodedArtifactMode>,
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub canonical: Option<bool>,
+}
+
+impl TransformTemplateEncodedArtifactInsertionContext {
+    pub fn new(content_type: impl Into<String>, schema: impl Into<String>) -> Self {
+        Self {
+            content_type: content_type.into(),
+            schema: schema.into(),
+            ..Self::default()
+        }
+    }
+
+    pub fn from_encoding_target(
+        target: &TransformTemplateEncodingTarget,
+        produces: Option<TransformTemplateOutputProducedKind>,
+    ) -> Self {
+        Self {
+            produces,
+            content_type: target.content_type.clone(),
+            schema: target.schema.clone(),
+            category: Some(target.category.clone()),
+            context: target.context.clone(),
+            ..Self::default()
+        }
+    }
+
+    pub fn from_format_identity(identity: &FormatIdentity) -> Self {
+        Self {
+            content_type: identity.content_type.clone().unwrap_or_default(),
+            schema: identity.schema.clone().unwrap_or_default(),
+            ..Self::default()
+        }
+    }
+
+    pub fn with_category(mut self, category: impl Into<String>) -> Self {
+        self.category = Some(category.into());
+        self
+    }
+
+    pub fn with_context(mut self, context: impl Into<String>) -> Self {
+        self.context = Some(context.into());
+        self
+    }
+
+    pub fn with_produces(mut self, produces: TransformTemplateOutputProducedKind) -> Self {
+        self.produces = Some(produces);
+        self
+    }
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -4041,6 +4117,25 @@ mod tests {
         assert_eq!(artifact.identity.target.context.as_deref(), Some("text"));
         assert!(artifact.identity.canonical);
         assert_eq!(artifact.value, Value::String("Hello &amp; CEM".to_owned()));
+
+        let insertion_context =
+            TransformTemplateEncodedArtifactInsertionContext::from_encoding_target(
+                &evaluated.encoded[0].expression.target,
+                Some(TransformTemplateOutputProducedKind::Text),
+            );
+        assert!(evaluated
+            .validate_insertions(&insertion_context, Some("templates/runtime-encoding.cemt"))
+            .is_empty());
+
+        let mismatch_context = insertion_context
+            .clone()
+            .with_context("double-quoted-attribute");
+        let insertion_diagnostics = evaluated
+            .validate_insertions(&mismatch_context, Some("templates/runtime-encoding.cemt"));
+        assert!(insertion_diagnostics.iter().any(|diagnostic| {
+            diagnostic.code == TRANSFORM_TEMPLATE_ENCODED_ARTIFACT_CONTEXT_MISMATCH_CODE
+                && diagnostic.node.as_deref() == Some("main")
+        }));
     }
 
     #[test]
