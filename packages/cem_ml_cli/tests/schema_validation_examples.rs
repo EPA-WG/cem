@@ -35,6 +35,8 @@ const XML_TEXT_CONTENT_TYPE: &str = "text/xml; charset=utf-8";
 const RELAX_NG_SCHEMA_URI: &str = "https://cem.dev/ns/data/relax-ng/1";
 const RELAX_NG_XML_CONTENT_TYPE: &str = "application/relax-ng+xml";
 const RELAX_NG_COMPACT_CONTENT_TYPE: &str = "application/relax-ng-compact-syntax";
+const XHTML_SCHEMA_URI: &str = "https://cem.dev/ns/data/xhtml/1";
+const XHTML_CONTENT_TYPE: &str = "application/xhtml+xml";
 const JSON_SCHEMA_SCHEMA_URI: &str = "https://cem.dev/ns/data/json-schema/1";
 const JSON_SCHEMA_CONTENT_TYPE: &str = "application/schema+json";
 const CEM_DOM_PROJECTION_SCHEMA_URI: &str = "https://cem.dev/ns/projection/dom/1";
@@ -481,6 +483,46 @@ fn schema_owned_examples_validate_through_cli() {
             schema_uri: RELAX_NG_SCHEMA_URI,
             expected_exit: EXIT_HARD_FAILURE,
             expected_diagnostics: &["cem.relax_ng.compact_parse_error"],
+        },
+        ValidationExample {
+            name: "xhtml basic document",
+            path: "packages/cem_ml/schema-packages/xhtml/v1/examples/basic-document.xhtml",
+            content_type: XHTML_CONTENT_TYPE,
+            schema_uri: XHTML_SCHEMA_URI,
+            expected_exit: EXIT_OK,
+            expected_diagnostics: &[],
+        },
+        ValidationExample {
+            name: "xhtml form page",
+            path: "packages/cem_ml/schema-packages/xhtml/v1/examples/form-page.xhtml",
+            content_type: XHTML_CONTENT_TYPE,
+            schema_uri: XHTML_SCHEMA_URI,
+            expected_exit: EXIT_OK,
+            expected_diagnostics: &[],
+        },
+        ValidationExample {
+            name: "xhtml invalid missing namespace",
+            path: "packages/cem_ml/schema-packages/xhtml/v1/examples/invalid-missing-namespace.xhtml",
+            content_type: XHTML_CONTENT_TYPE,
+            schema_uri: XHTML_SCHEMA_URI,
+            expected_exit: EXIT_HARD_FAILURE,
+            expected_diagnostics: &["cem.xhtml.namespace_missing"],
+        },
+        ValidationExample {
+            name: "xhtml invalid body before head",
+            path: "packages/cem_ml/schema-packages/xhtml/v1/examples/invalid-body-before-head.xhtml",
+            content_type: XHTML_CONTENT_TYPE,
+            schema_uri: XHTML_SCHEMA_URI,
+            expected_exit: EXIT_HARD_FAILURE,
+            expected_diagnostics: &["cem.xhtml.head_body_order"],
+        },
+        ValidationExample {
+            name: "xhtml invalid not well formed",
+            path: "packages/cem_ml/schema-packages/xhtml/v1/examples/invalid-not-well-formed.xhtml",
+            content_type: XHTML_CONTENT_TYPE,
+            schema_uri: XHTML_SCHEMA_URI,
+            expected_exit: EXIT_HARD_FAILURE,
+            expected_diagnostics: &["cem.xhtml.not_well_formed_xml"],
         },
         ValidationExample {
             name: "json-schema basic",

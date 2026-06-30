@@ -59,7 +59,7 @@ history belongs in git history and the feature-specific docs linked below.
   - [x] XML (`application/xml`, XML aliases).
   - [x] Relax NG schema
         (`application/relax-ng+xml`, `application/relax-ng-compact-syntax`).
-  - [ ] XHTML (`application/xhtml+xml`).
+  - [x] XHTML (`application/xhtml+xml`).
   - [ ] SVG (`image/svg+xml`).
   - [ ] MathML (`application/mathml+xml`, presentation/content aliases).
   - [ ] XSLT/XSL legacy/custom-element compatibility

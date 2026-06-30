@@ -35,3 +35,27 @@ The schema describes XHTML resources as an XML-based HTML document model:
 Current runtime export still routes `application/xhtml+xml` through the HTML
 adapter; this package records the future XHTML-specific schema identity and
 validation surface.
+
+## Validation Examples
+
+Validate XHTML resources through the CLI with the schema URL and content type:
+
+```bash
+cem-ml validate --format json \
+  --content-type application/xhtml+xml \
+  --schema https://cem.dev/ns/data/xhtml/1 \
+  packages/cem_ml/schema-packages/xhtml/v1/examples/basic-document.xhtml
+```
+
+Checked examples:
+
+- [basic-document.xhtml](examples/basic-document.xhtml): a minimal XHTML
+  document with `head` and `body`.
+- [form-page.xhtml](examples/form-page.xhtml): a small XHTML form page using
+  XML serialization for void elements.
+- [invalid-missing-namespace.xhtml](examples/invalid-missing-namespace.xhtml):
+  reports `cem.xhtml.namespace_missing`.
+- [invalid-body-before-head.xhtml](examples/invalid-body-before-head.xhtml):
+  reports `cem.xhtml.head_body_order`.
+- [invalid-not-well-formed.xhtml](examples/invalid-not-well-formed.xhtml):
+  reports `cem.xhtml.not_well_formed_xml`.

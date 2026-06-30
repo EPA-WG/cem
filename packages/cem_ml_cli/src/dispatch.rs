@@ -3032,6 +3032,10 @@ fn direct_source_validation_report(
             diagnostics.extend(collect_relax_ng_source_diagnostics(std::slice::from_ref(
                 input,
             )));
+        } else if is_xhtml_source_input(input) {
+            diagnostics.extend(collect_xhtml_source_diagnostics(std::slice::from_ref(
+                input,
+            )));
         } else if is_xml_source_input(input) {
             diagnostics.extend(collect_xml_source_diagnostics(std::slice::from_ref(input)));
         } else if is_json_source_input(input) {
@@ -3249,6 +3253,30 @@ fn is_relax_ng_source_input(input: &eng::EngineInput) -> bool {
     }
 }
 
+fn is_xhtml_source_input(input: &eng::EngineInput) -> bool {
+    let identity = input
+        .identity
+        .clone()
+        .unwrap_or_else(|| input.root_scope.format_identity());
+    let schema_is_xhtml = identity
+        .schema
+        .as_deref()
+        .map(str::trim)
+        .is_some_and(|schema| schema == cem_ml::schema::registry::XHTML_SCHEMA_URI);
+    let content_type = identity
+        .content_type
+        .as_deref()
+        .map(cli_content_type_essence);
+
+    match content_type.as_deref() {
+        Some(content_type) if is_xhtml_source_content_type(content_type) => {
+            identity.schema.is_none() || schema_is_xhtml
+        }
+        Some(_) => false,
+        None => schema_is_xhtml,
+    }
+}
+
 fn is_cem_dom_projection_source_input(input: &eng::EngineInput) -> bool {
     let identity = input
         .identity
@@ -3384,6 +3412,10 @@ fn is_relax_ng_source_content_type(content_type: &str) -> bool {
         cem_ml::schema::registry::RELAX_NG_XML_CONTENT_TYPE
             | cem_ml::schema::registry::RELAX_NG_COMPACT_CONTENT_TYPE
     )
+}
+
+fn is_xhtml_source_content_type(content_type: &str) -> bool {
+    content_type == cem_ml::schema::registry::XHTML_CONTENT_TYPE
 }
 
 fn is_xml_source_content_type(content_type: &str) -> bool {
@@ -4250,6 +4282,398 @@ fn relax_ng_unsupported_encoding_diagnostic(
 }
 
 fn relax_ng_diagnostic(
+    input: &eng::EngineInput,
+    source: &str,
+    byte_offset: Option<u64>,
+    code: &'static str,
+    severity: cem_ml::diagnostics::Severity,
+    message: String,
+) -> cem_ml::diagnostics::Diagnostic {
+    let (line, column) = byte_offset
+        .and_then(|offset| usize::try_from(offset).ok())
+        .map(|offset| markdown_line_col(source, offset))
+        .map(|(line, column)| (Some(line), Some(column)))
+        .unwrap_or((None, None));
+    cem_ml::diagnostics::Diagnostic {
+        uri: Some(input.uri.clone()),
+        line,
+        column,
+        byte_offset,
+        code: code.to_owned(),
+        severity,
+        message,
+        ..cem_ml::diagnostics::Diagnostic::default()
+    }
+}
+
+fn collect_xhtml_source_diagnostics(
+    inputs: &[eng::EngineInput],
+) -> Vec<cem_ml::diagnostics::Diagnostic> {
+    let mut diagnostics = Vec::new();
+    for input in inputs {
+        let content_type = input_source_content_type(input);
+        if content_type
+            .as_deref()
+            .and_then(|content_type| cli_content_type_parameter(content_type, "profile"))
+            .is_some()
+        {
+            diagnostics.push(xhtml_diagnostic(
+                input,
+                "",
+                None,
+                "cem.xhtml.profile_deprecated",
+                cem_ml::diagnostics::Severity::Info,
+                "application/xhtml+xml profile parameter is deprecated".to_owned(),
+            ));
+        }
+
+        let source = match std::str::from_utf8(&input.bytes) {
+            Ok(source) => source,
+            Err(error) => {
+                diagnostics.push(xhtml_not_well_formed_diagnostic(
+                    input,
+                    "",
+                    u64::try_from(error.valid_up_to()).ok(),
+                    format!("XHTML source must be valid UTF-8: {error}"),
+                ));
+                continue;
+            }
+        };
+
+        diagnostics.extend(validate_xhtml_source(input, source));
+    }
+    diagnostics
+}
+
+#[derive(Clone, Debug)]
+struct XhtmlElementFrame {
+    local_name: String,
+    namespace_uri: String,
+}
+
+#[derive(Clone, Debug, Default)]
+struct XhtmlRootState {
+    root_is_html: bool,
+    saw_head: bool,
+    saw_body: bool,
+    reported_order: bool,
+}
+
+fn validate_xhtml_source(
+    input: &eng::EngineInput,
+    source: &str,
+) -> Vec<cem_ml::diagnostics::Diagnostic> {
+    let mut diagnostics = Vec::new();
+    let mut reader = quick_xml::Reader::from_str(source);
+    reader.config_mut().check_comments = true;
+
+    let mut element_stack: Vec<XhtmlElementFrame> = Vec::new();
+    let mut namespace_stack = vec![xml_initial_namespaces()];
+    let mut root_count = 0usize;
+    let mut root_state = XhtmlRootState::default();
+
+    loop {
+        match reader.read_event() {
+            Ok(quick_xml::events::Event::Start(start)) => {
+                let start_offset = xml_event_position(&reader, &start, false);
+                let (frame, namespaces, mut event_diagnostics) =
+                    xhtml_start_frame(input, source, &start, &namespace_stack, start_offset);
+                diagnostics.append(&mut event_diagnostics);
+                xhtml_validate_element_position(
+                    input,
+                    source,
+                    start_offset,
+                    &frame,
+                    &element_stack,
+                    &mut root_state,
+                    &mut root_count,
+                    &mut diagnostics,
+                );
+                element_stack.push(frame);
+                namespace_stack.push(namespaces);
+            }
+            Ok(quick_xml::events::Event::Empty(start)) => {
+                let start_offset = xml_event_position(&reader, &start, true);
+                let (frame, _, mut event_diagnostics) =
+                    xhtml_start_frame(input, source, &start, &namespace_stack, start_offset);
+                diagnostics.append(&mut event_diagnostics);
+                xhtml_validate_element_position(
+                    input,
+                    source,
+                    start_offset,
+                    &frame,
+                    &element_stack,
+                    &mut root_state,
+                    &mut root_count,
+                    &mut diagnostics,
+                );
+            }
+            Ok(quick_xml::events::Event::End(_)) => {
+                if element_stack.pop().is_some() && namespace_stack.len() > 1 {
+                    namespace_stack.pop();
+                }
+            }
+            Ok(quick_xml::events::Event::Text(text)) => {
+                if element_stack.is_empty() && !xml_bytes_are_whitespace(text.as_ref()) {
+                    diagnostics.push(xhtml_not_well_formed_diagnostic(
+                        input,
+                        source,
+                        Some(reader.error_position()),
+                        "XHTML document cannot contain character data outside the document element"
+                            .to_owned(),
+                    ));
+                } else if element_stack.len() == 1 && !xml_bytes_are_whitespace(text.as_ref()) {
+                    xhtml_report_head_body_order(
+                        input,
+                        source,
+                        Some(reader.error_position()),
+                        &mut root_state,
+                        &mut diagnostics,
+                        "XHTML html element may only contain head and body child elements",
+                    );
+                }
+            }
+            Ok(quick_xml::events::Event::DocType(_)) => {}
+            Ok(quick_xml::events::Event::Eof) => break,
+            Ok(_) => {}
+            Err(error) => {
+                diagnostics.push(xhtml_xml_error_diagnostic(
+                    input,
+                    source,
+                    Some(reader.error_position()),
+                    &error,
+                ));
+                break;
+            }
+        }
+    }
+
+    if root_count == 0 {
+        diagnostics.push(xhtml_not_well_formed_diagnostic(
+            input,
+            source,
+            Some(0),
+            "XHTML document must contain a document element".to_owned(),
+        ));
+    }
+    if root_state.root_is_html && (!root_state.saw_head || !root_state.saw_body) {
+        xhtml_report_head_body_order(
+            input,
+            source,
+            Some(0),
+            &mut root_state,
+            &mut diagnostics,
+            "XHTML html element must contain a head element followed by a body element",
+        );
+    }
+
+    diagnostics
+}
+
+fn xhtml_start_frame(
+    input: &eng::EngineInput,
+    source: &str,
+    start: &quick_xml::events::BytesStart<'_>,
+    namespace_stack: &[BTreeMap<String, String>],
+    byte_offset: Option<u64>,
+) -> (
+    XhtmlElementFrame,
+    BTreeMap<String, String>,
+    Vec<cem_ml::diagnostics::Diagnostic>,
+) {
+    let mut diagnostics = Vec::new();
+    let mut namespaces = namespace_stack
+        .last()
+        .cloned()
+        .unwrap_or_else(xml_initial_namespaces);
+
+    for attribute in start.attributes().with_checks(false) {
+        match attribute {
+            Ok(attribute) => {
+                let name = xml_qname_display(attribute.key.as_ref());
+                let value = String::from_utf8_lossy(attribute.value.as_ref()).into_owned();
+                if name == "xmlns" {
+                    namespaces.insert(String::new(), value);
+                } else if let Some(prefix) = name.strip_prefix("xmlns:") {
+                    namespaces.insert(prefix.to_owned(), value);
+                }
+            }
+            Err(error) => diagnostics.push(xhtml_not_well_formed_diagnostic(
+                input,
+                source,
+                byte_offset,
+                format!("XHTML XML attribute parse error: {error}"),
+            )),
+        }
+    }
+
+    let qualified_name = xml_qname_display(start.name().as_ref());
+    let (namespace_uri, local_name) = xhtml_expanded_name(&qualified_name, &namespaces);
+    (
+        XhtmlElementFrame {
+            local_name,
+            namespace_uri,
+        },
+        namespaces,
+        diagnostics,
+    )
+}
+
+fn xhtml_validate_element_position(
+    input: &eng::EngineInput,
+    source: &str,
+    byte_offset: Option<u64>,
+    frame: &XhtmlElementFrame,
+    element_stack: &[XhtmlElementFrame],
+    root_state: &mut XhtmlRootState,
+    root_count: &mut usize,
+    diagnostics: &mut Vec<cem_ml::diagnostics::Diagnostic>,
+) {
+    if element_stack.is_empty() {
+        *root_count += 1;
+        if *root_count > 1 {
+            diagnostics.push(xhtml_not_well_formed_diagnostic(
+                input,
+                source,
+                byte_offset,
+                "XHTML document must have exactly one document element".to_owned(),
+            ));
+            return;
+        }
+        if frame.local_name != "html" {
+            diagnostics.push(xhtml_diagnostic(
+                input,
+                source,
+                byte_offset,
+                "cem.xhtml.root_not_html",
+                cem_ml::diagnostics::Severity::Error,
+                format!(
+                    "XHTML root element must be `html`, found `{}`",
+                    frame.local_name
+                ),
+            ));
+            return;
+        }
+        if frame.namespace_uri != cem_ml::schema::registry::XHTML_NAMESPACE_URI {
+            diagnostics.push(xhtml_diagnostic(
+                input,
+                source,
+                byte_offset,
+                "cem.xhtml.namespace_missing",
+                cem_ml::diagnostics::Severity::Error,
+                "XHTML root `html` element must use the http://www.w3.org/1999/xhtml namespace"
+                    .to_owned(),
+            ));
+            return;
+        }
+        root_state.root_is_html = true;
+        return;
+    }
+
+    if !root_state.root_is_html || element_stack.len() != 1 {
+        return;
+    }
+
+    if frame.namespace_uri != cem_ml::schema::registry::XHTML_NAMESPACE_URI {
+        xhtml_report_head_body_order(
+            input,
+            source,
+            byte_offset,
+            root_state,
+            diagnostics,
+            "XHTML html element direct children must be XHTML head and body elements",
+        );
+        return;
+    }
+
+    match frame.local_name.as_str() {
+        "head" if !root_state.saw_head && !root_state.saw_body => {
+            root_state.saw_head = true;
+        }
+        "body" if root_state.saw_head && !root_state.saw_body => {
+            root_state.saw_body = true;
+        }
+        _ => xhtml_report_head_body_order(
+            input,
+            source,
+            byte_offset,
+            root_state,
+            diagnostics,
+            "XHTML html element must contain exactly one head element followed by one body element",
+        ),
+    }
+}
+
+fn xhtml_report_head_body_order(
+    input: &eng::EngineInput,
+    source: &str,
+    byte_offset: Option<u64>,
+    root_state: &mut XhtmlRootState,
+    diagnostics: &mut Vec<cem_ml::diagnostics::Diagnostic>,
+    message: &str,
+) {
+    if root_state.reported_order {
+        return;
+    }
+    root_state.reported_order = true;
+    diagnostics.push(xhtml_diagnostic(
+        input,
+        source,
+        byte_offset,
+        "cem.xhtml.head_body_order",
+        cem_ml::diagnostics::Severity::Error,
+        message.to_owned(),
+    ));
+}
+
+fn xhtml_expanded_name(
+    qualified_name: &str,
+    namespaces: &BTreeMap<String, String>,
+) -> (String, String) {
+    if let Some((prefix, local_name)) = qualified_name.split_once(':') {
+        (
+            namespaces.get(prefix).cloned().unwrap_or_default(),
+            local_name.to_owned(),
+        )
+    } else {
+        (
+            namespaces.get("").cloned().unwrap_or_default(),
+            qualified_name.to_owned(),
+        )
+    }
+}
+
+fn xhtml_xml_error_diagnostic(
+    input: &eng::EngineInput,
+    source: &str,
+    byte_offset: Option<u64>,
+    error: &quick_xml::Error,
+) -> cem_ml::diagnostics::Diagnostic {
+    xhtml_not_well_formed_diagnostic(
+        input,
+        source,
+        byte_offset,
+        format!("XHTML XML parse error: {error}"),
+    )
+}
+
+fn xhtml_not_well_formed_diagnostic(
+    input: &eng::EngineInput,
+    source: &str,
+    byte_offset: Option<u64>,
+    message: String,
+) -> cem_ml::diagnostics::Diagnostic {
+    xhtml_diagnostic(
+        input,
+        source,
+        byte_offset,
+        "cem.xhtml.not_well_formed_xml",
+        cem_ml::diagnostics::Severity::Error,
+        message,
+    )
+}
+
+fn xhtml_diagnostic(
     input: &eng::EngineInput,
     source: &str,
     byte_offset: Option<u64>,
@@ -11378,6 +11802,206 @@ start =
     }
 
     #[test]
+    fn validate_xhtml_source_uses_xhtml_validator() {
+        let p = write_fixture(
+            "validate-xhtml-source.xhtml",
+            r#"<?xml version="1.0" encoding="UTF-8"?>
+<html xmlns="http://www.w3.org/1999/xhtml" lang="en">
+  <head>
+    <title>Document</title>
+  </head>
+  <body>
+    <p>Hello.</p>
+  </body>
+</html>
+"#,
+        );
+        let (outcome, stdout, stderr) = run(
+            &RealCemMlEngine::new(),
+            &[
+                "validate",
+                "--format",
+                "json",
+                "--content-type",
+                "application/xhtml+xml",
+                "--schema",
+                cem_ml::schema::registry::XHTML_SCHEMA_URI,
+                p.to_str().unwrap(),
+            ],
+        );
+
+        assert_eq!(outcome.exit_code, EXIT_OK, "{stderr}");
+        let v: serde_json::Value = serde_json::from_str(stdout.trim()).unwrap();
+        let diagnostics = v["diagnostics"].as_array().unwrap();
+        assert_eq!(v["summary"]["hardViolationCount"], 0);
+        assert!(diagnostics.is_empty());
+        assert!(!diagnostics
+            .iter()
+            .any(|diag| diag["code"] == "cem.lifecycle.adapter_unsupported"));
+    }
+
+    #[test]
+    fn validate_xhtml_source_reports_missing_namespace() {
+        let p = write_fixture(
+            "validate-xhtml-source-missing-namespace.xhtml",
+            r#"<html>
+  <head><title>Missing namespace</title></head>
+  <body><p>Not XHTML.</p></body>
+</html>
+"#,
+        );
+        let (outcome, stdout, stderr) = run(
+            &RealCemMlEngine::new(),
+            &[
+                "validate",
+                "--format",
+                "json",
+                "--content-type",
+                "application/xhtml+xml",
+                "--schema",
+                cem_ml::schema::registry::XHTML_SCHEMA_URI,
+                p.to_str().unwrap(),
+            ],
+        );
+
+        assert_eq!(outcome.exit_code, EXIT_HARD_FAILURE, "{stderr}");
+        let v: serde_json::Value = serde_json::from_str(stdout.trim()).unwrap();
+        let diagnostics = v["diagnostics"].as_array().unwrap();
+        assert!(diagnostics
+            .iter()
+            .any(|diag| diag["code"] == "cem.xhtml.namespace_missing"));
+    }
+
+    #[test]
+    fn validate_xhtml_source_reports_root_not_html() {
+        let p = write_fixture(
+            "validate-xhtml-source-root-not-html.xhtml",
+            r#"<section xmlns="http://www.w3.org/1999/xhtml">
+  <head><title>Wrong root</title></head>
+  <body><p>Bad root.</p></body>
+</section>
+"#,
+        );
+        let (outcome, stdout, stderr) = run(
+            &RealCemMlEngine::new(),
+            &[
+                "validate",
+                "--format",
+                "json",
+                "--content-type",
+                "application/xhtml+xml",
+                "--schema",
+                cem_ml::schema::registry::XHTML_SCHEMA_URI,
+                p.to_str().unwrap(),
+            ],
+        );
+
+        assert_eq!(outcome.exit_code, EXIT_HARD_FAILURE, "{stderr}");
+        let v: serde_json::Value = serde_json::from_str(stdout.trim()).unwrap();
+        let diagnostics = v["diagnostics"].as_array().unwrap();
+        assert!(diagnostics
+            .iter()
+            .any(|diag| diag["code"] == "cem.xhtml.root_not_html"));
+    }
+
+    #[test]
+    fn validate_xhtml_source_reports_head_body_order() {
+        let p = write_fixture(
+            "validate-xhtml-source-head-body-order.xhtml",
+            r#"<html xmlns="http://www.w3.org/1999/xhtml">
+  <body><p>Body first.</p></body>
+  <head><title>Late head</title></head>
+</html>
+"#,
+        );
+        let (outcome, stdout, stderr) = run(
+            &RealCemMlEngine::new(),
+            &[
+                "validate",
+                "--format",
+                "json",
+                "--content-type",
+                "application/xhtml+xml",
+                "--schema",
+                cem_ml::schema::registry::XHTML_SCHEMA_URI,
+                p.to_str().unwrap(),
+            ],
+        );
+
+        assert_eq!(outcome.exit_code, EXIT_HARD_FAILURE, "{stderr}");
+        let v: serde_json::Value = serde_json::from_str(stdout.trim()).unwrap();
+        let diagnostics = v["diagnostics"].as_array().unwrap();
+        assert!(diagnostics
+            .iter()
+            .any(|diag| diag["code"] == "cem.xhtml.head_body_order"));
+    }
+
+    #[test]
+    fn validate_xhtml_source_reports_not_well_formed_xml() {
+        let p = write_fixture(
+            "validate-xhtml-source-not-well-formed.xhtml",
+            r#"<html xmlns="http://www.w3.org/1999/xhtml">
+  <head><title>Broken</title></head>
+  <body><p>Missing close</body>
+</html>
+"#,
+        );
+        let (outcome, stdout, stderr) = run(
+            &RealCemMlEngine::new(),
+            &[
+                "validate",
+                "--format",
+                "json",
+                "--content-type",
+                "application/xhtml+xml",
+                "--schema",
+                cem_ml::schema::registry::XHTML_SCHEMA_URI,
+                p.to_str().unwrap(),
+            ],
+        );
+
+        assert_eq!(outcome.exit_code, EXIT_HARD_FAILURE, "{stderr}");
+        let v: serde_json::Value = serde_json::from_str(stdout.trim()).unwrap();
+        let diagnostics = v["diagnostics"].as_array().unwrap();
+        assert!(diagnostics
+            .iter()
+            .any(|diag| diag["code"] == "cem.xhtml.not_well_formed_xml"));
+    }
+
+    #[test]
+    fn validate_xhtml_source_reports_profile_deprecated() {
+        let p = write_fixture(
+            "validate-xhtml-source-profile.xhtml",
+            r#"<html xmlns="http://www.w3.org/1999/xhtml">
+  <head><title>Profile</title></head>
+  <body><p>Profile parameter is preserved.</p></body>
+</html>
+"#,
+        );
+        let (outcome, stdout, stderr) = run(
+            &RealCemMlEngine::new(),
+            &[
+                "validate",
+                "--format",
+                "json",
+                "--content-type",
+                "application/xhtml+xml; profile=https://example.test/profile",
+                "--schema",
+                cem_ml::schema::registry::XHTML_SCHEMA_URI,
+                p.to_str().unwrap(),
+            ],
+        );
+
+        assert_eq!(outcome.exit_code, EXIT_OK, "{stderr}");
+        let v: serde_json::Value = serde_json::from_str(stdout.trim()).unwrap();
+        let diagnostics = v["diagnostics"].as_array().unwrap();
+        assert_eq!(v["summary"]["hardViolationCount"], 0);
+        assert!(diagnostics
+            .iter()
+            .any(|diag| diag["code"] == "cem.xhtml.profile_deprecated"));
+    }
+
+    #[test]
     fn validate_xml_source_uses_xml_parser() {
         let p = write_fixture(
             "validate-xml-source.xml",
@@ -12992,7 +13616,10 @@ start =
 
     #[test]
     fn validate_positional_xhtml_uses_inferred_html_input_adapter() {
-        let p = write_fixture("validate-positional-xhtml.xhtml", r#"<button>Go</button>"#);
+        let p = write_fixture(
+            "validate-positional-xhtml.xhtml",
+            r#"<html xmlns="http://www.w3.org/1999/xhtml"><head><title>Go</title></head><body><button>Go</button></body></html>"#,
+        );
         let (outcome, stdout, stderr) = run(
             &RealCemMlEngine::new(),
             &["validate", "--format", "json", p.to_str().unwrap()],
