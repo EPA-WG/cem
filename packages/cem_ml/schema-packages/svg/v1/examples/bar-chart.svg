@@ -1,0 +1,17 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<svg xmlns="http://www.w3.org/2000/svg" role="img" viewBox="0 0 320 180" width="320" height="180">
+  <title>Quarterly Revenue</title>
+  <desc>Three bars compare revenue for the first three quarters.</desc>
+  <defs>
+    <linearGradient id="bar-fill" x1="0" x2="0" y1="0" y2="1">
+      <stop offset="0" stop-color="#4f7cff"/>
+      <stop offset="1" stop-color="#1b4fd7"/>
+    </linearGradient>
+  </defs>
+  <rect x="48" y="82" width="48" height="58" fill="url(#bar-fill)"/>
+  <rect x="136" y="48" width="48" height="92" fill="url(#bar-fill)"/>
+  <rect x="224" y="28" width="48" height="112" fill="url(#bar-fill)"/>
+  <text x="48" y="164">Q1</text>
+  <text x="136" y="164">Q2</text>
+  <text x="224" y="164">Q3</text>
+</svg>

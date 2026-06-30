@@ -3036,6 +3036,8 @@ fn direct_source_validation_report(
             diagnostics.extend(collect_xhtml_source_diagnostics(std::slice::from_ref(
                 input,
             )));
+        } else if is_svg_source_input(input) {
+            diagnostics.extend(collect_svg_source_diagnostics(std::slice::from_ref(input)));
         } else if is_xml_source_input(input) {
             diagnostics.extend(collect_xml_source_diagnostics(std::slice::from_ref(input)));
         } else if is_json_source_input(input) {
@@ -3277,6 +3279,30 @@ fn is_xhtml_source_input(input: &eng::EngineInput) -> bool {
     }
 }
 
+fn is_svg_source_input(input: &eng::EngineInput) -> bool {
+    let identity = input
+        .identity
+        .clone()
+        .unwrap_or_else(|| input.root_scope.format_identity());
+    let schema_is_svg = identity
+        .schema
+        .as_deref()
+        .map(str::trim)
+        .is_some_and(|schema| schema == cem_ml::schema::registry::SVG_SCHEMA_URI);
+    let content_type = identity
+        .content_type
+        .as_deref()
+        .map(cli_content_type_essence);
+
+    match content_type.as_deref() {
+        Some(content_type) if is_svg_source_content_type(content_type) => {
+            identity.schema.is_none() || schema_is_svg
+        }
+        Some(_) => false,
+        None => schema_is_svg,
+    }
+}
+
 fn is_cem_dom_projection_source_input(input: &eng::EngineInput) -> bool {
     let identity = input
         .identity
@@ -3416,6 +3442,10 @@ fn is_relax_ng_source_content_type(content_type: &str) -> bool {
 
 fn is_xhtml_source_content_type(content_type: &str) -> bool {
     content_type == cem_ml::schema::registry::XHTML_CONTENT_TYPE
+}
+
+fn is_svg_source_content_type(content_type: &str) -> bool {
+    content_type == cem_ml::schema::registry::SVG_CONTENT_TYPE
 }
 
 fn is_xml_source_content_type(content_type: &str) -> bool {
@@ -4674,6 +4704,477 @@ fn xhtml_not_well_formed_diagnostic(
 }
 
 fn xhtml_diagnostic(
+    input: &eng::EngineInput,
+    source: &str,
+    byte_offset: Option<u64>,
+    code: &'static str,
+    severity: cem_ml::diagnostics::Severity,
+    message: String,
+) -> cem_ml::diagnostics::Diagnostic {
+    let (line, column) = byte_offset
+        .and_then(|offset| usize::try_from(offset).ok())
+        .map(|offset| markdown_line_col(source, offset))
+        .map(|(line, column)| (Some(line), Some(column)))
+        .unwrap_or((None, None));
+    cem_ml::diagnostics::Diagnostic {
+        uri: Some(input.uri.clone()),
+        line,
+        column,
+        byte_offset,
+        code: code.to_owned(),
+        severity,
+        message,
+        ..cem_ml::diagnostics::Diagnostic::default()
+    }
+}
+
+fn collect_svg_source_diagnostics(
+    inputs: &[eng::EngineInput],
+) -> Vec<cem_ml::diagnostics::Diagnostic> {
+    let mut diagnostics = Vec::new();
+    for input in inputs {
+        let source = match std::str::from_utf8(&input.bytes) {
+            Ok(source) => source,
+            Err(error) => {
+                diagnostics.push(svg_not_well_formed_diagnostic(
+                    input,
+                    "",
+                    u64::try_from(error.valid_up_to()).ok(),
+                    format!("SVG source must be valid UTF-8: {error}"),
+                ));
+                continue;
+            }
+        };
+
+        diagnostics.extend(validate_svg_source(input, source));
+    }
+    diagnostics
+}
+
+#[derive(Clone, Debug)]
+struct SvgAttributeView {
+    namespace_uri: String,
+    local_name: String,
+    value: String,
+}
+
+#[derive(Clone, Debug)]
+struct SvgElementFrame {
+    local_name: String,
+    namespace_uri: String,
+    attributes: Vec<SvgAttributeView>,
+}
+
+#[derive(Clone, Debug, Default)]
+struct SvgDocumentState {
+    root_is_svg: bool,
+    root_has_accessible_name: bool,
+    root_accessibility_exempt: bool,
+    reported_external_resource: bool,
+    reported_script: bool,
+}
+
+fn validate_svg_source(
+    input: &eng::EngineInput,
+    source: &str,
+) -> Vec<cem_ml::diagnostics::Diagnostic> {
+    let mut diagnostics = Vec::new();
+    let mut reader = quick_xml::Reader::from_str(source);
+    reader.config_mut().check_comments = true;
+
+    let mut element_stack: Vec<SvgElementFrame> = Vec::new();
+    let mut namespace_stack = vec![xml_initial_namespaces()];
+    let mut root_count = 0usize;
+    let mut state = SvgDocumentState::default();
+
+    loop {
+        match reader.read_event() {
+            Ok(quick_xml::events::Event::Start(start)) => {
+                let start_offset = xml_event_position(&reader, &start, false);
+                let (frame, namespaces, mut event_diagnostics) =
+                    svg_start_frame(input, source, &start, &namespace_stack, start_offset);
+                diagnostics.append(&mut event_diagnostics);
+                svg_validate_element(
+                    input,
+                    source,
+                    start_offset,
+                    &frame,
+                    &element_stack,
+                    &mut state,
+                    &mut root_count,
+                    &mut diagnostics,
+                );
+                element_stack.push(frame);
+                namespace_stack.push(namespaces);
+            }
+            Ok(quick_xml::events::Event::Empty(start)) => {
+                let start_offset = xml_event_position(&reader, &start, true);
+                let (frame, _, mut event_diagnostics) =
+                    svg_start_frame(input, source, &start, &namespace_stack, start_offset);
+                diagnostics.append(&mut event_diagnostics);
+                svg_validate_element(
+                    input,
+                    source,
+                    start_offset,
+                    &frame,
+                    &element_stack,
+                    &mut state,
+                    &mut root_count,
+                    &mut diagnostics,
+                );
+            }
+            Ok(quick_xml::events::Event::End(_)) => {
+                if element_stack.pop().is_some() && namespace_stack.len() > 1 {
+                    namespace_stack.pop();
+                }
+            }
+            Ok(quick_xml::events::Event::Text(text)) => {
+                if element_stack.is_empty() && !xml_bytes_are_whitespace(text.as_ref()) {
+                    diagnostics.push(svg_not_well_formed_diagnostic(
+                        input,
+                        source,
+                        Some(reader.error_position()),
+                        "SVG document cannot contain character data outside the document element"
+                            .to_owned(),
+                    ));
+                }
+            }
+            Ok(quick_xml::events::Event::DocType(_)) => {
+                if !state.reported_external_resource {
+                    state.reported_external_resource = true;
+                    diagnostics.push(svg_diagnostic(
+                        input,
+                        source,
+                        Some(reader.error_position()),
+                        "cem.svg.external_resource_rejected",
+                        cem_ml::diagnostics::Severity::Error,
+                        "SVG DOCTYPE declarations are rejected because they can reference external resources"
+                            .to_owned(),
+                    ));
+                }
+            }
+            Ok(quick_xml::events::Event::Eof) => break,
+            Ok(_) => {}
+            Err(error) => {
+                diagnostics.push(svg_xml_error_diagnostic(
+                    input,
+                    source,
+                    Some(reader.error_position()),
+                    &error,
+                ));
+                break;
+            }
+        }
+    }
+
+    if root_count == 0 {
+        diagnostics.push(svg_not_well_formed_diagnostic(
+            input,
+            source,
+            Some(0),
+            "SVG document must contain a document element".to_owned(),
+        ));
+    } else if state.root_is_svg
+        && !state.root_accessibility_exempt
+        && !state.root_has_accessible_name
+    {
+        diagnostics.push(svg_diagnostic(
+            input,
+            source,
+            Some(0),
+            "cem.svg.accessible_name_missing",
+            cem_ml::diagnostics::Severity::Warning,
+            "Visible SVG root should provide title, desc, aria-label, or aria-labelledby"
+                .to_owned(),
+        ));
+    }
+
+    diagnostics
+}
+
+fn svg_start_frame(
+    input: &eng::EngineInput,
+    source: &str,
+    start: &quick_xml::events::BytesStart<'_>,
+    namespace_stack: &[BTreeMap<String, String>],
+    byte_offset: Option<u64>,
+) -> (
+    SvgElementFrame,
+    BTreeMap<String, String>,
+    Vec<cem_ml::diagnostics::Diagnostic>,
+) {
+    let mut diagnostics = Vec::new();
+    let mut raw_attributes = Vec::new();
+    let mut namespaces = namespace_stack
+        .last()
+        .cloned()
+        .unwrap_or_else(xml_initial_namespaces);
+
+    for attribute in start.attributes().with_checks(false) {
+        match attribute {
+            Ok(attribute) => {
+                let name = xml_qname_display(attribute.key.as_ref());
+                let value = String::from_utf8_lossy(attribute.value.as_ref()).into_owned();
+                if name == "xmlns" {
+                    namespaces.insert(String::new(), value.clone());
+                } else if let Some(prefix) = name.strip_prefix("xmlns:") {
+                    namespaces.insert(prefix.to_owned(), value.clone());
+                }
+                raw_attributes.push((name, value));
+            }
+            Err(error) => diagnostics.push(svg_not_well_formed_diagnostic(
+                input,
+                source,
+                byte_offset,
+                format!("SVG XML attribute parse error: {error}"),
+            )),
+        }
+    }
+
+    let qualified_name = xml_qname_display(start.name().as_ref());
+    if let Some(prefix) = xml_qname_prefix(&qualified_name) {
+        if !xml_prefix_is_bound(&namespaces, prefix) {
+            diagnostics.push(svg_not_well_formed_diagnostic(
+                input,
+                source,
+                byte_offset,
+                format!("SVG namespace prefix `{prefix}` is not bound for `{qualified_name}`"),
+            ));
+        }
+    }
+
+    let (namespace_uri, local_name) = xhtml_expanded_name(&qualified_name, &namespaces);
+    let attributes = raw_attributes
+        .into_iter()
+        .filter(|(qualified_name, _)| !xml_attribute_is_namespace_declaration(qualified_name))
+        .map(|(qualified_name, value)| {
+            if let Some(prefix) = xml_qname_prefix(&qualified_name) {
+                if !xml_prefix_is_bound(&namespaces, prefix) {
+                    diagnostics.push(svg_not_well_formed_diagnostic(
+                        input,
+                        source,
+                        byte_offset,
+                        format!(
+                            "SVG namespace prefix `{prefix}` is not bound for attribute `{qualified_name}`"
+                        ),
+                    ));
+                }
+            }
+            let (namespace_uri, local_name) = xml_attribute_expanded_name(&qualified_name, &namespaces);
+            SvgAttributeView {
+                namespace_uri,
+                local_name,
+                value,
+            }
+        })
+        .collect();
+
+    (
+        SvgElementFrame {
+            local_name,
+            namespace_uri,
+            attributes,
+        },
+        namespaces,
+        diagnostics,
+    )
+}
+
+fn svg_validate_element(
+    input: &eng::EngineInput,
+    source: &str,
+    byte_offset: Option<u64>,
+    frame: &SvgElementFrame,
+    element_stack: &[SvgElementFrame],
+    state: &mut SvgDocumentState,
+    root_count: &mut usize,
+    diagnostics: &mut Vec<cem_ml::diagnostics::Diagnostic>,
+) {
+    if element_stack.is_empty() {
+        *root_count += 1;
+        if *root_count > 1 {
+            diagnostics.push(svg_not_well_formed_diagnostic(
+                input,
+                source,
+                byte_offset,
+                "SVG document must have exactly one document element".to_owned(),
+            ));
+            return;
+        }
+        if frame.local_name != "svg" {
+            diagnostics.push(svg_diagnostic(
+                input,
+                source,
+                byte_offset,
+                "cem.svg.root_not_svg",
+                cem_ml::diagnostics::Severity::Error,
+                format!(
+                    "SVG root element must be `svg`, found `{}`",
+                    frame.local_name
+                ),
+            ));
+            return;
+        }
+        if frame.namespace_uri != cem_ml::schema::registry::SVG_NAMESPACE_URI {
+            diagnostics.push(svg_diagnostic(
+                input,
+                source,
+                byte_offset,
+                "cem.svg.namespace_missing",
+                cem_ml::diagnostics::Severity::Error,
+                "SVG root `svg` element must use the http://www.w3.org/2000/svg namespace"
+                    .to_owned(),
+            ));
+            return;
+        }
+
+        state.root_is_svg = true;
+        state.root_has_accessible_name = svg_frame_has_accessible_name_attribute(frame);
+        state.root_accessibility_exempt = svg_frame_is_accessibility_exempt(frame);
+    } else if state.root_is_svg
+        && element_stack.len() == 1
+        && frame.namespace_uri == cem_ml::schema::registry::SVG_NAMESPACE_URI
+        && matches!(frame.local_name.as_str(), "title" | "desc")
+    {
+        state.root_has_accessible_name = true;
+    }
+
+    if frame.namespace_uri == cem_ml::schema::registry::SVG_NAMESPACE_URI
+        && frame.local_name == "script"
+        && !state.reported_script
+    {
+        state.reported_script = true;
+        diagnostics.push(svg_diagnostic(
+            input,
+            source,
+            byte_offset,
+            "cem.svg.script_rejected",
+            cem_ml::diagnostics::Severity::Error,
+            "SVG script elements are rejected unless an explicit execution policy is enabled"
+                .to_owned(),
+        ));
+    }
+
+    if !state.reported_external_resource {
+        if let Some(attribute) = frame
+            .attributes
+            .iter()
+            .find(|attribute| svg_attribute_requires_resource_policy(attribute))
+        {
+            state.reported_external_resource = true;
+            diagnostics.push(svg_diagnostic(
+                input,
+                source,
+                byte_offset,
+                "cem.svg.external_resource_rejected",
+                cem_ml::diagnostics::Severity::Error,
+                format!(
+                    "SVG attribute `{}` references an external resource without an explicit resolver policy",
+                    attribute.local_name
+                ),
+            ));
+        }
+    }
+}
+
+fn svg_frame_has_accessible_name_attribute(frame: &SvgElementFrame) -> bool {
+    frame.attributes.iter().any(|attribute| {
+        matches!(
+            attribute.local_name.as_str(),
+            "aria-label" | "aria-labelledby"
+        ) && !attribute.value.trim().is_empty()
+    })
+}
+
+fn svg_frame_is_accessibility_exempt(frame: &SvgElementFrame) -> bool {
+    frame.attributes.iter().any(|attribute| {
+        let value = attribute.value.trim().to_ascii_lowercase();
+        (attribute.local_name == "aria-hidden" && value == "true")
+            || (attribute.local_name == "role" && matches!(value.as_str(), "none" | "presentation"))
+            || (attribute.local_name == "hidden" && attribute.namespace_uri.is_empty())
+    })
+}
+
+fn svg_attribute_requires_resource_policy(attribute: &SvgAttributeView) -> bool {
+    let is_direct_resource_reference = matches!(attribute.local_name.as_str(), "href" | "src");
+    (is_direct_resource_reference
+        && svg_direct_resource_reference_requires_policy(&attribute.value))
+        || svg_css_url_reference_requires_policy(&attribute.value)
+}
+
+fn svg_direct_resource_reference_requires_policy(value: &str) -> bool {
+    let trimmed = value.trim();
+    if trimmed.is_empty() {
+        return false;
+    }
+    let unquoted = trimmed.trim_matches('"').trim_matches('\'');
+    if unquoted.starts_with('#') || unquoted.to_ascii_lowercase().starts_with("data:") {
+        return false;
+    }
+    true
+}
+
+fn svg_css_url_reference_requires_policy(value: &str) -> bool {
+    let trimmed = value.trim();
+    let lower = trimmed.to_ascii_lowercase();
+    let mut search_start = 0usize;
+    while let Some(relative_url_start) = lower[search_start..].find("url(") {
+        let url_start = search_start + relative_url_start;
+        let after_url = &trimmed[url_start + 4..];
+        let reference = after_url
+            .split(')')
+            .next()
+            .unwrap_or(after_url)
+            .trim()
+            .trim_matches('"')
+            .trim_matches('\'');
+        if svg_url_function_reference_requires_policy(reference) {
+            return true;
+        }
+        search_start = url_start + 4;
+    }
+    false
+}
+
+fn svg_url_function_reference_requires_policy(value: &str) -> bool {
+    let trimmed = value.trim();
+    if trimmed.starts_with('#') {
+        return false;
+    }
+    !trimmed.to_ascii_lowercase().starts_with("data:")
+}
+
+fn svg_xml_error_diagnostic(
+    input: &eng::EngineInput,
+    source: &str,
+    byte_offset: Option<u64>,
+    error: &quick_xml::Error,
+) -> cem_ml::diagnostics::Diagnostic {
+    svg_not_well_formed_diagnostic(
+        input,
+        source,
+        byte_offset,
+        format!("SVG XML parse error: {error}"),
+    )
+}
+
+fn svg_not_well_formed_diagnostic(
+    input: &eng::EngineInput,
+    source: &str,
+    byte_offset: Option<u64>,
+    message: String,
+) -> cem_ml::diagnostics::Diagnostic {
+    svg_diagnostic(
+        input,
+        source,
+        byte_offset,
+        "cem.svg.not_well_formed_xml",
+        cem_ml::diagnostics::Severity::Error,
+        message,
+    )
+}
+
+fn svg_diagnostic(
     input: &eng::EngineInput,
     source: &str,
     byte_offset: Option<u64>,
@@ -12002,6 +12503,231 @@ start =
     }
 
     #[test]
+    fn validate_svg_source_uses_svg_validator() {
+        let p = write_fixture(
+            "validate-svg-source.svg",
+            r#"<?xml version="1.0" encoding="UTF-8"?>
+<svg xmlns="http://www.w3.org/2000/svg" role="img" viewBox="0 0 24 24">
+  <title>Download</title>
+  <path d="M12 3v12"/>
+</svg>
+"#,
+        );
+        let (outcome, stdout, stderr) = run(
+            &RealCemMlEngine::new(),
+            &[
+                "validate",
+                "--format",
+                "json",
+                "--content-type",
+                "image/svg+xml",
+                "--schema",
+                cem_ml::schema::registry::SVG_SCHEMA_URI,
+                p.to_str().unwrap(),
+            ],
+        );
+
+        assert_eq!(outcome.exit_code, EXIT_OK, "{stderr}");
+        let v: serde_json::Value = serde_json::from_str(stdout.trim()).unwrap();
+        let diagnostics = v["diagnostics"].as_array().unwrap();
+        assert_eq!(v["summary"]["hardViolationCount"], 0);
+        assert!(diagnostics.is_empty());
+        assert!(!diagnostics
+            .iter()
+            .any(|diag| diag["code"] == "cem.lifecycle.adapter_unsupported"));
+    }
+
+    #[test]
+    fn validate_svg_source_reports_missing_namespace() {
+        let p = write_fixture(
+            "validate-svg-source-missing-namespace.svg",
+            r#"<svg role="img" viewBox="0 0 24 24">
+  <title>Missing namespace</title>
+</svg>
+"#,
+        );
+        let (outcome, stdout, stderr) = run(
+            &RealCemMlEngine::new(),
+            &[
+                "validate",
+                "--format",
+                "json",
+                "--content-type",
+                "image/svg+xml",
+                "--schema",
+                cem_ml::schema::registry::SVG_SCHEMA_URI,
+                p.to_str().unwrap(),
+            ],
+        );
+
+        assert_eq!(outcome.exit_code, EXIT_HARD_FAILURE, "{stderr}");
+        let v: serde_json::Value = serde_json::from_str(stdout.trim()).unwrap();
+        let diagnostics = v["diagnostics"].as_array().unwrap();
+        assert!(diagnostics
+            .iter()
+            .any(|diag| diag["code"] == "cem.svg.namespace_missing"));
+    }
+
+    #[test]
+    fn validate_svg_source_reports_root_not_svg() {
+        let p = write_fixture(
+            "validate-svg-source-root-not-svg.svg",
+            r#"<g xmlns="http://www.w3.org/2000/svg">
+  <title>Wrong root</title>
+</g>
+"#,
+        );
+        let (outcome, stdout, stderr) = run(
+            &RealCemMlEngine::new(),
+            &[
+                "validate",
+                "--format",
+                "json",
+                "--content-type",
+                "image/svg+xml",
+                "--schema",
+                cem_ml::schema::registry::SVG_SCHEMA_URI,
+                p.to_str().unwrap(),
+            ],
+        );
+
+        assert_eq!(outcome.exit_code, EXIT_HARD_FAILURE, "{stderr}");
+        let v: serde_json::Value = serde_json::from_str(stdout.trim()).unwrap();
+        let diagnostics = v["diagnostics"].as_array().unwrap();
+        assert!(diagnostics
+            .iter()
+            .any(|diag| diag["code"] == "cem.svg.root_not_svg"));
+    }
+
+    #[test]
+    fn validate_svg_source_reports_script_rejected() {
+        let p = write_fixture(
+            "validate-svg-source-script.svg",
+            r#"<svg xmlns="http://www.w3.org/2000/svg" role="img" viewBox="0 0 24 24">
+  <title>Scripted SVG</title>
+  <script>alert("no")</script>
+</svg>
+"#,
+        );
+        let (outcome, stdout, stderr) = run(
+            &RealCemMlEngine::new(),
+            &[
+                "validate",
+                "--format",
+                "json",
+                "--content-type",
+                "image/svg+xml",
+                "--schema",
+                cem_ml::schema::registry::SVG_SCHEMA_URI,
+                p.to_str().unwrap(),
+            ],
+        );
+
+        assert_eq!(outcome.exit_code, EXIT_HARD_FAILURE, "{stderr}");
+        let v: serde_json::Value = serde_json::from_str(stdout.trim()).unwrap();
+        let diagnostics = v["diagnostics"].as_array().unwrap();
+        assert!(diagnostics
+            .iter()
+            .any(|diag| diag["code"] == "cem.svg.script_rejected"));
+    }
+
+    #[test]
+    fn validate_svg_source_reports_external_resource_rejected() {
+        let p = write_fixture(
+            "validate-svg-source-external.svg",
+            r#"<svg xmlns="http://www.w3.org/2000/svg" role="img" viewBox="0 0 24 24">
+  <title>External image</title>
+  <image href="icons/download.png" width="24" height="24"/>
+</svg>
+"#,
+        );
+        let (outcome, stdout, stderr) = run(
+            &RealCemMlEngine::new(),
+            &[
+                "validate",
+                "--format",
+                "json",
+                "--content-type",
+                "image/svg+xml",
+                "--schema",
+                cem_ml::schema::registry::SVG_SCHEMA_URI,
+                p.to_str().unwrap(),
+            ],
+        );
+
+        assert_eq!(outcome.exit_code, EXIT_HARD_FAILURE, "{stderr}");
+        let v: serde_json::Value = serde_json::from_str(stdout.trim()).unwrap();
+        let diagnostics = v["diagnostics"].as_array().unwrap();
+        assert!(diagnostics
+            .iter()
+            .any(|diag| diag["code"] == "cem.svg.external_resource_rejected"));
+    }
+
+    #[test]
+    fn validate_svg_source_reports_accessible_name_missing_warning() {
+        let p = write_fixture(
+            "validate-svg-source-unnamed.svg",
+            r#"<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24">
+  <path d="M12 3v18"/>
+</svg>
+"#,
+        );
+        let (outcome, stdout, stderr) = run(
+            &RealCemMlEngine::new(),
+            &[
+                "validate",
+                "--format",
+                "json",
+                "--content-type",
+                "image/svg+xml",
+                "--schema",
+                cem_ml::schema::registry::SVG_SCHEMA_URI,
+                p.to_str().unwrap(),
+            ],
+        );
+
+        assert_eq!(outcome.exit_code, EXIT_OK, "{stderr}");
+        let v: serde_json::Value = serde_json::from_str(stdout.trim()).unwrap();
+        let diagnostics = v["diagnostics"].as_array().unwrap();
+        assert_eq!(v["summary"]["hardViolationCount"], 0);
+        assert!(diagnostics
+            .iter()
+            .any(|diag| diag["code"] == "cem.svg.accessible_name_missing"));
+    }
+
+    #[test]
+    fn validate_svg_source_reports_not_well_formed_xml() {
+        let p = write_fixture(
+            "validate-svg-source-not-well-formed.svg",
+            r#"<svg xmlns="http://www.w3.org/2000/svg" role="img">
+  <title>Broken</title>
+  <g><path d="M0 0"/>
+</svg>
+"#,
+        );
+        let (outcome, stdout, stderr) = run(
+            &RealCemMlEngine::new(),
+            &[
+                "validate",
+                "--format",
+                "json",
+                "--content-type",
+                "image/svg+xml",
+                "--schema",
+                cem_ml::schema::registry::SVG_SCHEMA_URI,
+                p.to_str().unwrap(),
+            ],
+        );
+
+        assert_eq!(outcome.exit_code, EXIT_HARD_FAILURE, "{stderr}");
+        let v: serde_json::Value = serde_json::from_str(stdout.trim()).unwrap();
+        let diagnostics = v["diagnostics"].as_array().unwrap();
+        assert!(diagnostics
+            .iter()
+            .any(|diag| diag["code"] == "cem.svg.not_well_formed_xml"));
+    }
+
+    #[test]
     fn validate_xml_source_uses_xml_parser() {
         let p = write_fixture(
             "validate-xml-source.xml",
@@ -13639,7 +14365,7 @@ start =
     fn validate_positional_svg_uses_inferred_xml_input_adapter() {
         let p = write_fixture(
             "validate-positional-svg.svg",
-            r#"<svg><title>Download</title></svg>"#,
+            r#"<svg xmlns="http://www.w3.org/2000/svg"><title>Download</title></svg>"#,
         );
         let (outcome, stdout, stderr) = run(
             &RealCemMlEngine::new(),

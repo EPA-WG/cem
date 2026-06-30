@@ -37,6 +37,8 @@ const RELAX_NG_XML_CONTENT_TYPE: &str = "application/relax-ng+xml";
 const RELAX_NG_COMPACT_CONTENT_TYPE: &str = "application/relax-ng-compact-syntax";
 const XHTML_SCHEMA_URI: &str = "https://cem.dev/ns/data/xhtml/1";
 const XHTML_CONTENT_TYPE: &str = "application/xhtml+xml";
+const SVG_SCHEMA_URI: &str = "https://cem.dev/ns/data/svg/1";
+const SVG_CONTENT_TYPE: &str = "image/svg+xml";
 const JSON_SCHEMA_SCHEMA_URI: &str = "https://cem.dev/ns/data/json-schema/1";
 const JSON_SCHEMA_CONTENT_TYPE: &str = "application/schema+json";
 const CEM_DOM_PROJECTION_SCHEMA_URI: &str = "https://cem.dev/ns/projection/dom/1";
@@ -523,6 +525,54 @@ fn schema_owned_examples_validate_through_cli() {
             schema_uri: XHTML_SCHEMA_URI,
             expected_exit: EXIT_HARD_FAILURE,
             expected_diagnostics: &["cem.xhtml.not_well_formed_xml"],
+        },
+        ValidationExample {
+            name: "svg basic icon",
+            path: "packages/cem_ml/schema-packages/svg/v1/examples/basic-icon.svg",
+            content_type: SVG_CONTENT_TYPE,
+            schema_uri: SVG_SCHEMA_URI,
+            expected_exit: EXIT_OK,
+            expected_diagnostics: &[],
+        },
+        ValidationExample {
+            name: "svg bar chart",
+            path: "packages/cem_ml/schema-packages/svg/v1/examples/bar-chart.svg",
+            content_type: SVG_CONTENT_TYPE,
+            schema_uri: SVG_SCHEMA_URI,
+            expected_exit: EXIT_OK,
+            expected_diagnostics: &[],
+        },
+        ValidationExample {
+            name: "svg unnamed icon",
+            path: "packages/cem_ml/schema-packages/svg/v1/examples/unnamed-icon.svg",
+            content_type: SVG_CONTENT_TYPE,
+            schema_uri: SVG_SCHEMA_URI,
+            expected_exit: EXIT_OK,
+            expected_diagnostics: &["cem.svg.accessible_name_missing"],
+        },
+        ValidationExample {
+            name: "svg invalid missing namespace",
+            path: "packages/cem_ml/schema-packages/svg/v1/examples/invalid-missing-namespace.svg",
+            content_type: SVG_CONTENT_TYPE,
+            schema_uri: SVG_SCHEMA_URI,
+            expected_exit: EXIT_HARD_FAILURE,
+            expected_diagnostics: &["cem.svg.namespace_missing"],
+        },
+        ValidationExample {
+            name: "svg invalid script",
+            path: "packages/cem_ml/schema-packages/svg/v1/examples/invalid-script.svg",
+            content_type: SVG_CONTENT_TYPE,
+            schema_uri: SVG_SCHEMA_URI,
+            expected_exit: EXIT_HARD_FAILURE,
+            expected_diagnostics: &["cem.svg.script_rejected"],
+        },
+        ValidationExample {
+            name: "svg invalid external image",
+            path: "packages/cem_ml/schema-packages/svg/v1/examples/invalid-external-image.svg",
+            content_type: SVG_CONTENT_TYPE,
+            schema_uri: SVG_SCHEMA_URI,
+            expected_exit: EXIT_HARD_FAILURE,
+            expected_diagnostics: &["cem.svg.external_resource_rejected"],
         },
         ValidationExample {
             name: "json-schema basic",
