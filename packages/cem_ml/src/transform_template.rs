@@ -162,6 +162,12 @@ pub const TRANSFORM_TEMPLATE_DECLARATION_DUPLICATE_CODE: &str =
     "cem.transform_template.declaration_duplicate";
 pub const TRANSFORM_TEMPLATE_DECLARATION_INVALID_CODE: &str =
     "cem.transform_template.declaration_invalid";
+pub const TRANSFORM_TEMPLATE_OUTPUT_FUNCTION_UNKNOWN_CODE: &str =
+    "cem.transform_template.output_function_unknown";
+pub const TRANSFORM_TEMPLATE_OUTPUT_FUNCTION_AMBIGUOUS_CODE: &str =
+    "cem.transform_template.output_function_ambiguous";
+pub const TRANSFORM_TEMPLATE_OUTPUT_FUNCTION_CAPABILITY_MISSING_CODE: &str =
+    "cem.transform_template.output_function_capability_missing";
 
 #[derive(Debug, Clone)]
 pub struct TransformTemplateModuleParseRequest {
@@ -229,6 +235,312 @@ pub struct TransformTemplateModuleParamDeclaration {
     pub required: bool,
     #[serde(default)]
     pub visibility: TransformTemplateModuleVisibility,
+}
+
+#[derive(Debug, Clone, Copy, Default, PartialEq, Eq, PartialOrd, Ord, Serialize, Deserialize)]
+#[serde(rename_all = "kebab-case")]
+pub enum TransformTemplateOutputFunctionKind {
+    #[default]
+    Encoding,
+    Format,
+    Color,
+}
+
+#[derive(Debug, Clone, Copy, Default, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "kebab-case")]
+pub enum TransformTemplateOutputProducedKind {
+    #[default]
+    Text,
+    Bytes,
+    Tokens,
+    Chunks,
+    Diagnostics,
+}
+
+impl TransformTemplateOutputProducedKind {
+    fn parse(value: &str) -> Option<Self> {
+        match value.trim() {
+            "text" => Some(Self::Text),
+            "bytes" => Some(Self::Bytes),
+            "tokens" => Some(Self::Tokens),
+            "chunks" => Some(Self::Chunks),
+            "diagnostics" => Some(Self::Diagnostics),
+            _ => None,
+        }
+    }
+}
+
+#[derive(Debug, Clone, Copy, Default, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "kebab-case")]
+pub enum TransformTemplateOutputFunctionImplementation {
+    #[default]
+    Cemt,
+    Native,
+    External,
+}
+
+impl TransformTemplateOutputFunctionImplementation {
+    fn parse(value: &str) -> Option<Self> {
+        match value.trim() {
+            "cemt" => Some(Self::Cemt),
+            "native" => Some(Self::Native),
+            "external" => Some(Self::External),
+            _ => None,
+        }
+    }
+
+    fn requires_capability(self) -> bool {
+        matches!(self, Self::Native | Self::External)
+    }
+}
+
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct TransformTemplateOutputFunctionDescriptor {
+    pub kind: TransformTemplateOutputFunctionKind,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub owner: Option<String>,
+    pub name: String,
+    pub category: String,
+    pub subject: String,
+    pub produces: TransformTemplateOutputProducedKind,
+    pub content_type: String,
+    pub schema: String,
+    #[serde(default, skip_serializing_if = "is_false")]
+    pub canonical: bool,
+    #[serde(default, skip_serializing_if = "is_false")]
+    pub streamable: bool,
+    #[serde(default)]
+    pub visibility: TransformTemplateModuleVisibility,
+    #[serde(default)]
+    pub implementation: TransformTemplateOutputFunctionImplementation,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub profile: Option<String>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub extends: Option<String>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub capability: Option<String>,
+    #[serde(default, skip_serializing_if = "is_false")]
+    pub deterministic: bool,
+    #[serde(default, skip_serializing_if = "is_false")]
+    pub trusted: bool,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub fallback: Option<String>,
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub params: Vec<TransformTemplateModuleParamDeclaration>,
+    #[serde(default, skip_serializing_if = "is_false")]
+    pub body_declared: bool,
+}
+
+impl TransformTemplateOutputFunctionDescriptor {
+    fn key(&self) -> TransformTemplateOutputFunctionKey {
+        TransformTemplateOutputFunctionKey {
+            kind: self.kind,
+            owner: self.owner.clone(),
+            name: self.name.clone(),
+            content_type: content_type_essence(&self.content_type),
+            schema: self.schema.clone(),
+            category: self.category.clone(),
+            subject: self.subject.clone(),
+            profile: self.profile.clone(),
+        }
+    }
+}
+
+#[derive(Debug, Clone, Default, PartialEq, Eq)]
+pub struct TransformTemplateOutputFunctionQuery {
+    pub kind: Option<TransformTemplateOutputFunctionKind>,
+    pub owner: Option<String>,
+    pub name: Option<String>,
+    pub content_type: Option<String>,
+    pub schema: Option<String>,
+    pub category: Option<String>,
+    pub subject: Option<String>,
+    pub profile: Option<String>,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord)]
+struct TransformTemplateOutputFunctionKey {
+    kind: TransformTemplateOutputFunctionKind,
+    owner: Option<String>,
+    name: String,
+    content_type: String,
+    schema: String,
+    category: String,
+    subject: String,
+    profile: Option<String>,
+}
+
+fn output_function_matches(
+    function: &TransformTemplateOutputFunctionDescriptor,
+    query: &TransformTemplateOutputFunctionQuery,
+) -> bool {
+    query.kind.is_none_or(|kind| function.kind == kind)
+        && query
+            .owner
+            .as_deref()
+            .is_none_or(|owner| function.owner.as_deref() == Some(owner))
+        && query
+            .name
+            .as_deref()
+            .is_none_or(|name| function.name == name)
+        && query.content_type.as_deref().is_none_or(|content_type| {
+            content_type_essence(&function.content_type) == content_type_essence(content_type)
+        })
+        && query
+            .schema
+            .as_deref()
+            .is_none_or(|schema| function.schema == schema)
+        && query
+            .category
+            .as_deref()
+            .is_none_or(|category| function.category == category)
+        && query
+            .subject
+            .as_deref()
+            .is_none_or(|subject| function.subject == subject)
+        && query
+            .profile
+            .as_deref()
+            .is_none_or(|profile| function.profile.as_deref() == Some(profile))
+}
+
+impl TransformTemplateOutputFunctionQuery {
+    pub fn for_identity(
+        kind: TransformTemplateOutputFunctionKind,
+        content_type: impl Into<String>,
+        schema: impl Into<String>,
+        category: impl Into<String>,
+        subject: impl Into<String>,
+    ) -> Self {
+        Self {
+            kind: Some(kind),
+            content_type: Some(content_type.into()),
+            schema: Some(schema.into()),
+            category: Some(category.into()),
+            subject: Some(subject.into()),
+            ..Self::default()
+        }
+    }
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub enum TransformTemplateOutputFunctionResolutionError {
+    Unknown,
+    Ambiguous {
+        function_names: Vec<String>,
+    },
+    MissingCapability {
+        function_name: String,
+        capability: String,
+    },
+}
+
+impl TransformTemplateOutputFunctionResolutionError {
+    pub fn diagnostic(&self, uri: Option<&str>) -> Diagnostic {
+        match self {
+            Self::Unknown => Diagnostic {
+                uri: uri.map(str::to_owned),
+                code: TRANSFORM_TEMPLATE_OUTPUT_FUNCTION_UNKNOWN_CODE.to_owned(),
+                severity: Severity::Error,
+                message: "no CEMT output function matched the requested identity".to_owned(),
+                ..Diagnostic::default()
+            },
+            Self::Ambiguous { function_names } => Diagnostic {
+                uri: uri.map(str::to_owned),
+                code: TRANSFORM_TEMPLATE_OUTPUT_FUNCTION_AMBIGUOUS_CODE.to_owned(),
+                severity: Severity::Error,
+                message: format!(
+                    "CEMT output function resolution is ambiguous: {}",
+                    function_names.join(", ")
+                ),
+                ..Diagnostic::default()
+            },
+            Self::MissingCapability {
+                function_name,
+                capability,
+            } => Diagnostic {
+                uri: uri.map(str::to_owned),
+                code: TRANSFORM_TEMPLATE_OUTPUT_FUNCTION_CAPABILITY_MISSING_CODE.to_owned(),
+                severity: Severity::Error,
+                message: format!(
+                    "CEMT output function `{function_name}` requires unavailable capability `{capability}`"
+                ),
+                ..Diagnostic::default()
+            },
+        }
+    }
+}
+
+#[derive(Debug, Clone, Default)]
+pub struct TransformTemplateOutputFunctionRegistry {
+    functions: Vec<TransformTemplateOutputFunctionDescriptor>,
+}
+
+impl TransformTemplateOutputFunctionRegistry {
+    pub fn new() -> Self {
+        Self::default()
+    }
+
+    pub fn from_module_options(options: &TransformTemplateModuleOptions) -> Self {
+        Self {
+            functions: options.output_functions.clone(),
+        }
+    }
+
+    pub fn register(&mut self, function: TransformTemplateOutputFunctionDescriptor) {
+        self.functions.push(function);
+    }
+
+    pub fn functions(&self) -> &[TransformTemplateOutputFunctionDescriptor] {
+        &self.functions
+    }
+
+    pub fn resolve<'a>(
+        &'a self,
+        query: &TransformTemplateOutputFunctionQuery,
+        host_capabilities: &BTreeSet<String>,
+    ) -> Result<
+        &'a TransformTemplateOutputFunctionDescriptor,
+        TransformTemplateOutputFunctionResolutionError,
+    > {
+        let matches = self
+            .functions
+            .iter()
+            .filter(|function| output_function_matches(function, query))
+            .collect::<Vec<_>>();
+
+        let function = match matches.as_slice() {
+            [] => return Err(TransformTemplateOutputFunctionResolutionError::Unknown),
+            [function] => *function,
+            many => {
+                return Err(TransformTemplateOutputFunctionResolutionError::Ambiguous {
+                    function_names: many.iter().map(|function| function.name.clone()).collect(),
+                })
+            }
+        };
+
+        if function.implementation.requires_capability() {
+            let Some(capability) = function.capability.as_deref() else {
+                return Err(
+                    TransformTemplateOutputFunctionResolutionError::MissingCapability {
+                        function_name: function.name.clone(),
+                        capability: "<missing>".to_owned(),
+                    },
+                );
+            };
+            if !host_capabilities.contains(capability) {
+                return Err(
+                    TransformTemplateOutputFunctionResolutionError::MissingCapability {
+                        function_name: function.name.clone(),
+                        capability: capability.to_owned(),
+                    },
+                );
+            }
+        }
+
+        Ok(function)
+    }
 }
 
 #[derive(Debug, Clone, Copy, Default, PartialEq, Eq, Serialize, Deserialize)]
@@ -321,6 +633,8 @@ pub struct TransformTemplateModuleOptions {
     #[serde(default)]
     pub calls: Vec<TransformTemplateModuleCallSite>,
     #[serde(default)]
+    pub output_functions: Vec<TransformTemplateOutputFunctionDescriptor>,
+    #[serde(default)]
     pub limits: TransformTemplateModuleLimits,
 }
 
@@ -328,6 +642,7 @@ pub fn parse_cem_native_template_module_options(
     request: TransformTemplateModuleParseRequest,
 ) -> TransformTemplateModuleParseResponse {
     let explicit_template_schema = template_has_native_module_schema(&request.template);
+    let explicit_transform_schema = template_has_transform_module_schema(&request.template);
     let mut tokenizer =
         CemTokenizer::from_source(BytesSource::new(SourceId(1), request.template.bytes));
     let tokenizer_diagnostics = tokenizer.take_diagnostics();
@@ -341,6 +656,7 @@ pub fn parse_cem_native_template_module_options(
         module_count: 0,
         saw_doc_directive: false,
         explicit_template_schema,
+        explicit_transform_schema,
     };
     parser.lower_document();
     parser.validate_declarations();
@@ -371,6 +687,20 @@ fn template_has_native_module_schema(template: &TemplateInput) -> bool {
     })
 }
 
+fn template_has_transform_module_schema(template: &TemplateInput) -> bool {
+    template.identity.as_ref().is_some_and(|identity| {
+        identity
+            .content_type
+            .as_deref()
+            .is_some_and(|content_type| {
+                content_type_essence(content_type) == CEM_TRANSFORM_CONTENT_TYPE
+            })
+            || identity.schema.as_deref().map(str::trim) == Some(CEM_TRANSFORM_SCHEMA_URI)
+            || identity.default_namespace.as_deref().map(str::trim)
+                == Some(CEM_TRANSFORM_SCHEMA_URI)
+    })
+}
+
 struct NativeTemplateModuleLowerer<'a> {
     document: &'a CemDocument,
     template_uri: &'a str,
@@ -379,6 +709,7 @@ struct NativeTemplateModuleLowerer<'a> {
     module_count: usize,
     saw_doc_directive: bool,
     explicit_template_schema: bool,
+    explicit_transform_schema: bool,
 }
 
 impl NativeTemplateModuleLowerer<'_> {
@@ -397,24 +728,26 @@ impl NativeTemplateModuleLowerer<'_> {
             };
             match name {
                 "@doc" => self.saw_doc_directive = true,
+                directive if directive.starts_with('@') => {}
                 "module" => {
                     self.module_count += 1;
                     self.lower_module(*child);
                 }
-                other if self.explicit_template_schema => self.push_diag(
-                    TRANSFORM_TEMPLATE_DECLARATION_UNSUPPORTED_CODE,
-                    format!(
-                        "top-level `{other}` is not valid in CEM-native template module schema"
+                other if self.explicit_template_schema || self.explicit_transform_schema => self
+                    .push_diag(
+                        TRANSFORM_TEMPLATE_DECLARATION_UNSUPPORTED_CODE,
+                        format!("top-level `{other}` is not valid in CEM template module schema"),
                     ),
-                ),
                 _ => {}
             }
         }
 
-        if self.explicit_template_schema && self.module_count == 0 {
+        if (self.explicit_template_schema || self.explicit_transform_schema)
+            && self.module_count == 0
+        {
             self.push_diag(
                 TRANSFORM_TEMPLATE_DECLARATION_REQUIRED_CODE,
-                "CEM-native template schema requires one top-level `module` node",
+                "CEM template schema requires one top-level `module` node",
             );
         } else if self.module_count > 1 {
             self.push_diag(
@@ -438,6 +771,14 @@ impl NativeTemplateModuleLowerer<'_> {
                 "param" => self.lower_param(*child, None),
                 "template" => self.lower_template(*child),
                 "body" => self.collect_body_calls(*child, None),
+                "encoding-function" if self.explicit_transform_schema => self
+                    .lower_output_function(*child, TransformTemplateOutputFunctionKind::Encoding),
+                "format-function" if self.explicit_transform_schema => {
+                    self.lower_output_function(*child, TransformTemplateOutputFunctionKind::Format)
+                }
+                "color-function" if self.explicit_transform_schema => {
+                    self.lower_output_function(*child, TransformTemplateOutputFunctionKind::Color)
+                }
                 "include" => self.push_diag(
                     TRANSFORM_TEMPLATE_INCLUDE_RESERVED_CODE,
                     "`include` is reserved in CEM-native template modules; use `import`",
@@ -471,10 +812,24 @@ impl NativeTemplateModuleLowerer<'_> {
     }
 
     fn lower_param(&mut self, param_id: AstNodeId, owner_entrypoint: Option<&str>) {
+        let Some(mut declaration) = self.parse_param_declaration(param_id) else {
+            return;
+        };
+        if let Some(entrypoint) = owner_entrypoint {
+            declaration.name = format!("{entrypoint}.{}", declaration.name);
+        }
+        self.options.params.push(declaration);
+        self.reject_decl_children(param_id, "param");
+    }
+
+    fn parse_param_declaration(
+        &mut self,
+        param_id: AstNodeId,
+    ) -> Option<TransformTemplateModuleParamDeclaration> {
         let attrs = template_collect_attrs(self.document, param_id);
         let Some(name) = required_attr(&attrs, "name") else {
             self.push_missing_attr("param", "name");
-            return;
+            return None;
         };
         let visibility = self.parse_visibility(attr_value(&attrs, "", "visibility").as_deref());
         let value_type = self.parse_param_type(attr_value(&attrs, "", "type").as_deref());
@@ -500,21 +855,14 @@ impl NativeTemplateModuleLowerer<'_> {
                 self.push_diag(TRANSFORM_TEMPLATE_DECLARATION_INVALID_CODE, message);
                 false
             });
-        let declaration_name = match owner_entrypoint {
-            Some(entrypoint) => format!("{entrypoint}.{name}"),
-            None => name,
-        };
-        self.options
-            .params
-            .push(TransformTemplateModuleParamDeclaration {
-                name: declaration_name,
-                value_type,
-                nullable,
-                default_value,
-                required,
-                visibility,
-            });
-        self.reject_decl_children(param_id, "param");
+        Some(TransformTemplateModuleParamDeclaration {
+            name,
+            value_type,
+            nullable,
+            default_value,
+            required,
+            visibility,
+        })
     }
 
     fn lower_template(&mut self, template_id: AstNodeId) {
@@ -549,6 +897,135 @@ impl NativeTemplateModuleLowerer<'_> {
                 ),
             }
         }
+    }
+
+    fn lower_output_function(
+        &mut self,
+        function_id: AstNodeId,
+        kind: TransformTemplateOutputFunctionKind,
+    ) {
+        let element_name = match kind {
+            TransformTemplateOutputFunctionKind::Encoding => "encoding-function",
+            TransformTemplateOutputFunctionKind::Format => "format-function",
+            TransformTemplateOutputFunctionKind::Color => "color-function",
+        };
+        let attrs = template_collect_attrs(self.document, function_id);
+        let Some(name) = required_attr(&attrs, "name") else {
+            self.push_missing_attr(element_name, "name");
+            return;
+        };
+        let Some(category) = required_attr(&attrs, "category") else {
+            self.push_missing_attr(element_name, "category");
+            return;
+        };
+        let Some(subject) = required_attr(&attrs, "subject") else {
+            self.push_missing_attr(element_name, "subject");
+            return;
+        };
+        let Some(produces_raw) = required_attr(&attrs, "produces") else {
+            self.push_missing_attr(element_name, "produces");
+            return;
+        };
+        let Some(content_type) = required_attr(&attrs, "content-type") else {
+            self.push_missing_attr(element_name, "content-type");
+            return;
+        };
+        let Some(schema) = required_attr(&attrs, "schema") else {
+            self.push_missing_attr(element_name, "schema");
+            return;
+        };
+        let Some(produces) = TransformTemplateOutputProducedKind::parse(&produces_raw) else {
+            self.push_diag(
+                TRANSFORM_TEMPLATE_DECLARATION_INVALID_CODE,
+                format!(
+                    "`{element_name}` `{name}` has unsupported `@produces` value `{produces_raw}`"
+                ),
+            );
+            return;
+        };
+        let implementation = match optional_trimmed_attr(&attrs, "implementation").as_deref() {
+            None => TransformTemplateOutputFunctionImplementation::Cemt,
+            Some(value) => {
+                if let Some(implementation) =
+                    TransformTemplateOutputFunctionImplementation::parse(value)
+                {
+                    implementation
+                } else {
+                    self.push_diag(
+                        TRANSFORM_TEMPLATE_DECLARATION_INVALID_CODE,
+                        format!(
+                            "`{element_name}` `{name}` has unsupported `@implementation` value `{value}`"
+                        ),
+                    );
+                    TransformTemplateOutputFunctionImplementation::Cemt
+                }
+            }
+        };
+        let canonical = self.parse_bool_decl_attr(&attrs, "canonical");
+        let streamable = self.parse_bool_decl_attr(&attrs, "streamable");
+        let deterministic = self.parse_bool_decl_attr(&attrs, "deterministic");
+        let trusted = self.parse_bool_decl_attr(&attrs, "trusted");
+        let visibility = self.parse_visibility(attr_value(&attrs, "", "visibility").as_deref());
+        let capability = optional_trimmed_attr(&attrs, "capability");
+        if implementation.requires_capability() && capability.is_none() {
+            self.push_diag(
+                TRANSFORM_TEMPLATE_DECLARATION_REQUIRED_CODE,
+                format!(
+                    "`{element_name}` `{name}` with native or external implementation requires `@capability`"
+                ),
+            );
+        }
+
+        let Some(CemAstNode::Element { children, .. }) = self.document.get(function_id) else {
+            return;
+        };
+        let mut params = Vec::new();
+        let mut body_declared = false;
+        for child in children {
+            let Some(child_name) = template_element_name(self.document, *child) else {
+                continue;
+            };
+            match child_name {
+                "param" => {
+                    if let Some(param) = self.parse_param_declaration(*child) {
+                        params.push(param);
+                    }
+                    self.reject_decl_children(*child, "param");
+                }
+                "body" => {
+                    body_declared = true;
+                }
+                other => self.push_diag(
+                    TRANSFORM_TEMPLATE_DECLARATION_UNSUPPORTED_CODE,
+                    format!("`{element_name}` declarations cannot contain `{other}`"),
+                ),
+            }
+        }
+
+        self.options
+            .output_functions
+            .push(TransformTemplateOutputFunctionDescriptor {
+                kind,
+                owner: output_function_owner(&name),
+                name,
+                category,
+                subject,
+                produces,
+                content_type,
+                schema,
+                canonical,
+                streamable,
+                visibility,
+                implementation,
+                profile: optional_trimmed_attr(&attrs, "profile"),
+                extends: optional_trimmed_attr(&attrs, "extends"),
+                capability,
+                deterministic,
+                trusted,
+                fallback: optional_trimmed_attr(&attrs, "fallback"),
+                params,
+                body_declared,
+            });
     }
 
     fn collect_body_calls(&mut self, body_id: AstNodeId, owner_entrypoint: Option<&str>) {
@@ -623,6 +1100,19 @@ impl NativeTemplateModuleLowerer<'_> {
                 );
             }
         }
+
+        let mut output_functions = BTreeSet::new();
+        for function in self.options.output_functions.clone() {
+            if !output_functions.insert(function.key()) {
+                self.push_diag(
+                    TRANSFORM_TEMPLATE_DECLARATION_DUPLICATE_CODE,
+                    format!(
+                        "CEMT output function `{}` is declared more than once for category `{}` and subject `{}`",
+                        function.name, function.category, function.subject
+                    ),
+                );
+            }
+        }
     }
 
     fn reject_decl_children(&mut self, ast_id: AstNodeId, parent_name: &str) {
@@ -651,6 +1141,17 @@ impl NativeTemplateModuleLowerer<'_> {
                 TransformTemplateModuleVisibility::Private
             }
         }
+    }
+
+    fn parse_bool_decl_attr(
+        &mut self,
+        attrs: &BTreeMap<(String, String), Option<String>>,
+        name: &str,
+    ) -> bool {
+        parse_bool_attr(attr_value(attrs, "", name).as_deref()).unwrap_or_else(|message| {
+            self.push_diag(TRANSFORM_TEMPLATE_DECLARATION_INVALID_CODE, message);
+            false
+        })
     }
 
     fn parse_param_type(&mut self, value: Option<&str>) -> TransformTemplateModuleParamType {
@@ -815,6 +1316,13 @@ fn optional_trimmed_attr(
     attr_value(attrs, "", local)
         .map(|value| value.trim().to_owned())
         .filter(|value| !value.is_empty())
+}
+
+fn output_function_owner(name: &str) -> Option<String> {
+    name.split_once('.')
+        .map(|(owner, _)| owner.trim())
+        .filter(|owner| !owner.is_empty())
+        .map(str::to_owned)
 }
 
 fn import_identity_from_attrs(
@@ -1451,6 +1959,7 @@ mod tests {
             entrypoints: vec![entrypoint],
             params: vec![param],
             calls: Vec::new(),
+            output_functions: Vec::new(),
             limits: TransformTemplateModuleLimits::default(),
         };
 
@@ -1698,6 +2207,167 @@ mod tests {
                 },
             ]
         );
+    }
+
+    #[test]
+    fn cemt_module_parser_lowers_output_function_declarations() {
+        let response =
+            parse_cem_native_template_module_options(TransformTemplateModuleParseRequest {
+                template: template_input(
+                    "schema-packages/cem-transform/v1/examples/function-declarations.cemt",
+                    include_str!(
+                        "../schema-packages/cem-transform/v1/examples/function-declarations.cemt"
+                    ),
+                    Some(FormatIdentity {
+                        schema: Some(CEM_TRANSFORM_SCHEMA_URI.to_owned()),
+                        ..FormatIdentity::default()
+                    }),
+                ),
+            });
+
+        assert!(
+            response.diagnostics.is_empty(),
+            "{:?}",
+            response.diagnostics
+        );
+        assert!(response.module_declared);
+        assert_eq!(response.module_options.output_functions.len(), 4);
+        let html_text = &response.module_options.output_functions[0];
+        assert_eq!(
+            html_text.kind,
+            TransformTemplateOutputFunctionKind::Encoding
+        );
+        assert_eq!(html_text.owner.as_deref(), Some("html"));
+        assert_eq!(html_text.name, "html.text");
+        assert_eq!(html_text.category, "html-text");
+        assert_eq!(
+            html_text.produces,
+            TransformTemplateOutputProducedKind::Text
+        );
+        assert_eq!(html_text.content_type, "text/html");
+        assert_eq!(html_text.schema, "https://cem.dev/ns/data/html/1");
+        assert!(html_text.canonical);
+        assert!(html_text.streamable);
+        assert_eq!(html_text.params.len(), 2);
+
+        let custom = response
+            .module_options
+            .output_functions
+            .iter()
+            .find(|function| function.name == "acme.markdown.callout-block")
+            .expect("custom function declaration");
+        assert_eq!(custom.owner.as_deref(), Some("acme"));
+        assert_eq!(
+            custom.implementation,
+            TransformTemplateOutputFunctionImplementation::Cemt
+        );
+        assert_eq!(custom.visibility, TransformTemplateModuleVisibility::Public);
+        assert!(custom.deterministic);
+        assert_eq!(custom.extends.as_deref(), Some("markdown-document"));
+        assert!(custom.body_declared);
+    }
+
+    #[test]
+    fn cemt_module_parser_reports_output_function_declaration_errors() {
+        let response = parse_cem_native_template_module_options(
+            TransformTemplateModuleParseRequest {
+                template: template_input(
+                    "templates/bad-functions.cemt",
+                    r#"{@doc cem-ml 1}
+{module |
+  {encoding-function @name="html.text" @category="html-text" @subject="string" @produces="text" @content-type="text/html" @schema="https://cem.dev/ns/data/html/1"}
+  {encoding-function @name="html.text" @category="html-text" @subject="string" @produces="text" @content-type="text/html" @schema="https://cem.dev/ns/data/html/1"}
+  {format-function @name="acme.native.json" @category="json-document" @subject="object" @produces="tokens" @content-type="application/json" @schema="https://acme.test/ns/api/json/1" @implementation="native"}
+  {color-function @name="broken.color" @category="terminal-color" @subject="tokens" @produces="paint" @content-type="text/plain" @schema="https://cem.dev/ns/data/text/terminal/1"}
+}"#,
+                    Some(FormatIdentity {
+                        schema: Some(CEM_TRANSFORM_SCHEMA_URI.to_owned()),
+                        ..FormatIdentity::default()
+                    }),
+                ),
+            },
+        );
+
+        assert!(response.module_declared);
+        assert!(response
+            .diagnostics
+            .iter()
+            .any(|diag| diag.code == TRANSFORM_TEMPLATE_DECLARATION_DUPLICATE_CODE));
+        assert!(response
+            .diagnostics
+            .iter()
+            .any(|diag| diag.code == TRANSFORM_TEMPLATE_DECLARATION_REQUIRED_CODE));
+        assert!(response
+            .diagnostics
+            .iter()
+            .any(|diag| diag.code == TRANSFORM_TEMPLATE_DECLARATION_INVALID_CODE));
+    }
+
+    #[test]
+    fn output_function_registry_resolves_identity_and_capabilities() {
+        let response =
+            parse_cem_native_template_module_options(TransformTemplateModuleParseRequest {
+                template: template_input(
+                    "schema-packages/cem-transform/v1/examples/function-declarations.cemt",
+                    include_str!(
+                        "../schema-packages/cem-transform/v1/examples/function-declarations.cemt"
+                    ),
+                    Some(FormatIdentity {
+                        schema: Some(CEM_TRANSFORM_SCHEMA_URI.to_owned()),
+                        ..FormatIdentity::default()
+                    }),
+                ),
+            });
+        let mut registry =
+            TransformTemplateOutputFunctionRegistry::from_module_options(&response.module_options);
+        let query = TransformTemplateOutputFunctionQuery::for_identity(
+            TransformTemplateOutputFunctionKind::Encoding,
+            "text/html; charset=utf-8",
+            "https://cem.dev/ns/data/html/1",
+            "html-text",
+            "string",
+        );
+        let resolved = registry
+            .resolve(&query, &BTreeSet::new())
+            .expect("html text function resolves");
+        assert_eq!(resolved.name, "html.text");
+
+        let mut native = resolved.clone();
+        native.name = "acme.native.html-text".to_owned();
+        native.owner = Some("acme".to_owned());
+        native.implementation = TransformTemplateOutputFunctionImplementation::Native;
+        native.capability = Some("acme.native.HtmlTextEncoder".to_owned());
+        registry.register(native.clone());
+        let ambiguous = registry
+            .resolve(&query, &BTreeSet::new())
+            .expect_err("two matching encoders should be ambiguous");
+        assert!(matches!(
+            ambiguous,
+            TransformTemplateOutputFunctionResolutionError::Ambiguous { .. }
+        ));
+
+        let native_query = TransformTemplateOutputFunctionQuery {
+            name: Some(native.name.clone()),
+            ..query.clone()
+        };
+        let missing = registry
+            .resolve(&native_query, &BTreeSet::new())
+            .expect_err("native function requires host capability");
+        assert!(matches!(
+            missing,
+            TransformTemplateOutputFunctionResolutionError::MissingCapability { .. }
+        ));
+        assert_eq!(
+            missing.diagnostic(Some("template.cemt")).code,
+            TRANSFORM_TEMPLATE_OUTPUT_FUNCTION_CAPABILITY_MISSING_CODE
+        );
+
+        let mut capabilities = BTreeSet::new();
+        capabilities.insert("acme.native.HtmlTextEncoder".to_owned());
+        let resolved_native = registry
+            .resolve(&native_query, &capabilities)
+            .expect("native function resolves with capability");
+        assert_eq!(resolved_native.name, "acme.native.html-text");
     }
 
     #[test]

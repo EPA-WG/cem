@@ -112,6 +112,9 @@ history belongs in git history and the feature-specific docs linked below.
         resolve by owner package, name, content type, schema, category, subject
         type, and profile, and standard functions must not be shadowed unless
         explicitly aliased.
+    - [x] Parse CEMT output function declarations into typed module
+          descriptors and add registry resolution by function identity,
+          content type, schema, category, subject, profile, and host capability.
   - [ ] Add shared encoder functions for context-specific escaping and binary
         framing across CEM, CEMT, XML, HTML, JSON, YAML, CSV, Markdown, CSS,
         CEM-QL, RELAX NG compact syntax, AI context projection, and CEM binary
