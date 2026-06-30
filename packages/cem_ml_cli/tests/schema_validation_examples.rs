@@ -6,6 +6,10 @@ const EXIT_HARD_FAILURE: i32 = 1;
 
 const CEM_ML_SCHEMA_URI: &str = "https://cem.dev/ns/cem-ml/1";
 const CEM_ML_CONTENT_TYPE: &str = "application/cem";
+const CEM_SCHEMA_URI: &str = "https://cem.dev/ns/schema/1";
+const CEM_SCHEMA_CONTENT_TYPE: &str = "application/vnd.cem.schema+cem";
+const CEM_SCHEMA_PACKAGE_URI: &str = "https://cem.dev/ns/schema-package/1";
+const CEM_SCHEMA_PACKAGE_CONTENT_TYPE: &str = "application/vnd.cem.schema-package+cem";
 
 #[derive(Debug)]
 struct ValidationExample {
@@ -87,6 +91,54 @@ fn schema_owned_examples_validate_through_cli() {
             path: "packages/cem_ml/schema-packages/cem-ml/v1/examples/invalid-unclosed-scope.cem",
             content_type: CEM_ML_CONTENT_TYPE,
             schema_uri: CEM_ML_SCHEMA_URI,
+            expected_exit: EXIT_HARD_FAILURE,
+            expected_diagnostics: &["cem.schema.unclosed_scope"],
+        },
+        ValidationExample {
+            name: "schema basic",
+            path: "packages/cem_ml/schema-packages/schema/v1/examples/basic-schema.cem",
+            content_type: CEM_SCHEMA_CONTENT_TYPE,
+            schema_uri: CEM_SCHEMA_URI,
+            expected_exit: EXIT_OK,
+            expected_diagnostics: &[],
+        },
+        ValidationExample {
+            name: "schema typed resource",
+            path: "packages/cem_ml/schema-packages/schema/v1/examples/typed-resource-schema.cem",
+            content_type: CEM_SCHEMA_CONTENT_TYPE,
+            schema_uri: CEM_SCHEMA_URI,
+            expected_exit: EXIT_OK,
+            expected_diagnostics: &[],
+        },
+        ValidationExample {
+            name: "schema invalid unclosed scope",
+            path: "packages/cem_ml/schema-packages/schema/v1/examples/invalid-unclosed-schema.cem",
+            content_type: CEM_SCHEMA_CONTENT_TYPE,
+            schema_uri: CEM_SCHEMA_URI,
+            expected_exit: EXIT_HARD_FAILURE,
+            expected_diagnostics: &["cem.schema.unclosed_scope"],
+        },
+        ValidationExample {
+            name: "schema-package basic",
+            path: "packages/cem_ml/schema-packages/schema-package/v1/examples/basic-package.cem",
+            content_type: CEM_SCHEMA_PACKAGE_CONTENT_TYPE,
+            schema_uri: CEM_SCHEMA_PACKAGE_URI,
+            expected_exit: EXIT_OK,
+            expected_diagnostics: &[],
+        },
+        ValidationExample {
+            name: "schema-package converter",
+            path: "packages/cem_ml/schema-packages/schema-package/v1/examples/converter-package.cem",
+            content_type: CEM_SCHEMA_PACKAGE_CONTENT_TYPE,
+            schema_uri: CEM_SCHEMA_PACKAGE_URI,
+            expected_exit: EXIT_OK,
+            expected_diagnostics: &[],
+        },
+        ValidationExample {
+            name: "schema-package invalid unclosed scope",
+            path: "packages/cem_ml/schema-packages/schema-package/v1/examples/invalid-unclosed-package.cem",
+            content_type: CEM_SCHEMA_PACKAGE_CONTENT_TYPE,
+            schema_uri: CEM_SCHEMA_PACKAGE_URI,
             expected_exit: EXIT_HARD_FAILURE,
             expected_diagnostics: &["cem.schema.unclosed_scope"],
         },

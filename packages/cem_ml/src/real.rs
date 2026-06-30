@@ -168,8 +168,16 @@ where
 
     // Validation rule registry.
     let registry = RuleRegistry::with_tier_a_rules();
+    let schema_uri = root_scope
+        .and_then(|scope| scope.schema.as_deref())
+        .or_else(|| context.and_then(|context| context.schema.as_deref()));
+    let content_type = root_scope
+        .and_then(|scope| scope.default_content_type.as_deref())
+        .or_else(|| context.and_then(|context| context.content_type.as_deref()));
     let rule_diags = registry.run(&RuleContext {
         document: &document,
+        schema_uri,
+        content_type,
         upstream_diagnostics: &document.diagnostics,
     });
 

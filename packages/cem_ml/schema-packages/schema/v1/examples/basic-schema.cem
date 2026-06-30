@@ -1,0 +1,22 @@
+@doc cem-ml 1
+@ns schema = "https://cem.dev/ns/schema/1"
+@default schema
+
+{schema @name="note" @namespace="https://example.test/ns/note/1" @version="1.0.0" |
+    {summary |
+        {text | Minimal note schema used as a schema-definition validation example.}
+    }
+
+    {content-types |
+        {content-type @value="application/vnd.example.note+cem" @primary=true}
+    }
+
+    {elements |
+        {element @name="note" @optional-attributes="id" @children="text"}
+        {element @name="text"}
+    }
+
+    {attributes |
+        {attribute @name="id" @type="schema:identifier"}
+    }
+}

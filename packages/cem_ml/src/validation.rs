@@ -96,6 +96,8 @@ pub struct RuleDescriptor {
 /// Inputs the registry hands to a rule during a single Document-layer run.
 pub struct RuleContext<'a> {
     pub document: &'a CemDocument,
+    pub schema_uri: Option<&'a str>,
+    pub content_type: Option<&'a str>,
     /// Diagnostics emitted by upstream layers (decoder, tokenizer, schema
     /// machine, AST builder). Rules may consult this list to skip
     /// downstream work when an upstream layer already failed.
@@ -211,6 +213,8 @@ pub fn run(input: &str) -> ValidationReport {
     let registry = RuleRegistry::with_tier_a_rules();
     let rule_diags = registry.run(&RuleContext {
         document: &document,
+        schema_uri: None,
+        content_type: None,
         upstream_diagnostics: &document.diagnostics,
     });
 

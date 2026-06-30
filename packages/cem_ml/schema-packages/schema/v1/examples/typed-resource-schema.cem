@@ -1,0 +1,43 @@
+@doc cem-ml 1
+@ns schema = "https://cem.dev/ns/schema/1"
+@ns cemml = "https://cem.dev/ns/cem-ml/1"
+@default schema
+
+{schema @name="typed-resource" @namespace="https://example.test/ns/resource/1" @version="1.0.0" |
+    {summary |
+        {text | Resource schema with imports, namespace claims, attributes, diagnostics, and open-content policy.}
+    }
+
+    {uses |
+        {use @schema="https://cem.dev/ns/cem-ml/1" @as="cemml"}
+    }
+
+    {content-types |
+        {content-type @value="application/vnd.example.resource+cem" @primary=true}
+    }
+
+    {namespaces |
+        {namespace @prefix="resource" @uri="https://example.test/ns/resource/1" @role="schema"}
+    }
+
+    {elements |
+        {element @name="resource" @required-attributes="id kind" @optional-attributes="label" @children="field*"}
+        {element @name="field" @required-attributes="name type"}
+    }
+
+    {attributes |
+        {attribute @name="id" @type="cemml:identifier"}
+        {attribute @name="kind" @type="schema:identifier" @values="page component token"}
+        {attribute @name="label" @type="schema:string"}
+        {attribute @name="name" @type="cemml:identifier"}
+        {attribute @name="type" @type="schema:type-reference"}
+    }
+
+    {diagnostics |
+        {diagnostic @code="example.resource.missing_field" @severity="error"}
+    }
+
+    {open-content |
+        {accept @kind="extension-element" @policy="reject-unless-declared"}
+    }
+}

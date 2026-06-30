@@ -202,6 +202,8 @@ fn xml_parity_fixture_runs_through_shared_pipeline() {
     let registry = RuleRegistry::with_tier_a_rules();
     let diagnostics = registry.run(&RuleContext {
         document: &document,
+        schema_uri: None,
+        content_type: None,
         upstream_diagnostics: &document.diagnostics,
     });
     let hard: Vec<_> = diagnostics

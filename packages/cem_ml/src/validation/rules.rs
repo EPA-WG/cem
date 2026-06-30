@@ -17,6 +17,10 @@
 
 use crate::diagnostics::{Diagnostic, Severity};
 use crate::parser::{AstNodeId, CemAstNode};
+use crate::schema::registry::{
+    content_type_essence, CEM_ML_CONTENT_TYPE, CEM_ML_SCHEMA_URI, CEM_SCHEMA_CONTENT_TYPE,
+    CEM_SCHEMA_PACKAGE_CONTENT_TYPE, CEM_SCHEMA_PACKAGE_URI, CEM_SCHEMA_URI,
+};
 use crate::source_map::FrameSpan;
 use crate::validation::{
     RuleContext, RuleDescriptor, RuleId, RuleInput, SemanticRule, TriggerLayer,
@@ -1067,6 +1071,10 @@ impl SemanticRule for OpenContentPolicyRule {
     }
 
     fn run(&self, ctx: &RuleContext<'_>) -> Vec<Diagnostic> {
+        if is_schema_language_document(ctx) {
+            return Vec::new();
+        }
+
         let mut out = Vec::new();
         for node in ctx.document.iter() {
             match node {
@@ -1074,6 +1082,9 @@ impl SemanticRule for OpenContentPolicyRule {
                     let ns = expanded_name.namespace_uri.as_str();
                     let local = expanded_name.local_name.as_str();
                     if local.is_empty() || local == "$" || local.starts_with('@') {
+                        continue;
+                    }
+                    if is_schema_language_namespace(ns) {
                         continue;
                     }
                     if ns == "cem" {
@@ -1099,6 +1110,9 @@ impl SemanticRule for OpenContentPolicyRule {
                 CemAstNode::Attribute { expanded_name, .. } => {
                     let ns = expanded_name.namespace_uri.as_str();
                     let local = expanded_name.local_name.as_str();
+                    if is_schema_language_namespace(ns) {
+                        continue;
+                    }
                     if ns == "cem" {
                         if !KNOWN_CEM_ATTRIBUTES.contains(&local) {
                             out.push(diag_at(
@@ -1122,6 +1136,30 @@ impl SemanticRule for OpenContentPolicyRule {
         }
         out
     }
+}
+
+fn is_schema_language_namespace(ns: &str) -> bool {
+    matches!(
+        ns,
+        CEM_ML_SCHEMA_URI | CEM_SCHEMA_URI | CEM_SCHEMA_PACKAGE_URI
+    )
+}
+
+fn is_schema_language_document(ctx: &RuleContext<'_>) -> bool {
+    ctx.schema_uri
+        .map(is_schema_language_namespace)
+        .unwrap_or(false)
+        || ctx
+            .content_type
+            .map(is_schema_language_content_type)
+            .unwrap_or(false)
+}
+
+fn is_schema_language_content_type(content_type: &str) -> bool {
+    matches!(
+        content_type_essence(content_type).as_str(),
+        CEM_ML_CONTENT_TYPE | CEM_SCHEMA_CONTENT_TYPE | CEM_SCHEMA_PACKAGE_CONTENT_TYPE
+    )
 }
 
 fn open_content_descriptor() -> &'static RuleDescriptor {
@@ -1338,11 +1376,21 @@ mod tests {
     }
 
     fn run_rules(input: &str) -> Vec<Diagnostic> {
+        run_rules_with_identity(input, None, None)
+    }
+
+    fn run_rules_with_identity(
+        input: &str,
+        schema_uri: Option<&str>,
+        content_type: Option<&str>,
+    ) -> Vec<Diagnostic> {
         let doc = parse(input);
         let upstream: Vec<Diagnostic> = doc.diagnostics.clone();
         let registry = RuleRegistry::with_tier_a_rules();
         registry.run(&RuleContext {
             document: &doc,
+            schema_uri,
+            content_type,
             upstream_diagnostics: &upstream,
         })
     }
@@ -1567,6 +1615,19 @@ mod tests {
         assert!(attr_diags
             .iter()
             .any(|d| d.code == "cem.schema.unknown_html_attribute"));
+    }
+
+    #[test]
+    fn open_content_policy_skips_schema_language_documents() {
+        let diags = run_rules_with_identity(
+            r#"{schema @name=note | {elements | {element @name=note}}}"#,
+            Some(CEM_SCHEMA_URI),
+            Some(CEM_SCHEMA_CONTENT_TYPE),
+        );
+        assert!(diags.iter().all(|d| {
+            d.code != "cem.schema.unknown_html_element"
+                && d.code != "cem.schema.unknown_html_attribute"
+        }));
     }
 
     #[test]
