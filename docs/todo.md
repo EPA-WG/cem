@@ -100,6 +100,9 @@ history belongs in git history and the feature-specific docs linked below.
         default metadata. Helpers must be declared by schema package metadata and
         called from CEMT templates, not implemented as opaque host-side string
         filters.
+    - [x] Add the first structural CEMT schema slice for
+          `encoding-function`, `format-function`, `color-function`, params, core
+          metadata, and schema-owned validation examples.
   - [ ] Add custom encoding, formatting, and color function support. Custom
         functions must use the same typed artifact semantics as built-ins and
         declare package-qualified names, visibility, implementation source

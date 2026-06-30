@@ -68,10 +68,13 @@ functions in CEMT modules. Proposed encoding declaration shape:
 }
 ```
 
-This declaration is proposed vocabulary, not yet validated by the v1 schema.
-The design intent is CEMT-first output producer edges with shared writer
-primitives and paired native producer hooks while the encoder, formatter, and
-terminal/HTML color output surface matures. The working proposal lives in
+The first implementation slice validates this declaration vocabulary
+structurally in the v1 schema: `encoding-function`, `format-function`, and
+`color-function` declarations must carry function identity, subject, produced
+kind, content type, schema, and category metadata. The design intent is
+CEMT-first output producer edges with shared writer primitives and paired native
+producer hooks while the encoder, formatter, and terminal/HTML color output
+surface matures. The working proposal lives in
 [`../../../docs/cemt-encoding-proposal.tmp.md`](../../../docs/cemt-encoding-proposal.tmp.md).
 
 ## Validation Examples
@@ -83,7 +86,9 @@ CLI validation integration tests.
 | --- | --- | --- |
 | [`basic-transform.cemt`](examples/basic-transform.cemt) | Minimal CEMT module with one template body. | Pass |
 | [`module-transform.cemt`](examples/module-transform.cemt) | Converter template module with import metadata, params, nested output, and `with:*` data propagation. | Pass |
+| [`function-declarations.cemt`](examples/function-declarations.cemt) | Encoding, formatting, color, and custom function declarations for CEMT output production. | Pass |
 | [`invalid-missing-required-attribute.cemt`](examples/invalid-missing-required-attribute.cemt) | Template declaration missing the inherited required `name` attribute. | Fail with `cem.schema_model.missing_required_attribute` |
+| [`invalid-function-missing-category.cemt`](examples/invalid-function-missing-category.cemt) | Encoding function declaration missing required output category metadata. | Fail with `cem.schema_model.missing_required_attribute` |
 
 Validate an example explicitly against this schema:
 

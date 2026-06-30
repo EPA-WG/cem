@@ -580,6 +580,21 @@ mod tests {
         assert!(call.optional_attributes.contains("with:*"));
         let body = model.element("body").unwrap();
         assert!(body.allow_any_child);
+        let encoding_function = model.element("encoding-function").unwrap();
+        assert!(encoding_function.required_attributes.contains("name"));
+        assert!(encoding_function.required_attributes.contains("category"));
+        assert!(encoding_function
+            .required_attributes
+            .contains("content-type"));
+        assert!(encoding_function
+            .optional_attributes
+            .contains("implementation"));
+        assert!(encoding_function.child_elements.contains("param"));
+        assert!(encoding_function.child_elements.contains("body"));
+        let format_function = model.element("format-function").unwrap();
+        assert!(format_function.required_attributes.contains("produces"));
+        let color_function = model.element("color-function").unwrap();
+        assert!(color_function.optional_attributes.contains("capability"));
     }
 
     #[test]

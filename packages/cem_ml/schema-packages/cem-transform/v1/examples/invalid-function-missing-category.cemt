@@ -1,0 +1,14 @@
+@doc cem-ml 1
+@ns transform = "https://cem.dev/ns/transform/cem/1"
+@default transform
+
+{module |
+    {encoding-function
+        @name="html.text"
+        @subject="string"
+        @produces="text"
+        @content-type="text/html"
+        @schema="https://cem.dev/ns/data/html/1" |
+        {param @name="subject" @type="string" @required=true}
+    }
+}

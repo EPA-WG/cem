@@ -23,12 +23,15 @@
     }
 
     {elements |
-        {element @name="module" @base="template:module" @children="import param template body"}
+        {element @name="module" @base="template:module" @children="import param template body encoding-function format-function color-function"}
         {element @name="import" @base="template:import"}
         {element @name="param" @base="template:param"}
         {element @name="template" @base="template:template" @children="param body"}
         {element @name="body" @base="template:body" @children="*"}
         {element @name="call" @base="template:call"}
+        {element @name="encoding-function" @required-attributes="name category subject produces content-type schema" @optional-attributes="canonical streamable visibility implementation profile extends capability deterministic trusted fallback" @children="param body"}
+        {element @name="format-function" @required-attributes="name category subject produces content-type schema" @optional-attributes="canonical streamable visibility implementation profile extends capability deterministic trusted fallback" @children="param body"}
+        {element @name="color-function" @required-attributes="name category subject produces content-type schema" @optional-attributes="canonical streamable visibility implementation profile extends capability deterministic trusted fallback" @children="param body"}
     }
 
     {attributes |
@@ -49,6 +52,18 @@
         {attribute @name="template" @base="template:template"}
         {attribute @name="from" @base="template:from"}
         {attribute @name="with:*" @base="template:with:*"}
+        {attribute @name="category" @type="schema:identifier"}
+        {attribute @name="subject" @type="schema:identifier"}
+        {attribute @name="produces" @type="schema:identifier" @values="text bytes tokens chunks diagnostics"}
+        {attribute @name="canonical" @type="schema:boolean"}
+        {attribute @name="streamable" @type="schema:boolean"}
+        {attribute @name="implementation" @type="schema:identifier" @values="cemt native external"}
+        {attribute @name="profile" @type="schema:identifier"}
+        {attribute @name="extends" @type="schema:identifier"}
+        {attribute @name="capability" @type="schema:identifier"}
+        {attribute @name="deterministic" @type="schema:boolean"}
+        {attribute @name="trusted" @type="schema:boolean"}
+        {attribute @name="fallback" @type="schema:identifier"}
     }
 
     {constraints |
@@ -56,6 +71,9 @@
         {constraint @kind="cemt-primary-implementation" @target="module" @policy="implementation kind cemt"}
         {constraint @kind="streamable-template-preferred" @target="body" @policy="required unless package edge marks non-streamable"}
         {constraint @kind="template-base-schema-compatible" @target="module" @policy="required"}
+        {constraint @kind="function-names-package-qualified" @target="encoding-function format-function color-function" @policy="required for custom public functions"}
+        {constraint @kind="function-output-identity-required" @target="encoding-function format-function color-function" @policy="required"}
+        {constraint @kind="native-external-function-capability-required" @target="encoding-function format-function color-function" @policy="when implementation is native or external"}
     }
 
     {diagnostics |
@@ -63,6 +81,10 @@
         {diagnostic @code="cem.transform.converter_identity_mismatch" @severity="error"}
         {diagnostic @code="cem.transform.template_base_invalid" @severity="error"}
         {diagnostic @code="cem.transform.non_streamable_template" @severity="warning"}
+        {diagnostic @code="cem.transform.function_name_unqualified" @severity="error"}
+        {diagnostic @code="cem.transform.function_identity_missing" @severity="error"}
+        {diagnostic @code="cem.transform.function_capability_missing" @severity="error"}
+        {diagnostic @code="cem.transform.function_shadowed_standard" @severity="error"}
     }
 
     {open-content |

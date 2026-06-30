@@ -1,0 +1,64 @@
+@doc cem-ml 1
+@ns transform = "https://cem.dev/ns/transform/cem/1"
+@default transform
+
+{module @version="1.0.0" |
+    {encoding-function
+        @name="html.text"
+        @category="html-text"
+        @subject="string"
+        @produces="text"
+        @content-type="text/html"
+        @schema="https://cem.dev/ns/data/html/1"
+        @canonical=true
+        @streamable=true |
+        {param @name="subject" @type="string" @required=true}
+        {param @name="mode" @type="string" @default="canonical"}
+    }
+
+    {format-function
+        @name="json.pretty"
+        @category="json-document"
+        @subject="object"
+        @produces="tokens"
+        @content-type="application/json"
+        @schema="https://cem.dev/ns/data/json/1"
+        @canonical=false
+        @streamable=true |
+        {param @name="subject" @type="object" @required=true}
+        {param @name="indent" @type="string" @default="  "}
+    }
+
+    {color-function
+        @name="terminal.diagnostic"
+        @category="terminal-color"
+        @subject="tokens"
+        @produces="text"
+        @content-type="text/plain"
+        @schema="https://cem.dev/ns/data/text/terminal/1"
+        @canonical=false
+        @streamable=true |
+        {param @name="subject" @type="array" @required=true}
+        {param @name="capability" @type="string" @default="auto"}
+    }
+
+    {encoding-function
+        @name="acme.markdown.callout-block"
+        @visibility="public"
+        @implementation="cemt"
+        @category="markdown-callout"
+        @subject="object"
+        @produces="tokens"
+        @content-type="text/markdown"
+        @schema="https://acme.test/ns/docs/markdown/1"
+        @canonical=false
+        @streamable=true
+        @deterministic=true
+        @extends="markdown-document" |
+        {param @name="subject" @type="object" @required=true}
+        {param @name="marker" @type="string" @default="NOTE"}
+        {body |
+            Markdown callout output.
+        }
+    }
+}
