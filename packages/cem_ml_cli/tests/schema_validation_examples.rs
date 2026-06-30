@@ -39,6 +39,10 @@ const XHTML_SCHEMA_URI: &str = "https://cem.dev/ns/data/xhtml/1";
 const XHTML_CONTENT_TYPE: &str = "application/xhtml+xml";
 const SVG_SCHEMA_URI: &str = "https://cem.dev/ns/data/svg/1";
 const SVG_CONTENT_TYPE: &str = "image/svg+xml";
+const MATHML_SCHEMA_URI: &str = "https://cem.dev/ns/data/mathml/1";
+const MATHML_CONTENT_TYPE: &str = "application/mathml+xml";
+const MATHML_PRESENTATION_CONTENT_TYPE: &str = "application/mathml-presentation+xml";
+const MATHML_CONTENT_CONTENT_TYPE: &str = "application/mathml-content+xml";
 const JSON_SCHEMA_SCHEMA_URI: &str = "https://cem.dev/ns/data/json-schema/1";
 const JSON_SCHEMA_CONTENT_TYPE: &str = "application/schema+json";
 const CEM_DOM_PROJECTION_SCHEMA_URI: &str = "https://cem.dev/ns/projection/dom/1";
@@ -573,6 +577,62 @@ fn schema_owned_examples_validate_through_cli() {
             schema_uri: SVG_SCHEMA_URI,
             expected_exit: EXIT_HARD_FAILURE,
             expected_diagnostics: &["cem.svg.external_resource_rejected"],
+        },
+        ValidationExample {
+            name: "mathml basic presentation",
+            path: "packages/cem_ml/schema-packages/mathml/v1/examples/basic-presentation.mml",
+            content_type: MATHML_PRESENTATION_CONTENT_TYPE,
+            schema_uri: MATHML_SCHEMA_URI,
+            expected_exit: EXIT_OK,
+            expected_diagnostics: &[],
+        },
+        ValidationExample {
+            name: "mathml content expression",
+            path: "packages/cem_ml/schema-packages/mathml/v1/examples/content-expression.mathml",
+            content_type: MATHML_CONTENT_CONTENT_TYPE,
+            schema_uri: MATHML_SCHEMA_URI,
+            expected_exit: EXIT_OK,
+            expected_diagnostics: &[],
+        },
+        ValidationExample {
+            name: "mathml external annotation",
+            path: "packages/cem_ml/schema-packages/mathml/v1/examples/semantics-external-annotation.mml",
+            content_type: MATHML_CONTENT_TYPE,
+            schema_uri: MATHML_SCHEMA_URI,
+            expected_exit: EXIT_OK,
+            expected_diagnostics: &["cem.mathml.external_annotation_rejected"],
+        },
+        ValidationExample {
+            name: "mathml invalid missing namespace",
+            path: "packages/cem_ml/schema-packages/mathml/v1/examples/invalid-missing-namespace.mml",
+            content_type: MATHML_CONTENT_TYPE,
+            schema_uri: MATHML_SCHEMA_URI,
+            expected_exit: EXIT_HARD_FAILURE,
+            expected_diagnostics: &["cem.mathml.namespace_missing"],
+        },
+        ValidationExample {
+            name: "mathml invalid root not math",
+            path: "packages/cem_ml/schema-packages/mathml/v1/examples/invalid-root-not-math.mml",
+            content_type: MATHML_CONTENT_TYPE,
+            schema_uri: MATHML_SCHEMA_URI,
+            expected_exit: EXIT_HARD_FAILURE,
+            expected_diagnostics: &["cem.mathml.root_not_math"],
+        },
+        ValidationExample {
+            name: "mathml invalid content profile",
+            path: "packages/cem_ml/schema-packages/mathml/v1/examples/invalid-content-profile-presentation-only.mml",
+            content_type: MATHML_CONTENT_CONTENT_TYPE,
+            schema_uri: MATHML_SCHEMA_URI,
+            expected_exit: EXIT_HARD_FAILURE,
+            expected_diagnostics: &["cem.mathml.malformed_expression"],
+        },
+        ValidationExample {
+            name: "mathml invalid not well formed",
+            path: "packages/cem_ml/schema-packages/mathml/v1/examples/invalid-not-well-formed.mml",
+            content_type: MATHML_CONTENT_TYPE,
+            schema_uri: MATHML_SCHEMA_URI,
+            expected_exit: EXIT_HARD_FAILURE,
+            expected_diagnostics: &["cem.mathml.not_well_formed_xml"],
         },
         ValidationExample {
             name: "json-schema basic",

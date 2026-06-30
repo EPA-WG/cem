@@ -83,14 +83,14 @@
     }
 
     {diagnostics |
-        {diagnostic @code="mathml.parse_error" @severity="error" @message="MathML could not be parsed as XML."}
-        {diagnostic @code="mathml.not_well_formed_xml" @severity="error" @message="MathML input is not well-formed XML."}
-        {diagnostic @code="mathml.root_not_math" @severity="error" @message="MathML document root must be math."}
-        {diagnostic @code="mathml.namespace_missing" @severity="error" @message="MathML root must use the MathML namespace."}
-        {diagnostic @code="mathml.unsupported_profile" @severity="warning" @message="MathML media profile is not supported by the selected adapter."}
-        {diagnostic @code="mathml.malformed_expression" @severity="error" @message="MathML expression violates the selected profile constraints."}
-        {diagnostic @code="mathml.external_annotation_rejected" @severity="warning" @message="External MathML annotation was rejected by loader policy."}
-        {diagnostic @code="mathml.source_map" @severity="warning" @message="MathML source map information is incomplete."}
+        {diagnostic @code="cem.mathml.parse_error" @severity="error" @message="MathML could not be parsed as XML."}
+        {diagnostic @code="cem.mathml.not_well_formed_xml" @severity="error" @message="MathML input is not well-formed XML."}
+        {diagnostic @code="cem.mathml.root_not_math" @severity="error" @message="MathML document root must be math."}
+        {diagnostic @code="cem.mathml.namespace_missing" @severity="error" @message="MathML root must use the MathML namespace."}
+        {diagnostic @code="cem.mathml.unsupported_profile" @severity="warning" @message="MathML media profile is not supported by the selected adapter."}
+        {diagnostic @code="cem.mathml.malformed_expression" @severity="error" @message="MathML expression violates the selected profile constraints."}
+        {diagnostic @code="cem.mathml.external_annotation_rejected" @severity="warning" @message="External MathML annotation was rejected by loader policy."}
+        {diagnostic @code="cem.mathml.source_map" @severity="warning" @message="MathML source map information is incomplete."}
     }
 
     {compatibility |

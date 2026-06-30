@@ -61,7 +61,7 @@ history belongs in git history and the feature-specific docs linked below.
         (`application/relax-ng+xml`, `application/relax-ng-compact-syntax`).
   - [x] XHTML (`application/xhtml+xml`).
   - [x] SVG (`image/svg+xml`).
-  - [ ] MathML (`application/mathml+xml`, presentation/content aliases).
+  - [x] MathML (`application/mathml+xml`, presentation/content aliases).
   - [ ] XSLT/XSL legacy/custom-element compatibility
         (`application/xslt+xml`, `text/xsl`, custom-element aliases).
   - [ ] HTML (`text/html`).

@@ -3038,6 +3038,10 @@ fn direct_source_validation_report(
             )));
         } else if is_svg_source_input(input) {
             diagnostics.extend(collect_svg_source_diagnostics(std::slice::from_ref(input)));
+        } else if is_mathml_source_input(input) {
+            diagnostics.extend(collect_mathml_source_diagnostics(std::slice::from_ref(
+                input,
+            )));
         } else if is_xml_source_input(input) {
             diagnostics.extend(collect_xml_source_diagnostics(std::slice::from_ref(input)));
         } else if is_json_source_input(input) {
@@ -3303,6 +3307,30 @@ fn is_svg_source_input(input: &eng::EngineInput) -> bool {
     }
 }
 
+fn is_mathml_source_input(input: &eng::EngineInput) -> bool {
+    let identity = input
+        .identity
+        .clone()
+        .unwrap_or_else(|| input.root_scope.format_identity());
+    let schema_is_mathml = identity
+        .schema
+        .as_deref()
+        .map(str::trim)
+        .is_some_and(|schema| schema == cem_ml::schema::registry::MATHML_SCHEMA_URI);
+    let content_type = identity
+        .content_type
+        .as_deref()
+        .map(cli_content_type_essence);
+
+    match content_type.as_deref() {
+        Some(content_type) if is_mathml_source_content_type(content_type) => {
+            identity.schema.is_none() || schema_is_mathml
+        }
+        Some(_) => false,
+        None => schema_is_mathml,
+    }
+}
+
 fn is_cem_dom_projection_source_input(input: &eng::EngineInput) -> bool {
     let identity = input
         .identity
@@ -3446,6 +3474,15 @@ fn is_xhtml_source_content_type(content_type: &str) -> bool {
 
 fn is_svg_source_content_type(content_type: &str) -> bool {
     content_type == cem_ml::schema::registry::SVG_CONTENT_TYPE
+}
+
+fn is_mathml_source_content_type(content_type: &str) -> bool {
+    matches!(
+        content_type,
+        cem_ml::schema::registry::MATHML_CONTENT_TYPE
+            | "application/mathml-presentation+xml"
+            | "application/mathml-content+xml"
+    )
 }
 
 fn is_xml_source_content_type(content_type: &str) -> bool {
@@ -5175,6 +5212,503 @@ fn svg_not_well_formed_diagnostic(
 }
 
 fn svg_diagnostic(
+    input: &eng::EngineInput,
+    source: &str,
+    byte_offset: Option<u64>,
+    code: &'static str,
+    severity: cem_ml::diagnostics::Severity,
+    message: String,
+) -> cem_ml::diagnostics::Diagnostic {
+    let (line, column) = byte_offset
+        .and_then(|offset| usize::try_from(offset).ok())
+        .map(|offset| markdown_line_col(source, offset))
+        .map(|(line, column)| (Some(line), Some(column)))
+        .unwrap_or((None, None));
+    cem_ml::diagnostics::Diagnostic {
+        uri: Some(input.uri.clone()),
+        line,
+        column,
+        byte_offset,
+        code: code.to_owned(),
+        severity,
+        message,
+        ..cem_ml::diagnostics::Diagnostic::default()
+    }
+}
+
+fn collect_mathml_source_diagnostics(
+    inputs: &[eng::EngineInput],
+) -> Vec<cem_ml::diagnostics::Diagnostic> {
+    let mut diagnostics = Vec::new();
+    for input in inputs {
+        let content_type = input_source_content_type(input);
+        let profile = mathml_media_profile(content_type.as_deref(), input, &mut diagnostics);
+        let source = match std::str::from_utf8(&input.bytes) {
+            Ok(source) => source,
+            Err(error) => {
+                diagnostics.push(mathml_not_well_formed_diagnostic(
+                    input,
+                    "",
+                    u64::try_from(error.valid_up_to()).ok(),
+                    format!("MathML source must be valid UTF-8: {error}"),
+                ));
+                continue;
+            }
+        };
+
+        diagnostics.extend(validate_mathml_source(input, source, profile));
+    }
+    diagnostics
+}
+
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+enum MathMlMediaProfile {
+    Generic,
+    Presentation,
+    Content,
+}
+
+#[derive(Clone, Debug)]
+struct MathMlAttributeView {
+    local_name: String,
+    value: String,
+}
+
+#[derive(Clone, Debug)]
+struct MathMlElementFrame {
+    local_name: String,
+    namespace_uri: String,
+    attributes: Vec<MathMlAttributeView>,
+}
+
+#[derive(Clone, Debug, Default)]
+struct MathMlDocumentState {
+    root_is_math: bool,
+    saw_presentation: bool,
+    saw_content: bool,
+    reported_external_annotation: bool,
+}
+
+fn mathml_media_profile(
+    content_type: Option<&str>,
+    input: &eng::EngineInput,
+    diagnostics: &mut Vec<cem_ml::diagnostics::Diagnostic>,
+) -> MathMlMediaProfile {
+    let essence = content_type.map(cli_content_type_essence);
+    let mut profile = match essence.as_deref() {
+        Some("application/mathml-presentation+xml") => MathMlMediaProfile::Presentation,
+        Some("application/mathml-content+xml") => MathMlMediaProfile::Content,
+        _ => MathMlMediaProfile::Generic,
+    };
+
+    if let Some(parameter) =
+        content_type.and_then(|content_type| cli_content_type_parameter(content_type, "profile"))
+    {
+        match parameter.trim().to_ascii_lowercase().as_str() {
+            "generic" => profile = MathMlMediaProfile::Generic,
+            "presentation" => profile = MathMlMediaProfile::Presentation,
+            "content" => profile = MathMlMediaProfile::Content,
+            _ => diagnostics.push(mathml_diagnostic(
+                input,
+                "",
+                None,
+                "cem.mathml.unsupported_profile",
+                cem_ml::diagnostics::Severity::Warning,
+                format!("MathML media profile `{parameter}` is not supported"),
+            )),
+        }
+    }
+
+    profile
+}
+
+fn validate_mathml_source(
+    input: &eng::EngineInput,
+    source: &str,
+    profile: MathMlMediaProfile,
+) -> Vec<cem_ml::diagnostics::Diagnostic> {
+    let mut diagnostics = Vec::new();
+    let mut reader = quick_xml::Reader::from_str(source);
+    reader.config_mut().check_comments = true;
+
+    let mut element_stack: Vec<MathMlElementFrame> = Vec::new();
+    let mut namespace_stack = vec![xml_initial_namespaces()];
+    let mut root_count = 0usize;
+    let mut state = MathMlDocumentState::default();
+
+    loop {
+        match reader.read_event() {
+            Ok(quick_xml::events::Event::Start(start)) => {
+                let start_offset = xml_event_position(&reader, &start, false);
+                let (frame, namespaces, mut event_diagnostics) =
+                    mathml_start_frame(input, source, &start, &namespace_stack, start_offset);
+                diagnostics.append(&mut event_diagnostics);
+                mathml_validate_element(
+                    input,
+                    source,
+                    start_offset,
+                    &frame,
+                    &element_stack,
+                    &mut state,
+                    &mut root_count,
+                    &mut diagnostics,
+                );
+                element_stack.push(frame);
+                namespace_stack.push(namespaces);
+            }
+            Ok(quick_xml::events::Event::Empty(start)) => {
+                let start_offset = xml_event_position(&reader, &start, true);
+                let (frame, _, mut event_diagnostics) =
+                    mathml_start_frame(input, source, &start, &namespace_stack, start_offset);
+                diagnostics.append(&mut event_diagnostics);
+                mathml_validate_element(
+                    input,
+                    source,
+                    start_offset,
+                    &frame,
+                    &element_stack,
+                    &mut state,
+                    &mut root_count,
+                    &mut diagnostics,
+                );
+            }
+            Ok(quick_xml::events::Event::End(_)) => {
+                if element_stack.pop().is_some() && namespace_stack.len() > 1 {
+                    namespace_stack.pop();
+                }
+            }
+            Ok(quick_xml::events::Event::Text(text)) => {
+                if element_stack.is_empty() && !xml_bytes_are_whitespace(text.as_ref()) {
+                    diagnostics.push(mathml_not_well_formed_diagnostic(
+                        input,
+                        source,
+                        Some(reader.error_position()),
+                        "MathML document cannot contain character data outside the document element"
+                            .to_owned(),
+                    ));
+                }
+            }
+            Ok(quick_xml::events::Event::DocType(_)) => {
+                diagnostics.push(mathml_not_well_formed_diagnostic(
+                    input,
+                    source,
+                    Some(reader.error_position()),
+                    "MathML DOCTYPE declarations are rejected by default".to_owned(),
+                ));
+            }
+            Ok(quick_xml::events::Event::Eof) => break,
+            Ok(_) => {}
+            Err(error) => {
+                diagnostics.push(mathml_xml_error_diagnostic(
+                    input,
+                    source,
+                    Some(reader.error_position()),
+                    &error,
+                ));
+                break;
+            }
+        }
+    }
+
+    if root_count == 0 {
+        diagnostics.push(mathml_not_well_formed_diagnostic(
+            input,
+            source,
+            Some(0),
+            "MathML document must contain a document element".to_owned(),
+        ));
+    } else if state.root_is_math {
+        match profile {
+            MathMlMediaProfile::Generic => {}
+            MathMlMediaProfile::Presentation if !state.saw_presentation => {
+                diagnostics.push(mathml_diagnostic(
+                    input,
+                    source,
+                    Some(0),
+                    "cem.mathml.malformed_expression",
+                    cem_ml::diagnostics::Severity::Error,
+                    "application/mathml-presentation+xml must contain presentation MathML"
+                        .to_owned(),
+                ));
+            }
+            MathMlMediaProfile::Content if !state.saw_content => {
+                diagnostics.push(mathml_diagnostic(
+                    input,
+                    source,
+                    Some(0),
+                    "cem.mathml.malformed_expression",
+                    cem_ml::diagnostics::Severity::Error,
+                    "application/mathml-content+xml must contain content MathML".to_owned(),
+                ));
+            }
+            _ => {}
+        }
+    }
+
+    diagnostics
+}
+
+fn mathml_start_frame(
+    input: &eng::EngineInput,
+    source: &str,
+    start: &quick_xml::events::BytesStart<'_>,
+    namespace_stack: &[BTreeMap<String, String>],
+    byte_offset: Option<u64>,
+) -> (
+    MathMlElementFrame,
+    BTreeMap<String, String>,
+    Vec<cem_ml::diagnostics::Diagnostic>,
+) {
+    let mut diagnostics = Vec::new();
+    let mut raw_attributes = Vec::new();
+    let mut namespaces = namespace_stack
+        .last()
+        .cloned()
+        .unwrap_or_else(xml_initial_namespaces);
+
+    for attribute in start.attributes().with_checks(false) {
+        match attribute {
+            Ok(attribute) => {
+                let name = xml_qname_display(attribute.key.as_ref());
+                let value = String::from_utf8_lossy(attribute.value.as_ref()).into_owned();
+                if name == "xmlns" {
+                    namespaces.insert(String::new(), value.clone());
+                } else if let Some(prefix) = name.strip_prefix("xmlns:") {
+                    namespaces.insert(prefix.to_owned(), value.clone());
+                }
+                raw_attributes.push((name, value));
+            }
+            Err(error) => diagnostics.push(mathml_not_well_formed_diagnostic(
+                input,
+                source,
+                byte_offset,
+                format!("MathML XML attribute parse error: {error}"),
+            )),
+        }
+    }
+
+    let qualified_name = xml_qname_display(start.name().as_ref());
+    if let Some(prefix) = xml_qname_prefix(&qualified_name) {
+        if !xml_prefix_is_bound(&namespaces, prefix) {
+            diagnostics.push(mathml_not_well_formed_diagnostic(
+                input,
+                source,
+                byte_offset,
+                format!("MathML namespace prefix `{prefix}` is not bound for `{qualified_name}`"),
+            ));
+        }
+    }
+
+    let (namespace_uri, local_name) = xhtml_expanded_name(&qualified_name, &namespaces);
+    let attributes = raw_attributes
+        .into_iter()
+        .filter(|(qualified_name, _)| !xml_attribute_is_namespace_declaration(qualified_name))
+        .map(|(qualified_name, value)| {
+            if let Some(prefix) = xml_qname_prefix(&qualified_name) {
+                if !xml_prefix_is_bound(&namespaces, prefix) {
+                    diagnostics.push(mathml_not_well_formed_diagnostic(
+                        input,
+                        source,
+                        byte_offset,
+                        format!(
+                            "MathML namespace prefix `{prefix}` is not bound for attribute `{qualified_name}`"
+                        ),
+                    ));
+                }
+            }
+            let (_, local_name) = xml_attribute_expanded_name(&qualified_name, &namespaces);
+            MathMlAttributeView { local_name, value }
+        })
+        .collect();
+
+    (
+        MathMlElementFrame {
+            local_name,
+            namespace_uri,
+            attributes,
+        },
+        namespaces,
+        diagnostics,
+    )
+}
+
+fn mathml_validate_element(
+    input: &eng::EngineInput,
+    source: &str,
+    byte_offset: Option<u64>,
+    frame: &MathMlElementFrame,
+    element_stack: &[MathMlElementFrame],
+    state: &mut MathMlDocumentState,
+    root_count: &mut usize,
+    diagnostics: &mut Vec<cem_ml::diagnostics::Diagnostic>,
+) {
+    if element_stack.is_empty() {
+        *root_count += 1;
+        if *root_count > 1 {
+            diagnostics.push(mathml_not_well_formed_diagnostic(
+                input,
+                source,
+                byte_offset,
+                "MathML document must have exactly one document element".to_owned(),
+            ));
+            return;
+        }
+        if frame.local_name != "math" {
+            diagnostics.push(mathml_diagnostic(
+                input,
+                source,
+                byte_offset,
+                "cem.mathml.root_not_math",
+                cem_ml::diagnostics::Severity::Error,
+                format!(
+                    "MathML root element must be `math`, found `{}`",
+                    frame.local_name
+                ),
+            ));
+            return;
+        }
+        if frame.namespace_uri != cem_ml::schema::registry::MATHML_NAMESPACE_URI {
+            diagnostics.push(mathml_diagnostic(
+                input,
+                source,
+                byte_offset,
+                "cem.mathml.namespace_missing",
+                cem_ml::diagnostics::Severity::Error,
+                "MathML root `math` element must use the http://www.w3.org/1998/Math/MathML namespace"
+                    .to_owned(),
+            ));
+            return;
+        }
+
+        state.root_is_math = true;
+        return;
+    }
+
+    if frame.namespace_uri != cem_ml::schema::registry::MATHML_NAMESPACE_URI {
+        return;
+    }
+
+    if mathml_is_presentation_element(&frame.local_name) {
+        state.saw_presentation = true;
+    }
+    if mathml_is_content_element(&frame.local_name) {
+        state.saw_content = true;
+    }
+    if matches!(frame.local_name.as_str(), "annotation" | "annotation-xml")
+        && !state.reported_external_annotation
+    {
+        if let Some(attribute) = frame.attributes.iter().find(|attribute| {
+            attribute.local_name == "src" && mathml_src_requires_policy(&attribute.value)
+        }) {
+            state.reported_external_annotation = true;
+            diagnostics.push(mathml_diagnostic(
+                input,
+                source,
+                byte_offset,
+                "cem.mathml.external_annotation_rejected",
+                cem_ml::diagnostics::Severity::Warning,
+                format!(
+                    "MathML annotation src `{}` requires explicit loader policy",
+                    attribute.value
+                ),
+            ));
+        }
+    }
+}
+
+fn mathml_is_presentation_element(local_name: &str) -> bool {
+    matches!(
+        local_name,
+        "mi" | "mn"
+            | "mo"
+            | "mtext"
+            | "mspace"
+            | "ms"
+            | "mrow"
+            | "mfrac"
+            | "msqrt"
+            | "mroot"
+            | "mstyle"
+            | "merror"
+            | "mpadded"
+            | "mphantom"
+            | "mfenced"
+            | "menclose"
+            | "msub"
+            | "msup"
+            | "msubsup"
+            | "munder"
+            | "mover"
+            | "munderover"
+            | "mmultiscripts"
+            | "mtable"
+            | "mtr"
+            | "mlabeledtr"
+            | "mtd"
+            | "maction"
+    )
+}
+
+fn mathml_is_content_element(local_name: &str) -> bool {
+    matches!(
+        local_name,
+        "apply"
+            | "bind"
+            | "ci"
+            | "cn"
+            | "csymbol"
+            | "lambda"
+            | "piecewise"
+            | "piece"
+            | "otherwise"
+            | "interval"
+            | "list"
+            | "set"
+            | "vector"
+            | "matrix"
+            | "matrixrow"
+            | "declare"
+    )
+}
+
+fn mathml_src_requires_policy(value: &str) -> bool {
+    let trimmed = value.trim().trim_matches('"').trim_matches('\'');
+    !(trimmed.is_empty()
+        || trimmed.starts_with('#')
+        || trimmed.to_ascii_lowercase().starts_with("data:"))
+}
+
+fn mathml_xml_error_diagnostic(
+    input: &eng::EngineInput,
+    source: &str,
+    byte_offset: Option<u64>,
+    error: &quick_xml::Error,
+) -> cem_ml::diagnostics::Diagnostic {
+    mathml_not_well_formed_diagnostic(
+        input,
+        source,
+        byte_offset,
+        format!("MathML XML parse error: {error}"),
+    )
+}
+
+fn mathml_not_well_formed_diagnostic(
+    input: &eng::EngineInput,
+    source: &str,
+    byte_offset: Option<u64>,
+    message: String,
+) -> cem_ml::diagnostics::Diagnostic {
+    mathml_diagnostic(
+        input,
+        source,
+        byte_offset,
+        "cem.mathml.not_well_formed_xml",
+        cem_ml::diagnostics::Severity::Error,
+        message,
+    )
+}
+
+fn mathml_diagnostic(
     input: &eng::EngineInput,
     source: &str,
     byte_offset: Option<u64>,
@@ -12725,6 +13259,265 @@ start =
         assert!(diagnostics
             .iter()
             .any(|diag| diag["code"] == "cem.svg.not_well_formed_xml"));
+    }
+
+    #[test]
+    fn validate_mathml_source_uses_mathml_validator() {
+        let p = write_fixture(
+            "validate-mathml-source.mml",
+            r#"<?xml version="1.0" encoding="UTF-8"?>
+<math xmlns="http://www.w3.org/1998/Math/MathML" display="inline" alttext="x plus one">
+  <mrow>
+    <mi>x</mi>
+    <mo>+</mo>
+    <mn>1</mn>
+  </mrow>
+</math>
+"#,
+        );
+        let (outcome, stdout, stderr) = run(
+            &RealCemMlEngine::new(),
+            &[
+                "validate",
+                "--format",
+                "json",
+                "--content-type",
+                "application/mathml+xml",
+                "--schema",
+                cem_ml::schema::registry::MATHML_SCHEMA_URI,
+                p.to_str().unwrap(),
+            ],
+        );
+
+        assert_eq!(outcome.exit_code, EXIT_OK, "{stderr}");
+        let v: serde_json::Value = serde_json::from_str(stdout.trim()).unwrap();
+        let diagnostics = v["diagnostics"].as_array().unwrap();
+        assert_eq!(v["summary"]["hardViolationCount"], 0);
+        assert!(diagnostics.is_empty());
+        assert!(!diagnostics
+            .iter()
+            .any(|diag| diag["code"] == "cem.lifecycle.adapter_unsupported"));
+    }
+
+    #[test]
+    fn validate_mathml_presentation_alias_uses_mathml_validator() {
+        let p = write_fixture(
+            "validate-mathml-presentation-alias.mml",
+            r#"<math xmlns="http://www.w3.org/1998/Math/MathML" display="inline">
+  <mrow><mi>x</mi><mo>+</mo><mn>1</mn></mrow>
+</math>
+"#,
+        );
+        let (outcome, stdout, stderr) = run(
+            &RealCemMlEngine::new(),
+            &[
+                "validate",
+                "--format",
+                "json",
+                "--content-type",
+                "application/mathml-presentation+xml",
+                "--schema",
+                cem_ml::schema::registry::MATHML_SCHEMA_URI,
+                p.to_str().unwrap(),
+            ],
+        );
+
+        assert_eq!(outcome.exit_code, EXIT_OK, "{stderr}");
+        let v: serde_json::Value = serde_json::from_str(stdout.trim()).unwrap();
+        assert_eq!(v["summary"]["hardViolationCount"], 0);
+        assert!(v["diagnostics"].as_array().unwrap().is_empty());
+    }
+
+    #[test]
+    fn validate_mathml_source_reports_missing_namespace() {
+        let p = write_fixture(
+            "validate-mathml-source-missing-namespace.mml",
+            r#"<math display="inline">
+  <mi>x</mi>
+</math>
+"#,
+        );
+        let (outcome, stdout, stderr) = run(
+            &RealCemMlEngine::new(),
+            &[
+                "validate",
+                "--format",
+                "json",
+                "--content-type",
+                "application/mathml+xml",
+                "--schema",
+                cem_ml::schema::registry::MATHML_SCHEMA_URI,
+                p.to_str().unwrap(),
+            ],
+        );
+
+        assert_eq!(outcome.exit_code, EXIT_HARD_FAILURE, "{stderr}");
+        let v: serde_json::Value = serde_json::from_str(stdout.trim()).unwrap();
+        let diagnostics = v["diagnostics"].as_array().unwrap();
+        assert!(diagnostics
+            .iter()
+            .any(|diag| diag["code"] == "cem.mathml.namespace_missing"));
+    }
+
+    #[test]
+    fn validate_mathml_source_reports_root_not_math() {
+        let p = write_fixture(
+            "validate-mathml-source-root-not-math.mml",
+            r#"<mrow xmlns="http://www.w3.org/1998/Math/MathML">
+  <mi>x</mi>
+</mrow>
+"#,
+        );
+        let (outcome, stdout, stderr) = run(
+            &RealCemMlEngine::new(),
+            &[
+                "validate",
+                "--format",
+                "json",
+                "--content-type",
+                "application/mathml+xml",
+                "--schema",
+                cem_ml::schema::registry::MATHML_SCHEMA_URI,
+                p.to_str().unwrap(),
+            ],
+        );
+
+        assert_eq!(outcome.exit_code, EXIT_HARD_FAILURE, "{stderr}");
+        let v: serde_json::Value = serde_json::from_str(stdout.trim()).unwrap();
+        let diagnostics = v["diagnostics"].as_array().unwrap();
+        assert!(diagnostics
+            .iter()
+            .any(|diag| diag["code"] == "cem.mathml.root_not_math"));
+    }
+
+    #[test]
+    fn validate_mathml_content_alias_reports_profile_mismatch() {
+        let p = write_fixture(
+            "validate-mathml-content-alias-presentation-only.mml",
+            r#"<math xmlns="http://www.w3.org/1998/Math/MathML">
+  <mrow><mi>x</mi><mo>+</mo><mn>1</mn></mrow>
+</math>
+"#,
+        );
+        let (outcome, stdout, stderr) = run(
+            &RealCemMlEngine::new(),
+            &[
+                "validate",
+                "--format",
+                "json",
+                "--content-type",
+                "application/mathml-content+xml",
+                "--schema",
+                cem_ml::schema::registry::MATHML_SCHEMA_URI,
+                p.to_str().unwrap(),
+            ],
+        );
+
+        assert_eq!(outcome.exit_code, EXIT_HARD_FAILURE, "{stderr}");
+        let v: serde_json::Value = serde_json::from_str(stdout.trim()).unwrap();
+        let diagnostics = v["diagnostics"].as_array().unwrap();
+        assert!(diagnostics
+            .iter()
+            .any(|diag| diag["code"] == "cem.mathml.malformed_expression"));
+    }
+
+    #[test]
+    fn validate_mathml_source_reports_external_annotation_warning() {
+        let p = write_fixture(
+            "validate-mathml-source-external-annotation.mml",
+            r#"<math xmlns="http://www.w3.org/1998/Math/MathML" alttext="x squared">
+  <semantics>
+    <msup><mi>x</mi><mn>2</mn></msup>
+    <annotation encoding="application/json" src="formula.json"/>
+  </semantics>
+</math>
+"#,
+        );
+        let (outcome, stdout, stderr) = run(
+            &RealCemMlEngine::new(),
+            &[
+                "validate",
+                "--format",
+                "json",
+                "--content-type",
+                "application/mathml+xml",
+                "--schema",
+                cem_ml::schema::registry::MATHML_SCHEMA_URI,
+                p.to_str().unwrap(),
+            ],
+        );
+
+        assert_eq!(outcome.exit_code, EXIT_OK, "{stderr}");
+        let v: serde_json::Value = serde_json::from_str(stdout.trim()).unwrap();
+        let diagnostics = v["diagnostics"].as_array().unwrap();
+        assert_eq!(v["summary"]["hardViolationCount"], 0);
+        assert!(diagnostics
+            .iter()
+            .any(|diag| diag["code"] == "cem.mathml.external_annotation_rejected"));
+    }
+
+    #[test]
+    fn validate_mathml_source_reports_unsupported_profile_warning() {
+        let p = write_fixture(
+            "validate-mathml-source-unsupported-profile.mml",
+            r#"<math xmlns="http://www.w3.org/1998/Math/MathML">
+  <mi>x</mi>
+</math>
+"#,
+        );
+        let (outcome, stdout, stderr) = run(
+            &RealCemMlEngine::new(),
+            &[
+                "validate",
+                "--format",
+                "json",
+                "--content-type",
+                "application/mathml+xml; profile=custom",
+                "--schema",
+                cem_ml::schema::registry::MATHML_SCHEMA_URI,
+                p.to_str().unwrap(),
+            ],
+        );
+
+        assert_eq!(outcome.exit_code, EXIT_OK, "{stderr}");
+        let v: serde_json::Value = serde_json::from_str(stdout.trim()).unwrap();
+        let diagnostics = v["diagnostics"].as_array().unwrap();
+        assert_eq!(v["summary"]["hardViolationCount"], 0);
+        assert!(diagnostics
+            .iter()
+            .any(|diag| diag["code"] == "cem.mathml.unsupported_profile"));
+    }
+
+    #[test]
+    fn validate_mathml_source_reports_not_well_formed_xml() {
+        let p = write_fixture(
+            "validate-mathml-source-not-well-formed.mml",
+            r#"<math xmlns="http://www.w3.org/1998/Math/MathML">
+  <mrow>
+    <mi>x</mrow>
+</math>
+"#,
+        );
+        let (outcome, stdout, stderr) = run(
+            &RealCemMlEngine::new(),
+            &[
+                "validate",
+                "--format",
+                "json",
+                "--content-type",
+                "application/mathml+xml",
+                "--schema",
+                cem_ml::schema::registry::MATHML_SCHEMA_URI,
+                p.to_str().unwrap(),
+            ],
+        );
+
+        assert_eq!(outcome.exit_code, EXIT_HARD_FAILURE, "{stderr}");
+        let v: serde_json::Value = serde_json::from_str(stdout.trim()).unwrap();
+        let diagnostics = v["diagnostics"].as_array().unwrap();
+        assert!(diagnostics
+            .iter()
+            .any(|diag| diag["code"] == "cem.mathml.not_well_formed_xml"));
     }
 
     #[test]
