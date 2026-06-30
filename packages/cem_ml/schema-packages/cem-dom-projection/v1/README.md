@@ -10,6 +10,17 @@ The DOM projection is binary-first. JSON output is a renderer over the same
 semantic layer, including the legacy
 `https://cem.dev/ns/projection/dom-json/1` export.
 
+## Converter Edges
+
+The package manifest declares planned CEMT-primary converter edges from the
+binary DOM projection to HTML and XML. Those edges include Rust fallback symbols
+until CEMT execution is wired through the conversion registry:
+
+| Converter | From | To | Primary | Fallback |
+| --- | --- | --- | --- | --- |
+| `cem-dom-projection-to-html-cemt` | `application/vnd.cem.dom+cem-bin` | `text/html` | CEMT planned | `HtmlExportConverter` |
+| `cem-dom-projection-to-xml-cemt` | `application/vnd.cem.dom+cem-bin` | `application/xml` | CEMT planned | `XmlExportConverter` |
+
 ## Validation Examples
 
 The schema-owned examples live in [`examples/`](examples/) and are used by the

@@ -11,8 +11,9 @@ use crate::schema::registry::{
     CEM_AST_PROJECTION_SCHEMA_URI, CEM_DOM_JSON_PROJECTION_CONTENT_TYPE,
     CEM_DOM_PROJECTION_CONTENT_TYPE, CEM_DOM_PROJECTION_SCHEMA_URI,
     CEM_EVENTS_JSON_PROJECTION_CONTENT_TYPE, CEM_EVENTS_PROJECTION_CONTENT_TYPE,
-    CEM_EVENTS_PROJECTION_SCHEMA_URI, CEM_ML_CONTENT_TYPE, CEM_ML_SCHEMA_URI, HTML_CONTENT_TYPE,
-    HTML_SCHEMA_URI, XML_CONTENT_TYPE, XML_SCHEMA_URI,
+    CEM_EVENTS_PROJECTION_SCHEMA_URI, CEM_ML_CONTENT_TYPE, CEM_ML_SCHEMA_URI,
+    CEM_TRANSFORM_CONTENT_TYPE, CEM_TRANSFORM_SCHEMA_URI, HTML_CONTENT_TYPE, HTML_SCHEMA_URI,
+    XML_CONTENT_TYPE, XML_SCHEMA_URI,
 };
 use std::collections::{BTreeMap, BTreeSet};
 
@@ -20,6 +21,12 @@ use std::collections::{BTreeMap, BTreeSet};
 pub enum ConversionImplementation {
     Cemt,
     Rust,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum ConversionReadiness {
+    Ready,
+    Planned,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord)]
@@ -61,14 +68,22 @@ pub struct ConversionTemplateDescriptor {
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
+pub struct ConversionRustFallbackDescriptor {
+    pub rust_symbol: String,
+    pub reason: String,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
 pub struct ConversionDescriptor {
     pub id: String,
     pub package_id: String,
     pub from: ConversionEndpoint,
     pub to: ConversionEndpoint,
     pub implementation: ConversionImplementation,
+    pub readiness: ConversionReadiness,
     pub template: Option<ConversionTemplateDescriptor>,
     pub rust_symbol: Option<String>,
+    pub rust_fallback: Option<ConversionRustFallbackDescriptor>,
     pub streamable: bool,
     pub lossiness: Option<String>,
     pub implicit: bool,
@@ -587,6 +602,20 @@ pub fn builtin_conversion_descriptors() -> Vec<ConversionDescriptor> {
             "lossless",
             80,
         ),
+        planned_cemt_edge_with_rust_fallback(
+            "cem-dom-projection-to-html-cemt",
+            "cem-dom-projection",
+            endpoint(
+                CEM_DOM_PROJECTION_CONTENT_TYPE,
+                CEM_DOM_PROJECTION_SCHEMA_URI,
+            ),
+            endpoint(HTML_CONTENT_TYPE, HTML_SCHEMA_URI),
+            "schema-packages/cem-dom-projection/v1/converters/dom-to-html.cemt",
+            "HtmlExportConverter",
+            "CEMT DOM-to-HTML serialization edge is registered before execution is wired",
+            "serialization",
+            100,
+        ),
         rust_edge(
             "cem-dom-projection-to-html-rust",
             "cem-dom-projection",
@@ -596,6 +625,20 @@ pub fn builtin_conversion_descriptors() -> Vec<ConversionDescriptor> {
             ),
             endpoint(HTML_CONTENT_TYPE, HTML_SCHEMA_URI),
             "HtmlExportConverter",
+            "serialization",
+            100,
+        ),
+        planned_cemt_edge_with_rust_fallback(
+            "cem-dom-projection-to-xml-cemt",
+            "cem-dom-projection",
+            endpoint(
+                CEM_DOM_PROJECTION_CONTENT_TYPE,
+                CEM_DOM_PROJECTION_SCHEMA_URI,
+            ),
+            endpoint(XML_CONTENT_TYPE, XML_SCHEMA_URI),
+            "schema-packages/cem-dom-projection/v1/converters/dom-to-xml.cemt",
+            "XmlExportConverter",
+            "CEMT DOM-to-XML serialization edge is registered before execution is wired",
             "serialization",
             100,
         ),
@@ -663,6 +706,42 @@ fn endpoint(content_type: &str, schema: &str) -> ConversionEndpoint {
     ConversionEndpoint::with_schema(content_type, schema)
 }
 
+fn planned_cemt_edge_with_rust_fallback(
+    id: &str,
+    package_id: &str,
+    from: ConversionEndpoint,
+    to: ConversionEndpoint,
+    template_path: &str,
+    rust_symbol: &str,
+    fallback_reason: &str,
+    lossiness: &str,
+    cost: u32,
+) -> ConversionDescriptor {
+    ConversionDescriptor {
+        id: id.to_owned(),
+        package_id: package_id.to_owned(),
+        from,
+        to,
+        implementation: ConversionImplementation::Cemt,
+        readiness: ConversionReadiness::Planned,
+        template: Some(ConversionTemplateDescriptor {
+            path: template_path.to_owned(),
+            content_type: content_type_essence(CEM_TRANSFORM_CONTENT_TYPE),
+            schema: Some(CEM_TRANSFORM_SCHEMA_URI.to_owned()),
+        }),
+        rust_symbol: None,
+        rust_fallback: Some(ConversionRustFallbackDescriptor {
+            rust_symbol: rust_symbol.to_owned(),
+            reason: fallback_reason.to_owned(),
+        }),
+        streamable: true,
+        lossiness: Some(lossiness.to_owned()),
+        implicit: true,
+        explicit_only: false,
+        cost,
+    }
+}
+
 fn rust_edge(
     id: &str,
     package_id: &str,
@@ -678,8 +757,10 @@ fn rust_edge(
         from,
         to,
         implementation: ConversionImplementation::Rust,
+        readiness: ConversionReadiness::Ready,
         template: None,
         rust_symbol: Some(rust_symbol.to_owned()),
+        rust_fallback: None,
         streamable: true,
         lossiness: Some(lossiness.to_owned()),
         implicit: true,
@@ -744,6 +825,51 @@ mod tests {
             CEM_DOM_PROJECTION_CONTENT_TYPE
         );
         assert_eq!(selection.target.schema, CEM_DOM_PROJECTION_SCHEMA_URI);
+        assert_eq!(
+            selection.descriptor.implementation,
+            ConversionImplementation::Rust
+        );
+        assert_eq!(selection.descriptor.readiness, ConversionReadiness::Ready);
+        assert!(selection.descriptor.rust_fallback.is_none());
+    }
+
+    #[test]
+    fn builtin_registry_prefers_cemt_primary_edge_with_rust_fallback() {
+        let schemas = SchemaRegistry::with_builtin_schemas();
+        let registry = ConversionRegistry::with_builtin_converters();
+
+        let selection = registry
+            .select_direct_edge(
+                &schemas,
+                &identity(CEM_DOM_PROJECTION_CONTENT_TYPE),
+                &identity(HTML_CONTENT_TYPE),
+            )
+            .unwrap();
+
+        assert_eq!(selection.descriptor.id, "cem-dom-projection-to-html-cemt");
+        assert_eq!(
+            selection.descriptor.implementation,
+            ConversionImplementation::Cemt
+        );
+        assert_eq!(selection.descriptor.readiness, ConversionReadiness::Planned);
+
+        let template = selection.descriptor.template.as_ref().unwrap();
+        assert_eq!(
+            template.path,
+            "schema-packages/cem-dom-projection/v1/converters/dom-to-html.cemt"
+        );
+        assert_eq!(template.content_type, CEM_TRANSFORM_CONTENT_TYPE);
+        assert_eq!(template.schema.as_deref(), Some(CEM_TRANSFORM_SCHEMA_URI));
+
+        let fallback = selection.descriptor.rust_fallback.as_ref().unwrap();
+        assert_eq!(fallback.rust_symbol, "HtmlExportConverter");
+        assert!(fallback.reason.contains("before execution is wired"));
+
+        let rust_edge = registry
+            .converter("cem-dom-projection-to-html-rust")
+            .expect("rust fallback edge remains registered");
+        assert_eq!(rust_edge.implementation, ConversionImplementation::Rust);
+        assert_eq!(rust_edge.readiness, ConversionReadiness::Ready);
     }
 
     #[test]

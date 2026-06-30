@@ -78,8 +78,10 @@ history belongs in git history and the feature-specific docs linked below.
         mismatch rejection.
   - [x] Add `ConversionRegistry` direct-edge lookup between resolved source and
         target identities.
-  - [ ] Register CEMT converter descriptors as primary conversion edges with
+  - [x] Register CEMT converter descriptors as primary conversion edges with
         Rust fallback hooks where the CEMT edge is not yet implemented.
+  - [ ] Execute selected converter descriptors through CEMT template adapters
+        with Rust fallback execution when the CEMT edge is still planned.
 
 ## Schema Package Implementation List
 

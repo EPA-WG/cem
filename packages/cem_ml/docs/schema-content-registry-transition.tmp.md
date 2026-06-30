@@ -126,5 +126,8 @@ Progress:
       validator.
 - [x] Add `ConversionRegistry` direct-edge lookup between resolved source and
       target identities.
-- [ ] Register CEMT converter descriptors as primary conversion edges with Rust
+- [x] Register CEMT converter descriptors as primary conversion edges with Rust
       fallback hooks where the CEMT edge is not yet implemented.
+- [ ] Execute selected converter descriptors through CEMT template adapters,
+      falling back to registered Rust hooks while planned CEMT edges are not
+      executable.

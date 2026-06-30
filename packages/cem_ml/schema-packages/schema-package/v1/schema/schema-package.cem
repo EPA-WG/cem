@@ -20,7 +20,7 @@
         {element @name="schema" @required-attributes="uri source" @optional-attributes="version"}
         {element @name="content-type" @required-attributes="value" @optional-attributes="primary alias"}
         {element @name="namespace" @required-attributes="uri" @optional-attributes="prefix"}
-        {element @name="converter" @required-attributes="id implementation" @optional-attributes="template template-content-type template-schema rust-symbol streamable lossiness implicit explicit-only" @children="from to"}
+        {element @name="converter" @required-attributes="id implementation" @optional-attributes="template template-content-type template-schema rust-symbol streamable lossiness implicit explicit-only readiness fallback-reason" @children="from to"}
         {element @name="from" @required-attributes="content-type" @optional-attributes="schema"}
         {element @name="to" @required-attributes="content-type" @optional-attributes="schema"}
         {element @name="artifact" @required-attributes="kind path" @optional-attributes="content-type schema generated"}
@@ -44,6 +44,8 @@
         {attribute @name="lossiness" @type="schema:identifier"}
         {attribute @name="implicit" @type="schema:boolean"}
         {attribute @name="explicit-only" @type="schema:boolean"}
+        {attribute @name="readiness" @type="schema:identifier" @values="ready planned"}
+        {attribute @name="fallback-reason" @type="schema:string"}
         {attribute @name="content-type" @type="schema:media-type"}
         {attribute @name="schema" @type="schema:uri"}
         {attribute @name="kind" @type="schema:identifier"}
@@ -57,6 +59,7 @@
         {constraint @kind="converter-from-to-required" @target="converter" @policy="required"}
         {constraint @kind="cemt-template-identity-required" @target="converter" @policy="when implementation is cemt"}
         {constraint @kind="rust-symbol-required" @target="converter" @policy="when implementation is rust"}
+        {constraint @kind="planned-cemt-rust-fallback" @target="converter" @policy="planned CEMT converters may declare rust-symbol as fallback hook"}
     }
 
     {diagnostics |
