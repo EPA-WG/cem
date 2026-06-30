@@ -47,7 +47,7 @@ history belongs in git history and the feature-specific docs linked below.
   - [x] CEM DOM projection
         (`application/vnd.cem.dom+cem-bin`,
         `application/vnd.cem.dom+json` debug view).
-  - [ ] CEM AST projection
+  - [x] CEM AST projection
         (`application/vnd.cem.ast+cem-bin`,
         `application/vnd.cem.ast+json` debug view).
   - [ ] CEM events projection

@@ -23,6 +23,9 @@ const JSON_SCHEMA_CONTENT_TYPE: &str = "application/schema+json";
 const CEM_DOM_PROJECTION_SCHEMA_URI: &str = "https://cem.dev/ns/projection/dom/1";
 const CEM_DOM_PROJECTION_CONTENT_TYPE: &str = "application/vnd.cem.dom+cem-bin";
 const CEM_DOM_JSON_PROJECTION_CONTENT_TYPE: &str = "application/vnd.cem.dom+json";
+const CEM_AST_PROJECTION_SCHEMA_URI: &str = "https://cem.dev/ns/projection/ast/1";
+const CEM_AST_PROJECTION_CONTENT_TYPE: &str = "application/vnd.cem.ast+cem-bin";
+const CEM_AST_JSON_PROJECTION_CONTENT_TYPE: &str = "application/vnd.cem.ast+json";
 
 #[derive(Debug)]
 struct ValidationExample {
@@ -346,6 +349,46 @@ fn schema_owned_examples_validate_through_cli() {
             schema_uri: CEM_DOM_PROJECTION_SCHEMA_URI,
             expected_exit: EXIT_HARD_FAILURE,
             expected_diagnostics: &["cem.projection.dom.binary_magic"],
+        },
+        ValidationExample {
+            name: "cem-ast binary basic",
+            path: "packages/cem_ml/schema-packages/cem-ast-projection/v1/examples/basic-ast.cem-bin",
+            content_type: CEM_AST_PROJECTION_CONTENT_TYPE,
+            schema_uri: CEM_AST_PROJECTION_SCHEMA_URI,
+            expected_exit: EXIT_OK,
+            expected_diagnostics: &[],
+        },
+        ValidationExample {
+            name: "cem-ast json basic",
+            path: "packages/cem_ml/schema-packages/cem-ast-projection/v1/examples/basic-ast.ast.json",
+            content_type: CEM_AST_JSON_PROJECTION_CONTENT_TYPE,
+            schema_uri: CEM_AST_PROJECTION_SCHEMA_URI,
+            expected_exit: EXIT_OK,
+            expected_diagnostics: &[],
+        },
+        ValidationExample {
+            name: "cem-ast json nested",
+            path: "packages/cem_ml/schema-packages/cem-ast-projection/v1/examples/nested-ast.ast.json",
+            content_type: CEM_AST_JSON_PROJECTION_CONTENT_TYPE,
+            schema_uri: CEM_AST_PROJECTION_SCHEMA_URI,
+            expected_exit: EXIT_OK,
+            expected_diagnostics: &[],
+        },
+        ValidationExample {
+            name: "cem-ast json invalid kind",
+            path: "packages/cem_ml/schema-packages/cem-ast-projection/v1/examples/invalid-kind.ast.json",
+            content_type: CEM_AST_JSON_PROJECTION_CONTENT_TYPE,
+            schema_uri: CEM_AST_PROJECTION_SCHEMA_URI,
+            expected_exit: EXIT_HARD_FAILURE,
+            expected_diagnostics: &["cem.projection.ast.json_shape"],
+        },
+        ValidationExample {
+            name: "cem-ast binary invalid magic",
+            path: "packages/cem_ml/schema-packages/cem-ast-projection/v1/examples/invalid-binary.cem-bin",
+            content_type: CEM_AST_PROJECTION_CONTENT_TYPE,
+            schema_uri: CEM_AST_PROJECTION_SCHEMA_URI,
+            expected_exit: EXIT_HARD_FAILURE,
+            expected_diagnostics: &["cem.projection.ast.binary_magic"],
         },
     ];
 

@@ -65,6 +65,12 @@
         {diagnostic @code="cem.projection.ast.token_range_invalid" @severity="error"}
         {diagnostic @code="cem.projection.ast.chunk_hash_mismatch" @severity="error"}
         {diagnostic @code="cem.projection.ast.source_map_missing" @severity="warning"}
+        {diagnostic @code="cem.projection.ast.binary_magic" @severity="error"}
+        {diagnostic @code="cem.projection.ast.binary_truncated" @severity="error"}
+        {diagnostic @code="cem.projection.ast.binary_version" @severity="error"}
+        {diagnostic @code="cem.projection.ast.projection_mismatch" @severity="error"}
+        {diagnostic @code="cem.projection.ast.json_parse_error" @severity="error"}
+        {diagnostic @code="cem.projection.ast.json_shape" @severity="error"}
     }
 
     {compatibility |
