@@ -18,6 +18,8 @@ const CEM_QL_SCHEMA_URI: &str = "https://cem.dev/ns/query/cem-ql/1";
 const CEM_QL_CONTENT_TYPE: &str = "application/vnd.cem.query+cem-ql";
 const JSON_SCHEMA_URI: &str = "https://cem.dev/ns/data/json/1";
 const JSON_CONTENT_TYPE: &str = "application/json";
+const JSON_SCHEMA_SCHEMA_URI: &str = "https://cem.dev/ns/data/json-schema/1";
+const JSON_SCHEMA_CONTENT_TYPE: &str = "application/schema+json";
 
 #[derive(Debug)]
 struct ValidationExample {
@@ -269,6 +271,38 @@ fn schema_owned_examples_validate_through_cli() {
             schema_uri: JSON_SCHEMA_URI,
             expected_exit: EXIT_HARD_FAILURE,
             expected_diagnostics: &["cem.json.parse_error"],
+        },
+        ValidationExample {
+            name: "json-schema basic",
+            path: "packages/cem_ml/schema-packages/json-schema/v1/examples/basic-schema.schema.json",
+            content_type: JSON_SCHEMA_CONTENT_TYPE,
+            schema_uri: JSON_SCHEMA_SCHEMA_URI,
+            expected_exit: EXIT_OK,
+            expected_diagnostics: &[],
+        },
+        ValidationExample {
+            name: "json-schema catalog",
+            path: "packages/cem_ml/schema-packages/json-schema/v1/examples/catalog-schema.schema.json",
+            content_type: JSON_SCHEMA_CONTENT_TYPE,
+            schema_uri: JSON_SCHEMA_SCHEMA_URI,
+            expected_exit: EXIT_OK,
+            expected_diagnostics: &[],
+        },
+        ValidationExample {
+            name: "json-schema invalid unsupported dialect",
+            path: "packages/cem_ml/schema-packages/json-schema/v1/examples/invalid-unsupported-dialect.schema.json",
+            content_type: JSON_SCHEMA_CONTENT_TYPE,
+            schema_uri: JSON_SCHEMA_SCHEMA_URI,
+            expected_exit: EXIT_HARD_FAILURE,
+            expected_diagnostics: &["cem.json_schema.unsupported_dialect"],
+        },
+        ValidationExample {
+            name: "json-schema invalid parse",
+            path: "packages/cem_ml/schema-packages/json-schema/v1/examples/invalid-parse.schema.json",
+            content_type: JSON_SCHEMA_CONTENT_TYPE,
+            schema_uri: JSON_SCHEMA_SCHEMA_URI,
+            expected_exit: EXIT_HARD_FAILURE,
+            expected_diagnostics: &["cem.json_schema.parse_error"],
         },
     ];
 

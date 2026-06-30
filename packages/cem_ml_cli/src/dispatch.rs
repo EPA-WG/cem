@@ -3004,6 +3004,10 @@ fn direct_source_validation_report(
             diagnostics.extend(collect_cem_ql_source_diagnostics(std::slice::from_ref(
                 input,
             )));
+        } else if is_json_schema_source_input(input) {
+            diagnostics.extend(collect_json_schema_source_diagnostics(
+                std::slice::from_ref(input),
+            ));
         } else if is_json_source_input(input) {
             diagnostics.extend(collect_json_source_diagnostics(std::slice::from_ref(input)));
         } else {
@@ -3070,6 +3074,32 @@ fn is_json_source_input(input: &eng::EngineInput) -> bool {
         }
         Some(_) => false,
         None => schema_is_json,
+    }
+}
+
+fn is_json_schema_source_input(input: &eng::EngineInput) -> bool {
+    let identity = input
+        .identity
+        .clone()
+        .unwrap_or_else(|| input.root_scope.format_identity());
+    let schema_is_json_schema = identity
+        .schema
+        .as_deref()
+        .map(str::trim)
+        .is_some_and(|schema| schema == cem_ml::schema::registry::JSON_SCHEMA_SCHEMA_URI);
+    let content_type = identity
+        .content_type
+        .as_deref()
+        .map(cli_content_type_essence);
+
+    match content_type.as_deref() {
+        Some(content_type)
+            if content_type == cem_ml::schema::registry::JSON_SCHEMA_CONTENT_TYPE =>
+        {
+            identity.schema.is_none() || schema_is_json_schema
+        }
+        Some(_) => false,
+        None => schema_is_json_schema,
     }
 }
 
@@ -3150,6 +3180,25 @@ fn collect_json_source_diagnostics(
     diagnostics
 }
 
+fn collect_json_schema_source_diagnostics(
+    inputs: &[eng::EngineInput],
+) -> Vec<cem_ml::diagnostics::Diagnostic> {
+    let mut diagnostics = Vec::new();
+    for input in inputs {
+        let value = match serde_json::from_slice::<serde_json::Value>(&input.bytes) {
+            Ok(value) => value,
+            Err(error) => {
+                diagnostics.push(json_schema_parse_error_diagnostic(input, &error));
+                continue;
+            }
+        };
+        if let Some(diagnostic) = json_schema_dialect_diagnostic(input, &value) {
+            diagnostics.push(diagnostic);
+        }
+    }
+    diagnostics
+}
+
 fn json_parse_error_diagnostic(
     input: &eng::EngineInput,
     error: &serde_json::Error,
@@ -3161,6 +3210,58 @@ fn json_parse_error_diagnostic(
         code: "cem.json.parse_error".to_owned(),
         severity: cem_ml::diagnostics::Severity::Error,
         message: format!("JSON parse error: {error}"),
+        ..cem_ml::diagnostics::Diagnostic::default()
+    }
+}
+
+fn json_schema_parse_error_diagnostic(
+    input: &eng::EngineInput,
+    error: &serde_json::Error,
+) -> cem_ml::diagnostics::Diagnostic {
+    cem_ml::diagnostics::Diagnostic {
+        uri: Some(input.uri.clone()),
+        line: u32::try_from(error.line()).ok(),
+        column: u32::try_from(error.column()).ok(),
+        code: "cem.json_schema.parse_error".to_owned(),
+        severity: cem_ml::diagnostics::Severity::Error,
+        message: format!("JSON Schema parse error: {error}"),
+        ..cem_ml::diagnostics::Diagnostic::default()
+    }
+}
+
+fn json_schema_dialect_diagnostic(
+    input: &eng::EngineInput,
+    value: &serde_json::Value,
+) -> Option<cem_ml::diagnostics::Diagnostic> {
+    let serde_json::Value::Object(object) = value else {
+        return Some(json_schema_unsupported_dialect_diagnostic(
+            input,
+            "JSON Schema document must be an object with a `$schema` dialect declaration",
+        ));
+    };
+    match object.get("$schema").and_then(serde_json::Value::as_str) {
+        Some("https://json-schema.org/draft/2020-12/schema")
+        | Some("https://json-schema.org/draft/2020-12/schema#") => None,
+        Some(dialect) => Some(json_schema_unsupported_dialect_diagnostic(
+            input,
+            &format!("unsupported JSON Schema dialect `{dialect}`; expected Draft 2020-12"),
+        )),
+        None => Some(json_schema_unsupported_dialect_diagnostic(
+            input,
+            "JSON Schema object is missing required `$schema` dialect declaration",
+        )),
+    }
+}
+
+fn json_schema_unsupported_dialect_diagnostic(
+    input: &eng::EngineInput,
+    message: &str,
+) -> cem_ml::diagnostics::Diagnostic {
+    cem_ml::diagnostics::Diagnostic {
+        uri: Some(input.uri.clone()),
+        code: "cem.json_schema.unsupported_dialect".to_owned(),
+        severity: cem_ml::diagnostics::Severity::Error,
+        message: message.to_owned(),
         ..cem_ml::diagnostics::Diagnostic::default()
     }
 }
@@ -7645,6 +7746,77 @@ declare variable broken := 1 +"#,
         assert!(diagnostics
             .iter()
             .any(|diag| diag["code"] == "cem.json.parse_error"));
+    }
+
+    #[test]
+    fn validate_json_schema_source_uses_json_schema_validator() {
+        let p = write_fixture(
+            "validate-json-schema-source.schema.json",
+            r#"{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "type": "object",
+  "properties": {
+    "name": {
+      "type": "string"
+    }
+  }
+}"#,
+        );
+        let (outcome, stdout, stderr) = run(
+            &RealCemMlEngine::new(),
+            &[
+                "validate",
+                "--format",
+                "json",
+                "--content-type",
+                "application/schema+json",
+                "--schema",
+                cem_ml::schema::registry::JSON_SCHEMA_SCHEMA_URI,
+                p.to_str().unwrap(),
+            ],
+        );
+
+        assert_eq!(outcome.exit_code, EXIT_OK, "{stderr}");
+        let v: serde_json::Value = serde_json::from_str(stdout.trim()).unwrap();
+        let diagnostics = v["diagnostics"].as_array().unwrap();
+        assert_eq!(v["summary"]["hardViolationCount"], 0);
+        assert!(!diagnostics
+            .iter()
+            .any(|diag| diag["code"] == "cem.lifecycle.adapter_unsupported"));
+        assert!(!diagnostics.iter().any(|diag| diag["code"]
+            .as_str()
+            .is_some_and(|code| code.starts_with("cem.schema."))));
+    }
+
+    #[test]
+    fn validate_json_schema_source_reports_unsupported_dialect() {
+        let p = write_fixture(
+            "validate-json-schema-source-unsupported-dialect.schema.json",
+            r#"{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "type": "object"
+}"#,
+        );
+        let (outcome, stdout, stderr) = run(
+            &RealCemMlEngine::new(),
+            &[
+                "validate",
+                "--format",
+                "json",
+                "--content-type",
+                "application/schema+json",
+                "--schema",
+                cem_ml::schema::registry::JSON_SCHEMA_SCHEMA_URI,
+                p.to_str().unwrap(),
+            ],
+        );
+
+        assert_eq!(outcome.exit_code, EXIT_HARD_FAILURE, "{stderr}");
+        let v: serde_json::Value = serde_json::from_str(stdout.trim()).unwrap();
+        let diagnostics = v["diagnostics"].as_array().unwrap();
+        assert!(diagnostics
+            .iter()
+            .any(|diag| diag["code"] == "cem.json_schema.unsupported_dialect"));
     }
 
     #[test]
