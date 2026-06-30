@@ -3024,6 +3024,10 @@ fn direct_source_validation_report(
             diagnostics.extend(collect_yaml_source_diagnostics(std::slice::from_ref(input)));
         } else if is_csv_source_input(input) {
             diagnostics.extend(collect_csv_source_diagnostics(std::slice::from_ref(input)));
+        } else if is_markdown_source_input(input) {
+            diagnostics.extend(collect_markdown_source_diagnostics(std::slice::from_ref(
+                input,
+            )));
         } else if is_json_source_input(input) {
             diagnostics.extend(collect_json_source_diagnostics(std::slice::from_ref(input)));
         } else {
@@ -3167,6 +3171,30 @@ fn is_csv_source_input(input: &eng::EngineInput) -> bool {
     }
 }
 
+fn is_markdown_source_input(input: &eng::EngineInput) -> bool {
+    let identity = input
+        .identity
+        .clone()
+        .unwrap_or_else(|| input.root_scope.format_identity());
+    let schema_is_markdown = identity
+        .schema
+        .as_deref()
+        .map(str::trim)
+        .is_some_and(|schema| schema == cem_ml::schema::registry::MARKDOWN_SCHEMA_URI);
+    let content_type = identity
+        .content_type
+        .as_deref()
+        .map(cli_content_type_essence);
+
+    match content_type.as_deref() {
+        Some(content_type) if is_markdown_source_content_type(content_type) => {
+            identity.schema.is_none() || schema_is_markdown
+        }
+        Some(_) => false,
+        None => schema_is_markdown,
+    }
+}
+
 fn is_cem_dom_projection_source_input(input: &eng::EngineInput) -> bool {
     let identity = input
         .identity
@@ -3292,6 +3320,10 @@ fn is_csv_source_content_type(content_type: &str) -> bool {
     content_type == cem_ml::schema::registry::CSV_CONTENT_TYPE
 }
 
+fn is_markdown_source_content_type(content_type: &str) -> bool {
+    content_type == cem_ml::schema::registry::MARKDOWN_CONTENT_TYPE
+}
+
 fn cli_content_type_essence(content_type: &str) -> String {
     content_type
         .split(';')
@@ -3299,6 +3331,26 @@ fn cli_content_type_essence(content_type: &str) -> String {
         .unwrap_or(content_type)
         .trim()
         .to_ascii_lowercase()
+}
+
+fn cli_content_type_parameter(content_type: &str, name: &str) -> Option<String> {
+    let needle = name.trim().to_ascii_lowercase();
+    content_type.split(';').skip(1).find_map(|part| {
+        let (key, value) = part.split_once('=')?;
+        if key.trim().eq_ignore_ascii_case(&needle) {
+            Some(value.trim().trim_matches('"').to_owned())
+        } else {
+            None
+        }
+    })
+}
+
+fn input_source_content_type(input: &eng::EngineInput) -> Option<String> {
+    let identity = input
+        .identity
+        .clone()
+        .unwrap_or_else(|| input.root_scope.format_identity());
+    identity.content_type
 }
 
 fn collect_cem_ql_source_diagnostics(
@@ -3449,6 +3501,53 @@ fn collect_csv_source_diagnostics(
                     diagnostics.push(csv_parse_error_diagnostic(input, &error));
                     break;
                 }
+            }
+        }
+    }
+    diagnostics
+}
+
+fn collect_markdown_source_diagnostics(
+    inputs: &[eng::EngineInput],
+) -> Vec<cem_ml::diagnostics::Diagnostic> {
+    let mut diagnostics = Vec::new();
+    for input in inputs {
+        let content_type = input_source_content_type(input);
+        if content_type
+            .as_deref()
+            .is_some_and(markdown_content_type_missing_charset)
+        {
+            diagnostics.push(markdown_charset_missing_diagnostic(input));
+        }
+        let variant = content_type
+            .as_deref()
+            .and_then(|content_type| cli_content_type_parameter(content_type, "variant"));
+        if let Some(variant) = variant.as_deref() {
+            if !markdown_variant_is_known(variant) {
+                diagnostics.push(markdown_unknown_variant_diagnostic(input, variant));
+            }
+        }
+
+        let source = match std::str::from_utf8(&input.bytes) {
+            Ok(source) => source,
+            Err(error) => {
+                diagnostics.push(markdown_unsupported_encoding_diagnostic(input, &error));
+                continue;
+            }
+        };
+
+        let options = markdown_parser_options(variant.as_deref());
+        let parser = pulldown_cmark::Parser::new_ext(source, options).into_offset_iter();
+        for (event, range) in parser {
+            if matches!(
+                event,
+                pulldown_cmark::Event::Html(_) | pulldown_cmark::Event::InlineHtml(_)
+            ) {
+                diagnostics.push(markdown_embedded_html_rejected_diagnostic(
+                    input,
+                    source,
+                    range.start,
+                ));
             }
         }
     }
@@ -4669,6 +4768,103 @@ fn csv_position_line(position: Option<&csv::Position>) -> Option<u32> {
 
 fn csv_position_byte_offset(position: Option<&csv::Position>) -> Option<u64> {
     position.map(csv::Position::byte)
+}
+
+fn markdown_content_type_missing_charset(content_type: &str) -> bool {
+    cli_content_type_essence(content_type) == cem_ml::schema::registry::MARKDOWN_CONTENT_TYPE
+        && cli_content_type_parameter(content_type, "charset").is_none()
+}
+
+fn markdown_variant_is_known(variant: &str) -> bool {
+    matches!(
+        variant.trim().to_ascii_lowercase().as_str(),
+        "commonmark" | "gfm" | "github-flavored-markdown"
+    )
+}
+
+fn markdown_parser_options(variant: Option<&str>) -> pulldown_cmark::Options {
+    let mut options = pulldown_cmark::Options::empty();
+    if variant.map(str::trim).is_some_and(|variant| {
+        variant.eq_ignore_ascii_case("gfm")
+            || variant.eq_ignore_ascii_case("github-flavored-markdown")
+    }) {
+        options.insert(pulldown_cmark::Options::ENABLE_GFM);
+    }
+    options
+}
+
+fn markdown_charset_missing_diagnostic(
+    input: &eng::EngineInput,
+) -> cem_ml::diagnostics::Diagnostic {
+    cem_ml::diagnostics::Diagnostic {
+        uri: Some(input.uri.clone()),
+        code: "cem.markdown.charset_missing".to_owned(),
+        severity: cem_ml::diagnostics::Severity::Warning,
+        message: "text/markdown content type should include an explicit charset parameter"
+            .to_owned(),
+        ..cem_ml::diagnostics::Diagnostic::default()
+    }
+}
+
+fn markdown_unknown_variant_diagnostic(
+    input: &eng::EngineInput,
+    variant: &str,
+) -> cem_ml::diagnostics::Diagnostic {
+    cem_ml::diagnostics::Diagnostic {
+        uri: Some(input.uri.clone()),
+        code: "cem.markdown.unknown_variant".to_owned(),
+        severity: cem_ml::diagnostics::Severity::Warning,
+        message: format!("unknown Markdown variant `{variant}`"),
+        ..cem_ml::diagnostics::Diagnostic::default()
+    }
+}
+
+fn markdown_unsupported_encoding_diagnostic(
+    input: &eng::EngineInput,
+    error: &std::str::Utf8Error,
+) -> cem_ml::diagnostics::Diagnostic {
+    cem_ml::diagnostics::Diagnostic {
+        uri: Some(input.uri.clone()),
+        byte_offset: u64::try_from(error.valid_up_to()).ok(),
+        code: "cem.markdown.unsupported_encoding".to_owned(),
+        severity: cem_ml::diagnostics::Severity::Error,
+        message: format!("Markdown source must be valid UTF-8: {error}"),
+        ..cem_ml::diagnostics::Diagnostic::default()
+    }
+}
+
+fn markdown_embedded_html_rejected_diagnostic(
+    input: &eng::EngineInput,
+    source: &str,
+    byte_offset: usize,
+) -> cem_ml::diagnostics::Diagnostic {
+    let (line, column) = markdown_line_col(source, byte_offset);
+    cem_ml::diagnostics::Diagnostic {
+        uri: Some(input.uri.clone()),
+        line: Some(line),
+        column: Some(column),
+        byte_offset: Some(byte_offset as u64),
+        code: "cem.markdown.embedded_html_rejected".to_owned(),
+        severity: cem_ml::diagnostics::Severity::Error,
+        message: "Markdown embedded HTML is rejected unless an explicit policy permits it"
+            .to_owned(),
+        ..cem_ml::diagnostics::Diagnostic::default()
+    }
+}
+
+fn markdown_line_col(source: &str, byte_offset: usize) -> (u32, u32) {
+    let mut line = 1u32;
+    let mut column = 1u32;
+    let limit = byte_offset.min(source.len());
+    for byte in source[..limit].bytes() {
+        if byte == b'\n' {
+            line = line.saturating_add(1);
+            column = 1;
+        } else {
+            column = column.saturating_add(1);
+        }
+    }
+    (line, column)
 }
 
 fn json_schema_dialect_diagnostic(
@@ -9425,6 +9621,150 @@ owner:
         assert!(diagnostics
             .iter()
             .any(|diag| diag["code"] == "cem.csv.unsupported_encoding"));
+    }
+
+    #[test]
+    fn validate_markdown_source_uses_markdown_parser() {
+        let p = write_fixture(
+            "validate-markdown-source.md",
+            r#"# Release Notes
+
+This document has **strong** text, [a link](https://example.test), and a list.
+
+- Added schema validation.
+- Kept source identity.
+"#,
+        );
+        let (outcome, stdout, stderr) = run(
+            &RealCemMlEngine::new(),
+            &[
+                "validate",
+                "--format",
+                "json",
+                "--content-type",
+                "text/markdown; charset=utf-8; variant=CommonMark",
+                "--schema",
+                cem_ml::schema::registry::MARKDOWN_SCHEMA_URI,
+                p.to_str().unwrap(),
+            ],
+        );
+
+        assert_eq!(outcome.exit_code, EXIT_OK, "{stderr}");
+        let v: serde_json::Value = serde_json::from_str(stdout.trim()).unwrap();
+        let diagnostics = v["diagnostics"].as_array().unwrap();
+        assert_eq!(v["summary"]["hardViolationCount"], 0);
+        assert!(diagnostics.is_empty());
+        assert!(!diagnostics
+            .iter()
+            .any(|diag| diag["code"] == "cem.lifecycle.adapter_unsupported"));
+        assert!(!diagnostics.iter().any(|diag| diag["code"]
+            .as_str()
+            .is_some_and(|code| code.starts_with("cem.schema."))));
+    }
+
+    #[test]
+    fn validate_markdown_source_reports_charset_missing_warning() {
+        let p = write_fixture("validate-markdown-source-no-charset.md", "# Title\n");
+        let (outcome, stdout, stderr) = run(
+            &RealCemMlEngine::new(),
+            &[
+                "validate",
+                "--format",
+                "json",
+                "--content-type",
+                "text/markdown",
+                "--schema",
+                cem_ml::schema::registry::MARKDOWN_SCHEMA_URI,
+                p.to_str().unwrap(),
+            ],
+        );
+
+        assert_eq!(outcome.exit_code, EXIT_OK, "{stderr}");
+        let v: serde_json::Value = serde_json::from_str(stdout.trim()).unwrap();
+        let diagnostics = v["diagnostics"].as_array().unwrap();
+        assert_eq!(v["summary"]["hardViolationCount"], 0);
+        assert!(diagnostics
+            .iter()
+            .any(|diag| diag["code"] == "cem.markdown.charset_missing"));
+    }
+
+    #[test]
+    fn validate_markdown_source_reports_unknown_variant_warning() {
+        let p = write_fixture("validate-markdown-source-unknown-variant.md", "# Title\n");
+        let (outcome, stdout, stderr) = run(
+            &RealCemMlEngine::new(),
+            &[
+                "validate",
+                "--format",
+                "json",
+                "--content-type",
+                "text/markdown; charset=utf-8; variant=CustomWiki",
+                "--schema",
+                cem_ml::schema::registry::MARKDOWN_SCHEMA_URI,
+                p.to_str().unwrap(),
+            ],
+        );
+
+        assert_eq!(outcome.exit_code, EXIT_OK, "{stderr}");
+        let v: serde_json::Value = serde_json::from_str(stdout.trim()).unwrap();
+        let diagnostics = v["diagnostics"].as_array().unwrap();
+        assert_eq!(v["summary"]["hardViolationCount"], 0);
+        assert!(diagnostics
+            .iter()
+            .any(|diag| diag["code"] == "cem.markdown.unknown_variant"));
+    }
+
+    #[test]
+    fn validate_markdown_source_reports_embedded_html_diagnostics() {
+        let p = write_fixture(
+            "validate-markdown-source-embedded-html.md",
+            "# Unsafe\n\n<script>alert('x')</script>\n",
+        );
+        let (outcome, stdout, stderr) = run(
+            &RealCemMlEngine::new(),
+            &[
+                "validate",
+                "--format",
+                "json",
+                "--content-type",
+                "text/markdown; charset=utf-8",
+                "--schema",
+                cem_ml::schema::registry::MARKDOWN_SCHEMA_URI,
+                p.to_str().unwrap(),
+            ],
+        );
+
+        assert_eq!(outcome.exit_code, EXIT_HARD_FAILURE, "{stderr}");
+        let v: serde_json::Value = serde_json::from_str(stdout.trim()).unwrap();
+        let diagnostics = v["diagnostics"].as_array().unwrap();
+        assert!(diagnostics
+            .iter()
+            .any(|diag| diag["code"] == "cem.markdown.embedded_html_rejected"));
+    }
+
+    #[test]
+    fn validate_markdown_source_reports_unsupported_encoding() {
+        let p = write_binary_fixture("validate-markdown-source-invalid-utf8.md", b"# Bad\n\xff\n");
+        let (outcome, stdout, stderr) = run(
+            &RealCemMlEngine::new(),
+            &[
+                "validate",
+                "--format",
+                "json",
+                "--content-type",
+                "text/markdown; charset=utf-8",
+                "--schema",
+                cem_ml::schema::registry::MARKDOWN_SCHEMA_URI,
+                p.to_str().unwrap(),
+            ],
+        );
+
+        assert_eq!(outcome.exit_code, EXIT_HARD_FAILURE, "{stderr}");
+        let v: serde_json::Value = serde_json::from_str(stdout.trim()).unwrap();
+        let diagnostics = v["diagnostics"].as_array().unwrap();
+        assert!(diagnostics
+            .iter()
+            .any(|diag| diag["code"] == "cem.markdown.unsupported_encoding"));
     }
 
     #[test]

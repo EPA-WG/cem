@@ -64,6 +64,7 @@
 
     {diagnostics |
         {diagnostic @code="cem.markdown.parse_error" @severity="error"}
+        {diagnostic @code="cem.markdown.unsupported_encoding" @severity="error"}
         {diagnostic @code="cem.markdown.charset_missing" @severity="warning"}
         {diagnostic @code="cem.markdown.unknown_variant" @severity="warning"}
         {diagnostic @code="cem.markdown.embedded_html_rejected" @severity="error"}

@@ -24,6 +24,11 @@ const YAML_TEXT_CONTENT_TYPE: &str = "text/yaml";
 const YAML_LEGACY_CONTENT_TYPE: &str = "application/x-yaml";
 const CSV_SCHEMA_URI: &str = "https://cem.dev/ns/data/csv/1";
 const CSV_CONTENT_TYPE: &str = "text/csv";
+const MARKDOWN_SCHEMA_URI: &str = "https://cem.dev/ns/data/markdown/1";
+const MARKDOWN_COMMONMARK_CONTENT_TYPE: &str = "text/markdown; charset=utf-8; variant=CommonMark";
+const MARKDOWN_GFM_CONTENT_TYPE: &str = "text/markdown; charset=utf-8; variant=GFM";
+const MARKDOWN_UNKNOWN_VARIANT_CONTENT_TYPE: &str =
+    "text/markdown; charset=utf-8; variant=CustomWiki";
 const JSON_SCHEMA_SCHEMA_URI: &str = "https://cem.dev/ns/data/json-schema/1";
 const JSON_SCHEMA_CONTENT_TYPE: &str = "application/schema+json";
 const CEM_DOM_PROJECTION_SCHEMA_URI: &str = "https://cem.dev/ns/projection/dom/1";
@@ -350,6 +355,38 @@ fn schema_owned_examples_validate_through_cli() {
             schema_uri: CSV_SCHEMA_URI,
             expected_exit: EXIT_OK,
             expected_diagnostics: &["cem.csv.inconsistent_field_count"],
+        },
+        ValidationExample {
+            name: "markdown basic document",
+            path: "packages/cem_ml/schema-packages/markdown/v1/examples/basic-document.md",
+            content_type: MARKDOWN_COMMONMARK_CONTENT_TYPE,
+            schema_uri: MARKDOWN_SCHEMA_URI,
+            expected_exit: EXIT_OK,
+            expected_diagnostics: &[],
+        },
+        ValidationExample {
+            name: "markdown gfm worklog",
+            path: "packages/cem_ml/schema-packages/markdown/v1/examples/gfm-worklog.md",
+            content_type: MARKDOWN_GFM_CONTENT_TYPE,
+            schema_uri: MARKDOWN_SCHEMA_URI,
+            expected_exit: EXIT_OK,
+            expected_diagnostics: &[],
+        },
+        ValidationExample {
+            name: "markdown invalid embedded html",
+            path: "packages/cem_ml/schema-packages/markdown/v1/examples/invalid-embedded-html.md",
+            content_type: MARKDOWN_COMMONMARK_CONTENT_TYPE,
+            schema_uri: MARKDOWN_SCHEMA_URI,
+            expected_exit: EXIT_HARD_FAILURE,
+            expected_diagnostics: &["cem.markdown.embedded_html_rejected"],
+        },
+        ValidationExample {
+            name: "markdown unknown variant",
+            path: "packages/cem_ml/schema-packages/markdown/v1/examples/unknown-variant.md",
+            content_type: MARKDOWN_UNKNOWN_VARIANT_CONTENT_TYPE,
+            schema_uri: MARKDOWN_SCHEMA_URI,
+            expected_exit: EXIT_OK,
+            expected_diagnostics: &["cem.markdown.unknown_variant"],
         },
         ValidationExample {
             name: "json-schema basic",
