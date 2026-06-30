@@ -583,7 +583,11 @@ pub fn builtin_schema_descriptors() -> Vec<SchemaDescriptor> {
             content_types: vec![SchemaContentType::primary(HTML_CONTENT_TYPE)],
             namespaces: vec![
                 NamespaceClaim::new(Some("cemhtml"), HTML_SCHEMA_URI),
+                NamespaceClaim::new(Some("cemsvg"), SVG_SCHEMA_URI),
+                NamespaceClaim::new(Some("cemmathml"), MATHML_SCHEMA_URI),
                 NamespaceClaim::new(Some("html"), HTML_NAMESPACE_URI),
+                NamespaceClaim::new(Some("svg"), SVG_NAMESPACE_URI),
+                NamespaceClaim::new(Some("mathml"), MATHML_NAMESPACE_URI),
             ],
             uses: vec![
                 CEM_SCHEMA_URI.into(),

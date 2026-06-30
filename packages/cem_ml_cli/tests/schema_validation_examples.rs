@@ -47,6 +47,9 @@ const XSLT_SCHEMA_URI: &str = "https://cem.dev/ns/transform/xslt/1";
 const XSLT_CONTENT_TYPE: &str = "application/xslt+xml";
 const XSLT_TEXT_CONTENT_TYPE: &str = "text/xsl";
 const XSLT_CUSTOM_ELEMENT_CONTENT_TYPE: &str = "custom-element-xslt";
+const HTML_SCHEMA_URI: &str = "https://cem.dev/ns/data/html/1";
+const HTML_CONTENT_TYPE: &str = "text/html";
+const HTML_WINDOWS_1252_CONTENT_TYPE: &str = "text/html; charset=windows-1252";
 const JSON_SCHEMA_SCHEMA_URI: &str = "https://cem.dev/ns/data/json-schema/1";
 const JSON_SCHEMA_CONTENT_TYPE: &str = "application/schema+json";
 const CEM_DOM_PROJECTION_SCHEMA_URI: &str = "https://cem.dev/ns/projection/dom/1";
@@ -717,6 +720,62 @@ fn schema_owned_examples_validate_through_cli() {
             schema_uri: XSLT_SCHEMA_URI,
             expected_exit: EXIT_HARD_FAILURE,
             expected_diagnostics: &["cem.xslt.not_well_formed_xml"],
+        },
+        ValidationExample {
+            name: "html basic document",
+            path: "packages/cem_ml/schema-packages/html/v1/examples/basic-document.html",
+            content_type: HTML_CONTENT_TYPE,
+            schema_uri: HTML_SCHEMA_URI,
+            expected_exit: EXIT_OK,
+            expected_diagnostics: &[],
+        },
+        ValidationExample {
+            name: "html fragment",
+            path: "packages/cem_ml/schema-packages/html/v1/examples/fragment.html",
+            content_type: HTML_CONTENT_TYPE,
+            schema_uri: HTML_SCHEMA_URI,
+            expected_exit: EXIT_OK,
+            expected_diagnostics: &[],
+        },
+        ValidationExample {
+            name: "html svg mathml islands",
+            path: "packages/cem_ml/schema-packages/html/v1/examples/svg-mathml-islands.html",
+            content_type: HTML_CONTENT_TYPE,
+            schema_uri: HTML_SCHEMA_URI,
+            expected_exit: EXIT_OK,
+            expected_diagnostics: &[],
+        },
+        ValidationExample {
+            name: "html invalid script",
+            path: "packages/cem_ml/schema-packages/html/v1/examples/invalid-script.html",
+            content_type: HTML_CONTENT_TYPE,
+            schema_uri: HTML_SCHEMA_URI,
+            expected_exit: EXIT_HARD_FAILURE,
+            expected_diagnostics: &["cem.html.script_rejected"],
+        },
+        ValidationExample {
+            name: "html invalid external resource",
+            path: "packages/cem_ml/schema-packages/html/v1/examples/invalid-external-resource.html",
+            content_type: HTML_CONTENT_TYPE,
+            schema_uri: HTML_SCHEMA_URI,
+            expected_exit: EXIT_HARD_FAILURE,
+            expected_diagnostics: &["cem.html.external_resource_rejected"],
+        },
+        ValidationExample {
+            name: "html invalid custom element",
+            path: "packages/cem_ml/schema-packages/html/v1/examples/invalid-custom-element.html",
+            content_type: HTML_CONTENT_TYPE,
+            schema_uri: HTML_SCHEMA_URI,
+            expected_exit: EXIT_HARD_FAILURE,
+            expected_diagnostics: &["cem.html.custom_element_name_invalid"],
+        },
+        ValidationExample {
+            name: "html encoding conflict",
+            path: "packages/cem_ml/schema-packages/html/v1/examples/encoding-conflict.html",
+            content_type: HTML_WINDOWS_1252_CONTENT_TYPE,
+            schema_uri: HTML_SCHEMA_URI,
+            expected_exit: EXIT_OK,
+            expected_diagnostics: &["cem.html.encoding_conflict"],
         },
         ValidationExample {
             name: "json-schema basic",

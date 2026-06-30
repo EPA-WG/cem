@@ -11,5 +11,9 @@
     {content-type @value="text/html" @primary=true}
 
     {namespace @prefix="cemhtml" @uri="https://cem.dev/ns/data/html/1"}
+    {namespace @prefix="cemsvg" @uri="https://cem.dev/ns/data/svg/1"}
+    {namespace @prefix="cemmathml" @uri="https://cem.dev/ns/data/mathml/1"}
     {namespace @prefix="html" @uri="http://www.w3.org/1999/xhtml"}
+    {namespace @prefix="svg" @uri="http://www.w3.org/2000/svg"}
+    {namespace @prefix="mathml" @uri="http://www.w3.org/1998/Math/MathML"}
 }

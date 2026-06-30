@@ -23,9 +23,11 @@
 
     {namespaces |
         {namespace @prefix="cemhtml" @uri="https://cem.dev/ns/data/html/1" @role="schema"}
-        {namespace @prefix="html" @uri="http://www.w3.org/1999/xhtml" @role="dom-namespace"}
-        {namespace @prefix="svg" @uri="https://cem.dev/ns/data/svg/1" @role="foreign-content-schema"}
-        {namespace @prefix="mathml" @uri="https://cem.dev/ns/data/mathml/1" @role="foreign-content-schema"}
+        {namespace @prefix="cemsvg" @uri="https://cem.dev/ns/data/svg/1" @role="foreign-content-schema"}
+        {namespace @prefix="cemmathml" @uri="https://cem.dev/ns/data/mathml/1" @role="foreign-content-schema"}
+        {namespace @prefix="html" @uri="http://www.w3.org/1999/xhtml" @role="default-dom-namespace"}
+        {namespace @prefix="svg" @uri="http://www.w3.org/2000/svg" @role="default-dom-namespace"}
+        {namespace @prefix="mathml" @uri="http://www.w3.org/1998/Math/MathML" @role="default-dom-namespace"}
     }
 
     {elements |
@@ -112,7 +114,7 @@
         {constraint @kind="text-html-primary" @target="document" @policy="text/html is the canonical media type for HTML resources"}
         {constraint @kind="application-xhtml-separate" @target="document" @policy="application/xhtml+xml is XML-backed XHTML and belongs to the xhtml package"}
         {constraint @kind="html-error-recovery" @target="document" @policy="HTML parser recovery is part of source interpretation; normalized DOM may include implied html head body tbody and closed p elements"}
-        {constraint @kind="dom-namespace" @target="html" @policy="HTML elements in the normalized DOM use http://www.w3.org/1999/xhtml"}
+        {constraint @kind="dom-namespace" @target="html" @policy="HTML parser output has three default DOM namespaces: HTML elements use http://www.w3.org/1999/xhtml, SVG islands use http://www.w3.org/2000/svg, and MathML islands use http://www.w3.org/1998/Math/MathML"}
         {constraint @kind="doctype-quirks" @target="doctype" @policy="doctype controls no-quirks limited-quirks or quirks mode metadata"}
         {constraint @kind="encoding-source-priority" @target="document" @policy="preserve BOM MIME charset and meta charset evidence; report conflicts"}
         {constraint @kind="void-elements" @target="flow" @policy="void elements do not have child nodes in the HTML serialization"}
@@ -121,7 +123,7 @@
         {constraint @kind="script-policy" @target="script-supporting" @policy="reject or preserve executable script according to host policy; do not execute while parsing"}
         {constraint @kind="external-resource-policy" @target="embedded" @policy="external URI fetches require explicit resolver policy"}
         {constraint @kind="custom-element-name" @target="custom-element" @policy="custom element local names must remain source-stable and validate before upgrade"}
-        {constraint @kind="foreign-content-dispatch" @target="foreign-content" @policy="SVG and MathML islands dispatch to their registered schema packages"}
+        {constraint @kind="foreign-content-dispatch" @target="foreign-content" @policy="SVG and MathML tags are native HTML-parser namespace transitions and remain associated with their registered schema packages"}
         {constraint @kind="source-map-preferred" @target="flow" @policy="required when parser exposes source ranges"}
     }
 
@@ -141,7 +143,7 @@
     {compatibility |
         {note @version="1.0.0" @value="IANA registers text/html with optional charset parameter and common .html/.htm extensions."}
         {note @version="1.0.0" @value="HTML source is not XML. Incomplete or non-normalized input may parse successfully and produce a normalized DOM with implied elements and repaired structure."}
-        {note @version="1.0.0" @value="The normalized HTML DOM uses the http://www.w3.org/1999/xhtml namespace for HTML elements. XHTML serialization remains the separate application/xhtml+xml package."}
+        {note @version="1.0.0" @value="The normalized HTML DOM uses three parser-default namespaces: http://www.w3.org/1999/xhtml for HTML, http://www.w3.org/2000/svg for SVG, and http://www.w3.org/1998/Math/MathML for MathML. XHTML serialization remains the separate application/xhtml+xml package."}
     }
 
     {open-content |
