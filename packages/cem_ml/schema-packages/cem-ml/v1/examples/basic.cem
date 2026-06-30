@@ -1,0 +1,6 @@
+@doc cem-ml 1
+
+{article @id="welcome" |
+    {h1 | Welcome}
+    {p | This is a minimal CEM-ML document.}
+}

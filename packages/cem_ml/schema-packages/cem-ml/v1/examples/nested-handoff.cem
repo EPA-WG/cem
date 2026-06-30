@@ -1,0 +1,12 @@
+@doc cem-ml 1
+@ns html = "http://www.w3.org/1999/xhtml"
+@default html
+
+{main @id="profile" |
+    {section @class="summary" |
+        {h1 | Ada Lovelace}
+        {@type="text/html" |
+            <p><strong>Known for:</strong> analytical engine notes.</p>
+        }
+    }
+}

@@ -1,0 +1,4 @@
+@doc cem-ml 1
+
+{article @id="broken" |
+    {h1 | Missing article close}

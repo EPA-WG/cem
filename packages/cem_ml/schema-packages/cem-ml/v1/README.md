@@ -28,3 +28,26 @@ types:
 
 The semantic CEM annotation vocabulary remains in `packages/cem_ml/schema/cem-core.md`
 under `https://cem.dev/ns/core/1`.
+
+## Validation Examples
+
+The schema-owned examples live in [`examples/`](examples/) and are used by the
+CLI validation integration tests.
+
+| Example | Purpose | Expected result |
+| --- | --- | --- |
+| [`basic.cem`](examples/basic.cem) | Minimal persisted CEM-ML document. | Pass |
+| [`nested-handoff.cem`](examples/nested-handoff.cem) | Namespaced content with a `text/html` handoff boundary. | Pass |
+| [`invalid-unclosed-scope.cem`](examples/invalid-unclosed-scope.cem) | Missing closing scope syntax diagnostic. | Fail with `cem.schema.unclosed_scope` |
+
+Validate an example explicitly against this schema:
+
+```bash
+cargo run -p cem-ml-cli -- validate \
+  --content-type application/cem \
+  --schema https://cem.dev/ns/cem-ml/1 \
+  packages/cem_ml/schema-packages/cem-ml/v1/examples/basic.cem
+```
+
+The validation harness also runs the same command shape for the invalid
+example and expects a hard validation failure.
