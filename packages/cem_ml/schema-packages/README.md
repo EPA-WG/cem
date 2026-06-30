@@ -29,6 +29,12 @@ schema is itself authored with the schema definition language, and manifest
 instances validate against it. This package owns
 `application/vnd.cem.schema-package+cem`.
 
+Built-in runtime schema descriptors are loaded from embedded `package.cem`
+manifests plus each schema document's explicit `{uses}` declarations. The
+Rust registry keeps public constants for stable identities, but package
+metadata is the source for schema URI, content type, namespace, and source-file
+registration.
+
 `cem-native-template/v1` defines the CEM-native template module language used
 by template adapters. It owns `application/vnd.cem.template+cem` and also
 claims current generic CEM source content types as aliases that require an

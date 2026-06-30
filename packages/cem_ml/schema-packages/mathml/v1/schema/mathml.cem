@@ -9,7 +9,11 @@
         {text | MathML resource schema. This schema is XML-backed and declares the MathML document identity, media types, namespace, and normalized semantic areas for presentation, content, semantics, and annotations.}
     }
 
-    {uses | schema,cemml,xml}
+    {uses |
+        {use @schema="https://cem.dev/ns/schema/1" @as="schema"}
+        {use @schema="https://cem.dev/ns/cem-ml/1" @as="cemml"}
+        {use @schema="https://cem.dev/ns/data/xml/1" @as="xml"}
+    }
 
     {content-types |
         {content-type @value="application/mathml+xml" @primary=true}

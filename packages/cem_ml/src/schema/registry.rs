@@ -6,6 +6,14 @@
 
 use std::collections::{BTreeMap, BTreeSet};
 
+use crate::events::cem::CemEventNormalizer;
+use crate::parser::builder::CemAstBuilder;
+use crate::parser::document::CemDocument;
+use crate::parser::{AstNodeId, CemAstNode};
+use crate::schema::package_sources::{builtin_schema_package_sources, BuiltinSchemaPackageSource};
+use crate::source::{BytesSource, SourceId};
+use crate::tokenizer::cem::CemTokenizer;
+
 pub const CEM_ML_SCHEMA_URI: &str = "https://cem.dev/ns/cem-ml/1";
 pub const CEM_SCHEMA_URI: &str = "https://cem.dev/ns/schema/1";
 pub const CEM_SCHEMA_PACKAGE_URI: &str = "https://cem.dev/ns/schema-package/1";
@@ -199,6 +207,43 @@ impl std::fmt::Display for SchemaLookupError {
 
 impl std::error::Error for SchemaLookupError {}
 
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub enum SchemaPackageDescriptorError {
+    MissingElement {
+        element: &'static str,
+    },
+    MissingAttribute {
+        element: &'static str,
+        attribute: &'static str,
+    },
+    PackageIdMismatch {
+        expected: String,
+        actual: String,
+    },
+}
+
+impl std::fmt::Display for SchemaPackageDescriptorError {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        match self {
+            Self::MissingElement { element } => {
+                write!(f, "schema package manifest is missing `{element}` element")
+            }
+            Self::MissingAttribute { element, attribute } => {
+                write!(
+                    f,
+                    "schema package manifest `{element}` element is missing `{attribute}`"
+                )
+            }
+            Self::PackageIdMismatch { expected, actual } => write!(
+                f,
+                "embedded schema package source expected package id `{expected}`, got `{actual}`"
+            ),
+        }
+    }
+}
+
+impl std::error::Error for SchemaPackageDescriptorError {}
+
 #[derive(Debug, Clone, Default)]
 pub struct SchemaRegistry {
     schemas_by_uri: BTreeMap<String, SchemaDescriptor>,
@@ -337,344 +382,207 @@ pub fn content_type_essence(content_type: &str) -> String {
 }
 
 pub fn builtin_schema_descriptors() -> Vec<SchemaDescriptor> {
-    vec![
-        SchemaDescriptor {
-            package_id: "cem-ml".into(),
-            schema_uri: CEM_ML_SCHEMA_URI.into(),
-            version: "1.0.0".into(),
-            source: "schema-packages/cem-ml/v1/schema/cem-ml-generic.cem".into(),
-            content_types: vec![
-                SchemaContentType::primary(CEM_ML_CONTENT_TYPE),
-                SchemaContentType::alias("text/cem-ml"),
-                SchemaContentType::alias("text/cem"),
-                SchemaContentType::alias("application/cem+xml"),
-            ],
-            namespaces: vec![
-                NamespaceClaim::new(Some("cemml"), CEM_ML_SCHEMA_URI),
-                NamespaceClaim::new(Some("schema"), CEM_SCHEMA_URI),
-            ],
-            uses: Vec::new(),
-        },
-        SchemaDescriptor {
-            package_id: "schema".into(),
-            schema_uri: CEM_SCHEMA_URI.into(),
-            version: "1.0.0".into(),
-            source: "schema-packages/schema/v1/schema/cem-schema.cem".into(),
-            content_types: vec![SchemaContentType::primary(CEM_SCHEMA_CONTENT_TYPE)],
-            namespaces: vec![NamespaceClaim::new(Some("schema"), CEM_SCHEMA_URI)],
-            uses: vec![CEM_ML_SCHEMA_URI.into()],
-        },
-        SchemaDescriptor {
-            package_id: "schema-package".into(),
-            schema_uri: CEM_SCHEMA_PACKAGE_URI.into(),
-            version: "1.0.0".into(),
-            source: "schema-packages/schema-package/v1/schema/schema-package.cem".into(),
-            content_types: vec![SchemaContentType::primary(CEM_SCHEMA_PACKAGE_CONTENT_TYPE)],
-            namespaces: vec![
-                NamespaceClaim::new(Some("pkg"), CEM_SCHEMA_PACKAGE_URI),
-                NamespaceClaim::new(Some("schema"), CEM_SCHEMA_URI),
-            ],
-            uses: vec![CEM_SCHEMA_URI.into()],
-        },
-        SchemaDescriptor {
-            package_id: "cem-native-template".into(),
-            schema_uri: CEM_NATIVE_TEMPLATE_SCHEMA_URI.into(),
-            version: "1.0.0".into(),
-            source: "schema-packages/cem-native-template/v1/schema/cem-native-template.cem".into(),
-            content_types: vec![
-                SchemaContentType::primary(CEM_NATIVE_TEMPLATE_CONTENT_TYPE),
-                SchemaContentType::alias(CEM_ML_CONTENT_TYPE),
-                SchemaContentType::alias("application/cem+xml"),
-                SchemaContentType::alias("text/cem"),
-                SchemaContentType::alias("text/cem-ml"),
-            ],
-            namespaces: vec![
-                NamespaceClaim::new(Some("template"), CEM_NATIVE_TEMPLATE_SCHEMA_URI),
-                NamespaceClaim::new(Some("cem"), "https://cem.dev/ns/core/1"),
-            ],
-            uses: vec![CEM_SCHEMA_URI.into(), CEM_ML_SCHEMA_URI.into()],
-        },
-        SchemaDescriptor {
-            package_id: "cem-transform".into(),
-            schema_uri: CEM_TRANSFORM_SCHEMA_URI.into(),
-            version: "1.0.0".into(),
-            source: "schema-packages/cem-transform/v1/schema/cem-transform.cem".into(),
-            content_types: vec![SchemaContentType::primary(CEM_TRANSFORM_CONTENT_TYPE)],
-            namespaces: vec![
-                NamespaceClaim::new(Some("transform"), CEM_TRANSFORM_SCHEMA_URI),
-                NamespaceClaim::new(Some("template"), CEM_NATIVE_TEMPLATE_SCHEMA_URI),
-                NamespaceClaim::new(Some("cem"), "https://cem.dev/ns/core/1"),
-            ],
-            uses: vec![CEM_SCHEMA_URI.into(), CEM_NATIVE_TEMPLATE_SCHEMA_URI.into()],
-        },
-        SchemaDescriptor {
-            package_id: "cem-ql".into(),
-            schema_uri: CEM_QL_SCHEMA_URI.into(),
-            version: "1.0.0".into(),
-            source: "schema-packages/cem-ql/v1/schema/cem-ql.cem".into(),
-            content_types: vec![
-                SchemaContentType::primary(CEM_QL_CONTENT_TYPE),
-                SchemaContentType::alias("text/cem-ql"),
-                SchemaContentType::alias(CEM_QL_ARTIFACT_CONTENT_TYPE),
-                SchemaContentType::alias("cem-ql/1"),
-                SchemaContentType::alias("cem-ql/module"),
-            ],
-            namespaces: vec![NamespaceClaim::new(Some("ql"), CEM_QL_SCHEMA_URI)],
-            uses: vec![CEM_SCHEMA_URI.into()],
-        },
-        SchemaDescriptor {
-            package_id: "json".into(),
-            schema_uri: JSON_VALUE_SCHEMA_URI.into(),
-            version: "1.0.0".into(),
-            source: "schema-packages/json/v1/schema/json.cem".into(),
-            content_types: vec![
-                SchemaContentType::primary(JSON_CONTENT_TYPE),
-                SchemaContentType::alias("text/json"),
-            ],
-            namespaces: vec![NamespaceClaim::new(Some("json"), JSON_VALUE_SCHEMA_URI)],
-            uses: vec![CEM_SCHEMA_URI.into()],
-        },
-        SchemaDescriptor {
-            package_id: "yaml".into(),
-            schema_uri: YAML_SCHEMA_URI.into(),
-            version: "1.0.0".into(),
-            source: "schema-packages/yaml/v1/schema/yaml.cem".into(),
-            content_types: vec![
-                SchemaContentType::primary(YAML_CONTENT_TYPE),
-                SchemaContentType::alias("application/x-yaml"),
-                SchemaContentType::alias("text/yaml"),
-                SchemaContentType::alias("text/x-yaml"),
-            ],
-            namespaces: vec![NamespaceClaim::new(Some("yaml"), YAML_SCHEMA_URI)],
-            uses: vec![CEM_SCHEMA_URI.into(), CEM_ML_SCHEMA_URI.into()],
-        },
-        SchemaDescriptor {
-            package_id: "csv".into(),
-            schema_uri: CSV_SCHEMA_URI.into(),
-            version: "1.0.0".into(),
-            source: "schema-packages/csv/v1/schema/csv.cem".into(),
-            content_types: vec![SchemaContentType::primary(CSV_CONTENT_TYPE)],
-            namespaces: vec![NamespaceClaim::new(Some("csv"), CSV_SCHEMA_URI)],
-            uses: vec![CEM_SCHEMA_URI.into(), CEM_ML_SCHEMA_URI.into()],
-        },
-        SchemaDescriptor {
-            package_id: "markdown".into(),
-            schema_uri: MARKDOWN_SCHEMA_URI.into(),
-            version: "1.0.0".into(),
-            source: "schema-packages/markdown/v1/schema/markdown.cem".into(),
-            content_types: vec![SchemaContentType::primary(MARKDOWN_CONTENT_TYPE)],
-            namespaces: vec![NamespaceClaim::new(Some("markdown"), MARKDOWN_SCHEMA_URI)],
-            uses: vec![CEM_SCHEMA_URI.into(), CEM_ML_SCHEMA_URI.into()],
-        },
-        SchemaDescriptor {
-            package_id: "xml".into(),
-            schema_uri: XML_SCHEMA_URI.into(),
-            version: "1.0.0".into(),
-            source: "schema-packages/xml/v1/schema/xml.cem".into(),
-            content_types: vec![
-                SchemaContentType::primary(XML_CONTENT_TYPE),
-                SchemaContentType::alias("text/xml"),
-                SchemaContentType::alias("application/xml-external-parsed-entity"),
-                SchemaContentType::alias("text/xml-external-parsed-entity"),
-                SchemaContentType::alias("application/xml-dtd"),
-            ],
-            namespaces: vec![NamespaceClaim::new(Some("xml"), XML_SCHEMA_URI)],
-            uses: vec![CEM_SCHEMA_URI.into(), CEM_ML_SCHEMA_URI.into()],
-        },
-        SchemaDescriptor {
-            package_id: "relax-ng".into(),
-            schema_uri: RELAX_NG_SCHEMA_URI.into(),
-            version: "1.0.0".into(),
-            source: "schema-packages/relax-ng/v1/schema/relax-ng.cem".into(),
-            content_types: vec![
-                SchemaContentType::primary(RELAX_NG_XML_CONTENT_TYPE),
-                SchemaContentType::alias(RELAX_NG_COMPACT_CONTENT_TYPE),
-            ],
-            namespaces: vec![
-                NamespaceClaim::new(Some("cemrng"), RELAX_NG_SCHEMA_URI),
-                NamespaceClaim::new(Some("rng"), RELAX_NG_NAMESPACE_URI),
-            ],
-            uses: vec![
-                CEM_SCHEMA_URI.into(),
-                CEM_ML_SCHEMA_URI.into(),
-                XML_SCHEMA_URI.into(),
-            ],
-        },
-        SchemaDescriptor {
-            package_id: "xhtml".into(),
-            schema_uri: XHTML_SCHEMA_URI.into(),
-            version: "1.0.0".into(),
-            source: "schema-packages/xhtml/v1/schema/xhtml.cem".into(),
-            content_types: vec![SchemaContentType::primary(XHTML_CONTENT_TYPE)],
-            namespaces: vec![
-                NamespaceClaim::new(Some("cemxhtml"), XHTML_SCHEMA_URI),
-                NamespaceClaim::new(Some("xhtml"), XHTML_NAMESPACE_URI),
-            ],
-            uses: vec![
-                CEM_SCHEMA_URI.into(),
-                CEM_ML_SCHEMA_URI.into(),
-                XML_SCHEMA_URI.into(),
-            ],
-        },
-        SchemaDescriptor {
-            package_id: "svg".into(),
-            schema_uri: SVG_SCHEMA_URI.into(),
-            version: "1.0.0".into(),
-            source: "schema-packages/svg/v1/schema/svg.cem".into(),
-            content_types: vec![SchemaContentType::primary(SVG_CONTENT_TYPE)],
-            namespaces: vec![
-                NamespaceClaim::new(Some("cemsvg"), SVG_SCHEMA_URI),
-                NamespaceClaim::new(Some("svg"), SVG_NAMESPACE_URI),
-            ],
-            uses: vec![
-                CEM_SCHEMA_URI.into(),
-                CEM_ML_SCHEMA_URI.into(),
-                XML_SCHEMA_URI.into(),
-            ],
-        },
-        SchemaDescriptor {
-            package_id: "mathml".into(),
-            schema_uri: MATHML_SCHEMA_URI.into(),
-            version: "1.0.0".into(),
-            source: "schema-packages/mathml/v1/schema/mathml.cem".into(),
-            content_types: vec![
-                SchemaContentType::primary(MATHML_CONTENT_TYPE),
-                SchemaContentType::alias("application/mathml-presentation+xml"),
-                SchemaContentType::alias("application/mathml-content+xml"),
-            ],
-            namespaces: vec![
-                NamespaceClaim::new(Some("cemmathml"), MATHML_SCHEMA_URI),
-                NamespaceClaim::new(Some("mathml"), MATHML_NAMESPACE_URI),
-            ],
-            uses: vec![
-                CEM_SCHEMA_URI.into(),
-                CEM_ML_SCHEMA_URI.into(),
-                XML_SCHEMA_URI.into(),
-            ],
-        },
-        SchemaDescriptor {
-            package_id: "xslt".into(),
-            schema_uri: XSLT_SCHEMA_URI.into(),
-            version: "1.0.0".into(),
-            source: "schema-packages/xslt/v1/schema/xslt.cem".into(),
-            content_types: vec![
-                SchemaContentType::primary(XSLT_CONTENT_TYPE),
-                SchemaContentType::alias("text/xsl"),
-                SchemaContentType::alias("custom-element-xslt"),
-                SchemaContentType::alias("text/custom-element-xslt"),
-                SchemaContentType::alias("application/custom-element-xslt"),
-                SchemaContentType::alias("text/x-custom-element-xslt"),
-            ],
-            namespaces: vec![
-                NamespaceClaim::new(Some("cemxslt"), XSLT_SCHEMA_URI),
-                NamespaceClaim::new(Some("xsl"), XSLT_NAMESPACE_URI),
-            ],
-            uses: vec![
-                CEM_SCHEMA_URI.into(),
-                CEM_ML_SCHEMA_URI.into(),
-                XML_SCHEMA_URI.into(),
-            ],
-        },
-        SchemaDescriptor {
-            package_id: "html".into(),
-            schema_uri: HTML_SCHEMA_URI.into(),
-            version: "1.0.0".into(),
-            source: "schema-packages/html/v1/schema/html.cem".into(),
-            content_types: vec![SchemaContentType::primary(HTML_CONTENT_TYPE)],
-            namespaces: vec![
-                NamespaceClaim::new(Some("cemhtml"), HTML_SCHEMA_URI),
-                NamespaceClaim::new(Some("cemsvg"), SVG_SCHEMA_URI),
-                NamespaceClaim::new(Some("cemmathml"), MATHML_SCHEMA_URI),
-                NamespaceClaim::new(Some("html"), HTML_NAMESPACE_URI),
-                NamespaceClaim::new(Some("svg"), SVG_NAMESPACE_URI),
-                NamespaceClaim::new(Some("mathml"), MATHML_NAMESPACE_URI),
-            ],
-            uses: vec![
-                CEM_SCHEMA_URI.into(),
-                CEM_ML_SCHEMA_URI.into(),
-                SVG_SCHEMA_URI.into(),
-                MATHML_SCHEMA_URI.into(),
-            ],
-        },
-        SchemaDescriptor {
-            package_id: "css".into(),
-            schema_uri: CSS_SCHEMA_URI.into(),
-            version: "1.0.0".into(),
-            source: "schema-packages/css/v1/schema/css.cem".into(),
-            content_types: vec![SchemaContentType::primary(CSS_CONTENT_TYPE)],
-            namespaces: vec![
-                NamespaceClaim::new(Some("cemcss"), CSS_SCHEMA_URI),
-                NamespaceClaim::new(Some("cemhtml"), HTML_SCHEMA_URI),
-                NamespaceClaim::new(Some("cemsvg"), SVG_SCHEMA_URI),
-                NamespaceClaim::new(Some("cemmathml"), MATHML_SCHEMA_URI),
-            ],
-            uses: vec![
-                CEM_SCHEMA_URI.into(),
-                CEM_ML_SCHEMA_URI.into(),
-                HTML_SCHEMA_URI.into(),
-                SVG_SCHEMA_URI.into(),
-                MATHML_SCHEMA_URI.into(),
-            ],
-        },
-        SchemaDescriptor {
-            package_id: "json-schema".into(),
-            schema_uri: JSON_SCHEMA_SCHEMA_URI.into(),
-            version: "1.0.0".into(),
-            source: "schema-packages/json-schema/v1/schema/json-schema.cem".into(),
-            content_types: vec![SchemaContentType::primary(JSON_SCHEMA_CONTENT_TYPE)],
-            namespaces: vec![
-                NamespaceClaim::new(Some("jsonschema"), JSON_SCHEMA_SCHEMA_URI),
-                NamespaceClaim::new(Some("json"), JSON_VALUE_SCHEMA_URI),
-            ],
-            uses: vec![CEM_SCHEMA_URI.into(), JSON_VALUE_SCHEMA_URI.into()],
-        },
-        SchemaDescriptor {
-            package_id: "cem-dom-projection".into(),
-            schema_uri: CEM_DOM_PROJECTION_SCHEMA_URI.into(),
-            version: "1.0.0".into(),
-            source: "schema-packages/cem-dom-projection/v1/schema/cem-dom-projection.cem".into(),
-            content_types: vec![
-                SchemaContentType::primary(CEM_DOM_PROJECTION_CONTENT_TYPE),
-                SchemaContentType::alias(CEM_DOM_JSON_PROJECTION_CONTENT_TYPE),
-            ],
-            namespaces: vec![NamespaceClaim::new(
-                Some("cemdom"),
-                CEM_DOM_PROJECTION_SCHEMA_URI,
-            )],
-            uses: vec![CEM_SCHEMA_URI.into(), CEM_ML_SCHEMA_URI.into()],
-        },
-        SchemaDescriptor {
-            package_id: "cem-ast-projection".into(),
-            schema_uri: CEM_AST_PROJECTION_SCHEMA_URI.into(),
-            version: "1.0.0".into(),
-            source: "schema-packages/cem-ast-projection/v1/schema/cem-ast-projection.cem".into(),
-            content_types: vec![
-                SchemaContentType::primary(CEM_AST_PROJECTION_CONTENT_TYPE),
-                SchemaContentType::alias(CEM_AST_JSON_PROJECTION_CONTENT_TYPE),
-            ],
-            namespaces: vec![NamespaceClaim::new(
-                Some("cemast"),
-                CEM_AST_PROJECTION_SCHEMA_URI,
-            )],
-            uses: vec![CEM_SCHEMA_URI.into(), CEM_ML_SCHEMA_URI.into()],
-        },
-        SchemaDescriptor {
-            package_id: "cem-events-projection".into(),
-            schema_uri: CEM_EVENTS_PROJECTION_SCHEMA_URI.into(),
-            version: "1.0.0".into(),
-            source: "schema-packages/cem-events-projection/v1/schema/cem-events-projection.cem"
-                .into(),
-            content_types: vec![
-                SchemaContentType::primary(CEM_EVENTS_PROJECTION_CONTENT_TYPE),
-                SchemaContentType::alias(CEM_EVENTS_JSON_PROJECTION_CONTENT_TYPE),
-            ],
-            namespaces: vec![NamespaceClaim::new(
-                Some("cemevents"),
-                CEM_EVENTS_PROJECTION_SCHEMA_URI,
-            )],
-            uses: vec![CEM_SCHEMA_URI.into(), CEM_ML_SCHEMA_URI.into()],
-        },
-    ]
+    builtin_schema_package_sources()
+        .iter()
+        .map(|source| {
+            schema_descriptor_from_package_sources(source)
+                .expect("built-in schema package descriptor metadata must be valid")
+        })
+        .collect()
+}
+
+pub fn schema_descriptor_from_package_sources(
+    source: &BuiltinSchemaPackageSource,
+) -> Result<SchemaDescriptor, SchemaPackageDescriptorError> {
+    let manifest = parse_cem_document(source.manifest_source);
+    let schema = parse_cem_document(source.schema_source);
+
+    let package_id = first_element_id_by_local_name(&manifest, "package")
+        .ok_or(SchemaPackageDescriptorError::MissingElement { element: "package" })?;
+    let package_attrs = collect_attrs(&manifest, package_id);
+    let package_id_attr = required_attr(&package_attrs, "package", "id")?;
+    if package_id_attr != source.package_id {
+        return Err(SchemaPackageDescriptorError::PackageIdMismatch {
+            expected: source.package_id.to_owned(),
+            actual: package_id_attr.to_owned(),
+        });
+    }
+
+    let package_version = required_attr(&package_attrs, "package", "version")?;
+    let schema_id = element_child_ids_by_local_name(&manifest, package_id, "schema")
+        .into_iter()
+        .next()
+        .ok_or(SchemaPackageDescriptorError::MissingElement { element: "schema" })?;
+    let schema_attrs = collect_attrs(&manifest, schema_id);
+    let schema_uri = required_attr(&schema_attrs, "schema", "uri")?;
+    let schema_source = required_attr(&schema_attrs, "schema", "source")?;
+    let version = optional_attr(&schema_attrs, "version").unwrap_or(package_version);
+
+    Ok(SchemaDescriptor {
+        package_id: package_id_attr.to_owned(),
+        schema_uri: schema_uri.to_owned(),
+        version: version.to_owned(),
+        source: package_relative_path(package_id_attr, schema_source),
+        content_types: collect_package_content_types(&manifest, package_id)?,
+        namespaces: collect_package_namespaces(&manifest, package_id)?,
+        uses: collect_schema_uses(&schema),
+    })
+}
+
+fn collect_package_content_types(
+    document: &CemDocument,
+    package_id: AstNodeId,
+) -> Result<Vec<SchemaContentType>, SchemaPackageDescriptorError> {
+    element_child_ids_by_local_name(document, package_id, "content-type")
+        .into_iter()
+        .map(|node_id| {
+            let attrs = collect_attrs(document, node_id);
+            let value = required_attr(&attrs, "content-type", "value")?;
+            let role = if manifest_bool_attr(&attrs, "primary") {
+                SchemaContentTypeRole::Primary
+            } else {
+                SchemaContentTypeRole::Alias
+            };
+            Ok(SchemaContentType::new(value, role))
+        })
+        .collect()
+}
+
+fn collect_package_namespaces(
+    document: &CemDocument,
+    package_id: AstNodeId,
+) -> Result<Vec<NamespaceClaim>, SchemaPackageDescriptorError> {
+    element_child_ids_by_local_name(document, package_id, "namespace")
+        .into_iter()
+        .map(|node_id| {
+            let attrs = collect_attrs(document, node_id);
+            let uri = required_attr(&attrs, "namespace", "uri")?;
+            Ok(NamespaceClaim {
+                prefix: optional_attr(&attrs, "prefix").map(str::to_owned),
+                uri: uri.to_owned(),
+            })
+        })
+        .collect()
+}
+
+fn collect_schema_uses(document: &CemDocument) -> Vec<String> {
+    let Some(schema_id) = first_element_id_by_local_name(document, "schema") else {
+        return Vec::new();
+    };
+    let mut uses = Vec::new();
+    for uses_id in element_child_ids_by_local_name(document, schema_id, "uses") {
+        for use_id in element_child_ids_by_local_name(document, uses_id, "use") {
+            let attrs = collect_attrs(document, use_id);
+            let Some(schema_uri) = optional_attr(&attrs, "schema") else {
+                continue;
+            };
+            if !schema_uri.is_empty() && !uses.iter().any(|existing| existing == schema_uri) {
+                uses.push(schema_uri.to_owned());
+            }
+        }
+    }
+    uses
+}
+
+fn package_relative_path(package_id: &str, path: &str) -> String {
+    let path = path.trim();
+    if path.is_empty() || path.starts_with('/') || path.starts_with("schema-packages/") {
+        return path.to_owned();
+    }
+    format!(
+        "schema-packages/{}/v1/{}",
+        package_id,
+        path.trim_start_matches("./")
+    )
+}
+
+fn manifest_bool_attr(attrs: &BTreeMap<String, String>, name: &str) -> bool {
+    matches!(
+        attrs.get(name).map(String::as_str).map(str::trim),
+        Some("") | Some("true") | Some("1")
+    )
+}
+
+fn required_attr<'a>(
+    attrs: &'a BTreeMap<String, String>,
+    element: &'static str,
+    attribute: &'static str,
+) -> Result<&'a str, SchemaPackageDescriptorError> {
+    optional_attr(attrs, attribute)
+        .ok_or(SchemaPackageDescriptorError::MissingAttribute { element, attribute })
+}
+
+fn optional_attr<'a>(attrs: &'a BTreeMap<String, String>, attribute: &str) -> Option<&'a str> {
+    attrs
+        .get(attribute)
+        .map(String::as_str)
+        .map(str::trim)
+        .filter(|value| !value.is_empty())
+}
+
+fn parse_cem_document(input: &str) -> CemDocument {
+    let src = BytesSource::new(SourceId(1), input.as_bytes().to_vec());
+    let tok = CemTokenizer::from_source(src);
+    let normalizer = CemEventNormalizer::new(tok);
+    CemAstBuilder::new(normalizer).build()
+}
+
+fn collect_attrs(document: &CemDocument, node_id: AstNodeId) -> BTreeMap<String, String> {
+    let mut attrs = BTreeMap::new();
+    let Some(CemAstNode::Element { attributes, .. }) = document.get(node_id) else {
+        return attrs;
+    };
+
+    for attr_id in attributes {
+        let Some(CemAstNode::Attribute {
+            expanded_name,
+            value,
+            ..
+        }) = document.get(*attr_id)
+        else {
+            continue;
+        };
+        attrs.insert(
+            expanded_name.local_name.clone(),
+            value.clone().unwrap_or_default(),
+        );
+    }
+    attrs
+}
+
+fn first_element_id_by_local_name(document: &CemDocument, local_name: &str) -> Option<AstNodeId> {
+    document.iter().find_map(|node| {
+        let CemAstNode::Element {
+            node_id,
+            expanded_name,
+            ..
+        } = node
+        else {
+            return None;
+        };
+        (expanded_name.local_name == local_name).then_some(*node_id)
+    })
+}
+
+fn element_child_ids_by_local_name(
+    document: &CemDocument,
+    node_id: AstNodeId,
+    local_name: &str,
+) -> Vec<AstNodeId> {
+    let Some(CemAstNode::Element { children, .. }) = document.get(node_id) else {
+        return Vec::new();
+    };
+    children
+        .iter()
+        .copied()
+        .filter(|child_id| {
+            matches!(
+                document.get(*child_id),
+                Some(CemAstNode::Element { expanded_name, .. })
+                    if expanded_name.local_name == local_name
+            )
+        })
+        .collect()
 }
 
 #[cfg(test)]
@@ -698,6 +606,57 @@ mod tests {
         assert_eq!(
             content_type_essence("Application/Vnd.Cem.Schema+Chem; charset=utf-8"),
             "application/vnd.cem.schema+chem"
+        );
+    }
+
+    #[test]
+    fn builtin_schema_descriptors_are_loaded_from_package_sources() {
+        let descriptors = builtin_schema_descriptors();
+
+        assert_eq!(descriptors.len(), builtin_schema_package_sources().len());
+
+        let html = descriptors
+            .iter()
+            .find(|descriptor| descriptor.package_id == "html")
+            .expect("HTML descriptor");
+        assert_eq!(html.schema_uri, HTML_SCHEMA_URI);
+        assert_eq!(html.source, "schema-packages/html/v1/schema/html.cem");
+        assert_eq!(
+            html.content_type_essences().collect::<Vec<_>>(),
+            vec![HTML_CONTENT_TYPE]
+        );
+        assert_eq!(
+            html.namespace_uris().collect::<Vec<_>>(),
+            vec![
+                HTML_SCHEMA_URI,
+                SVG_SCHEMA_URI,
+                MATHML_SCHEMA_URI,
+                HTML_NAMESPACE_URI,
+                SVG_NAMESPACE_URI,
+                MATHML_NAMESPACE_URI,
+            ]
+        );
+        assert_eq!(
+            html.uses,
+            vec![
+                CEM_SCHEMA_URI.to_owned(),
+                CEM_ML_SCHEMA_URI.to_owned(),
+                SVG_SCHEMA_URI.to_owned(),
+                MATHML_SCHEMA_URI.to_owned(),
+            ]
+        );
+
+        let mathml = descriptors
+            .iter()
+            .find(|descriptor| descriptor.package_id == "mathml")
+            .expect("MathML descriptor");
+        assert_eq!(
+            mathml.uses,
+            vec![
+                CEM_SCHEMA_URI.to_owned(),
+                CEM_ML_SCHEMA_URI.to_owned(),
+                XML_SCHEMA_URI.to_owned(),
+            ]
         );
     }
 

@@ -104,6 +104,9 @@ history belongs in git history and the feature-specific docs linked below.
         implementation hooks, exactly one `from`/`to` endpoint, known
         schema/content-type compatibility, boolean/readiness values, and
         positive planner cost.
+  - [x] Load built-in schema registry descriptors from embedded
+        `package.cem` manifests and schema `{uses}` declarations instead of a
+        hand-maintained Rust descriptor table.
 
 ## Schema Package Implementation List
 

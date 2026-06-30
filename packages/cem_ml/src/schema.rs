@@ -10,6 +10,7 @@ pub mod ir;
 pub mod machine;
 pub mod namespace;
 pub mod package_loader;
+pub mod package_sources;
 pub mod registry;
 pub mod scoping;
 pub mod vocab;

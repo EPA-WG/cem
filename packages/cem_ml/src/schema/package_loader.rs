@@ -4,6 +4,7 @@
 //! built-in package sources so validators and tooling can resolve a schema URL
 //! or content type to the actual `package.cem` manifest plus schema document.
 
+use crate::schema::package_sources::builtin_schema_package_source;
 use crate::schema::registry::{SchemaDescriptor, SchemaLookupError, SchemaRegistry};
 
 #[derive(Debug, Clone)]
@@ -74,7 +75,7 @@ pub fn load_builtin_schema_package_for_content_type(
 fn load_descriptor(
     descriptor: &SchemaDescriptor,
 ) -> Result<BuiltinSchemaPackage, BuiltinSchemaPackageLoadError> {
-    let Some((manifest_source, schema_source)) = embedded_sources(&descriptor.package_id) else {
+    let Some(source) = builtin_schema_package_source(&descriptor.package_id) else {
         return Err(BuiltinSchemaPackageLoadError::MissingEmbeddedSource {
             package_id: descriptor.package_id.clone(),
             schema_uri: descriptor.schema_uri.clone(),
@@ -82,110 +83,8 @@ fn load_descriptor(
     };
     Ok(BuiltinSchemaPackage {
         descriptor: descriptor.clone(),
-        manifest_source,
-        schema_source,
-    })
-}
-
-fn embedded_sources(package_id: &str) -> Option<(&'static str, &'static str)> {
-    Some(match package_id {
-        "cem-ml" => (
-            include_str!("../../schema-packages/cem-ml/v1/package.cem"),
-            include_str!("../../schema-packages/cem-ml/v1/schema/cem-ml-generic.cem"),
-        ),
-        "schema" => (
-            include_str!("../../schema-packages/schema/v1/package.cem"),
-            include_str!("../../schema-packages/schema/v1/schema/cem-schema.cem"),
-        ),
-        "schema-package" => (
-            include_str!("../../schema-packages/schema-package/v1/package.cem"),
-            include_str!("../../schema-packages/schema-package/v1/schema/schema-package.cem"),
-        ),
-        "cem-native-template" => (
-            include_str!("../../schema-packages/cem-native-template/v1/package.cem"),
-            include_str!(
-                "../../schema-packages/cem-native-template/v1/schema/cem-native-template.cem"
-            ),
-        ),
-        "cem-transform" => (
-            include_str!("../../schema-packages/cem-transform/v1/package.cem"),
-            include_str!("../../schema-packages/cem-transform/v1/schema/cem-transform.cem"),
-        ),
-        "cem-ql" => (
-            include_str!("../../schema-packages/cem-ql/v1/package.cem"),
-            include_str!("../../schema-packages/cem-ql/v1/schema/cem-ql.cem"),
-        ),
-        "json" => (
-            include_str!("../../schema-packages/json/v1/package.cem"),
-            include_str!("../../schema-packages/json/v1/schema/json.cem"),
-        ),
-        "yaml" => (
-            include_str!("../../schema-packages/yaml/v1/package.cem"),
-            include_str!("../../schema-packages/yaml/v1/schema/yaml.cem"),
-        ),
-        "csv" => (
-            include_str!("../../schema-packages/csv/v1/package.cem"),
-            include_str!("../../schema-packages/csv/v1/schema/csv.cem"),
-        ),
-        "markdown" => (
-            include_str!("../../schema-packages/markdown/v1/package.cem"),
-            include_str!("../../schema-packages/markdown/v1/schema/markdown.cem"),
-        ),
-        "xml" => (
-            include_str!("../../schema-packages/xml/v1/package.cem"),
-            include_str!("../../schema-packages/xml/v1/schema/xml.cem"),
-        ),
-        "relax-ng" => (
-            include_str!("../../schema-packages/relax-ng/v1/package.cem"),
-            include_str!("../../schema-packages/relax-ng/v1/schema/relax-ng.cem"),
-        ),
-        "xhtml" => (
-            include_str!("../../schema-packages/xhtml/v1/package.cem"),
-            include_str!("../../schema-packages/xhtml/v1/schema/xhtml.cem"),
-        ),
-        "svg" => (
-            include_str!("../../schema-packages/svg/v1/package.cem"),
-            include_str!("../../schema-packages/svg/v1/schema/svg.cem"),
-        ),
-        "mathml" => (
-            include_str!("../../schema-packages/mathml/v1/package.cem"),
-            include_str!("../../schema-packages/mathml/v1/schema/mathml.cem"),
-        ),
-        "xslt" => (
-            include_str!("../../schema-packages/xslt/v1/package.cem"),
-            include_str!("../../schema-packages/xslt/v1/schema/xslt.cem"),
-        ),
-        "html" => (
-            include_str!("../../schema-packages/html/v1/package.cem"),
-            include_str!("../../schema-packages/html/v1/schema/html.cem"),
-        ),
-        "css" => (
-            include_str!("../../schema-packages/css/v1/package.cem"),
-            include_str!("../../schema-packages/css/v1/schema/css.cem"),
-        ),
-        "json-schema" => (
-            include_str!("../../schema-packages/json-schema/v1/package.cem"),
-            include_str!("../../schema-packages/json-schema/v1/schema/json-schema.cem"),
-        ),
-        "cem-dom-projection" => (
-            include_str!("../../schema-packages/cem-dom-projection/v1/package.cem"),
-            include_str!(
-                "../../schema-packages/cem-dom-projection/v1/schema/cem-dom-projection.cem"
-            ),
-        ),
-        "cem-ast-projection" => (
-            include_str!("../../schema-packages/cem-ast-projection/v1/package.cem"),
-            include_str!(
-                "../../schema-packages/cem-ast-projection/v1/schema/cem-ast-projection.cem"
-            ),
-        ),
-        "cem-events-projection" => (
-            include_str!("../../schema-packages/cem-events-projection/v1/package.cem"),
-            include_str!(
-                "../../schema-packages/cem-events-projection/v1/schema/cem-events-projection.cem"
-            ),
-        ),
-        _ => return None,
+        manifest_source: source.manifest_source,
+        schema_source: source.schema_source,
     })
 }
 
