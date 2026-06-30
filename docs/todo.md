@@ -98,6 +98,9 @@ history belongs in git history and the feature-specific docs linked below.
           expressions: simple subject value lookup, registry resolution,
           implementation-output callback, typed artifact wrapping, and
           diagnostics for unresolved subjects or missing encoders.
+    - [x] Preserve lowered encode expressions and output function descriptors on
+          compiled CEMT artifacts so render-time adapters and engine hooks can
+          evaluate and compose encoded artifacts.
   - [ ] Define encoded artifact identity and insertion rules. Results are not
         plain strings: they carry produced kind (`text`, `bytes`, `tokens`,
         `chunks`, or `diagnostics`), target content type, schema URL, encoding

@@ -2143,6 +2143,18 @@ pub struct TransformTemplateModuleOptions {
     pub limits: TransformTemplateModuleLimits,
 }
 
+impl TransformTemplateModuleOptions {
+    pub fn is_empty(&self) -> bool {
+        self.imports.is_empty()
+            && self.entrypoints.is_empty()
+            && self.params.is_empty()
+            && self.calls.is_empty()
+            && self.encode_expressions.is_empty()
+            && self.output_functions.is_empty()
+            && self.limits == TransformTemplateModuleLimits::default()
+    }
+}
+
 pub fn parse_cem_native_template_module_options(
     request: TransformTemplateModuleParseRequest,
 ) -> TransformTemplateModuleParseResponse {
@@ -2956,6 +2968,11 @@ pub struct TransformTemplateCompiledArtifact {
     pub template_uri: String,
     pub identity: Option<FormatIdentity>,
     pub entrypoint: TransformTemplateEntrypoint,
+    #[serde(
+        default,
+        skip_serializing_if = "TransformTemplateModuleOptions::is_empty"
+    )]
+    pub module_options: TransformTemplateModuleOptions,
     #[serde(default, skip_serializing_if = "Value::is_null")]
     pub opaque: Value,
     #[serde(skip)]
@@ -2970,6 +2987,7 @@ impl fmt::Debug for TransformTemplateCompiledArtifact {
             .field("template_uri", &self.template_uri)
             .field("identity", &self.identity)
             .field("entrypoint", &self.entrypoint)
+            .field("module_options", &self.module_options)
             .field("opaque", &self.opaque)
             .field("has_native_payload", &self.native_payload.is_some())
             .finish()
@@ -2983,6 +3001,7 @@ impl PartialEq for TransformTemplateCompiledArtifact {
             && self.template_uri == other.template_uri
             && self.identity == other.identity
             && self.entrypoint == other.entrypoint
+            && self.module_options == other.module_options
             && self.opaque == other.opaque
     }
 }
@@ -3002,9 +3021,15 @@ impl TransformTemplateCompiledArtifact {
             template_uri: template_uri.into(),
             identity,
             entrypoint,
+            module_options: TransformTemplateModuleOptions::default(),
             opaque,
             native_payload: None,
         }
+    }
+
+    pub fn with_module_options(mut self, module_options: TransformTemplateModuleOptions) -> Self {
+        self.module_options = module_options;
+        self
     }
 
     pub fn with_native_payload<T>(mut self, payload: T) -> Self

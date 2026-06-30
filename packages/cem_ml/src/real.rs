@@ -1848,6 +1848,7 @@ fn compile_transform_template(
         &module_preflight,
         diagnostics,
     )?;
+    let compiled_module_options = module_options.clone();
     match spec.adapter.compile(TransformTemplateCompileRequest {
         template: spec.template,
         entrypoint: spec.entrypoint,
@@ -1859,7 +1860,11 @@ fn compile_transform_template(
     }) {
         Ok(mut response) => {
             diagnostics.append(&mut response.diagnostics);
-            Some(response.artifact)
+            Some(
+                response
+                    .artifact
+                    .with_module_options(compiled_module_options),
+            )
         }
         Err(err) => {
             diagnostics.push(err.diagnostic(Some(&spec.template.uri)));
@@ -4896,6 +4901,70 @@ mod tests {
         assert!(diagnostics
             .iter()
             .any(|diag| diag.code == TRANSFORM_TEMPLATE_CALL_UNKNOWN_CODE));
+    }
+
+    #[test]
+    fn compile_transform_template_preserves_lowered_encode_metadata_for_render() {
+        let template = TemplateInput {
+            uri: "templates/page.cemt".to_owned(),
+            bytes: br#"{@doc cem-ml 1}
+{module |
+  {encoding-function
+      @name="html.text"
+      @category="html-text"
+      @subject="string"
+      @produces="text"
+      @content-type="text/html"
+      @schema="https://cem.dev/ns/data/html/1"
+      @canonical=true |
+      {param @name="subject" @type="string" @required=true}
+  }
+  {template @name="main" @visibility="public" |
+    {body |
+      {$ encode($input.title, { contentType: "text/html", schema: "https://cem.dev/ns/data/html/1", category: "html-text", context: "text" }, { mode: "fragment", encoder: "html.text" }) }
+    }
+  }
+}"#
+            .to_vec(),
+            identity: Some(FormatIdentity {
+                content_type: Some(CEM_TRANSFORM_CONTENT_TYPE.to_owned()),
+                schema: Some(CEM_TRANSFORM_SCHEMA_URI.to_owned()),
+                ..FormatIdentity::default()
+            }),
+            root_scope: ScopeConfig::default(),
+        };
+        let adapter: Arc<dyn TransformTemplateAdapter> = Arc::new(ReadyCemtHtmlExportAdapter);
+        let params = BTreeMap::new();
+        let data_bindings = vec!["input".to_owned()];
+        let mut diagnostics = Vec::new();
+
+        let compiled = compile_transform_template(
+            TransformTemplateCompileSpec {
+                context: &ctx(),
+                adapter: &adapter,
+                template: &template,
+                template_kind: TransformTemplateKind::CemNative,
+                entrypoint: &TransformTemplateEntrypoint::named("main"),
+                params: &params,
+                data_bindings: &data_bindings,
+                module_options: TransformTemplateModuleOptions::default(),
+                execution_policy: TransformExecutionPolicy::default(),
+            },
+            &mut diagnostics,
+        )
+        .expect("template compiles");
+
+        assert!(diagnostics.is_empty(), "{diagnostics:?}");
+        assert_eq!(compiled.module_options.encode_expressions.len(), 1);
+        assert_eq!(compiled.module_options.output_functions.len(), 1);
+        let encode = &compiled.module_options.encode_expressions[0];
+        assert_eq!(encode.owner.as_deref(), Some("main"));
+        assert_eq!(encode.subject, "$input.title");
+        assert_eq!(encode.target.context.as_deref(), Some("text"));
+        assert_eq!(
+            compiled.module_options.output_functions[0].name,
+            "html.text"
+        );
     }
 
     #[test]
