@@ -20,6 +20,7 @@ pub const MARKDOWN_SCHEMA_URI: &str = "https://cem.dev/ns/data/markdown/1";
 pub const XML_SCHEMA_URI: &str = "https://cem.dev/ns/data/xml/1";
 pub const HTML_SCHEMA_URI: &str = "https://cem.dev/ns/data/html/1";
 pub const HTML_NAMESPACE_URI: &str = "http://www.w3.org/1999/xhtml";
+pub const CSS_SCHEMA_URI: &str = "https://cem.dev/ns/data/css/1";
 pub const XHTML_SCHEMA_URI: &str = "https://cem.dev/ns/data/xhtml/1";
 pub const XHTML_NAMESPACE_URI: &str = "http://www.w3.org/1999/xhtml";
 pub const SVG_SCHEMA_URI: &str = "https://cem.dev/ns/data/svg/1";
@@ -46,6 +47,7 @@ pub const CSV_CONTENT_TYPE: &str = "text/csv";
 pub const MARKDOWN_CONTENT_TYPE: &str = "text/markdown";
 pub const XML_CONTENT_TYPE: &str = "application/xml";
 pub const HTML_CONTENT_TYPE: &str = "text/html";
+pub const CSS_CONTENT_TYPE: &str = "text/css";
 pub const XHTML_CONTENT_TYPE: &str = "application/xhtml+xml";
 pub const SVG_CONTENT_TYPE: &str = "image/svg+xml";
 pub const MATHML_CONTENT_TYPE: &str = "application/mathml+xml";
@@ -568,6 +570,21 @@ pub fn builtin_schema_descriptors() -> Vec<SchemaDescriptor> {
             ],
         },
         SchemaDescriptor {
+            package_id: "css".into(),
+            schema_uri: CSS_SCHEMA_URI.into(),
+            version: "1.0.0".into(),
+            source: "schema-packages/css/v1/schema/css.cem".into(),
+            content_types: vec![SchemaContentType::primary(CSS_CONTENT_TYPE)],
+            namespaces: vec![NamespaceClaim::new(Some("cemcss"), CSS_SCHEMA_URI)],
+            uses: vec![
+                CEM_SCHEMA_URI.into(),
+                CEM_ML_SCHEMA_URI.into(),
+                HTML_SCHEMA_URI.into(),
+                SVG_SCHEMA_URI.into(),
+                MATHML_SCHEMA_URI.into(),
+            ],
+        },
+        SchemaDescriptor {
             package_id: "json-schema".into(),
             schema_uri: JSON_SCHEMA_SCHEMA_URI.into(),
             version: "1.0.0".into(),
@@ -732,6 +749,13 @@ mod tests {
                 .unwrap()
                 .schema_uri,
             HTML_SCHEMA_URI
+        );
+        assert_eq!(
+            registry
+                .resolve_content_type(CSS_CONTENT_TYPE)
+                .unwrap()
+                .schema_uri,
+            CSS_SCHEMA_URI
         );
         assert_eq!(
             registry
@@ -924,6 +948,25 @@ mod tests {
                     .unwrap()
                     .schema_uri,
                 HTML_SCHEMA_URI
+            );
+        }
+    }
+
+    #[test]
+    fn builtin_registry_resolves_css_content_type_with_parameters() {
+        let registry = SchemaRegistry::with_builtin_schemas();
+
+        for content_type in [
+            "text/css",
+            "text/css; charset=utf-8",
+            "TEXT/CSS; CHARSET=iso-8859-1",
+        ] {
+            assert_eq!(
+                registry
+                    .resolve_content_type(content_type)
+                    .unwrap()
+                    .schema_uri,
+                CSS_SCHEMA_URI
             );
         }
     }

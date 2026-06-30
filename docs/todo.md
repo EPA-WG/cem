@@ -54,7 +54,7 @@ Implement schema packages for these content families:
 - [x] MathML.
 - [x] XSLT/XSL legacy/custom-element compatibility.
 - [x] HTML.
-- [ ] CSS/scoped style content.
+- [x] CSS/scoped style content.
 # [] custom schema creation instructions
 # [] believes schema + registry
 stop for sync up with author

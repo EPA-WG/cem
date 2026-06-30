@@ -1,0 +1,130 @@
+@doc cem-ml 1
+@ns schema = "https://cem.dev/ns/schema/1"
+@ns cemml = "https://cem.dev/ns/cem-ml/1"
+@ns html = "https://cem.dev/ns/data/html/1"
+@ns svg = "https://cem.dev/ns/data/svg/1"
+@ns mathml = "https://cem.dev/ns/data/mathml/1"
+@default schema
+
+{schema @name="css" @namespace="https://cem.dev/ns/data/css/1" @version="1.0.0" |
+    {summary |
+        {text | CSS stylesheet and scoped style content schema. CSS source is parsed by a CSS parser into stylesheet, rule, selector, declaration, and component-value structures, while scoped style metadata connects style blocks, style attributes, custom elements, shadow roots, and host document schemas without executing or fetching external resources by default.}
+    }
+
+    {uses |
+        {use @schema="https://cem.dev/ns/schema/1" @as="schema"}
+        {use @schema="https://cem.dev/ns/cem-ml/1" @as="cemml"}
+        {use @schema="https://cem.dev/ns/data/html/1" @as="html"}
+        {use @schema="https://cem.dev/ns/data/svg/1" @as="svg"}
+        {use @schema="https://cem.dev/ns/data/mathml/1" @as="mathml"}
+    }
+
+    {content-types |
+        {content-type @value="text/css" @primary=true}
+    }
+
+    {namespaces |
+        {namespace @prefix="cemcss" @uri="https://cem.dev/ns/data/css/1" @role="schema"}
+        {namespace @prefix="html" @uri="https://cem.dev/ns/data/html/1" @role="host-schema"}
+        {namespace @prefix="svg" @uri="https://cem.dev/ns/data/svg/1" @role="host-schema"}
+        {namespace @prefix="mathml" @uri="https://cem.dev/ns/data/mathml/1" @role="host-schema"}
+    }
+
+    {elements |
+        {element @name="stylesheet" @required-attributes="encoding" @optional-attributes="charset source-id byte-offset byte-length" @children="charset? import* rule* comment*"}
+        {element @name="style-block" @required-attributes="host-kind" @optional-attributes="host-schema host-selector media nonce policy source-id byte-offset byte-length" @children="style-scope? rule* declaration* comment*"}
+        {element @name="style-attribute" @required-attributes="host-kind" @optional-attributes="host-schema owner-selector source-id byte-offset byte-length" @children="declaration* component-value*"}
+        {element @name="style-scope" @required-attributes="scope-kind" @optional-attributes="scope-id host-schema host-selector root-selector shadow-mode layer media condition source-id byte-offset byte-length" @children="rule* declaration*"}
+        {element @name="charset" @required-attributes="encoding" @optional-attributes="source-id byte-offset byte-length"}
+        {element @name="import" @required-attributes="href" @optional-attributes="media layer supports source-id byte-offset byte-length"}
+        {element @name="rule" @required-attributes="kind" @optional-attributes="selector prelude name media layer condition source-id byte-offset byte-length" @children="selector-list? declaration* rule* at-rule* comment*"}
+        {element @name="at-rule" @required-attributes="name" @optional-attributes="prelude source-id byte-offset byte-length" @children="rule* declaration* component-value*"}
+        {element @name="selector-list" @children="selector*"}
+        {element @name="selector" @optional-attributes="text specificity source-id byte-offset byte-length" @children="simple-selector* combinator*"}
+        {element @name="simple-selector" @required-attributes="kind" @optional-attributes="name value namespace source-id byte-offset byte-length"}
+        {element @name="combinator" @required-attributes="kind" @optional-attributes="source-id byte-offset byte-length"}
+        {element @name="declaration" @required-attributes="name value" @optional-attributes="important custom-property source-id byte-offset byte-length" @children="component-value*"}
+        {element @name="component-value" @required-attributes="kind" @optional-attributes="value unit token source-id byte-offset byte-length" @children="component-value* function? block?"}
+        {element @name="function" @required-attributes="name" @optional-attributes="source-id byte-offset byte-length" @children="component-value*"}
+        {element @name="block" @required-attributes="kind" @optional-attributes="source-id byte-offset byte-length" @children="component-value* declaration* rule*"}
+        {element @name="comment" @optional-attributes="value source-id byte-offset byte-length"}
+    }
+
+    {attributes |
+        {attribute @name="encoding" @type="schema:identifier" @values="utf-8 utf-16 utf-16be utf-16le us-ascii iso-8859-1 other"}
+        {attribute @name="charset" @type="schema:identifier"}
+        {attribute @name="source-id" @type="schema:identifier"}
+        {attribute @name="byte-offset" @type="cemml:integer"}
+        {attribute @name="byte-length" @type="cemml:integer"}
+        {attribute @name="host-kind" @type="schema:identifier" @values="document style-element style-attribute shadow-root custom-element svg mathml unknown"}
+        {attribute @name="host-schema" @type="schema:uri"}
+        {attribute @name="host-selector" @type="schema:string"}
+        {attribute @name="owner-selector" @type="schema:string"}
+        {attribute @name="root-selector" @type="schema:string"}
+        {attribute @name="scope-kind" @type="schema:identifier" @values="document component shadow-root style-element style-attribute media container layer scope page print"}
+        {attribute @name="scope-id" @type="schema:identifier"}
+        {attribute @name="shadow-mode" @type="schema:identifier" @values="open closed none"}
+        {attribute @name="layer" @type="schema:string"}
+        {attribute @name="media" @type="schema:string"}
+        {attribute @name="condition" @type="schema:string"}
+        {attribute @name="supports" @type="schema:string"}
+        {attribute @name="nonce" @type="schema:string"}
+        {attribute @name="policy" @type="schema:identifier" @values="preserve sanitize reject delegate"}
+        {attribute @name="href" @type="schema:string"}
+        {attribute @name="kind" @type="schema:identifier" @values="qualified at style media supports container layer scope keyframes font-face page property import namespace charset margin selector class id type attribute pseudo-class pseudo-element universal combinator ident function hash string url number percentage dimension delimiter whitespace unicode-range curly square paren unknown"}
+        {attribute @name="selector" @type="schema:string"}
+        {attribute @name="prelude" @type="schema:string"}
+        {attribute @name="name" @type="schema:string"}
+        {attribute @name="value" @type="schema:string"}
+        {attribute @name="important" @type="schema:boolean"}
+        {attribute @name="custom-property" @type="schema:boolean"}
+        {attribute @name="text" @type="schema:string"}
+        {attribute @name="specificity" @type="schema:string"}
+        {attribute @name="namespace" @type="schema:string"}
+        {attribute @name="unit" @type="schema:string"}
+        {attribute @name="token" @type="schema:string"}
+    }
+
+    {constraints |
+        {constraint @kind="css-source-parser" @target="stylesheet" @policy="delegate-to-css-parser"}
+        {constraint @kind="text-css-primary" @target="stylesheet" @policy="text/css is the canonical media type for CSS stylesheets"}
+        {constraint @kind="style-attribute-fragment" @target="style-attribute" @policy="HTML style attributes parse as declaration lists, not full stylesheets"}
+        {constraint @kind="scoped-style-host" @target="style-scope" @policy="scope metadata must identify the host schema, host selector, or component root when available"}
+        {constraint @kind="cascade-scope-preserved" @target="style-scope" @policy="layer media container shadow-root and component boundaries are semantic style identity"}
+        {constraint @kind="css-parser-error-recovery" @target="stylesheet" @policy="CSS parse errors recover according to CSS syntax rules unless host validation selects fail-fast mode"}
+        {constraint @kind="charset-source-priority" @target="stylesheet" @policy="preserve BOM MIME charset and @charset evidence; report conflicts"}
+        {constraint @kind="import-policy" @target="import" @policy="@import access requires explicit resolver policy"}
+        {constraint @kind="url-policy" @target="component-value" @policy="url() references require explicit resolver or sanitizer policy"}
+        {constraint @kind="custom-properties-preserved" @target="declaration" @policy="custom property names and token streams are preserved without semantic value normalization"}
+        {constraint @kind="unknown-rule-policy" @target="rule" @policy="unknown at-rules and vendor-prefixed syntax are preserved unless validation policy rejects them"}
+        {constraint @kind="source-map-preferred" @target="declaration" @policy="required when parser exposes source ranges"}
+    }
+
+    {diagnostics |
+        {diagnostic @code="cem.css.parse_error" @severity="error"}
+        {diagnostic @code="cem.css.invalid_token" @severity="error"}
+        {diagnostic @code="cem.css.bad_string" @severity="warning"}
+        {diagnostic @code="cem.css.bad_url" @severity="warning"}
+        {diagnostic @code="cem.css.encoding_conflict" @severity="warning"}
+        {diagnostic @code="cem.css.invalid_selector" @severity="warning"}
+        {diagnostic @code="cem.css.invalid_declaration" @severity="warning"}
+        {diagnostic @code="cem.css.unknown_at_rule" @severity="info"}
+        {diagnostic @code="cem.css.import_rejected" @severity="error"}
+        {diagnostic @code="cem.css.url_rejected" @severity="error"}
+        {diagnostic @code="cem.css.unsupported_property" @severity="info"}
+        {diagnostic @code="cem.css.source_map_unavailable" @severity="info"}
+    }
+
+    {compatibility |
+        {note @version="1.0.0" @value="IANA registers text/css with optional charset parameter and .css extension."}
+        {note @version="1.0.0" @value="CSS syntax defines tokenization, parser entry points, and error recovery for stylesheets, style blocks, style attributes, rules, declarations, and component values."}
+        {note @version="1.0.0" @value="Scoped style content preserves host schema and cascade-boundary identity for HTML, SVG, MathML, custom elements, and shadow roots without requiring a separate content type."}
+    }
+
+    {open-content |
+        {accept @kind="custom-property" @policy="preserve"}
+        {accept @kind="vendor-prefixed-rule" @policy="preserve"}
+        {accept @kind="experimental-at-rule" @policy="preserve-unless-policy-rejects"}
+        {accept @kind="host-selector" @policy="delegate-to-host-schema"}
+    }
+}

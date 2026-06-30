@@ -107,6 +107,13 @@ policy, custom-element hooks, SVG/MathML foreign-content dispatch, and
 source-map hooks. HTML is not XML; XHTML remains the separate XML-backed
 `application/xhtml+xml` package.
 
+`css/v1` defines CSS stylesheet and scoped style content identity. It owns
+`text/css`, models stylesheets, style blocks, style attributes, rules,
+selectors, declarations, component values, custom properties, cascade scope
+metadata, host document integration, external `@import` and `url()` policy, and
+source-map hooks. CSS source is not CEM-ML syntax; parser/adaptor support is
+separate from the schema package.
+
 `json-schema/v1` defines JSON Schema document identity. It owns
 `application/schema+json`, depends on `json/v1`, and models JSON Schema
 dialect, vocabulary, reference, and validation-resource metadata separately

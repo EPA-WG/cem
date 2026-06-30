@@ -761,6 +761,7 @@ pub fn infer_content_type_from_path(path: &str) -> Option<String> {
         "svg" | "svgz" => Some(crate::schema::registry::SVG_CONTENT_TYPE.to_owned()),
         "mml" | "mathml" => Some(crate::schema::registry::MATHML_CONTENT_TYPE.to_owned()),
         "xsl" | "xslt" => Some(crate::schema::registry::XSLT_CONTENT_TYPE.to_owned()),
+        "css" => Some(crate::schema::registry::CSS_CONTENT_TYPE.to_owned()),
         "cemt" => Some(crate::schema::registry::CEM_TRANSFORM_CONTENT_TYPE.to_owned()),
         "cemql" => Some(crate::schema::registry::CEM_QL_CONTENT_TYPE.to_owned()),
         "jsonschema" => Some(crate::schema::registry::JSON_SCHEMA_CONTENT_TYPE.to_owned()),
@@ -990,6 +991,18 @@ mod tests {
         assert_eq!(
             infer_content_type_from_path("templates/VIEW.XSLT").as_deref(),
             Some(crate::schema::registry::XSLT_CONTENT_TYPE)
+        );
+    }
+
+    #[test]
+    fn css_extension_infers_css_content_type() {
+        assert_eq!(
+            infer_content_type_from_path("styles/theme.css").as_deref(),
+            Some(crate::schema::registry::CSS_CONTENT_TYPE)
+        );
+        assert_eq!(
+            infer_content_type_from_path("styles/THEME.CSS").as_deref(),
+            Some(crate::schema::registry::CSS_CONTENT_TYPE)
         );
     }
 
