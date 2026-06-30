@@ -100,6 +100,10 @@ history belongs in git history and the feature-specific docs linked below.
   - [x] Move the remaining built-in Rust converter/debug edges into owning
         `package.cem` manifests and load all built-in conversion descriptors
         from package manifests.
+  - [x] Add schema-package semantic validation for converter declarations:
+        implementation hooks, exactly one `from`/`to` endpoint, known
+        schema/content-type compatibility, boolean/readiness values, and
+        positive planner cost.
 
 ## Schema Package Implementation List
 

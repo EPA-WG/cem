@@ -213,6 +213,20 @@ fn schema_owned_examples_validate_through_cli() {
             expected_diagnostics: &["cem.schema_model.missing_required_attribute"],
         },
         ValidationExample {
+            name: "schema-package invalid converter contract",
+            path: "packages/cem_ml/schema-packages/schema-package/v1/examples/invalid-converter-contract.cem",
+            content_type: CEM_SCHEMA_PACKAGE_CONTENT_TYPE,
+            schema_uri: CEM_SCHEMA_PACKAGE_URI,
+            expected_exit: EXIT_HARD_FAILURE,
+            expected_diagnostics: &[
+                "cem.schema_package.converter_template_missing",
+                "cem.schema_package.converter_template_content_type_mismatch",
+                "cem.schema_package.converter_endpoint_missing",
+                "cem.schema_package.converter_cost_invalid",
+                "cem.schema_package.converter_content_type_mismatch",
+            ],
+        },
+        ValidationExample {
             name: "native-template basic",
             path: "packages/cem_ml/schema-packages/cem-native-template/v1/examples/basic-template.cem",
             content_type: CEM_NATIVE_TEMPLATE_CONTENT_TYPE,

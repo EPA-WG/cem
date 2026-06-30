@@ -1,0 +1,20 @@
+@doc cem-ml 1
+@ns pkg = "https://cem.dev/ns/schema-package/1"
+@default pkg
+
+{package @id="bad-converter" @version="1.0.0" |
+    {schema
+        @uri="https://example.test/ns/bad-converter/1"
+        @source="schema/bad-converter.cem"
+    }
+
+    {content-type @value="application/vnd.example.bad-converter+cem" @primary=true}
+
+    {converter
+        @id="bad-to-html"
+        @implementation="cemt"
+        @template-content-type="text/cem-ml"
+        @cost=0 |
+        {from @content-type="text/html" @schema="https://cem.dev/ns/data/xml/1"}
+    }
+}

@@ -23,6 +23,9 @@
 //! - `cem.unsafe.event_handler_attribute` — `on*` / DOM-style event
 //!   handler attributes.
 //! - `cem.unsafe.inline_content` — inline script/srcdoc/external-DTD policy hooks.
+//! - `cem.schema_package.converter_contract` — schema-package converter
+//!   declarations have coherent implementation hooks, endpoints, and planner
+//!   metadata.
 //! - `cem.schema.open_content_policy` — schema-owned unknown-name checks.
 //! - `cem.struct.unknown_annotation` — re-surface schema-machine "unknown
 //!   annotation" diagnostics so the validation layer is a single entry
@@ -136,6 +139,7 @@ impl RuleRegistry {
         r.register(Box::new(rules::EventHandlerAttributeRule));
         r.register(Box::new(rules::UnsafeInlineContentRule));
         r.register(Box::new(rules::SchemaDocumentModelRule));
+        r.register(Box::new(rules::SchemaPackageConverterContractRule));
         r.register(Box::new(rules::OpenContentPolicyRule));
         r.register(Box::new(rules::UnboundPrefixRule));
         r.register(Box::new(rules::NoncanonicalDelimiterRule));

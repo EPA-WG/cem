@@ -22,9 +22,10 @@ use crate::schema::document_model::{
     load_builtin_document_model_for_identity, validate_document_model,
 };
 use crate::schema::registry::{
-    content_type_essence, CEM_ML_CONTENT_TYPE, CEM_ML_SCHEMA_URI, CEM_NATIVE_TEMPLATE_CONTENT_TYPE,
-    CEM_NATIVE_TEMPLATE_SCHEMA_URI, CEM_SCHEMA_CONTENT_TYPE, CEM_SCHEMA_PACKAGE_CONTENT_TYPE,
-    CEM_SCHEMA_PACKAGE_URI, CEM_SCHEMA_URI, CEM_TRANSFORM_CONTENT_TYPE, CEM_TRANSFORM_SCHEMA_URI,
+    content_type_essence, SchemaRegistry, CEM_ML_CONTENT_TYPE, CEM_ML_SCHEMA_URI,
+    CEM_NATIVE_TEMPLATE_CONTENT_TYPE, CEM_NATIVE_TEMPLATE_SCHEMA_URI, CEM_SCHEMA_CONTENT_TYPE,
+    CEM_SCHEMA_PACKAGE_CONTENT_TYPE, CEM_SCHEMA_PACKAGE_URI, CEM_SCHEMA_URI,
+    CEM_TRANSFORM_CONTENT_TYPE, CEM_TRANSFORM_SCHEMA_URI,
 };
 use crate::source_map::FrameSpan;
 use crate::validation::{
@@ -112,6 +113,27 @@ fn attr_value<'a>(
         let (_, local, value) = attribute_parts(attr)?;
         (local == name).then_some(value).flatten()
     })
+}
+
+fn element_child_ids_by_local_name(
+    doc: &crate::parser::document::CemDocument,
+    element: &CemAstNode,
+    name: &str,
+) -> Vec<AstNodeId> {
+    let CemAstNode::Element { children, .. } = element else {
+        return Vec::new();
+    };
+    children
+        .iter()
+        .copied()
+        .filter(|child_id| {
+            matches!(
+                doc.get(*child_id),
+                Some(CemAstNode::Element { expanded_name, .. })
+                    if expanded_name.local_name == name
+            )
+        })
+        .collect()
 }
 
 // ---------- Reference Integrity ----------
@@ -1104,6 +1126,336 @@ fn schema_document_model_descriptor() -> &'static RuleDescriptor {
     })
 }
 
+// ---------- Schema Package Converter Contract ----------
+
+pub struct SchemaPackageConverterContractRule;
+
+impl SemanticRule for SchemaPackageConverterContractRule {
+    fn descriptor(&self) -> &RuleDescriptor {
+        schema_package_converter_contract_descriptor()
+    }
+
+    fn run(&self, ctx: &RuleContext<'_>) -> Vec<Diagnostic> {
+        if !is_schema_package_manifest_document(ctx) {
+            return Vec::new();
+        }
+
+        let registry = SchemaRegistry::with_builtin_schemas();
+        let mut out = Vec::new();
+        for node in ctx.document.iter() {
+            if element_local_name(node) != Some("converter") {
+                continue;
+            }
+            validate_schema_package_converter(ctx.document, node, &registry, &mut out);
+        }
+        out
+    }
+}
+
+fn validate_schema_package_converter(
+    doc: &crate::parser::document::CemDocument,
+    node: &CemAstNode,
+    registry: &SchemaRegistry,
+    out: &mut Vec<Diagnostic>,
+) {
+    let converter_id = attr_value(doc, node, "id")
+        .map(str::trim)
+        .filter(|value| !value.is_empty())
+        .unwrap_or("<missing>");
+
+    match attr_value(doc, node, "implementation")
+        .map(str::trim)
+        .filter(|value| !value.is_empty())
+    {
+        Some("cemt") => validate_cemt_converter_contract(doc, node, converter_id, out),
+        Some("rust") => validate_rust_converter_contract(doc, node, converter_id, out),
+        Some(implementation) => out.push(diag_at(
+            "cem.schema_package.converter_implementation_unknown",
+            Severity::Error,
+            format!("converter `{converter_id}` has unknown implementation `{implementation}`"),
+            node,
+        )),
+        None => {}
+    }
+
+    validate_converter_endpoint_contract(doc, node, converter_id, "from", registry, out);
+    validate_converter_endpoint_contract(doc, node, converter_id, "to", registry, out);
+
+    for attr_name in ["streamable", "implicit", "explicit-only"] {
+        validate_schema_package_bool_attr(doc, node, converter_id, attr_name, out);
+    }
+    validate_schema_package_readiness(doc, node, converter_id, out);
+    validate_schema_package_cost(doc, node, converter_id, out);
+
+    if manifest_bool_value(doc, node, "explicit-only") == Some(true)
+        && manifest_bool_value(doc, node, "implicit") == Some(true)
+    {
+        out.push(diag_at(
+            "cem.schema_package.converter_selection_conflict",
+            Severity::Error,
+            format!(
+                "converter `{converter_id}` cannot set both `explicit-only=true` and `implicit=true`"
+            ),
+            node,
+        ));
+    }
+}
+
+fn validate_cemt_converter_contract(
+    doc: &crate::parser::document::CemDocument,
+    node: &CemAstNode,
+    converter_id: &str,
+    out: &mut Vec<Diagnostic>,
+) {
+    if !has_manifest_attr(doc, node, "template") {
+        out.push(diag_at(
+            "cem.schema_package.converter_template_missing",
+            Severity::Error,
+            format!("CEMT converter `{converter_id}` must declare `template`"),
+            node,
+        ));
+    }
+
+    let Some(template_content_type) = attr_value(doc, node, "template-content-type").map(str::trim)
+    else {
+        out.push(diag_at(
+            "cem.schema_package.converter_template_content_type_missing",
+            Severity::Error,
+            format!("CEMT converter `{converter_id}` must declare `template-content-type`"),
+            node,
+        ));
+        return;
+    };
+    if content_type_essence(template_content_type) != CEM_TRANSFORM_CONTENT_TYPE {
+        out.push(diag_at(
+            "cem.schema_package.converter_template_content_type_mismatch",
+            Severity::Error,
+            format!(
+                "CEMT converter `{converter_id}` template content type `{template_content_type}` must be `{CEM_TRANSFORM_CONTENT_TYPE}`"
+            ),
+            node,
+        ));
+    }
+
+    if let Some(template_schema) = attr_value(doc, node, "template-schema")
+        .map(str::trim)
+        .filter(|value| !value.is_empty())
+    {
+        if template_schema != CEM_TRANSFORM_SCHEMA_URI {
+            out.push(diag_at(
+                "cem.schema_package.converter_template_schema_mismatch",
+                Severity::Error,
+                format!(
+                    "CEMT converter `{converter_id}` template schema `{template_schema}` must be `{CEM_TRANSFORM_SCHEMA_URI}`"
+                ),
+                node,
+            ));
+        }
+    }
+}
+
+fn validate_rust_converter_contract(
+    doc: &crate::parser::document::CemDocument,
+    node: &CemAstNode,
+    converter_id: &str,
+    out: &mut Vec<Diagnostic>,
+) {
+    if !has_manifest_attr(doc, node, "rust-symbol") {
+        out.push(diag_at(
+            "cem.schema_package.converter_rust_symbol_missing",
+            Severity::Error,
+            format!("Rust converter `{converter_id}` must declare `rust-symbol`"),
+            node,
+        ));
+    }
+}
+
+fn validate_converter_endpoint_contract(
+    doc: &crate::parser::document::CemDocument,
+    node: &CemAstNode,
+    converter_id: &str,
+    endpoint_name: &str,
+    registry: &SchemaRegistry,
+    out: &mut Vec<Diagnostic>,
+) {
+    let endpoint_ids = element_child_ids_by_local_name(doc, node, endpoint_name);
+    match endpoint_ids.len() {
+        0 => {
+            out.push(diag_at(
+                "cem.schema_package.converter_endpoint_missing",
+                Severity::Error,
+                format!("converter `{converter_id}` must declare one `{endpoint_name}` endpoint"),
+                node,
+            ));
+            return;
+        }
+        1 => {}
+        _ => out.push(diag_at(
+            "cem.schema_package.converter_endpoint_duplicate",
+            Severity::Error,
+            format!("converter `{converter_id}` must declare only one `{endpoint_name}` endpoint"),
+            node,
+        )),
+    }
+
+    for endpoint_id in endpoint_ids {
+        let Some(endpoint) = doc.get(endpoint_id) else {
+            continue;
+        };
+        validate_endpoint_schema_content_type(
+            doc,
+            endpoint,
+            converter_id,
+            endpoint_name,
+            registry,
+            out,
+        );
+    }
+}
+
+fn validate_endpoint_schema_content_type(
+    doc: &crate::parser::document::CemDocument,
+    endpoint: &CemAstNode,
+    converter_id: &str,
+    endpoint_name: &str,
+    registry: &SchemaRegistry,
+    out: &mut Vec<Diagnostic>,
+) {
+    let Some(content_type) = attr_value(doc, endpoint, "content-type")
+        .map(str::trim)
+        .filter(|value| !value.is_empty())
+    else {
+        return;
+    };
+    let Some(schema_uri) = attr_value(doc, endpoint, "schema")
+        .map(str::trim)
+        .filter(|value| !value.is_empty())
+    else {
+        return;
+    };
+    let Some(schema) = registry.schema(schema_uri) else {
+        return;
+    };
+    let essence = content_type_essence(content_type);
+    if !schema
+        .content_type_essences()
+        .any(|allowed| allowed == essence)
+    {
+        out.push(diag_at(
+            "cem.schema_package.converter_content_type_mismatch",
+            Severity::Error,
+            format!(
+                "converter `{converter_id}` `{endpoint_name}` endpoint content type `{content_type}` is not declared by schema `{schema_uri}`"
+            ),
+            endpoint,
+        ));
+    }
+}
+
+fn validate_schema_package_bool_attr(
+    doc: &crate::parser::document::CemDocument,
+    node: &CemAstNode,
+    converter_id: &str,
+    attr_name: &str,
+    out: &mut Vec<Diagnostic>,
+) {
+    let Some(raw) = attr_value(doc, node, attr_name).map(str::trim) else {
+        return;
+    };
+    if matches!(raw, "" | "true" | "false") {
+        return;
+    }
+    out.push(diag_at(
+        "cem.schema_package.converter_boolean_invalid",
+        Severity::Error,
+        format!("converter `{converter_id}` has invalid boolean `{attr_name}` value `{raw}`"),
+        node,
+    ));
+}
+
+fn validate_schema_package_readiness(
+    doc: &crate::parser::document::CemDocument,
+    node: &CemAstNode,
+    converter_id: &str,
+    out: &mut Vec<Diagnostic>,
+) {
+    let Some(readiness) = attr_value(doc, node, "readiness").map(str::trim) else {
+        return;
+    };
+    if matches!(readiness, "ready" | "planned") {
+        return;
+    }
+    out.push(diag_at(
+        "cem.schema_package.converter_readiness_unknown",
+        Severity::Error,
+        format!("converter `{converter_id}` has unknown readiness `{readiness}`"),
+        node,
+    ));
+}
+
+fn validate_schema_package_cost(
+    doc: &crate::parser::document::CemDocument,
+    node: &CemAstNode,
+    converter_id: &str,
+    out: &mut Vec<Diagnostic>,
+) {
+    let Some(cost) = attr_value(doc, node, "cost").map(str::trim) else {
+        return;
+    };
+    match cost.parse::<u32>() {
+        Ok(value) if value > 0 => {}
+        _ => out.push(diag_at(
+            "cem.schema_package.converter_cost_invalid",
+            Severity::Error,
+            format!("converter `{converter_id}` has invalid cost value `{cost}`"),
+            node,
+        )),
+    }
+}
+
+fn manifest_bool_value(
+    doc: &crate::parser::document::CemDocument,
+    node: &CemAstNode,
+    attr_name: &str,
+) -> Option<bool> {
+    match attr_value(doc, node, attr_name)?.trim() {
+        "" | "true" => Some(true),
+        "false" => Some(false),
+        _ => None,
+    }
+}
+
+fn has_manifest_attr(
+    doc: &crate::parser::document::CemDocument,
+    node: &CemAstNode,
+    attr_name: &str,
+) -> bool {
+    attr_value(doc, node, attr_name)
+        .map(str::trim)
+        .is_some_and(|value| !value.is_empty())
+}
+
+fn is_schema_package_manifest_document(ctx: &RuleContext<'_>) -> bool {
+    ctx.schema_uri == Some(CEM_SCHEMA_PACKAGE_URI)
+        || ctx.content_type.is_some_and(|content_type| {
+            content_type_essence(content_type) == CEM_SCHEMA_PACKAGE_CONTENT_TYPE
+        })
+}
+
+fn schema_package_converter_contract_descriptor() -> &'static RuleDescriptor {
+    use std::sync::OnceLock;
+    static D: OnceLock<RuleDescriptor> = OnceLock::new();
+    D.get_or_init(|| RuleDescriptor {
+        id: RuleId::new("cem.schema_package.converter_contract"),
+        owning_scope: "cem-core",
+        content_type: Some(CEM_SCHEMA_PACKAGE_CONTENT_TYPE),
+        trigger_layer: TriggerLayer::Document,
+        required_inputs: &[RuleInput::CemDocument],
+        default_severity: Severity::Error,
+        policy_overridable: false,
+    })
+}
+
 // ---------- Open Content / Unknown Names ----------
 
 pub struct OpenContentPolicyRule;
@@ -1751,6 +2103,100 @@ mod tests {
         assert!(diags
             .iter()
             .any(|d| d.code == "cem.schema_model.missing_required_attribute"));
+    }
+
+    #[test]
+    fn schema_package_converter_contract_accepts_valid_cemt_converter() {
+        let diags = run_rules_with_identity(
+            r#"{package @id=demo @version="1.0.0" |
+                {schema @uri="https://example.test/ns/demo/1" @source="schema/demo.cem"}
+                {content-type @value="application/vnd.example.demo+cem" @primary=true}
+                {converter
+                    @id="demo-to-html"
+                    @implementation="cemt"
+                    @template="converters/demo-to-html.cemt"
+                    @template-content-type="application/vnd.cem.transform+cem"
+                    @template-schema="https://cem.dev/ns/transform/cem/1"
+                    @streamable=true
+                    @implicit=false
+                    @cost=25 |
+                    {from @content-type="application/vnd.example.demo+cem" @schema="https://example.test/ns/demo/1"}
+                    {to @content-type="text/html" @schema="https://cem.dev/ns/data/html/1"}
+                }
+            }"#,
+            Some(CEM_SCHEMA_PACKAGE_URI),
+            Some(CEM_SCHEMA_PACKAGE_CONTENT_TYPE),
+        );
+
+        assert!(
+            diags
+                .iter()
+                .all(|d| !d.code.starts_with("cem.schema_package.converter_")),
+            "unexpected converter diagnostics: {diags:?}"
+        );
+    }
+
+    #[test]
+    fn schema_package_converter_contract_flags_invalid_cemt_metadata() {
+        let diags = run_rules_with_identity(
+            r#"{package @id=demo @version="1.0.0" |
+                {schema @uri="https://example.test/ns/demo/1" @source="schema/demo.cem"}
+                {content-type @value="application/vnd.example.demo+cem" @primary=true}
+                {converter
+                    @id="bad-cemt"
+                    @implementation="cemt"
+                    @template-content-type="text/cem-ml"
+                    @template-schema="https://cem.dev/ns/schema/1"
+                    @streamable=maybe
+                    @readiness=later
+                    @explicit-only=true
+                    @implicit=true
+                    @cost=0 |
+                    {from @content-type="text/html" @schema="https://cem.dev/ns/data/xml/1"}
+                    {from @content-type="text/html" @schema="https://cem.dev/ns/data/html/1"}
+                }
+            }"#,
+            Some(CEM_SCHEMA_PACKAGE_URI),
+            Some(CEM_SCHEMA_PACKAGE_CONTENT_TYPE),
+        );
+
+        for code in [
+            "cem.schema_package.converter_template_missing",
+            "cem.schema_package.converter_template_content_type_mismatch",
+            "cem.schema_package.converter_template_schema_mismatch",
+            "cem.schema_package.converter_endpoint_duplicate",
+            "cem.schema_package.converter_endpoint_missing",
+            "cem.schema_package.converter_boolean_invalid",
+            "cem.schema_package.converter_readiness_unknown",
+            "cem.schema_package.converter_cost_invalid",
+            "cem.schema_package.converter_selection_conflict",
+            "cem.schema_package.converter_content_type_mismatch",
+        ] {
+            assert!(
+                diags.iter().any(|d| d.code == code),
+                "missing {code}; diagnostics: {diags:?}"
+            );
+        }
+    }
+
+    #[test]
+    fn schema_package_converter_contract_flags_rust_converter_without_symbol() {
+        let diags = run_rules_with_identity(
+            r#"{package @id=demo @version="1.0.0" |
+                {schema @uri="https://example.test/ns/demo/1" @source="schema/demo.cem"}
+                {content-type @value="application/vnd.example.demo+cem" @primary=true}
+                {converter @id="bad-rust" @implementation="rust" |
+                    {from @content-type="text/html" @schema="https://cem.dev/ns/data/html/1"}
+                    {to @content-type="application/vnd.cem.dom+cem-bin" @schema="https://cem.dev/ns/projection/dom/1"}
+                }
+            }"#,
+            Some(CEM_SCHEMA_PACKAGE_URI),
+            Some(CEM_SCHEMA_PACKAGE_CONTENT_TYPE),
+        );
+
+        assert!(diags
+            .iter()
+            .any(|d| d.code == "cem.schema_package.converter_rust_symbol_missing"));
     }
 
     #[test]

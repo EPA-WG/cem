@@ -27,6 +27,10 @@ describes validation schemas for input content.
 Converter declarations are registry-owned metadata in `package.cem`. A
 converter can declare a Rust implementation hook or CEMT template, source and
 target content identities, fallback hook, readiness, and planner `cost`.
+Validation enforces the implementation-specific contract: CEMT converters must
+name a CEMT template identity, Rust converters must name a `rust-symbol`, each
+converter must have exactly one `from` and `to` endpoint, planner cost must be
+positive, and known endpoint schemas must own the declared content type.
 
 ## Validation Examples
 
@@ -39,6 +43,7 @@ CLI validation integration tests.
 | [`converter-package.cem`](examples/converter-package.cem) | Package manifest with aliases and a CEMT converter declaration. | Pass |
 | [`invalid-unclosed-package.cem`](examples/invalid-unclosed-package.cem) | Missing closing package scope syntax diagnostic. | Fail with `cem.schema.unclosed_scope` |
 | [`invalid-missing-required-attribute.cem`](examples/invalid-missing-required-attribute.cem) | Manifest schema entry missing its required `source` attribute. | Fail with `cem.schema_model.missing_required_attribute` |
+| [`invalid-converter-contract.cem`](examples/invalid-converter-contract.cem) | Converter declaration with missing CEMT template identity, missing target endpoint, invalid cost, and incompatible endpoint schema/content type. | Fail with `cem.schema_package.converter_template_missing`, `cem.schema_package.converter_endpoint_missing`, `cem.schema_package.converter_cost_invalid`, `cem.schema_package.converter_content_type_mismatch` |
 
 Validate an example explicitly against this schema:
 
