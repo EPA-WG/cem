@@ -158,3 +158,6 @@ Progress:
 - [x] Add local schema-package source consistency validation for `package.cem`
       schema URI, content type, and namespace declarations against referenced
       `schema/*.cem` sources.
+- [x] Add CLI integration coverage that validates every built-in `package.cem`
+      manifest and checks schema package folders against the embedded built-in
+      package catalog.

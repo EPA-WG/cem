@@ -1,3 +1,6 @@
+use cem_ml::schema::package_sources::builtin_schema_package_sources;
+use std::collections::BTreeSet;
+use std::fs;
 use std::path::{Path, PathBuf};
 use std::process::{Command, Output};
 
@@ -82,6 +85,13 @@ fn cem_ml(args: &[&str]) -> Output {
         .expect("run cem-ml binary")
 }
 
+fn cem_ml_owned(args: &[String]) -> Output {
+    Command::new(env!("CARGO_BIN_EXE_cem-ml"))
+        .args(args)
+        .output()
+        .expect("run cem-ml binary")
+}
+
 fn workspace_path(relative: &str) -> PathBuf {
     PathBuf::from(env!("CARGO_MANIFEST_DIR"))
         .join("../..")
@@ -119,6 +129,29 @@ fn has_diagnostic(report: &serde_json::Value, code: &str) -> bool {
     diagnostics(report)
         .iter()
         .any(|diagnostic| diagnostic["code"] == code)
+}
+
+fn schema_package_manifest_paths() -> Vec<PathBuf> {
+    let root = workspace_path("packages/cem_ml/schema-packages");
+    let mut manifests = Vec::new();
+    for entry in fs::read_dir(&root).expect("schema-packages directory exists") {
+        let package_dir = entry.expect("schema package directory entry").path();
+        let manifest = package_dir.join("v1/package.cem");
+        if manifest.exists() {
+            manifests.push(manifest);
+        }
+    }
+    manifests.sort();
+    manifests
+}
+
+fn schema_package_id_from_manifest_path(path: &Path) -> String {
+    path.parent()
+        .and_then(Path::parent)
+        .and_then(Path::file_name)
+        .and_then(|name| name.to_str())
+        .expect("schema package manifest path has package id")
+        .to_owned()
 }
 
 #[test]
@@ -1073,4 +1106,68 @@ fn schema_owned_examples_validate_through_cli() {
             );
         }
     }
+}
+
+#[test]
+fn builtin_schema_package_manifests_validate_through_cli() {
+    let manifest_paths = schema_package_manifest_paths();
+    let actual_package_ids = manifest_paths
+        .iter()
+        .map(|path| schema_package_id_from_manifest_path(path))
+        .collect::<BTreeSet<_>>();
+    let expected_package_ids = builtin_schema_package_sources()
+        .iter()
+        .map(|source| source.package_id.to_owned())
+        .collect::<BTreeSet<_>>();
+    assert_eq!(
+        actual_package_ids, expected_package_ids,
+        "schema package folders must match embedded built-in package catalog"
+    );
+
+    let mut args = vec![
+        "validate".to_owned(),
+        "--format".to_owned(),
+        "json".to_owned(),
+        "--content-type".to_owned(),
+        CEM_SCHEMA_PACKAGE_CONTENT_TYPE.to_owned(),
+        "--schema".to_owned(),
+        CEM_SCHEMA_PACKAGE_URI.to_owned(),
+    ];
+    args.extend(
+        manifest_paths
+            .iter()
+            .map(|path| path.to_str().expect("manifest path is utf-8").to_owned()),
+    );
+
+    let output = cem_ml_owned(&args);
+    assert_eq!(
+        output.status.code(),
+        Some(EXIT_OK),
+        "package manifest sweep failed\nstdout:\n{}\nstderr:\n{}",
+        stdout(&output),
+        stderr(&output)
+    );
+    assert!(
+        stderr(&output).trim().is_empty(),
+        "package manifest sweep stderr must stay empty:\n{}",
+        stderr(&output)
+    );
+
+    let report: serde_json::Value = serde_json::from_str(stdout(&output).trim())
+        .expect("package manifest sweep stdout is validation JSON");
+    assert_eq!(
+        report["summary"]["inputCount"].as_u64(),
+        Some(manifest_paths.len() as u64),
+        "package manifest sweep input count"
+    );
+    assert_eq!(
+        report["summary"]["hardViolationCount"].as_u64(),
+        Some(0),
+        "package manifest sweep hard violations"
+    );
+    assert!(
+        diagnostics(&report).is_empty(),
+        "package manifest sweep diagnostics must stay empty:\n{}",
+        stdout(&output)
+    );
 }
