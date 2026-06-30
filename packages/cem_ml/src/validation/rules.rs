@@ -758,8 +758,9 @@ impl SemanticRule for UnboundPrefixRule {
     fn run(&self, ctx: &RuleContext<'_>) -> Vec<Diagnostic> {
         // The active CEM Core schema binds the `cem:` prefix; the Tier A
         // tokenizer also recognizes the lexical `html` and `svg` hints in
-        // the example fixtures. Any other namespace prefix on an
-        // attribute is an unbound-prefix lint.
+        // the example fixtures. Any other namespace prefix on an attribute is
+        // an unbound-prefix lint unless the active schema owns that prefixed
+        // attribute family.
         const KNOWN_PREFIXES: &[&str] = &["cem", "html", "svg", "xml", "xmlns", "aria", "xlink"];
         let mut out = Vec::new();
         for node in ctx.document.iter() {
@@ -771,6 +772,9 @@ impl SemanticRule for UnboundPrefixRule {
                 continue;
             }
             if KNOWN_PREFIXES.contains(&prefix.as_str()) {
+                continue;
+            }
+            if prefix == "with" && is_native_template_language_document(ctx) {
                 continue;
             }
             out.push(diag_at(
@@ -1195,6 +1199,13 @@ fn is_schema_language_document(ctx: &RuleContext<'_>) -> bool {
             .content_type
             .map(is_schema_language_content_type)
             .unwrap_or(false)
+}
+
+fn is_native_template_language_document(ctx: &RuleContext<'_>) -> bool {
+    ctx.schema_uri == Some(CEM_NATIVE_TEMPLATE_SCHEMA_URI)
+        || ctx.content_type.is_some_and(|content_type| {
+            content_type_essence(content_type) == CEM_NATIVE_TEMPLATE_CONTENT_TYPE
+        })
 }
 
 fn is_schema_language_content_type(content_type: &str) -> bool {
@@ -1647,6 +1658,16 @@ mod tests {
     #[test]
     fn known_namespace_prefixes_not_flagged() {
         let diags = run_rules(r#"{button @cem:action=primary @aria-label="Save"}"#);
+        assert!(diags.iter().all(|d| d.code != "cem.lint.unbound_prefix"));
+    }
+
+    #[test]
+    fn native_template_with_attributes_are_not_unbound_prefix_lints() {
+        let diags = run_rules_with_identity(
+            r#"{module | {template @name=page | {body | {call @template=hero @with:title=heading}}}}"#,
+            Some(CEM_NATIVE_TEMPLATE_SCHEMA_URI),
+            Some(CEM_NATIVE_TEMPLATE_CONTENT_TYPE),
+        );
         assert!(diags.iter().all(|d| d.code != "cem.lint.unbound_prefix"));
     }
 
