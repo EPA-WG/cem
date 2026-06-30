@@ -15,22 +15,20 @@ semantic layer, including the legacy
 The package manifest declares CEMT-primary converter edges from the binary DOM
 projection to HTML and XML. The CEMT assets are packaged next to the schema and
 can construct dynamic element and attribute names through the CEM-QL adapter, but
-the edges stay `planned` until context-aware converter asset validation and
-parity coverage are in place. XML output also needs target-specific XML
-serialization instead of the current HTML renderer.
+the edges stay `planned` until parity coverage is in place. XML output also
+needs target-specific XML serialization instead of the current HTML renderer.
 
 | Converter | From | To | CEMT asset | Runtime state | Fallback |
 | --- | --- | --- | --- | --- | --- |
-| `cem-dom-projection-to-html-cemt` | `application/vnd.cem.dom+cem-bin` | `text/html` | [`converters/dom-to-html.cemt`](converters/dom-to-html.cemt) | Planned: requires context-aware validation and parity coverage | `HtmlExportConverter` |
-| `cem-dom-projection-to-xml-cemt` | `application/vnd.cem.dom+cem-bin` | `application/xml` | [`converters/dom-to-xml.cemt`](converters/dom-to-xml.cemt) | Planned: requires XML target serialization, validation, and parity coverage | `XmlExportConverter` |
+| `cem-dom-projection-to-html-cemt` | `application/vnd.cem.dom+cem-bin` | `text/html` | [`converters/dom-to-html.cemt`](converters/dom-to-html.cemt) | Planned: requires parity coverage | `HtmlExportConverter` |
+| `cem-dom-projection-to-xml-cemt` | `application/vnd.cem.dom+cem-bin` | `application/xml` | [`converters/dom-to-xml.cemt`](converters/dom-to-xml.cemt) | Planned: requires XML target serialization and parity coverage | `XmlExportConverter` |
 
 Until those CEMT capabilities land, registry execution must select the CEMT
 descriptor for identity and planning, then execute the registered Rust fallback.
-These planned converter assets are not standalone validation examples yet: the
-current CLI template pass does not thread converter input bindings, loop
-bindings, or recursive `@with:*` call parameter bindings into CEM-QL expression
-validation. Promotion to `ready` requires context-aware asset validation in
-addition to serializer parity.
+The CLI template pass validates these converter assets with converter input
+bindings, loop bindings, and recursive `@with:*` call parameter bindings.
+Promotion to `ready` requires serializer parity coverage, plus XML target
+serialization for the XML edge.
 
 ## Validation Examples
 

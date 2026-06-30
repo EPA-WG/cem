@@ -137,6 +137,7 @@ Progress:
       schema-owned resources.
 - [x] Add CEMT dynamic element/attribute construction and packaged DOM-to-HTML
       converter smoke coverage.
-- [ ] Add context-aware CEMT converter asset validation and XML target
-      serialization; then promote the DOM-projection HTML/XML descriptors from
-      planned to ready after parity coverage.
+- [x] Add context-aware CEMT converter asset validation for packaged
+      DOM-projection converter assets.
+- [ ] Add XML target serialization; then promote the DOM-projection HTML/XML
+      descriptors from planned to ready after parity coverage.

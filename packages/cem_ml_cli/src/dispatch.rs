@@ -2985,7 +2985,12 @@ fn collect_embedding_diagnostics(
     let mut diagnostics = Vec::new();
     for input in inputs {
         let from = input.from_format.unwrap_or(eng::InputFormat::Cem);
-        diagnostics.extend(template_pass::run(&input.bytes, from, Some(&input.uri)));
+        diagnostics.extend(template_pass::run_with_identity(
+            &input.bytes,
+            from,
+            Some(&input.uri),
+            template_pass::TemplatePassIdentity::from(input.identity.as_ref()),
+        ));
     }
     diagnostics
 }
@@ -9241,7 +9246,12 @@ fn collect_fixture_embedding_diagnostics(
         } else {
             input.bytes.clone()
         };
-        diagnostics.extend(template_pass::run(&bytes, from, Some(&input.uri)));
+        diagnostics.extend(template_pass::run_with_identity(
+            &bytes,
+            from,
+            Some(&input.uri),
+            template_pass::TemplatePassIdentity::from(input.identity.as_ref()),
+        ));
     }
     Ok(diagnostics)
 }
@@ -9823,10 +9833,11 @@ pub fn run_parse<E: CemMlEngine + ?Sized>(
         Ok(i) => i,
         Err(err) => return handle_cli_request_error(err, s),
     };
-    let embedding_diags = template_pass::run(
+    let embedding_diags = template_pass::run_with_identity(
         &input.bytes,
         input.from_format.unwrap_or(eng::InputFormat::Cem),
         Some(input.uri.as_str()),
+        template_pass::TemplatePassIdentity::from(input.identity.as_ref()),
     );
     let input_uri = input.uri.clone();
     let req = eng::ParseRequest {
