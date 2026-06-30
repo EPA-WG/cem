@@ -8,6 +8,7 @@ use crate::schema::SchemaRegistry;
 use crate::source_map::SourceMapStack;
 use crate::transform_template::{
     TransformTemplateAdapterRegistry, TransformTemplateAdapterResolution,
+    TransformTemplateEncodeImplementationRegistry,
 };
 use serde::{Deserialize, Serialize};
 use serde_json::Value;
@@ -109,6 +110,7 @@ pub struct EngineContext {
     pub converter_registry: ConversionRegistry,
     pub resolver_registry: ResolverRegistry,
     pub template_adapter_registry: TransformTemplateAdapterRegistry,
+    pub transform_template_encode_registry: TransformTemplateEncodeImplementationRegistry,
 }
 
 impl Default for EngineContext {
@@ -122,6 +124,8 @@ impl Default for EngineContext {
             converter_registry: ConversionRegistry::with_builtin_converters(),
             resolver_registry: ResolverRegistry::default(),
             template_adapter_registry: TransformTemplateAdapterRegistry::with_builtin_adapters(),
+            transform_template_encode_registry:
+                TransformTemplateEncodeImplementationRegistry::default(),
         }
     }
 }

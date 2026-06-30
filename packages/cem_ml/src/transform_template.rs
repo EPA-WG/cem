@@ -863,6 +863,85 @@ impl TransformTemplateEncodeBinding {
     }
 }
 
+pub trait TransformTemplateEncodeImplementation: Send + Sync {
+    fn encode(
+        &self,
+        binding: &TransformTemplateEncodeBinding,
+        subject: &Value,
+    ) -> Result<Value, String>;
+}
+
+impl<F> TransformTemplateEncodeImplementation for F
+where
+    F: Fn(&TransformTemplateEncodeBinding, &Value) -> Result<Value, String> + Send + Sync,
+{
+    fn encode(
+        &self,
+        binding: &TransformTemplateEncodeBinding,
+        subject: &Value,
+    ) -> Result<Value, String> {
+        self(binding, subject)
+    }
+}
+
+#[derive(Clone, Default)]
+pub struct TransformTemplateEncodeImplementationRegistry {
+    implementations: BTreeMap<String, Arc<dyn TransformTemplateEncodeImplementation>>,
+    host_capabilities: BTreeSet<String>,
+}
+
+impl fmt::Debug for TransformTemplateEncodeImplementationRegistry {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        f.debug_struct("TransformTemplateEncodeImplementationRegistry")
+            .field("implementation_count", &self.implementations.len())
+            .field("host_capabilities", &self.host_capabilities)
+            .finish()
+    }
+}
+
+impl TransformTemplateEncodeImplementationRegistry {
+    pub fn new() -> Self {
+        Self::default()
+    }
+
+    pub fn register(
+        &mut self,
+        function_name: impl Into<String>,
+        implementation: impl TransformTemplateEncodeImplementation + 'static,
+    ) {
+        self.implementations
+            .insert(function_name.into(), Arc::new(implementation));
+    }
+
+    pub fn register_with_capability(
+        &mut self,
+        function_name: impl Into<String>,
+        capability: impl Into<String>,
+        implementation: impl TransformTemplateEncodeImplementation + 'static,
+    ) {
+        self.host_capabilities.insert(capability.into());
+        self.register(function_name, implementation);
+    }
+
+    pub fn host_capabilities(&self) -> &BTreeSet<String> {
+        &self.host_capabilities
+    }
+
+    pub fn encode(
+        &self,
+        binding: &TransformTemplateEncodeBinding,
+        subject: &Value,
+    ) -> Result<Value, String> {
+        let Some(implementation) = self.implementations.get(&binding.function.name) else {
+            return Err(format!(
+                "no host encoder implementation registered for `{}`",
+                binding.function.name
+            ));
+        };
+        implementation.encode(binding, subject)
+    }
+}
+
 #[derive(Debug, Clone, Copy)]
 pub struct TransformTemplateEncodeEvaluationContext<'a> {
     pub registry: &'a TransformTemplateOutputFunctionRegistry,

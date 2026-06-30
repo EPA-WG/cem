@@ -101,6 +101,10 @@ history belongs in git history and the feature-specific docs linked below.
     - [x] Preserve lowered encode expressions and output function descriptors on
           compiled CEMT artifacts so render-time adapters and engine hooks can
           evaluate and compose encoded artifacts.
+    - [x] Add the first render-stage encode execution hook: host encoder
+          implementation registry, render value bindings from primary/secondary
+          inputs, compiled output-function resolution, evaluated artifact
+          composition, and text output replacement.
   - [ ] Define encoded artifact identity and insertion rules. Results are not
         plain strings: they carry produced kind (`text`, `bytes`, `tokens`,
         `chunks`, or `diagnostics`), target content type, schema URL, encoding

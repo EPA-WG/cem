@@ -42,14 +42,16 @@ use crate::transform_config::{
     parse_transform_graph_config, TransformGraphParseRequest, TRANSFORM_CONFIG_SCHEMA_URI,
 };
 use crate::transform_template::{
-    parse_cem_native_template_module_options, TransformTemplateAdapter,
-    TransformTemplateAdapterLookup, TransformTemplateCompileRequest,
+    evaluate_transform_template_encode_expressions, parse_cem_native_template_module_options,
+    TransformTemplateAdapter, TransformTemplateAdapterLookup, TransformTemplateCompileRequest,
     TransformTemplateCompiledArtifact, TransformTemplateDataArtifact,
+    TransformTemplateEncodeEvaluationContext, TransformTemplateEncodedArtifactInsertionContext,
     TransformTemplateModuleCacheKey, TransformTemplateModuleDependencyKind,
     TransformTemplateModuleImport, TransformTemplateModuleOptions,
     TransformTemplateModuleParamDeclaration, TransformTemplateModuleParamType,
     TransformTemplateModuleParseRequest, TransformTemplateModulePreflight,
     TransformTemplateModuleVisibility, TransformTemplateOutputArtifact,
+    TransformTemplateOutputFunctionRegistry, TransformTemplateOutputProducedKind,
     TransformTemplateRenderRequest, TransformTemplateResolvedModule,
     TRANSFORM_TEMPLATE_CALL_UNKNOWN_CODE, TRANSFORM_TEMPLATE_ENTRYPOINT_NOT_PUBLIC_CODE,
     TRANSFORM_TEMPLATE_IMPORT_ALIAS_DUPLICATE_CODE, TRANSFORM_TEMPLATE_IMPORT_CYCLE_CODE,
@@ -232,6 +234,7 @@ fn render_export_conversion_template(
     let secondary_inputs = BTreeMap::new();
     let Some(output) = render_transform_stage(
         TransformStageRenderSpec {
+            context,
             adapter: &adapter,
             compiled: &compiled,
             primary_input: &primary_input,
@@ -2691,6 +2694,7 @@ fn template_module_diagnostic(
 }
 
 struct TransformStageRenderSpec<'a> {
+    context: &'a EngineContext,
     adapter: &'a Arc<dyn TransformTemplateAdapter>,
     compiled: &'a TransformTemplateCompiledArtifact,
     primary_input: &'a TransformTemplateDataArtifact,
@@ -2717,6 +2721,7 @@ fn render_transform_stage(
         Ok(mut response) => {
             annotate_transform_stage_diagnostics(&mut response.diagnostics, spec.diagnostic_node);
             diagnostics.append(&mut response.diagnostics);
+            apply_render_encode_expressions(&spec, &mut response.output, diagnostics);
             Some(response.output)
         }
         Err(err) => {
@@ -2729,6 +2734,87 @@ fn render_transform_stage(
             None
         }
     }
+}
+
+fn apply_render_encode_expressions(
+    spec: &TransformStageRenderSpec<'_>,
+    output: &mut TransformTemplateOutputArtifact,
+    diagnostics: &mut Vec<Diagnostic>,
+) {
+    if spec.compiled.module_options.encode_expressions.is_empty() {
+        return;
+    }
+
+    let registry =
+        TransformTemplateOutputFunctionRegistry::from_module_options(&spec.compiled.module_options);
+    let value_bindings = transform_template_render_value_bindings(spec);
+    let mut evaluated = evaluate_transform_template_encode_expressions(
+        &spec.compiled.module_options.encode_expressions,
+        TransformTemplateEncodeEvaluationContext {
+            registry: &registry,
+            value_bindings: &value_bindings,
+            host_capabilities: spec
+                .context
+                .transform_template_encode_registry
+                .host_capabilities(),
+            uri: Some(spec.diagnostic_uri),
+        },
+        |binding, subject| {
+            spec.context
+                .transform_template_encode_registry
+                .encode(binding, subject)
+        },
+    );
+
+    let mut encode_diagnostics = std::mem::take(&mut evaluated.diagnostics);
+    annotate_transform_stage_diagnostics(&mut encode_diagnostics, spec.diagnostic_node);
+    diagnostics.append(&mut encode_diagnostics);
+    if evaluated.encoded.is_empty() {
+        return;
+    }
+
+    let insertion_context = transform_template_render_insertion_context(spec, output);
+    let mut composition =
+        evaluated.compose_text_artifacts(&insertion_context, Some(spec.diagnostic_uri));
+    annotate_transform_stage_diagnostics(&mut composition.diagnostics, spec.diagnostic_node);
+    diagnostics.append(&mut composition.diagnostics);
+
+    if let Some(artifact) = composition.artifact {
+        *output = artifact.into_output_artifact(output.uri.clone());
+    }
+}
+
+fn transform_template_render_value_bindings(
+    spec: &TransformStageRenderSpec<'_>,
+) -> BTreeMap<String, Value> {
+    let mut value_bindings = BTreeMap::new();
+    value_bindings.insert(
+        spec.primary_input.artifact_id.clone(),
+        spec.primary_input.value.clone(),
+    );
+    value_bindings
+        .entry("input".to_owned())
+        .or_insert_with(|| spec.primary_input.value.clone());
+
+    for (name, artifact) in spec.secondary_inputs {
+        value_bindings.insert(name.clone(), artifact.value.clone());
+        value_bindings.insert(artifact.artifact_id.clone(), artifact.value.clone());
+    }
+
+    value_bindings
+}
+
+fn transform_template_render_insertion_context(
+    spec: &TransformStageRenderSpec<'_>,
+    output: &TransformTemplateOutputArtifact,
+) -> TransformTemplateEncodedArtifactInsertionContext {
+    let mut context = spec
+        .target
+        .or(output.identity.as_ref())
+        .map(TransformTemplateEncodedArtifactInsertionContext::from_format_identity)
+        .unwrap_or_default();
+    context.produces = Some(TransformTemplateOutputProducedKind::Text);
+    context
 }
 
 fn annotate_transform_stage_diagnostics(
@@ -3742,6 +3828,7 @@ impl CemMlEngine for RealCemMlEngine {
         execution_pool.run_to_completion(&abort, |_| {
             rendered = render_transform_stage(
                 TransformStageRenderSpec {
+                    context: &request.context,
                     adapter: &adapter,
                     compiled: &compiled,
                     primary_input: &primary_input,
@@ -4088,6 +4175,7 @@ impl CemMlEngine for RealCemMlEngine {
                 execution_pool.run_to_completion(&abort, |_| {
                     rendered = render_transform_stage(
                         TransformStageRenderSpec {
+                            context: &request.context,
                             adapter: &adapter,
                             compiled: &compiled,
                             primary_input: &primary_input,
@@ -4964,6 +5052,119 @@ mod tests {
         assert_eq!(
             compiled.module_options.output_functions[0].name,
             "html.text"
+        );
+    }
+
+    #[test]
+    fn render_transform_stage_evaluates_and_composes_encoded_text_artifacts() {
+        let template = TemplateInput {
+            uri: "templates/page.cemt".to_owned(),
+            bytes: br#"{@doc cem-ml 1}
+{module |
+  {encoding-function
+      @name="html.text"
+      @category="html-text"
+      @subject="string"
+      @produces="text"
+      @content-type="text/html"
+      @schema="https://cem.dev/ns/data/html/1"
+      @canonical=true |
+      {param @name="subject" @type="string" @required=true}
+  }
+  {template @name="main" @visibility="public" |
+    {body |
+      {$ encode($input.title, { contentType: "text/html", schema: "https://cem.dev/ns/data/html/1", category: "html-text", context: "text" }, { mode: "fragment", encoder: "html.text" }) }
+    }
+  }
+}"#
+            .to_vec(),
+            identity: Some(FormatIdentity {
+                content_type: Some(CEM_TRANSFORM_CONTENT_TYPE.to_owned()),
+                schema: Some(CEM_TRANSFORM_SCHEMA_URI.to_owned()),
+                ..FormatIdentity::default()
+            }),
+            root_scope: ScopeConfig::default(),
+        };
+        let mut encode_registry =
+            crate::transform_template::TransformTemplateEncodeImplementationRegistry::new();
+        encode_registry.register(
+            "html.text",
+            |_binding: &crate::transform_template::TransformTemplateEncodeBinding,
+             subject: &Value| {
+                let text = subject
+                    .as_str()
+                    .ok_or_else(|| "html.text expected string subject".to_owned())?;
+                Ok(Value::String(text.replace('&', "&amp;")))
+            },
+        );
+        let context = EngineContext {
+            transform_template_encode_registry: encode_registry,
+            ..ctx()
+        };
+        let adapter: Arc<dyn TransformTemplateAdapter> = Arc::new(ReadyCemtHtmlExportAdapter);
+        let params = BTreeMap::new();
+        let data_bindings = vec!["input".to_owned()];
+        let mut diagnostics = Vec::new();
+        let compiled = compile_transform_template(
+            TransformTemplateCompileSpec {
+                context: &context,
+                adapter: &adapter,
+                template: &template,
+                template_kind: TransformTemplateKind::CemNative,
+                entrypoint: &TransformTemplateEntrypoint::named("main"),
+                params: &params,
+                data_bindings: &data_bindings,
+                module_options: TransformTemplateModuleOptions::default(),
+                execution_policy: TransformExecutionPolicy::default(),
+            },
+            &mut diagnostics,
+        )
+        .expect("template compiles");
+        let primary_input = TransformTemplateDataArtifact {
+            artifact_id: "input".to_owned(),
+            uri: None,
+            identity: None,
+            value: json!({"title": "Hello & CEM"}),
+        };
+        let secondary_inputs = BTreeMap::new();
+        let target = FormatIdentity {
+            content_type: Some("text/html".to_owned()),
+            schema: Some("https://cem.dev/ns/data/html/1".to_owned()),
+            ..FormatIdentity::default()
+        };
+
+        let output = render_transform_stage(
+            TransformStageRenderSpec {
+                context: &context,
+                adapter: &adapter,
+                compiled: &compiled,
+                primary_input: &primary_input,
+                secondary_inputs: &secondary_inputs,
+                target: Some(&target),
+                target_scope: &ScopeConfig::default(),
+                execution_policy: TransformExecutionPolicy::default(),
+                diagnostic_uri: &template.uri,
+                diagnostic_node: None,
+            },
+            &mut diagnostics,
+        )
+        .expect("template renders");
+
+        assert!(diagnostics.is_empty(), "{diagnostics:?}");
+        assert_eq!(output.value, Value::String("Hello &amp; CEM".to_owned()));
+        assert_eq!(
+            output
+                .identity
+                .as_ref()
+                .and_then(|identity| identity.content_type.as_deref()),
+            Some("text/html")
+        );
+        assert_eq!(
+            output
+                .identity
+                .as_ref()
+                .and_then(|identity| identity.schema.as_deref()),
+            Some("https://cem.dev/ns/data/html/1")
         );
     }
 
