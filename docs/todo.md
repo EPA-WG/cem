@@ -91,6 +91,9 @@ history belongs in git history and the feature-specific docs linked below.
           target identity, category, explicit encoder/profile selector, and
           host capability, then wraps implementation output as a typed
           `EncodedArtifact`.
+    - [x] Lower `{$ encode(...) }` CEMT expression calls from template bodies
+          into typed module metadata, including subject expression, target
+          identity/category/context, options, and invalid-call diagnostics.
   - [ ] Define encoded artifact identity and insertion rules. Results are not
         plain strings: they carry produced kind (`text`, `bytes`, `tokens`,
         `chunks`, or `diagnostics`), target content type, schema URL, encoding

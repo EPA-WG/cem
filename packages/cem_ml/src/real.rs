@@ -1894,6 +1894,9 @@ fn lower_transform_template_module_options(
     module_options.params.extend(overlay_options.params);
     module_options.calls.extend(overlay_options.calls);
     module_options
+        .encode_expressions
+        .extend(overlay_options.encode_expressions);
+    module_options
         .output_functions
         .extend(overlay_options.output_functions);
     module_options.limits = overlay_options.limits;
@@ -1970,6 +1973,7 @@ fn validate_transform_template_module_contract(
         || !module_options.entrypoints.is_empty()
         || !module_options.params.is_empty()
         || !module_options.calls.is_empty()
+        || !module_options.encode_expressions.is_empty()
         || !module_options.output_functions.is_empty();
     if !has_module_contract {
         return Some(());

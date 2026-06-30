@@ -176,6 +176,8 @@ pub const TRANSFORM_TEMPLATE_ENCODED_ARTIFACT_PRODUCED_KIND_MISMATCH_CODE: &str 
     "cem.transform_template.encoded_artifact_produced_kind_mismatch";
 pub const TRANSFORM_TEMPLATE_ENCODED_ARTIFACT_DOUBLE_ENCODING_CODE: &str =
     "cem.transform_template.encoded_artifact_double_encoding";
+pub const TRANSFORM_TEMPLATE_ENCODE_CALL_INVALID_CODE: &str =
+    "cem.transform_template.encode_call_invalid";
 
 #[derive(Debug, Clone)]
 pub struct TransformTemplateModuleParseRequest {
@@ -677,11 +679,109 @@ pub struct TransformTemplateEncodeOptions {
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub quote_policy: Option<String>,
     #[serde(default, skip_serializing_if = "Option::is_none")]
-    pub indent: Option<u16>,
+    pub indent: Option<String>,
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub namespace_policy: Option<String>,
     #[serde(default)]
     pub source_map_policy: TransformTemplateSourceMapPolicy,
+}
+
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct TransformTemplateEncodeExpression {
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub owner: Option<String>,
+    pub expression: String,
+    pub subject: String,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub subject_type: Option<String>,
+    pub target: TransformTemplateEncodingTarget,
+    #[serde(default)]
+    pub options: TransformTemplateEncodeOptions,
+}
+
+impl TransformTemplateEncodeExpression {
+    pub fn binding_request(&self, subject: Value) -> TransformTemplateEncodeBindingRequest {
+        let mut request = TransformTemplateEncodeBindingRequest::new(subject, self.target.clone())
+            .with_options(self.options.clone());
+        if let Some(subject_type) = &self.subject_type {
+            request = request.with_subject_type(subject_type.clone());
+        }
+        request
+    }
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct TransformTemplateEncodeExpressionParseError {
+    pub message: String,
+}
+
+impl TransformTemplateEncodeExpressionParseError {
+    fn new(message: impl Into<String>) -> Self {
+        Self {
+            message: message.into(),
+        }
+    }
+}
+
+impl fmt::Display for TransformTemplateEncodeExpressionParseError {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        f.write_str(&self.message)
+    }
+}
+
+impl std::error::Error for TransformTemplateEncodeExpressionParseError {}
+
+pub fn parse_transform_template_encode_expression(
+    expression: &str,
+    owner: Option<&str>,
+) -> Result<Option<TransformTemplateEncodeExpression>, TransformTemplateEncodeExpressionParseError>
+{
+    let Some(args) = parse_cemt_function_call_args(expression, "encode")? else {
+        return Ok(None);
+    };
+    if !(2..=3).contains(&args.len()) {
+        return Err(TransformTemplateEncodeExpressionParseError::new(
+            "`encode` expects subject, target, and optional options arguments",
+        ));
+    }
+
+    let subject = args[0].trim();
+    if subject.is_empty() {
+        return Err(TransformTemplateEncodeExpressionParseError::new(
+            "`encode` subject expression is empty",
+        ));
+    }
+
+    let target_fields = parse_cemt_object_literal(&args[1])?;
+    let content_type = required_object_string(
+        &target_fields,
+        &["contentType", "content-type"],
+        "`encode` target",
+    )?;
+    let schema = required_object_string(&target_fields, &["schema"], "`encode` target")?;
+    let category = required_object_string(&target_fields, &["category"], "`encode` target")?;
+    let mut target = TransformTemplateEncodingTarget::new(content_type, schema, category);
+    target.context = optional_object_string(&target_fields, &["context"])?;
+
+    let mut options = if let Some(raw_options) = args.get(2) {
+        parse_cemt_encode_options(raw_options)?
+    } else {
+        TransformTemplateEncodeOptions::default()
+    };
+    let subject_type = optional_object_string(&target_fields, &["subjectType", "subject-type"])?;
+    if options.profile.as_deref().is_some_and(str::is_empty) {
+        options.profile = None;
+    }
+
+    Ok(Some(TransformTemplateEncodeExpression {
+        owner: owner.map(str::to_owned),
+        expression: expression.trim().to_owned(),
+        subject: subject.to_owned(),
+        subject_type,
+        target,
+        options,
+    }))
 }
 
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
@@ -769,6 +869,454 @@ pub fn transform_template_encode_subject_type_candidates(subject: &Value) -> Vec
         Value::Array(_) => vec!["array", "json"],
         Value::Object(_) => vec!["object", "json"],
     }
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+enum CemtExpressionLiteral {
+    String(String),
+    Bool(bool),
+    Number(String),
+    Null,
+    Bare(String),
+}
+
+impl CemtExpressionLiteral {
+    fn as_string(&self) -> Option<String> {
+        match self {
+            Self::String(value) | Self::Number(value) | Self::Bare(value) => Some(value.clone()),
+            Self::Bool(value) => Some(value.to_string()),
+            Self::Null => None,
+        }
+    }
+
+    fn as_bool(&self) -> Option<bool> {
+        match self {
+            Self::Bool(value) => Some(*value),
+            Self::String(value) | Self::Bare(value) => match value.trim() {
+                "true" => Some(true),
+                "false" => Some(false),
+                _ => None,
+            },
+            _ => None,
+        }
+    }
+}
+
+fn parse_cemt_function_call_args(
+    expression: &str,
+    name: &str,
+) -> Result<Option<Vec<String>>, TransformTemplateEncodeExpressionParseError> {
+    let expression = expression.trim();
+    let Some(mut rest) = expression.strip_prefix(name) else {
+        return Ok(None);
+    };
+    if expression.len() > name.len()
+        && expression[name.len()..]
+            .chars()
+            .next()
+            .is_some_and(is_identifier_continue)
+    {
+        return Ok(None);
+    }
+    rest = rest.trim_start();
+    if !rest.starts_with('(') {
+        return Ok(None);
+    }
+    let end = matching_closing_delimiter(rest, 0, '(', ')')?;
+    if !rest[end + 1..].trim().is_empty() {
+        return Err(TransformTemplateEncodeExpressionParseError::new(
+            "`encode` call has trailing expression content",
+        ));
+    }
+    let inner = &rest[1..end];
+    split_top_level(inner, ',').map(Some)
+}
+
+fn parse_cemt_object_literal(
+    raw: &str,
+) -> Result<BTreeMap<String, CemtExpressionLiteral>, TransformTemplateEncodeExpressionParseError> {
+    let raw = raw.trim();
+    if !raw.starts_with('{') {
+        return Err(TransformTemplateEncodeExpressionParseError::new(
+            "expected object literal",
+        ));
+    }
+    let end = matching_closing_delimiter(raw, 0, '{', '}')?;
+    if !raw[end + 1..].trim().is_empty() {
+        return Err(TransformTemplateEncodeExpressionParseError::new(
+            "object literal has trailing content",
+        ));
+    }
+
+    let body = raw[1..end].trim();
+    let mut fields = BTreeMap::new();
+    if body.is_empty() {
+        return Ok(fields);
+    }
+
+    for field in split_top_level(body, ',')? {
+        let field = field.trim();
+        if field.is_empty() {
+            continue;
+        }
+        let Some(colon) = find_top_level_delimiter(field, ':')? else {
+            return Err(TransformTemplateEncodeExpressionParseError::new(format!(
+                "object field `{field}` is missing `:`"
+            )));
+        };
+        let key = parse_cemt_object_key(&field[..colon])?;
+        let value = parse_cemt_literal(&field[colon + 1..])?;
+        fields.insert(key, value);
+    }
+
+    Ok(fields)
+}
+
+fn parse_cemt_encode_options(
+    raw: &str,
+) -> Result<TransformTemplateEncodeOptions, TransformTemplateEncodeExpressionParseError> {
+    let fields = parse_cemt_object_literal(raw)?;
+    let mut options = TransformTemplateEncodeOptions::default();
+
+    if let Some(mode) = optional_object_string(&fields, &["mode"])? {
+        match mode.as_str() {
+            "canonical" => options.canonical = true,
+            "preserve" => options.preserve = true,
+            "pretty" => options.pretty = true,
+            "fragment" => options.mode = TransformTemplateEncodedArtifactMode::Fragment,
+            "document" => options.mode = TransformTemplateEncodedArtifactMode::Document,
+            other => {
+                return Err(TransformTemplateEncodeExpressionParseError::new(format!(
+                    "unsupported `encode` mode `{other}`"
+                )))
+            }
+        }
+    }
+
+    if let Some(value) = optional_object_bool(&fields, &["canonical"])? {
+        options.canonical = value;
+    }
+    if let Some(value) = optional_object_bool(&fields, &["preserve"])? {
+        options.preserve = value;
+    }
+    if let Some(value) = optional_object_bool(&fields, &["pretty"])? {
+        options.pretty = value;
+    }
+    options.encoder = optional_object_string(&fields, &["encoder"])?;
+    options.formatter = optional_object_string(&fields, &["formatter"])?;
+    options.colorizer = optional_object_string(&fields, &["colorizer"])?;
+    options.profile = optional_object_string(&fields, &["profile"])?;
+    options.formatter_profile =
+        optional_object_string(&fields, &["formatterProfile", "formatter-profile"])?;
+    options.color_profile = optional_object_string(&fields, &["colorProfile", "color-profile"])?;
+    options.charset = optional_object_string(&fields, &["charset"])?;
+    options.line_ending = optional_object_string(&fields, &["lineEnding", "line-ending"])?;
+    options.quote_policy = optional_object_string(&fields, &["quote", "quotePolicy"])?;
+    options.indent = optional_object_string_preserve(&fields, &["indent"])?;
+    options.namespace_policy =
+        optional_object_string(&fields, &["namespacePolicy", "namespace-policy"])?;
+
+    if let Some(source_map) = optional_object_string(&fields, &["sourceMap", "source-map"])? {
+        options.source_map_policy = match source_map.as_str() {
+            "preserve" => TransformTemplateSourceMapPolicy::Preserve,
+            "generated" => TransformTemplateSourceMapPolicy::Generated,
+            "none" => TransformTemplateSourceMapPolicy::None,
+            other => {
+                return Err(TransformTemplateEncodeExpressionParseError::new(format!(
+                    "unsupported `encode` sourceMap policy `{other}`"
+                )))
+            }
+        };
+    }
+
+    Ok(options)
+}
+
+fn required_object_string(
+    fields: &BTreeMap<String, CemtExpressionLiteral>,
+    keys: &[&str],
+    owner: &str,
+) -> Result<String, TransformTemplateEncodeExpressionParseError> {
+    optional_object_string(fields, keys)?.ok_or_else(|| {
+        TransformTemplateEncodeExpressionParseError::new(format!(
+            "{owner} is missing required `{}` field",
+            keys[0]
+        ))
+    })
+}
+
+fn optional_object_string(
+    fields: &BTreeMap<String, CemtExpressionLiteral>,
+    keys: &[&str],
+) -> Result<Option<String>, TransformTemplateEncodeExpressionParseError> {
+    let Some(value) = keys.iter().find_map(|key| fields.get(*key)) else {
+        return Ok(None);
+    };
+    Ok(value
+        .as_string()
+        .map(|value| value.trim().to_owned())
+        .filter(|value| !value.is_empty()))
+}
+
+fn optional_object_string_preserve(
+    fields: &BTreeMap<String, CemtExpressionLiteral>,
+    keys: &[&str],
+) -> Result<Option<String>, TransformTemplateEncodeExpressionParseError> {
+    let Some(value) = keys.iter().find_map(|key| fields.get(*key)) else {
+        return Ok(None);
+    };
+    Ok(value.as_string())
+}
+
+fn optional_object_bool(
+    fields: &BTreeMap<String, CemtExpressionLiteral>,
+    keys: &[&str],
+) -> Result<Option<bool>, TransformTemplateEncodeExpressionParseError> {
+    let Some((key, value)) = keys
+        .iter()
+        .find_map(|key| fields.get(*key).map(|value| (*key, value)))
+    else {
+        return Ok(None);
+    };
+    value.as_bool().map(Some).ok_or_else(|| {
+        TransformTemplateEncodeExpressionParseError::new(format!(
+            "`{key}` must be `true` or `false`"
+        ))
+    })
+}
+
+fn parse_cemt_object_key(raw: &str) -> Result<String, TransformTemplateEncodeExpressionParseError> {
+    let raw = raw.trim();
+    if raw.is_empty() {
+        return Err(TransformTemplateEncodeExpressionParseError::new(
+            "object field key is empty",
+        ));
+    }
+    if raw.starts_with('"') || raw.starts_with('\'') {
+        let literal = parse_cemt_literal(raw)?;
+        return literal.as_string().ok_or_else(|| {
+            TransformTemplateEncodeExpressionParseError::new("object field key must be a string")
+        });
+    }
+    Ok(raw.to_owned())
+}
+
+fn parse_cemt_literal(
+    raw: &str,
+) -> Result<CemtExpressionLiteral, TransformTemplateEncodeExpressionParseError> {
+    let raw = raw.trim();
+    if raw.is_empty() {
+        return Err(TransformTemplateEncodeExpressionParseError::new(
+            "object field value is empty",
+        ));
+    }
+    if raw.starts_with('"') || raw.starts_with('\'') {
+        return parse_cemt_quoted_string(raw).map(CemtExpressionLiteral::String);
+    }
+    match raw {
+        "true" => Ok(CemtExpressionLiteral::Bool(true)),
+        "false" => Ok(CemtExpressionLiteral::Bool(false)),
+        "null" => Ok(CemtExpressionLiteral::Null),
+        _ if raw.parse::<f64>().is_ok() => Ok(CemtExpressionLiteral::Number(raw.to_owned())),
+        _ => Ok(CemtExpressionLiteral::Bare(raw.to_owned())),
+    }
+}
+
+fn parse_cemt_quoted_string(
+    raw: &str,
+) -> Result<String, TransformTemplateEncodeExpressionParseError> {
+    let mut chars = raw.chars();
+    let quote = chars
+        .next()
+        .expect("quoted string parser is called after quote check");
+    let mut value = String::new();
+    let mut escaped = false;
+    let mut closed_at = None;
+    for (index, ch) in raw.char_indices().skip(1) {
+        if escaped {
+            value.push(match ch {
+                'n' => '\n',
+                'r' => '\r',
+                't' => '\t',
+                other => other,
+            });
+            escaped = false;
+            continue;
+        }
+        if ch == '\\' {
+            escaped = true;
+            continue;
+        }
+        if ch == quote {
+            closed_at = Some(index);
+            break;
+        }
+        value.push(ch);
+    }
+    let Some(closed_at) = closed_at else {
+        return Err(TransformTemplateEncodeExpressionParseError::new(
+            "quoted string is not closed",
+        ));
+    };
+    if !raw[closed_at + quote.len_utf8()..].trim().is_empty() {
+        return Err(TransformTemplateEncodeExpressionParseError::new(
+            "quoted string has trailing content",
+        ));
+    }
+    Ok(value)
+}
+
+fn split_top_level(
+    raw: &str,
+    delimiter: char,
+) -> Result<Vec<String>, TransformTemplateEncodeExpressionParseError> {
+    let mut parts = Vec::new();
+    let mut start = 0usize;
+    let mut quote = None;
+    let mut escaped = false;
+    let mut paren_depth = 0i32;
+    let mut brace_depth = 0i32;
+    let mut bracket_depth = 0i32;
+
+    for (index, ch) in raw.char_indices() {
+        if let Some(active_quote) = quote {
+            if escaped {
+                escaped = false;
+            } else if ch == '\\' {
+                escaped = true;
+            } else if ch == active_quote {
+                quote = None;
+            }
+            continue;
+        }
+        match ch {
+            '"' | '\'' => quote = Some(ch),
+            '(' => paren_depth += 1,
+            ')' => paren_depth -= 1,
+            '{' => brace_depth += 1,
+            '}' => brace_depth -= 1,
+            '[' => bracket_depth += 1,
+            ']' => bracket_depth -= 1,
+            _ if ch == delimiter && paren_depth == 0 && brace_depth == 0 && bracket_depth == 0 => {
+                parts.push(raw[start..index].trim().to_owned());
+                start = index + ch.len_utf8();
+            }
+            _ => {}
+        }
+        if paren_depth < 0 || brace_depth < 0 || bracket_depth < 0 {
+            return Err(TransformTemplateEncodeExpressionParseError::new(
+                "expression delimiters are unbalanced",
+            ));
+        }
+    }
+
+    if quote.is_some() || paren_depth != 0 || brace_depth != 0 || bracket_depth != 0 {
+        return Err(TransformTemplateEncodeExpressionParseError::new(
+            "expression delimiters are unbalanced",
+        ));
+    }
+
+    parts.push(raw[start..].trim().to_owned());
+    Ok(parts)
+}
+
+fn find_top_level_delimiter(
+    raw: &str,
+    delimiter: char,
+) -> Result<Option<usize>, TransformTemplateEncodeExpressionParseError> {
+    let mut quote = None;
+    let mut escaped = false;
+    let mut paren_depth = 0i32;
+    let mut brace_depth = 0i32;
+    let mut bracket_depth = 0i32;
+
+    for (index, ch) in raw.char_indices() {
+        if let Some(active_quote) = quote {
+            if escaped {
+                escaped = false;
+            } else if ch == '\\' {
+                escaped = true;
+            } else if ch == active_quote {
+                quote = None;
+            }
+            continue;
+        }
+        match ch {
+            '"' | '\'' => quote = Some(ch),
+            '(' => paren_depth += 1,
+            ')' => paren_depth -= 1,
+            '{' => brace_depth += 1,
+            '}' => brace_depth -= 1,
+            '[' => bracket_depth += 1,
+            ']' => bracket_depth -= 1,
+            _ if ch == delimiter && paren_depth == 0 && brace_depth == 0 && bracket_depth == 0 => {
+                return Ok(Some(index));
+            }
+            _ => {}
+        }
+        if paren_depth < 0 || brace_depth < 0 || bracket_depth < 0 {
+            return Err(TransformTemplateEncodeExpressionParseError::new(
+                "expression delimiters are unbalanced",
+            ));
+        }
+    }
+
+    if quote.is_some() || paren_depth != 0 || brace_depth != 0 || bracket_depth != 0 {
+        return Err(TransformTemplateEncodeExpressionParseError::new(
+            "expression delimiters are unbalanced",
+        ));
+    }
+
+    Ok(None)
+}
+
+fn matching_closing_delimiter(
+    raw: &str,
+    open_index: usize,
+    open: char,
+    close: char,
+) -> Result<usize, TransformTemplateEncodeExpressionParseError> {
+    if !raw[open_index..].starts_with(open) {
+        return Err(TransformTemplateEncodeExpressionParseError::new(
+            "expression delimiter does not start at the requested index",
+        ));
+    }
+    let mut quote = None;
+    let mut escaped = false;
+    let mut depth = 0i32;
+    for (index, ch) in raw
+        .char_indices()
+        .skip_while(|(index, _)| *index < open_index)
+    {
+        if let Some(active_quote) = quote {
+            if escaped {
+                escaped = false;
+            } else if ch == '\\' {
+                escaped = true;
+            } else if ch == active_quote {
+                quote = None;
+            }
+            continue;
+        }
+        match ch {
+            '"' | '\'' => quote = Some(ch),
+            _ if ch == open => depth += 1,
+            _ if ch == close => {
+                depth -= 1;
+                if depth == 0 {
+                    return Ok(index);
+                }
+            }
+            _ => {}
+        }
+    }
+    Err(TransformTemplateEncodeExpressionParseError::new(
+        "expression delimiter is not closed",
+    ))
+}
+
+fn is_identifier_continue(ch: char) -> bool {
+    ch.is_ascii_alphanumeric() || ch == '_' || ch == '-' || ch == '.'
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
@@ -1199,6 +1747,8 @@ pub struct TransformTemplateModuleOptions {
     #[serde(default)]
     pub calls: Vec<TransformTemplateModuleCallSite>,
     #[serde(default)]
+    pub encode_expressions: Vec<TransformTemplateEncodeExpression>,
+    #[serde(default)]
     pub output_functions: Vec<TransformTemplateOutputFunctionDescriptor>,
     #[serde(default)]
     pub limits: TransformTemplateModuleLimits,
@@ -1336,7 +1886,7 @@ impl NativeTemplateModuleLowerer<'_> {
                 "import" => self.lower_import(*child),
                 "param" => self.lower_param(*child, None),
                 "template" => self.lower_template(*child),
-                "body" => self.collect_body_calls(*child, None),
+                "body" => self.collect_body_expressions(*child, None),
                 "encoding-function" if self.explicit_transform_schema => self
                     .lower_output_function(*child, TransformTemplateOutputFunctionKind::Encoding),
                 "format-function" if self.explicit_transform_schema => {
@@ -1454,7 +2004,7 @@ impl NativeTemplateModuleLowerer<'_> {
             };
             match child_name {
                 "param" => self.lower_param(*child, Some(&name)),
-                "body" => self.collect_body_calls(*child, Some(&name)),
+                "body" => self.collect_body_expressions(*child, Some(&name)),
                 other => self.push_diag(
                     TRANSFORM_TEMPLATE_DECLARATION_UNSUPPORTED_CODE,
                     format!(
@@ -1560,6 +2110,7 @@ impl NativeTemplateModuleLowerer<'_> {
                 }
                 "body" => {
                     body_declared = true;
+                    self.collect_body_expressions(*child, Some(&name));
                 }
                 other => self.push_diag(
                     TRANSFORM_TEMPLATE_DECLARATION_UNSUPPORTED_CODE,
@@ -1594,26 +2145,30 @@ impl NativeTemplateModuleLowerer<'_> {
             });
     }
 
-    fn collect_body_calls(&mut self, body_id: AstNodeId, owner_entrypoint: Option<&str>) {
+    fn collect_body_expressions(&mut self, body_id: AstNodeId, owner: Option<&str>) {
         let Some(CemAstNode::Element { children, .. }) = self.document.get(body_id) else {
             return;
         };
         for child in children {
-            self.collect_calls_in_subtree(*child, owner_entrypoint);
+            self.collect_expressions_in_subtree(*child, owner);
         }
     }
 
-    fn collect_calls_in_subtree(&mut self, node_id: AstNodeId, owner_entrypoint: Option<&str>) {
+    fn collect_expressions_in_subtree(&mut self, node_id: AstNodeId, owner: Option<&str>) {
         let Some(CemAstNode::Element { children, .. }) = self.document.get(node_id) else {
             return;
         };
         if template_element_name(self.document, node_id) == Some("call") {
-            self.lower_call(node_id, owner_entrypoint);
+            self.lower_call(node_id, owner);
             self.reject_decl_children(node_id, "call");
             return;
         }
+        if template_element_name(self.document, node_id) == Some("$") {
+            self.lower_encode_expression(node_id, owner);
+            return;
+        }
         for child in children {
-            self.collect_calls_in_subtree(*child, owner_entrypoint);
+            self.collect_expressions_in_subtree(*child, owner);
         }
     }
 
@@ -1628,6 +2183,20 @@ impl NativeTemplateModuleLowerer<'_> {
             from: optional_trimmed_attr(&attrs, "from"),
             template,
         });
+    }
+
+    fn lower_encode_expression(&mut self, expression_id: AstNodeId, owner: Option<&str>) {
+        let Some(expression) = template_expression_body(self.document, expression_id) else {
+            return;
+        };
+        match parse_transform_template_encode_expression(&expression, owner) {
+            Ok(Some(expression)) => self.options.encode_expressions.push(expression),
+            Ok(None) => {}
+            Err(error) => self.push_diag(
+                TRANSFORM_TEMPLATE_ENCODE_CALL_INVALID_CODE,
+                format!("invalid CEMT encode expression: {error}"),
+            ),
+        }
     }
 
     fn validate_declarations(&mut self) {
@@ -1827,6 +2396,22 @@ fn template_element_name(doc: &CemDocument, node_id: AstNodeId) -> Option<&str> 
         }
         _ => None,
     }
+}
+
+fn template_expression_body(doc: &CemDocument, node_id: AstNodeId) -> Option<String> {
+    let Some(CemAstNode::Element { children, .. }) = doc.get(node_id) else {
+        return None;
+    };
+    let mut body = String::new();
+    for child in children {
+        match doc.get(*child) {
+            Some(CemAstNode::Text { data, .. }) | Some(CemAstNode::RawText { data, .. }) => {
+                body.push_str(data);
+            }
+            _ => {}
+        }
+    }
+    Some(body.trim().to_owned()).filter(|body| !body.is_empty())
 }
 
 fn template_collect_attrs(
@@ -2542,6 +3127,7 @@ mod tests {
             entrypoints: vec![entrypoint],
             params: vec![param],
             calls: Vec::new(),
+            encode_expressions: Vec::new(),
             output_functions: Vec::new(),
             limits: TransformTemplateModuleLimits::default(),
         };
@@ -3120,6 +3706,126 @@ mod tests {
             transform_template_encode_subject_type_candidates(&json!({"a": 1})),
             vec!["object", "json"]
         );
+    }
+
+    #[test]
+    fn parse_encode_expression_lowers_target_and_options() {
+        let parsed = parse_transform_template_encode_expression(
+            r#"encode(
+                $node.data,
+                {
+                    contentType: "text/html",
+                    schema: "https://cem.dev/ns/data/html/1",
+                    category: "html-text",
+                    context: "text"
+                },
+                {
+                    mode: "fragment",
+                    encoder: "html.text",
+                    profile: "html-pretty",
+                    charset: "utf-8",
+                    lineEnding: "lf",
+                    quote: "double",
+                    indent: "  ",
+                    namespacePolicy: "repair",
+                    sourceMap: "generated"
+                }
+            )"#,
+            Some("main"),
+        )
+        .expect("parse should succeed")
+        .expect("encode expression");
+
+        assert_eq!(parsed.owner.as_deref(), Some("main"));
+        assert_eq!(parsed.subject, "$node.data");
+        assert_eq!(parsed.target.content_type, "text/html");
+        assert_eq!(parsed.target.schema, "https://cem.dev/ns/data/html/1");
+        assert_eq!(parsed.target.category, "html-text");
+        assert_eq!(parsed.target.context.as_deref(), Some("text"));
+        assert_eq!(
+            parsed.options.mode,
+            TransformTemplateEncodedArtifactMode::Fragment
+        );
+        assert_eq!(parsed.options.encoder.as_deref(), Some("html.text"));
+        assert_eq!(parsed.options.profile.as_deref(), Some("html-pretty"));
+        assert_eq!(parsed.options.charset.as_deref(), Some("utf-8"));
+        assert_eq!(parsed.options.line_ending.as_deref(), Some("lf"));
+        assert_eq!(parsed.options.quote_policy.as_deref(), Some("double"));
+        assert_eq!(parsed.options.indent.as_deref(), Some("  "));
+        assert_eq!(parsed.options.namespace_policy.as_deref(), Some("repair"));
+        assert_eq!(
+            parsed.options.source_map_policy,
+            TransformTemplateSourceMapPolicy::Generated
+        );
+    }
+
+    #[test]
+    fn cemt_module_parser_lowers_encode_expressions_from_bodies() {
+        let response = parse_cem_native_template_module_options(
+            TransformTemplateModuleParseRequest {
+                template: template_input(
+                    "templates/encoding.cemt",
+                    r#"{@doc cem-ml 1}
+{module |
+  {template @name="main" @visibility="public" |
+    {body |
+      {$ encode($node.data, { contentType: "text/html", schema: "https://cem.dev/ns/data/html/1", category: "html-text", context: "text" }, { mode: "fragment", profile: "html-pretty", sourceMap: "preserve" }) }
+    }
+  }
+}"#,
+                    Some(FormatIdentity {
+                        schema: Some(CEM_TRANSFORM_SCHEMA_URI.to_owned()),
+                        ..FormatIdentity::default()
+                    }),
+                ),
+            },
+        );
+
+        assert!(
+            response.diagnostics.is_empty(),
+            "{:?}",
+            response.diagnostics
+        );
+        assert_eq!(response.module_options.encode_expressions.len(), 1);
+        let encode = &response.module_options.encode_expressions[0];
+        assert_eq!(encode.owner.as_deref(), Some("main"));
+        assert_eq!(encode.subject, "$node.data");
+        assert_eq!(encode.target.content_type, "text/html");
+        assert_eq!(encode.target.context.as_deref(), Some("text"));
+        assert_eq!(
+            encode.options.mode,
+            TransformTemplateEncodedArtifactMode::Fragment
+        );
+        assert_eq!(
+            encode.options.source_map_policy,
+            TransformTemplateSourceMapPolicy::Preserve
+        );
+    }
+
+    #[test]
+    fn cemt_module_parser_reports_invalid_encode_expression() {
+        let response =
+            parse_cem_native_template_module_options(TransformTemplateModuleParseRequest {
+                template: template_input(
+                    "templates/bad-encoding.cemt",
+                    r#"{@doc cem-ml 1}
+{module |
+  {body |
+    {$ encode($node.data, { contentType: "text/html", schema: "https://cem.dev/ns/data/html/1" }) }
+  }
+}"#,
+                    Some(FormatIdentity {
+                        schema: Some(CEM_TRANSFORM_SCHEMA_URI.to_owned()),
+                        ..FormatIdentity::default()
+                    }),
+                ),
+            });
+
+        assert!(response.module_declared);
+        assert!(response
+            .diagnostics
+            .iter()
+            .any(|diag| diag.code == TRANSFORM_TEMPLATE_ENCODE_CALL_INVALID_CODE));
     }
 
     #[test]
