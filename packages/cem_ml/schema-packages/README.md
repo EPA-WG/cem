@@ -74,6 +74,12 @@ CEM-ML syntax; parser/adaptor support is separate from the schema package.
 Domain media types ending in `+xml` use their own packages and may depend on
 this package.
 
+`relax-ng/v1` defines RELAX NG schema resource identity. It owns
+`application/relax-ng+xml`, claims
+`application/relax-ng-compact-syntax` as the compact-syntax alias, depends on
+`xml/v1`, and models validation-schema resources, grammar start patterns,
+pattern definitions, include/external-reference policy, and source-map hooks.
+
 `xhtml/v1` defines XHTML resource identity. It owns
 `application/xhtml+xml`, depends on `xml/v1`, claims the XHTML document
 namespace, and models XML-backed HTML document structure, head/body ordering,
@@ -157,3 +163,28 @@ Reusable schema relationships are declared inside schema documents with
 Downstream declarations refer to imported definitions with qualified names, for
 example `schema:media-type` or `schema:uri`. This keeps package-specific schemas
 small while preserving strict validation boundaries for their own instances.
+
+# list of embedded schema
+
+* cem-ast-projection
+* cem-dom-projection
+* cem-events-projection
+* cem-ml
+* cem-native-template
+* cem-ql
+* cem-transform
+* css
+* csv
+* html
+* json
+* json-schema
+* markdown
+* mathml
+* relax-ng
+* schema
+* schema-package
+* svg
+* xhtml
+* xml
+* xslt
+* yaml

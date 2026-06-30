@@ -1,0 +1,14 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<grammar xmlns="http://relaxng.org/ns/structure/1.0"
+         datatypeLibrary="http://www.w3.org/2001/XMLSchema-datatypes">
+  <start>
+    <element name="invoice">
+      <attribute name="id">
+        <data type="NCName"/>
+      </attribute>
+      <element name="total">
+        <data type="decimal"/>
+      </element>
+    </element>
+  </start>
+</grammar>

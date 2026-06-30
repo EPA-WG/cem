@@ -32,6 +32,9 @@ const MARKDOWN_UNKNOWN_VARIANT_CONTENT_TYPE: &str =
 const XML_SCHEMA_URI: &str = "https://cem.dev/ns/data/xml/1";
 const XML_CONTENT_TYPE: &str = "application/xml";
 const XML_TEXT_CONTENT_TYPE: &str = "text/xml; charset=utf-8";
+const RELAX_NG_SCHEMA_URI: &str = "https://cem.dev/ns/data/relax-ng/1";
+const RELAX_NG_XML_CONTENT_TYPE: &str = "application/relax-ng+xml";
+const RELAX_NG_COMPACT_CONTENT_TYPE: &str = "application/relax-ng-compact-syntax";
 const JSON_SCHEMA_SCHEMA_URI: &str = "https://cem.dev/ns/data/json-schema/1";
 const JSON_SCHEMA_CONTENT_TYPE: &str = "application/schema+json";
 const CEM_DOM_PROJECTION_SCHEMA_URI: &str = "https://cem.dev/ns/projection/dom/1";
@@ -430,6 +433,54 @@ fn schema_owned_examples_validate_through_cli() {
             schema_uri: XML_SCHEMA_URI,
             expected_exit: EXIT_HARD_FAILURE,
             expected_diagnostics: &["cem.xml.dtd_rejected"],
+        },
+        ValidationExample {
+            name: "relax-ng basic rng",
+            path: "packages/cem_ml/schema-packages/relax-ng/v1/examples/basic-schema.rng",
+            content_type: RELAX_NG_XML_CONTENT_TYPE,
+            schema_uri: RELAX_NG_SCHEMA_URI,
+            expected_exit: EXIT_OK,
+            expected_diagnostics: &[],
+        },
+        ValidationExample {
+            name: "relax-ng datatype rng",
+            path: "packages/cem_ml/schema-packages/relax-ng/v1/examples/datatype-schema.rng",
+            content_type: RELAX_NG_XML_CONTENT_TYPE,
+            schema_uri: RELAX_NG_SCHEMA_URI,
+            expected_exit: EXIT_OK,
+            expected_diagnostics: &[],
+        },
+        ValidationExample {
+            name: "relax-ng basic rnc",
+            path: "packages/cem_ml/schema-packages/relax-ng/v1/examples/basic-schema.rnc",
+            content_type: RELAX_NG_COMPACT_CONTENT_TYPE,
+            schema_uri: RELAX_NG_SCHEMA_URI,
+            expected_exit: EXIT_OK,
+            expected_diagnostics: &[],
+        },
+        ValidationExample {
+            name: "relax-ng invalid missing start",
+            path: "packages/cem_ml/schema-packages/relax-ng/v1/examples/invalid-missing-start.rng",
+            content_type: RELAX_NG_XML_CONTENT_TYPE,
+            schema_uri: RELAX_NG_SCHEMA_URI,
+            expected_exit: EXIT_HARD_FAILURE,
+            expected_diagnostics: &["cem.relax_ng.missing_start"],
+        },
+        ValidationExample {
+            name: "relax-ng invalid unknown element",
+            path: "packages/cem_ml/schema-packages/relax-ng/v1/examples/invalid-unknown-element.rng",
+            content_type: RELAX_NG_XML_CONTENT_TYPE,
+            schema_uri: RELAX_NG_SCHEMA_URI,
+            expected_exit: EXIT_HARD_FAILURE,
+            expected_diagnostics: &["cem.relax_ng.unknown_element"],
+        },
+        ValidationExample {
+            name: "relax-ng invalid unclosed compact",
+            path: "packages/cem_ml/schema-packages/relax-ng/v1/examples/invalid-unclosed-compact.rnc",
+            content_type: RELAX_NG_COMPACT_CONTENT_TYPE,
+            schema_uri: RELAX_NG_SCHEMA_URI,
+            expected_exit: EXIT_HARD_FAILURE,
+            expected_diagnostics: &["cem.relax_ng.compact_parse_error"],
         },
         ValidationExample {
             name: "json-schema basic",

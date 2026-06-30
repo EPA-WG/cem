@@ -1,0 +1,89 @@
+@doc cem-ml 1
+@ns schema = "https://cem.dev/ns/schema/1"
+@ns cemml = "https://cem.dev/ns/cem-ml/1"
+@ns xml = "https://cem.dev/ns/data/xml/1"
+@default schema
+
+{schema @name="relax-ng" @namespace="https://cem.dev/ns/data/relax-ng/1" @version="1.0.0" |
+    {summary |
+        {text | RELAX NG schema resource model. RELAX NG sources are either XML syntax documents or compact syntax text resources. This schema provides registry identity, syntax flavor metadata, structural pattern hooks, include/external-reference policy, and diagnostics for loading validation schemas.}
+    }
+
+    {uses |
+        {use @schema="https://cem.dev/ns/schema/1" @as="schema"}
+        {use @schema="https://cem.dev/ns/cem-ml/1" @as="cemml"}
+        {use @schema="https://cem.dev/ns/data/xml/1" @as="xml"}
+    }
+
+    {content-types |
+        {content-type @value="application/relax-ng+xml" @primary=true}
+        {content-type @value="application/relax-ng-compact-syntax" @alias=true}
+    }
+
+    {namespaces |
+        {namespace @prefix="cemrng" @uri="https://cem.dev/ns/data/relax-ng/1"}
+        {namespace @prefix="rng" @uri="http://relaxng.org/ns/structure/1.0" @role="source-xml-syntax"}
+        {namespace @prefix="xml" @uri="https://cem.dev/ns/data/xml/1" @role="base-format"}
+    }
+
+    {elements |
+        {element @name="schema-resource" @required-attributes="syntax content-type" @optional-attributes="source-id byte-offset byte-length" @children="xml-syntax compact-syntax"}
+        {element @name="xml-syntax" @required-attributes="root-pattern" @optional-attributes="namespace-uri has-start" @children="pattern*"}
+        {element @name="compact-syntax" @optional-attributes="has-start default-namespace datatype-library" @children="definition*"}
+        {element @name="pattern" @required-attributes="kind" @optional-attributes="name namespace-uri value source-id byte-offset byte-length" @children="pattern* parameter*"}
+        {element @name="definition" @required-attributes="name" @optional-attributes="operator source-id byte-offset byte-length" @children="pattern*"}
+        {element @name="parameter" @required-attributes="name value"}
+        {element @name="include" @required-attributes="href" @optional-attributes="resolved-uri source-id byte-offset byte-length"}
+        {element @name="external-ref" @required-attributes="href" @optional-attributes="resolved-uri source-id byte-offset byte-length"}
+    }
+
+    {attributes |
+        {attribute @name="syntax" @type="schema:identifier" @values="xml compact"}
+        {attribute @name="content-type" @type="schema:media-type"}
+        {attribute @name="source-id" @type="schema:identifier"}
+        {attribute @name="byte-offset" @type="cemml:integer"}
+        {attribute @name="byte-length" @type="cemml:integer"}
+        {attribute @name="root-pattern" @type="schema:identifier"}
+        {attribute @name="namespace-uri" @type="schema:uri"}
+        {attribute @name="has-start" @type="schema:boolean"}
+        {attribute @name="default-namespace" @type="schema:uri"}
+        {attribute @name="datatype-library" @type="schema:uri"}
+        {attribute @name="kind" @type="schema:identifier" @values="grammar start define element attribute choice group interleave oneOrMore zeroOrMore optional list mixed ref parentRef empty text value data notAllowed externalRef include name anyName nsName"}
+        {attribute @name="name" @type="schema:identifier"}
+        {attribute @name="operator" @type="schema:identifier" @values="assign combine-choice combine-interleave"}
+        {attribute @name="value" @type="schema:string"}
+        {attribute @name="href" @type="schema:uri"}
+        {attribute @name="resolved-uri" @type="schema:uri"}
+    }
+
+    {constraints |
+        {constraint @kind="relax-ng-xml-syntax" @target="xml-syntax" @policy="application/relax-ng+xml resources parse as XML and use the RELAX NG structure namespace"}
+        {constraint @kind="relax-ng-compact-syntax" @target="compact-syntax" @policy="application/relax-ng-compact-syntax resources parse as RELAX NG compact syntax text"}
+        {constraint @kind="grammar-start-required" @target="xml-syntax" @policy="grammar resources should declare a start pattern"}
+        {constraint @kind="pattern-name-required" @target="pattern" @policy="element, attribute, define, ref, parentRef, include, and externalRef patterns require the corresponding name or href metadata"}
+        {constraint @kind="external-reference-policy" @target="external-ref" @policy="reject external schema references unless an explicit resolver policy enables them"}
+        {constraint @kind="include-policy" @target="include" @policy="reject schema includes unless an explicit resolver policy enables them"}
+        {constraint @kind="source-map-preferred" @target="schema-resource" @policy="required when parser exposes source ranges"}
+    }
+
+    {diagnostics |
+        {diagnostic @code="cem.relax_ng.xml_parse_error" @severity="error"}
+        {diagnostic @code="cem.relax_ng.compact_parse_error" @severity="error"}
+        {diagnostic @code="cem.relax_ng.unsupported_encoding" @severity="error"}
+        {diagnostic @code="cem.relax_ng.unknown_element" @severity="error"}
+        {diagnostic @code="cem.relax_ng.missing_required_attribute" @severity="error"}
+        {diagnostic @code="cem.relax_ng.missing_start" @severity="error"}
+        {diagnostic @code="cem.relax_ng.external_ref_rejected" @severity="error"}
+        {diagnostic @code="cem.relax_ng.include_rejected" @severity="error"}
+        {diagnostic @code="cem.relax_ng.source_map_unavailable" @severity="info"}
+    }
+
+    {compatibility |
+        {note @version="1.0.0" @value="RELAX NG XML syntax uses application/relax-ng+xml and the http://relaxng.org/ns/structure/1.0 namespace. The compact syntax uses application/relax-ng-compact-syntax and is a text grammar, not XML."}
+    }
+
+    {open-content |
+        {accept @kind="relax-ng-annotation" @policy="preserve"}
+        {accept @kind="external-schema-reference" @policy="reject-unless-resolved"}
+    }
+}

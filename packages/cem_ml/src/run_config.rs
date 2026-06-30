@@ -758,6 +758,8 @@ pub fn infer_content_type_from_path(path: &str) -> Option<String> {
         "html" | "htm" => Some(crate::schema::registry::HTML_CONTENT_TYPE.to_owned()),
         "xhtml" | "xht" => Some(crate::schema::registry::XHTML_CONTENT_TYPE.to_owned()),
         "xml" => Some(crate::schema::registry::XML_CONTENT_TYPE.to_owned()),
+        "rng" => Some(crate::schema::registry::RELAX_NG_XML_CONTENT_TYPE.to_owned()),
+        "rnc" => Some(crate::schema::registry::RELAX_NG_COMPACT_CONTENT_TYPE.to_owned()),
         "svg" | "svgz" => Some(crate::schema::registry::SVG_CONTENT_TYPE.to_owned()),
         "mml" | "mathml" => Some(crate::schema::registry::MATHML_CONTENT_TYPE.to_owned()),
         "xsl" | "xslt" => Some(crate::schema::registry::XSLT_CONTENT_TYPE.to_owned()),
@@ -931,6 +933,18 @@ mod tests {
         assert_eq!(
             infer_content_type_from_path("data/DOCUMENT.XML").as_deref(),
             Some(crate::schema::registry::XML_CONTENT_TYPE)
+        );
+    }
+
+    #[test]
+    fn relax_ng_extensions_infer_relax_ng_content_types() {
+        assert_eq!(
+            infer_content_type_from_path("schema/document.rng").as_deref(),
+            Some(crate::schema::registry::RELAX_NG_XML_CONTENT_TYPE)
+        );
+        assert_eq!(
+            infer_content_type_from_path("schema/DOCUMENT.RNC").as_deref(),
+            Some(crate::schema::registry::RELAX_NG_COMPACT_CONTENT_TYPE)
         );
     }
 

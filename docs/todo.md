@@ -57,7 +57,7 @@ history belongs in git history and the feature-specific docs linked below.
   - [x] CSV (`text/csv`).
   - [x] Markdown/MD markup (`text/markdown`).
   - [x] XML (`application/xml`, XML aliases).
-  - [ ] Relax NG schema
+  - [x] Relax NG schema
         (`application/relax-ng+xml`, `application/relax-ng-compact-syntax`).
   - [ ] XHTML (`application/xhtml+xml`).
   - [ ] SVG (`image/svg+xml`).
@@ -110,7 +110,7 @@ Implement schema packages for these content families:
 - [x] CSV.
 - [x] Markdown/MD markup.
 - [x] XML.
-- [ ] Relax NG schema.
+- [x] Relax NG schema.
 - [x] XHTML.
 - [x] SVG.
 - [x] MathML.

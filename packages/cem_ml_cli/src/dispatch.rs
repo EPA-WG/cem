@@ -3028,6 +3028,10 @@ fn direct_source_validation_report(
             diagnostics.extend(collect_markdown_source_diagnostics(std::slice::from_ref(
                 input,
             )));
+        } else if is_relax_ng_source_input(input) {
+            diagnostics.extend(collect_relax_ng_source_diagnostics(std::slice::from_ref(
+                input,
+            )));
         } else if is_xml_source_input(input) {
             diagnostics.extend(collect_xml_source_diagnostics(std::slice::from_ref(input)));
         } else if is_json_source_input(input) {
@@ -3221,6 +3225,30 @@ fn is_xml_source_input(input: &eng::EngineInput) -> bool {
     }
 }
 
+fn is_relax_ng_source_input(input: &eng::EngineInput) -> bool {
+    let identity = input
+        .identity
+        .clone()
+        .unwrap_or_else(|| input.root_scope.format_identity());
+    let schema_is_relax_ng = identity
+        .schema
+        .as_deref()
+        .map(str::trim)
+        .is_some_and(|schema| schema == cem_ml::schema::registry::RELAX_NG_SCHEMA_URI);
+    let content_type = identity
+        .content_type
+        .as_deref()
+        .map(cli_content_type_essence);
+
+    match content_type.as_deref() {
+        Some(content_type) if is_relax_ng_source_content_type(content_type) => {
+            identity.schema.is_none() || schema_is_relax_ng
+        }
+        Some(_) => false,
+        None => schema_is_relax_ng,
+    }
+}
+
 fn is_cem_dom_projection_source_input(input: &eng::EngineInput) -> bool {
     let identity = input
         .identity
@@ -3348,6 +3376,14 @@ fn is_csv_source_content_type(content_type: &str) -> bool {
 
 fn is_markdown_source_content_type(content_type: &str) -> bool {
     content_type == cem_ml::schema::registry::MARKDOWN_CONTENT_TYPE
+}
+
+fn is_relax_ng_source_content_type(content_type: &str) -> bool {
+    matches!(
+        content_type,
+        cem_ml::schema::registry::RELAX_NG_XML_CONTENT_TYPE
+            | cem_ml::schema::registry::RELAX_NG_COMPACT_CONTENT_TYPE
+    )
 }
 
 fn is_xml_source_content_type(content_type: &str) -> bool {
@@ -3589,6 +3625,653 @@ fn collect_markdown_source_diagnostics(
         }
     }
     diagnostics
+}
+
+fn collect_relax_ng_source_diagnostics(
+    inputs: &[eng::EngineInput],
+) -> Vec<cem_ml::diagnostics::Diagnostic> {
+    let mut diagnostics = Vec::new();
+    for input in inputs {
+        let source = match std::str::from_utf8(&input.bytes) {
+            Ok(source) => source,
+            Err(error) => {
+                diagnostics.push(relax_ng_unsupported_encoding_diagnostic(input, &error));
+                continue;
+            }
+        };
+
+        match relax_ng_source_kind(input) {
+            RelaxNgSourceKind::Xml => {
+                diagnostics.extend(validate_relax_ng_xml_source(input, source));
+            }
+            RelaxNgSourceKind::Compact => {
+                diagnostics.extend(validate_relax_ng_compact_source(input, source));
+            }
+        }
+    }
+    diagnostics
+}
+
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+enum RelaxNgSourceKind {
+    Xml,
+    Compact,
+}
+
+fn relax_ng_source_kind(input: &eng::EngineInput) -> RelaxNgSourceKind {
+    let identity = input
+        .identity
+        .clone()
+        .unwrap_or_else(|| input.root_scope.format_identity());
+    let content_type = identity
+        .content_type
+        .as_deref()
+        .map(cli_content_type_essence);
+
+    match content_type.as_deref() {
+        Some(content_type)
+            if content_type == cem_ml::schema::registry::RELAX_NG_COMPACT_CONTENT_TYPE =>
+        {
+            RelaxNgSourceKind::Compact
+        }
+        _ => RelaxNgSourceKind::Xml,
+    }
+}
+
+#[derive(Clone, Debug)]
+struct RelaxNgXmlFrame {
+    local_name: String,
+    namespace_uri: String,
+    missing_name_attribute: bool,
+    has_name_class_child: bool,
+}
+
+fn validate_relax_ng_xml_source(
+    input: &eng::EngineInput,
+    source: &str,
+) -> Vec<cem_ml::diagnostics::Diagnostic> {
+    let mut diagnostics = Vec::new();
+    let mut reader = quick_xml::Reader::from_str(source);
+    reader.config_mut().check_comments = true;
+
+    let mut element_stack: Vec<RelaxNgXmlFrame> = Vec::new();
+    let mut namespace_stack = vec![xml_initial_namespaces()];
+    let mut root_count = 0usize;
+    let mut saw_grammar_root = false;
+    let mut saw_start = false;
+
+    loop {
+        match reader.read_event() {
+            Ok(quick_xml::events::Event::Start(start)) => {
+                root_count += usize::from(element_stack.is_empty());
+                let start_offset = xml_event_position(&reader, &start, false);
+                let is_root = element_stack.is_empty();
+                let (frame, namespaces, mut event_diagnostics) = relax_ng_xml_start_frame(
+                    input,
+                    source,
+                    &start,
+                    &namespace_stack,
+                    start_offset,
+                    is_root,
+                );
+                diagnostics.append(&mut event_diagnostics);
+                relax_ng_xml_note_child_name_class(&mut element_stack, &frame);
+                if element_stack.is_empty() {
+                    if root_count > 1 {
+                        diagnostics.push(relax_ng_diagnostic(
+                            input,
+                            source,
+                            start_offset,
+                            "cem.relax_ng.xml_parse_error",
+                            cem_ml::diagnostics::Severity::Error,
+                            "RELAX NG XML syntax must have exactly one document element".to_owned(),
+                        ));
+                    }
+                    saw_grammar_root = frame.namespace_uri
+                        == cem_ml::schema::registry::RELAX_NG_NAMESPACE_URI
+                        && frame.local_name == "grammar";
+                }
+                if frame.namespace_uri == cem_ml::schema::registry::RELAX_NG_NAMESPACE_URI
+                    && frame.local_name == "start"
+                {
+                    saw_start = true;
+                }
+                element_stack.push(frame);
+                namespace_stack.push(namespaces);
+            }
+            Ok(quick_xml::events::Event::Empty(start)) => {
+                root_count += usize::from(element_stack.is_empty());
+                let start_offset = xml_event_position(&reader, &start, true);
+                let is_root = element_stack.is_empty();
+                let (frame, _, mut event_diagnostics) = relax_ng_xml_start_frame(
+                    input,
+                    source,
+                    &start,
+                    &namespace_stack,
+                    start_offset,
+                    is_root,
+                );
+                diagnostics.append(&mut event_diagnostics);
+                relax_ng_xml_note_child_name_class(&mut element_stack, &frame);
+                if element_stack.is_empty() {
+                    if root_count > 1 {
+                        diagnostics.push(relax_ng_diagnostic(
+                            input,
+                            source,
+                            start_offset,
+                            "cem.relax_ng.xml_parse_error",
+                            cem_ml::diagnostics::Severity::Error,
+                            "RELAX NG XML syntax must have exactly one document element".to_owned(),
+                        ));
+                    }
+                    saw_grammar_root = frame.namespace_uri
+                        == cem_ml::schema::registry::RELAX_NG_NAMESPACE_URI
+                        && frame.local_name == "grammar";
+                }
+                if frame.namespace_uri == cem_ml::schema::registry::RELAX_NG_NAMESPACE_URI
+                    && frame.local_name == "start"
+                {
+                    saw_start = true;
+                }
+                diagnostics.extend(relax_ng_xml_close_frame(input, source, frame, start_offset));
+            }
+            Ok(quick_xml::events::Event::End(_)) => {
+                if let Some(frame) = element_stack.pop() {
+                    diagnostics.extend(relax_ng_xml_close_frame(
+                        input,
+                        source,
+                        frame,
+                        Some(reader.error_position()),
+                    ));
+                    if namespace_stack.len() > 1 {
+                        namespace_stack.pop();
+                    }
+                }
+            }
+            Ok(quick_xml::events::Event::DocType(_)) => diagnostics.push(relax_ng_diagnostic(
+                input,
+                source,
+                Some(reader.error_position()),
+                "cem.relax_ng.xml_parse_error",
+                cem_ml::diagnostics::Severity::Error,
+                "RELAX NG XML syntax must not contain a DTD".to_owned(),
+            )),
+            Ok(quick_xml::events::Event::Eof) => break,
+            Ok(_) => {}
+            Err(error) => {
+                diagnostics.push(relax_ng_xml_parse_error_diagnostic(
+                    input,
+                    source,
+                    Some(reader.error_position()),
+                    &error,
+                ));
+                break;
+            }
+        }
+    }
+
+    if root_count == 0 {
+        diagnostics.push(relax_ng_diagnostic(
+            input,
+            source,
+            Some(0),
+            "cem.relax_ng.xml_parse_error",
+            cem_ml::diagnostics::Severity::Error,
+            "RELAX NG XML syntax must contain a document element".to_owned(),
+        ));
+    }
+    if saw_grammar_root && !saw_start {
+        diagnostics.push(relax_ng_diagnostic(
+            input,
+            source,
+            Some(0),
+            "cem.relax_ng.missing_start",
+            cem_ml::diagnostics::Severity::Error,
+            "RELAX NG grammar must declare a start pattern".to_owned(),
+        ));
+    }
+
+    diagnostics
+}
+
+fn relax_ng_xml_start_frame(
+    input: &eng::EngineInput,
+    source: &str,
+    start: &quick_xml::events::BytesStart<'_>,
+    namespace_stack: &[BTreeMap<String, String>],
+    byte_offset: Option<u64>,
+    is_root: bool,
+) -> (
+    RelaxNgXmlFrame,
+    BTreeMap<String, String>,
+    Vec<cem_ml::diagnostics::Diagnostic>,
+) {
+    let mut diagnostics = Vec::new();
+    let mut namespaces = namespace_stack
+        .last()
+        .cloned()
+        .unwrap_or_else(xml_initial_namespaces);
+    let mut attributes = BTreeSet::new();
+
+    for attribute in start.attributes().with_checks(false) {
+        match attribute {
+            Ok(attribute) => {
+                let name = xml_qname_display(attribute.key.as_ref());
+                let value = String::from_utf8_lossy(attribute.value.as_ref()).into_owned();
+                if name == "xmlns" {
+                    namespaces.insert(String::new(), value);
+                } else if let Some(prefix) = name.strip_prefix("xmlns:") {
+                    namespaces.insert(prefix.to_owned(), value);
+                } else {
+                    attributes.insert(name);
+                }
+            }
+            Err(error) => diagnostics.push(relax_ng_diagnostic(
+                input,
+                source,
+                byte_offset,
+                "cem.relax_ng.xml_parse_error",
+                cem_ml::diagnostics::Severity::Error,
+                format!("RELAX NG XML attribute parse error: {error}"),
+            )),
+        }
+    }
+
+    let qualified_name = xml_qname_display(start.name().as_ref());
+    let (namespace_uri, local_name) = relax_ng_xml_expanded_name(&qualified_name, &namespaces);
+    let is_rng = namespace_uri == cem_ml::schema::registry::RELAX_NG_NAMESPACE_URI;
+    let mut missing_name_attribute = false;
+
+    if !is_rng && is_root {
+        diagnostics.push(relax_ng_diagnostic(
+            input,
+            source,
+            byte_offset,
+            "cem.relax_ng.unknown_element",
+            cem_ml::diagnostics::Severity::Error,
+            format!(
+                "RELAX NG XML root element `{qualified_name}` is not in the RELAX NG structure namespace"
+            ),
+        ));
+    } else if is_rng && !relax_ng_xml_element_is_known(&local_name) {
+        diagnostics.push(relax_ng_diagnostic(
+            input,
+            source,
+            byte_offset,
+            "cem.relax_ng.unknown_element",
+            cem_ml::diagnostics::Severity::Error,
+            format!("unknown RELAX NG XML element `{local_name}`"),
+        ));
+    } else if is_rng && matches!(local_name.as_str(), "include" | "externalRef") {
+        diagnostics.push(relax_ng_diagnostic(
+            input,
+            source,
+            byte_offset,
+            if local_name == "include" {
+                "cem.relax_ng.include_rejected"
+            } else {
+                "cem.relax_ng.external_ref_rejected"
+            },
+            cem_ml::diagnostics::Severity::Error,
+            format!("RELAX NG `{local_name}` is rejected until resolver policy enables it"),
+        ));
+    }
+
+    if is_rng {
+        match local_name.as_str() {
+            "define" | "ref" | "parentRef" if !attributes.contains("name") => {
+                diagnostics.push(relax_ng_missing_attribute_diagnostic(
+                    input,
+                    source,
+                    byte_offset,
+                    &local_name,
+                    "name",
+                ));
+            }
+            "data" if !attributes.contains("type") => diagnostics.push(
+                relax_ng_missing_attribute_diagnostic(input, source, byte_offset, "data", "type"),
+            ),
+            "include" | "externalRef" if !attributes.contains("href") => {
+                diagnostics.push(relax_ng_missing_attribute_diagnostic(
+                    input,
+                    source,
+                    byte_offset,
+                    &local_name,
+                    "href",
+                ));
+            }
+            "element" | "attribute" if !attributes.contains("name") => {
+                missing_name_attribute = true;
+            }
+            _ => {}
+        }
+    }
+
+    (
+        RelaxNgXmlFrame {
+            local_name,
+            namespace_uri,
+            missing_name_attribute,
+            has_name_class_child: false,
+        },
+        namespaces,
+        diagnostics,
+    )
+}
+
+fn relax_ng_xml_close_frame(
+    input: &eng::EngineInput,
+    source: &str,
+    frame: RelaxNgXmlFrame,
+    byte_offset: Option<u64>,
+) -> Vec<cem_ml::diagnostics::Diagnostic> {
+    if frame.missing_name_attribute && !frame.has_name_class_child {
+        return vec![relax_ng_missing_attribute_diagnostic(
+            input,
+            source,
+            byte_offset,
+            &frame.local_name,
+            "name",
+        )];
+    }
+    Vec::new()
+}
+
+fn relax_ng_xml_note_child_name_class(stack: &mut [RelaxNgXmlFrame], child: &RelaxNgXmlFrame) {
+    let Some(parent) = stack.last_mut() else {
+        return;
+    };
+    if parent.namespace_uri != cem_ml::schema::registry::RELAX_NG_NAMESPACE_URI
+        || !matches!(parent.local_name.as_str(), "element" | "attribute")
+    {
+        return;
+    }
+    if child.namespace_uri == cem_ml::schema::registry::RELAX_NG_NAMESPACE_URI
+        && matches!(
+            child.local_name.as_str(),
+            "name" | "anyName" | "nsName" | "choice"
+        )
+    {
+        parent.has_name_class_child = true;
+    }
+}
+
+fn relax_ng_xml_expanded_name(
+    qualified_name: &str,
+    namespaces: &BTreeMap<String, String>,
+) -> (String, String) {
+    if let Some((prefix, local_name)) = qualified_name.split_once(':') {
+        (
+            namespaces.get(prefix).cloned().unwrap_or_default(),
+            local_name.to_owned(),
+        )
+    } else {
+        (
+            namespaces.get("").cloned().unwrap_or_default(),
+            qualified_name.to_owned(),
+        )
+    }
+}
+
+fn relax_ng_xml_element_is_known(local_name: &str) -> bool {
+    matches!(
+        local_name,
+        "grammar"
+            | "start"
+            | "define"
+            | "div"
+            | "include"
+            | "element"
+            | "attribute"
+            | "choice"
+            | "group"
+            | "interleave"
+            | "oneOrMore"
+            | "zeroOrMore"
+            | "optional"
+            | "list"
+            | "mixed"
+            | "ref"
+            | "parentRef"
+            | "empty"
+            | "text"
+            | "value"
+            | "data"
+            | "param"
+            | "except"
+            | "notAllowed"
+            | "externalRef"
+            | "name"
+            | "anyName"
+            | "nsName"
+    )
+}
+
+fn validate_relax_ng_compact_source(
+    input: &eng::EngineInput,
+    source: &str,
+) -> Vec<cem_ml::diagnostics::Diagnostic> {
+    let mut diagnostics = Vec::new();
+    let mut stack: Vec<(char, usize)> = Vec::new();
+    let mut code = String::with_capacity(source.len());
+    let mut chars = source.char_indices().peekable();
+    let mut has_start = false;
+
+    while let Some((offset, ch)) = chars.next() {
+        match ch {
+            '#' => {
+                code.push(' ');
+                while let Some((_, comment_ch)) = chars.peek().copied() {
+                    if comment_ch == '\n' {
+                        break;
+                    }
+                    chars.next();
+                    code.push(' ');
+                }
+            }
+            '"' | '\'' => {
+                code.push(' ');
+                let quote = ch;
+                let mut escaped = false;
+                let mut closed = false;
+                for (_, string_ch) in chars.by_ref() {
+                    code.push(if string_ch == '\n' { '\n' } else { ' ' });
+                    if escaped {
+                        escaped = false;
+                    } else if string_ch == '\\' {
+                        escaped = true;
+                    } else if string_ch == quote {
+                        closed = true;
+                        break;
+                    }
+                }
+                if !closed {
+                    diagnostics.push(relax_ng_diagnostic(
+                        input,
+                        source,
+                        Some(offset as u64),
+                        "cem.relax_ng.compact_parse_error",
+                        cem_ml::diagnostics::Severity::Error,
+                        "RELAX NG compact string literal is missing a closing quote".to_owned(),
+                    ));
+                }
+            }
+            '{' | '(' | '[' => {
+                stack.push((ch, offset));
+                code.push(ch);
+            }
+            '}' | ')' | ']' => {
+                let expected = match ch {
+                    '}' => '{',
+                    ')' => '(',
+                    ']' => '[',
+                    _ => unreachable!(),
+                };
+                match stack.pop() {
+                    Some((open, _)) if open == expected => {}
+                    Some((open, open_offset)) => diagnostics.push(relax_ng_diagnostic(
+                        input,
+                        source,
+                        Some(offset as u64),
+                        "cem.relax_ng.compact_parse_error",
+                        cem_ml::diagnostics::Severity::Error,
+                        format!(
+                            "RELAX NG compact closing delimiter `{ch}` does not match `{open}` opened at byte {open_offset}"
+                        ),
+                    )),
+                    None => diagnostics.push(relax_ng_diagnostic(
+                        input,
+                        source,
+                        Some(offset as u64),
+                        "cem.relax_ng.compact_parse_error",
+                        cem_ml::diagnostics::Severity::Error,
+                        format!("RELAX NG compact closing delimiter `{ch}` has no opening delimiter"),
+                    )),
+                }
+                code.push(ch);
+            }
+            _ => code.push(ch),
+        }
+    }
+
+    for (open, offset) in stack {
+        diagnostics.push(relax_ng_diagnostic(
+            input,
+            source,
+            Some(offset as u64),
+            "cem.relax_ng.compact_parse_error",
+            cem_ml::diagnostics::Severity::Error,
+            format!("RELAX NG compact delimiter `{open}` is not closed"),
+        ));
+    }
+
+    for token in relax_ng_compact_tokens(&code) {
+        match token.as_str() {
+            "start" => has_start = true,
+            "include" => diagnostics.push(relax_ng_diagnostic(
+                input,
+                source,
+                None,
+                "cem.relax_ng.include_rejected",
+                cem_ml::diagnostics::Severity::Error,
+                "RELAX NG compact include is rejected until resolver policy enables it".to_owned(),
+            )),
+            "external" => diagnostics.push(relax_ng_diagnostic(
+                input,
+                source,
+                None,
+                "cem.relax_ng.external_ref_rejected",
+                cem_ml::diagnostics::Severity::Error,
+                "RELAX NG compact external reference is rejected until resolver policy enables it"
+                    .to_owned(),
+            )),
+            _ => {}
+        }
+    }
+
+    if !has_start {
+        diagnostics.push(relax_ng_diagnostic(
+            input,
+            source,
+            Some(0),
+            "cem.relax_ng.missing_start",
+            cem_ml::diagnostics::Severity::Error,
+            "RELAX NG compact syntax must declare a start pattern".to_owned(),
+        ));
+    }
+
+    diagnostics
+}
+
+fn relax_ng_compact_tokens(source: &str) -> Vec<String> {
+    let mut tokens = Vec::new();
+    let mut current = String::new();
+    for ch in source.chars() {
+        if ch == '_' || ch == '-' || ch.is_ascii_alphanumeric() {
+            current.push(ch);
+        } else if !current.is_empty() {
+            tokens.push(std::mem::take(&mut current));
+        }
+    }
+    if !current.is_empty() {
+        tokens.push(current);
+    }
+    tokens
+}
+
+fn relax_ng_missing_attribute_diagnostic(
+    input: &eng::EngineInput,
+    source: &str,
+    byte_offset: Option<u64>,
+    element: &str,
+    attribute: &str,
+) -> cem_ml::diagnostics::Diagnostic {
+    relax_ng_diagnostic(
+        input,
+        source,
+        byte_offset,
+        "cem.relax_ng.missing_required_attribute",
+        cem_ml::diagnostics::Severity::Error,
+        format!("RELAX NG `{element}` requires `{attribute}`"),
+    )
+}
+
+fn relax_ng_xml_parse_error_diagnostic(
+    input: &eng::EngineInput,
+    source: &str,
+    byte_offset: Option<u64>,
+    error: &quick_xml::Error,
+) -> cem_ml::diagnostics::Diagnostic {
+    relax_ng_diagnostic(
+        input,
+        source,
+        byte_offset,
+        match error {
+            quick_xml::Error::Encoding(_) => "cem.relax_ng.unsupported_encoding",
+            _ => "cem.relax_ng.xml_parse_error",
+        },
+        cem_ml::diagnostics::Severity::Error,
+        format!("RELAX NG XML parse error: {error}"),
+    )
+}
+
+fn relax_ng_unsupported_encoding_diagnostic(
+    input: &eng::EngineInput,
+    error: &std::str::Utf8Error,
+) -> cem_ml::diagnostics::Diagnostic {
+    cem_ml::diagnostics::Diagnostic {
+        uri: Some(input.uri.clone()),
+        byte_offset: u64::try_from(error.valid_up_to()).ok(),
+        code: "cem.relax_ng.unsupported_encoding".to_owned(),
+        severity: cem_ml::diagnostics::Severity::Error,
+        message: format!("RELAX NG source must be valid UTF-8: {error}"),
+        ..cem_ml::diagnostics::Diagnostic::default()
+    }
+}
+
+fn relax_ng_diagnostic(
+    input: &eng::EngineInput,
+    source: &str,
+    byte_offset: Option<u64>,
+    code: &'static str,
+    severity: cem_ml::diagnostics::Severity,
+    message: String,
+) -> cem_ml::diagnostics::Diagnostic {
+    let (line, column) = byte_offset
+        .and_then(|offset| usize::try_from(offset).ok())
+        .map(|offset| markdown_line_col(source, offset))
+        .map(|(line, column)| (Some(line), Some(column)))
+        .unwrap_or((None, None));
+    cem_ml::diagnostics::Diagnostic {
+        uri: Some(input.uri.clone()),
+        line,
+        column,
+        byte_offset,
+        code: code.to_owned(),
+        severity,
+        message,
+        ..cem_ml::diagnostics::Diagnostic::default()
+    }
 }
 
 fn collect_xml_source_diagnostics(
@@ -10427,6 +11110,271 @@ This document has **strong** text, [a link](https://example.test), and a list.
         assert!(diagnostics
             .iter()
             .any(|diag| diag["code"] == "cem.markdown.unsupported_encoding"));
+    }
+
+    #[test]
+    fn validate_relax_ng_xml_source_uses_relax_ng_validator() {
+        let p = write_fixture(
+            "validate-relax-ng-source.rng",
+            r#"<?xml version="1.0" encoding="UTF-8"?>
+<grammar xmlns="http://relaxng.org/ns/structure/1.0">
+  <start>
+    <element name="note">
+      <text/>
+    </element>
+  </start>
+</grammar>
+"#,
+        );
+        let (outcome, stdout, stderr) = run(
+            &RealCemMlEngine::new(),
+            &[
+                "validate",
+                "--format",
+                "json",
+                "--content-type",
+                "application/relax-ng+xml; charset=utf-8",
+                "--schema",
+                cem_ml::schema::registry::RELAX_NG_SCHEMA_URI,
+                p.to_str().unwrap(),
+            ],
+        );
+
+        assert_eq!(outcome.exit_code, EXIT_OK, "{stderr}");
+        let v: serde_json::Value = serde_json::from_str(stdout.trim()).unwrap();
+        let diagnostics = v["diagnostics"].as_array().unwrap();
+        assert_eq!(v["summary"]["hardViolationCount"], 0);
+        assert!(diagnostics.is_empty());
+        assert!(!diagnostics
+            .iter()
+            .any(|diag| diag["code"] == "cem.lifecycle.adapter_unsupported"));
+    }
+
+    #[test]
+    fn validate_relax_ng_compact_source_uses_relax_ng_validator() {
+        let p = write_fixture(
+            "validate-relax-ng-source.rnc",
+            r#"default namespace = ""
+
+start =
+  element note {
+    element title { text },
+    element body { text }
+  }
+"#,
+        );
+        let (outcome, stdout, stderr) = run(
+            &RealCemMlEngine::new(),
+            &[
+                "validate",
+                "--format",
+                "json",
+                "--content-type",
+                "application/relax-ng-compact-syntax",
+                "--schema",
+                cem_ml::schema::registry::RELAX_NG_SCHEMA_URI,
+                p.to_str().unwrap(),
+            ],
+        );
+
+        assert_eq!(outcome.exit_code, EXIT_OK, "{stderr}");
+        let v: serde_json::Value = serde_json::from_str(stdout.trim()).unwrap();
+        let diagnostics = v["diagnostics"].as_array().unwrap();
+        assert_eq!(v["summary"]["hardViolationCount"], 0);
+        assert!(diagnostics.is_empty());
+    }
+
+    #[test]
+    fn validate_relax_ng_xml_source_preserves_foreign_annotations() {
+        let p = write_fixture(
+            "validate-relax-ng-source-annotation.rng",
+            r#"<grammar xmlns="http://relaxng.org/ns/structure/1.0" xmlns:a="urn:annotation">
+  <start>
+    <element name="note">
+      <a:documentation>Visible to schema tooling.</a:documentation>
+      <text/>
+    </element>
+  </start>
+</grammar>
+"#,
+        );
+        let (outcome, stdout, stderr) = run(
+            &RealCemMlEngine::new(),
+            &[
+                "validate",
+                "--format",
+                "json",
+                "--content-type",
+                "application/relax-ng+xml",
+                "--schema",
+                cem_ml::schema::registry::RELAX_NG_SCHEMA_URI,
+                p.to_str().unwrap(),
+            ],
+        );
+
+        assert_eq!(outcome.exit_code, EXIT_OK, "{stderr}");
+        let v: serde_json::Value = serde_json::from_str(stdout.trim()).unwrap();
+        let diagnostics = v["diagnostics"].as_array().unwrap();
+        assert_eq!(v["summary"]["hardViolationCount"], 0);
+        assert!(diagnostics.is_empty());
+    }
+
+    #[test]
+    fn validate_relax_ng_xml_source_reports_missing_start() {
+        let p = write_fixture(
+            "validate-relax-ng-source-missing-start.rng",
+            r#"<grammar xmlns="http://relaxng.org/ns/structure/1.0">
+  <define name="note">
+    <element name="note"><text/></element>
+  </define>
+</grammar>
+"#,
+        );
+        let (outcome, stdout, stderr) = run(
+            &RealCemMlEngine::new(),
+            &[
+                "validate",
+                "--format",
+                "json",
+                "--content-type",
+                "application/relax-ng+xml",
+                "--schema",
+                cem_ml::schema::registry::RELAX_NG_SCHEMA_URI,
+                p.to_str().unwrap(),
+            ],
+        );
+
+        assert_eq!(outcome.exit_code, EXIT_HARD_FAILURE, "{stderr}");
+        let v: serde_json::Value = serde_json::from_str(stdout.trim()).unwrap();
+        let diagnostics = v["diagnostics"].as_array().unwrap();
+        assert!(diagnostics
+            .iter()
+            .any(|diag| diag["code"] == "cem.relax_ng.missing_start"));
+    }
+
+    #[test]
+    fn validate_relax_ng_xml_source_reports_unknown_element() {
+        let p = write_fixture(
+            "validate-relax-ng-source-unknown-element.rng",
+            r#"<grammar xmlns="http://relaxng.org/ns/structure/1.0">
+  <start>
+    <element name="note"><unknown/></element>
+  </start>
+</grammar>
+"#,
+        );
+        let (outcome, stdout, stderr) = run(
+            &RealCemMlEngine::new(),
+            &[
+                "validate",
+                "--format",
+                "json",
+                "--content-type",
+                "application/relax-ng+xml",
+                "--schema",
+                cem_ml::schema::registry::RELAX_NG_SCHEMA_URI,
+                p.to_str().unwrap(),
+            ],
+        );
+
+        assert_eq!(outcome.exit_code, EXIT_HARD_FAILURE, "{stderr}");
+        let v: serde_json::Value = serde_json::from_str(stdout.trim()).unwrap();
+        let diagnostics = v["diagnostics"].as_array().unwrap();
+        assert!(diagnostics
+            .iter()
+            .any(|diag| diag["code"] == "cem.relax_ng.unknown_element"));
+    }
+
+    #[test]
+    fn validate_relax_ng_compact_source_reports_parse_error() {
+        let p = write_fixture(
+            "validate-relax-ng-source-invalid.rnc",
+            r#"start =
+  element note {
+    element title { text }
+"#,
+        );
+        let (outcome, stdout, stderr) = run(
+            &RealCemMlEngine::new(),
+            &[
+                "validate",
+                "--format",
+                "json",
+                "--content-type",
+                "application/relax-ng-compact-syntax",
+                "--schema",
+                cem_ml::schema::registry::RELAX_NG_SCHEMA_URI,
+                p.to_str().unwrap(),
+            ],
+        );
+
+        assert_eq!(outcome.exit_code, EXIT_HARD_FAILURE, "{stderr}");
+        let v: serde_json::Value = serde_json::from_str(stdout.trim()).unwrap();
+        let diagnostics = v["diagnostics"].as_array().unwrap();
+        assert!(diagnostics
+            .iter()
+            .any(|diag| diag["code"] == "cem.relax_ng.compact_parse_error"));
+    }
+
+    #[test]
+    fn validate_relax_ng_source_reports_external_reference_rejected() {
+        let p = write_fixture(
+            "validate-relax-ng-source-external.rng",
+            r#"<grammar xmlns="http://relaxng.org/ns/structure/1.0">
+  <start>
+    <externalRef href="https://example.test/schema.rng"/>
+  </start>
+</grammar>
+"#,
+        );
+        let (outcome, stdout, stderr) = run(
+            &RealCemMlEngine::new(),
+            &[
+                "validate",
+                "--format",
+                "json",
+                "--content-type",
+                "application/relax-ng+xml",
+                "--schema",
+                cem_ml::schema::registry::RELAX_NG_SCHEMA_URI,
+                p.to_str().unwrap(),
+            ],
+        );
+
+        assert_eq!(outcome.exit_code, EXIT_HARD_FAILURE, "{stderr}");
+        let v: serde_json::Value = serde_json::from_str(stdout.trim()).unwrap();
+        let diagnostics = v["diagnostics"].as_array().unwrap();
+        assert!(diagnostics
+            .iter()
+            .any(|diag| diag["code"] == "cem.relax_ng.external_ref_rejected"));
+    }
+
+    #[test]
+    fn validate_relax_ng_source_reports_unsupported_encoding() {
+        let p = write_binary_fixture(
+            "validate-relax-ng-source-invalid-utf8.rng",
+            b"<grammar>\xff",
+        );
+        let (outcome, stdout, stderr) = run(
+            &RealCemMlEngine::new(),
+            &[
+                "validate",
+                "--format",
+                "json",
+                "--content-type",
+                "application/relax-ng+xml",
+                "--schema",
+                cem_ml::schema::registry::RELAX_NG_SCHEMA_URI,
+                p.to_str().unwrap(),
+            ],
+        );
+
+        assert_eq!(outcome.exit_code, EXIT_HARD_FAILURE, "{stderr}");
+        let v: serde_json::Value = serde_json::from_str(stdout.trim()).unwrap();
+        let diagnostics = v["diagnostics"].as_array().unwrap();
+        assert!(diagnostics
+            .iter()
+            .any(|diag| diag["code"] == "cem.relax_ng.unsupported_encoding"));
     }
 
     #[test]

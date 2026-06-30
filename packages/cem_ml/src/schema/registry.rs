@@ -18,6 +18,8 @@ pub const YAML_SCHEMA_URI: &str = "https://cem.dev/ns/data/yaml/1";
 pub const CSV_SCHEMA_URI: &str = "https://cem.dev/ns/data/csv/1";
 pub const MARKDOWN_SCHEMA_URI: &str = "https://cem.dev/ns/data/markdown/1";
 pub const XML_SCHEMA_URI: &str = "https://cem.dev/ns/data/xml/1";
+pub const RELAX_NG_SCHEMA_URI: &str = "https://cem.dev/ns/data/relax-ng/1";
+pub const RELAX_NG_NAMESPACE_URI: &str = "http://relaxng.org/ns/structure/1.0";
 pub const HTML_SCHEMA_URI: &str = "https://cem.dev/ns/data/html/1";
 pub const HTML_NAMESPACE_URI: &str = "http://www.w3.org/1999/xhtml";
 pub const CSS_SCHEMA_URI: &str = "https://cem.dev/ns/data/css/1";
@@ -46,6 +48,8 @@ pub const YAML_CONTENT_TYPE: &str = "application/yaml";
 pub const CSV_CONTENT_TYPE: &str = "text/csv";
 pub const MARKDOWN_CONTENT_TYPE: &str = "text/markdown";
 pub const XML_CONTENT_TYPE: &str = "application/xml";
+pub const RELAX_NG_XML_CONTENT_TYPE: &str = "application/relax-ng+xml";
+pub const RELAX_NG_COMPACT_CONTENT_TYPE: &str = "application/relax-ng-compact-syntax";
 pub const HTML_CONTENT_TYPE: &str = "text/html";
 pub const CSS_CONTENT_TYPE: &str = "text/css";
 pub const XHTML_CONTENT_TYPE: &str = "application/xhtml+xml";
@@ -478,6 +482,25 @@ pub fn builtin_schema_descriptors() -> Vec<SchemaDescriptor> {
             uses: vec![CEM_SCHEMA_URI.into(), CEM_ML_SCHEMA_URI.into()],
         },
         SchemaDescriptor {
+            package_id: "relax-ng".into(),
+            schema_uri: RELAX_NG_SCHEMA_URI.into(),
+            version: "1.0.0".into(),
+            source: "schema-packages/relax-ng/v1/schema/relax-ng.cem".into(),
+            content_types: vec![
+                SchemaContentType::primary(RELAX_NG_XML_CONTENT_TYPE),
+                SchemaContentType::alias(RELAX_NG_COMPACT_CONTENT_TYPE),
+            ],
+            namespaces: vec![
+                NamespaceClaim::new(Some("cemrng"), RELAX_NG_SCHEMA_URI),
+                NamespaceClaim::new(Some("rng"), RELAX_NG_NAMESPACE_URI),
+            ],
+            uses: vec![
+                CEM_SCHEMA_URI.into(),
+                CEM_ML_SCHEMA_URI.into(),
+                XML_SCHEMA_URI.into(),
+            ],
+        },
+        SchemaDescriptor {
             package_id: "xhtml".into(),
             schema_uri: XHTML_SCHEMA_URI.into(),
             version: "1.0.0".into(),
@@ -745,6 +768,13 @@ mod tests {
         );
         assert_eq!(
             registry
+                .resolve_content_type(RELAX_NG_XML_CONTENT_TYPE)
+                .unwrap()
+                .schema_uri,
+            RELAX_NG_SCHEMA_URI
+        );
+        assert_eq!(
+            registry
                 .resolve_content_type(HTML_CONTENT_TYPE)
                 .unwrap()
                 .schema_uri,
@@ -910,6 +940,26 @@ mod tests {
                     .unwrap()
                     .schema_uri,
                 XML_SCHEMA_URI
+            );
+        }
+    }
+
+    #[test]
+    fn builtin_registry_resolves_relax_ng_content_types() {
+        let registry = SchemaRegistry::with_builtin_schemas();
+
+        for content_type in [
+            "application/relax-ng+xml",
+            "application/relax-ng+xml; charset=utf-8",
+            "application/relax-ng-compact-syntax",
+            "application/relax-ng-compact-syntax; charset=utf-8",
+        ] {
+            assert_eq!(
+                registry
+                    .resolve_content_type(content_type)
+                    .unwrap()
+                    .schema_uri,
+                RELAX_NG_SCHEMA_URI
             );
         }
     }

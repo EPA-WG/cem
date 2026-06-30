@@ -135,6 +135,10 @@ fn embedded_sources(package_id: &str) -> Option<(&'static str, &'static str)> {
             include_str!("../../schema-packages/xml/v1/package.cem"),
             include_str!("../../schema-packages/xml/v1/schema/xml.cem"),
         ),
+        "relax-ng" => (
+            include_str!("../../schema-packages/relax-ng/v1/package.cem"),
+            include_str!("../../schema-packages/relax-ng/v1/schema/relax-ng.cem"),
+        ),
         "xhtml" => (
             include_str!("../../schema-packages/xhtml/v1/package.cem"),
             include_str!("../../schema-packages/xhtml/v1/schema/xhtml.cem"),

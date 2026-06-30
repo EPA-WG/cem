@@ -1,0 +1,16 @@
+@doc cem-ml 1
+@ns pkg = "https://cem.dev/ns/schema-package/1"
+@default pkg
+
+{package @id="relax-ng" @version="1.0.0" |
+    {schema
+        @uri="https://cem.dev/ns/data/relax-ng/1"
+        @source="schema/relax-ng.cem"
+    }
+
+    {content-type @value="application/relax-ng+xml" @primary=true}
+    {content-type @value="application/relax-ng-compact-syntax" @alias=true}
+
+    {namespace @prefix="cemrng" @uri="https://cem.dev/ns/data/relax-ng/1"}
+    {namespace @prefix="rng" @uri="http://relaxng.org/ns/structure/1.0"}
+}
