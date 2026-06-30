@@ -5,6 +5,7 @@
 //! that `cem-ml-cli` calls through. This is the production engine that
 //! replaces `NotImplementedEngine` in `cem-ml-cli/src/main.rs`.
 
+use crate::conversion::ConversionExecution;
 use crate::diagnostics::{Diagnostic, Severity};
 use crate::engine::*;
 use crate::events::cem::CemEventNormalizer;
@@ -24,6 +25,11 @@ use crate::resolver::{
 };
 use crate::run_config::ScopeConfig;
 use crate::schema::machine::CemSchemaMachine;
+use crate::schema::registry::{
+    CEM_DOM_JSON_PROJECTION_CONTENT_TYPE, CEM_DOM_PROJECTION_CONTENT_TYPE,
+    CEM_DOM_PROJECTION_SCHEMA_URI, HTML_CONTENT_TYPE, HTML_SCHEMA_URI, XML_CONTENT_TYPE,
+    XML_SCHEMA_URI,
+};
 use crate::schema::vocab::CompiledSchema;
 use crate::source::{BytesSource, SourceId};
 use crate::source_map::SourceMapStack;
@@ -71,6 +77,67 @@ impl RealCemMlEngine {
     pub fn new() -> Self {
         Self
     }
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+struct ExportConversionExecution {
+    converter_id: String,
+    execution: ConversionExecution,
+}
+
+fn resolve_export_conversion_execution(
+    context: &EngineContext,
+    to_format: LayerFormat,
+    target: Option<&FormatIdentity>,
+) -> Option<ExportConversionExecution> {
+    let source = export_conversion_source_identity(to_format)?;
+    let target = target
+        .cloned()
+        .or_else(|| export_conversion_target_identity(to_format))?;
+
+    let execution = context
+        .converter_registry
+        .resolve_direct_execution(
+            &context.schema_registry,
+            &context.template_adapter_registry,
+            &source,
+            &target,
+        )
+        .ok()?;
+
+    Some(ExportConversionExecution {
+        converter_id: execution.descriptor.id.clone(),
+        execution: execution.execution,
+    })
+}
+
+fn export_conversion_source_identity(to_format: LayerFormat) -> Option<FormatIdentity> {
+    match to_format {
+        LayerFormat::Html | LayerFormat::Xml | LayerFormat::DomJson => Some(FormatIdentity {
+            content_type: Some(CEM_DOM_PROJECTION_CONTENT_TYPE.to_owned()),
+            schema: Some(CEM_DOM_PROJECTION_SCHEMA_URI.to_owned()),
+            ..FormatIdentity::default()
+        }),
+        _ => None,
+    }
+}
+
+fn export_conversion_target_identity(to_format: LayerFormat) -> Option<FormatIdentity> {
+    let (content_type, schema) = match to_format {
+        LayerFormat::Html => (HTML_CONTENT_TYPE, HTML_SCHEMA_URI),
+        LayerFormat::Xml => (XML_CONTENT_TYPE, XML_SCHEMA_URI),
+        LayerFormat::DomJson => (
+            CEM_DOM_JSON_PROJECTION_CONTENT_TYPE,
+            CEM_DOM_PROJECTION_SCHEMA_URI,
+        ),
+        _ => return None,
+    };
+
+    Some(FormatIdentity {
+        content_type: Some(content_type.to_owned()),
+        schema: Some(schema.to_owned()),
+        ..FormatIdentity::default()
+    })
 }
 
 /// Aggregate every layer's diagnostics for an input through the
@@ -2947,6 +3014,11 @@ impl CemMlEngine for RealCemMlEngine {
             });
             diagnostics.append(&mut export.diagnostics);
             let to_format = export.to_format;
+            let export_conversion = resolve_export_conversion_execution(
+                &request.context,
+                to_format,
+                request.target.as_ref(),
+            );
 
             if to_format == LayerFormat::Cem && loaded.from_format == InputFormat::Cem {
                 let mut content = String::from_utf8_lossy(&loaded.bytes).into_owned();
@@ -2990,6 +3062,14 @@ impl CemMlEngine for RealCemMlEngine {
                     })
                 }
                 LayerFormat::Html => {
+                    if let Some(ExportConversionExecution {
+                        execution: ConversionExecution::CemtTemplate { .. },
+                        ..
+                    }) = &export_conversion
+                    {
+                        // Ready CEMT exports will execute here once converter
+                        // template loading is wired into the runtime.
+                    }
                     let rendered = LightDomInterpreter::new().render(&run.document);
                     let output_spans = rendered
                         .output_spans
@@ -3011,6 +3091,14 @@ impl CemMlEngine for RealCemMlEngine {
                     })
                 }
                 LayerFormat::Xml => {
+                    if let Some(ExportConversionExecution {
+                        execution: ConversionExecution::CemtTemplate { .. },
+                        ..
+                    }) = &export_conversion
+                    {
+                        // Ready CEMT exports will execute here once converter
+                        // template loading is wired into the runtime.
+                    }
                     let rendered = XmlInterpreter::new().render(&run.document);
                     let output_spans = rendered
                         .output_spans

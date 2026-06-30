@@ -1,8 +1,8 @@
 //! Schema-owned content conversion registry.
 //!
-//! This module is the planning-side contract for schema package converter
-//! edges. It does not execute converters yet; runtime execution still flows
-//! through the existing lifecycle and transform-template adapters.
+//! This module is the planning and dispatch-side contract for schema package
+//! converter edges. Runtime execution still flows through the existing
+//! lifecycle and transform-template adapters.
 
 use crate::engine::FormatIdentity;
 use crate::schema::registry::{
@@ -14,6 +14,10 @@ use crate::schema::registry::{
     CEM_EVENTS_PROJECTION_SCHEMA_URI, CEM_ML_CONTENT_TYPE, CEM_ML_SCHEMA_URI,
     CEM_TRANSFORM_CONTENT_TYPE, CEM_TRANSFORM_SCHEMA_URI, HTML_CONTENT_TYPE, HTML_SCHEMA_URI,
     XML_CONTENT_TYPE, XML_SCHEMA_URI,
+};
+use crate::transform_template::{
+    TransformTemplateAdapterCapability, TransformTemplateAdapterLookup,
+    TransformTemplateAdapterRegistry,
 };
 use std::collections::{BTreeMap, BTreeSet};
 
@@ -265,6 +269,77 @@ pub struct DirectConversionSelection<'a> {
     pub descriptor: &'a ConversionDescriptor,
 }
 
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub enum ConversionExecution {
+    CemtTemplate {
+        adapter_id: &'static str,
+        template: ConversionTemplateDescriptor,
+    },
+    Rust {
+        rust_symbol: String,
+    },
+    RustFallback {
+        rust_symbol: String,
+        reason: String,
+        template_adapter_id: Option<&'static str>,
+    },
+}
+
+#[derive(Debug, Clone)]
+pub struct DirectConversionExecution<'a> {
+    pub source: ResolvedConversionIdentity,
+    pub target: ResolvedConversionIdentity,
+    pub descriptor: &'a ConversionDescriptor,
+    pub execution: ConversionExecution,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub enum ConversionExecutionError {
+    Lookup(ConversionLookupError),
+    MissingTemplate {
+        converter_id: String,
+    },
+    MissingRustSymbol {
+        converter_id: String,
+    },
+    CemtExecutionUnavailable {
+        converter_id: String,
+        reason: String,
+    },
+}
+
+impl std::fmt::Display for ConversionExecutionError {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        match self {
+            Self::Lookup(error) => write!(f, "{error}"),
+            Self::MissingTemplate { converter_id } => {
+                write!(
+                    f,
+                    "CEMT converter `{converter_id}` has no template descriptor"
+                )
+            }
+            Self::MissingRustSymbol { converter_id } => {
+                write!(f, "Rust converter `{converter_id}` has no rust symbol")
+            }
+            Self::CemtExecutionUnavailable {
+                converter_id,
+                reason,
+            } => write!(
+                f,
+                "CEMT converter `{converter_id}` cannot be executed: {reason}"
+            ),
+        }
+    }
+}
+
+impl std::error::Error for ConversionExecutionError {}
+
+impl From<ConversionLookupError> for ConversionExecutionError {
+    fn from(error: ConversionLookupError) -> Self {
+        Self::Lookup(error)
+    }
+}
+
 #[derive(Debug, Clone, Default)]
 pub struct ConversionRegistry {
     descriptors_by_id: BTreeMap<String, ConversionDescriptor>,
@@ -368,6 +443,152 @@ impl ConversionRegistry {
             }),
         }
     }
+
+    pub fn resolve_direct_execution<'a>(
+        &'a self,
+        schema_registry: &SchemaRegistry,
+        template_adapter_registry: &TransformTemplateAdapterRegistry,
+        source: &FormatIdentity,
+        target: &FormatIdentity,
+    ) -> Result<DirectConversionExecution<'a>, ConversionExecutionError> {
+        self.resolve_direct_execution_with_options(
+            schema_registry,
+            template_adapter_registry,
+            source,
+            target,
+            ConversionLookupOptions::default(),
+        )
+    }
+
+    pub fn resolve_direct_execution_with_options<'a>(
+        &'a self,
+        schema_registry: &SchemaRegistry,
+        template_adapter_registry: &TransformTemplateAdapterRegistry,
+        source: &FormatIdentity,
+        target: &FormatIdentity,
+        options: ConversionLookupOptions,
+    ) -> Result<DirectConversionExecution<'a>, ConversionExecutionError> {
+        let selection =
+            self.select_direct_edge_with_options(schema_registry, source, target, options)?;
+        let execution =
+            resolve_descriptor_execution(selection.descriptor, template_adapter_registry)?;
+        Ok(DirectConversionExecution {
+            source: selection.source,
+            target: selection.target,
+            descriptor: selection.descriptor,
+            execution,
+        })
+    }
+}
+
+fn resolve_descriptor_execution(
+    descriptor: &ConversionDescriptor,
+    template_adapter_registry: &TransformTemplateAdapterRegistry,
+) -> Result<ConversionExecution, ConversionExecutionError> {
+    match descriptor.implementation {
+        ConversionImplementation::Rust => {
+            let rust_symbol = descriptor.rust_symbol.clone().ok_or_else(|| {
+                ConversionExecutionError::MissingRustSymbol {
+                    converter_id: descriptor.id.clone(),
+                }
+            })?;
+            Ok(ConversionExecution::Rust { rust_symbol })
+        }
+        ConversionImplementation::Cemt => {
+            let template = descriptor.template.clone().ok_or_else(|| {
+                ConversionExecutionError::MissingTemplate {
+                    converter_id: descriptor.id.clone(),
+                }
+            })?;
+            resolve_cemt_descriptor_execution(descriptor, template, template_adapter_registry)
+        }
+    }
+}
+
+fn resolve_cemt_descriptor_execution(
+    descriptor: &ConversionDescriptor,
+    template: ConversionTemplateDescriptor,
+    template_adapter_registry: &TransformTemplateAdapterRegistry,
+) -> Result<ConversionExecution, ConversionExecutionError> {
+    let template_identity = FormatIdentity {
+        content_type: Some(template.content_type.clone()),
+        schema: template.schema.clone(),
+        ..FormatIdentity::default()
+    };
+    let (adapter_id, capability) = match template_adapter_registry
+        .select_adapter(&template_identity)
+    {
+        TransformTemplateAdapterLookup::Matched(adapter) => (adapter.id(), adapter.capability()),
+        TransformTemplateAdapterLookup::Ambiguous(adapter_ids) => {
+            return cemt_rust_fallback_or_error(
+                descriptor,
+                None,
+                format!(
+                    "template identity matched multiple adapters: {}",
+                    adapter_ids.join(", ")
+                ),
+            );
+        }
+        TransformTemplateAdapterLookup::Unsupported => {
+            return cemt_rust_fallback_or_error(
+                descriptor,
+                None,
+                format!(
+                    "no template adapter supports content type `{}`",
+                    template.content_type
+                ),
+            );
+        }
+    };
+
+    if descriptor.readiness == ConversionReadiness::Planned {
+        return cemt_rust_fallback_or_error(
+            descriptor,
+            Some(adapter_id),
+            "CEMT converter readiness is planned".to_owned(),
+        );
+    }
+
+    if capability == TransformTemplateAdapterCapability::Executable {
+        return Ok(ConversionExecution::CemtTemplate {
+            adapter_id,
+            template,
+        });
+    }
+
+    cemt_rust_fallback_or_error(
+        descriptor,
+        Some(adapter_id),
+        format!("template adapter `{adapter_id}` is selector-only"),
+    )
+}
+
+fn cemt_rust_fallback_or_error(
+    descriptor: &ConversionDescriptor,
+    template_adapter_id: Option<&'static str>,
+    reason: String,
+) -> Result<ConversionExecution, ConversionExecutionError> {
+    let Some(fallback) = descriptor.rust_fallback.as_ref() else {
+        return Err(ConversionExecutionError::CemtExecutionUnavailable {
+            converter_id: descriptor.id.clone(),
+            reason,
+        });
+    };
+
+    let configured_reason = fallback.reason.trim();
+    let reason = if configured_reason.is_empty() {
+        reason
+    } else if reason.is_empty() || reason == configured_reason {
+        configured_reason.to_owned()
+    } else {
+        format!("{configured_reason}; {reason}")
+    };
+
+    Ok(ConversionExecution::RustFallback {
+        rust_symbol: fallback.rust_symbol.clone(),
+        reason,
+        template_adapter_id,
+    })
 }
 
 fn descriptor_can_plan(
@@ -772,9 +993,14 @@ fn rust_edge(
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::engine::TransformTemplateKind;
     use crate::schema::registry::{
-        NamespaceClaim, SchemaContentType, SchemaDescriptor, JSON_CONTENT_TYPE,
-        JSON_VALUE_SCHEMA_URI,
+        NamespaceClaim, SchemaContentType, SchemaDescriptor, CEM_TRANSFORM_CONTENT_TYPE,
+        CEM_TRANSFORM_SCHEMA_URI, JSON_CONTENT_TYPE, JSON_VALUE_SCHEMA_URI,
+    };
+    use crate::transform_template::{
+        TransformTemplateAdapter, TransformTemplateAdapterCapability,
+        TransformTemplateAdapterRegistry,
     };
 
     fn identity(content_type: &str) -> FormatIdentity {
@@ -870,6 +1096,151 @@ mod tests {
             .expect("rust fallback edge remains registered");
         assert_eq!(rust_edge.implementation, ConversionImplementation::Rust);
         assert_eq!(rust_edge.readiness, ConversionReadiness::Ready);
+    }
+
+    #[test]
+    fn builtin_execution_resolves_ready_rust_edge() {
+        let schemas = SchemaRegistry::with_builtin_schemas();
+        let registry = ConversionRegistry::with_builtin_converters();
+        let template_adapters = TransformTemplateAdapterRegistry::with_builtin_adapters();
+
+        let execution = registry
+            .resolve_direct_execution(
+                &schemas,
+                &template_adapters,
+                &identity(HTML_CONTENT_TYPE),
+                &identity(CEM_DOM_PROJECTION_CONTENT_TYPE),
+            )
+            .unwrap();
+
+        assert_eq!(execution.descriptor.id, "html-to-cem-dom-projection-rust");
+        assert_eq!(
+            execution.execution,
+            ConversionExecution::Rust {
+                rust_symbol: "Html5RecoveryConverter".to_owned()
+            }
+        );
+    }
+
+    #[test]
+    fn builtin_execution_resolves_planned_cemt_to_registered_rust_fallback() {
+        let schemas = SchemaRegistry::with_builtin_schemas();
+        let registry = ConversionRegistry::with_builtin_converters();
+        let template_adapters = TransformTemplateAdapterRegistry::with_builtin_adapters();
+
+        let execution = registry
+            .resolve_direct_execution(
+                &schemas,
+                &template_adapters,
+                &identity(CEM_DOM_PROJECTION_CONTENT_TYPE),
+                &identity(HTML_CONTENT_TYPE),
+            )
+            .unwrap();
+
+        assert_eq!(execution.descriptor.id, "cem-dom-projection-to-html-cemt");
+        assert_eq!(
+            execution.source.content_type,
+            CEM_DOM_PROJECTION_CONTENT_TYPE
+        );
+        assert_eq!(execution.target.content_type, HTML_CONTENT_TYPE);
+        match &execution.execution {
+            ConversionExecution::RustFallback {
+                rust_symbol,
+                reason,
+                template_adapter_id,
+            } => {
+                assert_eq!(rust_symbol, "HtmlExportConverter");
+                assert!(reason.contains("before execution is wired"));
+                assert!(reason.contains("readiness is planned"));
+                assert_eq!(*template_adapter_id, Some("cem-native-template"));
+            }
+            other => panic!("expected Rust fallback execution, got {other:?}"),
+        }
+    }
+
+    #[derive(Clone)]
+    struct ExecutableCemtAdapter;
+
+    impl TransformTemplateAdapter for ExecutableCemtAdapter {
+        fn id(&self) -> &'static str {
+            "executable-cemt-test"
+        }
+
+        fn kind(&self) -> TransformTemplateKind {
+            TransformTemplateKind::CemNative
+        }
+
+        fn capability(&self) -> TransformTemplateAdapterCapability {
+            TransformTemplateAdapterCapability::Executable
+        }
+
+        fn matches_template(&self, identity: &FormatIdentity) -> bool {
+            identity
+                .content_type
+                .as_deref()
+                .is_some_and(|content_type| content_type == CEM_TRANSFORM_CONTENT_TYPE)
+                || identity
+                    .schema
+                    .as_deref()
+                    .is_some_and(|schema| schema == CEM_TRANSFORM_SCHEMA_URI)
+        }
+    }
+
+    #[test]
+    fn ready_cemt_execution_uses_executable_template_adapter() {
+        let schemas = SchemaRegistry::with_builtin_schemas();
+        let mut registry = ConversionRegistry::new();
+        registry
+            .register(ConversionDescriptor {
+                id: "dom-to-html-cemt-ready".to_owned(),
+                package_id: "cem-dom-projection".to_owned(),
+                from: endpoint(
+                    CEM_DOM_PROJECTION_CONTENT_TYPE,
+                    CEM_DOM_PROJECTION_SCHEMA_URI,
+                ),
+                to: endpoint(HTML_CONTENT_TYPE, HTML_SCHEMA_URI),
+                implementation: ConversionImplementation::Cemt,
+                readiness: ConversionReadiness::Ready,
+                template: Some(ConversionTemplateDescriptor {
+                    path: "schema-packages/cem-dom-projection/v1/converters/dom-to-html.cemt"
+                        .to_owned(),
+                    content_type: CEM_TRANSFORM_CONTENT_TYPE.to_owned(),
+                    schema: Some(CEM_TRANSFORM_SCHEMA_URI.to_owned()),
+                }),
+                rust_symbol: None,
+                rust_fallback: None,
+                streamable: true,
+                lossiness: Some("serialization".to_owned()),
+                implicit: true,
+                explicit_only: false,
+                cost: 1,
+            })
+            .unwrap();
+        let mut template_adapters = TransformTemplateAdapterRegistry::new();
+        template_adapters.register(ExecutableCemtAdapter);
+
+        let execution = registry
+            .resolve_direct_execution(
+                &schemas,
+                &template_adapters,
+                &identity(CEM_DOM_PROJECTION_CONTENT_TYPE),
+                &identity(HTML_CONTENT_TYPE),
+            )
+            .unwrap();
+
+        match execution.execution {
+            ConversionExecution::CemtTemplate {
+                adapter_id,
+                template,
+            } => {
+                assert_eq!(adapter_id, "executable-cemt-test");
+                assert_eq!(
+                    template.path,
+                    "schema-packages/cem-dom-projection/v1/converters/dom-to-html.cemt"
+                );
+            }
+            other => panic!("expected CEMT template execution, got {other:?}"),
+        }
     }
 
     #[test]

@@ -80,8 +80,10 @@ history belongs in git history and the feature-specific docs linked below.
         target identities.
   - [x] Register CEMT converter descriptors as primary conversion edges with
         Rust fallback hooks where the CEMT edge is not yet implemented.
-  - [ ] Execute selected converter descriptors through CEMT template adapters
+  - [x] Execute selected converter descriptors through CEMT template adapters
         with Rust fallback execution when the CEMT edge is still planned.
+  - [ ] Load ready CEMT converter template assets and execute them end-to-end
+        through the selected adapter before falling back to Rust hooks.
 
 ## Schema Package Implementation List
 

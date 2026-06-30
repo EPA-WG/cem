@@ -128,6 +128,8 @@ Progress:
       target identities.
 - [x] Register CEMT converter descriptors as primary conversion edges with Rust
       fallback hooks where the CEMT edge is not yet implemented.
-- [ ] Execute selected converter descriptors through CEMT template adapters,
+- [x] Execute selected converter descriptors through CEMT template adapters,
       falling back to registered Rust hooks while planned CEMT edges are not
       executable.
+- [ ] Load ready CEMT converter template assets and execute them end-to-end
+      through the selected adapter before falling back to Rust hooks.
