@@ -31,3 +31,24 @@ The schema describes CSV resources as a tabular model:
 The default delimiter for `text/csv` is comma. Other delimited text formats
 should use their own schema package or an explicit converter profile instead of
 being silently treated as CSV.
+
+## Validation Examples
+
+The schema-owned examples live in [`examples/`](examples/) and are used by the
+CLI validation integration tests.
+
+| Example | Purpose | Expected result |
+| --- | --- | --- |
+| [`basic-table.csv`](examples/basic-table.csv) | Minimal table with a header row and scalar fields. | Pass |
+| [`quoted-fields.csv`](examples/quoted-fields.csv) | Quoted fields with an embedded newline and escaped quote. | Pass |
+| [`invalid-unclosed-quote.csv`](examples/invalid-unclosed-quote.csv) | Unterminated quoted field rejected by the CSV quote policy. | Fail with `cem.csv.unclosed_quote` |
+| [`ragged-row.csv`](examples/ragged-row.csv) | Row width differs from the first row. | Pass with warning `cem.csv.inconsistent_field_count` |
+
+Validate an example explicitly against this schema:
+
+```bash
+cargo run -p cem-ml-cli -- validate \
+  --content-type text/csv \
+  --schema https://cem.dev/ns/data/csv/1 \
+  packages/cem_ml/schema-packages/csv/v1/examples/basic-table.csv
+```

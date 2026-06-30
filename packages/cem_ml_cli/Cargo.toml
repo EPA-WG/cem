@@ -16,6 +16,7 @@ clap = { version = "4", features = ["derive"] }
 cem-ml = { path = "../cem_ml" }
 cem-ml-transform-cem-ql = { path = "../cem_ml_transform_cem_ql" }
 cem-ql = { path = "../cem_ql" }
+csv = "1"
 serde_json = "1"
 yaml-rust2 = "0.11"
 

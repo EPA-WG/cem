@@ -22,6 +22,8 @@ const YAML_SCHEMA_URI: &str = "https://cem.dev/ns/data/yaml/1";
 const YAML_CONTENT_TYPE: &str = "application/yaml";
 const YAML_TEXT_CONTENT_TYPE: &str = "text/yaml";
 const YAML_LEGACY_CONTENT_TYPE: &str = "application/x-yaml";
+const CSV_SCHEMA_URI: &str = "https://cem.dev/ns/data/csv/1";
+const CSV_CONTENT_TYPE: &str = "text/csv";
 const JSON_SCHEMA_SCHEMA_URI: &str = "https://cem.dev/ns/data/json-schema/1";
 const JSON_SCHEMA_CONTENT_TYPE: &str = "application/schema+json";
 const CEM_DOM_PROJECTION_SCHEMA_URI: &str = "https://cem.dev/ns/projection/dom/1";
@@ -316,6 +318,38 @@ fn schema_owned_examples_validate_through_cli() {
             schema_uri: YAML_SCHEMA_URI,
             expected_exit: EXIT_HARD_FAILURE,
             expected_diagnostics: &["cem.yaml.unsafe_tag"],
+        },
+        ValidationExample {
+            name: "csv basic table",
+            path: "packages/cem_ml/schema-packages/csv/v1/examples/basic-table.csv",
+            content_type: CSV_CONTENT_TYPE,
+            schema_uri: CSV_SCHEMA_URI,
+            expected_exit: EXIT_OK,
+            expected_diagnostics: &[],
+        },
+        ValidationExample {
+            name: "csv quoted fields",
+            path: "packages/cem_ml/schema-packages/csv/v1/examples/quoted-fields.csv",
+            content_type: CSV_CONTENT_TYPE,
+            schema_uri: CSV_SCHEMA_URI,
+            expected_exit: EXIT_OK,
+            expected_diagnostics: &[],
+        },
+        ValidationExample {
+            name: "csv invalid unclosed quote",
+            path: "packages/cem_ml/schema-packages/csv/v1/examples/invalid-unclosed-quote.csv",
+            content_type: CSV_CONTENT_TYPE,
+            schema_uri: CSV_SCHEMA_URI,
+            expected_exit: EXIT_HARD_FAILURE,
+            expected_diagnostics: &["cem.csv.unclosed_quote"],
+        },
+        ValidationExample {
+            name: "csv ragged row",
+            path: "packages/cem_ml/schema-packages/csv/v1/examples/ragged-row.csv",
+            content_type: CSV_CONTENT_TYPE,
+            schema_uri: CSV_SCHEMA_URI,
+            expected_exit: EXIT_OK,
+            expected_diagnostics: &["cem.csv.inconsistent_field_count"],
         },
         ValidationExample {
             name: "json-schema basic",
