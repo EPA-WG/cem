@@ -3012,6 +3012,10 @@ fn direct_source_validation_report(
             diagnostics.extend(collect_cem_ast_projection_source_diagnostics(
                 std::slice::from_ref(input),
             ));
+        } else if is_cem_events_projection_source_input(input) {
+            diagnostics.extend(collect_cem_events_projection_source_diagnostics(
+                std::slice::from_ref(input),
+            ));
         } else if is_json_schema_source_input(input) {
             diagnostics.extend(collect_json_schema_source_diagnostics(
                 std::slice::from_ref(input),
@@ -3183,6 +3187,38 @@ fn is_cem_ast_projection_source_content_type(content_type: &str) -> bool {
     )
 }
 
+fn is_cem_events_projection_source_input(input: &eng::EngineInput) -> bool {
+    let identity = input
+        .identity
+        .clone()
+        .unwrap_or_else(|| input.root_scope.format_identity());
+    let schema_is_cem_events = identity
+        .schema
+        .as_deref()
+        .map(str::trim)
+        .is_some_and(|schema| schema == cem_ml::schema::registry::CEM_EVENTS_PROJECTION_SCHEMA_URI);
+    let content_type = identity
+        .content_type
+        .as_deref()
+        .map(cli_content_type_essence);
+
+    match content_type.as_deref() {
+        Some(content_type) if is_cem_events_projection_source_content_type(content_type) => {
+            identity.schema.is_none() || schema_is_cem_events
+        }
+        Some(_) => false,
+        None => schema_is_cem_events,
+    }
+}
+
+fn is_cem_events_projection_source_content_type(content_type: &str) -> bool {
+    matches!(
+        content_type,
+        cem_ml::schema::registry::CEM_EVENTS_PROJECTION_CONTENT_TYPE
+            | cem_ml::schema::registry::CEM_EVENTS_JSON_PROJECTION_CONTENT_TYPE
+    )
+}
+
 fn is_json_source_content_type(content_type: &str) -> bool {
     matches!(
         content_type,
@@ -3313,6 +3349,23 @@ fn collect_cem_ast_projection_source_diagnostics(
     diagnostics
 }
 
+fn collect_cem_events_projection_source_diagnostics(
+    inputs: &[eng::EngineInput],
+) -> Vec<cem_ml::diagnostics::Diagnostic> {
+    let mut diagnostics = Vec::new();
+    for input in inputs {
+        match cem_events_projection_source_kind(input) {
+            CemEventsProjectionSourceKind::Binary => {
+                diagnostics.extend(validate_cem_events_projection_binary(input));
+            }
+            CemEventsProjectionSourceKind::Json => {
+                diagnostics.extend(validate_cem_events_projection_json(input));
+            }
+        }
+    }
+    diagnostics
+}
+
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 enum CemDomProjectionSourceKind {
     Binary,
@@ -3377,6 +3430,39 @@ fn cem_ast_projection_source_kind(input: &eng::EngineInput) -> CemAstProjectionS
     }
 }
 
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+enum CemEventsProjectionSourceKind {
+    Binary,
+    Json,
+}
+
+fn cem_events_projection_source_kind(input: &eng::EngineInput) -> CemEventsProjectionSourceKind {
+    let identity = input
+        .identity
+        .clone()
+        .unwrap_or_else(|| input.root_scope.format_identity());
+    let content_type = identity
+        .content_type
+        .as_deref()
+        .map(cli_content_type_essence);
+
+    match content_type.as_deref() {
+        Some(content_type)
+            if content_type
+                == cem_ml::schema::registry::CEM_EVENTS_JSON_PROJECTION_CONTENT_TYPE =>
+        {
+            CemEventsProjectionSourceKind::Json
+        }
+        Some(content_type)
+            if content_type == cem_ml::schema::registry::CEM_EVENTS_PROJECTION_CONTENT_TYPE =>
+        {
+            CemEventsProjectionSourceKind::Binary
+        }
+        _ if input.bytes.starts_with(b"CEMPROJ\0") => CemEventsProjectionSourceKind::Binary,
+        _ => CemEventsProjectionSourceKind::Json,
+    }
+}
+
 fn validate_cem_dom_projection_binary(
     input: &eng::EngineInput,
 ) -> Vec<cem_ml::diagnostics::Diagnostic> {
@@ -3390,6 +3476,15 @@ fn validate_cem_ast_projection_binary(
     input: &eng::EngineInput,
 ) -> Vec<cem_ml::diagnostics::Diagnostic> {
     match validate_cem_ast_projection_binary_bytes(&input.bytes) {
+        Ok(()) => Vec::new(),
+        Err((code, message)) => vec![cem_projection_diagnostic(input, code, message)],
+    }
+}
+
+fn validate_cem_events_projection_binary(
+    input: &eng::EngineInput,
+) -> Vec<cem_ml::diagnostics::Diagnostic> {
+    match validate_cem_events_projection_binary_bytes(&input.bytes) {
         Ok(()) => Vec::new(),
         Err((code, message)) => vec![cem_projection_diagnostic(input, code, message)],
     }
@@ -3505,6 +3600,61 @@ fn validate_cem_ast_projection_binary_bytes(bytes: &[u8]) -> Result<(), (&'stati
     Ok(())
 }
 
+fn validate_cem_events_projection_binary_bytes(bytes: &[u8]) -> Result<(), (&'static str, String)> {
+    if !bytes.starts_with(b"CEMPROJ\0") {
+        return Err((
+            "cem.projection.events.binary_magic",
+            "CEM events binary projection must start with CEMPROJ\\0 magic".to_owned(),
+        ));
+    }
+
+    let mut reader = ProjectionBinaryReader::new(
+        &bytes[b"CEMPROJ\0".len()..],
+        "cem.projection.events",
+        "CEM events",
+    );
+    let version = reader.read_u16("version")?;
+    if version != 1 {
+        return Err((
+            "cem.projection.events.binary_version",
+            format!("unsupported CEM projection binary version `{version}`; expected `1`"),
+        ));
+    }
+
+    let projection_kind = reader.read_u8("projection kind")?;
+    if projection_kind != 3 {
+        return Err((
+            "cem.projection.events.projection_mismatch",
+            format!("binary projection kind `{projection_kind}` is not CEM events kind `3`"),
+        ));
+    }
+
+    let schema = reader.read_str("schema")?;
+    if schema != cem_ml::schema::registry::CEM_EVENTS_PROJECTION_SCHEMA_URI {
+        return Err((
+            "cem.projection.events.projection_mismatch",
+            format!(
+                "binary projection schema `{schema}` is not `{}`",
+                cem_ml::schema::registry::CEM_EVENTS_PROJECTION_SCHEMA_URI
+            ),
+        ));
+    }
+
+    let content_type = reader.read_str("content type")?;
+    if content_type != cem_ml::schema::registry::CEM_EVENTS_PROJECTION_CONTENT_TYPE {
+        return Err((
+            "cem.projection.events.projection_mismatch",
+            format!(
+                "binary projection content type `{content_type}` is not `{}`",
+                cem_ml::schema::registry::CEM_EVENTS_PROJECTION_CONTENT_TYPE
+            ),
+        ));
+    }
+
+    let _event_count = reader.read_u32("event count")?;
+    Ok(())
+}
+
 struct ProjectionBinaryReader<'a> {
     bytes: &'a [u8],
     offset: usize,
@@ -3584,6 +3734,7 @@ impl<'a> ProjectionBinaryReader<'a> {
     fn binary_truncated_code(&self) -> &'static str {
         match self.diagnostic_prefix {
             "cem.projection.ast" => "cem.projection.ast.binary_truncated",
+            "cem.projection.events" => "cem.projection.events.binary_truncated",
             _ => "cem.projection.dom.binary_truncated",
         }
     }
@@ -3637,6 +3788,30 @@ fn validate_cem_ast_projection_json(
     }
 }
 
+fn validate_cem_events_projection_json(
+    input: &eng::EngineInput,
+) -> Vec<cem_ml::diagnostics::Diagnostic> {
+    let value = match serde_json::from_slice::<serde_json::Value>(&input.bytes) {
+        Ok(value) => value,
+        Err(error) => {
+            return vec![cem_projection_diagnostic(
+                input,
+                "cem.projection.events.json_parse_error",
+                format!("CEM events JSON projection parse error: {error}"),
+            )];
+        }
+    };
+
+    match validate_cem_events_projection_json_value(&value) {
+        Ok(()) => Vec::new(),
+        Err(message) => vec![cem_projection_diagnostic(
+            input,
+            "cem.projection.events.json_shape",
+            message,
+        )],
+    }
+}
+
 fn validate_cem_dom_projection_json_value(value: &serde_json::Value) -> Result<(), String> {
     validate_cem_tree_projection_json_value(
         value,
@@ -3655,6 +3830,79 @@ fn validate_cem_ast_projection_json_value(value: &serde_json::Value) -> Result<(
         cem_ml::schema::registry::CEM_AST_PROJECTION_SCHEMA_URI,
         cem_ml::schema::registry::CEM_AST_PROJECTION_CONTENT_TYPE,
     )
+}
+
+fn validate_cem_events_projection_json_value(value: &serde_json::Value) -> Result<(), String> {
+    if let Some(object) = value.as_object() {
+        if object.get("kind").and_then(serde_json::Value::as_str) == Some("cem-binary-projection") {
+            return validate_cem_binary_projection_json(
+                object,
+                "events",
+                cem_ml::schema::registry::CEM_EVENTS_PROJECTION_SCHEMA_URI,
+                cem_ml::schema::registry::CEM_EVENTS_PROJECTION_CONTENT_TYPE,
+            );
+        }
+    }
+
+    let events = value
+        .as_array()
+        .ok_or_else(|| "CEM events JSON projection root must be an event array".to_owned())?;
+    for (index, event) in events.iter().enumerate() {
+        validate_cem_event_json(event, &format!("$[{index}]"))?;
+    }
+    Ok(())
+}
+
+fn validate_cem_event_json(value: &serde_json::Value, path: &str) -> Result<(), String> {
+    let object = json_object(value, path)?;
+    let Some(kind) = object.get("kind").and_then(serde_json::Value::as_str) else {
+        return Err(format!("{path}.kind must be a string"));
+    };
+
+    match kind {
+        "open" | "close" | "name" => {
+            expect_json_string_field(object, "name", path, None)?;
+            validate_required_byte_range(object, path)
+        }
+        "value" => {
+            let value = object
+                .get("value")
+                .ok_or_else(|| format!("{path}.value is required"))?;
+            if value.is_array() || value.is_object() {
+                return Err(format!(
+                    "{path}.value must be a string, number, boolean, or null"
+                ));
+            }
+            validate_required_byte_range(object, path)
+        }
+        "trivia" => {
+            let trivia = expect_json_string_field(object, "trivia", path, None)?;
+            if !matches!(trivia, "whitespace" | "comment") {
+                return Err(format!(
+                    "{path}.trivia `{trivia}` is not a supported trivia kind"
+                ));
+            }
+            expect_json_string_field(object, "data", path, None)?;
+            validate_required_byte_range(object, path)
+        }
+        "processing-instruction" => {
+            expect_json_string_field(object, "target", path, None)?;
+            expect_json_string_field(object, "data", path, None)?;
+            validate_required_byte_range(object, path)
+        }
+        "separator" => validate_required_byte_range(object, path),
+        "mode-switch" => {
+            expect_json_string_field(object, "contentType", path, None)?;
+            Ok(())
+        }
+        "error" => {
+            expect_json_string_field(object, "code", path, None)?;
+            validate_required_byte_range(object, path)
+        }
+        _ => Err(format!(
+            "{path}.kind `{kind}` is not a supported CEM events kind"
+        )),
+    }
 }
 
 fn validate_cem_tree_projection_json_value(
@@ -3833,6 +4081,16 @@ fn validate_optional_byte_range(
     expect_json_u64_field(range, "start", &range_path)?;
     expect_json_u64_field(range, "len", &range_path)?;
     Ok(())
+}
+
+fn validate_required_byte_range(
+    object: &serde_json::Map<String, serde_json::Value>,
+    path: &str,
+) -> Result<(), String> {
+    if !object.contains_key("byteRange") {
+        return Err(format!("{path}.byteRange is required"));
+    }
+    validate_optional_byte_range(object, path)
 }
 
 fn json_object<'a>(
@@ -8835,6 +9093,167 @@ declare variable broken := 1 +"#,
         assert!(diagnostics
             .iter()
             .any(|diag| diag["code"] == "cem.projection.ast.json_shape"));
+    }
+
+    #[test]
+    fn validate_cem_events_binary_projection_source_uses_binary_validator() {
+        let artifact = cem_ml::projection::events_binary_projection_artifact_as(
+            b"{p | Hi}",
+            cem_ml::engine::InputFormat::Cem,
+        );
+        let p = write_binary_fixture("validate-cem-events-source.cem-bin", &artifact.bytes);
+        let (outcome, stdout, stderr) = run(
+            &RealCemMlEngine::new(),
+            &[
+                "validate",
+                "--format",
+                "json",
+                "--content-type",
+                cem_ml::schema::registry::CEM_EVENTS_PROJECTION_CONTENT_TYPE,
+                "--schema",
+                cem_ml::schema::registry::CEM_EVENTS_PROJECTION_SCHEMA_URI,
+                p.to_str().unwrap(),
+            ],
+        );
+
+        assert_eq!(outcome.exit_code, EXIT_OK, "{stderr}");
+        let v: serde_json::Value = serde_json::from_str(stdout.trim()).unwrap();
+        let diagnostics = v["diagnostics"].as_array().unwrap();
+        assert_eq!(v["summary"]["hardViolationCount"], 0);
+        assert!(!diagnostics
+            .iter()
+            .any(|diag| diag["code"] == "cem.lifecycle.adapter_unsupported"));
+        assert!(!diagnostics.iter().any(|diag| diag["code"]
+            .as_str()
+            .is_some_and(|code| code.starts_with("cem.schema."))));
+    }
+
+    #[test]
+    fn validate_cem_events_binary_projection_source_reports_magic_diagnostic() {
+        let p = write_binary_fixture(
+            "validate-cem-events-source-invalid.cem-bin",
+            b"not-cem-proj",
+        );
+        let (outcome, stdout, stderr) = run(
+            &RealCemMlEngine::new(),
+            &[
+                "validate",
+                "--format",
+                "json",
+                "--content-type",
+                cem_ml::schema::registry::CEM_EVENTS_PROJECTION_CONTENT_TYPE,
+                "--schema",
+                cem_ml::schema::registry::CEM_EVENTS_PROJECTION_SCHEMA_URI,
+                p.to_str().unwrap(),
+            ],
+        );
+
+        assert_eq!(outcome.exit_code, EXIT_HARD_FAILURE, "{stderr}");
+        let v: serde_json::Value = serde_json::from_str(stdout.trim()).unwrap();
+        let diagnostics = v["diagnostics"].as_array().unwrap();
+        assert!(diagnostics
+            .iter()
+            .any(|diag| diag["code"] == "cem.projection.events.binary_magic"));
+    }
+
+    #[test]
+    fn validate_cem_events_json_projection_source_uses_events_json_validator() {
+        let p = write_fixture(
+            "validate-cem-events-source.events.json",
+            r#"[
+  {
+    "kind": "open",
+    "name": "p",
+    "byteRange": {
+      "start": 0,
+      "len": 2
+    }
+  },
+  {
+    "kind": "separator",
+    "byteRange": {
+      "start": 3,
+      "len": 1
+    }
+  },
+  {
+    "kind": "value",
+    "value": "Hi",
+    "byteRange": {
+      "start": 5,
+      "len": 2
+    }
+  },
+  {
+    "kind": "close",
+    "name": "p",
+    "byteRange": {
+      "start": 7,
+      "len": 1
+    }
+  }
+]"#,
+        );
+        let (outcome, stdout, stderr) = run(
+            &RealCemMlEngine::new(),
+            &[
+                "validate",
+                "--format",
+                "json",
+                "--content-type",
+                cem_ml::schema::registry::CEM_EVENTS_JSON_PROJECTION_CONTENT_TYPE,
+                "--schema",
+                cem_ml::schema::registry::CEM_EVENTS_PROJECTION_SCHEMA_URI,
+                p.to_str().unwrap(),
+            ],
+        );
+
+        assert_eq!(outcome.exit_code, EXIT_OK, "{stderr}");
+        let v: serde_json::Value = serde_json::from_str(stdout.trim()).unwrap();
+        let diagnostics = v["diagnostics"].as_array().unwrap();
+        assert_eq!(v["summary"]["hardViolationCount"], 0);
+        assert!(!diagnostics
+            .iter()
+            .any(|diag| diag["code"] == "cem.lifecycle.adapter_unsupported"));
+        assert!(!diagnostics.iter().any(|diag| diag["code"]
+            .as_str()
+            .is_some_and(|code| code.starts_with("cem.schema."))));
+    }
+
+    #[test]
+    fn validate_cem_events_json_projection_source_reports_shape_diagnostic() {
+        let p = write_fixture(
+            "validate-cem-events-source-invalid.events.json",
+            r#"[
+  {
+    "kind": "widget",
+    "byteRange": {
+      "start": 0,
+      "len": 1
+    }
+  }
+]"#,
+        );
+        let (outcome, stdout, stderr) = run(
+            &RealCemMlEngine::new(),
+            &[
+                "validate",
+                "--format",
+                "json",
+                "--content-type",
+                cem_ml::schema::registry::CEM_EVENTS_JSON_PROJECTION_CONTENT_TYPE,
+                "--schema",
+                cem_ml::schema::registry::CEM_EVENTS_PROJECTION_SCHEMA_URI,
+                p.to_str().unwrap(),
+            ],
+        );
+
+        assert_eq!(outcome.exit_code, EXIT_HARD_FAILURE, "{stderr}");
+        let v: serde_json::Value = serde_json::from_str(stdout.trim()).unwrap();
+        let diagnostics = v["diagnostics"].as_array().unwrap();
+        assert!(diagnostics
+            .iter()
+            .any(|diag| diag["code"] == "cem.projection.events.json_shape"));
     }
 
     #[test]

@@ -50,7 +50,7 @@ history belongs in git history and the feature-specific docs linked below.
   - [x] CEM AST projection
         (`application/vnd.cem.ast+cem-bin`,
         `application/vnd.cem.ast+json` debug view).
-  - [ ] CEM events projection
+  - [x] CEM events projection
         (`application/vnd.cem.events+cem-bin`,
         `application/vnd.cem.events+json` debug view).
   - [ ] YAML/YML (`application/yaml`, compatibility aliases).

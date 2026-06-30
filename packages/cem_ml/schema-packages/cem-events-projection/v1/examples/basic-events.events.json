@@ -1,0 +1,190 @@
+[
+  {
+    "byteRange": {
+      "len": 13,
+      "start": 0
+    },
+    "kind": "open",
+    "name": "@doc"
+  },
+  {
+    "byteRange": {
+      "len": 13,
+      "start": 0
+    },
+    "kind": "value",
+    "value": "cem-ml 1"
+  },
+  {
+    "byteRange": {
+      "len": 13,
+      "start": 0
+    },
+    "kind": "close",
+    "name": "@doc"
+  },
+  {
+    "byteRange": {
+      "len": 2,
+      "start": 13
+    },
+    "data": "\n\n",
+    "kind": "trivia",
+    "trivia": "whitespace"
+  },
+  {
+    "byteRange": {
+      "len": 8,
+      "start": 15
+    },
+    "kind": "open",
+    "name": "article"
+  },
+  {
+    "byteRange": {
+      "len": 2,
+      "start": 25
+    },
+    "kind": "name",
+    "name": "id"
+  },
+  {
+    "byteRange": {
+      "len": 9,
+      "start": 28
+    },
+    "kind": "value",
+    "value": "welcome"
+  },
+  {
+    "byteRange": {
+      "len": 1,
+      "start": 38
+    },
+    "kind": "separator"
+  },
+  {
+    "byteRange": {
+      "len": 5,
+      "start": 39
+    },
+    "data": "\n    ",
+    "kind": "trivia",
+    "trivia": "whitespace"
+  },
+  {
+    "byteRange": {
+      "len": 3,
+      "start": 44
+    },
+    "kind": "open",
+    "name": "h1"
+  },
+  {
+    "byteRange": {
+      "len": 1,
+      "start": 48
+    },
+    "kind": "separator"
+  },
+  {
+    "byteRange": {
+      "len": 1,
+      "start": 49
+    },
+    "data": " ",
+    "kind": "trivia",
+    "trivia": "whitespace"
+  },
+  {
+    "byteRange": {
+      "len": 7,
+      "start": 50
+    },
+    "kind": "value",
+    "value": "Welcome"
+  },
+  {
+    "byteRange": {
+      "len": 1,
+      "start": 57
+    },
+    "kind": "close",
+    "name": "h1"
+  },
+  {
+    "byteRange": {
+      "len": 5,
+      "start": 58
+    },
+    "data": "\n    ",
+    "kind": "trivia",
+    "trivia": "whitespace"
+  },
+  {
+    "byteRange": {
+      "len": 2,
+      "start": 63
+    },
+    "kind": "open",
+    "name": "p"
+  },
+  {
+    "byteRange": {
+      "len": 1,
+      "start": 66
+    },
+    "kind": "separator"
+  },
+  {
+    "byteRange": {
+      "len": 1,
+      "start": 67
+    },
+    "data": " ",
+    "kind": "trivia",
+    "trivia": "whitespace"
+  },
+  {
+    "byteRange": {
+      "len": 34,
+      "start": 68
+    },
+    "kind": "value",
+    "value": "This is a minimal CEM-ML document."
+  },
+  {
+    "byteRange": {
+      "len": 1,
+      "start": 102
+    },
+    "kind": "close",
+    "name": "p"
+  },
+  {
+    "byteRange": {
+      "len": 1,
+      "start": 103
+    },
+    "data": "\n",
+    "kind": "trivia",
+    "trivia": "whitespace"
+  },
+  {
+    "byteRange": {
+      "len": 1,
+      "start": 104
+    },
+    "kind": "close",
+    "name": "article"
+  },
+  {
+    "byteRange": {
+      "len": 1,
+      "start": 105
+    },
+    "data": "\n",
+    "kind": "trivia",
+    "trivia": "whitespace"
+  }
+]

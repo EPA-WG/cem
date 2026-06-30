@@ -35,7 +35,7 @@
         {attribute @name="sequence" @type="cemml:integer"}
         {attribute @name="first-sequence" @type="cemml:integer"}
         {attribute @name="last-sequence" @type="cemml:integer"}
-        {attribute @name="kind" @type="schema:identifier" @values="start-document end-document start-node end-node text attribute diagnostic checkpoint"}
+        {attribute @name="kind" @type="schema:identifier" @values="open close name value trivia processing-instruction separator mode-switch error"}
         {attribute @name="name" @type="schema:qualified-name"}
         {attribute @name="value" @type="schema:string"}
         {attribute @name="schema" @type="schema:uri"}
@@ -63,6 +63,12 @@
         {diagnostic @code="cem.projection.events.chunk_hash_mismatch" @severity="error"}
         {diagnostic @code="cem.projection.events.checkpoint_invalid" @severity="error"}
         {diagnostic @code="cem.projection.events.source_map_missing" @severity="warning"}
+        {diagnostic @code="cem.projection.events.binary_magic" @severity="error"}
+        {diagnostic @code="cem.projection.events.binary_truncated" @severity="error"}
+        {diagnostic @code="cem.projection.events.binary_version" @severity="error"}
+        {diagnostic @code="cem.projection.events.projection_mismatch" @severity="error"}
+        {diagnostic @code="cem.projection.events.json_parse_error" @severity="error"}
+        {diagnostic @code="cem.projection.events.json_shape" @severity="error"}
     }
 
     {compatibility |

@@ -26,6 +26,9 @@ const CEM_DOM_JSON_PROJECTION_CONTENT_TYPE: &str = "application/vnd.cem.dom+json
 const CEM_AST_PROJECTION_SCHEMA_URI: &str = "https://cem.dev/ns/projection/ast/1";
 const CEM_AST_PROJECTION_CONTENT_TYPE: &str = "application/vnd.cem.ast+cem-bin";
 const CEM_AST_JSON_PROJECTION_CONTENT_TYPE: &str = "application/vnd.cem.ast+json";
+const CEM_EVENTS_PROJECTION_SCHEMA_URI: &str = "https://cem.dev/ns/projection/events/1";
+const CEM_EVENTS_PROJECTION_CONTENT_TYPE: &str = "application/vnd.cem.events+cem-bin";
+const CEM_EVENTS_JSON_PROJECTION_CONTENT_TYPE: &str = "application/vnd.cem.events+json";
 
 #[derive(Debug)]
 struct ValidationExample {
@@ -389,6 +392,46 @@ fn schema_owned_examples_validate_through_cli() {
             schema_uri: CEM_AST_PROJECTION_SCHEMA_URI,
             expected_exit: EXIT_HARD_FAILURE,
             expected_diagnostics: &["cem.projection.ast.binary_magic"],
+        },
+        ValidationExample {
+            name: "cem-events binary basic",
+            path: "packages/cem_ml/schema-packages/cem-events-projection/v1/examples/basic-events.cem-bin",
+            content_type: CEM_EVENTS_PROJECTION_CONTENT_TYPE,
+            schema_uri: CEM_EVENTS_PROJECTION_SCHEMA_URI,
+            expected_exit: EXIT_OK,
+            expected_diagnostics: &[],
+        },
+        ValidationExample {
+            name: "cem-events json basic",
+            path: "packages/cem_ml/schema-packages/cem-events-projection/v1/examples/basic-events.events.json",
+            content_type: CEM_EVENTS_JSON_PROJECTION_CONTENT_TYPE,
+            schema_uri: CEM_EVENTS_PROJECTION_SCHEMA_URI,
+            expected_exit: EXIT_OK,
+            expected_diagnostics: &[],
+        },
+        ValidationExample {
+            name: "cem-events json nested",
+            path: "packages/cem_ml/schema-packages/cem-events-projection/v1/examples/nested-events.events.json",
+            content_type: CEM_EVENTS_JSON_PROJECTION_CONTENT_TYPE,
+            schema_uri: CEM_EVENTS_PROJECTION_SCHEMA_URI,
+            expected_exit: EXIT_OK,
+            expected_diagnostics: &[],
+        },
+        ValidationExample {
+            name: "cem-events json invalid kind",
+            path: "packages/cem_ml/schema-packages/cem-events-projection/v1/examples/invalid-kind.events.json",
+            content_type: CEM_EVENTS_JSON_PROJECTION_CONTENT_TYPE,
+            schema_uri: CEM_EVENTS_PROJECTION_SCHEMA_URI,
+            expected_exit: EXIT_HARD_FAILURE,
+            expected_diagnostics: &["cem.projection.events.json_shape"],
+        },
+        ValidationExample {
+            name: "cem-events binary invalid magic",
+            path: "packages/cem_ml/schema-packages/cem-events-projection/v1/examples/invalid-binary.cem-bin",
+            content_type: CEM_EVENTS_PROJECTION_CONTENT_TYPE,
+            schema_uri: CEM_EVENTS_PROJECTION_SCHEMA_URI,
+            expected_exit: EXIT_HARD_FAILURE,
+            expected_diagnostics: &["cem.projection.events.binary_magic"],
         },
     ];
 
