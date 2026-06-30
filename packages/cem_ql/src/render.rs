@@ -243,7 +243,8 @@ pub fn render_compiled_template(artifact: &TemplateArtifact, data: &TemplateData
     };
     let mut nodes = Vec::new();
     for node in root_render_nodes(&artifact.nodes) {
-        renderer.render_into(node, &mut nodes);
+        let mut ignored_attributes = Vec::new();
+        renderer.render_into(node, &mut nodes, &mut ignored_attributes);
     }
     RenderPlan {
         nodes,
@@ -881,7 +882,12 @@ impl PlanRenderer {
     /// Render a template node, appending zero or more plan nodes to `out`. Conditionals
     /// (`cem:if`/`cem:choose`) contribute the children of the selected branch (or none),
     /// so they flatten into the surrounding sequence rather than emitting a wrapper.
-    fn render_into(&mut self, node: &TemplateNode, out: &mut Vec<RenderPlanNode>) {
+    fn render_into(
+        &mut self,
+        node: &TemplateNode,
+        out: &mut Vec<RenderPlanNode>,
+        parent_attributes: &mut Vec<RenderPlanAttribute>,
+    ) {
         match node {
             TemplateNode::Element {
                 tag,
@@ -890,25 +896,44 @@ impl PlanRenderer {
                 source_map,
             } => {
                 if local_template_name(tag) == "call" {
-                    self.render_call_into(attributes, source_map, out);
+                    self.render_call_into(attributes, source_map, out, parent_attributes);
                     return;
                 }
                 if local_template_name(tag) == "body" {
                     for child in children {
-                        self.render_into(child, out);
+                        self.render_into(child, out, parent_attributes);
                     }
                     return;
                 }
                 if local_template_name(tag) == "param" || is_named_template_declaration(node) {
                     return;
                 }
-                let attributes = attributes
+                if local_template_name(tag) == "attribute" {
+                    if let Some(attribute) =
+                        self.render_constructed_attribute(attributes, children, source_map)
+                    {
+                        parent_attributes.push(attribute);
+                    }
+                    return;
+                }
+                if local_template_name(tag) == "element" {
+                    self.render_constructed_element(attributes, children, source_map, out);
+                    return;
+                }
+                if local_template_name(tag) == "comment" {
+                    out.push(RenderPlanNode::Comment {
+                        text: self.render_constructor_text(attributes, children, "value"),
+                        source_map: source_map.clone(),
+                    });
+                    return;
+                }
+                let mut attributes = attributes
                     .iter()
                     .filter_map(|attribute| self.render_attribute(attribute))
-                    .collect();
+                    .collect::<Vec<_>>();
                 let mut child_nodes = Vec::new();
                 for child in children {
-                    self.render_into(child, &mut child_nodes);
+                    self.render_into(child, &mut child_nodes, &mut attributes);
                 }
                 out.push(RenderPlanNode::Element {
                     tag: tag.clone(),
@@ -932,7 +957,7 @@ impl PlanRenderer {
             TemplateNode::If { test, children, .. } => {
                 if self.test_is_truthy(test.as_ref()) {
                     for child in children {
-                        self.render_into(child, out);
+                        self.render_into(child, out, parent_attributes);
                     }
                 }
             }
@@ -944,7 +969,7 @@ impl PlanRenderer {
                     };
                     if matched {
                         for child in &branch.children {
-                            self.render_into(child, out);
+                            self.render_into(child, out, parent_attributes);
                         }
                         break;
                     }
@@ -978,7 +1003,7 @@ impl PlanRenderer {
                         ItemStream::once(Item::Atomic(AtomValue::Integer((offset + 1) as i64))),
                     );
                     for child in children {
-                        self.render_into(child, out);
+                        self.render_into(child, out, parent_attributes);
                     }
                 }
                 // Restore the prior bindings so the loop variables do not leak past the block.
@@ -1013,6 +1038,7 @@ impl PlanRenderer {
         attributes: &[TemplateAttribute],
         source_map: &SourceMapStack,
         out: &mut Vec<RenderPlanNode>,
+        parent_attributes: &mut Vec<RenderPlanAttribute>,
     ) {
         if self.call_depth >= self.max_call_depth {
             self.diagnostics.push(render_diagnostic(
@@ -1071,7 +1097,7 @@ impl PlanRenderer {
 
         self.call_depth += 1;
         for node in &template_nodes {
-            self.render_into(node, out);
+            self.render_into(node, out, parent_attributes);
         }
         self.call_depth -= 1;
 
@@ -1148,7 +1174,22 @@ impl PlanRenderer {
     }
 
     fn render_attribute(&mut self, attribute: &TemplateAttribute) -> Option<RenderPlanAttribute> {
-        let (value, value_stream) = match &attribute.value {
+        let (value, value_stream) = self.render_attribute_value(attribute);
+        if value.is_empty()
+            && (!attribute.name.starts_with("with:") || value_stream.items.is_empty())
+        {
+            return None;
+        }
+        Some(RenderPlanAttribute {
+            name: attribute.name.clone(),
+            value,
+            value_stream,
+            source_map: attribute.source_map.clone(),
+        })
+    }
+
+    fn render_attribute_value(&mut self, attribute: &TemplateAttribute) -> (String, ItemStream) {
+        match &attribute.value {
             None => (String::new(), string_stream(String::new())),
             Some(TemplateAttributeValue::Literal(value)) => {
                 (value.clone(), string_stream(value.clone()))
@@ -1169,20 +1210,121 @@ impl PlanRenderer {
             Some(TemplateAttributeValue::Expression(expression)) => {
                 let value_stream = self.evaluate_to_stream(expression);
                 let value = stream_to_string(&value_stream);
-                if value.is_empty()
-                    && (!attribute.name.starts_with("with:") || value_stream.items.is_empty())
-                {
-                    return None;
-                }
                 (value, value_stream)
             }
+        }
+    }
+
+    fn render_constructed_element(
+        &mut self,
+        attributes: &[TemplateAttribute],
+        children: &[TemplateNode],
+        source_map: &SourceMapStack,
+        out: &mut Vec<RenderPlanNode>,
+    ) {
+        let Some((tag, tag_source_map)) =
+            self.render_constructor_name(attributes, "name", source_map, "element")
+        else {
+            return;
         };
+        let mut rendered_attributes = Vec::new();
+        let mut rendered_children = Vec::new();
+        for child in children {
+            self.render_into(child, &mut rendered_children, &mut rendered_attributes);
+        }
+        out.push(RenderPlanNode::Element {
+            tag,
+            attributes: rendered_attributes,
+            children: rendered_children,
+            source_map: tag_source_map,
+        });
+    }
+
+    fn render_constructed_attribute(
+        &mut self,
+        attributes: &[TemplateAttribute],
+        children: &[TemplateNode],
+        source_map: &SourceMapStack,
+    ) -> Option<RenderPlanAttribute> {
+        let (name, name_source_map) =
+            self.render_constructor_name(attributes, "name", source_map, "attribute")?;
+        let Some(value_attribute) = attributes
+            .iter()
+            .find(|attribute| attribute.name == "value")
+        else {
+            let mut ignored_attributes = Vec::new();
+            let mut rendered_children = Vec::new();
+            for child in children {
+                self.render_into(child, &mut rendered_children, &mut ignored_attributes);
+            }
+            let value = render_plan_nodes_to_text(&rendered_children);
+            return Some(RenderPlanAttribute {
+                name,
+                value: value.clone(),
+                value_stream: string_stream(value),
+                source_map: name_source_map,
+            });
+        };
+        let (value, value_stream) = self.render_attribute_value(value_attribute);
         Some(RenderPlanAttribute {
-            name: attribute.name.clone(),
+            name,
             value,
             value_stream,
-            source_map: attribute.source_map.clone(),
+            source_map: value_attribute.source_map.clone(),
         })
+    }
+
+    fn render_constructor_text(
+        &mut self,
+        attributes: &[TemplateAttribute],
+        children: &[TemplateNode],
+        value_attribute_name: &str,
+    ) -> String {
+        if let Some(attribute) = attributes
+            .iter()
+            .find(|attribute| attribute.name == value_attribute_name)
+        {
+            let (value, _) = self.render_attribute_value(attribute);
+            return value;
+        }
+        let mut ignored_attributes = Vec::new();
+        let mut rendered_children = Vec::new();
+        for child in children {
+            self.render_into(child, &mut rendered_children, &mut ignored_attributes);
+        }
+        render_plan_nodes_to_text(&rendered_children)
+    }
+
+    fn render_constructor_name(
+        &mut self,
+        attributes: &[TemplateAttribute],
+        attribute_name: &str,
+        source_map: &SourceMapStack,
+        construct: &str,
+    ) -> Option<(String, SourceMapStack)> {
+        let Some(attribute) = attributes
+            .iter()
+            .find(|attribute| attribute.name == attribute_name)
+        else {
+            self.diagnostics.push(render_diagnostic(
+                "cem.ql.render.dynamic_name_missing",
+                format!("`{construct}` constructor requires `@{attribute_name}`"),
+                source_map_start(source_map),
+                source_map.clone(),
+            ));
+            return None;
+        };
+        let (value, _) = self.render_attribute_value(attribute);
+        let Some(name) = normalize_constructed_name(&value) else {
+            self.diagnostics.push(render_diagnostic(
+                "cem.ql.render.dynamic_name_invalid",
+                format!("`{construct}` constructor name `{value}` is not a valid output name"),
+                source_map_start(&attribute.source_map),
+                attribute.source_map.clone(),
+            ));
+            return None;
+        };
+        Some((name, attribute.source_map.clone()))
     }
 
     fn evaluate_to_string(&mut self, expression: &CompiledTemplateExpression) -> String {
@@ -1608,6 +1750,32 @@ fn source_map_start(source_map: &SourceMapStack) -> u64 {
             FrameSpan::Multi(_) => None,
         })
         .unwrap_or(0)
+}
+
+fn normalize_constructed_name(value: &str) -> Option<String> {
+    let name = value.trim();
+    if name.is_empty()
+        || name
+            .chars()
+            .any(|c| c.is_whitespace() || matches!(c, '<' | '>' | '/' | '=' | '"' | '\''))
+    {
+        return None;
+    }
+    Some(name.to_owned())
+}
+
+fn render_plan_nodes_to_text(nodes: &[RenderPlanNode]) -> String {
+    let mut text = String::new();
+    for node in nodes {
+        match node {
+            RenderPlanNode::Element { children, .. } => {
+                text.push_str(&render_plan_nodes_to_text(children));
+            }
+            RenderPlanNode::Text { text: chunk, .. } => text.push_str(chunk),
+            RenderPlanNode::Comment { .. } => {}
+        }
+    }
+    text
 }
 
 fn escape_text_into(out: &mut String, value: &str) {

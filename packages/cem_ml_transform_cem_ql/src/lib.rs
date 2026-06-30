@@ -4163,6 +4163,67 @@ mod tests {
                 "{uri}: {:?}",
                 compiled.diagnostics
             );
+            if uri.ends_with("dom-to-html.cemt") {
+                let primary_input = TransformTemplateDataArtifact {
+                    artifact_id: "dom".to_owned(),
+                    uri: Some("dom.json".to_owned()),
+                    identity: Some(FormatIdentity {
+                        content_type: Some(
+                            cem_ml::schema::registry::CEM_DOM_JSON_PROJECTION_CONTENT_TYPE
+                                .to_owned(),
+                        ),
+                        schema: Some(
+                            cem_ml::schema::registry::CEM_DOM_PROJECTION_SCHEMA_URI.to_owned(),
+                        ),
+                        ..FormatIdentity::default()
+                    }),
+                    value: json_object([
+                        ("kind", Value::String("document".to_owned())),
+                        (
+                            "children",
+                            Value::Array(vec![json_object([
+                                ("kind", Value::String("element".to_owned())),
+                                ("name", Value::String("p".to_owned())),
+                                ("namespace", Value::String(String::new())),
+                                (
+                                    "attributes",
+                                    Value::Array(vec![json_object([
+                                        ("name", Value::String("class".to_owned())),
+                                        ("namespace", Value::String(String::new())),
+                                        ("value", Value::String("lead".to_owned())),
+                                    ])]),
+                                ),
+                                (
+                                    "children",
+                                    Value::Array(vec![json_object([
+                                        ("kind", Value::String("text".to_owned())),
+                                        ("data", Value::String("Hi".to_owned())),
+                                    ])]),
+                                ),
+                            ])]),
+                        ),
+                    ]),
+                };
+                let secondary_inputs = BTreeMap::new();
+                let rendered = adapter
+                    .render(TransformTemplateRenderRequest {
+                        compiled: &compiled.artifact,
+                        primary_input: &primary_input,
+                        secondary_inputs: &secondary_inputs,
+                        target: Some(&FormatIdentity {
+                            content_type: Some("text/html".to_owned()),
+                            ..FormatIdentity::default()
+                        }),
+                        target_scope: &ScopeConfig::default(),
+                        execution_policy: TransformExecutionPolicy::default(),
+                    })
+                    .expect("packaged DOM-to-HTML converter asset should render");
+
+                assert_eq!(
+                    rendered.output.value,
+                    Value::String(r#"<p class="lead">Hi</p>"#.to_owned())
+                );
+            }
         }
     }
 

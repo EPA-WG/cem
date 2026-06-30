@@ -463,6 +463,47 @@ fn render_template_applies_declaration_defaults() {
 }
 
 #[test]
+fn render_template_constructs_dynamic_elements_and_attributes() {
+    let rendered = render_template(
+        r#"{element @name="{$tag}" |{attribute @name="data-id" @value="{$id}"}{attribute @name="{$dynamicName}" | {$dynamicValue}}{$label}}"#,
+        &TemplateData::default()
+            .with_binding("tag", string_value("article"))
+            .with_binding("id", string_value("42"))
+            .with_binding("dynamicName", string_value("aria-label"))
+            .with_binding("dynamicValue", string_value("Read"))
+            .with_binding("label", string_value("Title")),
+    );
+
+    assert_eq!(
+        rendered.rendered,
+        r#"<article data-id="42" aria-label="Read">Title</article>"#
+    );
+    assert!(
+        rendered.diagnostics.is_empty(),
+        "{:?}",
+        rendered.diagnostics
+    );
+}
+
+#[test]
+fn render_template_attaches_conditional_attributes_to_parent() {
+    let rendered = render_template(
+        r#"{input @type="email" |{cem:if @test="required" |{attribute @name="required"}}}"#,
+        &TemplateData::default().with_binding("required", bool_value(true)),
+    );
+
+    assert_eq!(
+        rendered.rendered,
+        r#"<input type="email" required></input>"#
+    );
+    assert!(
+        rendered.diagnostics.is_empty(),
+        "{:?}",
+        rendered.diagnostics
+    );
+}
+
+#[test]
 fn render_template_supports_nested_conditionals() {
     // `cem:if` wrapping a `cem:choose` whose `cem:otherwise` nests another `cem:if`.
     let template = concat!(

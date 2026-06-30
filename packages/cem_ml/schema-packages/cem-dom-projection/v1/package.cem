@@ -24,7 +24,7 @@
         @lossiness="serialization"
         @implicit=true
         @readiness="planned"
-        @fallback-reason="CEMT DOM-to-HTML serialization requires dynamic element/attribute construction before the edge can be promoted to ready" |
+        @fallback-reason="CEMT DOM-to-HTML serialization awaits context-aware converter asset validation and parity coverage before the edge can be promoted to ready" |
         {from @content-type="application/vnd.cem.dom+cem-bin" @schema="https://cem.dev/ns/projection/dom/1"}
         {to @content-type="text/html" @schema="https://cem.dev/ns/data/html/1"}
     }
@@ -40,7 +40,7 @@
         @lossiness="serialization"
         @implicit=true
         @readiness="planned"
-        @fallback-reason="CEMT DOM-to-XML serialization requires dynamic element/attribute construction and XML target serialization before the edge can be promoted to ready" |
+        @fallback-reason="CEMT DOM-to-XML serialization requires XML target serialization plus context-aware converter asset validation and parity coverage before the edge can be promoted to ready" |
         {from @content-type="application/vnd.cem.dom+cem-bin" @schema="https://cem.dev/ns/projection/dom/1"}
         {to @content-type="application/xml" @schema="https://cem.dev/ns/data/xml/1"}
     }

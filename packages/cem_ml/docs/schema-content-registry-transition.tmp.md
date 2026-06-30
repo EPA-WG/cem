@@ -135,7 +135,8 @@ Progress:
       through the selected adapter before falling back to Rust hooks.
 - [x] Author packaged DOM-projection CEMT converter assets as planned
       schema-owned resources.
-- [ ] Add context-aware CEMT converter asset validation, dynamic
-      element/attribute construction, and XML target serialization; then promote
-      the DOM-projection HTML/XML descriptors from planned to ready after parity
-      coverage.
+- [x] Add CEMT dynamic element/attribute construction and packaged DOM-to-HTML
+      converter smoke coverage.
+- [ ] Add context-aware CEMT converter asset validation and XML target
+      serialization; then promote the DOM-projection HTML/XML descriptors from
+      planned to ready after parity coverage.

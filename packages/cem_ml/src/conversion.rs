@@ -833,7 +833,7 @@ pub fn builtin_conversion_descriptors() -> Vec<ConversionDescriptor> {
             endpoint(HTML_CONTENT_TYPE, HTML_SCHEMA_URI),
             "schema-packages/cem-dom-projection/v1/converters/dom-to-html.cemt",
             "HtmlExportConverter",
-            "CEMT DOM-to-HTML serialization requires dynamic element/attribute construction before the edge can be promoted to ready",
+            "CEMT DOM-to-HTML serialization awaits context-aware converter asset validation and parity coverage before the edge can be promoted to ready",
             "serialization",
             100,
         ),
@@ -859,7 +859,7 @@ pub fn builtin_conversion_descriptors() -> Vec<ConversionDescriptor> {
             endpoint(XML_CONTENT_TYPE, XML_SCHEMA_URI),
             "schema-packages/cem-dom-projection/v1/converters/dom-to-xml.cemt",
             "XmlExportConverter",
-            "CEMT DOM-to-XML serialization requires dynamic element/attribute construction and XML target serialization before the edge can be promoted to ready",
+            "CEMT DOM-to-XML serialization requires XML target serialization plus context-aware converter asset validation and parity coverage before the edge can be promoted to ready",
             "serialization",
             100,
         ),
@@ -1089,9 +1089,7 @@ mod tests {
 
         let fallback = selection.descriptor.rust_fallback.as_ref().unwrap();
         assert_eq!(fallback.rust_symbol, "HtmlExportConverter");
-        assert!(fallback
-            .reason
-            .contains("dynamic element/attribute construction"));
+        assert!(fallback.reason.contains("context-aware converter"));
 
         let rust_edge = registry
             .converter("cem-dom-projection-to-html-rust")
@@ -1190,7 +1188,7 @@ mod tests {
                 template_adapter_id,
             } => {
                 assert_eq!(rust_symbol, "HtmlExportConverter");
-                assert!(reason.contains("dynamic element/attribute construction"));
+                assert!(reason.contains("context-aware converter"));
                 assert!(reason.contains("readiness is planned"));
                 assert_eq!(*template_adapter_id, Some("cem-native-template"));
             }
