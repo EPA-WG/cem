@@ -1,3 +1,4 @@
+use crate::conversion::ConversionRegistry;
 use crate::diagnostics::{Diagnostic, Severity};
 use crate::interpreter::OutputSpan;
 use crate::report::{Report, SchedulerTraceReport};
@@ -105,6 +106,7 @@ pub struct EngineContext {
     pub base_uri: Option<String>,
     pub scheduler: SchedulerConfig,
     pub schema_registry: SchemaRegistry,
+    pub converter_registry: ConversionRegistry,
     pub resolver_registry: ResolverRegistry,
     pub template_adapter_registry: TransformTemplateAdapterRegistry,
 }
@@ -117,6 +119,7 @@ impl Default for EngineContext {
             base_uri: None,
             scheduler: SchedulerConfig::default(),
             schema_registry: SchemaRegistry::with_builtin_schemas(),
+            converter_registry: ConversionRegistry::with_builtin_converters(),
             resolver_registry: ResolverRegistry::default(),
             template_adapter_registry: TransformTemplateAdapterRegistry::with_builtin_adapters(),
         }

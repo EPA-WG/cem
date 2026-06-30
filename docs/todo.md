@@ -76,8 +76,10 @@ history belongs in git history and the feature-specific docs linked below.
   - [x] Route direct CLI source validation selection through the schema
         registry content-type descriptors while preserving explicit schema
         mismatch rejection.
-  - [ ] Add `ConversionRegistry` direct-edge lookup between resolved source and
+  - [x] Add `ConversionRegistry` direct-edge lookup between resolved source and
         target identities.
+  - [ ] Register CEMT converter descriptors as primary conversion edges with
+        Rust fallback hooks where the CEMT edge is not yet implemented.
 
 ## Schema Package Implementation List
 

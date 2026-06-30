@@ -1,6 +1,7 @@
 pub const VERSION: &str = env!("CARGO_PKG_VERSION");
 
 pub mod benchmark;
+pub mod conversion;
 pub mod diagnostics;
 pub mod engine;
 pub mod report;

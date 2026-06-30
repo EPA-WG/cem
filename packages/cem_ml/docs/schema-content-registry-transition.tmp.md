@@ -124,7 +124,7 @@ Progress:
       `SchemaRegistry` descriptors and requires any explicit `--schema` value to
       match the registry-owned schema before selecting a Rust fallback
       validator.
-- [ ] Add `ConversionRegistry` direct-edge lookup between resolved source and
+- [x] Add `ConversionRegistry` direct-edge lookup between resolved source and
       target identities.
 - [ ] Register CEMT converter descriptors as primary conversion edges with Rust
       fallback hooks where the CEMT edge is not yet implemented.
