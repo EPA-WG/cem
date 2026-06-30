@@ -135,6 +135,7 @@ impl RuleRegistry {
         r.register(Box::new(rules::JavaScriptUrlRule));
         r.register(Box::new(rules::EventHandlerAttributeRule));
         r.register(Box::new(rules::UnsafeInlineContentRule));
+        r.register(Box::new(rules::SchemaDocumentModelRule));
         r.register(Box::new(rules::OpenContentPolicyRule));
         r.register(Box::new(rules::UnboundPrefixRule));
         r.register(Box::new(rules::NoncanonicalDelimiterRule));
@@ -240,6 +241,7 @@ mod tests {
         assert!(codes.contains(&"cem.unsafe.javascript_url"));
         assert!(codes.contains(&"cem.unsafe.event_handler_attribute"));
         assert!(codes.contains(&"cem.unsafe.inline_content"));
+        assert!(codes.contains(&"cem.schema_model.document_model"));
         assert!(codes.contains(&"cem.schema.open_content_policy"));
         assert!(codes.contains(&"cem.lint.unbound_prefix"));
         assert!(codes.contains(&"cem.lint.noncanonical_delimiter"));

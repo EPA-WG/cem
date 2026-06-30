@@ -5,6 +5,7 @@
 
 pub mod compiler;
 pub mod disposition;
+pub mod document_model;
 pub mod ir;
 pub mod machine;
 pub mod namespace;

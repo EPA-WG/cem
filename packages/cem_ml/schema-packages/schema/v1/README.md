@@ -31,6 +31,7 @@ CLI validation integration tests.
 | [`basic-schema.cem`](examples/basic-schema.cem) | Minimal schema definition with content type, element, and attribute declarations. | Pass |
 | [`typed-resource-schema.cem`](examples/typed-resource-schema.cem) | Resource schema with `uses`, namespace claims, diagnostics, and open-content policy. | Pass |
 | [`invalid-unclosed-schema.cem`](examples/invalid-unclosed-schema.cem) | Missing closing schema scope syntax diagnostic. | Fail with `cem.schema.unclosed_scope` |
+| [`invalid-missing-required-attribute.cem`](examples/invalid-missing-required-attribute.cem) | Schema declaration missing its required `namespace` attribute. | Fail with `cem.schema_model.missing_required_attribute` |
 
 Validate an example explicitly against this schema:
 

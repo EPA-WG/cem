@@ -34,6 +34,7 @@ CLI validation integration tests.
 | [`basic-package.cem`](examples/basic-package.cem) | Minimal `package.cem` manifest with schema, content type, and namespace registration. | Pass |
 | [`converter-package.cem`](examples/converter-package.cem) | Package manifest with aliases and a CEMT converter declaration. | Pass |
 | [`invalid-unclosed-package.cem`](examples/invalid-unclosed-package.cem) | Missing closing package scope syntax diagnostic. | Fail with `cem.schema.unclosed_scope` |
+| [`invalid-missing-required-attribute.cem`](examples/invalid-missing-required-attribute.cem) | Manifest schema entry missing its required `source` attribute. | Fail with `cem.schema_model.missing_required_attribute` |
 
 Validate an example explicitly against this schema:
 

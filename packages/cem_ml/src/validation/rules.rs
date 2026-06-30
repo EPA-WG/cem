@@ -9,6 +9,7 @@
 //! - `SvgAccessibilityRule`: SVG-in-HTML naming and focus boundaries.
 //! - `StateCombinationRule`: disallow incompatible `cem:state` combos.
 //! - `StateTransitionRule`: disallow impossible static state transitions.
+//! - `SchemaDocumentModelRule`: schema-package structural checks.
 //! - `OpenContentPolicyRule`: schema-owned unknown-name policy checks.
 //! - `JavaScriptUrlRule`: `href` / `src` / `action` / `formaction` /
 //!   `xlink:href` values starting with `javascript:`.
@@ -17,6 +18,9 @@
 
 use crate::diagnostics::{Diagnostic, Severity};
 use crate::parser::{AstNodeId, CemAstNode};
+use crate::schema::document_model::{
+    load_builtin_document_model_for_identity, validate_document_model,
+};
 use crate::schema::registry::{
     content_type_essence, CEM_ML_CONTENT_TYPE, CEM_ML_SCHEMA_URI, CEM_SCHEMA_CONTENT_TYPE,
     CEM_SCHEMA_PACKAGE_CONTENT_TYPE, CEM_SCHEMA_PACKAGE_URI, CEM_SCHEMA_URI,
@@ -1061,6 +1065,40 @@ fn unsafe_inline_descriptor() -> &'static RuleDescriptor {
     })
 }
 
+// ---------- Schema Document Model ----------
+
+pub struct SchemaDocumentModelRule;
+
+impl SemanticRule for SchemaDocumentModelRule {
+    fn descriptor(&self) -> &RuleDescriptor {
+        schema_document_model_descriptor()
+    }
+
+    fn run(&self, ctx: &RuleContext<'_>) -> Vec<Diagnostic> {
+        let Some(model) =
+            load_builtin_document_model_for_identity(ctx.schema_uri, ctx.content_type)
+        else {
+            return Vec::new();
+        };
+
+        validate_document_model(ctx.document, &model)
+    }
+}
+
+fn schema_document_model_descriptor() -> &'static RuleDescriptor {
+    use std::sync::OnceLock;
+    static D: OnceLock<RuleDescriptor> = OnceLock::new();
+    D.get_or_init(|| RuleDescriptor {
+        id: RuleId::new("cem.schema_model.document_model"),
+        owning_scope: "cem-core",
+        content_type: None,
+        trigger_layer: TriggerLayer::Document,
+        required_inputs: &[RuleInput::CemDocument],
+        default_severity: Severity::Error,
+        policy_overridable: false,
+    })
+}
+
 // ---------- Open Content / Unknown Names ----------
 
 pub struct OpenContentPolicyRule;
@@ -1628,6 +1666,18 @@ mod tests {
             d.code != "cem.schema.unknown_html_element"
                 && d.code != "cem.schema.unknown_html_attribute"
         }));
+    }
+
+    #[test]
+    fn schema_document_model_rule_flags_missing_required_attribute() {
+        let diags = run_rules_with_identity(
+            r#"{schema @name=note @version="1.0.0"}"#,
+            Some(CEM_SCHEMA_URI),
+            Some(CEM_SCHEMA_CONTENT_TYPE),
+        );
+        assert!(diags
+            .iter()
+            .any(|d| d.code == "cem.schema_model.missing_required_attribute"));
     }
 
     #[test]

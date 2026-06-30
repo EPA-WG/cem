@@ -12,7 +12,7 @@ history belongs in git history and the feature-specific docs linked below.
       select an explicit lifecycle parser/adaptor, validate source bytes
       against the schema-owned document model, surface diagnostics through
       `validate`/`check`, and add focused Rust coverage.
-  - [ ] Establish schema-owned validation examples and a reusable CLI fixture
+  - [x] Establish schema-owned validation examples and a reusable CLI fixture
         harness before implementing per-schema validators.
         For each schema package, add a few popular real-world use cases as
         checked-in example files under
@@ -20,21 +20,21 @@ history belongs in git history and the feature-specific docs linked below.
         Link those files from that schema package's `README.md`, document the
         matching CLI validation command, and use the same example files in CLI
         validation tests for that file type.
-  - [ ] Organize CLI validation coverage so schema sub-projects can reuse it:
+  - [x] Organize CLI validation coverage so schema sub-projects can reuse it:
         keep CLI argument-plumbing tests in `packages/cem_ml_cli/src/dispatch.rs`,
         move schema example validation into a table-driven integration test
         such as `packages/cem_ml_cli/tests/schema_validation_examples.rs`, and
         have that suite read schema-owned examples instead of duplicating inline
         `write_fixture` strings.
-  - [ ] Define the example fixture contract: each schema starts with at least
+  - [x] Define the example fixture contract: each schema starts with at least
         valid basic, valid realistic/nested, and invalid diagnostic examples;
         every example declares expected content type, schema URL, validation
         command, expected pass/fail result, and expected diagnostic codes when
         failing.
-  - [ ] CEM-ML generic document/content model (`application/cem`).
-  - [ ] CEM-ML schema definition
+  - [x] CEM-ML generic document/content model (`application/cem`).
+  - [x] CEM-ML schema definition
         (`application/vnd.cem.schema+cem`).
-  - [ ] CEM-ML schema package manifest
+  - [x] CEM-ML schema package manifest
         (`application/vnd.cem.schema-package+cem`, `package.cem`).
   - [ ] CEM-ML native template
         (`application/vnd.cem.template+cem`).
