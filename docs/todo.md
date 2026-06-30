@@ -82,8 +82,10 @@ history belongs in git history and the feature-specific docs linked below.
         Rust fallback hooks where the CEMT edge is not yet implemented.
   - [x] Execute selected converter descriptors through CEMT template adapters
         with Rust fallback execution when the CEMT edge is still planned.
-  - [ ] Load ready CEMT converter template assets and execute them end-to-end
+  - [x] Load ready CEMT converter template assets and execute them end-to-end
         through the selected adapter before falling back to Rust hooks.
+  - [ ] Author packaged DOM-projection CEMT converter assets and promote the
+        HTML/XML descriptors from planned to ready after parity coverage.
 
 ## Schema Package Implementation List
 

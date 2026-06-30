@@ -131,5 +131,7 @@ Progress:
 - [x] Execute selected converter descriptors through CEMT template adapters,
       falling back to registered Rust hooks while planned CEMT edges are not
       executable.
-- [ ] Load ready CEMT converter template assets and execute them end-to-end
+- [x] Load ready CEMT converter template assets and execute them end-to-end
       through the selected adapter before falling back to Rust hooks.
+- [ ] Author packaged DOM-projection CEMT converter assets and promote the
+      HTML/XML descriptors from planned to ready after parity coverage.
