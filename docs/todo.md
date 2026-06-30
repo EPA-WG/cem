@@ -6,6 +6,65 @@ history belongs in git history and the feature-specific docs linked below.
 
 ## Immediate Tasks
 
+- [ ] Implement schema package loading and input-file validation for supported
+      schemas, in schema package creation order. Definition of done for each
+      schema: resolve content type to schema URL, load the schema package,
+      select an explicit lifecycle parser/adaptor, validate source bytes
+      against the schema-owned document model, surface diagnostics through
+      `validate`/`check`, and add focused Rust coverage.
+  - [ ] Establish schema-owned validation examples and a reusable CLI fixture
+        harness before implementing per-schema validators.
+        For each schema package, add a few popular real-world use cases as
+        checked-in example files under
+        `packages/cem_ml/schema-packages/{schema-name}/v1/examples/`.
+        Link those files from that schema package's `README.md`, document the
+        matching CLI validation command, and use the same example files in CLI
+        validation tests for that file type.
+  - [ ] Organize CLI validation coverage so schema sub-projects can reuse it:
+        keep CLI argument-plumbing tests in `packages/cem_ml_cli/src/dispatch.rs`,
+        move schema example validation into a table-driven integration test
+        such as `packages/cem_ml_cli/tests/schema_validation_examples.rs`, and
+        have that suite read schema-owned examples instead of duplicating inline
+        `write_fixture` strings.
+  - [ ] Define the example fixture contract: each schema starts with at least
+        valid basic, valid realistic/nested, and invalid diagnostic examples;
+        every example declares expected content type, schema URL, validation
+        command, expected pass/fail result, and expected diagnostic codes when
+        failing.
+  - [ ] CEM-ML generic document/content model (`application/cem`).
+  - [ ] CEM-ML schema definition
+        (`application/vnd.cem.schema+cem`).
+  - [ ] CEM-ML schema package manifest
+        (`application/vnd.cem.schema-package+cem`, `package.cem`).
+  - [ ] CEM-ML native template
+        (`application/vnd.cem.template+cem`).
+  - [ ] CEM-ML transform template
+        (`application/vnd.cem.transform+cem`, `.cemt`).
+  - [ ] CEM-QL module/query resources
+        (`application/vnd.cem.query+cem-ql`, `text/cem-ql`).
+  - [ ] JSON (`application/json`, `text/json`).
+  - [ ] JSON Schema (`application/schema+json`).
+  - [ ] CEM DOM projection
+        (`application/vnd.cem.dom+cem-bin`,
+        `application/vnd.cem.dom+json` debug view).
+  - [ ] CEM AST projection
+        (`application/vnd.cem.ast+cem-bin`,
+        `application/vnd.cem.ast+json` debug view).
+  - [ ] CEM events projection
+        (`application/vnd.cem.events+cem-bin`,
+        `application/vnd.cem.events+json` debug view).
+  - [ ] YAML/YML (`application/yaml`, compatibility aliases).
+  - [ ] CSV (`text/csv`).
+  - [ ] Markdown/MD markup (`text/markdown`).
+  - [ ] XML (`application/xml`, XML aliases).
+  - [ ] XHTML (`application/xhtml+xml`).
+  - [ ] SVG (`image/svg+xml`).
+  - [ ] MathML (`application/mathml+xml`, presentation/content aliases).
+  - [ ] XSLT/XSL legacy/custom-element compatibility
+        (`application/xslt+xml`, `text/xsl`, custom-element aliases).
+  - [ ] HTML (`text/html`).
+  - [ ] CSS/scoped style content (`text/css`).
+
 - Adopt the schema package content registry design as the active CEM-ML
   conversion goal:
   [`cem-ml-schema-content-registry-design.md`](cem-ml-schema-content-registry-design.md).
