@@ -65,7 +65,7 @@ history belongs in git history and the feature-specific docs linked below.
   - [x] XSLT/XSL legacy/custom-element compatibility
         (`application/xslt+xml`, `text/xsl`, custom-element aliases).
   - [x] HTML (`text/html`).
-  - [ ] CSS/scoped style content (`text/css`).
+  - [x] CSS/scoped style content (`text/css`).
 
 - Adopt the schema package content registry design as the active CEM-ML
   conversion goal:

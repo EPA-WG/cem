@@ -50,6 +50,9 @@ const XSLT_CUSTOM_ELEMENT_CONTENT_TYPE: &str = "custom-element-xslt";
 const HTML_SCHEMA_URI: &str = "https://cem.dev/ns/data/html/1";
 const HTML_CONTENT_TYPE: &str = "text/html";
 const HTML_WINDOWS_1252_CONTENT_TYPE: &str = "text/html; charset=windows-1252";
+const CSS_SCHEMA_URI: &str = "https://cem.dev/ns/data/css/1";
+const CSS_CONTENT_TYPE: &str = "text/css";
+const CSS_ISO_8859_1_CONTENT_TYPE: &str = "text/css; charset=iso-8859-1";
 const JSON_SCHEMA_SCHEMA_URI: &str = "https://cem.dev/ns/data/json-schema/1";
 const JSON_SCHEMA_CONTENT_TYPE: &str = "application/schema+json";
 const CEM_DOM_PROJECTION_SCHEMA_URI: &str = "https://cem.dev/ns/projection/dom/1";
@@ -776,6 +779,70 @@ fn schema_owned_examples_validate_through_cli() {
             schema_uri: HTML_SCHEMA_URI,
             expected_exit: EXIT_OK,
             expected_diagnostics: &["cem.html.encoding_conflict"],
+        },
+        ValidationExample {
+            name: "css basic stylesheet",
+            path: "packages/cem_ml/schema-packages/css/v1/examples/basic-stylesheet.css",
+            content_type: CSS_CONTENT_TYPE,
+            schema_uri: CSS_SCHEMA_URI,
+            expected_exit: EXIT_OK,
+            expected_diagnostics: &[],
+        },
+        ValidationExample {
+            name: "css scoped component",
+            path: "packages/cem_ml/schema-packages/css/v1/examples/scoped-component.css",
+            content_type: CSS_CONTENT_TYPE,
+            schema_uri: CSS_SCHEMA_URI,
+            expected_exit: EXIT_OK,
+            expected_diagnostics: &[],
+        },
+        ValidationExample {
+            name: "css style attribute",
+            path: "packages/cem_ml/schema-packages/css/v1/examples/style-attribute.css",
+            content_type: CSS_CONTENT_TYPE,
+            schema_uri: CSS_SCHEMA_URI,
+            expected_exit: EXIT_OK,
+            expected_diagnostics: &[],
+        },
+        ValidationExample {
+            name: "css invalid import",
+            path: "packages/cem_ml/schema-packages/css/v1/examples/invalid-import.css",
+            content_type: CSS_CONTENT_TYPE,
+            schema_uri: CSS_SCHEMA_URI,
+            expected_exit: EXIT_HARD_FAILURE,
+            expected_diagnostics: &["cem.css.import_rejected"],
+        },
+        ValidationExample {
+            name: "css invalid url",
+            path: "packages/cem_ml/schema-packages/css/v1/examples/invalid-url.css",
+            content_type: CSS_CONTENT_TYPE,
+            schema_uri: CSS_SCHEMA_URI,
+            expected_exit: EXIT_HARD_FAILURE,
+            expected_diagnostics: &["cem.css.url_rejected"],
+        },
+        ValidationExample {
+            name: "css invalid token",
+            path: "packages/cem_ml/schema-packages/css/v1/examples/invalid-token.css",
+            content_type: CSS_CONTENT_TYPE,
+            schema_uri: CSS_SCHEMA_URI,
+            expected_exit: EXIT_HARD_FAILURE,
+            expected_diagnostics: &["cem.css.invalid_token"],
+        },
+        ValidationExample {
+            name: "css invalid declaration",
+            path: "packages/cem_ml/schema-packages/css/v1/examples/invalid-declaration.css",
+            content_type: CSS_CONTENT_TYPE,
+            schema_uri: CSS_SCHEMA_URI,
+            expected_exit: EXIT_OK,
+            expected_diagnostics: &["cem.css.invalid_declaration"],
+        },
+        ValidationExample {
+            name: "css encoding conflict",
+            path: "packages/cem_ml/schema-packages/css/v1/examples/encoding-conflict.css",
+            content_type: CSS_ISO_8859_1_CONTENT_TYPE,
+            schema_uri: CSS_SCHEMA_URI,
+            expected_exit: EXIT_OK,
+            expected_diagnostics: &["cem.css.encoding_conflict"],
         },
         ValidationExample {
             name: "json-schema basic",

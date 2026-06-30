@@ -1,0 +1,16 @@
+@charset "utf-8";
+
+:root {
+  --space-2: 0.5rem;
+  color-scheme: light dark;
+}
+
+body {
+  margin: 0;
+  font-family: system-ui, sans-serif;
+}
+
+.card {
+  padding: var(--space-2);
+  border: 1px solid currentColor;
+}

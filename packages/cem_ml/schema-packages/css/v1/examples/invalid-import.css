@@ -1,0 +1,5 @@
+@import "shared/theme.css";
+
+.card {
+  color: currentColor;
+}

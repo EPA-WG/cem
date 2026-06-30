@@ -1,0 +1,11 @@
+@layer components {
+  :host {
+    display: block;
+  }
+
+  @scope (.profile-card) {
+    .profile-card__title {
+      font-weight: 700;
+    }
+  }
+}

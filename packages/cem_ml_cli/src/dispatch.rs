@@ -3028,6 +3028,8 @@ fn direct_source_validation_report(
             diagnostics.extend(collect_markdown_source_diagnostics(std::slice::from_ref(
                 input,
             )));
+        } else if is_css_source_input(input) {
+            diagnostics.extend(collect_css_source_diagnostics(std::slice::from_ref(input)));
         } else if is_html_source_input(input) {
             diagnostics.extend(collect_html_source_diagnostics(std::slice::from_ref(input)));
         } else if is_relax_ng_source_input(input) {
@@ -3236,6 +3238,30 @@ fn is_html_source_input(input: &eng::EngineInput) -> bool {
         }
         Some(_) => false,
         None => schema_is_html,
+    }
+}
+
+fn is_css_source_input(input: &eng::EngineInput) -> bool {
+    let identity = input
+        .identity
+        .clone()
+        .unwrap_or_else(|| input.root_scope.format_identity());
+    let schema_is_css = identity
+        .schema
+        .as_deref()
+        .map(str::trim)
+        .is_some_and(|schema| schema == cem_ml::schema::registry::CSS_SCHEMA_URI);
+    let content_type = identity
+        .content_type
+        .as_deref()
+        .map(cli_content_type_essence);
+
+    match content_type.as_deref() {
+        Some(content_type) if is_css_source_content_type(content_type) => {
+            identity.schema.is_none() || schema_is_css
+        }
+        Some(_) => false,
+        None => schema_is_css,
     }
 }
 
@@ -3516,6 +3542,10 @@ fn is_html_source_content_type(content_type: &str) -> bool {
     content_type == cem_ml::schema::registry::HTML_CONTENT_TYPE
 }
 
+fn is_css_source_content_type(content_type: &str) -> bool {
+    content_type == cem_ml::schema::registry::CSS_CONTENT_TYPE
+}
+
 fn is_relax_ng_source_content_type(content_type: &str) -> bool {
     matches!(
         content_type,
@@ -3792,6 +3822,534 @@ fn collect_markdown_source_diagnostics(
         }
     }
     diagnostics
+}
+
+fn collect_css_source_diagnostics(
+    inputs: &[eng::EngineInput],
+) -> Vec<cem_ml::diagnostics::Diagnostic> {
+    let mut diagnostics = Vec::new();
+    for input in inputs {
+        let content_type = input_source_content_type(input);
+        let declared_charset = content_type
+            .and_then(|content_type| cli_content_type_parameter(&content_type, "charset"));
+        let source = match std::str::from_utf8(&input.bytes) {
+            Ok(source) => source,
+            Err(error) => {
+                diagnostics.push(css_diagnostic(
+                    input,
+                    "",
+                    u64::try_from(error.valid_up_to()).ok(),
+                    "cem.css.parse_error",
+                    cem_ml::diagnostics::Severity::Error,
+                    format!(
+                        "CSS validator currently requires UTF-8-compatible input bytes: {error}"
+                    ),
+                ));
+                continue;
+            }
+        };
+
+        diagnostics.extend(validate_css_source(
+            input,
+            source,
+            declared_charset.as_deref(),
+        ));
+    }
+    diagnostics
+}
+
+#[derive(Clone, Debug, Default)]
+struct CssDocumentState {
+    reported_bad_string: bool,
+    reported_bad_url: bool,
+    reported_encoding_conflict: bool,
+    reported_import: bool,
+    reported_invalid_declaration: bool,
+    reported_invalid_selector: bool,
+    reported_invalid_token: bool,
+    reported_unknown_at_rule: bool,
+    reported_url: bool,
+}
+
+fn validate_css_source(
+    input: &eng::EngineInput,
+    source: &str,
+    declared_charset: Option<&str>,
+) -> Vec<cem_ml::diagnostics::Diagnostic> {
+    let mut diagnostics = Vec::new();
+    let mut state = CssDocumentState::default();
+
+    if let Some((charset, offset)) = css_leading_charset(source) {
+        if let Some(declared_charset) = declared_charset {
+            if css_normalized_charset(declared_charset) != css_normalized_charset(&charset) {
+                state.reported_encoding_conflict = true;
+                diagnostics.push(css_diagnostic(
+                    input,
+                    source,
+                    Some(offset as u64),
+                    "cem.css.encoding_conflict",
+                    cem_ml::diagnostics::Severity::Warning,
+                    format!(
+                        "CSS MIME charset `{}` conflicts with @charset `{}`",
+                        declared_charset, charset
+                    ),
+                ));
+            }
+        }
+    }
+
+    let sanitized = css_sanitize_source(input, source, &mut state, &mut diagnostics);
+    css_validate_delimiters(input, source, &sanitized, &mut state, &mut diagnostics);
+    css_validate_at_rules_and_urls(input, source, &sanitized, &mut state, &mut diagnostics);
+    css_validate_rule_shapes(input, source, &sanitized, &mut state, &mut diagnostics);
+
+    diagnostics
+}
+
+fn css_leading_charset(source: &str) -> Option<(String, usize)> {
+    let mut offset = source
+        .strip_prefix('\u{feff}')
+        .map_or(0, |_| '\u{feff}'.len_utf8());
+    offset = css_skip_whitespace_and_comments(source, offset);
+    let rest = source[offset..].trim_start();
+    let skipped = source[offset..].len() - rest.len();
+    offset += skipped;
+    if !rest.to_ascii_lowercase().starts_with("@charset") {
+        return None;
+    }
+    let after_keyword = &source[offset + "@charset".len()..];
+    let after_ws = after_keyword.trim_start();
+    let value_offset = offset + "@charset".len() + (after_keyword.len() - after_ws.len());
+    let quote = after_ws.as_bytes().first().copied()?;
+    if !matches!(quote, b'"' | b'\'') {
+        return None;
+    }
+    let value_start = value_offset + 1;
+    let value_rest = &source[value_start..];
+    let value_end = value_rest.find(char::from(quote))?;
+    Some((value_rest[..value_end].to_owned(), value_offset))
+}
+
+fn css_skip_whitespace_and_comments(source: &str, mut offset: usize) -> usize {
+    while offset < source.len() {
+        let rest = &source[offset..];
+        if let Some(ch) = rest.chars().next() {
+            if ch.is_whitespace() {
+                offset += ch.len_utf8();
+                continue;
+            }
+        }
+        if rest.starts_with("/*") {
+            if let Some(end) = rest.find("*/") {
+                offset += end + 2;
+                continue;
+            }
+        }
+        break;
+    }
+    offset
+}
+
+fn css_normalized_charset(value: &str) -> String {
+    value.trim().trim_matches('"').to_ascii_lowercase()
+}
+
+fn css_sanitize_source(
+    input: &eng::EngineInput,
+    source: &str,
+    state: &mut CssDocumentState,
+    diagnostics: &mut Vec<cem_ml::diagnostics::Diagnostic>,
+) -> String {
+    let mut sanitized = String::with_capacity(source.len());
+    let mut chars = source.char_indices().peekable();
+
+    while let Some((offset, ch)) = chars.next() {
+        if ch == '/' && chars.peek().is_some_and(|(_, next)| *next == '*') {
+            sanitized.push(' ');
+            let (_, _) = chars.next().expect("peeked comment opener");
+            sanitized.push(' ');
+            let mut closed = false;
+            while let Some((_, comment_ch)) = chars.next() {
+                sanitized.push(if comment_ch == '\n' { '\n' } else { ' ' });
+                if comment_ch == '*' && chars.peek().is_some_and(|(_, next)| *next == '/') {
+                    let (_, slash) = chars.next().expect("peeked comment closer");
+                    sanitized.push(if slash == '\n' { '\n' } else { ' ' });
+                    closed = true;
+                    break;
+                }
+            }
+            if !closed && !state.reported_invalid_token {
+                state.reported_invalid_token = true;
+                diagnostics.push(css_diagnostic(
+                    input,
+                    source,
+                    Some(offset as u64),
+                    "cem.css.invalid_token",
+                    cem_ml::diagnostics::Severity::Error,
+                    "CSS comment is missing a closing */".to_owned(),
+                ));
+            }
+            continue;
+        }
+
+        if matches!(ch, '"' | '\'') {
+            sanitized.push(' ');
+            let quote = ch;
+            let mut escaped = false;
+            let mut closed = false;
+            while let Some((_, string_ch)) = chars.next() {
+                sanitized.push(if string_ch == '\n' { '\n' } else { ' ' });
+                if escaped {
+                    escaped = false;
+                } else if string_ch == '\\' {
+                    escaped = true;
+                } else if string_ch == quote {
+                    closed = true;
+                    break;
+                } else if string_ch == '\n' {
+                    break;
+                }
+            }
+            if !closed && !state.reported_bad_string {
+                state.reported_bad_string = true;
+                diagnostics.push(css_diagnostic(
+                    input,
+                    source,
+                    Some(offset as u64),
+                    "cem.css.bad_string",
+                    cem_ml::diagnostics::Severity::Warning,
+                    "CSS string token was recovered before a matching quote".to_owned(),
+                ));
+            }
+            continue;
+        }
+
+        sanitized.push(ch);
+    }
+
+    sanitized
+}
+
+fn css_validate_delimiters(
+    input: &eng::EngineInput,
+    source: &str,
+    sanitized: &str,
+    state: &mut CssDocumentState,
+    diagnostics: &mut Vec<cem_ml::diagnostics::Diagnostic>,
+) {
+    let mut stack = Vec::new();
+    for (offset, ch) in sanitized.char_indices() {
+        match ch {
+            '{' | '[' | '(' => stack.push((ch, offset)),
+            '}' | ']' | ')' => {
+                let expected = match ch {
+                    '}' => '{',
+                    ']' => '[',
+                    ')' => '(',
+                    _ => unreachable!(),
+                };
+                match stack.pop() {
+                    Some((open, _)) if open == expected => {}
+                    _ if !state.reported_invalid_token => {
+                        state.reported_invalid_token = true;
+                        diagnostics.push(css_diagnostic(
+                            input,
+                            source,
+                            Some(offset as u64),
+                            "cem.css.invalid_token",
+                            cem_ml::diagnostics::Severity::Error,
+                            format!(
+                                "CSS closing delimiter `{ch}` does not match an open delimiter"
+                            ),
+                        ));
+                    }
+                    _ => {}
+                }
+            }
+            _ => {}
+        }
+    }
+
+    if let Some((open, offset)) = stack.first().copied() {
+        if !state.reported_invalid_token {
+            state.reported_invalid_token = true;
+            diagnostics.push(css_diagnostic(
+                input,
+                source,
+                Some(offset as u64),
+                "cem.css.invalid_token",
+                cem_ml::diagnostics::Severity::Error,
+                format!("CSS delimiter `{open}` is not closed"),
+            ));
+        }
+    }
+}
+
+fn css_validate_at_rules_and_urls(
+    input: &eng::EngineInput,
+    source: &str,
+    sanitized: &str,
+    state: &mut CssDocumentState,
+    diagnostics: &mut Vec<cem_ml::diagnostics::Diagnostic>,
+) {
+    let lower = sanitized.to_ascii_lowercase();
+    let bytes = lower.as_bytes();
+    let mut offset = 0usize;
+    while offset < bytes.len() {
+        if bytes[offset] == b'@' {
+            let name_start = offset + 1;
+            let mut name_end = name_start;
+            while name_end < bytes.len()
+                && (bytes[name_end].is_ascii_alphanumeric() || bytes[name_end] == b'-')
+            {
+                name_end += 1;
+            }
+            let name = &lower[name_start..name_end];
+            if name == "import" && !state.reported_import {
+                state.reported_import = true;
+                diagnostics.push(css_diagnostic(
+                    input,
+                    source,
+                    Some(offset as u64),
+                    "cem.css.import_rejected",
+                    cem_ml::diagnostics::Severity::Error,
+                    "CSS @import access requires an explicit resolver policy".to_owned(),
+                ));
+            } else if !name.is_empty()
+                && !css_at_rule_is_known(name)
+                && !state.reported_unknown_at_rule
+            {
+                state.reported_unknown_at_rule = true;
+                diagnostics.push(css_diagnostic(
+                    input,
+                    source,
+                    Some(offset as u64),
+                    "cem.css.unknown_at_rule",
+                    cem_ml::diagnostics::Severity::Info,
+                    format!("CSS at-rule `@{name}` is preserved as an unknown at-rule"),
+                ));
+            }
+            offset = name_end;
+        } else {
+            offset += 1;
+        }
+    }
+
+    let mut search_start = 0usize;
+    while let Some(relative_url_start) = lower[search_start..].find("url(") {
+        let url_start = search_start + relative_url_start;
+        match css_url_argument(source, url_start) {
+            Some(reference) if css_url_requires_policy(&reference) && !state.reported_url => {
+                state.reported_url = true;
+                diagnostics.push(css_diagnostic(
+                    input,
+                    source,
+                    Some(url_start as u64),
+                    "cem.css.url_rejected",
+                    cem_ml::diagnostics::Severity::Error,
+                    "CSS url() reference requires an explicit resolver or sanitizer policy"
+                        .to_owned(),
+                ));
+            }
+            None if !state.reported_bad_url => {
+                state.reported_bad_url = true;
+                diagnostics.push(css_diagnostic(
+                    input,
+                    source,
+                    Some(url_start as u64),
+                    "cem.css.bad_url",
+                    cem_ml::diagnostics::Severity::Warning,
+                    "CSS url() token was recovered without a closing parenthesis".to_owned(),
+                ));
+            }
+            _ => {}
+        }
+        search_start = url_start + 4;
+    }
+}
+
+fn css_at_rule_is_known(name: &str) -> bool {
+    matches!(
+        name,
+        "charset"
+            | "container"
+            | "font-face"
+            | "font-feature-values"
+            | "import"
+            | "keyframes"
+            | "layer"
+            | "media"
+            | "namespace"
+            | "page"
+            | "property"
+            | "scope"
+            | "supports"
+    )
+}
+
+fn css_url_argument(source: &str, url_start: usize) -> Option<String> {
+    let after_open = url_start + 4;
+    let bytes = source.as_bytes();
+    let mut offset = after_open;
+    let mut quote = None;
+    while offset < bytes.len() {
+        let byte = bytes[offset];
+        match (quote, byte) {
+            (Some(q), b) if b == q => quote = None,
+            (None, b'"' | b'\'') => quote = Some(byte),
+            (None, b')') => {
+                return Some(
+                    source[after_open..offset]
+                        .trim()
+                        .trim_matches('"')
+                        .trim_matches('\'')
+                        .to_owned(),
+                )
+            }
+            _ => {}
+        }
+        offset += 1;
+    }
+    None
+}
+
+fn css_url_requires_policy(reference: &str) -> bool {
+    let trimmed = reference.trim();
+    !(trimmed.is_empty()
+        || trimmed.starts_with('#')
+        || trimmed.to_ascii_lowercase().starts_with("data:"))
+}
+
+fn css_validate_rule_shapes(
+    input: &eng::EngineInput,
+    source: &str,
+    sanitized: &str,
+    state: &mut CssDocumentState,
+    diagnostics: &mut Vec<cem_ml::diagnostics::Diagnostic>,
+) {
+    let mut stack = Vec::new();
+    let mut rule_start = 0usize;
+    for (offset, ch) in sanitized.char_indices() {
+        match ch {
+            '{' => {
+                if stack.is_empty() {
+                    let prelude = sanitized[rule_start..offset].trim();
+                    if prelude.is_empty() && !state.reported_invalid_selector {
+                        state.reported_invalid_selector = true;
+                        diagnostics.push(css_diagnostic(
+                            input,
+                            source,
+                            Some(offset as u64),
+                            "cem.css.invalid_selector",
+                            cem_ml::diagnostics::Severity::Warning,
+                            "CSS rule has an empty selector or prelude".to_owned(),
+                        ));
+                    }
+                }
+                stack.push(offset);
+            }
+            '}' => {
+                if let Some(open_offset) = stack.pop() {
+                    if stack.is_empty() {
+                        css_validate_declaration_block(
+                            input,
+                            source,
+                            sanitized,
+                            open_offset + 1,
+                            offset,
+                            state,
+                            diagnostics,
+                        );
+                        rule_start = offset + 1;
+                    }
+                }
+            }
+            ';' if stack.is_empty() => {
+                rule_start = offset + 1;
+            }
+            _ => {}
+        }
+    }
+}
+
+fn css_validate_declaration_block(
+    input: &eng::EngineInput,
+    source: &str,
+    sanitized: &str,
+    start: usize,
+    end: usize,
+    state: &mut CssDocumentState,
+    diagnostics: &mut Vec<cem_ml::diagnostics::Diagnostic>,
+) {
+    if state.reported_invalid_declaration {
+        return;
+    }
+    let mut declaration_start = start;
+    for relative_semicolon in sanitized[start..end]
+        .match_indices(';')
+        .map(|(index, _)| index)
+    {
+        let declaration_end = start + relative_semicolon;
+        let declaration = sanitized[declaration_start..declaration_end].trim();
+        if css_declaration_is_malformed(declaration) {
+            state.reported_invalid_declaration = true;
+            diagnostics.push(css_diagnostic(
+                input,
+                source,
+                Some(declaration_start as u64),
+                "cem.css.invalid_declaration",
+                cem_ml::diagnostics::Severity::Warning,
+                "CSS declaration was recovered without a property/value colon".to_owned(),
+            ));
+            return;
+        }
+        declaration_start = declaration_end + 1;
+    }
+    let declaration = sanitized[declaration_start..end].trim();
+    if css_declaration_is_malformed(declaration) {
+        state.reported_invalid_declaration = true;
+        diagnostics.push(css_diagnostic(
+            input,
+            source,
+            Some(declaration_start as u64),
+            "cem.css.invalid_declaration",
+            cem_ml::diagnostics::Severity::Warning,
+            "CSS declaration was recovered without a property/value colon".to_owned(),
+        ));
+    }
+}
+
+fn css_declaration_is_malformed(declaration: &str) -> bool {
+    !declaration.is_empty()
+        && !declaration.contains(':')
+        && !declaration.contains('{')
+        && !declaration.contains('}')
+        && !declaration.trim_start().starts_with('@')
+}
+
+fn css_diagnostic(
+    input: &eng::EngineInput,
+    source: &str,
+    byte_offset: Option<u64>,
+    code: &'static str,
+    severity: cem_ml::diagnostics::Severity,
+    message: String,
+) -> cem_ml::diagnostics::Diagnostic {
+    let (line, column) = byte_offset
+        .and_then(|offset| usize::try_from(offset).ok())
+        .map(|offset| markdown_line_col(source, offset))
+        .map(|(line, column)| (Some(line), Some(column)))
+        .unwrap_or((None, None));
+    cem_ml::diagnostics::Diagnostic {
+        uri: Some(input.uri.clone()),
+        line,
+        column,
+        byte_offset,
+        code: code.to_owned(),
+        severity,
+        message,
+        ..cem_ml::diagnostics::Diagnostic::default()
+    }
 }
 
 fn collect_html_source_diagnostics(
@@ -14206,6 +14764,211 @@ start =
         assert!(diagnostics
             .iter()
             .any(|diag| diag["code"] == "cem.relax_ng.unsupported_encoding"));
+    }
+
+    #[test]
+    fn validate_css_source_uses_css_validator() {
+        let p = write_fixture(
+            "validate-css-source.css",
+            r#"@charset "utf-8";
+:root { --space-2: 0.5rem; }
+.card { padding: var(--space-2); color: currentColor; }
+"#,
+        );
+        let (outcome, stdout, stderr) = run(
+            &RealCemMlEngine::new(),
+            &[
+                "validate",
+                "--format",
+                "json",
+                "--content-type",
+                "text/css",
+                "--schema",
+                cem_ml::schema::registry::CSS_SCHEMA_URI,
+                p.to_str().unwrap(),
+            ],
+        );
+
+        assert_eq!(outcome.exit_code, EXIT_OK, "{stderr}");
+        let v: serde_json::Value = serde_json::from_str(stdout.trim()).unwrap();
+        let diagnostics = v["diagnostics"].as_array().unwrap();
+        assert_eq!(v["summary"]["hardViolationCount"], 0);
+        assert!(diagnostics.is_empty());
+        assert!(!diagnostics
+            .iter()
+            .any(|diag| diag["code"] == "cem.lifecycle.adapter_unsupported"));
+    }
+
+    #[test]
+    fn validate_css_source_accepts_style_attribute_fragment() {
+        let p = write_fixture(
+            "validate-css-source-style-attribute.css",
+            "color: currentColor; margin-inline: 0; --card-gap: 0.75rem;",
+        );
+        let (outcome, stdout, stderr) = run(
+            &RealCemMlEngine::new(),
+            &[
+                "validate",
+                "--format",
+                "json",
+                "--content-type",
+                "text/css",
+                "--schema",
+                cem_ml::schema::registry::CSS_SCHEMA_URI,
+                p.to_str().unwrap(),
+            ],
+        );
+
+        assert_eq!(outcome.exit_code, EXIT_OK, "{stderr}");
+        let v: serde_json::Value = serde_json::from_str(stdout.trim()).unwrap();
+        assert_eq!(v["summary"]["hardViolationCount"], 0);
+        assert!(v["diagnostics"].as_array().unwrap().is_empty());
+    }
+
+    #[test]
+    fn validate_css_source_reports_import_rejected() {
+        let p = write_fixture(
+            "validate-css-source-import.css",
+            r#"@import "shared/theme.css";
+.card { color: currentColor; }
+"#,
+        );
+        let (outcome, stdout, stderr) = run(
+            &RealCemMlEngine::new(),
+            &[
+                "validate",
+                "--format",
+                "json",
+                "--content-type",
+                "text/css",
+                "--schema",
+                cem_ml::schema::registry::CSS_SCHEMA_URI,
+                p.to_str().unwrap(),
+            ],
+        );
+
+        assert_eq!(outcome.exit_code, EXIT_HARD_FAILURE, "{stderr}");
+        let v: serde_json::Value = serde_json::from_str(stdout.trim()).unwrap();
+        let diagnostics = v["diagnostics"].as_array().unwrap();
+        assert!(diagnostics
+            .iter()
+            .any(|diag| diag["code"] == "cem.css.import_rejected"));
+    }
+
+    #[test]
+    fn validate_css_source_reports_url_rejected() {
+        let p = write_fixture(
+            "validate-css-source-url.css",
+            r#".hero { background-image: url("images/hero.png"); }"#,
+        );
+        let (outcome, stdout, stderr) = run(
+            &RealCemMlEngine::new(),
+            &[
+                "validate",
+                "--format",
+                "json",
+                "--content-type",
+                "text/css",
+                "--schema",
+                cem_ml::schema::registry::CSS_SCHEMA_URI,
+                p.to_str().unwrap(),
+            ],
+        );
+
+        assert_eq!(outcome.exit_code, EXIT_HARD_FAILURE, "{stderr}");
+        let v: serde_json::Value = serde_json::from_str(stdout.trim()).unwrap();
+        let diagnostics = v["diagnostics"].as_array().unwrap();
+        assert!(diagnostics
+            .iter()
+            .any(|diag| diag["code"] == "cem.css.url_rejected"));
+    }
+
+    #[test]
+    fn validate_css_source_reports_invalid_token() {
+        let p = write_fixture(
+            "validate-css-source-invalid-token.css",
+            ".card { color: red;",
+        );
+        let (outcome, stdout, stderr) = run(
+            &RealCemMlEngine::new(),
+            &[
+                "validate",
+                "--format",
+                "json",
+                "--content-type",
+                "text/css",
+                "--schema",
+                cem_ml::schema::registry::CSS_SCHEMA_URI,
+                p.to_str().unwrap(),
+            ],
+        );
+
+        assert_eq!(outcome.exit_code, EXIT_HARD_FAILURE, "{stderr}");
+        let v: serde_json::Value = serde_json::from_str(stdout.trim()).unwrap();
+        let diagnostics = v["diagnostics"].as_array().unwrap();
+        assert!(diagnostics
+            .iter()
+            .any(|diag| diag["code"] == "cem.css.invalid_token"));
+    }
+
+    #[test]
+    fn validate_css_source_reports_invalid_declaration_warning() {
+        let p = write_fixture(
+            "validate-css-source-invalid-declaration.css",
+            ".card { color currentColor; padding: 1rem; }",
+        );
+        let (outcome, stdout, stderr) = run(
+            &RealCemMlEngine::new(),
+            &[
+                "validate",
+                "--format",
+                "json",
+                "--content-type",
+                "text/css",
+                "--schema",
+                cem_ml::schema::registry::CSS_SCHEMA_URI,
+                p.to_str().unwrap(),
+            ],
+        );
+
+        assert_eq!(outcome.exit_code, EXIT_OK, "{stderr}");
+        let v: serde_json::Value = serde_json::from_str(stdout.trim()).unwrap();
+        let diagnostics = v["diagnostics"].as_array().unwrap();
+        assert_eq!(v["summary"]["hardViolationCount"], 0);
+        assert!(diagnostics
+            .iter()
+            .any(|diag| diag["code"] == "cem.css.invalid_declaration"));
+    }
+
+    #[test]
+    fn validate_css_source_reports_encoding_conflict_warning() {
+        let p = write_fixture(
+            "validate-css-source-encoding-conflict.css",
+            r#"@charset "utf-8";
+.card { color: currentColor; }
+"#,
+        );
+        let (outcome, stdout, stderr) = run(
+            &RealCemMlEngine::new(),
+            &[
+                "validate",
+                "--format",
+                "json",
+                "--content-type",
+                "text/css; charset=iso-8859-1",
+                "--schema",
+                cem_ml::schema::registry::CSS_SCHEMA_URI,
+                p.to_str().unwrap(),
+            ],
+        );
+
+        assert_eq!(outcome.exit_code, EXIT_OK, "{stderr}");
+        let v: serde_json::Value = serde_json::from_str(stdout.trim()).unwrap();
+        let diagnostics = v["diagnostics"].as_array().unwrap();
+        assert_eq!(v["summary"]["hardViolationCount"], 0);
+        assert!(diagnostics
+            .iter()
+            .any(|diag| diag["code"] == "cem.css.encoding_conflict"));
     }
 
     #[test]

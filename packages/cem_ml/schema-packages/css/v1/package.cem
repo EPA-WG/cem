@@ -11,4 +11,7 @@
     {content-type @value="text/css" @primary=true}
 
     {namespace @prefix="cemcss" @uri="https://cem.dev/ns/data/css/1"}
+    {namespace @prefix="cemhtml" @uri="https://cem.dev/ns/data/html/1"}
+    {namespace @prefix="cemsvg" @uri="https://cem.dev/ns/data/svg/1"}
+    {namespace @prefix="cemmathml" @uri="https://cem.dev/ns/data/mathml/1"}
 }

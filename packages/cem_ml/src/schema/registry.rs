@@ -602,7 +602,12 @@ pub fn builtin_schema_descriptors() -> Vec<SchemaDescriptor> {
             version: "1.0.0".into(),
             source: "schema-packages/css/v1/schema/css.cem".into(),
             content_types: vec![SchemaContentType::primary(CSS_CONTENT_TYPE)],
-            namespaces: vec![NamespaceClaim::new(Some("cemcss"), CSS_SCHEMA_URI)],
+            namespaces: vec![
+                NamespaceClaim::new(Some("cemcss"), CSS_SCHEMA_URI),
+                NamespaceClaim::new(Some("cemhtml"), HTML_SCHEMA_URI),
+                NamespaceClaim::new(Some("cemsvg"), SVG_SCHEMA_URI),
+                NamespaceClaim::new(Some("cemmathml"), MATHML_SCHEMA_URI),
+            ],
             uses: vec![
                 CEM_SCHEMA_URI.into(),
                 CEM_ML_SCHEMA_URI.into(),
