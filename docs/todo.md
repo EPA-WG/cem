@@ -86,6 +86,11 @@ history belongs in git history and the feature-specific docs linked below.
         preserve, pretty, and fragment modes; explicit `encoder`, `formatter`,
         `colorizer`, and `profile` selectors; charset; line ending; quote
         policy; indent; namespace policy; and source-map policy.
+    - [x] Add the initial `encode` binding resolver that infers or accepts the
+          subject type, resolves declared `encoding-function` metadata by
+          target identity, category, explicit encoder/profile selector, and
+          host capability, then wraps implementation output as a typed
+          `EncodedArtifact`.
   - [ ] Define encoded artifact identity and insertion rules. Results are not
         plain strings: they carry produced kind (`text`, `bytes`, `tokens`,
         `chunks`, or `diagnostics`), target content type, schema URL, encoding

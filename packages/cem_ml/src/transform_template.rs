@@ -549,6 +549,47 @@ impl TransformTemplateOutputFunctionRegistry {
 
         Ok(function)
     }
+
+    pub fn resolve_encode_binding(
+        &self,
+        request: &TransformTemplateEncodeBindingRequest,
+        host_capabilities: &BTreeSet<String>,
+    ) -> Result<TransformTemplateEncodeBinding, TransformTemplateOutputFunctionResolutionError>
+    {
+        for subject_type in request.subject_type_candidates() {
+            let query = TransformTemplateOutputFunctionQuery {
+                kind: Some(TransformTemplateOutputFunctionKind::Encoding),
+                name: request.options.encoder.clone(),
+                content_type: Some(request.target.content_type.clone()),
+                schema: Some(request.target.schema.clone()),
+                category: Some(request.target.category.clone()),
+                subject: Some(subject_type.clone()),
+                profile: request.options.profile.clone(),
+                ..TransformTemplateOutputFunctionQuery::default()
+            };
+            match self.resolve(&query, host_capabilities) {
+                Ok(function) => {
+                    let mut identity = TransformTemplateEncodedArtifactIdentity::from_options(
+                        function.produces,
+                        request.target.clone(),
+                        &request.options,
+                    );
+                    identity.canonical = request.options.canonical || function.canonical;
+                    return Ok(TransformTemplateEncodeBinding {
+                        function: function.clone(),
+                        subject_type,
+                        identity,
+                    });
+                }
+                Err(TransformTemplateOutputFunctionResolutionError::Unknown) => {
+                    continue;
+                }
+                Err(error) => return Err(error),
+            }
+        }
+
+        Err(TransformTemplateOutputFunctionResolutionError::Unknown)
+    }
 }
 
 #[derive(Debug, Clone, Copy, Default, PartialEq, Eq, Serialize, Deserialize)]
@@ -643,6 +684,93 @@ pub struct TransformTemplateEncodeOptions {
     pub source_map_policy: TransformTemplateSourceMapPolicy,
 }
 
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct TransformTemplateEncodeBindingRequest {
+    pub subject: Value,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub subject_type: Option<String>,
+    pub target: TransformTemplateEncodingTarget,
+    #[serde(default)]
+    pub options: TransformTemplateEncodeOptions,
+}
+
+impl TransformTemplateEncodeBindingRequest {
+    pub fn new(subject: Value, target: TransformTemplateEncodingTarget) -> Self {
+        Self {
+            subject,
+            subject_type: None,
+            target,
+            options: TransformTemplateEncodeOptions::default(),
+        }
+    }
+
+    pub fn with_subject_type(mut self, subject_type: impl Into<String>) -> Self {
+        self.subject_type = Some(subject_type.into());
+        self
+    }
+
+    pub fn with_options(mut self, options: TransformTemplateEncodeOptions) -> Self {
+        self.options = options;
+        self
+    }
+
+    pub fn subject_type_candidates(&self) -> Vec<String> {
+        if let Some(subject_type) = self
+            .subject_type
+            .as_deref()
+            .map(str::trim)
+            .filter(|value| !value.is_empty())
+        {
+            return vec![subject_type.to_owned()];
+        }
+        transform_template_encode_subject_type_candidates(&self.subject)
+            .into_iter()
+            .map(str::to_owned)
+            .collect()
+    }
+}
+
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct TransformTemplateEncodeBinding {
+    pub function: TransformTemplateOutputFunctionDescriptor,
+    pub subject_type: String,
+    pub identity: TransformTemplateEncodedArtifactIdentity,
+}
+
+impl TransformTemplateEncodeBinding {
+    pub fn artifact_from_value(&self, value: Value) -> TransformTemplateEncodedArtifact {
+        TransformTemplateEncodedArtifact::new(self.identity.clone(), value)
+    }
+
+    pub fn artifact_with_metadata(
+        &self,
+        value: Value,
+        source_map: Option<SourceMapStack>,
+        output_spans: Vec<OutputSpan>,
+    ) -> TransformTemplateEncodedArtifact {
+        let mut artifact = self.artifact_from_value(value);
+        artifact.source_map = source_map;
+        artifact.output_spans = output_spans;
+        artifact
+    }
+}
+
+pub fn transform_template_encode_subject_type_candidates(subject: &Value) -> Vec<&'static str> {
+    match subject {
+        Value::Null => vec!["null", "json"],
+        Value::Bool(_) => vec!["boolean", "json"],
+        Value::Number(number) if number.is_i64() || number.is_u64() => {
+            vec!["integer", "number", "json"]
+        }
+        Value::Number(_) => vec!["number", "json"],
+        Value::String(_) => vec!["string", "json"],
+        Value::Array(_) => vec!["array", "json"],
+        Value::Object(_) => vec!["object", "json"],
+    }
+}
+
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct TransformTemplateEncodedArtifactIdentity {
@@ -695,8 +823,14 @@ impl TransformTemplateEncodedArtifactIdentity {
             target,
             charset: options.charset.clone(),
             binary_framing: None,
-            formatter_profile: options.formatter_profile.clone(),
-            color_profile: options.color_profile.clone(),
+            formatter_profile: options
+                .formatter_profile
+                .clone()
+                .or_else(|| options.profile.clone()),
+            color_profile: options
+                .color_profile
+                .clone()
+                .or_else(|| options.profile.clone()),
             color_capability: None,
             mode: options.mode,
             canonical: options.canonical,
@@ -2817,6 +2951,175 @@ mod tests {
             .resolve(&native_query, &capabilities)
             .expect("native function resolves with capability");
         assert_eq!(resolved_native.name, "acme.native.html-text");
+    }
+
+    #[test]
+    fn encode_binding_resolves_declared_encoder_and_wraps_artifact() {
+        let response =
+            parse_cem_native_template_module_options(TransformTemplateModuleParseRequest {
+                template: template_input(
+                    "schema-packages/cem-transform/v1/examples/function-declarations.cemt",
+                    include_str!(
+                        "../schema-packages/cem-transform/v1/examples/function-declarations.cemt"
+                    ),
+                    Some(FormatIdentity {
+                        schema: Some(CEM_TRANSFORM_SCHEMA_URI.to_owned()),
+                        ..FormatIdentity::default()
+                    }),
+                ),
+            });
+        let registry =
+            TransformTemplateOutputFunctionRegistry::from_module_options(&response.module_options);
+        let request = TransformTemplateEncodeBindingRequest::new(
+            Value::String("Hello & CEM".to_owned()),
+            TransformTemplateEncodingTarget::new(
+                "text/html; charset=utf-8",
+                "https://cem.dev/ns/data/html/1",
+                "html-text",
+            )
+            .with_context("text"),
+        )
+        .with_options(TransformTemplateEncodeOptions {
+            mode: TransformTemplateEncodedArtifactMode::Fragment,
+            charset: Some("utf-8".to_owned()),
+            formatter_profile: Some("html-pretty".to_owned()),
+            ..TransformTemplateEncodeOptions::default()
+        });
+
+        let binding = registry
+            .resolve_encode_binding(&request, &BTreeSet::new())
+            .expect("html text encoder resolves");
+
+        assert_eq!(binding.function.name, "html.text");
+        assert_eq!(binding.subject_type, "string");
+        assert_eq!(
+            binding.identity.produces,
+            TransformTemplateOutputProducedKind::Text
+        );
+        assert!(binding.identity.canonical);
+        assert_eq!(
+            binding.identity.formatter_profile.as_deref(),
+            Some("html-pretty")
+        );
+
+        let artifact = binding.artifact_from_value(Value::String("Hello &amp; CEM".to_owned()));
+        artifact
+            .validate_insertion(&TransformTemplateEncodedArtifactInsertionContext {
+                produces: Some(TransformTemplateOutputProducedKind::Text),
+                content_type: "text/html".to_owned(),
+                schema: "https://cem.dev/ns/data/html/1".to_owned(),
+                category: Some("html-text".to_owned()),
+                context: Some("text".to_owned()),
+                formatter_profile: Some("html-pretty".to_owned()),
+                color_profile: None,
+                color_capability: None,
+                mode: Some(TransformTemplateEncodedArtifactMode::Fragment),
+                canonical: Some(true),
+            })
+            .expect("encoded artifact is compatible with requested target");
+    }
+
+    #[test]
+    fn encode_binding_resolves_explicit_custom_encoder() {
+        let response =
+            parse_cem_native_template_module_options(TransformTemplateModuleParseRequest {
+                template: template_input(
+                    "schema-packages/cem-transform/v1/examples/function-declarations.cemt",
+                    include_str!(
+                        "../schema-packages/cem-transform/v1/examples/function-declarations.cemt"
+                    ),
+                    Some(FormatIdentity {
+                        schema: Some(CEM_TRANSFORM_SCHEMA_URI.to_owned()),
+                        ..FormatIdentity::default()
+                    }),
+                ),
+            });
+        let registry =
+            TransformTemplateOutputFunctionRegistry::from_module_options(&response.module_options);
+        let request = TransformTemplateEncodeBindingRequest::new(
+            json!({"message": "Ship it"}),
+            TransformTemplateEncodingTarget::new(
+                "text/markdown",
+                "https://acme.test/ns/docs/markdown/1",
+                "markdown-callout",
+            ),
+        )
+        .with_options(TransformTemplateEncodeOptions {
+            encoder: Some("acme.markdown.callout-block".to_owned()),
+            ..TransformTemplateEncodeOptions::default()
+        });
+
+        let binding = registry
+            .resolve_encode_binding(&request, &BTreeSet::new())
+            .expect("custom markdown encoder resolves");
+
+        assert_eq!(binding.function.owner.as_deref(), Some("acme"));
+        assert_eq!(binding.function.name, "acme.markdown.callout-block");
+        assert_eq!(binding.subject_type, "object");
+        assert_eq!(
+            binding.identity.produces,
+            TransformTemplateOutputProducedKind::Tokens
+        );
+        assert!(!binding.identity.canonical);
+    }
+
+    #[test]
+    fn encode_binding_uses_subject_type_override_for_semantic_values() {
+        let mut registry = TransformTemplateOutputFunctionRegistry::new();
+        registry.register(TransformTemplateOutputFunctionDescriptor {
+            kind: TransformTemplateOutputFunctionKind::Encoding,
+            owner: Some("terminal".to_owned()),
+            name: "terminal.tokens".to_owned(),
+            category: "terminal-color".to_owned(),
+            subject: "tokens".to_owned(),
+            produces: TransformTemplateOutputProducedKind::Text,
+            content_type: "text/plain".to_owned(),
+            schema: "https://cem.dev/ns/data/text/terminal/1".to_owned(),
+            canonical: false,
+            streamable: true,
+            visibility: TransformTemplateModuleVisibility::Public,
+            implementation: TransformTemplateOutputFunctionImplementation::Cemt,
+            profile: None,
+            extends: None,
+            capability: None,
+            deterministic: true,
+            trusted: false,
+            fallback: None,
+            params: Vec::new(),
+            body_declared: false,
+        });
+        let request = TransformTemplateEncodeBindingRequest::new(
+            json!([{"role": "diagnostic.error", "text": "Broken"}]),
+            TransformTemplateEncodingTarget::new(
+                "text/plain",
+                "https://cem.dev/ns/data/text/terminal/1",
+                "terminal-color",
+            ),
+        )
+        .with_subject_type("tokens")
+        .with_options(TransformTemplateEncodeOptions {
+            encoder: Some("terminal.tokens".to_owned()),
+            ..TransformTemplateEncodeOptions::default()
+        });
+
+        let binding = registry
+            .resolve_encode_binding(&request, &BTreeSet::new())
+            .expect("semantic tokens subject override resolves");
+
+        assert_eq!(binding.function.name, "terminal.tokens");
+        assert_eq!(binding.subject_type, "tokens");
+    }
+
+    #[test]
+    fn encode_subject_type_candidates_prefer_specific_types() {
+        assert_eq!(
+            transform_template_encode_subject_type_candidates(&json!(3)),
+            vec!["integer", "number", "json"]
+        );
+        assert_eq!(
+            transform_template_encode_subject_type_candidates(&json!({"a": 1})),
+            vec!["object", "json"]
+        );
     }
 
     #[test]
