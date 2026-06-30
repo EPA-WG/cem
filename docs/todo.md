@@ -144,6 +144,10 @@ history belongs in git history and the feature-specific docs linked below.
   - [ ] Add writer primitives and CEMT bindings for syntax tokens, styled token
         streams, byte streams, sealed binary chunks, source-map span emission,
         and source-map preservation/generated/none policies.
+    - [x] Add the initial encoded text-artifact composition primitive: validate
+          insertion compatibility, reject non-text/non-string artifacts,
+          concatenate compatible text, and shift child output spans into the
+          composed output byte range.
   - [ ] Add schema helper APIs for target syntax rules, void/empty element
         policy, raw-text/RCDATA modes, namespace repair, identifier validity,
         field/header policy, fragment/document handling, and charset/final byte

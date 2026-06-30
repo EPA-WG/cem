@@ -20,7 +20,7 @@ use crate::schema::registry::{
     CEM_NATIVE_TEMPLATE_CONTENT_TYPE, CEM_TRANSFORM_CONTENT_TYPE, CEM_TRANSFORM_SCHEMA_URI,
     XSLT_SCHEMA_URI,
 };
-use crate::source::{BytesSource, SourceId};
+use crate::source::{ByteRange, BytesSource, SourceId};
 use crate::source_map::SourceMapStack;
 use crate::tokenizer::cem::CemTokenizer;
 use serde::{Deserialize, Serialize};
@@ -176,6 +176,8 @@ pub const TRANSFORM_TEMPLATE_ENCODED_ARTIFACT_PRODUCED_KIND_MISMATCH_CODE: &str 
     "cem.transform_template.encoded_artifact_produced_kind_mismatch";
 pub const TRANSFORM_TEMPLATE_ENCODED_ARTIFACT_DOUBLE_ENCODING_CODE: &str =
     "cem.transform_template.encoded_artifact_double_encoding";
+pub const TRANSFORM_TEMPLATE_ENCODED_ARTIFACT_VALUE_TYPE_CODE: &str =
+    "cem.transform_template.encoded_artifact_value_type";
 pub const TRANSFORM_TEMPLATE_ENCODE_CALL_INVALID_CODE: &str =
     "cem.transform_template.encode_call_invalid";
 pub const TRANSFORM_TEMPLATE_ENCODE_SUBJECT_UNRESOLVED_CODE: &str =
@@ -895,6 +897,23 @@ impl TransformTemplateEncodeEvaluationResponse {
     ) -> Vec<Diagnostic> {
         validate_transform_template_encoded_insertions(&self.encoded, context, uri)
     }
+
+    pub fn compose_text_artifacts(
+        &self,
+        context: &TransformTemplateEncodedArtifactInsertionContext,
+        uri: Option<&str>,
+    ) -> TransformTemplateEncodedArtifactCompositionResponse {
+        compose_transform_template_encoded_text_artifacts(&self.encoded, context, uri)
+    }
+}
+
+#[derive(Debug, Clone, Default, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct TransformTemplateEncodedArtifactCompositionResponse {
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub artifact: Option<TransformTemplateEncodedArtifact>,
+    #[serde(default)]
+    pub diagnostics: Vec<Diagnostic>,
 }
 
 pub fn validate_transform_template_encoded_insertions(
@@ -906,14 +925,149 @@ pub fn validate_transform_template_encoded_insertions(
     for evaluated in encoded {
         if let Err(error) = evaluated.artifact.validate_insertion(context) {
             let mut diagnostic = error.diagnostic(uri);
-            diagnostic.node = evaluated.expression.owner.clone();
-            if diagnostic.node.is_none() {
-                diagnostic.node = Some(evaluated.expression.expression.clone());
-            }
+            attach_evaluated_encode_node(&mut diagnostic, evaluated);
             diagnostics.push(diagnostic);
         }
     }
     diagnostics
+}
+
+pub fn compose_transform_template_encoded_text_artifacts(
+    encoded: &[TransformTemplateEvaluatedEncodeExpression],
+    context: &TransformTemplateEncodedArtifactInsertionContext,
+    uri: Option<&str>,
+) -> TransformTemplateEncodedArtifactCompositionResponse {
+    let mut diagnostics = Vec::new();
+    let mut output = String::new();
+    let mut output_spans = Vec::new();
+    let mut source_map = None;
+    let mut identity = None;
+    let mut composition_context = None;
+    let mut byte_offset = 0u64;
+    let mut text_context = context.clone();
+    text_context.produces = Some(TransformTemplateOutputProducedKind::Text);
+
+    for evaluated in encoded {
+        if let Err(error) = evaluated.artifact.validate_insertion(&text_context) {
+            diagnostics.push(diagnostic_for_evaluated_encode_error(error, evaluated, uri));
+            continue;
+        }
+
+        let Some(text) = evaluated.artifact.value.as_str() else {
+            diagnostics.push(diagnostic_for_evaluated_encode_value_type(evaluated, uri));
+            continue;
+        };
+
+        if let Some(composition_context) = &composition_context {
+            if let Err(error) = evaluated.artifact.validate_insertion(composition_context) {
+                diagnostics.push(diagnostic_for_evaluated_encode_error(error, evaluated, uri));
+                continue;
+            }
+        } else {
+            composition_context = Some(
+                TransformTemplateEncodedArtifactInsertionContext::from_encoded_artifact_identity(
+                    &evaluated.artifact.identity,
+                ),
+            );
+        }
+
+        if identity.is_none() {
+            identity = Some(evaluated.artifact.identity.clone());
+        }
+        if source_map.is_none() {
+            source_map = evaluated.artifact.source_map.clone();
+        }
+
+        output_spans.extend(
+            evaluated
+                .artifact
+                .output_spans
+                .iter()
+                .map(|span| shift_output_span(span, byte_offset)),
+        );
+        output.push_str(text);
+        byte_offset += text.len() as u64;
+    }
+
+    if !diagnostics.is_empty() {
+        return TransformTemplateEncodedArtifactCompositionResponse {
+            artifact: None,
+            diagnostics,
+        };
+    }
+
+    let Some(identity) = identity else {
+        return TransformTemplateEncodedArtifactCompositionResponse {
+            artifact: None,
+            diagnostics,
+        };
+    };
+
+    TransformTemplateEncodedArtifactCompositionResponse {
+        artifact: Some(TransformTemplateEncodedArtifact {
+            identity,
+            value: Value::String(output),
+            source_map,
+            output_spans,
+            encoded: true,
+        }),
+        diagnostics,
+    }
+}
+
+fn shift_output_span(span: &OutputSpan, offset: u64) -> OutputSpan {
+    let mut shifted = span.clone();
+    shifted.output_range = ByteRange::new(span.output_range.start + offset, span.output_range.len);
+    shifted
+}
+
+fn diagnostic_for_evaluated_encode_error(
+    error: TransformTemplateEncodedArtifactError,
+    evaluated: &TransformTemplateEvaluatedEncodeExpression,
+    uri: Option<&str>,
+) -> Diagnostic {
+    let mut diagnostic = error.diagnostic(uri);
+    attach_evaluated_encode_node(&mut diagnostic, evaluated);
+    diagnostic
+}
+
+fn diagnostic_for_evaluated_encode_value_type(
+    evaluated: &TransformTemplateEvaluatedEncodeExpression,
+    uri: Option<&str>,
+) -> Diagnostic {
+    let mut diagnostic = Diagnostic {
+        uri: uri.map(str::to_owned),
+        code: TRANSFORM_TEMPLATE_ENCODED_ARTIFACT_VALUE_TYPE_CODE.to_owned(),
+        severity: Severity::Error,
+        message: format!(
+            "encoded text artifact expected string value, got {}",
+            json_value_type_name(&evaluated.artifact.value)
+        ),
+        ..Diagnostic::default()
+    };
+    attach_evaluated_encode_node(&mut diagnostic, evaluated);
+    diagnostic
+}
+
+fn attach_evaluated_encode_node(
+    diagnostic: &mut Diagnostic,
+    evaluated: &TransformTemplateEvaluatedEncodeExpression,
+) {
+    diagnostic.node = evaluated.expression.owner.clone();
+    if diagnostic.node.is_none() {
+        diagnostic.node = Some(evaluated.expression.expression.clone());
+    }
+}
+
+fn json_value_type_name(value: &Value) -> &'static str {
+    match value {
+        Value::Null => "null",
+        Value::Bool(_) => "boolean",
+        Value::Number(_) => "number",
+        Value::String(_) => "string",
+        Value::Array(_) => "array",
+        Value::Object(_) => "object",
+    }
 }
 
 pub fn evaluate_transform_template_encode_expressions<F>(
@@ -1746,6 +1900,23 @@ impl TransformTemplateEncodedArtifactInsertionContext {
             content_type: identity.content_type.clone().unwrap_or_default(),
             schema: identity.schema.clone().unwrap_or_default(),
             ..Self::default()
+        }
+    }
+
+    pub fn from_encoded_artifact_identity(
+        identity: &TransformTemplateEncodedArtifactIdentity,
+    ) -> Self {
+        Self {
+            produces: Some(identity.produces),
+            content_type: identity.target.content_type.clone(),
+            schema: identity.target.schema.clone(),
+            category: Some(identity.target.category.clone()),
+            context: identity.target.context.clone(),
+            formatter_profile: identity.formatter_profile.clone(),
+            color_profile: identity.color_profile.clone(),
+            color_capability: identity.color_capability.clone(),
+            mode: Some(identity.mode),
+            canonical: Some(identity.canonical),
         }
     }
 
@@ -3274,6 +3445,82 @@ mod tests {
         TransformTemplateEncodedArtifact::new(identity, Value::String("Hello &amp; CEM".to_owned()))
     }
 
+    fn source_map_stack(start: u64, len: u32) -> SourceMapStack {
+        SourceMapStack {
+            frames: vec![crate::source_map::SourceMapFrame {
+                source_id: SourceId(7),
+                span: crate::source_map::FrameSpan::Single(ByteRange::new(start, len)),
+                transform: crate::source_map::TransformKind::CemTokenizer,
+            }],
+        }
+    }
+
+    fn output_span(start: u64, len: u32) -> OutputSpan {
+        OutputSpan {
+            output_range: ByteRange::new(start, len),
+            origin: source_map_stack(start + 100, len),
+        }
+    }
+
+    fn output_function_descriptor() -> TransformTemplateOutputFunctionDescriptor {
+        TransformTemplateOutputFunctionDescriptor {
+            kind: TransformTemplateOutputFunctionKind::Encoding,
+            owner: None,
+            name: "html.text".to_owned(),
+            category: "html-text".to_owned(),
+            subject: "string".to_owned(),
+            produces: TransformTemplateOutputProducedKind::Text,
+            content_type: "text/html".to_owned(),
+            schema: "https://cem.dev/ns/data/html/1".to_owned(),
+            canonical: true,
+            streamable: true,
+            visibility: TransformTemplateModuleVisibility::Private,
+            implementation: TransformTemplateOutputFunctionImplementation::Cemt,
+            profile: None,
+            extends: None,
+            capability: None,
+            deterministic: true,
+            trusted: false,
+            fallback: None,
+            params: Vec::new(),
+            body_declared: false,
+        }
+    }
+
+    fn evaluated_html_text(owner: &str, value: &str) -> TransformTemplateEvaluatedEncodeExpression {
+        let mut artifact = encoded_html_text_artifact();
+        artifact.value = Value::String(value.to_owned());
+        artifact.source_map = Some(source_map_stack(20, 4));
+        artifact.output_spans = vec![output_span(0, value.len() as u32)];
+
+        let expression = TransformTemplateEncodeExpression {
+            owner: Some(owner.to_owned()),
+            expression: format!("encode($node.{owner}, {{ contentType: \"text/html\" }})"),
+            subject: format!("$node.{owner}"),
+            subject_type: Some("string".to_owned()),
+            target: artifact.identity.target.clone(),
+            options: TransformTemplateEncodeOptions {
+                canonical: artifact.identity.canonical,
+                mode: artifact.identity.mode,
+                charset: artifact.identity.charset.clone(),
+                formatter_profile: artifact.identity.formatter_profile.clone(),
+                ..TransformTemplateEncodeOptions::default()
+            },
+        };
+        let binding = TransformTemplateEncodeBinding {
+            function: output_function_descriptor(),
+            subject_type: "string".to_owned(),
+            identity: artifact.identity.clone(),
+        };
+
+        TransformTemplateEvaluatedEncodeExpression {
+            expression,
+            subject: Value::String(value.to_owned()),
+            binding,
+            artifact,
+        }
+    }
+
     #[test]
     fn builtins_select_cem_native_and_xslt_template_adapters() {
         let registry = TransformTemplateAdapterRegistry::with_builtin_adapters();
@@ -4195,6 +4442,111 @@ mod tests {
             .diagnostics
             .iter()
             .any(|diag| diag.code == TRANSFORM_TEMPLATE_OUTPUT_FUNCTION_UNKNOWN_CODE));
+    }
+
+    #[test]
+    fn encoded_text_artifact_composition_concatenates_and_shifts_spans() {
+        let first = evaluated_html_text("title", "Hello ");
+        let second = evaluated_html_text("body", "&amp; CEM");
+        let context = TransformTemplateEncodedArtifactInsertionContext::from_encoding_target(
+            &first.expression.target,
+            Some(TransformTemplateOutputProducedKind::Text),
+        );
+
+        let response = compose_transform_template_encoded_text_artifacts(
+            &[first, second],
+            &context,
+            Some("templates/runtime-encoding.cemt"),
+        );
+
+        assert!(
+            response.diagnostics.is_empty(),
+            "{:?}",
+            response.diagnostics
+        );
+        let artifact = response.artifact.expect("composed artifact");
+        assert_eq!(artifact.value, Value::String("Hello &amp; CEM".to_owned()));
+        assert_eq!(
+            artifact.identity.produces,
+            TransformTemplateOutputProducedKind::Text
+        );
+        assert_eq!(artifact.identity.target.category, "html-text");
+        assert_eq!(artifact.identity.target.context.as_deref(), Some("text"));
+        assert!(artifact.source_map.is_some());
+        assert_eq!(artifact.output_spans.len(), 2);
+        assert_eq!(artifact.output_spans[0].output_range, ByteRange::new(0, 6));
+        assert_eq!(artifact.output_spans[1].output_range, ByteRange::new(6, 9));
+    }
+
+    #[test]
+    fn encoded_text_artifact_composition_rejects_context_mismatch() {
+        let first = evaluated_html_text("title", "Hello ");
+        let mut second = evaluated_html_text("body", "CEM");
+        second.artifact.identity.target.context = Some("double-quoted-attribute".to_owned());
+        let context = TransformTemplateEncodedArtifactInsertionContext::from_encoding_target(
+            &first.expression.target,
+            Some(TransformTemplateOutputProducedKind::Text),
+        );
+
+        let response = compose_transform_template_encoded_text_artifacts(
+            &[first, second],
+            &context,
+            Some("templates/runtime-encoding.cemt"),
+        );
+
+        assert!(response.artifact.is_none());
+        assert!(response.diagnostics.iter().any(|diagnostic| {
+            diagnostic.code == TRANSFORM_TEMPLATE_ENCODED_ARTIFACT_CONTEXT_MISMATCH_CODE
+                && diagnostic.node.as_deref() == Some("body")
+        }));
+    }
+
+    #[test]
+    fn encoded_text_artifact_composition_rejects_artifact_category_mismatch() {
+        let first = evaluated_html_text("title", "Hello ");
+        let mut second = evaluated_html_text("body", "CEM");
+        second.artifact.identity.target.category = "html-attribute".to_owned();
+        let context = TransformTemplateEncodedArtifactInsertionContext::new(
+            "text/html",
+            "https://cem.dev/ns/data/html/1",
+        )
+        .with_produces(TransformTemplateOutputProducedKind::Text);
+
+        let response = compose_transform_template_encoded_text_artifacts(
+            &[first, second],
+            &context,
+            Some("templates/runtime-encoding.cemt"),
+        );
+
+        assert!(response.artifact.is_none());
+        assert!(response.diagnostics.iter().any(|diagnostic| {
+            diagnostic.code == TRANSFORM_TEMPLATE_ENCODED_ARTIFACT_CONTEXT_MISMATCH_CODE
+                && diagnostic.node.as_deref() == Some("body")
+                && diagnostic.message.contains("category")
+        }));
+    }
+
+    #[test]
+    fn encoded_text_artifact_composition_rejects_non_string_text_value() {
+        let mut evaluated = evaluated_html_text("body", "CEM");
+        evaluated.artifact.value = json!({"text": "CEM"});
+        let context = TransformTemplateEncodedArtifactInsertionContext::from_encoding_target(
+            &evaluated.expression.target,
+            Some(TransformTemplateOutputProducedKind::Text),
+        );
+
+        let response = compose_transform_template_encoded_text_artifacts(
+            &[evaluated],
+            &context,
+            Some("templates/runtime-encoding.cemt"),
+        );
+
+        assert!(response.artifact.is_none());
+        assert!(response.diagnostics.iter().any(|diagnostic| {
+            diagnostic.code == TRANSFORM_TEMPLATE_ENCODED_ARTIFACT_VALUE_TYPE_CODE
+                && diagnostic.node.as_deref() == Some("body")
+                && diagnostic.message.contains("object")
+        }));
     }
 
     #[test]
