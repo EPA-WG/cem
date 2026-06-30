@@ -12,14 +12,24 @@ semantic layer, including the legacy
 
 ## Converter Edges
 
-The package manifest declares planned CEMT-primary converter edges from the
-binary DOM projection to HTML and XML. Those edges include Rust fallback symbols
-until CEMT execution is wired through the conversion registry:
+The package manifest declares CEMT-primary converter edges from the binary DOM
+projection to HTML and XML. The CEMT assets are packaged next to the schema, but
+the edges stay `planned` until the CEMT runtime can construct dynamic element
+and attribute names from projection data. XML output also needs target-specific
+XML serialization instead of the current HTML renderer.
 
-| Converter | From | To | Primary | Fallback |
-| --- | --- | --- | --- | --- |
-| `cem-dom-projection-to-html-cemt` | `application/vnd.cem.dom+cem-bin` | `text/html` | CEMT planned | `HtmlExportConverter` |
-| `cem-dom-projection-to-xml-cemt` | `application/vnd.cem.dom+cem-bin` | `application/xml` | CEMT planned | `XmlExportConverter` |
+| Converter | From | To | CEMT asset | Runtime state | Fallback |
+| --- | --- | --- | --- | --- | --- |
+| `cem-dom-projection-to-html-cemt` | `application/vnd.cem.dom+cem-bin` | `text/html` | [`converters/dom-to-html.cemt`](converters/dom-to-html.cemt) | Planned: requires dynamic element/attribute construction | `HtmlExportConverter` |
+| `cem-dom-projection-to-xml-cemt` | `application/vnd.cem.dom+cem-bin` | `application/xml` | [`converters/dom-to-xml.cemt`](converters/dom-to-xml.cemt) | Planned: requires dynamic construction plus XML target serialization | `XmlExportConverter` |
+
+Until those CEMT capabilities land, registry execution must select the CEMT
+descriptor for identity and planning, then execute the registered Rust fallback.
+These planned converter assets are not standalone validation examples yet: the
+current CLI template pass does not thread converter input bindings, loop
+bindings, or recursive `@with:*` call parameter bindings into CEM-QL expression
+validation. Promotion to `ready` requires context-aware asset validation in
+addition to serializer parity.
 
 ## Validation Examples
 

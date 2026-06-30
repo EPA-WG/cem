@@ -84,8 +84,12 @@ history belongs in git history and the feature-specific docs linked below.
         with Rust fallback execution when the CEMT edge is still planned.
   - [x] Load ready CEMT converter template assets and execute them end-to-end
         through the selected adapter before falling back to Rust hooks.
-  - [ ] Author packaged DOM-projection CEMT converter assets and promote the
-        HTML/XML descriptors from planned to ready after parity coverage.
+  - [x] Author packaged DOM-projection CEMT converter assets as planned
+        schema-owned resources.
+  - [ ] Add context-aware CEMT converter asset validation, dynamic
+        element/attribute construction, and XML target serialization; then
+        promote the DOM-projection HTML/XML descriptors from planned to ready
+        after parity coverage.
 
 ## Schema Package Implementation List
 

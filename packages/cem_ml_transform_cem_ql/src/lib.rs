@@ -4106,6 +4106,67 @@ mod tests {
     }
 
     #[test]
+    fn packaged_dom_projection_converter_assets_compile_with_cem_ql_adapter() {
+        let adapter = CemQlTransformTemplateAdapter;
+        let identity = FormatIdentity {
+            content_type: Some(cem_ml::schema::registry::CEM_TRANSFORM_CONTENT_TYPE.to_owned()),
+            schema: Some(cem_ml::schema::registry::CEM_TRANSFORM_SCHEMA_URI.to_owned()),
+            ..FormatIdentity::default()
+        };
+
+        for (uri, source) in [
+            (
+                "schema-packages/cem-dom-projection/v1/converters/dom-to-html.cemt",
+                include_str!(
+                    "../../cem_ml/schema-packages/cem-dom-projection/v1/converters/dom-to-html.cemt"
+                ),
+            ),
+            (
+                "schema-packages/cem-dom-projection/v1/converters/dom-to-xml.cemt",
+                include_str!(
+                    "../../cem_ml/schema-packages/cem-dom-projection/v1/converters/dom-to-xml.cemt"
+                ),
+            ),
+        ] {
+            let template = TemplateInput {
+                uri: uri.to_owned(),
+                bytes: source.as_bytes().to_vec(),
+                identity: Some(identity.clone()),
+                root_scope: ScopeConfig::default(),
+            };
+            let module_parse =
+                parse_cem_native_template_module_options(TransformTemplateModuleParseRequest {
+                    template: template.clone(),
+                });
+            assert!(
+                module_parse.diagnostics.is_empty(),
+                "{uri}: {:?}",
+                module_parse.diagnostics
+            );
+            let params = BTreeMap::new();
+            let data_bindings = vec!["input".to_owned()];
+
+            let compiled = adapter
+                .compile(TransformTemplateCompileRequest {
+                    template: &template,
+                    entrypoint: &TransformTemplateEntrypoint::named("main"),
+                    params: &params,
+                    data_bindings: &data_bindings,
+                    module_options: module_parse.module_options,
+                    module_preflight: Default::default(),
+                    execution_policy: TransformExecutionPolicy::default(),
+                })
+                .expect("packaged DOM projection converter asset should compile");
+
+            assert!(
+                compiled.diagnostics.is_empty(),
+                "{uri}: {:?}",
+                compiled.diagnostics
+            );
+        }
+    }
+
+    #[test]
     fn real_engine_transform_uses_registered_cem_ql_adapter() {
         let context = engine_context_with_cem_ql_template_adapter();
         let template_identity = FormatIdentity {

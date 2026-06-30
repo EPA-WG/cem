@@ -833,7 +833,7 @@ pub fn builtin_conversion_descriptors() -> Vec<ConversionDescriptor> {
             endpoint(HTML_CONTENT_TYPE, HTML_SCHEMA_URI),
             "schema-packages/cem-dom-projection/v1/converters/dom-to-html.cemt",
             "HtmlExportConverter",
-            "CEMT DOM-to-HTML serialization edge is registered before execution is wired",
+            "CEMT DOM-to-HTML serialization requires dynamic element/attribute construction before the edge can be promoted to ready",
             "serialization",
             100,
         ),
@@ -859,7 +859,7 @@ pub fn builtin_conversion_descriptors() -> Vec<ConversionDescriptor> {
             endpoint(XML_CONTENT_TYPE, XML_SCHEMA_URI),
             "schema-packages/cem-dom-projection/v1/converters/dom-to-xml.cemt",
             "XmlExportConverter",
-            "CEMT DOM-to-XML serialization edge is registered before execution is wired",
+            "CEMT DOM-to-XML serialization requires dynamic element/attribute construction and XML target serialization before the edge can be promoted to ready",
             "serialization",
             100,
         ),
@@ -1089,13 +1089,53 @@ mod tests {
 
         let fallback = selection.descriptor.rust_fallback.as_ref().unwrap();
         assert_eq!(fallback.rust_symbol, "HtmlExportConverter");
-        assert!(fallback.reason.contains("before execution is wired"));
+        assert!(fallback
+            .reason
+            .contains("dynamic element/attribute construction"));
 
         let rust_edge = registry
             .converter("cem-dom-projection-to-html-rust")
             .expect("rust fallback edge remains registered");
         assert_eq!(rust_edge.implementation, ConversionImplementation::Rust);
         assert_eq!(rust_edge.readiness, ConversionReadiness::Ready);
+    }
+
+    #[test]
+    fn builtin_dom_projection_cemt_assets_exist_but_remain_planned() {
+        let registry = ConversionRegistry::with_builtin_converters();
+
+        for (id, expected_path, marker) in [
+            (
+                "cem-dom-projection-to-html-cemt",
+                "schema-packages/cem-dom-projection/v1/converters/dom-to-html.cemt",
+                "DOM-to-HTML",
+            ),
+            (
+                "cem-dom-projection-to-xml-cemt",
+                "schema-packages/cem-dom-projection/v1/converters/dom-to-xml.cemt",
+                "DOM-to-XML",
+            ),
+        ] {
+            let descriptor = registry.converter(id).expect("built-in converter");
+            assert_eq!(descriptor.implementation, ConversionImplementation::Cemt);
+            assert_eq!(descriptor.readiness, ConversionReadiness::Planned);
+
+            let template = descriptor.template.as_ref().expect("CEMT template");
+            assert_eq!(template.path, expected_path);
+            assert_eq!(template.content_type, CEM_TRANSFORM_CONTENT_TYPE);
+            assert_eq!(template.schema.as_deref(), Some(CEM_TRANSFORM_SCHEMA_URI));
+
+            let asset_path = std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join(&template.path);
+            let source = std::fs::read_to_string(&asset_path).unwrap_or_else(|err| {
+                panic!(
+                    "{marker} CEMT asset `{}` should be readable: {err}",
+                    asset_path.display()
+                )
+            });
+            assert!(source.starts_with("@doc cem-ml 1"));
+            assert!(source.contains("@default transform"));
+            assert!(source.contains(r#"{template @name="emit-node""#));
+        }
     }
 
     #[test]
@@ -1150,7 +1190,7 @@ mod tests {
                 template_adapter_id,
             } => {
                 assert_eq!(rust_symbol, "HtmlExportConverter");
-                assert!(reason.contains("before execution is wired"));
+                assert!(reason.contains("dynamic element/attribute construction"));
                 assert!(reason.contains("readiness is planned"));
                 assert_eq!(*template_adapter_id, Some("cem-native-template"));
             }

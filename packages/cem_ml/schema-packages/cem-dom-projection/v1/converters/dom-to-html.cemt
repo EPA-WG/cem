@@ -1,0 +1,49 @@
+@doc cem-ml 1
+@ns transform = "https://cem.dev/ns/transform/cem/1"
+@default transform
+
+{module @version="1.0.0" |
+    {param @name="input" @type="object" @required=true}
+
+    {template @name="main" @visibility="public" |
+        {body |
+            {cem:for-each @select="$input.children" @as="node" |
+                {call @template="emit-node" @with:node="{$node}"}
+            }
+        }
+    }
+
+    {template @name="emit-node" |
+        {param @name="node" @type="object" @required=true}
+        {body |
+            {cem:choose |
+                {cem:when @test='node.kind = "element"' |
+                    {element @name="{$node.name}" @namespace="{$node.namespace}" |
+                        {cem:for-each @select="$node.attributes" @as="attribute" |
+                            {attribute
+                                @name="{$attribute.name}"
+                                @namespace="{$attribute.namespace}"
+                                @value="{$attribute.value}"
+                            }
+                        }
+                        {cem:for-each @select="$node.children" @as="child" |
+                            {call @template="emit-node" @with:node="{$child}"}
+                        }
+                    }
+                }
+                {cem:when @test='node.kind = "text"' |
+                    {$node.value}
+                }
+                {cem:when @test='node.kind = "whitespace"' |
+                    {$node.value}
+                }
+                {cem:when @test='node.kind = "comment"' |
+                    {comment @value="{$node.value}"}
+                }
+                {cem:when @test='node.kind = "raw-text"' |
+                    {$node.value}
+                }
+            }
+        }
+    }
+}
