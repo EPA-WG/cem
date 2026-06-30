@@ -35,3 +35,26 @@ The schema describes XML resources as a namespace-aware document model:
 This package intentionally does not claim all media types ending in `+xml`.
 Domain formats such as XHTML, SVG, MathML, XSLT, Atom, and RSS need their own
 schema packages that can depend on the generic XML schema.
+
+## Validation Examples
+
+Validate XML resources through the CLI with the schema URL and content type:
+
+```bash
+cem-ml validate --format json \
+  --content-type application/xml \
+  --schema https://cem.dev/ns/data/xml/1 \
+  packages/cem_ml/schema-packages/xml/v1/examples/basic-document.xml
+```
+
+Checked examples:
+
+- [basic-document.xml](examples/basic-document.xml): a minimal XML document.
+- [namespaced-document.xml](examples/namespaced-document.xml): default and
+  prefixed namespace declarations.
+- [invalid-mismatched-tag.xml](examples/invalid-mismatched-tag.xml): reports
+  `cem.xml.parse_error`.
+- [invalid-unbound-prefix.xml](examples/invalid-unbound-prefix.xml): reports
+  `cem.xml.unbound_namespace_prefix`.
+- [invalid-doctype.xml](examples/invalid-doctype.xml): reports
+  `cem.xml.dtd_rejected` under the current no-DTD runtime policy.

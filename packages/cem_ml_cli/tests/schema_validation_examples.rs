@@ -29,6 +29,9 @@ const MARKDOWN_COMMONMARK_CONTENT_TYPE: &str = "text/markdown; charset=utf-8; va
 const MARKDOWN_GFM_CONTENT_TYPE: &str = "text/markdown; charset=utf-8; variant=GFM";
 const MARKDOWN_UNKNOWN_VARIANT_CONTENT_TYPE: &str =
     "text/markdown; charset=utf-8; variant=CustomWiki";
+const XML_SCHEMA_URI: &str = "https://cem.dev/ns/data/xml/1";
+const XML_CONTENT_TYPE: &str = "application/xml";
+const XML_TEXT_CONTENT_TYPE: &str = "text/xml; charset=utf-8";
 const JSON_SCHEMA_SCHEMA_URI: &str = "https://cem.dev/ns/data/json-schema/1";
 const JSON_SCHEMA_CONTENT_TYPE: &str = "application/schema+json";
 const CEM_DOM_PROJECTION_SCHEMA_URI: &str = "https://cem.dev/ns/projection/dom/1";
@@ -387,6 +390,46 @@ fn schema_owned_examples_validate_through_cli() {
             schema_uri: MARKDOWN_SCHEMA_URI,
             expected_exit: EXIT_OK,
             expected_diagnostics: &["cem.markdown.unknown_variant"],
+        },
+        ValidationExample {
+            name: "xml basic document",
+            path: "packages/cem_ml/schema-packages/xml/v1/examples/basic-document.xml",
+            content_type: XML_CONTENT_TYPE,
+            schema_uri: XML_SCHEMA_URI,
+            expected_exit: EXIT_OK,
+            expected_diagnostics: &[],
+        },
+        ValidationExample {
+            name: "xml namespaced document",
+            path: "packages/cem_ml/schema-packages/xml/v1/examples/namespaced-document.xml",
+            content_type: XML_TEXT_CONTENT_TYPE,
+            schema_uri: XML_SCHEMA_URI,
+            expected_exit: EXIT_OK,
+            expected_diagnostics: &[],
+        },
+        ValidationExample {
+            name: "xml invalid mismatched tag",
+            path: "packages/cem_ml/schema-packages/xml/v1/examples/invalid-mismatched-tag.xml",
+            content_type: XML_CONTENT_TYPE,
+            schema_uri: XML_SCHEMA_URI,
+            expected_exit: EXIT_HARD_FAILURE,
+            expected_diagnostics: &["cem.xml.parse_error"],
+        },
+        ValidationExample {
+            name: "xml invalid unbound prefix",
+            path: "packages/cem_ml/schema-packages/xml/v1/examples/invalid-unbound-prefix.xml",
+            content_type: XML_CONTENT_TYPE,
+            schema_uri: XML_SCHEMA_URI,
+            expected_exit: EXIT_HARD_FAILURE,
+            expected_diagnostics: &["cem.xml.unbound_namespace_prefix"],
+        },
+        ValidationExample {
+            name: "xml invalid doctype",
+            path: "packages/cem_ml/schema-packages/xml/v1/examples/invalid-doctype.xml",
+            content_type: XML_CONTENT_TYPE,
+            schema_uri: XML_SCHEMA_URI,
+            expected_exit: EXIT_HARD_FAILURE,
+            expected_diagnostics: &["cem.xml.dtd_rejected"],
         },
         ValidationExample {
             name: "json-schema basic",

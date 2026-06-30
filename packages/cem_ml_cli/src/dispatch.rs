@@ -3028,6 +3028,8 @@ fn direct_source_validation_report(
             diagnostics.extend(collect_markdown_source_diagnostics(std::slice::from_ref(
                 input,
             )));
+        } else if is_xml_source_input(input) {
+            diagnostics.extend(collect_xml_source_diagnostics(std::slice::from_ref(input)));
         } else if is_json_source_input(input) {
             diagnostics.extend(collect_json_source_diagnostics(std::slice::from_ref(input)));
         } else {
@@ -3195,6 +3197,30 @@ fn is_markdown_source_input(input: &eng::EngineInput) -> bool {
     }
 }
 
+fn is_xml_source_input(input: &eng::EngineInput) -> bool {
+    let identity = input
+        .identity
+        .clone()
+        .unwrap_or_else(|| input.root_scope.format_identity());
+    let schema_is_xml = identity
+        .schema
+        .as_deref()
+        .map(str::trim)
+        .is_some_and(|schema| schema == cem_ml::schema::registry::XML_SCHEMA_URI);
+    let content_type = identity
+        .content_type
+        .as_deref()
+        .map(cli_content_type_essence);
+
+    match content_type.as_deref() {
+        Some(content_type) if is_xml_source_content_type(content_type) => {
+            identity.schema.is_none() || schema_is_xml
+        }
+        Some(_) => false,
+        None => schema_is_xml,
+    }
+}
+
 fn is_cem_dom_projection_source_input(input: &eng::EngineInput) -> bool {
     let identity = input
         .identity
@@ -3322,6 +3348,17 @@ fn is_csv_source_content_type(content_type: &str) -> bool {
 
 fn is_markdown_source_content_type(content_type: &str) -> bool {
     content_type == cem_ml::schema::registry::MARKDOWN_CONTENT_TYPE
+}
+
+fn is_xml_source_content_type(content_type: &str) -> bool {
+    matches!(
+        content_type,
+        cem_ml::schema::registry::XML_CONTENT_TYPE
+            | "text/xml"
+            | "application/xml-external-parsed-entity"
+            | "text/xml-external-parsed-entity"
+            | "application/xml-dtd"
+    )
 }
 
 fn cli_content_type_essence(content_type: &str) -> String {
@@ -3552,6 +3589,631 @@ fn collect_markdown_source_diagnostics(
         }
     }
     diagnostics
+}
+
+fn collect_xml_source_diagnostics(
+    inputs: &[eng::EngineInput],
+) -> Vec<cem_ml::diagnostics::Diagnostic> {
+    let mut diagnostics = Vec::new();
+    for input in inputs {
+        let source = match std::str::from_utf8(&input.bytes) {
+            Ok(source) => source,
+            Err(error) => {
+                diagnostics.push(xml_unsupported_utf8_diagnostic(input, &error));
+                continue;
+            }
+        };
+
+        let content_type = input_source_content_type(input);
+        let mime_charset = content_type
+            .as_deref()
+            .and_then(|content_type| cli_content_type_parameter(content_type, "charset"));
+        if let Some(charset) = mime_charset.as_deref() {
+            if !xml_encoding_is_supported(charset) {
+                diagnostics.push(xml_unsupported_encoding_diagnostic(
+                    input,
+                    source,
+                    None,
+                    &format!("XML content-type charset `{charset}` is not supported"),
+                ));
+                continue;
+            }
+        }
+
+        match xml_source_kind(input) {
+            XmlSourceKind::Dtd => {
+                if !source.trim().is_empty() {
+                    diagnostics.push(xml_diagnostic(
+                        input,
+                        source,
+                        None,
+                        "cem.xml.dtd_rejected",
+                        cem_ml::diagnostics::Severity::Error,
+                        "XML DTD resources are rejected until an explicit DTD policy enables them"
+                            .to_owned(),
+                    ));
+                }
+            }
+            XmlSourceKind::Document | XmlSourceKind::ExternalParsedEntity => {
+                diagnostics.extend(validate_xml_source(input, source, mime_charset.as_deref()));
+            }
+        }
+    }
+    diagnostics
+}
+
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+enum XmlSourceKind {
+    Document,
+    ExternalParsedEntity,
+    Dtd,
+}
+
+fn xml_source_kind(input: &eng::EngineInput) -> XmlSourceKind {
+    let identity = input
+        .identity
+        .clone()
+        .unwrap_or_else(|| input.root_scope.format_identity());
+    let content_type = identity
+        .content_type
+        .as_deref()
+        .map(cli_content_type_essence);
+
+    match content_type.as_deref() {
+        Some("application/xml-dtd") => XmlSourceKind::Dtd,
+        Some("application/xml-external-parsed-entity")
+        | Some("text/xml-external-parsed-entity") => XmlSourceKind::ExternalParsedEntity,
+        _ => XmlSourceKind::Document,
+    }
+}
+
+fn validate_xml_source(
+    input: &eng::EngineInput,
+    source: &str,
+    mime_charset: Option<&str>,
+) -> Vec<cem_ml::diagnostics::Diagnostic> {
+    let kind = xml_source_kind(input);
+    let mut diagnostics = Vec::new();
+    let mut reader = quick_xml::Reader::from_str(source);
+    reader.config_mut().check_comments = true;
+
+    let mut element_stack: Vec<String> = Vec::new();
+    let mut namespace_stack = vec![xml_initial_namespaces()];
+    let mut root_count = 0usize;
+    let mut reported_multiple_roots = false;
+
+    loop {
+        match reader.read_event() {
+            Ok(quick_xml::events::Event::Start(start)) => {
+                if element_stack.is_empty() {
+                    root_count += 1;
+                    if kind == XmlSourceKind::Document && root_count > 1 && !reported_multiple_roots
+                    {
+                        diagnostics.push(xml_diagnostic(
+                            input,
+                            source,
+                            xml_event_position(&reader, &start, false),
+                            "cem.xml.parse_error",
+                            cem_ml::diagnostics::Severity::Error,
+                            "XML document must have exactly one document element".to_owned(),
+                        ));
+                        reported_multiple_roots = true;
+                    }
+                }
+
+                let (next_namespaces, mut start_diagnostics) =
+                    validate_xml_start_event(input, source, &start, &namespace_stack);
+                diagnostics.append(&mut start_diagnostics);
+                element_stack.push(xml_qname_display(start.name().as_ref()));
+                namespace_stack.push(next_namespaces);
+            }
+            Ok(quick_xml::events::Event::Empty(start)) => {
+                if element_stack.is_empty() {
+                    root_count += 1;
+                    if kind == XmlSourceKind::Document && root_count > 1 && !reported_multiple_roots
+                    {
+                        diagnostics.push(xml_diagnostic(
+                            input,
+                            source,
+                            xml_event_position(&reader, &start, true),
+                            "cem.xml.parse_error",
+                            cem_ml::diagnostics::Severity::Error,
+                            "XML document must have exactly one document element".to_owned(),
+                        ));
+                        reported_multiple_roots = true;
+                    }
+                }
+
+                let (_, mut start_diagnostics) =
+                    validate_xml_start_event(input, source, &start, &namespace_stack);
+                diagnostics.append(&mut start_diagnostics);
+            }
+            Ok(quick_xml::events::Event::End(end)) => {
+                let found = xml_qname_display(end.name().as_ref());
+                match element_stack.pop() {
+                    Some(expected) if expected == found => {
+                        if namespace_stack.len() > 1 {
+                            namespace_stack.pop();
+                        }
+                    }
+                    Some(expected) => diagnostics.push(xml_diagnostic(
+                        input,
+                        source,
+                        Some(reader.error_position()),
+                        "cem.xml.parse_error",
+                        cem_ml::diagnostics::Severity::Error,
+                        format!("XML end tag `</{found}>` does not match `<{expected}>`"),
+                    )),
+                    None => diagnostics.push(xml_diagnostic(
+                        input,
+                        source,
+                        Some(reader.error_position()),
+                        "cem.xml.parse_error",
+                        cem_ml::diagnostics::Severity::Error,
+                        format!("XML end tag `</{found}>` has no matching start tag"),
+                    )),
+                }
+            }
+            Ok(quick_xml::events::Event::Decl(decl)) => {
+                if let Err(error) = decl.version() {
+                    diagnostics.push(xml_reader_error_diagnostic(
+                        input,
+                        source,
+                        Some(reader.error_position()),
+                        &error,
+                    ));
+                }
+                if let Some(encoding) = decl.encoding() {
+                    match encoding {
+                        Ok(encoding) => {
+                            let encoding = String::from_utf8_lossy(encoding.as_ref());
+                            if !xml_encoding_is_supported(&encoding) {
+                                diagnostics.push(xml_unsupported_encoding_diagnostic(
+                                    input,
+                                    source,
+                                    Some(reader.error_position()),
+                                    &format!(
+                                        "XML declaration encoding `{encoding}` is not supported"
+                                    ),
+                                ));
+                            } else if let Some(charset) = mime_charset {
+                                let declared = xml_normalized_encoding(&encoding);
+                                let charset = xml_normalized_encoding(charset);
+                                if declared != charset
+                                    && !(declared == "utf-8" && charset == "us-ascii")
+                                    && !(declared == "us-ascii" && charset == "utf-8")
+                                {
+                                    diagnostics.push(xml_diagnostic(
+                                        input,
+                                        source,
+                                        Some(reader.error_position()),
+                                        "cem.xml.encoding_conflict",
+                                        cem_ml::diagnostics::Severity::Warning,
+                                        format!(
+                                            "XML declaration encoding `{encoding}` conflicts with content-type charset `{charset}`"
+                                        ),
+                                    ));
+                                }
+                            }
+                        }
+                        Err(error) => diagnostics.push(xml_attribute_error_diagnostic(
+                            input,
+                            source,
+                            &error,
+                            Some(reader.error_position()),
+                        )),
+                    }
+                }
+            }
+            Ok(quick_xml::events::Event::DocType(_)) => diagnostics.push(xml_diagnostic(
+                input,
+                source,
+                Some(reader.error_position()),
+                "cem.xml.dtd_rejected",
+                cem_ml::diagnostics::Severity::Error,
+                "XML DTD declarations are rejected until an explicit DTD policy enables them"
+                    .to_owned(),
+            )),
+            Ok(quick_xml::events::Event::GeneralRef(reference)) => {
+                if !xml_entity_reference_is_builtin(reference.as_ref()) {
+                    diagnostics.push(xml_diagnostic(
+                        input,
+                        source,
+                        Some(reader.error_position()),
+                        "cem.xml.external_entity_rejected",
+                        cem_ml::diagnostics::Severity::Error,
+                        format!(
+                            "XML entity reference `&{};` is rejected",
+                            String::from_utf8_lossy(reference.as_ref())
+                        ),
+                    ));
+                }
+            }
+            Ok(quick_xml::events::Event::Text(text)) => {
+                if kind == XmlSourceKind::Document
+                    && element_stack.is_empty()
+                    && !xml_bytes_are_whitespace(text.as_ref())
+                {
+                    diagnostics.push(xml_diagnostic(
+                        input,
+                        source,
+                        Some(reader.error_position()),
+                        "cem.xml.parse_error",
+                        cem_ml::diagnostics::Severity::Error,
+                        "XML document cannot contain character data outside the document element"
+                            .to_owned(),
+                    ));
+                }
+            }
+            Ok(quick_xml::events::Event::CData(_)) if kind == XmlSourceKind::Document => {
+                if element_stack.is_empty() {
+                    diagnostics.push(xml_diagnostic(
+                        input,
+                        source,
+                        Some(reader.error_position()),
+                        "cem.xml.parse_error",
+                        cem_ml::diagnostics::Severity::Error,
+                        "XML document cannot contain CDATA outside the document element".to_owned(),
+                    ));
+                }
+            }
+            Ok(quick_xml::events::Event::Eof) => break,
+            Ok(_) => {}
+            Err(error) => {
+                diagnostics.push(xml_reader_error_diagnostic(
+                    input,
+                    source,
+                    Some(reader.error_position()),
+                    &error,
+                ));
+                break;
+            }
+        }
+    }
+
+    if kind == XmlSourceKind::Document && root_count == 0 {
+        diagnostics.push(xml_diagnostic(
+            input,
+            source,
+            Some(0),
+            "cem.xml.parse_error",
+            cem_ml::diagnostics::Severity::Error,
+            "XML document must contain a document element".to_owned(),
+        ));
+    }
+    if let Some(unclosed) = element_stack.last() {
+        diagnostics.push(xml_diagnostic(
+            input,
+            source,
+            Some(reader.buffer_position()),
+            "cem.xml.parse_error",
+            cem_ml::diagnostics::Severity::Error,
+            format!("XML start tag `<{unclosed}>` is missing a matching end tag"),
+        ));
+    }
+
+    diagnostics
+}
+
+#[derive(Clone, Debug)]
+struct XmlAttributeView {
+    qualified_name: String,
+}
+
+fn validate_xml_start_event(
+    input: &eng::EngineInput,
+    source: &str,
+    start: &quick_xml::events::BytesStart<'_>,
+    namespace_stack: &[BTreeMap<String, String>],
+) -> (
+    BTreeMap<String, String>,
+    Vec<cem_ml::diagnostics::Diagnostic>,
+) {
+    let mut diagnostics = Vec::new();
+    let mut attributes = Vec::new();
+    let mut next_namespaces = namespace_stack
+        .last()
+        .cloned()
+        .unwrap_or_else(xml_initial_namespaces);
+
+    for attribute in start.attributes().with_checks(false) {
+        match attribute {
+            Ok(attribute) => {
+                let qualified_name = xml_qname_display(attribute.key.as_ref());
+                let value = String::from_utf8_lossy(attribute.value.as_ref()).into_owned();
+                if qualified_name == "xmlns" {
+                    next_namespaces.insert(String::new(), value.clone());
+                } else if let Some(prefix) = qualified_name.strip_prefix("xmlns:") {
+                    next_namespaces.insert(prefix.to_owned(), value.clone());
+                }
+                diagnostics.extend(xml_entity_reference_diagnostics(
+                    input,
+                    source,
+                    value.as_bytes(),
+                ));
+                attributes.push(XmlAttributeView { qualified_name });
+            }
+            Err(error) => {
+                diagnostics.push(xml_attribute_error_diagnostic(input, source, &error, None))
+            }
+        }
+    }
+
+    let element_name = xml_qname_display(start.name().as_ref());
+    if let Some(prefix) = xml_qname_prefix(&element_name) {
+        if !xml_prefix_is_bound(&next_namespaces, prefix) {
+            diagnostics.push(xml_unbound_namespace_prefix_diagnostic(
+                input,
+                source,
+                None,
+                prefix,
+                &element_name,
+            ));
+        }
+    }
+
+    let mut expanded_attributes = BTreeSet::new();
+    for attribute in attributes {
+        if xml_attribute_is_namespace_declaration(&attribute.qualified_name) {
+            continue;
+        }
+
+        let (namespace_uri, local_name) =
+            xml_attribute_expanded_name(&attribute.qualified_name, &next_namespaces);
+        if let Some(prefix) = xml_qname_prefix(&attribute.qualified_name) {
+            if !xml_prefix_is_bound(&next_namespaces, prefix) {
+                diagnostics.push(xml_unbound_namespace_prefix_diagnostic(
+                    input,
+                    source,
+                    None,
+                    prefix,
+                    &attribute.qualified_name,
+                ));
+            }
+        }
+
+        if !expanded_attributes.insert((namespace_uri.clone(), local_name.clone())) {
+            diagnostics.push(xml_diagnostic(
+                input,
+                source,
+                None,
+                "cem.xml.duplicate_attribute",
+                cem_ml::diagnostics::Severity::Error,
+                format!(
+                    "XML element `<{element_name}>` has a duplicate attribute `{}`",
+                    attribute.qualified_name
+                ),
+            ));
+        }
+    }
+
+    (next_namespaces, diagnostics)
+}
+
+fn xml_initial_namespaces() -> BTreeMap<String, String> {
+    BTreeMap::from([
+        (
+            "xml".to_owned(),
+            "http://www.w3.org/XML/1998/namespace".to_owned(),
+        ),
+        (
+            "xmlns".to_owned(),
+            "http://www.w3.org/2000/xmlns/".to_owned(),
+        ),
+    ])
+}
+
+fn xml_attribute_expanded_name(
+    qualified_name: &str,
+    namespaces: &BTreeMap<String, String>,
+) -> (String, String) {
+    if let Some((prefix, local_name)) = qualified_name.split_once(':') {
+        let namespace_uri = namespaces.get(prefix).cloned().unwrap_or_default();
+        (namespace_uri, local_name.to_owned())
+    } else {
+        (String::new(), qualified_name.to_owned())
+    }
+}
+
+fn xml_qname_prefix(qualified_name: &str) -> Option<&str> {
+    qualified_name
+        .split_once(':')
+        .map(|(prefix, _)| prefix)
+        .filter(|prefix| !prefix.is_empty() && *prefix != "xml")
+}
+
+fn xml_prefix_is_bound(namespaces: &BTreeMap<String, String>, prefix: &str) -> bool {
+    namespaces
+        .get(prefix)
+        .is_some_and(|namespace| !namespace.trim().is_empty())
+}
+
+fn xml_attribute_is_namespace_declaration(qualified_name: &str) -> bool {
+    qualified_name == "xmlns" || qualified_name.starts_with("xmlns:")
+}
+
+fn xml_qname_display(name: &[u8]) -> String {
+    String::from_utf8_lossy(name).into_owned()
+}
+
+fn xml_entity_reference_is_builtin(name: &[u8]) -> bool {
+    name.starts_with(b"#") || matches!(name, b"amp" | b"lt" | b"gt" | b"apos" | b"quot")
+}
+
+fn xml_entity_reference_diagnostics(
+    input: &eng::EngineInput,
+    source: &str,
+    value: &[u8],
+) -> Vec<cem_ml::diagnostics::Diagnostic> {
+    let mut diagnostics = Vec::new();
+    let mut remaining = value;
+    while let Some(start) = remaining.iter().position(|byte| *byte == b'&') {
+        let after_amp = &remaining[start + 1..];
+        let Some(end) = after_amp.iter().position(|byte| *byte == b';') else {
+            break;
+        };
+        let reference = &after_amp[..end];
+        if !xml_entity_reference_is_builtin(reference) {
+            diagnostics.push(xml_diagnostic(
+                input,
+                source,
+                None,
+                "cem.xml.external_entity_rejected",
+                cem_ml::diagnostics::Severity::Error,
+                format!(
+                    "XML entity reference `&{};` is rejected",
+                    String::from_utf8_lossy(reference)
+                ),
+            ));
+        }
+        remaining = &after_amp[end + 1..];
+    }
+    diagnostics
+}
+
+fn xml_bytes_are_whitespace(bytes: &[u8]) -> bool {
+    std::str::from_utf8(bytes)
+        .map(|value| value.chars().all(char::is_whitespace))
+        .unwrap_or(false)
+}
+
+fn xml_encoding_is_supported(encoding: &str) -> bool {
+    matches!(
+        xml_normalized_encoding(encoding).as_str(),
+        "utf-8" | "us-ascii"
+    )
+}
+
+fn xml_normalized_encoding(encoding: &str) -> String {
+    encoding.trim().trim_matches('"').to_ascii_lowercase()
+}
+
+fn xml_event_position(
+    reader: &quick_xml::Reader<&[u8]>,
+    start: &quick_xml::events::BytesStart<'_>,
+    empty: bool,
+) -> Option<u64> {
+    let markup_overhead = if empty { 3 } else { 2 };
+    reader
+        .buffer_position()
+        .checked_sub(start.as_ref().len() as u64 + markup_overhead)
+}
+
+fn xml_reader_error_diagnostic(
+    input: &eng::EngineInput,
+    source: &str,
+    byte_offset: Option<u64>,
+    error: &quick_xml::Error,
+) -> cem_ml::diagnostics::Diagnostic {
+    let code = match error {
+        quick_xml::Error::Encoding(_) => "cem.xml.unsupported_encoding",
+        quick_xml::Error::InvalidAttr(quick_xml::events::attributes::AttrError::Duplicated(
+            _,
+            _,
+        )) => "cem.xml.duplicate_attribute",
+        quick_xml::Error::Namespace(_) => "cem.xml.unbound_namespace_prefix",
+        _ => "cem.xml.parse_error",
+    };
+    xml_diagnostic(
+        input,
+        source,
+        byte_offset,
+        code,
+        cem_ml::diagnostics::Severity::Error,
+        format!("XML parse error: {error}"),
+    )
+}
+
+fn xml_attribute_error_diagnostic(
+    input: &eng::EngineInput,
+    source: &str,
+    error: &quick_xml::events::attributes::AttrError,
+    base_offset: Option<u64>,
+) -> cem_ml::diagnostics::Diagnostic {
+    let code = match error {
+        quick_xml::events::attributes::AttrError::Duplicated(_, _) => "cem.xml.duplicate_attribute",
+        _ => "cem.xml.parse_error",
+    };
+    xml_diagnostic(
+        input,
+        source,
+        base_offset,
+        code,
+        cem_ml::diagnostics::Severity::Error,
+        format!("XML attribute parse error: {error}"),
+    )
+}
+
+fn xml_unbound_namespace_prefix_diagnostic(
+    input: &eng::EngineInput,
+    source: &str,
+    byte_offset: Option<u64>,
+    prefix: &str,
+    qualified_name: &str,
+) -> cem_ml::diagnostics::Diagnostic {
+    xml_diagnostic(
+        input,
+        source,
+        byte_offset,
+        "cem.xml.unbound_namespace_prefix",
+        cem_ml::diagnostics::Severity::Error,
+        format!("XML namespace prefix `{prefix}` is not bound for `{qualified_name}`"),
+    )
+}
+
+fn xml_unsupported_utf8_diagnostic(
+    input: &eng::EngineInput,
+    error: &std::str::Utf8Error,
+) -> cem_ml::diagnostics::Diagnostic {
+    cem_ml::diagnostics::Diagnostic {
+        uri: Some(input.uri.clone()),
+        byte_offset: u64::try_from(error.valid_up_to()).ok(),
+        code: "cem.xml.unsupported_encoding".to_owned(),
+        severity: cem_ml::diagnostics::Severity::Error,
+        message: format!("XML source must be valid UTF-8: {error}"),
+        ..cem_ml::diagnostics::Diagnostic::default()
+    }
+}
+
+fn xml_unsupported_encoding_diagnostic(
+    input: &eng::EngineInput,
+    source: &str,
+    byte_offset: Option<u64>,
+    message: &str,
+) -> cem_ml::diagnostics::Diagnostic {
+    xml_diagnostic(
+        input,
+        source,
+        byte_offset,
+        "cem.xml.unsupported_encoding",
+        cem_ml::diagnostics::Severity::Error,
+        message.to_owned(),
+    )
+}
+
+fn xml_diagnostic(
+    input: &eng::EngineInput,
+    source: &str,
+    byte_offset: Option<u64>,
+    code: &'static str,
+    severity: cem_ml::diagnostics::Severity,
+    message: String,
+) -> cem_ml::diagnostics::Diagnostic {
+    let (line, column) = byte_offset
+        .and_then(|offset| usize::try_from(offset).ok())
+        .map(|offset| markdown_line_col(source, offset))
+        .map(|(line, column)| (Some(line), Some(column)))
+        .unwrap_or((None, None));
+    cem_ml::diagnostics::Diagnostic {
+        uri: Some(input.uri.clone()),
+        line,
+        column,
+        byte_offset,
+        code: code.to_owned(),
+        severity,
+        message,
+        ..cem_ml::diagnostics::Diagnostic::default()
+    }
 }
 
 fn collect_cem_dom_projection_source_diagnostics(
@@ -9765,6 +10427,210 @@ This document has **strong** text, [a link](https://example.test), and a list.
         assert!(diagnostics
             .iter()
             .any(|diag| diag["code"] == "cem.markdown.unsupported_encoding"));
+    }
+
+    #[test]
+    fn validate_xml_source_uses_xml_parser() {
+        let p = write_fixture(
+            "validate-xml-source.xml",
+            r#"<?xml version="1.0" encoding="UTF-8"?>
+<catalog xmlns:meta="https://example.test/meta" meta:version="1">
+  <item id="a1">Alpha</item>
+  <item id="b2">Beta</item>
+</catalog>
+"#,
+        );
+        let (outcome, stdout, stderr) = run(
+            &RealCemMlEngine::new(),
+            &[
+                "validate",
+                "--format",
+                "json",
+                "--content-type",
+                "text/xml; charset=utf-8",
+                "--schema",
+                cem_ml::schema::registry::XML_SCHEMA_URI,
+                p.to_str().unwrap(),
+            ],
+        );
+
+        assert_eq!(outcome.exit_code, EXIT_OK, "{stderr}");
+        let v: serde_json::Value = serde_json::from_str(stdout.trim()).unwrap();
+        let diagnostics = v["diagnostics"].as_array().unwrap();
+        assert_eq!(v["summary"]["hardViolationCount"], 0);
+        assert!(diagnostics.is_empty());
+        assert!(!diagnostics
+            .iter()
+            .any(|diag| diag["code"] == "cem.lifecycle.adapter_unsupported"));
+        assert!(!diagnostics.iter().any(|diag| diag["code"]
+            .as_str()
+            .is_some_and(|code| code.starts_with("cem.schema."))));
+    }
+
+    #[test]
+    fn validate_xml_source_reports_parse_diagnostics() {
+        let p = write_fixture("validate-xml-source-invalid.xml", "<root><item></root>\n");
+        let (outcome, stdout, stderr) = run(
+            &RealCemMlEngine::new(),
+            &[
+                "validate",
+                "--format",
+                "json",
+                "--content-type",
+                "application/xml",
+                "--schema",
+                cem_ml::schema::registry::XML_SCHEMA_URI,
+                p.to_str().unwrap(),
+            ],
+        );
+
+        assert_eq!(outcome.exit_code, EXIT_HARD_FAILURE, "{stderr}");
+        let v: serde_json::Value = serde_json::from_str(stdout.trim()).unwrap();
+        let diagnostics = v["diagnostics"].as_array().unwrap();
+        assert!(diagnostics
+            .iter()
+            .any(|diag| diag["code"] == "cem.xml.parse_error"));
+    }
+
+    #[test]
+    fn validate_xml_source_reports_unbound_namespace_prefix() {
+        let p = write_fixture(
+            "validate-xml-source-unbound-prefix.xml",
+            "<root><meta:item/></root>\n",
+        );
+        let (outcome, stdout, stderr) = run(
+            &RealCemMlEngine::new(),
+            &[
+                "validate",
+                "--format",
+                "json",
+                "--content-type",
+                "application/xml",
+                "--schema",
+                cem_ml::schema::registry::XML_SCHEMA_URI,
+                p.to_str().unwrap(),
+            ],
+        );
+
+        assert_eq!(outcome.exit_code, EXIT_HARD_FAILURE, "{stderr}");
+        let v: serde_json::Value = serde_json::from_str(stdout.trim()).unwrap();
+        let diagnostics = v["diagnostics"].as_array().unwrap();
+        assert!(diagnostics
+            .iter()
+            .any(|diag| diag["code"] == "cem.xml.unbound_namespace_prefix"));
+    }
+
+    #[test]
+    fn validate_xml_source_reports_duplicate_attribute() {
+        let p = write_fixture(
+            "validate-xml-source-duplicate-attribute.xml",
+            r#"<root xmlns:a="urn:test" xmlns:b="urn:test" a:id="1" b:id="2"/>
+"#,
+        );
+        let (outcome, stdout, stderr) = run(
+            &RealCemMlEngine::new(),
+            &[
+                "validate",
+                "--format",
+                "json",
+                "--content-type",
+                "application/xml",
+                "--schema",
+                cem_ml::schema::registry::XML_SCHEMA_URI,
+                p.to_str().unwrap(),
+            ],
+        );
+
+        assert_eq!(outcome.exit_code, EXIT_HARD_FAILURE, "{stderr}");
+        let v: serde_json::Value = serde_json::from_str(stdout.trim()).unwrap();
+        let diagnostics = v["diagnostics"].as_array().unwrap();
+        assert!(diagnostics
+            .iter()
+            .any(|diag| diag["code"] == "cem.xml.duplicate_attribute"));
+    }
+
+    #[test]
+    fn validate_xml_source_reports_dtd_rejected() {
+        let p = write_fixture(
+            "validate-xml-source-doctype.xml",
+            r#"<!DOCTYPE root SYSTEM "file:///etc/passwd">
+<root/>
+"#,
+        );
+        let (outcome, stdout, stderr) = run(
+            &RealCemMlEngine::new(),
+            &[
+                "validate",
+                "--format",
+                "json",
+                "--content-type",
+                "application/xml",
+                "--schema",
+                cem_ml::schema::registry::XML_SCHEMA_URI,
+                p.to_str().unwrap(),
+            ],
+        );
+
+        assert_eq!(outcome.exit_code, EXIT_HARD_FAILURE, "{stderr}");
+        let v: serde_json::Value = serde_json::from_str(stdout.trim()).unwrap();
+        let diagnostics = v["diagnostics"].as_array().unwrap();
+        assert!(diagnostics
+            .iter()
+            .any(|diag| diag["code"] == "cem.xml.dtd_rejected"));
+    }
+
+    #[test]
+    fn validate_xml_source_reports_external_entity_rejected() {
+        let p = write_fixture(
+            "validate-xml-source-external-entity.xml",
+            r#"<root title="&secret;">safe &amp; text</root>
+"#,
+        );
+        let (outcome, stdout, stderr) = run(
+            &RealCemMlEngine::new(),
+            &[
+                "validate",
+                "--format",
+                "json",
+                "--content-type",
+                "application/xml",
+                "--schema",
+                cem_ml::schema::registry::XML_SCHEMA_URI,
+                p.to_str().unwrap(),
+            ],
+        );
+
+        assert_eq!(outcome.exit_code, EXIT_HARD_FAILURE, "{stderr}");
+        let v: serde_json::Value = serde_json::from_str(stdout.trim()).unwrap();
+        let diagnostics = v["diagnostics"].as_array().unwrap();
+        assert!(diagnostics
+            .iter()
+            .any(|diag| diag["code"] == "cem.xml.external_entity_rejected"));
+    }
+
+    #[test]
+    fn validate_xml_source_reports_unsupported_encoding() {
+        let p = write_binary_fixture("validate-xml-source-invalid-utf8.xml", b"<root>\xff</root>");
+        let (outcome, stdout, stderr) = run(
+            &RealCemMlEngine::new(),
+            &[
+                "validate",
+                "--format",
+                "json",
+                "--content-type",
+                "application/xml",
+                "--schema",
+                cem_ml::schema::registry::XML_SCHEMA_URI,
+                p.to_str().unwrap(),
+            ],
+        );
+
+        assert_eq!(outcome.exit_code, EXIT_HARD_FAILURE, "{stderr}");
+        let v: serde_json::Value = serde_json::from_str(stdout.trim()).unwrap();
+        let diagnostics = v["diagnostics"].as_array().unwrap();
+        assert!(diagnostics
+            .iter()
+            .any(|diag| diag["code"] == "cem.xml.unsupported_encoding"));
     }
 
     #[test]

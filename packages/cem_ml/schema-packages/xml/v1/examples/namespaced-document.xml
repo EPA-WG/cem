@@ -1,0 +1,6 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<doc xmlns="https://example.test/doc"
+     xmlns:meta="https://example.test/meta"
+     meta:version="1">
+  <section meta:id="intro">Hello</section>
+</doc>

@@ -56,7 +56,9 @@ history belongs in git history and the feature-specific docs linked below.
   - [x] YAML/YML (`application/yaml`, compatibility aliases).
   - [x] CSV (`text/csv`).
   - [x] Markdown/MD markup (`text/markdown`).
-  - [ ] XML (`application/xml`, XML aliases).
+  - [x] XML (`application/xml`, XML aliases).
+  - [ ] Relax NG schema
+        (`application/relax-ng+xml`, `application/relax-ng-compact-syntax`).
   - [ ] XHTML (`application/xhtml+xml`).
   - [ ] SVG (`image/svg+xml`).
   - [ ] MathML (`application/mathml+xml`, presentation/content aliases).
@@ -108,6 +110,7 @@ Implement schema packages for these content families:
 - [x] CSV.
 - [x] Markdown/MD markup.
 - [x] XML.
+- [ ] Relax NG schema.
 - [x] XHTML.
 - [x] SVG.
 - [x] MathML.
