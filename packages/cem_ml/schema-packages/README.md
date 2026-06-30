@@ -142,6 +142,9 @@ The relationship is layered validation, not broad inheritance:
   `https://cem.dev/ns/schema/1`.
 - `package.cem` is a manifest instance, so it validates against
   `https://cem.dev/ns/schema-package/1`.
+- Converter declarations, including Rust hooks, CEMT templates, fallback
+  symbols, and planner cost, are schema-owned `package.cem` metadata consumed by
+  the built-in conversion registry.
 - A package manifest does not inherit arbitrary schema-definition elements such
   as `element`, `attribute`, or `constraint` unless the package manifest schema
   explicitly permits them.

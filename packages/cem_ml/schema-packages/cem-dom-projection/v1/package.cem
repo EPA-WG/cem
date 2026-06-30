@@ -25,6 +25,7 @@
         @lossiness="serialization"
         @implicit=true
         @readiness="ready"
+        @cost=100
         @fallback-reason="Rust fallback remains available when an executable CEMT adapter is unavailable" |
         {from @content-type="application/vnd.cem.dom+cem-bin" @schema="https://cem.dev/ns/projection/dom/1"}
         {to @content-type="text/html" @schema="https://cem.dev/ns/data/html/1"}
@@ -42,8 +43,48 @@
         @lossiness="serialization"
         @implicit=true
         @readiness="ready"
+        @cost=100
         @fallback-reason="Rust fallback remains available when an executable CEMT adapter is unavailable" |
         {from @content-type="application/vnd.cem.dom+cem-bin" @schema="https://cem.dev/ns/projection/dom/1"}
         {to @content-type="application/xml" @schema="https://cem.dev/ns/data/xml/1"}
+    }
+
+    {converter
+        @id="cem-dom-projection-to-html-rust"
+        @implementation="rust"
+        @rust-symbol="HtmlExportConverter"
+        @streamable=true
+        @lossiness="serialization"
+        @implicit=true
+        @readiness="ready"
+        @cost=100 |
+        {from @content-type="application/vnd.cem.dom+cem-bin" @schema="https://cem.dev/ns/projection/dom/1"}
+        {to @content-type="text/html" @schema="https://cem.dev/ns/data/html/1"}
+    }
+
+    {converter
+        @id="cem-dom-projection-to-xml-rust"
+        @implementation="rust"
+        @rust-symbol="XmlExportConverter"
+        @streamable=true
+        @lossiness="serialization"
+        @implicit=true
+        @readiness="ready"
+        @cost=100 |
+        {from @content-type="application/vnd.cem.dom+cem-bin" @schema="https://cem.dev/ns/projection/dom/1"}
+        {to @content-type="application/xml" @schema="https://cem.dev/ns/data/xml/1"}
+    }
+
+    {converter
+        @id="cem-dom-projection-to-json-debug-rust"
+        @implementation="rust"
+        @rust-symbol="DomJsonDebugProjectionConverter"
+        @streamable=true
+        @lossiness="debug-view"
+        @implicit=true
+        @readiness="ready"
+        @cost=150 |
+        {from @content-type="application/vnd.cem.dom+cem-bin" @schema="https://cem.dev/ns/projection/dom/1"}
+        {to @content-type="application/vnd.cem.dom+json" @schema="https://cem.dev/ns/projection/dom/1"}
     }
 }

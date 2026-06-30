@@ -12,4 +12,17 @@
     {content-type @value="application/vnd.cem.events+json" @alias=true}
 
     {namespace @prefix="cemevents" @uri="https://cem.dev/ns/projection/events/1"}
+
+    {converter
+        @id="cem-events-projection-to-json-debug-rust"
+        @implementation="rust"
+        @rust-symbol="EventsJsonDebugProjectionConverter"
+        @streamable=true
+        @lossiness="debug-view"
+        @implicit=true
+        @readiness="ready"
+        @cost=150 |
+        {from @content-type="application/vnd.cem.events+cem-bin" @schema="https://cem.dev/ns/projection/events/1"}
+        {to @content-type="application/vnd.cem.events+json" @schema="https://cem.dev/ns/projection/events/1"}
+    }
 }

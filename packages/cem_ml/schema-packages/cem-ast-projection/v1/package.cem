@@ -12,4 +12,17 @@
     {content-type @value="application/vnd.cem.ast+json" @alias=true}
 
     {namespace @prefix="cemast" @uri="https://cem.dev/ns/projection/ast/1"}
+
+    {converter
+        @id="cem-ast-projection-to-json-debug-rust"
+        @implementation="rust"
+        @rust-symbol="AstJsonDebugProjectionConverter"
+        @streamable=true
+        @lossiness="debug-view"
+        @implicit=true
+        @readiness="ready"
+        @cost=150 |
+        {from @content-type="application/vnd.cem.ast+cem-bin" @schema="https://cem.dev/ns/projection/ast/1"}
+        {to @content-type="application/vnd.cem.ast+json" @schema="https://cem.dev/ns/projection/ast/1"}
+    }
 }

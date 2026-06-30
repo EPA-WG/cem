@@ -15,4 +15,17 @@
     {content-type @value="application/xml-dtd" @alias=true}
 
     {namespace @prefix="xml" @uri="https://cem.dev/ns/data/xml/1"}
+
+    {converter
+        @id="xml-to-cem-dom-projection-rust"
+        @implementation="rust"
+        @rust-symbol="XmlDomProjectionConverter"
+        @streamable=true
+        @lossiness="lossless"
+        @implicit=true
+        @readiness="ready"
+        @cost=80 |
+        {from @content-type="application/xml" @schema="https://cem.dev/ns/data/xml/1"}
+        {to @content-type="application/vnd.cem.dom+cem-bin" @schema="https://cem.dev/ns/projection/dom/1"}
+    }
 }

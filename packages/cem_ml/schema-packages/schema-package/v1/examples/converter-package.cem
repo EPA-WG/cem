@@ -19,7 +19,8 @@
         @template="templates/note-to-html.cemt"
         @template-content-type="application/vnd.cem.transform+cem"
         @streamable=true
-        @lossiness="lossless" |
+        @lossiness="lossless"
+        @cost=100 |
         {from @content-type="application/vnd.example.note+cem" @schema="https://example.test/ns/note-html/1"}
         {to @content-type="text/html" @schema="https://cem.dev/ns/data/html/1"}
     }

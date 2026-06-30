@@ -12,12 +12,8 @@ use crate::parser::{AstNodeId, CemAstNode};
 use crate::schema::package_loader::{load_builtin_schema_package, BuiltinSchemaPackage};
 use crate::schema::registry::{
     content_type_essence, SchemaContentTypeRole, SchemaDescriptor, SchemaRegistry,
-    CEM_AST_JSON_PROJECTION_CONTENT_TYPE, CEM_AST_PROJECTION_CONTENT_TYPE,
-    CEM_AST_PROJECTION_SCHEMA_URI, CEM_DOM_JSON_PROJECTION_CONTENT_TYPE,
-    CEM_DOM_PROJECTION_CONTENT_TYPE, CEM_DOM_PROJECTION_SCHEMA_URI,
-    CEM_EVENTS_JSON_PROJECTION_CONTENT_TYPE, CEM_EVENTS_PROJECTION_CONTENT_TYPE,
-    CEM_EVENTS_PROJECTION_SCHEMA_URI, CEM_ML_CONTENT_TYPE, CEM_ML_SCHEMA_URI, HTML_CONTENT_TYPE,
-    HTML_SCHEMA_URI, XML_CONTENT_TYPE, XML_SCHEMA_URI,
+    CEM_AST_PROJECTION_SCHEMA_URI, CEM_DOM_PROJECTION_SCHEMA_URI, CEM_EVENTS_PROJECTION_SCHEMA_URI,
+    CEM_ML_SCHEMA_URI, HTML_SCHEMA_URI, XML_SCHEMA_URI,
 };
 use crate::source::{BytesSource, SourceId};
 use crate::tokenizer::cem::CemTokenizer;
@@ -230,6 +226,10 @@ pub enum ConversionManifestError {
         attribute: &'static str,
         value: String,
     },
+    InvalidCost {
+        converter_id: String,
+        value: String,
+    },
 }
 
 impl std::fmt::Display for ConversionManifestError {
@@ -279,6 +279,13 @@ impl std::fmt::Display for ConversionManifestError {
             } => write!(
                 f,
                 "converter `{converter_id}` has invalid boolean `{attribute}` value `{value}`"
+            ),
+            Self::InvalidCost {
+                converter_id,
+                value,
+            } => write!(
+                f,
+                "converter `{converter_id}` has invalid cost value `{value}`"
             ),
         }
     }
@@ -892,6 +899,7 @@ fn conversion_descriptor_from_manifest_node(
     let streamable = parse_manifest_bool(&id, &attrs, "streamable")?.unwrap_or(false);
     let explicit_only = parse_manifest_bool(&id, &attrs, "explicit-only")?.unwrap_or(false);
     let implicit = parse_manifest_bool(&id, &attrs, "implicit")?.unwrap_or(!explicit_only);
+    let cost = parse_manifest_cost(&id, &attrs)?.unwrap_or(100);
 
     let template = match implementation {
         ConversionImplementation::Cemt => {
@@ -945,7 +953,7 @@ fn conversion_descriptor_from_manifest_node(
         lossiness: optional_manifest_attr(&attrs, "lossiness").map(str::to_owned),
         implicit,
         explicit_only,
-        cost: 100,
+        cost,
     })
 }
 
@@ -1055,6 +1063,22 @@ fn parse_manifest_bool(
     }
 }
 
+fn parse_manifest_cost(
+    converter_id: &str,
+    attrs: &BTreeMap<String, String>,
+) -> Result<Option<u32>, ConversionManifestError> {
+    let Some(value) = optional_manifest_attr(attrs, "cost") else {
+        return Ok(None);
+    };
+    value
+        .parse::<u32>()
+        .map(Some)
+        .map_err(|_| ConversionManifestError::InvalidCost {
+            converter_id: converter_id.to_owned(),
+            value: value.to_owned(),
+        })
+}
+
 fn required_manifest_attr<'a>(
     attrs: &'a BTreeMap<String, String>,
     converter_id: Option<&str>,
@@ -1146,145 +1170,10 @@ fn element_child_ids_by_local_name(
 }
 
 pub fn builtin_conversion_descriptors() -> Vec<ConversionDescriptor> {
-    let mut descriptors = vec![
-        rust_edge(
-            "cem-ml-to-dom-projection-rust",
-            "cem-ml",
-            endpoint(CEM_ML_CONTENT_TYPE, CEM_ML_SCHEMA_URI),
-            endpoint(
-                CEM_DOM_PROJECTION_CONTENT_TYPE,
-                CEM_DOM_PROJECTION_SCHEMA_URI,
-            ),
-            "CemMlDomProjectionConverter",
-            "lossless",
-            100,
-        ),
-        rust_edge(
-            "cem-ml-to-ast-projection-rust",
-            "cem-ml",
-            endpoint(CEM_ML_CONTENT_TYPE, CEM_ML_SCHEMA_URI),
-            endpoint(
-                CEM_AST_PROJECTION_CONTENT_TYPE,
-                CEM_AST_PROJECTION_SCHEMA_URI,
-            ),
-            "CemMlAstProjectionConverter",
-            "lossless",
-            100,
-        ),
-        rust_edge(
-            "cem-ml-to-events-projection-rust",
-            "cem-ml",
-            endpoint(CEM_ML_CONTENT_TYPE, CEM_ML_SCHEMA_URI),
-            endpoint(
-                CEM_EVENTS_PROJECTION_CONTENT_TYPE,
-                CEM_EVENTS_PROJECTION_SCHEMA_URI,
-            ),
-            "CemMlEventsProjectionConverter",
-            "lossless",
-            100,
-        ),
-        rust_edge(
-            "html-to-cem-dom-projection-rust",
-            "html",
-            endpoint(HTML_CONTENT_TYPE, HTML_SCHEMA_URI),
-            endpoint(
-                CEM_DOM_PROJECTION_CONTENT_TYPE,
-                CEM_DOM_PROJECTION_SCHEMA_URI,
-            ),
-            "Html5RecoveryConverter",
-            "recovery",
-            50,
-        ),
-        rust_edge(
-            "xml-to-cem-dom-projection-rust",
-            "xml",
-            endpoint(XML_CONTENT_TYPE, XML_SCHEMA_URI),
-            endpoint(
-                CEM_DOM_PROJECTION_CONTENT_TYPE,
-                CEM_DOM_PROJECTION_SCHEMA_URI,
-            ),
-            "XmlDomProjectionConverter",
-            "lossless",
-            80,
-        ),
-        rust_edge(
-            "cem-dom-projection-to-html-rust",
-            "cem-dom-projection",
-            endpoint(
-                CEM_DOM_PROJECTION_CONTENT_TYPE,
-                CEM_DOM_PROJECTION_SCHEMA_URI,
-            ),
-            endpoint(HTML_CONTENT_TYPE, HTML_SCHEMA_URI),
-            "HtmlExportConverter",
-            "serialization",
-            100,
-        ),
-        rust_edge(
-            "cem-dom-projection-to-xml-rust",
-            "cem-dom-projection",
-            endpoint(
-                CEM_DOM_PROJECTION_CONTENT_TYPE,
-                CEM_DOM_PROJECTION_SCHEMA_URI,
-            ),
-            endpoint(XML_CONTENT_TYPE, XML_SCHEMA_URI),
-            "XmlExportConverter",
-            "serialization",
-            100,
-        ),
-        rust_edge(
-            "cem-dom-projection-to-json-debug-rust",
-            "cem-dom-projection",
-            endpoint(
-                CEM_DOM_PROJECTION_CONTENT_TYPE,
-                CEM_DOM_PROJECTION_SCHEMA_URI,
-            ),
-            endpoint(
-                CEM_DOM_JSON_PROJECTION_CONTENT_TYPE,
-                CEM_DOM_PROJECTION_SCHEMA_URI,
-            ),
-            "DomJsonDebugProjectionConverter",
-            "debug-view",
-            150,
-        ),
-        rust_edge(
-            "cem-ast-projection-to-json-debug-rust",
-            "cem-ast-projection",
-            endpoint(
-                CEM_AST_PROJECTION_CONTENT_TYPE,
-                CEM_AST_PROJECTION_SCHEMA_URI,
-            ),
-            endpoint(
-                CEM_AST_JSON_PROJECTION_CONTENT_TYPE,
-                CEM_AST_PROJECTION_SCHEMA_URI,
-            ),
-            "AstJsonDebugProjectionConverter",
-            "debug-view",
-            150,
-        ),
-        rust_edge(
-            "cem-events-projection-to-json-debug-rust",
-            "cem-events-projection",
-            endpoint(
-                CEM_EVENTS_PROJECTION_CONTENT_TYPE,
-                CEM_EVENTS_PROJECTION_SCHEMA_URI,
-            ),
-            endpoint(
-                CEM_EVENTS_JSON_PROJECTION_CONTENT_TYPE,
-                CEM_EVENTS_PROJECTION_SCHEMA_URI,
-            ),
-            "EventsJsonDebugProjectionConverter",
-            "debug-view",
-            150,
-        ),
-    ];
-    descriptors.extend(builtin_package_conversion_descriptors(
-        CEM_DOM_PROJECTION_SCHEMA_URI,
-    ));
-    descriptors
-}
-
-fn endpoint(content_type: &str, schema: &str) -> ConversionEndpoint {
-    ConversionEndpoint::with_schema(content_type, schema)
+    builtin_converter_package_schema_uris()
+        .iter()
+        .flat_map(|schema_uri| builtin_package_conversion_descriptors(schema_uri))
+        .collect()
 }
 
 fn builtin_package_conversion_descriptors(schema_uri: &str) -> Vec<ConversionDescriptor> {
@@ -1294,6 +1183,23 @@ fn builtin_package_conversion_descriptors(schema_uri: &str) -> Vec<ConversionDes
         .expect("built-in package converter metadata must be valid")
 }
 
+fn builtin_converter_package_schema_uris() -> &'static [&'static str] {
+    &[
+        CEM_ML_SCHEMA_URI,
+        HTML_SCHEMA_URI,
+        XML_SCHEMA_URI,
+        CEM_DOM_PROJECTION_SCHEMA_URI,
+        CEM_AST_PROJECTION_SCHEMA_URI,
+        CEM_EVENTS_PROJECTION_SCHEMA_URI,
+    ]
+}
+
+#[cfg(test)]
+fn endpoint(content_type: &str, schema: &str) -> ConversionEndpoint {
+    ConversionEndpoint::with_schema(content_type, schema)
+}
+
+#[cfg(test)]
 fn rust_edge(
     id: &str,
     package_id: &str,
@@ -1326,8 +1232,12 @@ mod tests {
     use super::*;
     use crate::engine::TransformTemplateKind;
     use crate::schema::registry::{
-        NamespaceClaim, SchemaContentType, SchemaDescriptor, CEM_TRANSFORM_CONTENT_TYPE,
-        CEM_TRANSFORM_SCHEMA_URI, JSON_CONTENT_TYPE, JSON_VALUE_SCHEMA_URI,
+        NamespaceClaim, SchemaContentType, SchemaDescriptor, CEM_AST_JSON_PROJECTION_CONTENT_TYPE,
+        CEM_AST_PROJECTION_CONTENT_TYPE, CEM_DOM_JSON_PROJECTION_CONTENT_TYPE,
+        CEM_DOM_PROJECTION_CONTENT_TYPE, CEM_EVENTS_JSON_PROJECTION_CONTENT_TYPE,
+        CEM_EVENTS_PROJECTION_CONTENT_TYPE, CEM_ML_CONTENT_TYPE, CEM_TRANSFORM_CONTENT_TYPE,
+        CEM_TRANSFORM_SCHEMA_URI, HTML_CONTENT_TYPE, JSON_CONTENT_TYPE, JSON_VALUE_SCHEMA_URI,
+        XML_CONTENT_TYPE,
     };
     use crate::transform_template::{
         TransformTemplateAdapter, TransformTemplateAdapterCapability,
@@ -1428,6 +1338,7 @@ mod tests {
             .expect("rust fallback edge remains registered");
         assert_eq!(rust_edge.implementation, ConversionImplementation::Rust);
         assert_eq!(rust_edge.readiness, ConversionReadiness::Ready);
+        assert_eq!(rust_edge.cost, 100);
     }
 
     #[test]
@@ -1474,7 +1385,7 @@ mod tests {
         let package = load_builtin_schema_package(CEM_DOM_PROJECTION_SCHEMA_URI).unwrap();
         let descriptors = conversion_descriptors_from_schema_package(&package).unwrap();
 
-        assert_eq!(descriptors.len(), 2);
+        assert_eq!(descriptors.len(), 5);
         let html = descriptors
             .iter()
             .find(|descriptor| descriptor.id == "cem-dom-projection-to-html-cemt")
@@ -1493,6 +1404,7 @@ mod tests {
         assert!(html.streamable);
         assert!(html.implicit);
         assert!(!html.explicit_only);
+        assert_eq!(html.cost, 100);
 
         let template = html.template.as_ref().expect("HTML CEMT template");
         assert_eq!(
@@ -1521,6 +1433,80 @@ mod tests {
         assert_eq!(
             xml.rust_fallback.as_ref().unwrap().rust_symbol,
             "XmlExportConverter"
+        );
+
+        let debug = descriptors
+            .iter()
+            .find(|descriptor| descriptor.id == "cem-dom-projection-to-json-debug-rust")
+            .expect("DOM JSON debug converter descriptor");
+        assert_eq!(debug.implementation, ConversionImplementation::Rust);
+        assert_eq!(
+            debug.rust_symbol.as_deref(),
+            Some("DomJsonDebugProjectionConverter")
+        );
+        assert_eq!(debug.to.content_type, CEM_DOM_JSON_PROJECTION_CONTENT_TYPE);
+        assert_eq!(debug.lossiness.as_deref(), Some("debug-view"));
+        assert_eq!(debug.cost, 150);
+    }
+
+    #[test]
+    fn builtin_registry_is_loaded_from_package_manifest_converters() {
+        let registry = ConversionRegistry::with_builtin_converters();
+        let ids = registry
+            .converters()
+            .map(|descriptor| descriptor.id.as_str())
+            .collect::<BTreeSet<_>>();
+
+        assert_eq!(ids.len(), 12);
+        for id in [
+            "cem-ml-to-dom-projection-rust",
+            "cem-ml-to-ast-projection-rust",
+            "cem-ml-to-events-projection-rust",
+            "html-to-cem-dom-projection-rust",
+            "xml-to-cem-dom-projection-rust",
+            "cem-dom-projection-to-html-cemt",
+            "cem-dom-projection-to-xml-cemt",
+            "cem-dom-projection-to-html-rust",
+            "cem-dom-projection-to-xml-rust",
+            "cem-dom-projection-to-json-debug-rust",
+            "cem-ast-projection-to-json-debug-rust",
+            "cem-events-projection-to-json-debug-rust",
+        ] {
+            assert!(ids.contains(id), "missing built-in converter `{id}`");
+        }
+
+        let html = registry
+            .converter("html-to-cem-dom-projection-rust")
+            .expect("HTML recovery converter");
+        assert_eq!(html.package_id, "html");
+        assert_eq!(html.cost, 50);
+        assert_eq!(html.lossiness.as_deref(), Some("recovery"));
+
+        let xml = registry
+            .converter("xml-to-cem-dom-projection-rust")
+            .expect("XML DOM projection converter");
+        assert_eq!(xml.package_id, "xml");
+        assert_eq!(xml.cost, 80);
+
+        let ast_debug = registry
+            .converter("cem-ast-projection-to-json-debug-rust")
+            .expect("AST JSON debug converter");
+        assert_eq!(ast_debug.from.content_type, CEM_AST_PROJECTION_CONTENT_TYPE);
+        assert_eq!(
+            ast_debug.to.content_type,
+            CEM_AST_JSON_PROJECTION_CONTENT_TYPE
+        );
+
+        let events_debug = registry
+            .converter("cem-events-projection-to-json-debug-rust")
+            .expect("events JSON debug converter");
+        assert_eq!(
+            events_debug.from.content_type,
+            CEM_EVENTS_PROJECTION_CONTENT_TYPE
+        );
+        assert_eq!(
+            events_debug.to.content_type,
+            CEM_EVENTS_JSON_PROJECTION_CONTENT_TYPE
         );
     }
 

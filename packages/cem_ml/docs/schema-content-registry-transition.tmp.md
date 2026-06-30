@@ -145,3 +145,6 @@ Progress:
 - [x] Load DOM-projection CEMT converter descriptor metadata from `package.cem`,
       including `template-entrypoint`, instead of duplicating those CEMT edges
       in Rust.
+- [x] Move the remaining built-in Rust converter/debug edges into owning
+      `package.cem` manifests and load all built-in conversion descriptors from
+      package manifests.

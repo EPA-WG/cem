@@ -15,4 +15,43 @@
 
     {namespace @prefix="cemml" @uri="https://cem.dev/ns/cem-ml/1"}
     {namespace @prefix="schema" @uri="https://cem.dev/ns/schema/1"}
+
+    {converter
+        @id="cem-ml-to-dom-projection-rust"
+        @implementation="rust"
+        @rust-symbol="CemMlDomProjectionConverter"
+        @streamable=true
+        @lossiness="lossless"
+        @implicit=true
+        @readiness="ready"
+        @cost=100 |
+        {from @content-type="application/cem" @schema="https://cem.dev/ns/cem-ml/1"}
+        {to @content-type="application/vnd.cem.dom+cem-bin" @schema="https://cem.dev/ns/projection/dom/1"}
+    }
+
+    {converter
+        @id="cem-ml-to-ast-projection-rust"
+        @implementation="rust"
+        @rust-symbol="CemMlAstProjectionConverter"
+        @streamable=true
+        @lossiness="lossless"
+        @implicit=true
+        @readiness="ready"
+        @cost=100 |
+        {from @content-type="application/cem" @schema="https://cem.dev/ns/cem-ml/1"}
+        {to @content-type="application/vnd.cem.ast+cem-bin" @schema="https://cem.dev/ns/projection/ast/1"}
+    }
+
+    {converter
+        @id="cem-ml-to-events-projection-rust"
+        @implementation="rust"
+        @rust-symbol="CemMlEventsProjectionConverter"
+        @streamable=true
+        @lossiness="lossless"
+        @implicit=true
+        @readiness="ready"
+        @cost=100 |
+        {from @content-type="application/cem" @schema="https://cem.dev/ns/cem-ml/1"}
+        {to @content-type="application/vnd.cem.events+cem-bin" @schema="https://cem.dev/ns/projection/events/1"}
+    }
 }

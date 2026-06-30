@@ -16,4 +16,17 @@
     {namespace @prefix="html" @uri="http://www.w3.org/1999/xhtml"}
     {namespace @prefix="svg" @uri="http://www.w3.org/2000/svg"}
     {namespace @prefix="mathml" @uri="http://www.w3.org/1998/Math/MathML"}
+
+    {converter
+        @id="html-to-cem-dom-projection-rust"
+        @implementation="rust"
+        @rust-symbol="Html5RecoveryConverter"
+        @streamable=true
+        @lossiness="recovery"
+        @implicit=true
+        @readiness="ready"
+        @cost=50 |
+        {from @content-type="text/html" @schema="https://cem.dev/ns/data/html/1"}
+        {to @content-type="application/vnd.cem.dom+cem-bin" @schema="https://cem.dev/ns/projection/dom/1"}
+    }
 }

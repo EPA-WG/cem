@@ -24,6 +24,10 @@ The package metadata schema is separate from the schema definition language. It
 describes package registration metadata, while `https://cem.dev/ns/schema/1`
 describes validation schemas for input content.
 
+Converter declarations are registry-owned metadata in `package.cem`. A
+converter can declare a Rust implementation hook or CEMT template, source and
+target content identities, fallback hook, readiness, and planner `cost`.
+
 ## Validation Examples
 
 The schema-owned examples live in [`examples/`](examples/) and are used by the

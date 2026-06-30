@@ -20,7 +20,7 @@
         {element @name="schema" @required-attributes="uri source" @optional-attributes="version"}
         {element @name="content-type" @required-attributes="value" @optional-attributes="primary alias"}
         {element @name="namespace" @required-attributes="uri" @optional-attributes="prefix"}
-        {element @name="converter" @required-attributes="id implementation" @optional-attributes="template template-content-type template-schema template-entrypoint rust-symbol streamable lossiness implicit explicit-only readiness fallback-reason" @children="from to"}
+        {element @name="converter" @required-attributes="id implementation" @optional-attributes="template template-content-type template-schema template-entrypoint rust-symbol streamable lossiness implicit explicit-only readiness fallback-reason cost" @children="from to"}
         {element @name="from" @required-attributes="content-type" @optional-attributes="schema"}
         {element @name="to" @required-attributes="content-type" @optional-attributes="schema"}
         {element @name="artifact" @required-attributes="kind path" @optional-attributes="content-type schema generated"}
@@ -47,6 +47,7 @@
         {attribute @name="explicit-only" @type="schema:boolean"}
         {attribute @name="readiness" @type="schema:identifier" @values="ready planned"}
         {attribute @name="fallback-reason" @type="schema:string"}
+        {attribute @name="cost" @type="schema:integer"}
         {attribute @name="content-type" @type="schema:media-type"}
         {attribute @name="schema" @type="schema:uri"}
         {attribute @name="kind" @type="schema:identifier"}
