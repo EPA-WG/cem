@@ -94,6 +94,10 @@ history belongs in git history and the feature-specific docs linked below.
     - [x] Lower `{$ encode(...) }` CEMT expression calls from template bodies
           into typed module metadata, including subject expression, target
           identity/category/context, options, and invalid-call diagnostics.
+    - [x] Add the runtime-facing encode evaluation bridge for lowered
+          expressions: simple subject value lookup, registry resolution,
+          implementation-output callback, typed artifact wrapping, and
+          diagnostics for unresolved subjects or missing encoders.
   - [ ] Define encoded artifact identity and insertion rules. Results are not
         plain strings: they carry produced kind (`text`, `bytes`, `tokens`,
         `chunks`, or `diagnostics`), target content type, schema URL, encoding

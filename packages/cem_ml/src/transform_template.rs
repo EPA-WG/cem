@@ -178,6 +178,10 @@ pub const TRANSFORM_TEMPLATE_ENCODED_ARTIFACT_DOUBLE_ENCODING_CODE: &str =
     "cem.transform_template.encoded_artifact_double_encoding";
 pub const TRANSFORM_TEMPLATE_ENCODE_CALL_INVALID_CODE: &str =
     "cem.transform_template.encode_call_invalid";
+pub const TRANSFORM_TEMPLATE_ENCODE_SUBJECT_UNRESOLVED_CODE: &str =
+    "cem.transform_template.encode_subject_unresolved";
+pub const TRANSFORM_TEMPLATE_ENCODE_IMPLEMENTATION_FAILED_CODE: &str =
+    "cem.transform_template.encode_implementation_failed";
 
 #[derive(Debug, Clone)]
 pub struct TransformTemplateModuleParseRequest {
@@ -857,6 +861,104 @@ impl TransformTemplateEncodeBinding {
     }
 }
 
+#[derive(Debug, Clone, Copy)]
+pub struct TransformTemplateEncodeEvaluationContext<'a> {
+    pub registry: &'a TransformTemplateOutputFunctionRegistry,
+    pub value_bindings: &'a BTreeMap<String, Value>,
+    pub host_capabilities: &'a BTreeSet<String>,
+    pub uri: Option<&'a str>,
+}
+
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct TransformTemplateEvaluatedEncodeExpression {
+    pub expression: TransformTemplateEncodeExpression,
+    pub subject: Value,
+    pub binding: TransformTemplateEncodeBinding,
+    pub artifact: TransformTemplateEncodedArtifact,
+}
+
+#[derive(Debug, Clone, Default, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct TransformTemplateEncodeEvaluationResponse {
+    #[serde(default)]
+    pub encoded: Vec<TransformTemplateEvaluatedEncodeExpression>,
+    #[serde(default)]
+    pub diagnostics: Vec<Diagnostic>,
+}
+
+pub fn evaluate_transform_template_encode_expressions<F>(
+    expressions: &[TransformTemplateEncodeExpression],
+    context: TransformTemplateEncodeEvaluationContext<'_>,
+    mut encode_impl: F,
+) -> TransformTemplateEncodeEvaluationResponse
+where
+    F: FnMut(&TransformTemplateEncodeBinding, &Value) -> Result<Value, String>,
+{
+    let mut encoded = Vec::new();
+    let mut diagnostics = Vec::new();
+
+    for expression in expressions {
+        let Some(subject) =
+            resolve_encode_subject_expression(&expression.subject, context.value_bindings)
+        else {
+            diagnostics.push(Diagnostic {
+                uri: context.uri.map(str::to_owned),
+                code: TRANSFORM_TEMPLATE_ENCODE_SUBJECT_UNRESOLVED_CODE.to_owned(),
+                severity: Severity::Error,
+                message: format!(
+                    "CEMT encode subject expression `{}` could not be resolved",
+                    expression.subject
+                ),
+                ..Diagnostic::default()
+            });
+            continue;
+        };
+
+        let request = expression.binding_request(subject.clone());
+        let binding = match context
+            .registry
+            .resolve_encode_binding(&request, context.host_capabilities)
+        {
+            Ok(binding) => binding,
+            Err(error) => {
+                diagnostics.push(error.diagnostic(context.uri));
+                continue;
+            }
+        };
+
+        let output = match encode_impl(&binding, &subject) {
+            Ok(value) => value,
+            Err(message) => {
+                diagnostics.push(Diagnostic {
+                    uri: context.uri.map(str::to_owned),
+                    code: TRANSFORM_TEMPLATE_ENCODE_IMPLEMENTATION_FAILED_CODE.to_owned(),
+                    severity: Severity::Error,
+                    message: format!(
+                        "CEMT encoder `{}` failed for expression `{}`: {message}",
+                        binding.function.name, expression.expression
+                    ),
+                    ..Diagnostic::default()
+                });
+                continue;
+            }
+        };
+
+        let artifact = binding.artifact_from_value(output);
+        encoded.push(TransformTemplateEvaluatedEncodeExpression {
+            expression: expression.clone(),
+            subject,
+            binding,
+            artifact,
+        });
+    }
+
+    TransformTemplateEncodeEvaluationResponse {
+        encoded,
+        diagnostics,
+    }
+}
+
 pub fn transform_template_encode_subject_type_candidates(subject: &Value) -> Vec<&'static str> {
     match subject {
         Value::Null => vec!["null", "json"],
@@ -869,6 +971,46 @@ pub fn transform_template_encode_subject_type_candidates(subject: &Value) -> Vec
         Value::Array(_) => vec!["array", "json"],
         Value::Object(_) => vec!["object", "json"],
     }
+}
+
+fn resolve_encode_subject_expression(
+    expression: &str,
+    value_bindings: &BTreeMap<String, Value>,
+) -> Option<Value> {
+    let expression = expression.trim();
+    if expression.starts_with('"') || expression.starts_with('\'') {
+        return parse_cemt_quoted_string(expression).ok().map(Value::String);
+    }
+    if let Ok(value) = serde_json::from_str::<Value>(expression) {
+        return Some(value);
+    }
+
+    let path = expression.strip_prefix('$')?;
+    resolve_encode_subject_path(path, value_bindings).cloned()
+}
+
+fn resolve_encode_subject_path<'a>(
+    path: &str,
+    value_bindings: &'a BTreeMap<String, Value>,
+) -> Option<&'a Value> {
+    let mut segments = path.split('.');
+    let root = segments.next()?.trim();
+    if root.is_empty() {
+        return None;
+    }
+    let mut cursor = value_bindings.get(root)?;
+    for segment in segments {
+        let segment = segment.trim();
+        if segment.is_empty() {
+            return None;
+        }
+        cursor = match cursor {
+            Value::Object(object) => object.get(segment)?,
+            Value::Array(items) => items.get(segment.parse::<usize>().ok()?)?,
+            _ => return None,
+        };
+    }
+    Some(cursor)
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -3826,6 +3968,138 @@ mod tests {
             .diagnostics
             .iter()
             .any(|diag| diag.code == TRANSFORM_TEMPLATE_ENCODE_CALL_INVALID_CODE));
+    }
+
+    #[test]
+    fn evaluate_encode_expressions_resolves_subject_and_wraps_artifact() {
+        let response = parse_cem_native_template_module_options(
+            TransformTemplateModuleParseRequest {
+                template: template_input(
+                    "templates/runtime-encoding.cemt",
+                    r#"{@doc cem-ml 1}
+{module |
+  {encoding-function
+      @name="html.text"
+      @category="html-text"
+      @subject="string"
+      @produces="text"
+      @content-type="text/html"
+      @schema="https://cem.dev/ns/data/html/1"
+      @canonical=true |
+      {param @name="subject" @type="string" @required=true}
+  }
+  {template @name="main" @visibility="public" |
+    {body |
+      {$ encode($node.data, { contentType: "text/html", schema: "https://cem.dev/ns/data/html/1", category: "html-text", context: "text" }, { mode: "fragment", encoder: "html.text" }) }
+    }
+  }
+}"#,
+                    Some(FormatIdentity {
+                        schema: Some(CEM_TRANSFORM_SCHEMA_URI.to_owned()),
+                        ..FormatIdentity::default()
+                    }),
+                ),
+            },
+        );
+        assert!(
+            response.diagnostics.is_empty(),
+            "{:?}",
+            response.diagnostics
+        );
+        let registry =
+            TransformTemplateOutputFunctionRegistry::from_module_options(&response.module_options);
+        let mut values = BTreeMap::new();
+        values.insert("node".to_owned(), json!({"data": "Hello & CEM"}));
+
+        let evaluated = evaluate_transform_template_encode_expressions(
+            &response.module_options.encode_expressions,
+            TransformTemplateEncodeEvaluationContext {
+                registry: &registry,
+                value_bindings: &values,
+                host_capabilities: &BTreeSet::new(),
+                uri: Some("templates/runtime-encoding.cemt"),
+            },
+            |binding, subject| {
+                assert_eq!(binding.function.name, "html.text");
+                assert_eq!(subject, &Value::String("Hello & CEM".to_owned()));
+                Ok(Value::String("Hello &amp; CEM".to_owned()))
+            },
+        );
+
+        assert!(
+            evaluated.diagnostics.is_empty(),
+            "{:?}",
+            evaluated.diagnostics
+        );
+        assert_eq!(evaluated.encoded.len(), 1);
+        let artifact = &evaluated.encoded[0].artifact;
+        assert_eq!(
+            artifact.identity.produces,
+            TransformTemplateOutputProducedKind::Text
+        );
+        assert_eq!(artifact.identity.target.category, "html-text");
+        assert_eq!(artifact.identity.target.context.as_deref(), Some("text"));
+        assert!(artifact.identity.canonical);
+        assert_eq!(artifact.value, Value::String("Hello &amp; CEM".to_owned()));
+    }
+
+    #[test]
+    fn evaluate_encode_expressions_reports_unresolved_subject() {
+        let expression = parse_transform_template_encode_expression(
+            r#"encode($node.missing, { contentType: "text/html", schema: "https://cem.dev/ns/data/html/1", category: "html-text" })"#,
+            Some("main"),
+        )
+        .expect("parse")
+        .expect("encode expression");
+        let registry = TransformTemplateOutputFunctionRegistry::new();
+        let mut values = BTreeMap::new();
+        values.insert("node".to_owned(), json!({"data": "Hello"}));
+
+        let evaluated = evaluate_transform_template_encode_expressions(
+            &[expression],
+            TransformTemplateEncodeEvaluationContext {
+                registry: &registry,
+                value_bindings: &values,
+                host_capabilities: &BTreeSet::new(),
+                uri: Some("templates/runtime-encoding.cemt"),
+            },
+            |_, _| Ok(Value::Null),
+        );
+
+        assert!(evaluated.encoded.is_empty());
+        assert!(evaluated
+            .diagnostics
+            .iter()
+            .any(|diag| diag.code == TRANSFORM_TEMPLATE_ENCODE_SUBJECT_UNRESOLVED_CODE));
+    }
+
+    #[test]
+    fn evaluate_encode_expressions_reports_unknown_encoder() {
+        let expression = parse_transform_template_encode_expression(
+            r#"encode("Hello", { contentType: "text/html", schema: "https://cem.dev/ns/data/html/1", category: "html-text" }, { encoder: "html.text" })"#,
+            Some("main"),
+        )
+        .expect("parse")
+        .expect("encode expression");
+        let registry = TransformTemplateOutputFunctionRegistry::new();
+        let values = BTreeMap::new();
+
+        let evaluated = evaluate_transform_template_encode_expressions(
+            &[expression],
+            TransformTemplateEncodeEvaluationContext {
+                registry: &registry,
+                value_bindings: &values,
+                host_capabilities: &BTreeSet::new(),
+                uri: Some("templates/runtime-encoding.cemt"),
+            },
+            |_, _| Ok(Value::Null),
+        );
+
+        assert!(evaluated.encoded.is_empty());
+        assert!(evaluated
+            .diagnostics
+            .iter()
+            .any(|diag| diag.code == TRANSFORM_TEMPLATE_OUTPUT_FUNCTION_UNKNOWN_CODE));
     }
 
     #[test]
