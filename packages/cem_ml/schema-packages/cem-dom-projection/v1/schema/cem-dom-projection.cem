@@ -34,7 +34,7 @@
         {attribute @name="id" @type="schema:identifier"}
         {attribute @name="parent-id" @type="schema:identifier"}
         {attribute @name="order" @type="cemml:integer"}
-        {attribute @name="kind" @type="schema:identifier" @values="document element text comment cdata raw-text expression fragment"}
+        {attribute @name="kind" @type="schema:identifier" @values="document element text whitespace comment processing-instruction cdata raw-text error expression fragment"}
         {attribute @name="name" @type="schema:qualified-name"}
         {attribute @name="namespace" @type="schema:uri"}
         {attribute @name="value" @type="schema:string"}
@@ -62,6 +62,12 @@
         {diagnostic @code="cem.projection.dom.parent_missing" @severity="error"}
         {diagnostic @code="cem.projection.dom.chunk_hash_mismatch" @severity="error"}
         {diagnostic @code="cem.projection.dom.source_map_missing" @severity="warning"}
+        {diagnostic @code="cem.projection.dom.binary_magic" @severity="error"}
+        {diagnostic @code="cem.projection.dom.binary_truncated" @severity="error"}
+        {diagnostic @code="cem.projection.dom.binary_version" @severity="error"}
+        {diagnostic @code="cem.projection.dom.projection_mismatch" @severity="error"}
+        {diagnostic @code="cem.projection.dom.json_parse_error" @severity="error"}
+        {diagnostic @code="cem.projection.dom.json_shape" @severity="error"}
     }
 
     {compatibility |

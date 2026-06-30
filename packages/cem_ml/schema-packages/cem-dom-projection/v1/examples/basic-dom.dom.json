@@ -1,0 +1,25 @@
+{
+  "kind": "document",
+  "children": [
+    {
+      "kind": "element",
+      "name": "p",
+      "namespace": "",
+      "attributes": [],
+      "children": [
+        {
+          "kind": "text",
+          "data": "Hi",
+          "byteRange": {
+            "start": 5,
+            "len": 2
+          }
+        }
+      ],
+      "byteRange": {
+        "start": 0,
+        "len": 8
+      }
+    }
+  ]
+}

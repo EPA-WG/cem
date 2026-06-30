@@ -1,0 +1,12 @@
+{
+  "kind": "document",
+  "children": [
+    {
+      "kind": "widget",
+      "name": "p",
+      "namespace": "",
+      "attributes": [],
+      "children": []
+    }
+  ]
+}

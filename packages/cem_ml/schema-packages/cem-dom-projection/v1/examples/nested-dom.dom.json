@@ -1,0 +1,71 @@
+{
+  "kind": "document",
+  "children": [
+    {
+      "kind": "element",
+      "name": "form",
+      "namespace": "",
+      "attributes": [
+        {
+          "name": "id",
+          "namespace": "",
+          "value": "login"
+        }
+      ],
+      "children": [
+        {
+          "kind": "element",
+          "name": "label",
+          "namespace": "",
+          "attributes": [
+            {
+              "name": "for",
+              "namespace": "",
+              "value": "email"
+            }
+          ],
+          "children": [
+            {
+              "kind": "text",
+              "data": "Email",
+              "byteRange": {
+                "start": 31,
+                "len": 5
+              }
+            }
+          ],
+          "byteRange": {
+            "start": 18,
+            "len": 21
+          }
+        },
+        {
+          "kind": "element",
+          "name": "input",
+          "namespace": "",
+          "attributes": [
+            {
+              "name": "id",
+              "namespace": "",
+              "value": "email"
+            },
+            {
+              "name": "required",
+              "namespace": "",
+              "value": null
+            }
+          ],
+          "children": [],
+          "byteRange": {
+            "start": 40,
+            "len": 27
+          }
+        }
+      ],
+      "byteRange": {
+        "start": 0,
+        "len": 69
+      }
+    }
+  ]
+}

@@ -3004,6 +3004,10 @@ fn direct_source_validation_report(
             diagnostics.extend(collect_cem_ql_source_diagnostics(std::slice::from_ref(
                 input,
             )));
+        } else if is_cem_dom_projection_source_input(input) {
+            diagnostics.extend(collect_cem_dom_projection_source_diagnostics(
+                std::slice::from_ref(input),
+            ));
         } else if is_json_schema_source_input(input) {
             diagnostics.extend(collect_json_schema_source_diagnostics(
                 std::slice::from_ref(input),
@@ -3103,6 +3107,46 @@ fn is_json_schema_source_input(input: &eng::EngineInput) -> bool {
     }
 }
 
+fn is_cem_dom_projection_source_input(input: &eng::EngineInput) -> bool {
+    let identity = input
+        .identity
+        .clone()
+        .unwrap_or_else(|| input.root_scope.format_identity());
+    let schema_is_cem_dom = identity
+        .schema
+        .as_deref()
+        .map(str::trim)
+        .is_some_and(is_cem_dom_projection_schema);
+    let content_type = identity
+        .content_type
+        .as_deref()
+        .map(cli_content_type_essence);
+
+    match content_type.as_deref() {
+        Some(content_type) if is_cem_dom_projection_source_content_type(content_type) => {
+            identity.schema.is_none() || schema_is_cem_dom
+        }
+        Some(_) => false,
+        None => schema_is_cem_dom,
+    }
+}
+
+fn is_cem_dom_projection_schema(schema: &str) -> bool {
+    matches!(
+        schema,
+        cem_ml::schema::registry::CEM_DOM_PROJECTION_SCHEMA_URI
+            | cem_ml::lifecycle::DOM_JSON_PROJECTION_SCHEMA
+    )
+}
+
+fn is_cem_dom_projection_source_content_type(content_type: &str) -> bool {
+    matches!(
+        content_type,
+        cem_ml::schema::registry::CEM_DOM_PROJECTION_CONTENT_TYPE
+            | cem_ml::schema::registry::CEM_DOM_JSON_PROJECTION_CONTENT_TYPE
+    )
+}
+
 fn is_json_source_content_type(content_type: &str) -> bool {
     matches!(
         content_type,
@@ -3197,6 +3241,426 @@ fn collect_json_schema_source_diagnostics(
         }
     }
     diagnostics
+}
+
+fn collect_cem_dom_projection_source_diagnostics(
+    inputs: &[eng::EngineInput],
+) -> Vec<cem_ml::diagnostics::Diagnostic> {
+    let mut diagnostics = Vec::new();
+    for input in inputs {
+        match cem_dom_projection_source_kind(input) {
+            CemDomProjectionSourceKind::Binary => {
+                diagnostics.extend(validate_cem_dom_projection_binary(input));
+            }
+            CemDomProjectionSourceKind::Json => {
+                diagnostics.extend(validate_cem_dom_projection_json(input));
+            }
+        }
+    }
+    diagnostics
+}
+
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+enum CemDomProjectionSourceKind {
+    Binary,
+    Json,
+}
+
+fn cem_dom_projection_source_kind(input: &eng::EngineInput) -> CemDomProjectionSourceKind {
+    let identity = input
+        .identity
+        .clone()
+        .unwrap_or_else(|| input.root_scope.format_identity());
+    let content_type = identity
+        .content_type
+        .as_deref()
+        .map(cli_content_type_essence);
+
+    match content_type.as_deref() {
+        Some(content_type)
+            if content_type == cem_ml::schema::registry::CEM_DOM_JSON_PROJECTION_CONTENT_TYPE =>
+        {
+            CemDomProjectionSourceKind::Json
+        }
+        Some(content_type)
+            if content_type == cem_ml::schema::registry::CEM_DOM_PROJECTION_CONTENT_TYPE =>
+        {
+            CemDomProjectionSourceKind::Binary
+        }
+        _ if input.bytes.starts_with(b"CEMPROJ\0") => CemDomProjectionSourceKind::Binary,
+        _ => CemDomProjectionSourceKind::Json,
+    }
+}
+
+fn validate_cem_dom_projection_binary(
+    input: &eng::EngineInput,
+) -> Vec<cem_ml::diagnostics::Diagnostic> {
+    match validate_cem_dom_projection_binary_bytes(&input.bytes) {
+        Ok(()) => Vec::new(),
+        Err((code, message)) => vec![cem_dom_projection_diagnostic(input, code, message)],
+    }
+}
+
+fn validate_cem_dom_projection_binary_bytes(bytes: &[u8]) -> Result<(), (&'static str, String)> {
+    if !bytes.starts_with(b"CEMPROJ\0") {
+        return Err((
+            "cem.projection.dom.binary_magic",
+            "CEM DOM binary projection must start with CEMPROJ\\0 magic".to_owned(),
+        ));
+    }
+
+    let mut reader = ProjectionBinaryReader::new(&bytes[b"CEMPROJ\0".len()..]);
+    let version = reader.read_u16("version")?;
+    if version != 1 {
+        return Err((
+            "cem.projection.dom.binary_version",
+            format!("unsupported CEM projection binary version `{version}`; expected `1`"),
+        ));
+    }
+
+    let projection_kind = reader.read_u8("projection kind")?;
+    if projection_kind != 1 {
+        return Err((
+            "cem.projection.dom.projection_mismatch",
+            format!("binary projection kind `{projection_kind}` is not CEM DOM kind `1`"),
+        ));
+    }
+
+    let schema = reader.read_str("schema")?;
+    if schema != cem_ml::schema::registry::CEM_DOM_PROJECTION_SCHEMA_URI {
+        return Err((
+            "cem.projection.dom.projection_mismatch",
+            format!(
+                "binary projection schema `{schema}` is not `{}`",
+                cem_ml::schema::registry::CEM_DOM_PROJECTION_SCHEMA_URI
+            ),
+        ));
+    }
+
+    let content_type = reader.read_str("content type")?;
+    if content_type != cem_ml::schema::registry::CEM_DOM_PROJECTION_CONTENT_TYPE {
+        return Err((
+            "cem.projection.dom.projection_mismatch",
+            format!(
+                "binary projection content type `{content_type}` is not `{}`",
+                cem_ml::schema::registry::CEM_DOM_PROJECTION_CONTENT_TYPE
+            ),
+        ));
+    }
+
+    let _node_count = reader.read_u32("node count")?;
+    Ok(())
+}
+
+struct ProjectionBinaryReader<'a> {
+    bytes: &'a [u8],
+    offset: usize,
+}
+
+impl<'a> ProjectionBinaryReader<'a> {
+    fn new(bytes: &'a [u8]) -> Self {
+        Self { bytes, offset: 0 }
+    }
+
+    fn read_u8(&mut self, field: &'static str) -> Result<u8, (&'static str, String)> {
+        let bytes = self.read_exact(field, 1)?;
+        Ok(bytes[0])
+    }
+
+    fn read_u16(&mut self, field: &'static str) -> Result<u16, (&'static str, String)> {
+        let bytes = self.read_exact(field, 2)?;
+        Ok(u16::from_be_bytes([bytes[0], bytes[1]]))
+    }
+
+    fn read_u32(&mut self, field: &'static str) -> Result<u32, (&'static str, String)> {
+        let bytes = self.read_exact(field, 4)?;
+        Ok(u32::from_be_bytes([bytes[0], bytes[1], bytes[2], bytes[3]]))
+    }
+
+    fn read_str(&mut self, field: &'static str) -> Result<String, (&'static str, String)> {
+        let len = self.read_u32(field)? as usize;
+        let bytes = self.read_exact(field, len)?;
+        std::str::from_utf8(bytes)
+            .map(str::to_owned)
+            .map_err(|error| {
+                (
+                    "cem.projection.dom.binary_truncated",
+                    format!("CEM DOM binary projection {field} is not UTF-8: {error}"),
+                )
+            })
+    }
+
+    fn read_exact(
+        &mut self,
+        field: &'static str,
+        len: usize,
+    ) -> Result<&'a [u8], (&'static str, String)> {
+        let end = self.offset.checked_add(len).ok_or_else(|| {
+            (
+                "cem.projection.dom.binary_truncated",
+                format!("CEM DOM binary projection {field} length overflows input"),
+            )
+        })?;
+        if end > self.bytes.len() {
+            return Err((
+                "cem.projection.dom.binary_truncated",
+                format!("CEM DOM binary projection is truncated while reading {field}"),
+            ));
+        }
+        let bytes = &self.bytes[self.offset..end];
+        self.offset = end;
+        Ok(bytes)
+    }
+}
+
+fn validate_cem_dom_projection_json(
+    input: &eng::EngineInput,
+) -> Vec<cem_ml::diagnostics::Diagnostic> {
+    let value = match serde_json::from_slice::<serde_json::Value>(&input.bytes) {
+        Ok(value) => value,
+        Err(error) => {
+            return vec![cem_dom_projection_diagnostic(
+                input,
+                "cem.projection.dom.json_parse_error",
+                format!("CEM DOM JSON projection parse error: {error}"),
+            )];
+        }
+    };
+
+    match validate_cem_dom_projection_json_value(&value) {
+        Ok(()) => Vec::new(),
+        Err(message) => vec![cem_dom_projection_diagnostic(
+            input,
+            "cem.projection.dom.json_shape",
+            message,
+        )],
+    }
+}
+
+fn validate_cem_dom_projection_json_value(value: &serde_json::Value) -> Result<(), String> {
+    let object = json_object(value, "$")?;
+    match object.get("kind").and_then(serde_json::Value::as_str) {
+        Some("document") => validate_cem_dom_json_node(value, "$"),
+        Some("cem-binary-projection") => validate_cem_dom_binary_projection_json(object),
+        Some(kind) => Err(format!(
+            "CEM DOM JSON projection root kind `{kind}` is not `document` or `cem-binary-projection`"
+        )),
+        None => Err("CEM DOM JSON projection root requires string `kind`".to_owned()),
+    }
+}
+
+fn validate_cem_dom_binary_projection_json(
+    object: &serde_json::Map<String, serde_json::Value>,
+) -> Result<(), String> {
+    expect_json_string_field(object, "projection", "$", Some("dom"))?;
+    expect_json_string_field(
+        object,
+        "schema",
+        "$",
+        Some(cem_ml::schema::registry::CEM_DOM_PROJECTION_SCHEMA_URI),
+    )?;
+    expect_json_string_field(
+        object,
+        "contentType",
+        "$",
+        Some(cem_ml::schema::registry::CEM_DOM_PROJECTION_CONTENT_TYPE),
+    )?;
+    expect_json_string_field(object, "formatVersion", "$", Some("cem-projection-bin/1"))?;
+    expect_json_string_field(object, "hashScheme", "$", None)?;
+    expect_json_string_field(object, "hash", "$", None)?;
+    expect_json_u64_field(object, "byteLength", "$")?;
+    if let Some(native_bytes) = object.get("nativeBytes") {
+        if !native_bytes.is_boolean() {
+            return Err("$.nativeBytes must be a boolean".to_owned());
+        }
+    }
+    if let Some(chunks) = object.get("chunks") {
+        validate_cem_dom_projection_json_chunks(chunks)?;
+    }
+    Ok(())
+}
+
+fn validate_cem_dom_projection_json_chunks(chunks: &serde_json::Value) -> Result<(), String> {
+    let chunks = chunks
+        .as_array()
+        .ok_or_else(|| "$.chunks must be an array".to_owned())?;
+    let mut expected_offset = 0_u64;
+    for (index, chunk) in chunks.iter().enumerate() {
+        let path = format!("$.chunks[{index}]");
+        let object = json_object(chunk, &path)?;
+        expect_json_string_field(object, "id", &path, None)?;
+        if object.get("sealed").and_then(serde_json::Value::as_bool) != Some(true) {
+            return Err(format!("{path}.sealed must be true"));
+        }
+        let offset = expect_json_u64_field(object, "byteOffset", &path)?;
+        if offset != expected_offset {
+            return Err(format!(
+                "{path}.byteOffset must be contiguous at {expected_offset}"
+            ));
+        }
+        let byte_length = expect_json_u64_field(object, "byteLength", &path)?;
+        expect_json_string_field(object, "hash", &path, None)?;
+        expect_json_string_field(object, "dataEncoding", &path, Some("hex"))?;
+        let data = expect_json_string_field(object, "data", &path, None)?;
+        if data.len() % 2 != 0 || !data.bytes().all(|byte| byte.is_ascii_hexdigit()) {
+            return Err(format!("{path}.data must be even-length hex"));
+        }
+        if (data.len() / 2) as u64 != byte_length {
+            return Err(format!(
+                "{path}.byteLength does not match decoded hex data length"
+            ));
+        }
+        expected_offset += byte_length;
+    }
+    Ok(())
+}
+
+fn validate_cem_dom_json_node(value: &serde_json::Value, path: &str) -> Result<(), String> {
+    let object = json_object(value, path)?;
+    let Some(kind) = object.get("kind").and_then(serde_json::Value::as_str) else {
+        return Err(format!("{path}.kind must be a string"));
+    };
+
+    match kind {
+        "document" => validate_cem_dom_json_children(object, path),
+        "element" => {
+            expect_json_string_field(object, "name", path, None)?;
+            if object.contains_key("namespace") {
+                expect_json_string_field(object, "namespace", path, None)?;
+            }
+            validate_cem_dom_json_attributes(object, path)?;
+            validate_cem_dom_json_children(object, path)?;
+            validate_optional_byte_range(object, path)
+        }
+        "text" | "whitespace" | "comment" | "cdata" | "raw-text" => {
+            expect_json_string_field(object, "data", path, None)?;
+            validate_optional_byte_range(object, path)
+        }
+        "processing-instruction" => {
+            expect_json_string_field(object, "target", path, None)?;
+            expect_json_string_field(object, "data", path, None)?;
+            validate_optional_byte_range(object, path)
+        }
+        "error" => {
+            expect_json_string_field(object, "code", path, None)?;
+            validate_optional_byte_range(object, path)
+        }
+        _ => Err(format!(
+            "{path}.kind `{kind}` is not a supported CEM DOM node kind"
+        )),
+    }
+}
+
+fn validate_cem_dom_json_children(
+    object: &serde_json::Map<String, serde_json::Value>,
+    path: &str,
+) -> Result<(), String> {
+    let children_path = format!("{path}.children");
+    let children = object
+        .get("children")
+        .and_then(serde_json::Value::as_array)
+        .ok_or_else(|| format!("{children_path} must be an array"))?;
+    for (index, child) in children.iter().enumerate() {
+        validate_cem_dom_json_node(child, &format!("{children_path}[{index}]"))?;
+    }
+    Ok(())
+}
+
+fn validate_cem_dom_json_attributes(
+    object: &serde_json::Map<String, serde_json::Value>,
+    path: &str,
+) -> Result<(), String> {
+    let attrs_path = format!("{path}.attributes");
+    let attrs = object
+        .get("attributes")
+        .and_then(serde_json::Value::as_array)
+        .ok_or_else(|| format!("{attrs_path} must be an array"))?;
+    for (index, attr) in attrs.iter().enumerate() {
+        let attr_path = format!("{attrs_path}[{index}]");
+        let attr = json_object(attr, &attr_path)?;
+        expect_json_string_field(attr, "name", &attr_path, None)?;
+        if attr.contains_key("namespace") {
+            expect_json_string_field(attr, "namespace", &attr_path, None)?;
+        }
+        if let Some(value) = attr.get("value") {
+            if !value.is_null() && !value.is_string() {
+                return Err(format!("{attr_path}.value must be a string or null"));
+            }
+        }
+        validate_optional_byte_range(attr, &attr_path)?;
+    }
+    Ok(())
+}
+
+fn validate_optional_byte_range(
+    object: &serde_json::Map<String, serde_json::Value>,
+    path: &str,
+) -> Result<(), String> {
+    let Some(byte_range) = object.get("byteRange") else {
+        return Ok(());
+    };
+    if byte_range.is_null() {
+        return Ok(());
+    }
+    let range_path = format!("{path}.byteRange");
+    let range = json_object(byte_range, &range_path)?;
+    expect_json_u64_field(range, "start", &range_path)?;
+    expect_json_u64_field(range, "len", &range_path)?;
+    Ok(())
+}
+
+fn json_object<'a>(
+    value: &'a serde_json::Value,
+    path: &str,
+) -> Result<&'a serde_json::Map<String, serde_json::Value>, String> {
+    value
+        .as_object()
+        .ok_or_else(|| format!("{path} must be an object"))
+}
+
+fn expect_json_string_field<'a>(
+    object: &'a serde_json::Map<String, serde_json::Value>,
+    field: &str,
+    path: &str,
+    expected: Option<&str>,
+) -> Result<&'a str, String> {
+    let value = object
+        .get(field)
+        .and_then(serde_json::Value::as_str)
+        .ok_or_else(|| format!("{path}.{field} must be a string"))?;
+    if let Some(expected) = expected {
+        if value != expected {
+            return Err(format!(
+                "{path}.{field} must be `{expected}`, got `{value}`"
+            ));
+        }
+    }
+    Ok(value)
+}
+
+fn expect_json_u64_field(
+    object: &serde_json::Map<String, serde_json::Value>,
+    field: &str,
+    path: &str,
+) -> Result<u64, String> {
+    object
+        .get(field)
+        .and_then(serde_json::Value::as_u64)
+        .ok_or_else(|| format!("{path}.{field} must be a non-negative integer"))
+}
+
+fn cem_dom_projection_diagnostic(
+    input: &eng::EngineInput,
+    code: &'static str,
+    message: String,
+) -> cem_ml::diagnostics::Diagnostic {
+    cem_ml::diagnostics::Diagnostic {
+        uri: Some(input.uri.clone()),
+        code: code.to_owned(),
+        severity: cem_ml::diagnostics::Severity::Error,
+        message,
+        ..cem_ml::diagnostics::Diagnostic::default()
+    }
 }
 
 fn json_parse_error_diagnostic(
@@ -4868,6 +5332,24 @@ mod tests {
         let p = dir.join(name);
         std::fs::write(&p, body).unwrap();
         p
+    }
+
+    fn write_binary_fixture(name: &str, body: &[u8]) -> PathBuf {
+        let dir = std::env::temp_dir().join("cem-ml-cli-tests");
+        std::fs::create_dir_all(&dir).unwrap();
+        let p = dir.join(name);
+        std::fs::write(&p, body).unwrap();
+        p
+    }
+
+    fn test_cem_document(input: &str) -> cem_ml::parser::document::CemDocument {
+        let source = cem_ml::source::BytesSource::new(
+            cem_ml::source::SourceId(1),
+            input.as_bytes().to_vec(),
+        );
+        let tokenizer = cem_ml::tokenizer::cem::CemTokenizer::from_source(source);
+        let normalizer = cem_ml::events::cem::CemEventNormalizer::new(tokenizer);
+        cem_ml::parser::builder::CemAstBuilder::new(normalizer).build()
     }
 
     fn local_file_uri(path: &Path) -> String {
@@ -7817,6 +8299,157 @@ declare variable broken := 1 +"#,
         assert!(diagnostics
             .iter()
             .any(|diag| diag["code"] == "cem.json_schema.unsupported_dialect"));
+    }
+
+    #[test]
+    fn validate_cem_dom_binary_projection_source_uses_binary_validator() {
+        let doc = test_cem_document("{p | Hi}");
+        let artifact = cem_ml::projection::dom_binary_projection_artifact(&doc);
+        let p = write_binary_fixture("validate-cem-dom-source.cem-bin", &artifact.bytes);
+        let (outcome, stdout, stderr) = run(
+            &RealCemMlEngine::new(),
+            &[
+                "validate",
+                "--format",
+                "json",
+                "--content-type",
+                cem_ml::schema::registry::CEM_DOM_PROJECTION_CONTENT_TYPE,
+                "--schema",
+                cem_ml::schema::registry::CEM_DOM_PROJECTION_SCHEMA_URI,
+                p.to_str().unwrap(),
+            ],
+        );
+
+        assert_eq!(outcome.exit_code, EXIT_OK, "{stderr}");
+        let v: serde_json::Value = serde_json::from_str(stdout.trim()).unwrap();
+        let diagnostics = v["diagnostics"].as_array().unwrap();
+        assert_eq!(v["summary"]["hardViolationCount"], 0);
+        assert!(!diagnostics
+            .iter()
+            .any(|diag| diag["code"] == "cem.lifecycle.adapter_unsupported"));
+        assert!(!diagnostics.iter().any(|diag| diag["code"]
+            .as_str()
+            .is_some_and(|code| code.starts_with("cem.schema."))));
+    }
+
+    #[test]
+    fn validate_cem_dom_binary_projection_source_reports_magic_diagnostic() {
+        let p = write_binary_fixture("validate-cem-dom-source-invalid.cem-bin", b"not-cem-proj");
+        let (outcome, stdout, stderr) = run(
+            &RealCemMlEngine::new(),
+            &[
+                "validate",
+                "--format",
+                "json",
+                "--content-type",
+                cem_ml::schema::registry::CEM_DOM_PROJECTION_CONTENT_TYPE,
+                "--schema",
+                cem_ml::schema::registry::CEM_DOM_PROJECTION_SCHEMA_URI,
+                p.to_str().unwrap(),
+            ],
+        );
+
+        assert_eq!(outcome.exit_code, EXIT_HARD_FAILURE, "{stderr}");
+        let v: serde_json::Value = serde_json::from_str(stdout.trim()).unwrap();
+        let diagnostics = v["diagnostics"].as_array().unwrap();
+        assert!(diagnostics
+            .iter()
+            .any(|diag| diag["code"] == "cem.projection.dom.binary_magic"));
+    }
+
+    #[test]
+    fn validate_cem_dom_json_projection_source_uses_dom_json_validator() {
+        let p = write_fixture(
+            "validate-cem-dom-source.dom.json",
+            r#"{
+  "kind": "document",
+  "children": [
+    {
+      "kind": "element",
+      "name": "p",
+      "namespace": "",
+      "attributes": [],
+      "children": [
+        {
+          "kind": "text",
+          "data": "Hi",
+          "byteRange": {
+            "start": 5,
+            "len": 2
+          }
+        }
+      ],
+      "byteRange": {
+        "start": 0,
+        "len": 8
+      }
+    }
+  ]
+}"#,
+        );
+        let (outcome, stdout, stderr) = run(
+            &RealCemMlEngine::new(),
+            &[
+                "validate",
+                "--format",
+                "json",
+                "--content-type",
+                cem_ml::schema::registry::CEM_DOM_JSON_PROJECTION_CONTENT_TYPE,
+                "--schema",
+                cem_ml::schema::registry::CEM_DOM_PROJECTION_SCHEMA_URI,
+                p.to_str().unwrap(),
+            ],
+        );
+
+        assert_eq!(outcome.exit_code, EXIT_OK, "{stderr}");
+        let v: serde_json::Value = serde_json::from_str(stdout.trim()).unwrap();
+        let diagnostics = v["diagnostics"].as_array().unwrap();
+        assert_eq!(v["summary"]["hardViolationCount"], 0);
+        assert!(!diagnostics
+            .iter()
+            .any(|diag| diag["code"] == "cem.lifecycle.adapter_unsupported"));
+        assert!(!diagnostics.iter().any(|diag| diag["code"]
+            .as_str()
+            .is_some_and(|code| code.starts_with("cem.schema."))));
+    }
+
+    #[test]
+    fn validate_cem_dom_json_projection_source_reports_shape_diagnostic() {
+        let p = write_fixture(
+            "validate-cem-dom-source-invalid.dom.json",
+            r#"{
+  "kind": "document",
+  "children": [
+    {
+      "kind": "widget",
+      "name": "p",
+      "namespace": "",
+      "attributes": [],
+      "children": []
+    }
+  ]
+}"#,
+        );
+        let (outcome, stdout, stderr) = run(
+            &RealCemMlEngine::new(),
+            &[
+                "validate",
+                "--format",
+                "json",
+                "--content-type",
+                cem_ml::schema::registry::CEM_DOM_JSON_PROJECTION_CONTENT_TYPE,
+                "--schema",
+                cem_ml::schema::registry::CEM_DOM_PROJECTION_SCHEMA_URI,
+                p.to_str().unwrap(),
+            ],
+        );
+
+        assert_eq!(outcome.exit_code, EXIT_HARD_FAILURE, "{stderr}");
+        let v: serde_json::Value = serde_json::from_str(stdout.trim()).unwrap();
+        let diagnostics = v["diagnostics"].as_array().unwrap();
+        assert!(diagnostics
+            .iter()
+            .any(|diag| diag["code"] == "cem.projection.dom.json_shape"));
     }
 
     #[test]
